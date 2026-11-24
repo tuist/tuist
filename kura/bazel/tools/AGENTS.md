@@ -13,3 +13,7 @@ XML escaping, empty failures, invalid UTF-8 and I/O failures.
 Bazel `--test_filter` is not translated into libtest filters. Pass substrings
 with `--test_arg=substring` instead. Keep all arguments after binary/suite/reporter
 forwarded unchanged, including `--ignored` for explicit opt-in qualification.
+
+With `shard_count`, each shard lists the cases those arguments select and runs
+every `TEST_TOTAL_SHARDS`-th one by exact name. Every case must land in exactly
+one shard, and a shard without cases must run none rather than all.

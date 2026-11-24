@@ -90,6 +90,13 @@ type KuraInstanceSpec struct {
 	// instance NetworkPolicy drops them.
 	ClientCIDRs []string `json:"clientCIDRs,omitempty"`
 
+	// GatewayEntrances publish a private instance on other sites' gateways, so
+	// a site whose own node for the account is missing or not serving can read
+	// this one through its local gateway. Each entrance gets its own Ingresses
+	// and DNS record and is observed on its own (status.gatewayEntrances); the
+	// instance's PrivateHost and its readiness never depend on one.
+	GatewayEntrances []GatewayEntrance `json:"gatewayEntrances,omitempty"`
+
 	// PodAnnotations are merged into the pod template (controller-owned
 	// annotations win). Used per region for traffic shaping, e.g.
 	// `kubernetes.io/egress-bandwidth` on pools whose node NIC is
@@ -296,6 +303,43 @@ type KuraInstancePeerRole struct {
 	Node string `json:"node,omitempty"`
 }
 
+// GatewayEntrance is one other site's way in to a private instance: its
+// gateway serves Host, admits ClientCIDRs, and proxies to the instance's
+// primary Service over the cluster network.
+type GatewayEntrance struct {
+	// Site is the rack site whose gateway serves the entrance. It names the
+	// entrance's objects, so it is unique within an instance.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`
+	Site string `json:"site"`
+	// Host is the entrance's client hostname. It is served with the shared
+	// wildcard certificate only: an entrance mints no certificate of its own.
+	Host string `json:"host"`
+	// IngressClassName is the site gateway's host-network ingress class.
+	IngressClassName string `json:"ingressClassName"`
+	// ClientCIDRs are the site's runner networks the gateway admits.
+	ClientCIDRs []string `json:"clientCIDRs"`
+	// NodeSelector picks the site's gateway nodes; DNS targets one of their
+	// tuist.dev/pn-ipv4 addresses.
+	NodeSelector map[string]string `json:"nodeSelector"`
+	// RateLimitKBps bounds the send rate of each response through the
+	// entrance, in kilobytes per second. Zero sets no limit.
+	RateLimitKBps int32 `json:"rateLimitKBps,omitempty"`
+	// ConnectionLimit bounds the concurrent connections one client address may
+	// hold through the entrance. Zero sets no limit. ingress-nginx counts each
+	// concurrent HTTP/2 request as a connection, so for gRPC and h2 clients it
+	// bounds requests in flight, and the excess gets an HTML 503.
+	ConnectionLimit int32 `json:"connectionLimit,omitempty"`
+}
+
+type GatewayEntranceStatus struct {
+	Site               string       `json:"site"`
+	URL                string       `json:"url,omitempty"`
+	Reason             string       `json:"reason,omitempty"`
+	Message            string       `json:"message,omitempty"`
+	LastCheckedAt      *metav1.Time `json:"lastCheckedAt,omitempty"`
+	ObservedGeneration int64        `json:"observedGeneration,omitempty"`
+}
+
 type KuraInstanceStatus struct {
 	ReplicaRecovery *ReplicaRecoveryStatus `json:"replicaRecovery,omitempty"`
 
@@ -307,13 +351,17 @@ type KuraInstanceStatus struct {
 	EndpointMessage            string       `json:"endpointMessage,omitempty"`
 	PrivateURL                 string       `json:"privateURL,omitempty"`
 	EndpointObservedGeneration int64        `json:"endpointObservedGeneration,omitempty"`
-	Phase                      string       `json:"phase,omitempty"`
-	PublicURL                  string       `json:"publicURL,omitempty"`
-	GRPCPublicURL              string       `json:"grpcPublicURL,omitempty"`
-	ObservedImage              string       `json:"observedImage,omitempty"`
-	ReadyReplicas              int32        `json:"readyReplicas,omitempty"`
-	Message                    string       `json:"message,omitempty"`
-	LastReconciledAt           *metav1.Time `json:"lastReconciledAt,omitempty"`
+	// GatewayEntrances report each spec entrance's observation, like
+	// PrivateURL does for PrivateHost: URL is set only while the entrance's
+	// gateway, certificate, DNS and the serving primary are ready.
+	GatewayEntrances []GatewayEntranceStatus `json:"gatewayEntrances,omitempty"`
+	Phase            string                  `json:"phase,omitempty"`
+	PublicURL        string                  `json:"publicURL,omitempty"`
+	GRPCPublicURL    string                  `json:"grpcPublicURL,omitempty"`
+	ObservedImage    string                  `json:"observedImage,omitempty"`
+	ReadyReplicas    int32                   `json:"readyReplicas,omitempty"`
+	Message          string                  `json:"message,omitempty"`
+	LastReconciledAt *metav1.Time            `json:"lastReconciledAt,omitempty"`
 
 	// ImageHold names the operator procedure a requested image waits on
 	// (FencedImagePin, FencedReplacement, RecoveryRolloutHold), empty when

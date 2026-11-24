@@ -7,6 +7,14 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.Oauth2Identity
 
+  @doc """
+  A user access JWT, the credential the CLI sends after `tuist auth login`.
+  """
+  def user_access_token(user) do
+    {:ok, token, _} = Tuist.Authentication.encode_and_sign(user, %{}, token_type: :access, ttl: {1, :hour})
+    token
+  end
+
   def user_fixture(opts \\ []) do
     email = Keyword.get(opts, :email, unique_user_email())
     handle = Keyword.get(opts, :handle, handle_from_email(email))

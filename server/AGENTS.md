@@ -87,8 +87,12 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
   rules are created by hand in Grafana; that document is not provisioning.
 - ClickHouse reads are measured by `Tuist.ClickHouseRepo.PromExPlugin` (count
   and duration by outcome) and LiveView async loads by
-  `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric:
-  a metric nothing queries has its labels aggregated away by Grafana Cloud.
+  `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric.
+  Outside production the collector drops every `tuist_*` metric before it
+  reaches Pulse unless its name matches the hand-maintained non-production
+  keep regex in `infra/helm/k8s-monitoring/values.yaml`, which lists the
+  metrics alerts without a production pin read. An alert alone does not keep
+  a new metric there: extend that regex too. Production keeps them all.
 - `Tuist.Repo.PromExPlugin` exports pool pressure, query attempts by outcome,
   and connection-wait, execution, decoding, and total-duration histograms for
   PostgreSQL and ClickHouse in all runtimes. The `workload` label separates
@@ -109,9 +113,9 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 
 - The test builder, formatter and seed jobs retain ordinary `deps` and `_build` volumes. Always run dependency resolution and the required compilation/checks on warm caches; Mix owns invalidation.
 - Shards download the exact build and disable compilation during database setup and explicit `--no-download` execution. Do not normalize checkout timestamps to hide invalidation. The guarded project-local compile function must skip SDK bootstrap as well. Load restored paths explicitly before discovering the test task, including in retry processes; discovery otherwise runs before forwarded flags can take effect.
-- Keep the builder's `_build` volume plain. On main, current ClickHouse shards instrument their own downloaded builds with `--cover`; shards do not retain `_build` in a volume. This avoids copying builds or publishing instrumented BEAMs into the builder cache. The builder's volume also owns CLDR downloads, without a nested archive cache.
+- Keep the builder's `_build` volume plain. On main and on pull requests, the builder instruments the current ClickHouse build once with `mix tuist.test.build --cover`, after setting the compiled application (`_build/test/lib/tuist`, manifests included) aside, and puts it back right after the upload, so no instrumented BEAM reaches the cache volume or the oldest-supported ClickHouse plan. The builder's volume also owns CLDR downloads, without a nested archive cache.
 - `bash ../.github/scripts/server-db.test.sh` tests migration script forwarding and failure guards without databases.
-- Docker's optional `mix-cache` context retains only the production builds of `tuist`, `tuist_common`, `tuist_ex` and `noora`, never test outputs or fetched/native dependencies. Keep `deps-builder` layer-cached; seed the four project directories through a read-only bind in the compile RUN and let Mix invalidate them normally. Export `mix-cache-export` before assets/release so no old release enters the snapshot. Ordinary builds use an empty seed and require no cache service.
+- Docker's optional `mix-cache` context retains only the production builds of `tuist`, `tuist_common`, `tuist_ex` and `noora` plus `_build/prod/phoenix-colocated`, never test outputs or fetched/native dependencies. Colocated hooks and CSS are written only when their module compiles, so a snapshot without them is never restored: unchanged components would vanish from the asset bundles. Keep `deps-builder` layer-cached; seed the four project directories through a read-only bind in the compile RUN and let Mix invalidate them normally. Export `mix-cache-export` before assets/release so no old release enters the snapshot. Ordinary builds use an empty seed and require no cache service.
 - Keep the Docker `swift-artifacts` scratch stage between the Swift builder and runtime/release consumers. Only the parser executable and Swift runtime libraries belong there, so a cached build does not materialize the toolchain and `.build` tree just to copy shipped artifacts.
 - Docker builds use the repository root context and `Dockerfile.dockerignore`, not `server/.dockerignore`. Keep every Dockerfile COPY input allowed, and exclude nested dependency/build directories and credentials. The fetched dependency stage copies only local package manifests and skips local compilation; local sources compile in the application stage. Preserve per-commit runtime security updates. Explicitly retain the public `priv/static/server/self-host/.env.example` after the general `.env*` exclusion; the Docker smoke test asserts it ships. Bare parent negations re-include their entire subtree, so keep the context allowlist narrow.
 
@@ -129,7 +133,7 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 - Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.
 
 LVM region enrollment encrypts all Kura claims by default and selects the
-extended disk resource. BER1 stays on its legacy class until explicitly
+extended disk resource. Alder stays on its legacy class until explicitly
 enrolled after rack plugin/host preparation; the account flag alone cannot
 move it onto file-backed encryption. Desired and rendered manifest revisions
 must include both encryption and LVM enrollment identically.
@@ -137,5 +141,5 @@ must include both encryption and LVM enrollment identically.
 ## Deployment
 
 - Read [../infra/AGENTS.md](../infra/AGENTS.md) before shared-infrastructure work. Managed deployments use CAPI Kubernetes on Hetzner through Helm; chart and environment values live in `infra/helm/tuist/`.
-- `.github/workflows/server-production-deployment.yml` cascades main through canary, acceptance tests, runners acceptance and the Kura rollout gate before production (with a hotfix fast path). Runners acceptance requires remote compilation-cache hits; `.github/workflows/runners-acceptance.yml` probes production runners and the BER1 rack hourly.
+- `.github/workflows/server-production-deployment.yml` cascades main through canary, acceptance tests, runners acceptance and the Kura rollout gate before production (with a hotfix fast path). Runners acceptance requires remote compilation-cache hits; `.github/workflows/runners-acceptance.yml` probes production runners and the alder rack hourly.
 - Canary/production pin the newest `kura@X.Y.0-canary.N` in the deployed commit; the cascade calls `kura-release.yml` when Kura changed. Fresh staging builds its runtime from that commit. `kura_runtime_image_tag` overrides the pin in `server-deployment.yml`, which also supports single-environment manual deployments.

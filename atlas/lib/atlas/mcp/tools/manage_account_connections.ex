@@ -8,7 +8,7 @@ defmodule Atlas.MCP.Tools.ManageAccountConnections do
       "required" => ["action"],
       "properties" => %{
         "action" => %{"type" => "string", "enum" => ["list", "disconnect"]},
-        "provider" => %{"type" => "string", "enum" => ["github", "slack", "google"]}
+        "provider" => %{"type" => "string", "enum" => ["github", "slack", "google", "qonto"]}
       },
       "additionalProperties" => false
     },
@@ -109,7 +109,8 @@ defmodule Atlas.MCP.Tools.ManageAccountConnections do
 
   defp perform(_user, %{"action" => "list"}), do: :ok
 
-  defp perform(user, %{"action" => "disconnect", "provider" => provider}) when provider in ~w(github slack google) do
+  defp perform(user, %{"action" => "disconnect", "provider" => provider})
+       when provider in ~w(github slack google qonto) do
     case Connections.disconnect(user, provider) do
       {:ok, :ok} -> :ok
       {:error, _} -> {:error, "Could not disconnect your account."}

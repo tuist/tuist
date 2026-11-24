@@ -5,9 +5,11 @@ trap 'rm -rf "$tmp"' EXIT
 chart=infra/helm/k8s-monitoring
 origin=http://pulse.observability.svc.cluster.local:4000
 # Extract one top-level-or-indented Alloy block by its exact opening line.
+# Never pipe it into `grep -q`: grep exits at the first match, and under
+# pipefail awk's next write then fails the script with SIGPIPE (exit 141).
 block() { awk -v start="$1" '$0 ~ "^ *" start " \\{$" { copying=1; indent=match($0, /[^ ]/) } copying { print } copying && $0 ~ "^ {" indent-1 "}}$" { exit }' "$2"; }
 config() { jq -er --arg name "$1" '.[] | select(.kind == "ConfigMap" and (.metadata.name | endswith($name))) | .data["config.alloy"]' "$tmp/rendered.json"; }
-# Metrics: native remote write, public database, write-only user, Cloud's policy.
+# Metrics: native remote write, public database, write-only user, cost policy.
 check_metrics() {
   yq ea -o=json '[.]' "$tmp/rendered.yaml" > "$tmp/rendered.json"
   config alloy-metrics > "$tmp/metrics.alloy"
@@ -18,28 +20,18 @@ check_metrics() {
     grep -Fq '"X-Pulse-DB-Name" = "public",' "$tmp/writer.alloy"
     grep -Fq 'remote.kubernetes.secret.pulse_metrics.data["ingest-username"]' "$tmp/writer.alloy"
     grep -Fq 'remote.kubernetes.secret.pulse_metrics.data["ingest-password"]' "$tmp/writer.alloy"
-    block 'remote.kubernetes.secret "pulse_metrics"' "$tmp/$file.alloy" | grep -Eq 'name += "pulse-dashboard-auth"'
+    block 'remote.kubernetes.secret "pulse_metrics"' "$tmp/$file.alloy" | grep -E 'name += "pulse-dashboard-auth"' > /dev/null
   done
-  for destination in grafana_cloud_metrics pulse_metrics; do
-    awk -v destination="$destination" '
-      $0 == "prometheus.remote_write \"" destination "\" {" { copying=1 }
-      copying && /write_relabel_config \{/ { rule=1 }
-      rule { print }
-      rule && /^    }/ { rule=0 }
-      copying && /^}/ { exit }
-    ' "$tmp/metrics.alloy" > "$tmp/$destination.rules"
-  done
-  test -s "$tmp/pulse_metrics.rules"
-  cmp "$tmp/grafana_cloud_metrics.rules" "$tmp/pulse_metrics.rules"
+  # The cost-control relabel rules now live on the Pulse writer.
+  block 'prometheus.remote_write "pulse_metrics"' "$tmp/metrics.alloy" | grep 'write_relabel_config {' > /dev/null
 }
 for environment in staging canary production; do
   helm lint "$chart" -n observability -f "$chart/values-$environment.yaml"
   helm template k8s-monitoring "$chart" -n observability -f "$chart/values-$environment.yaml" > "$tmp/rendered.yaml"
-  # Cloud and Pulse each keep every signal. Nothing reads the legacy
-  # pulse-credentials Secret.
-  if grep -q 'pulse-credentials' "$tmp/rendered.yaml"; then exit 1; fi
+  # Pulse keeps every signal and nothing writes to Grafana Cloud. Nothing
+  # reads the legacy pulse-credentials Secret.
+  if grep -Eq 'pulse-credentials|grafana[-_]cloud|grafana\.net' "$tmp/rendered.yaml"; then exit 1; fi
   for signal in metrics logs traces; do
-    grep -q "Destination: grafana-cloud-$signal" "$tmp/rendered.yaml"
     grep -q "Destination: pulse-$signal" "$tmp/rendered.yaml"
   done
   check_metrics
@@ -68,32 +60,26 @@ for environment in staging canary production; do
   # The upstream OTLP and Prometheus destinations always read `tenantId` from an
   # external Secret; pulse-dashboard-auth has none, so Alloy sends an empty
   # X-Scope-OrgID (as for Grafana Cloud), which Pulse ignores.
-  block 'otelcol.auth.basic "pulse_traces"' "$tmp/receiver.alloy" | grep -Fq 'data["ingest-password"]'
-  block 'remote.kubernetes.secret "pulse_traces"' "$tmp/receiver.alloy" | grep -Eq 'name += "pulse-dashboard-auth"'
+  block 'otelcol.auth.basic "pulse_traces"' "$tmp/receiver.alloy" | grep -F 'data["ingest-password"]' > /dev/null
+  block 'remote.kubernetes.secret "pulse_traces"' "$tmp/receiver.alloy" | grep -E 'name += "pulse-dashboard-auth"' > /dev/null
   # Pulse types the status-code column from its first write, so Bandit's "nil"
   # string would otherwise reject the whole span.
   block 'otelcol.processor.transform "pulse_traces"' "$tmp/receiver.alloy" |
-    grep -Fq '"delete_key(attributes, \"http.response.status_code\") where attributes[\"http.response.status_code\"] == \"nil\""'
+    grep -F '"delete_key(attributes, \"http.response.status_code\") where attributes[\"http.response.status_code\"] == \"nil\""' > /dev/null
   jq -e 'all(.[]; .kind != "Alloy" or (.metadata.name | endswith("pulse-traces-sampler") | not))' \
     "$tmp/rendered.json" > /dev/null
 
-  # Service-graph metrics are derived for Pulse only; Tempo makes Cloud's own.
+  # Service-graph metrics are derived from the traces and written to Pulse.
   jq -e '
     [.[] | select(.kind == "Alloy" and (.metadata.name | endswith("pulse-traces-servicegraph")))] |
     length == 1 and (.[0].spec.alloy.configMap.content |
-      contains("otelcol.exporter.prometheus.pulse_metrics.input") and
-      (contains("grafana_cloud") | not))
+      contains("otelcol.exporter.prometheus.pulse_metrics.input"))
   ' "$tmp/rendered.json" > /dev/null
 done
-# Management collects metrics only, for Cloud and its own Pulse.
+# Management collects metrics only, for its own Pulse.
 helm lint "$chart" -n observability -f "$chart/values-management.yaml"
 helm template k8s-monitoring "$chart" -n observability -f "$chart/values-management.yaml" > "$tmp/rendered.yaml"
-if grep -Eq 'pulse[-_](logs|traces)|pulse-credentials' "$tmp/rendered.yaml"; then exit 1; fi
-grep -q 'Destination: grafana-cloud-metrics' "$tmp/rendered.yaml"
+if grep -Eq 'pulse[-_](logs|traces)|pulse-credentials|grafana[-_]cloud|grafana\.net' "$tmp/rendered.yaml"; then exit 1; fi
+grep -q 'Destination: pulse-metrics' "$tmp/rendered.yaml"
 check_metrics
-# Pentest collects metrics only for Cloud: no Pulse writer or Secret.
-helm lint "$chart" -n observability -f "$chart/values-pentest.yaml"
-helm template k8s-monitoring "$chart" -n observability -f "$chart/values-pentest.yaml" > "$tmp/rendered.yaml"
-if grep -Eq 'pulse[-_](metrics|logs|traces)|pulse\.observability|pulse-credentials|pulse-dashboard-auth' "$tmp/rendered.yaml"; then exit 1; fi
-grep -q 'Destination: grafana-cloud-metrics' "$tmp/rendered.yaml"
-echo 'PASS: workload collectors write natively to Pulse with its headers and the write-only pulse-dashboard-auth login; management writes metrics to its Pulse; pentest stays Cloud-only; Cloud preserved'
+echo 'PASS: collectors write only to Pulse, natively with its headers and the write-only pulse-dashboard-auth login; management writes metrics to its Pulse'

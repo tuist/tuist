@@ -42,6 +42,13 @@ that pool's intro secret.
   on every pass, including while runners are disabled or the allowance is
   exhausted; only queueing stops then. A failed session write leaves the row
   for the next pass.
+- A waiting build is queued even when its pool's shape exceeds the account's
+  whole limit: it waits as withheld work and is claimed once the limit allows
+  it. While the allowance is spent or runners are off, nothing is queued;
+  the poll returns that reason so the connection keeps it as `last_error`,
+  logs only when the error changes, and counts the builds on
+  `tuist_runners_dispatch_refused_count`. Never let such a pass report
+  success: the build sits on Bitrise with nothing else saying why.
 - Bitrise report tokens authorize only the start report. They are not accepted
   by the log or finish endpoints.
 - Jobs are trusted (`job_trusted?` true) and get the cache signing grant and

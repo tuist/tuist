@@ -20,13 +20,18 @@ import (
 	"sync"
 	"time"
 
+	repb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tuist/tuist/infra/sandboxd/internal/diskusage"
 	bs "google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // MaxBlob matches the executor's per-blob bound.
@@ -35,6 +40,18 @@ const MaxBlob = 1 << 30
 // fillTimeout bounds one CAS download. It does not depend on the requesting
 // action, whose cancellation must not fail the other actions waiting on it.
 const fillTimeout = 5 * time.Minute
+
+// stallTimeout fails a download that receives nothing for this long, so the
+// actions waiting on it read the blob from the CAS themselves instead of
+// waiting out fillTimeout behind a stalled stream.
+const stallTimeout = 30 * time.Second
+
+var errStalled = errors.New("CAS download stalled")
+
+// keepaliveParams ping a CAS connection while downloads run on it, so one
+// that died silently fails its downloads within seconds and reconnects,
+// instead of hanging every download on the node until TCP gives up.
+var keepaliveParams = keepalive.ClientParameters{Time: 15 * time.Second, Timeout: 10 * time.Second}
 
 // minFreeFraction is the share of the data filesystem the cache leaves free.
 // It shares the filesystem with runner cache volumes, containerd and kubelet,
@@ -71,6 +88,8 @@ type entry struct {
 	ready chan struct{}
 	err   error
 	elem  *list.Element // in lru once ready
+	// hits counts the requests that found or waited for it; see Image.
+	hits int
 }
 
 type Metrics struct {
@@ -107,6 +126,7 @@ type Cache struct {
 	// Filesystem reports the data filesystem's size and free bytes; tests
 	// replace it.
 	Filesystem func(path string) (total, available uint64, err error)
+	stall      time.Duration // stallTimeout; tests shorten it
 
 	mu      sync.Mutex
 	entries map[string]*entry
@@ -115,6 +135,9 @@ type Cache struct {
 	pending int64     // reserved bytes not yet on disk
 	conns   map[string]*grpc.ClientConn
 	tmp     int
+	images  map[string]*imageState // by scope key; see Image
+	// Mkfs formats an inputs image around a tree; tests replace it.
+	Mkfs func(ctx context.Context, image, root string) error
 }
 
 // New empties dir and returns a cache bounded to budget bytes. Nothing in it
@@ -129,7 +152,7 @@ func New(dir string, budget int64, log *slog.Logger, metrics *Metrics) (*Cache, 
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Cache{dir: dir, budget: budget, log: log, metrics: metrics, Dial: Dial, Filesystem: diskusage.Filesystem, entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}}, nil
+	return &Cache{dir: dir, budget: budget, log: log, metrics: metrics, Dial: Dial, Filesystem: diskusage.Filesystem, stall: stallTimeout, entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}}, nil
 }
 
 // Dir is where the cache keeps its files, for disk accounting.
@@ -186,6 +209,7 @@ func (c *Cache) Open(ctx context.Context, s Scope, hash string, size int64) (*os
 			continue
 		}
 		c.lru.MoveToBack(e.elem)
+		e.hits++
 		f, err := os.Open(e.path)
 		c.mu.Unlock()
 		if err != nil {
@@ -210,6 +234,11 @@ func (c *Cache) reserve(key, path string, size int64) (*entry, error) {
 	for c.used+size > c.budget || c.shortOfDisk(size) {
 		oldest := c.lru.Front()
 		if oldest == nil {
+			// Inputs images count in the budget too; blobs come first.
+			if st := c.oldestImage(nil); st != nil {
+				c.dropImage(st)
+				continue
+			}
 			c.gauge()
 			return nil, ErrFull
 		}
@@ -289,29 +318,55 @@ func (c *Cache) download(ctx context.Context, e *entry, s Scope, hash string) (e
 			os.Remove(tmp)
 		}
 	}()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	defer func() {
+		if err != nil && errors.Is(context.Cause(ctx), errStalled) {
+			err = errStalled
+		}
+	}()
+	stall := time.AfterFunc(c.stall, func() { cancel(errStalled) })
+	defer stall.Stop()
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+s.Token, "x-tuist-account-handle", s.Account))
-	stream, err := bs.NewByteStreamClient(conn).Read(ctx, &bs.ReadRequest{ResourceName: fmt.Sprintf("%s/blobs/%s/%d", s.Instance, hash, e.size)})
+	// Negotiate for this instance with this credential. Older CAS servers may
+	// not implement capabilities; they keep the identity read path. Do not
+	// cache an auth failure or a capability across project scopes or rollouts.
+	caps, err := repb.NewCapabilitiesClient(conn).GetCapabilities(ctx, &repb.GetCapabilitiesRequest{InstanceName: s.Instance})
+	if err != nil && status.Code(err) != codes.Unimplemented {
+		return err
+	}
+	compressed := false
+	for _, compressor := range caps.GetCacheCapabilities().GetSupportedCompressors() {
+		compressed = compressed || compressor == repb.Compressor_ZSTD
+	}
+	resource := "blobs"
+	if compressed {
+		resource = "compressed-blobs/zstd"
+	}
+	stall.Reset(c.stall)
+	stream, err := bs.NewByteStreamClient(conn).Read(ctx, &bs.ReadRequest{ResourceName: fmt.Sprintf("%s/%s/%s/%d", s.Instance, resource, hash, e.size)})
 	if err != nil {
 		return err
 	}
-	h := sha256.New()
-	var n int64
-	for {
-		part, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
+	var reader io.Reader = &blobReader{stream: stream, stall: stall, timeout: c.stall}
+	if compressed {
+		// Stream to disk, never allocate the advertised blob size. Bound the
+		// decoder's history as well as its concurrency; an oversized frame fails
+		// this fill and leaves the guest's ordinary CAS fallback available.
+		decoder, err := zstd.NewReader(reader, zstd.WithDecoderConcurrency(1), zstd.WithDecoderMaxMemory(8<<20), zstd.WithDecoderMaxWindow(8<<20))
 		if err != nil {
 			return err
 		}
-		n += int64(len(part.Data))
-		if n > e.size {
-			return errors.New("CAS blob exceeds digest size")
-		}
-		h.Write(part.Data)
-		if _, err := f.Write(part.Data); err != nil {
-			return err
-		}
+		defer decoder.Close()
+		reader = decoder
+	}
+	h := sha256.New()
+	n, err := io.Copy(io.MultiWriter(f, h), io.LimitReader(reader, e.size+1))
+	if err != nil {
+		return err
+	}
+	if n > e.size {
+		return errors.New("CAS blob exceeds digest size")
 	}
 	if n != e.size || hex.EncodeToString(h.Sum(nil)) != hash {
 		return errors.New("CAS digest mismatch")
@@ -325,6 +380,31 @@ func (c *Cache) download(ctx context.Context, e *entry, s Scope, hash string) (e
 		return err
 	}
 	return os.Rename(tmp, e.path)
+}
+
+// blobReader resets the stall timer on wire progress, not decoded output:
+// a frame may span many responses before the decoder can emit any bytes.
+type blobReader struct {
+	stream  bs.ByteStream_ReadClient
+	stall   *time.Timer
+	timeout time.Duration
+	pending []byte
+}
+
+func (r *blobReader) Read(p []byte) (int, error) {
+	for len(r.pending) == 0 {
+		part, err := r.stream.Recv()
+		if err != nil {
+			return 0, err
+		}
+		if len(part.Data) > 0 {
+			r.stall.Reset(r.timeout)
+		}
+		r.pending = part.Data
+	}
+	n := copy(p, r.pending)
+	r.pending = r.pending[n:]
+	return n, nil
 }
 
 func (c *Cache) conn(endpoint string) (*grpc.ClientConn, error) {
@@ -358,7 +438,7 @@ func Dial(endpoint string) (*grpc.ClientConn, error) {
 	default:
 		return nil, ErrInvalid
 	}
-	return grpc.NewClient(endpoint, grpc.WithTransportCredentials(transport))
+	return grpc.NewClient(endpoint, grpc.WithTransportCredentials(transport), grpc.WithKeepaliveParams(keepaliveParams))
 }
 
 func validHash(h string) bool {

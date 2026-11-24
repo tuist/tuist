@@ -16,7 +16,7 @@ Faster machines only help the last pattern, and only partly. The first two are a
 
 ## How Tuist addresses it
 
-- **Shared caching.** Tuist backs the build system's own cache, so an output produced once can be reused on developer machines, in CI, and in agent environments: Xcode's compilation cache, the module cache for generated Xcode projects, Gradle's build cache, Bazel's remote cache, and compiled Elixir dependencies. Reuse only happens when inputs match, so cache hits also reveal which inputs keep changing. See [Cache](/marketing-markdown/cache) and the [cache documentation](/en/docs-markdown/guides/features/cache).
+- **Shared caching.** Tuist backs the build system's own cache, so an output produced once can be reused on developer machines, in CI, and in agent environments: Xcode's compilation cache, the module cache for generated Xcode projects, Gradle's build cache, Bazel's remote cache, and compiled Elixir dependencies. Reuse only happens when inputs match, so cache hits also reveal which inputs keep changing. See [Cache](/marketing-markdown/cache), the [cache documentation](/en/docs-markdown/guides/features/cache), and [What is a build cache?](/en/docs-markdown/references/concepts/build-cache) for how build caches work in general.
 - **Build insights.** Tuist records every reported build with its duration, steps or tasks, and cache results, across machines and over time. A regression shows up as a change in a specific target or task instead of a vaguely slower CI. See [Build Insights](/en/docs-markdown/guides/features/build-insights).
 - **Evidence for agents.** The same records are available to authorized coding agents, so an agent can find the slow step and propose a change backed by data, as described below.
 
@@ -57,6 +57,7 @@ Ask for an evidence-backed bottleneck, one proposed change, and a before/after m
 
 ## Further reading
 
+- [What is a build cache?](/en/docs-markdown/references/concepts/build-cache), a vendor-neutral reference on local and remote build caches in Xcode, Gradle, and Bazel, Xcode's own caches, and how to measure a cache.
 - [Build smart before you build fast](/blog/2025/11/17/smart-before-fast) on why avoiding work beats adding capacity.
 - [The physics of build systems](/blog/2026/08/25/the-physics-of-build-systems) on build graphs, incremental builds, and remote caching.
 - Remote caching for [Xcode](/blog/2025/10/22/xcode-cache), [Gradle](/blog/2026/03/02/gradle), and [Bazel](/blog/2026/09/09/bazel).
@@ -78,7 +79,7 @@ Yes. Instrument one project, establish a baseline, and test one intervention bef
 
 ### Hosted or self-hosted?
 
-Use hosted Tuist, or operate a [self-hosted server](/en/docs-markdown/guides/server/self-host/server), which requires the Enterprise plan, and [cache nodes](/en/docs-markdown/guides/features/cache/self-hosting). Self-hosting brings operational responsibility and does not grant access to the invite-only managed Compute fleet.
+Use hosted Tuist, or operate a [self-hosted server](/en/docs-markdown/guides/server/self-host/server), which requires the Enterprise plan, and [cache nodes](/en/docs-markdown/guides/features/cache/self-hosting). Self-hosting brings operational responsibility and does not grant access to the managed Compute fleet.
 
 ### How do we measure value?
 

@@ -405,11 +405,15 @@ spec:
           permissions: "0644"
         # Keep these in sync with controllers/linux/kata_virtiofs.go.
         # virtiofsd's default file budget caps how many inodes a guest
-        # can keep cached; past it, guest opens fail with EMFILE.
+        # can keep cached; past it, guest opens fail with EMFILE. The
+        # default dirty ratios replace an earlier host-wide byte cap that
+        # throttled runner cache publication.
         # `sysctl --system` below applies the first file before
         # containerd starts.
         - content: |
             fs.nr_open = 4194304
+            vm.dirty_background_ratio = 10
+            vm.dirty_ratio = 20
           owner: root:root
           path: /etc/sysctl.d/90-tuist-kata-virtiofs.conf
           permissions: "0644"

@@ -24,16 +24,19 @@ pub const INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY: &str =
 pub const SUPPORT_FLIGHT_METRICS_BEFORE_BATCH_EXTENSION_KEY: &str =
     "query.support_flight_metrics_before_batch";
 pub const LIVE_ANALYZE_METRICS_EXTENSION_KEY: &str = "query.live_analyze_metrics";
+/// An explicit ADMIN flush may request a bounded, serialized retained-window repair.
+pub const FLOW_RECOMPUTE_RETAINED_EXTENSION_KEY: &str = "flow.recompute_retained";
 
 /// Skip WAL for this insert only; never persisted as a table option.
 pub const INSERT_SKIP_WAL_HINT: &str = "insert_skip_wal";
 
 pub const READ_PREFERENCE_HINT: &str = "read_preference";
-pub const RESERVED_EXTENSION_KEYS: [&str; 4] = [
+pub const RESERVED_EXTENSION_KEYS: [&str; 5] = [
     REMOTE_QUERY_ID_EXTENSION_KEY,
     INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY,
     SUPPORT_FLIGHT_METRICS_BEFORE_BATCH_EXTENSION_KEY,
     LIVE_ANALYZE_METRICS_EXTENSION_KEY,
+    FLOW_RECOMPUTE_RETAINED_EXTENSION_KEY,
 ];
 
 /// Deprecated, use `HINTS_KEY` instead.

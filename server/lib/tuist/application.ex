@@ -26,7 +26,10 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.Build.Buffer
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
+  alias Tuist.RemoteExecution.Action, as: RemoteExecutionAction
+  alias Tuist.RemoteExecution.UsageEvent, as: RemoteExecutionUsageEvent
   alias Tuist.Sandboxes.SandboxEvent
+  alias Tuist.Sandboxes.UsageEvent, as: SandboxUsageEvent
   alias Tuist.Telemetry.QueryErrorContext
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.Test
@@ -83,7 +86,6 @@ defmodule Tuist.Application do
 
   defp start_telemetry do
     Tuist.Observability.attach_oban()
-    Tuist.Threads.Checkpoints.attach()
     Oban.Telemetry.attach_default_logger(events: [:notifier, :peer, :plugin, :queue, :stager])
     TuistCommon.ObanLogger.attach()
     TuistCommon.ObanTelemetry.attach()
@@ -370,6 +372,9 @@ defmodule Tuist.Application do
           Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
           Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
           Supervisor.child_spec(SandboxEvent.Buffer, id: SandboxEvent.Buffer),
+          Supervisor.child_spec(SandboxUsageEvent.Buffer, id: SandboxUsageEvent.Buffer),
+          Supervisor.child_spec(RemoteExecutionUsageEvent.Buffer, id: RemoteExecutionUsageEvent.Buffer),
+          Supervisor.child_spec(RemoteExecutionAction.Buffer, id: RemoteExecutionAction.Buffer),
           Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
           Tuist.Vault,
           {Task.Supervisor, name: Tuist.MCP.Events.VerificationSupervisor, max_children: 100},
@@ -389,6 +394,8 @@ defmodule Tuist.Application do
           Tuist.Marketing.BazelShowcase,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
+          # Subscribe only after PubSub is running, not while dependencies boot.
+          FunWithFlags.Supervisor,
           Tuist.Sandboxes.NodePresence,
           {DynamicSupervisor, name: Tuist.RemoteExecution.Schedulers, strategy: :one_for_one},
           {Task.Supervisor, name: Tuist.RemoteExecution.Tasks},
@@ -409,7 +416,6 @@ defmodule Tuist.Application do
         [
           TuistWeb.Draining,
           TuistWeb.Endpoint,
-          {Task.Supervisor, name: Tuist.Threads.Tasks},
           {Oban, Application.fetch_env!(:tuist, Oban)}
         ] ++
         once_events_grpc_children() ++

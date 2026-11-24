@@ -35,6 +35,7 @@ defmodule Tuist.MixProject do
   def application do
     [
       mod: {Tuist.Application, []},
+      included_applications: [:fun_with_flags, :fun_with_flags_ui],
       extra_applications: [:logger, :runtime_tools, :os_mon, :ssh, :inets]
     ]
   end
@@ -56,7 +57,7 @@ defmodule Tuist.MixProject do
       {:phoenix, "~> 1.7"},
       {:phoenix_ecto, "~> 4.4"},
       {:ecto_sql, "~> 3.12"},
-      {:db_connection, "~> 2.9", override: true},
+      {:db_connection, "~> 2.10.3", override: true},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.6.1", only: :dev},
@@ -120,7 +121,7 @@ defmodule Tuist.MixProject do
       {:telemetry_test, "~> 0.1.2"},
       {:saxy, "~> 1.6"},
       {:sweet_xml, "~> 0.7.4"},
-      {:flop, "~> 0.26.0"},
+      {:flop, "~> 0.26.7"},
       {:timex, "~> 3.7.13"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
       # PromEx's standalone metrics server still runs on Cowboy even though
@@ -395,6 +396,10 @@ defmodule Tuist.MixProject do
   end
 
   defp releases do
-    [tuist: []]
+    # FunWithFlags is an included application (Tuist.Application starts its
+    # supervisor after PubSub), but fun_with_flags_ui lists it as a regular
+    # dependency, which `mix release` rejects. Loading both without starting
+    # them keeps the boot order that `included_applications` sets up.
+    [tuist: [applications: [fun_with_flags: :load, fun_with_flags_ui: :load]]]
   end
 end

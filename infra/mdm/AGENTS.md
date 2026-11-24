@@ -1,6 +1,6 @@
 # Fleet MDM (NanoMDM stack)
 
-Self-hosted Apple MDM for the Mac runner fleet (BER1 rack program).
+Self-hosted Apple MDM for the Mac runner fleet (alder rack program).
 Zero-touch ABM automated device enrollment with a deliberately tiny
 payload: service account, fleet SSH key, Remote Login + autorestart via
 a signed pkg, USB-accessory allowance. Everything else on a host comes

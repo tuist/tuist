@@ -247,6 +247,9 @@ echo "$(format_section "Bundling")"
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
+    echo "$(format_subsection "Smoke testing the signed CLI")"
+    "$MISE_PROJECT_ROOT/mise/tasks/cli/smoke-test.sh" "$BUILD_DIRECTORY"
+
     echo "$(format_subsection "Notarizing")"
     zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor libtuist_cas_plugin.dylib tuist-cas-proxy
 

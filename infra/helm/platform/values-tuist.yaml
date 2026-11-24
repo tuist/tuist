@@ -186,8 +186,12 @@ kura-ap-southeast-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
-# The BER1 rack's cache gateway, on its storage node (values.yaml).
+# The alder rack's cache gateway, on its storage node (values.yaml).
 kura-ber1-runners-ingress-nginx:
+  enabled: true
+
+# The larch rack's cache gateway, on its storage node (values.yaml).
+kura-larch-runners-ingress-nginx:
   enabled: true
 
 # South America West (Santiago, Vultr). Same host-network shape as the other
@@ -275,3 +279,11 @@ kuraGatewayNetworkPolicy:
 
 clusterPortsHostPolicy:
   enabled: true
+
+# luft.work serves Luft (infra/helm/luft-server), which runs only in
+# this cluster, so only production runs its external-dns. The Cloudflare token
+# in `cloudflare-api-token` needs Zone.DNS:Edit on luft.work for both it and the
+# letsencrypt-cloudflare DNS-01 solver.
+luftDNS:
+  enabled: true
+  ownerId: tuist-production-luft

@@ -3,7 +3,7 @@ defmodule Tuist.Runners.GitLabTest do
 
   import Mimic
 
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Concurrency
@@ -21,7 +21,8 @@ defmodule Tuist.Runners.GitLabTest do
 
   setup do
     %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
-    stub(FeatureFlags, :runners_enabled?, fn _ -> true end)
+    # The stubbed target is a 16 vCPU / 48 GB macOS guest, larger than Air's limit.
+    Concurrency.raise_to_plan_defaults(account, :pro)
     stub(Allowance, :exhausted?, fn _ -> false end)
 
     stub(Dispatch, :resolve_dispatch_target, fn _, [label] ->
@@ -211,9 +212,8 @@ defmodule Tuist.Runners.GitLabTest do
 
   test "does not acquire jobs when access or allowance is disabled", %{connection: connection} do
     reject(&Client.request_job/1)
-    stub(FeatureFlags, :runners_enabled?, fn _ -> false end)
+    stub(Environment, :runners_available?, fn -> false end)
     assert {:ok, :inactive} = GitLab.poll(connection)
-    stub(FeatureFlags, :runners_enabled?, fn _ -> true end)
     stub(Allowance, :exhausted?, fn _ -> true end)
     assert {:ok, :inactive} = GitLab.poll(connection)
   end
@@ -332,6 +332,22 @@ defmodule Tuist.Runners.GitLabTest do
     expect(Client, :request_job, fn _ -> {:ok, payload} end)
     assert {:ok, 1} = GitLab.poll(connection)
     assert Repo.one!(Job).project_path == ""
+  end
+
+  test "queues a job whose profile exceeds the account's whole limit", %{connection: connection, account: account} do
+    {:ok, _} =
+      Concurrency.update_limits(account, %{
+        runner_linux_vcpus_limit: 16,
+        runner_linux_memory_gb_limit: 64,
+        runner_macos_vcpus_limit: 15,
+        runner_macos_memory_gb_limit: 48
+      })
+
+    expect(Client, :request_job, fn _ -> {:ok, payload()} end)
+    reject(&Client.reject_job/3)
+
+    assert {:ok, 1} = GitLab.poll(connection)
+    assert Repo.one!(WorkflowJob).status == "queued"
   end
 
   test "routing errors survive idle polls and clear after a routable job", %{connection: connection} do

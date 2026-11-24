@@ -449,6 +449,112 @@ defmodule Tuist.Kubernetes.ClientTest do
     end
   end
 
+  describe "resize_sandbox_daemon_memory/4 with a vmm container" do
+    @tag :tmp_dir
+    test "resizes the vmm container, which holds the VMs, instead of sandboxd", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      pod = %{
+        "metadata" => %{"resourceVersion" => "7", "uid" => "pod-uid"},
+        "spec" => %{"containers" => [%{"name" => "sandboxd"}, %{"name" => "vmm"}]}
+      }
+
+      expect(Req, :request, 2, fn request_opts ->
+        case request_opts[:method] do
+          :get ->
+            {:ok, %Req.Response{status: 200, body: pod}}
+
+          :patch ->
+            assert %{"spec" => %{"containers" => [%{"name" => "vmm", "resources" => resources}]}} =
+                     JSON.decode!(request_opts[:body])
+
+            assert resources == %{"requests" => %{"memory" => "2147483648"}, "limits" => %{"memory" => "2147483648"}}
+            {:ok, %Req.Response{status: 200, body: pod}}
+        end
+      end)
+
+      assert {:ok, _pod} = Client.resize_sandbox_daemon_memory("tuist-sandboxes", "sandboxd-abc", 2_147_483_648, opts)
+    end
+  end
+
+  describe "resize_sandbox_daemon_cpu/4" do
+    @tag :tmp_dir
+    test "patches only the CPU request, fenced at the version it read, and skips an unchanged one", %{
+      tmp_dir: tmp_dir
+    } do
+      opts = in_cluster_opts(tmp_dir)
+
+      pod = %{
+        "metadata" => %{"resourceVersion" => "42", "uid" => "pod-uid"},
+        "spec" => %{
+          "containers" => [
+            %{"name" => "sidecar", "resources" => %{"requests" => %{"cpu" => "4"}}},
+            %{"name" => "sandboxd", "resources" => %{"requests" => %{"cpu" => "1500m", "memory" => "1Gi"}}}
+          ]
+        }
+      }
+
+      expect(Req, :request, 3, fn request_opts ->
+        assert request_opts[:retry] == false
+
+        case request_opts[:method] do
+          :get ->
+            {:ok, %Req.Response{status: 200, body: pod}}
+
+          :patch ->
+            assert request_opts[:url] ==
+                     "https://kubernetes.default.svc:443/api/v1/namespaces/tuist-sandboxes/pods/sandboxd-abc/resize"
+
+            assert JSON.decode!(request_opts[:body]) == %{
+                     "metadata" => %{"resourceVersion" => "42", "uid" => "pod-uid"},
+                     "spec" => %{
+                       "containers" => [%{"name" => "sandboxd", "resources" => %{"requests" => %{"cpu" => "2250m"}}}]
+                     }
+                   }
+
+            {:ok, %Req.Response{status: 200, body: pod}}
+        end
+      end)
+
+      assert {:ok, 2250, false} =
+               Client.resize_sandbox_daemon_cpu("tuist-sandboxes", "sandboxd-abc", &(&1 + 750), opts)
+
+      assert {:ok, 1500, true} = Client.resize_sandbox_daemon_cpu("tuist-sandboxes", "sandboxd-abc", & &1, opts)
+    end
+
+    @tag :tmp_dir
+    test "sizes a request from what the kubelet allocated while a growth is deferred", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      pod = %{
+        "metadata" => %{"resourceVersion" => "42", "uid" => "pod-uid"},
+        "spec" => %{"containers" => [%{"name" => "sandboxd", "resources" => %{"requests" => %{"cpu" => "4250m"}}}]},
+        "status" => %{"containerStatuses" => [%{"name" => "sandboxd", "allocatedResources" => %{"cpu" => "250m"}}]}
+      }
+
+      expect(Req, :request, 3, fn request_opts ->
+        case request_opts[:method] do
+          :get ->
+            {:ok, %Req.Response{status: 200, body: pod}}
+
+          :patch ->
+            assert %{"spec" => %{"containers" => [%{"resources" => %{"requests" => %{"cpu" => "1250m"}}}]}} =
+                     JSON.decode!(request_opts[:body])
+
+            {:ok, %Req.Response{status: 200, body: pod}}
+        end
+      end)
+
+      # The growth to 4250m no longer fits: lowering it to 1250m patches.
+      assert {:ok, 1250, false} =
+               Client.resize_sandbox_daemon_cpu("tuist-sandboxes", "sandboxd-abc", &(&1 + 1000), opts)
+
+      # Still asking for 4250m is pending, not applied.
+      assert {:ok, 4250, false} =
+               Client.resize_sandbox_daemon_cpu("tuist-sandboxes", "sandboxd-abc", fn _ -> 4250 end, opts)
+    end
+  end
+
   describe "create_token_review/2" do
     @tag :tmp_dir
     test "returns the SA principal when the token is authenticated and audience-bound", %{tmp_dir: tmp_dir} do

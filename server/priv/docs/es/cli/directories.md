@@ -7,7 +7,7 @@
 ---
 # Directorios {#directories}
 
-Tuist organiza sus archivos en varios directorios de tu sistema, siguiendo la [Especificación de Directorio Base XDG](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html). Esto ofrece una forma limpia y estándar de gestionar los archivos de configuración, caché y estado.
+Tuist organiza sus archivos en varios directorios de tu sistema, siguiendo la [Especificación de directorios base XDG](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html). Esto ofrece una forma limpia y estándar de gestionar los archivos de configuración, caché y estado.
 
 ## Variables de entorno compatibles {#supported-environment-variables}
 
@@ -49,8 +49,8 @@ tuist auth login
 - **Manifests**: Archivos de manifiesto en caché
 - **Projects**: Caché de proyectos de automatización generados
 - **EditProjects**: Caché para el comando edit
-- **Runs**: Datos analíticos de ejecuciones de tests y builds
-- **Binaries**: Artefactos binarios de build (no compartibles entre entornos)
+- **Runs**: Datos de análisis de ejecuciones de tests y builds
+- **Binaries**: Binarios de artefactos de build (no compartibles entre entornos)
 - **SelectiveTests**: Caché de tests selectivos
 
 **Ejemplo:**
@@ -89,16 +89,16 @@ tuist generate
 
 ## Orden de prioridad {#precedence-order}
 
-Para determinar qué directorio usar, Tuist comprueba las variables de entorno en el siguiente orden:
+Al determinar qué directorio usar, Tuist comprueba las variables de entorno en el siguiente orden:
 
 1. **Variable específica de Tuist** (por ejemplo, `TUIST_XDG_CONFIG_HOME`)
 2. **Variable XDG estándar** (por ejemplo, `XDG_CONFIG_HOME`)
 3. **Ubicación predeterminada** (por ejemplo, `~/.config/tuist`)
 
 Esto te permite:
-- Usar variables XDG estándar para organizar todas tus aplicaciones de forma consistente
+- Usar las variables XDG estándar para organizar todas tus aplicaciones de forma coherente
 - Sobrescribir con variables específicas de Tuist cuando necesites ubicaciones diferentes para Tuist
-- Confiar en los valores predeterminados razonables sin ninguna configuración
+- Confiar en valores predeterminados razonables sin ninguna configuración
 
 ## Casos de uso comunes {#common-use-cases}
 

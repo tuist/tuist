@@ -1,0 +1,25 @@
+/* Layout, filters, widgets, chart and table come from the shared .bazel-invocations styles. */
+#remote-execution {
+  min-width: 0;
+
+  & [data-part="once-telemetry-note"] {
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+
+    & p {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+
+  /* Fill the shared 320px chart frame instead of leaving a third of it empty. */
+  & [data-part="analytics-card-chart-section"] .noora-chart {
+    height: 268px;
+  }
+
+  & #remote-execution-search-form {
+    width: 330px;
+    max-width: 100%;
+  }
+}

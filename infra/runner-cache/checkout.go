@@ -31,6 +31,10 @@ const (
 	checkoutVolumesDir     = ".volumes"
 )
 
+// checkoutRefusedFor is how long a host denies a lineage whose first master it
+// refused: every job of it exports the same way and is refused again.
+const checkoutRefusedFor = 24 * time.Hour
+
 var checkoutScope = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var checkoutRepository = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$`)
 var checkoutCommit = regexp.MustCompile(`^[a-f0-9]{40}$`)
@@ -96,6 +100,8 @@ type Checkouts struct {
 	// waiting holds builds refused for disk room until a reconcile retries them.
 	waiting map[string]CheckoutTask
 	busy    map[string]bool
+	// refused holds when a cold build last refused each lineage's export.
+	refused map[string]time.Time
 	queue   chan string
 	ready   bool
 }
@@ -454,9 +460,34 @@ func (c *Checkouts) Process(ctx context.Context, task CheckoutTask) {
 		c.mu.Unlock()
 		return
 	}
-	if err != nil {
+	if errors.Is(err, errCheckoutNotJobCheckout) || errors.Is(err, errCheckoutLFSMissing) {
+		c.mu.Lock()
+		if c.refused == nil {
+			c.refused = map[string]time.Time{}
+		}
+		c.refused[task.Scope] = c.now()
+		c.mu.Unlock()
+	}
+	if err != nil && !errors.Is(err, ErrWithheld) {
 		c.logError(err, "checkout master not updated", "operation", operation)
 	}
+}
+
+// Refusing reports whether this host refused to start the lineage's master from
+// a job's export within checkoutRefusedFor, so it grants no checkout and the job
+// exports nothing that would be refused again.
+func (c *Checkouts) Refusing(scope string) bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	at, ok := c.refused[scope]
+	if ok && c.now().Sub(at) >= checkoutRefusedFor {
+		delete(c.refused, scope)
+		return false
+	}
+	return ok
 }
 
 func (c *Checkouts) build(ctx context.Context, task CheckoutTask, cold bool, meta *checkoutMeta, room uint64) (err error) {
@@ -619,15 +650,16 @@ func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExp
 		exported[oid] = true
 	}
 	store := filepath.Join(repo, ".git", "lfs", "objects")
-	complete := true
-	for _, oid := range lfsPointers(listing) {
+	pointers := lfsPointers(listing)
+	missing := 0
+	for _, oid := range pointers {
 		if exported[oid] {
 			if err := export.copyLFS(oid, store); err != nil {
 				return false, err
 			}
 		}
 		if _, err := os.Stat(filepath.Join(store, oid[:2], oid[2:4], oid)); err != nil {
-			complete = false
+			missing++
 		}
 	}
 	// The tip's tree is what every later job is handed, so it only moves to a
@@ -641,10 +673,13 @@ func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExp
 			return false, err
 		}
 	}
-	if !tip || export.Head == meta.Tip || !complete {
-		if cold {
-			return false, errors.New("checkout export cannot start a master")
-		}
+	if cold && !tip {
+		return false, errCheckoutNotJobCheckout
+	}
+	if cold && missing > 0 {
+		return false, fmt.Errorf("%w (%d of %d)", errCheckoutLFSMissing, missing, len(pointers))
+	}
+	if !tip || export.Head == meta.Tip || missing > 0 {
 		_, _ = git("gc", "--auto", "--quiet")
 		return false, nil
 	}
@@ -672,6 +707,13 @@ func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExp
 	meta.RefreshedAt = c.now()
 	return true, nil
 }
+
+// A cold build refuses an export that would hand later jobs the wrong tree, and
+// every later job of the lineage exports again; these are refusals, not faults.
+var (
+	errCheckoutNotJobCheckout = fmt.Errorf("%w: checkout export is not the job's commit or its pull request merge", ErrWithheld)
+	errCheckoutLFSMissing     = fmt.Errorf("%w: checkout export lacks LFS objects its commit references", ErrWithheld)
+)
 
 // onDefault reports whether the export is the server-verified commit of a
 // default-branch job.

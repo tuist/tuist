@@ -22,6 +22,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
       {:ok, account} = Accounts.update_account(project.account, %{cache_write_policy: :tokens_only})
 
       stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/tuist"}} end)
+      stub(TuistWeb.RemoteIp, :origin, fn _ -> "SG" end)
 
       conn =
         conn
@@ -35,6 +36,9 @@ defmodule TuistWeb.API.OIDCControllerTest do
       {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
 
       assert claims["type"] == "account"
+      # The module cache's REAPI client sends this token itself, so it is the
+      # only place Kura can read the client's origin from.
+      assert claims["cache_origin"] == "SG"
 
       assert claims["scopes"] == ["ci"]
 

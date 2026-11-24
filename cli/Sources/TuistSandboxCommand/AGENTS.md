@@ -6,8 +6,8 @@
   public API and MCP contract in `server/lib/tuist/sandboxes/query.ex` and
   `schemas.ex`; create and exec use the API only (MCP omits them). Change server
   schemas and regenerate OpenAPI; never edit generated files.
-- The server enforces roles (members reach their own build sandboxes, admins
-  everything); the CLI does not check them. `--account` overrides the project
+- The server enforces roles (members and `account:sandboxes:write` tokens reach
+  every sandbox; read-only viewers none); the CLI does not check them. `--account` overrides the project
   full-handle account.
 - `exec` joins the arguments after `--` with spaces and the server runs them with
   `bash -l`; it streams stdout and stderr and exits with the command's exit status
@@ -16,6 +16,16 @@
   already paused succeeds. Deleting requires `--yes`.
 - An error status whose body is not the server's `{"message": …}`, such as a
   proxy's error page, reports the status, not the generated client's decoding error.
+- The server's error bodies carry a stable `code` (`Query.error/1`), which
+  `SandboxServerError` keeps beside the message; branch on it, never on the
+  message, and keep working with servers that send none. `create` does not
+  retry `fleet_busy`: the server already waited 25 seconds for a host and says
+  when to try again.
+- `create --lifetime-minutes` and `extend` take whole minutes (5–1440) and send
+  `lifetime_seconds`; the server ends an expired sandbox hard (cancels its
+  commands, pauses and archives it). Sandboxes without a lifetime (Amp Orbs,
+  Claude sessions, servers before lifetimes) send no `expires_at`, so show
+  and list treat it as optional.
 - Show the dashboard `status` and fall back to `state` for servers that do not
   send it. `status` and `bucket` are open strings: never switch on them exhaustively.
 - Test through the generated Xcode workspace and Swift Testing, not SwiftPM.
@@ -27,10 +37,19 @@
   again after a 5xx or transport error: a proxy 502 can hide an answer whose
   effect happened, so each start carries an `id` the CLI picks and each stdin
   write the `offset` it continues, which the server uses to act once. Never
-  retry them without those. Retries come within 5 seconds: the server already
-  waits up to 25 seconds for the host in each start. `exec` exits
+  retry them without those. A 503 whose code says waiting won't help
+  (`host_replaced`, `archive_unavailable`, `snapshot_not_saved`) is final.
+  Retries come within 5 seconds: the server already
+  waits up to 25 seconds for the host in each start. While they wait, the
+  server's reason is repeated on stderr about once a minute. `exec` exits
   with the command's status (124 on timeout, 130 when cancelled) and cancels it
-  on SIGINT/SIGTERM. Progress notes go to stderr, never stdout. The synchronous
+  on SIGINT/SIGTERM. `exec --wait <seconds>` stops following at that deadline and
+  leaves the command running (it starts no new start attempt past it, and drops a
+  log read mid-request, which is safe), then exits 75 with the `--attach <command-id>
+  --stdout-offset … --stderr-offset …` command that continues it, or, with `--json`,
+  `status: running` and those values: agents' tool calls have time limits, so they
+  run builds in the foreground this way instead of backgrounding and polling.
+  Progress notes go to stderr, never stdout. The synchronous
   `POST .../exec` endpoint stays in the API; the CLI no longer uses it.
 - `cp` takes `<sandbox-id>:<path>` on exactly one side (only a UUID before the
   colon counts) and follows `cp -r`: into an existing directory or one written
@@ -38,7 +57,10 @@
   `COPYFILE_DISABLE=1` and place it with a rename from a scratch directory next
   to the destination.
 - `sync` (`SandboxSync`) mirrors the worktree's non-ignored files one way, file
-  by file, like Amp's Mac satellites; the sandbox needs no Git or repository
+  by file, like Amp's Mac satellites, to `$HOME/work/<name>` by default, where
+  `<name>` comes from the `origin` remote's URL (else the directory's): a
+  Claude Code macOS repository snapshot clones there, and Xcode keys
+  DerivedData by that path; the sandbox needs no Git or repository
   access. Git only lists and hashes files locally, through a scratch index under
   `<git-dir>/tuist-sync` so the user's staging area is untouched. Each sync's
   manifest is saved there by its hash, and the sandbox records the hash it holds

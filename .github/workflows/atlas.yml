@@ -10,7 +10,7 @@ on:
       - infra/k8s/atlas/**
       - .github/workflows/atlas.yml
       - .github/workflows/atlas-deployment-validation.yml
-      - once.toml
+      - struo.toml
       # Grouping cases shared with Pulse's sentry_errors pipeline.
       - infra/helm/pulse/sentry-errors-cases.json
   pull_request:
@@ -22,7 +22,7 @@ on:
       - infra/k8s/atlas/**
       - .github/workflows/atlas.yml
       - .github/workflows/atlas-deployment-validation.yml
-      - once.toml
+      - struo.toml
       # Grouping cases shared with Pulse's sentry_errors pipeline.
       - infra/helm/pulse/sentry-errors-cases.json
 
@@ -71,14 +71,12 @@ jobs:
   deployment:
     uses: ./.github/workflows/atlas-deployment-validation.yml
 
-  # Build, lint, and test run through Once, which derives the graph from
+  # Build, lint, and test run through Struo, which derives the graph from
   # atlas/mix.exs and shares results through the tuist/atlas project. Forks
   # can't mint an OIDC token, so they fall back to the local cache.
   build:
     name: Build
-    # The Once Linux binary needs glibc 2.39, newer than the Ubuntu
-    # 22.04 image behind tuist-linux. Move back once Once targets an older glibc.
-    runs-on: ubuntu-24.04
+    runs-on: tuist-linux-large
     permissions:
       contents: read
       id-token: write
@@ -88,19 +86,19 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          install: erlang elixir node github:tuist/once
+          install: erlang elixir node github:tuist/struo
           working-directory: atlas
 
-      # The Linux Once binary links against ALSA for its sound cues.
-      - name: Install Once runtime libraries
+      # The Linux Struo binary links against ALSA for its sound cues.
+      - name: Install Struo runtime libraries
         run: |
           sudo apt-get update -y
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
-      # Once runs from the repository root, where the workspace manifest lives,
+      # Struo runs from the repository root, where the workspace manifest lives,
       # but the tool is pinned in atlas/mise.toml.
-      - name: Put Once on PATH
-        run: dirname "$(mise which once)" >> "$GITHUB_PATH"
+      - name: Put Struo on PATH
+        run: dirname "$(mise which struo)" >> "$GITHUB_PATH"
 
       - name: Cache deps
         uses: actions/cache@v6
@@ -115,26 +113,26 @@ jobs:
           mix local.rebar --force
           mix deps.get --check-locked
 
-      - name: Authenticate the Once cache
-        id: once-auth
+      - name: Authenticate the Struo cache
+        id: struo-auth
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         working-directory: .
-        run: once auth login --provider tuist --no-browser
+        run: struo auth login --provider tuist --no-browser
 
       - name: Build
         working-directory: .
-        run: once build atlas/mix_application_test
+        run: struo build atlas/mix_application_test
         env:
-          ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
+          STRUO_CACHE_PROVIDER: ${{ steps.struo-auth.outcome == 'success' && 'tuist' || 'local' }}
 
-      # Once persists the compiler's stderr as a build output, so this also
+      # Struo persists the compiler's stderr as a build output, so this also
       # catches warnings replayed from a cached compilation. Lines from mise's
       # tool shims land there too and are not compiler warnings.
       - name: Fail on compiler warnings
         working-directory: .
         run: |
-          warnings=$(grep -v -E '^(mise |hint: .*mise)' .once/out/atlas/mix_application_test/mix-project-warnings.log || true)
+          warnings=$(grep -v -E '^(mise |hint: .*mise)' .struo/out/atlas/mix_application_test/mix-project-warnings.log || true)
           if [ -n "$warnings" ]; then
             echo "$warnings"
             exit 1
@@ -142,9 +140,7 @@ jobs:
 
   format:
     name: Format
-    # The Once Linux binary needs glibc 2.39, newer than the Ubuntu
-    # 22.04 image behind tuist-linux. Move back once Once targets an older glibc.
-    runs-on: ubuntu-24.04
+    runs-on: tuist-linux-large
     needs: build
     permissions:
       contents: read
@@ -155,19 +151,19 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          install: erlang elixir node github:tuist/once
+          install: erlang elixir node github:tuist/struo
           working-directory: atlas
 
-      # The Linux Once binary links against ALSA for its sound cues.
-      - name: Install Once runtime libraries
+      # The Linux Struo binary links against ALSA for its sound cues.
+      - name: Install Struo runtime libraries
         run: |
           sudo apt-get update -y
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
-      # Once runs from the repository root, where the workspace manifest lives,
+      # Struo runs from the repository root, where the workspace manifest lives,
       # but the tool is pinned in atlas/mise.toml.
-      - name: Put Once on PATH
-        run: dirname "$(mise which once)" >> "$GITHUB_PATH"
+      - name: Put Struo on PATH
+        run: dirname "$(mise which struo)" >> "$GITHUB_PATH"
 
       - name: Cache deps
         uses: actions/cache@v6
@@ -182,19 +178,19 @@ jobs:
           mix local.rebar --force
           mix deps.get --check-locked
 
-      - name: Authenticate the Once cache
-        id: once-auth
+      - name: Authenticate the Struo cache
+        id: struo-auth
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         working-directory: .
-        run: once auth login --provider tuist --no-browser
+        run: struo auth login --provider tuist --no-browser
 
       # Runs `mix deps.unlock --check-unused` and `mix format --check-formatted`.
       - name: Lint
         working-directory: .
-        run: once run atlas/mix_lint
+        run: struo run atlas/mix_lint
         env:
-          ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
+          STRUO_CACHE_PROVIDER: ${{ steps.struo-auth.outcome == 'success' && 'tuist' || 'local' }}
 
   credo:
     name: Credo
@@ -232,9 +228,7 @@ jobs:
 
   test:
     name: Test
-    # The Once Linux binary needs glibc 2.39, newer than the Ubuntu
-    # 22.04 image behind tuist-linux. Move back once Once targets an older glibc.
-    runs-on: ubuntu-24.04
+    runs-on: tuist-linux-large
     needs: build
     permissions:
       contents: read
@@ -260,19 +254,19 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          install: erlang elixir node github:tuist/once
+          install: erlang elixir node github:tuist/struo
           working-directory: atlas
 
-      # The Linux Once binary links against ALSA for its sound cues.
-      - name: Install Once runtime libraries
+      # The Linux Struo binary links against ALSA for its sound cues.
+      - name: Install Struo runtime libraries
         run: |
           sudo apt-get update -y
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
-      # Once runs from the repository root, where the workspace manifest lives,
+      # Struo runs from the repository root, where the workspace manifest lives,
       # but the tool is pinned in atlas/mise.toml.
-      - name: Put Once on PATH
-        run: dirname "$(mise which once)" >> "$GITHUB_PATH"
+      - name: Put Struo on PATH
+        run: dirname "$(mise which struo)" >> "$GITHUB_PATH"
 
       - name: Install document and label rendering tools
         run: sudo apt-get update -y && sudo apt-get install -y poppler-utils libvips-tools fonts-dejavu-core
@@ -290,21 +284,21 @@ jobs:
           mix local.rebar --force
           mix deps.get --check-locked
 
-      - name: Authenticate the Once cache
-        id: once-auth
+      - name: Authenticate the Struo cache
+        id: struo-auth
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         working-directory: .
-        run: once auth login --provider tuist --no-browser
+        run: struo auth login --provider tuist --no-browser
 
       # Discovered Mix tests run on every invocation and keep the project's
       # `test` alias, so the database is created and migrated as before.
       - name: Test
         id: tests
         working-directory: .
-        run: once test atlas/mix_tests
+        run: struo test atlas/mix_tests
         env:
-          ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
+          STRUO_CACHE_PROVIDER: ${{ steps.struo-auth.outcome == 'success' && 'tuist' || 'local' }}
 
       - name: Upload test logs
         if: failure() && steps.tests.outcome == 'failure'
@@ -312,16 +306,14 @@ jobs:
         with:
           name: atlas-test-logs
           include-hidden-files: true
-          path: .once/out/atlas/mix_tests/test/
+          path: .struo/out/atlas/mix_tests/test/
 
-  # Builds atlas/Dockerfile through Once. Instructions are cached individually
+  # Builds atlas/Dockerfile through Struo. Instructions are cached individually
   # in the tuist/atlas-oci project, separate from the Mix build. Publishing
   # still happens in atlas-release.yml.
   image:
     name: Image
-    # The Once Linux binary needs glibc 2.39, newer than the Ubuntu
-    # 22.04 image behind tuist-linux. Move back once Once targets an older glibc.
-    runs-on: ubuntu-24.04
+    runs-on: tuist-linux-large
     permissions:
       contents: read
       id-token: write
@@ -334,34 +326,34 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          install: github:tuist/once
+          install: github:tuist/struo
           working-directory: atlas
 
-      # The Linux Once binary links against ALSA for its sound cues.
-      - name: Install Once runtime libraries
+      # The Linux Struo binary links against ALSA for its sound cues.
+      - name: Install Struo runtime libraries
         run: |
           sudo apt-get update -y
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
-      # Once runs from the repository root, where the workspace manifest lives,
+      # Struo runs from the repository root, where the workspace manifest lives,
       # but the tool is pinned in atlas/mise.toml.
-      - name: Put Once on PATH
+      - name: Put Struo on PATH
         working-directory: atlas
-        run: dirname "$(mise which once)" >> "$GITHUB_PATH"
+        run: dirname "$(mise which struo)" >> "$GITHUB_PATH"
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Authenticate the Once cache
-        id: once-auth
+      - name: Authenticate the Struo cache
+        id: struo-auth
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         working-directory: .
-        run: once auth login --provider tuist --no-browser
+        run: struo auth login --provider tuist --no-browser
 
       - name: Build image
-        run: once build atlas_image
+        run: struo build atlas_image
         env:
-          ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist-oci' || 'local' }}
+          STRUO_CACHE_PROVIDER: ${{ steps.struo-auth.outcome == 'success' && 'tuist-oci' || 'local' }}
 
   inbox-worker:
     name: Inbox Worker

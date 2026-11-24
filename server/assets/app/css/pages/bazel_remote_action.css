@@ -1,0 +1,233 @@
+/* The header, tabs and Action Details grid come from build_run.css, shared
+ * with Xcode build runs; these rules cover only what the action page adds. */
+#bazel-remote-action {
+  & > [data-part="header"] > [data-part="title-group"] > [data-part="target"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-code-medium);
+    direction: ltr;
+    unicode-bidi: isolate;
+    overflow-wrap: anywhere;
+  }
+
+  & [data-part="metadata-grid"] [data-field="wide"] {
+    grid-column: 1 / -1;
+  }
+
+  & [data-part="metadata-grid"] [data-field="outputs"] {
+    grid-column: span 3;
+  }
+
+  /* The details label is a flex row; the note, list and toggle stack in it. */
+  & #remote-action-outputs > [data-part="label"] {
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  @media (max-width: 900px) {
+    & [data-part="metadata-grid"] [data-field="outputs"] {
+      grid-column: 1 / -1;
+    }
+  }
+
+  & code {
+    font: var(--noora-font-code-medium);
+    direction: ltr;
+    unicode-bidi: isolate;
+    overflow-wrap: anywhere;
+  }
+
+  & [data-part="sections"] [data-part="section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="section-title"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="paths"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* The command wraps like a shell line; a long one starts at a few lines. */
+  & pre[data-part="command-line"] {
+    margin: 0;
+    box-shadow: var(--noora-border-section);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-tertiary);
+    padding: var(--noora-spacing-5);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-code-medium);
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+
+    &[data-state="closed"] {
+      mask-image: linear-gradient(to bottom, black 70%, transparent);
+      max-height: 9rem;
+      overflow: hidden;
+    }
+  }
+
+  /* The copy button sits in the command block's corner, so it never wraps
+   * under the card title on narrow screens. */
+  & [data-part="command"] {
+    position: relative;
+
+    & > pre[data-part="command-line"] {
+      padding-inline-end: calc(var(--noora-spacing-5) * 2 + 28px);
+    }
+
+    & > .noora-button {
+      position: absolute;
+      inset-block-start: var(--noora-spacing-3);
+      inset-inline-end: var(--noora-spacing-3);
+    }
+  }
+
+  & [data-part="expand"] {
+    align-self: flex-start;
+    cursor: pointer;
+    margin-top: var(--noora-spacing-2);
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &:hover {
+      color: var(--noora-surface-label-primary);
+    }
+  }
+
+  /* Environment and platform pairs: every one shows, as in the details grid,
+   * under its section title. */
+  & [data-part="build-details-section"]:has(> [data-part="section-title"]) {
+    gap: var(--noora-spacing-6);
+  }
+
+  & dl[data-part="metadata-grid"] {
+    margin: 0;
+
+    & dt,
+    & dd {
+      margin: 0;
+    }
+
+    /* Matches build_run.css's label selector, which sets the primary color. */
+    & [data-part="metadata-row"] > [data-part="metadata"] > dd[data-part="label"][data-empty] {
+      color: var(--noora-surface-label-tertiary);
+    }
+  }
+
+  /* An action without recognised diagnostics shows the end of its stderr. */
+  & .issue-card [data-part="issue"][data-output="true"] {
+    font: var(--noora-font-code-medium);
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  /* Logs follow the runner job log view: a recessed scrolling surface with
+   * line numbers, and error lines tinted. */
+  & [data-part="logs-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="log-viewport"] {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-5) var(--noora-spacing-7);
+    max-height: 640px;
+    overflow: auto;
+    overscroll-behavior-y: contain;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  & [data-part="log-line"] {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+    line-height: 1.45;
+
+    & > [data-part="log-ln"] {
+      flex-shrink: 0;
+      min-width: 3ch;
+      color: var(--noora-surface-label-tertiary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      line-height: inherit;
+      user-select: none;
+      text-align: end;
+    }
+
+    & > [data-part="log-message"] {
+      flex: 1;
+      min-width: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      line-height: inherit;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    &[data-annotation="error"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+
+      & > [data-part="log-message"] {
+        color: var(--noora-badge-light-fill-destructive-label);
+      }
+    }
+  }
+
+  & [data-part="log-stream"] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* As in the runner job log. */
+  & [data-part="load-earlier"] {
+    align-self: center;
+    cursor: pointer;
+    margin-bottom: var(--noora-spacing-3);
+    box-shadow: var(--noora-border-small-default);
+    border: none;
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-2) var(--noora-spacing-5);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  /* Where a stream's bytes were not recorded. */
+  & [data-part="log-truncated"] {
+    margin-block: var(--noora-spacing-3);
+    border-block: 1px dashed var(--noora-surface-border-primary);
+    padding: var(--noora-spacing-2) 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    text-align: center;
+  }
+
+  & p[data-part="note"],
+  & p[data-part="empty"] {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+}

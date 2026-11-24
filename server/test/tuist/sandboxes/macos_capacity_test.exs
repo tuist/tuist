@@ -2,16 +2,22 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
   import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.Router
+  alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxEvent
 
   setup do
     name = "mac-#{System.unique_integer([:positive])}"
@@ -61,6 +67,35 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
     first |> Repo.reload!() |> Ecto.Changeset.change(state: :paused, resident: false) |> Repo.update!()
     assert {:ok, _} = Capacity.place(sandbox())
+  end
+
+  test "a Claude Code snapshot builder is placed only on a host whose granted slots are both free", %{node: node} do
+    environment =
+      agent_environment_fixture(
+        kind: :claude_code,
+        anthropic_environment_id: "ccpool_01macos",
+        platform: :darwin,
+        template: "macos",
+        vcpus: 8,
+        memory_mb: 8192,
+        setup_script: "brew bundle\n"
+      )
+
+    {:ok, build} = DiskSnapshots.start_build(environment, "acme/app", "sha")
+    builder = sandbox(id: build.id, vcpus: 4, memory_mb: 4096)
+
+    one_slot = %{node | admission: Map.put(node.admission, "slots", 1)}
+    stub(Nodes, :connected_nodes, fn -> [one_slot] end)
+    assert {:error, :no_capacity} = Capacity.place(builder)
+
+    stub(Nodes, :connected_nodes, fn -> [node] end)
+    session = sandbox(vcpus: 4, memory_mb: 4096)
+    assert {:ok, _name} = Capacity.place(session)
+    assert {:error, :no_capacity} = Capacity.place(builder)
+
+    session |> Repo.reload!() |> Repo.delete!()
+    assert {:ok, name} = Capacity.place(builder)
+    assert name == node.name
   end
 
   test "placement prefers a host with a warm VM of the requested shape", %{node: node} do
@@ -120,9 +155,30 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     end
   end
 
+  test "a refused resume names why its own host can't take it", %{node: node} do
+    stale = DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), -16))
+
+    for {host, why} <- [
+          {%{node | admission: Map.put(node.admission, "allow", false)}, :ci},
+          {%{node | admission: Map.put(node.admission, "observed_at", stale)}, :no_grant},
+          {%{node | admission: Map.put(node.admission, "memory_bytes", 4 * 1024 * 1024 * 1024)}, :full},
+          {:not_connected, :not_connected}
+        ] do
+      paused = sandbox(state: :paused, node_name: node.name, node_uid: node.generation, resident: true)
+
+      stub(Nodes, :lookup, fn _name ->
+        if host == :not_connected, do: {:error, :not_connected}, else: {:ok, self(), host}
+      end)
+
+      assert {:error, {:host_busy, ^why}} = Capacity.admit(paused)
+      assert Repo.reload!(paused).state == :paused
+      paused |> Repo.reload!() |> Ecto.Changeset.change(state: :deleted, resident: false) |> Repo.update!()
+    end
+  end
+
   test "a replacement Node cannot resume the previous owner's environment", %{node: node} do
     prior = sandbox(state: :paused, node_name: node.name, node_uid: "old-node", resident: false)
-    assert {:error, :no_capacity} = Capacity.admit(prior)
+    assert {:error, {:host_busy, :replaced}} = Capacity.admit(prior)
     assert Repo.reload!(prior).state == :paused
   end
 
@@ -199,8 +255,113 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
     # A refusal whose cleanup also failed is not only a refusal.
     error = "macOS sandbox capacity unavailable: sandbox disk reserve\nreservation release failed"
-    expect(Nodes, :call, fn _name, "create", _args, _opts -> {:error, error} end)
+
+    expect(Nodes, :call, 2, fn
+      _name, "create", _args, _opts -> {:error, error}
+      _name, "delete", _args, _opts -> {:ok, %{}}
+    end)
+
     assert {:error, ^error} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+  end
+
+  test "a failed create is deleted from its host at once and holds nothing there", %{node: node} do
+    name = node.name
+    error = "workspace: diskutil apfs addVolume disk3 APFS TuistSandboxWorkspace: exit status 1"
+
+    expect(Nodes, :call, 2, fn
+      ^name, "create", %{node_uid: "node-uid"}, _opts -> {:error, error}
+      ^name, "delete", %{sandbox_id: _id, node_uid: "node-uid"}, _opts -> {:ok, %{}}
+    end)
+
+    assert {:error, ^error} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+
+    failed = Repo.one!(from(s in Sandbox, where: s.platform == :darwin and s.state == :error))
+    assert %{node_name: nil, node_uid: nil, resident: false, error_message: ^error} = failed
+
+    # The host had room for one 8-vCPU VM: the failed create no longer takes it.
+    expect(Nodes, :call, fn ^name, "create", _args, _opts -> {:ok, %{}} end)
+    assert {:ok, created} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+    assert %{state: :running, node_name: ^name} = created
+
+    # The failure is kept on its `failed` event, which outlives the row.
+    assert [%{error_message: ^error, node_name: ^name, template: "macos"}] =
+             ClickHouseRepo.all(from(e in SandboxEvent, where: e.sandbox_id == ^failed.id and e.event == "failed"))
+  end
+
+  test "a failed create its host could not delete is deleted when the host reports it", %{node: node} do
+    name = node.name
+
+    expect(Nodes, :call, 2, fn
+      ^name, "create", _args, _opts -> {:error, :timeout}
+      ^name, "delete", _args, _opts -> {:error, :not_connected}
+    end)
+
+    assert {:error, :timeout} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+    failed = Repo.one!(from(s in Sandbox, where: s.platform == :darwin and s.state == :error))
+    assert %{node_name: ^name, resident: true} = failed
+    assert {:error, :no_capacity} = Capacity.place(sandbox())
+
+    failed_id = failed.id
+    expect(Nodes, :call, fn ^name, "delete", %{sandbox_id: ^failed_id, node_uid: "node-uid"}, _opts -> {:ok, %{}} end)
+
+    report = %{
+      "generation" => node.generation,
+      "sandboxes" => [%{"id" => failed.id, "state" => "error", "resident" => false, "error" => "lost"}]
+    }
+
+    assert :ok = Sandboxes.reconcile_node_report(name, report)
+    assert %{state: :error, node_name: nil, resident: false} = Repo.reload!(failed)
+    assert {:ok, ^name} = Capacity.place(sandbox())
+  end
+
+  test "errored rows the host no longer lists stop holding it", %{node: node} do
+    old = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+    held = [node_name: node.name, node_uid: node.generation, state: :error, resident: true]
+
+    errored = fn opts ->
+      held |> Keyword.merge(opts) |> sandbox() |> Ecto.Changeset.change(updated_at: old) |> Repo.update!()
+    end
+
+    never_ran = errored.([])
+    used = errored.(last_active_at: old)
+    other_host = errored.(node_uid: "replaced-uid")
+    just_failed = sandbox(held)
+
+    assert :ok = Sandboxes.reconcile_node_report(node.name, %{"generation" => node.generation, "sandboxes" => []})
+
+    # The retention still counts from the failure.
+    assert %{node_name: nil, node_uid: nil, resident: false, updated_at: ^old} = Repo.reload!(never_ran)
+    assert %{node_name: name, resident: false, state: :error} = Repo.reload!(used)
+    assert name == node.name
+    # Another incarnation of the host says nothing about it, and a report can
+    # predate a failure that just happened.
+    assert %{resident: true} = Repo.reload!(other_host)
+    assert %{resident: true} = Repo.reload!(just_failed)
+  end
+
+  test "an errored session sandbox without a node is replaced, a placed one needs recovery", %{node: node} do
+    environment = agent_environment_fixture(platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192)
+    session_id = "sesn_#{System.unique_integer([:positive])}"
+    name = node.name
+
+    placed =
+      sandbox(
+        agent_environment_id: environment.id,
+        anthropic_session_id: session_id,
+        state: :error,
+        node_name: name,
+        node_uid: node.generation
+      )
+
+    assert {:error, :sandbox_recovery_required} = Router.find_or_create_sandbox(environment, session_id)
+
+    placed |> Ecto.Changeset.change(node_name: nil, node_uid: nil) |> Repo.update!()
+    assert :ok = MacosCapacity.admission(environment, session_id)
+
+    expect(Nodes, :call, fn ^name, "create", _args, _opts -> {:ok, %{}} end)
+    assert {:ok, created, true} = Router.find_or_create_sandbox(environment, session_id)
+    assert %{state: :running, node_name: ^name} = created
+    refute Repo.get(Sandbox, placed.id)
   end
 
   test "Linux placement never chooses a macOS node advertising the same template" do
@@ -213,7 +374,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     reject(&Nodes.call/4)
 
     assert {:error, :sandbox_concurrency_limit} = Sandboxes.create_sandbox(account, %{platform: :darwin})
-    assert Concurrency.usage(account.id) == %{vcpus: 0, memory_mb: 0}
+    assert Concurrency.usage(account.id) == %{vcpus: 0.0, memory_mb: 0}
   end
 
   test "resident and evicted resumes acquire the account quota again", %{node: node} do
@@ -245,7 +406,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
       held |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
       assert {:ok, %{state: :resuming}} = Capacity.admit(paused)
-      assert Concurrency.usage(account.id) == %{vcpus: 8, memory_mb: 8192}
+      assert Concurrency.usage(account.id) == %{vcpus: 8.0, memory_mb: 8192}
       paused |> Repo.reload!() |> Ecto.Changeset.change(state: :paused, resident: false) |> Repo.update!()
     end
   end
@@ -259,9 +420,9 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
         {:error, "macOS sandbox capacity unavailable"}
       end)
 
-      assert {:error, :no_capacity} = Sandboxes.resume(paused)
+      assert {:error, {:host_busy, :ci}} = Sandboxes.resume(paused)
       assert %{state: :paused, resident: true, error_message: nil} = Repo.reload!(paused)
-      assert Concurrency.usage(paused.account_id) == %{vcpus: 0, memory_mb: 0}
+      assert Concurrency.usage(paused.account_id) == %{vcpus: 0.0, memory_mb: 0}
 
       assert :ok =
                Sandboxes.reconcile_node_report(node.name, %{
@@ -362,6 +523,17 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
       "stale" => put_in(node.admission["observed_at"], stale),
       "denied" => put_in(node.admission["allow"], false),
       "replaced" => put_in(node.admission["node_uid"], "old-node-uid"),
+      # What tart-kubelet forwards for a Node without a grant annotation.
+      "ungranted" => %{
+        node
+        | admission: %{
+            "node_uid" => "",
+            "control_uid" => "",
+            "observed_at" => "0001-01-01T00:00:00Z",
+            "allow" => false,
+            "slots" => 0
+          }
+      },
       "full" => put_in(node.admission["slots"], 0)
     }
 
@@ -375,6 +547,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
                "stale" => :grant_stale,
                "denied" => :grant_denied,
                "replaced" => :grant_mismatch,
+               "ungranted" => :no_grant,
                "full" => :no_room
              }}} = Capacity.admission(environment, "new-session")
 
@@ -393,5 +566,18 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
     assert {:error, {node_name, :not_connected}} = Capacity.admission(environment, "paused-session")
     assert node_name == node.name
+
+    # An archived session's sandbox left its host, so any host with room admits it.
+    sandbox(
+      state: :archived,
+      agent_environment_id: environment.id,
+      anthropic_session_id: "archived-session",
+      archive_key: "k",
+      archived_at: DateTime.utc_now()
+    )
+
+    assert :ok = Capacity.admission(environment, "archived-session")
+    stub(Nodes, :connected_nodes, fn -> [put_in(node.admission["slots"], 0)] end)
+    assert {:error, {:no_node, %{}}} = Capacity.admission(environment, "archived-session")
   end
 end

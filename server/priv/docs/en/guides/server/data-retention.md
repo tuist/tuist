@@ -22,7 +22,7 @@ These windows define how long artifact files remain available on the hosted Tuis
 | Cache artifacts, including Xcode cache, module cache, Gradle cache, Bazel remote-cache files, and GitLab CI cache archives from Tuist Runners | 14 days | 30 days | 30 days |
 | App preview builds and icons | 30 days | 30 days | 30 days |
 | Build archives | 7 days | 30 days | 30 days |
-| Run artifacts, including result bundles and session archives | 7 days | 30 days | 30 days |
+| Run artifacts, including result bundles, session archives and Bazel remote action logs | 7 days | 30 days | 30 days |
 | Test run attachments | 30 days | 30 days | 30 days |
 | Shard bundles | 7 days | 14 days | 30 days |
 
@@ -54,13 +54,19 @@ These records are separate from the downloadable build archives, result bundles,
 
 ### Other dashboard and activity data {#other-dashboard-and-activity-data}
 
+Bazel indexed profile steps include nullable per-action remote queue, input-fetch, execution and output-upload timings when they can be safely associated with an action. These share the profile's 90-day retention, independently of cached artifacts and billing records.
+
 | Data | Retention |
 | --- | --- |
-| Gradle build records, task records and the failure messages of failed tasks and configuration steps, cache event records, Mix build records, compiled file records, build step records and diagnostics, Cargo build records (including aggregate compilation-cache measurements) and compiler observations, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
+| Gradle build records, task records and the failure messages of failed tasks and configuration steps, cache event records, Mix build records, compiled file records, build step records and diagnostics, Cargo build records (including aggregate compilation-cache measurements) and compiler observations, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, Bazel remote action-cache observations, and records of remotely executed actions (command, environment, platform, exit code and the start of their output) | 90 days |
+| Starts of Bazel invocations, which list them as running until they finish | 2 days |
 | Xcode module compilation and cache history on persistent module detail pages | 30 days |
-| Task, declared Once action, Bazel BEP action, compiled file and module observations on persistent detail pages | 90 days, except Xcode modules above |
+| Task, declared Struo action, Bazel BEP action, compiled file and module observations on persistent detail pages | 90 days, except Xcode modules above |
 | Persistent task/action/module/file identity metadata | 365 days without an observation |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
+| Code coverage line detail (per-line and per-function coverage of each test run, shown on a file's coverage page) | 31 days |
+| Code coverage totals of each test run | 365 days |
+| Code coverage of a commit (its totals, targets and per-file figures) | 3 years; 90 days for commits only a pull request added |
 | Webhook delivery history | No fixed deletion schedule |
 
 Persistent detail URLs do not depend on a particular build remaining available. Their identity metadata can outlive individual observations, so a detail page may have no history in the selected period. New history is indexed from reports received after the feature is deployed; existing run-level history is not retroactively copied.

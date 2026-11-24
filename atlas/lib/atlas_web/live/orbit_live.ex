@@ -441,8 +441,9 @@ defmodule AtlasWeb.OrbitLive do
           <% end %>
         </div>
       </details>
-      <.neutral_button
+      <.ghost_button
         :if={@job && @job.status in ~w(queued claimed)}
+        variant="secondary"
         phx-click="stop-job"
         phx-value-id={@job.id}
         phx-value-digest={@job.digest}
@@ -511,23 +512,25 @@ defmodule AtlasWeb.OrbitLive do
                 </.link>
               </div>
               <nav :if={@thread_pages > 1} data-part="pagination" aria-label="Conversation pages">
-                <.neutral_button
+                <.ghost_button
+                  variant="secondary"
                   phx-click="thread-page"
                   phx-value-direction="newer"
                   disabled={@page <= 1}
                   aria-label="Newer conversations"
                 >
                   <.chevron_left />
-                </.neutral_button>
+                </.ghost_button>
                 <span>{@page} of {@thread_pages}</span>
-                <.neutral_button
+                <.ghost_button
+                  variant="secondary"
                   phx-click="thread-page"
                   phx-value-direction="older"
                   disabled={@page >= @thread_pages}
                   aria-label="Older conversations"
                 >
                   <.chevron_right />
-                </.neutral_button>
+                </.ghost_button>
               </nav>
             </aside>
             <main data-part="conversation">
@@ -581,7 +584,8 @@ defmodule AtlasWeb.OrbitLive do
                         />
                       </.select>
                     </.form>
-                    <.neutral_button
+                    <.ghost_button
+                      variant="secondary"
                       id="orbit-refresh-repositories"
                       phx-click="refresh-repositories"
                       disabled={@repositories_loading}
@@ -589,7 +593,7 @@ defmodule AtlasWeb.OrbitLive do
                       title="Refresh repositories"
                     >
                       <.reload />
-                    </.neutral_button>
+                    </.ghost_button>
                     <.button
                       id="orbit-coding-settings"
                       navigate={~p"/settings/coding"}
@@ -639,19 +643,24 @@ defmodule AtlasWeb.OrbitLive do
                         />
                       </.select>
                     </.form>
-                    <.neutral_button
+                    <.ghost_button
+                      variant="secondary"
                       id="orbit-refresh-environments"
                       phx-click="refresh-environments"
                       aria-label="Refresh environments"
                       title="Refresh environments"
                     >
                       <.reload />
-                    </.neutral_button>
+                    </.ghost_button>
                     <.popover id="orbit-environment-help" placement="bottom-end">
                       <:trigger :let={attrs}>
-                        <.neutral_button aria-label="About execution environments" {attrs}>
+                        <.ghost_button
+                          variant="secondary"
+                          aria-label="About execution environments"
+                          {attrs}
+                        >
                           <.info_circle />
-                        </.neutral_button>
+                        </.ghost_button>
                       </:trigger>
                       <div data-part="orbit-environment-help">
                         <strong>Tools run in the selected environment</strong>
@@ -803,8 +812,9 @@ defmodule AtlasWeb.OrbitLive do
                               Working…
                           <% end %>
                         </span>
-                        <.neutral_button
+                        <.ghost_button
                           :if={@current_user.id in [@thread.owner_id, @active_run.initiator_id]}
+                          variant="secondary"
                           id="orbit-stop"
                           phx-click="stop-run"
                           size="small"

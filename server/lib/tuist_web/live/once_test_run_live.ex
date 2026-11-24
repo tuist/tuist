@@ -36,7 +36,7 @@ defmodule TuistWeb.OnceTestRunLive do
     case load_run(project.id, run_id) do
       nil ->
         raise TuistWeb.Errors.NotFoundError,
-              "Could not find Once test run #{inspect(run_id)}"
+              "Could not find Struo test run #{inspect(run_id)}"
 
       run ->
         if connected?(socket) do
@@ -143,7 +143,7 @@ defmodule TuistWeb.OnceTestRunLive do
 
   def empty_test_cases_title(run) do
     case status(run) do
-      "interrupted" -> dgettext("dashboard_tests", "Once stopped reporting before this run finished")
+      "interrupted" -> dgettext("dashboard_tests", "Struo stopped reporting before this run finished")
       "cancelled" -> dgettext("dashboard_tests", "The run was cancelled before it reported any test cases")
       _ -> dgettext("dashboard_tests", "No test cases reported for this run")
     end

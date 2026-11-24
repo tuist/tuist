@@ -1,0 +1,102 @@
+# No resources or workflow integration until explicitly enabled.
+enabled: false
+# The release must be installed in this namespace; each environment overlay
+# names its own isolated namespace.
+namespace: rustfs-staging
+image: rustfs/rustfs:1.0.6
+# Erasure parity for new objects. Empty for a single-drive store, which keeps
+# one copy and relies on the drive's own RAID for disk failures.
+parity: "EC:4"
+existingSecret: rustfs-root
+# Generate existingSecret and <release>-service in-cluster once, and keep the
+# shards bucket, its expiry and the restricted service user in place with an
+# hourly Job. Staging's stores use the operator bootstrap instead.
+generateCredentials: false
+setup:
+  # Pinned community MinIO build with mc and /bin/sh, as the main chart uses.
+  image: ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
+  # Backstop only: the server's cleanup deletes shard bundles at the account
+  # plan's retention (7, 14 or 30 days), so expire a day after the longest.
+  expirationDays: 31
+  abortMultipartDays: 1
+# Publishes the shards bucket to the server as a public storage target. Needs
+# generateCredentials and the ingress host. The ID is immutable.
+target:
+  id: ""
+  site: gra
+  # Lets in-cluster callers (Linux runner shards, the Actions cache and
+  # sandbox archives) place new objects here over privateNetwork. Existing
+  # objects stay readable there either way.
+  privateNetworkReady: false
+  # IDs of retired in-cluster stores whose buckets were copied into this one.
+  # Each is published as a private alias of this store that never takes
+  # placements, so shard plans, Actions cache entries and sandbox archives
+  # recorded under it keep resolving. Needs privateNetwork.
+  aliases: []
+# In-cluster S3 (<release>-s3:9000) for callers on the private network, which
+# reach every bucket the service user may use, unlike the public gateway.
+# sandboxd must keep its guests off port 9000 (DAEMON_ONLY_TCP_PORTS), since
+# its Pod is admitted here.
+privateNetwork:
+  enabled: false
+  # Namespaces admitted to the store, each optionally narrowed to pods
+  # carrying podLabels.
+  clients: []
+# Sandbox archives bucket: no expiry, since an archive is an Orb's only copy.
+# archiveBudgetGiB is the server's routing threshold, not a quota.
+archiveBucket: ""
+archiveBudgetGiB: 100
+# GitHub Actions cache bucket, capped by a hard RustFS quota of maxGB
+# (decimal). The server evicts beyond 90% of it.
+actionsCache:
+  bucket: ""
+  maxGB: 0
+# Bucket for the main chart's Docker Hub pull-through cache (registryCache),
+# capped by a hard RustFS quota of maxGB (decimal). It gets its own user, whose
+# credentials are copied to Secret <release>-docker-mirror in serverNamespace;
+# that user can reach only this bucket. In-cluster only: the gateway never
+# exposes it. Needs privateNetwork.enabled and target.id.
+dockerMirror:
+  bucket: ""
+  maxGB: 0
+serverNamespace: tuist
+storageClass: hcloud-volumes
+volumeSize: 10Gi
+# Four members with two drives each, one member per host. A single member
+# (members: 1) is only for performance tests on one dedicated box.
+members: 4
+drivesPerMember: 2
+# RustFS refuses drives that share a physical disk. Only a single-member
+# performance test may bypass that, never a deployment that holds real data.
+unsafeSharedDisks: false
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general
+tolerations: []
+# OTLP HTTP endpoint that receives RustFS's own metrics, such as drive
+# capacity (rustfs_cluster_drive_*), which back the capacity alerts. Empty
+# exports nothing. Traces, logs and profiles are never exported.
+metricsEndpoint: ""
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 2Gi
+gateway:
+  image: nginxinc/nginx-unprivileged:1.28-alpine
+  # Path-style buckets the public gateway forwards; every other path is 404.
+  # Each bucket still needs its own credentials and policy in RustFS.
+  buckets: [shards]
+  replicas: 2
+ingress:
+  enabled: false
+  className: nginx
+  controllerNamespace: platform
+  # A host-network controller on another node reaches the gateway as a node
+  # identity, which namespace selectors cannot match in Cilium. Set true to
+  # also admit host and remote-node traffic on the gateway port.
+  hostNetworkController: false
+  host: ""
+  tlsSecret: ""
+  # Leave empty when an operator already provisioned the TLS Secret.
+  clusterIssuer: ""

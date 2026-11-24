@@ -7,9 +7,9 @@
 ---
 # Shared responsibility model
 
-Tuist runs its own Kubernetes clusters on rented hardware. We do not use a managed application platform, so the boundary between us and our providers sits lower than a platform-as-a-service model would put it. Providers are accountable for physical infrastructure and for the managed services they operate themselves. Everything from the operating system upward, including Kubernetes and our primary database, is ours.
+Tuist runs its own Kubernetes clusters on rented hardware. We do not use a managed application platform, so the boundary between us and our providers sits lower than a platform-as-a-service model would put it. Providers are accountable for physical infrastructure and for the managed services they operate themselves. Everything from the operating system upward, including Kubernetes, our primary database, and the analytics database, is ours.
 
-This distinction matters more than it might sound. Under a platform model, the cluster, the runtime, and often the database sit on the provider's side of the line. Under ours they do not. Any statement that a provider handles our cluster or our primary database is wrong.
+This distinction matters more than it might sound. Under a platform model, the cluster, the runtime, and often the database sit on the provider's side of the line. Under ours they do not. Any statement that a provider handles our cluster, our primary database, or our analytics database is wrong.
 
 ## Where the line falls
 
@@ -21,7 +21,8 @@ This distinction matters more than it might sound. Under a platform model, the c
 | Kubernetes control plane, workers, networking, upgrades | Tuist |
 | Platform components: ingress, certificate issuance, secret sync, autoscaling | Tuist |
 | PostgreSQL and Valkey, both in-cluster | Tuist |
-| Managed analytics database, object storage, edge network | Provider operates, Tuist configures and controls access |
+| ClickHouse, on dedicated bare metal in the cluster | Tuist |
+| Object storage, edge network | Provider operates, Tuist configures and controls access |
 | Telemetry storage | Provider stores, Tuist decides what is sent and who may read it |
 | Application code, dependencies, data model | Tuist |
 | Identity, authorization, and the access lifecycle | Tuist, on top of the identity provider |
@@ -50,7 +51,7 @@ The split matches Scaleway. Hardware and host network are OVHcloud's. The operat
 
 ## Tigris: object storage
 
-Customer artifacts, build outputs, previews, and database backups.
+Customer artifacts, build outputs, previews, database backups, and the cluster telemetry that Pulse stores.
 
 **Tigris is responsible for** durability and availability of the store, encryption in transit and at rest, isolation between tenants, and the security of the storage infrastructure.
 
@@ -58,13 +59,17 @@ Customer artifacts, build outputs, previews, and database backups.
 
 For additional detail, see Tigris's [privacy policy](https://www.tigrisdata.com/docs/legal/privacy-policy/#6-security).
 
-## ClickHouse Cloud: analytics database
+## ClickHouse: analytics database
 
-The managed ClickHouse service holding build and test analytics.
+Build and test analytics run on ClickHouse that we operate ourselves, on dedicated Hetzner bare-metal nodes. Those machines follow the Hetzner split above. The hardware and host network are Hetzner's, and the database is ours.
 
-**ClickHouse Cloud is responsible for** operating, patching, backing up, and keeping the database available, encryption in transit and at rest, and the security of the underlying infrastructure.
+**Tuist is responsible for** the ClickHouse server image and its patch level, the operating system on those nodes, the schema and how long data is kept, backups to Tigris, who can connect and with what privileges, and the metrics and alerts for the service.
 
-**Tuist is responsible for** the schema, what data is written and for how long, network exposure, query memory bounds, and the restricted role the application reads through. That role is re-derived and its password rotated on every server rollout, and it holds no privileges over external sources, files, dictionaries, users, or access management.
+The server image is pinned to a ClickHouse long-term support release. Each replica stores its data on that node's own disk, and ClickHouse Keeper holds coordination and the access-control entities. ClickHouse writes backups into the environment's Tigris bucket, under the `clickhouse-backups` prefix and then the namespace: a full backup every Monday and, on the other days, an incremental based on that week's full. ClickHouse does not delete old backups. Retention is a lifecycle rule on that prefix, in whole weeks and longer than one chain, because deleting a full backup invalidates the incrementals based on it. Durability and encryption of those objects are Tigris's, as above. A failed backup job is kept so its log can be read.
+
+The application connects as `default`. That password is generated into a cluster Secret, and the application user's queries share a memory budget set per environment. Replica-to-replica part fetches require their own credential. Before every server rollout the migration job re-derives the restricted operator and Grafana roles and resets their privileges. It rotates the operator password from the password Helm holds for the release, and re-applies Grafana's from 1Password. Neither role holds privileges over external sources, files, dictionaries, users, or access management. Both are read-only, with query bounds they cannot raise. Off the pod network, only the HTTP port is published, and only on the tailnet, for the macOS fleet's processor. The native protocol and the metrics port stay inside the cluster.
+
+ClickHouse and Keeper expose Prometheus metrics, which Alloy scrapes into Pulse. Grafana Cloud alerts on ClickHouse read failures, on read latency, and on queries that are slow or cancelled.
 
 ## Cloudflare: domain name service and edge
 
@@ -74,13 +79,13 @@ Authoritative name service, certificate validation, and the workers that route t
 
 **Tuist is responsible for** name records, edge rules and rate limits, worker code, certificate issuance policy, and keeping origins from being reachable around the edge.
 
-## Grafana Cloud: logs, metrics, and traces
+## Grafana Cloud: dashboards and alerting
 
-Telemetry leaves the cluster through an agent we run inside it.
+Cluster logs, metrics, and traces are stored in Pulse, the observability database we run in each environment, which keeps its data in Tigris. Grafana Cloud reads Pulse through a private tunnel to show dashboards and evaluate alerts. It still stores telemetry from the legacy cache machines and its own synthetic checks.
 
-**Grafana is responsible for** the durability, availability, and access control of the telemetry store, and the security of its platform.
+**Grafana is responsible for** the availability and access control of dashboards, alerting, and the telemetry it still stores, and the security of its platform.
 
-**Tuist is responsible for** what is logged and what is deliberately kept out of logs, redaction before anything is shipped, retention settings, dashboards and alert rules, and who is allowed to read logs. The requirements are in the [Logging and monitoring policy](/security/secure-development-and-operations/logging-and-monitoring-policy).
+**Tuist is responsible for** operating Pulse, what is logged and what is deliberately kept out of logs, redaction before anything is shipped, retention settings, dashboards and alert rules, and who is allowed to read logs. The requirements are in the [Logging and monitoring policy](/security/secure-development-and-operations/logging-and-monitoring-policy).
 
 ## 1Password: secret storage
 
@@ -108,7 +113,7 @@ Internal service access and operator paths that are deliberately not exposed pub
 
 ## Other services
 
-GitHub for source control, continuous integration, and container images. Stripe for payments. Mailgun for transactional email. Sentry for error reporting. Each provider secures its own platform; Tuist controls its configuration, who can access it, and what data is sent to it. All are assessed under the [Third-party risk management policy](/security/access-and-risk-management/third-party-risk-management-policy).
+GitHub for source control, continuous integration, and container images. Stripe for payments. Mailgun for transactional email. Each provider secures its own platform; Tuist controls its configuration, who can access it, and what data is sent to it. All are assessed under the [Third-party risk management policy](/security/access-and-risk-management/third-party-risk-management-policy). Application errors go to Tuist's self-hosted Atlas and Pulse error ingest, which Tuist operates.
 
 ## What no provider covers
 
@@ -117,6 +122,7 @@ Worth stating plainly, because it is the part a standard shared responsibility m
 - The Kubernetes clusters, including the control plane, and their upgrade cadence
 - The operating system on every node, across Linux and macOS
 - PostgreSQL and Valkey, which run inside our clusters rather than as managed services
+- ClickHouse, which runs on dedicated bare-metal nodes rather than as a managed service
 - The application, its dependencies, and its data model
 - Identity, authorization, and the access lifecycle
 

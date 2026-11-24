@@ -46,7 +46,8 @@ defmodule Tuist.Guardian do
       {:ok, account} ->
         user = load_user_from_claims(claims)
 
-        if user && Accounts.credentials_revoked?(user, claims) do
+        if Accounts.account_credentials_revoked?(account, claims) or
+             (user && Accounts.credentials_revoked?(user, claims)) do
           {:error, :credentials_revoked}
         else
           {:ok,

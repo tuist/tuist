@@ -1,7 +1,7 @@
 defmodule Tuist.Kura.Rollouts do
   @moduledoc """
   Health-gated progressive rollout of Kura runtime image versions
-  ([spec #79](https://hive.tuist.dev/specs/79)).
+  ([spec #79](https://atlas.tuist.dev/engineering/specs/79)).
 
   A rollout is durable control-plane state advanced one reconciler tick at
   a time (`sync/0`). When the configured runtime tag changes, the active
@@ -292,6 +292,52 @@ defmodule Tuist.Kura.Rollouts do
     end)
   end
 
+  @doc """
+  The rollout's scoped servers that have not converged on its target, with
+  their account, observed image and latest deployment: the servers that
+  hold a wave open and, once the deadline passes, the reason it paused.
+  Returns `{servers, total}`, at most `limit` servers ordered by wave.
+  """
+  def unconverged_servers(%Rollout{id: id}, limit \\ 50) do
+    scope = where(RolloutServer, [rs], rs.kura_rollout_id == ^id and is_nil(rs.converged_at))
+
+    servers =
+      scope
+      |> join(:inner, [rs], s in assoc(rs, :kura_server))
+      |> join(:left, [_rs, s], a in assoc(s, :account))
+      |> join(:left, [rs], d in assoc(rs, :deployment))
+      |> order_by([rs, s], asc: rs.wave, asc: s.region, asc: s.id)
+      |> limit(^limit)
+      |> select([rs, s, a, d], %{
+        server_id: s.id,
+        account_id: s.account_id,
+        account_handle: a.name,
+        region: s.region,
+        wave: rs.wave,
+        attempt: rs.attempt,
+        held_reason: rs.held_reason,
+        status: s.status,
+        observed_image_tag: s.observed_image_tag,
+        last_observed_at: s.last_observed_at,
+        last_ready_at: s.last_ready_at,
+        drain_started_at: s.drain_started_at,
+        deployment: %{
+          status: d.status,
+          image_tag: d.image_tag,
+          error_message: d.error_message,
+          started_at: d.started_at,
+          finished_at: d.finished_at
+        }
+      })
+      |> Repo.all()
+      |> Enum.map(fn
+        %{deployment: %{status: nil}} = server -> %{server | deployment: nil}
+        server -> server
+      end)
+
+    {servers, Repo.aggregate(scope, :count)}
+  end
+
   @doc "Whether a rollout of this tag has ever completed in this environment."
   def previously_completed?(image_tag) when is_binary(image_tag) do
     Rollout
@@ -404,8 +450,14 @@ defmodule Tuist.Kura.Rollouts do
 
       nil ->
         case latest_rollout() do
-          %Rollout{image_tag: ^tag} = rollout -> rollout
-          previous -> create_rollout(tag, previous)
+          %Rollout{image_tag: ^tag} = rollout ->
+            rollout
+
+          %Rollout{} = previous ->
+            if held_by_expedite?(previous), do: previous, else: create_rollout(tag, previous)
+
+          nil ->
+            create_rollout(tag, nil)
         end
     end
   end
@@ -424,8 +476,26 @@ defmodule Tuist.Kura.Rollouts do
   # lifts, so a deliberate rollback to an older tag still takes effect —
   # delayed, at most, by the remainder of the window. Tags that are not
   # comparable versions keep the previous behaviour.
+  #
+  # An explicit expedite (the deploy's `kura_expedite` input, a rollback to a
+  # proven tag) is the operator's decision and cannot wait out that window:
+  # the cohort carrying it supersedes at once, and while its rollout settles
+  # no other cohort displaces it, newer tag or not. Otherwise an old pod still
+  # on the tag being rolled back would supersede the rollback on its next
+  # tick and hold the bad tag for the whole window.
   defp supersedable?(%Rollout{} = active, tag) do
-    settled?(active) or newer_tag?(tag, active.image_tag)
+    cond do
+      held_by_expedite?(active) -> false
+      expedited_by_deploy_input?(tag) -> true
+      true -> settled?(active) or newer_tag?(tag, active.image_tag)
+    end
+  end
+
+  # An expedited rollback can complete within its settle window, when the
+  # fleet converges quickly; the old cohort must not mint a fresh rollout of
+  # the tag it rolled back from either.
+  defp held_by_expedite?(%Rollout{} = rollout) do
+    not settled?(rollout) and expedited_by_deploy_input?(rollout)
   end
 
   defp settled?(%Rollout{inserted_at: inserted_at}) do
@@ -520,6 +590,12 @@ defmodule Tuist.Kura.Rollouts do
       "expedited" -> false
       nil -> Environment.env() == :prod
     end
+  end
+
+  defp expedited_by_deploy_input?(%Rollout{id: id}) do
+    RolloutEvent
+    |> where([e], e.kura_rollout_id == ^id and e.action == "expedited" and e.actor == "deploy-input")
+    |> Repo.exists?()
   end
 
   defp expedited_by_deploy_input?(tag), do: Environment.kura_rollout_expedite_tag() == tag

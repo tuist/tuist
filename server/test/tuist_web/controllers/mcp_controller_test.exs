@@ -36,7 +36,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "id" => 1,
@@ -58,7 +58,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> put_req_header("mcp-protocol-version", "2026-07-28")
         |> put_req_header("mcp-method", "tools/call")
         |> put_req_header("mcp-name", "list_accounts")
@@ -94,7 +94,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "id" => 1,
@@ -116,7 +116,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "id" => 1,
@@ -134,7 +134,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> put_req_header("mcp-protocol-version", "2099-01-01")
         |> post_mcp(%{
           "jsonrpc" => "2.0",
@@ -154,7 +154,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "id" => 2,
@@ -172,7 +172,7 @@ defmodule TuistWeb.MCPControllerTest do
       # First initialize to get a session ID
       init_conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "id" => 1,
@@ -186,7 +186,7 @@ defmodule TuistWeb.MCPControllerTest do
       # Then send notification with the session ID
       notification_conn =
         build_conn()
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> put_req_header("mcp-session-id", session_id)
         |> put_req_header("mcp-protocol-version", "2025-06-18")
         |> post_mcp(%{
@@ -204,7 +204,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer #{user.token}")
+        |> put_req_header("authorization", "Bearer #{AccountsFixtures.user_access_token(user)}")
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "id" => 5,
@@ -223,7 +223,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "id" => 3,
@@ -245,7 +245,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       init_conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "id" => 1,
@@ -258,7 +258,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         build_conn()
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> put_req_header("mcp-session-id", session_id)
         |> put_req_header("mcp-protocol-version", "2025-06-18")
         |> post_mcp(%{
@@ -289,7 +289,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       init_conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "id" => 1,
@@ -302,7 +302,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         build_conn()
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> put_req_header("mcp-session-id", session_id)
         |> put_req_header("mcp-protocol-version", "2025-06-18")
         |> post_mcp(%{
@@ -323,7 +323,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "id" => 1,
@@ -340,7 +340,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> authenticated_mcp_conn(user.token)
+        |> authenticated_mcp_conn(AccountsFixtures.user_access_token(user))
         |> post_mcp(%{"invalid" => "not a jsonrpc message"})
 
       assert conn.status == 400

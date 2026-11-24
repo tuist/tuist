@@ -141,7 +141,7 @@
     z-index: var(--noora-z-index-12);
     inset-block: 0;
     inset-inline-start: 0;
-    box-shadow: var(--noora-border-heavy);
+    box-shadow: var(--noora-border-large);
     background: var(--noora-surface-background-primary);
     width: min(320px, calc(100vw - var(--noora-spacing-10)));
   }

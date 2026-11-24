@@ -1,0 +1,77 @@
+/* A feature page's logo strip right below its hero
+   (MarketingComponents.logo_strip): the home page's company-logos frame —
+   1200px wide, 88px tall, hairline border, tertiary-ink logos — kept static,
+   with the strip's heading on the left and each logo linking to its
+   sub-page. The selector out-ranks pages.css's `[id^="marketing-"] >
+   section` margins, so the strip sits on the same frame as the hero. */
+[id^="marketing-"] > [data-part="logo-strip"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--noora-spacing-6) var(--noora-spacing-11);
+  box-sizing: border-box;
+  margin: 0 var(--noora-spacing-1);
+  border: 1px solid var(--marketing-stroke-default);
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-6) var(--noora-spacing-4);
+  min-height: 88px;
+
+  @media (min-width: 1024px) {
+    margin: 0;
+    width: 100%;
+    max-width: 1200px;
+  }
+
+  & > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+    text-transform: uppercase;
+
+    /* Phones: the heading takes its own row above the logo list. */
+    @media (max-width: 720px) {
+      flex-basis: 100%;
+    }
+  }
+
+  & > [data-part="logos"] {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    align-items: center;
+    gap: var(--noora-spacing-6) var(--noora-spacing-9);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    /* Phones: one logo per row, a plain single-column grid. */
+    @media (max-width: 720px) {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--noora-spacing-6);
+    }
+  }
+
+  & [data-part="logo"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    transition: color 150ms ease;
+    color: var(--noora-surface-label-tertiary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--noora-surface-label-primary);
+    }
+
+    & > svg {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+    }
+  }
+}

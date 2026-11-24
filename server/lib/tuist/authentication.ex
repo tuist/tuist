@@ -30,13 +30,7 @@ defmodule Tuist.Authentication do
         snapshot(subject, Map.get(claims, "exp"))
 
       _ ->
-        user = Accounts.get_user_by_token(token)
-
-        if is_nil(user) do
-          account_or_project_token(token)
-        else
-          user |> Accounts.record_legacy_token_use() |> reject_if_inactive_user() |> snapshot(nil)
-        end
+        account_or_project_token(token)
     end
   end
 
@@ -102,7 +96,6 @@ defmodule Tuist.Authentication do
           nil
       end
     else
-      if Projects.legacy_token?(token), do: Accounts.record_legacy_token_use(project_token)
       snapshot(project_token, nil)
     end
   end
@@ -125,6 +118,7 @@ defmodule Tuist.Authentication do
   def refresh(old_token, opts) do
     # `:sso_claims` replaces the old token's (see `Tuist.Accounts.refresh_sso_claims/2`).
     {sso_claims, opts} = Keyword.pop(opts, :sso_claims)
+    {origin, opts} = Keyword.pop(opts, :origin)
 
     with {:ok, resource, old_claims} <- Tuist.Guardian.resource_from_token(old_token, %{}, opts),
          {:ok, {:resource, resource}} when resource != nil <-
@@ -137,6 +131,11 @@ defmodule Tuist.Authentication do
            # compares against (see `Tuist.Accounts.credentials_revoked?/2`).
            |> Map.put_new("auth_time", old_claims["iat"])
            |> replace_sso_claims(sso_claims)
+           # Where this refresh came from, never the old token's: a session
+           # outlives a laptop's trip, and a stale origin would keep placing
+           # its cache traffic where it used to be.
+           |> Map.delete("cache_origin")
+           |> Map.merge(origin_claims(origin))
            |> Map.put("preferred_username", preferred_username),
          {:ok, new_token, new_claims} <- __MODULE__.encode_and_sign(subject, new_claims, opts) do
       Tuist.Guardian.on_revoke(old_claims, old_token)
@@ -149,6 +148,18 @@ defmodule Tuist.Authentication do
         {:error, "The token user doesn't exist"}
     end
   end
+
+  @doc """
+  The `cache_origin` claim for a token issued to a request from `origin`
+  (`TuistWeb.RemoteIp.origin/1`). Kura reads it off any credential it has
+  confirmed to attribute cache traffic to where the client is, which is what
+  placement reads. Clients that send the credential they signed in with
+  rather than an exchanged cache token, such as the module cache's REAPI
+  client, are attributed only through this. Coarse placement context, never
+  authorization evidence.
+  """
+  def origin_claims(nil), do: %{}
+  def origin_claims(origin), do: %{"cache_origin" => origin}
 
   defp replace_sso_claims(claims, nil), do: claims
 

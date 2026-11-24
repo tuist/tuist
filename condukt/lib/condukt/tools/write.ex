@@ -1,6 +1,6 @@
 defmodule Condukt.Tools.Write do
   @moduledoc """
-  Tool for writing content to files.
+  Tool for writing content to files, after pi's `write` tool.
 
   Creates the file if it doesn't exist, overwrites if it does.
   Automatically creates parent directories as needed.
@@ -28,7 +28,7 @@ defmodule Condukt.Tools.Write do
   def description(_opts) do
     """
     Write content to a file. Creates the file if it doesn't exist, overwrites if it does.
-    Automatically creates parent directories.
+    Automatically creates parent directories. Use it only for new files or complete rewrites.
     """
     |> String.trim()
   end
@@ -56,13 +56,8 @@ defmodule Condukt.Tools.Write do
     sandbox = fetch_sandbox!(context)
 
     case Sandbox.write(sandbox, path, content) do
-      :ok ->
-        bytes = byte_size(content)
-        lines = content |> String.split("\n") |> length()
-        {:ok, "Wrote #{path} (#{lines} lines, #{bytes} bytes)"}
-
-      {:error, reason} ->
-        {:error, "Cannot write to #{path}: #{inspect(reason)}"}
+      :ok -> {:ok, "Successfully wrote #{byte_size(content)} bytes to #{path}"}
+      {:error, reason} -> {:error, "Cannot write to #{path}: #{inspect(reason)}"}
     end
   end
 

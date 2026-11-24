@@ -171,10 +171,55 @@ variable "bitrise_cli_version" {
   default = "3.2.1"
 }
 
+variable "tuist_version" {
+  type        = string
+  description = "Tuist CLI preinstalled for runner. https://github.com/tuist/tuist/releases (bare-version tags only)."
+  # Installed to /opt/tuist/cli, outside runner's mise data directory. A
+  # repository that pins Tuist through mise still runs its own version. See
+  # AGENTS.md.
+  # renovate: datasource=github-releases depName=tuist/tuist
+  default = "4.218.2"
+}
+
 variable "bitrise_cli_sha256_darwin_arm64" {
   type        = string
   description = "SHA256 of the bitrise-Darwin-arm64 binary, from the release's checksums.txt."
   default     = "33bf12c80ece4bda6168b90481eb3cd021e385851013ef7d922c00d638a44ed5"
+}
+
+variable "go_version" {
+  type        = string
+  description = "Go on PATH for jobs, as on GitHub-hosted images. https://go.dev/dl/."
+  # Pinned rather than taken from Homebrew, so the Go a job gets moves only
+  # when a reviewed bump lands, not on every runner-image release.
+  # renovate: datasource=golang-version depName=go
+  default = "1.27.4"
+}
+
+variable "go_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of go<version>.darwin-arm64.tar.gz, from https://go.dev/dl/?mode=json."
+  default     = "91a44a2b8a716600ad94a4f143e156116620db8828086a6e3602291be9bd0bb4"
+}
+
+variable "jdk21_release" {
+  type        = string
+  description = "Temurin JDK 21 release tag, as on https://github.com/adoptium/temurin21-binaries/releases."
+  # Pinned like Go. Renovate proposes only update releases of 21; another
+  # Java major is a deliberate change (see renovate.json).
+  # renovate: datasource=github-releases depName=adoptium/temurin21-binaries
+  default = "jdk-21.0.13.1+2"
+}
+
+variable "jdk21_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the release's aarch64 mac JDK tar.gz, from its .sha256.txt asset."
+  default     = "48067f2b7c958ed104a9d8a5749be7d25220b0a356b4d2d1bcfaab3e16ad0b14"
+}
+
+locals {
+  # jdk-21.0.13.1+2 -> OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.13.1_2.tar.gz
+  jdk21_archive = "OpenJDK21U-jdk_aarch64_mac_hotspot_${replace(trimprefix(var.jdk21_release, "jdk-"), "+", "_")}.tar.gz"
 }
 
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
@@ -542,6 +587,44 @@ build {
     ]
   }
 
+  # Go, as GitHub-hosted images ship it. Tools that build Go on the machine
+  # rely on it: the Bitrise CLI compiles steps that ship no prebuilt binary
+  # with the `go` on PATH, and without one downloads Go 1.22.12, whose
+  # binaries macOS 26 refuses to load ("missing LC_UUID load command"; Go
+  # emits LC_UUID by default from 1.24). Installed here rather than in the
+  # base image so a bump ships in one runner-image release instead of a
+  # rebuild of every base.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o go.tar.gz https://go.dev/dl/go${var.go_version}.darwin-arm64.tar.gz",
+      "echo '${var.go_sha256_darwin_arm64}  go.tar.gz' | shasum -a 256 -c -",
+      "echo 'admin' | sudo -S tar -C /usr/local -xzf go.tar.gz",
+      "echo 'admin' | sudo -S ln -sf /usr/local/go/bin/go /usr/local/go/bin/gofmt /usr/local/bin/",
+      "rm go.tar.gz"
+    ]
+  }
+
+  # JDK 21, the current LTS and GitHub-hosted images' default Java, for
+  # Gradle, Android and other JVM tooling. Installed where macOS looks for
+  # JDKs, so /usr/bin/java and /usr/libexec/java_home find it, with
+  # JAVA_HOME and GitHub's JAVA_HOME_21_arm64 in runner's login shell.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o jdk.tar.gz https://github.com/adoptium/temurin21-binaries/releases/download/${replace(var.jdk21_release, "+", "%2B")}/${local.jdk21_archive}",
+      "echo '${var.jdk21_sha256_darwin_arm64}  jdk.tar.gz' | shasum -a 256 -c -",
+      "mkdir -p /tmp/jdk && tar -C /tmp/jdk -xzf jdk.tar.gz",
+      "echo 'admin' | sudo -S mkdir -p /Library/Java/JavaVirtualMachines",
+      "echo 'admin' | sudo -S mv /tmp/jdk/${var.jdk21_release} /Library/Java/JavaVirtualMachines/temurin-21.jdk",
+      "echo 'admin' | sudo -S chown -R root:wheel /Library/Java/JavaVirtualMachines/temurin-21.jdk",
+      "rm -rf jdk.tar.gz /tmp/jdk",
+      "printf '\\nexport JAVA_HOME_21_arm64=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home\\nexport JAVA_HOME=\"$JAVA_HOME_21_arm64\"\\n' | sudo tee -a /Users/runner/.zprofile >/dev/null"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/build/tuist-cache-volume"
     destination = "/tmp/tuist-cache-volume"
@@ -798,6 +881,63 @@ build {
     ]
   }
 
+  # The Tuist CLI, installed with mise (which verifies the release's
+  # checksum) into a scratch data directory and moved to
+  # /opt/tuist/cli/<version>. It stays out of runner's mise data directory
+  # because workflows mount cache volumes over ~/.local/share/mise, and
+  # tuist/cache-volume requires an absent or empty directory there (see the
+  # cleanup provisioner at the end). /opt/tuist/cli/bin/tuist (tuist-cli.sh)
+  # runs the version a repository pins through mise, installing it on first
+  # use, and this one otherwise. That directory is not on a CI job's PATH, so
+  # workflows still install the Tuist they pin; sandbox commands put it after
+  # PATH (server/lib/tuist/sandboxes/commands.ex).
+  provisioner "file" {
+    source      = "${path.root}/tuist-cli.sh"
+    destination = "/tmp/tuist-cli.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo rm -rf /tmp/tuist-cli-mise",
+      "sudo -u runner -H /bin/zsh -lc 'MISE_DATA_DIR=/tmp/tuist-cli-mise MISE_CACHE_DIR=/tmp/tuist-cli-mise/cache mise install tuist@${var.tuist_version}'",
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist/cli/bin",
+      "sudo rm -rf /opt/tuist/cli/${var.tuist_version}",
+      "sudo mv /tmp/tuist-cli-mise/installs/tuist/${var.tuist_version} /opt/tuist/cli/${var.tuist_version}",
+      "sudo rm -rf /tmp/tuist-cli-mise",
+      "sudo chown -R root:wheel /opt/tuist/cli/${var.tuist_version}",
+      "sudo ln -sfn ${var.tuist_version} /opt/tuist/cli/current",
+      "sudo install -m 0755 -o root -g wheel /tmp/tuist-cli.sh /opt/tuist/cli/bin/tuist",
+      "rm -f /tmp/tuist-cli.sh",
+      "[ \"$(sudo -u runner -H /bin/sh -c 'cd /tmp && PATH=$HOME/.local/share/mise/shims:$PATH:/opt/tuist/cli/bin tuist version' | tail -1)\" = '${var.tuist_version}' ] || { echo 'sanity check: the preinstalled Tuist does not run without a pin' >&2; exit 1; }"
+    ]
+  }
+
+  # The guide for coding agents, generated from what the image now holds, and
+  # the instruction files in runner's home that point Claude Code, Codex, Amp
+  # and AGENTS.md readers at it. /Users/runner/work is a volume mounted at boot,
+  # so nothing can be left there for them.
+  provisioner "file" {
+    source      = "${path.root}/agent-guide.sh"
+    destination = "/tmp/agent-guide.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo install -m 0755 -o root -g wheel /tmp/agent-guide.sh /opt/tuist/agent-guide.sh",
+      "rm -f /tmp/agent-guide.sh",
+      "sudo -u runner -H /bin/zsh -lc '/opt/tuist/agent-guide.sh write /tmp/agent-guide.md'",
+      "sudo install -m 0644 -o root -g wheel /tmp/agent-guide.md /opt/tuist/agent-guide.md",
+      # runner wrote it, and /tmp is sticky, so admin cannot remove it unprivileged.
+      "sudo rm -f /tmp/agent-guide.md",
+      "sudo -u runner -H /opt/tuist/agent-guide.sh link /Users/runner",
+      "grep -q '^- Xcode ' /opt/tuist/agent-guide.md || { echo 'agent guide lists no Xcode' >&2; exit 1; }",
+      "grep -q 'Tuist ${var.tuist_version} is installed' /opt/tuist/agent-guide.md || { echo 'agent guide names the wrong Tuist' >&2; exit 1; }",
+      "cat /opt/tuist/agent-guide.md"
+    ]
+  }
+
   # Sanity check: tools customers expect on a GitHub-parity macOS
   # runner have to be reachable from the agent's runtime
   # environment. The agent wraps its entrypoint in `zsh -lc`, so
@@ -815,12 +955,15 @@ build {
   # `xcrun metal --version` proves the base's Metal Toolchain is
   # visible to `runner` and not only to the user that installed it.
   #
-  # Tuist itself isn't in the list — customer workflows install it
-  # via mise / brew so they own the version pin.
+  # Tuist isn't in the list: it is preinstalled for sandboxes outside a
+  # CI job's PATH (see the provisioner above), and workflows install the
+  # version they pin.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
       "sudo -u runner -H /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
+      "[ \"$(sudo -u runner -H /bin/zsh -lc 'go env GOVERSION')\" = 'go${var.go_version}' ] || { echo 'sanity check: the go on runner PATH is not the pinned Go' >&2; exit 1; }",
+      "sudo -u runner -H /bin/zsh -lc 'for j in \"$JAVA_HOME/bin/java\" java; do $j -version 2>&1 | grep -q \"version .21\\\\.\" || exit 1; done' || { echo 'sanity check: JAVA_HOME or java on runner PATH is not JDK 21' >&2; exit 1; }",
       "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'",
       "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version'"
     ]
@@ -846,6 +989,18 @@ build {
       "set -euo pipefail",
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
+    ]
+  }
+
+  # Workflows mount tuist/cache-volume over ~/.local/share/mise, which requires
+  # the path to be absent or an empty directory. Build steps that run mise as
+  # runner (the Tuist wrapper's pin check, for one) leave its bookkeeping
+  # there, so remove the directory and assert it is gone.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo rm -rf /Users/runner/.local/share/mise",
+      "[ ! -e /Users/runner/.local/share/mise ] || { echo 'sanity check: runner mise data directory must be absent for cache volumes' >&2; exit 1; }"
     ]
   }
 

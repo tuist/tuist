@@ -7,7 +7,7 @@
 ---
 # Dizinler {#directories}
 
-Tuist, dosyalarını sisteminizdeki birkaç dizinde [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) standardına uygun olarak düzenler. Bu yaklaşım, yapılandırma, önbellek ve durum dosyalarını yönetmek için temiz ve standart bir yol sunar.
+Tuist, dosyalarını sisteminizdeki birkaç dizinde [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) standardına uygun olarak düzenler. Bu, yapılandırma, önbellek ve durum dosyalarını yönetmek için temiz ve standart bir yol sunar.
 
 ## Desteklenen ortam değişkenleri {#supported-environment-variables}
 
@@ -45,12 +45,12 @@ tuist auth login
 
 **Kullanım alanı:**
 - **Eklentiler**: İndirilen ve derlenen eklenti önbelleği
-- **ProjectDescriptionHelpers**: Derlenmiş proje açıklama yardımcıları
+- **ProjectDescriptionHelpers**: Derlenmiş proje tanımı yardımcıları
 - **Bildirimler**: Önbelleğe alınmış bildirim dosyaları
 - **Projeler**: Oluşturulan otomasyon projesi önbelleği
 - **EditProjects**: edit komutu için önbellek
-- **Çalıştırmalar**: Test ve derleme çalıştırma analiz verileri
-- **İkili Dosyalar**: Derleme çıktı ikili dosyaları (ortamlar arasında paylaşılamaz)
+- **Çalıştırmalar**: Test ve derleme çalıştırması analiz verileri
+- **İkilikler**: Derleme yapıtı ikilikleri (ortamlar arasında paylaşılamaz)
 - **SelectiveTests**: Seçici test önbelleği
 
 **Örnek:**
@@ -89,7 +89,7 @@ tuist generate
 
 ## Öncelik sırası {#precedence-order}
 
-Hangi dizinin kullanılacağını belirlerken Tuist, ortam değişkenlerini aşağıdaki sırayla kontrol eder:
+Hangi dizinin kullanılacağını belirlerken Tuist ortam değişkenlerini aşağıdaki sırayla kontrol eder:
 
 1. **Tuist’e özel değişken** (ör. `TUIST_XDG_CONFIG_HOME`)
 2. **Standart XDG değişkeni** (ör. `XDG_CONFIG_HOME`)
@@ -98,7 +98,7 @@ Hangi dizinin kullanılacağını belirlerken Tuist, ortam değişkenlerini aşa
 Bu sayede şunları yapabilirsiniz:
 - Tüm uygulamalarınızı tutarlı bir şekilde düzenlemek için standart XDG değişkenlerini kullanın
 - Tuist için farklı konumlara ihtiyaç duyduğunuzda Tuist’e özel değişkenlerle geçersiz kılın
-- Herhangi bir yapılandırma yapmadan mantıklı varsayılanlara güvenin
+- Herhangi bir yapılandırma yapmadan makul varsayılanlara güvenin
 
 ## Yaygın kullanım senaryoları {#common-use-cases}
 

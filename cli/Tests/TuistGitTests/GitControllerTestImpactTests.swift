@@ -382,6 +382,35 @@ struct GitControllerTestImpactTests {
         #expect(history.commits.map(\.sha) == [commits[119]])
     }
 
+    @Test(.inTemporaryDirectory)
+    func uncommittedTrackedFiles_lists_changed_tracked_files_and_leaves_out_untracked_ones() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let repository = try await makeRepository(at: path)
+        try write("money v1", to: "Core/Money.swift", in: repository)
+        try write("discount v1", to: "Core/Discount.swift", in: repository)
+        try write("models v1", to: "Core/Models.swift", in: repository)
+        try write("search v1", to: "Catalog/Search.swift", in: repository)
+        _ = try commit("baseline", in: repository)
+        // What a CI job writes into the checkout, which leaves the commit's code as it is.
+        try write("generated", to: "Project.xcodeproj/project.pbxproj", in: repository)
+        try write("SF:Core/Money.swift", to: "coverage.lcov", in: repository)
+
+        #expect(try await GitController().uncommittedTrackedFiles(workingDirectory: repository) == [])
+
+        try write("money v2", to: "Core/Money.swift", in: repository)
+        try write("discount v2", to: "Core/Discount.swift", in: repository)
+        try git(["add", "Core/Discount.swift"], in: repository)
+        try git(["mv", "Catalog/Search.swift", "Catalog/Finder with spaces.swift"], in: repository)
+        try FileManager.default.removeItem(atPath: repository.appending(components: "Core", "Models.swift").pathString)
+
+        #expect(try await Set(GitController().uncommittedTrackedFiles(workingDirectory: repository)) == [
+            "Catalog/Finder with spaces.swift",
+            "Core/Discount.swift",
+            "Core/Models.swift",
+            "Core/Money.swift",
+        ])
+    }
+
     private func makeRepository(at path: AbsolutePath) async throws -> AbsolutePath {
         try await FileSystem().makeDirectory(at: path)
         try git(["init", "-q", "--initial-branch=main"], in: path)

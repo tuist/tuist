@@ -146,6 +146,15 @@ stop_registry_server() {
   fi
 }
 
+# Succeeds when the scratch directory holds the example.registryfoo 1.0.0 download. SwiftPM 6.4.2
+# stores downloads under a per-registry directory (`<host>-<hash>/example/registryfoo/1.0.0`),
+# earlier releases directly under `registry/downloads`, so match the release at either depth.
+has_registryfoo_download() {
+  local downloads="$1/.build/registry/downloads"
+  [[ -d "${downloads}" ]] || return 1
+  [[ -n "$(find "${downloads}" -maxdepth 5 -path '*/example/registryfoo/1.0.0/Package.swift' -print -quit)" ]]
+}
+
 write_registry_package_archive() {
   local tmp="$1"
   local registry_dir="$2"
@@ -1225,7 +1234,7 @@ scenario_replace_scm_with_registry_uses_registry() {
   kind="$(jq -r '.pins[0].kind' "${package_dir}/Package.resolved")"
   test "${identity}" = "example.registryfoo" || return 1
   test "${kind}" = "registry" || return 1
-  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
+  has_registryfoo_download "${package_dir}" || return 1
   test ! -e "${package_dir}/.build/checkouts/RegistryFoo" || return 1
 
   # The first resolve has no lockfile, so native SwiftPM downloads the release
@@ -1244,7 +1253,7 @@ scenario_replace_scm_with_registry_uses_registry() {
   printf 'stale checksum' >"${marker}"
   rm -rf "${package_dir}/.build/registry"
   restore_registry_package "${tmp}" "${package_dir}" "${registry_url}" || return 1
-  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
+  has_registryfoo_download "${package_dir}" || return 1
   test "$(cat "${marker}")" = "${checksum}" || return 1
   test -z "$(find "${tmp}/cache/registry/archives" -type f -name '*.zip' -print)" || return 1
 
@@ -1323,7 +1332,7 @@ scenario_replace_scm_with_registry_falls_back_to_scm_when_registry_has_no_versio
   test "${location}" = "${dependency_dir}" || return 1
   test "${version}" = "1.0.0" || return 1
   test -e "${package_dir}/.build/checkouts/LocalRegistryFoo/Package.swift" || return 1
-  test ! -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
+  ! has_registryfoo_download "${package_dir}" || return 1
 
   stop_registry_server
   echo "identity=${identity}"

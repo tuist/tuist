@@ -84,10 +84,10 @@
       }
 
       /* Right-click brand menu. The panel and its rows are stock Noora
-         dropdown pieces (noora-dropdown-content + noora-dropdown-item, as in
-         the dashboard's projects dropdown); this wrapper only positions the
-         panel under the logo and drives open/close with the same motion as
-         the navbar's other dropdowns. */
+         menu pieces (noora-menu-panel + Noora.Menu items, as in the
+         breadcrumb menu); this wrapper only positions the panel under the
+         logo and drives open/close with the same motion as the navbar's
+         other dropdowns. */
       & > [data-part="logo-menu"] {
         position: absolute;
         /* Same placement as the shared dropdown viewport: flush under the
@@ -104,8 +104,6 @@
           transform 0.18s var(--ease-out-cubic),
           visibility 0.18s;
         inset-inline-start: 0;
-        width: max-content;
-        min-width: 250px;
 
         &[data-open="true"] {
           transform: translateY(0);
@@ -113,26 +111,47 @@
           opacity: 1;
         }
 
-        & .noora-dropdown-item {
-          white-space: nowrap;
+        /* The items aren't driven by Zag here, so nothing sets
+           data-highlighted; highlight on hover like the breadcrumb menu. */
+        & .noora-menu-item:hover {
+          background: var(--noora-surface-background-secondary);
+        }
 
-          /* The check icon fades in while the hook's data-copied flag is
-             set; the label itself never changes. */
-          & [data-part="right-icon"] {
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            color: var(--noora-surface-label-primary);
+        /* The check draws itself while the hook's data-copied flag is set,
+           with the Noora checkbox's stroke animation (checkbox_control.css):
+           the path has pathLength 1, and the offset hides it a little past
+           its length so no cap shows. On reset it fades out and only then
+           rewinds, so it never draws backwards. Sized like the leading
+           icon. */
+        & .noora-menu-item > [data-part="extra"] {
+          width: var(--noora-icon-size-medium);
+          height: var(--noora-icon-size-medium);
+
+          & svg {
+            width: 100%;
+            height: 100%;
           }
 
-          &[data-copied="true"] [data-part="right-icon"] {
-            opacity: 1;
+          & path {
+            opacity: 0;
+            transition:
+              opacity 100ms var(--ease-out-cubic),
+              stroke-dashoffset 0s linear 100ms;
+            stroke-dasharray: 1 2;
+            stroke-dashoffset: 1.05;
           }
         }
 
-        /* Give the separator the same breathing room the dashboard's
-           dropdown rows create around it. */
-        & [data-part="separator"] {
-          margin-block: var(--noora-spacing-2);
+        & .noora-menu-item[data-copied="true"] > [data-part="extra"] path {
+          opacity: 1;
+          transition: stroke-dashoffset 180ms var(--ease-out-quad) 60ms;
+          stroke-dashoffset: 0;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          & .noora-menu-item > [data-part="extra"] path {
+            transition: none;
+          }
         }
       }
     }
@@ -263,17 +282,12 @@
         }
       }
 
-      /* Slack/GitHub neutral buttons: 20px icons + the button's 6px padding
-         match the 32px height of the text buttons. Hover comes from the
-         neutral button itself. */
+      /* Slack/GitHub ghost buttons, sized and styled by the ghost button
+         itself: a 16px icon in a 32px square, the height of the text
+         buttons. */
       & > [data-part="icon"] {
         @media (max-width: 960px) {
           display: none;
-        }
-
-        & > svg {
-          width: 20px;
-          height: 20px;
         }
       }
 
@@ -332,7 +346,7 @@
           margin-top: 0;
           /* Noora hairline ring; its [data-theme="dark"] override swaps in
              the dark-scheme ring. */
-          box-shadow: var(--noora-border-light-default);
+          box-shadow: var(--noora-border-small-default);
           border-radius: var(--noora-radius-6);
           background: var(--noora-surface-background-primary);
 
@@ -376,7 +390,7 @@
           display: none;
         }
 
-        /* Unlike other neutral buttons, the burger has no hover or press
+        /* Unlike other ghost buttons, the burger has no hover or press
            fill, and no native tap highlight either. */
         -webkit-tap-highlight-color: transparent;
 
@@ -512,7 +526,7 @@
           justify-content: center;
           align-items: center;
           padding: 0 var(--noora-spacing-3);
-          color: var(--noora-button-neutral-label);
+          color: var(--noora-button-ghost-secondary-label);
 
           & svg {
             transform: rotate(-90deg);
@@ -936,7 +950,7 @@
     /* Hairline ring from Noora + the Figma depth layer (0 8px 32px #08090a)
        rebuilt from the Noora neutral ramp at 10% alpha. */
     box-shadow:
-      var(--noora-border-light-default),
+      var(--noora-border-small-default),
       0 8px 32px
         color-mix(
           in oklch,
@@ -1020,7 +1034,7 @@
        global focus ring (see marketing.css) inward so the clip can't
        shave it. */
     &:focus-visible {
-      outline-offset: -2px;
+      outline-offset: calc(-1 * var(--noora-focus-ring-width));
       border-radius: var(--noora-radius-2);
     }
 

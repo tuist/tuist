@@ -105,15 +105,21 @@ defmodule TuistCommon.SentryHTTPClient do
 
   # Builds the envelope URL the same way Sentry does from its own DSN:
   # `http://<key>:<secret>@<host>/<path>/<project>` posts to
-  # `http://<host>/<path>/api/<project>/envelope/`.
+  # `http://<host>/<path>/api/<project>/envelope/`. The secret is optional, as
+  # in the server's public endpoint, whose DSN key is a percent-encoded
+  # account token (`https://<token>@<host>/api/accounts/<handle>/pulse/sentry/<service>/1`).
   defp pulse_endpoint(dsn) do
     %URI{userinfo: userinfo, path: path} = uri = URI.parse(dsn)
-    [key, secret] = String.split(userinfo, ":", parts: 2)
     {base, [project]} = path |> String.split("/") |> Enum.split(-1)
     envelope_path = Enum.join(base ++ ["api", project, "envelope", ""], "/")
 
-    {URI.to_string(%{uri | userinfo: nil, path: envelope_path}),
-     [sentry_key: key, sentry_secret: secret]}
+    auth =
+      case String.split(userinfo, ":", parts: 2) do
+        [key, secret] -> [sentry_key: key, sentry_secret: secret]
+        [key] when key != "" -> [sentry_key: key]
+      end
+
+    {URI.to_string(%{uri | userinfo: nil, path: envelope_path}), auth}
   end
 
   # Keeps Sentry's version, client and timestamp fields and swaps Atlas's key

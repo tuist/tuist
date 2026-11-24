@@ -44,7 +44,7 @@ public struct NooraButton: View {
             .foregroundColor(labelColor)
             .opacity(isLoading ? 0 : 1)
             .padding(.horizontal, Noora.Spacing.spacing5)
-            .padding(.vertical, Noora.Spacing.spacing2)
+            .padding(.vertical, Noora.Spacing.spacing4)
             .overlay(
                 RoundedRectangle(cornerRadius: Noora.CornerRadius.max)
                     .trim(from: isLoading ? 0.2 : 0, to: isLoading ? 0.9 : 1)

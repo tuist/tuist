@@ -67,8 +67,8 @@ Why this is safe:
   * dryRun only logs what it would reap.
 
 There is intentionally no PrometheusRule here: managed clusters have no
-Prometheus Operator (they scrape via Alloy into Grafana Cloud). Alert on the
-reaper's log lines in Grafana Cloud instead.
+Prometheus Operator (they scrape via Alloy into the environment's Pulse). Alert
+on the reaper's log lines with a Grafana Cloud rule over Pulse instead.
 */ -}}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "tailscale-device-reaper") }}
 {{- /*

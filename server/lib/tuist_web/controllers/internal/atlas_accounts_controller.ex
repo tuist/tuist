@@ -53,6 +53,10 @@ defmodule TuistWeb.Internal.AtlasAccountsController do
     respond(conn, RunnerBilling.activate(account_id, conn.body_params, conn.assigns.atlas_principal))
   end
 
+  def update_runner_trial(conn, %{"account_id" => account_id}) do
+    respond(conn, RunnerBilling.update_trial(account_id, conn.body_params, conn.assigns.atlas_principal))
+  end
+
   defp respond(conn, {:ok, result}), do: json(conn, result)
 
   defp respond(conn, {:error, reason}) do
@@ -67,7 +71,11 @@ defmodule TuistWeb.Internal.AtlasAccountsController do
                :change_id_conflict,
                :already_enterprise,
                :subscription_exists,
-               :no_cancellable_subscription
+               :no_cancellable_subscription,
+               :no_schedulable_subscription,
+               :already_on_trial,
+               :not_on_trial,
+               :paid_plan_required
              ] ->
           :conflict
 

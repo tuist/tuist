@@ -21,6 +21,7 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/uffd"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
+	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 )
 
 // Archiving uploads a paused sandbox's kernel and disks to object storage so
@@ -39,11 +40,12 @@ const (
 	// memSocket is where the memory server listens for Firecracker, in the
 	// jail.
 	memSocket = "/mem.sock"
-	// Faults fetch the chunks a vCPU waits on; the fill fetches the rest
-	// with fewer streams, so the image is on the node well before the
-	// download URL expires.
+	// Faults fetch the chunks a vCPU waits on, and the fill the rest,
+	// taking a chunk a vCPU waits on first. A restored guest touches most
+	// of its memory before its agent answers, so the memory gets every
+	// stream until it is loaded and the disks' fill starts (lazydisks.go).
 	memoryFaultWorkers = 8
-	memoryFillWorkers  = 2
+	memoryFillWorkers  = 8
 )
 
 var (
@@ -112,9 +114,20 @@ func (m *Manager) Archive(ctx context.Context, args protocol.ArchiveArgs) (res p
 	if meta.State != protocol.StatePaused {
 		return res, fmt.Errorf("%w: %s is %s", ErrNotPaused, args.SandboxID, meta.State)
 	}
-	// The archive holds no memory image, so writes still in the guest's
-	// page cache would restore as zeroed blocks.
-	if !meta.DisksSynced {
+	// The memory image travels when the server can restore it and it is
+	// the one the disks belong to, written by this Firecracker; otherwise
+	// the restore cold boots anyway.
+	withMemory := args.Memory && !meta.ColdBoot && meta.FirecrackerVersion == m.cfg.FirecrackerVersion && m.cfg.SnapshotCompat != ""
+	// A cache clone never travels, and a guest that had it mounted cannot
+	// resume without it; its disks cold boot elsewhere instead.
+	if meta.CacheImage != "" {
+		withMemory = false
+	}
+	// After a pause that did not sync, writes still in the guest's page
+	// cache are only in the memory image: without it they would restore as
+	// zeroed blocks, and with it the archive restores warm only
+	// (createFromArchive).
+	if !meta.DisksSynced && !withMemory {
 		return res, fmt.Errorf("%w: %s", ErrDisksNotSynced, args.SandboxID)
 	}
 
@@ -127,17 +140,15 @@ func (m *Manager) Archive(ctx context.Context, args protocol.ArchiveArgs) (res p
 		Template: meta.Template, Tag: meta.Tag, WorkspaceGB: meta.WorkspaceGB,
 		SourceSandbox: meta.ID, CreatedAt: time.Now().UTC(), DisksSynced: meta.DisksSynced,
 	}
-	// The memory image travels when the server can restore it and it is
-	// the one the disks belong to, written by this Firecracker; otherwise
-	// the restore cold boots anyway.
 	var memory *archivedMemory
-	if args.Memory && !meta.ColdBoot && meta.FirecrackerVersion == m.cfg.FirecrackerVersion && m.cfg.SnapshotCompat != "" {
+	if withMemory {
 		if memory, err = openMemory(sb.root); err != nil {
 			return res, err
 		}
 		defer memory.close()
 		memory.lazyDisks = args.LazyDisks
 		header.Memory = &archive.MemoryHeader{Size: memory.size, Compat: m.cfg.SnapshotCompat}
+		header.CachePlaceholder = vm.Exists(filepath.Join(sb.root, firecracker.CachePath))
 	}
 	res, err = m.upload(ctx, args.PartURLs, args.PartSize, header, sources, memory, start)
 	if err != nil {
@@ -388,7 +399,25 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 	log = log.With("slot", slot, "from_archive", true)
 	if header.Memory != nil {
 		if header.Memory.Compat == m.cfg.SnapshotCompat && header.Memory.Size == int64(args.MemoryMB)<<20 {
-			return m.warmCreate(ctx, sb, src, args.WorkspaceGB, uid, log)
+			if header.CachePlaceholder {
+				if err := m.cachePlaceholder(sb.root, uid); err != nil {
+					return res, err
+				}
+			}
+			res, err = m.warmCreate(ctx, sb, src, args.WorkspaceGB, uid, log)
+			// A guest that never answers after its memory loaded would
+			// fail every restore the same way; synced disks hold its files
+			// without the memory, so they cold boot instead.
+			if err == nil || !header.DisksSynced || !errors.Is(err, vsock.ErrAgentNotReady) || ctx.Err() != nil {
+				return res, err
+			}
+			log.Warn("archived memory did not resume; cold booting the disks", "error", err)
+			return m.coldCreateAfterWarm(ctx, sb, log)
+		}
+		// Its disks miss what the guest had not synced; only the memory
+		// image holds it.
+		if !header.DisksSynced {
+			return res, fmt.Errorf("%w: compat %s, node %s", ErrArchiveNeedsWarmRestore, header.Memory.Compat, m.cfg.SnapshotCompat)
 		}
 		log.Warn("archived memory needs another kind of node; cold booting the disks", "compat", header.Memory.Compat, "node_compat", m.cfg.SnapshotCompat)
 		for _, name := range []string{firecracker.SnapshotPath, archive.MemoryIndexName} {
@@ -521,7 +550,12 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 		defer memory.Close()
 		served <- server.Serve(serveCtx, memory, uffd.Options{
 			FaultWorkers: memoryFaultWorkers, FillWorkers: memoryFillWorkers,
-			OnLoaded: func(stats uffd.Stats) { m.memoryLoaded(sb, stats, time.Since(started)) },
+			OnLoaded: func(stats uffd.Stats) {
+				m.memoryLoaded(sb, stats, time.Since(started))
+				if disks != nil {
+					disks.startFill()
+				}
+			},
 		})
 	}()
 	sb.mu.Lock()
@@ -566,6 +600,34 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 	log.Info("sandbox resumed from its archived memory", "restore", time.Since(started), "pid", inst.PID(),
 		"chunks", stats.Chunks, "stored_chunks", memory.StoredChunks(), "faulted", stats.Faulted, "filled", stats.Filled)
 	return protocol.CreateResult{BootMs: time.Since(started).Milliseconds(), MemoryPending: true}, nil
+}
+
+// coldCreateAfterWarm boots the kernel on a restore's disks once its
+// archived memory did not resume. Disks still arriving through their mounts
+// keep arriving as after a warm restore, so the archive stays until they are
+// all on the node.
+func (m *Manager) coldCreateAfterWarm(ctx context.Context, sb *Sandbox, log *slog.Logger) (protocol.CreateResult, error) {
+	// The placeholder only stood in for the VM state's drive.
+	for _, name := range []string{firecracker.SnapshotPath, archive.MemoryIndexName, memSocket, firecracker.CachePath} {
+		_ = os.Remove(filepath.Join(sb.root, name))
+	}
+	sb.mu.Lock()
+	sb.memoryPending = false
+	disks := sb.lazy
+	sb.mu.Unlock()
+	if disks != nil {
+		disks.startFill()
+	}
+	res, err := m.coldCreate(ctx, sb, log)
+	if err != nil || disks == nil {
+		return res, err
+	}
+	sb.mu.Lock()
+	inst := sb.inst
+	sb.mu.Unlock()
+	go m.serveLazyDisks(sb, disks, inst, log)
+	res.MemoryPending = true
+	return res, nil
 }
 
 // memoryLoaded reports that a warm restore's memory is all on the node.

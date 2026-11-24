@@ -47,7 +47,7 @@ for env in staging canary production; do
   render "waited-platform-$env" platform "$HELM/platform" --namespace platform "${platform_values[@]}"
   render "unwaited-rack-nodes-$env" tuist-rack-nodes "$HELM/rack-nodes" --namespace tuist -f "$HELM/tuist/values.yaml" "${tuist_values[@]}" --set kuraVolumesCSI.image.tag=rack-independence
   render "unwaited-rack-cache-gateways-$env" rack-cache-gateways "$HELM/rack-cache-gateways" --namespace platform -f "$HELM/platform/values.yaml" "${platform_values[@]}"
-  yq -o json -I0 '{"roles": (.rackLinuxFleet.roles // {}), "clusterNetworkRoles": ([.rackLinuxFleet.hosts[]? | select(.publicAddress) | .role] | unique), "fleet": (.rackFleet.name // "tuist-tuist-rack-fleet")}' "$HELM/tuist/values-managed-$env.yaml" > "$WORK/rack-$env.json"
+  yq -o json -I0 '{"roles": ((.rackLinuxFleet.roles // {}) + ([(.rackLinuxFleet.sites // {}) | to_entries[] | .key as $site | (.value.roles // {}) | to_entries[] | {"key": .key + " at " + $site, "value": .value}] | from_entries)), "clusterNetworkRoles": ([.rackLinuxFleet.hosts[]? | select(.publicAddress) | .role] | unique), "fleet": (.rackFleet.name // "tuist-tuist-rack-fleet")}' "$HELM/tuist/values-managed-$env.yaml" > "$WORK/rack-$env.json"
 done
 
 for file in "$WORK"/waited-*.json "$WORK"/unwaited-*.json; do

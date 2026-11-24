@@ -47,7 +47,7 @@ jobs:
       base-tag: ${{ steps.check.outputs.base-tag }}
       base-sha: ${{ steps.check.outputs.base-sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -88,12 +88,12 @@ jobs:
       run:
         working-directory: tuist_ex
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           ref: ${{ needs.check.outputs.source-sha }}
           persist-credentials: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: needs.check.outputs.base-tag != ''
         with:
           ref: ${{ github.sha }}
@@ -165,7 +165,7 @@ jobs:
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
           target_commitish: ${{ needs.check.outputs.source-sha }}

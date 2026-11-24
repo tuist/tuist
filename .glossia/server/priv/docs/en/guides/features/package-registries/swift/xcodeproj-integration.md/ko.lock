@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "e8d7cf147793568abd0236e49d3b2e57f4851ee2cfc356207e085e86b0f95122",
+  "hash": "3fddff2864a8d889c156b9b3a1504b33b3f233e1b7cd1e4ee5ae824772a31b8a",
   "hash_tree": {
     "root": {
       "children": [
@@ -85,7 +85,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -104,7 +104,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -133,11 +133,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -220,21 +220,21 @@
             }
           ],
           "details": {},
-          "hash": "dc159d6479f5eb910de455eabc6ca79448740bce20743a659dfb32f13ddce4e9",
+          "hash": "9a2416bc1e9077d31c51f802a361cad6e31529318f3091fcff911fcd5cbd9a5c",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "e8d7cf147793568abd0236e49d3b2e57f4851ee2cfc356207e085e86b0f95122",
+      "hash": "3fddff2864a8d889c156b9b3a1504b33b3f233e1b7cd1e4ee5ae824772a31b8a",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/package-registries/swift/xcodeproj-integration.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "115174e943605483f1e16656e88e3bad5dfe076be91123b10457ed4b1af62bf9",
+  "output_hash": "b14d2d28127d7f245b52e1efb1500422d1dfa40fa201f961b51e265b771562cd",
   "output_path": "server/priv/docs/ko/guides/features/package-registries/swift/xcodeproj-integration.md",
   "protection_state": "recorded",
   "provider": "",
@@ -254,8 +254,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ca4feaa61b067aae5ee5a9248c9eaa5c839a90c4",
+  "source_commit_sha": "c7fad37f906cb188113c63e92f7fab7d708d473f",
   "source_path": "server/priv/docs/en/guides/features/package-registries/swift/xcodeproj-integration.md",
-  "translated_at": "2026-11-06T17:59:12.429791Z",
-  "translation_session_id": "01a1b201-9078-74d7-ade6-b43aaf72c649"
+  "translated_at": "2026-11-18T21:23:05.778521Z",
+  "translation_session_id": "01a1f088-64a6-7d05-be66-26878314385c"
 }

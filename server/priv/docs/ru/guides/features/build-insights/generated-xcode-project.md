@@ -2,17 +2,17 @@
 {
   "title": "Сгенерированный проект Xcode",
   "titleTemplate": ":title · Аналитика сборок · Возможности · Руководства · Tuist",
-  "description": "Отслеживайте аналитику сборок для проекта Xcode, созданного с помощью Tuist, в панели управления Tuist."
+  "description": "Отслеживайте аналитику сборок для проекта Xcode, созданного через Tuist, в панели управления Tuist."
 }
 ---
 # Сгенерированный проект Xcode {#generated-xcode-project-build-insights}
 
 > [!NOTE]
-> Автоматически созданные схемы по умолчанию включают пост-действие `tuist inspect build`.
+> Автосгенерированные схемы автоматически включают пост-действие `tuist inspect build`.
 >
-> Если вы не хотите отслеживать аналитику сборок в сгенерированных схемах, отключите эту функцию с помощью [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
+> Если вы не хотите отслеживать аналитику сборок в сгенерированных схемах, отключите её с помощью [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
 
-Если вы используете сгенерированные проекты с пользовательскими схемами, необходимо добавить пост-действие самостоятельно. Для [Mise](https://mise.jdx.dev/):
+Если вы используете сгенерированные проекты с пользовательскими схемами, вам нужно добавить пост-действие самостоятельно. Для [Mise](https://mise.jdx.dev/):
 
 ```swift
 let project = Project(
@@ -43,7 +43,7 @@ let project = Project(
 )
 ```
 
-Если вы не используете Mise, убедитесь, что `tuist` доступен в окружении схемы, так как пост-действия Xcode не наследуют переменную `PATH` вашей оболочки. Для установок через [Homebrew](https://brew.sh/):
+Если вы не используете Mise, вам нужно убедиться, что `tuist` доступен в окружении схемы, так как пост-действия Xcode не наследуют `PATH` вашей оболочки. Для установок через [Homebrew](https://brew.sh/):
 
 ```swift
 buildAction: .buildAction(

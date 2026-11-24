@@ -113,6 +113,10 @@ env:
   # Tags every Sentry event with the deploy environment. SENTRY_RELEASE
   # is set per-deploy by the GitHub Actions workflow (`--set env.SENTRY_RELEASE=…`).
   SENTRY_ENVIRONMENT: production
+  # Atlas' own errors, copied to Tuist's Pulse through the server's Sentry
+  # envelope endpoint, beside its "Atlas" self-project. The DSN key, a `tuist`
+  # account token with account:pulse:write, comes from atlas-pulse-sentry below.
+  ATLAS_PULSE_SENTRY_URL: "https://tuist.dev/api/accounts/tuist/pulse/sentry/atlas/1"
   # Atlas hosts its own inference relay. Atlas.LLMs.LocalTransport routes
   # ReqLLM's HTTP calls in-process to Atlas.Inference. Which profile is
   # used isn't configured here — it's the one marked atlas_inference: true
@@ -226,6 +230,12 @@ externalSecrets:
     # the same ingest pipeline external SDKs use — no HTTP hop, so an
     # ingest outage cannot loop back through the logger. This replaces the
     # previous route that posted envelopes to hive.tuist.dev.
+    #
+    # A `tuist` account token with only account:pulse:write, the DSN key for
+    # ATLAS_PULSE_SENTRY_URL above. Sentry ships a copy of Atlas' errors
+    # there while SelfMonitor stays attached.
+    ATLAS_PULSE_SENTRY_TOKEN:
+      remoteRef: "atlas-pulse-sentry/password"
     # Personal OAuth needs client credentials, not the bot/signing credentials.
     # Provision both fields before deployment; see the account-connections
     # section in infra/k8s/atlas/onboarding.md.
@@ -251,6 +261,10 @@ externalSecrets:
       remoteRef: "atlas-qonto/username"
     QONTO_SECRET_KEY:
       remoteRef: "atlas-qonto/credential"
+    ATLAS_QONTO_OAUTH_CLIENT_ID:
+      remoteRef: "atlas-qonto-oauth/username"
+    ATLAS_QONTO_OAUTH_CLIENT_SECRET:
+      remoteRef: "atlas-qonto-oauth/credential"
     MERCURY_API_TOKEN:
       remoteRef: "atlas-mercury/credential"
     ATLAS_GTM_INGEST_TOKEN:

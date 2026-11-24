@@ -104,8 +104,16 @@ defmodule Condukt.Sandbox.Virtual do
   end
 
   @impl Sandbox
-  def glob(%State{session: session}, pattern, opts) do
-    NIF.glob(session, pattern, opts[:cwd])
+  def glob(%State{session: session, base_cwd: base_cwd}, pattern, opts) do
+    base = opts[:cwd] || base_cwd
+
+    # bashkit expands a relative `**` pattern to absolute paths; a relative
+    # pattern matches paths relative to the base, as on the other sandboxes.
+    with {:ok, paths} <- NIF.glob(session, pattern, base) do
+      if Path.type(pattern) == :absolute,
+        do: {:ok, paths},
+        else: {:ok, Enum.map(paths, &String.replace_prefix(&1, String.trim_trailing(base, "/") <> "/", ""))}
+    end
   end
 
   @impl Sandbox

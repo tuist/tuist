@@ -347,7 +347,7 @@ defmodule TuistWeb.API.ReportAttributionTest do
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id, build_system: @system)
       project_token = Projects.create_project_token(project)
 
-      for credential <- [project.token, project_token] do
+      for credential <- [project_token, Projects.create_project_token(project)] do
         response =
           conn
           |> put_req_header("authorization", "Bearer #{credential}")

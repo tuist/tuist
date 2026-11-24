@@ -4,6 +4,7 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
 
   import Ecto.Query
 
+  alias Tuist.IngestRepo
   alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.CoverageFile
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -234,6 +235,20 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
 
     assert length(first) == 10
     assert [%{scope_kind: "test", path: "Sources/Math.swift"}] = second
+  end
+
+  test "stores a report of several chunks as one part", %{test_run: test_run} do
+    paths = for i <- 1..12_000, do: "Sources/File#{i}.swift"
+
+    Evidence.record(test_run, %{
+      paths: paths,
+      scopes: [%{kind: "target", module: "AppTests", files: Enum.to_list(0..11_999)}]
+    })
+
+    assert IngestRepo.query!(
+             "SELECT uniqExact(_part), count() FROM coverage_files WHERE project_id = {p:Int64} AND test_run_id = {id:UUID}",
+             %{"p" => test_run.project_id, "id" => test_run.id}
+           ).rows == [[1, 12_000]]
   end
 
   test "stores nothing for a project whose build system has no coverage" do

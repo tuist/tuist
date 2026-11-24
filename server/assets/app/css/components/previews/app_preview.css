@@ -5,7 +5,7 @@
   flex-direction: row;
   align-items: center;
   gap: var(--noora-spacing-6);
-  box-shadow: var(--noora-light-border-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-6);
   padding: var(--noora-spacing-5);
   text-decoration: none;
@@ -15,7 +15,7 @@
   }
 
   &:active {
-    box-shadow: var(--noora-border-light-focus);
+    box-shadow: var(--noora-border-small-focus);
     background: var(--noora-surface-background-primary);
   }
 

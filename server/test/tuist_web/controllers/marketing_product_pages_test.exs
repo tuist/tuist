@@ -3,7 +3,7 @@ defmodule TuistWeb.Marketing.MarketingProductPagesTest do
 
   test "product copy preserves designed sections and matching social metadata", %{conn: conn} do
     pages =
-      for path <- ["/cache", "/tests", "/compute", "/solutions/slow-builds"] do
+      for path <- ["/cache", "/tests", "/runners", "/solutions/slow-builds"] do
         html = conn |> get(path) |> html_response(200) |> Floki.parse_document!()
         main = Floki.find(html, "main")
         text = Floki.text(main)
@@ -25,7 +25,8 @@ defmodule TuistWeb.Marketing.MarketingProductPagesTest do
           assert main |> Floki.find("table") |> Floki.text() =~ "Do nothing"
           assert main |> Floki.find("table") |> Floki.text() =~ "Optimization suite"
         else
-          assert length(Floki.find(html, "main > section")) == 2
+          # Logo strip, features, and CTA.
+          assert length(Floki.find(html, "main > section")) == 3
         end
 
         title = html |> Floki.find("title") |> Floki.text() |> String.trim()
@@ -38,5 +39,29 @@ defmodule TuistWeb.Marketing.MarketingProductPagesTest do
 
     assert length(Enum.uniq_by(pages, &elem(&1, 0))) == 4
     assert length(Enum.uniq_by(pages, &elem(&1, 1))) == 4
+  end
+
+  test "feature hubs link every sub-page from the logo strip below their hero", %{conn: conn} do
+    for {path, count} <- [{"/cache", 5}, {"/tests", 5}, {"/runners", 3}] do
+      links =
+        conn
+        |> get(path)
+        |> html_response(200)
+        |> Floki.parse_document!()
+        |> Floki.find("main > [data-part=logo-strip] a")
+        |> Floki.attribute("href")
+
+      assert length(links) == count, path
+
+      for link <- links do
+        assert conn |> get(link) |> html_response(200), link
+      end
+    end
+
+    # Bitrise is a supported provider without a page of its own.
+    strip = conn |> get("/runners") |> html_response(200) |> Floki.parse_document!()
+    assert [_, _, _, bitrise] = Floki.find(strip, "main > [data-part=logo-strip] [data-part=logo]")
+    assert Floki.text(bitrise) =~ "Bitrise"
+    assert Floki.attribute(bitrise, "href") == []
   end
 end

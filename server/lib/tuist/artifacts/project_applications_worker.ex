@@ -52,9 +52,12 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
   defp application(project, publication, name, manifest) do
     interfaces = manifest["interfaces"]
 
+    install_interface =
+      interfaces["dev.struo.apple-install.v2"] || interfaces["dev.once.apple-install.v2"] ||
+        interfaces["dev.struo.android-install.v1"] || interfaces["dev.once.android-install.v1"]
+
     interface =
-      interfaces["dev.once.apple-install.v2"] || interfaces["dev.once.android-install.v1"] ||
-        interfaces["dev.tuist.executable.v1"]
+      install_interface || interfaces["dev.tuist.executable.v1"]
 
     if interface do
       with %{"spec" => %{"metadata_payload" => payload}} when is_binary(payload) <- interface,
@@ -64,16 +67,14 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
 
         if attributes && valid_attributes?(attributes) do
           id = UUID.uuid5(:oid, "artifact:#{publication.id}:#{name}")
+          payload = manifest["payloads"][interface["payload"]]
 
           {:ok,
            Map.merge(attributes, %{
              id: id,
-             payload: manifest["payloads"][interface["payload"]],
-             icon:
-               icon_descriptor(
-                 manifest,
-                 interfaces["dev.once.apple-install.v2"] || interfaces["dev.once.android-install.v1"]
-               )
+             payload: payload,
+             binary_id: binary_id(attributes, payload),
+             icon: icon_descriptor(manifest, install_interface)
            })}
         else
           {:ok, nil}
@@ -146,6 +147,12 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
 
   defp app_attributes(_), do: nil
 
+  # The APK payload is the APK itself, so its digest is the content hash `tuist share`
+  # records as an APK's binary ID, and an installed app can compute it to find
+  # its own preview. Apple bundles are archived, so their digest identifies no binary.
+  defp binary_id(%{type: :apk}, %{"digest" => "sha256:" <> hash}), do: hash
+  defp binary_id(_attributes, _payload), do: nil
+
   # The display name is optional and newer than the application ID, so an
   # unusable one falls back to the ID instead of dropping the preview.
   defp android_display_name(name, identifier) do
@@ -211,6 +218,7 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
               type: app.type,
               supported_platforms: app.platforms,
               supported_architectures: Map.get(app, :architectures, []),
+              binary_id: app.binary_id,
               build_version: app.build_version,
               inserted_at: publication.inserted_at
             })

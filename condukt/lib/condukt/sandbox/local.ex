@@ -164,10 +164,29 @@ defmodule Condukt.Sandbox.Local do
   end
 
   @impl Sandbox
+  def list_dir(%State{cwd: cwd}, path) do
+    absolute = resolve(path, cwd)
+
+    with {:ok, names} <- ls(absolute) do
+      {:ok,
+       Enum.map(names, fn name ->
+         %{name: name, type: if(File.dir?(Path.join(absolute, name)), do: :directory, else: :file)}
+       end)}
+    end
+  end
+
+  defp ls(absolute) do
+    case File.ls(absolute) do
+      {:error, :enotdir} -> if File.exists?(absolute), do: {:error, :enotdir}, else: {:error, :enoent}
+      result -> result
+    end
+  end
+
+  @impl Sandbox
   def grep(%State{cwd: cwd}, pattern, opts) do
     base = opts |> Keyword.get(:path) |> resolve_optional(cwd)
     case_sensitive? = Keyword.get(opts, :case_sensitive, true)
-    file_glob = Keyword.get(opts, :glob, "**/*")
+    file_glob = opts |> Keyword.get(:glob, "**/*") |> Sandbox.grep_file_glob()
     limit = Keyword.get(opts, :limit, 1_000)
 
     with {:ok, regex} <- compile_regex(pattern, case_sensitive?) do

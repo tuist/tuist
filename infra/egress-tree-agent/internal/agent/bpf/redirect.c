@@ -51,12 +51,18 @@ enum counter {
 	COUNTER_SIBLING_BYPASS = 2,
 	COUNTER_RETURNED = 3,
 	COUNTER_RETURN_DROPPED = 4,
+	COUNTER_PRIVATE = 5,
 };
 
 enum config_key {
 	CONFIG_TRAMPOLINE_IFINDEX = 0,
 	CONFIG_CLASSID = 1,
 	CONFIG_SELF_IFINDEX = 2,
+	// The shared private-network class, 0 when the node has none. Packets to
+	// a private_dsts prefix are stamped with it instead of the tenant's
+	// class: they leave on the private link, so the public budget and the
+	// tenant's public ceiling do not apply to them.
+	CONFIG_PRIVATE_CLASSID = 3,
 };
 
 struct {
@@ -86,6 +92,25 @@ struct {
 	__type(value, __u8);
 } siblings SEC(".maps");
 
+// Pod CIDRs of the other nodes on this node's private network (IPv4, network
+// byte order). Pod-to-pod traffic to them is tunnelled to that node's address,
+// which the private-network routes send over the private link. Sync-lag
+// polarity: a missing prefix shapes that traffic in the tenant class (the
+// behaviour before this map existed); a stale one puts it in the private
+// class, which is still shaped, never unshaped.
+struct lpm_v4_key {
+	__u32 prefixlen;
+	__u32 addr;
+};
+
+struct {
+	__uint(type, BPF_MAP_TYPE_LPM_TRIE);
+	__uint(max_entries, 512);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__type(key, struct lpm_v4_key);
+	__type(value, __u8);
+} private_dsts SEC(".maps");
+
 static __always_inline void bump(__u32 idx)
 {
 	__u64 *value = bpf_map_lookup_elem(&counters, &idx);
@@ -108,6 +133,11 @@ int kura_shaper_out(struct __sk_buff *skb)
 		return TCX_NEXT;
 	}
 
+	__u32 trampoline = config_get(CONFIG_TRAMPOLINE_IFINDEX);
+	__u32 classid = config_get(CONFIG_CLASSID);
+	__u32 self = config_get(CONFIG_SELF_IFINDEX);
+	__u32 private_classid = config_get(CONFIG_PRIVATE_CLASSID);
+
 	void *data = (void *)(long)skb->data;
 	void *data_end = (void *)(long)skb->data_end;
 	if (data + 14 + 20 <= data_end) {
@@ -118,12 +148,16 @@ int kura_shaper_out(struct __sk_buff *skb)
 				bump(COUNTER_SIBLING_BYPASS);
 				return TCX_NEXT;
 			}
+			if (private_classid) {
+				struct lpm_v4_key key = {.prefixlen = 32, .addr = *daddr};
+				if (bpf_map_lookup_elem(&private_dsts, &key)) {
+					classid = private_classid;
+					bump(COUNTER_PRIVATE);
+				}
+			}
 		}
 	}
 
-	__u32 trampoline = config_get(CONFIG_TRAMPOLINE_IFINDEX);
-	__u32 classid = config_get(CONFIG_CLASSID);
-	__u32 self = config_get(CONFIG_SELF_IFINDEX);
 	if (!trampoline || !classid || !self)
 		// Unconfigured: never blackhole, fall through to Cilium unshaped.
 		return TCX_NEXT;

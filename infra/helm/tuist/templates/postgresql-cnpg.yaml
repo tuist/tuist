@@ -189,7 +189,7 @@ spec:
       # Grafana dashboard role. No `inRoles` on purpose: unlike opsRo this
       # credential is stored in Grafana Cloud, so it must not inherit
       # pg_read_all_data (which would hand a third party every current and
-      # future table, including users.encrypted_password and projects.token).
+      # future table, including users.encrypted_password and accounts.s3_secret_access_key).
       # CNPG creates the bare role; the column-level SELECTs it needs come from
       # infra/cnpg/tuist-grafana-ro-grants.sql.
       - name: {{ .Values.postgresql.cnpg.roles.grafanaRo.name | quote }}

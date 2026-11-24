@@ -1000,8 +1000,47 @@ fn activation_pending(status: &tonic::Status) -> bool {
             == Some(ACTIVATION_PENDING)
 }
 
+/// Lookups are not retried when the remote could not even be connected to:
+/// retrying costs another connect timeout for a remote the breaker is about to
+/// treat as down, and while the channel reconnects, every lookup queued on it
+/// waits its own turn through those timeouts.
 fn lookup_retryable(status: &tonic::Status) -> bool {
-    retryable(status) && !activation_pending(status)
+    retryable(status)
+        && !activation_pending(status)
+        && !connect_failed(status)
+        && !lookup_skipped(status)
+}
+
+/// Whether the call failed opening a connection, before any server answered:
+/// refused, unreachable, or the connect timeout (a blackholed path). A dropped
+/// connection or a GOAWAY is an h2/hyper error and stays retryable.
+fn connect_failed(status: &tonic::Status) -> bool {
+    if status.code() != tonic::Code::Unavailable || transport_caused(status) {
+        return false;
+    }
+    let mut source = std::error::Error::source(status);
+    while let Some(error) = source {
+        if let Some(error) = error.downcast_ref::<io::Error>() {
+            return matches!(
+                error.kind(),
+                io::ErrorKind::TimedOut
+                    | io::ErrorKind::ConnectionRefused
+                    | io::ErrorKind::HostUnreachable
+                    | io::ErrorKind::NetworkUnreachable
+            );
+        }
+        source = error.source();
+    }
+    false
+}
+
+/// The status a lookup gets when it was given up because the breaker opened.
+fn lookup_skipped_status() -> tonic::Status {
+    tonic::Status::unavailable(LOOKUP_SKIPPED)
+}
+
+fn lookup_skipped(status: &tonic::Status) -> bool {
+    status.code() == tonic::Code::Unavailable && status.message() == LOOKUP_SKIPPED
 }
 
 enum LookupAdmission {
@@ -1026,6 +1065,9 @@ struct LookupBreaker {
     // value means the window elapsed and no probe has been started for it.
     unavailable_until_ms: AtomicU64,
     skipped: AtomicU64,
+    // Woken when the breaker opens, so lookups already waiting on the remote
+    // give up then instead of waiting out their own failures.
+    opened: tokio::sync::Notify,
 }
 
 impl LookupBreaker {
@@ -1061,8 +1103,22 @@ impl LookupBreaker {
         self.unavailable_until_ms.load(Ordering::Relaxed) != 0
     }
 
+    /// Completes once the breaker is open (at once if it already is).
+    async fn opened(&self) {
+        loop {
+            let mut notified = std::pin::pin!(self.opened.notified());
+            notified.as_mut().enable();
+            if self.is_open() {
+                return;
+            }
+            notified.await;
+        }
+    }
+
     fn record(&self, outcome: Result<(), &tonic::Status>) {
         match outcome {
+            // Given up because the breaker opened: says nothing new.
+            Err(status) if lookup_skipped(status) => {}
             Err(status) if status.code() == tonic::Code::Unavailable => {
                 let previous = self
                     .unavailable_until_ms
@@ -1073,6 +1129,7 @@ impl LookupBreaker {
                          as misses without asking, probing every {}s",
                         LOOKUP_UNAVAILABLE_BACKOFF_MS / 1000
                     ));
+                    self.opened.notify_waiters();
                 }
             }
             // A failure of the local transport or the client's own timeout is no
@@ -1385,6 +1442,26 @@ impl Remote {
         }
     }
 
+    /// Runs a lookup's network work, and gives it up (`None`) the moment the
+    /// breaker opens. A lookup admitted before the breaker opened would
+    /// otherwise keep waiting on the remote that opened it: on a path that went
+    /// dark, until h2 keepalive gives up on the connection and then through a
+    /// reconnect per queued request, which stalled a build for minutes after it
+    /// already knew the remote was down.
+    fn until_lookups_open<F: std::future::Future>(&self, work: F) -> Option<F::Output> {
+        runtime().block_on(async {
+            match futures_util::future::select(
+                std::pin::pin!(work),
+                std::pin::pin!(self.lookups.opened()),
+            )
+            .await
+            {
+                futures_util::future::Either::Left((output, _)) => Some(output),
+                futures_util::future::Either::Right(_) => None,
+            }
+        })
+    }
+
     /// Lookups answered without asking because the remote was not answering.
     pub fn skipped_lookups(&self) -> u64 {
         self.lookups.skipped.load(Ordering::Relaxed)
@@ -1657,7 +1734,11 @@ impl Remote {
                 ..Default::default()
             };
             let response = retry_call_if(
-                || runtime().block_on(client.get_action_result(self.authed(request.clone())?)),
+                || {
+                    let request = self.authed(request.clone())?;
+                    self.until_lookups_open(client.get_action_result(request))
+                        .unwrap_or_else(|| Err(lookup_skipped_status()))
+                },
                 lookup_retryable,
             );
             self.lookups.record(response.as_ref().map(|_| ()));
@@ -1831,7 +1912,7 @@ impl Remote {
             .cas_client()?
             .max_decoding_message_size(2 * 1024 * 1024);
         let auth = self.authorization().map_err(|status| status.to_string())?;
-        let splits = runtime().block_on(async {
+        let splits = match self.until_lookups_open(async {
             stream::iter(large)
                 .map(|blob| {
                     let client = client.clone();
@@ -1861,7 +1942,10 @@ impl Remote {
                 .buffer_unordered(MAX_CHUNK_REQUESTS)
                 .collect::<Vec<_>>()
                 .await
-        });
+        }) {
+            Some(splits) => splits,
+            None => return Err(format!("batch_read: {LOOKUP_SKIPPED}")),
+        };
         // kura declines a split under pressure with UNAVAILABLE while serving the
         // rest of the read, so only the activation gateway's answer says the
         // remote is not serving.
@@ -2063,7 +2147,7 @@ impl Remote {
         let instance = self.config.instance.clone();
         let auth = self.authorization().map_err(|status| status.to_string())?;
         let chunks = chunk_digests(blobs);
-        let responses = runtime().block_on(async {
+        let work = async {
             let mut join_set = tokio::task::JoinSet::new();
             for chunk in &chunks {
                 let client = client.clone();
@@ -2104,7 +2188,10 @@ impl Remote {
             }
             self.lookups.record(Ok(()));
             Ok(all)
-        })?;
+        };
+        let responses = self
+            .until_lookups_open(work)
+            .unwrap_or_else(|| Err(format!("batch_read: {LOOKUP_SKIPPED}")))?;
         Ok(responses
             .into_iter()
             .map(|response| {

@@ -31,6 +31,66 @@ defmodule Tuist.Tests.Coverage.TargetSources do
 
   @doc "Records the targets the commit's runs (`Tuist.Tests.Coverage.Commits.runs/2`) can be a source of."
   def record(project_id, runs) do
+    by_id = Map.new(runs, &{&1.test_run_id, &1})
+    now = NaiveDateTime.utc_now()
+
+    project_id
+    |> sources(runs)
+    |> Enum.map(fn %{test_run_id: run_id} = target ->
+      run = by_id[run_id]
+
+      %{
+        project_id: project_id,
+        target: target.name,
+        selective_testing_hash: target.hash,
+        test_run_id: run_id,
+        git_commit_sha: run.git_commit_sha,
+        git_repository_id: run.git_repository_id,
+        ran_at: run.ran_at,
+        inserted_at: now
+      }
+    end)
+    |> Enum.chunk_every(@insert_chunk_size)
+    |> Enum.each(&IngestRepo.insert_all(CoverageTargetSource, &1))
+  end
+
+  @doc """
+  Records again the sources of the targets a checkpoint copied
+  (`Tuist.TestImpactAnalysis.Snapshots.record/3`), each `%{module, hash,
+  source}`, so they outlive their first recording while copies of them do:
+  the copy holds the target's rows, and its source run still names its tests.
+  """
+  def renew(project_id, repository_id, targets) do
+    now = NaiveDateTime.utc_now()
+
+    rows =
+      for %{module: module, hash: hash, source: source} <- targets do
+        %{
+          project_id: project_id,
+          target: module,
+          selective_testing_hash: hash,
+          test_run_id: source.run_id,
+          git_commit_sha: source.sha,
+          git_repository_id: repository_id,
+          ran_at: naive(source.ran_at),
+          inserted_at: now
+        }
+      end
+
+    if rows != [], do: IngestRepo.insert_all(CoverageTargetSource, rows)
+    :ok
+  end
+
+  defp naive(%DateTime{} = at), do: DateTime.to_naive(at)
+  defp naive(%NaiveDateTime{} = at), do: at
+
+  @doc """
+  The targets the runs can be a source of, as `%{test_run_id, name, hash}`:
+  each target a clean, instrumented Xcode run executed whole (no identifier
+  the caller narrowed or skipped it by names it), passed and recorded its
+  `target` evidence for, under its selective-testing hash.
+  """
+  def sources(project_id, runs) do
     runs =
       Enum.filter(runs, fn run ->
         Map.get(run, :build_system) == "xcode" and Map.get(run, :git_repository_id) not in [nil, 0]
@@ -50,28 +110,11 @@ defmodule Tuist.Tests.Coverage.TargetSources do
 
     evidenced = evidenced_targets(project_id, run_ids, hashes)
     failed = failed_targets(project_id, run_ids, hashes)
-    now = NaiveDateTime.utc_now()
 
-    hashes
-    |> Enum.filter(
+    Enum.filter(
+      hashes,
       &(MapSet.member?(evidenced, {&1.test_run_id, &1.name}) and not MapSet.member?(failed, {&1.test_run_id, &1.name}))
     )
-    |> Enum.map(fn %{test_run_id: run_id} = target ->
-      run = by_id[run_id]
-
-      %{
-        project_id: project_id,
-        target: target.name,
-        selective_testing_hash: target.hash,
-        test_run_id: run_id,
-        git_commit_sha: run.git_commit_sha,
-        git_repository_id: run.git_repository_id,
-        ran_at: run.ran_at,
-        inserted_at: now
-      }
-    end)
-    |> Enum.chunk_every(@insert_chunk_size)
-    |> Enum.each(&IngestRepo.insert_all(CoverageTargetSource, &1))
   end
 
   @doc """

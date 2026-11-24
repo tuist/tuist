@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
           sparse-checkout: mise.lock
@@ -81,7 +81,7 @@ jobs:
           count="$(gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/mise.lock?ref=$HEAD_SHA" \
             | grep -c '^provenance = "github-attestations"$' || true)"
           echo "count=$count" >> "$GITHUB_OUTPUT"
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
         if: steps.check.outputs.count != '0'
       - name: Load GitHub App credentials from 1Password
         id: app-credentials
@@ -105,12 +105,12 @@ jobs:
       - name: Mint a GitHub App token
         id: app-token
         if: steps.check.outputs.count != '0'
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
         with:
           app-id: ${{ steps.app-credentials.outputs.app-id }}
           private-key: ${{ steps.app-credentials.outputs.private-key }}
       # Only sed and git touch the branch's content; nothing from it runs.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.check.outputs.count != '0'
         with:
           ref: ${{ github.event.pull_request.head.sha }}

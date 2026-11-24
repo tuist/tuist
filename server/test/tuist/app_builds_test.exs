@@ -529,6 +529,28 @@ defmodule Tuist.AppBuildsTest do
     end
   end
 
+  describe "preview_icon_token/2" do
+    # Native clients cache icons by URL, so the token must not change within a day.
+    test "is the same throughout a UTC day and changes the next day" do
+      preview = %Preview{id: "0193b8c4-0000-7000-8000-000000000001"}
+      day_start = :second |> System.system_time() |> div(86_400) |> Kernel.*(86_400)
+
+      token = AppBuilds.preview_icon_token(preview, day_start)
+
+      assert AppBuilds.preview_icon_token(preview, day_start + 86_399) == token
+      refute AppBuilds.preview_icon_token(preview, day_start + 86_400) == token
+      refute AppBuilds.preview_icon_token(preview, day_start - 1) == token
+    end
+
+    test "is still accepted until the end of the day after it was handed out" do
+      preview = %Preview{id: "0193b8c4-0000-7000-8000-000000000001"}
+      now = System.system_time(:second)
+
+      assert :ok = AppBuilds.verify_preview_icon_token(preview, AppBuilds.preview_icon_token(preview, now - 86_400))
+      refute AppBuilds.verify_preview_icon_token(preview, AppBuilds.preview_icon_token(preview, now - 2 * 86_400)) == :ok
+    end
+  end
+
   describe "storage_key/1" do
     test "returns the storage key with .zip extension for non-apk builds" do
       # Given

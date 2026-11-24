@@ -17,9 +17,14 @@ defmodule Tuist.Sandboxes.Events do
   @doc """
   Records `event` for the sandbox now. `:boot_source` and `:duration_ms`
   describe a boot on its `started` event, and `:inserted_at` dates an event
-  that happened before it was observed.
+  that happened before it was observed. A `failed` row also keeps what the
+  sandbox failed with (the row's `error_message`, or `:error_message`), its
+  node and its template, so the failure outlives the row, which a caller's
+  retry or a delete removes.
   """
   def record(%Sandbox{} = sandbox, event, extra \\ %{}) when event in @events do
+    failed? = event == "failed"
+
     SandboxEvent.Buffer.insert(%{
       id: UUIDv7.generate(),
       account_id: sandbox.account_id,
@@ -31,6 +36,10 @@ defmodule Tuist.Sandboxes.Events do
       workspace_gb: sandbox.workspace_gb || 0,
       boot_source: Map.get(extra, :boot_source, ""),
       duration_ms: Map.get(extra, :duration_ms, 0),
+      guaranteed_cpu_milli: Sandbox.guaranteed_cpu_milli(sandbox),
+      error_message: (failed? && Map.get(extra, :error_message, sandbox.error_message)) || "",
+      node_name: (failed? && sandbox.node_name) || "",
+      template: (failed? && sandbox.template) || "",
       inserted_at: Map.get_lazy(extra, :inserted_at, &NaiveDateTime.utc_now/0)
     })
 

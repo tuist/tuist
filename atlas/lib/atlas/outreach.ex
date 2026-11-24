@@ -126,33 +126,6 @@ defmodule Atlas.Outreach do
   def get_candidate(id) when is_binary(id), do: Repo.get(Candidate, id) |> preload_candidate()
   def get_candidate(_id), do: nil
 
-  def list_candidates_pending_notification do
-    Candidate
-    |> where(
-      [candidate],
-      candidate.status == "pending" and not is_nil(candidate.slack_notification_requested_at) and
-        is_nil(candidate.slack_notification_posted_at)
-    )
-    |> order_by([candidate], asc: candidate.slack_notification_requested_at, asc: candidate.id)
-    |> Repo.all()
-  end
-
-  def mark_candidate_notified(%Candidate{} = candidate, attrs) when is_map(attrs) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-
-    candidate
-    |> Candidate.notification_changeset(%{
-      slack_notification_posted_at: now,
-      slack_notification_channel_id: attr(attrs, "channel_id", :channel_id),
-      slack_notification_thread_ts: attr(attrs, "thread_ts", :thread_ts)
-    })
-    |> Repo.update()
-    |> tap(fn
-      {:ok, notified} -> audit_candidate_notification(notified)
-      _result -> :ok
-    end)
-  end
-
   def search_apollo(actor \\ nil, opts \\ []) do
     segment_ids = Keyword.get(opts, :segments, Enum.map(SearchSegments.all(), & &1.id))
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -388,7 +361,7 @@ defmodule Atlas.Outreach do
       action = if existing, do: :updated, else: :created
       attrs = merge_candidate_attrs(attrs, existing)
 
-      candidate = existing || %Candidate{slack_notification_requested_at: now}
+      candidate = existing || %Candidate{}
 
       Candidate.changeset(candidate, attrs)
       |> Repo.insert_or_update()
@@ -871,23 +844,6 @@ defmodule Atlas.Outreach do
         }
       },
       actor: actor
-    )
-  end
-
-  defp audit_candidate_notification(candidate) do
-    Audit.record(
-      "outreach.candidate_notified",
-      %{
-        target_type: "outreach_candidate",
-        target_id: candidate.id,
-        target_label: candidate.full_name || candidate.title || "Outreach candidate",
-        metadata: %{
-          "slack_channel_id" => candidate.slack_notification_channel_id,
-          "slack_thread_ts" => candidate.slack_notification_thread_ts,
-          "search_segment" => candidate.search_segment,
-          "path" => "/commercial/gtm/outreach"
-        }
-      }
     )
   end
 

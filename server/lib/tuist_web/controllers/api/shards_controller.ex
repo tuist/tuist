@@ -12,6 +12,9 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.Headers
 
   @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
+  # First CLI that both spreads multipart upload parts over separate connections and downloads
+  # artifacts as parallel byte ranges; older ones are slower on RustFS than on the default store.
+  @public_shard_storage_minimum_cli_version Version.parse!("4.219.0-rc.2")
   @suite_catch_all_minimum_gradle_plugin_version Version.parse!("0.17.0")
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -149,7 +152,12 @@ defmodule TuistWeb.API.ShardsController do
     }
 
     result =
-      Shards.create_shard_plan(selected_project, params, runner_grant: runner_grant(conn))
+      Shards.create_shard_plan(selected_project, params,
+        runner_grant: runner_grant(conn),
+        public_storage:
+          selected_project.build_system != :xcode or
+            version_at_least?(Headers.get_cli_version(conn), @public_shard_storage_minimum_cli_version)
+      )
 
     response = %{
       id: result.plan.id,

@@ -59,8 +59,8 @@ defmodule TuistWeb.LlmsTxtControllerTest do
       refute body =~ "/compare/AGENTS"
       refute body =~ "/build-systems/index"
       refute body =~ "/build-systems/AGENTS"
-      assert body =~ "[Tuist with Once]"
-      assert body =~ "Once support in Tuist is currently in canary"
+      assert body =~ "[Tuist with Struo]"
+      assert body =~ "Struo support in Tuist is currently in canary"
     end
 
     test "links documentation pages to their markdown twin", %{conn: conn} do
@@ -98,8 +98,14 @@ defmodule TuistWeb.LlmsTxtControllerTest do
 
       assert body =~ "## Product"
 
-      for path <- ["", "/cache", "/compute", "/tests", "/previews", "/pricing"] do
+      for path <- ["", "/cache", "/runners", "/tests", "/previews", "/pricing"] do
         assert body =~ "(#{Tuist.Environment.app_url(path: "/marketing-markdown" <> path)})"
+      end
+
+      assert body =~ "## Runners by CI provider"
+
+      for provider <- ["github-actions", "gitlab-ci", "buildkite"] do
+        assert body =~ "(#{Tuist.Environment.app_url(path: "/marketing-markdown/runners/" <> provider)})"
       end
 
       assert body =~ "Accept: text/markdown"

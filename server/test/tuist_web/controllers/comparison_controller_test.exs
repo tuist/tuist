@@ -22,7 +22,7 @@ defmodule TuistWeb.Marketing.ComparisonControllerTest do
 
         links = Floki.attribute(content, "a", "href")
 
-        for link <- ["/cache", "/tests", "/compute", "/pricing", "/compare", "/en/docs/guides/get-started"] do
+        for link <- ["/cache", "/tests", "/runners", "/pricing", "/compare", "/en/docs/guides/get-started"] do
           assert link in links
         end
 

@@ -1,5 +1,7 @@
 // sbx-agent is the guest side of sandboxd's control channel: a vsock server
-// that answers ping, set_time, configure, write_file, exec and kill.
+// that answers ping, set_time, configure, write_file, exec and kill. With a
+// free-page-reporting balloon it also returns an idle guest's page cache to
+// the host (guest.Reclaimer).
 package main
 
 import (
@@ -57,6 +59,7 @@ func main() {
 		logger.Error("cannot inspect executor mode")
 		os.Exit(1)
 	}
+	go guest.NewReclaimer(logger).Run(ctx)
 	logger.Info("sbx-agent listening", slog.String("addr", *listen), slog.String("version", version))
 	if err := h.Serve(ctx, l); err != nil {
 		logger.Error("serve failed", slog.Any("error", err))

@@ -7,7 +7,7 @@
 ---
 # Oluşturulmuş bir proje oluşturun {#create-a-generated-project}
 
-Boş bir dizinde veya mevcut bir projenin dizininde `tuist init` komutunu çalıştırın:
+`tuist init` komutunu boş bir dizinde veya mevcut bir projenin dizininde çalıştırın:
 
 ::: code-group
 
@@ -21,15 +21,15 @@ tuist init
 <!-- -->
 :::
 
-Komut, <.localized_link href="/guides/features/projects">oluşturulmuş bir proje oluşturmak</.localized_link> veya mevcut bir Xcode projesini ya da çalışma alanını entegre etmek için gereken adımlarda size rehberlik eder. Kurulumunuzu uzak sunucuya bağlamanıza yardımcı olur ve <.localized_link href="/guides/features/selective-testing">seçici test</.localized_link>, <.localized_link href="/guides/features/previews">önizlemeler</.localized_link> ile <.localized_link href="/guides/features/package-registries/swift">kayıt defteri</.localized_link> gibi özelliklere erişim sağlar.
+Komut, <.localized_link href="/guides/features/projects">oluşturulmuş bir proje oluşturmak</.localized_link> veya mevcut bir Xcode projesini ya da çalışma alanını entegre etmek için gerekli adımlarda size rehberlik edecektir. Kurulumunuzu uzak sunucuya bağlamanıza yardımcı olur; bu sayede <.localized_link href="/guides/features/selective-testing">seçici test</.localized_link>, <.localized_link href="/guides/features/previews">previews</.localized_link> ve <.localized_link href="/guides/features/package-registries/swift">registry</.localized_link> gibi özelliklere erişim sağlarsınız.
 
 > [!NOTE]
-> **Mevcut bir projeyi taşıyın**
+> **Mevcut bir projeyi taşıma**
 >
 > Geliştirici deneyimini iyileştirmek ve <.localized_link href="/guides/features/cache">önbelleğimizden</.localized_link> yararlanmak amacıyla mevcut bir projeyi oluşturulmuş projelere taşımak istiyorsanız <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">taşıma kılavuzumuza</.localized_link> göz atın.
 
 
-## Bağımlılıkları ekleyin {#add-dependencies}
+## Bağımlılıkları ekleme {#add-dependencies}
 
 Projelerin ek işlevsellik sağlamak için üçüncü taraf kütüphanelere bağımlı olması yaygındır. Bunu yapmak için projenizi düzenlerken en iyi deneyimi elde etmek üzere aşağıdaki komutu çalıştırın:
 
@@ -37,7 +37,7 @@ Projelerin ek işlevsellik sağlamak için üçüncü taraf kütüphanelere bağ
 tuist edit
 ```
 
-Proje dosyalarınızı içeren bir Xcode projesi açılır. `Tuist/Package.swift` dosyasını düzenleyin ve Kingfisher'ı ekleyin:
+Proje dosyalarınızı içeren bir Xcode projesi açılacaktır. `Tuist/Package.swift` dosyasını düzenleyin ve Kingfisher’ı ekleyin:
 
 ```swift
 // swift-tools-version: 5.9
@@ -65,7 +65,7 @@ let package = Package(
 )
 ```
 
-Ardından, projenizdeki uygulama hedefini düzenleyerek `Kingfisher` öğesini bağımlılık olarak bildirin:
+Ardından projenizdeki uygulama hedefini düzenleyerek `Kingfisher` öğesini bağımlılık olarak belirtin:
 
 ```swift
 import ProjectDescription
@@ -105,29 +105,29 @@ let project = Project(
 )
 ```
 
-Ardından, bağımlılıkları çözmek ve indirmek için `tuist install` komutunu çalıştırın; bu işlem [Swift Package Manager](https://www.swift.org/documentation/package-manager/) kullanılarak yapılır.
+Ardından bağımlılıkları çözmek ve indirmek için `tuist install` komutunu çalıştırın; bu işlem [Swift Package Manager](https://www.swift.org/documentation/package-manager/) kullanılarak gerçekleştirilir.
 
 > [!NOTE]
-> **Bağımlılık çözümleyici olarak SwiftPM**
+> **Bağımlılık çözücü olarak SwiftPM**
 >
-> Tuist'in önerilen bağımlılık yaklaşımı, Swift Package Manager'ı (SPM) yalnızca bağımlılıkları çözmek için kullanır. Tuist daha sonra bunları maksimum yapılandırılabilirlik ve kontrol sağlamak amacıyla Xcode projelerine ve hedeflerine dönüştürür.
+> Tuist’in bağımlılıklar için önerilen yaklaşımı, Swift Package Manager’ı (SPM) yalnızca bağımlılıkları çözmek için kullanır. Tuist daha sonra bunları maksimum yapılandırılabilirlik ve kontrol sağlamak amacıyla Xcode projelerine ve hedeflerine dönüştürür.
 
 
-## Projeyi görselleştirin {#visualize-the-project}
+## Projeyi görselleştirme {#visualize-the-project}
 
-Şu komutu çalıştırarak proje yapısını görselleştirebilirsiniz:
+Proje yapısını aşağıdaki komutu çalıştırarak görselleştirebilirsiniz:
 
 ```bash
 tuist graph
 ```
 
-Komut, projenin dizininde bir `graph.png` dosyası oluşturur ve açar:
+Komut, projenin dizininde bir `graph.png` dosyası oluşturup açacaktır:
 
 ![Proje grafiği](/images/guides/quick-start/graph.png)
 
-## Bağımlılığı kullanın {#use-the-dependency}
+## Bağımlılığı kullanma {#use-the-dependency}
 
-Projeyi Xcode'da açmak için `tuist generate` komutunu çalıştırın ve `ContentView.swift` dosyasında aşağıdaki değişiklikleri yapın:
+Projeyi Xcode’da açmak için `tuist generate` komutunu çalıştırın ve `ContentView.swift` dosyasında aşağıdaki değişiklikleri yapın:
 
 ```swift
 import SwiftUI
@@ -149,4 +149,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Uygulamayı Xcode'dan çalıştırın; URL'den yüklenen görüntüyü görmeniz gerekir.
+Uygulamayı Xcode’dan çalıştırın; URL’den yüklenen resmi görmelisiniz.

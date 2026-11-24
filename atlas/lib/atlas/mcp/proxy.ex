@@ -620,6 +620,16 @@ defmodule Atlas.MCP.Proxy do
         {:ok, %Req.Response{status: status}} ->
           http_failure(server, status, payload["method"])
 
+        # A slow call is not an unreachable upstream: an agent told the upstream
+        # is down waits and retries the same query, when it should narrow it.
+        {:error, %Req.TransportError{reason: :timeout}} ->
+          failure(
+            "transport_error",
+            "Upstream #{server.name} did not answer within #{div(server.receive_timeout, 1000)} seconds. It is reachable but this call is too slow; narrow it (a shorter time range or more selective filters) rather than retrying it unchanged.",
+            payload["method"],
+            retryable: true
+          )
+
         {:error, _reason} ->
           failure(
             "transport_error",

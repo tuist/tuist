@@ -103,7 +103,7 @@
           size="medium"
           disabled
         >
-          <:icon_left><.external_link /></:icon_left>
+          <:icon_left><.ci_provider_icon provider={@run.ci_provider} /></:icon_left>
         </.button>
         <.button
           :if={@run.status == "processing"}
@@ -122,7 +122,7 @@
           size="medium"
           target="_blank"
         >
-          <:icon_left><.external_link /></:icon_left>
+          <:icon_left><.ci_provider_icon provider={@run.ci_provider} /></:icon_left>
         </.button>
       </div>
     </div>
@@ -256,14 +256,14 @@
                   label={dgettext("dashboard_builds", "Passed")}
                   color="success"
                   style="fill"
-                  size="large"
+                  size="medium"
                 />
                 <.badge
                   :if={@run.status == "failure"}
                   label={dgettext("dashboard_builds", "Failed")}
                   color="destructive"
                   style="fill"
-                  size="large"
+                  size="medium"
                 />
                 <.badge
                   :if={@run.status == "failed_processing"}
@@ -309,7 +309,7 @@
                       else: @run.category |> String.capitalize()
                   }
                   style="fill"
-                  size="large"
+                  size="medium"
                 />
               </div>
               <div data-part="metadata">

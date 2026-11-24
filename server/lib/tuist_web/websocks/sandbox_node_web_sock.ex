@@ -51,7 +51,10 @@ defmodule TuistWeb.SandboxNodeWebSock do
       firecracker_version: nil,
       snapshot_compat: nil,
       lazy_disks: false,
-      archives: false
+      archives: false,
+      cpu_guarantees: false,
+      cache_grants: false,
+      cache_drive_in_template: false
     }
   end
 
@@ -243,6 +246,9 @@ defmodule TuistWeb.SandboxNodeWebSock do
     |> maybe_merge(:snapshot_compat, frame["snapshot_compat"], &string/1)
     |> maybe_merge(:lazy_disks, frame["lazy_disks"], &(&1 == true))
     |> maybe_merge(:archives, frame["archives"], &(&1 == true))
+    |> maybe_merge(:cpu_guarantees, frame["cpu_guarantees"], &(&1 == true))
+    |> maybe_merge(:cache_grants, frame["cache_grants"], &(&1 == true))
+    |> maybe_merge(:cache_drive_in_template, frame["cache_drive_in_template"], &(&1 == true))
     |> maybe_merge(:direct_exec_endpoint, frame["direct_exec_endpoint"], &direct_exec_endpoint/1)
   end
 
@@ -262,7 +268,9 @@ defmodule TuistWeb.SandboxNodeWebSock do
     %{
       pod_name: elastic["pod_name"],
       memory_floor_bytes: elastic["memory_floor_bytes"],
-      memory_ceiling_bytes: elastic["memory_ceiling_bytes"]
+      memory_ceiling_bytes: elastic["memory_ceiling_bytes"],
+      cpu_floor_milli: elastic["cpu_floor_milli"],
+      cpu_ceiling_milli: elastic["cpu_ceiling_milli"]
     }
   end
 
@@ -308,7 +316,8 @@ defmodule TuistWeb.SandboxNodeWebSock do
         vcpus: sandbox["vcpus"],
         memory_mb: sandbox["memory_mb"],
         workspace_gb: sandbox["workspace_gb"],
-        worker_running: sandbox["worker_running"] == true
+        worker_running: sandbox["worker_running"] == true,
+        disk_bytes: sandbox["disk_bytes"]
       }
     end
   end

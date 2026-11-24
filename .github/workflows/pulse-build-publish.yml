@@ -59,7 +59,7 @@ jobs:
       TAG: pulse@${{ inputs.version }}
       SOURCE_SHA: ${{ inputs.ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
@@ -105,9 +105,9 @@ jobs:
           fi
           printf '\n[workspace.metadata.pulse]\nproduct_version = "%s"\n' "$VERSION" >> Cargo.toml
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -118,7 +118,7 @@ jobs:
       # Built into the local daemon and pushed only after the checks below, so
       # a failing image never reaches the registry under a release tag.
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: pulse
           file: pulse/docker/buildx/ubuntu/Dockerfile
@@ -199,7 +199,7 @@ jobs:
               source_sha: $source_sha, image: "ghcr.io/tuist/pulse", image_digest: $image_digest}' \
             > "$RUNNER_TEMP/pulse-release.json"
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           repository: tuist/tuist
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}

@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnersLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.WorkflowJobs
@@ -65,8 +66,10 @@ defmodule TuistWeb.RunnersLiveTest do
     assert html =~ "Avg. job duration"
     assert html =~ "Avg. workflow duration"
     assert html =~ "Concurrency"
-    assert html =~ "16 vCPU limit"
-    assert html =~ "48 GB limit"
+    assert html =~ "8 vCPU limit"
+    assert html =~ "24 GB limit"
+    assert html =~ "Current: 8 vCPU limit"
+    refute has_element?(lv, "[data-part=concurrency-limit-history]")
     assert html =~ "runners-concurrency-platform-dropdown"
     assert html =~ "runners-concurrency-macos-vcpus-chart"
     assert html =~ "runners-concurrency-macos-memory-chart"
@@ -167,26 +170,33 @@ defmodule TuistWeb.RunnersLiveTest do
 
     html = render_async(lv, @render_async_timeout)
 
-    assert html =~ "32 vCPU limit"
+    assert html =~ "16 vCPU limit"
     assert html =~ "64 GB limit"
     assert html =~ "runners-concurrency-linux-vcpus-chart"
     assert html =~ "runners-concurrency-linux-memory-chart"
     refute html =~ "runners-concurrency-macos-vcpus-chart"
   end
 
-  test "marks limit buckets and renders the configured threshold" do
-    [usage, limit] = TuistWeb.RunnersLive.concurrency_chart_series([6, 12, 18], 12, "Peak CPU")
+  test "marks only known historical limit buckets and preserves stepped thresholds and gaps" do
+    [usage, limit] =
+      TuistWeb.RunnersLive.concurrency_chart_series([18, 12, 18, 18, 24, 30], [nil, 12, 12, 24, 24, nil], "Peak CPU")
 
     assert usage.name == "Peak CPU"
     assert usage.itemStyle.color == "var:noora-chart-primary"
 
     assert usage.data == [
-             6,
+             18,
              %{value: 12, itemStyle: %{color: "var:noora-chart-destructive"}},
-             %{value: 18, itemStyle: %{color: "var:noora-chart-destructive"}}
+             %{value: 18, itemStyle: %{color: "var:noora-chart-destructive"}},
+             18,
+             %{value: 24, itemStyle: %{color: "var:noora-chart-destructive"}},
+             30
            ]
 
-    assert limit.data == [12, 12, 12]
+    assert limit.data == [nil, 12, 12, 24, 24, nil]
+    assert limit.step == "end"
+    refute limit.connectNulls
+    assert limit.name == "Concurrency limit"
     assert limit.itemStyle.color == "var:noora-chart-destructive"
     assert limit.lineStyle.type == "dashed"
 
@@ -206,6 +216,89 @@ defmodule TuistWeb.RunnersLiveTest do
     assert TuistWeb.RunnersLive.concurrency_chart_options("last-30-days").xAxis.axisLabel.interval == 47
 
     assert TuistWeb.RunnersLive.concurrency_chart_options("last-7-days").tooltip.dateFormat == "hour"
+  end
+
+  test "charts historical resource limits independently of current summaries" do
+    usage = %{
+      dates: ["2026-11-15T10:00:00Z", "2026-11-15T11:00:00Z"],
+      linux: %{vcpus: [12, 18], memory_gb: [24, 36]},
+      macos: %{vcpus: [4, 8], memory_gb: [12, 24]},
+      limits: %{
+        linux: %{vcpus: [nil, 16], memory_gb: [nil, 32]},
+        macos: %{vcpus: [4, 8], memory_gb: [12, 24]}
+      }
+    }
+
+    summaries = [
+      %{platform: :linux, limit_vcpus: 64, limit_memory_gb: 128},
+      %{platform: :macos, limit_vcpus: 16, limit_memory_gb: 48}
+    ]
+
+    [cpu, memory] = TuistWeb.RunnersLive.concurrency_charts(usage, summaries, "linux")
+    assert cpu.limits == [nil, 16]
+    assert cpu.values == [12, 18]
+    assert cpu.limit_label == "64 vCPU limit"
+    assert memory.limits == [nil, 32]
+    assert memory.limit_label == "128 GB limit"
+
+    [cpu, memory] = TuistWeb.RunnersLive.concurrency_charts(usage, summaries, "macos")
+    assert cpu.limits == [4, 8]
+    assert memory.limits == [12, 24]
+  end
+
+  test "refreshes current limits and chart thresholds without a change-history list", %{conn: conn, account: account} do
+    # Leave room in the explicitly selected window for an edit after mounting.
+    params = %{
+      "concurrency-platform" => "linux",
+      "analytics-date-range" => "custom",
+      "analytics-start-date" => DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), -1, :day)),
+      "analytics-end-date" => DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), 1, :hour))
+    }
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners?#{params}")
+    render_async(lv, @render_async_timeout)
+
+    assert {:ok, _} = Concurrency.update_limits(account, %{runner_linux_vcpus_limit: 64})
+    send(lv.pid, :refresh_concurrency)
+    html = render_async(lv, @render_async_timeout)
+
+    assert html =~ "Current: 64 vCPU limit"
+    assert 64 in chart_series_data(html, "runners-concurrency-linux-vcpus-chart", 1)
+    refute has_element?(lv, "[data-part=concurrency-limit-history]")
+  end
+
+  test "refreshes limits on account-scoped concurrency broadcasts", %{conn: conn, account: account} do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners?concurrency-platform=linux")
+    render_async(lv, @render_async_timeout)
+
+    assert {:ok, _} = Concurrency.update_limits(account, %{runner_linux_vcpus_limit: 96})
+    send(lv.pid, {:runner_concurrency_limits_changed, %{account_id: account.id + 1}})
+    assert render(lv) =~ "Current: 16 vCPU limit"
+
+    Tuist.PubSub.broadcast(%{account_id: account.id}, Concurrency.topic(account.id), :runner_concurrency_limits_changed)
+    html = render_async(lv, @render_async_timeout)
+    assert html =~ "Current: 96 vCPU limit"
+    # The relative preset's snapshot ended at mount, before this change.
+    refute 96 in chart_series_data(html, "runners-concurrency-linux-vcpus-chart", 1)
+  end
+
+  test "refresh keeps custom historical windows instead of including newer changes", %{conn: conn, account: account} do
+    params = %{
+      "concurrency-platform" => "linux",
+      "analytics-date-range" => "custom",
+      "analytics-start-date" => DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), -2, :day)),
+      "analytics-end-date" => DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), -1, :day))
+    }
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners?#{params}")
+    render_async(lv, @render_async_timeout)
+
+    assert {:ok, _} = Concurrency.update_limits(account, %{runner_linux_vcpus_limit: 112})
+    send(lv.pid, :refresh_concurrency)
+    html = render_async(lv, @render_async_timeout)
+
+    assert html =~ "Current: 112 vCPU limit"
+    assert Enum.all?(chart_series_data(html, "runners-concurrency-linux-vcpus-chart", 1), &is_nil/1)
   end
 
   defp complete_run(account, workflow_job_id, workflow_run_id, conclusion) do
@@ -282,7 +375,7 @@ defmodule TuistWeb.RunnersLiveTest do
     |> Floki.text()
   end
 
-  defp chart_series_data(html, chart_id) do
+  defp chart_series_data(html, chart_id, series_index \\ 0) do
     json =
       html
       |> Floki.parse_document!()
@@ -292,7 +385,7 @@ defmodule TuistWeb.RunnersLiveTest do
     json
     |> JSON.decode!()
     |> Map.fetch!("series")
-    |> List.first()
+    |> Enum.at(series_index)
     |> Map.fetch!("data")
   end
 

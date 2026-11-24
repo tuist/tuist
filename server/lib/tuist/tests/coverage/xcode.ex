@@ -37,7 +37,7 @@ defmodule Tuist.Tests.Coverage.Xcode do
   def uninstrumented_targets(_project_id, []), do: %{}
 
   def uninstrumented_targets(project_id, run_ids) do
-    events = command_events(project_id, run_ids)
+    {events, since} = command_events(project_id, run_ids)
 
     events
     |> Map.keys()
@@ -45,7 +45,8 @@ defmodule Tuist.Tests.Coverage.Xcode do
     |> Enum.flat_map(fn ids ->
       ClickHouseRepo.all(
         from(t in XcodeTarget,
-          where: t.command_event_id in ^ids and fragment("? != 'miss'", t.binary_cache_hit),
+          where: t.command_event_id in ^ids and t.inserted_at >= ^since,
+          where: fragment("? != 'miss'", t.binary_cache_hit),
           select: %{
             command_event_id: t.command_event_id,
             name: t.name,
@@ -108,14 +109,14 @@ defmodule Tuist.Tests.Coverage.Xcode do
   @doc """
   The selective-testing hash and hit each run's command event reported per
   target. A run that ignored selective testing still hashes its targets,
-  and reports them as misses. The targets are read by command event, which
-  their table's `proj_by_command_event` projection is ordered by: joined
-  to the events, nothing bounded the read of a table ordered by time.
+  and reports them as misses. The targets are read by command event, from
+  the time the earliest event was created: joined to the events, nothing
+  bounded the read of a table ordered by time.
   """
   def selective_testing_hashes(_project_id, []), do: []
 
   def selective_testing_hashes(project_id, run_ids) do
-    events = command_events(project_id, run_ids)
+    {events, since} = command_events(project_id, run_ids)
 
     events
     |> Map.keys()
@@ -123,7 +124,8 @@ defmodule Tuist.Tests.Coverage.Xcode do
     |> Enum.flat_map(fn ids ->
       ClickHouseRepo.all(
         from(t in XcodeTarget,
-          where: t.command_event_id in ^ids and not is_nil(t.selective_testing_hash),
+          where: t.command_event_id in ^ids and t.inserted_at >= ^since,
+          where: not is_nil(t.selective_testing_hash),
           distinct: true,
           select: %{
             command_event_id: t.command_event_id,
@@ -140,14 +142,35 @@ defmodule Tuist.Tests.Coverage.Xcode do
     |> Enum.uniq()
   end
 
+  # The runs' command events, by id, and the earliest time their targets can
+  # have been written. `xcode_targets` is ordered by `inserted_at` and every
+  # project's rows share it, so without that bound a read by event scans the
+  # targets every project wrote since the table's retention began. An event's
+  # targets are written in the request that creates it, stamped with the
+  # server's clock truncated to the second, so they land at or after its
+  # `created_at`; the margin is `Tuist.Xcode.xcode_targets_preload_query/1`'s.
+  @targets_written_margin -300
+
   defp command_events(project_id, run_ids) do
-    run_ids
-    |> Coverage.id_chunks()
-    |> Enum.flat_map(fn runs ->
-      ClickHouseRepo.all(
-        from(e in Event, where: e.project_id == ^project_id and e.test_run_id in ^runs, select: {e.id, e.test_run_id})
-      )
-    end)
-    |> Map.new()
+    events =
+      run_ids
+      |> Coverage.id_chunks()
+      |> Enum.flat_map(fn runs ->
+        ClickHouseRepo.all(
+          from(e in Event,
+            where: e.project_id == ^project_id and e.test_run_id in ^runs,
+            select: {e.id, e.test_run_id, e.created_at}
+          )
+        )
+      end)
+
+    since =
+      events
+      |> Enum.map(&elem(&1, 2))
+      |> Enum.min(NaiveDateTime, fn -> NaiveDateTime.utc_now() end)
+      |> NaiveDateTime.add(@targets_written_margin, :second)
+      |> NaiveDateTime.truncate(:second)
+
+    {Map.new(events, fn {id, run_id, _created_at} -> {id, run_id} end), since}
   end
 end

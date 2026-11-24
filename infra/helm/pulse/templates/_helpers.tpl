@@ -60,7 +60,7 @@ PostgreSQL data source (SQL alert rules over logs); only the PDC agent may
 reach it. The list lives here rather than in values so adding an environment
 changes only that environment's config checksums and restarts. */}}
 {{- define "pulse.postgres" -}}
-{{- if and (eq .Values.topology "cluster") (has .Values.environment (list "production")) }}true{{ end }}
+{{- if and (eq .Values.topology "cluster") (has .Values.environment (list "staging" "canary" "production")) }}true{{ end }}
 {{- end }}
 
 {{- define "pulse.readerNamespace" -}}
@@ -97,6 +97,20 @@ affinity:
           matchLabels:
             app.kubernetes.io/instance: pulse
             app.kubernetes.io/component: {{ . }}
+  {{- if eq . "datanode" }}
+    # Server pods burst to their 3-CPU limit. A datanode beside one gets only
+    # its request's share when the node saturates, and every log read runs on
+    # the datanode leading opentelemetry_logs' one region.
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          namespaces: [tuist]
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: tuist
+              app.kubernetes.io/component: server
+  {{- end }}
 {{- end }}
 
 {{/* Combines the pilot and scoped dashboard identities into one passwd file. */}}
@@ -176,10 +190,22 @@ affinity:
     - {port: 4003, protocol: TCP}
     {{- end }}
 {{- if ne .Values.environment "management" }}
-# Kura posts its copy of each error to /v1/sentry/ (the tuist chart's
-# sentryPulse). The server's web pods already have the rule above; no other
-# producer is admitted. hostNetwork Kura pods carry a node's identity and come
-# in through pulse-host-ingress.
+# Kura, the server's processor and registry sync pods, and the registry post
+# their copy of each error to /v1/sentry/ (the tuist chart's sentryPulse).
+# The server's web pods already have the rule above; no other producer is
+# admitted. hostNetwork Kura pods carry a node's identity and come in through
+# pulse-host-ingress.
+- from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ include "pulse.readerNamespace" . }}
+      podSelector:
+        matchExpressions:
+          - key: app.kubernetes.io/component
+            operator: In
+            values: [processor, swift-registry-sync, registry]
+  ports:
+    - {port: 4000, protocol: TCP}
 - from:
     - namespaceSelector:
         matchLabels:
@@ -187,6 +213,18 @@ affinity:
       podSelector:
         matchLabels:
           app.kubernetes.io/name: kura
+  ports:
+    - {port: 4000, protocol: TCP}
+# The symptoms evaluator (infra/helm/symptoms) reads evidence from the HTTP
+# API as the read-only dashboard user, from its own namespace.
+- from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: symptoms-{{ .Values.environment }}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: symptoms
+          app.kubernetes.io/component: evaluator
   ports:
     - {port: 4000, protocol: TCP}
 {{- end }}

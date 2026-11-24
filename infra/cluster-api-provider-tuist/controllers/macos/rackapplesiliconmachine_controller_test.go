@@ -644,7 +644,7 @@ func TestRunnerCacheVolumeResolvesOnPresence(t *testing.T) {
 
 // --- reachable without the host's own tailnet identity ----------------------
 
-// On 2026-09-18 the BER1 prototype came back from a few days unpowered with its
+// On 2026-09-18 the alder prototype came back from a few days unpowered with its
 // tailnet device gone, and its SSH ingress guard dropped the operator's LAN
 // dial: through the subnet router that dial arrives from the router's own
 // address, which the guard had only ever admitted as a session source, since

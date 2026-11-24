@@ -42,12 +42,12 @@ defmodule TuistWeb.GitHubAppSetupController do
     with %{state: ^state, installation_id: installation_id, user_id: user_id, issued_at: issued_at} = pending <-
            get_session(conn, :github_installation_authorization),
          true <- user.id == user_id and (System.system_time(:second) - issued_at) in -60..600,
-         :ok <- InstallationAuthorization.verify(code, installation_id, authorization_callback_url()) do
+         {:ok, github_account} <- InstallationAuthorization.verify(code, installation_id, authorization_callback_url()) do
       conn = delete_session(conn, :github_installation_authorization)
 
       case pending[:account_id] do
         nil ->
-          IntegrationInstallationController.select(conn, :github, installation_id)
+          IntegrationInstallationController.select(conn, :github, installation_id, github_account)
 
         account_id ->
           with {:ok, account} <- Accounts.get_account_by_id(account_id),

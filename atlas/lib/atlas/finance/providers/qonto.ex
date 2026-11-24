@@ -105,6 +105,57 @@ defmodule Atlas.Finance.Providers.Qonto do
   end
 
   @doc """
+  Creates one multi-transfer request in Qonto. The request only moves money
+  after a member with review rights approves it in Qonto with strong customer
+  authentication.
+
+  The idempotency key is derived from the request contents, so retrying the
+  same call cannot create a second request.
+  """
+  def create_multi_transfer_request(config, %{note: note, transfers: [_ | _] = transfers} = request) do
+    payload =
+      Helpers.compact_map(%{
+        "note" => note,
+        "scheduled_date" => request[:scheduled_date],
+        "debit_iban" => request[:debit_iban],
+        "transfers" =>
+          Enum.map(transfers, fn transfer ->
+            %{
+              "amount" => transfer.amount,
+              "currency" => "EUR",
+              "credit_account_currency" => "EUR",
+              "credit_iban" => transfer.iban,
+              "credit_account_name" => transfer.name,
+              "reference" => transfer.reference
+            }
+          end)
+      })
+
+    body = %{"request_multi_transfer" => payload}
+
+    request =
+      Req.new(
+        url: url(config, "/requests/multi_transfers"),
+        receive_timeout: receive_timeout(config),
+        headers: headers(config) ++ [{"x-qonto-idempotency-key", json_idempotency_key(body)}]
+      )
+      |> maybe_put_bearer(config)
+
+    case Req.post(request, json: body) do
+      {:ok, %Req.Response{status: status, body: %{"request_multi_transfer" => created}}} when status in 200..299 ->
+        {:ok, created}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        Logger.warning("Qonto transfer request failed: status=#{status} body=#{inspect(body)}")
+        {:error, {:http, status, body}}
+
+      {:error, reason} ->
+        Logger.warning("Qonto transfer request transport error: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Deletes an attachment from Qonto by its attachment ID.
   Returns `:ok` on success.
   """
@@ -411,10 +462,15 @@ defmodule Atlas.Finance.Providers.Qonto do
     end
   end
 
-  defp attachment_idempotency_key(transaction_external_id, file_body) do
+  defp attachment_idempotency_key(transaction_external_id, file_body),
+    do: uuid_from_hash([transaction_external_id, 0, file_body])
+
+  defp json_idempotency_key(body), do: uuid_from_hash(:erlang.term_to_binary(body, [:deterministic]))
+
+  defp uuid_from_hash(data) do
     <<a::binary-size(8), b::binary-size(4), c::binary-size(4), d::binary-size(4), e::binary-size(12), _rest::binary>> =
       :sha256
-      |> :crypto.hash([transaction_external_id, 0, file_body])
+      |> :crypto.hash(data)
       |> Base.encode16(case: :lower)
 
     Enum.join([a, b, c, d, e], "-")

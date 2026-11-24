@@ -8,6 +8,7 @@ defmodule TuistWeb.Oauth.RegistrationController do
   alias Boruta.Oauth.Client
   alias Boruta.Openid.DynamicRegistrationApplication
   alias Ecto.Changeset
+  alias Tuist.OAuth.Clients
 
   @registration_key_map %{
     "client_name" => :client_name,
@@ -32,6 +33,23 @@ defmodule TuistWeb.Oauth.RegistrationController do
       error: "invalid_client_metadata",
       error_description: "jwks_uri is not supported. Register the client's public keys inline with jwks."
     })
+  end
+
+  def register(%Plug.Conn{} = conn, %{"redirect_uris" => [_ | _] = redirect_uris} = params) do
+    case Enum.reject(redirect_uris, &Clients.allowed_redirect_uri?/1) do
+      [] ->
+        openid_module().register_client(conn, normalize_registration_params(params), __MODULE__)
+
+      rejected ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          error: "invalid_redirect_uri",
+          error_description:
+            "Redirect URIs must use HTTPS, HTTP on a loopback address, or an app's own scheme, without wildcards or fragments: " <>
+              Enum.map_join(rejected, ", ", &inspect/1)
+        })
+    end
   end
 
   def register(%Plug.Conn{} = conn, params) do

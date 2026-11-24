@@ -73,13 +73,41 @@ struct OutdatedDependenciesChecker: OutdatedDependenciesChecking {
     private func hasPrunedCacheLinks(scratchDirectory: AbsolutePath) async throws -> Bool {
         let links = try await entries(in: scratchDirectory.appending(component: "checkouts"), depth: 1)
             + entries(in: scratchDirectory.appending(component: "artifacts"), depth: 2)
-            + entries(in: scratchDirectory.appending(components: "registry", "downloads"), depth: 3)
+            + registryDownloads(scratchDirectory: scratchDirectory)
             .map { $0.appending(component: Constants.SwiftPackageManager.packageSwiftName) }
         for link in links where !link.basename.hasPrefix(".") {
             // `exists` follows symbolic links, so a link whose cache entry is gone reads as absent.
             if try await !fileSystem.exists(link) { return true }
         }
         return false
+    }
+
+    /// Registry downloads sit at the depth the resolving SwiftPM chose: SwiftPM 6.4.2 and later
+    /// add a directory per registry above `<scope>/<name>/<version>`. The workspace state records
+    /// each one's location either way.
+    private func registryDownloads(scratchDirectory: AbsolutePath) async throws -> [AbsolutePath] {
+        struct WorkspaceState: Decodable {
+            struct Object: Decodable {
+                struct Dependency: Decodable {
+                    struct PackageReference: Decodable { let kind: String }
+                    let packageRef: PackageReference
+                    let subpath: String?
+                }
+
+                let dependencies: [Dependency]
+            }
+
+            let object: Object
+        }
+
+        let statePath = scratchDirectory.appending(component: "workspace-state.json")
+        guard try await fileSystem.exists(statePath),
+              let state = try? JSONDecoder().decode(WorkspaceState.self, from: await fileSystem.readFile(at: statePath))
+        else { return [] }
+        let downloads = scratchDirectory.appending(components: "registry", "downloads")
+        return state.object.dependencies.filter { $0.packageRef.kind == "registry" }.compactMap {
+            try? $0.subpath.map { try downloads.appending(RelativePath(validating: $0)) }
+        }
     }
 
     private func entries(in directory: AbsolutePath, depth: Int) async throws -> [AbsolutePath] {

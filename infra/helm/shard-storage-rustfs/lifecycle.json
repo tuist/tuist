@@ -1,0 +1,11 @@
+{
+  "Rules": [
+    {
+      "ID": "disposable-staging-shards",
+      "Status": "Enabled",
+      "Filter": {"Prefix": ""},
+      "Expiration": {"Days": 3},
+      "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 1}
+    }
+  ]
+}

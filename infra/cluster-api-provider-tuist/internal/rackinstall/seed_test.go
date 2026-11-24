@@ -623,6 +623,65 @@ func TestStorageInstallReservesSystemLVAndLeavesKuraExtentsFree(t *testing.T) {
 	}
 }
 
+// An enrolled storage host's install sizes its data LV from its host, leaves
+// the rest of the VG to the thin pool, and installs what activates that pool
+// on every boot. A legacy storage host gets none of it.
+func TestKuraLVMStorageInstallSizesTheDataLVAndPreparesThinPools(t *testing.T) {
+	storage := func(lvm bool, size string) Seed {
+		s := edgeSeed()
+		s.Host, s.Role, s.TailnetTags = "larch-store-a", "storage", []string{"tag:tuist-rack-storage"}
+		s.KuraLVM, s.KuraDataLVSize = lvm, size
+		return s
+	}
+	render := func(s Seed) (string, map[string]map[string]any) {
+		t.Helper()
+		out, err := UserData(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var seed struct {
+			Autoinstall struct {
+				Packages []string
+				Storage  struct{ Config []map[string]any }
+			}
+		}
+		if err := yaml.Unmarshal([]byte(out), &seed); err != nil {
+			t.Fatal(err)
+		}
+		byID := map[string]map[string]any{}
+		for _, action := range seed.Autoinstall.Storage.Config {
+			byID[fmt.Sprint(action["id"])] = action
+		}
+		return strings.Join(seed.Autoinstall.Packages, " "), byID
+	}
+
+	for size, want := range map[string]string{"": "128G", "1536G": "1536G", "2T": "2T"} {
+		out, _ := UserData(storage(true, size))
+		packages, byID := render(storage(true, size))
+		if byID["data-lv"]["size"] != want {
+			t.Errorf("size %q: data LV %v, want %s", size, byID["data-lv"]["size"], want)
+		}
+		if !strings.Contains(" "+packages+" ", " thin-provisioning-tools ") {
+			t.Errorf("size %q: packages %q lack thin-provisioning-tools", size, packages)
+		}
+		if !strings.Contains(out, "printf 'dm_thin_pool\\n' > /target/etc/modules-load.d/kura-thin-pool.conf") {
+			t.Errorf("size %q: the install does not load dm_thin_pool on boot", size)
+		}
+	}
+
+	out, _ := UserData(storage(false, "1536G"))
+	packages, byID := render(storage(false, "1536G"))
+	if _, ok := byID["data-lv"]; ok || strings.Contains(packages, "thin-provisioning-tools") || strings.Contains(out, "dm_thin_pool") {
+		t.Errorf("a legacy storage host got the Kura LVM install")
+	}
+
+	for _, size := range []string{"128", "1.5T", "0G", "128GiB", "128G; rm -rf /", "1536g"} {
+		if _, err := UserData(storage(true, size)); err == nil {
+			t.Errorf("data LV size %q rendered", size)
+		}
+	}
+}
+
 func TestUserDataGivesAnEdgeTheSitesStaticWANWhileNoPodRuns(t *testing.T) {
 	e := ber1EdgeB()
 	e.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.30", VLAN: 4001}
@@ -640,7 +699,7 @@ func TestUserDataGivesAnEdgeTheSitesStaticWANWhileNoPodRuns(t *testing.T) {
 		"uplinks='enp2s0f1np1 enp2s0f0np0' vlan=4001 address='149.6.170.31/31' gateway='149.6.170.30'",
 		"state=" + EdgeFirstWANState + " metric=50",
 		"compgen -G '/etc/kubernetes/manifests/rack-edge-*.yaml'",
-		`arping -D -q -c 2 -w 3 -I "$dev" "${address%/*}"`,
+		EdgeFirstWANBusybox + ` arping -D -q -c 2 -w 3 -I "$dev" "${address%/*}"`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("the first-boot WAN lacks %q:\n%s", want, script)
@@ -663,8 +722,16 @@ func TestUserDataGivesAnEdgeTheSitesStaticWANWhileNoPodRuns(t *testing.T) {
 	if strings.Contains(fmt.Sprint(seed.Autoinstall.Network), "149.6.170.31") {
 		t.Errorf("netplan carries the WAN: %+v", seed.Autoinstall.Network)
 	}
-	if !strings.Contains(out, "    - iputils-arping\n") {
-		t.Errorf("the install does not bring arping")
+	// The first edge installs with no route to an archive, so its arping is
+	// the installer's busybox, not a package the image lacks.
+	if strings.Contains(out, "iputils-arping") {
+		t.Errorf("the install needs a package from the archive for arping")
+	}
+	if !strings.Contains(late, `install -D -m 0755 "$(command -v busybox)" /target`+EdgeFirstWANBusybox) {
+		t.Errorf("late-commands do not copy the installer's busybox:\n%s", late)
+	}
+	if !strings.Contains(script, EdgeFirstWANBusybox+` arping -q -c 2 -w 3 -I "$dev" "$gateway"`) {
+		t.Errorf("the first-boot WAN does not use the copied busybox's arping:\n%s", script)
 	}
 
 	_, seed = renderEdgeNetwork(t, ber1EdgeB())
@@ -679,5 +746,114 @@ func TestStorageLayoutDefaultsToFullSharedXFS(t *testing.T) {
 		if strings.Contains(got, "lvm_") || !strings.Contains(got, "volume: data, fstype: xfs") {
 			t.Fatalf("unenrolled storage host changed layout: %s", got)
 		}
+	}
+}
+
+// The first edge of a site carries the WAN in its netplan, untagged on its
+// first uplink, as a /32 with an on-link default route below the route through
+// the other edge, so it is out on first boot with no service to bring it up.
+// A console password hash replaces the minted password.
+func TestUserDataPutsTheFirstEdgesWANInItsNetplan(t *testing.T) {
+	e := ber1EdgeB()
+	e.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.30", VLAN: 4001}
+	e.WANInNetplan = true
+	s := edgeSeed()
+	s.Edge = e
+	s.ConsolePasswordHash = "$6$abcdefgh$" + strings.Repeat("A", 86)
+	out, err := UserData(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seed struct {
+		Autoinstall struct {
+			Network struct {
+				Ethernets map[string]struct {
+					Addresses []string
+					Routes    []struct {
+						To, Via string
+						OnLink  bool `json:"on-link"`
+						Metric  int
+					}
+				}
+			}
+			UserData struct {
+				Chpasswd struct {
+					Users []struct{ Name, Password, Type string }
+				}
+			} `json:"user-data"`
+			LateCommands []string `json:"late-commands"`
+		}
+	}
+	if err := yaml.Unmarshal([]byte(out), &seed); err != nil {
+		t.Fatal(err)
+	}
+	first, second := seed.Autoinstall.Network.Ethernets["uplink-1"], seed.Autoinstall.Network.Ethernets["uplink-2"]
+	if strings.Join(first.Addresses, " ") != "149.6.170.31/32" || len(first.Routes) != 1 ||
+		first.Routes[0].To != "default" || first.Routes[0].Via != "149.6.170.30" || !first.Routes[0].OnLink || first.Routes[0].Metric != EdgeFirstWANMetric {
+		t.Errorf("uplink-1 does not carry the WAN: %+v", first)
+	}
+	if len(second.Addresses) != 0 || len(second.Routes) != 0 {
+		t.Errorf("uplink-2 carries the WAN too: %+v", second)
+	}
+	if EdgeFirstWANMetric >= EdgeVRRPMetric {
+		t.Errorf("the WAN's default route does not beat the route through the other edge")
+	}
+	if strings.Contains(strings.Join(seed.Autoinstall.LateCommands, "\n"), EdgeFirstWANPath) {
+		t.Errorf("the first-boot WAN service is installed beside the netplan WAN")
+	}
+	users := seed.Autoinstall.UserData.Chpasswd.Users
+	if len(users) != 1 || users[0].Password != s.ConsolePasswordHash || users[0].Type != "hash" {
+		t.Errorf("chpasswd does not set the hash: %+v", users)
+	}
+
+	s.ConsolePasswordHash = "plain"
+	if _, err := UserData(s); err == nil {
+		t.Errorf("a console password hash that is not SHA-512 crypt rendered")
+	}
+}
+
+// The install keeps a forced 25G with FEC off on the ports the installer
+// needed it for, with the udev rule that kept edge-b's and store-a's uplinks
+// up by hand, and writes no rule for a host whose ports linked on their own.
+func TestUserDataKeepsTheInstallersForced25G(t *testing.T) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh")
+	}
+	_, seed := renderEdge(t)
+	var command string
+	for _, c := range seed.Autoinstall.LateCommands {
+		if strings.Contains(c, ForcedLinksRulePath) {
+			command = c
+		}
+	}
+	if command == "" {
+		t.Fatal("no late-command keeps the forced links")
+	}
+	run := func(forced string) string {
+		t.Helper()
+		dir := t.TempDir()
+		if forced != "" {
+			if err := os.WriteFile(filepath.Join(dir, "forced"), []byte(forced), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		script := strings.ReplaceAll(strings.ReplaceAll(command, ForcedLinksPath, filepath.Join(dir, "forced")), "/target", filepath.Join(dir, "target"))
+		if out, err := exec.Command(sh, "-c", script).CombinedOutput(); err != nil {
+			t.Fatalf("%v\n%s", err, out)
+		}
+		rule, _ := os.ReadFile(filepath.Join(dir, "target", ForcedLinksRulePath))
+		return string(rule)
+	}
+
+	got := run("c0:b5:50:53:c7:09\nc0:b5:50:53:c7:08\nc0:b5:50:53:c7:09\n")
+	want := `ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="c0:b5:50:53:c7:08", RUN+="/usr/sbin/ethtool -s $name autoneg off speed 25000 duplex full", RUN+="/usr/sbin/ethtool --set-fec $name encoding off"
+ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="c0:b5:50:53:c7:09", RUN+="/usr/sbin/ethtool -s $name autoneg off speed 25000 duplex full", RUN+="/usr/sbin/ethtool --set-fec $name encoding off"
+`
+	if got != want {
+		t.Fatalf("rule:\n%s\nwant:\n%s", got, want)
+	}
+	if got := run(""); got != "" {
+		t.Fatalf("wrote a rule with nothing forced:\n%s", got)
 	}
 }

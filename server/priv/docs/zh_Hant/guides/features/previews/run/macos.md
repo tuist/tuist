@@ -17,12 +17,12 @@
 
 ## 安裝 {#install}
 
-[下載應用程式](https://tuist.dev/download)或使用 `brew install --cask tuist/tuist/tuist` 進行安裝。
+[下載應用程式](https://tuist.dev/download)，或使用 `brew install --cask tuist/tuist/tuist` 進行安裝。
 
 ## 執行建置 {#run-a-build}
 
 在選單列應用程式中選擇相容的裝置或模擬器，然後在預覽頁面點擊 **執行**。
 
-macOS 應用程式會先為每個應用程式請求最新的相容預覽。在較舊的伺服器上，若其在套用平台篩選器前先選取不同的應用程式，則會退回至分頁歷史記錄，且不會設定可能隱藏可用建置的截止點。
+macOS 應用程式會先為每個應用程式請求最新的相容預覽。在較舊的伺服器上，若其在套用平台篩選條件前先選取不同的應用程式，則會退回至分頁歷史記錄，而不會施加可能隱藏可用建置的截止限制。
 
-如需存取與組織方式，請參閱 <.localized_link href="/guides/features/previews#visibility">可見性與軌道</.localized_link>。
+如需存取權限與組織方式，請參閱 <.localized_link href="/guides/features/previews#visibility">可見度與軌道</.localized_link>。

@@ -168,6 +168,32 @@ tql eval (3000, 3000, '1s') http_requests AND IGNORING (g, instance, job) vector
 -- SQLNESS SORT_RESULT 3 1
 tql eval (3000, 3000, '1s') vector(1) * http_requests;
 
+-- Tuist: AND/UNLESS match a label one operand lacks as the empty value, as
+-- Prometheus does, instead of rejecting operands with different label sets.
+-- A metric that does not exist has no labels: UNLESS keeps every series.
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') http_requests{g="canary"} unless on(job) unknown_metric;
+
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') http_requests{g="canary"} and on(job) unknown_metric;
+
+-- The right operand aggregated `instance` away, so no series matches on it.
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') max by (job, instance) (http_requests) unless on(job, instance) max by (job) (http_requests);
+
+-- Here the left operand lacks `instance`.
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') max by (job) (http_requests) and on(job, instance) max by (job, instance) (http_requests);
+
+-- Without a modifier every label counts, so `instance` and `g` missing on
+-- the right never match.
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') http_requests{g="canary"} unless max by (job) (http_requests);
+
+-- Labels both operands lack still match: `on(job, l)` joins on `job`.
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') max by (job) (http_requests) and on(job, l) max by (job) (http_requests{g="canary"});
+
 drop table http_requests;
 
 drop table cpu_count;

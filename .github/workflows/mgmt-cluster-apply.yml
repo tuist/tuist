@@ -32,8 +32,7 @@ name: Mgmt Cluster Apply
 # Required secrets (on the mgmt-cluster-apply GitHub Environment):
 #   OP_SERVICE_ACCOUNT_TOKEN - 1Password SA scoped read-only to the
 #     tuist-k8s-mgmt vault, where the mgmt cluster's kubeconfig is
-#     stored as `kubeconfig: tuist-mgmt` and the Grafana Cloud metrics
-#     token is stored as `PROMETHEUS_TOKEN`.
+#     stored as `kubeconfig: tuist-mgmt`.
 #
 # Required secrets (on the mgmt-hetzner GitHub Environment, used by the
 # `hetzner` job only):
@@ -100,12 +99,12 @@ jobs:
       name: mgmt-hetzner
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked hcloud jq yq"
           cache: "false"
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Planned changes
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -138,12 +137,12 @@ jobs:
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked kubectl jq yq"
           cache: "false"
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Load mgmt kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -175,12 +174,18 @@ jobs:
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl jq yq"
+          install_args: "--locked go helm kubectl jq yq"
           cache: "false"
-      - uses: 1password/install-cli-action@v2
+      - name: Check ClusterClass patches keep each other's API server flags and volumes
+        # Several opt-in features rewrite the whole apiServer extraArgs or
+        # extraVolumes array, so a later patch can silently drop an earlier
+        # one's entries and roll every control plane without it. Runs before
+        # any credential is loaded or anything is applied.
+        run: bash infra/mise/tasks/k8s/lint-clusterclass-patches.sh
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Load mgmt kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -209,71 +214,6 @@ jobs:
               ;;
             *) exit "$status" ;;
           esac
-      - name: Validate management monitoring credential
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          set -euo pipefail
-          existing_monitoring_credential_is_complete() {
-            local actual_username
-            local expected_username
-            expected_username="$(printf '%s' '1774467' | base64 | tr -d '\n')"
-            actual_username="$(
-              kubectl -n observability get secret k8s-monitoring-grafana-cloud \
-                -o jsonpath='{.data.prometheus-username}' 2>/dev/null
-            )"
-            [ "$actual_username" = "$expected_username" ] &&
-              kubectl -n observability get secret k8s-monitoring-grafana-cloud \
-                -o jsonpath='{.data.prometheus-password}' 2>/dev/null | grep -q .
-          }
-
-          monitoring_credential_source=""
-          monitoring_password=""
-          if monitoring_token="$(op read 'op://tuist-k8s-mgmt/PROMETHEUS_TOKEN/password' 2>/dev/null)" &&
-            [ -n "$monitoring_token" ]; then
-            monitoring_credential_source="1Password"
-            monitoring_password="$monitoring_token"
-            unset monitoring_token
-          elif existing_monitoring_credential_is_complete; then
-            monitoring_credential_source="existing in-cluster Secret"
-            monitoring_password="$(
-              kubectl -n observability get secret k8s-monitoring-grafana-cloud \
-                -o jsonpath='{.data.prometheus-password}' | base64 --decode
-            )"
-            unset monitoring_token
-          else
-            unset monitoring_token
-            echo "::error::PROMETHEUS_TOKEN is unavailable and the management cluster has no existing monitoring credential"
-            exit 1
-          fi
-
-          echo "::add-mask::$monitoring_password"
-          remote_write_status="$(
-            curl -sS -o /dev/null -w '%{http_code}' \
-              --connect-timeout 5 \
-              --max-time 15 \
-              --user "1774467:$monitoring_password" \
-              --request POST \
-              --header 'Content-Encoding: snappy' \
-              --header 'Content-Type: application/x-protobuf' \
-              --header 'X-Prometheus-Remote-Write-Version: 0.1.0' \
-              --data-binary '' \
-              'https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push'
-          )"
-          unset monitoring_password
-
-          # An authenticated request reaches payload validation and returns
-          # 400 for the deliberately empty protobuf. Invalid credentials
-          # return 401 before payload validation.
-          if [ "$remote_write_status" != "400" ] &&
-            [ "$remote_write_status" != "204" ]; then
-            echo "::error::The $monitoring_credential_source monitoring credential failed the Grafana remote-write authentication probe (HTTP $remote_write_status)"
-            exit 1
-          fi
-
-          if [ "$monitoring_credential_source" = "existing in-cluster Secret" ]; then
-            echo "::warning::PROMETHEUS_TOKEN is unavailable in the management vault; a live Grafana check passed, so the existing in-cluster monitoring credential will be preserved"
-          fi
       - name: Diff (visibility into what's about to change)
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
@@ -519,45 +459,11 @@ jobs:
           kubectl -n flux-system wait --for=condition=Ready helmreleases.helm.toolkit.fluxcd.io/pulse --timeout=15m
           echo "Flux reinstalled management Pulse on $image." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Install management-cluster monitoring
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           set -euo pipefail
-          existing_monitoring_credential_is_complete() {
-            local actual_username
-            local expected_username
-            expected_username="$(printf '%s' '1774467' | base64 | tr -d '\n')"
-            actual_username="$(
-              kubectl -n observability get secret k8s-monitoring-grafana-cloud \
-                -o jsonpath='{.data.prometheus-username}' 2>/dev/null
-            )"
-            [ "$actual_username" = "$expected_username" ] &&
-              kubectl -n observability get secret k8s-monitoring-grafana-cloud \
-                -o jsonpath='{.data.prometheus-password}' 2>/dev/null | grep -q .
-          }
-
-          monitoring_token=""
-          if monitoring_token="$(op read 'op://tuist-k8s-mgmt/PROMETHEUS_TOKEN/password' 2>/dev/null)" &&
-            [ -n "$monitoring_token" ]; then
-            echo "::add-mask::$monitoring_token"
-            kubectl -n observability create secret generic k8s-monitoring-grafana-cloud \
-              --from-literal=prometheus-username=1774467 \
-              --from-literal=prometheus-password="$monitoring_token" \
-              --dry-run=client -o yaml | kubectl apply -f -
-            unset monitoring_token
-          elif existing_monitoring_credential_is_complete; then
-            unset monitoring_token
-            echo "::warning::PROMETHEUS_TOKEN is unavailable in the management vault; preserving the existing in-cluster monitoring credential"
-          else
-            unset monitoring_token
-            echo "::error::PROMETHEUS_TOKEN is unavailable and the management cluster has no existing monitoring credential"
-            exit 1
-          fi
-
-          # The collectors also write to management's Pulse, and Alloy fails its
-          # whole config load, Grafana Cloud included, when a referenced Secret
-          # is missing. Flux's pulse release owns that login; check its
-          # ExternalSecret, never the Secret.
+          # The collectors write to management's Pulse, and Alloy fails its
+          # whole config load when a referenced Secret is missing. Flux's pulse
+          # release owns that login; check its ExternalSecret, never the Secret.
           kubectl -n observability get externalsecret pulse-dashboard-auth -o json | jq -e '
             (.spec.target.template.data | has("ingest-username") and has("ingest-password")) and
             any(.status.conditions[]?; .type == "Ready" and .status == "True")' > /dev/null || {
@@ -603,8 +509,7 @@ jobs:
           }
           trap cleanup_port_forward EXIT
 
-          # Each destination has its own queue; read Cloud's, not whichever
-          # queue is listed first.
+          # Read the Pulse writer's queue by its component ID.
           sent_timestamp() {
             curl -fsS http://127.0.0.1:12345/metrics 2>/dev/null |
               awk -v id="component_id=\"prometheus.remote_write.$1\"" \
@@ -613,7 +518,7 @@ jobs:
           }
           remote_write_ready=false
           for _ in $(seq 1 30); do
-            latest_sent_timestamp="$(sent_timestamp grafana_cloud_metrics)"
+            latest_sent_timestamp="$(sent_timestamp pulse_metrics)"
             if [ -n "$latest_sent_timestamp" ] &&
               awk -v sent="$latest_sent_timestamp" -v now="$(date +%s)" \
                 'BEGIN { exit !(sent >= now - 120) }'; then
@@ -624,17 +529,9 @@ jobs:
           done
 
           if [ "$remote_write_ready" != "true" ]; then
-            echo "::error::Management metrics have not been delivered to Grafana Cloud in the last two minutes"
+            echo "::error::Management metrics have not been delivered to Pulse in the last two minutes"
             cat "$port_forward_log"
             exit 1
-          fi
-          # Pulse is reported, not required: Cloud stays the source of truth.
-          pulse_sent_timestamp="$(sent_timestamp pulse_metrics)"
-          if [ -n "$pulse_sent_timestamp" ] &&
-            awk -v sent="$pulse_sent_timestamp" -v now="$(date +%s)" 'BEGIN { exit !(sent >= now - 120) }'; then
-            echo "Management metrics reached Pulse in the last two minutes."
-          else
-            echo "::warning::Management metrics have not reached Pulse in the last two minutes (last sent: ${pulse_sent_timestamp:-never})"
           fi
           cleanup_port_forward
           trap - EXIT

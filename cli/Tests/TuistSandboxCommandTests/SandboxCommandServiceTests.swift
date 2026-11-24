@@ -10,7 +10,7 @@ import TuistNooraTesting
 import TuistServer
 @testable import TuistSandboxCommand
 
-struct SandboxCommandServiceTests {
+struct SandboxCommandServiceTests { // swiftlint:disable:this type_body_length
     private static let serverURL = URL(string: "https://sandbox-tests.tuist.dev")!
     private static let id = "a57a427c-1ffc-476f-9282-558ff3f61585"
     private static let pagination = """
@@ -140,6 +140,49 @@ struct SandboxCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
+    func createsALinuxSandboxWithAGuarantee() async throws {
+        let created = Self.sandbox(status: "starting")
+            .replacingOccurrences(
+                of: "\"vcpus\":4",
+                with: "\"vcpus\":16,\"guaranteed_vcpus\":2,\"lifetime_seconds\":1800,\"expires_at\":\"2026-11-01T10:30:00Z\""
+            )
+        given(sandboxesService).createSandbox(
+            accountHandle: .value("resolved-account"),
+            serverURL: .value(Self.serverURL),
+            platform: .value(.linux),
+            template: .value(nil),
+            xcodeVersion: .value(nil),
+            vcpus: .value(nil),
+            memoryMB: .value(nil),
+            workspaceGB: .value(nil),
+            guaranteedVCPUs: .value(2),
+            lifetimeSeconds: .value(1800)
+        ).willReturn(try Self.decode(created))
+
+        let command = try SandboxCreateCommand.parse(["--guaranteed-vcpus", "2", "--lifetime-minutes", "30"])
+        try await subject().create(
+            options: Self.values(),
+            platform: command.resolvedPlatform.server,
+            template: command.template,
+            xcodeVersion: command.xcode,
+            vcpus: command.vcpus,
+            memoryGB: command.memoryGB,
+            workspaceGB: command.workspaceGb,
+            guaranteedVCPUs: command.guaranteedVCPUs,
+            lifetimeMinutes: command.lifetimeMinutes
+        )
+
+        #expect(ui().contains("Guaranteed: 2 vCPUs"))
+        #expect(ui().contains("Lifetime: 30m, expires"))
+        // The server takes 5 minutes to a day.
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--lifetime-minutes", "4"]) }
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--lifetime-minutes", "1441"]) }
+        // A macOS sandbox holds every vCPU, and only the offered guarantees go.
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--platform", "macos", "--guaranteed-vcpus", "2"]) }
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--guaranteed-vcpus", "3"]) }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
     func createsAMacOSSandbox() async throws {
         let created = Self.sandbox(status: "starting")
             .replacingOccurrences(of: "\"vcpus\":4", with: "\"platform\":\"darwin\",\"vcpus\":8")
@@ -151,7 +194,9 @@ struct SandboxCommandServiceTests {
             xcodeVersion: .value(nil),
             vcpus: .value(8),
             memoryMB: .value(24576),
-            workspaceGB: .value(nil)
+            workspaceGB: .value(nil),
+            guaranteedVCPUs: .value(nil),
+            lifetimeSeconds: .value(nil)
         ).willReturn(try Self.decode(created))
 
         let command = try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "8", "--memory-gb", "24"])
@@ -181,7 +226,9 @@ struct SandboxCommandServiceTests {
             xcodeVersion: .value("26.1.1"),
             vcpus: .value(nil),
             memoryMB: .value(nil),
-            workspaceGB: .value(nil)
+            workspaceGB: .value(nil),
+            guaranteedVCPUs: .value(nil),
+            lifetimeSeconds: .value(nil)
         ).willReturn(try Self.decode(created))
 
         let command = try SandboxCreateCommand.parse(["--xcode", "26.1.1"])
@@ -197,6 +244,27 @@ struct SandboxCommandServiceTests {
 
         #expect(ui().contains("Platform: macOS"))
         #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--platform", "linux", "--xcode", "26.1.1"]) }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func extendsASandboxsLifetimeInMinutes() async throws {
+        let extended = Self.sandbox(status: "active")
+            .replacingOccurrences(
+                of: "\"vcpus\":4",
+                with: "\"vcpus\":4,\"lifetime_seconds\":14400,\"expires_at\":\"2026-11-01T14:00:00Z\""
+            )
+        given(sandboxesService).extendSandbox(
+            accountHandle: .value("resolved-account"),
+            serverURL: .value(Self.serverURL),
+            sandboxID: .value(Self.id),
+            lifetimeSeconds: .value(14400)
+        ).willReturn(try Self.decode(extended))
+
+        let command = try SandboxExtendCommand.parse([Self.id, "--lifetime-minutes", "240"])
+        try await subject().extend(options: Self.values(), sandboxID: Self.id, lifetimeMinutes: command.lifetimeMinutes)
+
+        #expect(ui().contains("Extended sandbox \(Self.id) until"))
+        #expect(throws: (any Error).self) { try SandboxExtendCommand.parse([Self.id, "--lifetime-minutes", "0"]) }
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
@@ -254,6 +322,50 @@ struct SandboxCommandServiceTests {
         #expect(printed["exit_code"] as? Int == 2)
     }
 
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func execAttachingWithAWaitContinuesFromTheOffsetsAndReturnsWhereItStoppedWhileTheCommandRuns() async throws {
+        let commandID = "6a1c0d2e-3b4f-4a5b-9c6d-7e8f90a1b2c3"
+        let open = OpenStreams()
+        let line = try JSONDecoder().decode(
+            ServerSandboxCommandLogLine.self,
+            from: Data(#"{"type":"stdout","data":"Compiling\n","offset":130}"#.utf8)
+        )
+        given(sandboxesService).streamSandboxCommandLogs(
+            accountHandle: .value("resolved-account"), serverURL: .any, sandboxID: .value(Self.id),
+            commandID: .value(commandID), stdoutOffset: .value(120), stderrOffset: .value(7)
+        ).willReturn(open.stream(AsyncThrowingStream { continuation in
+            continuation.yield(line)
+            continuation.finish()
+        }))
+
+        await #expect(throws: ExitCode(75)) {
+            try await subject().exec(
+                options: Self.values(json: true),
+                sandboxID: Self.id,
+                command: "",
+                cwd: nil,
+                environment: [:],
+                timeoutMs: nil,
+                waitSeconds: 1,
+                attach: commandID,
+                offsets: .init(stdout: 120, stderr: 7)
+            )
+        }
+        let output = ui()
+        let json = try #require(output.firstIndex(of: "{").map { output[$0...] })
+        let printed = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        #expect(printed["status"] as? String == "running")
+        #expect(printed["command_id"] as? String == commandID)
+        #expect(printed["stdout"] as? String == "Compiling\n")
+        #expect(printed["stdout_offset"] as? Int == 130)
+        #expect(printed["stderr_offset"] as? Int == 7)
+        #expect(printed["exit_code"] == nil)
+        verify(sandboxesService).startSandboxCommand(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .any, cwd: .any,
+            environment: .any, stdin: .any, timeoutMs: .any
+        ).called(0)
+    }
+
     @Test
     func deleteRequiresConfirmationAndCreateRequiresAnOfferedShape() throws {
         #expect(throws: (any Error).self) { try SandboxDeleteCommand.parse([Self.id]) }
@@ -281,6 +393,15 @@ struct SandboxCommandServiceTests {
         #expect(command.environment == ["TOKEN": "a=b"])
         #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--env", "TOKEN", "--", "ls"]) }
         #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--timeout", "21601", "--", "ls"]) }
+        let commandID = "6a1c0d2e-3b4f-4a5b-9c6d-7e8f90a1b2c3"
+        #expect(throws: Never.self) {
+            try SandboxExecCommand.parse([
+                Self.id, "--attach", commandID, "--stdout-offset", "10", "--stderr-offset", "0", "--wait", "100",
+            ])
+        }
+        #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--attach", commandID, "--", "ls"]) }
+        #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--stdout-offset", "10", "--", "ls"]) }
+        #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--wait", "0", "--", "ls"]) }
     }
 
     @Test

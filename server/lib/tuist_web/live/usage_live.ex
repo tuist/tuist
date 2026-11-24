@@ -10,7 +10,10 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.Authorization
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Projects
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Prepaid
@@ -27,7 +30,7 @@ defmodule TuistWeb.UsageLive do
     end
 
     runner_breakdown = Allowance.period_breakdown(account)
-    runners_enabled = FeatureFlags.runners_enabled?(account)
+    runners_enabled = Environment.runners_available?()
 
     # Twelve is enough history to look back a year without listing
     # periods the account did not exist for; empty ones simply report
@@ -45,6 +48,10 @@ defmodule TuistWeb.UsageLive do
      |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
+     |> assign(
+       :remote_execution_enabled,
+       FeatureFlags.bazel_remote_execution_enabled?(account) and Projects.has_remote_execution_projects?(account)
+     )
      |> assign(
        :sandboxes_enabled,
        FeatureFlags.sandboxes_enabled?(account) and
@@ -79,7 +86,17 @@ defmodule TuistWeb.UsageLive do
      |> assign_async(:storage, fn ->
        {:ok, %{storage: CacheVolumeBilling.period_breakdown(account, period)}}
      end)
-     |> assign_sandbox_usage(account, period)}
+     |> assign_sandbox_usage(account, period)
+     |> assign_remote_execution_usage(account, period)}
+  end
+
+  defp assign_remote_execution_usage(%{assigns: %{remote_execution_enabled: false}} = socket, _account, _period),
+    do: socket
+
+  defp assign_remote_execution_usage(socket, account, period) do
+    assign_async(socket, :remote_execution_usage, fn ->
+      {:ok, %{remote_execution_usage: RemoteExecutionUsage.period_breakdown(account, period)}}
+    end)
   end
 
   defp assign_sandbox_usage(%{assigns: %{sandboxes_enabled: false}} = socket, _account, _period), do: socket
@@ -365,10 +382,10 @@ defmodule TuistWeb.UsageLive do
       )
 
     case previous do
-      0 when minutes > 0 ->
+      previous when previous == 0 and minutes > 0 ->
         pace <> " " <> dgettext("dashboard_usage", "Nothing ran last period.")
 
-      0 ->
+      previous when previous == 0 ->
         pace
 
       _ ->
@@ -445,13 +462,17 @@ defmodule TuistWeb.UsageLive do
   def cache_chart_unit("requests"), do: :count
 
   @doc """
-  Every date a usage pricing chart draws, spend and projection alike.
+  Every date a usage pricing chart draws, spend and projection alike, from
+  the first day of the billing period, so the axis starts where the runner
+  chart's does even when nothing ran on the period's first days.
   """
-  def usage_chart_dates(%{days: days, projected_days: projected_days}) do
-    (days ++ projected_days)
-    |> Enum.map(& &1.date)
-    |> Enum.uniq()
-    |> Enum.sort(Date)
+  def usage_chart_dates(%{days: days, projected_days: projected_days} = usage) do
+    dates = (days ++ projected_days) |> Enum.map(& &1.date) |> Enum.uniq() |> Enum.sort(Date)
+
+    case {Map.get(usage, :period_start), dates} do
+      {%Date{} = period_start, [_ | _]} -> period_start |> Date.range(List.last(dates)) |> Enum.to_list()
+      _ -> dates
+    end
   end
 
   @doc """
@@ -586,7 +607,7 @@ defmodule TuistWeb.UsageLive do
   def vcpu_hours(value), do: CldrHelpers.format_number(value)
 
   @doc """
-  The daily value of the period's sandbox vCPU-hours, followed by the
+  The daily value of the period's sandbox usage, CPU and memory, followed by the
   projection for the days the period has not reached yet.
   """
   def sandbox_chart_series(%{days: days, projected_days: projected_days} = sandboxes) do
@@ -596,10 +617,28 @@ defmodule TuistWeb.UsageLive do
       projected_series(projected_days, dates, :dollars)
   end
 
+  @doc """
+  The daily value of the period's remote execution time by project, followed by the
+  projection for the days the period has not reached yet.
+  """
+  def remote_execution_chart_series(%{days: days, projected_days: projected_days} = usage) do
+    dates = usage_chart_dates(usage)
+
+    project_series(days, dates, :dollars) ++ projected_series(projected_days, dates, :dollars)
+  end
+
+  def execution_minutes(value) when value < 10, do: CldrHelpers.format_number(value, fractional_digits: 1)
+  def execution_minutes(value), do: CldrHelpers.format_number(round(value))
+
   def vcpu_hour_rate_label,
     do:
-      "$#{:erlang.float_to_binary(SandboxPricing.cents_per_vcpu_hour() / 100, decimals: 2)} " <>
+      "$#{:erlang.float_to_binary(SandboxPricing.cents_per_vcpu_hour() / 100, decimals: 3)} " <>
         dgettext("dashboard_usage", "per vCPU-hour")
+
+  def gib_hour_rate_label,
+    do:
+      "$#{:erlang.float_to_binary(SandboxPricing.cents_per_gib_hour() / 100, decimals: 3)} " <>
+        dgettext("dashboard_usage", "per GiB-hour")
 
   def sandbox_pace_label(%{projected_vcpu_hours: nil, previous_vcpu_hours: previous}) when previous > 0,
     do: dgettext("dashboard_usage", "Last period came to %{count} vCPU-hours.", count: vcpu_hours(previous))

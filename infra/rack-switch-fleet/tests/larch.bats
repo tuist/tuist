@@ -99,8 +99,10 @@ larch_ready() {
     [ "$status" -eq 0 ]
     ports="$(yq -o=json '.spec.config.ports' <<<"$output")"
     port() { jq -c --argjson n "$1" '.[] | select(.port == $n) | [.nativeVlan, .taggedVlans]' <<<"$ports"; }
-    # A mini's port, not yet recorded: on no segment.
-    [ "$(port 1)" = '[1,[]]' ]
+    # A mini's port: untagged on the machines VLAN, not management.
+    [ "$(port 1)" = '[10,[]]' ]
+    # A port with nothing recorded on it: on no segment.
+    [ "$(port 6)" = '[1,[]]' ]
     # larch-pdu-b's card and larch-edge-b's BMC.
     [ "$(port 23)" = '[20,[]]' ]
     [ "$(port 28)" = '[20,[]]' ]
@@ -108,6 +110,7 @@ larch_ready() {
     [ "$(port 29)" = '[1,[10,20,4000,4001]]' ]
     [ "$(port 25)" = '[1,[10,20,4000,4001]]' ]
     [ "$(port 27)" = '[4001,[]]' ]
+    # larch-store-a's leg, on the machines VLAN.
     [ "$(port 31)" = '[10,[]]' ]
 }
 
@@ -135,9 +138,10 @@ larch_ready() {
 }
 
 @test "the power devices on the ToRs are reached through mgmt0 once installed" {
-    site="$(larch_with '(.nodes[] | select(.name == "larch-pdu-a")) |= (.status = "installed" | .mac = "00:20:85:00:00:01")')"
+    site="$(larch_with '(.nodes[] | select(.name == "larch-pdu-a")) |= (.status = "installed" | .mac = "00:20:85:00:00:01") | (.nodes[] | select(.name == "larch-pdu-b")) |= (.status = "planned" | del(.mac))')"
     run edge_sh "fleet_edge_power_devices '$site'"
-    [ "$output" = "larch-pdu-a|00:20:85:00:00:01|192.168.60.16" ]
+    [[ "$output" == *"larch-pdu-a|00:20:85:00:00:01|192.168.60.16"* ]]
+    [[ "$output" != *"larch-pdu-b"* ]]
     run edge_sh "fleet_edge_keepalived '$site' larch-edge-a"
     [[ "$output" == *"192.168.60.16/32 dev mgmt0 src 192.168.60.10"* ]]
 }
@@ -217,4 +221,60 @@ larch_ready() {
     [ -z "$output" ]
     run edge_sh "fleet_picos_bootstrap '$site'"
     [[ "$output" == *"wan_paths=''"* ]]
+}
+
+@test "rack 2 is ready to rack" {
+    run fleet_check_ready "$LARCH"
+    [ "$status" -eq 0 ]
+}
+
+@test "a site missing what its bring-up needs is not ready, with every gap named" {
+    site="$(larch_with 'del(.power_budget)
+        | (.devices[] | select(.name == "larch-tor-a")).mac = null
+        | (.nodes[] | select(.name == "larch-pdu-b")).mac = null')"
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    yq '(.rackLinuxFleet.hosts[] | select(.hostname == "larch-edge-a")).tpmCheckCode = "e3b0-c442-98fc-1c14"
+        | .rackLinuxFleet.boot.sites = []' "$FLEET_RACK_VALUES" > "$values"
+    grep -v '"10.20.0.152/32",' "$FLEET_ROOT/../tailscale/acls.json" > "$BATS_TEST_TMPDIR/acls.json"
+
+    run fleet_check_ready "$site" "$values" "$BATS_TEST_TMPDIR/acls.json"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no power_budget"* ]]
+    [[ "$output" == *"larch-tor-a has no mac"* ]]
+    [[ "$output" == *"larch-pdu-b has no mac"* ]]
+    [[ "$output" != *"larch-pdu-a has no mac"* ]]
+    [[ "$output" == *"larch-edge-a: tpmCheckCode e3b0-c442-98fc-1c14 is the empty-key hash"* ]]
+    [[ "$output" == *"no boot server: rackLinuxFleet.boot.sites has no entry for larch"* ]]
+    [[ "$output" == *"larch-runner-b02: 10.20.0.152/32 is not in tag:tuist-k8s-production's tcp:22 grant"* ]]
+    [[ "$output" != *"larch-runner-b01"* ]]
+}
+
+@test "a preinstalled storage node still to come is ready only when it will install beside its installer" {
+    # larch-store-a was declared with bootMAC, never announced its product,
+    # and its install put / on the 12.8 TB data drive instead of the M.2.
+    site="$(larch_with '.nodes += [{name: "larch-store-x", role: "storage", hardware: "rs521a-e12", status: "planned",
+        feeds: ["feed-a", "feed-b"], links: [{switch: "larch-tor-b", port: null, media: "dac", nic: "n225p-1", purpose: "data"}]}]')"
+    run fleet_check_ready "$site"
+    [ "$status" -eq 0 ]
+
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    yq '.rackLinuxFleet.hosts += [{"uuid": "00000000-0000-0000-0000-000000000001", "hostname": "larch-store-x", "role": "storage",
+            "site": "larch", "bootMAC": "34:d8:68:00:00:01"}]
+        | .rackLinuxFleet.preinstall.products = ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U"]' "$FLEET_RACK_VALUES" > "$values"
+    run fleet_check_ready "$site" "$values"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"larch-store-x: rackLinuxFleet.preinstall.products does not list ASUSTeK COMPUTER INC. RS521A-E12-RS24U"* ]]
+    [[ "$output" == *"larch-store-x is declared with bootMAC"* ]]
+    # an installed host is past its install, whatever it was declared with
+    [[ "$output" != *"larch-store-a"* ]]
+}
+
+@test "a site's first edge without its TPM check code is not ready" {
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    yq 'del(.rackLinuxFleet.hosts[] | select(.hostname == "larch-edge-a") | .tpmCheckCode)' "$FLEET_RACK_VALUES" > "$values"
+    run fleet_check_ready "$LARCH" "$values"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"larch-edge-a, the first edge, has no tpmCheckCode"* ]]
+    [[ "$output" != *"larch-edge-b"* ]]
 }

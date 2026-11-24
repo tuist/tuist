@@ -47,7 +47,7 @@ Los casos se identifican por la etiqueta del objetivo, el nombre de la clase (co
 
 <!-- @snippet: ./_quarantine-intro -->
 
-`tuist bazel test` obtiene la política de cuarentena antes de cada invocación y la aplica a la ejecución subyacente de `bazel test`. Un `bazel test` normal sigue informando de los resultados de los tests, pero no aplica la cuarentena:
+`tuist bazel test` obtiene la política de cuarentena antes de cada invocación y la aplica a la ejecución subyacente de `bazel test`. El `bazel test` normal sigue informando de los resultados de los tests, pero no aplica la cuarentena:
 
 ```sh
 tuist bazel test -- //app:tests
@@ -57,11 +57,11 @@ Los argumentos después de `--` se reenvían a `bazel test`. Usa `--path` para s
 
 ### Silenciar {#mute}
 
-Usa **Silenciar** como flujo de trabajo principal de cuarentena. Los casos silenciados siguen ejecutándose, sus fallos permanecen visibles y los casos hermanos sanos siguen afectando al resultado. Tuist convierte la salida de fallo de test de Bazel en éxito solo cuando los informes atribuyen cada fallo en cada objetivo fallido a un caso silenciado. Los errores de compilación, los tiempos de espera agotados, las ejecuciones interrumpidas, los informes faltantes o incompletos y los fallos fuera del conjunto silenciado mantienen el estado de fallo de Bazel.
+Usa **Silenciar** como flujo de trabajo principal de cuarentena. Los casos silenciados siguen ejecutándose, sus fallos permanecen visibles y los casos hermanos sanos siguen afectando al resultado. Tuist convierte la salida de fallo de test de Bazel en éxito solo cuando los informes atribuyen cada fallo en cada objetivo fallido a un caso silenciado. Errores de compilación, tiempos de espera, ejecuciones interrumpidas, informes faltantes o incompletos y fallos fuera del conjunto silenciado mantienen el estado de fallo de Bazel.
 
 ### Omitir {#skip}
 
-La omisión funciona por objetivo de Bazel: omitir un caso excluye todo su objetivo, incluidos los casos sanos, porque Bazel no puede filtrar casos individuales para cada framework de tests. Prefiere **Silenciar** a menos que pretendas excluir el objetivo completo. El comando imprime todas las etiquetas de objetivo excluidas para que los registros de compilación muestren qué dejó fuera la política de cuarentena.
+La omisión funciona por objetivo de Bazel: omitir un caso excluye todo su objetivo, incluidos los casos sanos, porque Bazel no puede filtrar casos individuales para cada framework de tests. Prefiere **Silenciar** a menos que pretendas excluir el objetivo completo. El comando imprime cada etiqueta de objetivo excluida para que los registros de compilación muestren qué dejó fuera la política de cuarentena.
 
 Si un objetivo omitido ya no existe, Tuist lo nombra en una advertencia y se ejecuta sin esa exclusión. Devuelve los casos obsoletos a **Habilitado** para eliminar sus políticas permanentemente. Si no queda ningún objetivo de test, Bazel mantiene su estado de salida normal de "no se encontraron tests".
 
@@ -75,13 +75,13 @@ Para investigar o validar una corrección, omite la política de cuarentena:
 tuist bazel test --no-quarantine -- --nocache_test_results //app:tests
 ```
 
-Devuelve el caso a **Habilitado** para incluir su objetivo en ejecuciones normales posteriores. Los casos omitidos no generan nuevas ejecuciones hasta que se incluyan explícitamente, por lo que una automatización basada en nuevas ejecuciones exitosas necesita una ejecución de validación antes de poder recuperarlos.
+Devuelve el caso a **Habilitado** para incluir su objetivo en ejecuciones normales posteriores. Los casos omitidos no producen nuevas ejecuciones hasta que se incluyan explícitamente, por lo que una automatización basada en nuevas ejecuciones exitosas necesita una ejecución de validación antes de poder recuperarlos.
 
 ### Limitaciones {#limitations}
 
 - Un `--build_event_json_file` o `--target_pattern_file` explícito no se puede combinar con una cuarentena activa. Pasa los patrones de objetivo directamente.
-- Si Tuist no puede obtener la política de cuarentena, el comando se detiene antes de ejecutar los tests. Nunca aplica una política parcial. Usa `--no-quarantine` cuando quieras ejecutar intencionadamente sin ella.
-- Un fallo que coincide con un silenciamiento registrado bajo una identidad anterior basada en la suite sigue siendo bloqueante, y el comando nombra la política que debe volver a aplicarse.
+- Si Tuist no puede obtener la política de cuarentena, el comando se detiene antes de ejecutar los tests. Nunca aplica una política parcial. Usa `--no-quarantine` cuando quieras intencionadamente ejecutar sin ella.
+- Un fallo que coincide con un silenciamiento registrado bajo una identidad antigua basada en suites sigue siendo bloqueante, y el comando nombra la política que debe reaplicarse.
 
 Consulta los [filtros de tests](https://bazel.build/docs/user-manual#test-filter), las [opciones de comando](https://bazel.build/reference/command-line-reference) y las [descripciones de eventos de compilación](https://bazel.build/remote/bep-glossary) de Bazel para conocer el comportamiento subyacente.
 

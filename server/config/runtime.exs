@@ -28,6 +28,14 @@ config :tuist, :pulse,
   base_url: System.get_env("TUIST_PULSE_URL"),
   token: System.get_env("TUIST_PULSE_TOKEN")
 
+# The symptoms evaluator, whose symptom log the server mirrors and which reads
+# human state back. Leave unset outside the Tuist deployment.
+config :tuist, :symptoms,
+  base_url: System.get_env("TUIST_SYMPTOMS_URL"),
+  token: System.get_env("TUIST_SYMPTOMS_TOKEN"),
+  evaluator_namespace: System.get_env("TUIST_SYMPTOMS_EVALUATOR_NAMESPACE"),
+  evaluator_service_account: System.get_env("TUIST_SYMPTOMS_EVALUATOR_SERVICE_ACCOUNT")
+
 # Explicit account-to-issuer trust, separate from account CI workload identities.
 if raw = System.get_env("TUIST_ATLAS_ENVIRONMENT_TRUST") do
   trusts = JSON.decode!(raw)
@@ -150,7 +158,8 @@ end
 
 for {env_var, key} <- [
       {"TUIST_RUNNER_FREE_MONTHLY_MINUTES", :runner_free_monthly_minutes},
-      {"TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES", :runner_linux_free_monthly_minutes}
+      {"TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES", :runner_linux_free_monthly_minutes},
+      {"TUIST_RUNNER_AIR_FLEET_SHARE_PERCENT", :runner_air_fleet_share_percent}
     ] do
   case System.get_env(env_var) do
     nil ->
@@ -551,6 +560,13 @@ if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
       http_options: [
         log_protocol_errors: :verbose
       ],
+      # Bandit rejects requests with more than 50 headers by default (431).
+      # Cloudflare and ingress-nginx add about 26 forwarding headers, and
+      # Chromium sends the client hints tuist.dev requests via Accept-CH, so a
+      # plain form POST from Chrome went over the limit.
+      http_1_options: [
+        max_header_count: 60
+      ],
       thousand_island_options: [
         read_timeout: to_timeout(second: 15),
         shutdown_timeout: to_timeout(second: 15)
@@ -788,10 +804,6 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Disk snapshot archive uploads each hold a slot for up to half an hour, so
 # they take turns on their own queue instead of filling :default.
 base_queues = [
-  threads: 10,
-  # A parked thread command's exit watch long-polls its sandbox, so the watches
-  # take turns here instead of holding `threads` slots that runs need.
-  thread_exit_watches: 20,
   remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,
@@ -802,15 +814,29 @@ base_queues = [
   webhooks: 20,
   push: 10,
   mcp_events: 5,
+  # Pulls the symptoms evaluator's log; one at a time per node, and the
+  # mirror's cursor lock serializes them across nodes.
+  pulse_symptoms: 1,
   storage_retention: 1,
   kura_provisioning: 10,
   coverage_deltas: 2,
+  # Copies coverage rows into a new layout once per release that changes it.
+  coverage_backfills: 1,
+  # Coverage totals waiting for every ClickHouse replica, and the pins of the
+  # totals published before them. New queues, so servers still on the release
+  # before them never claim a job they have no worker for.
+  coverage_totals: 10,
+  coverage_pins_backfill: 1,
   sandbox_archives: 2,
   sandbox_snapshot_copies: 1
 ]
 
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_bazel_tests_queue = {:process_bazel_tests, Tuist.Environment.process_bazel_tests_queue_concurrency()}
+# Snapshot comparisons decode and diff full-resolution images, a few hundred
+# megabytes per job: they run on the processor pods with the other heavy
+# parsing, or on web pods with a bounded concurrency when there are none.
+process_snapshots_queue = {:process_snapshots, Tuist.Environment.process_snapshots_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 # Swift registry sync queues. Consumed only by
 # `TUIST_MODE=swift_registry_sync` pods so the web tier doesn't
@@ -823,7 +849,7 @@ swift_registry_sync_queues = [swift_registry_sync: 1, swift_registry_release: 5]
 oban_queues =
   cond do
     Tuist.Environment.processor_mode?() ->
-      [process_build_queue, process_bazel_tests_queue]
+      [process_build_queue, process_bazel_tests_queue, process_snapshots_queue]
 
     Tuist.Environment.xcresult_processor_mode?() ->
       # Every queue start, including an Oban-only supervisor restart, is
@@ -843,6 +869,11 @@ oban_queues =
         if Tuist.Environment.delegate_process_bazel_tests?(),
           do: base,
           else: base ++ [process_bazel_tests_queue]
+
+      base =
+        if Tuist.Environment.delegate_process_snapshots?(),
+          do: base,
+          else: base ++ [process_snapshots_queue]
 
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
@@ -1066,6 +1097,10 @@ cache_token_signing_jwk =
     nil -> nil
     pem -> Tuist.CacheGuardian.signing_jwk!(pem)
   end
+
+# ID tokens carry Boruta's issuer as `iss`, which must equal the `issuer` the
+# OpenID Provider metadata advertises (OpenID Connect Discovery 1.0, section 3).
+config :boruta, Boruta.Oauth, issuer: Tuist.Environment.app_url([route_type: :app], secrets)
 
 config :tuist, Tuist.CacheGuardian,
   issuer: "tuist",

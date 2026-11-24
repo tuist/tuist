@@ -382,6 +382,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
              "account:cache:write",
              "account:members:read",
              "account:members:write",
+             "account:pulse:write",
              "account:registry:read",
              "account:registry:write",
              "account:runners:read",

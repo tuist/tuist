@@ -339,6 +339,7 @@ processor:
   replicaCount: 2
   queueConcurrency: 5
   bazelTestQueueConcurrency: 1
+  snapshotQueueConcurrency: 2
   managedSecrets: true
   externalSecrets:
     refreshInterval: "1h"
@@ -556,8 +557,8 @@ objectStorage:
         field: secret_access_key
 
 observability:
-  # We forward to Grafana Cloud via an in-cluster Alloy DaemonSet installed by
-  # the platform chart. The chart's embedded observability stack stays off.
+  # We forward to the environment's Pulse via an in-cluster Alloy DaemonSet
+  # installed by the platform chart. The chart's embedded observability stack stays off.
   enabled: false
 
 # macOS Profile catalog: the baseline shared across every managed
@@ -607,6 +608,8 @@ runnersFleet:
     - xcodeVersion: "27.3-beta"
     # New accounts' protected `macos` profile takes the default; existing
     # profiles keep the Xcode they were created with (mostly 26.6).
+    # Moving `default: true` also moves our own macOS CI: update the `tuist`
+    # account's `macos` profile ("Runner profiles" in .github/AGENTS.md).
     - xcodeVersion: "27.2"
       default: true
     - xcodeVersion: "27.1"

@@ -269,7 +269,16 @@ fn glob(
         .map(|c| format!("cd '{}' && ", escape_single_quotes(&c)))
         .unwrap_or_default();
 
-    let script = format!("{cd}shopt -s nullglob 2>/dev/null; printf '%s\\n' {}", pattern);
+    // `globstar` makes `**` match any number of directories. It is turned
+    // on for this expansion only, so the session's own shell keeps its
+    // options.
+    let script = format!(
+        "{cd}shopt -s nullglob 2>/dev/null; \
+         if shopt -q globstar; then __condukt_gs=1; else __condukt_gs=0; shopt -s globstar; fi; \
+         printf '%s\\n' {}; \
+         [ \"$__condukt_gs\" = 1 ] || shopt -u globstar; unset __condukt_gs",
+        pattern
+    );
     let result = build_runtime().block_on(bash.exec(&script));
 
     match result {

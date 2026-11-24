@@ -2,7 +2,7 @@ name: Runners Staging Smoke Test
 
 # Manual smoke test for the staging Tuist Runners pool. Targets
 # `runs-on: tuist-staging-macos`, which resolves to the 26.6 pool on the
-# BER1 rack host production lends staging (`rackFleet.runners` in
+# alder rack host production lends staging (`rackFleet.runners` in
 # infra/helm/tuist/values-managed-staging.yaml keeps one guest warm).
 # Staging rents no macOS hosts, so a job waits while that host is
 # cordoned or down. `environment: canary` runs the same jobs on
@@ -30,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Env whose `tuist-<env>-macos` runners run the smoke (canary runs on the BER1 rack host production lends it)
+        description: Env whose `tuist-<env>-macos` runners run the smoke (canary runs on the alder rack host production lends it)
         type: choice
         options: [staging, canary]
         default: staging
@@ -174,7 +174,7 @@ jobs:
           set -euo pipefail
           echo "ImageOS: ${ImageOS:-<unset>}"
           [ -n "${ImageOS:-}" ] || { echo "::error::ImageOS is not set in the step environment"; exit 1; }
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           otp-version: "28"
           elixir-version: "1.19"
@@ -214,8 +214,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: infra/tart-kubelet/go.mod
       - name: Exercise real APFS and custom cache lifecycle
@@ -241,8 +241,8 @@ jobs:
       SIZE: ${{ inputs.cache_volume_size }}
       FILL_GB: ${{ inputs.cache_volume_fill_gb }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: infra/linux-runner-image/go.mod
           cache: false
@@ -362,7 +362,7 @@ jobs:
       PHASE: ${{ inputs.managed_cache_phase }}
       SIZE: ${{ inputs.managed_cache_size }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Put this branch's tuist-runner-cache first on PATH
         run: |
           set -euo pipefail

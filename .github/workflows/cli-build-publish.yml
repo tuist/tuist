@@ -58,7 +58,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
@@ -102,7 +102,7 @@ jobs:
 
       - name: Upload CLI artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cli-artifacts
           path: |
@@ -131,7 +131,7 @@ jobs:
       matrix:
         arch: [x86_64, aarch64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
@@ -140,7 +140,7 @@ jobs:
       # cut before the bundler took TUIST_LINUX_ARCH cannot do. Their bundler
       # builds for the host and the aarch64 leg would package an x86_64 binary.
       - name: Check out the Linux bundler
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.workflow_sha }}
           path: .linux-bundler
@@ -209,7 +209,7 @@ jobs:
 
       - name: Upload CLI Linux artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cli-linux-${{ matrix.arch }}-artifacts
           path: |
@@ -232,17 +232,17 @@ jobs:
       MISE_GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: Download CLI artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: cli-artifacts
           path: artifacts
       - name: Download CLI Linux x86_64 artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: cli-linux-x86_64-artifacts
           path: artifacts/linux-x86_64
       - name: Download CLI Linux aarch64 artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: cli-linux-aarch64-artifacts
           path: artifacts/linux-aarch64
@@ -282,7 +282,7 @@ jobs:
           attest: false
           upload: false
       - name: Upload signed CLI manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cli-packslip
           path: ${{ steps.packslip.outputs.bundle }}
@@ -297,7 +297,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
@@ -334,21 +334,21 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Download CLI artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: cli-artifacts
       - name: Download CLI Linux x86_64 artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: cli-linux-x86_64-artifacts
           path: build-linux-x86_64
       - name: Download CLI Linux aarch64 artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: cli-linux-aarch64-artifacts
           path: build-linux-aarch64
       - name: Download signed CLI manifest
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: cli-packslip
           path: build
@@ -363,7 +363,7 @@ jobs:
           mv build-linux-x86_64/tuist-linux-x86_64.tar.gz build/
           mv build-linux-aarch64/tuist-linux-aarch64.tar.gz build/
       - name: Create CLI GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           repository: tuist/tuist

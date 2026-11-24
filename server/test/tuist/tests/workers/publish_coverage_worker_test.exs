@@ -136,6 +136,27 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorkerTest do
              )
   end
 
+  @tag :tmp_dir
+  test "runs again when a newer upload replaced its args while it ran", %{tmp_dir: tmp_dir} do
+    account = AccountsFixtures.user_fixture(preload: [:account]).account
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    {:ok, run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
+    upload = write_upload(tmp_dir, deflate(file_line("Sources/A.swift")))
+
+    {:ok, job} = Coverage.enqueue_publish(run, %{storage_key: "first", tool: "llvm-cov"}, 1, 2)
+    running = Tuist.Repo.update!(Ecto.Changeset.change(job, state: "executing"))
+    running = Tuist.Repo.get!(Oban.Job, running.id)
+    {:ok, _rerun} = Coverage.enqueue_publish(run, %{storage_key: "rerun", tool: "llvm-cov"}, 1, 2)
+
+    expect(Storage, :download_to_file, fn "first", destination, _account ->
+      File.cp!(upload, destination)
+      {:ok, destination}
+    end)
+
+    assert {:snooze, 0} = PublishCoverageWorker.perform(running)
+    assert %Oban.Job{args: %{"storage_key" => "rerun"}} = Tuist.Repo.get!(Oban.Job, running.id)
+  end
+
   defp perform_upload(%{account: account, project: project, run: run}, upload) do
     key = Coverage.storage_key(Tuist.Repo.preload(project, :account), run.id)
 

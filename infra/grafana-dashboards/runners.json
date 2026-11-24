@@ -20,8 +20,8 @@
         {
           "current": {
             "selected": false,
-            "text": "grafanacloud-prom",
-            "value": "grafanacloud-prom"
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": 0,
           "includeAll": false,
@@ -31,7 +31,7 @@
           "options": [],
           "query": "prometheus",
           "refresh": 1,
-          "regex": "",
+          "regex": "/^Tuist Pulse Metrics/",
           "skipUrlSync": false,
           "type": "datasource"
         },
@@ -1455,7 +1455,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Warm Pods the fleet allocator WANTED to keep ready (minWarmPoolFloor above real load) but could not fund because the shared bare-metal node pool was memory-contended. Emitted by the runners-controller (tuist_runners_autoscaler_warm_deficit_replicas). 0 = warm pool fully funded. A sustained non-zero value means this shape's warm buffer is reaped toward its raw load, so the next demand burst pays cold-start. This is the leading indicator for cold boots that alive/desired can't surface.",
+        "description": "Warm Pods the compute allocator WANTED to keep ready (minWarmPoolFloor above real load) but could not fund because the shared bare-metal node pool was memory-contended. Emitted by the runners-controller (tuist_runners_autoscaler_warm_deficit_replicas). 0 = warm pool fully funded. A sustained non-zero value means this shape's warm buffer is reaped toward its raw load, so the next demand burst pays cold-start. This is the leading indicator for cold boots that alive/desired can't surface.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1505,7 +1505,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "What the autoscaler wanted (target = DesiredReplicas, the pool's full ask incl. warm floor + p95 headroom) vs what the fleet allocator granted (allocated = spec.replicas) after splitting shared capacity across sibling shapes. A persistent gap is the squeeze: warm pool and headroom yielding to other pools' real queued work under contention. Both emitted by the runners-controller.",
+        "description": "What the autoscaler wanted (target = DesiredReplicas, the pool's full ask incl. warm floor + p95 headroom) vs what the compute allocator granted (allocated = spec.replicas) after splitting shared capacity across sibling shapes. A persistent gap is the squeeze: warm pool and headroom yielding to other pools' real queued work under contention. Both emitted by the runners-controller.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1671,7 +1671,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "min by (pool) (\n  label_replace(max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"queued\", \"\", \"\")\n  or\n  label_replace(max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"idle\", \"\", \"\")\n)\n# Both operands must exist. `or` keeps a lone series, and `min` would\n# then chart it alone: a static or autoscaling-disabled pool clears the\n# demand series while idle capacity keeps publishing, so idle=5 with no\n# queued series would read as 5 starved replicas.\nand on (pool) (max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}))\nand on (pool) (max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}))",
+            "expr": "min by (pool) (\n  label_replace(max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"queued\", \"\", \"\")\n  or\n  label_replace(max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"idle\", \"\", \"\")\n)\n# Both operands must exist. `or` keeps a lone series, and `min` would\n# then chart it alone: a static or autoscaling-disabled pool clears the\n# demand series while idle capacity keeps publishing, so idle=5 with no\n# queued series would read as 5 starved replicas. Multiplying by `x * 0 + 1`\n# keeps that filter: Pulse cannot plan `and on` when either side is empty.\n* on (pool) group_left () (max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}) * 0 + 1)\n* on (pool) group_left () (max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}) * 0 + 1)",
             "legendFormat": "{{pool}}",
             "refId": "A"
           }
@@ -1681,7 +1681,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Idle runners a pool gave up ahead of its scale-down cooldown because a sibling pool on the same fleet (fleet_selector, e.g. the BER1 rack) had queued jobs whose Pods the scheduler refused for insufficient resources. Emitted by the runners-controller (tuist_runners_pool_preempted_pods_total); each retired Pod also carries a RunnerPodPreemptedForSiblingDemand event naming the starved pool. Occasional bursts after another pool's spike are expected. A steady rate means the fleet is too small for the mix of pools sharing it.",
+        "description": "Idle runners a pool gave up ahead of its scale-down cooldown because a sibling pool on the same fleet (fleet_selector, e.g. the alder rack) had queued jobs whose Pods the scheduler refused for insufficient resources. Emitted by the runners-controller (tuist_runners_pool_preempted_pods_total); each retired Pod also carries a RunnerPodPreemptedForSiblingDemand event naming the starved pool. Occasional bursts after another pool's spike are expected. A steady rate means the fleet is too small for the mix of pools sharing it.",
         "fieldConfig": {
           "defaults": {
             "color": {

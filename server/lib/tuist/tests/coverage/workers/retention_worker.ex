@@ -2,7 +2,8 @@ defmodule Tuist.Tests.Coverage.Workers.RetentionWorker do
   @moduledoc """
   The daily PostgreSQL retention of coverage and of the Git history it is
   measured against (the ClickHouse tables expire by time-to-live): drops the
-  commits' coverage past its retention (`Tuist.Tests.Coverage.Commits.prune/1`)
+  commits' coverage past its retention (`Tuist.Tests.Coverage.Commits.prune/1`),
+  the records of ClickHouse inserts no write waits for (`Tuist.ClickHouse.Inserts.prune/0`)
   and each repository's commits past its history window
   (`Tuist.GitHistory.prune/2`). It then queues the file-change writes that
   were lost (`Tuist.GitHistory.FileChanges.enqueue_unwritten/0`).
@@ -17,6 +18,7 @@ defmodule Tuist.Tests.Coverage.Workers.RetentionWorker do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouse.Inserts
   alias Tuist.GitHistory
   alias Tuist.GitHistory.FileChanges
   alias Tuist.GitHistory.Repository
@@ -29,6 +31,7 @@ defmodule Tuist.Tests.Coverage.Workers.RetentionWorker do
   @impl Oban.Worker
   def perform(_job) do
     coverage_commits = Commits.prune()
+    Inserts.prune()
     default_window = GitHistory.settings(nil).window_days
 
     git_commits =

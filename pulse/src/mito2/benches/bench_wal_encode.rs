@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Benchmarks `WalEntry` encoding: prost's `encode_to_vec` (which recomputes
 //! the length of every nested message) against [`WalEntryEncoder`] (which
 //! caches each message body length and writes in a single pass).
@@ -107,6 +109,12 @@ fn bench_wal_encode(c: &mut Criterion) {
     group.bench_function("wal_entry_encoder", |b| {
         let mut encoder = WalEntryEncoder::new();
         b.iter(|| black_box(encoder.encode_to_vec(&entry)));
+    });
+
+    // A WalWriter starts with a fresh encoder for each write group. Include
+    // that lifecycle so cache allocation costs are not hidden by warm reuse.
+    group.bench_function("wal_entry_encoder_cold", |b| {
+        b.iter(|| black_box(WalEntryEncoder::new().encode_to_vec(&entry)));
     });
 
     group.finish();

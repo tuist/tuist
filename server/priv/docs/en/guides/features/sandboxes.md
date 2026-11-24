@@ -28,7 +28,7 @@ Create a sandbox and run commands in it from your terminal with `tuist sandbox`.
 
 ### 1. Log in {#cli-log-in}
 
-Managing sandboxes requires an account administrator:
+Any member of the account can create and manage its sandboxes:
 
 ```bash
 tuist auth login
@@ -40,7 +40,7 @@ tuist auth login
 tuist sandbox create --platform macos
 ```
 
-Omit `--platform` for Linux. Pass `--xcode` with a version, such as `--xcode 26.1.1`, for a Mac with that [Xcode](#xcode); it implies `--platform macos`. Pass `--vcpus` with `--memory-gb` for a larger [shape](#platforms), and `--workspace-gb` for a larger disk. The command returns once the sandbox is running and prints its details, including its ID. It uses the account of the Tuist project in the current directory; pass `--account` to choose another.
+Omit `--platform` for Linux. Pass `--xcode` with a version, such as `--xcode 26.1.1`, for a Mac with that [Xcode](#xcode); it implies `--platform macos`. Pass `--vcpus` with `--memory-gb` for a larger [shape](#platforms), `--guaranteed-vcpus` to guarantee a Linux sandbox more [CPU](#guaranteed-cpu), and `--workspace-gb` for a larger disk. The sandbox runs for two hours from creation, and again from each resume; pass `--lifetime-minutes` for between 5 minutes and a day. When its lifetime ends, its running commands are cancelled and it's paused and archived, keeping its files, so a forgotten sandbox stops using your account's capacity. The command returns once the sandbox is running and prints its details, including its ID. It uses the account of the Tuist project in the current directory; pass `--account` to choose another.
 
 ### 3. Run commands {#cli-exec}
 
@@ -50,6 +50,8 @@ tuist sandbox exec <sandbox-id> -- xcodebuild -version
 
 The command runs with `bash -l` in the sandbox, which resumes first if it's paused. `tuist` streams its output however long it runs and exits with the command's status; Ctrl-C cancels it in the sandbox. Pass `--cwd`, `--env NAME=VALUE` and `--timeout` (up to six hours) as needed.
 
+The command runs detached from `tuist`, so it survives a dropped connection. To fit a long build into a tool call with a time limit, such as an agent's, pass `--wait <seconds>`: when they pass first, `tuist` leaves the command running, exits with 75 and prints the `tuist sandbox exec <sandbox-id> --attach <command-id> --stdout-offset … --stderr-offset …` command that continues its output where it stopped and exits with the command's status.
+
 ### Common tasks {#cli-tasks}
 
 | Task | Command |
@@ -57,6 +59,7 @@ The command runs with `bash -l` in the sandbox, which resumes first if it's paus
 | List sandboxes | `tuist sandbox list` |
 | Show one | `tuist sandbox show <id>` |
 | Pause or resume | `tuist sandbox pause <id>`, `tuist sandbox resume <id>` |
+| Keep it running past its expiry | `tuist sandbox extend <id> --lifetime-minutes 240` |
 | Mirror the local Git worktree's files into it | `tuist sandbox sync <id>` |
 | Copy files out or in | `tuist sandbox cp <id>:<path> <local-path>`, `tuist sandbox cp <local-path> <id>:<path>` |
 | Delete | `tuist sandbox delete <id> --yes` |
@@ -64,11 +67,11 @@ The command runs with `bash -l` in the sandbox, which resumes first if it's paus
 
 Add `--json` for machine-readable output. See the <.localized_link href="/cli/sandbox">CLI reference</.localized_link> for every option. To drive sandboxes from code instead, use the same operations through the [Tuist API](https://tuist.dev/api/docs) under `/api/accounts/{account_handle}/sandboxes`, or let an agent use them through <.localized_link href="/guides/features/agentic-coding/mcp">MCP</.localized_link>.
 
-Tools that can't log in interactively, such as an agent plugin that builds in a macOS sandbox, can authenticate with an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope instead. It can create sandboxes, run commands in them, and pause, resume and delete them, like a member of the account. Sandboxes that serve an Amp or Claude integration, analytics and integration settings stay with account administrators.
+Tools that can't log in interactively, such as an agent plugin that builds in a macOS sandbox, can authenticate with an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope instead. It can do what a member of the account can: create sandboxes, run commands in them, and pause, resume, archive and delete them. Integration settings stay with account administrators.
 
 ### Tuist inside the sandbox {#tuist-in-sandbox}
 
-Sandbox images don't ship the Tuist CLI, so your project's own pinned version is the one that runs. After the first `tuist sandbox sync`, run `mise install` in the repository root on the sandbox (`mise` and `brew` are installed), then run `tuist` through mise, for example with `$HOME/.local/share/mise/shims` on `PATH`.
+macOS sandboxes come with the Tuist CLI. When your project pins Tuist through mise (`mise.toml` or `.tool-versions`), `tuist` runs that version instead, installed the first time a command needs it. Every command you start with `tuist sandbox exec` has mise's shims (`$HOME/.local/share/mise/shims`) first on `PATH` and the image's Tuist last, so `tuist` and your other mise tools run in your commands and in Xcode build phases, such as a scheme's post-actions. Each Mac also carries a guide for coding agents at `/opt/tuist/agent-guide.md`, generated from its image: its Xcode and simulators, where the repository is, and what a ready snapshot holds. Claude Code, Codex and Amp running on the Mac find it from their instruction files.
 
 Every command you start with `tuist sandbox exec` also gets what a Tuist runner gets, so builds in the sandbox use your account's <.localized_link href="/guides/features/cache">cache</.localized_link> without you passing credentials:
 
@@ -85,22 +88,60 @@ A coding agent that runs on Linux, such as a cloud agent session, can build, tes
 2. Install the Tuist CLI where the agent runs, for example in the environment's setup script: `mise use -g tuist@latest`, or `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist` (`tuist-linux-aarch64` on ARM).
 3. Authenticate the CLI. The MCP server's sign-in doesn't carry over to it, so either run `tuist auth login` as an account member, or set `TUIST_TOKEN` to an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope.
 4. If the environment restricts network access, allow `tuist.dev`. The CLI uploads files to the Mac through it, so it needs no other domain.
+5. Optionally, let the agent create and delete Macs without asking each time. Agents ask before calling `create_sandbox` because a Mac counts toward your account's limits, and before `delete_sandbox` because it can't be undone. In Claude Code, allow both in `.claude/settings.json`, using the name you registered the MCP server under (`tuist` here):
 
-The agent creates one Mac per task, with the [Xcode](#xcode) the project pins: `create_sandbox` lists the Xcodes it can pick and tells the agent to read the project's pin, such as `.xcode-version`. Before each command, it runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. After the first sync it runs `mise install` in the repository root on the Mac, so the [project's pinned Tuist](#tuist-in-sandbox) is there, signed in to your account's cache. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses and is deleted after 14 days paused.
+   ```json
+   {
+     "permissions": {
+       "allow": ["mcp__tuist__create_sandbox", "mcp__tuist__delete_sandbox"]
+     }
+   }
+   ```
+
+To have the agent do the setup, give it this prompt:
+
+```text
+Set up this environment so you can build and test this project on a Tuist macOS sandbox.
+
+Read https://tuist.dev/en/docs/guides/features/sandboxes#coding-agents and follow its "Build on a Mac from a coding agent" section. It's the current Tuist guide for this, so prefer it over anything you remember about Tuist.
+
+You're done when you have created a Mac with create_sandbox, synced this repository to it with tuist sandbox sync, run the project's build there with tuist sandbox exec, and deleted the Mac.
+
+Ask me before anything that needs my login or approval, such as tuist auth login. If a step fails or is blocked, stop and tell me which step you reached and the exact error, without secrets.
+```
+
+The agent creates one Mac per task, with the [Xcode](#xcode) the project pins: `create_sandbox` lists the Xcodes it can pick and tells the agent to read the project's pin, such as `.xcode-version`. Before each command, it runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. The Mac already has [Tuist](#tuist-in-sandbox), the project's pinned version when it pins one, signed in to your account's cache, and the agent reads the Mac's guide once. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses, is archived when its two-hour lifetime ends, and is deleted after 14 days; the agent extends the lifetime before a long build.
 
 ## Linux and macOS {#platforms}
 
-**Linux** sandboxes run Ubuntu 24.04:
+**Linux** sandboxes run Ubuntu 24.04. Every Linux sandbox has 16 vCPUs and bursts into the idle cores of the machine it runs on, so its shape picks its memory:
 
-- 2 vCPU, 4 GiB RAM (default)
-- 4 vCPU, 8 GiB RAM
-- 8 vCPU, 16 GiB RAM
+- 2 GiB RAM (`--vcpus 1 --memory-gb 2`)
+- 4 GiB RAM (`--vcpus 2 --memory-gb 4`, default)
+- 8 GiB RAM (`--vcpus 4 --memory-gb 8`)
+- 16 GiB RAM (`--vcpus 8 --memory-gb 16`)
+- 32 GiB RAM (`--vcpus 16 --memory-gb 32`)
+- 44 GiB RAM (`--vcpus 16 --memory-gb 44`)
 
 **macOS** sandboxes run on Apple silicon with Xcode:
 
 - 8 vCPU, 8 GiB RAM (default)
 - 8 vCPU, 16 GiB RAM
 - 8 vCPU, 24 GiB RAM
+
+### Guaranteed CPU {#guaranteed-cpu}
+
+A Linux sandbox is guaranteed a quarter of a vCPU per GiB of its memory, such as 2 vCPUs for 8 GiB, and uses as much more as its machine has idle, up to its 16 vCPUs. That suits an agent, which mostly waits and then builds in bursts. When a build needs more steady CPU even on a busy machine, guarantee it 1, 2, 4 or 8 vCPUs when the sandbox is created; it gets the larger of that and its memory's guarantee:
+
+| Where | How |
+| --- | --- |
+| CLI | `tuist sandbox create --guaranteed-vcpus 4` |
+| API and MCP `create_sandbox` | `"guaranteed_vcpus": 4` |
+
+- **A guarantee is a floor, not a cap.** A sandbox with 4 guaranteed vCPUs still bursts to 16 when cores are idle. Under contention, each sandbox gets CPU in proportion to its guarantee.
+- **It's billed as a minimum.** A running sandbox is billed for the CPU it uses, but never for less than its guarantee.
+- **A sandbox keeps its guarantee for life.** To change it, create a new sandbox.
+- **macOS sandboxes always have their whole shape**, so they don't take a guarantee.
 
 ### Choose an Xcode {#xcode}
 
@@ -130,6 +171,6 @@ Choose one with `xcode_version` (`--xcode` in the CLI), using the exact version,
 ## Security {#security}
 
 - Each sandbox is its own virtual machine. Sandboxes don't share a file system, memory or processes with each other or with CI jobs.
-- Sandboxes belong to an account, and only its administrators can manage them. Sessions from an integration only reach the sandboxes of the account the integration is connected to.
+- Sandboxes belong to an account, and any of its members can use and manage them, including sandboxes that serve an integration. Only administrators connect integrations. Sessions from an integration only reach the sandboxes of the account the integration is connected to.
 - Credentials you give Tuist to connect an integration, such as an Amp provider token or a Claude environment key, are stored encrypted and never shown again.
 - A sandbox can reach the internet. Treat what an agent can access from it the way you would treat a CI job.

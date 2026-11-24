@@ -75,7 +75,14 @@ defmodule Tuist.Sandboxes.ProviderEnvironments do
         Repo.transaction(fn ->
           Repo.one!(from a in Account, where: a.id == ^account.id, lock: "FOR NO KEY UPDATE")
 
-          if Repo.aggregate(from(e in ProviderEnvironment, where: e.account_id == ^account.id), :count) >= 4096,
+          # Tuist threads' environments (`threads/<id>`, one per thread) do
+          # not count toward this cap on the account's provider sandboxes.
+          provider =
+            from(e in ProviderEnvironment,
+              where: e.account_id == ^account.id and not like(e.external_key, "threads/%")
+            )
+
+          if Repo.aggregate(provider, :count) >= 4096,
             do: Repo.rollback(:environment_limit)
 
           Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: key})

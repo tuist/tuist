@@ -18,16 +18,32 @@ defmodule Tuist.Automations.Workers.SlackNotificationWorker do
     case Automations.get_alert(id) do
       {:ok, %Alert{enabled: true} = alert} ->
         # Cancel queued messages whose destination or template has been removed.
-        if action in alert.trigger_actions or (alert.recovery_enabled and action in alert.recovery_actions) do
-          deliver(alert, action, blocks)
-        else
-          :ok
+        # Actions match by webhook URL rather than ciphertext, which changes when
+        # `Tuist.Vault.Reencryption` moves it to a new key, so re-encrypting an
+        # alert does not cancel what it queued. That needs the queued copy to be
+        # readable, which is why a rotation drains these jobs before dropping the
+        # old key; the alert's own copy is the one delivered.
+        actions =
+          if alert.recovery_enabled, do: alert.trigger_actions ++ alert.recovery_actions, else: alert.trigger_actions
+
+        case Enum.find(actions, &same_action?(&1, action)) do
+          nil -> :ok
+          current -> deliver(alert, current, blocks)
         end
 
       _ ->
         :ok
     end
   end
+
+  defp same_action?(action, action), do: true
+
+  defp same_action?(a, b) do
+    Automations.redact_action(a) == Automations.redact_action(b) and
+      match?({:ok, _}, webhook_url(a)) and webhook_url(a) == webhook_url(b)
+  end
+
+  defp webhook_url(action), do: action |> Map.get("webhook_url_encrypted") |> Slack.decrypt_webhook_url()
 
   defp deliver(_alert, %{"webhook_url_encrypted" => encrypted}, blocks) when is_binary(encrypted) and encrypted != "" do
     case Slack.decrypt_webhook_url(encrypted) do

@@ -605,7 +605,7 @@
           align-items: center;
           gap: 3px;
           box-sizing: border-box;
-          box-shadow: var(--noora-border-light-default);
+          box-shadow: var(--noora-border-small-default);
           border-radius: 12px;
           background: var(--noora-surface-background-tertiary);
           padding: 0 6px;
@@ -715,7 +715,7 @@
           transition: filter 140ms ease;
           box-shadow:
             0 2px 10px light-dark(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.4)),
-            var(--noora-border-light-default);
+            var(--noora-border-small-default);
           border-radius: 50%;
           background: var(--noora-surface-background-tertiary);
           width: 30px;

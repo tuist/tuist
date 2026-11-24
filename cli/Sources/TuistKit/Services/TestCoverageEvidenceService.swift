@@ -161,9 +161,20 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                 derivedDataDirectory: derivedDataDirectory,
                 testProductsPath: await RunMetadataStorage.current.testProductsPath
             )
-            let outputs = processes
+            let loaded = processes
                 .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("images.tsv").path) }
-                .compactMap { try? CoverageObserverOutput(directory: $0) }
+                .compactMap { directory in
+                    (try? CoverageObserverOutput(directory: directory)).map { (Int32(directory.lastPathComponent), $0) }
+                }
+            // Each process writes under a directory named by its pid, the pid in its raw profile's name.
+            let modulesByProcess = Dictionary(
+                loaded.compactMap { processIdentifier, output in
+                    processIdentifier.map { ($0, Set(output.records.map(\.module).filter { !$0.isEmpty })) }
+                },
+                uniquingKeysWith: { $0.union($1) }
+            )
+            let outputs = loaded
+                .map(\.1)
                 .map { output in
                     var output = output
                     for (index, image) in output.images {
@@ -190,7 +201,8 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                 resultBundlePath: resultBundlePath,
                 derivedDataDirectory: derivedDataDirectory,
                 prefixMaps: prefixMaps,
-                launches: launches
+                launches: launches,
+                modulesByProcess: modulesByProcess
             )
 
             guard !outputs.isEmpty else {
@@ -489,7 +501,8 @@ extension TestCoverageEvidenceService {
         resultBundlePath: AbsolutePath,
         derivedDataDirectory: AbsolutePath?,
         prefixMaps: CompilationPrefixMaps,
-        launches: [CoverageObserverOutput.Launch]
+        launches: [CoverageObserverOutput.Launch],
+        modulesByProcess: [Int32: Set<String>]
     ) async -> TestTargetProcessCoverage.Result {
         guard let coverageTargets = try? await CoverageExportService.coverageTargets(
             resultBundlePath: resultBundlePath,
@@ -510,6 +523,7 @@ extension TestCoverageEvidenceService {
             bundles: bundles,
             images: images,
             launches: launches,
+            modulesByProcess: modulesByProcess,
             remap: { prefixMaps.remap($0, target: CompilationPrefixMaps.targetName(ofProduct: $1)) }
         )
         Logger.current.debug("""

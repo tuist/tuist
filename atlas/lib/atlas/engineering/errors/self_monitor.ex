@@ -6,7 +6,9 @@ defmodule Atlas.Engineering.Errors.SelfMonitor do
 
   Only installs the handler when Atlas' primary Sentry.LoggerHandler is not
   active — otherwise the two would double-report. The primary handler is
-  active whenever a Sentry DSN is configured.
+  active whenever a Sentry DSN is configured, unless that DSN is Pulse's
+  (`:sentry_dsn_is_pulse`), which receives a copy rather than replacing
+  this project.
   """
 
   alias Atlas.Engineering.Errors
@@ -45,7 +47,7 @@ defmodule Atlas.Engineering.Errors.SelfMonitor do
   def self_project_id, do: Application.get_env(:atlas, :errors_self_project_id)
 
   defp primary_sentry_handler_absent? do
-    is_nil(Application.get_env(:sentry, :dsn))
+    is_nil(Application.get_env(:sentry, :dsn)) or Application.get_env(:atlas, :sentry_dsn_is_pulse, false)
   end
 
   defp ensure_project do

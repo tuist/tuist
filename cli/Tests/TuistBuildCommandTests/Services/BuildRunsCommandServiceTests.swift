@@ -169,6 +169,9 @@ struct BuildRunsCommandServiceTests {
 
         try await subject.run(fullHandle: nil, runId: "run-1", path: nil, json: false)
 
+        #expect(ui().contains("Struo run"))
+        #expect(ui().contains("Struo Version: 0.9.0"))
+        #expect(!ui().contains("Once Version:"))
         #expect(ui().contains("Git Revision: abc123 (dirty)"))
         #expect(ui().contains("Hits: 3 of 4 lookups"))
         #expect(ui().contains("Passed: 9"))

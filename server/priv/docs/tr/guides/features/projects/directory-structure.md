@@ -7,7 +7,7 @@
 ---
 # Dizin yapısı {#directory-structure}
 
-Tuist projeleri genellikle Xcode projelerinin yerini almak için kullanılsa da, bu kullanım durumuyla sınırlı değildir. Tuist projeleri ayrıca SPM paketleri, şablonlar, eklentiler ve görevler gibi diğer proje türlerini oluşturmak için de kullanılır. Bu belge, Tuist projelerinin yapısını ve bunların nasıl organize edileceğini açıklar. İlerleyen bölümlerde şablonların, eklentilerin ve görevlerin nasıl tanımlanacağını ele alacağız.
+Tuist projeleri genellikle Xcode projelerinin yerini almak için kullanılsa da, bu kullanım durumuyla sınırlı değildir. Tuist projeleri aynı zamanda SPM paketleri, şablonlar, eklentiler ve görevler gibi diğer proje türlerini oluşturmak için de kullanılır. Bu belge, Tuist projelerinin yapısını ve bunların nasıl organize edileceğini açıklar. İlerleyen bölümlerde şablonların, eklentilerin ve görevlerin nasıl tanımlanacağını ele alacağız.
 
 ## Standart Tuist projeleri {#standard-tuist-projects}
 
@@ -26,23 +26,23 @@ Projects/
 Workspace.swift
 ```
 
-- **Tuist dizini:** Bu dizinin iki amacı vardır. İlk olarak, **projenin kök dizininin nerede olduğunu** belirtir. Bu, projenin kök dizinine göre yollar oluşturmayı ve proje içindeki herhangi bir dizinden Tuist komutlarını çalıştırmayı mümkün kılar. İkinci olarak, aşağıdaki dosyalar için bir kapsayıcıdır:
-  - **ProjectDescriptionHelpers:** Bu dizin, tüm bildirim dosyalarında paylaşılan Swift kodunu içerir. Bildirim dosyaları, bu dizinde tanımlanan kodu kullanmak için `import ProjectDescriptionHelpers` içe aktarabilir. Kod paylaşımı, tekrarlamalardan kaçınmak ve projeler arasında tutarlılığı sağlamak açısından faydalıdır.
-  - **Package.swift:** Bu dosya, Tuist’in bunları yapılandırılabilir ve optimize edilebilir Xcode projeleri ve hedefleri aracılığıyla entegre etmesi için gereken Swift Package bağımlılıklarını (örneğin [CocoaPods](https://cocoapods.org)) içerir. Daha fazla bilgi için <.localized_link href="/guides/features/projects/dependencies">buraya</.localized_link> göz atın.
+- **Tuist dizini:** Bu dizinin iki amacı vardır. İlk olarak, **projenin kök dizininin nerede olduğunu** belirtir. Bu, projenin köküne göre yollar oluşturmayı ve proje içindeki herhangi bir dizinden Tuist komutlarını çalıştırmayı mümkün kılar. İkinci olarak, aşağıdaki dosyalar için bir kapsayıcıdır:
+  - **ProjectDescriptionHelpers:** Bu dizin, tüm manifest dosyaları arasında paylaşılan Swift kodunu içerir. Manifest dosyaları, bu dizinde tanımlanan kodu kullanmak için `import ProjectDescriptionHelpers` içe aktarabilir. Kod paylaşımı, tekrarları önlemek ve projeler arasında tutarlılığı sağlamak açısından faydalıdır.
+  - **Package.swift:** Bu dosya, Tuist'in bunları yapılandırılabilir ve optimize edilebilir Xcode projeleri ve hedefleri aracılığıyla entegre etmesi için Swift Package bağımlılıklarını (örneğin [CocoaPods](https://cocoapods.org) gibi) içerir. Daha fazla bilgi edinmek için <.localized_link href="/guides/features/projects/dependencies">buraya</.localized_link> tıklayın.
 
-- **Kök dizin**: Projenizin kök dizini olup aynı zamanda `Tuist` dizinini de içerir.
+- **Kök dizin**: Ayrıca `Tuist` dizinini de içeren projenizin kök dizini.
   - <.localized_link href="/guides/features/projects/manifests#tuistswift"><strong>Tuist.swift:</strong></.localized_link> Bu dosya, tüm projeler, çalışma alanları ve ortamlar arasında paylaşılan Tuist yapılandırmasını içerir. Örneğin, şemaların otomatik oluşturulmasını devre dışı bırakmak veya projelerin dağıtım hedefini tanımlamak için kullanılabilir.
-  - <.localized_link href="/guides/features/projects/manifests#workspaceswift"><strong>Workspace.swift:</strong></.localized_link> Bu bildirim, bir Xcode çalışma alanını temsil eder. Diğer projeleri gruplamak için kullanılır ve ek dosyalar ile şemalar da ekleyebilir.
-  - <.localized_link href="/guides/features/projects/manifests#projectswift"><strong>Project.swift:</strong></.localized_link> Bu bildirim, bir Xcode projesini temsil eder. Projeye ait hedefleri ve bunların bağımlılıklarını tanımlamak için kullanılır.
+  - <.localized_link href="/guides/features/projects/manifests#workspaceswift"><strong>Workspace.swift:</strong></.localized_link> Bu manifest, bir Xcode çalışma alanını temsil eder. Diğer projeleri gruplamak için kullanılır ve ek dosyalar ile şemalar da ekleyebilir.
+  - <.localized_link href="/guides/features/projects/manifests#projectswift"><strong>Project.swift:</strong></.localized_link> Bu manifest, bir Xcode projesini temsil eder. Projenin parçası olan hedefleri ve bağımlılıklarını tanımlamak için kullanılır.
 
-Yukarıdaki projeyle etkileşim kurarken, komutlar çalışma dizininde veya `--path` bayrağıyla belirtilen dizinde ya bir `Workspace.swift` ya da bir `Project.swift` dosyası bulmayı bekler. Bildirim dosyası, projenin kökünü temsil eden bir `Tuist` dizini içeren bir dizinde veya alt dizininde olmalıdır.
+Yukarıdaki projeyle etkileşim kurarken, komutlar çalışma dizininde veya `--path` bayrağıyla belirtilen dizinde ya bir `Workspace.swift` ya da bir `Project.swift` dosyası bulmayı bekler. Manifest, projenin kökünü temsil eden bir `Tuist` dizini içeren bir dizinde veya alt dizinde olmalıdır.
 
 > [!TIP]
-> Xcode çalışma alanları, birleştirme çakışmalarının olasılığını azaltmak amacıyla projeleri birden çok Xcode projesine bölmeye olanak tanır. Çalışma alanlarını bu amaçla kullanıyorsanız, Tuist’te bunlara ihtiyacınız yoktur. Tuist, bir projeyi ve bağımlılıklarının projelerini içeren bir çalışma alanını otomatik olarak oluşturur.
+> Xcode çalışma alanları, birleştirme çakışmalarının olasılığını azaltmak için projelerin birden fazla Xcode projesine bölünmesine izin verirdi. Çalışma alanlarını bu amaçla kullanıyorsanız, Tuist'te bunlara ihtiyacınız yoktur. Tuist, bir projeyi ve bağımlılık projelerini içeren bir çalışma alanını otomatik olarak oluşturur.
 
 
 ## Swift Paketi <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 
-Tuist ayrıca SPM paket projelerini de destekler. Bir SPM paketi üzerinde çalışıyorsanız, herhangi bir güncelleme yapmanıza gerek kalmaz. Tuist, kök `Package.swift` dosyanızı otomatik olarak algılar ve Tuist’in tüm özellikleri, sanki bir `Project.swift` bildirimiymiş gibi çalışır.
+Tuist ayrıca SPM paket projelerini de destekler. Bir SPM paketi üzerinde çalışıyorsanız, herhangi bir şeyi güncellemenize gerek kalmamalıdır. Tuist, kök `Package.swift` dosyanızı otomatik olarak algılar ve Tuist'in tüm özellikleri, sanki bir `Project.swift` manifest'iymiş gibi çalışır.
 
-Başlamak için SPM paketinizde `tuist install` ve `tuist generate` komutlarını çalıştırın. Projeniz artık standart Xcode SPM entegrasyonunda göreceğiniz tüm şema ve dosyalara sahip olacaktır. Ancak artık <.localized_link href="/guides/features/cache">`tuist cache`</.localized_link> komutunu da çalıştırabilir ve SPM bağımlılıklarınızın ve modüllerinizin çoğunun önceden derlenmiş halini kullanarak sonraki derlemeleri son derece hızlı hale getirebilirsiniz.
+Başlamak için SPM paketinizde `tuist install` ve `tuist generate` komutlarını çalıştırın. Projeniz artık standart Xcode SPM entegrasyonunda göreceğiniz tüm şemalara ve dosyalara sahip olmalıdır. Ancak artık <.localized_link href="/guides/features/cache">`tuist cache`</.localized_link> komutunu da çalıştırabilir ve SPM bağımlılıklarınızın ve modüllerinizin çoğunun önceden derlenmiş halini elde ederek sonraki derlemeleri son derece hızlı hale getirebilirsiniz.

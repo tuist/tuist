@@ -8,26 +8,27 @@ defmodule Tuist.Kura.RunnerCache do
 
     * an account with at least one Runner Profile whose platform the
       region serves (`Regions.runner_platforms`) AND
-      `Tuist.FeatureFlags.runners_enabled?/1` returning true AND whose jobs run
+      `Tuist.Environment.runners_available?/0` returning true AND whose jobs run
       beside the region should have exactly one non-destroyed Kura server in
       that region, and
     * any other account should have none there.
 
-  Every private region sits at a rack site (`Regions.site/1`). A site's region
-  takes the accounts dispatch routes to the rack or the site cache flag
-  enables, once their cache traffic comes from the site: their node there
+  Every private region sits at a rack site (`Regions.site/1`). The sites'
+  regions take the accounts dispatch routes to the racks or the site cache flag
+  enables, once their cache traffic comes from any site: their node there
   served hits in the last seven days, or a build in one of the CI runs of their
   jobs claimed at the site (`runner_workflow_jobs.site`) hit the remote cache in
-  that window. A rack pool spans every site whose runners are on, so the site a
-  job was claimed at, not its pool, says where it ran. Jobs at no site get the
-  public cache.
+  that window. Traffic from one site admits the account at every site, so its
+  node at each rack is already filled by replication when its jobs move there.
+  A rack pool spans every site whose runners are on, so the site a job was
+  claimed at, not its pool, says where it ran. Jobs at no site get the public
+  cache.
 
   Runner Profiles are auto-created for every account, so profiles identify the
   platform whose cache is needed rather than providing a second entitlement.
   The reconciler evaluates the same runner-availability function as dispatch,
-  making co-located caching an automatic part of the runner product. A global
-  runner rule therefore provisions caches for every eligible account, while an
-  account whose runner access is removed has its cache torn down.
+  making co-located caching an automatic part of the runner product, so every
+  eligible account gets a cache.
 
   Each private region admits new accounts only while fewer than ten servers are
   unsettled. Failed and destroying servers keep admission closed until they
@@ -49,11 +50,6 @@ defmodule Tuist.Kura.RunnerCache do
   that changes who is admitted: while the two server versions disagree, the
   draining row stops the old one from provisioning a second node, and the new
   one has not yet destroyed the first.
-
-  In canary and production, an actor-only runner flag narrows the account query
-  before the final availability check. Broad gates still evaluate every
-  eligible account. Both steps use one flag snapshot so a concurrent flag update
-  cannot produce a mixed cohort within a reconciliation tick.
 
   The platform match keeps the node next to the fleet it serves: a region
   pinned beside the Scaleway Mac mini fleet provisions only for accounts with
@@ -119,24 +115,20 @@ defmodule Tuist.Kura.RunnerCache do
 
       regions ->
         account_ids = runner_enabled_account_ids(regions)
-        Enum.each(regions, &reconcile_region(&1, account_ids))
+
+        case admitted_account_ids(regions, account_ids) do
+          {:ok, admitted} ->
+            Enum.each(regions, &converge_region(&1, admitted))
+
+          # Without the evidence the sites' regions admit on, an empty set
+          # would read as "no account uses the racks" and tear every node
+          # down, so the regions keep their nodes until it can be read again.
+          {:error, reason} ->
+            Logger.warning("[Kura.RunnerCache] skipped site regions: site traffic unknown: #{inspect(reason)}")
+        end
     end
 
     :ok
-  end
-
-  defp reconcile_region(%Regions{id: region_id} = region, account_ids) do
-    case admitted_account_ids(region, account_ids) do
-      {:ok, account_ids} ->
-        converge_region(region, account_ids)
-
-      # Without the evidence a site's region admits on, an empty set would
-      # read as "no account uses the site" and tear every node down, so the
-      # region keeps its nodes until the evidence can be read again.
-      {:error, reason} ->
-        Logger.warning("[Kura.RunnerCache] skipped #{region_id}: site traffic unknown: #{inspect(reason)}")
-        :ok
-    end
   end
 
   defp converge_region(%Regions{id: region_id} = region, account_ids) do
@@ -185,16 +177,18 @@ defmodule Tuist.Kura.RunnerCache do
     Enum.filter(Regions.available(), &Regions.private?/1)
   end
 
-  # A site's region serves only the pools racked there, so it holds nodes for
-  # the accounts whose jobs run there (`runner_site`) or that the site cache
-  # flag enables, and of those only the ones whose cache traffic comes from the
-  # site: a node reserves its full claim on the site's few storage nodes
-  # whether or not anything reads it. An account both flags drop, or whose
-  # traffic from the site stops, has its node torn down. Operators override
-  # the traffic rule per account: `:runner_site_cache_pinned` admits a site
-  # account without traffic, and `:runner_site_cache_excluded` admits the
-  # account to no site's region.
-  defp admitted_account_ids(%Regions{site: site} = region, account_ids) do
+  # The sites' regions hold nodes for the accounts whose jobs run on the racks
+  # (`runner_site`) or that the site cache flag enables, and of those only the
+  # ones whose cache traffic comes from a rack: a node reserves its full claim
+  # on the site's few storage nodes whether or not anything reads it. Traffic
+  # from any site admits the account at every site, so each rack already
+  # holds a node the account's other nodes replicate into when its jobs run
+  # there; capacity admission still decides whether it fits. An account both
+  # flags drop, or whose traffic from every site stops, has its nodes torn
+  # down. Operators override the traffic rule per account:
+  # `:runner_site_cache_pinned` admits a site account without traffic, and
+  # `:runner_site_cache_excluded` admits the account to no site's region.
+  defp admitted_account_ids(regions, account_ids) do
     site_account_ids =
       MapSet.filter(account_ids, fn account_id ->
         account = %Account{id: account_id}
@@ -202,14 +196,14 @@ defmodule Tuist.Kura.RunnerCache do
       end)
 
     pinned = MapSet.filter(site_account_ids, &FeatureFlags.runner_site_cache_pinned?(%Account{id: &1}))
+    candidates = MapSet.difference(site_account_ids, pinned)
 
-    site_account_ids
-    |> MapSet.difference(pinned)
-    |> site_traffic_account_ids(region, site)
-    |> case do
-      {:ok, trafficked} -> {:ok, MapSet.union(pinned, trafficked)}
-      {:error, reason} -> {:error, reason}
-    end
+    Enum.reduce_while(regions, {:ok, pinned}, fn %Regions{site: site} = region, {:ok, admitted} ->
+      case site_traffic_account_ids(candidates, region, site) do
+        {:ok, trafficked} -> {:cont, {:ok, MapSet.union(admitted, trafficked)}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   # The accounts with cache traffic from the site in the window. An account
@@ -310,86 +304,30 @@ defmodule Tuist.Kura.RunnerCache do
   end
 
   defp runner_enabled_account_ids(regions) do
-    availability = runner_availability()
+    if Environment.runners_available?() do
+      platforms =
+        regions
+        |> Enum.flat_map(&region_platforms/1)
+        |> Enum.uniq()
 
-    platforms =
-      regions
-      |> Enum.flat_map(&region_platforms/1)
-      |> Enum.uniq()
+      profile_exists =
+        from(p in Profile,
+          where: p.account_id == parent_as(:account).id,
+          where: p.platform in ^platforms,
+          select: 1
+        )
 
-    profile_exists =
-      from(p in Profile,
-        where: p.account_id == parent_as(:account).id,
-        where: p.platform in ^platforms,
-        select: 1
-      )
-
-    query =
       from(a in Account,
         as: :account,
         where: exists(profile_exists),
         order_by: [asc: a.id],
-        select: struct(a, [:id])
+        select: a.id
       )
-
-    query
-    |> scope_runner_candidates(availability)
-    |> Repo.all()
-    |> Enum.filter(&runner_enabled?(&1, availability))
-    |> MapSet.new(& &1.id)
-  end
-
-  defp runner_availability do
-    case Environment.env() do
-      env when env in [:can, :prod] -> flagged_runner_availability()
-      _ -> :all
-    end
-  end
-
-  defp flagged_runner_availability do
-    case FunWithFlags.get_flag(:runners) do
-      nil ->
-        %FunWithFlags.Flag{name: :runners, gates: []}
-
-      {:error, reason} ->
-        raise "could not load runner availability: #{inspect(reason)}"
-
-      %FunWithFlags.Flag{} = flag ->
-        flag
-    end
-  end
-
-  defp scope_runner_candidates(query, :all), do: query
-
-  defp scope_runner_candidates(query, %FunWithFlags.Flag{gates: gates}) do
-    if Enum.any?(gates, &broad_runner_gate?/1) do
-      query
+      |> Repo.all()
+      |> MapSet.new()
     else
-      account_ids = enabled_account_actor_ids(gates)
-      where(query, [account: account], account.id in ^MapSet.to_list(account_ids))
+      MapSet.new()
     end
-  end
-
-  defp runner_enabled?(_account, :all), do: true
-  defp runner_enabled?(account, flag), do: FeatureFlags.runners_enabled?(account, flag)
-
-  defp broad_runner_gate?(%FunWithFlags.Gate{type: :boolean, enabled: true}), do: true
-  defp broad_runner_gate?(%FunWithFlags.Gate{type: :group, enabled: true}), do: true
-  defp broad_runner_gate?(%FunWithFlags.Gate{type: :percentage_of_time}), do: true
-  defp broad_runner_gate?(%FunWithFlags.Gate{type: :percentage_of_actors}), do: true
-  defp broad_runner_gate?(_gate), do: false
-
-  defp enabled_account_actor_ids(gates) do
-    Enum.reduce(gates, MapSet.new(), fn
-      %FunWithFlags.Gate{type: :actor, for: "account:" <> account_id, enabled: true}, account_ids ->
-        case Integer.parse(account_id) do
-          {parsed_id, ""} -> MapSet.put(account_ids, parsed_id)
-          _ -> account_ids
-        end
-
-      _gate, account_ids ->
-        account_ids
-    end)
   end
 
   defp accounts_needing_node(%Regions{id: region_id} = region, account_ids, limit) do

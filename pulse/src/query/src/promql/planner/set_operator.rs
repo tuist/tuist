@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Modified by Tuist; see pulse/FORK.md.
 
 //! Planning of the PromQL set operators (`and`, `unless`, and `or`).
 
@@ -20,7 +21,7 @@ use std::sync::Arc;
 use datafusion::logical_expr::{Cast, Extension, LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::{Column, Expr as DfExpr, JoinType};
 use datafusion::scalar::ScalarValue;
-use datafusion_common::{NullEquality, TableReference};
+use datafusion_common::{DFSchema, NullEquality, TableReference};
 use datatypes::arrow::datatypes::DataType as ArrowDataType;
 use promql::extension_plan::UnionDistinctOn;
 use promql_parser::parser::token::{self, TokenType};
@@ -29,9 +30,9 @@ use snafu::{OptionExt, ResultExt, ensure};
 use store_api::metric_engine_consts::DATA_SCHEMA_TSID_COLUMN_NAME;
 
 use crate::promql::error::{
-    ColumnNotFoundSnafu, CombineTableColumnMismatchSnafu, DataFusionPlanningSnafu,
-    MultiFieldsNotSupportedSnafu, Result, TimeIndexNotFoundSnafu, UnexpectedPlanExprSnafu,
-    UnexpectedTokenSnafu, UnsupportedVectorMatchSnafu,
+    ColumnNotFoundSnafu, DataFusionPlanningSnafu, MultiFieldsNotSupportedSnafu, Result,
+    TimeIndexNotFoundSnafu, UnexpectedPlanExprSnafu, UnexpectedTokenSnafu,
+    UnsupportedVectorMatchSnafu,
 };
 use crate::promql::planner::{
     OR_FLOAT_FIELD_PREFIX, OR_HISTOGRAM_FIELD_PREFIX, PromPlanner, PromPlannerContext,
@@ -728,13 +729,29 @@ impl PromPlanner {
                 }
             }
         }
-        ensure!(
-            left_tag_col_set == right_tag_col_set,
-            CombineTableColumnMismatchSnafu {
-                left: left_tag_col_set.iter().cloned().collect::<Vec<_>>(),
-                right: right_tag_col_set.iter().cloned().collect::<Vec<_>>(),
-            }
-        );
+        // Tuist: Prometheus matches a label a series lacks as the empty value, so
+        // operands with different label sets still match, as when one side's
+        // metric does not exist or was aggregated away. Absent labels are NULL
+        // here and the join treats NULLs as equal, so add each side's missing
+        // labels as NULL columns and match on the union.
+        let left_missing = right_tag_col_set
+            .difference(&left_tag_col_set)
+            .cloned()
+            .collect::<Vec<_>>();
+        let right_missing = left_tag_col_set
+            .difference(&right_tag_col_set)
+            .cloned()
+            .collect::<Vec<_>>();
+        let padded_left = !left_missing.is_empty();
+        if padded_left || !right_missing.is_empty() {
+            let left_schema = left.schema().clone();
+            let right_schema = right.schema().clone();
+            left =
+                Self::align_absent_tag_columns(left, &left_missing, &right_missing, &right_schema)?;
+            right =
+                Self::align_absent_tag_columns(right, &right_missing, &left_missing, &left_schema)?;
+        }
+        left_tag_col_set.extend(left_missing);
 
         let left_time_index = left_context.time_index_column.clone().unwrap();
         let right_time_index = right_context.time_index_column.clone().unwrap();
@@ -813,7 +830,7 @@ impl PromPlanner {
             }
             _ => UnexpectedTokenSnafu { token: op }.fail(),
         }?;
-        let result = if added_marker_to_left {
+        let result = if added_marker_to_left || padded_left {
             LogicalPlanBuilder::from(result)
                 .project(visible_left_schema.iter().map(|(qualifier, field)| {
                     DfExpr::Column(Column::new(qualifier.cloned(), field.name().clone()))
@@ -829,5 +846,57 @@ impl PromPlanner {
         // markers are decoded.
         self.ctx = output_context;
         Ok(result)
+    }
+
+    /// Tuist: aligns the match labels only one operand has. Appends `absent`,
+    /// the labels `plan` lacks, as NULL columns, and casts `present`, the labels
+    /// only `plan` has, to the same type. Like OR, it uses the decoded string
+    /// type, because a dictionary-typed NULL literal does not keep its type
+    /// when the plan is distributed.
+    fn align_absent_tag_columns(
+        plan: LogicalPlan,
+        absent: &[String],
+        present: &[String],
+        other: &DFSchema,
+    ) -> Result<LogicalPlan> {
+        let label_type = |label: &String, data_type: &ArrowDataType| {
+            Self::common_label_data_type(Some(data_type), None).with_context(|| {
+                UnexpectedPlanExprSnafu {
+                    desc: format!("label {label} has non-string type {data_type:?}"),
+                }
+            })
+        };
+        let mut exprs = plan
+            .schema()
+            .iter()
+            .map(|(qualifier, field)| {
+                let column = DfExpr::Column(Column::new(qualifier.cloned(), field.name().clone()));
+                if !present.contains(field.name()) {
+                    return Ok(column);
+                }
+                let target = label_type(field.name(), field.data_type())?;
+                Ok(if &target == field.data_type() {
+                    column
+                } else {
+                    DfExpr::Cast(Cast::new(Box::new(column), target))
+                        .alias_qualified(qualifier.cloned(), field.name())
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        for label in absent {
+            let (_, field) = other
+                .iter()
+                .find(|(_, field)| field.name() == label)
+                .with_context(|| ColumnNotFoundSnafu { col: label.clone() })?;
+            let target = label_type(label, field.data_type())?;
+            let null =
+                Self::string_scalar_value(&target, None).expect("common label type is a string");
+            exprs.push(DfExpr::Literal(null, None).alias(label));
+        }
+        LogicalPlanBuilder::from(plan)
+            .project(exprs)
+            .context(DataFusionPlanningSnafu)?
+            .build()
+            .context(DataFusionPlanningSnafu)
     }
 }

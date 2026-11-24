@@ -1,4 +1,5 @@
 import { copyTextToClipboard } from "../../shared/js/clipboard.js";
+import { flashCopiedIcon } from "../../shared/js/copied-icon.js";
 
 export default {
   mounted() {
@@ -13,9 +14,11 @@ export default {
 
       copyTextToClipboard(value, {
         container: this.el.closest("[role='dialog']"),
-      }).catch((error) => {
-        console.warn("Failed to copy text to clipboard", error);
-      });
+      })
+        .then(() => flashCopiedIcon(this.el))
+        .catch((error) => {
+          console.warn("Failed to copy text to clipboard", error);
+        });
     };
 
     this.el.addEventListener("click", this.copyToClipboard);

@@ -5,7 +5,9 @@ defmodule TuistWeb.API.AccountController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.User
   alias Tuist.Authorization
+  alias Tuist.OAuth.Clients
   alias TuistWeb.API.Schemas.Account, as: AccountSchema
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.ValidationError
@@ -92,7 +94,7 @@ defmodule TuistWeb.API.AccountController do
   )
 
   def delete_account(%{path_params: %{"account_handle" => handle}} = conn, _params) do
-    current_user = Authentication.current_user(conn)
+    current_user = Authentication.current_user(conn) || oauth_account_deleter(conn)
 
     with {:ok, account} <- get_account(handle),
          :ok <- Authorization.authorize(:account_delete, current_user, account) do
@@ -111,6 +113,20 @@ defmodule TuistWeb.API.AccountController do
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
+    end
+  end
+
+  # Keep account deletion separate from general Luft app access. Native clients
+  # retain their existing path; only this configured confidential client opts in.
+  defp oauth_account_deleter(conn) do
+    with %User{} = user <- Authentication.oauth_user(conn),
+         client_id when is_binary(client_id) <- Clients.luft_server_client_id(),
+         bearer when is_binary(bearer) <- Authentication.get_authorization_token_from_conn(conn),
+         %{client: %{id: ^client_id}, scope: scope} <- Boruta.AccessTokensAdapter.get_by(value: bearer),
+         true <- "account:delete" in String.split(scope || "", " ", trim: true) do
+      user
+    else
+      _ -> nil
     end
   end
 

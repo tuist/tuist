@@ -66,7 +66,7 @@ jobs:
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
@@ -101,8 +101,9 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
+          # The first `version =` is [workspace.package]'s, which kura and kura-core inherit.
           sed -i "0,/^version = \".*\"/s//version = \"${VERSION}\"/" Cargo.toml
-          sed -i "s/^_KURA_VERSION = \".*\"/_KURA_VERSION = \"${VERSION}\"/" BUILD.bazel
+          sed -i "s/^KURA_VERSION = \".*\"/KURA_VERSION = \"${VERSION}\"/" bazel/version.bzl
           env -u RUSTUP_TOOLCHAIN cargo update -w
 
       - name: Update CHANGELOG.md
@@ -112,12 +113,12 @@ jobs:
         run: git cliff --include-path "kura/**/*" --config cliff.toml --repository "../" --tag "kura@${VERSION}" -o CHANGELOG.md 2>/dev/null
 
       - name: Upload Kura release metadata
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: kura-release-metadata
           path: |
             kura/CHANGELOG.md
-            kura/BUILD.bazel
+            kura/bazel/version.bzl
             kura/Cargo.toml
             kura/Cargo.lock
           retention-days: 1
@@ -150,7 +151,7 @@ jobs:
             target: x86_64-apple-darwin
             compile-args: "--config=macos-x86_64-cross"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
       - uses: ./.github/actions/mise
@@ -161,7 +162,7 @@ jobs:
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Download Kura release metadata
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: kura-release-metadata
           path: kura
@@ -199,7 +200,7 @@ jobs:
           shasum -a 512 "$ARTIFACT_DIR/$ARTIFACT_NAME" | awk '{print $1 "  " FILENAME}' FILENAME="$ARTIFACT_NAME" > "$ARTIFACT_DIR/sha512.txt"
 
       - name: Upload Kura binary artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: kura-binary-${{ matrix.target }}-artifacts
           path: |
@@ -217,18 +218,18 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
 
       - name: Download Kura amd64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: kura-binary-x86_64-unknown-linux-gnu-artifacts
           path: kura-binary-amd64
 
       - name: Download Kura arm64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: kura-binary-aarch64-unknown-linux-gnu-artifacts
           path: kura-binary-arm64
@@ -243,7 +244,7 @@ jobs:
 
       - name: Check out trusted patch controls
         if: inputs.stable_base_tag != '' || inputs.stable_base_sha != ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           path: .release-controls
@@ -251,13 +252,13 @@ jobs:
           fetch-depth: 0
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -293,7 +294,7 @@ jobs:
         run: bash .github/scripts/stable-image-patch.sh kura "$SOURCE_SHA" "$BASE_TAG"
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: ./kura
           file: ./kura/Dockerfile.release
@@ -315,31 +316,31 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
       - name: Download Kura Linux x86_64 artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: kura-binary-x86_64-unknown-linux-gnu-artifacts
           path: build-kura/x86_64-unknown-linux-gnu
 
       - name: Download Kura Linux aarch64 artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: kura-binary-aarch64-unknown-linux-gnu-artifacts
           path: build-kura/aarch64-unknown-linux-gnu
 
       - name: Download Kura macOS x86_64 artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: kura-binary-x86_64-apple-darwin-artifacts
           path: build-kura/x86_64-apple-darwin
 
       - name: Download Kura macOS aarch64 artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: kura-binary-aarch64-apple-darwin-artifacts
           path: build-kura/aarch64-apple-darwin
@@ -364,7 +365,7 @@ jobs:
 
       - name: Check out trusted patch controls
         if: inputs.stable_base_tag != '' || inputs.stable_base_sha != ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           path: .release-controls
@@ -382,7 +383,7 @@ jobs:
         run: bash .github/scripts/stable-image-patch.sh kura "$SOURCE_SHA" "$BASE_TAG"
 
       - name: Create Kura GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           repository: tuist/tuist

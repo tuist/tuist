@@ -50,7 +50,8 @@ defmodule Tuist.GitHub.Client do
                 name: repo["name"],
                 full_name: repo["full_name"],
                 private: repo["private"],
-                default_branch: repo["default_branch"]
+                default_branch: repo["default_branch"],
+                size: repo["size"]
               }
             end)
 
@@ -126,17 +127,38 @@ defmodule Tuist.GitHub.Client do
   is guarded by the enterprise's IP allow list, which the repository's
   collaborator permission endpoint is not.
   """
-  def get_repository_user_by_username(%{
-        repository_full_handle: repository_full_handle,
-        username: username,
-        installation: installation
-      }) do
+  def get_repository_user_by_username(attrs) do
+    case collaborator_permission(attrs) do
+      {:ok, %{"user" => %{"id" => id, "login" => login}}} -> {:ok, %VCS.User{id: to_string(id), username: login}}
+      {:ok, _} -> {:error, :not_found}
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc """
+  The repository permission (`admin`, `write`, `read` or `none`) of the GitHub
+  user `username`, counting teams, the organization's base permission and
+  ownership. `{:error, :not_found}` when GitHub knows no such user.
+  """
+  def get_repository_permission(attrs) do
+    case collaborator_permission(attrs) do
+      {:ok, %{"permission" => permission}} when permission in ["admin", "write", "read", "none"] -> {:ok, permission}
+      {:ok, _} -> {:error, :unavailable}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp collaborator_permission(%{
+         repository_full_handle: repository_full_handle,
+         username: username,
+         installation: installation
+       }) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/collaborators/#{username}/permission"
 
     case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
-      {:ok, %{"user" => %{"id" => id, "login" => login}}} ->
-        {:ok, %VCS.User{id: to_string(id), username: login}}
+      {:ok, body} when is_map(body) ->
+        {:ok, body}
 
       {:ok, _} ->
         {:error, :not_found}
@@ -330,6 +352,20 @@ defmodule Tuist.GitHub.Client do
       }) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/pulls/#{pr_number}"
+
+    github_request(&Req.get/1,
+      url: url,
+      installation: installation,
+      api_url: api_url
+    )
+  end
+
+  @doc """
+  Fetches a Git commit object, whose `parents` list the commits it was made from.
+  """
+  def get_git_commit(%{repository_full_handle: repository_full_handle, installation: installation, sha: sha}) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/git/commits/#{sha}"
 
     github_request(&Req.get/1,
       url: url,

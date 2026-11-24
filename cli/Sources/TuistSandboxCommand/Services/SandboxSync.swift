@@ -57,7 +57,8 @@ struct SandboxSync {
     let remote: SandboxRemote
     let commandRunner: CommandRunning
 
-    /// - Parameter destination: The repository's path in the sandbox. Defaults to `$HOME/work/<repository name>`.
+    /// - Parameter destination: The repository's path in the sandbox. Defaults to `$HOME/work/<repository name>`, the
+    ///   name in the `origin` remote's URL, else the worktree directory's.
     func sync(repository: AbsolutePath, destination: String?) async throws -> Result {
         let state = try AbsolutePath(
             validating: try await git(["rev-parse", "--path-format=absolute", "--git-path", "tuist-sync"], in: repository)
@@ -69,11 +70,28 @@ struct SandboxSync {
         try Self.serialize(entries).write(to: URL(fileURLWithPath: manifest.pathString))
         let id = try await git(["hash-object", "--no-filters", manifest.pathString], in: repository)
 
-        let destination = destination ?? "$HOME/work/\(repository.basename)"
-        var result = try await apply(entries, id: id, manifests: manifests, repository: repository, destination: destination)
+        let resolvedDestination: String
+        if let destination {
+            resolvedDestination = destination
+        } else {
+            resolvedDestination = await defaultDestination(of: repository)
+        }
+        var result = try await apply(
+            entries,
+            id: id,
+            manifests: manifests,
+            repository: repository,
+            destination: resolvedDestination
+        )
         if result == nil {
             // The sandbox's copy moved since the probe, such as through a sync from elsewhere: send everything.
-            result = try await apply(entries, id: id, manifests: nil, repository: repository, destination: destination)
+            result = try await apply(
+                entries,
+                id: id,
+                manifests: nil,
+                repository: repository,
+                destination: resolvedDestination
+            )
         }
         guard let result else {
             throw SandboxCommandError.stepFailed("Syncing the worktree to the sandbox", "The sandbox's copy kept changing.")
@@ -139,9 +157,14 @@ struct SandboxSync {
         }
         do {
             var iterator = probes.makeAsyncIterator()
-            guard let probe = await iterator.next(), case let (root, remoteID)? = Self.probe(probe) else {
+            guard let probe = await iterator.next(), let report = Self.probe(probe) else {
                 let captured = try await output.value
                 throw SandboxCommandError.stepFailed("Preparing \(destination) in the sandbox", captured.stdout + captured.stderr)
+            }
+            let root = report.root
+            let remoteID = report.id
+            if let manifests, let remoteID, let remoteCommit = report.commit {
+                await recordCommitManifest(remoteCommit, id: remoteID, manifests: manifests, repository: repository)
             }
             if remoteID == id {
                 try await remote.writeStdin(command.id, at: 0, Data("skip\n".utf8))
@@ -349,54 +372,10 @@ struct SandboxSync {
         return shards
     }
 
-    /// Parses the probe's `root <path>` and `id <id>` lines.
-    static func probe(_ stdout: String) -> (root: String, id: String?)? {
-        let lines = stdout.split(separator: "\n").map(String.init)
-        guard let root = lines.first(where: { $0.hasPrefix("root ") })?.dropFirst(5),
-              let id = lines.first(where: { $0.hasPrefix("id ") || $0 == "id" })
-        else { return nil }
-        let value = id.dropFirst(3).trimmingCharacters(in: .whitespaces)
-        return (String(root), value.isEmpty ? nil : value)
-    }
-
     private static func check(_ captured: SandboxRemote.Captured) throws {
         guard captured.exit.exitCode == 0 else {
             throw SandboxCommandError.stepFailed("Syncing the worktree to the sandbox", captured.stderr)
         }
-    }
-
-    /// The paths that left the worktree since `previous`, and those that joined it.
-    static func delta(from previous: [Entry], to entries: [Entry]) -> (deleted: [String], added: [String]) {
-        let before = Set(previous.map(\.path))
-        let after = Set(entries.map(\.path))
-        return (previous.map(\.path).filter { !after.contains($0) }, entries.map(\.path).filter { !before.contains($0) })
-    }
-
-    /// The entries to send: every one when the sandbox's previous worktree is unknown, otherwise the new ones and those
-    /// whose content or mode changed.
-    static func changes(from previous: [Entry]?, to entries: [Entry]) -> [Entry] {
-        guard let previous else { return entries }
-        let known = Dictionary(previous.map { ($0.path, $0) }, uniquingKeysWith: { $1 })
-        return entries.filter { known[$0.path] != $0 }
-    }
-
-    /// Parses `git ls-files -s -z` output (`<mode> <object> <stage>\t<path>\0`), leaving out submodules.
-    static func entries(fromIndexListing listing: String) -> [Entry] {
-        listing.split(separator: "\0").compactMap { record in
-            guard let tab = record.firstIndex(of: "\t") else { return nil }
-            let fields = record[..<tab].split(separator: " ")
-            guard fields.count >= 2, fields[0] != "160000" else { return nil }
-            return Entry(mode: String(fields[0]), object: String(fields[1]), path: String(record[record.index(after: tab)...]))
-        }
-    }
-
-    /// The manifest saved between syncs: `<mode> <object>\t<path>\0` per entry.
-    static func serialize(_ entries: [Entry]) -> Data {
-        Data(entries.map { "\($0.mode) \($0.object)\t\($0.path)\0" }.joined().utf8)
-    }
-
-    static func entries(_ manifest: Data) -> [Entry] {
-        entries(fromIndexListing: String(decoding: manifest, as: UTF8.self))
     }
 
     private static func prune(_ manifests: AbsolutePath) throws {
@@ -414,7 +393,7 @@ struct SandboxSync {
         }
     }
 
-    private func git(_ arguments: [String], in repository: AbsolutePath, environment: [String: String] = [:]) async throws
+    func git(_ arguments: [String], in repository: AbsolutePath, environment: [String: String] = [:]) async throws
         -> String
     {
         try await commandRunner.run(
@@ -450,7 +429,10 @@ extension SandboxSync {
     ' "$state/paths"); then
       probed=
     fi
-    printf 'root %s\nid %s\nprobed\n' "$root" "$probed"
+    # A repository snapshot's build records the commit its clean checkout holds, which this machine can list.
+    commit=
+    if [ -n "$probed" ]; then commit=$(cat "$state/commit" 2> /dev/null || true); fi
+    printf 'root %s\nid %s\ncommit %s\nprobed\n' "$root" "$probed" "$commit"
     IFS=' ' read -r action kind url || true
     case "$action" in inline | url | shards) ;; *) exit 0 ;; esac
     work=$(mktemp -d "${TMPDIR:-/tmp}/tuist-sync.XXXXXX")
@@ -517,6 +499,7 @@ extension SandboxSync {
     done
     for shard in $shards; do wait "$shard"; done
     mv "$work/paths" "$state/paths"
+    rm -f "$state/commit"
     printf '%s' "$TUIST_ID" > "$state/id"
     """#
 }

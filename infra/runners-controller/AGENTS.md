@@ -52,6 +52,13 @@ cancellable and leaves the reserve intact. See
   `holdRecentPeak`) live in the `RunnerPool` spec, so a tuning change is
   helm-only.
 
+  It runs `autoscalerWorkers` pools at once. Its work is cross-pool reads
+  and per-pool writes from deterministic plans, so it does not need the
+  RunnerPool reconciler's single worker. Keep each pool's tick near
+  5 seconds (average reconcile time times the pool count, divided by the
+  workers): one pool's tick renews the macOS sandbox grants, which expire
+  after 15 seconds.
+
   The server also learns a floor per pool (`learned_warm_floor`,
   `Tuist.Runners.LearnedWarmFloors`): the burst its jobs arrive in, while
   the pool has had a job in the last day. The pool keeps that many runners
@@ -79,7 +86,7 @@ cancellable and leaves the reserve intact. See
   **Fleet-capacity awareness.** Both Linux shape pools and macOS Xcode
   pools share a capacity budget across siblings, so their warm capacity
   competes. The reconciler runs the per-pool target through
-  `internal/scaling/allocate.go`'s `AllocateFleet`, a three-tier priority
+  `internal/scaling/allocate.go`'s `AllocateCompute`, a three-tier priority
   allocation over the pools sharing `(OS, FleetSelector)`:
   (1) real load (`occupied + queued`, plus one withheld contender),
   (2) baselines and learned warm spare, then (3) the speculative
@@ -99,8 +106,8 @@ cancellable and leaves the reserve intact. See
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
-  - Keep byte allocation and `capByShape` warm priorities aligned: baseline, active burst, recently used quiet burst, then idle burst. A baseline is the explicit `minWarmPoolFloor`, or one above load for pools in use, bounded by target. All warm stock yields to real load.
-  - Fund each warm tier whole in `hours_with_jobs`, `status.lastDemandAt`, then name order. Concentrating bursts deliberately favors frequently used pools over equal warm shares. Withheld-only queues retain one tier-1 contender but do not earn active burst priority or recent-use status on that basis alone.
+  - Keep byte allocation and `capByShape` warm priorities aligned: baseline, learned baseline, active burst, recently used quiet burst, then idle burst. A baseline is the explicit `minWarmPoolFloor`, or one above load for pools in use, bounded by target. The learned baseline is one above load for every pool with a learned floor (a job in the last day), so on a full rack each such pool keeps its first warm runner before any pool's further ones; prefer it to a fixed `minWarmPoolFloor` for a pool that runs jobs every few hours. All warm stock yields to real load.
+  - Fund each warm tier whole in `cold_jobs` (the pool's jobs of the last two weeks that arrived within 30 s of another, which one warm runner does not cover), `hours_with_jobs`, `status.lastDemandAt`, then name order. Concentrating bursts deliberately favors the pools whose fan-outs a floor serves over equal warm shares. Withheld-only queues retain one tier-1 contender but do not earn active burst priority or recent-use status on that basis alone.
   - Split only speculative p95 headroom proportionally to cost; grant whole Pods left by rounding to the largest targets, then by name (`grantRemainder`). Do not raise learned caps to hide an unfunded warm budget.
 
   **Cross-pool preemption** (`controllers/preemption.go`). The cooldown
@@ -208,6 +215,13 @@ cancellable and leaves the reserve intact. See
     through the uncached `APIReader`, since the manager caches only the
     runners namespace. A failed read propagates to the existing autoscaler
     fallback and prevents sandbox preemption or new host reservation.
+    A Linux daemon's deferred CPU growth (the server grows its request into
+    `cpu_reclaimable_milli`, the CPU idle warm runners hold) retires idle
+    runners the same way, until their CPU, Pod-level budget and overhead
+    included, covers it. The grant counts the daemon at the CPU the kubelet
+    allocated, so a deferred growth does not hide `cpu_free_milli`, and keeps a
+    terminating runner's CPU in `cpu_reclaimable_milli` until it is gone, or the
+    server lowers the growth and a replacement runner takes the CPU.
     Per-node shape caps and reservation calculations subtract the same
     allocation plus the daemon's CPU request, including pending shrinks and
     terminating daemons. Never write the adjusted allocatable back to a Node.
@@ -215,6 +229,12 @@ cancellable and leaves the reserve intact. See
     Pods in the same namespace) are a second daemon per node: they are
     subtracted the same way, and their grants and revocations are published as
     `<node>.remote-execution`, the name they connect to the server with.
+    With `TUIST_REMOTE_EXECUTION_FLOOR_SLOTS` above 0 they are also a pool of
+    the compute allocator (`controllers/execution_allocation.go`): their held
+    slots are its load and come back into the budget, its fleet-wide floor
+    ranks first among warm stock, and each worker's share of the funded floor
+    goes out as `warm_bytes` in its grant. See
+    [remote execution](../sandbox-image/remote-execution.md), shared hosts.
     See [sharing policy](../sandboxd/fleet-sharing.md) for the proposed
     coordination between CI demand and sandbox growth.
   - macOS: budget = sum of allocatable memory across nodes labeled
@@ -247,7 +267,7 @@ cancellable and leaves the reserve intact. See
     all. It also cannot see CPU, which binds a guest whose memory-per-
     vCPU is richer than its host's. So the autoscaler additionally
     computes, per shape, the sum over Ready nodes of each node's OWN
-    `min(cpu, memory)` quotient, and `AllocateFleet` caps every pool
+    `min(cpu, memory)` quotient, and `AllocateCompute` caps every pool
     sharing that shape at it.
 
     This has to be a shared cap rather than `maxReplicas`, because a
@@ -1119,6 +1139,12 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- \
 It lists each sandbox still on the node (state, account, Orb, whether a
 turn holds it, upload state) and queues the next archive. A sandbox in a
 turn waits for the turn to end; errored rows are listed but do not block.
+A failed archive backs its sandbox off for five minutes while the next one
+moves; the check counts those rows, and the server logs `sandboxes: could
+not move a sandbox off a node CI reclaims` with the reason. A turn that
+never ends moves with `sandbox_node_drain("<node>", pause_turns: true)`,
+which pauses it with its memory
+(`infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md`).
 Nothing enforces this: deleting the Machine earlier loses the sandboxes
 still listed.
 
@@ -1550,6 +1576,12 @@ DaemonSet. Code that sizes a Pod
 (`podFootprint`, `podMemory`, `allocationPodMemory`) must read the Pod-level
 budget when it is set, or a running job looks nearly free.
 `isStaleExclusiveCPUs` rolls idle Pods when a pool turns the flag on or off.
+Never restart the kubelet on a host running these Pods, idle ones included: the
+restarted kubelet leaks their cores and fails its next start
+(kubernetes/kubernetes#140989). Cordon the host and wait until its runner Pods
+are gone first. The CAPI provider holds kubelet config re-pushes on such hosts
+for the same reason, and the check counts a runner Pod with a Pod-level CPU
+budget, so keep that budget only on exclusive-CPU Pods.
 Why and how to roll it out: `infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md`.
 
 ## Linux cache volumes

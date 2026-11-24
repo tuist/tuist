@@ -70,7 +70,7 @@ Helm-installed resource; publishing it is a separate rollout step.
   under 10 s, and a pool without one starts every job cold (scale-up plus VM
   boot, 10 to 75 s), while a floor on an image without jobs holds a slot
   other images' bursts wait for. Images with a job in most weekday working
-  hours keep one: on the BER1 rack 27.0 keeps two and 26.6, 26.3 and 26.0.1
+  hours keep one: on the alder rack 27.0 keeps two and 26.6, 26.3 and 26.0.1
   one (`rackFleet.runners.xcodeOverrides`, default 0); on the rented fleet
   27.0 keeps two and 26.6 one (`runnersFleet.xcodeOverrides`). The catalog
   default is 27.2, but it only seeds new accounts' protected `macos`
@@ -193,11 +193,11 @@ Helm-installed resource; publishing it is a separate rollout step.
   Keep unavailable service separate from the 30-minute redundancy warning, and keep
   the ten-minute StatefulSet age gate: single-replica instances start at zero Ready.
 - `k8s-monitoring/runner-cache-volume-alert-rules.json` records the live
-  **Runner cache volumes** group (five Loki rules and one Postgres rule,
+  **Runner cache volumes** group (five log rules on Pulse SQL and one Postgres rule,
   five-minute evaluation), provisioned separately from Helm; `alerts.md` holds
   the backtests. The warm-rate rule reads the production database as
   `tuist_grafana_ro`, so its columns are in `Tuist.Release`'s Grafana grant
-  allowlist. The Loki rules read host logs because `tuist_runner_cache_volume_operations_total` undercounts:
+  allowlist. The log rules read agent and server logs because `tuist_runner_cache_volume_operations_total` undercounts:
   its `sum:counter` Adaptive Metrics rule (2026-10-22) makes it rate-able, but
   both agents create series on first increment, so isolated failures vanish. Keep the macOS
   queries line-filtered and the windows short: that stream carries the runner

@@ -145,7 +145,7 @@ defmodule Tuist.Kura.Regions do
   # shares it with the upload staging directory and the RocksDB index, and the
   # provisioner reserves those before deriving the ring budget it hands the pod
   # (see `cas_capacity_bytes/1` in the Kubernetes controller provisioner). The
-  # rings these leave are 13.1 GiB for enterprise and 5.3 GiB for the rest.
+  # rings these leave are 13.1 GiB for enterprise and 3.4 GiB for the rest.
   #
   # These are where an account starts, not what it ends up with:
   # `Tuist.Kura.ClaimSizing` grows the claim from measured shedding, and it
@@ -161,18 +161,20 @@ defmodule Tuist.Kura.Regions do
   # that proves it grow four times past where Air stops. Enterprise starts a step higher only because it is
   # the plan whose accounts predictably arrive with a working set already.
   #
-  # They are also powers of two so that growth lands squarely. Sizing clamps a
-  # step at twice the current claim, so a ladder of doubles reaches each plan's
-  # ceiling exactly, where an off-ladder constant spends most of a step being
-  # clamped short of it.
+  # Enterprise's is a power of two so that growth lands squarely. Sizing clamps
+  # a step at twice the current claim, so a ladder of doubles reaches each
+  # plan's ceiling exactly, where an off-ladder constant spends most of a step
+  # being clamped short of it. Air's is not (6, 12, 24, 48, then clamped to its
+  # 64Gi ceiling): it is the smallest claim that keeps the full reserve below,
+  # and three quarters of the volumes at the floor never evict off it.
   #
   # Measured on 2026-08-20 rather than projected, and the measurement is why
   # they came down. Every provisioned Kura instance was enterprise then, and
   # six of the ten held under 2.4 GiB against a 40 GiB ring: the reserve those
   # instances stood on was refusing neighbours it never used. Air's own volume
   # comes from the legacy lane, where 55 air accounts uploaded anything at all
-  # in 30 days: the median moves 0.17 GiB a day, which a 5.3 GiB ring holds for
-  # a month.
+  # in 30 days: the median moves 0.17 GiB a day, which a 3.4 GiB ring holds for
+  # three weeks.
   #
   # The tier is long-tailed, and the tail is no longer left where it lands. Its
   # p90 moves 2.5 GiB a day and its heaviest account 21.7 GiB, which this ring
@@ -180,13 +182,20 @@ defmodule Tuist.Kura.Regions do
   # starting value instead, up to the ceiling their plan funds. What the
   # constant has to serve is the account the tier is actually full of.
   #
-  # Air is the floor as well as the default. It is this small because the
-  # staging budget scales with the claim rather than staying at Kura's flat
-  # 8 GiB default (see `staging_bytes/1` in the Kubernetes controller
-  # provisioner); held flat, 8 GiB of reserve would leave an 8Gi claim no ring
-  # at all.
+  # Air is the floor as well as the default, and it came down from 8Gi on
+  # 2026-11-17 because the small volumes were most of the gap between reserved
+  # and used disk: of the 226 production volumes at 8Gi, 169 evicted nothing in
+  # 30 days and 158 peaked under 60% of a 6Gi claim. It stops at 6Gi rather
+  # than lower because of the reserve, not the cache. Staging keeps a 2 GiB
+  # floor so a max-size module upload still fits (`staging_bytes/1` in the
+  # Kubernetes controller provisioner), one rotation segment takes another
+  # 512 MiB, and Kura will not run a ring under five segments (2.5 GiB): a 6Gi
+  # claim leaves a 3.4 GiB ring with all three intact, and a 4Gi claim would
+  # leave under 1.5 GiB, short of the floor. Instances already built keep the
+  # claim pinned on them; only new and returning instances start here, and
+  # sizing shrinks the rest on its usual occupancy evidence.
   @enterprise_storage_claim "16Gi"
-  @air_storage_claim "8Gi"
+  @air_storage_claim "6Gi"
 
   # Which countries `accounts.region == :europe` accepts a datacenter in. The
   # European Economic Area plus Switzerland and the United Kingdom, because
@@ -495,8 +504,9 @@ defmodule Tuist.Kura.Regions do
   # region per site named after it (`<site>-runners`, on node pool
   # `rack-storage-<site>`). Only the site's runner pools take it
   # (`Tuist.Runners.Catalog.fleet_site/1`) and only accounts on the
-  # `runner_site` or `runner_site_cache` flag get a node, so a site that racks
-  # no pool yet holds none. The display name and the site ID reach customers,
+  # `runner_site` or `runner_site_cache` flag get a node, at every available
+  # site once their cache traffic comes from any rack
+  # (`Tuist.Kura.RunnerCache`). The display name and the site ID reach customers,
   # so neither names the facility, the city or the provider.
   #
   # The storage node is an ordinary cluster node: it runs Cilium, and the
@@ -508,7 +518,7 @@ defmodule Tuist.Kura.Regions do
   @rack_sites [
     # The machines segment of each site, where its minis sit
     # (infra/rack-switch-fleet/sites/<site>.json).
-    %{site: "ber1", display_name: "BER1 rack (runner cache)", client_cidr: "10.10.0.0/24"},
+    %{site: "ber1", display_name: "Alder rack (runner cache)", client_cidr: "10.10.0.0/24"},
     %{site: "larch", display_name: "Larch rack (runner cache)", client_cidr: "10.20.0.0/24"}
   ]
 
@@ -536,6 +546,14 @@ defmodule Tuist.Kura.Regions do
         runner_platforms: [:macos],
         data_plane: :private_gateway,
         client_cidrs: [rack.client_cidr],
+        # The other sites' gateways publish this site's nodes as a fallback
+        # for jobs there (`Tuist.Kura.runner_cache_endpoint_url/3`). Until the
+        # sites have a private link that traffic crosses both sites' internet
+        # ports, so each response is capped (~52 Mbit/s). There is no
+        # connection limit: ingress-nginx counts each concurrent HTTP/2
+        # request as a connection, so 16 refused a build's parallel cache
+        # lookups with HTML 503s past the sixteenth (measured, 2026-11).
+        entrance_rate_limit_kbps: 6400,
         tolerations: [
           %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
         ],
@@ -746,10 +764,11 @@ defmodule Tuist.Kura.Regions do
   Kura clamps its ring up to five segments; a claim too small to clear that
   leaves `cas_capacity_bytes/1` emitting no `KURA_CAS_CAPACITY_BYTES` at all and
   the runtime sizes its ring from the whole box instead, which is the failure
-  that derivation exists to prevent. Now that staging scales with the claim
-  (`staging_bytes/1` in the Kubernetes controller provisioner) the cliff sits
-  below air rather than above it, so air clears it with margin; `regions_test`
-  asserts that against the derivation rather than against a number.
+  that derivation exists to prevent. Staging scales with the claim above a
+  2 GiB floor (`staging_bytes/1` in the Kubernetes controller provisioner), so
+  the cliff sits at about 5.1Gi and air's 6Gi clears it by nearly two
+  segments; `regions_test` asserts that against the derivation rather than
+  against a number.
   """
   def minimum_storage_claim, do: @air_storage_claim
 
@@ -1203,6 +1222,14 @@ defmodule Tuist.Kura.Regions do
           if(spec[:data_plane] == :private_gateway,
             do: "{account_handle}-{cluster_id}-runners#{managed_region_host_suffix()}.kura.tuist.dev"
           ),
+        # A rack site's node published on another site's gateway: one more
+        # label of the wildcard zone, so the shared certificate covers it.
+        entrance_host_template:
+          if(spec[:data_plane] == :private_gateway and is_binary(spec[:site]),
+            do: "{account_handle}-{cluster_id}-runners-via-{site}#{managed_region_host_suffix()}.kura.tuist.dev"
+          ),
+        entrance_rate_limit_kbps: Map.get(spec, :entrance_rate_limit_kbps),
+        entrance_connection_limit: Map.get(spec, :entrance_connection_limit),
         ingress_class_name: Map.get(spec, :ingress_class_name),
         client_cidrs: Map.get(spec, :client_cidrs, []),
         pod_annotations: egress_bandwidth_pod_annotations(spec),

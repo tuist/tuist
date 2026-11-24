@@ -11,7 +11,7 @@ global:
 # Grace-period garbage collector for orphaned Hetzner block volumes (PVs left
 # Released by CNPG rebuilds, StatefulSet teardowns, etc. under the hcloud-volumes
 # Retain default). Ships to every cluster the chart is applied to. Safe to leave
-# on: dryRun only logs. After reviewing a run's logs in Grafana Cloud, set
+# on: dryRun only logs. After reviewing a run's logs in Pulse, set
 # dryRun=false (per env) to arm actual reaping. See templates/released-pv-reaper.yaml.
 pvReaper:
   enabled: true
@@ -363,6 +363,13 @@ egressTreeAgent:
   # advertise tuist.dev/egress-mbps capacity. 0 = no fallback: such nodes get
   # no tree and their pods stay unshaped on the node-local leg.
   defaultNodeEgressMbps: 0
+  # Ceiling, in Mbit/s, of the one class every tenant shares for traffic to
+  # pods on the node's provider private-network peers (same
+  # tuist.dev/private-network label and route membership). That traffic
+  # leaves on the private link, so it sits beside the public budget rather
+  # than under it and skips the tenants' public ceilings. Size it to the
+  # private link. 0 keeps that traffic in the tenant classes.
+  privateNetworkMbps: 0
   # Kura cache pools to schedule onto, matched as
   # `node.cluster.x-k8s.io/pool In [<nodePools>]` required node affinity —
   # the same pool names the region specs use (server/lib/tuist/kura/regions.ex)
@@ -707,6 +714,9 @@ server:
       item: ""
       field: password
       secret: ""
+      # Secret (key targets.json) the shard-storage-rustfs chart publishes for
+      # its public store, merged with the map above.
+      publicSecret: ""
     # Dedicated OAuth client used by Kura to call /oauth2/introspect.
     # Leave item empty to skip syncing it into the server environment.
     kuraIntrospection:
@@ -842,6 +852,14 @@ server:
       enabled: false
       item: CHATGPT_OAUTH
       field: client_id
+    # Claude linked billing (Tuist.Accounts.ClaudeLinkedBilling): the
+    # Claude Console OAuth app and Workload Identity Federation ids, one
+    # text field each. Enable only after the item exists with all six
+    # fields in the environment's vault; a missing item fails the
+    # pre-upgrade ExternalSecret and blocks the deploy.
+    claudeLinkedBilling:
+      enabled: false
+      item: ANTHROPIC_LINKED_BILLING
     # Origin app identity. Enable only after the registered App ID and its
     # signing key exist together in the environment's vault.
     originAppKey:
@@ -860,6 +878,19 @@ server:
     # the item exists in the environment's vault.
     fcm:
       enabled: false
+    # Makes the server the OpenID Provider the Luft server (luft.work) signs
+    # people in with (TUIST_OIDC_SIGNING_KEY, TUIST_LUFT_SERVER_OAUTH_*). The
+    # signing key is the OIDC_PROVIDER item's file attachment; the client ID
+    # and secret are the LUFT_SERVER item the luft-server chart also reads.
+    # Enable only after both items exist in the environment's vault; a missing
+    # field fails the pre-upgrade ExternalSecret and blocks the deploy.
+    luftServerOidc:
+      enabled: false
+      signingKeyItem: OIDC_PROVIDER
+      signingKeyFile: signing-key.pem
+      clientItem: LUFT_SERVER
+      redirectUris:
+        - https://luft.work/auth/callback
     # Entire plugin signing key. Enable only after the Ed25519 private PEM
     # exists in the environment's vault. Slug and delivery JWKS URL are
     # configured separately after partner registration with Entire.
@@ -883,6 +914,28 @@ server:
     cacheTokenKey:
       enabled: false
       signing: false
+    # Keys that encrypt stored customer secrets (Tuist.Vault). The rotation
+    # steps are in the Tuist.Vault moduledoc (server/lib/tuist/vault.ex).
+    encryptionKeys:
+      # Sync the key ring TUIST_SECRET_KEY_ENCRYPTION_KEYS from 1Password item
+      # SECRET_KEYS, field `encryption_keys` (`<id>:<base64 32-byte key>`,
+      # comma-separated). Off until the field exists: a missing field fails
+      # the whole sync.
+      enabled: false
+      # Id of the key new values are encrypted with
+      # (TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY). Set as a plain env var on
+      # every workload, so changing it rolls them. Empty: the ring's first
+      # entry, or `V1` (the single key below) without a ring.
+      currentKeyId: ""
+      # Every key id each pod must hold (TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS),
+      # `V1` for the single key below. A pod whose synced Secret lacks one
+      # refuses to boot, and changing the list rolls every pod, so a rotation
+      # adds the new id here before making it current. When set, currentKeyId
+      # must be one of them.
+      keyIds: []
+      # Keep syncing the original single key (SECRET_KEYS/encryption, id `V1`).
+      # Turn off only after every value was re-encrypted under a ring key.
+      legacyKey: true
     # Root keys that wrap per-tenant Kura volume keys
     # (TUIST_KURA_VOLUME_ROOT_KEYS, 1Password item KURA_VOLUME_ROOT_KEYS, field
     # `value`). Off until the item exists in the environment's vault: a missing
@@ -1025,6 +1078,21 @@ server:
   # this cluster's JWKS and allowlist the server's namespace:ServiceAccount.
   atlasSupportIngest:
     enabled: false
+  # The Symptoms evaluator (infra/helm/symptoms): the server pulls its symptom
+  # log from `url` with TUIST_SYMPTOMS_TOKEN, and lets the evaluator's
+  # ServiceAccount read the human state back (TokenReview, audience
+  # `tuist-symptoms-state`). The token is the evaluator's `<tokenItem>/<tokenField>`
+  # in the environment's vault, synced through the managed server-config
+  # ExternalSecret, so this needs `server.config.managedSecrets`. Enable only
+  # after that item exists: a missing field fails the sync and the deploy.
+  symptoms:
+    enabled: false
+    # The evaluator's in-cluster Service, http://symptoms.<namespace>.svc.cluster.local
+    url: ""
+    evaluatorNamespace: ""
+    evaluatorServiceAccount: symptoms
+    tokenItem: SYMPTOMS
+    tokenField: api_token
   networkPolicy:
     enabled: false
     # Applies a default-deny policy to every pod in the release. The
@@ -1123,8 +1191,9 @@ server:
 processor:
   # Oban-backed xcactivitylog processor. Runs the same Docker image as the
   # server with TUIST_MODE=processor, which (a) disables the Phoenix
-  # web endpoint and (b) narrows the Oban queue set to :process_build and
-  # :process_bazel_tests, each with an independent concurrency limit.
+  # web endpoint and (b) narrows the Oban queue set to :process_build,
+  # :process_bazel_tests and :process_snapshots, each with an independent
+  # concurrency limit.
   # Jobs flow from any `ProcessBuildWorker.new()` enqueue (server side) to
   # these pods via SELECT … FOR UPDATE SKIP LOCKED; a saturated pod doesn't
   # claim more work, so jobs naturally flow to whichever replica has headroom.
@@ -1141,6 +1210,9 @@ processor:
   # report processor. Keeping this separate prevents a burst of reports from
   # consuming xcactivitylog parsing capacity.
   bazelTestQueueConcurrency: 1
+  # Per-pod concurrency for snapshot comparisons, which decode and diff
+  # full-resolution images (a few hundred megabytes per job).
+  snapshotQueueConcurrency: 2
   resources: {}
   extraEnv: []
   # When true, the chart provisions an ExternalSecret that syncs the
@@ -1217,7 +1289,8 @@ processor:
   # Build archives are unzipped into the pod's /tmp. Scale to match the
   # largest archive plus headroom for CAS metadata. 16 GiB gives ~3 GiB per
   # slot at queueConcurrency = 5, which is enough for any realistic build
-  # archive plus its CAS sidecar files.
+  # archive plus its CAS sidecar files. `Tuist.Processor.BuildProcessor`
+  # rejects archives that extract past that 3 GiB share; raise both together.
   tmpSizeLimit: 16Gi
 
 swiftRegistrySync:
@@ -1775,7 +1848,7 @@ vultrFleet:
 vultrFleets: {}
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
-# Rack-owned Mac minis: hardware we bought, in a rack we operate (the BER1
+# Rack-owned Mac minis: hardware we bought, in a rack we operate (the alder
 # colo programme), as opposed to capacity ordered from a provider API.
 #
 # `hosts` is the rack's physical inventory: one entry per box, each rendering a
@@ -1858,8 +1931,9 @@ rackFleet:
     # The repositories the caches serve, as zot sync prefixes.
     repositories:
       - tuist/tuist-runner
-    # Each storage node that runs a cache, by Node name, and its address on
-    # the machines segment, which the cache binds and the minis pull from.
+    # Each storage node that runs a cache, by Node name, and the address the
+    # cache binds and the minis pull from: its address on the machines
+    # segment, or its tailnet address when another site's minis pull from it.
     #   - name: ber1-store-a
     #     address: 10.10.0.11
     nodes: []
@@ -2111,7 +2185,7 @@ rackFleet:
       username: username
       password: password
 
-# Rack-owned x86 Linux machines (the BER1 edge, services and storage nodes).
+# Rack-owned x86 Linux machines (the alder edge, services and storage nodes).
 # `hosts` is inventory, one RackLinuxHost each; each role present among them
 # gets a MachineDeployment claiming from `<pool>-<role>`, with that role's node
 # labels and taints from `roles`. A host joins the tailnet from its install
@@ -2179,6 +2253,9 @@ rackLinuxFleet:
   #                              # 10250/tcp) from the cluster's nodes only. One
   #                              # host per address; needs `address`, not an edge.
   #     reinstallGeneration: 1   # raise it to reinstall the host
+  #     kuraStorageLayout: lvm-v1   # storage only: the next install puts /data on a
+  #                              # data LV and leaves the drive's rest to Kura's thin pool
+  #     kuraDataLVSize: 1536G    # with lvm-v1; default 128G
   #     amt:
   #       activate: false        # default: amt.products decides
   #       address: 192.168.50.21/24   # default: one from amt.addressRange
@@ -2226,6 +2303,9 @@ rackLinuxFleet:
     # The site's provisioning address (management.edge.provisioning), which the
     # rack-edge pod puts on the edge node's switch port.
     address: ""
+    # More sites' boot servers, each on its site's edge nodes at the site's
+    # own provisioning address: [{site: larch, address: 192.168.70.1}].
+    sites: []
     httpPort: 8480
     iso:
       url: https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso
@@ -2488,8 +2568,8 @@ macosFleet:
   # alloy-metrics through the egress ProxyGroup, logs are pushed by the host.
   # They are pushed to the in-cluster Alloy receiver over the tailnet —
   # already reachable, already granted in acls.json, already serving this
-  # exact endpoint for the xcresult processor's Tart guests — rather than to
-  # Grafana Cloud, so no ingest credential is ever distributed to the fleet.
+  # exact endpoint for the xcresult processor's Tart guests — rather than
+  # straight to Pulse, so no ingest credential is ever distributed to the fleet.
   #
   # Requires `tailscale.enabled`; the endpoint only exists on the tailnet.
   #
@@ -2642,9 +2722,8 @@ macosFleet:
 # overcommit show up as unscheduled Pods than fail a deploy on
 # arithmetic).
 #
-# Runner availability is gated server-side by the `:runners`
-# feature flag (see server/lib/tuist/runners.ex); there's no
-# per-customer concurrency cap.
+# Every account can use runners on hosted deployments (see
+# server/lib/tuist/runners.ex); there's no per-customer concurrency cap.
 #
 # The Tuist server's ServiceAccount holds Pod create/list/get on
 # the runners namespace (templates/runners-namespace.yaml); a
@@ -2658,6 +2737,12 @@ macosFleet:
 # separate substrate on the same nodes. See infra/sandboxd/AGENTS.md.
 sandboxes:
   enabled: false
+  # Fleet-wide floor of remote execution VM slots (infra/helm/remote-execution
+  # workers on shared Linux hosts) that the runners-controller's compute
+  # allocator keeps ready ahead of runner warm stock, spread over the workers
+  # and grown before any action arrives. Queued CI jobs still outrank it.
+  # 0 leaves remote execution out of the allocator.
+  remoteExecutionFloorSlots: 0
   macos:
     enabled: false
     templateName: macos
@@ -2720,10 +2805,27 @@ sandboxes:
   # daemon's memory, grows again. A ceiling not above memoryGiB keeps the
   # carve-out fixed.
   maxMemoryGiB: 16
-  # CPU the daemon requests. Guests have no CPU limit and run on idle cores;
-  # the request only sets their share when the node's CPU is contended, so
-  # it stays small and leaves runner Pods' scheduling capacity alone.
+  # CPU the daemon requests with no sandbox running: the floor of its CPU
+  # request. Guests have no CPU limit and burst into whatever cores of the
+  # node's shared pool are idle. The server raises the request in place,
+  # never above maxCpu and only into CPU no other Pod requests, to this
+  # floor plus the guarantee of each creating, resuming or running
+  # sandbox (a quarter vCPU per GiB of memory, or its creator's pick), and lowers it again as they pause. The request is
+  # what keeps those cores out of exclusive-CPU runners and gives the
+  # guests their weight when the shared pool is contended.
   cpu: "250m"
+  # The most the server may raise the daemon's CPU request to, in cores or
+  # millicores; sandboxes whose guarantees would pass it go to other nodes.
+  # Guarantees follow memory at the hosts' 1 vCPU : 4 GB, so 24 matches about
+  # 96 GB of sandboxes. Not above `cpu` keeps the request fixed. The server
+  # reads it, so changing it rolls the server, not the daemons.
+  maxCpu: "24"
+  # Temporary: the ceiling the daemon still reports in its hello, which the
+  # server ignores in favour of maxCpu. Set it where maxCpu changes to keep
+  # the DaemonSet as it was (a daemon restart pauses every sandbox on its
+  # node); drop it with the daemon's CPU_CEILING_MILLI at the next sandboxd
+  # image change. Unset follows maxCpu.
+  daemonMaxCpu: ""
   # Share of the node's data filesystem sandboxes may reserve. Every file a
   # sandbox writes is fixed-size (rootfs clone, sparse workspace of
   # workspace_gb, memory image), so the server reserves each sandbox's
@@ -2740,6 +2842,20 @@ sandboxes:
   # copying the tree into the guest. The images come out of diskGiB. 0 turns
   # them off. See infra/sandboxd/AGENTS.md, "Guest to host: checkout".
   checkoutWorkspacesGiB: 0
+  # With Linux cache volumes on, budget for copies of repositories' CI cache
+  # volumes that new sessions get as their cache drive (`sandbox_runner_cache`
+  # flag), out of diskGiB. 0 turns cache grants off. cacheDriveInTemplate
+  # gives template shapes the drive's placeholder so a fresh session attaches
+  # one without cold booting; enable it only once every node's daemon reads
+  # `cache_placeholder`. See infra/sandboxd/AGENTS.md, "Guest to host: cache
+  # images".
+  cacheImagesGiB: 0
+  cacheDriveInTemplate: false
+  # Experimental: guests boot with a free-page-reporting balloon and return
+  # the memory they free to the host. Changing it rebuilds every shape
+  # snapshot on the node. See infra/sandboxd/AGENTS.md,
+  # BALLOON_FREE_PAGE_REPORTING.
+  balloonFreePageReporting: false
   # Size of the root filesystem every sandbox gets, which holds home (mise
   # toolchains, caches, Amp Desktop's Chrome) beside the separate workspace.
   # The template's init container grows the image to it, sparse, when it
@@ -2760,11 +2876,14 @@ sandboxes:
   archiveDiskHighWaterPercent: 85
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
-  prebuildShapes: "4x8192,2x4096"
-  # The only shapes a node accepts. Each shape costs a template build and a
-  # memory image on disk, so the list is short and matches the shapes the
-  # server lets accounts request (Tuist.Sandboxes.Sandbox.shapes/0).
-  allowedShapes: "1x2048,2x4096,4x8192,8x16384,16x32768,16x45056"
+  prebuildShapes: "16x8192,16x4096"
+  # The only shapes a node creates. Each shape costs a template build and a
+  # memory image on disk, so the list is short. The server boots every
+  # Linux agent sandbox with 16 vCPUs (Tuist.Sandboxes.Sandbox.burst_vcpus/0)
+  # and the memory of the shape an account asks for
+  # (Tuist.Sandboxes.Sandbox.shapes/0). The older shapes stay accepted for
+  # sandboxes created before that; they cost nothing until built.
+  allowedShapes: "16x2048,16x4096,16x8192,16x16384,16x32768,16x45056,1x2048,2x4096,4x8192,8x16384"
   metricsPort: 9470
   # Unauthenticated HTTP API on the daemon for bring-up validation from Jobs
   # labelled `tuist.dev/sandboxd-admin-client=true` in the sandboxes
@@ -2772,6 +2891,22 @@ sandboxes:
   admin:
     enabled: false
     port: 9471
+  # Step 2a of seamless daemon restarts: Firecracker runs in a separate vmm
+  # container of the daemon's Pod, the resources above (and the server's
+  # in-place resizes) move to it, and the deploy-varying configuration moves
+  # to a ConfigMap. Behaviour is unchanged: a daemon restart still pauses
+  # every sandbox. Turning it on or off replaces every daemon Pod. See
+  # infra/sandboxd/AGENTS.md, "Process model".
+  vmm:
+    enabled: false
+    # The daemon container's own, fixed resources: the server's 512 MiB
+    # daemon reserve, with room for page cache from archives and restores.
+    daemonResources:
+      requests:
+        cpu: "250m"
+        memory: 512Mi
+      limits:
+        memory: 2Gi
   # Run Firecracker under the jailer (chroot, dedicated uid, seccomp). Only
   # turn off to debug a jailer problem on a staging box.
   jailer: true
@@ -2791,6 +2926,10 @@ sandboxes:
     # archives. The daemon drops the guests' traffic to that port
     # (DAEMON_ONLY_TCP_PORTS), so only the daemon uses this rule.
     archiveStoreEgress: false
+    # Namespace of the RustFS store (infra/helm/shard-storage-rustfs) whose
+    # private endpoint holds archives. Admits the daemon on :9000 and drops
+    # the guests' traffic to that port everywhere, as for archiveStoreEgress.
+    rustfsNamespace: ""
     # Let guests reach the in-cluster server directly. The NetworkPolicy
     # admits the daemon Pod, and so its guests, to the server for the node
     # connection; without this the daemon drops guest traffic to the
@@ -2955,6 +3094,9 @@ runnersFleet:
   # templates/runners-namespace.yaml.
   networkPolicy:
     enabled: true
+    # Namespace of the RustFS store whose private endpoint runners reach on
+    # :9000 for presigned object requests. Empty adds no rule.
+    rustfsNamespace: ""
     # CIDRs excluded from the runner-Pod egress allow rule.
     # Blocks the Pod (not the VM) from reaching internal cluster
     # ranges (Pod CIDR, Service CIDR, Node CIDR, in-cluster
@@ -2993,7 +3135,7 @@ runnersFleet:
   #      instead and the budget over-counts every SMALLER shape's slots,
   #      producing Pods the allocator keeps asking for and the scheduler
   #      never places. At 8 vCPU / 24 GB that ratio is 3072 MB per
-  #      vCPU, the BER1 rack hosts' 16 CPU / 48 GB, which is what makes
+  #      vCPU, the alder rack hosts' 16 CPU / 48 GB, which is what makes
   #      16 vCPU / 48 GB the consistent larger shape.
   #   2. A shape larger than the smallest host in the fleet is
   #      over-promised by that same fleet-wide sum, since it counts
@@ -3048,7 +3190,7 @@ runnersFleet:
   # template defaults (replicas: 0, pod sizing from the catalog's
   # `default: true` shape, no autoscaling).
   #
-  # The runners-controller's fleet allocator apportions the
+  # The runners-controller's compute allocator apportions the
   # fleet's guest-slot budget across every macOS pool sharing this
   # fleetSelector using the same three-tier (floor / load /
   # headroom) policy as the Linux pools. `maxReplicas` is per-pool
@@ -3060,7 +3202,7 @@ runnersFleet:
     #   pod:                           # Optional. Defaults to the catalog's default shape.
     #     cpuMilli: 6000
     #     memoryMB: 14336
-    #   autoscaling:                   # Preferred for managed envs (joins the fleet allocator).
+    #   autoscaling:                   # Preferred for managed envs (joins the compute allocator).
     #     enabled: true
     #     minWarmPoolFloor: 1          # Always-on warm guarantee (joint sum ≤ hostCount).
     #     maxReplicas: 9               # Per-pool ceiling; allocator caps the joint sum.
@@ -3489,12 +3631,23 @@ kataContainers:
   # guest memory before adding the container's requested memory.
   # The remaining 512 MiB covers Quick Emulator
   # (https://www.qemu.org/), virtiofsd, and kata-shim under build load.
+  # That holds only while the Pod has no memory limit: exclusive-CPU
+  # Pods cap their host cgroup at the budget plus this, and a full
+  # 34 GiB guest also needs about 1 GiB of host page tables and slab,
+  # so the chart requires at least 3584Mi when any pool is exclusive.
   # Keep this aligned with measured guest memory and host resident
   # usage; the runners-controller reads the live RuntimeClass so its
-  # fleet allocator uses the same cost as the scheduler.
+  # compute allocator uses the same cost as the scheduler.
   podFixed:
     cpu: "250m"
     memory: "2560Mi"
+  # Exclusive-CPU pools run under a `kata-qemu-<size>` RuntimeClass (same
+  # handler) whose podFixed memory is the one above plus this percentage of
+  # the guest budget, rounded up to 256 MiB. The guest's kernel memory and
+  # virtiofsd's page cache grow with its size: at 3584Mi a full 64 GiB guest
+  # left under 1 GiB for page cache and the host OOM-killed QEMU
+  # (2026-11-19 probe). Shared-CPU pools keep `kata-qemu`.
+  exclusivePodFixedMemoryPercent: 4
 
 runnersController:
   replicaCount: 1
@@ -3725,6 +3878,12 @@ registryCache:
     # package registry's content. Region/endpoint come from objectStorage.
     bucket: tuist-registry
     rootDirectory: docker-mirror
+    # Another S3 store instead of objectStorage: its endpoint (the scheme
+    # decides TLS), region, and a Secret holding access-key-id and
+    # secret-access-key. Empty uses objectStorage's.
+    endpoint: ""
+    region: ""
+    existingSecret: ""
   # Empty = registry auto-generates one per pod (fine at replicaCount 1).
   # Set a shared value before scaling past one replica behind the Service.
   httpSecret: ""
@@ -3921,7 +4080,7 @@ postgresql:
       # credential held by a third party. Column-level GRANTs in
       # infra/cnpg/tuist-grafana-ro-grants.sql restrict it to exactly the
       # columns the dashboard reads — table-level SELECT would still expose
-      # users.encrypted_password, projects.token, and accounts.s3_secret_access_key.
+      # users.encrypted_password, projects.slack_webhook_url, and accounts.s3_secret_access_key.
       grafanaRo:
         name: tuist_grafana_ro
       # Least-privilege Swift Package Registry sync role. Narrower
@@ -4020,8 +4179,12 @@ clickhouse:
       # Every other day. Sunday is the last day of its ISO week, so it still
       # pairs with Monday's full.
       incrementalSchedule: "0 1 * * 0,2,3,4,5,6"
-      # Under the default object-storage bucket, then the namespace, so
-      # environments sharing a bucket cannot restore over each other.
+      # Bucket the backups go to, reached with the object-storage endpoint and
+      # credentials. Empty uses the default object-storage bucket. A bucket of
+      # their own keeps their retention rules apart from customer artifacts.
+      bucket: ""
+      # Under the bucket, then the namespace, so environments sharing a bucket
+      # cannot restore over each other.
       prefix: clickhouse-backups
       # Twenty hours. Production's weekly full took 9 hours in 2026-W41 and 10
       # in W42, growing with the dataset, and a Job that hits its deadline is
@@ -4365,8 +4528,9 @@ observability:
 # Sends a copy of every Sentry error to Pulse as well as to each service's
 # primary DSN (Atlas), to compare the two backends. Atlas stays primary: the
 # copy is fire-and-forget (TuistCommon.SentryHTTPClient, Kura's
-# FanOutTransport). Only the web server and Kura send copies, and Pulse's
-# NetworkPolicy admits only them. Off for every service by default. Each
+# FanOutTransport). The server (web, processor and registry sync pods), the
+# registry and Kura send copies, and Pulse's NetworkPolicy admits only them.
+# Off for every service by default. Each
 # enabled service gets the DSN http://<user>:<password>@<host>/v1/sentry/<service>/1,
 # built from the write-only Pulse user whose password lives in `item`/`field`
 # of the environment's vault.
@@ -4393,12 +4557,29 @@ sentryPulse:
   field: password
   host: pulse.observability.svc.cluster.local:4000
   services:
-    # TUIST_SENTRY_PULSE_DSN in the server-config Secret. Only web instances
-    # use it (Tuist.Environment.sentry_pulse_dsn/2); the processors and
-    # registry sync share the Secret but Pulse does not admit them.
+    # TUIST_SENTRY_PULSE_DSN in the server-config Secret. The web, processor
+    # and registry sync pods use it (Tuist.Environment.sentry_pulse_dsn/2);
+    # the xcresult processors share the Secret but run outside the cluster
+    # network, so they do not.
     server: false
+    # TUIST_SENTRY_PULSE_DSN in the registry's runtime Secret, under the
+    # `registry` service. Needs registry.managedSecrets; also opens the
+    # registry's egress to Pulse.
+    registry: false
     # KURA_SENTRY_PULSE_DSN, merged into kura-shared-secrets for every Kura pod.
     kura: false
+  # TUIST_SENTRY_PULSE_PUBLIC_DSN in the server-config Secret, for the
+  # xcresult processors: they run in Tart VMs outside the cluster network,
+  # so they post to the server's public Sentry endpoint (`url`, the enrolled
+  # Pulse account's) instead, with an account token holding only
+  # account:pulse:write as the DSN key. Create the token on the environment's
+  # server and store it in `item`/`field` before enabling: a missing item
+  # fails the server's ExternalSecret and blocks its deploy.
+  xcresultProcessor:
+    enabled: false
+    url: ""  # such as https://tuist.dev/api/accounts/tuist/pulse/sentry/server/1
+    item: PULSE_SENTRY_XCRESULT
+    field: token
 
 # One global wildcard fallback; explicit account Route53 records take precedence.
 # Enable in one cluster only after validation. No PVCs or Kubernetes API token.

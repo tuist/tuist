@@ -52,7 +52,7 @@
           label={dgettext("dashboard_tests", "Flaky")}
           color="attention"
           style="light-fill"
-          size="large"
+          size="medium"
         />
       </div>
       <.link_button
@@ -156,7 +156,7 @@
         size="medium"
         target="_blank"
       >
-        <:icon_left><.external_link /></:icon_left>
+        <:icon_left><.ci_provider_icon provider={@run.ci_provider} /></:icon_left>
       </.button>
       <.button
         :if={@run.status == "processing"}
@@ -165,7 +165,7 @@
         size="medium"
         disabled
       >
-        <:icon_left><.external_link /></:icon_left>
+        <:icon_left><.ci_provider_icon provider={@run.ci_provider} /></:icon_left>
       </.button>
     </div>
   </div>
@@ -268,35 +268,35 @@
                 label={dgettext("dashboard_tests", "Passed")}
                 color="success"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@run.status == "failure"}
                 label={dgettext("dashboard_tests", "Failed")}
                 color="destructive"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@run.status == "in_progress"}
                 label={dgettext("dashboard_tests", "In progress")}
                 color="neutral"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@run.status == "skipped"}
                 label={dgettext("dashboard_tests", "Skipped")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@run.status == "failed_processing"}
                 label={dgettext("dashboard_tests", "Failed processing")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">
@@ -692,7 +692,7 @@
                         label={dgettext("dashboard_tests", "Quarantined")}
                         color="information"
                         style="light-fill"
-                        size="large"
+                        size="medium"
                       />
                     </h3>
                     <span
@@ -712,23 +712,23 @@
                     label={format_number(length(test_case_run.failures))}
                     color="destructive"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                 </div>
-                <.neutral_button
+                <.ghost_button
                   data-part="closed-collapsible-button"
                   variant="secondary"
                   size="medium"
                 >
                   <.chevron_down />
-                </.neutral_button>
-                <.neutral_button
+                </.ghost_button>
+                <.ghost_button
                   data-part="open-collapsible-button"
                   variant="secondary"
                   size="medium"
                 >
                   <.chevron_up />
-                </.neutral_button>
+                </.ghost_button>
               </div>
               <div data-part="content" data-state="closed">
                 <%= if Enum.any?(test_case_run.arguments) do %>
@@ -746,7 +746,7 @@
                         size="small"
                       />
                       <span data-part="argument-name">{argument.name}</span>
-                      <.neutral_button
+                      <.ghost_button
                         :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-closed-btn-#{argument.id}"}
                         variant="secondary"
@@ -758,8 +758,8 @@
                         }
                       >
                         <.chevron_down />
-                      </.neutral_button>
-                      <.neutral_button
+                      </.ghost_button>
+                      <.ghost_button
                         :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-open-btn-#{argument.id}"}
                         variant="secondary"
@@ -772,7 +772,7 @@
                         }
                       >
                         <.chevron_up />
-                      </.neutral_button>
+                      </.ghost_button>
                     </div>
                     <div
                       id={"arg-body-#{argument.id}"}
@@ -908,8 +908,9 @@
                     <span data-part="crash-report-title">
                       {dgettext("dashboard_tests", "Crash Report")}
                     </span>
-                    <.neutral_button
+                    <.ghost_button
                       :if={test_case_run.crash_report.test_case_run_attachment.file_name}
+                      variant="secondary"
                       href={
                         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                       }
@@ -917,7 +918,7 @@
                       size="medium"
                     >
                       <.download />
-                    </.neutral_button>
+                    </.ghost_button>
                   </div>
                   <div data-part="crash-report-metadata">
                     <span
@@ -1037,7 +1038,7 @@
                       label={dgettext("dashboard_tests", "Quarantined")}
                       color="information"
                       style="light-fill"
-                      size="large"
+                      size="medium"
                     />
                   </h3>
                   <span
@@ -1072,10 +1073,10 @@
                     <span data-part="label">{format_number(group.failed_count)}</span>
                   </div>
                 </div>
-                <.neutral_button data-part="trigger" variant="secondary" size="medium">
+                <.ghost_button data-part="trigger" variant="secondary" size="medium">
                   <span data-part="icon-closed"><.chevron_down /></span>
                   <span data-part="icon-open"><.chevron_up /></span>
-                </.neutral_button>
+                </.ghost_button>
               </div>
               <div data-part="content" data-state="closed">
                 <div
@@ -1279,14 +1280,14 @@
                     label={dgettext("dashboard_tests", "Flaky")}
                     color="attention"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                   <.badge
                     :if={test_case.is_new}
                     label={dgettext("dashboard_tests", "New")}
                     color="primary"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                   <.badge
                     :for={
@@ -1297,14 +1298,14 @@
                     label={stress_badge_label(candidate)}
                     color={stress_badge_color(candidate)}
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                   <.badge
                     :if={test_case.is_quarantined}
                     label={dgettext("dashboard_tests", "Quarantined")}
                     color="information"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                 </span>
                 <span data-part="description">
@@ -1491,7 +1492,7 @@
                     label={dgettext("dashboard_tests", "Flaky")}
                     color="attention"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                 </span>
               </div>
@@ -1707,7 +1708,7 @@
                     label={dgettext("dashboard_tests", "Flaky")}
                     color="attention"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                 </span>
               </div>
@@ -1946,7 +1947,7 @@
                       label={dgettext("dashboard_tests", "Quarantined")}
                       color="information"
                       style="light-fill"
-                      size="large"
+                      size="medium"
                     />
                   </h3>
                   <span
@@ -1966,23 +1967,23 @@
                   label={format_number(length(test_case_run.failures))}
                   color="destructive"
                   style="light-fill"
-                  size="large"
+                  size="medium"
                 />
               </div>
-              <.neutral_button
+              <.ghost_button
                 data-part="closed-collapsible-button"
                 variant="secondary"
                 size="medium"
               >
                 <.chevron_down />
-              </.neutral_button>
-              <.neutral_button
+              </.ghost_button>
+              <.ghost_button
                 data-part="open-collapsible-button"
                 variant="secondary"
                 size="medium"
               >
                 <.chevron_up />
-              </.neutral_button>
+              </.ghost_button>
             </div>
             <div data-part="content" data-state="closed">
               <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
@@ -2052,8 +2053,9 @@
                   <span data-part="crash-report-title">
                     {dgettext("dashboard_tests", "Crash Report")}
                   </span>
-                  <.neutral_button
+                  <.ghost_button
                     :if={test_case_run.crash_report.test_case_run_attachment.file_name}
+                    variant="secondary"
                     href={
                       ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                     }
@@ -2061,7 +2063,7 @@
                     size="medium"
                   >
                     <.download />
-                  </.neutral_button>
+                  </.ghost_button>
                 </div>
                 <div data-part="crash-report-metadata">
                   <span
@@ -2182,7 +2184,7 @@
                   label={dgettext("dashboard_tests", "Quarantined")}
                   color="information"
                   style="light-fill"
-                  size="large"
+                  size="medium"
                 />
               </h3>
               <span
@@ -2217,10 +2219,10 @@
                 <span data-part="label">{format_number(group.failed_count)}</span>
               </div>
             </div>
-            <.neutral_button data-part="trigger" variant="secondary" size="medium">
+            <.ghost_button data-part="trigger" variant="secondary" size="medium">
               <span data-part="icon-closed"><.chevron_down /></span>
               <span data-part="icon-open"><.chevron_up /></span>
-            </.neutral_button>
+            </.ghost_button>
           </div>
           <div data-part="content" data-state="closed">
             <div

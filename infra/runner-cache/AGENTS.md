@@ -42,9 +42,17 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Publish synchronously after verification: compress, preflight, upload,
   fast-forward, then install the accepted master. Bound compressed and expanded
   downloads and verify checksums. Require reflinks without byte-copy fallback.
+- Verification records the mounted branch's `.tuist-paths` spellings (read
+  through `os.Root`, so a job's symlink cannot redirect it) in `<image>.paths`
+  before unmounting, and the fast-forward sends them as `paths`. Omit the field
+  when they are unknown: the server ranks sandbox cache grants by it and treats
+  a missing field as unknown, not empty.
 - Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
   save and restore cost scales with data, not the logical image size. Restore
   must keep accepting legacy full-image gzip masters until they age out.
+  `sparse` finds those extents and zero runs for sandboxd's `SBXARC1`
+  archives too, so a change there also changes sandboxd's image (its tag
+  follows `sparse/` and `go.mod`). Keep it free of other dependencies.
 - Archive downloads, compression and both restoration formats flush every 16 MiB
   written, in addition to their final sync. Dirty filesystem pages count toward
   the Linux agent's 512 MiB memory limit: a production merge download was OOM-killed
@@ -67,8 +75,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `/execution` endpoint or a macOS `execution_token` mailbox request, with the
   pod and node the agent itself trusts. Agents forward it unread and never log it.
 - Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
-  goes through `DoServer`: up to four attempts on a connection failure or a
-  502/503/504, jittered backoff from 250 ms to 2 s, never past the request
+  goes through `DoServer`: up to four attempts on a connection failure (also
+  one that cuts the response body short: `DoServer` reads the body inside the
+  attempt) or a 502/503/504, jittered backoff from 250 ms to 2 s, never past the request
   context (an attach keeps its 25 s budget). The server keeps them idempotent:
   an allocation returns the pod's existing use, a report restates a use, and an
   `image` request reads a HEAD, signs another URL or returns the generation the
@@ -249,6 +258,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
   across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
   used in the last day while its successor is queued, instead of removing it.
+  As with Linux refreshes, a speculative or refreshed master is not replaced
+  until a job clones it, and a spare prefetch installed beside a used older
+  master is marked refreshed and inherits that master's last use. Without
+  that, every macOS host followed every lineage it had used once (about 12,000
+  background restores a day on 23 rack hosts, 2026-11-24).
 - `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
   for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.
 - Pressure eviction (`reserveBytes`, `evictionOrder`) removes, in order: generations a
@@ -268,7 +282,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   attaching that lineage meanwhile clones the stale master. Maintenance and
   admission skip the scope a refresh is downloading. Only a
   master the refresh installed under the scope lock inherits the stale master's
-  last use. macOS leaves `RefreshWithin` zero: refreshes use LocalImages admission,
+  last use. A refreshed master (`<master>.refreshed`) or a speculative one is not
+  refreshed again until a job clones it (`markUsed` clears both): it stays as the
+  lineage's older copy, the next job mounts it and prefetches the HEAD, and the
+  listing counts it as held (`HoldsLineage`). Otherwise a lineage saved every
+  20-30 minutes was downloaded at every generation by every host that used it
+  once that day (tuist-gradle heads of 10-22 GB on 9 of 10 hosts, 2026-11-20).
+  Docker masters keep following the HEAD, since an older Docker copy cannot
+  publish without a merge. macOS leaves `RefreshWithin` zero: refreshes use LocalImages admission,
   not APFS reservations.
   Maintenance validates every master even when one lineage cannot be reached.
 
@@ -291,6 +312,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   seeded from a host-built master; attach fails rather than format an empty image.
   The host publishes and restores checkout masters itself, with `CompressImage`
   and the same `HTTPTransfer`; a checkout branch never goes through `Seal`.
+- `CloneMaster` lends a saved head's master to sandboxd (the agent's
+  `/sandbox-cache/image`), or the newest older master of its scope as
+  `cloneLocal` would, and returns the generation it chose; it clones nothing
+  when the caller already holds that generation. A reflink under the scope lock
+  eviction takes, streamed with `WriteImage` in the `CompressImage` format and
+  received with `ReceiveImage`. It never fetches, records no use and writes
+  nothing back.
 - A restore downloads into `restore-<generation>-<content digest>` beside the
   master, because the transfer resumes a partial it finds at the same path: a
   fixed name let a restart splice another HEAD's archive into this one. Other
@@ -335,6 +363,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   pull request's test merge, read with `cat-file commit` because a depth-1 fetch
   leaves its parents out). That master is published like a moved tip. Once a
   master exists, other exports only add objects.
+- A cold build refuses an export that is not the job's checkout or lacks LFS
+  objects its commit references, as `withheld`. Every later job of that lineage
+  exports the same way, so the host remembers the refusal (`Refusing`, in memory,
+  `checkoutRefusedFor`) and both agents answer the lineage's checkout requests
+  without a HEAD `denied` meanwhile, which keeps guests from exporting at all.
 - `ReceiveCheckoutExport` unpacks a streamed export (Linux has no writable host
   share): regular files named `head`, `shallow`, `pack` or `lfs/<oid>` only,
   within the export bounds, written through `os.Root`, else the whole stream is

@@ -29,25 +29,25 @@ jq -e '
     (.data["lifecycle.json"] | fromjson | .Rules[0].Expiration.Days == 31))
 ' "$WORK/render.json" >/dev/null
 echo 'Shard storage: disabled default, quota reservation, private S3 service and lifecycle verified'
-for environment in staging canary production; do
+for environment in staging canary; do
   helm lint "$CHART" --namespace kura -f "$CHART/values-$environment.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE
   helm template shard-storage "$CHART" --namespace kura -f "$CHART/values-$environment.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE |
     yq -o json -I0 'select(.kind != null)' | jq -s . > "$WORK/$environment.json"
   size=200Gi
-  if [[ "$environment" == production ]]; then size=3Ti; fi
+  reservation=200Gi
   pool=shard-storage
   region=null
   if [[ "$environment" == staging ]]; then
     pool=kura-dedibox
     region='"eu-west"'
   fi
-  jq -e --arg size "$size" --arg pool "$pool" --argjson region "$region" '
+  jq -e --arg size "$size" --arg reservation "$reservation" --arg pool "$pool" --argjson region "$region" '
     any(.[]; .kind == "StatefulSet" and .spec.replicas == 1 and
       .spec.template.metadata.labels["tuist.dev/region"] == $region and
       .spec.template.spec.nodeSelector["node.cluster.x-k8s.io/pool"] == $pool and
       .spec.updateStrategy.type == "OnDelete" and
       (.spec.template.spec.containers[0].args | index("--single-node")) != null and
-      .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == $size and
+      .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == $reservation and
       .spec.volumeClaimTemplates[0].spec.resources.requests.storage == $size) and
     all(.[]; .kind != "PodDisruptionBudget") and
     all(.[] | select(.kind == "Service"); [.spec.ports[].port] == [3900,3903]) and
@@ -68,13 +68,10 @@ for environment in staging canary production; do
     jq -e 'all(.[]; .kind != "Password" and .kind != "SecretStore")' "$WORK/$environment.json" >/dev/null
     continue
   fi
-  case "$environment" in
-    canary) server_namespace=tuist-canary vrack=pn-2024092 ;;
-    production) server_namespace=tuist vrack=pn-2024093 ;;
-  esac
+  server_namespace=tuist-canary vrack=pn-2024092
   archive_budget_bytes=$((100 * 1024 * 1024 * 1024))
-  if [[ "$environment" == production ]]; then archive_budget_bytes=$((500 * 1024 * 1024 * 1024)); fi
-  jq -e --arg environment "$environment" --arg ns "$server_namespace" --arg vrack "$vrack" --argjson archive_budget_bytes "$archive_budget_bytes" '
+  placements=true
+  jq -e --arg environment "$environment" --arg ns "$server_namespace" --arg vrack "$vrack" --argjson archive_budget_bytes "$archive_budget_bytes" --argjson placements "$placements" '
     any(.[]; .kind == "Service" and
       any(.spec.ports[]; .port == 3903 and .targetPort == "health")) and
     any(.[]; .kind == "NetworkPolicy" and
@@ -95,7 +92,7 @@ for environment in staging canary production; do
     any(.[]; .kind == "ExternalSecret" and .metadata.namespace == $ns and
       .spec.target.name == "shard-storage-targets" and
       (.spec.target.template.data["targets.json"] | fromjson | .["gra-" + $environment + "-v1"] |
-        .site == "gra" and .enabled and .private_network_ready and .bucket == "shards" and
+        .site == "gra" and .enabled and .private_network_ready == $placements and .bucket == "shards" and
         .archive_bucket == "sandbox-archives" and .archive_budget_bytes == $archive_budget_bytes and
         .archive_capacity_urls == ["http://shard-storage.kura.svc.cluster.local:3903/metrics"] and
         .actions_cache_bucket == "actions-cache" and (.actions_cache_bytes | type == "number" and . >= 1000000000) and
@@ -104,8 +101,11 @@ for environment in staging canary production; do
   ' "$WORK/$environment.json" >/dev/null
 done
 echo 'All environments: singleton, placement, region accounting, controlled restart, matching disk reservation, three-day archives and a quota-capped Actions cache bucket verified'
-echo 'Canary and production: generated once-only credentials, private-network placement and a published server target verified'
-if helm template shard-storage "$CHART" --namespace kura -f "$CHART/values-production.yaml" --set enabled=true --set externalSecrets.enabled=true --set externalSecrets.item=SHARD_STORAGE >/dev/null 2>&1; then
+echo 'Canary: generated once-only credentials, private-network placement and a published server target verified'
+# Production retired Garage: its buckets were copied into RustFS, which
+# publishes gra-production-v1 as an alias (shard-storage-rustfs.sh).
+test ! -e "$CHART/values-production.yaml"
+if helm template shard-storage "$CHART" --namespace kura -f "$CHART/values-canary.yaml" --set enabled=true --set externalSecrets.enabled=true --set externalSecrets.item=SHARD_STORAGE >/dev/null 2>&1; then
   echo 'Generated and 1Password credentials must not both define the store Secret' >&2
   exit 1
 fi
@@ -133,13 +133,19 @@ for environment in canary production; do
     any(.[]; .kind == "MachineDeployment" and .metadata.name == "tuist-tuist-ovh-fleet-runners-linux" and
       .spec.template.metadata.labels["node.cluster.x-k8s.io/shard-storage-site"] == "gra") and
     any(.[]; .kind == "Deployment" and (.metadata.name | endswith("-server")) and
-      any(.spec.template.spec.containers[0].env[]; .name == "TUIST_SHARD_STORAGE_TARGETS" and
-        .valueFrom.secretKeyRef == {"name": "shard-storage-targets", "key": "targets.json", "optional": true}))
+      if $environment == "canary" then
+        any(.spec.template.spec.containers[0].env[]; .name == "TUIST_SHARD_STORAGE_TARGETS" and
+          .valueFrom.secretKeyRef == {"name": "shard-storage-targets", "key": "targets.json", "optional": true})
+      else
+        all(.spec.template.spec.containers[0].env[]; .name != "TUIST_SHARD_STORAGE_TARGETS") and
+        any(.spec.template.spec.containers[0].env[]; .name == "TUIST_PUBLIC_SHARD_STORAGE_TARGETS" and
+          .valueFrom.secretKeyRef.name == "rustfs-targets")
+      end)
   ' "$WORK/fleet-$environment.json" >/dev/null
 done
-echo 'Canary and production: one dedicated Gravelines storage host on the runner vRack, gra runners, and the server reading the published target'
-helm lint "$CHART" --namespace kura -f "$CHART/values-production.yaml" -f "$CHART/values-replicated.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE
-helm template shard-storage "$CHART" --namespace kura -f "$CHART/values-production.yaml" -f "$CHART/values-replicated.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE |
+echo 'Canary and production: one dedicated Gravelines storage host on the runner vRack and gra runners; canary reads Garage, production only RustFS'
+helm lint "$CHART" --namespace kura -f "$CHART/values-canary.yaml" -f "$CHART/values-replicated.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE
+helm template shard-storage "$CHART" --namespace kura -f "$CHART/values-canary.yaml" -f "$CHART/values-replicated.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE |
   yq -o json -I0 'select(.kind != null)' | jq -s . > "$WORK/replicated.json"
 jq -e '
   any(.[]; .kind == "StatefulSet" and .spec.replicas == 3 and
@@ -147,8 +153,8 @@ jq -e '
     .spec.podManagementPolicy == "Parallel" and .spec.updateStrategy.type == "OnDelete" and
     .spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey == "kubernetes.io/hostname" and
     .spec.template.spec.containers[0].args == ["server"] and
-    .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == "3Ti" and
-    .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "3Ti" and
+    .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == "200Gi" and
+    .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "200Gi" and
     .spec.template.spec.automountServiceAccountToken == false) and
   any(.[]; .kind == "PodDisruptionBudget" and .spec.minAvailable == 2) and
   any(.[]; .kind == "Service" and .metadata.name == "shard-storage-peers" and
@@ -160,8 +166,8 @@ jq -e '
   any(.[]; .kind == "ConfigMap" and .data["garage.toml"] != null and
     (.data["garage.toml"] | contains("replication_factor = 3") and contains("consistency_mode = \"consistent\"") and
       contains("data_fsync = true") and contains("metadata_fsync = true"))) and
-  any(.[]; .kind == "ExternalSecret" and .metadata.namespace == "tuist" and
-    (.spec.target.template.data["targets.json"] | fromjson | .["gra-production-v1"].archive_capacity_urls) ==
+  any(.[]; .kind == "ExternalSecret" and .metadata.namespace == "tuist-canary" and
+    (.spec.target.template.data["targets.json"] | fromjson | .["gra-canary-v1"].archive_capacity_urls) ==
       [range(0;3) | "http://shard-storage-\(.).shard-storage-peers.kura.svc.cluster.local:3903/metrics"])
 ' "$WORK/replicated.json" >/dev/null
 for replicas in 0 2 4 1.5; do

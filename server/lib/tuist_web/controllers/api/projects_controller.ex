@@ -59,6 +59,8 @@ defmodule TuistWeb.API.ProjectsController do
     project_handle = Map.get(body_params, :name, nil)
     full_handle = Map.get(body_params, :full_handle, nil)
     build_system = Map.get(body_params, :build_system, nil)
+    # Keep existing projects and older clients on the same stored build-system identity.
+    build_system = if build_system == "struo", do: "once", else: build_system
 
     handles =
       if is_nil(project_handle) do

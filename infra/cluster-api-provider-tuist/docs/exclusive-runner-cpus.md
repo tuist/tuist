@@ -102,8 +102,18 @@ and stops. Staging reproduced it on 2026-11-12: two Pods on `1,13` and `2,14`
 moved to `3,15` and `4,16`, and the checkpoint was left with
 `defaultCpuSet: 0,3-12,15-23` and no entries. Once no exclusive-CPU Pod is left
 on the host, recover by stopping the kubelet, moving
-`/var/lib/kubelet/cpu_manager_state` aside and starting it again. Drain
-exclusive-CPU Pods before a planned kubelet restart.
+`/var/lib/kubelet/cpu_manager_state` aside and starting it again.
+
+Never restart the kubelet on a host that runs exclusive-CPU Pods, idle or not.
+Cordon it first and wait until its runner Pods are gone: the runners-controller
+retires idle ones, and claimed jobs finish. That covers a manual
+`systemctl restart kubelet`, a reboot, and any change to the kubelet config.
+The drift loop (`kubelet_config_drift.go`) re-pushes a changed config and
+restarts the kubelet on every Ready node, so it holds the re-push while a
+runner Pod with a Pod-level CPU budget is on the node and logs `holding kubelet
+config re-push`. Such a node keeps its old config, and its
+`tuist.dev/kubelet-config-hash` annotation, until it is cordoned and empty; the
+re-push then lands within 10 minutes, and you uncordon it.
 
 Unattended upgrades were an unplanned source of kubelet restarts. Ubuntu's
 needrestart restarted the kubelet and containerd on a production runner host after a
@@ -142,7 +152,22 @@ A Kata host whose kubelet is v1.36 or newer (`podLevelResourceManagers`) adds:
 
 The CPU manager reads the budget from `.spec.resources` and ignores the
 RuntimeClass overhead (250m, 2560Mi), so the overhead does not stop the Pod
-from getting integer CPUs. A v1.34 kubelet panics on the unknown gate, so the
+from getting integer CPUs. The Pod's host memory cgroup, though, is the budget
+plus that overhead, and the guest alone is the budget plus Kata's 2 GiB. With
+2560Mi a full 16vcpu-32gb guest (33.4 GiB of guest RAM plus about 1 GiB of host
+page tables and slab) hit the cgroup limit, and the host OOM killer stopped
+QEMU mid-job, which GitHub reports as "runner lost communication". The chart
+therefore requires `kataContainers.podFixed.memory` of at least 3584Mi
+whenever a pool is exclusive. That floor is not enough for large guests: the
+guest's kernel memory and virtiofsd's page cache grow with it, and on
+2026-11-19 a full 64 GiB guest under 3584Mi (65.7 GiB of guest RAM, 0.66 GiB
+of kernel memory, 1.1 GiB of dirty and writeback page cache) was OOM-killed
+about 90 s into the probe. So every exclusive pool runs under its own
+`kata-qemu-<size>` RuntimeClass (same handler) whose podFixed is that floor
+plus `kataContainers.exclusivePodFixedMemoryPercent` (4%) of the budget,
+rounded up to 256 MiB: 6400Mi for 64 GiB, 5120Mi for 32 GiB. The scheduler
+and the runners-controller reserve that overhead per Pod, and shared-CPU pools
+keep `kata-qemu`. A v1.34 kubelet panics on the unknown gate, so the
 config is always rendered for the kubelet a node runs: the drift loop uses the
 Node's reported kubelet version, and nodes below v1.36 render and hash exactly
 as before.
@@ -174,11 +199,28 @@ API server). A fresh OVH join installs the kubelet minor of its CAPI Machine's
    ```
 
    Each run lists the sandboxes still on the node and queues the next
-   archive. A paused one usually leaves within a few minutes. A `running`
-   one with `in_turn=true` waits for its turn to end (Amp pauses it, or the
-   server does after ten quiet minutes); if it never does, ask its creator
-   to stop the thread, or accept losing what it has not pushed. Errored rows
-   are listed but do not block: they cannot be archived.
+   archive. A paused one usually leaves within a few minutes. A session that
+   comes back meanwhile is refused for a retry and its sandbox moves first,
+   then restores on another node. A `running` one with `in_turn=true` waits
+   for its turn to end (Amp pauses it, or the server does after ten quiet
+   minutes). If one never does, pause it with its memory, which the archive
+   carries, so the turn continues on another node; commands it runs before
+   that restore fail, and a Claude Code session's worker is stopped and
+   re-queued by Anthropic:
+
+   ```bash
+   kubectl -n tuist exec deploy/tuist-tuist-server -- \
+     bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>", pause_turns: true)'
+   ```
+
+   A sandbox with a command in flight is tried again by the next run.
+   Errored rows are listed but do not block: they cannot be archived.
+
+   An archive that fails backs its sandbox off for five minutes while the
+   next one moves; the check counts those rows, and the server logs
+   `sandboxes: could not move a sandbox off a node CI reclaims` with the
+   `sandbox_id` and reason.
+
 3. Check the Node reports the new kubelet version, 30 allocatable CPUs on a
    32-thread box, and the `tuist.dev/pod-level-resource-managers` label.
 

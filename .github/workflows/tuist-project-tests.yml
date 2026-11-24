@@ -16,18 +16,24 @@ name: tuist/tuist Tests
 #   full runs or the pull request's earlier ones (all record per-target
 #   coverage evidence). A new push cancels the run in progress, so a superseded
 #   commit is never signalled.
-# - Pushes to main: every test runs in full (`--no-selective-testing`).
-#   `tuist cache` warms the coverage variant first, then the unit and app tests
-#   run against that warm, and `tuist coverage complete` follows when both
-#   passed and acceptance, which runs alongside the warm, has reported. Every
-#   merge runs on its own, so every merge is measured; the full runs hold two
-#   macOS runners for up to two hours.
+# - Pushes to main: unit, app and acceptance tests run selectively, like a
+#   pull request, against the nightly full run's checkpoint. `tuist cache`
+#   warms the coverage variant first, then the unit and app tests run against
+#   that warm, and `tuist coverage complete` follows when both passed and
+#   acceptance, which runs alongside the warm, has reported. A run in progress
+#   finishes, and only the newest push waits behind it: the pushes in between
+#   are never run, and their changes are in the next run's diff.
+# - Nightly, off the macOS peak: every test of main's head runs in full
+#   (`--no-selective-testing`), so coverage-based selection has a checkpoint
+#   at most a day old. The full runs hold two macOS runners for up to two hours.
 #
 # Nothing in a deploy or release waits on this workflow. The checkout is the
 # default one, so every job resolves the same commit: on main the pushed commit,
 # on a pull request the run's merge commit (GITHUB_SHA), since the depth-1
 # checkout hides its parents and the CLI can't read the head from HEAD^2.
 on:
+  schedule:
+    - cron: "0 3 * * *"
   push:
     branches:
       - main
@@ -50,6 +56,7 @@ on:
       - "app/**"
       - "*.swift"
       - ".github/workflows/tuist-project-tests.yml"
+      - ".github/scripts/tuist-project-tests.test.cjs"
       - "mise/tasks/cli/ee.sh"
       - "mise.toml"
       - "mise.lock"
@@ -73,6 +80,7 @@ on:
       - "app/**"
       - "*.swift"
       - ".github/workflows/tuist-project-tests.yml"
+      - ".github/scripts/tuist-project-tests.test.cjs"
       - "mise/tasks/cli/ee.sh"
       - "mise.toml"
       - "mise.lock"
@@ -100,18 +108,77 @@ env:
   TUIST_DEV_INSTANCE: "1"
 
 concurrency:
-  group: tuist-project-tests-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  group: tuist-project-tests-${{ github.head_ref || format('{0}-{1}', github.ref, github.event_name) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  acceptance-scope:
+    name: Check CLI acceptance scope
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    # This job needs no enterprise-source or tool-install credentials.
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      MISE_GITHUB_TOKEN: ""
+      TUIST_GITHUB_TOKEN: ""
+    outputs:
+      required: ${{ steps.scope.outputs.required }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: node --test .github/scripts/tuist-project-tests.test.cjs
+      - uses: actions/github-script@v7
+        id: scope
+        with:
+          script: |
+            // Main keeps its full coverage baseline. Only a complete,
+            // unchanged PR diff containing translations may skip acceptance.
+            let required = true;
+            if (context.eventName === 'pull_request') {
+              try {
+                const pull_number = context.payload.pull_request.number;
+                const files = await github.paginate(github.rest.pulls.listFiles, {
+                  ...context.repo, pull_number, per_page: 100,
+                });
+                const { data: pull } = await github.rest.pulls.get({
+                  ...context.repo, pull_number,
+                });
+                const translation = path => [
+                  /^\.glossia\/.*\.lock$/,
+                  /^app\/Resources\/[^/]+\/(?!en\.lproj\/)[^/]+\.lproj\/[^/]+\.strings(dict)?$/,
+                  /^server\/priv\/gettext\/(?!en\/)[^/]+\/LC_MESSAGES\/[^/]+\.po$/,
+                  /^server\/priv\/docs\/(?!en\/)[^/]+\/.*\.md$/,
+                  /^android\/app\/src\/main\/res\/values-[^/]+\/strings\.xml$/,
+                ].some(pattern => pattern.test(path));
+                required = !(
+                  pull.head.sha === context.payload.pull_request.head.sha &&
+                  pull.base.sha === context.payload.pull_request.base.sha &&
+                  files.length > 0 && files.length === pull.changed_files &&
+                  files.every(file => translation(file.filename) &&
+                    (!file.previous_filename || translation(file.previous_filename)))
+                );
+              } catch (error) {
+                core.warning(`Could not determine translation-only scope; running CLI acceptance: ${error.message}`);
+              }
+            }
+            core.setOutput('required', String(required));
+
   cache:
     name: Cache
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
-    if: github.repository == 'tuist/tuist' && github.event_name == 'push'
+    if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
     env:
       TUIST_EE: "1"
     steps:
@@ -151,22 +218,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Selective on pull requests; in full on main, after the warm. A failed warm
-  # doesn't stop the full run: it builds what the cache lacks from source.
+  # In full nightly, selective otherwise; on main after the warm. A failed warm
+  # doesn't stop the run: it builds what the cache lacks from source.
   unit-tests:
     name: Unit Tests
     needs: cache
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 120
     permissions:
       contents: read
       id-token: write
     if: >-
       !cancelled() && github.repository == 'tuist/tuist' &&
-      (github.event_name == 'push' || github.event.pull_request.draft == false)
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     env:
       TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
-      SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
+      SELECTIVE_TESTING: ${{ github.event_name == 'schedule' && '--no-selective-testing' || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -222,17 +289,17 @@ jobs:
   app-tests:
     name: App Tests
     needs: cache
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
     if: >-
       !cancelled() && github.repository == 'tuist/tuist' &&
-      (github.event_name == 'push' || github.event.pull_request.draft == false)
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     env:
       MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
-      SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
+      SELECTIVE_TESTING: ${{ github.event_name == 'schedule' && '--no-selective-testing' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: tuist/xcode-cache@v1
@@ -265,18 +332,37 @@ jobs:
       # while XCTest stays parallel.
       - name: Run tests
         run: tuist test TuistApp ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4 -parallel-testing-enabled NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+      # Renders the iOS app's SwiftUI previews (tuist/snapshots) and uploads them to Tuist
+      # Snapshots, which `tuist test` does by itself in CI. Main's runs are the baseline; on a
+      # pull request, changed previews fail this step until they are approved on the
+      # `tuist/snapshots (TuistAppSnapshots)` check or in the dashboard.
+      - name: Run snapshot tests
+        if: ${{ !cancelled() && github.event.pull_request.head.repo.fork != true }}
+        # Snapshots render at the simulator's screen size, so every run must use the same
+        # device: without --device, tuist test takes whichever one it finds first, which
+        # differs between runners. This picks the first available iPhone by name.
+        run: |
+          device=$(xcrun simctl list devices available --json | jq -r '[.devices | to_entries[] | select(.key | contains("SimRuntime.iOS-")) | .value[].name | select(startswith("iPhone "))] | unique | first')
+          echo "Rendering snapshots on: $device"
+          tuist test TuistAppSnapshots --platform iOS --device "$device" ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
   acceptance-tests-build:
     name: Build Acceptance Tests
-    runs-on: tuist-macos-27-0
+    needs: acceptance-scope
+    runs-on: tuist-macos
     timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    # A failed scope check runs acceptance rather than silently removing it.
+    if: >-
+      !cancelled() && needs.acceptance-scope.outputs.required != 'false' &&
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      github.event.pull_request.head.repo.fork != true
     env:
       TUIST_EE: "1"
-      SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
+      SELECTIVE_TESTING: ${{ github.event_name == 'schedule' && '--no-selective-testing' || '' }}
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
     steps:
@@ -313,7 +399,7 @@ jobs:
 
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     needs: acceptance-tests-build
     permissions:
@@ -410,9 +496,12 @@ jobs:
   # cas-plugin isn't in the scheme there, and they don't authenticate.
   acceptance-tests-fork:
     name: Acceptance Tests (Fork)
-    runs-on: tuist-macos-27-0
+    needs: acceptance-scope
+    runs-on: tuist-macos
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    if: >-
+      !cancelled() && needs.acceptance-scope.outputs.required != 'false' &&
+      github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
       - uses: tuist/xcode-cache@v1
@@ -448,12 +537,17 @@ jobs:
   # testing hashes or coverage.
   coverage-selection-acceptance-tests-build:
     name: Build Coverage Selection Acceptance Tests
-    runs-on: tuist-macos-27-0
+    needs: acceptance-scope
+    runs-on: tuist-macos
     timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    if: >-
+      !cancelled() && needs.acceptance-scope.outputs.required != 'false' &&
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      github.event.pull_request.head.repo.fork != true
     env:
       TUIST_EE: "1"
     steps:
@@ -490,13 +584,13 @@ jobs:
   # Only a complete commit joins the coverage trend, and pull request gates wait
   # for it. On a pull request it follows the unit, app and acceptance tests
   # whatever they concluded (a fork's runs report nothing, so it has nothing to
-  # complete); on main only when both full runs passed, after acceptance has
+  # complete); on main only when unit and app passed, after acceptance has
   # reported. A CLI release older than `tuist coverage complete` skips the
   # signal, and the commit stays in progress.
   coverage-complete:
     name: Complete Coverage
     needs: [unit-tests, app-tests, acceptance-tests]
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 15
     permissions:
       contents: read
@@ -506,7 +600,7 @@ jobs:
         (github.event_name == 'pull_request' &&
           github.event.pull_request.draft == false &&
           github.event.pull_request.head.repo.fork != true) ||
-        (github.event_name == 'push' &&
+        (github.event_name != 'pull_request' &&
           needs.unit-tests.result == 'success' &&
           needs.app-tests.result == 'success')
       )

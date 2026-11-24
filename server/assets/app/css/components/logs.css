@@ -91,12 +91,12 @@
 
     &:hover {
       border-color: var(--noora-surface-border-primary);
-      background: var(--noora-button-neutral-background-hover);
+      background: var(--noora-button-ghost-secondary-hover);
       color: var(--noora-surface-label-primary);
     }
 
     &:active {
-      background: var(--noora-button-neutral-background-active);
+      background: var(--noora-button-ghost-secondary-selected);
     }
   }
 

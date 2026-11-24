@@ -268,6 +268,33 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.ref(repository, "feature") == nil
     end
 
+    test "move a branch to a pull request merge checkout's second parent, and only then", %{repository: repository} do
+      seed(repository)
+
+      GitHistory.record_commits(repository, "sha1", [
+        commit("p", ["d"], 10),
+        commit("x", ["d", "p"], 11),
+        commit("q", ["p"], 12),
+        commit("y", ["q", "d"], 13),
+        commit("z", ["d", "q"], 14)
+      ])
+
+      # A pull request's run names its base branch's head too: x is the merge
+      # checkout of p into main's tip d.
+      GitHistory.record_branch_heads(repository, [%{branch: "feature", sha: "x"}, %{branch: "main", sha: "d"}], "main")
+      assert CoverageFixtures.branch_head(repository, "feature") == "p"
+      assert GitHistory.position(repository, "x") == nil
+
+      # The branch's own merge of main has its previous commit first.
+      GitHistory.record_branch_heads(repository, [%{branch: "feature", sha: "y"}, %{branch: "main", sha: "d"}], "main")
+      assert CoverageFixtures.branch_head(repository, "feature") == "y"
+
+      # A push names one branch, as a merge queue's does, whose commits are
+      # merges onto the default branch too.
+      GitHistory.record_branch_heads(repository, [%{branch: "queue", sha: "z"}], "main")
+      assert CoverageFixtures.branch_head(repository, "queue") == "z"
+    end
+
     test "stay put when an older commit's job is re-run", %{repository: repository} do
       seed(repository)
       GitHistory.record_branch_head(repository, "main", "d", "main")
@@ -637,6 +664,30 @@ defmodule Tuist.GitHistoryTest do
   end
 
   describe "commit listings" do
+    test "Once tracks graph rules and Go build inputs rather than Xcode defaults", %{
+      project: project,
+      repository: repository
+    } do
+      {:ok, project} = Projects.update_project(project, %{build_system: :once})
+
+      paths = [
+        "struo.toml",
+        "rules/custom.star",
+        "packages/calc/go.mod",
+        "packages/calc/go.sum",
+        "go.work",
+        "go.work.sum",
+        "mise.toml",
+        "packages/calc/add.go",
+        "Project.swift"
+      ]
+
+      GitHistory.record_listing(repository, "c", Enum.map(paths, &%{path: &1, git_blob_id: "blob"}))
+
+      assert project |> GitHistory.tracked_files(repository, "c") |> Enum.map(& &1.path) ==
+               paths |> Enum.take(7) |> Enum.sort()
+    end
+
     test "store a commit's files once, in parts, and answer what is tracked", %{
       project: project,
       repository: repository

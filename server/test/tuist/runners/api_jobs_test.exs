@@ -8,6 +8,7 @@ defmodule Tuist.Runners.APIJobsTest do
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.APIJobs
   alias Tuist.Runners.APIJobs.Job
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.JobReportToken
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
@@ -117,6 +118,20 @@ defmodule Tuist.Runners.APIJobsTest do
       # Keys are scoped to the account.
       assert {:ok, theirs, :created} = APIJobs.create_job(other, attrs(%{idempotency_key: "app:abc:test"}))
       refute theirs.workflow_job_id == first.workflow_job_id
+    end
+
+    test "queues a profile larger than the account's whole limit", %{account: account} do
+      # The profile is 4 vCPU / 16 GB; the job waits until the limit admits it.
+      {:ok, _} =
+        Concurrency.update_limits(account, %{
+          runner_linux_vcpus_limit: 3,
+          runner_linux_memory_gb_limit: 16,
+          runner_macos_vcpus_limit: 8,
+          runner_macos_memory_gb_limit: 24
+        })
+
+      assert {:ok, _job, :created} = APIJobs.create_job(account, attrs())
+      assert Repo.one!(WorkflowJob).status == "queued"
     end
 
     test "rejects requests it cannot route or run", %{account: account} do

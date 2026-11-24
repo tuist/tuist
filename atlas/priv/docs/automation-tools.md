@@ -100,6 +100,20 @@ finance transaction with `finance_add_transaction_attachment`. The saved
 document is visible to everyone with document access, so this tool also needs
 the `documents:write` scope, and it is processed like any other upload.
 
+## Prepare vendor payments in Qonto
+
+Connect Qonto in Settings → Connections, then `finance_create_transfer_request`
+prepares outgoing EUR SEPA payments, such as vendor invoices, as one pending
+transfer request in Qonto. Each transfer takes an amount, the beneficiary's IBAN
+and name, and a reference, usually the invoice number. Atlas checks the IBAN
+checksum and amount format first, so a typo fails before anything reaches Qonto.
+
+Nothing is paid until someone with review rights approves the request in Qonto
+with strong customer authentication. The request is made with your own Qonto
+connection, so Qonto shows you as its initiator. Calling the tool again with the
+same transfers does not create a second request. It needs the `finance:write`
+scope and is never mounted in Pip threads or workflows.
+
 ## Prepare and send Gmail drafts
 
 Choose **Allow Gmail drafts** in Settings → Connections to grant the separate
@@ -107,31 +121,35 @@ Choose **Allow Gmail drafts** in Settings → Connections to grant the separate
 scope. It is opt-in, like Gmail access, and the two consents are kept together
 when you reconnect. MCP clients then get four caller-only tools:
 
-- `create_my_gmail_draft` creates a plain-text draft from `to`, optional `cc`,
-  `subject` and `body`. Recipients are plain email addresses. An optional
+- `create_my_gmail_draft` creates a draft from `to`, optional `cc`,
+  `subject` and `body`. Set `body_format` to `markdown` or `html` for rich text,
+  including links, lists and emphasis. Omit it for plain text. Atlas writes rich
+  drafts with HTML and a plain-text alternative. Recipients are plain email addresses. An optional
   `reply_to_message_id` (from `search_my_gmail`) files the draft in that thread
   and sets `In-Reply-To` and `References`; it also needs Gmail access.
+  `attachments` adds up to 10 files, each with `filename`, `content_base64` and
+  an optional `content_type` (inferred from the filename when omitted). One
+  call can carry about 6 MB of files, and a draft's attachments can total at
+  most 18 MB, so the message stays under Gmail's 25 MB sending limit.
 - `get_my_gmail_draft` reads a draft by `draft_id`: recipients, subject, reply
-  headers, attachment names and a plain-text body.
+  headers, attachment names, a plain-text body and `body_html` source, each body
+  bounded to 20,000 characters.
 - `update_my_gmail_draft` replaces a draft's recipients, subject and body. It
-  keeps the draft's thread unless you pass a new `reply_to_message_id`.
-- `send_my_gmail_draft` sends a draft once you approve it. The first call files
-  a request and returns a link to that request under My approvals
-  (`/approvals`), which shows the draft's current recipients, subject, body and
-  attachments as Gmail holds them. Only you can see your requests there.
-  **Approve send** pins a digest of that content. Repeating the call then sends
-  the draft once. The approval expires after an hour and is spent by one send.
-  Choose **Edit** to change the recipients, subject or body first: **Save and
-  approve send** writes your version to Gmail and approves exactly that. Edit
-  is offered only for plain-text drafts without attachments or Bcc, because
-  saving rewrites the draft as plain text. If the draft changes after the
-  request, Atlas refuses to send it until you edit and approve it or the agent
-  asks again.
+  keeps the draft's thread unless you pass a new `reply_to_message_id`. Pass
+  `body_format` on each replacement; omitting it replaces the body with plain text.
+  The draft keeps its attachments, and `attachments` adds more. Set
+  `keep_attachments` to `false` to replace them with `attachments`, or to
+  remove them all when you pass none.
+- `send_my_gmail_draft` sends the current draft immediately, including its
+  recipients, body and attachments. Your MCP client handles confirmation;
+  Atlas does not ask for a separate approval. If Gmail does not confirm the
+  send, check the Sent folder with `search_my_gmail` (`in:sent`) before retrying,
+  because Gmail may already have sent the message.
 
 Like the read tools, these are hidden from shared Slack identities and never
 mounted in Pip threads or workflows. Sending only works over your own Atlas MCP
-session. Atlas stores no draft content: tool audits omit arguments, and the
-approval and its audit events keep only the draft ID and the content digest.
+session. Atlas stores no draft content: tool audits omit arguments, and send
+audit events keep only the draft ID, Gmail message ID and recipient count.
 
 ## Monitor personal Gmail and Slack
 

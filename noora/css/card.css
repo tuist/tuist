@@ -28,7 +28,7 @@
       & [data-part="icon"] {
         display: flex;
         gap: 10px;
-        box-shadow: var(--noora-border-light-default);
+        box-shadow: var(--noora-border-small-default);
         border-radius: var(--noora-radius-3);
         background: var(--noora-surface-background-primary);
         padding: var(--noora-spacing-3);
@@ -78,7 +78,7 @@
   flex-direction: column;
   gap: var(--noora-spacing-5);
   box-sizing: border-box;
-  box-shadow: var(--noora-border-light-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-4);
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-7);

@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/tuist/tuist/infra/runner-cache/sparse"
 )
 
 // An archive with a memory image puts it ahead of the disk stream:
@@ -92,14 +93,14 @@ func WriteChunks(w io.Writer, offset int64, mem *os.File) (MemoryIndex, int64, e
 	var stored int64
 	for pos := int64(0); pos < index.Size; pos += MemoryChunkSize {
 		n := min(MemoryChunkSize, index.Size-pos)
-		if data, err := nextData(mem, pos, index.Size); err == nil && data >= pos+n {
+		if data, err := sparse.NextData(mem, pos, index.Size); err == nil && data >= pos+n {
 			index.Chunks = append(index.Chunks, MemoryChunk{})
 			continue
 		}
 		if _, err := mem.ReadAt(buf[:n], pos); err != nil {
 			return index, stored, err
 		}
-		if allZero(buf[:n]) {
+		if sparse.IsZero(buf[:n]) {
 			index.Chunks = append(index.Chunks, MemoryChunk{})
 			continue
 		}

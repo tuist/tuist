@@ -119,16 +119,8 @@ defmodule Tuist.Runners.Trials do
   end
 
   @doc """
-  Puts every account that can use runners onto a trial, and reports how
-  many it started.
-
-  "Can use" is the `:runners` flag, not past usage. An account holding
-  the flag that has not run a job yet is exactly the one a usage-only
-  backfill misses, and it would be billed for its very first job the
-  moment a Price is wired up. Accounts that have already run something
-  are included too, since the flag is only required in canary and
-  production and an environment that does not require it has no gates to
-  read.
+  Puts every account that has run a runner job onto a trial, and reports
+  how many it started.
 
   A migration does this once when runner trials ship, but the runner
   Price is wired up later and separately. Any account that gains access
@@ -149,40 +141,12 @@ defmodule Tuist.Runners.Trials do
       Repo.update_all(
         from(a in Account,
           where: is_nil(a.runner_trial_started_at) and is_nil(a.runner_trial_ended_at),
-          where: a.id in subquery(ran_a_job) or a.id in ^accounts_with_runner_access()
+          where: a.id in subquery(ran_a_job)
         ),
         set: [runner_trial_started_at: DateTime.utc_now()]
       )
 
     count
-  end
-
-  # Accounts the `:runners` flag is switched on for, read from its actor
-  # gates. A gate that is explicitly off is not access, and group and
-  # boolean gates are deliberately ignored: neither names an account, so
-  # neither can be turned into a list of accounts to put on trial.
-  defp accounts_with_runner_access do
-    case FunWithFlags.get_flag(:runners) do
-      %FunWithFlags.Flag{gates: gates} ->
-        gates
-        |> Enum.filter(&(&1.type == :actor and &1.enabled))
-        |> Enum.flat_map(fn gate ->
-          case gate.for do
-            "account:" <> id -> List.wrap(parse_id(id))
-            _ -> []
-          end
-        end)
-
-      _ ->
-        []
-    end
-  end
-
-  defp parse_id(id) do
-    case Integer.parse(id) do
-      {id, ""} -> id
-      _ -> nil
-    end
   end
 
   @doc """

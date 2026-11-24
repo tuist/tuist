@@ -317,7 +317,12 @@ defmodule TuistWeb.AuthController do
     sso_organization = Keyword.get(opts, :sso_organization)
     provider_organization_id = Accounts.extract_provider_organization_id(auth)
 
+    # Provider sign-ins offer no "Keep me logged in" choice. Like other
+    # identity-provider logins they persist, bounded by the server-side idle
+    # and absolute session deadlines; a browser-session cookie would sign the
+    # user out whenever the browser discards it, as mobile Safari often does.
     auth_params = %{
+      "remember_me" => "true",
       auth_method: auth.provider,
       provider_organization_id: provider_organization_id,
       sso_organization_id: get_in(sso_organization, [Access.key(:id)])
@@ -754,6 +759,7 @@ defmodule TuistWeb.AuthController do
     |> delete_session(:pending_oauth_signup)
     |> put_session(:user_return_to, return_to)
     |> Authentication.log_in_user(user, %{
+      "remember_me" => if(pending, do: "true", else: "false"),
       auth_method: auth_method,
       provider_organization_id: get_in(pending, ["provider_organization_id"]),
       sso_organization_id: get_in(pending, ["sso_organization_id"]),

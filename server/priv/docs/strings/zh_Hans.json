@@ -4,7 +4,7 @@
       "builds": { "text": "构建" },
       "tests": { "text": "测试" },
       "compute": { "text": "计算" },
-      "bundles": { "text": "应用包" },
+      "bundles": { "text": "包" },
       "other-features": { "text": "其他功能" }
     },
     "items": {
@@ -31,16 +31,17 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "镜像" },
       "implicit-dependencies": { "text": "隐式依赖" },
       "iphone-app": { "text": "iPhone 应用" },
       "macos-app": { "text": "macOS 应用" },
-      "new-project": { "text": "新项目" },
+      "new-project": { "text": "新建项目" },
       "once": { "text": "Once" },
       "once-cache": { "text": "Once 缓存" },
       "once-project": { "text": "Once 项目" },
       "once-remote-execution": { "text": "Once 远程执行" },
       "origin": { "text": "源" },
-      "profiles": { "text": "配置" },
+      "profiles": { "text": "配置文件" },
       "project-description": { "text": "项目描述" },
       "release": { "text": "发布" },
       "release-calendar": { "text": "发布日历" },
@@ -66,7 +67,7 @@
         "text": "语言 🌍"
       },
       "description": {
-        "text": "你可以帮助 Tuist 支持更多语言，或改进本页的语言指引。"
+        "text": "你可以帮助 Tuist 支持更多语言，或改进本页面的语言指引。"
       },
       "cta": {
         "text": "贡献"
@@ -178,6 +179,17 @@
         "examples": {
           "text": "示例"
         },
+        "concepts": {
+          "text": "概念",
+          "items": {
+            "flaky-test": {
+              "text": "不稳定测试"
+            },
+            "build-cache": {
+              "text": "构建缓存"
+            }
+          }
+        },
         "libraries": {
           "text": "库"
         },
@@ -282,9 +294,6 @@
         },
         "status": {
           "text": "状态"
-        },
-        "metrics-dashboard": {
-          "text": "指标仪表板"
         }
       }
     },
@@ -410,7 +419,7 @@
                   "text": "代码共享"
                 },
                 "synthesized-files": {
-                  "text": "生成文件"
+                  "text": "合成文件"
                 },
                 "dynamic-configuration": {
                   "text": "动态配置"
@@ -573,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git 平台",
+              "text": "Git 托管平台",
               "items": {
                 "github": {
                   "text": "GitHub"

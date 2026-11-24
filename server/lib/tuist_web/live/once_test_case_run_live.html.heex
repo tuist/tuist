@@ -41,14 +41,14 @@
           label={"#{dgettext("dashboard_tests", "Target")}: #{@test_case.suite_id}"}
           color="primary"
           style="light-fill"
-          size="large"
+          size="medium"
         />
         <.badge
           :if={@test_case.module && @test_case.module != @test_case.suite_id}
           label={"#{dgettext("dashboard_tests", "Module")}: #{@test_case.module}"}
           color="primary"
           style="light-fill"
-          size="large"
+          size="medium"
         />
       </div>
     </div>
@@ -85,28 +85,28 @@
                 label={dgettext("dashboard_tests", "Passed")}
                 color="success"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status_class(@test_case) == "failure"}
                 label={dgettext("dashboard_tests", "Failed")}
                 color="destructive"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status_class(@test_case) == "skipped"}
                 label={dgettext("dashboard_tests", "Skipped")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status_class(@test_case) not in ~w(success failure skipped)}
                 label={status_label(@test_case)}
                 color="neutral"
                 style="fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">

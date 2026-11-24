@@ -889,6 +889,19 @@ defmodule Tuist.AuthorizationTest do
     end
   end
 
+  test "can.update.account.sandboxes when the user is a member of the account, but not a viewer" do
+    organization = AccountsFixtures.organization_fixture(preload: [:account])
+    member = AccountsFixtures.user_fixture()
+    viewer = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(member, organization, role: :user)
+    Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+
+    assert Authorization.authorize(:sandboxes_update, member, organization.account) == :ok
+    assert Authorization.authorize(:sandboxes_write, member, organization.account) == :ok
+    assert Authorization.authorize(:account_update, member, organization.account) == {:error, :forbidden}
+    assert Authorization.authorize(:sandboxes_update, viewer, organization.account) == {:error, :forbidden}
+  end
+
   test "can.use.account.sandboxes when an account token has the sandboxes write scope for that account" do
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
     other_account = AccountsFixtures.organization_fixture(preload: [:account]).account

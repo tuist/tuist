@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Resolve latest release
         id: resolve
         env:
@@ -65,8 +65,9 @@ jobs:
           VERSION: ${{ steps.resolve.outputs.version }}
         run: |
           set -euo pipefail
-          sed -i -E "s|^([[:space:]]*tuist = \")[^\"]+(\")|\1${VERSION}\2|" mise.toml
-          grep -E '^[[:space:]]*tuist = "' mise.toml
+          # Luft ignores the root mise.toml, so its pin follows the root's here.
+          sed -i -E "s|^([[:space:]]*tuist = \")[^\"]+(\")|\1${VERSION}\2|" mise.toml luft/mise.toml
+          grep -E '^[[:space:]]*tuist = "' mise.toml luft/mise.toml
       - name: Bump the sandbox image's Tuist CLI
         if: steps.resolve.outputs.changed == 'true'
         env:
@@ -110,14 +111,14 @@ jobs:
       - name: Mint a GitHub App token
         id: app-token
         if: steps.resolve.outputs.changed == 'true'
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
         with:
           app-id: ${{ steps.app-credentials.outputs.app-id }}
           private-key: ${{ steps.app-credentials.outputs.private-key }}
       - name: Open pull request
         id: pr
         if: steps.resolve.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
         with:
           # A GitHub App installation token, not GITHUB_TOKEN (whose pushes don't
           # trigger checks) and not a tuistit PAT (whose account-wide REST limit is
@@ -129,12 +130,13 @@ jobs:
           commit-message: "chore(cli): update Tuist CLI to ${{ steps.resolve.outputs.version }}"
           title: "chore(cli): update Tuist CLI to ${{ steps.resolve.outputs.version }}"
           body: |
-            Bumps the `tuist` dev-tooling pin in `mise.toml` to `${{ steps.resolve.outputs.version }}` (latest release, including canary prereleases) with `mise.lock` regenerated in the same commit so CI's `MISE_LOCKED=1` install resolves, and the sandbox image's Tuist CLI to the same release.
+            Bumps the `tuist` dev-tooling pin in `mise.toml` and `luft/mise.toml` to `${{ steps.resolve.outputs.version }}` (latest release, including canary prereleases) with `mise.lock` regenerated in the same commit so CI's `MISE_LOCKED=1` install resolves, and the sandbox image's Tuist CLI to the same release.
 
             Opened by the `update-tuist-cli` workflow.
           add-paths: |
             mise.toml
             mise.lock
+            luft/mise.toml
             infra/sandbox-image/Dockerfile
           committer: "github-actions <github-actions@github.com>"
           author: "github-actions <github-actions@github.com>"

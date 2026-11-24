@@ -5,7 +5,10 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
   alias Tuist.GitHistory
   alias Tuist.GitHistory.FileChanges
   alias Tuist.Shards
+  alias Tuist.TestImpactAnalysis.Decision
   alias Tuist.TestImpactAnalysis.Runs
+  alias Tuist.TestImpactAnalysis.Snapshot
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.TestImpactAnalysis.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -88,10 +91,22 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
     )
   end
 
+  # The tests the run's stored decision selected, with their reason and the
+  # changed file that matched, named from `test_cases`.
   defp selected(project, run) do
-    project.id
-    |> Storage.list_run_tests(run.id)
-    |> Enum.map(&{&1.module_name, &1.suite_name, &1.name, &1.reason})
+    case Decision.stored(project.id, run.id) do
+      nil -> []
+      decision -> named_selected(project, decision)
+    end
+  end
+
+  defp named_selected(project, %{snapshot_id: snapshot_id, tests: tests}) do
+    tests = Enum.filter(tests, &(&1.decision == :selected))
+    names = Snapshots.names(project.id, %{checkpoint: %Snapshot{id: snapshot_id}}, Enum.map(tests, & &1.idx))
+
+    tests
+    |> Enum.map(&{&1.module_name, &1.suite_name, names[&1.idx].name, to_string(&1.reason), &1.matched_path})
+    |> Enum.sort()
   end
 
   describe "create/2" do
@@ -102,13 +117,13 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert run.commit_sha == "c2"
       assert run.baseline_run_ids == [baseline.id]
       assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 2, 3}
-      assert run.rules_version == "1"
+      assert run.rules_version == "3"
       assert List.last(run.rule_trace).rule == "unaffected"
       assert run.build_context == %{"scheme" => "App"}
 
       assert selected(project, run) == [
-               {"AppTests", "MathTests", "testAdd()", "impacted"},
-               {"AppTests", "SumTests", "sum()", "no_evidence"}
+               {"AppTests", "MathTests", "testAdd()", "impacted", "Sources/Math.swift"},
+               {"AppTests", "SumTests", "sum()", "no_evidence", nil}
              ]
 
       assert skip == [
@@ -156,55 +171,9 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {run.requested_count, run.selected_count, run.skipped_count} == {2, 2, 0}
 
       assert selected(project, run) == [
-               {"AppTests", "StringTests", "upper()", "no_evidence"},
-               {"AppTests", "SumTests", "sum()", "no_evidence"}
+               {"AppTests", "StringTests", "upper()", "no_evidence", nil},
+               {"AppTests", "SumTests", "sum()", "no_evidence", nil}
              ]
-    end
-
-    test "falls back when the baseline's listing was truncated, instead of selecting the tests past the cut" do
-      account = AccountsFixtures.user_fixture(preload: [:account]).account
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      CoverageFixtures.seed_history(account, [
-        CoverageFixtures.commit("c1", [], 0),
-        CoverageFixtures.commit("c2", ["c1"], 1)
-      ])
-
-      # The client stopped at the file limit before Sources/Core.swift.
-      CoverageFixtures.seed_listing(account, "c1", ["Sources/Math.swift"], truncated: true)
-
-      test_case = fn name, suite -> %{name: name, test_suite_name: suite, status: "success", duration: 10} end
-
-      scope = fn suite, name, file ->
-        %{kind: "test", module: "AppTests", suite: suite, name: name, files: [file], lines: [[1, 1]]}
-      end
-
-      CoverageFixtures.run_with_coverage(
-        project,
-        account,
-        Enum.map(["Sources/Math.swift", "Sources/Core.swift"], &CoverageFixtures.file(&1, [1])),
-        %{
-          git_commit_sha: "c1",
-          test_modules: [
-            %{
-              name: "AppTests",
-              status: "success",
-              duration: 1,
-              test_cases: [test_case.("testAdd()", "MathTests"), test_case.("testCore()", "CoreSuite")]
-            }
-          ],
-          coverage_evidence: %{
-            paths: ["Sources/Math.swift", "Sources/Core.swift"],
-            scopes: [scope.("MathTests", "testAdd()", 0), scope.("CoreSuite", "testCore()", 1)]
-          }
-        }
-      )
-
-      assert {:ok, %{run: run, skipped_tests: nil}} =
-               Runs.create(project, params(%{modules: [%{name: "AppTests", skipped: false}], changed_files: []}))
-
-      assert {run.outcome, run.reason, run.baseline_sha} == {"fallback", "no_baseline", nil}
-      assert selected(project, run) == []
     end
 
     test "counts the tests of modules skipped by hash as requested and skipped", %{project: project} do

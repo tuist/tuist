@@ -1,0 +1,125 @@
+{{- /*
+The evaluator's own PostgreSQL (detection state, Oban). CNPG emits the
+`<cluster>-app` Secret whose `uri` the Deployment uses as DATABASE_URL.
+Modelled on infra/helm/tuist-ops/templates/cnpg-cluster.yaml.
+*/}}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "symptoms.pgClusterName" . }}
+  labels:
+    {{- include "symptoms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  instances: {{ .Values.postgresql.instances }}
+  imageName: {{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+  primaryUpdateStrategy: unsupervised
+
+  {{- with .Values.postgresql.parameters }}
+  postgresql:
+    parameters:
+      {{- range $key, $value := . }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+  {{- end }}
+
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.database | quote }}
+      owner: {{ .Values.postgresql.owner | quote }}
+      encoding: UTF8
+      localeCType: C
+      localeCollate: C
+
+  storage:
+    size: {{ .Values.postgresql.storageSize | quote }}
+    {{- with .Values.postgresql.storageClass }}
+    storageClass: {{ . | quote }}
+    {{- end }}
+
+  resources:
+    {{- toYaml .Values.postgresql.resources | nindent 4 }}
+
+  # Required anti-affinity so the two instances never share a node.
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required
+    {{- with .Values.nodeSelector }}
+    nodeSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+  {{- if .Values.postgresql.backup.enabled }}
+  plugins:
+    - name: {{ .Values.postgresql.backup.plugin.name | quote }}
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: {{ include "symptoms.pgClusterName" . }}-backup-store
+        serverName: {{ include "symptoms.pgClusterName" . | quote }}
+  {{- end }}
+{{- if .Values.postgresql.backup.enabled }}
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ include "symptoms.pgClusterName" . }}-backup-store
+  labels:
+    {{- include "symptoms.labels" . | nindent 4 }}
+spec:
+  retentionPolicy: {{ .Values.postgresql.backup.retentionPolicy | quote }}
+  configuration:
+    destinationPath: {{ required "postgresql.backup.destinationPath is required" .Values.postgresql.backup.destinationPath | quote }}
+    endpointURL: {{ .Values.postgresql.backup.endpointURL | quote }}
+    s3Credentials:
+      accessKeyId:
+        name: {{ .Values.postgresql.backup.credentialsSecretName }}
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: {{ .Values.postgresql.backup.credentialsSecretName }}
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+      maxParallel: 8
+    data:
+      compression: gzip
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "symptoms.pgClusterName" . }}-daily
+  labels:
+    {{- include "symptoms.labels" . | nindent 4 }}
+spec:
+  schedule: "0 0 3 * * *"
+  backupOwnerReference: self
+  method: plugin
+  pluginConfiguration:
+    name: {{ .Values.postgresql.backup.plugin.name | quote }}
+  cluster:
+    name: {{ include "symptoms.pgClusterName" . }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.postgresql.backup.credentialsSecretName }}
+  labels:
+    {{- include "symptoms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql-backup
+spec:
+  refreshInterval: 24h
+  secretStoreRef:
+    name: {{ .Values.externalSecret.storeRef.name }}
+    kind: {{ .Values.externalSecret.storeRef.kind }}
+  target:
+    name: {{ .Values.postgresql.backup.credentialsSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        ACCESS_KEY_ID: "{{ `{{ .access_key_id | trim }}` }}"
+        ACCESS_SECRET_KEY: "{{ `{{ .secret_access_key | trim }}` }}"
+  dataFrom:
+    - extract:
+        key: {{ .Values.postgresql.backup.credentialsItem | quote }}
+{{- end }}

@@ -124,8 +124,9 @@
         text-decoration: unset;
 
         &:focus-visible {
-          outline: 2px solid var(--noora-surface-label-primary);
-          outline-offset: -2px;
+          outline: var(--noora-focus-ring-width) solid
+            var(--noora-focus-ring-color);
+          outline-offset: calc(-1 * var(--noora-focus-ring-width));
         }
       }
 
@@ -156,8 +157,9 @@
       text-align: start;
 
       &:focus-visible {
-        outline: 2px solid var(--noora-surface-label-primary);
-        outline-offset: -2px;
+        outline: var(--noora-focus-ring-width) solid
+          var(--noora-focus-ring-color);
+        outline-offset: calc(-1 * var(--noora-focus-ring-width));
       }
 
       &:disabled {
@@ -225,8 +227,9 @@
       outline: none;
 
       & .noora-tab-menu-vertical {
-        outline: 2px solid var(--noora-surface-label-primary);
-        outline-offset: -2px;
+        outline: var(--noora-focus-ring-width) solid
+          var(--noora-focus-ring-color);
+        outline-offset: calc(-1 * var(--noora-focus-ring-width));
       }
     }
   }

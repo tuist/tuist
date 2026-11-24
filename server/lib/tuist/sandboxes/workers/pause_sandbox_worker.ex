@@ -19,6 +19,8 @@ defmodule Tuist.Sandboxes.Workers.PauseSandboxWorker do
 
   require Logger
 
+  @disks_loading_snooze_seconds 60
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"sandbox_id" => sandbox_id, "residency_epoch" => epoch}}) do
     case Sandboxes.pause_idle(sandbox_id, residency_epoch: epoch) do
@@ -27,6 +29,15 @@ defmodule Tuist.Sandboxes.Workers.PauseSandboxWorker do
 
       {:error, :not_found} ->
         :ok
+
+      # A warm restore streams its disks from the archive for minutes after
+      # the guest runs, past the retries, and the node refuses a pause until
+      # they are whole. `memory_loaded` schedules the pause again once they
+      # are; the snooze still pauses the sandbox if that event is lost, and a
+      # newer residency's epoch turns it into a no-op.
+      {:error, "sandbox disks are still loading from its archive" <> _id} ->
+        Logger.info("sandboxes: scheduled pause waits for a restore's disks", sandbox_id: sandbox_id)
+        {:snooze, @disks_loading_snooze_seconds}
 
       {:error, reason} ->
         Logger.warning("sandboxes: scheduled pause failed", sandbox_id: sandbox_id, reason: inspect(reason))

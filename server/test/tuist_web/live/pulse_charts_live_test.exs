@@ -20,7 +20,7 @@ defmodule TuistWeb.PulseChartsLiveTest do
     end)
 
     stub(Pulse, :analytics, fn _, _, signal, _ -> {:ok, analytics(signal)} end)
-    %{conn: log_in_user(conn, user), path: "/#{account.name}/~/pulse"}
+    %{conn: log_in_user(conn, user), path: "/#{account.name}/pulse"}
   end
 
   for signal <- ~w(logs traces) do

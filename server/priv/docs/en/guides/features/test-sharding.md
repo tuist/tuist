@@ -40,8 +40,8 @@ Tuist uses historical test timing data to intelligently balance the load across 
     link="/guides/features/test-sharding/rust"
 />
   <.home_card
-    title="Once"
-    details="Distribute discovered Once test batches across CI workers with a hosted plan and combined results."
-    link="/guides/features/test-sharding/once"
+    title="Struo"
+    details="Distribute discovered Struo test batches across CI workers with a hosted plan and combined results."
+    link="/guides/features/test-sharding/struo"
 />
 </.home_cards>

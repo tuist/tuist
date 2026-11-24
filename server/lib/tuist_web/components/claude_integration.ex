@@ -228,10 +228,16 @@ defmodule TuistWeb.Components.ClaudeIntegration do
 
   defp shape_options do
     for platform <- [:linux, :darwin], {vcpus, memory_mb} <- Sandbox.shapes(platform) do
-      os = if platform == :darwin, do: "macOS", else: "Linux"
-      {"#{platform}-#{vcpus}-#{memory_mb}", "#{os} · #{vcpus} vCPU · #{div(memory_mb, 1024)} GB"}
+      {"#{platform}-#{vcpus}-#{memory_mb}", shape_label(platform, vcpus, memory_mb)}
     end
   end
+
+  # A Linux sandbox bursts to the same vCPUs whatever its shape, which picks
+  # its memory.
+  defp shape_label(:darwin, vcpus, memory_mb), do: "macOS · #{vcpus} vCPU · #{div(memory_mb, 1024)} GB"
+
+  defp shape_label(_linux, _vcpus, memory_mb),
+    do: "Linux · #{div(memory_mb, 1024)} GB · up to #{Sandbox.burst_vcpus()} vCPU"
 
   defp parse_shape(shape) do
     with [platform, vcpus, memory_mb] when platform in ["linux", "darwin"] <- String.split(shape, "-"),
@@ -355,10 +361,7 @@ defmodule TuistWeb.Components.ClaudeIntegration do
           <span data-part="name">{environment.name || environment.anthropic_environment_id}</span>
           <code>{environment.anthropic_environment_id}</code>
           <span data-part="meta">
-            {if environment.platform == :darwin, do: "macOS", else: "Linux"} · {environment.vcpus} vCPU · {div(
-              environment.memory_mb,
-              1024
-            )} GB
+            {shape_label(environment.platform, environment.vcpus, environment.memory_mb)}
           </span>
           <.badge
             :for={{label, color} <- List.wrap(authentication_badge(environment))}

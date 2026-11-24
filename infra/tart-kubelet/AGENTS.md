@@ -217,14 +217,32 @@ workflow code runs in the guest. Never expose host credentials or masters.
   `admission cancelled a background prefetch` (the cancelled prefetch's `scope`
   plus the `for_*` subject it made room for), and `removed leftovers from the
   runner-cache root` (`removed`, `freed_bytes`). Fields are listed in [`runner-cache`](../runner-cache/AGENTS.md).
-  The `tuist_runner_cache_volume_*` metrics keep only operation/source/result.
-  Everything that happened to one volume on a host:
+  The `tuist_runner_cache_volume_*` metrics keep only operation/source/result,
+  except `tuist_runner_cache_volume_cold_attaches_total{reason}`, which counts
+  cold attaches by their bounded cold reason (`unknown` when none was recorded).
+  Everything that happened to one volume on a host, from production Pulse's
+  `opentelemetry_logs` through the **Tuist Pulse SQL** data source (see
+  [`macos-log-shipper`](../macos-log-shipper/AGENTS.md#querying)):
 
-  ```logql
-  {job="tuist-macos-tart-kubelet", instance="<host>"} |= "<scope>"
-    | json | logger="custom-cache-volumes"
-    | line_format "{{.msg}} {{.operation}} {{.reason}} {{.result}} gen={{.generation}} pod={{.pod}}"
+  ```sql
+  SELECT timestamp,
+    json_get_string(parse_json(body), 'msg') AS msg,
+    json_get_string(parse_json(body), 'operation') AS operation,
+    json_get_string(parse_json(body), 'reason') AS reason,
+    json_get_string(parse_json(body), 'result') AS result,
+    json_get_string(parse_json(body), 'pod') AS pod,
+    body
+  FROM opentelemetry_logs
+  WHERE timestamp >= '<start>' AND timestamp < '<end>'
+    AND json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet'
+    AND json_get_string(resource_attributes, 'instance') = '<host>'
+    AND body LIKE '%<scope>%'
+    AND body LIKE '%"logger":"custom-cache-volumes"%'
+  ORDER BY timestamp
   ```
+
+  `generation` is in `body`; it may be a number, so read it there rather than
+  with `json_get_string`.
 
   Searching for the 48-hex prefix from a `tuist.dev/cache-volume-<prefix>` node
   label matches the same lines. The Linux agent logs the same fields as JSON
@@ -294,8 +312,18 @@ workflow code runs in the guest. Never expose host credentials or masters.
   terminated with reason `LogdWedged` and exit code 1. The guest restarts a
   wedged logd itself (`infra/runner-image/logd-watchdog.sh`) and writes the
   file only when that fails. It cannot halt itself then, so without the stop
-  its job hangs until the job's timeout and the VM keeps its host after that. Find them with
-  `{job="tuist-macos-tart-kubelet"} |= "wedged logd"`.
+  its job hangs until the job's timeout and the VM keeps its host after that. Find them in
+  production Pulse's `opentelemetry_logs` with
+  `json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND body LIKE '%wedged logd%'`.
+
+- A GitHub runner's start after its claim is logged at teardown as `runner job
+  start` (`boot_timing.go`): `claimedToListener`, `listenerToJobMessage` (the
+  Listener's `MessageReceived` job request, so a long one is GitHub late to send
+  the job), `jobMessageToJobStarted` (this VM late to run it) and
+  `claimedToJobStarted`. The claim is the `claimed` heartbeat's mtime; the rest
+  are `boot-listener`, `boot-job-message` and `boot-job-started` markers
+  `dispatch-poll.sh` and its job-started hook write. An image without them logs
+  nothing.
 
 - Readiness: without a `readinessProbe`, a Pod is Ready once its VM has an IP
   (customer runner Pods stay here). An `httpGet`/`tcpSocket` probe runs in

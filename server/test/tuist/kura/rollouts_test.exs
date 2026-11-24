@@ -137,7 +137,6 @@ defmodule Tuist.Kura.RolloutsTest do
         |> Enum.map(
           &%{
             email: "#{prefix}-#{&1}@example.com",
-            token_hash: Tuist.Tokens.legacy_token_hash("#{prefix}-#{&1}"),
             created_at: naive_now,
             updated_at: naive_now
           }
@@ -277,6 +276,71 @@ defmodule Tuist.Kura.RolloutsTest do
 
       assert Repo.get!(Rollout, newer.id).status == :superseded
       assert Repo.exists?(where(Rollout, [r], r.image_tag == ^@baseline_tag))
+    end
+
+    test "an expedited rollback supersedes a settling newer rollout and holds against the old cohort" do
+      # The rolled-back cohort's pods still read the newer tag. Without the
+      # expedite taking precedence, they supersede the rollback on their next
+      # tick and the bad tag holds the fleet for the whole settle window.
+      create_active_server()
+      rollback_tag = "0.5.1"
+
+      assert :ok = Rollouts.sync()
+      newer = Rollouts.active_rollout()
+      assert newer.image_tag == @target_tag
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> rollback_tag end)
+      stub(Tuist.Environment, :kura_rollout_expedite_tag, fn -> rollback_tag end)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, newer.id).status == :superseded
+      rollback = Rollouts.active_rollout()
+      assert rollback.image_tag == rollback_tag
+      assert rollback.mode == :expedited
+
+      # An old-cohort pod: newer tag, no expedite input.
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> @target_tag end)
+      stub(Tuist.Environment, :kura_rollout_expedite_tag, fn -> nil end)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, rollback.id).status == :running
+      assert Rollouts.active_rollout().id == rollback.id
+
+      # Once it has settled, a later deploy of a newer tag rolls forward again.
+      back_date(rollback, :inserted_at, 11 * 60)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, rollback.id).status == :superseded
+      assert Rollouts.active_rollout().image_tag == @target_tag
+    end
+
+    test "a completed expedited rollback still holds against the old cohort while it settles" do
+      # The server already runs the rollback tag, so the rollback completes on
+      # its first tick and nothing is active when the old cohort's pod ticks.
+      create_active_server()
+
+      assert :ok = Rollouts.sync()
+      # Rollout timestamps have second precision; keep the rollback the latest.
+      back_date(Rollouts.active_rollout(), :inserted_at, 20 * 60)
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> @baseline_tag end)
+      stub(Tuist.Environment, :kura_rollout_expedite_tag, fn -> @baseline_tag end)
+      assert :ok = Rollouts.sync()
+
+      rollback = Repo.one!(where(Rollout, [r], r.image_tag == ^@baseline_tag))
+      assert rollback.status == :completed
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> @target_tag end)
+      stub(Tuist.Environment, :kura_rollout_expedite_tag, fn -> nil end)
+      assert :ok = Rollouts.sync()
+
+      assert Rollouts.active_rollout() == nil
+      assert Rollouts.latest_rollout().id == rollback.id
+
+      back_date(rollback, :inserted_at, 11 * 60)
+      assert :ok = Rollouts.sync()
+
+      assert Rollouts.active_rollout().image_tag == @target_tag
     end
 
     test "an incomparable tag does not supersede a settling rollout" do

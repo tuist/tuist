@@ -9,7 +9,7 @@ defmodule TuistWeb.RunnersLive do
   import TuistWeb.Widget
 
   alias Tuist.Authorization
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Jobs
@@ -30,13 +30,15 @@ defmodule TuistWeb.RunnersLive do
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
-         not FeatureFlags.runners_enabled?(selected_account) do
+         not Environment.runners_available?() do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end
 
     if connected?(socket) do
       Tuist.PubSub.subscribe(Jobs.topic(selected_account.id))
+      Tuist.PubSub.subscribe(Concurrency.topic(selected_account.id))
+      Process.send_after(self(), :refresh_concurrency, 60_000)
     end
 
     {:ok,
@@ -57,6 +59,30 @@ defmodule TuistWeb.RunnersLive do
        :runner_concurrency,
        Concurrency.summaries(socket.assigns.selected_account)
      )}
+  end
+
+  def handle_info({:runner_concurrency_limits_changed, %{account_id: account_id}}, socket) do
+    if account_id == socket.assigns.selected_account.id do
+      {:noreply, refresh_concurrency(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(:refresh_concurrency, socket) do
+    # Manual database edits are tracked by a trigger, without a PubSub event.
+    Process.send_after(self(), :refresh_concurrency, 60_000)
+    {:noreply, refresh_concurrency(socket)}
+  end
+
+  defp refresh_concurrency(socket) do
+    account = socket.assigns.selected_account
+    # Current summaries refresh independently of the selected historical window.
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+
+    socket
+    |> assign(:runner_concurrency, Concurrency.summaries(account))
+    |> assign_concurrency_usage(account.id, start_datetime, end_datetime)
   end
 
   @impl true
@@ -91,23 +117,23 @@ defmodule TuistWeb.RunnersLive do
      |> assign_recent_jobs(account.id, repository, platform)
      |> assign_recent_workflow_runs(account.id, repository, platform)
      |> assign_async(
-       [:jobs_count, :jobs_duration, :workflows_duration, :concurrency_usage],
+       [:jobs_count, :jobs_duration, :workflows_duration],
        fn ->
          {:ok,
           %{
             jobs_count: Analytics.jobs_count(account.id, opts),
             jobs_duration: Analytics.jobs_duration(account.id, opts),
-            workflows_duration: Analytics.workflows_duration(account.id, opts),
-            concurrency_usage:
-              Concurrency.usage_over_time(
-                account.id,
-                start_datetime,
-                end_datetime,
-                :hour
-              )
+            workflows_duration: Analytics.workflows_duration(account.id, opts)
           }}
        end
-     )}
+     )
+     |> assign_concurrency_usage(account.id, start_datetime, end_datetime)}
+  end
+
+  defp assign_concurrency_usage(socket, account_id, start_datetime, end_datetime) do
+    assign_async(socket, :concurrency_usage, fn ->
+      {:ok, %{concurrency_usage: Concurrency.usage_over_time(account_id, start_datetime, end_datetime, :hour)}}
+    end)
   end
 
   defp maybe_repository(opts, "any"), do: opts
@@ -526,7 +552,7 @@ defmodule TuistWeb.RunnersLive do
       title: title,
       dates: usage.dates,
       values: values,
-      limit: limit,
+      limits: usage.limits |> Map.fetch!(summary.platform) |> Map.fetch!(resource),
       limit_label: concurrency_limit_label(resource, limit),
       usage_label: concurrency_usage_label(resource)
     }
@@ -544,22 +570,24 @@ defmodule TuistWeb.RunnersLive do
   defp concurrency_usage_label(:memory_gb), do: dgettext("dashboard_runners", "Peak memory")
 
   @doc """
-  Colors buckets that reached the configured limit and overlays that
-  limit as a dashed line.
+  Compares each peak with its known historical limit. These hourly
+  limits are snapshots at bucket start, not exact adjustment times.
   """
-  def concurrency_chart_series(values, limit, usage_label) do
+  def concurrency_chart_series(values, limits, usage_label) do
     [
       %{
-        data: Enum.map(values, &concurrency_bar(&1, limit)),
+        data: values |> Enum.zip(limits) |> Enum.map(fn {value, limit} -> concurrency_bar(value, limit) end),
         itemStyle: %{color: "var:noora-chart-primary"},
         name: usage_label,
         type: "bar",
         barMaxWidth: 18
       },
       %{
-        data: List.duplicate(limit, length(values)),
-        name: dgettext("dashboard_runners", "Limit"),
+        data: limits,
+        name: dgettext("dashboard_runners", "Concurrency limit"),
         type: "line",
+        step: "end",
+        connectNulls: false,
         symbol: "none",
         silent: true,
         itemStyle: %{color: "var:noora-chart-destructive"},
@@ -572,7 +600,7 @@ defmodule TuistWeb.RunnersLive do
     ]
   end
 
-  defp concurrency_bar(value, limit) when value >= limit do
+  defp concurrency_bar(value, limit) when is_number(value) and is_number(limit) and value >= limit do
     %{value: value, itemStyle: %{color: "var:noora-chart-destructive"}}
   end
 
@@ -583,10 +611,12 @@ defmodule TuistWeb.RunnersLive do
   """
   def concurrency_chart_options(analytics_preset) do
     %{
-      grid: %{left: 34, right: 24, top: 8, bottom: 36},
+      grid: %{left: 34, right: 24, top: 8, bottom: 48},
       legend: %{
         left: "left",
-        top: "bottom",
+        top: "auto",
+        bottom: 0,
+        padding: 0,
         orient: "horizontal",
         textStyle: %{
           color: "var:noora-surface-label-secondary",

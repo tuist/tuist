@@ -20,7 +20,7 @@ tuist inspect bundle App.apk
 :::
 
 > [!NOTE]
-> **`.apk`를 분석하려면 `aapt2`가 필요합니다.** 이는 Android SDK 빌드 도구에 포함되어 있습니다. Tuist가 이를 찾을 수 있도록 `ANDROID_HOME` 또는 `ANDROID_SDK_ROOT`을 설정하거나, `aapt2`를 `PATH`에 추가하세요. `.aab`를 분석하는 데는 외부 도구가 필요하지 않습니다.
+> **`.apk`를 분석하려면 `aapt2`가 필요합니다**. 이는 Android SDK 빌드 도구와 함께 제공됩니다. Tuist가 이를 찾을 수 있도록 `ANDROID_HOME` 또는 `ANDROID_SDK_ROOT`을 설정하거나, `aapt2`를 `PATH`에 추가하세요. `.aab` 분석에는 외부 도구가 필요하지 않습니다.
 
 <!-- @snippet: ./_upload-result -->
 

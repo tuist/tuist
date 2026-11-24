@@ -198,6 +198,39 @@ spec:
                   type: array
                   items:
                     type: string
+                # Other rack sites' gateways publishing this private instance
+                # (kura-controller's gateway_entrances.go).
+                gatewayEntrances:
+                  type: array
+                  items:
+                    type: object
+                    required: [site, host, ingressClassName, clientCIDRs, nodeSelector]
+                    properties:
+                      site:
+                        type: string
+                        pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+                        maxLength: 40
+                      host:
+                        type: string
+                        maxLength: 253
+                      ingressClassName:
+                        type: string
+                      clientCIDRs:
+                        type: array
+                        items:
+                          type: string
+                      nodeSelector:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      rateLimitKBps:
+                        type: integer
+                        format: int32
+                        minimum: 0
+                      connectionLimit:
+                        type: integer
+                        format: int32
+                        minimum: 0
                 podAnnotations:
                   type: object
                   additionalProperties:
@@ -420,6 +453,26 @@ spec:
                 endpointObservedGeneration:
                   type: integer
                   format: int64
+                gatewayEntrances:
+                  type: array
+                  items:
+                    type: object
+                    required: [site]
+                    properties:
+                      site:
+                        type: string
+                      url:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastCheckedAt:
+                        type: string
+                        format: date-time
+                      observedGeneration:
+                        type: integer
+                        format: int64
                 publicURL:
                   type: string
                 grpcPublicURL:

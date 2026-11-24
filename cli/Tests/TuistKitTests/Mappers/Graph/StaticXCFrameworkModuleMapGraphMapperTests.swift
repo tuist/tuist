@@ -2002,6 +2002,74 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(gotSideEffects)
     }
 
+    /// Xcode resolves symlinked parent directories into `SRCROOT`, so when `Tuist/.build` links to a folder at a
+    /// different depth, a path relative to the project's logical directory that leaves the linked tree (to
+    /// `~/.cache/tuist/Binaries`) misses the xcframework.
+    func test_map_when_project_is_behind_a_symlink_search_paths_resolve_from_the_resolved_project_directory() async throws {
+        // Given
+        let basePath = try temporaryPath()
+        let volume = basePath.appending(components: "Volumes", "build")
+        let resolvedProjectPath = volume.appending(components: "checkouts", "Lib")
+        try await fileSystem.makeDirectory(at: resolvedProjectPath)
+        let tuistDirectory = basePath.appending(components: "home", "work", "app", "app", "Tuist")
+        try await fileSystem.makeDirectory(at: tuistDirectory)
+        try FileManager.default.createSymbolicLink(
+            atPath: tuistDirectory.appending(component: ".build").pathString, withDestinationPath: volume.pathString
+        )
+        let projectPath = tuistDirectory.appending(components: ".build", "checkouts", "Lib")
+        let binaries = basePath.appending(components: "home", ".cache", "tuist", "Binaries")
+        let cachedXCFrameworkPath = binaries.appending(components: "HASH", "Cached.xcframework")
+        let googleMapsPath = binaries.appending(components: "OTHER", "GoogleMaps.xcframework")
+        let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.makeDirectory(at: googleMapsHeadersPath)
+        try await fileSystem.writeText("modulemap", at: googleMapsHeadersPath.appending(component: "module.modulemap"))
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(tuistDirectory.appending(component: Constants.SwiftPackageManager.packageSwiftName))
+        let cached = GraphDependency.testXCFramework(path: cachedXCFrameworkPath, linking: .dynamic)
+        let graph: Graph = .test(
+            path: projectPath,
+            projects: [projectPath: .test(path: projectPath, targets: [.test(name: "Lib")])],
+            dependencies: [
+                .target(name: "Lib", path: projectPath): [cached],
+                cached: [
+                    .testXCFramework(
+                        path: googleMapsPath,
+                        infoPlist: .test(libraries: [
+                            .test(
+                                identifier: "ios-arm64",
+                                path: try RelativePath(validating: "GoogleMaps.framework/GoogleMaps")
+                            ),
+                        ]),
+                        linking: .static,
+                        moduleMaps: [googleMapsHeadersPath.appending(component: "module.modulemap")]
+                    ),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let settings = try XCTUnwrap(gotGraph.projects[projectPath]?.targets["Lib"]?.settings?.base)
+        guard case let .array(searchPaths) = settings["FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]"] else {
+            return XCTFail("Missing framework search paths")
+        }
+        let paths = searchPaths.filter { $0 != "$(inherited)" }
+        XCTAssertEqual(paths.count, 1)
+        for path in paths {
+            // Resolve like clang does, through the filesystem rather than by normalizing `..` lexically.
+            let expanded = path
+                .replacingOccurrences(of: "$(SRCROOT)", with: resolvedProjectPath.pathString)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            XCTAssertTrue(
+                FileManager.default.fileExists(atPath: expanded),
+                "\(path) does not resolve from \(resolvedProjectPath)"
+            )
+        }
+    }
+
     func test_map_when_static_xcframework_linked_via_dynamic_xcframework_with_multiple_app_targets_in_different_projects(
     ) async throws {
         // Given

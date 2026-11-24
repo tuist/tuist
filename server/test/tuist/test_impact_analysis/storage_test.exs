@@ -58,43 +58,29 @@ defmodule Tuist.TestImpactAnalysis.StorageTest do
   end
 
   describe "runs" do
-    test "reads back a selected run and its tests", %{project: project} do
-      test_case_id = Ecto.UUID.generate()
-
+    test "reads back a selected run", %{project: project} do
       {:ok, run} =
-        Storage.create_run(
-          %{
-            project_id: project.id,
-            head_sha: "head",
-            commit_sha: "merge",
-            baseline_sha: "base",
-            git_branch: "feature",
-            build_system: "xcode",
-            platform: "ios",
-            build_context: %{"scheme" => "App", "destination" => String.duplicate("x", 2_000), "secret" => "dropped"},
-            requested_modules: ["AppTests"],
-            skipped_modules: %{"CoreTests" => 3},
-            outcome: "selected",
-            rules_version: "1",
-            rule_trace: [
-              %{rule: "tracked_files", selected: 0, skipped: 0, verdict: "continue"},
-              %{rule: "unaffected", selected: 0, skipped: 3, verdict: "done"}
-            ],
-            requested_count: 4,
-            skipped_count: 3,
-            selected_count: 1
-          },
-          [
-            %{
-              test_case_id: test_case_id,
-              module_name: "AppTests",
-              suite_name: "CartTests",
-              name: "testTotal()",
-              reason: "impacted",
-              matched_path: "App/Cart.swift"
-            }
-          ]
-        )
+        Storage.create_run(%{
+          project_id: project.id,
+          head_sha: "head",
+          commit_sha: "merge",
+          baseline_sha: "base",
+          git_branch: "feature",
+          build_system: "xcode",
+          platform: "ios",
+          build_context: %{"scheme" => "App", "destination" => String.duplicate("x", 2_000), "secret" => "dropped"},
+          requested_modules: ["AppTests"],
+          skipped_modules: %{"CoreTests" => 3},
+          outcome: "selected",
+          rules_version: "1",
+          rule_trace: [
+            %{rule: "tracked_files", selected: 0, skipped: 0, verdict: "continue"},
+            %{rule: "unaffected", selected: 0, skipped: 3, verdict: "done"}
+          ],
+          requested_count: 4,
+          skipped_count: 3,
+          selected_count: 1
+        })
 
       assert {:ok, stored} = Storage.get_run(project.id, run.id)
       assert stored.outcome == "selected"
@@ -106,20 +92,9 @@ defmodule Tuist.TestImpactAnalysis.StorageTest do
       assert String.length(stored.build_context["destination"]) == 1_024
       assert [%{rule: "tracked_files"}, %{rule: "unaffected", skipped: 3, verdict: "done"}] = stored.rule_trace
       assert {stored.requested_count, stored.skipped_count, stored.selected_count} == {4, 3, 1}
-
-      assert [
-               %{
-                 test_case_id: ^test_case_id,
-                 module_name: "AppTests",
-                 suite_name: "CartTests",
-                 name: "testTotal()",
-                 reason: "impacted",
-                 matched_path: "App/Cart.swift"
-               }
-             ] = Storage.list_run_tests(project.id, run.id)
     end
 
-    test "records a fallback without a baseline or tests", %{project: project} do
+    test "records a fallback without a baseline", %{project: project} do
       {:ok, run} =
         Storage.create_run(%{
           project_id: project.id,
@@ -132,8 +107,6 @@ defmodule Tuist.TestImpactAnalysis.StorageTest do
 
       assert {:ok, %{outcome: "fallback", reason: "no_baseline", baseline_sha: nil}} =
                Storage.get_run(project.id, run.id)
-
-      assert Storage.list_run_tests(project.id, run.id) == []
     end
 
     test "rejects a run without its required fields", %{project: project} do

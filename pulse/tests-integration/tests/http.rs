@@ -2887,10 +2887,18 @@ pub async fn test_sentry_envelope(store_type: StorageType) {
     common_telemetry::init_default_ut_logging();
 
     let user_provider = user_provider_from_option("static_user_provider:cmd:tuist=t0k3n").unwrap();
-    let (app, mut guard) = setup_test_http_app_with_frontend_and_user_provider(
+    // Three error events per service and minute, so the test reaches the limit.
+    let http_opts = servers::http::HttpOptions {
+        addr: format!("127.0.0.1:{}", common_test_util::ports::get_port()),
+        sentry_events_per_minute: 3,
+        ..Default::default()
+    };
+    let (app, mut guard) = setup_test_http_app_with_frontend_and_custom_options(
         store_type,
         "test_sentry_envelope",
         Some(user_provider),
+        Some(http_opts),
+        None,
     )
     .await;
     let client = TestClient::new(app).await;
@@ -3010,6 +3018,12 @@ pub async fn test_sentry_envelope(store_type: StorageType) {
     .await;
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
 
+    // Envelopes are held to 1 MiB once decompressed, however small compressed.
+    let mut large = b"{}\n{\"type\":\"session\"}\n".to_vec();
+    large.resize(1024 * 1024 + 1, b'a');
+    let res = send_req(&client, vec![auth("t0k3n")], &envelope("kura"), large, true).await;
+    assert_eq!(res.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
     let rows = get_rows_from_output(
         &query(
             "SELECT service, event_id, exception_type, exception_value, \"level\", environment, \"release\" \
@@ -3028,6 +3042,315 @@ pub async fn test_sentry_envelope(store_type: StorageType) {
     assert!(
         stored.contains("[Filtered]") && !stored.contains("edge-1"),
         "{stored}"
+    );
+
+    // Logs, spans and sessions captured from sentry-python 2.75.0 and
+    // @sentry/node 11.16.0.
+    let sentry = async |service: &str, body: Vec<u8>| {
+        let res = send_req(
+            &client,
+            vec![auth("t0k3n")],
+            &envelope(service),
+            body,
+            false,
+        )
+        .await;
+        assert_eq!(res.status(), StatusCode::OK, "{service}");
+        res
+    };
+    let rows = async |sql: &str| -> Vec<Value> {
+        serde_json::from_str::<Value>(&get_rows_from_output(&query(sql).await))
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    // JSON columns may come back as objects or as their text.
+    let json = |value: &Value| match value {
+        Value::String(text) => serde_json::from_str::<Value>(text).unwrap(),
+        value => value.clone(),
+    };
+
+    // Sessions go only into a table the chart created: without it they are
+    // dropped, and no table is created for them.
+    sentry("storefront", resource("sentry-node-sessions.envelope")).await;
+    query(&chart("sessions.sql")).await;
+    for (service, file) in [
+        ("shop", "sentry-python-logs.envelope"),
+        ("shop", "sentry-python-transaction.envelope"),
+        ("shop", "sentry-python-spans.envelope"),
+        ("shop", "sentry-python-session.envelope"),
+        ("shop", "sentry-python-sessions.envelope"),
+        ("storefront", "sentry-node-logs.envelope"),
+        ("storefront", "sentry-node-spans.envelope"),
+    ] {
+        sentry(service, resource(file)).await;
+    }
+    // A session's updates replace each other.
+    for status in ["ok", "exited"] {
+        let update = format!(
+            "{{}}\n{{\"type\":\"session\"}}\n{{\"sid\":\"5d6e\",\"started\":\"2026-11-21T08:04:00Z\",\
+             \"status\":\"{status}\",\"did\":\"user-7\",\"attrs\":{{\"release\":\"shop@2.4.2\",\"environment\":\"staging\"}}}}\n"
+        );
+        sentry("shop", update.into_bytes()).await;
+    }
+
+    // Logs land in the collectors' table, with the service as service.name.
+    let logs = rows(
+        "SELECT body, severity_text, trace_id, span_id, resource_attributes, log_attributes \
+         FROM opentelemetry_logs ORDER BY \"timestamp\"",
+    )
+    .await;
+    let expected = [
+        (
+            "Charged order A-17 for 1299 cents",
+            "INFO",
+            "e4da241153984dc7b94f39ac6bfa0910",
+            "a6a3649580987de5",
+            "shop",
+        ),
+        (
+            "Payment provider timed out",
+            "ERROR",
+            "e4da241153984dc7b94f39ac6bfa0910",
+            "a6a3649580987de5",
+            "shop",
+        ),
+        (
+            "Slow cart C-9 took 812 ms",
+            "WARN",
+            "fe4d28c0320947d18ea6598d0f473359",
+            "8ffb6064da60087c",
+            "storefront",
+        ),
+        (
+            "Slow cart C-9 took 812 ms",
+            "WARN",
+            "fe4d28c0320947d18ea6598d0f473359",
+            "881da29065e921e0",
+            "storefront",
+        ),
+    ];
+    assert_eq!(logs.len(), expected.len(), "{logs:?}");
+    for (log, (body, level, trace, span, service)) in logs.iter().zip(expected) {
+        assert_eq!(log[0], body, "{log:?}");
+        assert_eq!(log[1], level, "{log:?}");
+        assert_eq!(log[2], trace, "{log:?}");
+        assert_eq!(log[3], span, "{log:?}");
+        assert_eq!(json(&log[4])["service.name"], service, "{log:?}");
+    }
+    let attributes = json(&logs[0][5]);
+    assert_eq!(
+        attributes["sentry.message.parameter.cents"], 1299,
+        "{attributes}"
+    );
+    assert_eq!(attributes["sentry.release"], "shop@2.4.1", "{attributes}");
+
+    // Transaction spans and Spans v2 land in the collectors' trace table.
+    let spans = rows(
+        "SELECT service_name, span_id, span_name, span_kind, span_status_code, span_status_message \
+         FROM opentelemetry_traces ORDER BY service_name, span_id",
+    )
+    .await;
+    assert_eq!(
+        Value::Array(spans),
+        json!([
+            [
+                "shop",
+                "803455248412b84e",
+                "SELECT * FROM orders",
+                "SPAN_KIND_CLIENT",
+                "STATUS_CODE_UNSET",
+                ""
+            ],
+            [
+                "shop",
+                "86e723c8875e2ee9",
+                "POST /checkout",
+                "SPAN_KIND_SERVER",
+                "STATUS_CODE_UNSET",
+                ""
+            ],
+            [
+                "shop",
+                "b02e8d9c04850472",
+                "GET /orders",
+                "SPAN_KIND_SERVER",
+                "STATUS_CODE_OK",
+                ""
+            ],
+            [
+                "shop",
+                "b6b8d38970278aa6",
+                "SELECT orders",
+                "SPAN_KIND_CLIENT",
+                "STATUS_CODE_OK",
+                ""
+            ],
+            [
+                "shop",
+                "be28ce88c4723756",
+                "POST https://api.stripe.com/charges",
+                "SPAN_KIND_CLIENT",
+                "STATUS_CODE_ERROR",
+                "deadline_exceeded"
+            ],
+            [
+                "storefront",
+                "881da29065e921e0",
+                "GET",
+                "SPAN_KIND_SERVER",
+                "STATUS_CODE_ERROR",
+                "internal_error"
+            ],
+            [
+                "storefront",
+                "8ffb6064da60087c",
+                "GET",
+                "SPAN_KIND_SERVER",
+                "STATUS_CODE_OK",
+                ""
+            ],
+            [
+                "storefront",
+                "a41293bbe6f063ee",
+                "load cart",
+                "SPAN_KIND_CLIENT",
+                "STATUS_CODE_OK",
+                ""
+            ],
+            [
+                "storefront",
+                "a50b186877d54c3b",
+                "load cart",
+                "SPAN_KIND_CLIENT",
+                "STATUS_CODE_OK",
+                ""
+            ],
+        ])
+    );
+
+    // Raw updates remain append-only. Release health first picks the latest
+    // logical state of each identity, never the most recently ingested row.
+    let latest_sessions = "(SELECT *, ROW_NUMBER() OVER (\
+        PARTITION BY service, \"release\", environment, session_id, started \
+        ORDER BY seq DESC NULLS LAST, updated DESC NULLS LAST, \
+        crashed DESC, abnormal DESC, unhandled DESC, errored DESC) AS session_rank FROM sessions)";
+    // One crashed user-mode session and three request sessions, one errored.
+    let sessions = rows(&format!(
+        "SELECT service, \"release\", status, distinct_id IS NOT NULL, sessions, errored, crashed, abnormal, unhandled \
+         FROM {latest_sessions} WHERE session_rank = 1 ORDER BY \"release\", started",
+    ))
+    .await;
+    assert_eq!(
+        Value::Array(sessions),
+        json!([
+            ["shop", "shop@2.4.1", null, false, 3, 1, 0, 0, 0],
+            ["shop", "shop@2.4.1", "crashed", true, 1, 0, 1, 0, 0],
+            ["shop", "shop@2.4.2", "exited", true, 1, 0, 0, 0, 0],
+        ])
+    );
+    // What crash-free session and user rates per release are made of.
+    let health = rows(&format!(
+        "SELECT \"release\", sum(sessions), sum(crashed + abnormal + unhandled), \
+         count(DISTINCT distinct_id), \
+         count(DISTINCT CASE WHEN crashed + abnormal + unhandled > 0 THEN distinct_id END) \
+         FROM {latest_sessions} WHERE session_rank = 1 GROUP BY \"release\" ORDER BY \"release\"",
+    ))
+    .await;
+    assert_eq!(
+        Value::Array(health),
+        json!([["shop@2.4.1", 4, 1, 1, 1], ["shop@2.4.2", 1, 0, 1, 0]])
+    );
+
+    // An offline crash precedes initial/stale transmissions, even when init
+    // incorrectly carries a high sequence or a lower sequence has a later time.
+    for (seq, init, status, timestamp) in [
+        (9, false, "crashed", "2026-11-21T08:06:00Z"),
+        (99, true, "ok", "2026-11-21T08:07:00Z"),
+        (8, false, "ok", "2026-11-21T08:08:00Z"),
+        (9, false, "ok", "2026-11-21T08:05:00Z"),
+        (99, true, "ok", "2026-11-21T08:07:00Z"),
+    ] {
+        let update = json!({
+            "sid": "offline-session", "started": "2026-11-21T08:05:00Z",
+            "timestamp": timestamp, "seq": seq, "init": init, "status": status,
+            "did": "synthetic-device", "attrs": {"release": "offline@1"}
+        });
+        sentry(
+            "offline",
+            format!("{{}}\n{{\"type\":\"session\"}}\n{update}\n").into_bytes(),
+        )
+        .await;
+        assert_eq!(
+            rows(&format!("SELECT sessions, crashed FROM {latest_sessions} WHERE service = 'offline' AND session_rank = 1")).await,
+            [json!([1, 1])]
+        );
+    }
+    // Normal delivery and exact replays have the same logical result. Equal
+    // sequence numbers use the update timestamp, not transport arrival order.
+    for (status, timestamp) in [
+        ("ok", "2026-11-21T08:05:00Z"),
+        ("crashed", "2026-11-21T08:06:00Z"),
+        ("crashed", "2026-11-21T08:06:00Z"),
+    ] {
+        let update = json!({"sid": "online-session", "started": "2026-11-21T08:05:00Z", "seq": 9,
+            "timestamp": timestamp, "status": status, "attrs": {"release": "online@1"}});
+        sentry(
+            "online",
+            format!("{{}}\n{{\"type\":\"session\"}}\n{update}\n").into_bytes(),
+        )
+        .await;
+    }
+    assert_eq!(
+        rows(&format!("SELECT sum(sessions), sum(crashed) FROM {latest_sessions} WHERE service = 'online' AND session_rank = 1")).await,
+        [json!([1, 1])]
+    );
+    assert_eq!(
+        rows("SELECT service, count(*) FROM sessions WHERE service IN ('offline', 'online') GROUP BY service ORDER BY service").await,
+        [json!(["offline", 5]), json!(["online", 3])]
+    );
+
+    // Past its quota a service's events are refused with Sentry's
+    // rate-limit headers, and only them.
+    for _ in 0..3 {
+        sentry("crashloop", resource("sentry-rust.envelope")).await;
+    }
+    let res = send_req(
+        &client,
+        vec![auth("t0k3n")],
+        &envelope("crashloop"),
+        resource("sentry-rust.envelope"),
+        false,
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+    let headers = res.headers();
+    let retry_after: u64 = headers["retry-after"].to_str().unwrap().parse().unwrap();
+    assert!((1..=60).contains(&retry_after), "{retry_after}");
+    assert_eq!(
+        headers["x-sentry-rate-limits"],
+        format!("{retry_after}:error;default:project:event_limit").as_str()
+    );
+    // Other services keep their quota.
+    sentry("kura", resource("sentry-rust.envelope")).await;
+    // An envelope's other items are still stored, and the response still
+    // tells the SDK to hold back events.
+    let mixed = concat!(
+        "{}\n{\"type\":\"event\"}\n{\"message\":\"loop\",\"level\":\"error\"}\n",
+        "{\"type\":\"session\"}\n{\"sid\":\"9a\",\"started\":\"2026-11-21T08:05:00Z\",\"status\":\"crashed\",",
+        "\"attrs\":{\"release\":\"loop@1\"}}\n",
+    );
+    let res = sentry("crashloop", mixed.as_bytes().to_vec()).await;
+    assert!(
+        res.headers()["x-sentry-rate-limits"]
+            .to_str()
+            .unwrap()
+            .ends_with(":error;default:project:event_limit")
+    );
+    assert_eq!(
+        rows("SELECT crashed FROM sessions WHERE service = 'crashloop'").await,
+        [json!([1])]
     );
 
     guard.remove_all().await;

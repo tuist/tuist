@@ -15,6 +15,13 @@ public struct CommitCoverage: Equatable, Sendable {
     /// Whether the figure is a lower bound: the coverage of some tests the runs skipped, or of
     /// some scheme, couldn't be determined.
     public let incomplete: Bool
+    /// Why the figure is a lower bound, as the server names it; empty when it's whole. An open set:
+    /// unknown values are a generic gap.
+    public let gapReasons: [String]
+
+    /// Whether a scheme's coverage only came from runs on a checkout with uncommitted changes, which
+    /// don't count.
+    public var excludesDirtyRuns: Bool { gapReasons.contains("dirty_run_excluded") }
 
     public init(
         gitCommitSHA: String,
@@ -24,7 +31,8 @@ public struct CommitCoverage: Equatable, Sendable {
         schemes: [String],
         partialSchemes: [String],
         complete: Bool,
-        incomplete: Bool = false
+        incomplete: Bool = false,
+        gapReasons: [String] = []
     ) {
         self.gitCommitSHA = gitCommitSHA
         self.coverage = coverage
@@ -34,6 +42,7 @@ public struct CommitCoverage: Equatable, Sendable {
         self.partialSchemes = partialSchemes
         self.complete = complete
         self.incomplete = incomplete
+        self.gapReasons = gapReasons
     }
 }
 
@@ -111,7 +120,8 @@ public struct CompleteCommitCoverageService: CompleteCommitCoverageServicing {
                         schemes: commit.schemes,
                         partialSchemes: commit.partial_schemes,
                         complete: commit.complete,
-                        incomplete: figure?.kind == .partial
+                        incomplete: figure?.kind == .partial,
+                        gapReasons: figure?.gap_reasons ?? []
                     )
                 )
             }

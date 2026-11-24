@@ -60,7 +60,7 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
       }
     end
 
-    test "lists, gets and deletes sandboxes they could have created", %{account: account, conn: conn} do
+    test "lists, gets and deletes sandboxes", %{account: account, conn: conn} do
       sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
       id = sandbox.id
 
@@ -76,7 +76,7 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
                DeleteSandbox.call(conn, %{"account_handle" => account.name, "sandbox_id" => id})
     end
 
-    test "cannot reach an agent's sandbox, analytics or archiving", %{account: account, conn: conn} do
+    test "reaches an agent's sandbox, analytics and archiving", %{account: account, conn: conn} do
       environment = agent_environment_fixture(account: account)
 
       sandbox =
@@ -87,17 +87,17 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
           agent_environment_id: environment.id
         )
 
+      id = sandbox.id
       reject(&Nodes.call/4)
 
-      for tool <- [GetSandbox, DeleteSandbox, ArchiveSandbox] do
-        assert %{"isError" => true, "content" => [%{"text" => text}]} =
-                 tool.call(conn, %{"account_handle" => account.name, "sandbox_id" => sandbox.id})
+      assert %{"structuredContent" => %{"id" => ^id}} =
+               GetSandbox.call(conn, %{"account_handle" => account.name, "sandbox_id" => id})
 
-        assert text =~ "administrators" or text =~ "do not have access"
-      end
+      assert %{"structuredContent" => %{"id" => ^id, "state" => "paused"}} =
+               ArchiveSandbox.call(conn, %{"account_handle" => account.name, "sandbox_id" => id})
 
-      assert %{"isError" => true} = GetSandboxAnalytics.call(conn, %{"account_handle" => account.name})
-      assert Repo.get(Sandbox, sandbox.id)
+      assert %{"structuredContent" => %{"bucket" => "day"}} =
+               GetSandboxAnalytics.call(conn, %{"account_handle" => account.name})
     end
 
     test "a viewer can't use sandboxes", %{account: account, viewer_conn: conn} do
@@ -125,21 +125,49 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
         {:ok, %{"template_tag" => "macos-tag"}}
 
       "linux-1", "create", args, _opts ->
-        assert %{template: "default", vcpus: 2, memory_mb: 4096} = args
+        # A Linux sandbox bursts to 16 vCPUs and is guaranteed a quarter per GiB.
+        assert %{template: "default", vcpus: 16, memory_mb: 4096, cpu_guarantee_milli: 1000} = args
         {:ok, %{"template_tag" => "linux-tag"}}
     end)
 
-    assert %{"structuredContent" => %{"platform" => "darwin", "state" => "running", "memory_mb" => 24_576}} =
+    assert %{
+             "structuredContent" => %{
+               "platform" => "darwin",
+               "state" => "running",
+               "memory_mb" => 24_576,
+               "lifetime_seconds" => 600,
+               "expires_at" => mac_expires_at
+             }
+           } =
              CreateSandbox.call(conn, %{
                "account_handle" => account.name,
                "platform" => "darwin",
                "vcpus" => 8,
                "memory_mb" => 24_576,
-               "workspace_gb" => 20
+               "workspace_gb" => 20,
+               "lifetime_seconds" => 600
              })
 
-    assert %{"structuredContent" => %{"platform" => "linux", "vcpus" => 2}} =
+    assert_in_delta seconds_from_now(mac_expires_at), 600, 5
+
+    # Without one, a sandbox gets the default two hours.
+    assert %{
+             "structuredContent" => %{
+               "platform" => "linux",
+               "vcpus" => 16,
+               "guaranteed_vcpus" => 1,
+               "lifetime_seconds" => 7200,
+               "expires_at" => expires_at
+             }
+           } =
              CreateSandbox.call(conn, %{"account_handle" => account.name})
+
+    assert_in_delta seconds_from_now(expires_at), 7200, 5
+  end
+
+  defp seconds_from_now(iso) do
+    {:ok, at, 0} = DateTime.from_iso8601(iso)
+    DateTime.diff(at, DateTime.utc_now())
   end
 
   test "create refuses a shape the platform does not offer", %{account: account, conn: conn} do
@@ -175,7 +203,7 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
     stub(Tuist.Authorization, :authorize, fn _action, :subject, _account -> :ok end)
     reject(&Nodes.call/4)
 
-    assert %{"isError" => true, "content" => [%{"text" => "Sandbox not found."}]} =
+    assert %{"isError" => true, "content" => [%{"text" => "code: not_found\nSandbox not found."}]} =
              DeleteSandbox.call(conn, %{"account_handle" => account.name, "sandbox_id" => foreign.id})
 
     assert Repo.get(Sandbox, foreign.id)

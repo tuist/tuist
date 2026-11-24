@@ -384,7 +384,7 @@ func (d *credentialRecordingDriver) Set(_ context.Context, o power.Outlet, _ boo
 // nobody present can put back: clearing it needs write access to
 // rackhosts/status, which the operator's ClusterRole has and a human reaching
 // the cluster through the kubectl gateway does not. Discovered the hard way on
-// 2026-09-09, when the BER1 prototype quarantined itself over a bootstrap bug
+// 2026-09-09, when the alder prototype quarantined itself over a bootstrap bug
 // and the patch to release it came back Forbidden.
 func TestQuarantineExpiresAfterTheCooldown(t *testing.T) {
 	host := rackHost("mini-01", func(h *infrav1.RackHost) {

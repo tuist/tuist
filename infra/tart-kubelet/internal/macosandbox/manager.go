@@ -39,6 +39,15 @@ type Runtime interface {
 	Resume(context.Context, *Record) error
 	Pause(context.Context, *Record) error
 	Save(context.Context, *Record) error
+	// SaveDisks copies a fenced VM's disks into a disk snapshot, which
+	// creates with FromDiskSnapshot clone; DeleteDisks removes one.
+	SaveDisks(context.Context, *Record, string) (protocol.DiskSnapshotInfo, error)
+	DeleteDisks(context.Context, string) error
+	DiskSnapshots() ([]protocol.DiskSnapshotInfo, error)
+	// ArchiveDisks uploads a disk snapshot for other hosts; CopyDisks fills
+	// one from such an upload. Neither touches a VM.
+	ArchiveDisks(context.Context, protocol.ArchiveDisksArgs) (protocol.ArchiveResult, error)
+	CopyDisks(context.Context, protocol.CopyDisksArgs) (protocol.DiskSnapshotInfo, error)
 	Delete(context.Context, *Record) error
 	Recover(context.Context, *Record) error
 	// Archive uploads an evicted sandbox's disk; it changes nothing on the host.
@@ -103,7 +112,8 @@ type Record struct {
 	Checkout *protocol.CheckoutGrant `json:"checkout,omitempty"`
 	// DisksSynced: the guest flushed its file systems to disk right before the
 	// VM last stopped running, so its disk files alone hold what it wrote. An
-	// archive carries no checkpoint, so only such a sandbox is archived.
+	// archive carries no checkpoint, so only such a sandbox is archived, and only
+	// such a sandbox is saved as a disk snapshot.
 	DisksSynced bool `json:"disks_synced,omitempty"`
 }
 
@@ -314,8 +324,17 @@ func (m *Manager) get(id string) (*Record, error) {
 // sameCreate compares create arguments by value, archive source included,
 // so a retried create from an archive matches its journal.
 func sameCreate(a, b protocol.CreateArgs) bool {
-	if (a.FromArchive == nil) != (b.FromArchive == nil) || (a.FromArchive != nil && *a.FromArchive != *b.FromArchive) {
+	if (a.FromArchive == nil) != (b.FromArchive == nil) {
 		return false
+	}
+	// The server presigns a new URL for every attempt; the checksum and
+	// size name the archive.
+	if a.FromArchive != nil {
+		x, y := *a.FromArchive, *b.FromArchive
+		x.URL, y.URL = "", ""
+		if x != y {
+			return false
+		}
 	}
 	a.FromArchive, b.FromArchive = nil, nil
 	return a == b
@@ -325,6 +344,16 @@ func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 	defer m.Gate.Unlock()
 	if !validID(a.SandboxID) || a.VCPUs != 8 || (a.MemoryMB != 8192 && a.MemoryMB != 16384 && a.MemoryMB != 24576) || a.WorkspaceGB < 1 || a.WorkspaceGB > 100 {
 		return errors.New("invalid macOS sandbox shape")
+	}
+	// A sandbox cloned from a disk snapshot runs the image the snapshot was
+	// saved from. One the host lacks fails before anything is reserved, with
+	// the error the server forgets its copy on.
+	if a.FromDiskSnapshot != "" && a.TemplateTag == "" {
+		snapshot, err := m.diskSnapshot(a.FromDiskSnapshot)
+		if err != nil {
+			return err
+		}
+		a.TemplateTag = snapshot.TemplateTag
 	}
 	if a.TemplateTag == "" {
 		a.TemplateTag, _ = m.Templates.Image(a.Template)
@@ -477,6 +506,93 @@ func (m *Manager) Pause(ctx context.Context, id string) error {
 	}
 	return m.finish(r, err)
 }
+
+// SaveDisks saves a paused sandbox's disks as disk snapshot snapshotID. The
+// pause must have synced them. A resident VM is evicted first: Tart copies
+// only a stopped VM's disks, and its process may still hold writes.
+func (m *Manager) SaveDisks(ctx context.Context, sandboxID, snapshotID string) (protocol.DiskSnapshotInfo, error) {
+	m.Gate.Lock()
+	defer m.Gate.Unlock()
+	r, err := m.get(sandboxID)
+	if err != nil {
+		return protocol.DiskSnapshotInfo{}, err
+	}
+	if !validID(snapshotID) {
+		return protocol.DiskSnapshotInfo{}, errors.New("invalid disk snapshot id")
+	}
+	if r.State != "paused" || r.Operation != "" || !r.DisksSynced {
+		return protocol.DiskSnapshotInfo{}, errors.New("sandbox is not paused with synced disks")
+	}
+	if r.Resident {
+		if err = m.evict(ctx, r); err != nil {
+			return protocol.DiskSnapshotInfo{}, err
+		}
+		if r.Resident {
+			return protocol.DiskSnapshotInfo{}, errors.New("sandbox has active work")
+		}
+	}
+	return m.Runtime.SaveDisks(ctx, r, snapshotID)
+}
+
+// DeleteDisks removes a disk snapshot, waiting out a create cloning it.
+func (m *Manager) DeleteDisks(ctx context.Context, snapshotID string) error {
+	m.Gate.Lock()
+	defer m.Gate.Unlock()
+	if !validID(snapshotID) {
+		return errors.New("invalid disk snapshot id")
+	}
+	return m.Runtime.DeleteDisks(ctx, snapshotID)
+}
+
+// disksSynced reports whether the sandbox's last pause synced its disks.
+func (m *Manager) disksSynced(id string) bool {
+	m.Gate.Lock()
+	defer m.Gate.Unlock()
+	r := m.records[id]
+	return r != nil && r.DisksSynced
+}
+
+func (m *Manager) diskSnapshot(id string) (protocol.DiskSnapshotInfo, error) {
+	snapshots, err := m.Runtime.DiskSnapshots()
+	if err != nil {
+		return protocol.DiskSnapshotInfo{}, err
+	}
+	for _, s := range snapshots {
+		if s.ID == id {
+			return s, nil
+		}
+	}
+	return protocol.DiskSnapshotInfo{}, errSnapshotNotFound
+}
+
+// ArchiveDisks and CopyDisks move a snapshot through object storage. They
+// run outside the host gate: a transfer takes minutes and must not hold up
+// CI launches or other sandboxes.
+func (m *Manager) ArchiveDisks(ctx context.Context, args protocol.ArchiveDisksArgs) (protocol.ArchiveResult, error) {
+	if !validID(args.SnapshotID) {
+		return protocol.ArchiveResult{}, errors.New("invalid disk snapshot id")
+	}
+	return m.Runtime.ArchiveDisks(ctx, args)
+}
+
+func (m *Manager) CopyDisks(ctx context.Context, args protocol.CopyDisksArgs) (protocol.DiskSnapshotInfo, error) {
+	if !validID(args.SnapshotID) {
+		return protocol.DiskSnapshotInfo{}, errors.New("invalid disk snapshot id")
+	}
+	return m.Runtime.CopyDisks(ctx, args)
+}
+
+// DiskSnapshots lists the host's disk snapshots for its reports. A listing
+// that fails reports none rather than stopping the report.
+func (m *Manager) DiskSnapshots() []protocol.DiskSnapshotInfo {
+	snapshots, err := m.Runtime.DiskSnapshots()
+	if err != nil {
+		slog.Warn("macOS disk snapshots unreadable", "error", err)
+		return nil
+	}
+	return snapshots
+}
+
 func (m *Manager) evict(ctx context.Context, r *Record) error {
 	if !r.Resident || r.WorkerID != "" || r.HoldID != "" || m.active[r.SandboxID] > 0 {
 		return nil

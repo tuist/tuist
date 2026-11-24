@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Batching mode task state, which changes frequently
 //!
 
@@ -598,28 +600,40 @@ impl DirtyTimeWindows {
     /// Get the effective count of time windows, which is the number of time windows that can be
     /// used for query, compute from total time window range divided by `window_size`.
     pub fn effective_count(&self, window_size: &Duration) -> usize {
-        if self.windows.is_empty() {
+        if self.windows.is_empty() || window_size.is_zero() {
             return 0;
         }
-        let window_size =
-            chrono::Duration::from_std(*window_size).unwrap_or(chrono::Duration::zero());
-        let total_window_time_range =
-            self.windows
-                .iter()
-                .fold(chrono::Duration::zero(), |acc, (start, end)| {
-                    if let Some(end) = end {
-                        acc + end.sub(start).unwrap_or(chrono::Duration::zero())
-                    } else {
-                        acc + window_size
-                    }
-                });
+        let total_nanos: u128 = self
+            .windows
+            .iter()
+            .map(|(start, end)| {
+                if let Some(end) = end {
+                    end.sub(start)
+                        .and_then(|duration| duration.to_std().ok())
+                        .unwrap_or_default()
+                        .as_nanos()
+                } else {
+                    window_size.as_nanos()
+                }
+            })
+            .sum();
+        usize::try_from(total_nanos / window_size.as_nanos()).unwrap_or(usize::MAX)
+    }
 
-        // not sure window_size is zero have any meaning, but just in case
-        if window_size.num_seconds() == 0 {
-            0
-        } else {
-            (total_window_time_range.num_seconds() / window_size.num_seconds()) as usize
-        }
+    fn window_range(window_size: chrono::Duration, count: u128) -> Result<chrono::Duration, Error> {
+        let nanos = window_size
+            .to_std()
+            .ok()
+            .and_then(|duration| duration.as_nanos().checked_mul(count));
+        nanos
+            .and_then(|nanos| {
+                let seconds = u64::try_from(nanos / 1_000_000_000).ok()?;
+                chrono::Duration::from_std(Duration::new(seconds, (nanos % 1_000_000_000) as u32))
+                    .ok()
+            })
+            .context(UnexpectedSnafu {
+                reason: "time-window budget exceeds the supported duration range",
+            })
     }
 
     /// Generate all filter expressions consuming all time windows
@@ -637,7 +651,7 @@ impl DirtyTimeWindows {
         task_ctx: Option<&BatchingTask>,
     ) -> Result<Option<FilterExprInfo>, Error> {
         ensure!(
-            window_size.num_seconds() > 0,
+            window_size > chrono::Duration::zero(),
             UnexpectedSnafu {
                 reason: "window_size is zero, can't generate filter exprs",
             }
@@ -679,7 +693,7 @@ impl DirtyTimeWindows {
         }
 
         // get the first `window_cnt` time windows
-        let max_time_range = window_size * window_cnt as i32;
+        let max_time_range = Self::window_range(window_size, window_cnt as u128)?;
 
         let mut to_be_query = BTreeMap::new();
         let mut new_windows = self.windows.clone();
@@ -711,13 +725,14 @@ impl DirtyTimeWindows {
                 // too large a window, split it
                 // split at window_size * times
                 let surplus = max_time_range - cur_time_range;
-                if surplus.num_seconds() <= window_size.num_seconds() {
+                if surplus < window_size {
                     // Skip splitting if surplus is smaller than window_size
                     break;
                 }
-                let times = surplus.num_seconds() / window_size.num_seconds();
+                let times =
+                    surplus.to_std().unwrap().as_nanos() / window_size.to_std().unwrap().as_nanos();
 
-                let split_offset = window_size * times as i32;
+                let split_offset = Self::window_range(window_size, times)?;
                 let split_at = start
                     .add_duration(split_offset.to_std().unwrap())
                     .context(TimeSnafu)?;
@@ -1194,6 +1209,87 @@ mod test {
                 .map(|e| unparser.expr_to_sql(e).unwrap().to_string());
             assert_eq!(expected_filter_expr, to_sql.as_deref());
         }
+    }
+
+    #[test]
+    fn test_large_fractional_window_budget_preserves_future_dirty_work() {
+        for days in [30, 60] {
+            let mut dirty = DirtyTimeWindows::default();
+            let start = Timestamp::new_millisecond(0);
+            let boundary = Timestamp::new_millisecond(days * 24 * 3600 * 1000);
+            let end = Timestamp::new_millisecond(boundary.value() + 1);
+            dirty.add_window(start, Some(boundary));
+            let budget = dirty.effective_count(&Duration::from_millis(1));
+            assert_eq!(budget as i64, days * 86_400_000);
+            dirty.add_window(boundary, Some(end));
+            let selected = dirty
+                .gen_filter_exprs(
+                    "ts",
+                    Some(start),
+                    chrono::Duration::milliseconds(1),
+                    budget,
+                    0,
+                    None,
+                )
+                .unwrap()
+                .expect("a large positive budget must select the retained range");
+            assert_eq!(selected.time_ranges, vec![(start, boundary)]);
+            assert_eq!(dirty.windows, BTreeMap::from([(boundary, Some(end))]));
+        }
+    }
+
+    #[test]
+    fn test_fractional_window_budget_preserves_future_dirty_work() {
+        for stride_ms in [1500, 250] {
+            let mut retained = DirtyTimeWindows::default();
+            let start = Timestamp::new_millisecond(stride_ms);
+            let boundary = Timestamp::new_millisecond(3 * stride_ms);
+            let end = Timestamp::new_millisecond(4 * stride_ms);
+            retained.add_window(start, Some(boundary));
+            let budget = retained.effective_count(&Duration::from_millis(stride_ms as u64));
+            let mut dirty = retained;
+            dirty.add_window(boundary, Some(end));
+            // Supply the correct two-bin budget independently, so a count-only
+            // fix cannot hide the splitter's separate fractional-stride error.
+            let selected = dirty
+                .gen_filter_exprs(
+                    "ts",
+                    Some(start),
+                    chrono::Duration::milliseconds(stride_ms),
+                    2,
+                    0,
+                    None,
+                )
+                .map(|filter| filter.map(|f| f.time_ranges));
+            assert_eq!(
+                (budget, selected.unwrap(), dirty.windows),
+                (
+                    2,
+                    Some(vec![(start, boundary)]),
+                    BTreeMap::from([(boundary, Some(end))])
+                ),
+                "fractional stride {stride_ms}ms must not consume the future bin",
+            );
+        }
+    }
+
+    #[test]
+    fn test_single_window_budget_preserves_adjacent_dirty_window() {
+        let mut dirty = DirtyTimeWindows::default();
+        let start = Timestamp::new_second(12 * 3600);
+        let boundary = Timestamp::new_second(13 * 3600);
+        let end = Timestamp::new_second(14 * 3600);
+        dirty.add_window(start, Some(boundary));
+        dirty.add_window(boundary, Some(end));
+        let recovered = dirty.gen_filter_exprs(
+            "ts", Some(start), chrono::Duration::hours(1), 1, 0, None,
+        ).unwrap().expect("one retained hour must produce a query even after merging with adjacent dirty work");
+        assert_eq!(recovered.time_ranges, vec![(start, boundary)]);
+        let remaining = dirty
+            .gen_filter_exprs("ts", Some(start), chrono::Duration::hours(1), 1, 0, None)
+            .unwrap()
+            .expect("the adjacent dirty hour must remain queued");
+        assert_eq!(remaining.time_ranges, vec![(boundary, end)]);
     }
 
     #[test]

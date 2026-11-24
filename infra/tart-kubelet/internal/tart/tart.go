@@ -130,8 +130,21 @@ func (s *vmSize) UnmarshalJSON(b []byte) error {
 // error and retries on its normal cadence, so a wedged op self-heals
 // instead of stranding the Pod. Package-level vars (not consts) so
 // tests can shrink them.
+//
+// A pull's deadline is the slowest link a golden can still arrive over,
+// because a killed pull starts again from nothing: it unlocks its
+// temporary directory, and the next `tart` command other than pull or
+// clone (tart-kubelet runs `tart list` and `tart get` all the time)
+// garbage-collects it. Golden pulls run outside the reconcile, one per
+// host, so a hung pull holds only that host's golden queue. Evidence: on
+// 2026-11-21 larch's ten minis pulled 55 to 62 GB images from ghcr.io at
+// about 220 Mbit/s each (2.2 Gbit/s for the site). Each needed about 37
+// minutes, so with a 20 minute deadline 133 of 159 staged pulls failed
+// and runner Pods waited on pulls for up to 50 minutes. An hour finishes
+// such a pull down to about 140 Mbit/s and matches the prewarm and follow
+// bounds (podagent's defaultPrewarmTimeout).
 var (
-	pullTimeout   = 20 * time.Minute
+	pullTimeout   = time.Hour
 	cloneTimeout  = 5 * time.Minute
 	setTimeout    = 1 * time.Minute
 	deleteTimeout = 5 * time.Minute

@@ -17,11 +17,11 @@
 
 编辑 `server/priv/docs/en` 下的英文页面。翻译由单独的流程管理，因此不要编辑其他语言目录。侧边栏在 `server/lib/tuist/docs_sidebar.ex` 中定义；请在那里添加新页面，以便读者能够找到它们。
 
-当多个页面共享相同的文本时（例如不同构建系统中的相同章节），将其放入一个文件名以 `_` 开头且与这些页面相邻的文件中，并通过指向该文件的 `@snippet:` HTML 注释进行引用，就像不稳定测试页面所做的那样。以 `_` 开头的文件不会作为独立页面发布。
+当多个页面共享同一段文本时（例如不同构建系统中的相同章节），将其放入一个文件名以 `_` 开头并位于这些页面旁边的文件中，并通过指向该文件的 `@snippet:` HTML 注释进行包含，不稳定测试页面就是这样做的。以 `_` 开头的文件不会作为独立页面发布。
 
 ### 本地设置 {#set-up-locally}
 
-从 `server` 目录运行服务器，按照其[设置说明](https://github.com/tuist/tuist/blob/main/server/AGENTS.md)操作：
+从 `server` 目录运行服务器，按照其 [设置说明](https://github.com/tuist/tuist/blob/main/server/AGENTS.md) 操作：
 
 ```bash
 cd server
@@ -35,4 +35,4 @@ mise run dev
 
 CLI 参考文档是根据最新 CLI 版本的命令规范生成的，因此无需在本地构建。
 
-ProjectDescription API 参考文档作为 DocC 站点单独托管在 [projectdescription.tuist.dev](https://projectdescription.tuist.dev)。要在本地构建它，请从仓库根目录运行 `mise run docs:project-description`。
+ProjectDescription API 参考文档作为 DocC 站点单独托管在 [projectdescription.tuist.dev](https://projectdescription.tuist.dev)。若要在本地构建，请从仓库根目录运行 `mise run docs:project-description`。

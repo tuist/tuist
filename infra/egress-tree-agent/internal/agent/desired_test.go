@@ -23,6 +23,7 @@ func TestParseEgressClassRejects(t *testing.T) {
 		"not json":        `1:5`,
 		"wrong major":     `{"classid":"2:5"}`,
 		"root minor":      `{"classid":"1:1"}`,
+		"private minor":   `{"classid":"1:2"}`,
 		"zero minor":      `{"classid":"1:0"}`,
 		"non-hex minor":   `{"classid":"1:zz"}`,
 		"minor overflow":  `{"classid":"1:10000"}`,

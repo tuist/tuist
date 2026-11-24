@@ -16,6 +16,7 @@
           <div data-part="icon">
             <.git_commit :if={@subject.kind == :commit} />
             <.git_branch :if={@subject.kind == :branch} />
+            <.git_merge :if={@subject.kind == :pull_request} />
           </div>
         </div>
         <h1 data-part="label" aria-label={subject_title(@subject)}>{@subject.name}</h1>
@@ -48,7 +49,7 @@
                   label={commit_status_label(@summary)}
                   color={commit_status_color(@summary)}
                   style="light-fill"
-                  size="large"
+                  size="medium"
                 />
               </span>
             </span>
@@ -57,6 +58,23 @@
       </div>
     </div>
   </div>
+
+  <.alert
+    :if={@subject.kind == :commit and :dirty_run_excluded in Commits.gap_reasons(@summary)}
+    id="coverage-dirty-runs"
+    status="warning"
+    type="secondary"
+    size="large"
+    title={
+      dgettext("dashboard_tests", "Runs from a checkout with uncommitted changes don't count")
+    }
+    description={
+      dgettext(
+        "dashboard_tests",
+        "They measured code that isn't the commit's, so their coverage is left out of the commit's and the actual coverage may be higher. To measure the commit, commit or discard those changes before testing, or keep files your CI job writes out of the checkout or ignored by Git. The Test Runs tab lists them as Discarded."
+      )
+    }
+  />
 
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
@@ -77,8 +95,8 @@
   <%= if not @loading do %>
     <%!-- Overview --%>
     <.coverage_analytics_card
-      :if={@tab == "overview" and @subject.kind == :branch}
-      branch={@subject.branch}
+      :if={@tab == "overview" and @subject.kind != :commit}
+      branch={series_label(@subject)}
       latest={@latest}
       trends={@trends}
       points={@points}
@@ -95,7 +113,7 @@
       </:actions>
     </.coverage_analytics_card>
     <.card
-      :if={@tab == "overview" and @subject.kind != :branch}
+      :if={@tab == "overview" and @subject.kind == :commit}
       title={dgettext("dashboard_tests", "Analytics")}
       icon="chart_arcs"
       data-part="summary-card"
@@ -345,7 +363,7 @@
       </:actions>
       <.card_section data-part="commits-section">
         <.alert
-          :if={@commits_ordered_by == :time and @subject.kind == :branch and @commit_rows != []}
+          :if={@commits_ordered_by == :time and @subject.kind != :commit and @commit_rows != []}
           id="coverage-commits-time-order"
           status="information"
           type="secondary"

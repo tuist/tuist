@@ -1,15 +1,15 @@
 ---
 {
   "title": "Primeros pasos",
-  "titleTemplate": ":title · Primeros pasos · Guías · Tuist",
-  "description": "Elige la ruta de Tuist que se adapte a cómo se compila tu app hoy: Xcode, proyectos de Xcode generados, Gradle, Elixir, Rust, Bazel o Once."
+  "titleTemplate": ":title · Guías · Tuist",
+  "description": "Elige la ruta de Tuist que se ajuste a cómo está construida tu app hoy: Xcode, proyectos de Xcode generados, Gradle, Elixir, Rust, Bazel o Once."
 }
 ---
-# Empieza {#get-started}
+# Comienza {#get-started}
 
-Elige la ruta que se adapte a cómo está construida tu app hoy. Cada una te guía paso a paso sobre qué instalar, cómo habilitar las funcionalidades de caché, análisis y tests, y cómo verificar la configuración de extremo a extremo. Puedes adoptarlas por separado o combinarlas si publicas en más de una plataforma.
+Elige la ruta que se ajuste a cómo se compila tu app hoy. Cada una te guía paso a paso sobre qué instalar, cómo habilitar las funcionalidades de caché, análisis y tests, y cómo verificar la configuración de extremo a extremo. Puedes adoptarlas de forma independiente o combinarlas si publicas en más de una plataforma.
 
-La mayoría de las rutas usan la <.localized_link href="/guides/install-tuist">interfaz de línea de comandos de Tuist</.localized_link>. Elixir utiliza el paquete Hex, y Once se conecta a través de su proveedor nativo de Tuist; ninguno requiere la CLI de Tuist para su integración.
+La mayoría de las rutas usan la <.localized_link href="/guides/install-tuist">interfaz de línea de comandos de Tuist</.localized_link>. Elixir usa el paquete Hex y Once se conecta a través de su proveedor nativo de Tuist; ninguno requiere la CLI de Tuist para su integración.
 
 ## Proyecto de Xcode {#existing-xcode-project}
 
@@ -25,30 +25,30 @@ Permite que Tuist defina y genere tu proyecto de Xcode a partir de manifiestos S
 
 ## Proyecto de Gradle {#gradle-project}
 
-Conecta un proyecto de Gradle a la caché remota de Tuist, al análisis de compilaciones y al análisis de tests mediante el plugin `dev.tuist` de Gradle.
+Conecta un proyecto de Gradle a la caché remota, al análisis de compilaciones y al análisis de tests de Tuist mediante el plugin de Gradle `dev.tuist`.
 
 <.localized_link href="/guides/get-started/gradle-project">Start with a Gradle project →</.localized_link>
 
 ## Proyecto de Elixir {#elixir-project}
 
-Conecta un proyecto de Elixir al análisis de compilaciones, al análisis de tests, a la detección de tests inestables y al reparto de tests de Tuist mediante el paquete Hex `tuist_ex`.
+Conecta un proyecto de Elixir al análisis de compilaciones, al análisis de tests, a la detección de tests inestables y a la distribución de tests de Tuist mediante el paquete Hex `tuist_ex`.
 
 <.localized_link href="/guides/get-started/elixir-project">Start with an Elixir project →</.localized_link>
 
 ## Proyecto de Rust {#rust-project}
 
-Ejecuta Cargo a través de la CLI de Tuist para informar de las compilaciones y de los resultados individuales de los tests, incluidos los doctests, e investiga los tests inestables.
+Ejecuta Cargo a través de la CLI de Tuist para reportar compilaciones y resultados de tests individuales, incluidos los doctests, e investigar tests inestables.
 
 <.localized_link href="/guides/get-started/rust-project">Start with a Rust project →</.localized_link>
 
 ## Proyecto de Bazel {#bazel-project}
 
-Apunta un espacio de trabajo de Bazel a la caché de la API de ejecución remota de Tuist y al servicio de eventos de compilación para compartir aciertos de caché y análisis con tu equipo y tu CI.
+Apunta un espacio de trabajo de Bazel a la caché de la API de Ejecución Remota y al Servicio de Eventos de Compilación de Tuist para compartir aciertos de caché y análisis con tu equipo y en CI.
 
 <.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
 
 ## Proyecto de Once {#once-project}
 
-Conecta los scripts cacheables y los grafos de compilación de Once a Tuist para obtener caché compartida, análisis en tiempo real de compilaciones y tests, reparto de tests alojado y vistas previas de aplicaciones.
+Conecta los scripts cacheables y los grafos de compilación de Once a Tuist para obtener caché compartida, análisis en tiempo real de compilaciones y tests, distribución de tests alojada y previsualizaciones de aplicaciones.
 
 <.localized_link href="/guides/get-started/once-project">Start with a Once project →</.localized_link>

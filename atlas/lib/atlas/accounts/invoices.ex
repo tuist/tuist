@@ -7,7 +7,6 @@ defmodule Atlas.Accounts.Invoices do
   alias Atlas.Accounts.Amounts
   alias Atlas.Accounts.ExchangeRates
   alias Atlas.Accounts.Invoice
-  alias Atlas.Accounts.InvoicePaidNotifier
   alias Atlas.Accounts.OrderForms
   alias Atlas.Accounts.StripeCustomers
   alias Atlas.Audit
@@ -527,49 +526,24 @@ defmodule Atlas.Accounts.Invoices do
   end
 
   def upsert_stripe_invoice(account, %Stripe.Invoice{} = stripe_invoice) do
-    prior_status = existing_invoice_status(stripe_invoice.id)
-
-    result =
-      %Invoice{account_id: account.id}
-      |> Invoice.changeset(stripe_invoice_attrs(stripe_invoice))
-      |> Repo.insert(
-        on_conflict:
-          {:replace,
-           [
-             :account_id,
-             :number,
-             :due_date,
-             :amount_value,
-             :amount_currency,
-             :status,
-             :stripe_url,
-             :updated_at
-           ]},
-        conflict_target: [:source, :external_id]
-      )
-
-    with {:ok, %Invoice{} = invoice} <- result do
-      maybe_notify_paid(account, invoice, prior_status)
-    end
-
-    result
+    %Invoice{account_id: account.id}
+    |> Invoice.changeset(stripe_invoice_attrs(stripe_invoice))
+    |> Repo.insert(
+      on_conflict:
+        {:replace,
+         [
+           :account_id,
+           :number,
+           :due_date,
+           :amount_value,
+           :amount_currency,
+           :status,
+           :stripe_url,
+           :updated_at
+         ]},
+      conflict_target: [:source, :external_id]
+    )
   end
-
-  defp existing_invoice_status(external_id) when is_binary(external_id) do
-    case Repo.get_by(Invoice, source: "stripe", external_id: external_id) do
-      nil -> :new
-      %Invoice{status: status} -> status
-    end
-  end
-
-  defp existing_invoice_status(_external_id), do: :new
-
-  defp maybe_notify_paid(%Account{} = account, %Invoice{status: "paid"} = invoice, prior_status)
-       when is_binary(prior_status) and prior_status != "paid" do
-    InvoicePaidNotifier.notify(account, invoice)
-  end
-
-  defp maybe_notify_paid(_account, _invoice, _prior_status), do: :ok
 
   defp audit_draft_invoice(action, result) do
     account = result.account

@@ -87,17 +87,23 @@ derived from it.
 ## Retention is not here
 
 ClickHouse writes backups but never removes them, and it cannot list or delete
-object storage from SQL, so pruning belongs to a bucket lifecycle rule on the
-`{{ $m.backup.prefix }}/{{ .Release.Namespace }}/` prefix. Express it in whole
-weeks and longer than the longest chain: deleting a full orphans every
-incremental that was based on it, so a rule of "older than 7 days" would strip
-the base out from under backups it leaves in place.
+object storage from SQL, so pruning belongs to bucket lifecycle rules on the
+`{{ $m.backup.prefix }}/{{ .Release.Namespace }}/` prefix, set on the bucket
+outside this chart. Deleting a full orphans every incremental based on it, so
+expire `full/` at least a week after `incremental/`: a week's last incremental
+is written six days after its full. Production expires `incremental/` after 14
+days and `full/` after 21. Without a rule nothing is ever deleted, which is how
+production's backups reached 67 TB by 2026-W48.
+
+Changing `backup.bucket` starts a new chain: the next incremental finds no full
+in the new bucket and takes one. Backups in the old bucket stay restorable
+only by pointing the `backups` disk back at it.
 
 ## Failure is visible in the cluster, not here
 
 Managed clusters have no Prometheus Operator, so there is no PrometheusRule.
-Alert in Grafana Cloud on the absence of a recent success rather than on
-`kube_job_status_failed`:
+Alert in Grafana Cloud, over the cluster's Pulse metrics, on the absence of a
+recent success rather than on `kube_job_status_failed`:
 
     (
       time() - max by (cluster, namespace) (

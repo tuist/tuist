@@ -1,3 +1,8 @@
+# Build every macOS target for the release binary's minimum OS (BUILD.bazel). Without it, targets
+# such as swifterpm_tests target the SDK's macOS, so an Xcode newer than the machine's macOS builds
+# tests that cannot load there (Xcode 27.2 on an older runner macOS, 2026-11-18).
+common --macos_minimum_os=15.0
+
 # CI settings, enabled with --config=ci.
 
 # The workflow persists this directory across runs. Archives are stored by the hashes pinned in

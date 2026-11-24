@@ -12,12 +12,13 @@ public struct BuildOnceCommand: ParsableCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "once",
-            abstract: "A set of commands to inspect Once runs.",
+            commandName: "struo",
+            abstract: "A set of commands to inspect Struo runs.",
             subcommands: [
                 BuildOnceListCommand.self,
                 BuildOnceShowCommand.self,
-            ]
+            ],
+            aliases: ["once"]
         )
     }
 }
@@ -27,7 +28,7 @@ public struct BuildOnceListCommand: AsyncParsableCommand, NooraReadyCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
-            abstract: "Lists the Once runs of a project, newest first."
+            abstract: "Lists the Struo runs of a project, newest first."
         )
     }
 
@@ -83,11 +84,11 @@ public struct BuildOnceShowCommand: AsyncParsableCommand, NooraReadyCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "show",
-            abstract: "Shows a Once run, including its actions, cache, and test totals."
+            abstract: "Shows a Struo run, including its actions, cache, and test totals."
         )
     }
 
-    @Argument(help: "The ID of the Once run.")
+    @Argument(help: "The ID of the Struo run.")
     var runId: String
 
     @Option(

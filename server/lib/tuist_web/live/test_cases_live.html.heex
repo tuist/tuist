@@ -608,21 +608,21 @@
                       label={dgettext("dashboard_tests", "Flaky")}
                       color="attention"
                       style="light-fill"
-                      size="large"
+                      size="medium"
                     />
                     <.badge
                       :if={test_case.state == "muted"}
                       label={dgettext("dashboard_tests", "Muted")}
                       color="destructive"
                       style="light-fill"
-                      size="large"
+                      size="medium"
                     />
                     <.badge
                       :if={test_case.state == "skipped"}
                       label={dgettext("dashboard_tests", "Skipped")}
                       color="destructive"
                       style="light-fill"
-                      size="large"
+                      size="medium"
                     />
                     <.tooltip
                       :if={bazel_target_collapse?(test_case)}
@@ -642,7 +642,7 @@
                             label={dgettext("dashboard_tests", "Bazel target")}
                             color="primary"
                             style="light-fill"
-                            size="large"
+                            size="medium"
                           />
                         </span>
                       </:trigger>

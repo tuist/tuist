@@ -38,7 +38,11 @@ type Worker struct {
 	// their invoking user, against a temporary directory and an in-memory CAS.
 	Credential *syscall.Credential
 	// Start launches the action's command; nil uses exec.Cmd.Start.
-	Start   func(*exec.Cmd) error
+	Start func(*exec.Cmd) error
+	// Inputs, when set, is a directory of verified blobs named <hash>-<size>
+	// on the input root's filesystem (the node's inputs image); see
+	// linkInputs.
+	Inputs  string
 	entries int
 	// Streamed inputs by digest: the first path downloads a blob, later paths
 	// with the same digest copy that file instead of reading it again.
@@ -151,8 +155,11 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	}
 	defer os.Remove(stderr.Name())
 	defer stderr.Close()
-	limit := 10 * time.Minute
-	if action.Timeout != nil {
+	// Bazel gives every test its size's timeout, up to an hour for
+	// "eternal" tests that finish in seconds, so a longer request runs
+	// with the VM's ceiling instead of failing before it starts.
+	limit := MaxTimeout
+	if action.Timeout != nil && action.Timeout.AsDuration() < limit {
 		limit = action.Timeout.AsDuration()
 	}
 	runCtx, cancel := context.WithTimeout(ctx, limit)
@@ -272,8 +279,8 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 	if len(c.Arguments) == 0 || c.Arguments[0] == "" || len(c.Arguments) > 4096 {
 		return status.Error(codes.InvalidArgument, "invalid argv")
 	}
-	if a.Timeout != nil && (a.Timeout.CheckValid() != nil || a.Timeout.AsDuration() <= 0 || a.Timeout.AsDuration() > 10*time.Minute) {
-		return status.Error(codes.InvalidArgument, "timeout must be at most ten minutes")
+	if a.Timeout != nil && (a.Timeout.CheckValid() != nil || a.Timeout.AsDuration() <= 0) {
+		return status.Error(codes.InvalidArgument, "invalid timeout")
 	}
 	platform := a.Platform
 	if platform == nil {
@@ -314,13 +321,17 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 }
 
 // MemoryProperty sizes the VM an action runs in: the guest memory in GB, with
-// two vCPUs per 4 GB. Actions without it run with DefaultMemoryGB.
+// one vCPU per 2 GB. Actions without it run with DefaultMemoryGB.
 const MemoryProperty = "tuist-memory-gb"
 
 const DefaultMemoryGB = 4
 
+// MaxTimeout is the longest an action's command runs, within the server's
+// 13-minute execution lease.
+const MaxTimeout = 10 * time.Minute
+
 // MemorySizesGB are the VM sizes workers offer, smallest first.
-var MemorySizesGB = []int{4, 8, 16}
+var MemorySizesGB = []int{2, 4, 8, 16}
 
 // MemoryGB returns the VM memory a platform asks for.
 func MemoryGB(p *re.Platform) (int, error) {
@@ -339,7 +350,7 @@ func MemoryGB(p *re.Platform) (int, error) {
 	}
 	gb, err := strconv.Atoi(value)
 	if err != nil || strconv.Itoa(gb) != value || !slices.Contains(MemorySizesGB, gb) {
-		return 0, status.Error(codes.InvalidArgument, MemoryProperty+" must be 4, 8 or 16")
+		return 0, status.Error(codes.InvalidArgument, MemoryProperty+" must be 2, 4, 8 or 16")
 	}
 	return gb, nil
 }
@@ -581,6 +592,7 @@ func (w *Worker) materializeFiles(ctx context.Context, root *os.Root, files []in
 			return status.Error(codes.InvalidArgument, "invalid input digest")
 		}
 	}
+	files = w.linkInputs(files)
 	batchable := w.CAS.Blobs != nil && !w.CAS.noBatch.Load()
 	var small, streamed []inputFile
 	for _, f := range files {
@@ -909,4 +921,82 @@ func emptyDirectory(p string) bool {
 	defer f.Close()
 	_, err = f.Readdirnames(1)
 	return err == io.EOF
+}
+
+// linkInputs hard-links the inputs found in w.Inputs into the input root
+// and returns the files still to download. A linked input is read-only and
+// root's: every path of one digest shares the inode, so an action writing
+// one would change the others. The first path's executable bit decides the
+// inode's mode; paths of the other mode are copied from it like a repeated
+// streamed blob. A blob the directory lacks, or any error, leaves the file
+// to the usual download.
+func (w *Worker) linkInputs(files []inputFile) []inputFile {
+	if w.Inputs == "" {
+		return files
+	}
+	started := time.Now()
+	byDigest := map[string][]int{}
+	var order []string
+	for i, f := range files {
+		k := f.node.Digest.Hash + "-" + strconv.FormatInt(f.node.Digest.SizeBytes, 10)
+		if _, ok := byDigest[k]; !ok {
+			order = append(order, k)
+		}
+		byDigest[k] = append(byDigest[k], i)
+	}
+	done := make([]bool, len(files))
+	var blobs int
+	var bytes int64
+	for _, k := range order {
+		paths := byDigest[k]
+		first := files[paths[0]]
+		src := filepath.Join(w.Inputs, k)
+		info, err := os.Lstat(src)
+		if err != nil || !info.Mode().IsRegular() || info.Size() != first.node.Digest.SizeBytes {
+			continue
+		}
+		mode := os.FileMode(0o444)
+		if first.node.IsExecutable {
+			mode = 0o555
+		}
+		if info.Mode().Perm() != mode && os.Chmod(src, mode) != nil {
+			continue
+		}
+		var linkedPath string
+		for _, i := range paths {
+			f := files[i]
+			if f.node.IsExecutable != first.node.IsExecutable {
+				continue
+			}
+			// Directories exist and no symlink does yet (materialize makes
+			// them last), so the joined path stays inside the root.
+			if os.Link(src, filepath.Join(w.Root, f.path)) != nil {
+				continue
+			}
+			done[i] = true
+			linkedPath = f.path
+		}
+		if linkedPath == "" {
+			continue
+		}
+		blobs++
+		bytes += first.node.Digest.SizeBytes
+		// Paths of the other mode copy the linked file.
+		ready := make(chan struct{})
+		close(ready)
+		w.streamedMu.Lock()
+		if w.streamed == nil {
+			w.streamed = map[string]*streamedInput{}
+		}
+		w.streamed[first.node.Digest.Hash+"/"+strconv.FormatInt(first.node.Digest.SizeBytes, 10)] = &streamedInput{done: ready, path: linkedPath}
+		w.streamedMu.Unlock()
+	}
+	rest := files[:0:0]
+	for i, f := range files {
+		if !done[i] {
+			rest = append(rest, f)
+		}
+	}
+	w.CAS.observeRead(casRead{rpc: "image", blobs: blobs, bytes: bytes, took: time.Since(started), peer: "image"})
+	return rest
 }

@@ -9,14 +9,14 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
-  describe "organization_guild_enabled?/1" do
+  describe "organization_luft_enabled?/1" do
     test "requires the account flag in every environment, independently of personal AI" do
       account = %Account{id: 42}
 
       for env <- [:dev, :test, :stag, :can, :prod], enabled <- [false, true] do
         stub(Environment, :env, fn -> env end)
-        expect(FunWithFlags, :enabled?, fn :guild, [for: ^account] -> enabled end)
-        assert FeatureFlags.organization_guild_enabled?(account) == enabled
+        expect(FunWithFlags, :enabled?, fn :luft, [for: ^account] -> enabled end)
+        assert FeatureFlags.organization_luft_enabled?(account) == enabled
       end
     end
   end
@@ -38,8 +38,8 @@ defmodule Tuist.FeatureFlagsTest do
       user = %Tuist.Accounts.User{id: 42}
       stub(Environment, :env, fn -> :prod end)
 
-      for {enabled, flags} <- [{false, []}, {true, ["guild"]}] do
-        expect(FunWithFlags, :enabled?, fn :guild, [for: ^user] -> enabled end)
+      for {enabled, flags} <- [{false, []}, {true, ["luft"]}] do
+        expect(FunWithFlags, :enabled?, fn :luft, [for: ^user] -> enabled end)
         assert FeatureFlags.app_flags(user) == flags
       end
     end
@@ -117,11 +117,11 @@ defmodule Tuist.FeatureFlagsTest do
     test "canary and production require the account flag" do
       account = %Account{id: 42, name: "tuist"}
 
-      for env <- [:can, :prod], flag? <- [true, false] do
+      for env <- [:can, :prod], flag? <- [true, false], build_system <- [:xcode, :once] do
         stub(Environment, :env, fn -> env end)
         stub(FunWithFlags, :enabled?, fn :test_impact_analysis, [for: ^account] -> flag? end)
 
-        assert FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: :xcode}) == flag?
+        assert FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: build_system}) == flag?
       end
     end
 
@@ -183,48 +183,6 @@ defmodule Tuist.FeatureFlagsTest do
       assert FeatureFlags.kura_stable_hostname_enabled?(enabled)
       refute FeatureFlags.kura_stable_hostname_enabled?(opted_out)
     end
-  end
-
-  test "uses the runner feature flag in canary" do
-    account = %Account{id: 42, name: "tuist"}
-
-    stub(Environment, :env, fn -> :can end)
-
-    expect(FunWithFlags, :enabled?, fn :runners, [for: ^account] -> true end)
-
-    assert FeatureFlags.runners_enabled?(account)
-  end
-
-  test "uses the runner feature flag in production" do
-    account = %Account{id: 42, name: "tuist"}
-
-    stub(Environment, :env, fn -> :prod end)
-
-    expect(FunWithFlags, :enabled?, fn :runners, [for: ^account] -> true end)
-
-    assert FeatureFlags.runners_enabled?(account)
-  end
-
-  test "uses a runner feature flag snapshot in canary" do
-    account = %Account{id: 42, name: "tuist"}
-    other = %Account{id: 43, name: "other"}
-
-    flag = %FunWithFlags.Flag{
-      name: :runners,
-      gates: [%FunWithFlags.Gate{type: :actor, for: "account:#{account.id}", enabled: true}]
-    }
-
-    stub(Environment, :env, fn -> :can end)
-
-    assert FeatureFlags.runners_enabled?(account, flag)
-    refute FeatureFlags.runners_enabled?(other, flag)
-  end
-
-  test "defaults to enabled outside canary and production" do
-    stub(Environment, :env, fn -> :dev end)
-    reject(FunWithFlags, :enabled?, 2)
-
-    assert FeatureFlags.runners_enabled?(%Account{name: "tuist"})
   end
 
   describe "runner_site_enabled?/1" do

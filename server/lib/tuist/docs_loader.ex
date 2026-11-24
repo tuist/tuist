@@ -59,9 +59,7 @@ defmodule Tuist.Docs.Loader do
                              else
                                [
                                  syntax_highlight: [
-                                   formatter:
-                                     {:html_multi_themes,
-                                      themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+                                   formatter: :html_linked
                                  ]
                                ]
                              end)
@@ -632,7 +630,7 @@ defmodule Tuist.Docs.Loader do
 
       copy_button =
         EEx.eval_string(
-          ~s(<button data-part="copy" class="noora-neutral-button" data-size="large" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
+          ~s(<button data-part="copy" class="noora-ghost-button" data-variant="secondary" data-size="large" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
           copy_icon: @copy_icon,
           copy_check_icon: @copy_check_icon
         )

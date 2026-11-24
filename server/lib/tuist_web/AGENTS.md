@@ -57,3 +57,4 @@
 - Request/authentication boundaries: [controllers/AGENTS.md](controllers/AGENTS.md), [plugs/AGENTS.md](plugs/AGENTS.md), [rate_limit/AGENTS.md](rate_limit/AGENTS.md).
 - UI behavior: [components/AGENTS.md](components/AGENTS.md), [live/AGENTS.md](live/AGENTS.md), [marketing/AGENTS.md](marketing/AGENTS.md).
 - Browser telemetry: [browser_telemetry/AGENTS.md](browser_telemetry/AGENTS.md).
+- Noora documentation at `/noora`: [noora/AGENTS.md](noora/AGENTS.md).

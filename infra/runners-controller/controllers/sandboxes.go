@@ -52,9 +52,16 @@ type sandboxDaemon struct {
 	// deferred is how many more bytes a growth the kubelet deferred is
 	// waiting for on the node.
 	deferred int64
+	// deferredCPU is how many more millicores a deferred CPU growth of a
+	// Linux daemon waits for: the server grows the request into the CPU
+	// idle warm runners hold, which they give up like memory.
+	deferredCPU int64
 	// execution marks a remote execution worker rather than the node's
 	// agent sandbox daemon.
 	execution bool
+	// floorBytes and ceilingBytes are an execution worker's carve-out
+	// bounds (MEMORY_FLOOR_GIB, MEMORY_CEILING_GIB).
+	floorBytes, ceilingBytes int64
 }
 
 // grantNode is the name the daemon connects to the server as, which its
@@ -106,6 +113,9 @@ func listSandboxDaemons(ctx context.Context, reader client.Reader, namespace str
 		}
 		daemon := sandboxDaemon{native: native, name: pod.Name, node: pod.Spec.NodeName, memory: max(asked, allocated)}
 		daemon.execution = pod.Labels[executionDaemonLabel] == "true"
+		if daemon.execution {
+			daemon.floorBytes, daemon.ceilingBytes = envGiB(pod, "MEMORY_FLOOR_GIB"), envGiB(pod, "MEMORY_CEILING_GIB")
+		}
 		daemon.terminating = !pod.DeletionTimestamp.IsZero()
 		footprint := podFootprint(pod)
 		daemon.cpuMilli = footprint.Cpu().MilliValue()
@@ -115,6 +125,9 @@ func listSandboxDaemons(ctx context.Context, reader client.Reader, namespace str
 		// A deleting daemon still holds its allocation while it pauses VMs.
 		if pod.DeletionTimestamp.IsZero() && resizeDeferred(pod) && asked > allocated {
 			daemon.deferred = asked - allocated
+		}
+		if cpuAsked, cpuAllocated := daemonCPU(pod); !native && pod.DeletionTimestamp.IsZero() && resizeDeferred(pod) && cpuAsked > cpuAllocated {
+			daemon.deferredCPU = cpuAsked - cpuAllocated
 		}
 		daemons = append(daemons, daemon)
 	}
@@ -146,30 +159,43 @@ func nodeWithoutSandboxes(node *corev1.Node, daemons []sandboxDaemon) *corev1.No
 // daemonMemory returns requested memory and the larger of allocated/applied
 // memory, both of which can trail the request while a resize waits.
 func daemonMemory(pod *corev1.Pod) (asked, allocated int64) {
+	return daemonResource(pod, corev1.ResourceMemory, func(q resource.Quantity) int64 { return q.Value() })
+}
+
+// daemonCPU is daemonMemory in millicores.
+func daemonCPU(pod *corev1.Pod) (asked, allocated int64) {
+	return daemonResource(pod, corev1.ResourceCPU, func(q resource.Quantity) int64 { return q.MilliValue() })
+}
+
+// daemonResource sums the Pod's containers: with a vmm container
+// (sandboxes.vmm.enabled) the server resizes that one and the daemon's own
+// stays fixed, and both hold node memory.
+func daemonResource(pod *corev1.Pod, name corev1.ResourceName, value func(resource.Quantity) int64) (asked, allocated int64) {
 	for _, c := range pod.Spec.Containers {
-		if c.Name == sandboxdContainer {
-			if q, ok := c.Resources.Requests[corev1.ResourceMemory]; ok {
-				asked = q.Value()
+		var containerAsked int64
+		if q, ok := c.Resources.Requests[name]; ok {
+			containerAsked = value(q)
+		}
+		containerAllocated := containerAsked
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Name != c.Name {
+				continue
+			}
+			if q, ok := cs.AllocatedResources[name]; ok {
+				containerAllocated = value(q)
+			} else if cs.Resources != nil {
+				if q, ok := cs.Resources.Requests[name]; ok {
+					containerAllocated = value(q)
+				}
+			}
+			if cs.Resources != nil {
+				if q, ok := cs.Resources.Requests[name]; ok {
+					containerAllocated = max(containerAllocated, value(q))
+				}
 			}
 		}
-	}
-	allocated = asked
-	for _, cs := range pod.Status.ContainerStatuses {
-		if cs.Name != sandboxdContainer {
-			continue
-		}
-		if q, ok := cs.AllocatedResources[corev1.ResourceMemory]; ok {
-			allocated = q.Value()
-		} else if cs.Resources != nil {
-			if q, ok := cs.Resources.Requests[corev1.ResourceMemory]; ok {
-				allocated = q.Value()
-			}
-		}
-		if cs.Resources != nil {
-			if q, ok := cs.Resources.Requests[corev1.ResourceMemory]; ok {
-				allocated = max(allocated, q.Value())
-			}
-		}
+		asked += containerAsked
+		allocated += containerAllocated
 	}
 	return asked, allocated
 }
@@ -201,14 +227,21 @@ type sandboxCandidate struct {
 	since time.Time
 }
 
+// sandboxRoom is memory and CPU on a node: what a deferred daemon growth
+// waits for, or what runners leaving the node free.
+type sandboxRoom struct {
+	memory   int64
+	cpuMilli int64
+}
+
 // planSandboxPreemption chooses, per node with a deferred growth, the idle
-// warm runners whose memory covers what the growth still waits for once
-// runners already on their way off the node are counted. It is deterministic
-// over its inputs, so every pool's reconcile computes the same plan and
-// applies only its own part of it.
+// warm runners whose memory and CPU cover what the growth still waits for
+// once runners already on their way off the node are counted. It is
+// deterministic over its inputs, so every pool's reconcile computes the same
+// plan and applies only its own part of it.
 func planSandboxPreemption(
-	deficits map[string]int64,
-	freeing map[string]int64,
+	deficits map[string]sandboxRoom,
+	freeing map[string]sandboxRoom,
 	candidates map[string][]sandboxCandidate,
 ) []sandboxCandidate {
 	nodes := make([]string, 0, len(deficits))
@@ -219,8 +252,9 @@ func planSandboxPreemption(
 
 	var chosen []sandboxCandidate
 	for _, node := range nodes {
-		remaining := deficits[node] - freeing[node]
-		if remaining <= 0 {
+		memory := deficits[node].memory - freeing[node].memory
+		cpu := deficits[node].cpuMilli - freeing[node].cpuMilli
+		if memory <= 0 && cpu <= 0 {
 			continue
 		}
 		pool := append([]sandboxCandidate(nil), candidates[node]...)
@@ -231,11 +265,12 @@ func planSandboxPreemption(
 			return pool[a].pod.Name < pool[b].pod.Name
 		})
 		for _, c := range pool {
-			if remaining <= 0 {
+			if memory <= 0 && cpu <= 0 {
 				break
 			}
 			chosen = append(chosen, c)
-			remaining -= podMemory(c.pod)
+			memory -= podMemory(c.pod)
+			cpu -= allocationPodRequest(c.pod, corev1.ResourceCPU)
 		}
 	}
 	return chosen
@@ -289,14 +324,19 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 	for i := range nodes.Items {
 		inFleet[nodes.Items[i].Name] = !isReserved(&nodes.Items[i]) && !nodes.Items[i].Spec.Unschedulable
 	}
-	deficits := map[string]int64{}
+	deficits := map[string]sandboxRoom{}
 	daemons, err := r.sandboxDaemons(ctx)
 	if err != nil {
 		return false, err
 	}
 	for _, d := range daemons {
-		if d.deferred > 0 && inFleet[d.node] {
-			deficits[d.node] += d.deferred
+		if (d.deferred > 0 || d.deferredCPU > 0) && inFleet[d.node] {
+			deficit := deficits[d.node]
+			deficit.memory += d.deferred
+			if pool.Spec.OS == "linux" {
+				deficit.cpuMilli += d.deferredCPU
+			}
+			deficits[d.node] = deficit
 		}
 	}
 	if len(deficits) == 0 {
@@ -317,10 +357,16 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 		return false, fmt.Errorf("list runner pods: %w", err)
 	}
 	retired := r.retiredForSandboxes(now)
-	freeing := map[string]int64{}
+	freeing := map[string]sandboxRoom{}
+	free := func(node string, memory, cpu int64) {
+		room := freeing[node]
+		room.memory += memory
+		room.cpuMilli += cpu
+		freeing[node] = room
+	}
 	for node, runners := range retired {
 		for _, runner := range runners {
-			freeing[node] += runner.memory
+			free(node, runner.memory, runner.cpuMilli)
 		}
 	}
 	candidates := map[string][]sandboxCandidate{}
@@ -335,13 +381,13 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 		}
 		if !isAlive(pod) {
 			if !pod.DeletionTimestamp.IsZero() && now.Sub(pod.DeletionTimestamp.Time) < preemptionSettle {
-				freeing[node] += podMemory(pod)
+				free(node, podMemory(pod), allocationPodRequest(pod, corev1.ResourceCPU))
 			}
 			continue
 		}
 		if markedFor, marked := preemptionMark(pod, now); marked {
 			if markedFor == preemptedForSandboxes {
-				freeing[node] += podMemory(pod)
+				free(node, podMemory(pod), allocationPodRequest(pod, corev1.ResourceCPU))
 			}
 			continue
 		}
@@ -366,7 +412,13 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 		if err := reader.List(ctx, &allPods); err != nil {
 			return false, err
 		}
-		plan = planNativeSandboxPreemption(nodes.Items, allPods.Items, deficits, candidates, now)
+		memory := map[string]int64{}
+		for node, deficit := range deficits {
+			if deficit.memory > 0 {
+				memory[node] = deficit.memory
+			}
+		}
+		plan = planNativeSandboxPreemption(nodes.Items, allPods.Items, memory, candidates, now)
 	}
 	var mine []*corev1.Pod
 	for _, c := range plan {
@@ -417,8 +469,9 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 // the growth it made room for, and without the memory the next tick would
 // see the same growth waiting and retire another runner for it.
 type retiredRunner struct {
-	memory int64
-	at     time.Time
+	memory   int64
+	cpuMilli int64
+	at       time.Time
 }
 
 // retiredForSandboxes returns the runners retired for sandbox growths within
@@ -454,5 +507,5 @@ func (r *AutoscalerReconciler) rememberRetiredForSandboxes(pod *corev1.Pod, now 
 	if r.sandboxRetired[pod.Spec.NodeName] == nil {
 		r.sandboxRetired[pod.Spec.NodeName] = map[types.UID]retiredRunner{}
 	}
-	r.sandboxRetired[pod.Spec.NodeName][pod.UID] = retiredRunner{memory: podMemory(pod), at: now}
+	r.sandboxRetired[pod.Spec.NodeName][pod.UID] = retiredRunner{memory: podMemory(pod), cpuMilli: allocationPodRequest(pod, corev1.ResourceCPU), at: now}
 }

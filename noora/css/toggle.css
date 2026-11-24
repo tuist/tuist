@@ -3,6 +3,7 @@
     display: flex;
     gap: var(--noora-spacing-5);
     align-items: center;
+    cursor: pointer;
     user-select: none;
 
     &[data-disabled] {
@@ -11,27 +12,11 @@
 
     &:has([data-part="description"]) {
       align-items: start;
-    }
-  }
 
-  & [data-part="control"] {
-    &[data-disabled] {
-      cursor: not-allowed;
-
-      & [data-part="track"] {
-        background: var(--noora-choice-selector-disabled-background);
-      }
-    }
-
-    &:not([data-disabled])[data-state="unchecked"][data-hover] {
-      & [data-part="track"] {
-        background: var(--noora-choice-selector-switch-off-background-hover);
-      }
-    }
-
-    &:not([data-disabled])[data-state="checked"][data-hover] {
-      & [data-part="track"] {
-        background: var(--noora-choice-selector-check-background-hover);
+      /* Next to the 32px large control, the label's first line sits 6px
+         down, centered on it. */
+      & [data-size="large"] + div {
+        padding-top: var(--noora-spacing-3);
       }
     }
   }
@@ -56,68 +41,172 @@
     display: none;
   }
 
+  /* Medium is a 30px by 20px box, the line height of medium body text,
+     with the 26px by 14px track centered inside. Large is a 50px by 32px
+     box with a 40px by 22px track. */
   & .noora-toggle-control {
+    /* The thumb's width, which a hover stretches, and the 1px edge it
+       draws toward the rest of the track. */
+    --noora-toggle-thumb-width: 14px;
+    --noora-toggle-thumb-hover-width: 16px;
+    --noora-toggle-thumb-edge: 1px;
+    --noora-toggle-track-width: 26px;
+    --noora-toggle-track-height: 14px;
+    --noora-toggle-radius: var(--noora-radius-2);
+    /* One timing for the thumb and the fill, so they move as a unit. The
+       thumb is already on screen and travels, so it eases in and out. */
+    --noora-toggle-motion: 150ms var(--ease-in-out-cubic);
+    /* 1 where the thumb slides rightward, -1 where it slides leftward. */
+    --noora-toggle-direction: 1;
+
     display: flex;
+    flex: none;
+    justify-content: center;
     align-items: center;
     cursor: pointer;
     box-sizing: border-box;
-    width: 32px;
+    width: 30px;
     height: 20px;
 
+    &[data-size="large"] {
+      --noora-toggle-thumb-width: 22px;
+      --noora-toggle-thumb-hover-width: 25px;
+      --noora-toggle-track-width: 40px;
+      --noora-toggle-track-height: 22px;
+      --noora-toggle-radius: var(--noora-radius-3);
+      /* The large thumb travels further, so it takes a little longer. */
+      --noora-toggle-motion: 180ms var(--ease-in-out-cubic);
+
+      width: 50px;
+      height: 32px;
+    }
+
+    &:dir(rtl) {
+      --noora-toggle-thumb-edge: -1px;
+      --noora-toggle-direction: -1;
+    }
+
+    /* The track is always drawn off, like an outline ghost button. */
     & [data-part="track"] {
       position: relative;
-      display: flex;
-      align-items: center;
-      width: 28px;
-      height: 14px;
-      border-radius: var(--noora-radius-2);
-      box-shadow: var(--noora-border-light-default);
-      transition:
-        background-color 0.15s ease-in-out,
-        box-shadow 0.15s ease-in-out;
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-outline-border);
+      border-radius: var(--noora-toggle-radius);
+      background: var(--noora-surface-background-tertiary);
+      width: var(--noora-toggle-track-width);
+      height: var(--noora-toggle-track-height);
     }
 
+    /* The on fill, drawn like a primary button on a layer over the track,
+       so it can fade in and out. */
+    & [data-part="track"]::before {
+      position: absolute;
+      opacity: 0;
+      transition: opacity var(--noora-toggle-motion);
+      inset: 0;
+      box-shadow: var(--noora-button-border-primary);
+      border-radius: inherit;
+      background: var(--noora-button-background-primary);
+      content: "";
+    }
+
+    /* The thumb fills the track's height and slides along it with a
+       transform, which doesn't trigger layout. Its edge line is drawn on
+       the side facing the rest of the track only, so it doesn't double the
+       track's outline. */
     & [data-part="thumb"] {
       position: absolute;
-      width: 14px;
-      height: 14px;
-      border-radius: var(--noora-radius-2);
-      background: var(--noora-choice-selector-label);
-      box-shadow: var(--noora-border-light-default);
-      transition: inset-inline-start 0.15s ease-in-out;
+      transition:
+        transform var(--noora-toggle-motion),
+        width var(--noora-toggle-motion),
+        box-shadow var(--noora-toggle-motion);
+      inset-block: 0;
+      inset-inline-start: 0;
+      box-shadow: var(--noora-toggle-thumb-edge) 0px 0px 0px
+        var(--noora-button-ghost-outline-border);
+      border-radius: inherit;
+      background: var(--noora-button-primary-label);
+      width: var(--noora-toggle-thumb-width);
     }
 
-    &[data-state="unchecked"] {
-      & [data-part="track"] {
-        background: var(--noora-choice-selector-switch-off-background);
-      }
+    &:not([data-disabled])[data-hover] [data-part="track"]::before {
+      box-shadow: var(--noora-button-border-primary-hover);
+      background: var(--noora-button-background-primary-hover);
+    }
 
-      & [data-part="thumb"] {
-        inset-inline-start: 0;
+    /* Pressing stretches the thumb toward the other side, and so does
+       hovering with a mouse. Touch screens have no hover, so there the
+       press is the feedback. */
+    &:not([data-disabled])[data-active] {
+      --noora-toggle-thumb-width: var(--noora-toggle-thumb-hover-width);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      &:not([data-disabled])[data-hover] {
+        --noora-toggle-thumb-width: var(--noora-toggle-thumb-hover-width);
       }
     }
 
     &[data-state="checked"] {
-      & [data-part="track"] {
-        background: var(--noora-choice-selector-check-background);
-        box-shadow: var(--noora-choice-selector-check-border);
+      & [data-part="track"]::before {
+        opacity: 1;
       }
 
       & [data-part="thumb"] {
-        inset-inline-start: 14px;
+        /* To the far end. The width and the transform share one timing,
+           so the far edge stays put while a hover stretches the thumb. */
+        transform: translateX(
+          calc(
+            var(--noora-toggle-direction) *
+              (
+                var(--noora-toggle-track-width) -
+                  var(--noora-toggle-thumb-width)
+              )
+          )
+        );
+        box-shadow: 0px 0px 0px 0px transparent;
       }
     }
 
+    /* Keyboard focus draws the button focus ring, over hover. A change
+       made from the keyboard isn't animated. */
+    &[data-focus-visible] {
+      & [data-part="track"] {
+        box-shadow: var(--noora-button-border-focus);
+      }
+
+      & [data-part="track"]::before,
+      & [data-part="thumb"] {
+        transition: none;
+      }
+    }
+
+    /* Disabled, on or off, the track keeps the outline and the thumb takes
+       the disabled button label. */
     &[data-disabled] {
       cursor: not-allowed;
 
       & [data-part="track"] {
-        background: var(--noora-choice-selector-disabled-background);
-        box-shadow: var(--noora-border-light-default);
+        background: var(--noora-surface-background-secondary);
+      }
+
+      & [data-part="track"]::before {
+        opacity: 0;
       }
 
       & [data-part="thumb"] {
-        opacity: 0.6;
+        background: var(--noora-button-disabled-label);
+      }
+
+      &[data-state="checked"] [data-part="thumb"] {
+        box-shadow: calc(-1 * var(--noora-toggle-thumb-edge)) 0px 0px 0px
+          var(--noora-button-ghost-outline-border);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      & [data-part="track"]::before,
+      & [data-part="thumb"] {
+        transition: none;
       }
     }
   }

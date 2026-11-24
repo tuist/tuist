@@ -12,7 +12,7 @@ defmodule TuistWeb.API.SandboxesController do
   alias Tuist.Sandboxes.Uploads
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Responses
-  alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.SandboxError, as: Error
 
   plug(TuistWeb.Plugs.LoaderPlug)
 
@@ -21,14 +21,12 @@ defmodule TuistWeb.API.SandboxesController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  # Members, and account tokens with `account:sandboxes:write`, create
-  # sandboxes and run commands in them (`:sandboxes_write`). Sandboxes that
-  # serve an agent environment, an Amp integration or remote execution hold
-  # credentials or other people's work, so only admins reach
-  # those, and everything else (agent environments, Orb dispatch, analytics,
-  # archive) stays admin-only.
+  # Members, and account tokens with `account:sandboxes:write`, use every
+  # sandbox in the account (`:sandboxes_write`). Agent environments, which
+  # hold Anthropic credentials, and Orb dispatch stay admin-only.
   @member_actions [
     :index,
+    :analytics,
     :create,
     :show,
     :exec,
@@ -41,13 +39,14 @@ defmodule TuistWeb.API.SandboxesController do
     :create_upload,
     :pause,
     :resume,
-    :delete
+    :extend,
+    :delete,
+    :archive
   ]
 
   plug AuthorizationPlug, {:account, :sandboxes, :write} when action in @member_actions
   plug AuthorizationPlug, {:account, :account, :update} when action not in @member_actions
   plug(TuistWeb.Plugs.RequireSandboxesPlug)
-  plug :require_member_sandbox when action in @member_actions
 
   tags ["Sandboxes"]
 
@@ -107,6 +106,7 @@ defmodule TuistWeb.API.SandboxesController do
       agent_model: %Schema{type: :string},
       agent_system_prompt: %Schema{type: :string, nullable: true},
       setup_script: %Schema{type: :string, nullable: true},
+      macos_setup_script: %Schema{type: :string, nullable: true},
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
     },
@@ -133,6 +133,7 @@ defmodule TuistWeb.API.SandboxesController do
       :agent_model,
       :agent_system_prompt,
       :setup_script,
+      :macos_setup_script,
       :inserted_at,
       :updated_at
     ]
@@ -176,7 +177,13 @@ defmodule TuistWeb.API.SandboxesController do
       type: :string,
       nullable: true,
       description:
-        "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+        "Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB."
+    },
+    macos_setup_script: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB."
     }
   }
 
@@ -204,7 +211,12 @@ defmodule TuistWeb.API.SandboxesController do
 
   @error_responses %{
     forbidden: {"Forbidden", "application/json", Error},
-    too_many_requests: Responses.authorization_throttled()
+    too_many_requests: %{
+      Responses.authorization_throttled()
+      | description:
+          "The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.",
+        content: %{"application/json" => %OpenApiSpex.MediaType{schema: Error}}
+    }
   }
 
   @node_error_responses %{
@@ -269,7 +281,9 @@ defmodule TuistWeb.API.SandboxesController do
         {:error, :orb_bootstrap_failed} ->
           conn |> put_status(:bad_gateway) |> json(%{message: "Orb bootstrap failed. Check the sandbox image."})
 
-        {:error, reason} when reason in @orb_admission_refusals ->
+        {:error, reason}
+        when reason in @orb_admission_refusals or
+               (is_tuple(reason) and elem(reason, 0) == :host_busy) ->
           conn |> put_resp_header("x-tuist-orb-retry", "admission") |> sandbox_error(reason)
 
         {:error, reason} ->
@@ -332,6 +346,7 @@ defmodule TuistWeb.API.SandboxesController do
         :agent_model,
         :agent_system_prompt,
         :setup_script,
+        :macos_setup_script,
         :anthropic_organization_id,
         :anthropic_workspace_id,
         :anthropic_service_account_id,
@@ -359,7 +374,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:update_agent_environment,
     summary: "Update the agent settings of a connected environment.",
     description:
-      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
+      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup scripts and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
     operation_id: "updateSandboxAgentEnvironment",
     parameters:
       @account_parameters ++
@@ -399,6 +414,7 @@ defmodule TuistWeb.API.SandboxesController do
         :agent_model,
         :agent_system_prompt,
         :setup_script,
+        :macos_setup_script,
         :xcode_version | AgentEnvironment.federation_fields()
       ])
 
@@ -494,12 +510,12 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:create,
     summary: "Create a sandbox.",
     description:
-      "Boots a bare sandbox VM from the template. Useful to validate a template before connecting an environment.",
+      "Boots a bare sandbox VM from the template and answers once it runs. When every host is busy it waits up to 25 seconds for one to free up before it answers 503 with the code `fleet_busy` and a `retry-after`; don't retry that in a loop. Every error carries a stable `code`.",
     operation_id: "createSandbox",
     parameters: @account_parameters,
     request_body:
       {"Sandbox params", "application/json",
-       %Schema{title: "CreateSandbox", type: :object, properties: @shape_properties}},
+       %Schema{title: "CreateSandbox", type: :object, properties: SandboxSchemas.create()}},
     responses:
       @error_responses
       |> Map.merge(@node_error_responses)
@@ -607,7 +623,8 @@ defmodule TuistWeb.API.SandboxesController do
       offset: %Schema{type: :integer},
       status: %Schema{type: :string},
       exit_code: %Schema{type: :integer, nullable: true},
-      message: %Schema{type: :string}
+      message: %Schema{type: :string},
+      code: %Schema{type: :string, description: "An `error` line's machine-readable code, as in error responses."}
     },
     required: [:type]
   }
@@ -820,9 +837,14 @@ defmodule TuistWeb.API.SandboxesController do
         stream_logs(conn, sandbox, id, next, deadline)
 
       {:error, reason} ->
-        message = if reason == :not_found, do: "Command not found.", else: reason |> Query.error() |> elem(1)
-        {_result, conn} = send_lines(conn, [%{type: "error", message: message}])
-        conn
+        %{code: code, message: message} = Query.error(reason)
+        message = if reason == :not_found, do: "Command not found.", else: message
+
+        case send_lines(conn, [%{type: "error", message: message, code: code}]) do
+          {:ok, conn} -> conn
+          # The client went away; the stream already ended for it.
+          {:error, _reason} -> conn
+        end
     end
   end
 
@@ -980,6 +1002,27 @@ defmodule TuistWeb.API.SandboxesController do
   def resume(%{assigns: %{selected_account: account}} = conn, params),
     do: respond(conn, Query.run(:resume, account, string_keys(params)))
 
+  operation(:extend,
+    summary: "Extend a sandbox's lifetime.",
+    description:
+      "Starts the sandbox's lifetime again from now, with `lifetime_seconds` when given (at most 24 hours). A sandbox created through this API has its running commands cancelled and is paused and archived once its lifetime ends; sandboxes an integration owns have no lifetime and answer 409.",
+    operation_id: "extendSandbox",
+    parameters: @sandbox_parameters,
+    request_body:
+      {"Lifetime params", "application/json",
+       %Schema{title: "ExtendSandbox", type: :object, properties: %{lifetime_seconds: SandboxSchemas.lifetime()}}},
+    responses:
+      Map.merge(@error_responses, %{
+        ok: {"Sandbox", "application/json", @sandbox_schema},
+        bad_request: {"Invalid params", "application/json", Error},
+        not_found: {"The sandbox was not found", "application/json", Error},
+        conflict: {"The sandbox has no lifetime", "application/json", Error}
+      })
+  )
+
+  def extend(%{assigns: %{selected_account: account}, body_params: body_params} = conn, params),
+    do: respond(conn, Query.run(:extend, account, params |> Map.merge(body_params) |> string_keys()))
+
   operation(:delete,
     summary: "Delete a sandbox.",
     operation_id: "deleteSandbox",
@@ -1036,44 +1079,20 @@ defmodule TuistWeb.API.SandboxesController do
     end
   end
 
-  defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message})
+  defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message, code: "not_found"})
 
-  # A member reaches only the sandboxes they could have created: none that
-  # serves an agent environment, an Amp integration or remote execution. An
-  # account token is never an account administrator, so it is held to the
-  # same limit.
-  defp require_member_sandbox(%{assigns: %{selected_account: account}} = conn, _opts) do
-    subject = TuistWeb.Authentication.authenticated_subject(conn)
-
-    with %{sandbox_id: sandbox_id} <- conn.params,
-         false <- Tuist.Authorization.authorize(:account_update, subject, account) == :ok,
-         {:ok, sandbox} <- Sandboxes.get_sandbox(account, sandbox_id),
-         false <- Sandboxes.member_sandbox?(sandbox) do
-      conn
-      |> put_status(:forbidden)
-      |> json(%{message: "Only account administrators can use sandboxes that serve agents, Amp or remote execution."})
-      |> halt()
-    else
-      _ -> conn
-    end
-  end
-
-  # Every sandbox 503 comes after the server has already waited for a node or
-  # for capacity, so an immediate retry only repeats that wait. The hint is
-  # longer than any client retry budget (`RetryMiddleware` waits at most 30
-  # seconds per retry, 10 retries at most), so the CLI reports it at once.
-  @service_unavailable_retry_after_seconds 300
-
+  # `Query.error/1` decides the status, the code and the `retry-after`.
   defp sandbox_error(conn, reason) do
-    {status, message} = Query.error(reason)
+    %{status: status, code: code, message: message} = error = Query.error(reason)
 
-    conn |> retry_after(status) |> put_status(status) |> json(%{message: message})
+    conn
+    |> retry_after(error)
+    |> put_status(status)
+    |> json(%{message: message, code: code})
   end
 
-  defp retry_after(conn, :service_unavailable),
-    do: put_resp_header(conn, "retry-after", "#{@service_unavailable_retry_after_seconds}")
-
-  defp retry_after(conn, _status), do: conn
+  defp retry_after(conn, %{retry_after: seconds}), do: put_resp_header(conn, "retry-after", "#{seconds}")
+  defp retry_after(conn, _error), do: conn
 
   defp serialize_agent_environment(%AgentEnvironment{} = agent_environment) do
     agent_environment
@@ -1099,6 +1118,7 @@ defmodule TuistWeb.API.SandboxesController do
       :agent_model,
       :agent_system_prompt,
       :setup_script,
+      :macos_setup_script,
       :inserted_at,
       :updated_at
     ])

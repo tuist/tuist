@@ -59,8 +59,9 @@ A submission waits up to five seconds for its result, so most actions need one
 gateway request. Longer actions continue with five-second `WaitExecution`-style
 long polls that return as soon as the state changes. Completed operations stay
 readable for one minute. Queued operations fail after 15 minutes. The queue is
-bounded to four times the account concurrency, at most 512 actions; a full queue
-returns `RESOURCE_EXHAUSTED`.
+bounded to sixteen times the account concurrency, at most 2048 actions, so
+several cold clients at `--jobs` of twice the concurrency fit at once; a full
+queue returns `RESOURCE_EXHAUSTED`.
 
 ### Leases
 
@@ -148,11 +149,12 @@ what any action can reach.
 
 ### VM sizes
 
-An action that needs more memory than the default 2 vCPU, 4 GB VM sets the
-`tuist-memory-gb` execution property to 8 or 16, which gives it a 4x8192 or
-8x16384 VM (two vCPUs per 4 GB); 4 is the default. Values are generic
+An action that needs another size than the default 2 vCPU, 4 GB VM sets the
+`tuist-memory-gb` execution property to 2, 8 or 16, which gives it a 1x2048,
+4x8192 or 8x16384 VM (one vCPU per 2 GB); 4 is the default. Values are generic
 memory sizes, not per-toolchain pools, and the property is part of the action
-digest like the image.
+digest like the image. The gateway always sends the size to the server, so
+neither relies on the other's default while one of them is rolled out.
 
 - The gateway reads the size from the action's platform. It uses the action
   its prefetch read, or reads it again, retrying a slow or failed read with
@@ -161,8 +163,8 @@ digest like the image.
   `UNAVAILABLE` when it still cannot, because running the action in a smaller
   VM would only fail it. It asks the server for the project's cache endpoint
   when it no longer remembers one: clients check capabilities once per build.
-  Leases hold default VMs, so larger actions always go through the server,
-  which receives `memory_gb`.
+  Leases hold default VMs, so actions of other sizes always go through the
+  server.
 - The scheduler prepares a larger VM for each queued action that needs one;
   only default VMs stay warm. Queued actions take ready VMs of their size,
   oldest first, and the others keep their place. A size that does not fit the
@@ -170,8 +172,8 @@ digest like the image.
   take it, and ready VMs no queued action needs, warm ones included, are
   retired for it. An action larger than the account's limits can ever hold
   fails with `FAILED_PRECONDITION` without a VM.
-- Workers allow the three shapes and build the 2x4096 and 4x8192 snapshots at
-  startup; 8x16384 builds on its first action. Placement charges each VM its
+- Workers allow the four shapes and build the 1x2048, 2x4096 and 4x8192
+  snapshots at startup; 8x16384 builds on its first action. Placement charges each VM its
   own vCPUs and memory. The executor refuses an action whose size exceeds
   its VM's (`memory_gb` in the request; leases send none, the default).
 
@@ -184,6 +186,43 @@ then publishes the action-cache entry to the account's Kura with the client's
 credential, in the background. Publication is best-effort: a gateway restart or
 saturation (256 pending publications) drops it, which only costs a later cache
 miss. Bazel does not depend on the entry; dependent actions read outputs from CAS.
+
+### Action records
+
+After Bazel has an executed action's result (scheduled or leased, not
+`WaitExecution` reconnections), the gateway sends the server a record of it for
+the dashboard's action inspector and the API: the invocation, target, mnemonic
+and configuration from Bazel's `RequestMetadata`, the command's arguments
+(64 KiB), environment (32 KiB), working directory, platform, declared output
+paths (32 KiB) and how many outputs were declared, the exit code and status,
+the executor's phase timestamps, the dispatch path and VM, and the first 16 KiB
+of stdout and stderr. Environment values and
+flag values whose names contain TOKEN, SECRET, PASSWORD or KEY are masked
+before they leave the gateway, and the server masks them again. The command
+comes from the prefetch when it read it; otherwise four background readers read
+the action, command and logs from Kura with the client's credential, off the
+client's path. Records are batched per project and credential (50 records or
+1 MiB, at least every second) and posted to
+`POST /api/remote-execution/:account/:project/actions`. They are best effort:
+a full queue (1,024), a failed read, a refused post or a gateway restart drops
+them (`reapi_gateway_action_records_total{result}`), and records without a
+Bazel invocation ID are not sent. The server never reads Kura for them.
+
+A record also names the digests of streams longer than 16 KiB. The server
+answers with a presigned object-storage upload for each whole stream, or its
+last 16 MiB when it is longer (the server's choice; the gateway accepts up to
+the worker's 64 MiB log bound), and the gateway copies those bytes from Kura
+with the client's credential. Copies must never slow execution down, so they
+share nothing with the client's path: they start after the record is sent, read
+Kura over their own gRPC connections (no shared HTTP/2 flow control with
+prefetches), upload with their own HTTP client, run two at a time from a queue
+of 256 that drops rather than waits, and stream through a pipe one chunk at a
+time at no more than 8 MiB/s per gateway. A short read fails the upload rather
+than storing part of the range. `reapi_gateway_action_log_copies_total{result}`
+counts copied, dropped, refused (out-of-bounds uploads) and failed copies, and
+`reapi_gateway_action_log_copy_bytes_total` the bytes. The server's
+`:remote_action_log_copies_disabled` flag stops issuing uploads, which stops
+copies without a deploy.
 
 ### Guest isolation
 
@@ -253,7 +292,20 @@ project. The cache comes out of the workers' disk budget and leaves 20% of
 the host's data filesystem free, evicting its own blobs first, so it never
 crowds out runner cache volumes or pushes kubelet into evictions. Any failure,
 or no room, falls back to reading that blob, and the rest of the action's
-inputs, from Kura.
+inputs, from Kura. A node download that receives nothing for 30 seconds
+counts as a failure, and sandboxd's connection to Kura pings while downloads
+run, so one stalled stream or dead connection costs the actions waiting on it
+seconds rather than minutes.
+
+On a cache miss, sandboxd queries that instance's REAPI capabilities with the
+action's credential and requests `compressed-blobs/zstd` when advertised.
+Otherwise it uses ordinary `blobs` reads, including for servers without a
+capabilities service. Decoding streams to the same digest-checked file, with
+one decoder worker, an 8 MiB window limit and a decoded-size bound. A rejected
+frame follows the ordinary guest fallback. This reduces cold-fill traffic
+without adding connections or changing the account's egress ceiling. Stored
+bytes, `sandboxd_blob_cache_fetched_bytes_total` and the action's `host` read
+totals still count uncompressed content, not network bytes.
 
 The host serves only while the action exec runs, only VMs of the template the
 worker is configured with, and only until the executor seals the channel
@@ -301,6 +353,17 @@ therefore always have capacity CI cannot take back, in one of two modes:
     hold, never below the floor.
   - Grown carve-outs shrink back toward what their VMs hold 15 seconds after
     the last growth.
+  - A fleet-wide floor (`sandboxes.remoteExecutionFloorSlots` in the tuist
+    chart, 0 to disable) makes the workers one pool of the runners-controller's
+    compute allocator, counted in slots, beside the runner pools. Its load is
+    the slots the workers already hold; its floor is funded in the warm tier
+    ahead of the runner pools' warm stock, and like any warm tier it yields to
+    queued CI jobs. The controller spreads the funded floor over the workers
+    (each keeps its chart floor, then one slot at a time to those holding the
+    most) and sends each its share as `warm_bytes` in its grant. The server
+    grows a carve-out to that share before any action arrives, and never
+    shrinks it below while the grant is fresh, so a stopped controller leaves
+    only `floorSlots`.
 
   The worker connects to the server as `<node>.remote-execution`, beside the
   node's agent daemon, which connects as the node itself. The runners
@@ -321,7 +384,9 @@ budget and runner caches on the same filesystem. Workers jail guests from UID
 
 Disconnecting a client does not cancel its operation. The API does not implement
 Operations cancellation or priorities. Execution lasts at most ten minutes, with
-bounded staging and upload time. Synchronize server and host clocks; lease and
+bounded staging and upload time; an action asking for longer, such as a Bazel
+test with a `long` or `eternal` timeout, runs with ten minutes instead of being
+refused. Synchronize server and host clocks; lease and
 create deadlines include five seconds of skew slack. The daemon overlaps network
 removal and VM termination, waits for both, then removes files and releases its
 slot. An unreachable node keeps its VMs' slots until it reconnects and deletion
@@ -342,13 +407,18 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    switch: the deployment workflow neither builds nor installs a release it
    disables.
 3. **Remote Execution Deployment** (`.github/workflows/remote-execution-deployment.yml`)
-   installs the release. In production the server deploy cascade calls it after
-   every production or hotfix deploy, so the runners controller that recognises
-   remote execution workers is always deployed first, and it reuses the template
-   and sandboxd tags that deploy published. Dispatch it by hand for other
-   environments or to pin other tags. It publishes the guest template and the
-   execution gateway (`ghcr.io/tuist/tuist-remote-execution`, both under the
-   sandbox image's source-derived tag) and sandboxd unless given published tags,
+   installs the release. The server deploy cascade calls it after the canary
+   leg with `replace_workers`, which deletes canary's workers that are not on
+   the new spec and waits until each replacement has built the new `bazel`
+   template; production waits on that job, so an RE chart or image that cannot
+   start stops on canary. The cascade calls it again after every production or
+   hotfix deploy (a hotfix skips canary), so the runners controller that
+   recognises remote execution workers is always deployed first. Both reuse the
+   template and sandboxd tags that run published. Production workers are not
+   replaced automatically. Dispatch it by hand for staging or to pin other
+   tags. It publishes the guest template and the execution gateway
+   (`ghcr.io/tuist/tuist-remote-execution`, both under the sandbox image's
+   source-derived tag) and sandboxd unless given published tags,
    then installs the release into `tuist-sandboxes`. The gateway's Ingress uses
    the dedicated `nginx-grpc` controller with TLS and a 16-minute proxy timeout;
    `platform-external-dns` publishes its host to Cloudflare (DNS-only), and the
@@ -411,7 +481,8 @@ reads three sources, none labelled by account or project:
 
 - Gateways export `reapi_gateway_*` on port 9090: Execute calls by path (`lease`
   or `server`) and final status, Execute latency, how inputs were prefetched,
-  action-cache publication outcomes and admitted streams.
+  action-cache publication outcomes, action-record delivery and admitted
+  streams.
   `reapi_gateway_action_phase_seconds{phase}` splits each executed action into
   `queued` (admission to worker start, including VM creation), `input_fetch`,
   `execution` and `output_upload` from the executor's metadata; gateways also

@@ -5,11 +5,12 @@ defmodule Noora.Badge do
   use Phoenix.Component
 
   import Noora.Icon
+  import Noora.Spinner
   import Noora.Utils
 
   @badge_appearances ~w(fill light-fill)
   @badge_colors ~w(neutral destructive warning attention success information focus primary secondary)
-  @badge_sizes ~w(small large)
+  @badge_sizes ~w(small medium large)
 
   def badge_appearances, do: @badge_appearances
   def badge_colors, do: @badge_colors
@@ -21,7 +22,7 @@ defmodule Noora.Badge do
     doc: "Controls whether the badge uses a solid or light fill."
   )
 
-  attr(:label, :string, required: true, doc: "The label of the badge")
+  attr(:label, :string, required: true, doc: "The text displayed in the badge.")
 
   attr(:color, :string,
     values: @badge_colors,
@@ -40,15 +41,7 @@ defmodule Noora.Badge do
     doc: "Uses the disabled presentation regardless of color."
   )
 
-  attr(:dot, :boolean,
-    default: false,
-    doc: "Displays a dot before the label when the icon slot is empty."
-  )
-
-  attr(:icon_only, :boolean,
-    default: false,
-    doc: "Hides the label and displays only the icon slot."
-  )
+  attr(:dot, :boolean, default: false, doc: "Displays a dot before the label when the icon slot is empty.")
 
   slot(:icon, doc: "The icon to render next to the label. Overrides the `dot` attribute.")
 
@@ -57,14 +50,13 @@ defmodule Noora.Badge do
   def badge(assigns) do
     ~H"""
     <span
-      class="noora-badge"
+      class={badge_class()}
       data-style={@style}
       data-color={@color}
       data-size={@size}
       data-disabled={@disabled}
       data-dot={@dot}
       data-icon={has_slot_content?(@icon, assigns)}
-      data-icon-only={@icon_only}
       {@rest}
     >
       <%= if @dot || has_slot_content?(@icon, assigns) do %>
@@ -73,11 +65,12 @@ defmodule Noora.Badge do
             {render_slot(@icon)}
           <% else %>
             <.small_dot :if={@size == "small"} />
+            <.medium_dot :if={@size == "medium"} />
             <.large_dot :if={@size == "large"} />
           <% end %>
         </div>
       <% end %>
-      <span :if={!@icon_only}>{@label}</span>
+      <span>{@label}</span>
     </span>
     """
   end
@@ -99,7 +92,7 @@ defmodule Noora.Badge do
 
   def status_badge(assigns) do
     ~H"""
-    <span class="noora-status-badge" data-status={@status} {@rest}>
+    <span class="noora-status-badge" data-status={@status} data-type={@type} {@rest}>
       <span data-part="icon">
         <.status_icon :if={@type == "icon"} status={@status} />
         <.large_dot :if={@type == "dot"} />
@@ -139,9 +132,10 @@ defmodule Noora.Badge do
     """
   end
 
+  # The label already says what's happening, so the spinner is decorative.
   def status_icon(%{status: "in_progress"} = assigns) do
     ~H"""
-    <.circle_dashed />
+    <.spinner aria-hidden="true" />
     """
   end
 
@@ -153,6 +147,16 @@ defmodule Noora.Badge do
     """
   end
 
+  # A 5px dot centered in the medium badge's 14px icon box.
+  defp medium_dot(assigns) do
+    ~H"""
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <rect x="4.5" y="4.5" width="5" height="5" rx="1.11111" fill="currentColor" />
+    </svg>
+    """
+  end
+
+  # A 6px dot centered in a 16px box, for large badges and status badges.
   defp large_dot(assigns) do
     ~H"""
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -160,4 +164,6 @@ defmodule Noora.Badge do
     </svg>
     """
   end
+
+  defp badge_class, do: "noora-badge"
 end

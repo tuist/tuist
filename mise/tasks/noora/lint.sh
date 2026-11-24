@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Lint the Noora web package"
+#MISE description="Lint the Noora package"
 #USAGE flag "-f --fix" help="Fix fixable issues"
 set -eo pipefail
 cd noora

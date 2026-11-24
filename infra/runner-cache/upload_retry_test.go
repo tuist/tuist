@@ -39,6 +39,7 @@ type uploadServer struct {
 	stored      []byte
 	parts       map[int][]byte
 	aborted     bool
+	published   []map[string]any
 	inFlight    int
 	maxInFlight int
 	metadata    func(operation string, count int, w http.ResponseWriter) bool
@@ -63,6 +64,9 @@ func newUploadServer(t *testing.T) *uploadServer {
 			operation, _ := body["operation"].(string)
 			s.mu.Lock()
 			s.operations = append(s.operations, operation)
+			if operation == "publish" {
+				s.published = append(s.published, body)
+			}
 			count, metadata := 0, s.metadata
 			for _, seen := range s.operations {
 				if seen == operation {
@@ -308,6 +312,30 @@ func TestPublishRetriesOnlyTheFastForwardAfterTheUploadLanded(t *testing.T) {
 	operations, puts := s.calls()
 	if strings.Join(operations, ",") != "upload,publish,publish" || puts != 1 {
 		t.Fatalf("operations %v, puts %d", operations, puts)
+	}
+}
+
+// The fast-forward reports the paths a branch's manifest records, and omits
+// them when unknown so the server does not take an old agent's silence for none.
+func TestPublishReportsTheBranchPathsOnlyWhenKnown(t *testing.T) {
+	for _, paths := range []string{"", `[]`, `["server/deps","~/.cache/mix"]`} {
+		s := newUploadServer(t)
+		slot := Slot{Identity: identity(first), Paths: paths}
+		slot.BaseGeneration = 1
+		if _, err := s.transfer().Publish(slot, s.path, strings.Repeat("a", 40), strings.Repeat("b", 64)); err != nil {
+			t.Fatal(err)
+		}
+		got, ok := s.published[0]["paths"]
+		if paths == "" {
+			if ok {
+				t.Fatal("reported unknown paths as", got)
+			}
+			continue
+		}
+		data, _ := json.Marshal(got)
+		if !ok || string(data) != paths {
+			t.Fatalf("paths = %s, want %s", data, paths)
+		}
 	}
 }
 

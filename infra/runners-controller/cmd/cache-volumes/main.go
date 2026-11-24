@@ -55,13 +55,19 @@ type agent struct {
 	dockerMerges     chan struct{}
 	dockerHeads      func(cachevolumes.Slot) (cachevolumes.Identity, error)
 	exposeDockerHead func(context.Context, cachevolumes.Slot, string, cachevolumes.Identity) error
-	executionWaits   cachevolumes.ExecutionWaits
+	// cloneMaster reflinks a saved head's master for a sandbox cache image.
+	cloneMaster    func(context.Context, cachevolumes.Identity, string, func(int64) bool) (int64, bool, error)
+	executionWaits cachevolumes.ExecutionWaits
 	// sandboxNamespace holds the sandboxd Pods that may seed and export
 	// sandbox checkouts; empty refuses them. sandboxSeeds bounds concurrent
 	// seeds, sandboxExports the export each use has in flight.
 	sandboxNamespace string
 	sandboxSeeds     chan struct{}
 	sandboxExports   sync.Map
+	// goneUIDs remembers Pods whose teardown gone already confirmed. A UID is
+	// never reused, so the fence stays passed; a published head's slot is kept
+	// for days and would otherwise list containerd on every pass.
+	goneUIDs sync.Map
 	// actions serves the GitHub Actions cache to runner Pods here; nil when off.
 	actions *cachevolumes.ActionsCache
 	// maxVolumeBytes is the largest volume this host accepts.
@@ -96,6 +102,9 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	case r.Method == "POST" && r.URL.Path == "/sandbox-checkout/export":
 		a.serveSandboxExport(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/sandbox-cache/image":
+		a.serveSandboxCacheImage(w, r)
 		return
 	case r.Method == "POST" && r.URL.Path == "/docker":
 		a.serveDocker(w, r)
@@ -185,6 +194,9 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"directory": identity.Scope, "warm": warm, "id": identity.ID})
 }
 func (a *agent) gone(name, uid string) (bool, error) {
+	if _, ok := a.goneUIDs.Load(uid); ok {
+		return true, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	pod, err := a.kube.CoreV1().Pods(a.namespace).Get(ctx, name, metav1.GetOptions{})
@@ -194,12 +206,41 @@ func (a *agent) gone(name, uid string) (bool, error) {
 	if err != nil && !apierrors.IsNotFound(err) {
 		return false, err
 	}
-	return runtimeGone(ctx, a.runtime, uid)
-}
-func (a *agent) reconcile() error {
-	if err := a.store.Reconcile(a.gone, a.report); err != nil {
-		return err
+	done, err := runtimeGone(ctx, a.runtime, uid)
+	if done && err == nil {
+		a.goneUIDs.Store(uid, struct{}{})
 	}
+	return done, err
+}
+
+// forgetGone drops remembered Pods no journal slot names any more.
+func (a *agent) forgetGone() {
+	slots, err := a.store.Snapshot()
+	if err != nil {
+		return
+	}
+	held := map[string]bool{}
+	for _, slot := range slots {
+		held[slot.PodUID] = true
+	}
+	a.goneUIDs.Range(func(uid, _ any) bool {
+		if !held[uid.(string)] {
+			a.goneUIDs.Delete(uid)
+		}
+		return true
+	})
+}
+
+// reconcile settles every slot, then cleans up Pod directories and advertises
+// the node's masters. A slot that could not be settled, such as one whose CRI
+// writer fence did not answer within its budget, is retried next round and
+// fails this one, but must not hold back the rest: those steps do not depend on it.
+func (a *agent) reconcile() error {
+	err := a.store.Reconcile(a.gone, a.report)
+	a.forgetGone()
+	return errors.Join(err, a.reconcileNode())
+}
+func (a *agent) reconcileNode() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	pods, err := a.kube.CoreV1().Pods(a.namespace).List(ctx, metav1.ListOptions{})
@@ -326,7 +367,7 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	store.MaxVolumeBytes = maxBytes
-	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, prefetch: &prefetcher{restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, installed: metrics.installed}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, sandboxNamespace: *sandboxNamespace, sandboxSeeds: make(chan struct{}, 4), node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, cloneMaster: backend.CloneMaster, prefetch: &prefetcher{restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, installed: metrics.installed}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, sandboxNamespace: *sandboxNamespace, sandboxSeeds: make(chan struct{}, 4), node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
 	if *actionsCache {
 		// Uploads are staged on the cache filesystem, above its reserve, until
 		// they are copied to the store.
@@ -358,12 +399,13 @@ func main() {
 		log.Fatalf("runtime teardown verification unavailable: %v", err)
 	}
 	abandonSandboxSeeds(checkouts)
+	abandonSandboxCacheImages(*root)
 	// Without git and git-lfs the worker logs why and retries; the host answers
 	// denied meanwhile, so runners export nothing.
 	go checkouts.Start(context.Background())
 	// Separate from the job prefetcher, so a missed master never waits behind a
 	// listed one: at most one download of each kind at a time.
-	listed := &listing{url: strings.TrimSuffix(*url, "/authorize") + "/masters", node: *node, tokenPath: *tokenPath, client: client, local: backend.HasMaster, restore: backend.PrefetchSpare, checkout: prefetchCheckout(checkouts), observe: metrics.observe, installed: metrics.installed, logger: metrics.logger, interval: 10 * time.Minute, budget: 10 * time.Minute}
+	listed := &listing{url: strings.TrimSuffix(*url, "/authorize") + "/masters", node: *node, tokenPath: *tokenPath, client: client, local: backend.HoldsLineage, restore: backend.PrefetchSpare, checkout: prefetchCheckout(checkouts), observe: metrics.observe, installed: metrics.installed, logger: metrics.logger, interval: 10 * time.Minute, budget: 10 * time.Minute}
 	go listed.run(context.Background())
 	go func() {
 		for {

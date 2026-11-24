@@ -31,23 +31,23 @@ msgstr "Ветка"
 #: lib/tuist_web/live/previews_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "Собрано в"
+msgstr "Собрано"
 
 #: lib/tuist_web/live/preview_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
-msgstr "Идентификатор бандла"
+msgstr "Идентификатор пакета"
 
 #: lib/tuist_web/live/preview_live.html.heex:182
 #: lib/tuist_web/live/previews_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
-msgstr "SHA коммита"
+msgstr "Хеш коммита"
 
 #: lib/tuist_web/live/preview_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Created by"
-msgstr "Создано"
+msgstr "Создал"
 
 #: lib/tuist_web/live/preview_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -57,7 +57,7 @@ msgstr "Удалить превью"
 #: lib/tuist_web/live/preview_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Details"
-msgstr "Подробности"
+msgstr "Сведения"
 
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
@@ -78,7 +78,7 @@ msgstr "Установить приложение"
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "Последние предварительные сборки приложений"
+msgstr "Последние превью приложения"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -94,7 +94,7 @@ msgstr "Нет"
 #: lib/tuist_web/live/preview_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Or run using CLI"
-msgstr "Или запустить через CLI"
+msgstr "Или запустите через CLI"
 
 #: lib/tuist_web/live/previews_live.html.heex:78
 #, elixir-autogen, elixir-format
@@ -134,7 +134,7 @@ msgstr "Запуск"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "Выполните следующую команду, чтобы поделиться предварительным просмотром приложения."
+msgstr "Выполните следующую команду, чтобы поделиться превью приложения."
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #: lib/tuist_web/live/preview_live.html.heex:273
@@ -175,7 +175,7 @@ msgstr "Чтобы запустить превью прямо из браузе�
 #: lib/tuist_web/live/preview_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "V %{version}"
-msgstr "V %{version}"
+msgstr "В %{version}"
 
 #: lib/tuist_web/live/previews_live.html.heex:52
 #, elixir-autogen, elixir-format
@@ -242,7 +242,7 @@ msgstr "Предпросмотр из командной строки"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "Десктопные предпросмотры запускаются от имени вашего пользователя и имеют доступ к вашим файлам и окружению. Они не изолированы."
+msgstr "Десктопные предпросмотры запускаются от имени вашего пользователя, с доступом к вашим файлам и окружению. Они не изолированы."
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format

@@ -1,0 +1,74 @@
+<div id="coverage-commits">
+  <.button
+    label={dgettext("dashboard_tests", "Code Coverage")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
+  <div :if={@loading} data-part="loading">
+    <.skeleton_box width="100%" height="320px" />
+  </div>
+
+  <.card
+    :if={not @loading}
+    title={dgettext("dashboard_tests", "Recent Commits")}
+    icon="git_commit"
+    data-part="commits-card"
+  >
+    <.card_section data-part="commits-section">
+      <div :if={@commit_rows != []} data-part="commits-table">
+        <.table
+          id="coverage-commits-table"
+          rows={@commit_rows}
+          row_navigate={&commit_href(assigns, &1.git_commit_sha)}
+        >
+          <:col :let={row} label={dgettext("dashboard_tests", "Commit")}>
+            <.text_cell label={short_sha(row.git_commit_sha)} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Branch")}>
+            <.text_and_description_cell
+              :if={pull_request_label(row)}
+              label={branch_label(row)}
+              description={pull_request_label(row)}
+            />
+            <.text_cell :if={is_nil(pull_request_label(row))} label={branch_label(row)} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
+            <.coverage_cell covered={row.covered_lines} executable={row.executable_lines} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
+            <.tooltip_badge_cell
+              id={"coverage-commit-status-#{row.git_commit_sha}"}
+              color={commit_status_color(row)}
+              label={commit_status_label(row)}
+              description={commit_status_title(row)}
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
+            <.text_cell sublabel={
+              Tuist.Utilities.DateFormatter.from_now(row.committed_at || row.ran_at)
+            } />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@commits_meta.has_previous_page?}
+          has_next_page={@commits_meta.has_next_page?}
+          start_cursor={@commits_meta.start_cursor}
+          end_cursor={@commits_meta.end_cursor}
+        />
+      </div>
+      <.coverage_empty
+        :if={@commit_rows == []}
+        title={dgettext("dashboard_tests", "No run gathered coverage yet")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/test-code-coverage"
+        image="table"
+        data-part="empty-commits"
+      />
+    </.card_section>
+  </.card>
+</div>

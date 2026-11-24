@@ -428,7 +428,7 @@ defmodule AtlasWeb.MCPLive do
                   label={status_label(entry.status)}
                   color={status_color(entry.status)}
                   style="light-fill"
-                  size="large"
+                  size="medium"
                 />
                 <span :if={entry.session && entry.session.expires_at} data-part="session-expiry">
                   {expires_label(entry.session)}

@@ -24,14 +24,14 @@ El comando crea un proyecto de Xcode en un directorio global y lo abre en Xcode.
 > [!NOTE]
 > **Manifiestos resueltos mediante patrones glob**
 >
-> `tuist edit` resuelve los manifiestos que se deben incluir usando el patrón glob `**/{Manifest}.swift` desde el directorio raíz del proyecto (el que contiene el archivo `Tuist.swift`). Asegúrate de que haya un `Tuist.swift` válido en la raíz del proyecto.
+> `tuist edit` resuelve los manifiestos que se deben incluir utilizando el patrón glob `**/{Manifest}.swift` desde el directorio raíz del proyecto (el que contiene el archivo `Tuist.swift`). Asegúrate de que haya un `Tuist.swift` válido en la raíz del proyecto.
 
 
 ### Ignorar archivos de manifiesto {#ignoring-manifest-files}
 
-Si tu proyecto contiene archivos Swift con el mismo nombre que los archivos de manifiesto (por ejemplo, `Project.swift`) en subdirectorios que no son realmente manifiestos de Tuist, puedes crear un archivo `.tuistignore` en la raíz de tu proyecto para excluirlos del proyecto de edición.
+Si tu proyecto contiene archivos Swift con el mismo nombre que los archivos de manifiesto (por ejemplo, `Project.swift`) en subdirectorios que no son manifiestos reales de Tuist, puedes crear un archivo `.tuistignore` en la raíz de tu proyecto para excluirlos del proyecto de edición.
 
-El archivo `.tuistignore` usa patrones glob para especificar qué archivos se deben ignorar:
+El archivo `.tuistignore` utiliza patrones glob para especificar qué archivos se deben ignorar:
 
 ```gitignore
 # Ignore all Project.swift files in the Sources directory
@@ -41,10 +41,10 @@ Sources/**/Project.swift
 Tests/Fixtures/**/Workspace.swift
 ```
 
-Esto es especialmente útil cuando tienes fixtures de pruebas o código de ejemplo que casualmente usan la misma convención de nombres que los archivos de manifiesto de Tuist.
+Esto es especialmente útil cuando tienes fixtures de pruebas o código de ejemplo que casualmente usan la misma convención de nomenclatura que los archivos de manifiesto de Tuist.
 
 ## Flujo de trabajo de edición y generación {#edit-and-generate-workflow}
 
-Como habrás notado, la edición no se puede hacer desde el proyecto de Xcode generado. Esto es intencional para evitar que el proyecto generado tenga una dependencia de Tuist, lo que garantiza que puedas migrar desde Tuist en el futuro con poco esfuerzo.
+Como habrás notado, la edición no se puede realizar desde el proyecto de Xcode generado. Esto es así por diseño para evitar que el proyecto generado tenga una dependencia de Tuist, lo que garantiza que puedas migrar desde Tuist en el futuro con poco esfuerzo.
 
-Cuando iteres sobre un proyecto, te recomendamos ejecutar `tuist edit` desde una sesión de terminal para obtener un proyecto de Xcode y editar el proyecto, y usar otra sesión de terminal para ejecutar `tuist generate`.
+Cuando iteres sobre un proyecto, te recomendamos ejecutar `tuist edit` desde una sesión de terminal para obtener un proyecto de Xcode para editar el proyecto, y usar otra sesión de terminal para ejecutar `tuist generate`.

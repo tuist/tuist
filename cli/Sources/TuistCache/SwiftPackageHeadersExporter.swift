@@ -75,7 +75,25 @@ public struct SwiftPackageHeadersExporter {
         try await removeAlias(at: publicLink)
         if try await fileSystem.exists(tree) { try await fileSystem.remove(tree) }
         try await fileSystem.makeDirectory(at: tree.appending(publicRelativePath))
-        let destinations = paths.sorted().map { ($0, tree.appending($0.relative(to: layout.root))) }
+        // Nested layouts such as the Adjust SDK's (`include/<Module>/`) import their headers as `<Module/Header.h>`,
+        // which a framework resolves from its Headers. A consumer that finds the framework without Tuist's search
+        // paths must resolve them too, so those headers live in Headers and the tree links to them. Including them
+        // through the tree keeps one file and one umbrella directory; a link in the other direction would make
+        // clang warn that a public header includes a private one.
+        let namespace = layout.publicHeaders.appending(component: layout.moduleName)
+        let namespaceHeaders = paths.filter { $0.isDescendant(of: namespace) }
+        var exposesNamespace = isFramework && !layout.usesDirectoryModuleMap && !namespaceHeaders.isEmpty
+        for header in namespaceHeaders where exposesNamespace {
+            // Latin-1 decodes any bytes, and the include syntax is ASCII.
+            let contents = String(bytes: try await fileSystem.readFile(at: header), encoding: .isoLatin1) ?? ""
+            exposesNamespace = !includesParentDirectory(contents)
+        }
+        let destinations = paths.sorted().map { path in
+            if exposesNamespace, path.isDescendant(of: namespace) {
+                return (path, publicLink.appending(path.relative(to: namespace)))
+            }
+            return (path, tree.appending(path.relative(to: layout.root)))
+        }
         for directory in Set(destinations.map(\.1.parentDirectory)).sorted() {
             try await fileSystem.makeDirectory(at: directory)
         }
@@ -100,6 +118,10 @@ public struct SwiftPackageHeadersExporter {
                     from: namespace, to: tree.appending(publicRelativePath).relative(to: namespaceDirectory)
                 )
             }
+        } else if exposesNamespace {
+            // SwiftPM resolves `<Module/Header.h>` for these headers too, so __has_include branches do not change.
+            let link = tree.appending(publicRelativePath).appending(component: layout.moduleName)
+            try await fileSystem.createSymbolicLink(from: link, to: publicLink.relative(to: link.parentDirectory))
         } else if isFramework {
             // Framework module-map header paths resolve against this directory. Keep it empty
             // so caching does not flip sibling shims' __has_include(<Module/Header.h>) branches.
@@ -131,6 +153,12 @@ public struct SwiftPackageHeadersExporter {
             }
         }
         return isFramework ? container.appending(component: "Headers") : container
+    }
+
+    /// Whether a header includes a path that starts with `..`. Moved into Headers, such an include would resolve
+    /// against the framework instead of the tree.
+    private func includesParentDirectory(_ contents: String) -> Bool {
+        contents.range(of: #"(?m)^\s*#\s*(include|import|include_next)\s*"\.\./"#, options: .regularExpression) != nil
     }
 
     private func removeAlias(at path: AbsolutePath) async throws {

@@ -4,7 +4,7 @@ defmodule Tuist.Runners.BuildkiteTest do
   import Ecto.Query
   import Mimic
 
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Buildkite
@@ -12,6 +12,7 @@ defmodule Tuist.Runners.BuildkiteTest do
   alias Tuist.Runners.Buildkite.Job
   alias Tuist.Runners.Buildkite.ReportToken
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
@@ -24,7 +25,6 @@ defmodule Tuist.Runners.BuildkiteTest do
 
   setup do
     stub(Catalog, :default_xcode_version, fn -> nil end)
-    stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
     stub(Allowance, :exhausted?, fn _account -> false end)
 
     %{account: account} =
@@ -125,6 +125,30 @@ defmodule Tuist.Runners.BuildkiteTest do
 
       mapping = Repo.one(from(j in Job, where: j.job_uuid == ^job.job_uuid))
       assert mapping.workflow_job_id >= 1_000_000_000_000_000
+    end
+
+    test "reserves a queue whose shape exceeds the account's whole limit, to wait until the limit admits it", %{
+      installation: installation,
+      account: account,
+      queue_key: queue_key
+    } do
+      # The queue's target is 4 vCPU / 16 GB on macOS.
+      {:ok, _} =
+        Concurrency.update_limits(account, %{
+          runner_linux_vcpus_limit: 16,
+          runner_linux_memory_gb_limit: 64,
+          runner_macos_vcpus_limit: 3,
+          runner_macos_memory_gb_limit: 16
+        })
+
+      stub(Client, :list_scheduled_jobs, fn _installation, _stack, ^queue_key, _limit ->
+        {:ok, %{jobs: [scheduled_job(%{queue_key: queue_key})], dispatch_paused: false}}
+      end)
+
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
+
+      assert {:ok, 1} = Buildkite.poll(installation)
+      assert Repo.one!(WorkflowJob).status == "queued"
     end
 
     test "leaves a paused queue alone", %{installation: installation, queue_key: queue_key} do
@@ -380,7 +404,7 @@ defmodule Tuist.Runners.BuildkiteTest do
     end
 
     test "is a no-op when runners are disabled for the account", %{installation: installation} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
       reject(&Client.list_scheduled_jobs/4)
 
       assert {:error, :runners_disabled} = Buildkite.poll(installation)

@@ -114,7 +114,7 @@ the APFS mount; no macOS container-volume support is implied.
 
 Managed staging, canary and production enable custom volumes fleet-wide through
 `runnersFleet.customCacheVolumes.enabled`; staging and canary run them on the
-BER1 rack hosts production lends them (240 GiB cache filesystems). Workflows opt
+alder rack hosts production lends them (240 GiB cache filesystems). Workflows opt
 in per directory with `tuist/cache-volume@v1`; no project or account allowlist is
 required. The chart's self-hosted default remains disabled.
 
@@ -218,7 +218,7 @@ the quota still bounds the caches until the host is replaced or reinstalled. On
 a smaller disk (the M2-L's 460 GiB) the other half does not hold the goldens and
 job VMs, so the quota is the budget, as before.
 
-BER1 rack hosts created before the budget have a 240 GiB quota. Reinstall one
+Alder rack hosts created before the budget have a 240 GiB quota. Reinstall one
 at a time (`kubectl annotate rasm <machine> tuist.dev/os-reinstall=<version it
 runs>`, see "Reinstalling a rack host" in
 [cluster-api-provider-tuist](../cluster-api-provider-tuist/AGENTS.md)); each

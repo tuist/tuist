@@ -23,6 +23,7 @@ test ! -e "$cache/next"
 for project in tuist tuist_common tuist_ex noora; do
   mkdir -p "$cache/next/_build/$project"
 done
+mkdir -p "$cache/next/phoenix-colocated/tuist"
 printf 'updated\n' > "$cache/next/_build/updated"
 TUIST_MIX_CACHE_EXPORTED=true bash "$script" commit
 test -f "$cache/current/_build/updated"
@@ -30,13 +31,17 @@ test ! -e "$cache/current/_build/original"
 test ! -e "$cache/next"
 
 # Neither a failed export nor an incomplete successful export replaces current.
-for exported in false true; do
-  mkdir -p "$cache/next/_build/tuist"
-  if [[ "$exported" == false ]]; then
+# Project builds without their colocated assets are incomplete too.
+for case in failed missing-project missing-colocated; do
+  exported=true
+  mkdir -p "$cache/next/_build/tuist" "$cache/next/phoenix-colocated/tuist"
+  if [[ "$case" != missing-project ]]; then
     for project in tuist_common tuist_ex noora; do
       mkdir -p "$cache/next/_build/$project"
     done
   fi
+  [[ "$case" == failed ]] && exported=false
+  [[ "$case" == missing-colocated ]] && rm -rf "$cache/next/phoenix-colocated"
   output="$(TUIST_MIX_CACHE_EXPORTED="$exported" bash "$script" commit)"
   [[ "$output" == '::warning::Production Mix cache export unavailable; retaining the previous snapshot.' ]]
   test -f "$cache/current/_build/updated"

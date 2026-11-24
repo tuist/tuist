@@ -21,7 +21,7 @@
 #
 # A CronJob can't be scraped directly, so it pushes two gauges to a tiny
 # Pushgateway that alloy-metrics scrapes (annotationAutodiscovery) into
-# Grafana Cloud. Alert rules are documented in
+# management's Pulse. Alert rules are documented in
 # infra/helm/k8s-monitoring/alerts.md.
 #
 # Intentional cluster removal is the explicit destroy flow (remove from git,

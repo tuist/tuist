@@ -17,6 +17,10 @@ defmodule Tuist.Storage.RunArtifactRetentionTest do
       command_event_session_key = "tuist/app/runs/0123456789abcdef0123456789abcdef/session.zip"
       legacy_run_key = "tuist/app/runs/1085251/result_bundle.zip"
       result_bundle_object_key = "tuist/app/runs/018fb6aa-c19d-7829-8ed3-934375dfba53/0~abc.json"
+
+      remote_action_log_key =
+        "tuist/app/runs/0f2c8a3e-6b1d-4e7a-9c5f-2a8b7d6e4f10/remote-actions/11111111-2222-3333-4444-555555555555/stderr.log"
+
       recent_bundle_key = "tuist/app/runs/019e2c6c-d9ed-7391-8110-2f38ddd27d2c/result_bundle.zip"
       build_key = "tuist/app/builds/018fb6aa-c19d-7829-8ed3-934375dfba53/build.zip"
       test_attachment_key = "tuist/app/tests/runs/018fb6aa-c19d-7829-8ed3-934375dfba53/attachments/1/log.txt"
@@ -33,6 +37,7 @@ defmodule Tuist.Storage.RunArtifactRetentionTest do
                %{key: command_event_session_key, last_modified: days_ago(31)},
                %{key: legacy_run_key, last_modified: days_ago(400)},
                %{key: result_bundle_object_key, last_modified: days_ago(31)},
+               %{key: remote_action_log_key, last_modified: days_ago(31)},
                %{key: recent_bundle_key, last_modified: days_ago(6)},
                %{key: build_key, last_modified: days_ago(31)},
                %{key: test_attachment_key, last_modified: days_ago(31)}
@@ -46,7 +51,7 @@ defmodule Tuist.Storage.RunArtifactRetentionTest do
       expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
 
       expect_delete_objects(
-        [test_run_bundle_key, command_event_session_key, legacy_run_key, result_bundle_object_key],
+        [test_run_bundle_key, command_event_session_key, legacy_run_key, result_bundle_object_key, remote_action_log_key],
         "storage-bucket"
       )
 

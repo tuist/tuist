@@ -34,7 +34,7 @@ jobs:
       source-sha: ${{ steps.recovery.outputs.source-sha || github.sha }}
       egress-only: ${{ steps.recovery.outputs.egress-only }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -90,7 +90,7 @@ jobs:
           - { crate: condukt_microsandbox, nif: "2.17", target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
           - { crate: condukt_microsandbox, nif: "2.17", target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -102,7 +102,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcap-ng-dev
       - id: build
-        uses: philss/rustler-precompiled-action@v1.1.5
+        uses: philss/rustler-precompiled-action@67ed0cc2d6a423e4c4cd9ad651dcc6c90f802cdb # v1.1.5
         with:
           project-name: ${{ matrix.crate }}
           project-version: ${{ needs.plan.outputs.version }}
@@ -111,7 +111,7 @@ jobs:
           # Composite inputs are strings: "false" would still enable cross.
           use-cross: ${{ matrix.use-cross == true && 'true' || '' }}
           project-dir: condukt/native/${{ matrix.crate }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ steps.build.outputs.file-name }}
           path: ${{ steps.build.outputs.file-path }}
@@ -132,7 +132,7 @@ jobs:
       RELEASE_TAG: ${{ needs.plan.outputs.tag }}
       SOURCE_SHA: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -146,12 +146,12 @@ jobs:
           mix local.rebar --force
           elixir -e 'Mix.start(); unless Mix.env() == :prod, do: raise("release requires MIX_ENV=prod")'
           mix deps.get --check-locked
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: condukt/nif-artifacts/condukt_bashkit
           pattern: "*condukt_bashkit-*.tar.gz"
           merge-multiple: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: condukt/nif-artifacts/condukt_microsandbox
           pattern: "*condukt_microsandbox-*.tar.gz"
@@ -207,7 +207,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.plan.outputs.source-sha }}
           persist-credentials: false

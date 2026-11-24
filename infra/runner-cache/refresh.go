@@ -43,6 +43,15 @@ func (b *LocalImages) queueRefresh(master string, stale Slot, head Identity, use
 	if _, err := os.Stat(b.master(next)); err == nil {
 		return false
 	}
+	// A master no job here cloned since this host fetched it in the background
+	// stays as the lineage's older copy instead: refreshing it would download
+	// every generation a lineage publishes on every host that used it once in
+	// the last day. Its next clone makes it refreshable again, and that job
+	// prefetches its HEAD. A Docker branch of an older copy cannot publish
+	// without a merge, so Docker masters keep following the HEAD.
+	if stale.Kind != KindDocker && (speculative(master) || refreshed(master)) {
+		return true
+	}
 	if _, queued := b.refresh.pending.LoadOrStore(master, struct{}{}); queued {
 		return true
 	}
@@ -94,17 +103,29 @@ func (b *LocalImages) refreshMaster(job refreshJob) {
 
 // restoreRefresh downloads the newer master without the scope lock, so a job
 // attaching the lineage meanwhile clones the stale master instead of waiting.
-// Only a master it installed inherits the stale master's last use, so a master
-// no job attaches is not refreshed on every publication until it ages out, and
-// a master a job restored or cloned meanwhile keeps its own.
+// Only a master it installed inherits the stale master's last use, so it ages
+// out with that use, and a master a job restored or cloned meanwhile keeps its
+// own. It is marked refreshed (refreshedSuffix) unless a job cloned the stale
+// master after the refresh was queued, so it is not refreshed again before a
+// job clones it.
 func (b *LocalImages) restoreRefresh(ctx context.Context, job refreshJob) error {
 	return b.fetchMaster(ctx, job.next, false, func(master, _ string) error {
 		usedAt := job.usedAt
 		if info, err := os.Stat(job.master); err == nil && info.ModTime().After(usedAt) {
 			usedAt = info.ModTime()
+		} else {
+			_ = os.WriteFile(master+refreshedSuffix, nil, 0600)
 		}
 		return os.Chtimes(master, usedAt, usedAt)
 	})
+}
+
+// refreshedSuffix marks a master a refresh installed that no job cloned yet.
+const refreshedSuffix = ".refreshed"
+
+func refreshed(master string) bool {
+	_, err := os.Stat(master + refreshedSuffix)
+	return err == nil
 }
 
 func removeMaster(path string) error {
@@ -113,5 +134,6 @@ func removeMaster(path string) error {
 	}
 	_ = os.Remove(path + ".json")
 	_ = os.Remove(path + ".spare")
+	_ = os.Remove(path + refreshedSuffix)
 	return nil
 }

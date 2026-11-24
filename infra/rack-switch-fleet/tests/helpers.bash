@@ -14,6 +14,8 @@ setup_file() {
     local checkout="$BATS_FILE_TMPDIR/checkout"
     mkdir -p "$checkout/infra"
     cp -R "$BATS_TEST_DIRNAME/../../helm" "$checkout/infra/helm"
+    # The tailnet policy, which rack:fleet ready reads each mini's grant from.
+    cp -R "$BATS_TEST_DIRNAME/../../tailscale" "$checkout/infra/tailscale"
     cp -R "$BATS_TEST_DIRNAME/.." "$checkout/infra/rack-switch-fleet"
     FLEET_ROOT="$checkout/infra/rack-switch-fleet"
     export FLEET_ROOT

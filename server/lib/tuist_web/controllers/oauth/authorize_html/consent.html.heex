@@ -1,0 +1,83 @@
+<.link_frame
+  title={
+    if @registered?,
+      do: dgettext("dashboard_auth", "Authorize this application?"),
+      else: dgettext("dashboard_auth", "Sign in to %{client}?", client: @client_name)
+  }
+  subtitle={
+    if @registered?,
+      do:
+        dgettext(
+          "dashboard_auth",
+          "Continue only if you just connected this application to Tuist yourself."
+        ),
+      else:
+        dgettext(
+          "dashboard_auth",
+          "%{client} will be able to use your Tuist account as you, including your threads and AI subscriptions.",
+          client: @client_name
+        )
+  }
+>
+  <dl id="oauth-consent-details" data-part="consent-details">
+    <div data-part="row">
+      <dt>{dgettext("dashboard_auth", "Application")}</dt>
+      <dd>{@client_name}</dd>
+    </div>
+    <div data-part="row">
+      <dt>{dgettext("dashboard_auth", "Sends access to")}</dt>
+      <dd data-part="target">{@redirect_target}</dd>
+    </div>
+    <div data-part="row">
+      <dt>{dgettext("dashboard_auth", "Signed in as")}</dt>
+      <dd>{@email}</dd>
+    </div>
+  </dl>
+  <form method="post" action={@action} data-part="form">
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <input type="hidden" name="consent" value="allow" />
+    <div data-part="actions">
+      <.button
+        id="allow-oauth-consent"
+        variant="primary"
+        size="large"
+        type="submit"
+        label={
+          if @registered?,
+            do: dgettext("dashboard_auth", "Authorize"),
+            else: dgettext("dashboard_auth", "Continue")
+        }
+      />
+      <.button
+        id="deny-oauth-consent"
+        variant="secondary"
+        size="large"
+        type="submit"
+        form="deny-oauth-consent-form"
+        label={dgettext("dashboard_auth", "Cancel")}
+      />
+    </div>
+  </form>
+  <form id="deny-oauth-consent-form" method="post" action={@action}>
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <input type="hidden" name="consent" value="deny" />
+  </form>
+  <:footer>
+    <div data-part="security-note">
+      <span data-part="icon"><.lock /></span>
+      <span :if={@registered?}>
+        {dgettext(
+          "dashboard_auth",
+          "Anyone can register an application with any name, so check where access goes. The application can read your projects and use Tuist's agent tools as you, including tools that change organizations and projects you can change. If you did not start this, cancel."
+        )}
+      </span>
+      <span :if={!@registered?}>
+        {dgettext(
+          "dashboard_auth",
+          "Continue only if you just started signing in to %{client} yourself.",
+          client: @client_name
+        )}
+      </span>
+    </div>
+  </:footer>
+</.link_frame>

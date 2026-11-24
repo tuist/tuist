@@ -282,6 +282,26 @@ defmodule Atlas.TuistServerTest do
     end
   end
 
+  describe "get_kura_rollout/2" do
+    test "GETs the active rollout without an id and a specific rollout with one" do
+      body = %{"rollout" => %{"status" => "paused"}}
+      id = Ecto.UUID.generate()
+
+      for {arg, params} <- [{nil, nil}, {id, [id: id]}] do
+        request = fn req ->
+          assert req.method == :get
+          assert req.url.path == "/api/internal/atlas/kura/rollout"
+          assert req.options[:params] == params
+          assert req.options[:auth] == {:bearer, "tok"}
+          {:ok, %Req.Response{status: 200, body: body}}
+        end
+
+        assert {:ok, ^body} =
+                 TuistServer.get_kura_rollout(arg, token: "tok", base_url: "https://tuist.test", request: request)
+      end
+    end
+  end
+
   describe "runner billing" do
     test "GETs billing through the workload-identity endpoint and preserves the response" do
       body = %{"revision" => "billing-1", "activation" => nil}
@@ -337,6 +357,26 @@ defmodule Atlas.TuistServerTest do
         assert_received :activation_requested
         refute_received :activation_requested
       end
+    end
+
+    test "PUTs trial changes once to the runner trial endpoint without retries" do
+      attrs = %{"operation" => "start", "change_id" => Ecto.UUID.generate()}
+
+      request = fn req ->
+        assert req.method == :put
+        assert req.url.path == "/api/internal/atlas/accounts/42/runner-trial"
+        assert req.options[:auth] == {:bearer, "tok"}
+        assert req.options[:json] == attrs
+        assert req.options[:retry] == false
+        {:ok, %Req.Response{status: 409, body: %{"error" => "paid_plan_required"}}}
+      end
+
+      assert {:error, "paid_plan_required"} =
+               TuistServer.update_runner_trial(42, attrs,
+                 token: "tok",
+                 base_url: "https://tuist.test",
+                 request: request
+               )
     end
 
     test "bounds ambiguous transport errors without logging credentials or retrying" do

@@ -1,41 +1,7 @@
 # Common values for the Tuist Grafana Kubernetes Monitoring wrapper chart.
-# Per-env overlays set `cluster.name`, the `env` label, and the pod-logs
-# namespace filter. Secrets (Grafana Cloud tokens) are synced by ESO — see
-# `templates/externalsecret.yaml`. URLs and numeric usernames below are
-# public per Grafana Cloud stack so they live in values, not in 1Password.
-
-# ExternalSecret wiring. Assumes a ClusterSecretStore named `onepassword`
-# has already been installed on the cluster — the workload-cluster
-# bootstrap (see k8s/onboarding.md §4) puts that in place before this
-# chart is ever installed.
-externalSecrets:
-  enabled: true
-  refreshInterval: "1h"
-  storeRef:
-    kind: ClusterSecretStore
-    name: onepassword
-
-# Grafana Cloud destinations. The ExternalSecret template produces one
-# Kubernetes Secret named `grafanaCloud.secretName` with six keys
-# (prometheus|loki|tempo × username|password); the k8s-monitoring
-# destination blocks below point at it via `secret.create: false`.
-grafanaCloud:
-  secretName: k8s-monitoring-grafana-cloud
-  prometheus:
-    username: "1774467"
-    token:
-      item: PROMETHEUS_TOKEN
-      field: password
-  loki:
-    username: "986520"
-    token:
-      item: LOKI_TOKEN
-      field: password
-  tempo:
-    username: "980835"
-    token:
-      item: TEMPO_TOKEN
-      field: password
+# Per-env overlays set `cluster.name`, the `env` label, the Pulse log and
+# trace destinations, and the pod-logs namespace filter. Every signal is
+# stored in the environment's own Pulse; Grafana Cloud only reads it.
 
 # Optional management-cluster exporter for Hetzner load-balancer health and
 # traffic. It runs beside Cluster API so the signal remains available when a
@@ -63,8 +29,7 @@ hcloudLoadBalancerExporter:
 # Pulse is the independent `pulse` release in the
 # observability namespace (infra/helm/pulse). Its
 # chart owns pulse-dashboard-auth, including the write-only Basic auth keys
-# the collectors use. Staging, canary, production and management write to it
-# through queues independent of Grafana Cloud; no backend runs in this release.
+# the collectors use. No backend runs in this release.
 
 # Upstream grafana/k8s-monitoring chart values. Everything under this key
 # is passed verbatim to the subchart — see
@@ -81,22 +46,30 @@ k8s-monitoring:
     # Set per cluster only after every API server uses the source allow-list.
     # Keeping the legacy collector behavior avoids a large intermediate DPM bill.
     apiServerMetricsAggregated: false
+    # Ship the API server audit log (Secret reads and ServiceAccount token
+    # requests, see alloy-control-plane below) through alloy-receiver. Set per
+    # cluster only after its control plane has rolled with the ClusterClass
+    # `apiServerAuditLog` variable; until then there is no file to tail.
+    apiServerAuditLogs: false
 
   # v4 schema: destinations is a map keyed by destination name. Per-env
-  # overlays merge into these entries (e.g. adding `extraLabels.env`) so
-  # existing Grafana Cloud dashboards that filter on env=… keep working
-  # after the chart swap.
+  # overlays merge into these entries (e.g. adding `extraLabels.env`) and add
+  # the Pulse log and trace destinations.
   destinations:
-    grafana-cloud-metrics:
+    # Written straight to the independently released Pulse backend. The
+    # pulse release's pulse-dashboard-auth Secret carries the write-only user.
+    pulse-metrics:
       type: prometheus
-      url: https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push
+      url: http://pulse.observability.svc.cluster.local:4000/v1/prometheus/write
+      extraHeaders:
+        X-Pulse-DB-Name: public
       auth:
         type: basic
-        usernameKey: prometheus-username
-        passwordKey: prometheus-password
+        usernameKey: ingest-username
+        passwordKey: ingest-password
       secret:
         create: false
-        name: k8s-monitoring-grafana-cloud
+        name: pulse-dashboard-auth
         namespace: observability
       extraLabels:
         # Enable only after the live public-latency alert uses the new metric
@@ -128,14 +101,6 @@ k8s-monitoring:
       #
       # The chart sets `cluster` in the first write_relabel_config of this
       # same chain, so the label is populated by the time this rule runs.
-      #
-      # `traces_service_graph_request_.*` used to be dropped here. It never
-      # matched anything: those series are produced by Grafana Cloud Tempo's
-      # own metrics generator from received spans, not by Alloy, so they enter
-      # the Prometheus instance without passing through this remote_write.
-      # They carry no `cluster` / `job` / `instance` label, only span-derived
-      # ones plus `source`. Turning them off is a stack-side setting
-      # (Tempo -> Metrics generator -> service graphs), not a chart value.
       metricProcessingRules: &metricProcessingRules |
         // Opt-in, two-phase migration. Old runtimes have no marker and keep
         // every route bucket even when enabled, including on rollback.
@@ -318,163 +283,6 @@ k8s-monitoring:
           action = "drop"
         }
 
-    # Share the exact write-time identity and filtering policy with Cloud,
-    # written straight to the independently released Pulse backend. Inert
-    # here: a `custom` destination without a config emits no component, so the
-    # pentest overlay never references its Secret. Staging, canary, production
-    # and management set `type: prometheus` and their env label. The
-    # pulse release's pulse-dashboard-auth Secret carries the write-only user.
-    pulse-metrics:
-      type: custom
-      url: http://pulse.observability.svc.cluster.local:4000/v1/prometheus/write
-      extraHeaders:
-        X-Pulse-DB-Name: public
-      auth:
-        type: basic
-        usernameKey: ingest-username
-        passwordKey: ingest-password
-      secret:
-        create: false
-        name: pulse-dashboard-auth
-        namespace: observability
-      metricProcessingRules: *metricProcessingRules
-
-    grafana-cloud-logs:
-      type: loki
-      url: https://logs-prod-012.grafana.net/loki/api/v1/push
-      auth:
-        type: basic
-        usernameKey: loki-username
-        passwordKey: loki-password
-      secret:
-        create: false
-        name: k8s-monitoring-grafana-cloud
-        namespace: observability
-      extraLabels: {}
-
-    # Tempo uses OTLP gRPC and only accepts traces — metrics/logs go to
-    # their respective destinations above.
-    grafana-cloud-traces:
-      type: otlp
-      url: tempo-prod-10-prod-eu-west-2.grafana.net:443
-      protocol: grpc
-      metrics:
-        enabled: false
-      logs:
-        enabled: false
-      traces:
-        enabled: true
-      auth:
-        type: basic
-        usernameKey: tempo-username
-        passwordKey: tempo-password
-      secret:
-        create: false
-        name: k8s-monitoring-grafana-cloud
-        namespace: observability
-      extraLabels: {}
-      processors:
-        # Keep all failed and slow traces, then retain a representative sample
-        # of healthy traffic. Sampling after the trace completes preserves the
-        # diagnostic traces that head-based sampling could discard.
-        #
-        # Policies are OR'ed, so exclusions live inside `and` policies: a
-        # string_attribute sub-policy with invert_match fails the `and` when
-        # any span in the trace carries one of the listed routes.
-        tailSampling:
-          enabled: true
-          decisionWait: 15s
-          # The chart's default cache object does not validate with Alloy 1.15.
-          decisionCache: null
-          numTraces: 5000
-          expectedNewTracesPerSec: 100
-          # The upstream default (4MB) is smaller than the ingress Alloy's HTTP
-          # body cap (20MiB), so the loadbalancing exporter re-emits Kura's
-          # accepted trace batches to this sampler and they are rejected here
-          # as ResourceExhausted, dropping every batch. Match the ingress cap
-          # so the internal Alloy-to-Alloy hop stops throwing away work the
-          # front door already admitted.
-          receiver:
-            otlp:
-              grpc:
-                maxReceivedMessageSize: 20MB
-          policies:
-            - name: errors
-              type: status_code
-              status_codes:
-                - ERROR
-            # Kura's pull replication holds peer reads open by design:
-            # /_internal/sync/forward and the region listing on
-            # /_internal/backfill/entries wait up to KURA_SYNC_LONG_POLL_SECS
-            # (25s) for new rows. Nearly every one of those traces crosses 2s,
-            # so a plain latency policy retained all of them and they were
-            # most of Kura's stored traces. They still fall through to the
-            # errors policy and the healthy sample below.
-            - name: slow
-              type: and
-              and:
-                and_sub_policy:
-                  - name: slower-than-2s
-                    type: latency
-                    threshold_ms: 2000
-                  - name: not-a-long-poll
-                    type: string_attribute
-                    key: http.route
-                    values:
-                      - ^/_internal/sync/forward$
-                      - ^/_internal/backfill/entries$
-                    enabled_regex_matching: true
-                    invert_match: true
-                  # The kubelet propagates one trace context across a pod's
-                  # probes for as long as it keeps probing, so each node's
-                  # /ready spans (one a second) share a trace lasting tens of
-                  # minutes. Every decision window of that trace spans more
-                  # than 2s, which made healthy probes about half of all
-                  # stored spans. Like the long-poll exclusion, this fails the
-                  # policy when any span matches, but the kubelet's trace holds
-                  # only probe spans: application requests carry their own
-                  # trace context, so no real request shares that trace.
-                  - name: not-a-probe
-                    type: string_attribute
-                    key: http.route
-                    values:
-                      - ^/(up|ready|metrics|status/rollout)$
-                      - ^/_internal/status$
-                    enabled_regex_matching: true
-                    invert_match: true
-            # Errors and traces slower than 2s are retained above. Keep a
-            # smaller representative sample for healthy traffic to contain
-            # trace ingestion and downstream service-graph cost. Healthy probe
-            # traces (kubelet /up and /ready, metrics scrapes, rollout polls
-            # and the peer /_internal/status health check) carry no diagnostic
-            # value, so they are only kept when they fail.
-            - name: healthy-sample
-              type: and
-              and:
-                and_sub_policy:
-                  - name: sample-5-percent
-                    type: probabilistic
-                    sampling_percentage: 5
-                  - name: not-a-probe
-                    type: string_attribute
-                    key: http.route
-                    values:
-                      - ^/(up|ready|metrics|status/rollout)$
-                      - ^/_internal/status$
-                    enabled_regex_matching: true
-                    invert_match: true
-          collector:
-            alloy:
-              resources:
-                requests:
-                  cpu: 50m
-                  memory: 128Mi
-                limits:
-                  cpu: 500m
-                  memory: 512Mi
-            controller:
-              type: statefulset
-              replicas: 1
 
   # ───── Features ─────
 
@@ -1052,8 +860,7 @@ k8s-monitoring:
         # duration. They fan out per listener address per node and nothing
         # reads them. Scoped to `listener` rather than all of `envoy_.*`
         # because `l7Proxy` is enabled in cilium-values.yaml, so the cluster
-        # and http families stay available for L7 work. Same exclusion
-        # values-pentest.yaml already carries.
+        # and http families stay available for L7 work.
         - envoy_listener_.*
         # Go runtime metrics (GC, memstats, scheduler, threads) ship one set
         # per scraped pod across the hundreds of Go infra pods (Cilium,
@@ -1238,7 +1045,7 @@ k8s-monitoring:
   # `kubectl apply`, `helm upgrade`, or extraConfig drift) is silent —
   # the config-reloader sidecar logs `400 Bad Request` every 5s, but
   # the pod stays Ready and serves stale config until someone restarts
-  # it. Bringing the success flag to Grafana Cloud lets us alert on
+  # it. Bringing the success flag to Pulse lets us alert on
   # it instead of finding out hours later when a fresh pod crashloops.
   #
   # Alert to create in Grafana Cloud (PromQL):
@@ -1414,35 +1221,7 @@ k8s-monitoring:
                 - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
-        - name: grafana-cloud-traces-sampler
-          labelSelectors:
-            app.kubernetes.io/name: k8s-monitoring-grafana-cloud-traces-sampler
-          metrics:
-            tuning:
-              useDefaultAllowList: false
-              includeMetrics:
-                - alloy_config_last_load_successful
-                - alloy_config_last_load_success_timestamp_seconds
-                # Collector self-diagnosis. See the block comment above.
-                - alloy_component_controller_running_components
-                - alloy_resources_process_resident_memory_bytes
-                - cluster_node_gossip_health_score
-                - cluster_node_peers
-                - go_goroutines
-                - go_memstats_heap_inuse_bytes
-                - prometheus_remote_storage_highest_timestamp_in_seconds
-                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
-                - prometheus_remote_storage_samples_dropped_total
-                - prometheus_remote_storage_samples_failed_total
-                - prometheus_remote_storage_samples_pending
-                - prometheus_remote_storage_samples_retried_total
-                - prometheus_remote_storage_shards
-                - prometheus_remote_storage_shards_desired
-                - prometheus_remote_write_wal_storage_active_series
-                - prometheus_sd_discovered_targets
-                - prometheus_wal_watcher_current_segment
-              excludeMetrics:
-                - loki_write_request_duration_seconds_bucket
+
 
   # ───── Collectors (Alloy instances) ─────
   #
@@ -1457,7 +1236,7 @@ k8s-monitoring:
     # request saturation, storage latency, or lost etcd leadership.
     alloy-control-plane:
       includeDestinations:
-        - grafana-cloud-metrics
+        - pulse-metrics
       controller:
         type: daemonset
         hostNetwork: true
@@ -1467,7 +1246,22 @@ k8s-monitoring:
         tolerations:
           - operator: Exists
         priorityClassName: system-node-critical
+        # The API server audit log written by the ClusterClass
+        # `apiServerAuditLog` variable. Mounted whatever
+        # global.apiServerAuditLogs says, because values cannot be
+        # conditional; only the config below reads it.
+        volumes:
+          extra:
+            - name: apiserver-audit
+              hostPath:
+                path: /var/log/kubernetes/audit
+                type: DirectoryOrCreate
       alloy:
+        mounts:
+          extra:
+            - name: apiserver-audit
+              mountPath: /var/log/kubernetes/audit
+              readOnly: true
         resources:
           requests:
             cpu: 25m
@@ -1476,6 +1270,38 @@ k8s-monitoring:
             cpu: 200m
             memory: 192Mi
       extraConfig: |
+        {{- if eq .Values.global.apiServerAuditLogs true }}
+        // API server audit events: who read which Secret and who requested a
+        // ServiceAccount token, at Metadata level (no object bodies, so no
+        // secret values). The policy is the `apiServerAuditLog` patch in
+        // infra/k8s/clusters/clusterclass-tuist.yaml. Pushed to
+        // alloy-receiver, which forwards with the Loki credentials it already
+        // holds, so none reach the control-plane nodes. Query with
+        // {service_name="kube-apiserver-audit"}; see
+        // infra/credential-rotation.md.
+        //
+        // tail_from_end: this collector keeps no positions across restarts,
+        // and reading the file from the start again would ship duplicates.
+        // Lines written while the pod restarts are skipped; the file on the
+        // node (30 days, 10 x 100 MB) stays the complete record.
+        loki.source.file "tuist_apiserver_audit" {
+          targets = [{
+            "__path__" = "/var/log/kubernetes/audit/audit.log",
+            "job" = "integrations/kube-apiserver-audit",
+            "service_name" = "kube-apiserver-audit",
+            "instance" = sys.env("HOSTNAME"),
+          }]
+          tail_from_end = true
+          forward_to = [loki.write.tuist_apiserver_audit.receiver]
+        }
+
+        loki.write "tuist_apiserver_audit" {
+          endpoint {
+            url = "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:3100/loki/api/v1/push"
+          }
+        }
+        {{- end }}
+
         prometheus.scrape "tuist_kube_apiserver" {
           targets = [{
             "__address__" = "127.0.0.1:6443",
@@ -1526,7 +1352,7 @@ k8s-monitoring:
           }
           {{ end }}
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
         }
 
         prometheus.scrape "tuist_etcd" {
@@ -1547,7 +1373,7 @@ k8s-monitoring:
             action = "keep"
           }
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
         }
 
     # Clustering lets multiple alloy-metrics replicas hash-partition the
@@ -1746,10 +1572,10 @@ k8s-monitoring:
           // rather than as missing series.
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
-          // scope here. Forward straight to the concrete Grafana Cloud
-          // and Pulse metrics destinations (match the `destinations` keys in
-          // values.yaml, dashes to underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          // scope here. Forward straight to the concrete Pulse metrics
+          // destination (matches the `destinations` key in values.yaml,
+          // dashes to underscores per Alloy syntax).
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
         }
 
         // tart-kubelet's controller-runtime metrics endpoint. Carries
@@ -1773,10 +1599,10 @@ k8s-monitoring:
           targets = discovery.relabel.tuist_macos_tart_kubelet.output
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
-          // scope here. Forward straight to the concrete Grafana Cloud
-          // and Pulse metrics destinations (match the `destinations` keys in
-          // values.yaml — dashes → underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          // scope here. Forward straight to the concrete Pulse metrics
+          // destination (matches the `destinations` key in values.yaml —
+          // dashes → underscores per Alloy syntax).
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           job_name = "tuist-macos-tart-kubelet"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1825,10 +1651,10 @@ k8s-monitoring:
           targets = discovery.relabel.tuist_macos_pod_metrics.output
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
-          // scope here. Forward straight to the concrete Grafana Cloud
+          // scope here. Forward straight to the concrete Pulse
           // metrics destination (matches the `destinations` key in
           // values.yaml — dashes → underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           job_name = "tuist-macos-pod-metrics"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1929,7 +1755,7 @@ k8s-monitoring:
             replacement = ""
           }
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
         }
 
         // PgBouncer pooler metrics for the processor's transaction-mode
@@ -1980,7 +1806,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_cnpg_pooler" {
           targets = discovery.relabel.tuist_cnpg_pooler.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           job_name = "tuist-cnpg-pooler"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -2030,7 +1856,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_cnpg_operator" {
           targets = discovery.relabel.tuist_cnpg_operator.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           job_name = "tuist-cnpg-operator"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -2104,7 +1930,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_kura_unready" {
           targets = discovery.relabel.tuist_kura_unready.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           job_name = "kura"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -2191,7 +2017,7 @@ k8s-monitoring:
         }
 
         prometheus.relabel "tuist_kura_ingress_nginx" {
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           rule {
             source_labels = ["__name__"]
             regex = "nginx_ingress_controller_requests|up|scrape_samples_scraped"
@@ -2204,9 +2030,11 @@ k8s-monitoring:
         // datanode's scan budget (25% of its memory limit) runs out. These
         // series show the budget filling and the scans it rejects, plus the
         // flushes and write buffer behind small-file read amplification.
-        // They go to Grafana Cloud only, so the alert on them still works
-        // when Pulse itself is the thing failing. The datanode exports a
-        // large metric surface, so keep only these names.
+        // The alerts on them read the same environment's Pulse and page on a
+        // failed query too, and "Pulse - <env> metrics unavailable to
+        // Grafana" pages when that Pulse cannot answer at all, so they do not
+        // go quiet when Pulse itself is the thing failing. The datanode
+        // exports a large metric surface, so keep only these names.
         discovery.kubernetes "tuist_pulse_datanode" {
           role = "pod"
           namespaces {
@@ -2258,7 +2086,7 @@ k8s-monitoring:
         }
 
         prometheus.relabel "tuist_pulse_datanode" {
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           rule {
             source_labels = ["__name__"]
             regex = "pulse_mito_scan_memory_usage_bytes|pulse_mito_scan_memory_exhausted_total|pulse_mito_scan_requests_rejected_total|pulse_mito_flush_requests_total|pulse_mito_write_buffer_bytes|pulse_mito_write_stall_total|up"
@@ -2324,7 +2152,7 @@ k8s-monitoring:
         }
 
         prometheus.relabel "tuist_hubble" {
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           rule {
             source_labels = ["__name__"]
             regex = "hubble_drop_total|up|scrape_samples_scraped"
@@ -2386,7 +2214,7 @@ k8s-monitoring:
     # the node translates the kubernetes Service to it. It pushes logs to the
     # receiver's loki.source.api on 3100 and metrics to its
     # prometheus.receive_http on 9009, at the receiver's tailnet name, so the
-    # Grafana Cloud credential never reaches the node. Enabled per env in
+    # Pulse credential never reaches the node. Enabled per env in
     # values-<env>.yaml where a rack is joined.
     alloy-rack:
       enabled: false
@@ -2793,11 +2621,37 @@ k8s-monitoring:
     # every pod watches the event stream and emits duplicate log lines.
     alloy-singleton:
       presets: [singleton]
-    # OTLP receiver is a plain service the server pushes spans to; one
-    # Deployment replica is plenty and avoids the per-node DaemonSet
-    # footprint of the upstream default.
+    # OTLP receiver is a plain service every workload pushes spans to, a
+    # Deployment rather than the upstream per-node DaemonSet.
+    #
+    # Two replicas, not one. Every Kura pod in every region exports here
+    # with a 5 s budget; on 2026-11-19 the single replica repeatedly left
+    # every pod's export unanswered past it at the same moment, and 396
+    # Kura pods logged 1,741 export timeouts in about two hours, each one a
+    # dropped span batch.
+    # The subchart sets no requests, so that replica shared a 71% busy
+    # general node unaccounted. Nothing here is per-replica state: the
+    # loadbalancing exporter routes spans by trace ID whichever replica
+    # received them, the WALs are each pod's own, and Kura reopens its
+    # connection to the Service after a replica goes away.
     alloy-receiver:
       presets: [deployment]
+      controller:
+        replicas: 2
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: 1
+        # Production pins non-processor workloads to the general pool
+        # (infra/helm/AGENTS.md); every env has one.
+        nodeSelector:
+          node.cluster.x-k8s.io/pool: general
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: alloy-receiver
       # Loki push endpoint for workloads that cannot be tailed.
       #
       # Alloy's pod-log collection reads container log files from the node,
@@ -2807,12 +2661,24 @@ k8s-monitoring:
       # Tailscale-only kubelet hostnames. The xcresult-processor has therefore
       # never had readable output by any route.
       #
-      # Rather than give the application Grafana Cloud credentials, it pushes
+      # Rather than give the application Pulse credentials, it pushes
       # here over the tailnet and Alloy forwards using the credentials it
       # already holds. `loki.source.api` serves the same
       # /loki/api/v1/push contract the app's handler speaks, so no client-side
       # auth is involved and the tailnet ACL is the access control.
       alloy:
+        # Production's single replica ran at about 0.35 CPU and 660 MiB.
+        # The request reserves that per replica, so either one can carry
+        # the whole load while the other restarts. No CPU limit: throttling
+        # an OTLP receiver turns into client timeouts, the failure this
+        # replica count exists to stop. The memory limit keeps a leak in the
+        # pod's cgroup instead of the node's.
+        resources:
+          requests:
+            cpu: 400m
+            memory: 768Mi
+          limits:
+            memory: 2Gi
         extraPorts:
           - name: otlp-grpc
             port: 4317
@@ -2840,7 +2706,7 @@ k8s-monitoring:
             listen_address = "0.0.0.0"
             listen_port = 3100
           }
-          forward_to = [loki.write.grafana_cloud_logs.receiver{{ if hasKey .Values.destinations "pulse-logs" }}, loki.write.pulse_logs.receiver{{ end }}]
+          forward_to = [loki.write.pulse_logs.receiver]
         }
 
         // Prometheus remote write from collectors the cluster cannot scrape
@@ -2850,7 +2716,7 @@ k8s-monitoring:
             listen_address = "0.0.0.0"
             listen_port = 9009
           }
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
         }
 
         // Browser real user monitoring for tuist.dev. The Grafana Faro Web SDK
@@ -2861,7 +2727,7 @@ k8s-monitoring:
         //
         // Web vitals arrive as `kind=measurement` entries whose logfmt line
         // carries one field per vital (lcp, cls, inp, fcp, ttfb). The LCP alert
-        // rules unwrap `lcp` off this stream; see alerts.md.
+        // rules parse `lcp` out of Pulse's tuist_web_logs; see alerts.md.
         faro.receiver "tuist_web" {
           server {
             listen_address = "0.0.0.0"
@@ -2874,6 +2740,34 @@ k8s-monitoring:
           }
 
           output {
-            logs = [loki.write.grafana_cloud_logs.receiver{{ if hasKey .Values.destinations "pulse-logs" }}, loki.write.pulse_logs.receiver{{ end }}]
+            logs = [loki.write.pulse_web_logs.receiver]
           }
         }
+        {{- if hasKey .Values.destinations "pulse-logs" }}
+
+        // Browser telemetry gets its own Pulse table rather than
+        // opentelemetry_logs: the web-vitals alert rules scan it every minute,
+        // and filtering a day of every cluster log for these few thousand lines
+        // exhausted the datanode's scan memory. The table is created on first
+        // write with a 30-day TTL, since its lines carry session IDs and URLs.
+        // Same endpoint, credentials and on-disk buffer as pulse_logs.
+        loki.write "pulse_web_logs" {
+          wal {
+            enabled = true
+            max_segment_age = "1h"
+          }
+          endpoint {
+            url = "http://pulse.observability.svc.cluster.local:4000/v1/loki/api/v1/push"
+            headers = {
+              "X-Pulse-DB-Name" = "public",
+              "X-Pulse-Pipeline-Name" = "loki_otlp",
+              "X-Pulse-Log-Table-Name" = "tuist_web_logs",
+              "X-Pulse-Hints" = "ttl=30d",
+            }
+            basic_auth {
+              username = convert.nonsensitive(remote.kubernetes.secret.pulse_logs.data["ingest-username"])
+              password = remote.kubernetes.secret.pulse_logs.data["ingest-password"]
+            }
+          }
+        }
+        {{- end }}

@@ -20,7 +20,7 @@ tuist inspect bundle App.apk
 :::
 
 > [!NOTE]
-> **Bir `.apk` analizi için `aapt2` gerekir**; bu araç Android SDK derleme araçlarıyla birlikte gelir. Tuist’in bunu bulabilmesi için `ANDROID_HOME` veya `ANDROID_SDK_ROOT` ortam değişkenlerini ayarlayın ya da `aapt2` öğesini `PATH` yoluna ekleyin. Bir `.aab` analizi için harici araçlara gerek yoktur.
+> **Bir `.apk` analizi, Android SDK derleme araçlarıyla birlikte gelen `aapt2` gerektirir.** Tuist’in bunu bulabilmesi için `ANDROID_HOME` veya `ANDROID_SDK_ROOT` ortam değişkenlerini ayarlayın ya da `aapt2` öğesini `PATH` üzerine ekleyin. Bir `.aab` analizi için harici araçlara gerek yoktur.
 
 <!-- @snippet: ./_upload-result -->
 

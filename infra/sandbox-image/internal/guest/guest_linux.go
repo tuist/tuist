@@ -49,7 +49,11 @@ func (s *System) Configure(ctx context.Context, spec agent.ConfigureSpec) error 
 	if err := FlushNeighbors(Interface); err != nil {
 		return fmt.Errorf("flush neighbours on %s: %w", Interface, err)
 	}
-	return EnsureWorkspace(ctx, WorkspaceDevice, WorkspaceMount, spec.FormatWorkspace)
+	if err := EnsureWorkspace(ctx, WorkspaceDevice, WorkspaceMount, spec.FormatWorkspace); err != nil {
+		return err
+	}
+	EnsureCache(s.Logger, CacheDevice, CacheMount, AgentUser)
+	return nil
 }
 
 func (s *System) root() string {

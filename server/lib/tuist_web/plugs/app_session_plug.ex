@@ -1,13 +1,17 @@
 defmodule TuistWeb.Plugs.AppSessionPlug do
   @moduledoc """
-  Admits only requests from a signed-in Tuist app (see `Tuist.Push.oauth_session/2`)
+  Admits only requests from a signed-in Tuist app (see `Tuist.Push.oauth_session/3`)
   to the `/api/me` push device and notification rule endpoints. It runs after
   `TuistWeb.AuthenticationPlug`, assigns `:app_user` and `:app_session`, and marks
   responses `no-store`. Other OAuth clients, account tokens and agent credentials
-  get a 403, whatever their scopes.
+  get a 403, whatever their scopes. `apps:` lists the apps an endpoint admits
+  (default `["tuist"]`); push devices also admit Luft, and telemetry
+  (`/api/telemetry`) admits the apps that send it. Endpoints admitting Luft
+  also accept the configured Luft server's `luft:app` grant as a Luft session.
 
   Writes are limited per user, because unregistering unknown IDs and removing
-  devices leave tombstones that outlive the user's devices.
+  devices leave tombstones that outlive the user's devices. `limit_writes: false`
+  leaves the limit to an endpoint with its own, as telemetry has.
   """
   @behaviour Plug
 
@@ -22,16 +26,17 @@ defmodule TuistWeb.Plugs.AppSessionPlug do
   @writes_per_minute 60
 
   @impl true
-  def init(opts), do: opts
+  def init(opts), do: {Keyword.get(opts, :apps, ["tuist"]), Keyword.get(opts, :limit_writes, true)}
 
   @impl true
-  def call(conn, _opts) do
+  def call(conn, {apps, limit_writes}) do
     conn = put_resp_header(conn, "cache-control", "no-store")
 
     with %AuthenticatedAccount{issued_by: %User{} = user} <- Authentication.authenticated_subject(conn),
          ["Bearer " <> bearer] <- get_req_header(conn, "authorization"),
-         {:ok, session} <- Push.oauth_session(bearer, user) do
-      conn |> assign(:app_user, user) |> assign(:app_session, session) |> limit_writes(user)
+         {:ok, session} <- Push.oauth_session(bearer, user, apps) do
+      conn = conn |> assign(:app_user, user) |> assign(:app_session, session)
+      if limit_writes, do: limit_writes(conn, user), else: conn
     else
       _ -> halt_with(conn, :forbidden, "This can only be managed from a signed-in Tuist app.")
     end

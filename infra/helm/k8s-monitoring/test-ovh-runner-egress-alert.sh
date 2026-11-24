@@ -4,12 +4,12 @@ directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 temporary="$(mktemp -d)"
 trap 'rm -rf "${temporary}"' EXIT
 jq '
-  {groups: [{name: "Runner networking", interval: "1m", rules: map({
+  {groups: [{name: "Runner networking", interval: "1m", rules: map(select(.uid | endswith("-prod")) | {
     alert: .uid, expr: "(" + .data[0].model.expr + ") > 0.8", for: .for, labels: .labels
   })}]}
 ' "${directory}/ovh-runner-egress-alert-rules.json" > "${temporary}/rules.json"
 jq --arg rules "${temporary}/rules.json" '
-  .[0].data[0].model.expr as $query
+  (map(select(.uid | endswith("-prod"))) | .[0].data[0].model.expr) as $query
   | {rule_files: [$rules], evaluation_interval: "1m", tests: [{
     interval: "1m", input_series: [
       {series: "node_network_transmit_bytes_total{cluster=\"production\",instance=\"a\",device=\"private0\"}", values: "0+18000000000x20"},
@@ -29,11 +29,11 @@ jq --arg rules "${temporary}/rules.json" '
       {labels: "{cluster=\"staging\",vrack=\"pn-124\",cidr=\"198.51.100.32/29\"}", value: 0.016}
     ]}],
     alert_rule_test: [
-      {eval_time: "5m", alertname: "ovh-runner-vrack-transmit", exp_alerts: []},
-      {eval_time: "15m", alertname: "ovh-runner-vrack-transmit", exp_alerts: [{exp_labels: {
+      {eval_time: "5m", alertname: "ovh-runner-vrack-transmit-prod", exp_alerts: []},
+      {eval_time: "15m", alertname: "ovh-runner-vrack-transmit-prod", exp_alerts: [{exp_labels: {
         cluster: "production", vrack: "pn-123", cidr: "198.51.100.0/27", severity: "warning", affected_service: "Runners"
       }}]},
-      {eval_time: "15m", alertname: "ovh-runner-vrack-receive", exp_alerts: []}
+      {eval_time: "15m", alertname: "ovh-runner-vrack-receive-prod", exp_alerts: []}
     ]
   }]}
 ' "${directory}/ovh-runner-egress-alert-rules.json" > "${temporary}/tests.json"

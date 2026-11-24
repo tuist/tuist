@@ -70,3 +70,22 @@ step=
 code=$(curl --silent --max-time 30 --output "$work/anonymous" --write-out '%{http_code}' "$url/$key")
 case "$code" in 401|403|404) ;; *) echo 'FAIL: probe object is anonymously readable or privacy is unknown' >&2; exit 1 ;; esac
 echo 'PASS: no bucket lifecycle rules, prefix list/write/read access and private probe object'
+# Report, never gate: what would let us recover objects a GC bug deleted.
+# Tigris marks snapshot-enabled buckets on HeadBucket, answers
+# GetBucketVersioning, and refuses a soft-delete restore with "Soft-delete is
+# not enabled" when it is off (a key with no deleted version is a 404 then).
+code=$(request --head "$url")
+snapshots=$(tr -d '\r' < "$work/response" | sed -n 's/^[Xx]-[Tt]igris-[Ee]nable-[Ss]napshot: *//p' | head -n1)
+[ "$code" = 200 ] || snapshots="unknown (HTTP $code)"
+code=$(request "$url?versioning")
+versioning=$(sed -n 's:.*<Status>\([A-Za-z]*\)</Status>.*:\1:p' "$work/response" | head -n1)
+if [ "$code" != 200 ]; then versioning="unknown (HTTP $code)"; fi
+code=$(request -X POST --data '' -H 'X-Tigris-Restore-Type: soft-delete' "$url/$prefix/ci-preflight/never-written-$CHECK_RUN?restore")
+if grep -q 'Soft-delete is not enabled' "$work/response" 2>/dev/null; then
+  soft_delete=disabled
+elif [ "$code" = 404 ]; then
+  soft_delete=enabled
+else
+  soft_delete="unknown (HTTP $code, S3 $(sed -n 's:.*<Code>\([A-Za-z]*\)</Code>.*:\1:p' "$work/response" | head -n1))"
+fi
+echo "INFO: $bucket data protection: snapshots=${snapshots:-false} versioning=${versioning:-never enabled} soft_delete=$soft_delete"

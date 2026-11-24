@@ -166,7 +166,7 @@ defmodule AtlasWeb.Widget do
 
     ~H"""
     <.badge
-      size="large"
+      size="medium"
       style="light-fill"
       label={if @trend_value > 0, do: "+#{@formatted}%", else: "#{@formatted}%"}
       color={trend_color(@trend_value, @trend_type)}

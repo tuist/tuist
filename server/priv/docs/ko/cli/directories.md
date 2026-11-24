@@ -2,7 +2,7 @@
 {
   "title": "디렉터리",
   "titleTemplate": ":title · CLI · Tuist",
-  "description": "Tuist가 구성, 캐시 및 상태 디렉터리를 어떻게 구성하는지 알아보세요."
+  "description": "Tuist가 구성, 캐시 및 상태 디렉터리를 어떻게 조직하는지 알아보세요."
 }
 ---
 # 디렉터리 {#directories}
@@ -11,7 +11,7 @@ Tuist는 [XDG Base Directory Specification](https://specifications.freedesktop.o
 
 ## 지원되는 환경 변수 {#supported-environment-variables}
 
-Tuist는 표준 XDG 변수와 Tuist 전용 접두사 변형을 모두 지원합니다. Tuist 전용 변형(`TUIST_` 접두사)이 우선 적용되므로 다른 애플리케이션과 별도로 Tuist를 구성할 수 있습니다.
+Tuist는 표준 XDG 변수와 Tuist 전용 접두사 변형을 모두 지원합니다. Tuist 전용 변형(`TUIST_` 접두사 사용)이 우선 적용되므로 다른 애플리케이션과 별도로 Tuist를 구성할 수 있습니다.
 
 ### 구성 디렉터리 {#configuration-directory}
 
@@ -21,8 +21,8 @@ Tuist는 표준 XDG 변수와 Tuist 전용 접두사 변형을 모두 지원합�
 
 **기본값:** `~/.config/tuist`
 
-**사용 용도:**
-- 서버 자격 증명 (`credentials/{host}.json`)
+**사용 목적:**
+- 서버 자격 증명(`credentials/{host}.json`)
 
 **예시:**
 ```bash
@@ -43,7 +43,7 @@ tuist auth login
 
 **기본값:** `~/.cache/tuist`
 
-**사용 용도:**
+**사용 목적:**
 - **Plugins**: 다운로드 및 컴파일된 플러그인 캐시
 - **ProjectDescriptionHelpers**: 컴파일된 프로젝트 설명 헬퍼
 - **Manifests**: 캐시된 매니페스트 파일
@@ -72,9 +72,9 @@ tuist cache
 
 **기본값:** `~/.local/state/tuist`
 
-**사용 용도:**
-- **Sessions**: 세션 로그 및 네트워크 기록 (`sessions/{uuid}/`)
-- **Locks**: 인증 잠금 파일 (`{handle}.sock`)
+**사용 목적:**
+- **Sessions**: 세션 로그 및 네트워크 기록(`sessions/{uuid}/`)
+- **Locks**: 인증 잠금 파일(`{handle}.sock`)
 
 **예시:**
 ```bash
@@ -91,20 +91,20 @@ tuist generate
 
 사용할 디렉터리를 결정할 때 Tuist는 다음 순서로 환경 변수를 확인합니다:
 
-1. **Tuist 전용 변수** (예: `TUIST_XDG_CONFIG_HOME`)
-2. **표준 XDG 변수** (예: `XDG_CONFIG_HOME`)
-3. **기본 위치** (예: `~/.config/tuist`)
+1. **Tuist 전용 변수**(예: `TUIST_XDG_CONFIG_HOME`)
+2. **표준 XDG 변수**(예: `XDG_CONFIG_HOME`)
+3. **기본 위치**(예: `~/.config/tuist`)
 
 이를 통해 다음과 같이 할 수 있습니다:
 - 표준 XDG 변수를 사용하여 모든 애플리케이션을 일관되게 정리
-- Tuist에 다른 위치가 필요할 경우 Tuist 전용 변수로 재정의
-- 추가 구성 없이 합리적인 기본값 활용
+- Tuist에 다른 위치가 필요할 때 Tuist 전용 변수로 재정의
+- 구성 없이도 합리적인 기본값 활용
 
 ## 일반적인 사용 사례 {#common-use-cases}
 
 ### 프로젝트별 Tuist 격리 {#isolating-tuist-per-project}
 
-프로젝트별로 Tuist의 캐시와 상태를 격리하려면 다음과 같이 설정하세요:
+프로젝트별로 Tuist의 캐시와 상태를 격리하고 싶을 수 있습니다:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -139,7 +139,7 @@ jobs:
 
 ### 격리된 디렉터리로 디버깅하기 {#debugging-with-isolated-directories}
 
-문제를 디버깅할 때 깨끗한 상태에서 시작하려면:
+문제를 디버깅할 때 깨끗한 상태에서 시작하고 싶을 수 있습니다:
 
 ```bash
 # Create temporary directories for debugging

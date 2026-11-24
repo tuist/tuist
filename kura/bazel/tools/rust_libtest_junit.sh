@@ -23,6 +23,25 @@ if [[ ! -x $reporter && -n ${RUNFILES_DIR:-} && -x $RUNFILES_DIR/$reporter ]]; t
 fi
 raw=${TEST_TMPDIR:-/tmp}/${suite}.raw.log
 
+# Under Bazel test sharding (shard_count), run every TEST_TOTAL_SHARDS-th case
+# of the sorted list, starting at TEST_SHARD_INDEX, by exact name. A shard
+# without cases skips everything instead of running the whole suite.
+if [[ -n ${TEST_TOTAL_SHARDS:-} ]]; then
+  touch "${TEST_SHARD_STATUS_FILE:?Bazel sets it with TEST_TOTAL_SHARDS}"
+  mapfile -t cases < <("$binary" --list --format terse "$@" | sed -n 's/: test$//p' | LC_ALL=C sort)
+  selected=()
+  for i in "${!cases[@]}"; do
+    if ((i % TEST_TOTAL_SHARDS == TEST_SHARD_INDEX)); then
+      selected+=("${cases[i]}")
+    fi
+  done
+  if ((${#selected[@]})); then
+    set -- "$@" --exact "${selected[@]}"
+  else
+    set -- "$@" --skip ""
+  fi
+fi
+
 set +e
 RUSTC_BOOTSTRAP=1 "$binary" -Z unstable-options --format json --report-time "$@" | tee "$raw"
 statuses=("${PIPESTATUS[@]}")

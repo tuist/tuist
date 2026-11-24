@@ -19,11 +19,6 @@ defmodule Tuist.Projects.Project do
   }
 
   schema "projects" do
-    # Legacy project token: only its SHA-256 digest is stored, see
-    # `Tuist.Tokens.legacy_token_hash/1`. New tokens are `ProjectToken`s.
-    field :token, :string, virtual: true
-    field :token_hash, :binary
-    field :legacy_token_last_used_at, :utc_datetime
     field :name, :string
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :default_branch, :string, default: "main"
@@ -83,7 +78,6 @@ defmodule Tuist.Projects.Project do
   def create_changeset(project \\ %__MODULE__{}, attrs) do
     project
     |> cast(attrs, [
-      :token,
       :account_id,
       :name,
       :created_at,
@@ -92,14 +86,7 @@ defmodule Tuist.Projects.Project do
       :build_system
     ])
     |> validate_inclusion(:visibility, [:private, :public])
-    |> validate_required([:token, :account_id, :name])
-    |> then(fn changeset ->
-      case get_change(changeset, :token) do
-        nil -> changeset
-        token -> put_change(changeset, :token_hash, Tuist.Tokens.legacy_token_hash(token))
-      end
-    end)
-    |> unique_constraint(:token_hash, name: "projects_token_hash_index")
+    |> validate_required([:account_id, :name])
     |> validate_name()
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
     |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once, :mix, :cargo])

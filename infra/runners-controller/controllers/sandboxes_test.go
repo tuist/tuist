@@ -133,6 +133,32 @@ func TestSandboxDaemonsReadWhatTheSchedulerCountsAndWhatAGrowthWaitsFor(t *testi
 	}
 }
 
+// With a vmm container the server grows that one; the daemon's own stays
+// fixed. Both hold node memory.
+func TestSandboxDaemonsCountTheVMMContainer(t *testing.T) {
+	pod := sandboxDaemonPod("sandboxd-a", "node-a", 16, 8, true)
+	pod.Spec.Containers[0].Name = "vmm"
+	pod.Status.ContainerStatuses[0].Name = "vmm"
+	half := *resource.NewQuantity(gib/2, resource.BinarySI)
+	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
+		Name:      sandboxdContainer,
+		Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceMemory: half}},
+	})
+	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, corev1.ContainerStatus{
+		Name:               sandboxdContainer,
+		AllocatedResources: corev1.ResourceList{corev1.ResourceMemory: half},
+	})
+	r, _ := sandboxFixture(t, pod)
+
+	daemons, err := r.sandboxDaemons(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(daemons) != 1 || daemons[0].memory != 16*gib+gib/2 || daemons[0].deferred != 8*gib {
+		t.Fatalf("daemons = %+v, want 16.5 GiB counted and vmm's 8 GiB growth waiting", daemons)
+	}
+}
+
 func TestSandboxDaemonsAreOffWithoutANamespace(t *testing.T) {
 	r, _ := sandboxFixture(t, sandboxDaemonPod("sandboxd-a", "node-a", 16, 8, true))
 	r.SandboxesNamespace = ""
@@ -181,7 +207,7 @@ func TestPlanSandboxPreemptionTakesTheOldestWarmRunnersUntilTheGrowthIsCovered(t
 		},
 	}
 
-	got := planSandboxPreemption(map[string]int64{"node-a": 10 * gib}, nil, candidates)
+	got := planSandboxPreemption(map[string]sandboxRoom{"node-a": {memory: 10 * gib}}, nil, candidates)
 	var names []string
 	for _, c := range got {
 		names = append(names, c.pod.Name)
@@ -190,8 +216,55 @@ func TestPlanSandboxPreemptionTakesTheOldestWarmRunnersUntilTheGrowthIsCovered(t
 		t.Fatalf("chosen = %v, want the oldest runners until 10 GiB is covered", names)
 	}
 
-	if got := planSandboxPreemption(map[string]int64{"node-a": 10 * gib}, map[string]int64{"node-a": 10 * gib}, candidates); len(got) != 0 {
+	if got := planSandboxPreemption(map[string]sandboxRoom{"node-a": {memory: 10 * gib}}, map[string]sandboxRoom{"node-a": {memory: 10 * gib}}, candidates); len(got) != 0 {
 		t.Fatalf("chosen = %d runners, want none once retiring runners already cover the growth", len(got))
+	}
+
+	// A CPU growth is covered by the runners' CPU, Pod-level budget and
+	// overhead included, whatever memory they hold: 5000m takes two 4250m
+	// runners, and 1000m already leaving takes only one.
+	exclusive := func(name string, since time.Duration) sandboxCandidate {
+		pod := pod(name, 16)
+		pod.Spec.Resources = &corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")}}
+		pod.Spec.Overhead = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("250m")}
+		return sandboxCandidate{pod: pod, pool: "linux-4vcpu", since: preemptionNow.Add(-since)}
+	}
+	cpuCandidates := map[string][]sandboxCandidate{"node-a": {exclusive("a", time.Minute), exclusive("b", time.Hour), exclusive("c", 2*time.Hour)}}
+	names = nil
+	for _, c := range planSandboxPreemption(map[string]sandboxRoom{"node-a": {cpuMilli: 5000}}, nil, cpuCandidates) {
+		names = append(names, c.pod.Name)
+	}
+	if fmt.Sprint(names) != "[c b]" {
+		t.Fatalf("chosen = %v, want the two oldest runners for 5000m", names)
+	}
+	if got := planSandboxPreemption(map[string]sandboxRoom{"node-a": {cpuMilli: 5000}}, map[string]sandboxRoom{"node-a": {cpuMilli: 1000}}, cpuCandidates); len(got) != 1 {
+		t.Fatalf("chosen = %d runners, want one once 1000m is already leaving", len(got))
+	}
+}
+
+func TestAutoscaler_RetiresIdleRunnersForADeferredCPUGrowth(t *testing.T) {
+	pool := linuxFleetPool("linux-8gb", 3, 8192, 0, 10)
+	withCPU := func(pod *corev1.Pod) *corev1.Pod {
+		pod.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("4")
+		return pod
+	}
+	// The memory carve-out is steady; the CPU request waits for 2 cores.
+	daemon := sandboxDaemonPod("sandboxd-a", "node-a", 8, 8, true)
+	daemon.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("2250m")
+	daemon.Status.ContainerStatuses[0].AllocatedResources[corev1.ResourceCPU] = resource.MustParse("250m")
+	r, c := sandboxFixture(t,
+		pool,
+		linuxNode("node-a", 64),
+		daemon,
+		withCPU(busyLinuxRunner("busy-a", pool.Name, "node-a", 8)),
+		withCPU(idleLinuxRunner("idle-a-old", pool.Name, "node-a", 8, time.Hour)),
+		withCPU(idleLinuxRunner("idle-a-young", pool.Name, "node-a", 8, 10*time.Minute)),
+	)
+
+	reconcileOnce(t, r, pool.Name)
+
+	if marked := markedPods(t, c, pool.Name); fmt.Sprint(marked) != "[idle-a-old=sandboxes]" {
+		t.Fatalf("marked = %v, want only the oldest idle runner for the CPU growth", marked)
 	}
 }
 
@@ -292,7 +365,7 @@ func TestSandboxShapeCapsUsePerNodeAllocations(t *testing.T) {
 				sandboxDaemonPod("sandboxd", a.Name, tc.asked, tc.allocated, tc.asked > tc.allocated),
 			).Build()
 			shape := podShape{cpuMilli: 8000, memoryMB: 32 * 1024}
-			caps, err := r.shapePlacementCaps(context.Background(), linuxFleetPool("large", 1, 32768, 0, 4), map[string]podShape{shape.key(): shape})
+			caps, _, err := r.shapePlacementCaps(context.Background(), linuxFleetPool("large", 1, 32768, 0, 4), map[string]podShape{shape.key(): shape})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -427,7 +500,7 @@ func TestSandboxShapeCapsIncludeDaemonCPURequest(t *testing.T) {
 	pod.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("250m")
 	r, _ := sandboxFixture(t, node, pod)
 	shape := podShape{cpuMilli: 8000, memoryMB: 8192}
-	caps, err := r.shapePlacementCaps(context.Background(), linuxFleetPool("small", 1, 8192, 0, 4), map[string]podShape{shape.key(): shape})
+	caps, _, err := r.shapePlacementCaps(context.Background(), linuxFleetPool("small", 1, 8192, 0, 4), map[string]podShape{shape.key(): shape})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -441,7 +514,7 @@ func TestSandboxAccountingPropagatesReadFailures(t *testing.T) {
 	r.APIReader = sandboxReadFailure{Reader: r.Client}
 	pool := linuxFleetPool("small", 1, 8192, 0, 4)
 	shape := podShape{cpuMilli: 8000, memoryMB: 8192}
-	if _, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape}); err == nil {
+	if _, _, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape}); err == nil {
 		t.Fatal("want unknown sandbox allocation to fail shape calculation")
 	}
 	if _, err := r.fleetAllocatableMemory(context.Background(), "runners-linux"); err == nil {

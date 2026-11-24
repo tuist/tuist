@@ -68,6 +68,27 @@ defmodule Tuist.Marketing.MDExConverterTest do
       assert html =~ "Unauthorized"
     end
 
+    test "renders code blocks whose tokens span several lines" do
+      markdown = """
+      ```bash
+      adb shell am start -a android.intent.action.VIEW \\
+        -d edges://conversations/011d032b115d6baa
+      ```
+
+      ```diff
+       jobs:
+         build:
+      -    runs-on: macos-latest
+      +    runs-on: tuist-macos
+      ```
+      """
+
+      html = render_live(markdown)
+
+      assert html =~ "edges://conversations/011d032b115d6baa"
+      assert html =~ "runs-on: tuist-macos"
+    end
+
     test "renders mermaid diagrams whose content contains curly braces" do
       markdown = """
       ```mermaid

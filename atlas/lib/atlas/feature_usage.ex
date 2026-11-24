@@ -24,7 +24,6 @@ defmodule Atlas.FeatureUsage do
   alias Atlas.FeatureUsage.Catalog
   alias Atlas.FeatureUsage.Collector
   alias Atlas.FeatureUsage.Snapshot
-  alias Atlas.FeatureUsage.UsageNotifier
   alias Atlas.Repo
 
   @doc "Ids of accounts that have at least one handle and are therefore candidates for tracking."
@@ -75,7 +74,8 @@ defmodule Atlas.FeatureUsage do
   Recent "stopped using a feature" transitions across accounts, newest first.
 
   A transition is a snapshot that is inactive now but whose immediately previous
-  snapshot for the same (account, feature) was active.
+  snapshot for the same (account, feature) was active. Snapshots of features
+  that have since been removed from the catalog are left out.
   """
   def list_recent_stops(opts \\ []) do
     limit = opts |> Keyword.get(:limit, 50) |> min(200) |> max(1)
@@ -84,6 +84,7 @@ defmodule Atlas.FeatureUsage do
 
     Snapshot
     |> where([s], s.active == false and s.active_previous == true)
+    |> where([s], s.feature in ^Catalog.all_slugs())
     |> maybe_since(since)
     |> maybe_feature(feature)
     |> order_by([s], desc: s.computed_at)
@@ -101,15 +102,12 @@ defmodule Atlas.FeatureUsage do
   defp maybe_feature(query, _feature), do: query
 
   @doc """
-  Recompute and persist the feature-usage snapshot for a single account and fire
-  Slack notifications on both active -> inactive ("stopped") and inactive ->
-  active ("started") transitions.
+  Recompute and persist the feature-usage snapshot for a single account and
+  audit both active -> inactive ("stopped") and inactive -> active ("started")
+  transitions.
 
   Options:
     * `:now` — reference timestamp (defaults to `DateTime.utc_now/0`).
-    * `:notify` — 3-arity fn `(account, snapshot, change) -> term` (defaults to
-      `UsageNotifier.notify/3`); called once per transition with `change` being
-      `:started` or `:stopped`.
 
   Returns `{:ok, %{account:, snapshots:, alerts:}}` or `{:error, reason}`
   (`:not_found` when the account or its Tuist handle is missing). Each entry in
@@ -117,7 +115,6 @@ defmodule Atlas.FeatureUsage do
   """
   def refresh_account(account_id, opts \\ []) when is_binary(account_id) do
     now = opts |> Keyword.get(:now, DateTime.utc_now()) |> DateTime.truncate(:second)
-    notify = Keyword.get(opts, :notify, &UsageNotifier.notify/3)
 
     with %Account{} = account <- Repo.get(Account, account_id),
          {:ok, resolution} <- resolve_account(account_id),
@@ -139,7 +136,7 @@ defmodule Atlas.FeatureUsage do
         end)
 
       alerts = Enum.reverse(alerts)
-      Enum.each(alerts, fn {change, snapshot} -> alert(account, snapshot, change, notify) end)
+      Enum.each(alerts, fn {change, snapshot} -> alert(account, snapshot, change) end)
 
       result = %{account: account, snapshots: Enum.reverse(snapshots), alerts: alerts}
 
@@ -227,7 +224,7 @@ defmodule Atlas.FeatureUsage do
   defp started?(nil, %Snapshot{active: true, active_previous: false}), do: true
   defp started?(_previous, _current), do: false
 
-  defp alert(%Account{} = account, %Snapshot{} = snapshot, change, notify) do
+  defp alert(%Account{} = account, %Snapshot{} = snapshot, change) do
     Audit.record(audit_action(change), %{
       target_type: "account",
       target_id: account.id,
@@ -241,8 +238,6 @@ defmodule Atlas.FeatureUsage do
         "events_last_7d" => snapshot.events_last_7d
       }
     })
-
-    notify.(account, snapshot, change)
   end
 
   defp audit_action(:stopped), do: "account.feature_usage_dropped"

@@ -5,8 +5,10 @@ defmodule Tuist.Sandboxes.Query do
   errors. Shapes are in `Tuist.Sandboxes.Schemas`.
   """
   alias Tuist.Accounts.Account
+  alias Tuist.RateLimit
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Analytics
+  alias Tuist.Sandboxes.ClaudeCodeSnapshots
   alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Sandbox
@@ -14,7 +16,9 @@ defmodule Tuist.Sandboxes.Query do
 
   @max_range_seconds 90 * 86_400
   @no_filters %{"search" => nil, "status" => nil, "vcpus" => nil}
-  @create_fields ~w(platform template xcode_version vcpus memory_mb workspace_gb)
+  @create_fields ~w(platform template xcode_version vcpus memory_mb workspace_gb lifetime_seconds)
+  @capacity_wait_ms 25_000
+  @creates_per_minute 10
 
   def run(:list, %Account{} = account, params) do
     with {:ok, page, size} <- pagination(params),
@@ -33,10 +37,34 @@ defmodule Tuist.Sandboxes.Query do
   end
 
   # The changeset validates each platform's shapes; omitted fields take the platform's defaults.
+  # A macOS sandbox for a `repository` boots from its Claude Code macOS
+  # snapshot when one is ready, and has one built otherwise.
+  #
+  # When no host has room, the create waits for one inside the request
+  # (25 seconds, retrying placement every few seconds) before it
+  # answers `:no_capacity`, so an agent's create succeeds as soon as a CI job
+  # frees a Mac instead of after its next retry. The wait fits a Mac boot
+  # inside MCP clients' 60-second tool timeout. Creates are also limited per
+  # account (`@creates_per_minute`), so agents retrying in a loop are slowed
+  # down before they reach admission.
   def run(:create, account, params) do
     attrs = for {key, value} <- params, key in @create_fields, into: %{}, do: {String.to_existing_atom(key), value}
+    attrs = put_guarantee(attrs, params["guaranteed_vcpus"])
+    # Sandboxes created here are the caller's to end; a lifetime ends the
+    # ones they forget (`Sandboxes.expire_sandboxes/0`).
+    attrs = Map.put_new(attrs, :lifetime_seconds, Sandbox.default_lifetime_seconds())
 
-    with {:ok, created} <- Sandboxes.create_sandbox(account, attrs), do: {:ok, sandbox(kept(created))}
+    with :ok <- limit_creates(account),
+         {:ok, source} <- ClaudeCodeSnapshots.mac_source(account, params["repository"], attrs),
+         attrs = if(source, do: Map.put(attrs, :repository, source.repository), else: attrs),
+         {:ok, created} <-
+           Sandboxes.create_sandbox(account, attrs,
+             from_disk_snapshot: source && source.snapshot,
+             capacity_wait_ms: capacity_wait_ms()
+           ) do
+      ClaudeCodeSnapshots.request_mac_build(source)
+      {:ok, sandbox(kept(created))}
+    end
   end
 
   def run(:show, account, params) do
@@ -45,6 +73,13 @@ defmodule Tuist.Sandboxes.Query do
 
   def run(:pause, account, params), do: transition(account, params, &Sandboxes.pause/1)
   def run(:resume, account, params), do: transition(account, params, &resume_and_keep/1)
+
+  def run(:extend, account, params) do
+    with {:ok, found} <- find(account, params),
+         {:ok, extended} <- Sandboxes.extend(found, params["lifetime_seconds"]) do
+      {:ok, sandbox(extended)}
+    end
+  end
 
   def run(:archive, account, params) do
     with {:ok, found} <- find(account, params),
@@ -72,6 +107,7 @@ defmodule Tuist.Sandboxes.Query do
          period: %{start: iso(start), end: iso(finish)},
          bucket: Atom.to_string(Analytics.bucket_for_window(start, finish)),
          vcpu_hours: usage.vcpu_hours,
+         memory_gib_hours: usage.memory_gib_hours,
          created: %{
            count: overview.created.count,
            trend: overview.created.trend,
@@ -85,15 +121,16 @@ defmodule Tuist.Sandboxes.Query do
              vcpus: account.sandbox_vcpus_limit,
              memory_gb: account.sandbox_memory_gb_limit * 1.0
            },
+           # Guarantees can be fractions of a vCPU; the API's vCPUs are whole.
            in_use: %{
-             vcpus: in_use.vcpus,
+             vcpus: ceil(in_use.vcpus),
              memory_gb: Float.round(in_use.memory_mb / 1024, 1)
            },
            points:
              points(
                concurrency.dates,
                &%{
-                 vcpus: Enum.at(concurrency.vcpus, &1),
+                 vcpus: ceil(Enum.at(concurrency.vcpus, &1)),
                  memory_gb: Enum.at(concurrency.memory_gb, &1) * 1.0
                }
              )
@@ -102,63 +139,164 @@ defmodule Tuist.Sandboxes.Query do
     end
   end
 
+  # Every 503 comes after the server already waited for a node or for
+  # capacity, so an immediate retry only repeats that wait. The hint is
+  # longer than any CLI retry budget (`RetryMiddleware` waits at most 30
+  # seconds per retry, 10 retries at most), so released CLIs report it at
+  # once, and it is what the messages tell agents to wait.
+  @unavailable_retry_after_seconds 300
+
   @doc """
-  The HTTP status and message for an error `run/3` returned.
+  The answer to an error `run/3` (or another sandbox action) returned: its
+  HTTP `status`, a stable machine-readable `code` clients branch on, the
+  human `message`, and for some codes `retry_after` in seconds, which the API
+  sends as `retry-after`. Codes never change meaning; messages may.
   """
-  def error({:invalid_state, state}), do: {:conflict, "The sandbox is #{state}."}
-  def error(:not_found), do: {:not_found, "Sandbox not found."}
+  def error(reason) do
+    {status, code, message} = describe(reason)
+    answer = %{status: status, code: code, message: message}
 
-  def error({:invalid_cwd, cwd}),
-    do: {:bad_request, "The working directory #{cwd} does not exist in the sandbox or is not a directory."}
+    cond do
+      match?({:rate_limited, _seconds}, reason) -> Map.put(answer, :retry_after, elem(reason, 1))
+      status == :service_unavailable -> Map.put(answer, :retry_after, @unavailable_retry_after_seconds)
+      true -> answer
+    end
+  end
 
-  def error(:invalid_parameters),
+  defp describe({:invalid_state, state}), do: {:conflict, "invalid_state", "The sandbox is #{state}."}
+  defp describe(:not_found), do: {:not_found, "not_found", "Sandbox not found."}
+
+  defp describe({:invalid_cwd, cwd}),
+    do: {:bad_request, "invalid_cwd", "The working directory #{cwd} does not exist in the sandbox or is not a directory."}
+
+  defp describe(:invalid_parameters),
     do:
-      {:bad_request,
+      {:bad_request, "invalid_parameters",
        "Invalid identifier, pagination, filter, sorting or time range. Use an ordered range of at most 90 days ending no later than now."}
 
-  def error(:no_node), do: {:service_unavailable, "No sandbox node with the template ready is connected."}
+  defp describe(:no_node), do: {:service_unavailable, "no_node", "No sandbox node with the template ready is connected."}
 
-  def error(:sandbox_concurrency_limit),
+  defp describe(:sandbox_concurrency_limit),
     do:
-      {:too_many_requests,
-       "The account has reached its sandbox CPU or memory limit. Pause a sandbox before starting more work."}
+      {:too_many_requests, "account_limit",
+       "The account is using all of its sandbox CPU or memory. Pause or delete a sandbox it no longer needs, or ask an account admin to raise the limit; retrying does not help until then."}
 
-  def error(:sandbox_account_busy), do: {:conflict, "Another sandbox admission is in progress. Retry shortly."}
-  def error(:busy), do: {:conflict, "An agent turn or another command is running in the sandbox."}
-
-  def error(:invalid_command),
+  defp describe({:rate_limited, seconds}),
     do:
-      {:bad_request,
+      {:too_many_requests, "rate_limited",
+       "The account created too many sandboxes in the last minute. Wait #{seconds} seconds before creating another, and reuse a sandbox instead of creating one per command."}
+
+  defp describe(:sandbox_account_busy),
+    do:
+      {:conflict, "account_busy",
+       "Another request was changing this account's sandboxes and held them for several seconds. Retry in a few seconds."}
+
+  defp describe(:busy), do: {:conflict, "sandbox_busy", "An agent turn or another command is running in the sandbox."}
+
+  defp describe(:invalid_command),
+    do:
+      {:bad_request, "invalid_command",
        "Invalid command: it needs a non-empty command, string arguments, environment names of letters, digits and underscores, and stdin data of at most 256 KiB in base64."}
 
-  def error(:stdin_not_attached), do: {:conflict, "The command was not started with stdin attached."}
-  def error(:stdin_closed), do: {:conflict, "The command's stdin is closed."}
+  defp describe(:stdin_not_attached),
+    do: {:conflict, "stdin_not_attached", "The command was not started with stdin attached."}
 
-  def error(:stdin_offset_mismatch),
-    do: {:conflict, "The write does not continue the command's stdin: its offset is not the number of bytes stdin holds."}
+  defp describe(:stdin_closed), do: {:conflict, "stdin_closed", "The command's stdin is closed."}
 
-  def error(:locked), do: {:conflict, "Another operation on the sandbox is in progress."}
-
-  def error(:command_id_taken),
-    do: {:conflict, "Another command already uses this id. Choose a new id for a new command."}
-
-  def error(:no_capacity), do: {:service_unavailable, "No sandbox node has memory or disk left for this sandbox."}
-
-  def error(:archive_store_unavailable),
+  defp describe(:no_lifetime),
     do:
-      {:service_unavailable,
+      {:conflict, "no_lifetime",
+       "The sandbox has no lifetime to extend: it belongs to an integration, such as an Amp Orb or a Claude session, which ends it, or it was created before sandboxes had lifetimes."}
+
+  defp describe(:stdin_offset_mismatch),
+    do:
+      {:conflict, "stdin_offset_mismatch",
+       "The write does not continue the command's stdin: its offset is not the number of bytes stdin holds."}
+
+  defp describe(:locked), do: {:conflict, "locked", "Another operation on the sandbox is in progress."}
+
+  defp describe(:command_id_taken),
+    do: {:conflict, "command_id_taken", "Another command already uses this id. Choose a new id for a new command."}
+
+  # The fleet, not the account, is full. A create has already waited for room
+  # (`capacity_wait_ms/0`), so a retry in a loop only adds load.
+  defp describe(:no_capacity),
+    do:
+      {:service_unavailable, "fleet_busy",
+       "Every sandbox host is busy right now; the server already waited #{div(capacity_wait_ms(), 1000)} seconds for one to free up. Macs are shared with CI jobs, which take priority and usually free up within minutes. Do not retry in a loop: tell the user the hosts are busy and try once more in about #{div(@unavailable_retry_after_seconds, 60)} minutes. The default shape fits more hosts."}
+
+  # A paused macOS sandbox resumes warm only on the Mac that holds it, which
+  # it shares with CI. A refused resume also moves it to storage, so a later
+  # resume can cold-boot it on another Mac.
+  defp describe({:host_busy, :ci}),
+    do:
+      {:service_unavailable, "host_busy_ci",
+       "The Mac this sandbox runs on is busy with CI jobs, which take priority. The sandbox resumes when a CI job finishes there, or on another Mac once it has moved there; a move keeps its files but not its running processes."}
+
+  defp describe({:host_busy, :full}),
+    do:
+      {:service_unavailable, "host_busy_full",
+       "The Mac this sandbox runs on has no CPU, memory or VM slot free; CI jobs and other sandboxes are using them. The sandbox resumes when one frees up there, or on another Mac once it has moved there; a move keeps its files but not its running processes."}
+
+  defp describe({:host_busy, :no_grant}),
+    do:
+      {:service_unavailable, "host_busy_no_grant",
+       "The Mac this sandbox runs on is waiting for the CI scheduler to confirm it has room for sandboxes."}
+
+  defp describe({:host_busy, :not_connected}),
+    do: {:service_unavailable, "host_not_connected", "The Mac this sandbox runs on is not connected."}
+
+  defp describe({:host_busy, :replaced}),
+    do:
+      {:service_unavailable, "host_replaced",
+       "The Mac this sandbox ran on was replaced, so the sandbox can't resume. Create a new sandbox."}
+
+  defp describe(:archive_store_unavailable),
+    do:
+      {:service_unavailable, "archive_unavailable",
        "The storage that holds this sandbox's archive is not configured on this server, so the archive can't be reached."}
 
-  def error(:not_connected), do: {:service_unavailable, "The sandbox's node is not connected."}
-  def error(:node_disconnected), do: {:service_unavailable, "The sandbox's node disconnected during the operation."}
-  def error(:timeout), do: {:gateway_timeout, "The sandbox's node did not answer in time."}
+  defp describe(:not_connected), do: {:service_unavailable, "node_not_connected", "The sandbox's node is not connected."}
 
-  def error(:snapshot_not_saved),
-    do: {:service_unavailable, "The Orb paused, but its project snapshot could not be saved."}
+  defp describe(:node_disconnected),
+    do: {:service_unavailable, "node_disconnected", "The sandbox's node disconnected during the operation."}
 
-  def error(%Ecto.Changeset{} = changeset), do: {:bad_request, changeset_message(changeset)}
-  def error(reason) when is_binary(reason), do: {:bad_gateway, "The sandbox node rejected the operation: #{reason}"}
-  def error(reason), do: {:internal_server_error, "Sandbox operation failed: #{inspect(reason)}"}
+  defp describe(:timeout), do: {:gateway_timeout, "node_timeout", "The sandbox's node did not answer in time."}
+
+  defp describe(:snapshot_not_saved),
+    do: {:service_unavailable, "snapshot_not_saved", "The Orb paused, but its project snapshot could not be saved."}
+
+  defp describe(%Ecto.Changeset{} = changeset), do: {:bad_request, "invalid_request", changeset_message(changeset)}
+
+  defp describe(reason) when is_binary(reason),
+    do: {:bad_gateway, "node_rejected", "The sandbox node rejected the operation: #{reason}"}
+
+  defp describe(reason), do: {:internal_server_error, "internal_error", "Sandbox operation failed: #{inspect(reason)}"}
+
+  @doc "Every code `error/1` answers, for the API and MCP schemas."
+  def error_codes,
+    do:
+      ~w(invalid_state not_found invalid_cwd invalid_parameters no_node account_limit rate_limited account_busy sandbox_busy invalid_command stdin_not_attached stdin_closed stdin_offset_mismatch locked no_lifetime command_id_taken fleet_busy host_busy_ci host_busy_full host_busy_no_grant host_not_connected host_replaced archive_unavailable node_not_connected node_disconnected node_timeout snapshot_not_saved invalid_request node_rejected internal_error)
+
+  defp capacity_wait_ms,
+    do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:capacity_wait_ms, @capacity_wait_ms)
+
+  defp limit_creates(account) do
+    case RateLimit.hit("sandboxes:create:account:#{account.id}",
+           limit: @creates_per_minute,
+           window: to_timeout(minute: 1),
+           failure_policy: :local
+         ) do
+      {:allow, _count} -> :ok
+      {:deny, retry_after_ms} -> {:error, {:rate_limited, max(1, div(retry_after_ms + 999, 1000))}}
+    end
+  end
+
+  # vCPUs to millicores; anything else reaches the changeset as is, which
+  # refuses it.
+  defp put_guarantee(attrs, nil), do: attrs
+  defp put_guarantee(attrs, vcpus) when is_number(vcpus), do: Map.put(attrs, :guaranteed_cpu_milli, round(vcpus * 1000))
+  defp put_guarantee(attrs, vcpus), do: Map.put(attrs, :guaranteed_cpu_milli, vcpus)
 
   @doc """
   The public fields of a sandbox, with the status the dashboard shows.
@@ -185,11 +323,14 @@ defmodule Tuist.Sandboxes.Query do
       :paused_at,
       :archived_at,
       :archive_bytes,
+      :lifetime_seconds,
+      :expires_at,
       :error_message,
       :inserted_at,
       :updated_at
     ])
     |> Map.put(:status, status(sandbox))
+    |> Map.put(:guaranteed_vcpus, Sandbox.vcpus(Sandbox.guaranteed_cpu_milli(sandbox)))
   end
 
   defp status(%Sandbox{state: :running, residency_work_id: work}) when is_binary(work), do: "active"

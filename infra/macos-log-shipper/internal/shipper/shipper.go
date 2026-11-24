@@ -14,13 +14,13 @@
 //     outage cannot grow the shipper's memory; it just stops advancing its
 //     offset and catches up later, in bounded chunks.
 //   - Offsets advance only after a successful push, so a crash re-ships at
-//     most one batch rather than losing it. Loki deduplicates identical
-//     (stream, timestamp, line) entries, so the overlap is invisible.
+//     most one batch rather than losing it. That batch is stored twice: arrival
+//     timestamps and Pulse's append-only log tables leave nothing to dedupe it.
 //   - A file seen for the first time starts at its END. /var/log/tart-kubelet.log
 //     is never rotated, so byte 0 on a long-lived host is months of history
-//     that Grafana Cloud would mostly reject as too old anyway.
+//     nobody asked for.
 //   - No credentials. The push target is the in-cluster Alloy receiver reached
-//     over the tailnet; Alloy holds the Grafana Cloud token.
+//     over the tailnet; Alloy holds the Pulse ingest credential.
 package shipper
 
 import (

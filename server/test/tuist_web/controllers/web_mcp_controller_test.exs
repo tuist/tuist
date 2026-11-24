@@ -165,7 +165,7 @@ defmodule TuistWeb.WebMCPControllerTest do
       conn =
         conn
         |> browser_session(nil)
-        |> put_req_header("authorization", "Bearer #{user.token}")
+        |> put_req_header("authorization", "Bearer #{AccountsFixtures.user_access_token(user)}")
         |> post_rpc(account_path(user.account), "tools/list", %{})
 
       assert json_response(conn, 401)

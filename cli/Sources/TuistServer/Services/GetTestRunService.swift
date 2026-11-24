@@ -86,6 +86,7 @@ public struct GetTestRunService: GetTestRunServicing {
     extension ServerTestRun {
         public static func test(
             avgTestDuration: Int = 120,
+            coverage: ServerTestRun.coveragePayload? = nil,
             deviceName: String? = "MacBook Pro (16-inch, 2021)",
             duration: Int = 1500,
             failedTestCount: Int = 0,
@@ -99,12 +100,14 @@ public struct GetTestRunService: GetTestRunServicing {
             modelIdentifier: String? = "MacBookPro18,3",
             ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
             scheme: String? = "App",
-            status: Operations.getTestRun.Output.Ok.Body.jsonPayload.statusPayload = .success,
+            selectiveTesting: ServerTestRun.selective_testingPayload? = nil,
+            status: String = "success",
             totalTestCount: Int = 42,
             xcodeVersion: String? = "15.0"
         ) -> Self {
             .init(
                 avg_test_duration: avgTestDuration,
+                coverage: coverage,
                 device_name: deviceName,
                 duration: duration,
                 failed_test_count: failedTestCount,
@@ -118,6 +121,7 @@ public struct GetTestRunService: GetTestRunServicing {
                 model_identifier: modelIdentifier,
                 ran_at: ranAt,
                 scheme: scheme,
+                selective_testing: selectiveTesting,
                 status: status,
                 total_test_count: totalTestCount,
                 xcode_version: xcodeVersion

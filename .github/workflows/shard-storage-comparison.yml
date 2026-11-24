@@ -1,0 +1,104 @@
+name: Shard storage comparison
+
+# Measures production shard uploads and downloads from outside Tuist's
+# infrastructure, the way customers on their own CI reach shard storage. Runs
+# on a GitHub-hosted Mac on purpose, not the tuist-macos profile. Which store
+# serves the plans follows the tuist account's public_shard_storage flag, so
+# dispatch once per flag state and compare the uploaded results. A CLI older
+# than 4.219.0-canary.21 always gets the default store (Tigris), so two
+# concurrent runs with different cli_version compare stores without a flag change.
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: Name for this run's results, such as tigris or rustfs
+        required: true
+      iterations:
+        description: Plan, upload and fresh-worker download cycles
+        default: "15"
+      cli_version:
+        description: CLI release (4.219.0-canary.21 or later splits uploads)
+        default: 4.219.0-canary.27
+      payload_mb:
+        description: Random MiB added to the test bundle, to match large customer products (0 for none)
+        default: "0"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  compare:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the CLI
+        env:
+          CLI_VERSION: ${{ inputs.cli_version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dir="$RUNNER_TEMP/tuist-cli"
+          mkdir -p "$dir"
+          gh release download "$CLI_VERSION" -R tuist/tuist -p tuist.zip -p SHASUMS256.txt -D "$dir"
+          expected=$(awk '$2 == "./tuist.zip" || $2 == "tuist.zip" {print $1}' "$dir/SHASUMS256.txt")
+          test -n "$expected"
+          test "$(shasum -a 256 "$dir/tuist.zip" | awk '{print $1}')" = "$expected"
+          (cd "$dir" && unzip -q tuist.zip)
+          echo "TUIST_CLI=$dir/tuist" >> "$GITHUB_ENV"
+      # Older CLIs (4.217 and earlier) only exchange the job's OIDC token on login.
+      - name: Authenticate
+        run: '"$TUIST_CLI" auth login'
+      - name: Run the cycles
+        env:
+          LABEL: ${{ inputs.label }}
+          ITERATIONS: ${{ inputs.iterations }}
+          PAYLOAD_MB: ${{ inputs.payload_mb }}
+        run: |
+          set +e -uo pipefail
+          results="$RUNNER_TEMP/shard-storage-$LABEL.jsonl"
+          stamp() { perl -MTime::HiRes=time -ne '$|=1; printf "%.3f %s", time, $_'; }
+          # Seconds between the first lines matching two patterns.
+          span() { awk -v a="$2" -v b="$3" 'index($0,a)&&!s{s=$1} index($0,b)&&s&&!e{e=$1} END{if(s&&e) printf "%.2f", e-s; else printf "null"}' "$1"; }
+          # Only hostnames, never the signed URLs the logs can contain.
+          hosts() { grep -ohE 'https://[A-Za-z0-9.-]+' "$@" | sed 's#https://##' | grep -E 'storage\.dev|tuist\.dev' | grep -vx 'tuist.dev' | sort -u | paste -sd, -; }
+          for i in $(seq 1 "$ITERATIONS"); do
+            work="$RUNNER_TEMP/cycle-$i"
+            rm -rf "$work"; mkdir -p "$work"
+            cp -R examples/xcode/generated_ios_app_with_tests "$work/planner"
+            printf 'import ProjectDescription\nlet tuist = Tuist(fullHandle: "tuist/tuist", project: .tuist())\n' > "$work/planner/Tuist.swift"
+            if [ "$PAYLOAD_MB" -gt 0 ]; then
+              # Random bytes don't compress, so the archive grows by about the payload.
+              perl -pi -e 's#^(\s*)sources: "MacFramework/Tests/\*\*",\n#$&$1resources: ["MacFramework/Payload/**"],\n#' "$work/planner/Project.swift"
+              grep -q 'MacFramework/Payload' "$work/planner/Project.swift"
+            fi
+            cp -R "$work/planner" "$work/worker"
+            if [ "$PAYLOAD_MB" -gt 0 ]; then
+              mkdir -p "$work/planner/MacFramework/Payload"
+              head -c $((PAYLOAD_MB * 1024 * 1024)) /dev/urandom > "$work/planner/MacFramework/Payload/payload.bin"
+            fi
+            ref="shard-compare-$LABEL-$GITHUB_RUN_ID-$i"
+            "$TUIST_CLI" test MacFrameworkTests --build-only --no-selective-testing --shard-total 1 --shard-reference "$ref" \
+              --path "$work/planner" --verbose -- -testProductsPath "$work/products.xctestproducts" \
+              -destination platform=macOS 2>&1 | stamp > "$work/plan.log"
+            plan_exit=${PIPESTATUS[0]}
+            rm -rf "$work/products.xctestproducts"
+            "$TUIST_CLI" test MacFrameworkTests --without-building --shard-index 0 --shard-reference "$ref" \
+              --path "$work/worker" --verbose -- -destination platform=macOS 2>&1 | stamp > "$work/test.log"
+            test_exit=${PIPESTATUS[0]}
+            printf '{"i":%d,"label":"%s","at":"%s","payload_mb":%d,"plan_exit":%d,"test_exit":%d,"upload_s":%s,"download_s":%s,"hosts":"%s"}\n' \
+              "$i" "$LABEL" "$(date -u +%H:%M:%S)" "$PAYLOAD_MB" "$plan_exit" "$test_exit" \
+              "$(span "$work/plan.log" 'Uploading test products artifacts' 'Upload complete')" \
+              "$(span "$work/test.log" 'Resolved shard plan' 'Downloaded ')" \
+              "$(hosts "$work/plan.log" "$work/test.log")" | tee -a "$results"
+            if [ "$plan_exit" -ne 0 ] || [ "$test_exit" -ne 0 ]; then
+              # Query strings carry signatures: keep only scheme, host and path.
+              tail -n 25 "$work/plan.log" "$work/test.log" | sed -E 's#(https://[^ ?]*)\?[^ ]*#\1?<redacted>#g'
+            fi
+            rm -rf "$work"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shard-storage-${{ inputs.label }}
+          path: ${{ runner.temp }}/shard-storage-${{ inputs.label }}.jsonl

@@ -20,6 +20,7 @@ defmodule Tuist.OAuth.TokenGenerator do
   alias Boruta.Oauth.ResourceOwner
   alias Boruta.Oauth.TokenGenerator
   alias Tuist.Accounts
+  alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Cache
@@ -97,8 +98,33 @@ defmodule Tuist.OAuth.TokenGenerator do
     "project:runs:write"
   ]
 
+  # Clients limited to the scopes they were granted (`authorize_scope`, the
+  # Luft server) never get the defaults: a blank scope on any grant,
+  # including a refresh, means no scopes, not every project.
+  defp parse_scopes(scope, %{authorize_scope: true}, _client_id), do: String.split(scope || "", " ", trim: true)
+
+  defp parse_scopes(scope, _client, client_id) do
+    if Clients.first_party?(client_id), do: parse_scopes(scope), else: third_party_scopes(scope)
+  end
+
+  # Anyone can register a client, so one that names no scope gets the `mcp`
+  # preset, not the write-capable defaults the first-party apps rely on. That
+  # also covers grants issued before `TuistWeb.Oauth.AuthorizeController`
+  # started recording `mcp` for them, so refreshing those can't keep the
+  # defaults.
+  defp third_party_scopes(scope) do
+    case String.split(scope || "", " ", trim: true) do
+      [] -> [AccountToken.mcp_scope()]
+      scopes -> scopes
+    end
+  end
+
   defp parse_scopes(nil), do: @default_user_scopes
   defp parse_scopes(""), do: @default_user_scopes
+  # Luft asked for `threads` before it became a first-party client; those
+  # sessions keep their default access until they sign in again.
+  defp parse_scopes("threads"), do: @default_user_scopes
+
   defp parse_scopes(scope), do: String.split(scope, " ", trim: true)
 
   defp parse_user_id(sub) when is_binary(sub), do: Integer.parse(sub)
@@ -111,7 +137,7 @@ defmodule Tuist.OAuth.TokenGenerator do
     with {user_id, ""} <- parse_user_id(sub),
          user when not is_nil(user) <- User |> Repo.get(user_id) |> Repo.preload(:account),
          client when not is_nil(client) <- Clients.get_client(client_id) do
-      scopes = parse_scopes(scope)
+      scopes = parse_scopes(scope, client, client_id)
 
       claims = %{
         "type" => "account",

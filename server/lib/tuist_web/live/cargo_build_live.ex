@@ -175,15 +175,15 @@ defmodule TuistWeb.CargoBuildLive do
               label={format_number(length(@issues))}
               color={if @severity == "error", do: "destructive", else: "warning"}
               style="light-fill"
-              size="large"
+              size="medium"
             />
           </div>
-          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="medium">
+          <.ghost_button data-part="closed-collapsible-button" variant="secondary" size="medium">
             <.chevron_down />
-          </.neutral_button>
-          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="medium">
+          </.ghost_button>
+          <.ghost_button data-part="open-collapsible-button" variant="secondary" size="medium">
             <.chevron_up />
-          </.neutral_button>
+          </.ghost_button>
         </div>
         <div data-part="content" data-state="closed">
           <span :for={issue <- @issues} data-part="issue">

@@ -14,6 +14,7 @@ import (
 
 	"github.com/tuist/tuist/infra/sandboxd/pkg/archive"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
 // An evicted sandbox on a stacked image moves to another Mac as its disk
@@ -84,8 +85,19 @@ func (m *Manager) interruptArchive(id string) {
 }
 
 func (t *TartRuntime) Archive(ctx context.Context, r *Record, a protocol.ArchiveArgs) (protocol.ArchiveResult, error) {
+	header := archive.Header{Template: r.Template, Tag: r.TemplateTag, WorkspaceGB: r.WorkspaceGB, SourceSandbox: r.SandboxID, CreatedAt: time.Now().UTC(), DisksSynced: true}
+	res, err := uploadDisk(ctx, t.directory(r), header, a.PartURLs, a.PartSize)
+	if err == nil {
+		slog.Info("macOS sandbox archived", "sandbox_id", r.SandboxID, "bytes", res.Bytes, "stored_bytes", res.StoredBytes, "parts", len(res.Parts), "duration_ms", res.DurationMs)
+	}
+	return res, err
+}
+
+// uploadDisk uploads a stopped VM's archivedFiles from dir, a sandbox's or a
+// disk snapshot's, through the presigned parts. A standalone disk.img would
+// carry the whole image, so only a stacked VM qualifies.
+func uploadDisk(ctx context.Context, dir string, header archive.Header, partURLs []string, partSize int64) (protocol.ArchiveResult, error) {
 	start := time.Now()
-	dir := t.directory(r)
 	if _, err := os.Stat(filepath.Join(dir, "disk.img")); err == nil {
 		return protocol.ArchiveResult{}, fmt.Errorf("%w: its image is not stacked", ErrNotArchivable)
 	}
@@ -102,11 +114,10 @@ func (t *TartRuntime) Archive(ctx context.Context, r *Record, a protocol.Archive
 		}
 		sources = append(sources, archive.Source{Name: name, File: f})
 	}
-	uploader, err := archive.NewUploader(ctx, http.DefaultClient, a.PartURLs, a.PartSize)
+	uploader, err := archive.NewUploader(ctx, http.DefaultClient, partURLs, partSize)
 	if err != nil {
 		return protocol.ArchiveResult{}, err
 	}
-	header := archive.Header{Template: r.Template, Tag: r.TemplateTag, WorkspaceGB: r.WorkspaceGB, SourceSandbox: r.SandboxID, CreatedAt: time.Now().UTC(), DisksSynced: true}
 	stored, err := archive.Write(uploader, header, sources)
 	if closeErr := uploader.Close(); err == nil {
 		err = closeErr
@@ -118,88 +129,26 @@ func (t *TartRuntime) Archive(ctx context.Context, r *Record, a protocol.Archive
 	for _, part := range uploader.Parts() {
 		parts = append(parts, protocol.ArchivePart{PartNumber: part.PartNumber, ETag: part.ETag})
 	}
-	res := protocol.ArchiveResult{Parts: parts, Bytes: uploader.Bytes(), SHA256: uploader.SHA256(), StoredBytes: stored, DisksSynced: true, DurationMs: time.Since(start).Milliseconds()}
-	slog.Info("macOS sandbox archived", "sandbox_id", r.SandboxID, "bytes", res.Bytes, "stored_bytes", stored, "parts", len(parts), "duration_ms", res.DurationMs)
-	return res, nil
+	return protocol.ArchiveResult{Parts: parts, Bytes: uploader.Bytes(), SHA256: uploader.SHA256(), StoredBytes: stored, DisksSynced: true, DurationMs: time.Since(start).Milliseconds()}, nil
 }
 
 // restore creates the sandbox from its archive: a clone of the same image
 // with the archived files in place of its own, cold booted. The archived
 // config keeps the machine identity the guest's install was made with.
 func (t *TartRuntime) restore(ctx context.Context, r *Record) error {
-	src := r.FromArchive
-	if src.URL == "" || src.Bytes <= 0 || src.SHA256 == "" || src.TailOffset != 0 || src.LazyDisks {
+	if r.FromArchive.TailOffset != 0 || r.FromArchive.LazyDisks {
 		return errors.New("from_archive needs a URL, a size and a checksum, and no memory")
-	}
-	current, ok := t.Templates.Image(r.Template)
-	if !ok {
-		return fmt.Errorf("%w: the host has no template %s", ErrArchiveMismatch, r.Template)
-	}
-	image, err := restoreImage(current, r.TemplateTag)
-	if err != nil {
-		return err
 	}
 	start := time.Now()
 	c := t.client(r)
 	if err := t.roomForClone(ctx, c, r.MemoryMB); err != nil {
 		return err
 	}
-	// The overlay holds only the blocks the session wrote, so it needs the
-	// exact image it was cloned from. A release since then moved the
-	// template on; the old image comes from the CI store or the registry,
-	// where its base chunks are usually shared with the current one, and
-	// stays in the sandbox store for the next restore.
-	if image != current {
-		if err := ensureImage(ctx, t.Client, t.CIStore, image); err != nil {
-			return fmt.Errorf("preparing archived image %s: %w", image, err)
-		}
-	}
-	if err := c.Clone(ctx, image, r.VMName()); err != nil {
-		return err
-	}
-	dir := t.directory(r)
-	overlay, err := os.Stat(filepath.Join(dir, "overlay.asif"))
+	header, image, current, err := t.cloneArchived(ctx, c, r.VMName(), r.Template, r.TemplateTag, r.WorkspaceGB, *r.FromArchive)
 	if err != nil {
-		return fmt.Errorf("%w: the image is not stacked", ErrArchiveMismatch)
-	}
-	staging := filepath.Join(dir, ".archive")
-	if err := os.RemoveAll(staging); err != nil {
 		return err
 	}
-	if err := os.Mkdir(staging, 0o700); err != nil {
-		return err
-	}
-	defer os.RemoveAll(staging)
-	limits := map[string]int64{"config.json": 1 << 20, "nvram.bin": 64 << 20, "overlay.asif": overlay.Size()}
-	var header archive.Header
-	for attempt := 1; ; attempt++ {
-		err = archive.Download(ctx, http.DefaultClient, src.URL, src.Bytes, src.SHA256, func(body io.Reader) error {
-			var extractErr error
-			header, extractErr = archive.Extract(body, staging, limits)
-			return extractErr
-		})
-		if err == nil {
-			break
-		}
-		if attempt == 3 || ctx.Err() != nil || errors.Is(err, archive.ErrInvalid) {
-			return fmt.Errorf("restoring archive: %w", err)
-		}
-		slog.Warn("macOS sandbox archive download failed, retrying", "sandbox_id", r.SandboxID, "attempt", attempt, "error", err)
-		if err := os.RemoveAll(staging); err != nil {
-			return err
-		}
-		if err := os.Mkdir(staging, 0o700); err != nil {
-			return err
-		}
-	}
-	if header.Tag != r.TemplateTag || header.WorkspaceGB != r.WorkspaceGB || !header.DisksSynced {
-		return fmt.Errorf("%w: it holds image %s with a %d GB workspace", ErrArchiveMismatch, header.Tag, header.WorkspaceGB)
-	}
-	for _, name := range archivedFiles {
-		if err := os.Rename(filepath.Join(staging, name), filepath.Join(dir, name)); err != nil {
-			return err
-		}
-	}
+	src := r.FromArchive
 	downloaded := time.Since(start)
 	if err := c.Set(ctx, r.VMName(), r.VCPUs, r.MemoryMB); err != nil {
 		return err
@@ -224,8 +173,96 @@ func (t *TartRuntime) restore(ctx context.Context, r *Record) error {
 	}
 	r.WorkspaceVolumeGB = r.WorkspaceGB
 	_, err = t.control(ctx, r, "status")
-	slog.Info("macOS sandbox restored from its archive", "sandbox_id", r.SandboxID, "source_sandbox", header.SourceSandbox, "image", image, "current_image", image == current, "bytes", src.Bytes, "download_ms", downloaded.Milliseconds(), "total_ms", time.Since(start).Milliseconds())
+	slog.Info("macOS sandbox restored from its archive", "sandbox_id", r.SandboxID, "source_sandbox", header.SourceSandbox, "image", image, "current_image", current, "bytes", src.Bytes, "download_ms", downloaded.Milliseconds(), "total_ms", time.Since(start).Milliseconds())
 	return err
+}
+
+// cloneArchived clones the image an archive was made on into vm, then puts
+// the archived files in place of the clone's: the VM a restore boots and a
+// disk snapshot copy keeps. It answers the archive's header, the image and
+// whether that is the template's current one.
+func (t *TartRuntime) cloneArchived(ctx context.Context, c *tart.Client, vm, template, tag string, workspaceGB int, src protocol.ArchiveSource) (archive.Header, string, bool, error) {
+	var header archive.Header
+	if src.URL == "" || src.Bytes <= 0 || src.SHA256 == "" {
+		return header, "", false, errors.New("from_archive needs a URL, a size and a checksum")
+	}
+	current, ok := t.Templates.Image(template)
+	if !ok {
+		return header, "", false, fmt.Errorf("%w: the host has no template %s", ErrArchiveMismatch, template)
+	}
+	image, err := restoreImage(current, tag)
+	if err != nil {
+		return header, "", false, err
+	}
+	// The overlay holds only the blocks the session wrote, so it needs the
+	// exact image it was cloned from. A release since then moved the
+	// template on; the old image comes from the CI store or the registry,
+	// where its base chunks are usually shared with the current one, and
+	// stays in the sandbox store for the next restore.
+	if image != current {
+		if err := ensureImage(ctx, t.Client, t.CIStore, image); err != nil {
+			return header, "", false, fmt.Errorf("preparing archived image %s: %w", image, err)
+		}
+	}
+	if err := c.Clone(ctx, image, vm); err != nil {
+		return header, "", false, err
+	}
+	dir := filepath.Join(c.HomeDir, "vms", vm)
+	if _, err := os.Stat(filepath.Join(dir, "overlay.asif")); err != nil {
+		return header, "", false, fmt.Errorf("%w: the image is not stacked", ErrArchiveMismatch)
+	}
+	// An overlay's nominal size grows with the session's writes, up to the
+	// disk's capacity plus ASIF's own metadata, so the fresh clone's empty
+	// overlay is no bound for an archived one.
+	detail, err := c.Get(ctx, vm)
+	if err != nil {
+		return header, "", false, err
+	}
+	capacity := t.rootfs.Load()
+	if detail != nil {
+		capacity = max(capacity, rootDisk([]tart.VM{*detail}))
+	}
+	if capacity <= 0 {
+		return header, "", false, errors.New("restoring archive: the clone's disk capacity is unknown")
+	}
+	staging := filepath.Join(dir, ".archive")
+	if err := os.RemoveAll(staging); err != nil {
+		return header, "", false, err
+	}
+	if err := os.Mkdir(staging, 0o700); err != nil {
+		return header, "", false, err
+	}
+	defer os.RemoveAll(staging)
+	limits := map[string]int64{"config.json": 1 << 20, "nvram.bin": 64 << 20, "overlay.asif": capacity + 1<<30}
+	for attempt := 1; ; attempt++ {
+		err = archive.Download(ctx, http.DefaultClient, src.URL, src.Bytes, src.SHA256, func(body io.Reader) error {
+			var extractErr error
+			header, extractErr = archive.Extract(body, staging, limits)
+			return extractErr
+		})
+		if err == nil {
+			break
+		}
+		if attempt == 3 || ctx.Err() != nil || errors.Is(err, archive.ErrInvalid) {
+			return header, "", false, fmt.Errorf("restoring archive: %w", err)
+		}
+		slog.Warn("macOS archive download failed, retrying", "vm", vm, "attempt", attempt, "error", err)
+		if err := os.RemoveAll(staging); err != nil {
+			return header, "", false, err
+		}
+		if err := os.Mkdir(staging, 0o700); err != nil {
+			return header, "", false, err
+		}
+	}
+	if header.Tag != tag || header.WorkspaceGB != workspaceGB || !header.DisksSynced {
+		return header, "", false, fmt.Errorf("%w: it holds image %s with a %d GB workspace", ErrArchiveMismatch, header.Tag, header.WorkspaceGB)
+	}
+	for _, name := range archivedFiles {
+		if err := os.Rename(filepath.Join(staging, name), filepath.Join(dir, name)); err != nil {
+			return header, "", false, err
+		}
+	}
+	return header, image, image == current, nil
 }
 
 // restoreImage is the image an archive made on archived restores on: the

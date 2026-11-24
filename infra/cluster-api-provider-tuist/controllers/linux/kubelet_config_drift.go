@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -119,6 +120,29 @@ func nodeInternalIP(node *corev1.Node) string {
 	return ""
 }
 
+// exclusiveCPURunnerPods returns the runner Pods on nodeName that have a
+// Pod-level CPU budget. The runners-controller gives one only to pools with
+// exclusive CPUs, and the static CPU manager pins each such Pod, idle or not,
+// to its own cores.
+func exclusiveCPURunnerPods(ctx context.Context, c client.Client, nodeName string) ([]string, error) {
+	pods := &corev1.PodList{}
+	if err := c.List(ctx, pods, client.InNamespace(runnerPodNamespace), client.MatchingLabels{runnerPodLabel: "true"}); err != nil {
+		return nil, fmt.Errorf("list runner Pods: %w", err)
+	}
+	var held []string
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.Spec.NodeName != nodeName || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
+		if pod.Spec.Resources != nil && !pod.Spec.Resources.Limits.Cpu().IsZero() {
+			held = append(held, pod.Name)
+		}
+	}
+	sort.Strings(held)
+	return held, nil
+}
+
 // stampKubeletConfigHash records the pushed config hash on the Node so a
 // converged node stops re-pushing.
 func stampKubeletConfigHash(ctx context.Context, c client.Client, node *corev1.Node, hash string) error {
@@ -175,6 +199,20 @@ func reconcileLinuxKubeletConfigDrift(
 	k8sMinor := kubeletMinor(node.Status.NodeInfo.KubeletVersion, "")
 	desired := desiredKubeletConfigHash(identity.CA, k8sMinor, kataRuntime)
 	if node.Annotations[kubeletConfigHashAnnotation] == desired {
+		return false, nil
+	}
+
+	// The re-push restarts the kubelet, and a v1.36 kubelet that restarts under
+	// Pods with exclusive cores re-admits them onto new cores and never frees
+	// the old ones; its next start then fails (kubernetes/kubernetes#140989).
+	// Hold the re-push until the node holds no such Pod, which in practice means
+	// until someone cordons it and its runner Pods are gone. Returning no requeue
+	// keeps the repairs after this one running; the resync retries.
+	if held, err := exclusiveCPURunnerPods(ctx, c, node.Name); err != nil {
+		return false, err
+	} else if len(held) > 0 {
+		logger.Info("holding kubelet config re-push: the restart would leak the cores of Pods with exclusive CPUs; cordon the node and let them finish",
+			"node", node.Name, "pods", held)
 		return false, nil
 	}
 

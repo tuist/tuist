@@ -89,7 +89,7 @@ defmodule AtlasWeb.ProjectLive.Index do
                     label={visibility_label(project.visibility)}
                     color={visibility_color(project.visibility)}
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   >
                     <:icon>
                       <.lock :if={project.visibility == :private} />

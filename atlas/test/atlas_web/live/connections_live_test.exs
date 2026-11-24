@@ -48,6 +48,9 @@ defmodule AtlasWeb.ConnectionsLiveTest do
     {conn, user} = log_in_user(conn)
     google = insert_connection!(user, "google")
     {:ok, view, _html} = live(conn, ~p"/settings/connections")
+    assert has_element?(view, "#connection-google", "prepare and send drafts")
+    assert has_element?(view, "#connection-google", "The calling client handles confirmation; Atlas sends immediately.")
+    refute has_element?(view, "#connection-google", "My approvals")
     assert has_element?(view, "#connection-gmail-consent[href='/connections/google/authorize?gmail=read']")
     assert has_element?(view, "#connection-gmail-drafts-consent[href='/connections/google/authorize?gmail=compose']")
     assert has_element?(view, "#connection-connect-google[href='/connections/google/authorize']")
@@ -78,7 +81,7 @@ defmodule AtlasWeb.ConnectionsLiveTest do
     {conn, _user} = log_in_user(conn)
     {:ok, view, _html} = live(conn, ~p"/settings/connections")
 
-    for provider <- ~w(github slack google) do
+    for provider <- ~w(github slack google qonto) do
       assert has_element?(view, "#connection-#{provider}")
       refute has_element?(view, "#connection-connect-#{provider}")
     end

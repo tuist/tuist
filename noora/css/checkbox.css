@@ -8,40 +8,64 @@
       ".       description";
     justify-content: center;
     align-items: start;
+    cursor: pointer;
     user-select: none;
 
-    &[data-disabled] {
+    &[data-disabled],
+    &[data-disabled] [data-part="control"] {
       cursor: not-allowed;
+    }
+
+    /* On touch screens the row takes taps from 12px above and below, for
+       a 44px target. */
+    @media (pointer: coarse) {
+      position: relative;
+
+      &::after {
+        position: absolute;
+        inset: calc(-1 * var(--noora-spacing-5)) 0;
+        content: "";
+      }
     }
   }
 
   & [data-part="control"] {
     grid-area: control;
-    margin-top: 2px;
 
+    &:not([data-disabled])[data-hover] {
+      --noora-checkbox-surface: var(--noora-surface-background-tertiary);
+
+      & > [data-part="box"]::before {
+        box-shadow: var(--noora-button-border-primary-hover);
+        background: var(--noora-button-background-primary-hover);
+      }
+    }
+
+    /* Keyboard focus draws the button focus ring, over hover. */
+    &[data-focus-visible] > [data-part="box"] {
+      box-shadow: var(--noora-button-border-focus) !important;
+    }
+
+    /* Disabled, checked or not, the box keeps the outline and the mark
+       takes the disabled button label. */
     &[data-disabled] {
-      box-shadow: var(--noora-border-light-default);
-      background: var(--noora-choice-selector-disabled-background);
-    }
+      --noora-checkbox-surface: var(--noora-surface-background-secondary);
 
-    &[data-focus] {
-      box-shadow: var(--noora-border-light-focus) !important;
-    }
+      & > [data-part="box"]::before {
+        opacity: 0;
+      }
 
-    &:not([data-disabled])[data-state="unchecked"][data-hover] {
-      background: var(--noora-choice-selector-uncheck-background-hover);
-    }
-
-    &[data-state="checked"][data-hover],
-    &[data-state="indeterminate"][data-hover] {
-      background: var(--noora-choice-selector-check-background-hover);
+      & [data-part="check"],
+      & [data-part="minus"] {
+        color: var(--noora-button-disabled-label);
+      }
     }
   }
 
   & [data-part="label"] {
     display: flex;
     grid-area: label;
-    margin-inline-start: var(--noora-spacing-5);
+    margin-inline-start: var(--noora-spacing-4);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-body-medium);
 
@@ -54,7 +78,7 @@
     display: flex;
     grid-area: description;
     margin-top: var(--noora-spacing-2);
-    margin-inline-start: var(--noora-spacing-5);
+    margin-inline-start: var(--noora-spacing-4);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-small);
   }

@@ -42,12 +42,17 @@
 @import "css/routes/previews.css";
 @import "css/routes/not-found.css";
 @import "css/routes/newsletter.css";
+@import "css/routes/noora.css";
+/* The account menu in the Noora documentation's header. */
+@import "../shared/css/components/account_dropdown.css";
 @import "css/outline-mode.css";
 @import "css/layouts/components/dropdown.css";
 @import "css/layouts/components/navbar.css";
 @import "css/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";
 @import "css/layouts/components/agent-prompt.css";
+@import "css/layouts/components/logo-strip.css";
+@import "css/layouts/components/faq.css";
 @import "../shared/css/code-group.css";
 
 :root {
@@ -61,7 +66,7 @@
 }
 
 ::selection {
-  background: light-dark(var(--noora-purple-100), var(--noora-alpha-purple));
+  background: light-dark(var(--noora-purple-100), var(--noora-alpha-purple-32));
   color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
 }
 
@@ -181,15 +186,15 @@
   stroke: var(--noora-surface-background-tertiary);
 }
 
-/* One focus treatment for the whole site, noora components included:
-   Tuist purple, flipped per scheme (500 needs the light background, 300 the
-   dark one). :focus-visible only, so mouse clicks stay ring-free. Elements
-   flush against a clipping container pull the ring inward with an
-   outline-offset override (see the mega-menu cards in css/layouts/components/navbar.css);
-   everything else floats it 2px out. */
+/* One focus treatment for the whole site, noora components included: the
+   Noora focus ring as an outline (--noora-focus-ring-* in tokens.css).
+   :focus-visible only, so mouse clicks stay ring-free. Elements flush
+   against a clipping container pull the ring inward with an outline-offset
+   override (see the mega-menu cards in css/layouts/components/navbar.css);
+   everything else floats it out by the ring's gap. */
 :focus-visible {
-  outline: 2px solid light-dark(var(--noora-purple-500), var(--noora-purple-300));
-  outline-offset: 2px;
+  outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+  outline-offset: var(--noora-focus-ring-offset);
 }
 
 /* Page-to-page navigation between the redesigned pages runs as a

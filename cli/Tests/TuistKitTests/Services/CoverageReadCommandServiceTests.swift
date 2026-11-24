@@ -130,4 +130,115 @@ struct CoverageReadCommandServiceTests {
         #expect(ui().contains("Uncovered Lines: 4-6, 9"))
         #expect(ui().contains("run() (line 3): called 2 times"))
     }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func listsACommitsTargetsWithThoseNotMeasuredLast() async throws {
+        try await givenProject()
+        given(coverageService).listCoverageTargets(
+            fullHandle: .value("acme/app"),
+            serverURL: .value(serverURL),
+            commitSHA: .value("abc123"),
+            search: .value(nil),
+            sortBy: .value(nil),
+            sortOrder: .value(nil),
+            page: .value(1),
+            pageSize: .value(20)
+        ).willReturn(try decode(
+            """
+            {"git_commit_sha":"abc123",
+             "targets":[{"name":"App","files_count":3,"covered_lines":30,"executable_lines":40,"coverage":75.0,"measured":true},
+                        {"name":"Cached","files_count":0,"covered_lines":0,"executable_lines":0,"coverage":null,"measured":false}],
+             "pagination_metadata":{"current_page":1,"has_next_page":false,"has_previous_page":false,"page_size":20,
+                                    "total_count":2,"total_pages":1}}
+            """
+        ))
+        let subject = CoverageTargetsCommandService(
+            coverageService: coverageService,
+            serverEnvironmentService: serverEnvironmentService,
+            configLoader: configLoader
+        )
+
+        try await subject.run(
+            path: nil, fullHandle: nil, branch: nil, commit: "abc123", search: nil, sortBy: nil,
+            sortOrder: nil, page: nil, pageSize: nil, json: false
+        )
+
+        #expect(ui().contains("75.0%"))
+        #expect(ui().contains("Not measured"))
+        #expect(ui().contains("came from the binary cache without coverage counters"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func listsABranchsCommitsWithTheCursorToTheOlderPage() async throws {
+        try await givenProject()
+        given(coverageService).listCoverageCommits(
+            fullHandle: .value("acme/app"),
+            serverURL: .value(serverURL),
+            branch: .value("main"),
+            status: .value("incomplete"),
+            search: .value(nil),
+            after: .value(nil),
+            before: .value(nil),
+            pageSize: .value(1)
+        ).willReturn(try decode(
+            """
+            {"branch":"main",
+             "commits":[{"git_commit_sha":"abc123","committed_at":"2026-10-19T10:00:00Z","status":"incomplete",
+                         "coverage":61.5,"covered_lines":123,"executable_lines":200,"change":-1.5,"schemes":["App"]}],
+             "pagination":{"has_next_page":true,"has_previous_page":false,"start_cursor":"newest","end_cursor":"oldest"}}
+            """
+        ))
+        let subject = CoverageCommitsCommandService(
+            coverageService: coverageService,
+            serverEnvironmentService: serverEnvironmentService,
+            configLoader: configLoader
+        )
+
+        try await subject.run(
+            path: nil, fullHandle: nil, branch: "main", status: "incomplete", search: nil, after: nil, before: nil,
+            pageSize: 1, json: false
+        )
+
+        #expect(ui().contains("incomplete"))
+        #expect(ui().contains("61.5%"))
+        #expect(ui().contains("-1.5 pp"))
+        #expect(ui().contains("Older: --after oldest"))
+        #expect(!ui().contains("Newer:"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func listsACommitsRunsAndExplainsThoseNotFull() async throws {
+        try await givenProject()
+        given(coverageService).listCoverageRuns(
+            fullHandle: .any,
+            serverURL: .any,
+            commitSHA: .value("abc123"),
+            branch: .value(nil),
+            scheme: .value(nil),
+            after: .value(nil),
+            before: .value(nil),
+            pageSize: .value(nil)
+        ).willReturn(try decode(
+            """
+            {"runs":[{"test_run_id":"run-1","git_commit_sha":"abc123","scheme":"App","status":"partial","covered_lines":5,
+                      "executable_lines":10,"coverage":50.0,"ran_at":"2026-10-19T10:00:00Z"}],
+             "pagination":{"has_next_page":false,"has_previous_page":false,"start_cursor":"a","end_cursor":"a"}}
+            """
+        ))
+        let subject = CoverageRunsCommandService(
+            coverageService: coverageService,
+            serverEnvironmentService: serverEnvironmentService,
+            configLoader: configLoader
+        )
+
+        try await subject.run(
+            path: nil, fullHandle: nil, branch: nil, commit: "abc123", scheme: nil, after: nil, before: nil,
+            pageSize: nil, json: false
+        )
+
+        #expect(ui().contains("run-1"))
+        #expect(ui().contains("partial"))
+        #expect(ui().contains("A partial run skipped tests on purpose"))
+        #expect(!ui().contains("--after"))
+    }
 }

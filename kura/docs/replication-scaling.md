@@ -64,8 +64,8 @@ The recommendation, in order of value per unit of risk:
 
 ## 2. What Kura does today
 
-Mechanism, precisely (see `src/replication/mod.rs`, `src/store.rs`,
-`src/backfill/`):
+Mechanism, precisely (see `crates/kura-node/src/replication/mod.rs`, `crates/kura-core/src/store.rs`,
+`crates/kura-node/src/backfill/`):
 
 - **Enqueue.** `Store::append_artifact_replication_messages` writes one
   `OutboxMessage` per replication target into `ROCKSDB_CF_OUTBOX` inside the
@@ -99,7 +99,7 @@ Mechanism, precisely (see `src/replication/mod.rs`, `src/store.rs`,
   action-cache cascade propagate **nothing** — there are no per-artifact
   tombstones — and the `delete_everything` branch (`version_ms == 0`) writes no
   tombstone and enqueues nothing at all.
-- **Catch-up.** `src/backfill/` walks a peer's per-entry index
+- **Catch-up.** `crates/kura-node/src/backfill/` walks a peer's per-entry index
   (`backfill/idx/` in `ROCKSDB_CF_KEY_VALUE`, keyed by inverted `version_ms` +
   kind + record id) newest-first inside a window bounded by
   `max(ring horizon, per-peer watermark)`, pulls missing bodies in 32 MiB
@@ -218,7 +218,7 @@ The word *usually* is load-bearing, and three consequences follow from it:
 An important coupling constrains any answer: an action-cache entry and the CAS
 blobs it references form one integrity unit. Kura already maintains the reverse
 index and cascade-deletes entries stranded past a grace window
-(`src/action_cache_refs.rs`, the snapshot serve path). Any design that
+(`crates/kura-core/src/action_cache_refs.rs`, the snapshot serve path). Any design that
 replicates entries without their blob closure must either extend that rule to
 understand remote-backed blobs, or refuse to *serve* an entry it cannot fully
 back — see §8.

@@ -34,13 +34,13 @@ jobs:
     timeout-minutes: 30
     environment: cache-canary
     steps:
-      - uses: actions/checkout@v4
-      - uses: 1password/install-cli-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - uses: ./.github/actions/mise
         with:
           working_directory: cache
       - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.1
+        uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
         with:
           ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
       - name: Deploy with Kamal
@@ -59,13 +59,13 @@ jobs:
     if: ${{ needs.deploy-canary.result == 'success' }}
     environment: cache-production
     steps:
-      - uses: actions/checkout@v4
-      - uses: 1password/install-cli-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - uses: ./.github/actions/mise
         with:
           working_directory: cache
       - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.1
+        uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
         with:
           ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
       - name: Deploy with Kamal

@@ -1,6 +1,6 @@
 # Tuist with Xcode
 
-Tuist brings Xcode-native depth to one productivity platform for organizations with diverse build systems. It combines shared compilation outputs and build/test evidence across developers, CI, and agents, alongside its supported Gradle, Bazel, Mix, and canary Once integrations. Keep an existing `.xcodeproj` or `.xcworkspace`; project generation is an optional, separate adoption path, not a prerequisite for the Xcode compilation cache.
+Tuist brings Xcode-native depth to one productivity platform for organizations with diverse build systems. It combines shared compilation outputs and build/test evidence across developers, CI, and agents, alongside its supported Gradle, Bazel, Mix, and canary Struo integrations. Keep an existing `.xcodeproj` or `.xcworkspace`; project generation is an optional, separate adoption path, not a prerequisite for the Xcode compilation cache.
 
 ## One productivity platform, native depth
 

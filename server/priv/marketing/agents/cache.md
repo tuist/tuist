@@ -27,7 +27,7 @@ Tuist is build infrastructure for engineering teams and coding agents. Cache sha
 
 ### Does this replace CI?
 
-No. Keep CI orchestration and existing machines. [Compute](/marketing-markdown/compute) is optional and is not required to use Cache.
+No. Keep CI orchestration and existing machines. [Runners](/marketing-markdown/runners) are optional and is not required to use Cache.
 
 ### Can we adopt it incrementally?
 

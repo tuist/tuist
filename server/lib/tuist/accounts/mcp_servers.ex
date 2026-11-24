@@ -1,7 +1,7 @@
 defmodule Tuist.Accounts.MCPServers do
   @moduledoc """
   Remote MCP servers a user adds for AI features (gated by
-  `Tuist.FeatureFlags.guild_enabled?/1`), and the OAuth sessions Tuist holds for
+  `Tuist.FeatureFlags.luft_enabled?/1`), and the OAuth sessions Tuist holds for
   them so internal agentic features can call their tools on the user's
   behalf. Authorization follows the MCP specification through
   `Tuist.Accounts.MCPServers.OAuth`.

@@ -365,14 +365,14 @@
               label={dgettext("dashboard_tests", "Muted")}
               color="attention"
               style="light-fill"
-              size="large"
+              size="medium"
             />
             <.badge
               :if={test_case.state == "skipped"}
               label={dgettext("dashboard_tests", "Skipped")}
               color="destructive"
               style="light-fill"
-              size="large"
+              size="medium"
             />
           </:col>
           <:col :let={test_case} label={dgettext("dashboard_tests", "Quarantined by")}>
@@ -381,14 +381,14 @@
                 label={dgettext("dashboard_tests", "Tuist")}
                 color="primary"
                 style="light-fill"
-                size="large"
+                size="medium"
               />
             <% else %>
               <.badge
                 label={"@#{test_case.quarantined_by_account_name || "unknown"}"}
                 color="information"
                 style="light-fill"
-                size="large"
+                size="medium"
               />
             <% end %>
           </:col>

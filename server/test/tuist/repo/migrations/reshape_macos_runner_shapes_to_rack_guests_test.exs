@@ -50,12 +50,6 @@ defmodule Tuist.Repo.Migrations.ReshapeMacosRunnerShapesToRackGuestsTest do
     assert {12, 28} == limit_of(other, "linux")
   end
 
-  test "new accounts get the new default macOS limit from the database trigger" do
-    account = AccountsFixtures.account_fixture()
-
-    assert {16, 48} == limit_of(account, "macos")
-  end
-
   test "renames queued jobs on the larger shape's pools and strips the old replicas' default-shape suffix" do
     account = AccountsFixtures.account_fixture()
 

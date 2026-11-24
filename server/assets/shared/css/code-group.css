@@ -1,3 +1,5 @@
+@import "./copy-sweep.css";
+
 .code-group {
   display: flex;
   flex-direction: column;
@@ -5,7 +7,7 @@
   /* Seam between the tabs header and the code box (the single code-window
      uses 4px — see code-window.css). */
   gap: 6px;
-  box-shadow: var(--noora-light-border-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: 8px;
   background: var(--noora-surface-background-primary);
   /* No shell padding: the code box sticks to the component's edges and the
@@ -98,9 +100,10 @@
       }
     }
 
-    /* The button itself is Noora's neutral button (large): its class
-       provides the surface, hover/active states and radius. Only the fixed
-       32px box, the icon-swap and the "Copied" tooltip are ours. */
+    /* The button itself is Noora's ghost button (large, icon-only): its
+       class provides the surface, hover/active states, radius, 8px padding,
+       and 16px icon. Only the fixed 32px box, the icon-swap and the
+       "Copied" tooltip are ours. */
     & > [data-part="copy"] {
       display: inline-grid;
       position: relative;
@@ -109,19 +112,11 @@
       align-self: center;
       box-sizing: border-box;
       border: none;
-      padding: 0;
       width: 32px;
       height: 32px;
       /* Rapid clicks escalate to double/triple-click selection, which would
          otherwise spill onto the code's first line. */
       user-select: none;
-
-      /* Sized here because the icons sit inside the data-part spans, out of
-         reach of Noora's direct-child `> svg` size rules. */
-      & svg {
-        width: var(--noora-icon-size-large);
-        height: var(--noora-icon-size-large);
-      }
 
       /* Copy → check swap: stacked-grid crossfade where the hidden icon
          sits at half scale, so the swap fades and grows in rather than
@@ -207,5 +202,16 @@
         }
       }
     }
+  }
+}
+
+/* Copy confirmation (see copy-sweep.css): the header's copy button sweeps the
+   code box of the visible panel. The box itself is styled by code-window.css. */
+@media (prefers-reduced-motion: no-preference) {
+  .code-group:has(> [data-part="header"] > [data-part="copy"][data-copied])
+    [data-part="panel"]:not([data-hidden="true"])
+    .code-window
+    > [data-part="code"] {
+    animation: copy-sweep var(--copy-sweep-duration) var(--ease-out-cubic);
   }
 }

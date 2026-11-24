@@ -34,7 +34,7 @@ struct CargoReporting {
     let environment: [String: String]
     let handle: String
     let serverURL: URL
-    /// Whether test runs collect code coverage (`tuist.toml`'s `[test_insights.coverage] upload`, or
+    /// Whether test runs collect code coverage (the configuration's `[test_insights.coverage] upload`, or
     /// `TUIST_COVERAGE_UPLOAD`).
     var uploadsCoverage = false
 
@@ -227,7 +227,7 @@ struct CargoReporting {
                 "history_source": history.payload.source,
                 "history_fallback_reason": history.payload.fallbackReason,
                 "git_dirty": history.payload.dirty,
-                // On a pull request's merge checkout, the commit the history and the listing describe.
+                // The commit the history and the listing describe (`gitInfo`: the checkout's HEAD).
                 "git_commit_sha": history.history.headSHA.isEmpty ? nil : history.history.headSHA,
                 "git_branch": history.branch,
             ]
@@ -263,13 +263,16 @@ struct CargoReporting {
             if let path = files[index]["path"] as? String, let blob = blobs[path] { files[index]["git_blob_id"] = blob }
         }
         let lines = files.compactMap { try? JSONSerialization.data(withJSONObject: $0) }
-        let compressed = CargoCoverage.deflate(Data(lines.joined(separator: Data("\n".utf8))))
+        let ndjson = Data(lines.joined(separator: Data("\n".utf8)))
         let threshold = (try? await GetCoverageSettingsService().inlineThresholdBytes(fullHandle: handle, serverURL: serverURL))
             ?? 5_000_000
-        guard compressed.count > threshold else {
+        // The server holds an inline run to its body limit after inflating it, and coverage compresses tenfold or
+        // more, so the inline decision reads the uncompressed size.
+        guard ndjson.count > threshold else {
             block["files"] = files
             return block
         }
+        let compressed = CargoCoverage.deflate(ndjson)
         do {
             let upload = try await CreateCoverageUploadService().createCoverageUpload(
                 fullHandle: handle, serverURL: serverURL, testRunId: testRunID

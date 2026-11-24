@@ -11,6 +11,10 @@
     var(--noora-neutral-light-50),
     var(--noora-neutral-dark-1100)
   );
+  --noora-breadcrumb-dividers: light-dark(
+    var(--noora-neutral-light-500),
+    var(--noora-neutral-dark-700)
+  );
 
   display: flex;
   flex-direction: row;
@@ -22,7 +26,7 @@
     padding: 0 var(--noora-spacing-2);
     width: var(--noora-icon-size-large);
     height: var(--noora-icon-size-large);
-    color: var(--noora-breadcrumb-icon);
+    color: var(--noora-breadcrumb-dividers);
 
     & svg {
       width: 100%;
@@ -43,12 +47,15 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  /* With the link's 4px padding, the label sits 6px from the menu trigger,
+     so the trigger's focus ring keeps clear of the label. */
+  gap: var(--noora-spacing-1);
   z-index: var(--noora-z-index-8);
 
   & [data-part="link"] {
     display: flex;
     align-items: center;
-    gap: var(--noora-spacing-2);
+    gap: var(--noora-spacing-3);
     padding: var(--noora-spacing-2);
     text-decoration: none;
     color: inherit;
@@ -68,6 +75,14 @@
       }
     }
 
+    /* A logo in the avatar's place, at the avatar's 20px. */
+    & [data-part="image"] {
+      flex-shrink: 0;
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+      object-fit: contain;
+    }
+
     & [data-part="label"] {
       color: var(--noora-breadcrumb-label);
       font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
@@ -75,7 +90,7 @@
 
     &:focus-visible {
       outline: none;
-      box-shadow: var(--noora-border-light-focus);
+      box-shadow: var(--noora-border-small-focus);
     }
   }
 
@@ -99,12 +114,12 @@
     &:hover,
     &:active,
     &[data-state="open"] {
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       background-color: var(--noora-breadcrumb-background);
     }
 
     &:focus-visible {
-      box-shadow: var(--noora-border-light-focus);
+      box-shadow: var(--noora-border-small-focus);
       background-color: var(--noora-breadcrumb-background);
     }
 
@@ -118,54 +133,26 @@
   }
 
   & [data-part="positioner"] {
-    z-index: var(--noora-z-index-12);
     transition: display 150ms allow-discrete;
   }
 
-  & .noora-dropdown-content,
+  /* The panel and its items are Noora.Menu's (menu.css). zag sets `hidden`
+     on the content the instant it closes, which would cut the exit
+     transition, so the positioner (which zag never hides) is the single
+     presence gate via `allow-discrete`, and the content stays rendered while
+     opacity/transform animate out underneath it. The positioner takes its
+     stacking layer inline from the content's z-index, so it's set here. */
   & [data-part="positioner"] > [data-part="content"] {
-    /* zag sets `hidden` + `data-state="closed"` on the content the instant it
-       closes, and dropdown.css hides `.noora-dropdown-content` when not open —
-       both force `display: none` immediately and kill the exit transition. The
-       positioner (which zag never hides) is the single presence gate via
-       `allow-discrete`, so keep the content rendered and let opacity/transform
-       animate out underneath it. */
+    z-index: var(--noora-z-index-12);
     display: block;
-    width: max-content;
-    min-width: 320px;
-    box-shadow:
-      0 0 0 1px
-        light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(54.9% 0 0 / 0.25)),
-      0 8px 24px oklch(0% 0 0 / 0.16),
-      0 4px 8px oklch(0% 0 0 / 0.08);
-    border-radius: var(--noora-radius-4);
-    background: var(--noora-surface-background-primary);
-    overflow: hidden;
+    /* Wider than a plain menu: account and project names are long, and they
+       middle-truncate past the panel's maximum width. */
+    min-width: 300px;
     opacity: 0;
     transform: translateY(-0.25rem);
     transition:
       opacity 150ms var(--ease-out-cubic),
       transform 150ms var(--ease-out-cubic);
-
-    & > [data-part="items"] {
-      padding: var(--noora-spacing-4);
-      max-height: min(250px, calc(100vh - 8rem));
-      overflow-y: auto;
-
-      & [data-part="item"] + [data-part="item"] {
-        margin-top: var(--noora-spacing-3);
-      }
-    }
-
-    & > [data-part="footer"] {
-      padding: var(--noora-spacing-4);
-      border-top: 1px solid
-        light-dark(
-          var(--noora-neutral-light-200),
-          var(--noora-neutral-dark-900)
-        );
-      background: var(--noora-surface-background-primary);
-    }
   }
 
   &
@@ -184,51 +171,13 @@
     }
   }
 
-  & [data-part="item"]:not([data-selected]) [data-part="check"] {
-    visibility: hidden;
-  }
-
-  & [data-part="item"][data-selected] {
-    background: var(--noora-dropdown-hover-background);
-  }
-
-  /* Keyboard roving focus (see Dropdown.js handleBreadcrumbKeydown) moves real
-     DOM focus between the native <a> items (which are tabindex="-1", so only
-     reachable inside the open menu), so mirror the hover affordance on the
-     focused one. :focus rather than :focus-visible so it shows even when the
-     menu was opened by mouse and then arrowed. */
-  & [data-part="item"]:focus {
-    outline: none;
-    background: var(--noora-dropdown-hover-background);
-  }
-
-  & [data-part="right-icon"] {
-    display: flex;
-    align-items: center;
-    gap: var(--noora-spacing-3);
-  }
-
-  & [data-part="right-icon"]:has(.noora-badge),
-  & [data-part="right-icon"]:has([data-part="check"]) {
-    width: auto;
-    height: auto;
-  }
-
-  & [data-part="check"] {
-    display: inline-flex;
-    flex-shrink: 0;
-    width: var(--noora-icon-size-large);
-    height: var(--noora-icon-size-large);
-
-    & svg {
-      width: 100%;
-      height: 100%;
-    }
-  }
-
-  & [data-part="left-icon"],
-  & [data-part="right-icon"] {
-    color: var(--noora-surface-label-primary);
+  /* The items aren't registered with zag (see Dropdown.js renderItems), so
+     they highlight on hover here. Keyboard moves set `data-highlighted`
+     themselves (handleBreadcrumbKeydown), which menu.css styles; focus alone
+     doesn't highlight, so the selected item focused on open shows only its
+     check until it's hovered or reached with the keyboard. */
+  & .noora-menu-item:hover {
+    background: var(--noora-surface-background-secondary);
   }
 }
 

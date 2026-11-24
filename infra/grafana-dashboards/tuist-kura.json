@@ -241,7 +241,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+                        "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))",
                         "instant": true,
                         "legendFormat": "req/s",
                         "range": false
@@ -328,7 +328,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"5..\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+                        "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"5..\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))",
                         "instant": true,
                         "legendFormat": "errors/s",
                         "range": false
@@ -418,7 +418,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+                        "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)))",
                         "instant": true,
                         "legendFormat": "p95",
                         "range": false
@@ -508,7 +508,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (pod) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+                        "expr": "sum by (pod) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))",
                         "legendFormat": "{{pod}}"
                       },
                       "version": "v0"
@@ -624,7 +624,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "topk(10, sum by (route) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", route=~\"$route\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+                        "expr": "topk(10, sum by (route) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", route=~\"$route\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)))",
                         "legendFormat": "{{route}}"
                       },
                       "version": "v0"
@@ -740,7 +740,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (status) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"$status\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+                        "expr": "sum by (status) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"$status\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))",
                         "legendFormat": "{{status}}"
                       },
                       "version": "v0"
@@ -856,7 +856,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+                        "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)))",
                         "legendFormat": "p50"
                       },
                       "version": "v0"
@@ -876,7 +876,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+                        "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)))",
                         "legendFormat": "p95"
                       },
                       "version": "v0"
@@ -896,7 +896,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+                        "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)))",
                         "legendFormat": "p99"
                       },
                       "version": "v0"
@@ -1012,7 +1012,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (result) ((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+                        "expr": "sum by (result) ((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))",
                         "legendFormat": "{{result}}"
                       },
                       "version": "v0"
@@ -1128,7 +1128,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (result) ((rate(kura_artifact_writes_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or on() label_replace(vector(0), \"result\", \"no_writes\", \"__name__\", \".*\")",
+                        "expr": "sum by (result) ((rate(kura_artifact_writes_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)) or on() label_replace(vector(0), \"result\", \"no_writes\", \"__name__\", \".*\")",
                         "legendFormat": "{{result}}"
                       },
                       "version": "v0"
@@ -1244,7 +1244,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (producer) ((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+                        "expr": "sum by (producer) ((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))",
                         "legendFormat": "{{producer}}"
                       },
                       "version": "v0"
@@ -1360,7 +1360,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (producer) ((rate(kura_artifact_writes_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or on() label_replace(vector(0), \"producer\", \"no_writes\", \"__name__\", \".*\")",
+                        "expr": "sum by (producer) ((rate(kura_artifact_writes_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)) or on() label_replace(vector(0), \"producer\", \"no_writes\", \"__name__\", \".*\")",
                         "legendFormat": "{{producer}}"
                       },
                       "version": "v0"
@@ -1476,7 +1476,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (outcome, pod) ((rate(kura_replication_apply_results_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+                        "expr": "sum by (outcome, pod) ((rate(kura_replication_apply_results_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))",
                         "legendFormat": "{{pod}} {{outcome}}"
                       },
                       "version": "v0"
@@ -1592,7 +1592,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
+                        "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))) or on() vector(0)",
                         "legendFormat": "p50"
                       },
                       "version": "v0"
@@ -1612,7 +1612,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
+                        "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))) or on() vector(0)",
                         "legendFormat": "p95"
                       },
                       "version": "v0"
@@ -1632,7 +1632,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
+                        "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))) or on() vector(0)",
                         "legendFormat": "p99"
                       },
                       "version": "v0"
@@ -1748,7 +1748,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (pod, route, status) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route=~\"/_internal/.*\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+                        "expr": "sum by (pod, route, status) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route=~\"/_internal/.*\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))",
                         "legendFormat": "{{pod}} {{route}} {{status}}"
                       },
                       "version": "v0"
@@ -1864,7 +1864,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "kura_rocksdb_block_cache_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+                        "expr": "(kura_rocksdb_block_cache_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{pod}}",
                         "queryType": "range",
@@ -1887,7 +1887,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "kura_rocksdb_block_cache_pinned_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+                        "expr": "(kura_rocksdb_block_cache_pinned_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{pod}} pinned",
                         "queryType": "range",
@@ -1910,7 +1910,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "kura_rocksdb_block_cache_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+                        "expr": "(kura_rocksdb_block_cache_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{pod}} capacity",
                         "queryType": "range",
@@ -2032,7 +2032,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "kura_rocksdb_write_buffer_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+                        "expr": "(kura_rocksdb_write_buffer_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{pod}}",
                         "queryType": "range",
@@ -2055,7 +2055,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+                        "expr": "(kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{pod}} capacity",
                         "queryType": "range",
@@ -2177,7 +2177,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sort_desc(max by (pod) ((kura_rocksdb_block_cache_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} / kura_rocksdb_block_cache_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+                        "expr": "sort_desc(max by (pod) ((kura_rocksdb_block_cache_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} / kura_rocksdb_block_cache_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)))",
                         "instant": true,
                         "legendFormat": "{{pod}}",
                         "queryType": "instant",
@@ -2278,7 +2278,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sort_desc(max by (pod) ((kura_rocksdb_write_buffer_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} / kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+                        "expr": "sort_desc(max by (pod) ((kura_rocksdb_write_buffer_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} / kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)))",
                         "instant": true,
                         "legendFormat": "{{pod}}",
                         "queryType": "instant",
@@ -3959,7 +3959,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "(sum((rate(kura_capacity_sheds_total_total{cluster=~\"$cluster\", instance=~\"$instance\", kind=\"response_stream\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))\n/\nclamp_min((sum((rate(kura_capacity_sheds_total_total{cluster=~\"$cluster\", instance=~\"$instance\", kind=\"response_stream\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) + (sum((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\", result=\"ok\", producer!=\"reapi\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or (sum((rate(kura_capacity_sheds_total_total{cluster=~\"$cluster\", instance=~\"$instance\", kind=\"response_stream\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) * 0), 0.01)",
+                        "expr": "(sum((rate(kura_capacity_sheds_total_total{cluster=~\"$cluster\", instance=~\"$instance\", kind=\"response_stream\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)) or sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)))\n/\nclamp_min((sum((rate(kura_capacity_sheds_total_total{cluster=~\"$cluster\", instance=~\"$instance\", kind=\"response_stream\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)) or sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))) + (sum((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\", result=\"ok\", producer!=\"reapi\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)) or (sum((rate(kura_capacity_sheds_total_total{cluster=~\"$cluster\", instance=~\"$instance\", kind=\"response_stream\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1)) or sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) * on (cluster, instance) group_left () (max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}) * 0 + 1))) * 0), 0.01)",
                         "instant": true,
                         "legendFormat": "shed",
                         "range": false
@@ -5067,10 +5067,10 @@
       {
         "kind": "DatasourceVariable",
         "spec": {
-          "allowCustomValue": true,
+          "allowCustomValue": false,
           "current": {
-            "text": "grafanacloud-tuist-prom",
-            "value": "grafanacloud-prom"
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": "dontHide",
           "includeAll": false,
@@ -5080,7 +5080,7 @@
           "options": [],
           "pluginId": "prometheus",
           "refresh": "onDashboardLoad",
-          "regex": "",
+          "regex": "/^Tuist Pulse Metrics/",
           "skipUrlSync": false
         }
       },
@@ -5279,7 +5279,7 @@
             "text": "All",
             "value": "$__all"
           },
-          "definition": "label_values({cluster=~\"$cluster\", namespace=\"kura\", container=\"kura\"}, pod)",
+          "definition": "label_values(kube_pod_container_info{cluster=~\"$cluster\", namespace=\"kura\", container=\"kura\"}, pod)",
           "hide": "dontHide",
           "includeAll": true,
           "label": "Pod",
@@ -5288,13 +5288,13 @@
           "options": [],
           "query": {
             "datasource": {
-              "name": "$logs_datasource"
+              "name": "$datasource"
             },
             "group": "prometheus",
             "kind": "DataQuery",
             "spec": {
               "qryType": 1,
-              "query": "label_values({cluster=~\"$cluster\", namespace=\"kura\", container=\"kura\"}, pod)",
+              "query": "label_values(kube_pod_container_info{cluster=~\"$cluster\", namespace=\"kura\", container=\"kura\"}, pod)",
               "refId": "PrometheusVariableQueryEditor-VariableQuery"
             },
             "version": "v0"

@@ -2,9 +2,11 @@ defmodule Atlas.Finance.SyncTest do
   use Atlas.DataCase, async: true
   use Mimic
 
+  import Atlas.FinanceFixtures
+
   alias Atlas.Audit.Activity
   alias Atlas.Finance.Account
-  alias Atlas.Finance.PaymentDetection
+  alias Atlas.Finance.Categorization
   alias Atlas.Finance.Providers.Qonto
   alias Atlas.Finance.Source
   alias Atlas.Finance.Sync
@@ -16,8 +18,6 @@ defmodule Atlas.Finance.SyncTest do
   setup :verify_on_exit!
 
   test "syncs source metadata, accounts, transactions, and sync runs" do
-    reject(&PaymentDetection.review_and_notify/1)
-
     now = ~U[2026-05-26 09:00:00Z]
     company = ToolCase.insert_account!(%{name: "Tuist GmbH", segment: :customer})
 
@@ -145,8 +145,6 @@ defmodule Atlas.Finance.SyncTest do
   end
 
   test "flags transfers from our own legal entities as non-runway" do
-    reject(&PaymentDetection.review_and_notify/1)
-
     now = ~U[2026-05-26 09:00:00Z]
     company = ToolCase.insert_account!(%{name: "Tuist GmbH", segment: :customer})
 
@@ -259,41 +257,20 @@ defmodule Atlas.Finance.SyncTest do
     assert customer.affects_runway
   end
 
-  test "reviews a newly inserted transaction after the source has completed its initial import" do
-    previous_sync_at = ~U[2026-07-15 08:00:00Z]
-    now = ~U[2026-07-15 09:00:00Z]
-    company = ToolCase.insert_account!(%{name: "Tuist Inc.", segment: :customer})
+  test "keeps a person's runway override when the provider resyncs the transaction" do
+    now = ~U[2026-11-20 09:00:00Z]
+    finance_config = [sources: [%{key: "override-qonto", provider: :qonto, name: "Override Qonto"}]]
+    financing = insert_finance_category!(%{name: "Financing", direction: "credit"})
 
-    %Source{}
-    |> Source.changeset(%{
-      atlas_account_id: company.id,
-      provider: "qonto",
-      config_key: "payment-qonto",
-      name: "Payment Qonto",
-      last_successful_sync_at: previous_sync_at
-    })
-    |> Repo.insert!()
-
-    finance_config = [
-      sources: [
-        %{
-          key: "payment-qonto",
-          provider: :qonto,
-          name: "Payment Qonto",
-          atlas_account_key: company.account_key
-        }
-      ]
-    ]
-
-    expect(Qonto, :describe_source, fn source_config ->
+    stub(Qonto, :describe_source, fn source_config ->
       {:ok, %{external_id: "source:#{source_config.key}", name: source_config.name, metadata: %{}}}
     end)
 
-    expect(Qonto, :list_accounts, fn _source_config ->
+    stub(Qonto, :list_accounts, fn _source_config ->
       {:ok,
        [
          %{
-           external_id: "acct_operating",
+           external_id: "acct_override",
            name: "Operating",
            account_type: "checking",
            currency: "EUR",
@@ -308,19 +285,17 @@ defmodule Atlas.Finance.SyncTest do
        ]}
     end)
 
-    expect(Qonto, :list_transactions, fn _source_config, _account, opts ->
-      assert Keyword.fetch!(opts, :synced_after) == DateTime.add(now, -365, :day)
-
+    stub(Qonto, :list_transactions, fn _source_config, _account, _opts ->
       {:ok,
        %{
          transactions: [
            %{
-             external_id: "txn_new_customer_payment",
+             external_id: "txn_investor_wire",
              status: "completed",
              direction: "credit",
              kind: "income",
-             counterparty_name: "Acme International Ltd",
-             amount_value: Decimal.new("30000.00"),
+             counterparty_name: "Indie Fund I, L.P.",
+             amount_value: Decimal.new("300000.00"),
              amount_currency: "EUR",
              booked_at: now,
              settled_at: now,
@@ -335,13 +310,19 @@ defmodule Atlas.Finance.SyncTest do
        }}
     end)
 
-    expect(PaymentDetection, :review_and_notify, fn transaction ->
-      assert transaction.external_id == "txn_new_customer_payment"
-      assert transaction.direction == "credit"
-      {:ok, "notified"}
-    end)
+    assert {:ok, _summary} = Sync.run_source("override-qonto", now: now, finance_config: finance_config)
+    wire = Repo.get_by!(Transaction, external_id: "txn_investor_wire")
+    assert wire.affects_runway
 
-    assert {:ok, %{transactions_seen: 1}} =
-             Sync.run_source("payment-qonto", now: now, finance_config: finance_config)
+    assert {:ok, _wire} =
+             Categorization.recategorize_transaction(wire.id, %{category_id: financing.id, affects_runway: false})
+
+    assert {:ok, _summary} = Sync.run_source("override-qonto", now: now, finance_config: finance_config)
+
+    wire = Repo.get_by!(Transaction, external_id: "txn_investor_wire")
+    refute wire.affects_runway
+    assert wire.runway_override == false
+    assert wire.finance_category_id == financing.id
+    assert wire.affects_cash_balance
   end
 end

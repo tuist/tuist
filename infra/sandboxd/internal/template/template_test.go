@@ -391,6 +391,36 @@ func TestRemoveStaleTagsKeepsCurrentAndInUseTags(t *testing.T) {
 	}
 }
 
+func TestCurrentTagReadsTheInstallersPointer(t *testing.T) {
+	dir := t.TempDir()
+	store := &Store{Dir: dir}
+	seedTemplate(t, dir, "default", "sha-old")
+	if tag, err := store.CurrentTag("default"); err != nil || tag != "" {
+		t.Fatalf("no pointer yet: got %q, %v", tag, err)
+	}
+	current := filepath.Join(dir, "default", CurrentFile)
+	if err := os.WriteFile(current, []byte("sha-new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if tag, err := store.CurrentTag("default"); err != nil || tag != "sha-new" {
+		t.Fatalf("got %q, %v, want sha-new", tag, err)
+	}
+	// The pointer is not a tag: listing and pruning skip it.
+	if removed, err := store.RemoveStaleTags("default", "sha-new", func(string) bool { return false }); err != nil || strings.Join(removed, ",") != "sha-old" {
+		t.Fatalf("removed %v, %v", removed, err)
+	}
+	if !vm.Exists(current) {
+		t.Fatal("pruning must keep the current file")
+	}
+	// A pointer naming a path outside the template is refused.
+	if err := os.WriteFile(current, []byte("../bazel\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CurrentTag("default"); err == nil {
+		t.Fatal("expected a traversing tag to be refused")
+	}
+}
+
 func TestCleanPartialBuilds(t *testing.T) {
 	dataDir := t.TempDir()
 	tmpl := seedTemplate(t, filepath.Join(dataDir, "templates"), "default", "t1")
@@ -402,15 +432,21 @@ func TestCleanPartialBuilds(t *testing.T) {
 	stale := tmpl.ShapeDir(Shape{VCPUs: 8, MemoryMB: 16384})
 	// Built with a workspace of another size than creates now ask for.
 	resized := tmpl.ShapeDir(Shape{VCPUs: 2, MemoryMB: 8192})
-	for _, d := range []string{ready, partial, staging, stale, resized} {
+	// Built without the cache placeholder the daemon now puts in snapshots.
+	uncached := tmpl.ShapeDir(Shape{VCPUs: 4, MemoryMB: 4096})
+	// Built without the free-page-reporting balloon the daemon now boots.
+	unballooned := tmpl.ShapeDir(Shape{VCPUs: 8, MemoryMB: 8192})
+	for _, d := range []string{ready, partial, staging, stale, resized, uncached, unballooned} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for dir, meta := range map[string]string{
-		ready:   `{"firecracker_version":"v1.16.2","workspace_gb":30}`,
-		stale:   `{"firecracker_version":"v1.16.1","workspace_gb":30}`,
-		resized: `{"firecracker_version":"v1.16.2","workspace_gb":10}`,
+		ready:       `{"firecracker_version":"v1.16.2","workspace_gb":30,"cache_drive":true,"balloon":true}`,
+		stale:       `{"firecracker_version":"v1.16.1","workspace_gb":30,"cache_drive":true,"balloon":true}`,
+		resized:     `{"firecracker_version":"v1.16.2","workspace_gb":10,"cache_drive":true,"balloon":true}`,
+		uncached:    `{"firecracker_version":"v1.16.2","workspace_gb":30,"balloon":true}`,
+		unballooned: `{"firecracker_version":"v1.16.2","workspace_gb":30,"cache_drive":true}`,
 	} {
 		if err := os.WriteFile(filepath.Join(dir, ReadyFile), nil, 0o644); err != nil {
 			t.Fatal(err)
@@ -420,10 +456,10 @@ func TestCleanPartialBuilds(t *testing.T) {
 		}
 	}
 	store := &Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds("v1.16.2", 30); err != nil {
+	if err := store.CleanPartialBuilds("v1.16.2", 30, true, true); err != nil {
 		t.Fatal(err)
 	}
-	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) || vm.Exists(stale) || vm.Exists(resized) {
+	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) || vm.Exists(stale) || vm.Exists(resized) || vm.Exists(uncached) || vm.Exists(unballooned) {
 		t.Fatal("clean removed the wrong directories")
 	}
 }
@@ -447,5 +483,33 @@ func TestBazelTemplatePreparesAndUnmountsPristineWorkspace(t *testing.T) {
 	execs := launcher.Last().Agent.RequestsOf("exec")
 	if len(execs) != 1 || execs[0]["cwd"] != "/" || !strings.Contains(fmt.Sprint(execs[0]["cmd"]), "exec /bin/umount /workspace") {
 		t.Fatalf("template must unmount before snapshot: %v", execs)
+	}
+}
+
+func TestPreviousTagIsTheOtherTagTheNodeRanLast(t *testing.T) {
+	dir := t.TempDir()
+	store := &Store{Dir: dir}
+	if tag, err := store.PreviousTag("bazel", "current"); err != nil || tag != "" {
+		t.Fatalf("no template: %q %v", tag, err)
+	}
+	// Installed oldest first, but "rolled-back" ran again after "previous",
+	// and the init container rewrote its metadata then.
+	base := time.Now().Add(-time.Hour)
+	for i, tag := range []string{"rolled-back", "previous", "oldest", "current"} {
+		seedTemplate(t, dir, "bazel", tag)
+		at := base.Add(time.Duration([]int{3, 2, 1, 4}[i]) * time.Minute)
+		if err := os.Chtimes(filepath.Join(dir, "bazel", tag, MetadataFile), at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// An interrupted seed has no metadata and never counts.
+	if err := os.MkdirAll(filepath.Join(dir, "bazel", "partial"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if tag, err := store.PreviousTag("bazel", "current"); err != nil || tag != "rolled-back" {
+		t.Fatalf("previous tag %q %v, want rolled-back", tag, err)
+	}
+	if tag, err := store.PreviousTag("bazel", "rolled-back"); err != nil || tag != "current" {
+		t.Fatalf("previous tag of rolled-back %q %v, want current", tag, err)
 	}
 }

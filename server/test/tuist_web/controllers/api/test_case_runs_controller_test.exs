@@ -6,6 +6,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.TestSelectionFixtures
   alias TuistWeb.Authentication
 
   describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/runs" do
@@ -518,6 +519,34 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
 
       # Then
       assert json_response(conn, :forbidden)
+    end
+
+    test "returns why the run's coverage-based selection kept the test", %{conn: conn, user: user, project: project} do
+      test_case_id = UUIDv7.generate()
+
+      impact_run =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          requested_modules: ["AppTests"],
+          selected: [%{test_case_id: test_case_id, name: "testExample", matched_path: "Sources/App.swift"}]
+        )
+
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: impact_run.id)
+
+      selected =
+        RunsFixtures.test_case_run_fixture(project_id: project.id, test_run_id: test_run.id, test_case_id: test_case_id)
+
+      unselected = RunsFixtures.test_case_run_fixture(project_id: project.id)
+      path = "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/"
+
+      assert conn |> get(path <> selected.id) |> json_response(:ok) |> Map.fetch!("selective_testing") == %{
+               "decision" => "selected",
+               "reason" => "impacted",
+               "matched_path" => "Sources/App.swift",
+               "shard_index" => nil
+             }
+
+      assert conn |> get(path <> unselected.id) |> json_response(:ok) |> Map.fetch!("selective_testing") == nil
     end
   end
 end

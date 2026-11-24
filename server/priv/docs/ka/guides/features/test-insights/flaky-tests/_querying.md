@@ -2,7 +2,7 @@
 
 ### CLI {#querying-cli}
 
-`tuist test case` ბრძანებების ხე საშუალებას გაძლევთ ნახოთ ყველა ინფორმაცია, რასაც Tuist აკვირდება სატესტო შემთხვევის შესახებ:
+`tuist test case` ბრძანებების ხე საშუალებას გაძლევთ იხილოთ ყველა ინფორმაცია, რასაც Tuist აკვირდება სატესტო შემთხვევის შესახებ:
 
 ```sh
 tuist test case list --flaky                       # only flaky test cases
@@ -13,8 +13,8 @@ tuist test case run list <test_case_id>            # run history with status and
 tuist test case run show <test_case_run_id>        # single run, including failure breakdown
 ```
 
-ყველა ეს ბრძანება იღებს `--json` პარამეტრს სკრიპტებისთვის.
+ყველა ეს ბრძანება იღებს `--json`-ს სკრიპტებისთვის.
 
 ### REST API {#querying-rest-api}
 
-იგივე მონაცემები ხელმისაწვდომია HTTP-ით. სრული სიისთვის (მარშრუტები, ფილტრები და პასუხის ველები) იხილეთ [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) API-ის ცნობარში. სატესტო შემთხვევის მდგომარეობის შესაცვლელად (არასტაბილურად მონიშვნა/მოხსნა, ჩუმად დატოვება, გამოტოვება), გააგზავნეთ `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` პარამეტრებით `is_flaky` ან `state`. იგივე ცვლილების განხორციელება შესაძლებელია ასევე `tuist test case update` ბრძანებით და `update_test_case` MCP ინსტრუმენტით.
+იგივე მონაცემები ხელმისაწვდომია HTTP-ით. მარშრუტების, ფილტრების და პასუხის ველების სრული ჩამონათვალისთვის იხილეთ [სატესტო შემთხვევების ბოლოწერტილები](https://tuist.dev/api/docs#tag/test-cases) API-ის ცნობარში. სატესტო შემთხვევის მდგომარეობის შესაცვლელად (არასტაბილურად მონიშვნა ან მონიშვნის მოხსნა, დადუმება, გამოტოვება), გაგზავნეთ `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` პარამეტრებით `is_flaky` ან `state`. იგივე ცვლილება შესაძლებელია ასევე `tuist test case update`-ით და `update_test_case` MCP ინსტრუმენტით.

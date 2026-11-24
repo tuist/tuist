@@ -1,5 +1,5 @@
 defmodule Tuist.MCP.Components.Tools.GetBazelBuildStep do
-  @moduledoc "Get a recorded Bazel profile interval with its action outcome and separately fetched sanitized log when published by Bazel. IDs are opaque and scoped to the invocation. Profile times are milliseconds relative to the profile start. Older builds fall back to bounded BEP summaries. Retention is 90 days."
+  @moduledoc "Get a recorded Bazel profile interval with its action outcome, correlated server RE phase milliseconds when available, and separately fetched sanitized log. Null or absent phases mean unavailable, not zero. Phases sum recorded attempts within the action, not billed usage or fresh-execution counts. IDs are opaque and invocation-scoped. Profile times are relative to profile start. Older builds fall back to bounded BEP summaries. Retention is 90 days."
   use Tuist.MCP.Tool,
     name: "get_bazel_build_step",
     title: "Get Bazel Build Step",

@@ -1,7 +1,7 @@
 ---
 title: Privacy policy
 description: This privacy policy governs your use of the application located at https://tuist.dev and any related services provided by Tuist.
-last_updated: 2023-10-23
+last_updated: 2026-11-19
 ---
 
 Your privacy is important to us. It is Tuist’s policy to respect your privacy and comply with any applicable law and regulation regarding any personal information we may collect about you, including across our application, [https://tuist.dev](https://tuist.dev), and other sites we own and operate.
@@ -59,7 +59,6 @@ We do not target our services to children under the age of 13 and do not knowing
 
 We may disclose personal information to third parties, including service providers, partners, and regulatory authorities, as necessary. Third parties we currently use include:
 
-- AppSignal
 - Stripe
 
 ### Your Rights and Controlling Your Personal Information

@@ -45,6 +45,13 @@ class GitHistoryReaderTest {
         return Origin("file://${bare.absolutePath}", first, forkPoint, feature, mainParent, mainHead)
     }
 
+    private fun pullRequestOrigin() = fixture.pullRequestOrigin(tempDir)
+
+    private fun mergeCheckout(origin: GitRepositoryFixture.PullRequestOrigin): File =
+        fixture.shallowCheckout(origin.url, "refs/pull/7/merge", File(tempDir, "checkout"))
+
+    private fun hasObject(checkout: File, sha: String): Boolean = fixture.hasObject(checkout, sha)
+
     private fun clone(origin: Origin, vararg options: String): File {
         val checkout = File(tempDir, "checkout")
         fixture.git(tempDir, "clone", "-q", *options, origin.url, checkout.absolutePath)
@@ -63,6 +70,11 @@ class GitHistoryReaderTest {
         override fun captureWithin(args: List<String>, timeoutMillis: Long): String? {
             remoteCommands += args
             return delegate.captureWithin(args, timeoutMillis)
+        }
+
+        override fun fetchWithin(args: List<String>, timeoutMillis: Long): GitFetchOutcome {
+            remoteCommands += args
+            return delegate.fetchWithin(args, timeoutMillis)
         }
 
         private val remoteCommandNames = setOf("fetch", "ls-remote", "pull", "remote")
@@ -181,6 +193,115 @@ class GitHistoryReaderTest {
     }
 
     @Test
+    fun `fetches the base branch and deepens a pull request's depth-1 merge checkout to the merge base`() {
+        val origin = pullRequestOrigin()
+        val checkout = mergeCheckout(origin)
+        val (reader, runner) = reader(checkout)
+        assertFalse(hasObject(checkout, origin.pullRequestHead))
+
+        val history = reader.read(origin.merge, "main", GitHistoryLimits(remoteAccess = GitHistoryRemoteAccess.HISTORY))
+
+        assertEquals(origin.mainHead, history.mergeBaseSha)
+        assertEquals(origin.mainHead, history.baseHeadSha)
+        assertNull(history.fallbackReason)
+        assertEquals(
+            listOf(
+                listOf("fetch", "--no-tags", "--filter=blob:none", "--depth=1", "origin", "+main:refs/remotes/origin/main"),
+                listOf("fetch", "--no-tags", "--filter=blob:none", "--deepen=50", "origin", "+main:refs/remotes/origin/main")
+            ),
+            runner.remoteCommands
+        )
+        val bySha = history.commits.associateBy { it.sha }
+        assertEquals(listOf(origin.mainHead, origin.pullRequestHead), bySha.getValue(origin.merge).parents)
+        assertTrue(origin.pullRequestHead in bySha, history.commits.toString())
+        assertTrue(origin.forkPoint in bySha, history.commits.toString())
+    }
+
+    @Test
+    fun `connecting a depth-1 merge checkout deepens through the base branch and reaches the pull request's head`() {
+        val origin = pullRequestOrigin()
+        val checkout = mergeCheckout(origin)
+        val (reader, runner) = reader(checkout)
+        val limits = GitHistoryLimits(remoteAccess = GitHistoryRemoteAccess.HISTORY)
+        val read = reader.read(origin.merge, null, limits)
+        assertEquals(listOf(origin.merge), read.commits.map { it.sha })
+        val asked = mutableListOf<List<String>>()
+
+        val connected = reader.connect(read, "main", limits) { shas -> asked += shas; shas }
+
+        assertEquals(listOf(listOf(origin.mainHead)), asked)
+        assertEquals(
+            listOf(listOf("fetch", "--no-tags", "--refmap=", "--filter=blob:none", "--deepen=50", "origin", "refs/heads/main")),
+            runner.remoteCommands
+        )
+        val shas = connected.commits.map { it.sha }
+        assertEquals(origin.merge, shas.first())
+        assertTrue(origin.pullRequestHead in shas, shas.toString())
+        assertTrue(origin.mainHead in shas, shas.toString())
+        assertFalse(fixture.hasRef(checkout, "refs/remotes/origin/main"), "the deepening moved origin/main")
+    }
+
+    @Test
+    fun `connecting fetches nothing when the server has the commits the clone stops at`() {
+        val origin = pullRequestOrigin()
+        val checkout = mergeCheckout(origin)
+        val (reader, runner) = reader(checkout)
+        val limits = GitHistoryLimits(remoteAccess = GitHistoryRemoteAccess.HISTORY)
+        val read = reader.read(origin.merge, null, limits)
+
+        val connected = reader.connect(read, "main", limits) { emptyList() }
+
+        assertEquals(read, connected)
+        assertTrue(runner.remoteCommands.isEmpty())
+    }
+
+    @Test
+    fun `outside coverage a depth-1 merge checkout is never fetched or deepened`() {
+        val origin = pullRequestOrigin()
+        val checkout = mergeCheckout(origin)
+        val (reader, runner) = reader(checkout)
+        val limits = GitHistoryLimits(remoteAccess = GitHistoryRemoteAccess.BASE_HEAD)
+
+        val read = reader.read(origin.merge, "main", limits)
+        val connected = reader.connect(read, "main", limits) { it }
+
+        assertEquals(listOf(listOf("ls-remote", "origin", "refs/heads/main")), runner.remoteCommands)
+        assertEquals(origin.mainHead, connected.baseHeadSha)
+        assertNull(connected.mergeBaseSha)
+        assertEquals(listOf(origin.merge), connected.commits.map { it.sha })
+        assertFalse(hasObject(checkout, origin.pullRequestHead))
+        assertTrue(fixture.isShallow(checkout))
+    }
+
+    @Test
+    fun `stops every fetch at the deadline together with the processes it started`() {
+        val origin = pullRequestOrigin()
+        val checkout = mergeCheckout(origin)
+        val pidFile = File(tempDir, "fetch.pid")
+        // Real git for everything but fetches, which stall the way a remote that stops answering does.
+        val runner = ProcessGitRunner(
+            checkout,
+            gitExecutable = script("if [ \"\$1\" = fetch ]; then sleep 30 & echo \$! >> \"\$PID_FILE\"; wait; exit 1; fi\nexec git \"\$@\""),
+            environment = fixture.environment + mapOf("PID_FILE" to pidFile.absolutePath)
+        )
+        val reader = GitHistoryReader(runner, checkout)
+        val limits = GitHistoryLimits(deepenBudgetSeconds = 1, remoteAccess = GitHistoryRemoteAccess.HISTORY)
+
+        val started = System.nanoTime()
+        val read = reader.read(origin.merge, "main", limits)
+        val connected = reader.connect(read, "main", limits) { it }
+        val elapsedMillis = (System.nanoTime() - started) / 1_000_000
+
+        assertEquals("the base branch main is not in the checkout and could not be fetched within 1s", read.fallbackReason)
+        assertNull(read.mergeBaseSha)
+        assertEquals(listOf(origin.merge), connected.commits.map { it.sha })
+        assertTrue(elapsedMillis < 10_000, "collecting returned after ${elapsedMillis}ms")
+        val children = pidFile.readLines().filter { it.isNotBlank() }.map { ProcessHandle.of(it.trim().toLong()) }
+        assertEquals(2, children.size, "one fetch for the base branch and one for the gap")
+        assertTrue(children.none { stillRunning(it) }, "a fetch's child process is still running")
+    }
+
+    @Test
     fun `isRepository tells a checkout from a plain directory`() {
         val repository = fixture.init(File(tempDir, "repository"))
         val plain = File(tempDir, "plain").apply { mkdirs() }
@@ -202,6 +323,11 @@ class GitHistoryReaderTest {
         override fun captureWithin(args: List<String>, timeoutMillis: Long): String? {
             timeouts += timeoutMillis
             return null
+        }
+
+        override fun fetchWithin(args: List<String>, timeoutMillis: Long): GitFetchOutcome {
+            timeouts += timeoutMillis
+            return GitFetchOutcome.TIMED_OUT
         }
     }
 
@@ -298,6 +424,42 @@ class GitHistoryReaderTest {
             Thread.sleep(50)
         }
         assertFalse(child.map { it.isAlive }.orElse(false), "the command's child process is still running")
+    }
+
+    @Test
+    fun `fetchWithin says how a fetch ended`() {
+        assertEquals(GitFetchOutcome.SUCCEEDED, ProcessGitRunner(tempDir, gitExecutable = script("exit 0")).fetchWithin(listOf("fetch"), 10_000))
+        assertEquals(GitFetchOutcome.FAILED, ProcessGitRunner(tempDir, gitExecutable = script("exit 128")).fetchWithin(listOf("fetch"), 10_000))
+        assertEquals(GitFetchOutcome.TIMED_OUT, ProcessGitRunner(tempDir, gitExecutable = script("exit 0")).fetchWithin(listOf("fetch"), 0))
+    }
+
+    @Test
+    fun `fetchWithin stops a fetch at the deadline with SIGTERM first, together with its child processes`() {
+        val pidFile = File(tempDir, "child.pid")
+        val termFile = File(tempDir, "terminated")
+        val runner = ProcessGitRunner(
+            tempDir,
+            gitExecutable = script("trap 'echo stopped > \"\$TERM_FILE\"; exit 143' TERM\nsleep 30 &\necho \$! > \"\$PID_FILE\"\nwait"),
+            environment = mapOf("PID_FILE" to pidFile.absolutePath, "TERM_FILE" to termFile.absolutePath)
+        )
+
+        val started = System.nanoTime()
+        val outcome = runner.fetchWithin(listOf("fetch"), 1_000)
+        val elapsedMillis = (System.nanoTime() - started) / 1_000_000
+
+        assertEquals(GitFetchOutcome.TIMED_OUT, outcome)
+        assertTrue(elapsedMillis < 10_000, "the fetch returned after ${elapsedMillis}ms")
+        assertTrue(termFile.isFile, "the fetch was killed without a chance to remove its lock files")
+        assertFalse(stillRunning(ProcessHandle.of(pidFile.readText().trim().toLong())), "the fetch's child process is still running")
+    }
+
+    /** Whether the process is still alive after waiting up to five seconds for it to exit. */
+    private fun stillRunning(process: java.util.Optional<ProcessHandle>): Boolean {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (process.map { it.isAlive }.orElse(false) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50)
+        }
+        return process.map { it.isAlive }.orElse(false)
     }
 
     private fun script(body: String): String {

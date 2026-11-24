@@ -1,13 +1,13 @@
 ---
 {
   "title": "Создание сгенерированного проекта",
-  "titleTemplate": ":title · Xcode · Обучающие материалы · Tuist",
+  "titleTemplate": ":title · Xcode · Руководства · Tuist",
   "description": "Узнайте, как создать свой первый проект Xcode, сгенерированный с помощью Tuist, и добавить в него зависимости"
 }
 ---
 # Создание сгенерированного проекта {#create-a-generated-project}
 
-Запустите `tuist init` в пустой директории или в директории существующего проекта:
+Выполните `tuist init` в пустой директории или в директории существующего проекта:
 
 ::: code-group
 
@@ -26,7 +26,7 @@ tuist init
 > [!NOTE]
 > **Миграция существующего проекта**
 >
-> Если вы хотите мигрировать существующий проект на сгенерированные проекты, чтобы улучшить опыт разработки и воспользоваться нашим <.localized_link href="/guides/features/cache">кэшем</.localized_link>, ознакомьтесь с нашим <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">руководством по миграции</.localized_link>.
+> Если вы хотите мигрировать существующий проект на сгенерированные проекты, чтобы улучшить опыт разработки и воспользоваться нашим <.localized_link href="/guides/features/cache">кешем</.localized_link>, ознакомьтесь с нашим <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">руководством по миграции</.localized_link>.
 
 
 ## Добавление зависимостей {#add-dependencies}
@@ -65,7 +65,7 @@ let package = Package(
 )
 ```
 
-Затем отредактируйте цель приложения в вашем проекте, чтобы объявить `Kingfisher` зависимостью:
+Затем отредактируйте таргет приложения в вашем проекте, чтобы объявить `Kingfisher` как зависимость:
 
 ```swift
 import ProjectDescription
@@ -105,12 +105,12 @@ let project = Project(
 )
 ```
 
-Затем запустите `tuist install`, чтобы разрешить и загрузить зависимости с помощью [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
+Затем выполните `tuist install`, чтобы разрешить и загрузить зависимости с помощью [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
 
 > [!NOTE]
 > **SwiftPM как средство разрешения зависимостей**
 >
-> Рекомендуемый Tuist подход к зависимостям использует Swift Package Manager (SPM) только для разрешения зависимостей. Затем Tuist преобразует их в проекты и цели Xcode для максимальной настраиваемости и контроля.
+> Рекомендуемый Tuist подход к зависимостям использует Swift Package Manager (SPM) только для разрешения зависимостей. Затем Tuist преобразует их в проекты и таргеты Xcode для максимальной гибкости настройки и контроля.
 
 
 ## Визуализация проекта {#visualize-the-project}
@@ -127,7 +127,7 @@ tuist graph
 
 ## Использование зависимости {#use-the-dependency}
 
-Запустите `tuist generate`, чтобы открыть проект в Xcode, и внесите следующие изменения в файл `ContentView.swift`:
+Выполните `tuist generate`, чтобы открыть проект в Xcode, и внесите следующие изменения в файл `ContentView.swift`:
 
 ```swift
 import SwiftUI

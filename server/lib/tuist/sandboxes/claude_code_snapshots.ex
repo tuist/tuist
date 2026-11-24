@@ -1,6 +1,6 @@
 defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   @moduledoc """
-  Repo-ready disk snapshots for Claude Code sessions on Linux.
+  Repo-ready disk snapshots for Claude Code sessions on Linux and macOS.
 
   A `:claude_code` environment with a `setup_script` boots a new session's
   sandbox from the newest snapshot of the session's repository (`find/2`).
@@ -27,7 +27,29 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   for that repository, in the command's environment, unset before the
   script runs. The script gets the Tuist environment
   (`Sandboxes.tuist_env/2`), which holds none, so the snapshot holds none.
+  A Mac build's script also gets an identity token with read access to the
+  account's cache (`Tuist.Sandboxes.CommandCredentials`), valid only while
+  the build's command runs, so its `tuist generate` writes the project a
+  signed-in session's does and the session's build reuses the snapshot's;
+  the build deletes the session the CLI stored from it before the disks are
+  saved.
+
+  A Linux environment's `macos_setup_script` prepares the Macs its sessions
+  create with the `create_sandbox` MCP tool (`Tuist.Sandboxes.Query`) for a
+  repository connected to one of the account's projects (`mac_source/3`):
+  such a Mac boots from the repository's macOS snapshot of its Xcode
+  template, else from the template, and asks for a build of it
+  (`request_mac_build/1`), so each Xcode has its own snapshot. A Mac build
+  clones to `$HOME/work/<name>`, where `tuist sandbox sync` puts the
+  session's worktree, so Xcode's DerivedData, keyed by the workspace's path,
+  is reused there. After the script it resets the tracked files the script
+  changed and records the clone the way `tuist sandbox sync` records what
+  it sent (`$HOME/.tuist-sync/`, with the commit), so the session's first
+  sync sends only the files that differ from that commit and leaves the
+  others, and their modification times, which Xcode compares, alone.
   """
+  alias Tuist.Accounts.Account
+  alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
@@ -67,12 +89,92 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   exec runuser -u #{@user} -- /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
   """
 
+  # A macOS guest runs every command as the runner's user already.
+  @macos_build_script """
+  set -eu
+  path=$1 url=$2 script=$3
+  mkdir -p "$(dirname "$path")"
+  rm -rf "$path" "$path.sbx-clone"
+  git clone --quiet "$url" "$path.sbx-clone"
+  mv "$path.sbx-clone" "$path"
+  unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+  cd "$path"
+  exec /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
+  """
+
+  # A Mac build ends by recording the clone as `tuist sandbox sync` would
+  # (`SandboxSync` in the CLI): the manifest of the commit's files, named by
+  # its Git hash, and their paths, under the clone's resolved path. The
+  # tracked files the script changed go back to the commit first, so the
+  # record describes the copy. Before that it stops the cache proxy and the
+  # build service that write the compilation cache and waits for them to
+  # exit, so the saved store is quiesced: one saved while they ran failed the
+  # sessions' compiles with "not a IncludeFileList node kind" (measured
+  # 2026-11). It keeps the store, which the sessions' first builds reuse, and
+  # drops the records its spool (`tuist-spool`) still owes: the build's
+  # credential only reads the cache, so the remote refuses every publication
+  # and the spool never drains. It also drops
+  # the session the CLI stored from the build's identity token, and the
+  # script's simulators, and stops the simulator services: a Mac booted
+  # from the disks mounts the simulator runtimes at new paths, and the
+  # devices and services the disks recorded left its runtimes unavailable
+  # (measured, 2026-11). The script runs without the clone's
+  # `GIT_TERMINAL_PROMPT`, which a session's commands lack: Tuist keys its
+  # package-manifest cache on the environment, and the variable left the
+  # session's first `tuist install` recompiling the manifests.
+  @macos_sync_build_script """
+  set -eu
+  path=$1 url=$2 script=$3
+  mkdir -p "$(dirname "$path")"
+  rm -rf "$path" "$path.sbx-clone"
+  git clone --quiet "$url" "$path.sbx-clone"
+  mv "$path.sbx-clone" "$path"
+  unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_TERMINAL_PROMPT
+  cd "$path"
+  /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
+  cache="$HOME/Library/Developer/Xcode/DerivedData/CompilationCache.noindex"
+  launchctl bootout "gui/$(id -u)/tuist.cas-proxy" >/dev/null 2>&1 || true
+  killall -TERM SWBBuildService XCBBuildService >/dev/null 2>&1 || true
+  i=0
+  while pgrep -x SWBBuildService >/dev/null || pgrep -x XCBBuildService >/dev/null; do
+    i=$((i + 1)); [ "$i" -gt 30 ] && break; sleep 1
+  done
+  owed=$(find "$cache" -path '*/tuist-spool/*' -type f ! -name '*.tags' 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$owed" != 0 ]; then
+    echo "snapshot: dropping $owed publications the build could not upload" >> "$HOME/.claude-code-setup.log"
+    find "$cache" -path '*/tuist-spool/*' -type f -delete
+  fi
+  rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"
+  xcrun simctl shutdown all >/dev/null 2>&1 || true
+  xcrun simctl delete all >/dev/null 2>&1 || true
+  killall -TERM Simulator com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
+  sudo -n killall -TERM simdiskimaged >/dev/null 2>&1 || true
+  git update-index -q --refresh || true
+  git reset --quiet --hard HEAD
+  root=$(pwd -P)
+  state="$HOME/.tuist-sync/$(printf '%s' "$root" | cksum | cut -d' ' -f1)"
+  rm -rf "$state"
+  mkdir -p "$state"
+  git ls-files -s -z | perl -e '
+    local $/ = "\\0";
+    open my $m, ">", $ARGV[0] or die; open my $p, ">", $ARGV[1] or die;
+    while (<STDIN>) {
+      chomp; my ($meta, $file) = split /\\t/, $_, 2; my ($mode, $object) = split / /, $meta;
+      next if $mode eq "160000"; print $m "$mode $object\\t$file\\0"; print $p "$file\\0";
+    }
+  ' "$state/manifest" "$state/paths"
+  printf '%s' "$(git hash-object --no-filters "$state/manifest")" > "$state/id"
+  rm "$state/manifest"
+  git rev-parse HEAD > "$state/commit"
+  sync
+  """
+
   @doc """
   The snapshot a new sandbox of the session's `repository` boots from, or
-  nil: for Linux environments with a setup script, the newest one of the
+  nil: for environments with a setup script, the newest one of the
   repository saved with the current script.
   """
-  def find(%AgentEnvironment{platform: :linux, setup_script: script} = agent_environment, %{owner: owner, name: name})
+  def find(%AgentEnvironment{setup_script: script} = agent_environment, %{owner: owner, name: name})
       when is_binary(script) and script != "" do
     DiskSnapshots.find_ready_for_repository(agent_environment, "#{owner}/#{name}", setup_sha256(script))
   end
@@ -83,10 +185,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   Starts building the repository's snapshot with the environment's current
   script, unless a build of it runs or recently failed. Always `:ok`.
   """
-  def request_build(%AgentEnvironment{platform: :linux, setup_script: script} = agent_environment, %{
-        owner: owner,
-        name: name
-      })
+  def request_build(%AgentEnvironment{setup_script: script} = agent_environment, %{owner: owner, name: name})
       when is_binary(script) and script != "" do
     repository = "#{owner}/#{name}"
 
@@ -114,7 +213,156 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
 
   def request_build(_agent_environment, _repository), do: :ok
 
+  @repository ~r"\A[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}\z"
+
+  @doc """
+  What a new macOS sandbox created through the sandbox API for `repository`
+  (`owner/name`) boots from: `{:ok, nil}` when it has no repository, is not
+  a macOS sandbox, or no Linux Claude Code environment of the account has a
+  macOS setup script, or the repository is not connected to one of the
+  account's projects; otherwise `{:ok, source}` with the environment, the
+  repository's canonical name, the template and the ready snapshot, if any.
+  A malformed repository is `{:error, :invalid_parameters}`.
+  """
+  def mac_source(%Account{} = account, repository, attrs) when is_binary(repository) do
+    attrs = Sandboxes.platform_defaults(attrs)
+
+    cond do
+      not Regex.match?(@repository, repository) ->
+        {:error, :invalid_parameters}
+
+      Map.get(attrs, :platform) not in [:darwin, "darwin"] ->
+        {:ok, nil}
+
+      true ->
+        with [_ | _] = environments <- mac_environments(account),
+             repository when is_binary(repository) <- connected_repository(account, repository) do
+          environment_snapshots =
+            Enum.map(environments, fn environment ->
+              {environment,
+               DiskSnapshots.find_ready_for_repository(
+                 environment,
+                 repository,
+                 mac_setup_sha256(environment.macos_setup_script),
+                 template: attrs.template,
+                 workspace_gb: attrs.workspace_gb
+               )}
+            end)
+
+          {environment, snapshot} =
+            Enum.find(environment_snapshots, hd(environment_snapshots), fn {_environment, snapshot} -> snapshot end)
+
+          {:ok,
+           %{
+             agent_environment: environment,
+             repository: repository,
+             template: attrs.template,
+             workspace_gb: attrs.workspace_gb,
+             snapshot: snapshot
+           }}
+        else
+          _none -> {:ok, nil}
+        end
+    end
+  end
+
+  def mac_source(_account, nil, _attrs), do: {:ok, nil}
+  def mac_source(_account, _repository, _attrs), do: {:error, :invalid_parameters}
+
+  @doc """
+  Starts building the macOS snapshot of a `mac_source/3` that had none, or
+  whose snapshot is older than six hours, unless a build of it runs or
+  recently failed. Always `:ok`.
+
+  A snapshot fixes which targets `tuist generate` took from the binary cache
+  when it was built. The cache fills in after a push and moves with the
+  default branch, so a later generate replaces other targets with binaries,
+  which changes the build settings of every target that depends on them, and
+  the session's first build compiled those again: 302 files of the Tuist app
+  a few hours after its snapshot (measured, 2026-11). The Macs keep booting
+  from the old snapshot until the new one is saved and replaces it.
+  """
+  def request_mac_build(%{snapshot: snapshot, agent_environment: %AgentEnvironment{}} = source) do
+    if is_nil(snapshot) or stale?(snapshot), do: start_mac_build(source)
+    :ok
+  end
+
+  def request_mac_build(_source), do: :ok
+
+  @mac_snapshot_max_age_seconds 6 * 3600
+
+  defp stale?(%DiskSnapshot{inserted_at: inserted_at}),
+    do: DateTime.diff(DateTime.utc_now(), inserted_at) > @mac_snapshot_max_age_seconds
+
+  defp start_mac_build(%{agent_environment: environment, repository: repository} = source) do
+    case DiskSnapshots.start_build(environment, repository, mac_setup_sha256(environment.macos_setup_script),
+           platform: :darwin,
+           template: source.template,
+           workspace_gb: source.workspace_gb
+         ) do
+      {:ok, build} ->
+        Logger.info("sandboxes: claude code macOS repository snapshot build started",
+          disk_snapshot_id: build.id,
+          agent_environment_id: environment.id,
+          repository: repository,
+          template: source.template
+        )
+
+      {:error, :already_building} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: claude code macOS repository snapshot build not started",
+          agent_environment_id: environment.id,
+          repository: repository,
+          reason: inspect(reason)
+        )
+    end
+  end
+
+  # The account's enabled Linux Claude Code environments with a macOS setup
+  # script, oldest first.
+  defp mac_environments(%Account{} = account) do
+    :claude_code
+    |> Sandboxes.list_enabled_agent_environments()
+    |> Enum.filter(fn environment ->
+      environment.account_id == account.id and environment.platform == :linux and
+        environment.macos_setup_script not in [nil, ""]
+    end)
+    |> Enum.map(&%{&1 | account: account})
+  end
+
+  # Any account member can name the repository, and the build clones it with
+  # the account's GitHub installation: only a github.com repository one of
+  # the account's projects is connected to is built, under its connected name.
+  defp connected_repository(account, repository) do
+    repository
+    |> Projects.projects_by_vcs_repository_full_handle(preload: [:vcs_connection], client_url: "https://github.com")
+    |> Enum.find_value(fn project ->
+      if project.account_id == account.id, do: project.vcs_connection.repository_full_handle
+    end)
+  end
+
+  # A Mac build of a Linux environment runs its macOS setup script for the
+  # Macs its sessions create; every other build runs its own platform's.
+  defp mac_build?(%DiskSnapshot{platform: :darwin}, %AgentEnvironment{platform: :linux}), do: true
+  defp mac_build?(_build, _agent_environment), do: false
+
+  defp script(build, agent_environment) do
+    if mac_build?(build, agent_environment),
+      do: agent_environment.macos_setup_script,
+      else: agent_environment.setup_script
+  end
+
   def setup_sha256(script), do: :sha256 |> :crypto.hash(script) |> Base.encode16(case: :lower)
+
+  # A Mac build's snapshot also depends on what the build does around the
+  # script, so a change to that builds the snapshots again.
+  defp mac_setup_sha256(script), do: setup_sha256(@macos_sync_build_script <> script)
+
+  defp build_sha256(build, agent_environment, script) do
+    if mac_build?(build, agent_environment), do: mac_setup_sha256(script), else: setup_sha256(script)
+  end
 
   @doc """
   Takes a build its next step: creates the builder and starts the command,
@@ -124,14 +372,12 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   def advance(%DiskSnapshot{state: :building} = build) do
     build = Repo.preload(build, agent_environment: :account)
 
-    case build.agent_environment do
-      %AgentEnvironment{platform: :linux, setup_script: script} = agent_environment when is_binary(script) ->
-        if setup_sha256(script) == build.setup_sha256,
-          do: advance(build, agent_environment, Sandboxes.get_sandbox_by_id(build.id)),
-          else: abandon(build)
-
-      _changed ->
-        abandon(build)
+    with %AgentEnvironment{} = agent_environment <- build.agent_environment,
+         script when is_binary(script) <- script(build, agent_environment),
+         true <- build_sha256(build, agent_environment, script) == build.setup_sha256 do
+      advance(build, agent_environment, Sandboxes.get_sandbox_by_id(build.id))
+    else
+      _changed -> abandon(build)
     end
   end
 
@@ -159,14 +405,23 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   defp advance(build, _agent_environment, sandbox), do: fail(build, sandbox, {:builder, sandbox.state})
 
   defp create_builder(build, agent_environment) do
-    attrs = %{
-      agent_environment_id: agent_environment.id,
-      platform: :linux,
-      template: agent_environment.template,
-      vcpus: agent_environment.vcpus,
-      memory_mb: agent_environment.memory_mb,
-      workspace_gb: agent_environment.workspace_gb
-    }
+    # A Mac build takes the default macOS shape: the snapshot holds only disks.
+    attrs =
+      if mac_build?(build, agent_environment),
+        do: %{
+          agent_environment_id: agent_environment.id,
+          platform: :darwin,
+          template: build.template,
+          workspace_gb: build.workspace_gb
+        },
+        else: %{
+          agent_environment_id: agent_environment.id,
+          platform: agent_environment.platform,
+          template: agent_environment.template,
+          vcpus: agent_environment.vcpus,
+          memory_mb: agent_environment.memory_mb,
+          workspace_gb: agent_environment.workspace_gb
+        }
 
     case Sandboxes.create_sandbox(agent_environment.account, attrs, id: build.id) do
       {:ok, sandbox} -> start_command(build, agent_environment, sandbox)
@@ -178,7 +433,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   defp start_command(build, agent_environment, sandbox) do
     url = "https://github.com/" <> build.repository
     {git_env, _secret} = Router.credentials(agent_environment.account, url, :account)
-    path = Path.join([Sandboxes.workspace(sandbox), "claude-code" | String.split(build.repository, "/")])
+    path = clone_path(build, agent_environment, sandbox)
 
     env =
       agent_environment.account
@@ -186,18 +441,60 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
       |> Map.merge(git_env)
       |> Map.put("GIT_TERMINAL_PROMPT", "0")
 
+    # A Mac build's script signs in to Tuist as a session's does
+    # (`CommandCredentials`, read access to the account's cache).
+    started_by = if mac_build?(build, agent_environment), do: :snapshot_build
+
     case Commands.start(sandbox, %{
            id: build.id,
+           started_by: started_by,
            command: "/bin/sh",
-           args: ["-c", @build_script, "sh", path, url, agent_environment.setup_script],
+           args: [
+             "-c",
+             build_script(build, agent_environment, sandbox),
+             "sh",
+             path,
+             url,
+             script(build, agent_environment)
+           ],
            env: env,
            cwd: "/",
            timeout_ms: @build_timeout_ms
          }) do
-      {:ok, _command} -> {:snooze, @poll_seconds}
-      {:error, reason} when reason in @retryable_errors -> {:snooze, @retry_seconds}
-      {:error, reason} -> fail(build, sandbox, reason)
+      {:ok, _command} ->
+        {:snooze, @poll_seconds}
+
+      {:error, reason} when reason in @retryable_errors ->
+        {:snooze, @retry_seconds}
+
+      # A Mac's idle pause can beat the first command, and CI can take the
+      # slot it freed before the command resumes it. The builder has done
+      # nothing yet: drop it, and the next step places a new one on a host
+      # with an idle slot.
+      {:error, {:host_busy, _why}} ->
+        _ = Sandboxes.delete(sandbox)
+        {:snooze, @retry_seconds}
+
+      {:error, reason} ->
+        fail(build, sandbox, reason)
     end
+  end
+
+  defp build_script(build, agent_environment, sandbox) do
+    cond do
+      mac_build?(build, agent_environment) -> @macos_sync_build_script
+      sandbox.platform == :darwin -> @macos_build_script
+      true -> @build_script
+    end
+  end
+
+  # Where the runner keeps its clone, or for a Mac a session creates, where
+  # `tuist sandbox sync` puts the session's worktree by default:
+  # `$HOME/work/<name>`, the workspace's root.
+  defp clone_path(build, agent_environment, sandbox) do
+    if mac_build?(build, agent_environment),
+      do: Path.join(Sandboxes.workspace(sandbox), build.repository |> String.split("/") |> List.last()),
+      else: Path.join([Sandboxes.workspace(sandbox), "claude-code" | String.split(build.repository, "/")])
   end
 
   defp save(build, sandbox) do

@@ -18,6 +18,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   alias Tuist.RemoteExecution
   alias Tuist.RemoteExecution.Settings
+  alias Tuist.RemoteExecution.Usage
   alias Tuist.RemoteExecution.VMs
   alias Tuist.Sandboxes.Nodes
 
@@ -35,6 +36,11 @@ defmodule Tuist.RemoteExecution.Scheduler do
   # time, and a build's peak outlives the gap between builds.
   @warm_hold_ms 60_000
   @max_warm_vms 4
+  # While the warm pool is held, one VM of each other size the account ran an
+  # action in within this window is kept ready too: a build that needs a
+  # larger VM tends to need it on every run, once, and would otherwise wait
+  # for its preparation.
+  @size_memory_ms 86_400_000
   @initial_prepare_ms 50
   # A VM is assigned only while its last renewal leaves most of the lease.
   @fresh_lease_ms 40_000
@@ -79,6 +85,20 @@ defmodule Tuist.RemoteExecution.Scheduler do
     end
   end
 
+  @doc """
+  The project's operations queued or running in this scheduler right now.
+  Leases are not actions: the gateway leases VMs ahead of demand and claims
+  them on the node directly, so the scheduler never sees what runs on them.
+  The scheduler is never started for this: without one the account has
+  nothing queued or running here.
+  """
+  def activity(account_id, project_id) do
+    case whereis(account_id) do
+      nil -> {:ok, []}
+      pid -> call(pid, {:activity, project_id}, 0)
+    end
+  end
+
   def reload(account_id) do
     case whereis(account_id) do
       nil -> :ok
@@ -117,29 +137,37 @@ defmodule Tuist.RemoteExecution.Scheduler do
     case RemoteExecution.available_settings(account_id) do
       {:ok, settings} ->
         Process.flag(:trap_exit, true)
+        :ok = Phoenix.PubSub.subscribe(Tuist.PubSub, VMs.room_topic())
         Process.send_after(self(), :tick, @tick_ms)
         Process.send_after(self(), :renew, @renew_ms)
         Process.send_after(self(), :refresh, @refresh_ms)
+        since = DateTime.add(DateTime.utc_now(), -@size_memory_ms, :millisecond)
 
         {:ok,
-         %{
-           account_id: account_id,
-           settings: settings,
-           ops: %{},
-           queue: :queue.new(),
-           lease_waiters: :queue.new(),
-           inflight: %{},
-           vms: %{},
-           tasks: %{},
-           tokens: %{},
-           blocked_on: nil,
-           prepare_after: now_ms(),
-           active_at: now_ms(),
-           arrivals: :queue.new(),
-           prepare_ms: @initial_prepare_ms,
-           warm_peak: 0,
-           warm_peak_at: now_ms()
-         }, {:continue, :reconcile}}
+         start_task(
+           %{
+             account_id: account_id,
+             settings: settings,
+             ops: %{},
+             queue: :queue.new(),
+             lease_waiters: :queue.new(),
+             inflight: %{},
+             vms: %{},
+             tasks: %{},
+             tokens: %{},
+             blocked_on: nil,
+             prepare_after: now_ms(),
+             active_at: now_ms(),
+             arrivals: :queue.new(),
+             prepare_ms: @initial_prepare_ms,
+             warm_peak: 0,
+             warm_peak_at: now_ms(),
+             # Size => when the account last asked for it, monotonic.
+             sizes_seen: %{}
+           },
+           :sizes_seen,
+           fn -> Usage.memory_sizes_gb(account_id, since) end
+         ), {:continue, :reconcile}}
 
       _ ->
         :ignore
@@ -191,12 +219,36 @@ defmodule Tuist.RemoteExecution.Scheduler do
                 | ops: Map.put(state.ops, op.id, op),
                   queue: :queue.in(op.id, state.queue),
                   inflight: inflight,
-                  arrivals: :queue.in(state.active_at, state.arrivals)
+                  arrivals: :queue.in(state.active_at, state.arrivals),
+                  sizes_seen: Map.put(state.sizes_seen, op.memory_gb, state.active_at)
               })
 
             wait_for(state, op.id, from, :done, wait_ms)
         end
     end
+  end
+
+  def handle_call({:activity, project_id}, _from, state) do
+    now = now_ms()
+    wall_now = System.system_time(:millisecond)
+
+    actions =
+      for {_id, %{project_id: ^project_id, state: op_state} = op} <- state.ops, op_state in [:queued, :executing] do
+        mono = if op_state == :queued, do: op.queued_mono, else: op.dispatched_mono
+
+        %{
+          id: op.id,
+          state: if(op_state == :queued, do: "queued", else: "running"),
+          action_digest: "#{op.hash}/#{op.size}",
+          invocation_id: op.invocation_id,
+          mnemonic: op.mnemonic,
+          target: op.target,
+          memory_gb: op.memory_gb,
+          since: DateTime.from_unix!(wall_now - (now - mono), :millisecond)
+        }
+      end
+
+    {:reply, {:ok, actions}, state}
   end
 
   def handle_call({:lease, attrs, wait_ms}, from, state) do
@@ -229,14 +281,14 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
       {task, tasks} ->
         Process.demonitor(ref, [:flush])
-        {:noreply, handle_task(task, result, %{state | tasks: tasks})}
+        {:noreply, mark_waits(handle_task(task, result, %{state | tasks: tasks}))}
     end
   end
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
     case Map.pop(state.tasks, ref) do
       {nil, _tasks} -> {:noreply, state}
-      {task, tasks} -> {:noreply, handle_task(task, :crashed, %{state | tasks: tasks})}
+      {task, tasks} -> {:noreply, mark_waits(handle_task(task, :crashed, %{state | tasks: tasks}))}
     end
   end
 
@@ -262,6 +314,12 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
     {:noreply, %{state | lease_waiters: :queue.from_list(waiting)}}
   end
+
+  # Any account's VM deletion frees node room; one waiting for it retries now.
+  def handle_info({:remote_execution_room, _node}, %{blocked_on: :node} = state),
+    do: {:noreply, reconcile(%{state | blocked_on: nil})}
+
+  def handle_info({:remote_execution_room, _node}, state), do: {:noreply, state}
 
   def handle_info({:destroy, vm_id}, state) do
     case Map.get(state.vms, vm_id) do
@@ -334,7 +392,10 @@ defmodule Tuist.RemoteExecution.Scheduler do
       response: nil,
       cacheable: false,
       code: 0,
-      message: nil
+      message: nil,
+      waits: %{},
+      wait_cause: :scheduling,
+      wait_mark: now_ms()
     })
   end
 
@@ -367,10 +428,14 @@ defmodule Tuist.RemoteExecution.Scheduler do
       state: Atom.to_string(op.state),
       done: op.state == :completed,
       queued_at_unix_us: op.queued_at_unix_us,
+      queue_waits_ms: Map.new(op.waits, fn {cause, ms} -> {Atom.to_string(cause), ms} end),
       response: op.response,
       code: op.code,
       message: op.message
     }
+
+    # The VM, once dispatched, for the gateway's action record.
+    base = if op.vm, do: Map.put(base, :sandbox_id, op.vm), else: base
 
     if op.cacheable,
       do: Map.merge(base, %{cacheable: true, action_hash: op.hash, action_size: op.size, cas_endpoint: op.cas_endpoint}),
@@ -397,7 +462,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
         end
       end)
 
-    grant_leases(%{state | queue: :queue.from_list(Enum.reverse(waiting))})
+    mark_waits(grant_leases(%{state | queue: :queue.from_list(Enum.reverse(waiting))}))
   end
 
   defp ready_vm(state, memory_gb) do
@@ -424,8 +489,10 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
     token = cached_token(state, op.project_id)
 
+    now = now_ms()
+
     state
-    |> put_op(%{op | state: :executing, vm: vm.id, inputs: nil, dispatched_mono: now_ms()})
+    |> put_op(%{charge_wait(op, now) | state: :executing, vm: vm.id, inputs: nil, dispatched_mono: now})
     |> put_vm(%{vm | state: :busy})
     |> start_task({:run, op.id, vm.id}, fn -> VMs.execute(vm.sandbox, request, op.project_id, token) end)
     |> notify(op.id)
@@ -598,6 +665,15 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   defp handle_task({:renew, _ids, _sent_at}, _error, state), do: state
 
+  # Sizes from before this process started count as seen now.
+  defp handle_task(:sizes_seen, sizes, state) when is_list(sizes) do
+    now = now_ms()
+    seen = Enum.reduce(sizes, state.sizes_seen, &Map.put_new(&2, &1, now))
+    reconcile(%{state | sizes_seen: seen})
+  end
+
+  defp handle_task(:sizes_seen, _error, state), do: state
+
   # The reaper deleted this row: its VM is gone or being deleted. A busy or
   # leased VM's action fails on its own; idle and retiring ones need nothing more.
   defp lost(vms, %{state: state}) when state in [:busy, :leased], do: vms
@@ -662,8 +738,19 @@ defmodule Tuist.RemoteExecution.Scheduler do
     demand = Enum.frequencies(queued)
     ready = state.vms |> Map.values() |> Enum.filter(&(&1.state == :ready))
     {stale, ready} = Enum.split_with(ready, &(not matches?(&1.sandbox, settings)))
-    # Only default VMs stay warm; another size is prepared for queued work.
-    excess = spare(ready, demand, fn size -> if size == default, do: warm, else: 0 end)
+    # The warm pool is default VMs, plus one of each other recent size while
+    # it is held; another size is prepared for queued work.
+    sizes = if warm > 0, do: other_sizes(state, default), else: []
+
+    excess =
+      spare(ready, demand, fn size ->
+        cond do
+          size == default -> warm
+          size in sizes -> 1
+          true -> 0
+        end
+      end)
+
     state = Enum.reduce(stale ++ excess, state, &retire(&2, &1.id, nil))
 
     # Each queued action without a VM of its size on the way, then the warm pool.
@@ -672,12 +759,59 @@ defmodule Tuist.RemoteExecution.Scheduler do
         if Map.get(coming, size, 0) > 0, do: {[], Map.update!(coming, size, &(&1 - 1))}, else: {[size], coming}
       end)
 
-    warming = List.duplicate(default, max(warm - Map.get(coming, default, 0), 0))
+    # Default VMs first: a larger size that does not fit holds back the ones after it.
+    warming =
+      List.duplicate(default, max(warm - Map.get(coming, default, 0), 0)) ++
+        Enum.filter(sizes, &(Map.get(coming, &1, 0) == 0))
 
-    if is_nil(state.blocked_on) and now_ms() >= state.prepare_after,
-      do: prepare(state, Enum.map(needed, &{&1, :queued}) ++ Enum.map(warming, &{&1, :warm}), demand),
-      else: state
+    state =
+      if is_nil(state.blocked_on) and now_ms() >= state.prepare_after,
+        do: prepare(state, Enum.map(needed, &{&1, :queued}) ++ Enum.map(warming, &{&1, :warm}), demand),
+        else: state
+
+    mark_waits(state)
   end
+
+  # Charges each queued operation's wait since its last mark to what it was
+  # waiting on, then records what it waits on now: a VM of its size being
+  # prepared (`vm_preparing`), the account's limits (`account_limit`), node
+  # room (`node_capacity`) or the backoff after unavailable nodes
+  # (`prepare_backoff`). Time before the first mark is `scheduling`. Oldest operations claim the VMs on the way first.
+  # Diagnostics only; nothing schedules by it.
+  defp mark_waits(state) do
+    now = now_ms()
+
+    blocked =
+      cond do
+        state.blocked_on == :node -> :node_capacity
+        state.blocked_on == :cap -> :account_limit
+        now < state.prepare_after -> :prepare_backoff
+        true -> :account_limit
+      end
+
+    {ops, _coming} =
+      state.queue
+      |> :queue.to_list()
+      |> Enum.reduce({state.ops, coming_sizes(state)}, fn id, {ops, coming} ->
+        case Map.get(ops, id) do
+          %{state: :queued, memory_gb: size} = op ->
+            {cause, coming} =
+              if Map.get(coming, size, 0) > 0,
+                do: {:vm_preparing, Map.update!(coming, size, &(&1 - 1))},
+                else: {blocked, coming}
+
+            {Map.put(ops, id, %{charge_wait(op, now) | wait_cause: cause}), coming}
+
+          _ ->
+            {ops, coming}
+        end
+      end)
+
+    %{state | ops: ops}
+  end
+
+  defp charge_wait(op, now),
+    do: %{op | waits: Map.update(op.waits, op.wait_cause, now - op.wait_mark, &(&1 + now - op.wait_mark)), wait_mark: now}
 
   # Prepares VMs of the wanted sizes in order while the account's limits hold
   # them. A size that does not fit waits for capacity instead of letting later,
@@ -757,6 +891,14 @@ defmodule Tuist.RemoteExecution.Scheduler do
      %{state | arrivals: arrivals, warm_peak: peak, warm_peak_at: peak_at}}
   end
 
+  defp other_sizes(state, default) do
+    since = now_ms() - @size_memory_ms
+
+    for {size, at} <- Enum.sort(state.sizes_seen),
+        size != default and at >= since and size in Settings.memory_sizes_gb() and Settings.fits?(state.settings, size),
+        do: size
+  end
+
   defp drop_old_arrivals(arrivals, since) do
     case :queue.peek(arrivals) do
       {:value, at} when at < since -> drop_old_arrivals(:queue.drop(arrivals), since)
@@ -815,7 +957,10 @@ defmodule Tuist.RemoteExecution.Scheduler do
   defp outcome(14), do: "unavailable"
   defp outcome(_code), do: "other"
 
-  defp queue_limit(settings), do: min(settings.max_concurrency * 4, 512)
+  # `tuist bazel setup` gives every client `--jobs` of twice max_concurrency, so
+  # the queue holds about eight cold clients at once, such as a CI pipeline's
+  # parallel Bazel jobs. Queued operations past max_concurrency hold no inputs.
+  defp queue_limit(settings), do: min(settings.max_concurrency * 16, 2048)
   defp put_op(state, op), do: %{state | ops: Map.put(state.ops, op.id, op)}
   defp put_vm(state, vm), do: %{state | vms: Map.put(state.vms, vm.id, vm)}
   defp now_ms, do: System.monotonic_time(:millisecond)

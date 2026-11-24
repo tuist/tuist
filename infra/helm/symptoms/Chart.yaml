@@ -1,0 +1,9 @@
+apiVersion: v2
+name: symptoms
+description: |
+  The Symptoms evaluator (`symptoms/` at the repository root): a Phoenix app
+  with Oban and its own CNPG PostgreSQL, deployed to each workload cluster's
+  `symptoms-<env>` namespace. See `../../../symptoms/README.md`.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

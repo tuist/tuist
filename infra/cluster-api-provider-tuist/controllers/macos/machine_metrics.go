@@ -13,7 +13,7 @@ import (
 // setting the new one), so a transition — e.g. Failed -> Running after a
 // recovery — never leaves a stale Failed series alerting forever.
 //
-// The operator's `/metrics` (:8080) is scraped into Grafana Cloud via the
+// The operator's `/metrics` (:8080) is scraped into Pulse via the
 // pod's prometheus.io/scrape annotation; the "machine stuck Failed" alert
 // keys off `phase="Failed"` persisting for a machine (which is how a host
 // stuck in terminal TartKubeletUpdateExceededRetries surfaces — the CR

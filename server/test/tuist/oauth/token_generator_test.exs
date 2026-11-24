@@ -5,6 +5,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
   alias Boruta.Ecto.Token
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Environment
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -23,6 +24,8 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
     }
 
     stub(Clients, :get_client, fn _ -> client end)
+    # Tokens of Tuist's own client, which the apps request without scopes.
+    stub(Environment, :oauth_client_id, fn -> "test-client-id" end)
 
     {:ok, user: user, project: project, client: client}
   end
@@ -194,6 +197,26 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
 
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
       assert claims["scopes"] == ["mcp"]
+    end
+
+    test "gives other clients only the mcp preset when no scope is provided", %{user: user} do
+      for scope <- [nil, ""] do
+        token = %Token{sub: Integer.to_string(user.id), client_id: "registered-client-id", scope: scope}
+
+        {:ok, claims} = :access_token |> TokenGenerator.generate(token) |> Tuist.Guardian.decode_and_verify()
+
+        assert claims["scopes"] == ["mcp"]
+      end
+    end
+
+    test "a grant from before Luft was first-party keeps the default user scopes", %{user: user} do
+      token = %Token{sub: Integer.to_string(user.id), client_id: "test-client-id", scope: "threads"}
+
+      {:ok, claims} = :access_token |> TokenGenerator.generate(token) |> Tuist.Guardian.decode_and_verify()
+
+      assert "project:previews:read" in claims["scopes"]
+      assert "account:cache:write" in claims["scopes"]
+      refute "threads" in claims["scopes"]
     end
 
     test "sets default user scopes when no scope is provided", %{user: user} do

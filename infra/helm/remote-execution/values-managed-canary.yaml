@@ -1,11 +1,28 @@
 # Deployed by .github/workflows/remote-execution-deployment.yml into the
 # cluster's sandbox namespace (tuist-sandboxes). Image tags come from the
-# workflow. Keep it disabled until the env has hosts labelled and tainted
-# tuist.dev/workload=remote-execution, excluded from every CI RunnerPool.
-enabled: false
+# workflow, which the production deploy cascade calls after the canary leg and
+# before production, replacing the workers so every RE change runs here first.
+# Set to false to stop installing or upgrading it.
+enabled: true
 serverURL: http://tuist-tuist-server.tuist-canary.svc.cluster.local:80
 serverNamespace: tuist-canary
 gateway:
   ingress:
     enabled: true
     host: execution-canary.tuist.dev
+workers:
+  # One production host's shape, so canary runs what production runs: four
+  # slots' ceilings (185 GiB) plus the 20 GiB blob cache. The images are sparse
+  # and fill as VMs write.
+  diskGiB: 205
+  # Canary's single runners-linux host (24 vCPUs, 64 GiB), beside its CI
+  # runners and the agent sandbox daemon: 1 VM always, up to 4 ahead of queued
+  # actions, as on each production host.
+  sharedHosts:
+    enabled: true
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: runners-linux
+    floorSlots: 1
+    ceilingSlots: 4
+    tolerations:
+      - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}

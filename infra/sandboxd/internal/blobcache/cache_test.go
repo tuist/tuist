@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	repb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/klauspost/compress/zstd"
 	bs "google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -28,22 +30,42 @@ import (
 // fakeCAS serves blobs over ByteStream to the token of each instance.
 type fakeCAS struct {
 	bs.UnimplementedByteStreamServer
-	mu      sync.Mutex
-	blobs   map[string][]byte
-	tokens  map[string]string // instance -> accepted token
-	reads   map[string]int    // instance/hash -> reads
-	corrupt map[string]bool   // hash -> serve wrong bytes once
-	release chan struct{}     // when set, reads wait for it
+	repb.UnimplementedCapabilitiesServer
+	mu       sync.Mutex
+	blobs    map[string][]byte
+	tokens   map[string]string // instance -> accepted token
+	reads    map[string]int    // instance/hash -> reads
+	corrupt  map[string]bool   // hash -> serve wrong bytes once
+	release  chan struct{}     // when set, reads wait for it
+	pace     time.Duration     // when set, reads send one byte per pace
+	zstd     bool
+	wire     []byte // non-nil replaces the encoded response
+	sent     int
+	identity bool // capabilities implemented, but no compression
+	trailer  codes.Code
+}
+
+func (f *fakeCAS) GetCapabilities(context.Context, *repb.GetCapabilitiesRequest) (*repb.ServerCapabilities, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.identity {
+		return &repb.ServerCapabilities{CacheCapabilities: &repb.CacheCapabilities{}}, nil
+	}
+	if !f.zstd {
+		return nil, status.Error(codes.Unimplemented, "legacy CAS")
+	}
+	return &repb.ServerCapabilities{CacheCapabilities: &repb.CacheCapabilities{SupportedCompressors: []repb.Compressor_Value{repb.Compressor_ZSTD}}}, nil
 }
 
 func (f *fakeCAS) Read(r *bs.ReadRequest, s bs.ByteStream_ReadServer) error {
 	parts := strings.Split(r.ResourceName, "/")
-	instance, hash := parts[0], parts[2]
+	instance, hash := parts[0], parts[len(parts)-2]
 	md, _ := metadata.FromIncomingContext(s.Context())
 	f.mu.Lock()
 	f.reads[instance+"/"+hash]++
 	ok := len(md.Get("authorization")) == 1 && md.Get("authorization")[0] == "Bearer "+f.tokens[instance]
-	data, corrupt, release := f.blobs[hash], f.corrupt[hash], f.release
+	data, corrupt, release, pace := f.blobs[hash], f.corrupt[hash], f.release, f.pace
+	wire, trailer := f.wire, f.trailer
 	delete(f.corrupt, hash)
 	f.mu.Unlock()
 	if release != nil {
@@ -55,7 +77,30 @@ func (f *fakeCAS) Read(r *bs.ReadRequest, s bs.ByteStream_ReadServer) error {
 	if corrupt {
 		data = []byte(strings.Repeat("x", len(data)))
 	}
-	return s.Send(&bs.ReadResponse{Data: data})
+	if parts[1] == "compressed-blobs" {
+		enc, err := zstd.NewWriter(nil, zstd.WithEncoderConcurrency(1))
+		if err != nil {
+			return err
+		}
+		data = enc.EncodeAll(data, nil)
+		enc.Close()
+	}
+	if wire != nil {
+		data = wire
+	}
+	f.mu.Lock()
+	f.sent += len(data)
+	f.mu.Unlock()
+	for ; pace > 0 && len(data) > 1; data = data[1:] {
+		if err := s.Send(&bs.ReadResponse{Data: data[:1]}); err != nil {
+			return err
+		}
+		time.Sleep(pace)
+	}
+	if err := s.Send(&bs.ReadResponse{Data: data}); err != nil {
+		return err
+	}
+	return status.Error(trailer, "response trailer")
 }
 
 func (f *fakeCAS) put(data string) (string, int64) {
@@ -82,6 +127,7 @@ func setup(t *testing.T, budget int64) (*Cache, *fakeCAS, string) {
 	}
 	server := grpc.NewServer()
 	bs.RegisterByteStreamServer(server, cas)
+	repb.RegisterCapabilitiesServer(server, cas)
 	go server.Serve(l)
 	t.Cleanup(server.Stop)
 	c, err := New(filepath.Join(t.TempDir(), "blobs"), budget, nil, NewMetrics(nil))
@@ -203,6 +249,103 @@ func TestCorruptDownloadIsNotCached(t *testing.T) {
 	}
 	if got, err := readAll(t, c, s, hash, size); err != nil || got != "verified content" || cas.readCount("a", hash) != 2 {
 		t.Fatalf("after a corrupt download: %q %v, %d reads", got, err, cas.readCount("a", hash))
+	}
+}
+
+func TestCompressedDownloads(t *testing.T) {
+	enc, err := zstd.NewWriter(nil, zstd.WithEncoderConcurrency(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer enc.Close()
+	blob := strings.Repeat("a compressible input with asymmetric contents!", 8192)
+	encoded := enc.EncodeAll([]byte(blob), nil)
+	for _, tc := range []struct {
+		name     string
+		wire     []byte
+		bad      bool
+		identity bool
+		trailer  codes.Code
+	}{
+		{name: "negotiated"},
+		{name: "identity only", identity: true},
+		{name: "truncated frame", wire: encoded[:len(encoded)-1], bad: true},
+		{name: "not zstd", wire: []byte(blob), bad: true},
+		{name: "wrong digest", wire: enc.EncodeAll([]byte(strings.Repeat("x", len(blob))), nil), bad: true},
+		{name: "short content", wire: enc.EncodeAll([]byte(blob[:len(blob)-1]), nil), bad: true},
+		{name: "extra decoded byte", wire: enc.EncodeAll([]byte(blob+"x"), nil), bad: true},
+		{name: "failed stream after complete frame", trailer: codes.Unavailable, bad: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, cas, endpoint := setup(t, 1<<20)
+			cas.zstd, cas.wire, cas.identity, cas.trailer = true, tc.wire, tc.identity, tc.trailer
+			hash, size := cas.put(blob)
+			s := Scope{Endpoint: endpoint, Instance: "a", Token: "token-a"}
+			got, err := readAll(t, c, s, hash, size)
+			if tc.bad {
+				if err == nil {
+					t.Fatal("invalid compressed response was cached")
+				}
+				files, _ := filepath.Glob(filepath.Join(c.Dir(), s.key(), "*"))
+				if len(files) != 0 {
+					t.Fatalf("failed fill left files: %v", files)
+				}
+				cas.mu.Lock()
+				cas.wire, cas.trailer = nil, codes.OK
+				cas.mu.Unlock()
+				got, err = readAll(t, c, s, hash, size)
+			}
+			if err != nil || got != blob {
+				t.Fatalf("decoded input: %v, %d bytes", err, len(got))
+			}
+			if !tc.bad && !tc.identity && cas.sent >= len(blob)/2 {
+				t.Fatalf("did not use compression: %d wire bytes for %d decoded bytes", cas.sent, len(blob))
+			}
+			reads := cas.readCount("a", hash)
+			if got, err := readAll(t, c, s, hash, size); err != nil || got != blob || cas.readCount("a", hash) != reads {
+				t.Fatalf("cached decoded input: %v", err)
+			}
+		})
+	}
+}
+
+func TestStalledDownloadFailsButSlowOneFinishes(t *testing.T) {
+	for _, compressed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("compressed=%t", compressed), func(t *testing.T) {
+			c, cas, endpoint := setup(t, 1<<20)
+			cas.zstd = compressed
+			c.stall = 300 * time.Millisecond
+			s := Scope{Endpoint: endpoint, Instance: "a", Token: "token-a"}
+
+			// A CAS that keeps sending finishes, however long the whole blob takes.
+			slow, slowSize := cas.put("0123456789")
+			cas.mu.Lock()
+			cas.pace = 100 * time.Millisecond
+			cas.mu.Unlock()
+			if got, err := readAll(t, c, s, slow, slowSize); err != nil || got != "0123456789" {
+				t.Fatalf("slow but steady download: %q %v", got, err)
+			}
+
+			// One that stops sending fails long before fillTimeout, so the guests
+			// waiting on it read the blob from the CAS themselves.
+			hash, size := cas.put("stalled content")
+			release := make(chan struct{})
+			cas.mu.Lock()
+			cas.pace, cas.release = 0, release
+			cas.mu.Unlock()
+			started := time.Now()
+			_, err := readAll(t, c, s, hash, size)
+			if !errors.Is(err, errStalled) || time.Since(started) > 5*time.Second {
+				t.Fatalf("stalled download: %v after %s", err, time.Since(started))
+			}
+			cas.mu.Lock()
+			cas.release = nil
+			cas.mu.Unlock()
+			close(release)
+			if got, err := readAll(t, c, s, hash, size); err != nil || got != "stalled content" || cas.readCount("a", hash) != 2 {
+				t.Fatalf("after a stalled download: %q %v, %d reads", got, err, cas.readCount("a", hash))
+			}
+		})
 	}
 }
 

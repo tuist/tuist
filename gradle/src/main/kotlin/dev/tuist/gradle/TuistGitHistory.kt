@@ -50,9 +50,16 @@ data class CollectedGitHistory(
 class GitHistoryEnvironment(private val environment: Map<String, String>) {
     fun enabled(isCi: Boolean): Boolean = isCi && !isFalsy("TUIST_GIT_UPLOAD_ENABLED")
 
-    /** `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps collection to what the checkout has. */
-    fun remoteAccess(): GitHistoryRemoteAccess =
-        if (isFalsy("TUIST_GIT_UNSHALLOW_ENABLED")) GitHistoryRemoteAccess.NONE else GitHistoryRemoteAccess.BASE_HEAD
+    /**
+     * Only coverage needs the merge base, so only coverage fetches history; any other run reads the
+     * checkout and asks the remote for the base branch's latest commit at most.
+     * `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps every run to what the checkout has.
+     */
+    fun remoteAccess(coverage: Boolean): GitHistoryRemoteAccess = when {
+        isFalsy("TUIST_GIT_UNSHALLOW_ENABLED") -> GitHistoryRemoteAccess.NONE
+        coverage -> GitHistoryRemoteAccess.HISTORY
+        else -> GitHistoryRemoteAccess.BASE_HEAD
+    }
 
     /** The branch a pull request merges into, from the CI provider only: a checkout does not know it. */
     fun baseBranch(): String? = firstValue(baseBranchVariables)?.removePrefix("refs/heads/")
@@ -127,7 +134,11 @@ class GitHistoryService(
     private val logger = Logging.getLogger(GitHistoryService::class.java)
     private val gson = Gson()
 
-    fun collect(gitInfo: GitInfoProvider, workingDirectory: File, isCi: Boolean): CollectedGitHistory? {
+    /**
+     * Collects the history on CI only: a coverage run ([coverage]) fetches and deepens the clone,
+     * which makes it a partial clone, and a developer's own clone must not become one.
+     */
+    fun collect(gitInfo: GitInfoProvider, workingDirectory: File, isCi: Boolean, coverage: Boolean = false): CollectedGitHistory? {
         val gitEnvironment = GitHistoryEnvironment(environment)
         if (!gitEnvironment.enabled(isCi)) return null
         val observedAt = clock()
@@ -161,17 +172,25 @@ class GitHistoryService(
         }
 
         val settings = settings()
+        val limits = GitHistoryLimits(
+            windowDays = settings.windowDays,
+            windowCommits = settings.windowCommits,
+            deepenBudgetSeconds = settings.deepenBudgetSeconds,
+            remoteAccess = gitEnvironment.remoteAccess(coverage)
+        )
+        val repositoryUrl = gitInfo.remoteUrlOrigin()?.takeIf { it.isNotBlank() }
+        // Deepened through the base branch, or the run's own on a push.
+        val connectBranch = baseBranch ?: gitInfo.branch()
         val history = try {
-            reader.read(
-                headSha = headSha,
-                baseBranch = baseBranch,
-                limits = GitHistoryLimits(
-                    windowDays = settings.windowDays,
-                    windowCommits = settings.windowCommits,
-                    deepenBudgetSeconds = settings.deepenBudgetSeconds,
-                    remoteAccess = gitEnvironment.remoteAccess()
-                )
-            )
+            val read = reader.read(headSha = headSha, baseBranch = baseBranch, limits = limits)
+            if (repositoryUrl == null || connectBranch == null) {
+                read
+            } else {
+                // A server that cannot be asked counts as having the commits, and nothing is fetched.
+                reader.connect(read, connectBranch, limits) { shas ->
+                    runCatching { missingCommits(repositoryUrl, shas) }.getOrDefault(emptyList())
+                }
+            }
         } catch (e: Exception) {
             val reason = e.message ?: e.javaClass.simpleName
             logger.info("Tuist: The run's Git history could not be read: $reason")
@@ -219,11 +238,7 @@ class GitHistoryService(
         if (commits.isEmpty()) return
 
         val missing = commits.map { it.sha }.chunked(MISSING_COMMITS_BATCH_SIZE).flatMapTo(mutableSetOf()) { shas ->
-            request("commits/missing", MissingCommitsRequest(repositoryUrl, shas)) { connection ->
-                InputStreamReader(connection.inputStream, Charsets.UTF_8).use {
-                    gson.fromJson(it, MissingCommitsResponse::class.java)?.missing.orEmpty()
-                }
-            }
+            missingCommits(repositoryUrl, shas)
         }
 
         // Reversed first so that, between commits with the same time, the older listed one goes first.
@@ -255,6 +270,13 @@ class GitHistoryService(
             request("commits", UploadCommitsRequest(repositoryUrl, history.objectFormat, batch, heads)) {}
         }
     }
+
+    private fun missingCommits(repositoryUrl: String, shas: List<String>): List<String> =
+        request("commits/missing", MissingCommitsRequest(repositoryUrl, shas)) { connection ->
+            InputStreamReader(connection.inputStream, Charsets.UTF_8).use {
+                gson.fromJson(it, MissingCommitsResponse::class.java)?.missing.orEmpty()
+            }
+        }
 
     /**
      * Uploads the head commit's file listing (`git ls-tree -r`) once per commit, when the server

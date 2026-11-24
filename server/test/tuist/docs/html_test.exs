@@ -14,7 +14,7 @@ defmodule Tuist.Docs.HTMLTest do
       assert wrapped =~ ~s(<div data-part="language">sh</div>)
 
       assert wrapped =~
-               ~s(<div data-part="code"><code><span>tuist</span> <span>registry</span> <span>setup</span> &lt;App&gt;</code>)
+               ~s(<div data-part="code"><code class="lumis"><span>tuist</span> <span>registry</span> <span>setup</span> &lt;App&gt;</code>)
     end
   end
 
@@ -74,8 +74,8 @@ defmodule Tuist.Docs.HTMLTest do
 
     test "wraps table nodes without mutating code window contents" do
       code_window = """
-      <div class="code-window"><div data-part="bar"><div data-part="language">swift</div><div data-part="copy"></div></div><div data-part="code"><code><span style="color:#CF222E">let</span> target <span style="color:#0550AE">=</span> <span style="color:#8250DF">Target</span>(
-        name: <span style="color:#0A3069">&quot;App&quot;</span>
+      <div class="code-window"><div data-part="bar"><div data-part="language">swift</div><div data-part="copy"></div></div><div data-part="code"><code class="lumis"><span class="l-keyword">let</span> target <span class="l-operator">=</span> <span class="l-function-call">Target</span>(
+        name: <span class="l-string">&quot;App&quot;</span>
       )</code></div></div>
       """
 

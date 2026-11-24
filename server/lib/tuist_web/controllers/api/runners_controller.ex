@@ -3,7 +3,7 @@ defmodule TuistWeb.API.RunnersController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Runners.APIJobs
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
@@ -464,7 +464,7 @@ defmodule TuistWeb.API.RunnersController do
   )
 
   def index_jobs(%{assigns: %{selected_account: account}} = conn, params) do
-    if FeatureFlags.runners_enabled?(account) do
+    if Environment.runners_available?() do
       {page, page_size} = page_params(params)
       options = job_options(params) ++ [limit: page_size, offset: (page - 1) * page_size]
       total_count = Jobs.count_for_account(account.id, job_options(params))
@@ -501,7 +501,7 @@ defmodule TuistWeb.API.RunnersController do
   )
 
   def show_job(%{assigns: %{selected_account: account}, params: %{workflow_job_id: workflow_job_id}} = conn, _params) do
-    if FeatureFlags.runners_enabled?(account) do
+    if Environment.runners_available?() do
       case Jobs.get_for_account(account.id, workflow_job_id) do
         {:ok, job} ->
           json(conn, Map.put(serialize_job(job), :out_of_memory, JobMetrics.out_of_memory_report(job.workflow_job_id)))
@@ -612,7 +612,7 @@ defmodule TuistWeb.API.RunnersController do
         :idempotency_key
       ])
 
-    with true <- FeatureFlags.runners_enabled?(account),
+    with true <- Environment.runners_available?(),
          {:ok, job, outcome} <- APIJobs.create_job(account, attrs),
          {:ok, runner_job} <- Jobs.get_for_account(account.id, job.workflow_job_id) do
       conn
@@ -656,7 +656,7 @@ defmodule TuistWeb.API.RunnersController do
   )
 
   def cancel_job(%{assigns: %{selected_account: account}, params: %{workflow_job_id: workflow_job_id}} = conn, _params) do
-    with true <- FeatureFlags.runners_enabled?(account),
+    with true <- Environment.runners_available?(),
          {:ok, _outcome} <- APIJobs.cancel_job(account.id, workflow_job_id),
          {:ok, runner_job} <- Jobs.get_for_account(account.id, workflow_job_id) do
       json(conn, serialize_job(runner_job))
@@ -781,7 +781,7 @@ defmodule TuistWeb.API.RunnersController do
   )
 
   def index_workflows(%{assigns: %{selected_account: account}} = conn, params) do
-    if FeatureFlags.runners_enabled?(account) do
+    if Environment.runners_available?() do
       {page, page_size} = page_params(params)
       options = workflow_options(params) ++ [limit: page_size, offset: (page - 1) * page_size]
       total_count = Jobs.count_workflows_for_account(account.id, workflow_options(params))
@@ -815,7 +815,7 @@ defmodule TuistWeb.API.RunnersController do
   )
 
   def index_profiles(%{assigns: %{selected_account: account}} = conn, _params) do
-    if FeatureFlags.runners_enabled?(account) do
+    if Environment.runners_available?() do
       json(conn, %{profiles: account |> Profiles.list_for_account() |> Enum.map(&serialize_profile/1)})
     else
       runners_unavailable(conn)
@@ -836,8 +836,8 @@ defmodule TuistWeb.API.RunnersController do
     }
   )
 
-  def catalog(%{assigns: %{selected_account: account}} = conn, _params) do
-    if FeatureFlags.runners_enabled?(account) do
+  def catalog(conn, _params) do
+    if Environment.runners_available?() do
       json(conn, Profiles.catalog())
     else
       runners_unavailable(conn)
@@ -880,7 +880,7 @@ defmodule TuistWeb.API.RunnersController do
   )
 
   def create_profile(%{assigns: %{selected_account: account}, body_params: body} = conn, _params) do
-    with true <- FeatureFlags.runners_enabled?(account),
+    with true <- Environment.runners_available?(),
          {:ok, profile} <- Profiles.create(account, Map.take(body, [:name, :platform | @profile_change_fields])) do
       conn |> put_status(:created) |> json(serialize_profile(profile))
     else
@@ -943,7 +943,7 @@ defmodule TuistWeb.API.RunnersController do
   end
 
   defp with_profile(conn, account, name, fun) do
-    with true <- FeatureFlags.runners_enabled?(account),
+    with true <- Environment.runners_available?(),
          %Profile{} = profile <- Profiles.get_by_name(account, name) do
       fun.(profile)
     else
@@ -1059,7 +1059,7 @@ defmodule TuistWeb.API.RunnersController do
   end
 
   defp with_runner_job(conn, account, workflow_job_id, fun) do
-    if FeatureFlags.runners_enabled?(account) do
+    if Environment.runners_available?() do
       case Jobs.get_for_account(account.id, workflow_job_id) do
         {:ok, job} -> fun.(job)
         {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{message: "Runner job not found."})

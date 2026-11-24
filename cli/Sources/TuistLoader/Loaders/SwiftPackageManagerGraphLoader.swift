@@ -335,6 +335,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageProducts: externalDependencies.packageProducts,
+                    graphTargetNames: externalDependencies.graphTargetNames,
                     enabledTraits: enabledTraitsPerPackage[packageInfo.id] ?? []
                 )
             )

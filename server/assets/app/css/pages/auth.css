@@ -45,7 +45,7 @@
     align-items: center;
     gap: var(--noora-spacing-6);
     z-index: var(--noora-z-index-4);
-    box-shadow: var(--noora-border-heavy);
+    box-shadow: var(--noora-border-large);
     border-radius: var(--noora-radius-8);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-4);
@@ -162,17 +162,9 @@
 
   & [data-part="authentication-methods"] {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: var(--noora-spacing-4);
     width: 100%;
-
-    &:has([data-part="passkey"][hidden]) {
-      grid-template-columns: 1fr;
-    }
-
-    @media (max-width: 768px) {
-      grid-template-columns: 1fr;
-    }
   }
 
   & [data-part="form"] {
@@ -282,6 +274,14 @@
     text-align: center;
   }
 
+  & [data-part="accounts"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-9);
+    width: 100%;
+  }
+
   & [data-part="organizations"] {
     display: flex;
     flex-direction: column;
@@ -298,7 +298,7 @@
     gap: var(--noora-spacing-5);
     transition: background-color 0.2s ease;
     cursor: pointer;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border: 0;
     border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-primary);
@@ -312,8 +312,8 @@
     }
 
     &:focus-visible {
-      outline: 2px solid var(--noora-purple-500);
-      outline-offset: -2px;
+      outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+      outline-offset: calc(-1 * var(--noora-focus-ring-width));
     }
 
     & > svg {
@@ -342,6 +342,29 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-small);
   }
+
+  & [data-part="bottom-link"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    box-shadow: var(--noora-border-section);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-tertiary);
+    padding: var(--noora-spacing-8) var(--noora-spacing-9);
+    width: 100%;
+    text-align: center;
+  }
+
+  & [data-part="bottom-link-title"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="bottom-link-description"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
 }
 
 #agent-auth,
@@ -355,6 +378,54 @@
 
   & [data-part="frame"] {
     width: min(100%, 470px);
+  }
+
+  & [data-part="bottom-link"] {
+    box-shadow: var(--noora-border-section);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-tertiary);
+    padding: var(--noora-spacing-8) var(--noora-spacing-9);
+    width: 100%;
+  }
+
+  /* Holds only hidden inputs; without a box it adds no gap to the frame. */
+  & #deny-oauth-consent-form {
+    display: contents;
+  }
+
+  & [data-part="consent-details"] {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    box-shadow: var(--noora-border-small-default);
+    border-radius: var(--noora-radius-4);
+    width: 100%;
+
+    & > [data-part="row"] {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--noora-spacing-6);
+      padding: var(--noora-spacing-5) var(--noora-spacing-6);
+      font: var(--noora-font-body-medium);
+
+      & + [data-part="row"] {
+        border-top: 1px solid var(--noora-surface-border-primary);
+      }
+
+      & > dt {
+        flex-shrink: 0;
+        color: var(--noora-surface-label-secondary);
+      }
+
+      & > dd {
+        margin: 0;
+        min-width: 0;
+        color: var(--noora-surface-label-primary);
+        font-weight: var(--noora-font-weight-medium);
+        text-align: end;
+        overflow-wrap: anywhere;
+      }
+    }
   }
 
   & .noora-alert {
@@ -400,7 +471,7 @@
   }
 
   & .otp {
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-secondary);
     padding: var(--noora-spacing-8) var(--noora-spacing-6);

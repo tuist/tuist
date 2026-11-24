@@ -23,6 +23,10 @@ const (
 	customPrefetchQueue  = 16
 	// customPrefetchRetry spaces out attempts at a master whose download failed.
 	customPrefetchRetry = 10 * time.Minute
+	// customPrefetchIdleBudgets is how many budgets in a row may end without
+	// receiving archive bytes (finishing the archive, expanding it) before a
+	// master counts as failed.
+	customPrefetchIdleBudgets = 3
 )
 
 // PrefetchMaster queues a HEAD the server listed for this host's fleet, behind
@@ -35,7 +39,13 @@ func (c *CustomVolumes) PrefetchMaster(identity cachevolumes.Identity, reason st
 	if reason != prefetchPrewarm {
 		reason = prefetchRecent
 	}
-	return c.prefetch.Load().queue(identity, false, reason) != nil
+	prefetch := c.prefetch.Load()
+	// An older copy of the lineage is held: a job mounts it and asks for its
+	// HEAD itself, so the listing does not download every generation beside it.
+	if prefetch != nil && c.images != nil && c.images.HoldsLineage(identity) {
+		return true
+	}
+	return prefetch.queue(identity, false, reason) != nil
 }
 
 // Why a master was prefetched, the label of the prefetched-bytes metric.
@@ -81,6 +91,8 @@ type customPrefetch struct {
 	requested bool
 	reason    string
 	done      chan struct{}
+	// idleBudgets counts budgets in a row that ended without archive bytes.
+	idleBudgets int
 }
 
 func newCustomPrefetcher(ctx context.Context, restore func(context.Context, cachevolumes.Slot, bool) error, has func(cachevolumes.Identity) bool) *customPrefetcher {
@@ -171,12 +183,23 @@ func (p *customPrefetcher) work() {
 		}
 		done := cachevolumes.Observer(observeCustomCache).With(subject).Start("prefetch", "remote")
 		err := p.restore(ctx, slot, job.requested)
+		budgetEnded := errors.Is(err, cachevolumes.ErrDownloadIncomplete) || (err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded))
 		done(err)
 		cancel()
 		if err == nil && job.identity.HeadSizeBytes > 0 {
 			customCachePrefetchedBytes.WithLabelValues(job.reason).Add(float64(job.identity.HeadSizeBytes))
 		}
-		if errors.Is(err, cachevolumes.ErrDownloadIncomplete) && p.requeue(job) {
+		// The budget is a turn, not a limit: the download keeps its archive and
+		// resumes behind the masters queued since. A budget that ended without
+		// archive bytes (the archive was complete and still expanding, or a slow
+		// server request) resumes too, a few times, instead of waiting out
+		// customPrefetchRetry as a failure.
+		if errors.Is(err, cachevolumes.ErrDownloadIncomplete) {
+			job.idleBudgets = 0
+		} else if budgetEnded {
+			job.idleBudgets++
+		}
+		if budgetEnded && job.idleBudgets < customPrefetchIdleBudgets && p.requeue(job) {
 			continue
 		}
 		p.finish(job, err)

@@ -144,6 +144,7 @@ defmodule TuistWeb.AccountTokenHelpers do
   defp scope_label("cache", "write"), do: dgettext("dashboard_account", "Cache write")
   defp scope_label("members", "read"), do: dgettext("dashboard_account", "Members read")
   defp scope_label("members", "write"), do: dgettext("dashboard_account", "Members write")
+  defp scope_label("pulse", "write"), do: dgettext("dashboard_account", "Pulse write")
   defp scope_label("previews", "read"), do: dgettext("dashboard_account", "Previews read")
   defp scope_label("previews", "write"), do: dgettext("dashboard_account", "Previews write")
   defp scope_label("registry", "read"), do: dgettext("dashboard_account", "Registry read")
@@ -171,6 +172,10 @@ defmodule TuistWeb.AccountTokenHelpers do
 
   defp scope_description("account", "members", "write") do
     dgettext("dashboard_account", "Manage organization members and invitations.")
+  end
+
+  defp scope_description("account", "pulse", "write") do
+    dgettext("dashboard_account", "Send errors to the account's Pulse with a Sentry SDK.")
   end
 
   defp scope_description("account", "registry", "read") do

@@ -8,7 +8,8 @@ metadata:
 spec:
   site: larch
   model: evmafc20a
+  mac: 00:20:85:b8:5b:30
   address: 192.168.60.16
   chain: larch-ats-a
-  managedBy: standalone
+  managedBy: controller
   outletStateOnStartup: "on"

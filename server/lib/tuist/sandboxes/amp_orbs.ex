@@ -41,6 +41,10 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   # `linux-medium`, Amp's default. An existing Orb keeps the shape it was
   # created with.
   #
+  # Every Linux Orb bursts into its node's idle cores and is guaranteed, and
+  # billed for at least, a quarter vCPU per GiB of its memory
+  # (`Sandbox.guaranteed_cpu_milli/1`).
+  #
   # `macos` boots the default Xcode. Each other Xcode macOS sandboxes serve is
   # a type named after its template, `macos-xcode-<xcode-dashes>` (such as
   # `macos-xcode-26-1-1`), with the `macos` shape.
@@ -52,7 +56,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     "linux-large" => %{platform: :linux, template: "default", vcpus: 8, memory_mb: 16_384, workspace_gb: 10},
     "linux-xxlarge" => %{platform: :linux, template: "default", vcpus: 16, memory_mb: 32_768, workspace_gb: 10},
     "linux-3xlarge" => %{platform: :linux, template: "default", vcpus: 16, memory_mb: 45_056, workspace_gb: 10},
-    "macos" => %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, workspace_gb: 10}
+    "macos" => %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, workspace_gb: 30}
   }
 
   @xcode_orb_type ~r/\Amacos-xcode-[0-9]+(-[0-9]+)*\z/
@@ -183,9 +187,20 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp pause_orb(sandbox, params) do
     record_setup(sandbox)
 
-    with {:ok, paused} <- Sandboxes.pause(sandbox) do
-      save_snapshot(paused, params)
+    case Sandboxes.pause(sandbox) do
+      {:ok, paused} -> save_snapshot(paused, params)
+      {:error, reason} when is_binary(reason) -> {:error, pause_refusal(reason)}
+      error -> error
     end
+  end
+
+  # A warm restore keeps streaming its disks from the archive after the
+  # guest runs, and the node refuses a pause until they are complete. The
+  # guest stays running for a later pause or the idle-Orb pause.
+  defp pause_refusal(reason) do
+    if String.contains?(reason, "sandbox disks are still loading from its archive"),
+      do: :restoring,
+      else: reason
   end
 
   # A macOS host cannot see Amp's detached bootstrap, so the turn also holds
@@ -201,20 +216,9 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     end
   end
 
-  # macOS hosts keep no disk snapshots. Reporting a save that never happened
-  # would let Amp record a project snapshot and try it on later Orbs instead
-  # of running setup, so a pause that asks for one fails like any unsaved one.
-  defp save_snapshot(%Sandbox{platform: :darwin} = sandbox, params) do
-    if snapshot_id(params) do
-      Logger.warning("sandboxes: macOS Orbs keep no project snapshots", sandbox_id: sandbox.id)
-      {:error, :snapshot_not_saved}
-    else
-      {:ok, sandbox}
-    end
-  end
-
   # Amp records the snapshot once the pause succeeds and boots later Orbs
-  # from it, so a save that failed must fail the pause. The Orb stays paused;
+  # from it, so a save that failed must fail the pause. A macOS host saves
+  # only a stopped VM's disks, so a save there also evicts the paused VM. The Orb stays paused;
   # a replayed pause tries the save again.
   defp save_snapshot(sandbox, params) do
     case snapshot_id(params) do

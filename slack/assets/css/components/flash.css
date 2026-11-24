@@ -10,6 +10,6 @@
   cursor: pointer;
 
   & .noora-alert {
-    box-shadow: var(--noora-border-heavy);
+    box-shadow: var(--noora-border-large);
   }
 }

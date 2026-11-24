@@ -14,8 +14,17 @@ defmodule TuistWeb.API.BazelBuildStepsController do
 
   tags ["Builds"]
 
-  @step BuildStep.step("BazelBuildStep")
-  @detail BuildStep.detail("BazelBuildStepDetail", true)
+  @remote_properties Map.new(Tuist.Bazel.RemoteExecutionProfile.fields(), fn field ->
+                       {field,
+                        %Schema{
+                          type: :number,
+                          nullable: true,
+                          description:
+                            "Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage."
+                        }}
+                     end)
+  @step Map.update!(BuildStep.step("BazelBuildStep"), :properties, &Map.merge(&1, @remote_properties))
+  @detail Map.update!(BuildStep.detail("BazelBuildStepDetail", true), :properties, &Map.merge(&1, @remote_properties))
   @path_params [
     account_handle: [in: :path, type: :string, required: true, description: "Account handle."],
     project_handle: [in: :path, type: :string, required: true, description: "Project handle."],
@@ -30,6 +39,14 @@ defmodule TuistWeb.API.BazelBuildStepsController do
       "Recorded steps are retained for 90 days. IDs are opaque strings scoped to their parent. Time filters select overlaps; end_ms is exclusive. Trace profiles include all recorded intervals relative to the profile start. Older builds fall back to retained BEP summaries.",
     parameters:
       @path_params ++
+        [
+          remote_execution: [
+            in: :query,
+            type: :boolean,
+            description:
+              "Only actions with safely associated server RE phases from indexed profiles. Empty results do not prove no remote work occurred."
+          ]
+        ] ++
         BuildStep.query_parameters(
           ~w(success failure unknown local_hit remote_hit cache_hit up_to_date skipped no_source)
         ),

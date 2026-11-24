@@ -2,12 +2,12 @@
 {
   "title": "Análisis de compilaciones de Bazel",
   "titleTemplate": ":title · Análisis de compilaciones · Funcionalidades · Guías · Tuist",
-  "description": "Rastrea la duración de los comandos de Bazel, los totales de caché y el diagnóstico de la ruta crítica en el panel de Tuist."
+  "description": "Rastrea la duración de los comandos de Bazel, los totales de caché y los diagnósticos de la ruta crítica en el panel de control de Tuist."
 }
 ---
 # Análisis de compilaciones de Bazel {#bazel-build-insights}
 
-Cada comando de Bazel completado, como `build`, `test` y otros, aparece en el panel de \*\***Invocaciones**\*\* del proyecto: tipo de comando, estado de salida, hora de inicio y finalización, duración, y los aciertos, fallos, descargas y subidas de caché que Bazel atribuyó a esa misma invocación.
+Cada `build`, `test` y otros comandos de Bazel completados aparecen en el panel de **Invocaciones** del proyecto: tipo de comando, estado de salida, hora de inicio y finalización, duración, y los aciertos, fallos, descargas y subidas de caché que Bazel atribuyó a esa misma invocación.
 
 Los datos de invocación se entregan a través del [Build Event Protocol](https://bazel.build/remote/bep) de Bazel. La configuración lo integra automáticamente cuando ejecutas `tuist bazel setup`; no se requieren banderas adicionales para empezar a ver las invocaciones.
 
@@ -16,13 +16,13 @@ Los datos de invocación se entregan a través del [Build Event Protocol](https:
 Cada invocación registra:
 
 - El comando que ejecutó Bazel, su código de salida, la hora de inicio y finalización, y la duración total.
-- Recuentos de acciones, objetivos y paquetes.
+- Recuentos de acciones, targets y paquetes.
 - Una línea de tiempo de compilación acotada y un resumen de la ruta crítica.
 - Aciertos, fallos, descargas y subidas de caché atribuidos a la invocación.
 - Líneas del registro de progreso capturadas durante la ejecución, en orden de ejecución.
 - La versión de Bazel, la rama y el commit de git cuando Bazel los reporta, y si la ejecución ocurrió en CI.
 
-La actividad de caché que Bazel no puede atribuir a una invocación completada, por ejemplo cuando un comando se interrumpe a mitad de ejecución, sigue apareciendo en la **Vista general** del proyecto como una observación raw de caché remota. No se trata como evidencia del éxito del comando, su duración o los resultados de los tests.
+La actividad de caché que Bazel no puede atribuir a una invocación completada, por ejemplo cuando un comando se interrumpe a mitad de ejecución, sigue apareciendo en la **Vista general** del proyecto como una observación de caché remota sin procesar. No se trata como evidencia del éxito del comando, su duración o los resultados de los tests.
 
 ## Metadatos personalizados {#custom-metadata}
 
@@ -40,15 +40,15 @@ O establécelos una vez por lane en tu `.bazelrc`:
 build:ci --build_metadata=RUNNER=macos-14
 ```
 
-Cada invocación puede llevar hasta 20 entradas personalizadas. Las claves pueden contener hasta 50 caracteres y los valores hasta 500 caracteres. Las entradas que exceden esos límites se descartan antes de almacenar la invocación, por lo que una entrada inválida no impide que se registre el resto del informe.
+Cada invocación puede llevar hasta 20 entradas personalizadas. Las claves pueden contener hasta 50 caracteres y los valores hasta 500 caracteres. Las entradas que superen esos límites se descartan antes de almacenar la invocación, por lo que una entrada inválida no impide que el resto del informe se registre.
 
-Las claves de contexto que Tuist deriva del entorno de compilación, como `CI`, `GIT_BRANCH` y `GIT_COMMIT`, no se almacenan como valores personalizados porque ya ocupan campos de primera clase en la invocación.
+Las claves de contexto que Tuist deriva del entorno de compilación, como `CI`, `GIT_BRANCH` y `GIT_COMMIT`, no se almacenan como valores personalizados porque ya pueblan campos de primera clase en la invocación.
 
 Los metadatos personalizados son visibles para los miembros del proyecto en el panel y a través de la interfaz de programación de aplicaciones y las herramientas de Model Context Protocol. No los uses para credenciales, tokens de acceso u otros datos sensibles.
 
-## Cómo optar por no participar {#opting-out}
+## Optar por no participar {#opting-out}
 
-El flujo del Build Event Protocol transporta argumentos de línea de comandos, valores de entorno y la salida del comando. Tuist solo conserva los campos de comandos completados enumerados anteriormente y descarta el resto, pero si prefieres no enviar el flujo de eventos en absoluto, vuelve a ejecutar la configuración con:
+El flujo del Build Event Protocol transporta argumentos de línea de comandos, valores de entorno y la salida del comando. Tuist solo conserva los campos de comandos completados listados arriba y descarta el resto, pero si prefieres no enviar el flujo de eventos en absoluto, vuelve a ejecutar la configuración con:
 
 ```bash
 tuist bazel setup --no-build-insights

@@ -1,6 +1,7 @@
 package cachevolumes
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -28,6 +29,12 @@ const (
 // context. A retry that would outlive the context's deadline is not attempted.
 // The request's body must be replayable (GetBody), as http.NewRequest sets it
 // for in-memory bodies. Logs name the endpoint and a reason, never the URL.
+//
+// The response body is read inside the attempt, so a connection that drops
+// while the body arrives is retried like one that drops before the headers.
+// Otherwise the caller's decode fails on a request the server answered:
+// on 2026-11-19 a canary rack host lost its connections right after the
+// server answered an authorize with 200, and the job ran cold.
 func DoServer(client *http.Client, req *http.Request, logger *slog.Logger) (*http.Response, error) {
 	if logger == nil {
 		logger = slog.Default()
@@ -40,6 +47,11 @@ func DoServer(client *http.Client, req *http.Request, logger *slog.Logger) (*htt
 			return nil, err
 		}
 		response, err := client.Do(attemptReq)
+		if err == nil {
+			if err = bufferBody(response); err != nil {
+				response = nil
+			}
+		}
 		reason := retryReason(ctx, response, err)
 		if reason == "" {
 			if attempt > 1 && err == nil {
@@ -63,6 +75,30 @@ func DoServer(client *http.Client, req *http.Request, logger *slog.Logger) (*htt
 		case <-time.After(delay):
 		}
 	}
+}
+
+// serverBodyLimit is the largest response body an agent reads (an image
+// request's 1 MiB); a longer body keeps its unread rest on the connection.
+const serverBodyLimit = 1 << 20
+
+// bufferBody reads the response's body into memory and closes the connection's
+// body unless it is longer than serverBodyLimit. On a read error it closes it.
+func bufferBody(response *http.Response) error {
+	body, err := io.ReadAll(io.LimitReader(response.Body, serverBodyLimit))
+	if err != nil {
+		response.Body.Close()
+		return err
+	}
+	if len(body) < serverBodyLimit {
+		response.Body.Close()
+		response.Body = io.NopCloser(bytes.NewReader(body))
+		return nil
+	}
+	response.Body = struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(bytes.NewReader(body), response.Body), response.Body}
+	return nil
 }
 
 func replay(req *http.Request) (*http.Request, error) {

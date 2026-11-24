@@ -1,0 +1,76 @@
+# Single-node public S3 store on the production Gravelines shard-storage
+# host, next to the Garage store. Shards are its first bucket; the generic
+# hostname lets other artifacts follow. A later store in another region gets
+# its own hostname, since URLs are signed for the store that holds the object. One drive on the host's RAID10 /data: RustFS
+# keeps one copy and the RAID handles disk failures. A host outage fails plans
+# already stored here; the server sends new plans to Tigris while it is down.
+enabled: true
+namespace: rustfs-production
+generateCredentials: true
+target:
+  id: rustfs-gra-production-v1
+  site: gra
+  # New Linux-runner shards, Actions cache entries and sandbox archives land
+  # here; Garage's target stops taking placements and drains.
+  privateNetworkReady: true
+  # Garage's ID, after its buckets were copied here: rows recorded under it
+  # read these buckets in-cluster.
+  aliases: [gra-production-v1]
+# Linux runners, sandboxd and the server reach the store in-cluster, never
+# through s3.tuist.dev.
+privateNetwork:
+  enabled: true
+  clients:
+    - namespace: tuist
+    - namespace: tuist-runners
+    - namespace: tuist-sandboxes
+      podLabels:
+        tuist.dev/sandboxd: "true"
+archiveBucket: sandbox-archives
+archiveBudgetGiB: 500
+actionsCache:
+  bucket: actions-cache
+  maxGB: 500
+# Docker Hub pull-through cache (the main chart's registryCache), moved off
+# Tigris. Its proxy TTL prunes it; the quota is a backstop.
+dockerMirror:
+  bucket: docker-mirror
+  maxGB: 500
+members: 1
+drivesPerMember: 1
+parity: ""
+# One PVC, created with one XFS project quota of this size. Its limit is
+# raised on the host past the PVC (see the README), with Garage's lowered.
+storageClass: scw-local-nvme
+volumeSize: 1000G
+nodeSelector:
+  node.cluster.x-k8s.io/pool: shard-storage
+tolerations:
+  - key: tuist.dev/kura-cache
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+resources:
+  requests:
+    cpu: "1"
+    memory: 2Gi
+    # Scheduler reservation matching the XFS quota. The PVC stays 1000G (the
+    # provisioner never resizes); the host project limit was raised to 3050Gi
+    # after Garage's volume was deleted, taking its 1200Gi. This fits the
+    # node's 3.08 TiB allocatable and leaves ~460 GiB of /data to the host.
+    ephemeral-storage: 3050Gi
+  limits:
+    memory: 8Gi
+metricsEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/metrics
+gateway:
+  replicas: 1
+  buckets: [shards]
+ingress:
+  enabled: true
+  # The EU-West Kura dataplane is host-network on the kura-dedibox nodes, not on
+  # the shard host, so requests cross the vRack to the gateway.
+  className: kura-eu-west
+  hostNetworkController: true
+  host: s3.tuist.dev
+  tlsSecret: s3-public-tls
+  clusterIssuer: letsencrypt-cloudflare

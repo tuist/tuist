@@ -1,0 +1,8 @@
+/* The default focus ring for anything focusable that doesn't style its own
+   focus: the Noora focus ring as an outline (--noora-focus-ring-* in
+   tokens.css). :where() keeps it at zero specificity, so a component's own
+   focus style always wins. */
+:where(:focus-visible) {
+  outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+  outline-offset: var(--noora-focus-ring-offset);
+}

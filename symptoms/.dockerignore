@@ -1,0 +1,9 @@
+_build/
+deps/
+cover/
+doc/
+test/
+replay/
+.elixir_ls/
+erl_crash.dump
+*.ez

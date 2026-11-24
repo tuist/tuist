@@ -42,6 +42,7 @@ struct ProjectCreateService: ProjectCreateServicing {
         let resolvedBuildSystem: ServerProjectBuildSystem = buildSystem ?? Noora.current.singleChoicePrompt(
             title: "Build system",
             question: "Which build system does your project use?",
+            options: ServerProjectBuildSystem.allCases.filter { $0 != .once },
             collapseOnSelection: true
         )
 

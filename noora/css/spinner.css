@@ -1,0 +1,88 @@
+/* The loading spinner (Noora.Spinner, animated by js/Spinner.js): a dim ring
+   of dashes and, stacked over it, the solid arc. It stands in for an icon,
+   so it takes the size of the icon it replaces. */
+.noora-spinner {
+  display: inline-grid;
+  flex: none;
+  width: var(--noora-spinner-size, var(--noora-icon-size-medium));
+  height: var(--noora-spinner-size, var(--noora-icon-size-medium));
+
+  &[data-size="small"] {
+    --noora-spinner-size: var(--noora-icon-size-small);
+  }
+
+  &[data-size="large"] {
+    --noora-spinner-size: var(--noora-icon-size-large);
+  }
+
+  & > svg {
+    grid-area: 1 / 1;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  & circle {
+    fill: none;
+    stroke: currentColor;
+    /* The line weight of Noora's icons. */
+    stroke-width: 2;
+    stroke-linecap: round;
+    /* Lengths are a share of the ring (pathLength 100), from the top. */
+    transform: rotate(-90deg);
+    transform-origin: center;
+  }
+
+  /* Eight dashes. With round caps, each reads about half its slot. */
+  & [data-part="track"] circle {
+    opacity: 0.5;
+    stroke-dasharray: 2.2 10.3;
+    stroke-dashoffset: 1.1;
+  }
+
+  /* The arc: its rotation and length are animated. One dash per ring
+     (dash + gap = 100), shifted back by its own length, so it wraps to end
+     at the head and trails behind it. */
+  & [data-part="arc"] {
+    transform-origin: center;
+  }
+
+  & [data-part="arc"] circle {
+    stroke-dasharray: 14 86;
+    stroke-dashoffset: 14;
+  }
+
+  /* Reduced motion: a slow, steady turn. */
+  &[data-motion="reduced"] [data-part="arc"] {
+    animation: noora-spinner-turn 2.4s linear infinite;
+  }
+}
+
+@keyframes noora-spinner-turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* In a badge's icon box, it fills the box. */
+[data-part="icon"] > .noora-spinner {
+  width: 100%;
+  height: 100%;
+}
+
+/* In a status badge, the badge's 16px icon. */
+.noora-status-badge [data-part="icon"] > .noora-spinner {
+  width: var(--noora-icon-size-medium);
+  height: var(--noora-icon-size-medium);
+
+  & > svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* In a button, it takes the button's icon size. */
+:is(.noora-button, .noora-ghost-button) > .noora-spinner {
+  width: var(--noora-button-icon-size);
+  height: var(--noora-button-icon-size);
+}

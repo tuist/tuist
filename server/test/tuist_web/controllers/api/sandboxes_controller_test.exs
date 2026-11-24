@@ -12,6 +12,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxCommand
+  alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Sandboxes.Workers.DeleteUploadWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
@@ -101,6 +102,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     test "marks only admission refusals as retryable", %{conn: conn, account: account} do
       for {reason, status, hint} <- [
             {:no_capacity, 503, ["admission"]},
+            {{:host_busy, :ci}, 503, ["admission"]},
             {:sandbox_concurrency_limit, 429, ["admission"]},
             {:sandbox_account_busy, 409, ["admission"]},
             {:locked, 409, ["admission"]},
@@ -413,7 +415,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert response["message"] =~ "minLength"
     end
 
-    test "sets a Linux Claude Code environment's setup script and refuses one on other environments", %{
+    test "sets a Claude Code environment's setup script and refuses one on other environments", %{
       conn: conn,
       account: account
     } do
@@ -441,7 +443,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   end
 
   describe "authorization" do
-    test "forbids a user who is not an admin of the account", %{conn: conn, account: account} do
+    test "forbids a user outside the account", %{conn: conn, account: account} do
       other_user = AccountsFixtures.user_fixture()
 
       response =
@@ -487,10 +489,36 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   end
 
   describe "sandboxes" do
+    test "creates a Linux sandbox with a picked CPU guarantee and refuses others", %{conn: conn, account: account} do
+      stub(Capacity, :place, fn %{platform: :linux} -> {:ok, "node-a"} end)
+
+      # The node weighs the VM's cgroup by its guarantee: the pick, or a
+      # quarter vCPU per GiB of memory when that is more.
+      expect(Nodes, :call, 2, fn "node-a", "create", %{vcpus: 16, cpu_guarantee_milli: milli}, _opts
+                                 when milli in [2000, 4000] ->
+        {:ok, %{"template_tag" => "sha-1"}}
+      end)
+
+      for {body, guaranteed} <- [
+            {%{memory_mb: 4096, vcpus: 2, guaranteed_vcpus: 2}, 2},
+            {%{memory_mb: 16_384, vcpus: 8, guaranteed_vcpus: 1}, 4}
+          ] do
+        assert %{"vcpus" => 16, "guaranteed_vcpus" => ^guaranteed} =
+                 conn |> post(~p"/api/accounts/#{account.name}/sandboxes", body) |> json_response(:created)
+      end
+
+      for body <- [%{guaranteed_vcpus: 3}, %{platform: "darwin", vcpus: 8, memory_mb: 8192, guaranteed_vcpus: 2}] do
+        assert %{"message" => message} =
+                 conn |> post(~p"/api/accounts/#{account.name}/sandboxes", body) |> json_response(:bad_request)
+
+        assert message =~ "guaranteed_cpu_milli"
+      end
+    end
+
     test "creates, inspects, runs commands in, pauses, resumes and deletes a sandbox", %{conn: conn, account: account} do
       stub(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
 
-      expect(Nodes, :call, fn "node-a", "create", %{vcpus: 4, memory_mb: 8192}, _opts ->
+      expect(Nodes, :call, fn "node-a", "create", %{vcpus: 16, memory_mb: 8192}, _opts ->
         {:ok, %{"template_tag" => "sha-1"}}
       end)
 
@@ -499,7 +527,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
         |> post(~p"/api/accounts/#{account.name}/sandboxes", %{vcpus: 4, memory_mb: 8192})
         |> json_response(:created)
 
-      assert %{"id" => id, "state" => "running", "node_name" => "node-a", "vcpus" => 4, "template_tag" => "sha-1"} =
+      assert %{"id" => id, "state" => "running", "node_name" => "node-a", "vcpus" => 16, "template_tag" => "sha-1"} =
                created
 
       assert created["hostname"] == "sbx-" <> String.slice(id, 0, 8)
@@ -606,7 +634,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert %{"id" => id, "state" => "paused"} =
                conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{paused.id}/archive") |> json_response(:accepted)
 
-      assert_enqueued(worker: Tuist.Sandboxes.Workers.ArchiveSandboxesWorker, args: %{sandbox_id: id})
+      assert_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: id})
 
       assert conn
              |> post(~p"/api/accounts/#{account.name}/sandboxes/#{running.id}/archive")
@@ -625,10 +653,12 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert %{
                "bucket" => "hour",
                "vcpu_hours" => vcpu_hours,
+               "memory_gib_hours" => memory_gib_hours,
                "created" => %{"count" => 0, "points" => points},
                "concurrency" => %{
                  "limits" => %{"vcpus" => 32, "memory_gb" => 64.0},
-                 "in_use" => %{"vcpus" => 4, "memory_gb" => 8.0}
+                 # A quarter vCPU per GiB guaranteed.
+                 "in_use" => %{"vcpus" => 2, "memory_gb" => 8.0}
                }
              } =
                conn
@@ -636,6 +666,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
                |> json_response(:ok)
 
       assert vcpu_hours == 0
+      assert memory_gib_hours == 0
       assert length(points) in 12..13
 
       too_long = DateTime.utc_now() |> DateTime.add(-91, :day) |> DateTime.to_iso8601()
@@ -665,15 +696,81 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert json_response(conn, :service_unavailable)["message"] =~ "archive can't be reached"
     end
 
-    test "answers 503 when no node has memory or disk left", %{conn: conn, account: account} do
-      stub(Capacity, :place, fn _ -> {:error, :no_capacity} end)
+    test "answers fleet_busy with an honest retry-after once a create has waited for room", %{
+      conn: conn,
+      account: account
+    } do
+      test_pid = self()
 
-      response =
-        conn
-        |> post(~p"/api/accounts/#{account.name}/sandboxes", %{})
-        |> json_response(:service_unavailable)
+      stub(Capacity, :place, fn _ ->
+        send(test_pid, :placed)
+        {:error, :no_capacity}
+      end)
 
-      assert response["message"] =~ "memory or disk"
+      conn = post(conn, ~p"/api/accounts/#{account.name}/sandboxes", %{})
+
+      assert %{"code" => "fleet_busy", "message" => message} = json_response(conn, :service_unavailable)
+      assert message =~ "Do not retry in a loop"
+      assert get_resp_header(conn, "retry-after") == ["300"]
+      # It placed again while it waited instead of answering the first refusal.
+      assert_received :placed
+      assert_received :placed
+    end
+
+    test "tells the account's limit apart from a busy fleet", %{conn: conn, account: account} do
+      {:ok, _} = Tuist.Sandboxes.Concurrency.update_limits(account, %{sandbox_vcpus_limit: 1, sandbox_memory_gb_limit: 1})
+      reject(&Capacity.place/1)
+
+      conn = post(conn, ~p"/api/accounts/#{account.name}/sandboxes", %{})
+
+      assert %{"code" => "account_limit"} = json_response(conn, :too_many_requests)
+      assert get_resp_header(conn, "retry-after") == []
+    end
+
+    test "limits how fast an account creates sandboxes", %{conn: conn, account: account} do
+      stub(Capacity, :place, fn _ -> {:error, :no_node} end)
+
+      # The limit is a fixed one-minute window aligned to the clock, which a
+      # burst crossing a minute boundary would split in two; start it after the
+      # next boundary when one is close.
+      until_next_window = 60_000 - rem(System.system_time(:millisecond), 60_000)
+      if until_next_window < 10_000, do: Process.sleep(until_next_window + 50)
+
+      for _ <- 1..10 do
+        assert %{"code" => "no_node"} =
+                 conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{}) |> json_response(:service_unavailable)
+      end
+
+      conn = post(conn, ~p"/api/accounts/#{account.name}/sandboxes", %{})
+
+      assert %{"code" => "rate_limited"} = json_response(conn, :too_many_requests)
+      assert [seconds] = get_resp_header(conn, "retry-after")
+      assert String.to_integer(seconds) in 1..60
+    end
+
+    test "extends a sandbox's lifetime, and answers 409 for one an integration owns", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, lifetime_seconds: 7200, expires_at: DateTime.utc_now())
+      orb = sandbox_fixture(account: account, amp_orb_id: "orb-1")
+      reject(&Nodes.call/4)
+
+      assert %{"lifetime_seconds" => 14_400, "expires_at" => expires_at} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/extend", %{lifetime_seconds: 14_400})
+               |> json_response(:ok)
+
+      {:ok, expires_at, 0} = DateTime.from_iso8601(expires_at)
+      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now()), 14_400, 5
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/extend", %{lifetime_seconds: 90_000})
+      |> json_response(:bad_request)
+
+      assert %{"message" => message} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{orb.id}/extend", %{})
+               |> json_response(:conflict)
+
+      assert message =~ "no lifetime"
     end
 
     test "answers 409 for an operation the sandbox state does not allow", %{conn: conn, account: account} do
@@ -915,6 +1012,26 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       refute File.exists?(Path.join(home, ".cache"))
     end
 
+    test "ends the stream quietly when a later read fails after the client went away", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      %{"id" => id} =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "sleep", args: ["600"]})
+        |> json_response(:accepted)
+
+      expect(Nodes, :call, guest_read("running - 0 0 -", ""))
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:error, "connection reset"} end)
+      # Writing the error line finds the client's socket closed.
+      expect(Plug.Adapters.Test.Conn, :chunk, fn _state, _body -> {:error, :closed} end)
+
+      response = get(conn, ~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands/#{id}/logs")
+
+      assert response.status == 200
+      assert response.state == :chunked
+    end
+
     test "streams 404 as a plain status for an unknown command", %{conn: conn, account: account} do
       sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
       reject(&Nodes.call/4)
@@ -924,20 +1041,34 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       |> json_response(:not_found)
     end
 
-    test "a member cannot use an agent's sandbox or admin-only routes", %{conn: conn} do
+    test "a member uses an agent's sandbox, analytics and archiving, but not agent environments", %{conn: conn} do
       {conn, account} = member_conn(conn, :user)
       environment = agent_environment_fixture(account: account)
 
       sandbox =
         sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
 
-      reject(&Nodes.call/4)
+      paused =
+        sandbox_fixture(
+          account: account,
+          state: :paused,
+          paused_at: DateTime.utc_now(),
+          agent_environment_id: environment.id
+        )
 
-      conn
-      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "env"})
-      |> json_response(:forbidden)
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
 
-      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:forbidden)
+      assert %{"status" => "running"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "env"})
+               |> json_response(:accepted)
+
+      assert %{"id" => paused_id} =
+               conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{paused.id}/archive") |> json_response(:accepted)
+
+      assert_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: paused_id})
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:ok)
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:forbidden)
     end
 
     test "a viewer cannot run commands", %{conn: conn} do
@@ -990,7 +1121,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert Repo.get(Sandbox, id) == nil
     end
 
-    test "an account token with the sandboxes write scope cannot use an agent's sandbox or admin-only routes", %{
+    test "an account token with the sandboxes write scope uses an agent's sandbox, but not agent environments", %{
       account: account
     } do
       conn = token_conn(account, ["account:sandboxes:write"])
@@ -999,16 +1130,12 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       sandbox =
         sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
 
+      id = sandbox.id
       reject(&Nodes.call/4)
 
-      conn
-      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/exec", %{command: "env"})
-      |> json_response(:forbidden)
-
-      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}") |> json_response(:forbidden)
-      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:forbidden)
+      assert %{"id" => ^id} = conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{id}") |> json_response(:ok)
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:ok)
       conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:forbidden)
-      conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/archive") |> json_response(:forbidden)
     end
 
     test "a member creates an upload, which is deleted once its URLs expire", %{conn: conn} do

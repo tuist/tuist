@@ -20,12 +20,14 @@ Code coverage tells you which lines of your code your tests executed. Tuist meas
 
 ### Turn coverage on {#turn-coverage-on}
 
-Add this to the `tuist.toml` at your repository root:
+Add this to the workspace's root `Cargo.toml`:
 
 ```toml
-[test_insights.coverage]
+[workspace.metadata.tuist.test_insights.coverage]
 upload = true
 ```
+
+If you configure Tuist in a `tuist.toml` instead, add `[test_insights.coverage]` with `upload = true` there.
 
 Then run your tests as usual:
 
@@ -49,7 +51,7 @@ A commit's coverage often comes from several jobs: one per shard or per feature 
 tuist cargo coverage-complete
 ```
 
-The command reads the commit from the checkout, or the one your CI provider reports on a pull request; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
+The command reads the commit from the checkout's `HEAD`, the commit your tests ran on; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
 
 ## How it works {#how-it-works}
 
@@ -71,6 +73,10 @@ Some tests are left out on purpose and don't make a commit incomplete:
 - **Tests that <.localized_link href="/guides/features/test-insights/flaky-tests/rust">quarantine</.localized_link> skips.** They're left out as if they had been removed, so the lines only they covered count as uncovered.
 - **The other shards' targets**, when you shard your tests.
 - **Ignored tests** (`#[ignore]`), which don't run by default.
+
+### Uncommitted changes {#uncommitted-changes}
+
+A run from a checkout whose tracked files have uncommitted changes measured code that isn't the commit's, so its coverage doesn't count toward the commit. The run warns and lists the changed files. Files your CI job writes next to the sources, such as build outputs or coverage reports, don't count as changes as long as Git doesn't track them. When only such runs measured a commit, its coverage is **Incomplete**, and `tuist cargo coverage-complete` says why.
 
 ### Complete and incomplete commits {#commit-status}
 

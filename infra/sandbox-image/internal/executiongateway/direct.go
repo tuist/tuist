@@ -95,7 +95,7 @@ func (g *Gateway) direct(ctx context.Context, account, project, auth string, r *
 	if err := json.NewDecoder(io.LimitReader(response.Body, 2*maxStdout)).Decode(&outcome); err != nil {
 		return operation{}, false
 	}
-	op := operation{ID: newOperationID(), State: "completed", Done: true, QueuedAtUnixUS: admitted.UnixMicro()}
+	op := operation{ID: newOperationID(), State: "completed", Done: true, QueuedAtUnixUS: admitted.UnixMicro(), SandboxID: l.SandboxID}
 	var result struct {
 		Response  string `json:"response"`
 		Cacheable *bool  `json:"cacheable"`

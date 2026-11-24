@@ -11,6 +11,7 @@ public protocol ListTestRunsServicing: Sendable {
         gitBranch: String?,
         status: String?,
         scheme: String?,
+        selectiveTesting: String?,
         page: Int?,
         pageSize: Int
     ) async throws -> Operations.listTestRuns.Output.Ok.Body.jsonPayload
@@ -52,6 +53,7 @@ public struct ListTestRunsService: ListTestRunsServicing {
         gitBranch: String?,
         status: String?,
         scheme: String?,
+        selectiveTesting: String?,
         page: Int?,
         pageSize: Int
     ) async throws -> Operations.listTestRuns.Output.Ok.Body.jsonPayload {
@@ -68,6 +70,8 @@ public struct ListTestRunsService: ListTestRunsServicing {
                     git_branch: gitBranch,
                     status: status.flatMap { Operations.listTestRuns.Input.Query.statusPayload(rawValue: $0) },
                     scheme: scheme,
+                    selective_testing: selectiveTesting
+                        .flatMap { Operations.listTestRuns.Input.Query.selective_testingPayload(rawValue: $0) },
                     page: page,
                     page_size: pageSize
                 )

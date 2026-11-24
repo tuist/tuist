@@ -1,0 +1,46 @@
+replicaCount: 2
+
+cluster:
+  enabled: true
+  # Synced from the dedicated 1Password item. See README.md.
+  cookieExistingSecret: luft-server-cluster-cookie
+  externalSecret:
+    enabled: true
+
+externalSecret:
+  enabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+  host: luft.work
+  # The Secret the former luft-web release's Certificate issued, which
+  # `helm uninstall luft-web` leaves behind: this chart's Certificate adopts
+  # it, so the cutover serves a valid certificate at once instead of waiting
+  # for a new DNS-01 issuance (Cloudflare's Full (strict) mode would answer
+  # 526 meanwhile). Keep the name; renaming it means a new issuance.
+  tlsSecretName: luft-web-tls
+  annotations:
+    # Cloudflare fronts the origin and caches what its Cache-Control allows
+    # (LuftServerWeb.Endpoint's Plug.Static and WebController). The zone's SSL
+    # mode must be Full (strict).
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+
+certificate:
+  enabled: true
+  issuerRef:
+    name: letsencrypt-cloudflare
+
+networkPolicy:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general

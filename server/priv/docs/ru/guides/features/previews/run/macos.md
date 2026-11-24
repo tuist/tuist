@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Запуск превью с помощью приложения для macOS",
+  "title": "Запуск превью через приложение для macOS",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "Используйте приложение Tuist в строке меню macOS для запуска совместимых превью Apple на устройствах и симуляторах."
+  "description": "Используйте приложение Tuist в строке меню macOS для запуска совместимых Apple-превью на устройствах и симуляторах."
 }
 ---
 # Запуск превью через приложение для macOS
@@ -17,7 +17,7 @@
 
 ## Установка {#install}
 
-[Скачать приложение](https://tuist.dev/download) или установить его с помощью `brew install --cask tuist/tuist/tuist`.
+[Скачайте приложение](https://tuist.dev/download) или установите его с помощью `brew install --cask tuist/tuist/tuist`.
 
 ## Запуск сборки {#run-a-build}
 

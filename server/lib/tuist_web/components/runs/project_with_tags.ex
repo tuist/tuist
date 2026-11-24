@@ -27,17 +27,17 @@ defmodule TuistWeb.Runs.ProjectWithTags do
       label={List.first(@tags)}
       color="success"
       style="light-fill"
-      size="large"
+      size="medium"
     />
     <%= if @collapse and length(@tags) > 2 do %>
-      <.badge label={"+#{length(@tags) - 1}"} color="information" style="light-fill" size="large" />
+      <.badge label={"+#{length(@tags) - 1}"} color="information" style="light-fill" size="medium" />
     <% else %>
       <.badge
         :for={tag <- Enum.drop(@tags, 1)}
         label={tag}
         color="information"
         style="light-fill"
-        size="large"
+        size="medium"
       />
     <% end %>
     """

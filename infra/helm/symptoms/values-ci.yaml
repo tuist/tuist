@@ -1,0 +1,3 @@
+# Placeholder values for helm lint and helm template in CI.
+image:
+  tag: ci

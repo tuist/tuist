@@ -55,12 +55,14 @@ defmodule Tuist.Sandboxes.Archives do
   There is no per-account archive limit. Account-storage bytes and archives
   in other stores do not consume a store's budget. Uploads can cross the
   budget; it is a routing threshold, not a reservation. Before each upload,
-  every URL in the target's `archive_capacity_urls` must report Garage data
-  and metadata free bytes sufficient for the archive's worst-case size plus
-  1 GiB of headroom. Missing configuration, failed probes or missing readings
-  route new archives to account storage too. Garage's filesystem readings
-  include other objects and delayed reclamation, but concurrent writers can
-  still consume space after admission.
+  the store must report free bytes sufficient for the archive's worst-case
+  size plus 1 GiB of headroom: a Garage store through every URL in its
+  `archive_capacity_urls` (data and metadata volumes), a RustFS store
+  (`archive_capacity: "rustfs"`) through its signed admin storage info, taking
+  its tightest drive. Missing configuration, failed probes or missing readings
+  route new archives to account storage too. These readings include other
+  objects and delayed reclamation, but concurrent writers can still consume
+  space after admission.
 
   Upload pressure and the periodic pass queue `offload_oldest/2`: completed
   Orb and snapshot archives move to account storage oldest `archived_at`
@@ -91,6 +93,7 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
@@ -99,12 +102,14 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Sandboxes.Workers.RecoverArchiveUploadWorker
   alias Tuist.Shards.Storage, as: ShardStorage
   alias Tuist.Storage
+  alias Tuist.Tasks
 
   require Logger
 
   @mib 1024 * 1024
   @gib 1024 * @mib
   @default_archive_budget_bytes 100 * @gib
+  @empty_sha256 "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   # The archived kernel, and room for the archive's framing and an
   # incompressible worst case on top of the disk ceiling.
   @kernel_allowance_bytes 512 * @mib
@@ -115,6 +120,8 @@ defmodule Tuist.Sandboxes.Archives do
   # all loaded; past the download URL's lifetime it can no longer read it,
   # so a report that never arrived no longer protects the archive.
   @memory_loading_grace_seconds 2 * 3600
+  # A warm restore loads its memory in 8 to 163 s (production, 2026-11-19).
+  @restoring_window_seconds 180
   @min_part_size 32 * @mib
   @max_parts 2000
   @per_run 10
@@ -126,6 +133,12 @@ defmodule Tuist.Sandboxes.Archives do
   @abandoned_after_minutes 45
   # A restore not settled by then belongs to a caller that died.
   @stuck_restore_minutes 15
+  # How long a CI reclaim must last before its node's paused sandboxes move.
+  # Linux host reservations last 38 s at the median and 114 s at p90
+  # (production, 2026-11-15 to 2026-11-18), while a session restored from an
+  # archive waits 44 s at the median; the job rechecks the reclaim when it
+  # runs, so a reservation that ended by then leaves them where they are.
+  @ci_archive_delay_seconds 120
   # A macOS restore downloads its whole disk delta for up to 31 minutes.
   @stuck_macos_restore_minutes 35
   @archive_timeout to_timeout(minute: 31)
@@ -245,7 +258,10 @@ defmodule Tuist.Sandboxes.Archives do
   allocation asks for a reclaim, or a macOS host's grant is revoked for a
   CI host reservation), any source's, so a session that comes
   back resumes on any node with room instead of waiting for that one:
-  queues the archive of the least recently paused one. Each allocation
+  queues the archive of the least recently paused one, two minutes later,
+  when it only runs if CI still reclaims the node: most host reservations
+  end sooner, and a sandbox they moved off would wait for a restore from
+  the archive instead of a resume. Each allocation
   observation calls this again while the reclaim lasts, and one upload
   runs from the node at a time, so they move one after another. Off while
   the archive tier is.
@@ -253,7 +269,10 @@ defmodule Tuist.Sandboxes.Archives do
   def move_off_node(node_name) when is_binary(node_name) do
     if Environment.sandbox_archive_after_hours() && not uploading_on?([node_name]) &&
          Repo.exists?(on_nodes(archivable(idle_paused()), [node_name])) do
-      {:ok, _job} = %{node_names: [node_name], ci: true} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+      {:ok, _job} =
+        %{node_names: [node_name], ci: true}
+        |> ArchiveSandboxesWorker.new(schedule_in: @ci_archive_delay_seconds)
+        |> Oban.insert()
     end
 
     :ok
@@ -268,12 +287,18 @@ defmodule Tuist.Sandboxes.Archives do
   queues the next archive, so a check keeps the drain moving. A running Orb
   in a turn pauses when Amp pauses it or the guest goes idle for ten minutes.
 
+  With `pause_turns: true`, it also pauses the running sandboxes a turn
+  still holds (`Sandboxes.pause_turn/1`), in the background: their memory
+  travels with the archive, so the turn continues on another node once its
+  sandbox is restored, and one with an exec in flight is tried again by the
+  next check.
+
   `drained` is true once only errored rows are left: they hold a jail that
   cannot be archived and are lost with the box, like the release would lose
   them anyway. Remote-execution rows belong to their scheduler and are not
   listed.
   """
-  def node_drain(node_name) when is_binary(node_name) do
+  def node_drain(node_name, opts \\ []) when is_binary(node_name) do
     reclaiming = Capacity.ci_reclaim?(node_name)
     if reclaiming, do: move_off_node(node_name)
 
@@ -297,6 +322,12 @@ defmodule Tuist.Sandboxes.Archives do
           }
       )
 
+    if reclaiming and opts[:pause_turns] do
+      for %{state: :running, residency_work_id: work_id, id: id} <- sandboxes, is_binary(work_id) do
+        Tasks.run_async(fn -> pause_turn(id, node_name) end)
+      end
+    end
+
     %{
       node: node_name,
       reclaiming: reclaiming,
@@ -304,6 +335,17 @@ defmodule Tuist.Sandboxes.Archives do
       sandboxes: sandboxes,
       drained: Enum.all?(sandboxes, &(&1.state == :error))
     }
+  end
+
+  defp pause_turn(id, node_name) do
+    with %Sandbox{} = sandbox <- Sandboxes.get_sandbox_by_id(id),
+         {:error, reason} <- Sandboxes.pause_turn(sandbox) do
+      Logger.warning("sandboxes: could not pause a turn off a node CI reclaims",
+        sandbox_id: id,
+        node: node_name,
+        reason: inspect(reason)
+      )
+    end
   end
 
   @doc """
@@ -352,7 +394,7 @@ defmodule Tuist.Sandboxes.Archives do
     if uploading_on?(node_names) do
       {:ok, :skipped}
     else
-      base |> archivable() |> on_nodes(node_names) |> archive_first()
+      base |> archivable() |> on_nodes(node_names) |> archive_first(opts[:ci] == true)
     end
   end
 
@@ -377,14 +419,29 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
-  defp archive_first(query) do
+  # A node drain (`ci`) reruns until the node is empty, so say why a run
+  # left its sandbox on the node: a skip or failure is otherwise silent.
+  defp archive_first(query, ci) do
     query
     |> order_by([s], asc: s.paused_at, asc: s.id)
     |> limit(1)
     |> Repo.one()
     |> case do
-      nil -> {:ok, :skipped}
-      sandbox -> archive(sandbox)
+      nil ->
+        {:ok, :skipped}
+
+      sandbox ->
+        result = archive(sandbox)
+
+        if ci and not match?({:ok, %Sandbox{state: :archived}}, result) do
+          Logger.warning("sandboxes: could not move a sandbox off a node CI reclaims",
+            sandbox_id: sandbox.id,
+            node: sandbox.node_name,
+            reason: inspect(result)
+          )
+        end
+
+        result
     end
   end
 
@@ -404,11 +461,21 @@ defmodule Tuist.Sandboxes.Archives do
              s.archive_attempted_at < s.paused_at)
   end
 
-  # Orbs and Claude Code sessions' sandboxes: their next spawn restores an
-  # archived one (`AmpOrbs`, `Router.find_or_create_sandbox/3`).
+  # Orbs, Claude Code sessions' and legacy Tuist threads' sandboxes.
+  # Active consumers restore an archive through `AmpOrbs` or
+  # `Router.find_or_create_sandbox/3`. On macOS,
+  # every source's: a paused VM holds its disk on a Mac it shares with CI,
+  # and a resume restores an archived one (`Sandboxes.resume/1`).
   defp idle_paused_sessions do
     claude_code = from(e in AgentEnvironment, where: e.kind == :claude_code, select: e.id)
-    where(idle_paused(), [s], not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code))
+    threads = from(e in ProviderEnvironment, where: like(e.external_key, "threads/%"), select: e.id)
+
+    where(
+      idle_paused(),
+      [s],
+      s.platform == :darwin or not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code) or
+        s.provider_environment_id in subquery(threads)
+    )
   end
 
   # Remote-execution rows belong to their scheduler and lease, never archived.
@@ -584,7 +651,7 @@ defmodule Tuist.Sandboxes.Archives do
   # disk snapshot) on `node` into the store `select_store/3` picks, and
   # presigns its part URLs for the node.
   defp start_upload(account, %{name: node_name} = node, subject, key) do
-    max_bytes = Capacity.disk_snapshot_ceiling_bytes(subject, node) + @kernel_allowance_bytes + memory_allowance(subject)
+    max_bytes = archive_ceiling_bytes(subject, node) + @kernel_allowance_bytes + memory_allowance(subject)
     max_bytes = max_bytes + div(max_bytes, 100)
     {store, actor} = select_store(account, node_name, max_bytes)
 
@@ -602,6 +669,10 @@ defmodule Tuist.Sandboxes.Archives do
       :unsupported
     end
   end
+
+  # A macOS snapshot is the overlay its host measured, not a whole root disk.
+  defp archive_ceiling_bytes(%DiskSnapshot{platform: :darwin, disk_bytes: bytes}, _node) when is_integer(bytes), do: bytes
+  defp archive_ceiling_bytes(subject, node), do: Capacity.disk_snapshot_ceiling_bytes(subject, node)
 
   defp memory_allowance(%Sandbox{platform: :darwin}), do: 0
 
@@ -628,7 +699,7 @@ defmodule Tuist.Sandboxes.Archives do
 
     args =
       if sandbox.platform == :darwin,
-        do: args,
+        do: Map.put(args, :node_uid, sandbox.node_uid),
         else: Map.merge(args, %{memory: true, lazy_disks: lazy_disks_node?(sandbox.node_name)})
 
     Nodes.call(sandbox.node_name, "archive", args, timeout: @archive_timeout)
@@ -704,13 +775,25 @@ defmodule Tuist.Sandboxes.Archives do
 
   # Older daemon shutdowns paused without syncing. Never drop the memory
   # image or bypass the node's sync guard: admit a resume and synced pause,
-  # then let the next sweep upload the refreshed checkpoint.
+  # then let the next sweep upload the refreshed checkpoint. A node that
+  # admits no resume, such as one CI reclaims, backs the sandbox off like a
+  # failed upload, so it does not stay the oldest candidate of every run.
   defp finish({:error, "disks were not synced by the last pause: " <> _id}, %{sandbox: sandbox} = upload) do
     discard(Sandbox, upload, cancelled: true)
 
     case Sandboxes.sync_paused_disks(sandbox) do
-      {:ok, _} -> {:ok, :skipped}
-      {:error, _} = error -> error
+      {:ok, _} ->
+        {:ok, :skipped}
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: archiving a sandbox failed",
+          sandbox_id: sandbox.id,
+          node: sandbox.node_name,
+          reason: inspect({:disks_not_synced, reason})
+        )
+
+        mark_attempted(Sandbox, sandbox.id)
+        {:error, {:disks_not_synced, reason}}
     end
   end
 
@@ -739,10 +822,13 @@ defmodule Tuist.Sandboxes.Archives do
   # `node` is the node it was archived from, which a warm restore avoids.
   # `lazy_disks`: the disks are chunked ahead of the disk stream too, which
   # only a node whose hello sets `lazy_disks` can restore.
+  # A node archives a pause that did not sync its disks only with its
+  # memory (`disks_synced: false`); such an archive never cold boots.
   defp archive_memory(%{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat} = data, node)
        when is_integer(offset) and offset > 0 and is_binary(sha256) and is_binary(compat) do
     memory = %{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat, "node" => node}
-    if data["lazy_disks"] == true, do: Map.put(memory, "lazy_disks", true), else: memory
+    memory = if data["lazy_disks"] == true, do: Map.put(memory, "lazy_disks", true), else: memory
+    if data["disks_synced"] == false, do: Map.put(memory, "warm_only", true), else: memory
   end
 
   defp archive_memory(_data, _node), do: nil
@@ -813,8 +899,11 @@ defmodule Tuist.Sandboxes.Archives do
 
   # The row is archived already, so a node that is away removes the jail
   # when its next report lists a sandbox the server keeps archived.
-  defp delete_from_node(%Sandbox{node_name: node_name, id: id}) do
-    case Nodes.call(node_name, "delete", %{sandbox_id: id}, []) do
+  # A macOS host runs only commands for its current incarnation.
+  defp delete_from_node(%Sandbox{node_name: node_name, id: id} = sandbox) do
+    args = if sandbox.platform == :darwin, do: %{sandbox_id: id, node_uid: sandbox.node_uid}, else: %{sandbox_id: id}
+
+    case Nodes.call(node_name, "delete", args, []) do
       {:ok, _data} ->
         :ok
 
@@ -840,6 +929,10 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
+  # A macOS snapshot's upload is its overlay, sized by the bytes its host
+  # measured; one saved before they were recorded is never uploaded.
+  defp disk_snapshot_archivable?(%DiskSnapshot{platform: :darwin, disk_bytes: nil}), do: false
+
   defp disk_snapshot_archivable?(%DiskSnapshot{state: :ready, node_name: node_name, archived_at: nil})
        when is_binary(node_name) do
     Environment.sandbox_archive_after_hours() != nil
@@ -855,7 +948,8 @@ defmodule Tuist.Sandboxes.Archives do
 
     from(s in DiskSnapshot,
       where:
-        s.state == :ready and not is_nil(s.node_name) and is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
+        s.state == :ready and (s.platform == :linux or not is_nil(s.disk_bytes)) and not is_nil(s.node_name) and
+          is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
           (is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before),
       order_by: [desc: s.last_used_at],
       limit: @per_run
@@ -922,7 +1016,11 @@ defmodule Tuist.Sandboxes.Archives do
     Nodes.call(
       snapshot.node_name,
       "archive_disks",
-      %{snapshot_id: snapshot.id, part_size: upload.part_size, part_urls: upload.urls},
+      Nodes.command_args(snapshot.node_name, %{
+        snapshot_id: snapshot.id,
+        part_size: upload.part_size,
+        part_urls: upload.urls
+      }),
       timeout: @archive_timeout
     )
   end
@@ -1052,6 +1150,13 @@ defmodule Tuist.Sandboxes.Archives do
   def memory_compat(_subject), do: nil
 
   @doc """
+  Whether an archive restores only warm: its node archived a pause that
+  had not synced the guest's disks, so they miss what only its memory holds.
+  """
+  def warm_only?(%Sandbox{archive_memory: %{"warm_only" => true}}), do: true
+  def warm_only?(_subject), do: false
+
+  @doc """
   The node an archive with memory was written from, as a list for
   `Capacity.place/3`'s `avoid:`: the node was archived off because it was
   short of room, refused a resume, or CI took it, so a restore goes there
@@ -1059,6 +1164,30 @@ defmodule Tuist.Sandboxes.Archives do
   """
   def origin_nodes(%Sandbox{archive_memory: %{"node" => node}}) when is_binary(node), do: [node]
   def origin_nodes(_subject), do: []
+
+  @doc """
+  The nodes still loading a warm restore's memory from the archive: one
+  placed there and booting, or one running whose node has not reported
+  `memory_loaded`. Restores on one node share its bandwidth to the store,
+  and in production (2026-11-19) 8 GiB guests restored alone came back in
+  26 s at the median, two at once in 42 to 49 s, and three at once hit the
+  60 s agent timeout, so a restore avoids these nodes like `origin_nodes/1`.
+  Rows older than #{@restoring_window_seconds} s do not count, so a lost
+  `memory_loaded` never keeps a node avoided.
+  """
+  def restoring_nodes do
+    since = DateTime.add(now(), -@restoring_window_seconds)
+
+    Repo.all(
+      from(s in Sandbox,
+        where: not is_nil(s.archived_at) and not is_nil(s.node_name) and s.updated_at >= ^since,
+        where:
+          s.state == :creating or (s.state == :running and not is_nil(fragment("?->>'loading_since'", s.archive_memory))),
+        distinct: true,
+        select: s.node_name
+      )
+    )
+  end
 
   @doc """
   Whether an archive holds its disks chunked (lazy disks), which only nodes
@@ -1352,14 +1481,38 @@ defmodule Tuist.Sandboxes.Archives do
     budget = Map.get(config, "archive_budget_bytes", @default_archive_budget_bytes)
 
     with true <- in_rack_archived_bytes(id) < budget,
-         {:ok, free} <- free_bytes(config) do
+         {:ok, free} <- free_bytes(id, config) do
       free >= max_bytes + @gib
     else
       _ -> false
     end
   end
 
-  defp free_bytes(%{"archive_capacity_urls" => [_ | _] = urls}) do
+  # RustFS reports drive space only through its signed admin API, which the
+  # store's own service user may call for this (admin:StorageInfo). The
+  # tightest drive bounds what one more archive can use.
+  defp free_bytes(id, %{"archive_capacity" => "rustfs"} = config) do
+    with {:ok, %{config: aws}} <- ShardStorage.in_cluster_target(id, config),
+         url = "#{aws.scheme}#{aws.host}:#{aws.port}/rustfs/admin/v3/storageinfo",
+         {:ok, headers} <- ExAws.Auth.headers(:get, url, :s3, aws, [{"x-amz-content-sha256", @empty_sha256}], ""),
+         {:ok, %Req.Response{status: 200, body: %{"info" => %{"disks" => [_ | _] = disks}}}} <-
+           Req.get(url,
+             headers: headers,
+             retry: false,
+             redirect: false,
+             receive_timeout: 1_000,
+             pool_timeout: 1_000,
+             connect_options: [timeout: 1_000]
+           ),
+         free = Enum.map(disks, &(is_map(&1) && &1["availspace"])),
+         true <- Enum.all?(free, &(is_integer(&1) and &1 >= 0)) do
+      {:ok, Enum.min(free)}
+    else
+      _ -> :unknown
+    end
+  end
+
+  defp free_bytes(_id, %{"archive_capacity_urls" => [_ | _] = urls}) do
     Enum.reduce_while(urls, nil, fn url, minimum ->
       with {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) <-
              Req.get(url,
@@ -1377,7 +1530,7 @@ defmodule Tuist.Sandboxes.Archives do
     end)
   end
 
-  defp free_bytes(_config), do: :unknown
+  defp free_bytes(_id, _config), do: :unknown
 
   defp metric_free_bytes(metrics) do
     readings =
@@ -1427,7 +1580,7 @@ defmodule Tuist.Sandboxes.Archives do
     budget_deficit = max(0, routed_bytes(store) - budget + 1)
 
     space_deficit =
-      case free_bytes(config) do
+      case free_bytes(store, config) do
         {:ok, free} -> max(0, ceil(max_bytes + @gib - free) - retiring_bytes(store))
         :unknown -> 0
       end
@@ -1636,7 +1789,7 @@ defmodule Tuist.Sandboxes.Archives do
   defp stores do
     for {id, %{"archive_bucket" => bucket} = config} <- Environment.shard_storage_targets(),
         is_binary(bucket) and bucket != "",
-        {:ok, target} <- [ShardStorage.s3_target(id, Map.put(config, "bucket", bucket))],
+        {:ok, target} <- [ShardStorage.in_cluster_target(id, Map.put(config, "bucket", bucket))],
         into: %{},
         do: {id, {config, target}}
   end

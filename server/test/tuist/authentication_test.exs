@@ -9,7 +9,6 @@ defmodule Tuist.AuthenticationTest do
   alias Tuist.Authentication
   alias Tuist.Authorization.Checks
   alias Tuist.Projects
-  alias Tuist.Release
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -41,54 +40,6 @@ defmodule Tuist.AuthenticationTest do
     # Authenticating is activity, so the subject comes back with its
     # inactivity clock reset.
     assert subject.last_sign_in_at
-  end
-
-  test "authenticated_subject returns the user associated to the token" do
-    # Given
-    user = AccountsFixtures.user_fixture()
-
-    # When
-    subject = Authentication.authenticated_subject(user.token)
-
-    # Then
-    assert subject.id == user.id
-    assert subject.last_sign_in_at
-  end
-
-  test "authenticated_subject returns the project associated to the legacy token" do
-    # Given
-    project = ProjectsFixtures.project_fixture()
-
-    # When/Then
-    assert Authentication.authenticated_subject(project.token).id == project.id
-  end
-
-  # What a replica that predates hashing leaves behind: a plaintext token, here
-  # one it replaced on a password reset after the backfill hashed the previous one.
-  test "Release.clear_plaintext_legacy_tokens/0 hashes the plaintext a replica left and clears it" do
-    # Given
-    user = AccountsFixtures.user_fixture()
-    replaced = "replaced-by-an-old-replica"
-    Repo.update_all(from(u in "users", where: u.id == ^user.id), set: [token: replaced])
-
-    # When
-    Release.clear_plaintext_legacy_tokens()
-
-    # Then
-    assert Accounts.get_user_by_token(replaced).id == user.id
-    refute Accounts.get_user_by_token(user.token)
-    assert Repo.one(from(u in "users", where: u.id == ^user.id, select: u.token)) == nil
-  end
-
-  test "authenticated_subject does not match a project by its stored legacy token digest or plaintext column" do
-    # Given
-    project = ProjectsFixtures.project_fixture()
-    stored = Repo.one!(from(p in "projects", where: p.id == ^project.id, select: %{token: p.token, hash: p.token_hash}))
-
-    # Then
-    assert is_nil(stored.token)
-    assert stored.hash == :crypto.hash(:sha256, project.token)
-    assert is_nil(Authentication.authenticated_subject(Base.encode16(stored.hash, case: :lower)))
   end
 
   test "authenticated_subject returns the project associated to the token" do

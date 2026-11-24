@@ -12,7 +12,7 @@ jq -e '
   def one(kind; name): [.[] | select(.kind == kind and .metadata.name == name)] | select(length == 1) | .[0];
   all(.[]; .kind != "Secret" and .kind != "Ingress" and .kind != "ClusterRole") and
   ([.[] | select(.kind == "StatefulSet" or .kind == "Deployment") | .metadata.name] | sort ==
-    ["pulse-datanode","pulse-etcd","pulse-frontend","pulse-kafka","pulse-metasrv"]) and
+    ["pulse-datanode","pulse-etcd","pulse-flownode","pulse-frontend","pulse-kafka","pulse-metasrv"]) and
   (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0] |
     .image == "ghcr.io/tuist/pulse:1.44.0-canary.4" and .resources.requests == {cpu:"250m",memory:"768Mi"}) and
   (one("StatefulSet"; "pulse-kafka") | .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "10Gi" and
@@ -22,6 +22,16 @@ jq -e '
   all(.[]; .metadata.name != "pulse" or .kind == "Service") and
   all(.[]; .metadata.name != "pulse-frontend" or .kind != "Service")
 ' "$tmp/resources.json" > /dev/null
+# Every workload cluster holds its datanodes for pulse-datanode-rollout.sh, so
+# no restart relies on region failover, which never moves regions back.
+for environment in staging canary production; do
+  values="$chart/values.yaml"
+  [[ "$environment" == production ]] && values="$chart/values-production.yaml"
+  helm template pulse "$chart" -n observability -f "$values" \
+    --set "environment=$environment,storage.bucket=tuist-pulso-$environment" |
+    yq ea -o=json -I=0 'select(.kind == "StatefulSet" and .metadata.name == "pulse-datanode") | .spec.updateStrategy' |
+    jq -e '. == {type: "RollingUpdate", rollingUpdate: {partition: 3}}' > /dev/null
+done
 for setting in storage.prefix=tenants/ storage.bucket=tuist-pulso-production; do
   if helm template pulse "$chart" -n observability --set "$setting" > "$tmp/refused.log" 2>&1; then
     echo "FAIL: unsafe storage setting accepted: $setting" >&2
@@ -44,6 +54,9 @@ for environment in staging canary; do
       (.spec.target.template.data.passwd | contains("sentry")) and
       .spec.target.template.data["ingest-username"] == "tuist" and
       (.spec.target.template.data["ingest-password"] | contains(".token"))) and
+    # Grafana reads every workload Pulse over PostgreSQL through the PDC agent,
+    # which alone may reach 4003 (ingress[2] below).
+    (one("Service"; "pulse") | any(.spec.ports[]; .name == "postgres" and .port == 4003)) and
     (one("Deployment"; "pulse-frontend").spec.template.spec |
       .initContainers[0].name == "combine-auth" and
       any(.volumes[]; .name == "auth-inputs" and (.projected.sources | length) == 2)) and
@@ -52,11 +65,18 @@ for environment in staging canary; do
         podSelector:{matchLabels:{"app.kubernetes.io/component":"server"}}}] and
       .ingress[2].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
         podSelector:{matchLabels:{"app.kubernetes.io/name":"tuist","app.kubernetes.io/instance":"tuist","app.kubernetes.io/component":"pdc-agent"}}}] and
-      .ingress[2].ports == [{port:4000,protocol:"TCP"}] and
+      .ingress[2].ports == [{port:4000,protocol:"TCP"},{port:4003,protocol:"TCP"}] and
       .ingress[3] == {ports:[{port:4000,protocol:"TCP"}], from:[
+        {namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
+         podSelector:{matchExpressions:[{key:"app.kubernetes.io/component",operator:"In",
+           values:["processor","swift-registry-sync","registry"]}]}}]} and
+      .ingress[4] == {ports:[{port:4000,protocol:"TCP"}], from:[
         {namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":"kura"}},
          podSelector:{matchLabels:{"app.kubernetes.io/name":"kura"}}}]} and
-      (.ingress | length) == 4)
+      .ingress[5] == {ports:[{port:4000,protocol:"TCP"}], from:[
+        {namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":("symptoms-" + ($ns | ltrimstr("tuist-")))}},
+         podSelector:{matchLabels:{"app.kubernetes.io/name":"symptoms","app.kubernetes.io/component":"evaluator"}}}]} and
+      (.ingress | length) == 6)
   ' | grep -qx true
 done
 # The Sentry writer exists only in the environments listed, so a vault without
@@ -147,7 +167,7 @@ jq -e '
   def spread(component): .spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution ==
     [{topologyKey:"kubernetes.io/hostname",labelSelector:{matchLabels:{"app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":component}}}];
   all(.[]; .kind != "Secret" and .kind != "Ingress" and .kind != "ClusterRole") and
-  ([.[] | select(.kind == "StatefulSet" or .kind == "Deployment")] | length == 5 and all(.[];
+  ([.[] | select(.kind == "StatefulSet" or .kind == "Deployment")] | length == 6 and all(.[];
     .spec.template.spec.nodeSelector == {"node.cluster.x-k8s.io/pool":"general"} and
     .spec.template.spec.automountServiceAccountToken == false)) and
   ([.[] | select(.kind == "StatefulSet")] | all(.[]; .spec.persistentVolumeClaimRetentionPolicy == {whenDeleted:"Retain",whenScaled:"Retain"})) and
@@ -159,7 +179,7 @@ jq -e '
     .spec.template.spec.initContainers[0].name == "wait-for-wal" and
     (.spec.template.spec.initContainers[0].args[0] | contains("pulse_wal_topic_", "-ge 3"))) and
   # Production keeps its own sizing whatever the staging/canary defaults are.
-  (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0].resources == {requests:{cpu:"1",memory:"4Gi"},limits:{memory:"8Gi"}}) and
+  (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0].resources == {requests:{cpu:"1500m",memory:"4Gi"},limits:{memory:"8Gi"}}) and
   (one("StatefulSet"; "pulse-kafka") | .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "20Gi" and
     any(.spec.template.spec.containers[0].env[]; .name == "KAFKA_HEAP_OPTS" and .value == "-Xms1g -Xmx1g")) and
   (one("StatefulSet"; "pulse-datanode") | .spec.replicas == 3 and spread("datanode") and
@@ -174,12 +194,20 @@ jq -e '
   (one("ExternalSecret"; "pulse-credentials").spec.target.template.data | keys ==
     ["PULSE_DATANODE__STORAGE__ACCESS_KEY_ID","PULSE_DATANODE__STORAGE__SECRET_ACCESS_KEY"]) and
   (config("pulse-kafka-config") | contains("min.insync.replicas=2", "default.replication.factor=3",
-    "unclean.leader.election.enable=false", "auto.create.topics.enable=false", "log.retention.ms=-1")) and
+    "unclean.leader.election.enable=false", "auto.create.topics.enable=false", "log.retention.ms=-1", "log.segment.bytes=134217728")) and
   (config("pulse-metasrv-config") | contains("backend = \"etcd_store\"", "provider = \"kafka\"",
     "replication_factor = 3", "enable_region_failover = true", "allow_region_failover_on_local_wal = false")) and
   (config("pulse-datanode-config") | contains("provider = \"kafka\"", "overwrite_entry_start_id = false",
     "bucket = \"tuist-pulso-production\"", "root = \"pulse/distributed/\"") and (contains("raft_engine") | not)) and
-  (config("pulse-frontend-config") | contains("user_provider = \"static_user_provider:file:")) and
+  (config("pulse-frontend-config") | contains("user_provider = \"static_user_provider:file:", "[internal_grpc]\nbind_addr = \"0.0.0.0:4010\"")) and
+  # One flownode runs the error_issues flow; it reaches the frontends on their
+  # internal port, which no policy opens outside Pulse.
+  (one("Deployment"; "pulse-frontend").spec.template.spec.containers[0].args | contains(["--internal-grpc-server-addr", "$(POD_IP):4010"])) and
+  (one("Deployment"; "pulse-flownode") | .spec.replicas == 1 and .spec.strategy == {type:"Recreate"} and
+    .spec.template.spec.containers[0].args[0:2] == ["flownode","start"]) and
+  (config("pulse-flownode-config") | contains("node_id = 0", "metasrv_addrs = [\"pulse-metasrv.observability.svc.cluster.local:3002\"]")) and
+  ([.[] | select(.kind == "NetworkPolicy" or .kind == "CiliumNetworkPolicy") | .. | objects | select(has("port")) | .port | tostring] |
+    all(. == "4000" or . == "4003")) and
   (one("NetworkPolicy"; "pulse-internal").spec.ingress == [{from:[{podSelector:{matchLabels:{"app.kubernetes.io/instance":"pulse"}}}]}]) and
   # Only the metrics collector reaches the datanodes from outside Pulse.
   (one("NetworkPolicy"; "pulse-datanode-metrics").spec ==
@@ -203,23 +231,30 @@ cp -R "$chart" "$tmp/edited"
 sed -e 's/^min.insync.replicas=2$/min.insync.replicas=3/' -e 's/^num_topics = 16$/num_topics = 32/' \
   "$chart/templates/_cluster-config.tpl" > "$tmp/edited/templates/_cluster-config.tpl"
 jq -e -n --argjson before "$baseline" --argjson after "$(checksums "$tmp/edited")" '
-  ([$before["pulse-kafka", "pulse-metasrv", "pulse-datanode", "pulse-frontend"]] | all(length == 16)) and
-  ($after | to_entries | length == 5) and
+  ([$before["pulse-kafka", "pulse-metasrv", "pulse-datanode", "pulse-flownode", "pulse-frontend"]] | all(length == 16)) and
+  ($after | to_entries | length == 6) and
   ($before["pulse-kafka"] != $after["pulse-kafka"]) and
   ($before["pulse-metasrv"] != $after["pulse-metasrv"]) and
   ($before["pulse-datanode"] == $after["pulse-datanode"]) and
-  ($before["pulse-frontend"] == $after["pulse-frontend"])' > /dev/null
+  ($before["pulse-frontend"] == $after["pulse-frontend"]) and
+  ($before["pulse-flownode"] == $after["pulse-flownode"])' > /dev/null
 jq -e -n --argjson before "$baseline" --argjson after "$(checksums "$chart" --set cluster.frontend.replicas=3)" \
   '$before == $after' > /dev/null
-# GC runs only where listed, and metasrv and datanodes always agree on it.
+# Every workload cluster runs GC in both metasrv and datanodes.
 for environment in staging canary production; do
   helm template pulse "$chart" -n observability --set "environment=$environment,storage.bucket=tuist-pulso-$environment" |
     yq ea -o=json -I=0 '.' | jq -s --arg env "$environment" '
       map(select(.kind == "ConfigMap")) | INDEX(.metadata.name) |
       (.["pulse-metasrv-config"].data | to_entries[0].value | test("\\[gc\\]\nenable = true\n")) as $meta |
       (.["pulse-datanode-config"].data | to_entries[0].value | test("\\[region_engine\\.mito\\.gc\\]\nenable = true\n")) as $data |
-      $meta == $data and $meta == ($env == "staging")
+      $meta and $data
     ' | grep -qx true || { echo "FAIL: GC setting for $environment" >&2; exit 1; }
+done
+# pulse-gc-flip.sh's deploy stops the frontends; every other render runs them.
+for stopped in false true; do
+  helm template pulse "$chart" -n observability --set "cluster.frontend.stopped=$stopped" |
+    yq ea -o=json -I=0 'select(.kind == "Deployment" and .metadata.name == "pulse-frontend") | .spec.replicas' |
+    grep -qx "$([[ $stopped == true ]] && echo 0 || echo 2)" || { echo "FAIL: frontend replicas when stopped=$stopped" >&2; exit 1; }
 done
 # Management: standalone on one node's hostPath, its own bucket, no Cilium
 # policy, readers limited to its own PDC agent, and no unsafe overrides.

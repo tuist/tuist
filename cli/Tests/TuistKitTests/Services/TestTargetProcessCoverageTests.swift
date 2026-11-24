@@ -91,6 +91,28 @@ struct TestTargetProcessCoverageTests {
             .processIdentifier(ofProfile: directory.appending(component: "Coverage.profdata")) == nil)
     }
 
+    @Test func givesAProcessToTheBundleItsOwnCodeRanIn_elseItsLaunch_elseTheBundleRecordedForItsPid() {
+        let ownFunctions: [(String, Set<UInt64>)] = [("AppTests", [1]), ("SnapshotTests", [])]
+        let launch = CoverageObserverOutput.Launch.Scope(module: "AppUITests", suite: "Suite", name: "test")
+        let recorded: [Int32: Set<String>] = [20: ["SnapshotTests"], 30: ["AppTests", "SnapshotTests"]]
+        func owner(_ pid: Int32?, executed: Set<UInt64>) -> TestTargetProcessCoverage.Ownership {
+            TestTargetProcessCoverage.owner(
+                ofProcess: pid,
+                executed: executed,
+                ownFunctions: ownFunctions,
+                scopeByProcess: [40: launch],
+                recordedModules: { recorded[$0] ?? [] }
+            )
+        }
+
+        #expect(owner(20, executed: [1, 2]) == .owned(.target("AppTests")))
+        #expect(owner(40, executed: [2]) == .owned(.launch(launch)))
+        #expect(owner(20, executed: [2]) == .owned(.target("SnapshotTests")))
+        #expect(owner(30, executed: [2]) == .unmatched)
+        #expect(owner(50, executed: [2]) == .unmatched)
+        #expect(owner(nil, executed: [2]) == .unmatched)
+    }
+
     @Test(.inTemporaryDirectory) func readsOnlyTheRunsOwnRawProfiles() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let old = directory.appending(component: "A-1.profraw")

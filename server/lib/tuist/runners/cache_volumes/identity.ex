@@ -14,6 +14,7 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   alias Tuist.Runners.GitLab.Cache, as: GitLabCache
   alias Tuist.Runners.GitLab.Client, as: GitLabClient
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.WorkflowRuns
   alias Tuist.VCS
 
   @default_branch_ttl to_timeout(minute: 5)
@@ -246,8 +247,16 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
     end
   end
 
-  # The job's workflow run as GitHub's API reports it, with its full repository.
+  # The job's workflow run as the App's `workflow_run` webhook reported it, else
+  # as GitHub's API reports it, with its full repository.
   def github_run(job) do
+    case WorkflowRuns.get(job.account_id, job.workflow_run_id, job.run_attempt) do
+      %{} = run -> {:ok, run}
+      nil -> api_github_run(job)
+    end
+  end
+
+  defp api_github_run(job) do
     with {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          {:ok, run} <-
            GitHubClient.get_workflow_run(%{

@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
+	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 )
 
@@ -53,7 +54,7 @@ func (m *Manager) serveBlobs(sb *Sandbox, args protocol.ExecArgs) func() {
 	sb.mu.Unlock()
 	// Only the template deployed with this daemon is known to seal before
 	// the command runs; older tags kept ready for a rollout read the CAS.
-	if inst == nil || tag == "" || tag != m.cfg.DefaultTemplateTag {
+	if inst == nil || tag == "" || tag != m.DefaultTemplateTag() {
 		return func() {}
 	}
 	path := inst.VsockPath() + "_" + strconv.Itoa(blobcache.GuestPort)
@@ -99,4 +100,31 @@ func listenForVMM(path, root string) (net.Listener, error) {
 		return nil, err
 	}
 	return listener, nil
+}
+
+// inputsWorkspace gives an execution VM its scope's inputs image as its
+// workspace before the action's exec runs, so the guest executor links the
+// image's blobs into the action root instead of reading them over vsock
+// (blobcache.Image). It happens at most once per VM, only for the template
+// deployed with this daemon, and any failure leaves the VM's own workspace.
+func (m *Manager) inputsWorkspace(ctx context.Context, sb *Sandbox, agent vsock.Agent, args protocol.ExecArgs) {
+	if m.blobs == nil {
+		return
+	}
+	scope, ok := executionScope(args)
+	if !ok {
+		return
+	}
+	sb.mu.Lock()
+	inst, tag, swapped, workspaceGB := sb.inst, sb.meta.Tag, sb.inputsSwapped, sb.meta.WorkspaceGB
+	sb.inputsSwapped = true
+	sb.mu.Unlock()
+	if inst == nil || swapped || tag == "" || tag != m.DefaultTemplateTag() || workspaceGB <= 0 {
+		return
+	}
+	image, ok := m.blobs.Image(scope, int64(workspaceGB)<<30)
+	if !ok {
+		return
+	}
+	m.swapWorkspace(ctx, sb, inst, agent, image, m.log.With("sandbox", args.SandboxID), "inputs image")
 }

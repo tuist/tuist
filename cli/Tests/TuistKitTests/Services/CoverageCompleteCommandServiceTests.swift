@@ -90,11 +90,17 @@ struct CoverageCompleteCommandServiceTests {
 
         let success = try #require(alertController.success().last)
         #expect(success.message.plain() == "Coverage of commit abcdef1 is complete: 82.5% over App, Core.")
+        #expect(
+            success.takeaways.map { $0.plain() } == [
+                "See the commit's coverage at https://tuist.dev/acme/app/tests/coverage/commits/abcdef1234567",
+            ]
+        )
     }
 
     @Test(.withMockedEnvironment())
     func saysWhenTheFigureIsIncomplete() async throws {
         try await givenProject()
+        // No gap reasons, as servers deployed before them report.
         let incomplete = CommitCoverage(
             gitCommitSHA: "abcdef1234567",
             coverage: 42.0,
@@ -119,6 +125,69 @@ struct CoverageCompleteCommandServiceTests {
             success.message.plain() ==
                 "Coverage of commit abcdef1 is complete: 42.0% over App (partial: App). The figure is incomplete, so the actual coverage may be higher."
         )
+    }
+
+    @Test(.withMockedEnvironment())
+    func explainsThatDirtyRunsDontCountInsteadOfTheGenericGap() async throws {
+        try await givenProject()
+        let dirty = CommitCoverage(
+            gitCommitSHA: "abcdef1234567",
+            coverage: 0,
+            coveredLines: 0,
+            executableLines: 0,
+            schemes: ["App"],
+            partialSchemes: ["App"],
+            complete: true,
+            incomplete: true,
+            gapReasons: ["dirty_run_excluded"]
+        )
+        given(completeCommitCoverageService)
+            .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .any)
+            .willReturn(.complete(dirty))
+        let alertController = AlertController()
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil, fullHandle: nil, commit: "abcdef1234567", json: false)
+        }
+
+        let success = try #require(alertController.success().last)
+        #expect(
+            success.message.plain() ==
+                "Coverage of commit abcdef1 is complete: 0.0% over App (partial: App). Some runs came from a checkout with uncommitted changes and don't count, because they measured code that isn't the commit's, so the actual coverage may be higher."
+        )
+        #expect(success.takeaways.map { $0.plain() } == [
+            "Keep the checkout clean while the tests run, or keep the files the CI job writes out of it",
+            "See which runs count with 'tuist coverage runs --commit abcdef1234567'",
+            "See the commit's coverage at https://tuist.dev/acme/app/tests/coverage/commits/abcdef1234567",
+        ])
+    }
+
+    @Test(.withMockedEnvironment())
+    func keepsTheGenericGapForAReasonItDoesNotKnow() async throws {
+        try await givenProject()
+        let incomplete = CommitCoverage(
+            gitCommitSHA: "abcdef1234567",
+            coverage: 42.0,
+            coveredLines: 61800,
+            executableLines: 147_122,
+            schemes: ["App"],
+            partialSchemes: ["App"],
+            complete: true,
+            incomplete: true,
+            gapReasons: ["some_future_reason"]
+        )
+        given(completeCommitCoverageService)
+            .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .any)
+            .willReturn(.complete(incomplete))
+        let alertController = AlertController()
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil, fullHandle: nil, commit: "abcdef1234567", json: false)
+        }
+
+        let success = try #require(alertController.success().last)
+        #expect(success.message.plain().hasSuffix("The figure is incomplete, so the actual coverage may be higher."))
+        #expect(success.takeaways.count == 1)
     }
 
     @Test(.withMockedEnvironment())
@@ -165,7 +234,32 @@ struct CoverageCompleteCommandServiceTests {
         #expect(output.contains("\"partial_schemes\":[\"Core\"]"))
         #expect(output.contains("\"complete\":true"))
         #expect(output.contains("\"incomplete\":false"))
+        #expect(output.contains("\"gap_reasons\":[]"))
         verify(gitController).gitInfo(workingDirectory: .any).called(0)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func printsTheGapReasonsAsJSON() async throws {
+        try await givenProject()
+        given(completeCommitCoverageService)
+            .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .any)
+            .willReturn(.complete(CommitCoverage(
+                gitCommitSHA: "abcdef1234567",
+                coverage: 0,
+                coveredLines: 0,
+                executableLines: 0,
+                schemes: ["App"],
+                partialSchemes: ["App"],
+                complete: true,
+                incomplete: true,
+                gapReasons: ["dirty_run_excluded"]
+            )))
+
+        try await subject.run(path: nil, fullHandle: nil, commit: "abcdef1234567", json: true)
+
+        let output = ui().filter { !$0.isWhitespace }
+        #expect(output.contains("\"gap_reasons\":[\"dirty_run_excluded\"]"))
+        #expect(output.contains("\"incomplete\":true"))
     }
 
     @Test(.withMockedEnvironment())
@@ -182,6 +276,30 @@ struct CoverageCompleteCommandServiceTests {
 
         let success = try #require(alertController.success().last)
         #expect(success.message.plain().contains("No run of commit abcdef1 has reported coverage yet"))
+    }
+
+    @Test(.withMockedEnvironment())
+    func namesTheCheckoutsCommitAndHowToSignalAnotherWhenNoRunReportedCoverageYet() async throws {
+        try await givenProject()
+        given(gitController).gitInfo(workingDirectory: .any).willReturn(
+            GitInfo(ref: "refs/pull/42/merge", branch: "feature", sha: "abcdef1234567", remoteURLOrigin: nil)
+        )
+        given(completeCommitCoverageService)
+            .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .value("abcdef1234567"))
+            .willReturn(.pending)
+        let alertController = AlertController()
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil, fullHandle: nil, commit: nil, json: false)
+        }
+
+        let success = try #require(alertController.success().last)
+        #expect(success.message.plain().contains("No run of commit abcdef1, the checkout's HEAD, has reported coverage yet"))
+        #expect(success.takeaways.map { $0.plain() }.contains { $0.contains("tuist coverage complete --commit <sha>") })
+        #expect(
+            success.takeaways.map { $0.plain() }
+                .contains("See the commits your runs reported coverage for at https://tuist.dev/acme/app/tests/coverage/commits")
+        )
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)

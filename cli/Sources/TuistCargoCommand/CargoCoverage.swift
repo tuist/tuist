@@ -38,7 +38,8 @@ struct CargoCoverage {
     /// Whether each test process is recorded, which is what attributes profiles to binaries and tests.
     let attributes: Bool
 
-    /// `tuist.toml`'s `[test_insights.coverage] upload`, unless `TUIST_COVERAGE_UPLOAD` says otherwise.
+    /// The configuration's `[test_insights.coverage] upload` (`tuist.toml` or `Cargo.toml`'s `metadata.tuist`), unless
+    /// `TUIST_COVERAGE_UPLOAD` says otherwise.
     static func requested(upload: Bool, environment: [String: String]) -> Bool {
         guard let value = environment[uploadVariable] else { return upload }
         return ["1", "true", "yes"].contains(value.lowercased())
@@ -227,11 +228,13 @@ struct CargoCoverage {
 extension CargoCoverage {
     /// `tuist cargo coverage-complete [--commit <sha>]`: tells the server that every run gathering coverage for the
     /// commit has reported, as `tuist coverage complete` does, which the Linux CLI doesn't have. The commit defaults
-    /// to the checkout's, or the one the CI provider reports.
+    /// to the checkout's HEAD, the commit its runs measured.
     static func complete(arguments: [String], environment: [String: String], directory: AbsolutePath) async throws {
         let config = try? await ConfigLoader().loadCargoConfig(path: directory)
         guard let handle = environment["TUIST_PROJECT"] ?? config?.fullHandle else {
-            throw CargoReportError(message: "Configure a project in tuist.toml or TUIST_PROJECT to complete a commit's coverage.")
+            throw CargoReportError(
+                message: "Configure a project in tuist.toml, Cargo.toml's [workspace.metadata.tuist] or TUIST_PROJECT to complete a commit's coverage."
+            )
         }
         guard let serverURL = URL(string: environment["TUIST_URL"] ?? config?.url.absoluteString ?? "https://tuist.dev"),
               ["https", "http"].contains(serverURL.scheme ?? "")
@@ -248,14 +251,55 @@ extension CargoCoverage {
         let completion = try await CompleteCommitCoverageService().completeCommitCoverage(
             fullHandle: handle, serverURL: serverURL, gitCommitSHA: commit
         )
-        let message = switch completion {
-        case let .complete(coverage):
-            "Coverage of commit \(coverage.gitCommitSHA.prefix(7)) is complete: \(coverage.coverage)%."
-                + (coverage.incomplete ? " The figure is incomplete, so the actual coverage may be higher." : "")
-        case .pending:
-            "No run of commit \(commit.prefix(7)) has reported coverage yet. Its coverage is marked complete once one does."
-        }
+        let message = completionMessage(
+            completion, commit: commit, fromCheckout: option == nil, serverURL: serverURL, handle: handle
+        )
         FileHandle.standardOutput.write(Data((message + "\n").utf8))
+    }
+
+    /// What `coverage-complete` prints. Raw URLs, so CI logs show them.
+    static func completionMessage(
+        _ completion: CommitCoverageCompletion, commit: String, fromCheckout: Bool, serverURL: URL, handle: String
+    ) -> String {
+        let commits = serverURL.appendingPathComponent(handle).appendingPathComponent("tests/coverage/commits")
+        let lines: [String] = switch completion {
+        case let .complete(coverage):
+            completed(coverage, commits: commits, serverURL: serverURL, handle: handle)
+        case .pending:
+            // Usually the runs are still being processed, but a signal kept for a commit the runs didn't report
+            // never applies, so name the commit and how to signal another. The commit's own page is a 404 until one
+            // of its runs is processed, so link the list of commits.
+            [
+                "No run of commit \(commit.prefix(7))\(fromCheckout ? ", the checkout's HEAD," : "") has reported coverage yet. That's expected while its runs are still being processed: the signal is kept, and the commit's coverage is marked complete once one is.",
+                "If your test runs reported another commit, signal that one with `tuist cargo coverage-complete --commit <sha>`.",
+                "See the commits your runs reported coverage for at \(commits.absoluteString)",
+            ]
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// A completed commit's figure and its page. Off macOS the dirty-runs explanation already links that page.
+    private static func completed(_ coverage: CommitCoverage, commits: URL, serverURL: URL, handle: String) -> [String] {
+        let page = commits.appendingPathComponent(coverage.gitCommitSHA).absoluteString
+        let summary = "Coverage of commit \(coverage.gitCommitSHA.prefix(7)) is complete: \(coverage.coverage)%."
+            + (
+                coverage.excludesDirtyRuns
+                    ? " " + dirtyRunsExcluded(coverage, serverURL: serverURL, fullHandle: handle)
+                    : coverage.incomplete ? " The figure is incomplete, so the actual coverage may be higher." : ""
+            )
+        return summary.contains(page) ? [summary] : [summary, "See the commit's coverage at \(page)"]
+    }
+
+    /// Why dirty runs don't count and how to fix it. `tuist coverage` exists only in the macOS CLI, so
+    /// elsewhere the commit's page shows its runs.
+    static func dirtyRunsExcluded(_ coverage: CommitCoverage, serverURL: URL, fullHandle: String) -> String {
+        #if os(macOS)
+            let runs = "with `tuist coverage runs --commit \(coverage.gitCommitSHA)`"
+        #else
+            let runs = "at " + serverURL.appendingPathComponent(fullHandle)
+                .appendingPathComponent("tests/coverage/commits/\(coverage.gitCommitSHA)").absoluteString
+        #endif
+        return "Some runs came from a checkout with uncommitted changes and don't count, because they measured code that isn't the commit's, so the actual coverage may be higher. Keep the checkout clean while the tests run, or keep the files the CI job writes out of it. See which runs count \(runs)."
     }
 }
 

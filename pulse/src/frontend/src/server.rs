@@ -118,8 +118,13 @@ where
 
         let validator = self.plugins.get::<LogValidatorRef>();
         let ingest_interceptor = self.plugins.get::<LogIngestInterceptorRef<ServerError>>();
-        builder =
-            builder.with_log_ingest_handler(self.instance.clone(), validator, ingest_interceptor);
+        builder = builder.with_log_ingest_handler(
+            self.instance.clone(),
+            validator,
+            ingest_interceptor.clone(),
+        );
+        // Tuist: Sentry SDKs' envelopes; see servers/src/http/sentry.rs.
+        builder = builder.with_sentry_handler(self.instance.clone(), ingest_interceptor);
         builder = builder.with_logs_handler(self.instance.clone());
 
         if let Some(user_provider) = self.plugins.get::<UserProviderRef>() {

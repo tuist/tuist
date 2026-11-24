@@ -31,14 +31,15 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "Images" },
       "implicit-dependencies": { "text": "Implicit dependencies" },
       "iphone-app": { "text": "iPhone app" },
       "macos-app": { "text": "macOS app" },
       "new-project": { "text": "New project" },
-      "once": { "text": "Once" },
-      "once-cache": { "text": "Once cache" },
-      "once-project": { "text": "Once project" },
-      "once-remote-execution": { "text": "Once remote execution" },
+      "once": { "text": "Struo" },
+      "once-cache": { "text": "Struo cache" },
+      "once-project": { "text": "Struo project" },
+      "once-remote-execution": { "text": "Struo remote execution" },
       "origin": { "text": "Origin" },
       "profiles": { "text": "Profiles" },
       "project-description": { "text": "Project description" },
@@ -178,6 +179,17 @@
         "examples": {
           "text": "Examples"
         },
+        "concepts": {
+          "text": "Concepts",
+          "items": {
+            "flaky-test": {
+              "text": "Flaky tests"
+            },
+            "build-cache": {
+              "text": "Build cache"
+            }
+          }
+        },
         "libraries": {
           "text": "Libraries"
         },
@@ -282,9 +294,6 @@
         },
         "status": {
           "text": "Status"
-        },
-        "metrics-dashboard": {
-          "text": "Metrics dashboard"
         }
       }
     },
@@ -498,6 +507,14 @@
             },
             "test-sharding": {
               "text": "Sharding",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Generated Xcode project"
+                }
+              }
+            },
+            "snapshots": {
+              "text": "Snapshots",
               "items": {
                 "generated-xcode-project": {
                   "text": "Generated Xcode project"

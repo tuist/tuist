@@ -39,7 +39,7 @@ jobs:
         with:
           install: "node aube npm:wrangler"
           working-directory: status
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Deploy worker to Cloudflare
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

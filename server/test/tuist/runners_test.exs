@@ -951,59 +951,6 @@ defmodule Tuist.RunnersTest do
       assert {:ok, %{fleet_site: "ber1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
-    test "a rack runner leaves a young job to the site where its account's runner cache is warm" do
-      account = account_fixture()
-      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
-      node_name = "larch-runner-#{System.unique_integer([:positive])}"
-      image = "ghcr.io/tuist/tuist-runner@sha256:current"
-      stub(Tuist.Environment, :runners_site_pools, fn -> %{"fleet-a" => %{site: "ber1", platform: :macos}} end)
-
-      stub(K8sClient, :get_node, fn ^node_name, _opts ->
-        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
-      end)
-
-      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
-        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
-      end)
-
-      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
-        {:ok, pod_with_image("pod-1", image, node_name: node_name)}
-      end)
-
-      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:ok, pool_with_image(image)} end)
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
-      expect(Tuist.Kura, :runner_cache_elsewhere, fn [account_id], "larch" -> MapSet.new([account_id]) end)
-      reject(&Claims.attempt/6)
-
-      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-    end
-
-    test "a rack runner takes a job warm at another site once it has waited out the grace" do
-      account = account_fixture()
-
-      candidate =
-        account
-        |> candidate_with_label("tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
-        |> Map.put(:enqueued_at, DateTime.add(DateTime.utc_now(), -61, :second))
-
-      node_name = "larch-runner-#{System.unique_integer([:positive])}"
-      stub(Tuist.Environment, :runners_site_pools, fn -> %{"fleet-a" => %{site: "ber1", platform: :macos}} end)
-
-      stub(K8sClient, :get_node, fn ^node_name, _opts ->
-        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
-      end)
-
-      expect(Tuist.Kura, :runner_cache_elsewhere, fn [account_id], "larch" -> MapSet.new([account_id]) end)
-
-      stub_dispatch_path(account, candidate, self(),
-        node_name: node_name,
-        site: "larch",
-        resources: %{platform: :macos, vcpus: 6, memory_gb: 14}
-      )
-
-      assert {:ok, %{fleet_site: "larch"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-    end
-
     test "falls back to the pool dispatchLabel when the candidate has no requested label (legacy row)" do
       account = account_fixture()
       candidate = candidate_with_label(account, "")
@@ -1097,6 +1044,48 @@ defmodule Tuist.RunnersTest do
       )
 
       assert {:ok, %{workflow_job_id: 90_102}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "holds an account whose GitHub App permission prevents minting instead of re-claiming it on the next poll" do
+      failed_account = account_fixture()
+      eligible_account = account_fixture()
+      failed_candidate = candidate_with_label(failed_account, "tuist-default", workflow_job_id: 90_111)
+      eligible_candidate = candidate_with_label(eligible_account, "tuist-default", workflow_job_id: 90_112)
+
+      stub_mint_failure_then_success(
+        failed_account,
+        failed_candidate,
+        eligible_account,
+        eligible_candidate,
+        {:error, {:repository_administration_permission_required, 403, %{"message" => "Forbidden"}}},
+        :account
+      )
+
+      assert {:ok, %{workflow_job_id: 90_112}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      # Another idle runner polls while the failed job is still the queue head.
+      # It must skip the held account before claiming: no claim, no mint, no
+      # re-queue.
+      stub(K8sClient, :get_pod, fn "tuist-runners", "pod-2" ->
+        {:ok, pod_with_image("pod-2", "ghcr.io/tuist/tuist-runner@sha256:current")}
+      end)
+
+      stub(K8sClient, :get_service_account, fn "tuist-runners", "pod-2" ->
+        {:ok, sa_with_pool_label("pod-2", "fleet-a")}
+      end)
+
+      stub(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [failed_candidate]} end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], [], _k ->
+        assert excluded_account_ids == [failed_account.id]
+        {:error, :empty}
+      end)
+
+      reject(&Claims.attempt/6)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-2")
     end
 
     test "skips only the repository whose runner endpoint returns not found" do
@@ -1947,6 +1936,57 @@ defmodule Tuist.RunnersTest do
       assert %{queued: ^headroom, withheld: 2} = Runners.scaling_signals_for_fleet(fleet)
     end
 
+    # Warm runners past what the pool's accounts can claim hold seats that
+    # other pools' bursts need: on 2026-11-18 internal-only pools at their
+    # account's limit outranked 27.1 and its customer fan-outs booted cold.
+    test "caps the learned warm floor at what the pool's accounts can still claim" do
+      account = account_fixture()
+      fleet = "macos-signal-learned-capped"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+      headroom = Concurrency.headroom_jobs(account.id, resources)
+      start = DateTime.add(DateTime.utc_now(), -600, :second)
+
+      rows =
+        for i <- 0..(headroom + 2) do
+          enqueued_at = DateTime.add(start, i, :second)
+
+          %{
+            workflow_job_id: 92_000 + i,
+            account_id: account.id,
+            fleet_name: fleet,
+            repository: "acme/app",
+            status: "completed",
+            conclusion: "success",
+            enqueued_at: enqueued_at,
+            updated_at: enqueued_at
+          }
+        end
+
+      Tuist.IngestRepo.insert_all(Tuist.Runners.Job, rows)
+
+      assert Tuist.Runners.LearnedWarmFloors.for_fleet(fleet) == headroom + 3
+      assert %{learned_warm_floor: ^headroom} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # A burst of Air sign-ups past the Air fleet share must not size pools
+    # for jobs admission will refuse, which would preempt paid warm capacity.
+    test "withholds Air accounts' jobs past the Air fleet share" do
+      fleet = "macos-signal-air-share"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+      stub(Tuist.Runners.AirShare, :remaining_jobs, fn ^resources -> 1 end)
+
+      for {account, id} <- [{account_fixture(), 91_701}, {account_fixture(), 91_702}] do
+        queue_job(account, id, fleet, resources)
+      end
+
+      paid = account_fixture()
+      TuistTestSupport.Fixtures.BillingFixtures.subscription_fixture(account_id: paid.id, plan: :pro)
+      Concurrency.raise_to_plan_defaults(paid, :pro)
+      queue_job(paid, 91_703, fleet, resources)
+
+      assert %{queued: 2, withheld: 1} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
     test "reports nothing withheld when every queued job is dispatchable" do
       account = account_fixture()
       fleet = "macos-signal-unblocked"
@@ -2014,14 +2054,14 @@ defmodule Tuist.RunnersTest do
       created.(:linux, 16_384, 5)
       created.(:darwin, 24_576, 2 * 24 * 60)
 
-      assert %{hours_with_jobs: 2, p95_concurrent_last_hour: 1, queued: 0} =
+      assert %{hours_with_jobs: 2, cold_jobs: 2, p95_concurrent_last_hour: 1, queued: 0} =
                Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm")
 
-      assert %{hours_with_jobs: 1, p95_concurrent_last_hour: 0} =
+      assert %{hours_with_jobs: 1, cold_jobs: 1, p95_concurrent_last_hour: 0} =
                Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm-16gb")
 
       # Its last create is older than a day, so it is not in use at all.
-      assert %{hours_with_jobs: 0, p95_concurrent_last_hour: 0} =
+      assert %{hours_with_jobs: 0, cold_jobs: 0, p95_concurrent_last_hour: 0} =
                Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm-24gb")
     end
 

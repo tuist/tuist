@@ -90,6 +90,28 @@ func TestKataVirtiofsDropInKeepsKataDefaults(t *testing.T) {
 	}
 }
 
+// A host-wide dirty byte cap throttled every writer on the host, including
+// runner cache publication. Hosts that applied the cap keep it until a ratio is
+// written, so the file must set both ratios rather than omit the byte caps.
+func TestKataVirtiofsSysctlRestoresDefaultDirtyRatios(t *testing.T) {
+	values := map[string]int{}
+	for _, line := range strings.Split(strings.TrimSpace(kataVirtiofsSysctl), "\n") {
+		var key string
+		var value int
+		if _, err := fmt.Sscanf(line, "%s = %d", &key, &value); err == nil {
+			values[key] = value
+		}
+	}
+	if values["vm.dirty_ratio"] != 20 || values["vm.dirty_background_ratio"] != 10 {
+		t.Fatalf("dirty ratios = %d/%d, want the kernel defaults 20/10", values["vm.dirty_ratio"], values["vm.dirty_background_ratio"])
+	}
+	for _, key := range []string{"vm.dirty_bytes", "vm.dirty_background_bytes"} {
+		if _, ok := values[key]; ok {
+			t.Fatalf("%s is set; byte caps zero the ratios", key)
+		}
+	}
+}
+
 func TestKataHostConfigRevisionCoversVirtiofs(t *testing.T) {
 	node := &corev1.Node{}
 	node.Status.NodeInfo.BootID = "boot"

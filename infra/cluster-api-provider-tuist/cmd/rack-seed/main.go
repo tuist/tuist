@@ -39,6 +39,7 @@ func run(args []string, stdin io.Reader) error {
 	servers := fs.String("servers", "", "with -preinstall: the boot servers the resident installer asks, in order, comma-separated")
 	wansFile := fs.String("wans-file", "", "with -preinstall: the sites' static WANs, one \"site address/prefix gateway vlan\" per line")
 	kuraLVM := fs.Bool("kura-lvm", false, "explicitly use the enrolled Kura LVM disk layout for a storage host")
+	kuraDataLVSize := fs.String("kura-data-lv-size", "", "with -kura-lvm: the data LV's size, such as 1536G (default "+rackinstall.DefaultKuraDataLVSize+")")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -77,6 +78,7 @@ func run(args []string, stdin io.Reader) error {
 
 	seed := rackinstall.Seed{
 		KuraLVM:         *kuraLVM,
+		KuraDataLVSize:  *kuraDataLVSize,
 		Host:            *host,
 		Role:            *role,
 		User:            *user,

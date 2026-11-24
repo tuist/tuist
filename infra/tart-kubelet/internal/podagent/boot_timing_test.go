@@ -104,3 +104,59 @@ func TestGuestReportsBootStages(t *testing.T) {
 		t.Fatalf("created %s without a share: %v", missing, err)
 	}
 }
+
+func TestJobStartFields(t *testing.T) {
+	claimed := time.Date(2026, 11, 20, 4, 49, 39, 0, time.UTC)
+	claim := func(t *testing.T, dir, state string) {
+		t.Helper()
+		path := filepath.Join(dir, runnerHeartbeatFile)
+		if err := os.WriteFile(path, []byte(state), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, claimed, claimed); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("splits a late job into GitHub's part and the VM's", func(t *testing.T) {
+		dir := t.TempDir()
+		claim(t, dir, heartbeatStateClaimed)
+		writeBootMark(t, dir, bootListenerFile, claimed.Add(1500*time.Millisecond))
+		writeBootMark(t, dir, bootJobMessageFile, claimed.Add(210*time.Second))
+		writeBootMark(t, dir, bootJobStartedFile, claimed.Add(214250*time.Millisecond))
+
+		fields, ok := jobStartFields(dir)
+		if !ok {
+			t.Fatal("no job start fields")
+		}
+		want := []any{
+			"claimedToListener", 1.5,
+			"listenerToJobMessage", 208.5,
+			"jobMessageToJobStarted", 4.25,
+			"claimedToJobStarted", 214.25,
+		}
+		if !reflect.DeepEqual(fields, want) {
+			t.Fatalf("fields = %v, want %v", fields, want)
+		}
+	})
+
+	t.Run("reports how far a job that never started got", func(t *testing.T) {
+		dir := t.TempDir()
+		claim(t, dir, heartbeatStateClaimed)
+		writeBootMark(t, dir, bootListenerFile, claimed.Add(2*time.Second))
+
+		fields, ok := jobStartFields(dir)
+		if want := []any{"claimedToListener", 2.0}; !ok || !reflect.DeepEqual(fields, want) {
+			t.Fatalf("fields = %v (%v), want %v", fields, ok, want)
+		}
+	})
+
+	t.Run("nothing for a runner that never claimed", func(t *testing.T) {
+		dir := t.TempDir()
+		claim(t, dir, heartbeatStatePolling)
+		writeBootMark(t, dir, bootListenerFile, claimed.Add(2*time.Second))
+		if fields, ok := jobStartFields(dir); ok {
+			t.Fatalf("fields = %v for an unclaimed runner", fields)
+		}
+	})
+}

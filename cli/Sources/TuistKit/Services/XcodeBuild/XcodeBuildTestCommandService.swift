@@ -12,6 +12,7 @@ import TuistLoader
 import TuistLogging
 import TuistRootDirectoryLocator
 import TuistServer
+import TuistSnapshotsCommand
 import TuistSupport
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
@@ -41,6 +42,7 @@ struct XcodeBuildTestCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
+    private let snapshotsTestRunner: SnapshotsTestRunner
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -62,7 +64,8 @@ struct XcodeBuildTestCommandService {
         shardService: ShardServicing = ShardService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
-        stressNewTestsService: StressNewTestsServicing = StressNewTestsService()
+        stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
+        snapshotsTestRunner: SnapshotsTestRunner = SnapshotsTestRunner()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -84,17 +87,18 @@ struct XcodeBuildTestCommandService {
         self.serverEnvironmentService = serverEnvironmentService
         self.uploadBuildRunService = uploadBuildRunService
         self.stressNewTestsService = stressNewTestsService
+        self.snapshotsTestRunner = snapshotsTestRunner
     }
 
-    func run(
+    private func runTests(
         passthroughXcodebuildArguments: [String],
-        skipQuarantine: Bool = false,
-        shardIndex: Int? = nil,
-        shardReference: String? = nil,
-        shardPlanId: String? = nil,
-        shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode? = nil,
-        stressNewTests: StressNewTestsMode? = nil
+        skipQuarantine: Bool,
+        shardIndex: Int?,
+        shardReference: String?,
+        shardPlanId: String?,
+        shardArchivePath: AbsolutePath?,
+        mode: TestProcessingMode?,
+        stressNewTests: StressNewTestsMode?
     ) async throws {
         // Read before Tuist appends the shard's own identifiers, and before the quarantine skips: a
         // shard also narrows what runs, but it is a selection Tuist made and is already recorded on
@@ -177,6 +181,7 @@ struct XcodeBuildTestCommandService {
 
         let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
         let (mutedTests, skippedTests) = try await loadQuarantinedTests(config: config, skipQuarantine: skipQuarantine)
+        await RunMetadataStorage.current.update(skippedQuarantinedTestIdentifiers: Set(skippedTests.map(\.description)))
         let allQuarantinedTests = mutedTests + skippedTests
         var xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
             ["-skip-testing", skipped.description]
@@ -672,7 +677,9 @@ extension XcodeBuildTestCommandService {
         let runStartedAt = Date()
         var runError: Error?
         do {
-            try await XcodeBuildEnvironment.$additionalVariables.withValue(session?.environment ?? [:]) {
+            try await XcodeBuildEnvironment.$additionalVariables.withValue(
+                XcodeBuildEnvironment.additionalVariables.merging(session?.environment ?? [:]) { _, new in new }
+            ) {
                 try await xcodeBuildController.run(arguments: arguments)
             }
         } catch {
@@ -696,6 +703,53 @@ extension XcodeBuildTestCommandService {
 }
 
 extension XcodeBuildTestCommandService {
+    func run(
+        passthroughXcodebuildArguments: [String],
+        skipQuarantine: Bool = false,
+        shardIndex: Int? = nil,
+        shardReference: String? = nil,
+        shardPlanId: String? = nil,
+        shardArchivePath: AbsolutePath? = nil,
+        mode: TestProcessingMode? = nil,
+        stressNewTests: StressNewTestsMode? = nil,
+        // nil decides automatically (see `SnapshotsTestRunner.run`); callers that don't pass it stay off.
+        snapshots: Bool? = false,
+        snapshotSet: String? = nil
+    ) async throws {
+        let runTests = {
+            try await self.runTests(
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments,
+                skipQuarantine: skipQuarantine,
+                shardIndex: shardIndex,
+                shardReference: shardReference,
+                shardPlanId: shardPlanId,
+                shardArchivePath: shardArchivePath,
+                mode: mode,
+                stressNewTests: stressNewTests
+            )
+        }
+        guard snapshots != false else { return try await runTests() }
+        // Images a run filtered out by the caller, a shard or Tuist are skipped, not removed.
+        let callerFiltered = !Self.testIdentifiers(for: "-only-testing", in: passthroughXcodebuildArguments).isEmpty
+            || !Self.testIdentifiers(for: "-skip-testing", in: passthroughXcodebuildArguments).isEmpty
+        try await snapshotsTestRunner.run(
+            enabled: snapshots,
+            set: snapshotSet ?? passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "default",
+            path: try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments),
+            skippedTests: {
+                let tuistSkippedTests = await RunMetadataStorage.current.skippedTests
+                return tuistSkippedTests || callerFiltered || shardIndex != nil
+            },
+            tests: { environment in
+                try await XcodeBuildEnvironment.$additionalVariables.withValue(
+                    XcodeBuildEnvironment.additionalVariables.merging(environment) { _, new in new }
+                ) {
+                    try await runTests()
+                }
+            }
+        )
+    }
+
     private func path(
         passthroughXcodebuildArguments: [String]
     ) async throws -> AbsolutePath {

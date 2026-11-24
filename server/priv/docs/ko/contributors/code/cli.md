@@ -22,9 +22,9 @@ CLI는 Tuist의 핵심입니다. 프로젝트 생성, 자동화 워크플로(테
 
 ### 로컬 설정 {#set-up-locally}
 
-- 리포지토리 클론: `git clone git@github.com:tuist/tuist.git`
-- [공식 설치 스크립트](https://mise.jdx.dev/getting-started.html)를 사용하여 Mise를 설치(Homebrew 사용 금지)하고 `mise install`를 실행합니다.
-- Tuist 종속성 설치: `tuist install`
+- 저장소 클론: `git clone git@github.com:tuist/tuist.git`
+- [공식 설치 스크립트](https://mise.jdx.dev/getting-started.html)를 사용하여 Mise를 설치하고(Homebrew 사용 금지) `mise install`를 실행하세요.
+- Tuist 의존성 설치: `tuist install`
 - 워크스페이스 생성: `tuist generate`
 
 생성된 프로젝트는 자동으로 열립니다. 나중에 다시 열어야 하는 경우 `open Tuist.xcworkspace`를 실행하세요.
@@ -39,7 +39,7 @@ CLI는 Tuist의 핵심입니다. 프로젝트 생성, 자동화 워크플로(테
 
 #### Xcode에서 실행 {#from-xcode}
 
-`tuist` 스킴을 편집하고 `generate --no-open`와 같은 인수를 설정합니다. 작업 디렉터리를 프로젝트 루트로 설정하거나 `--path`를 사용하세요.
+`tuist` 스킴을 편집하고 `generate --no-open`와 같은 인수를 설정하세요. 작업 디렉터리를 프로젝트 루트로 설정하거나 `--path`를 사용하세요.
 
 > [!WARNING]
 > **ProjectDescription 컴파일**
@@ -49,13 +49,13 @@ CLI는 Tuist의 핵심입니다. 프로젝트 생성, 자동화 워크플로(테
 
 #### 터미널에서 실행 {#from-the-terminal}
 
-먼저 워크스페이스를 생성합니다:
+먼저 워크스페이스를 생성하세요:
 
 ```bash
 tuist generate --no-open
 ```
 
-그런 다음 Xcode로 `tuist` 실행 파일을 빌드하고 DerivedData에서 실행합니다:
+그런 다음 Xcode로 `tuist` 실행 파일을 빌드하고 DerivedData에서 실행하세요:
 
 ```bash
 tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -configuration Debug -destination 'platform=macOS' -showBuildSettings | awk -F' = ' '/BUILT_PRODUCTS_DIR/{print $2; exit}')"

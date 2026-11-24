@@ -33,6 +33,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
       case context[:archive_error] do
         :bad_eocd -> binary_part(archive, 0, byte_size(archive) - 22)
         :bad_crc -> :binary.replace(archive, "original activity log", "modified activity log")
+        :zip_bomb -> zip_bomb()
         nil -> archive
       end
 
@@ -67,6 +68,19 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
       assert_received {:download_path, path}
       refute File.exists?(path)
     end
+  end
+
+  # A kilobyte-sized upload whose entry declares 1 KiB but inflates to 64 MiB.
+  @tag archive_error: :zip_bomb
+  test "discards an archive that inflates past the size it declares and marks the build as failed" do
+    reject(&XCActivityLogParser.parse/5)
+    expect(Builds, :get_build, fn @build_id, [project_id: 123] -> {:error, :not_found} end)
+    expect(Builds, :create_build, fn %{status: "failed_processing"} = attrs -> {:ok, attrs} end)
+
+    assert {:discard, :archive_too_large} = ProcessBuildWorker.perform(job(1))
+
+    assert_received {:download_path, path}
+    refute File.exists?(path)
   end
 
   test "continues to parse valid archives and cleans up the extracted files" do
@@ -142,6 +156,21 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
     end)
 
     expect(Builds, :get_build, fn @build_id, [project_id: 123] -> {:error, :not_found} end)
+  end
+
+  defp zip_bomb do
+    {:ok, {_, archive}} = :zip.create(~c"build.zip", [{@log_name, :binary.copy(<<0>>, 64 * 1024 * 1024)}], [:memory])
+    {local, _} = :binary.match(archive, <<0x04034B50::32-little>>)
+    {central, _} = :binary.match(archive, <<0x02014B50::32-little>>)
+
+    archive
+    |> replace_uint32(local + 22, 1024)
+    |> replace_uint32(central + 24, 1024)
+  end
+
+  defp replace_uint32(binary, offset, value) do
+    <<before::binary-size(^offset), _::32, rest::binary>> = binary
+    <<before::binary, value::32-little, rest::binary>>
   end
 
   defp job(attempt) do

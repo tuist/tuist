@@ -30,7 +30,7 @@ defmodule TuistWeb.PulseLiveTest do
           {"traces", "Text search (* for all)", "*"},
           {"metrics", "PromQL", "up"}
         ] do
-      {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/#{signal}")
+      {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/#{signal}")
       render_async(view)
       assert has_element?(view, "#pulse-toggle-query", language)
       view |> element("#pulse-toggle-query") |> render_click()
@@ -42,12 +42,15 @@ defmodule TuistWeb.PulseLiveTest do
     test "renders #{signal} with organization navigation and escaped telemetry", ctx do
       signal = unquote(signal)
       stub(Pulse, :query, fn _, _, ^signal, _ -> {:ok, result(signal)} end)
-      {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/#{signal}")
+      {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/#{signal}")
       html = render_async(view)
 
       assert has_element?(view, "#pulse[data-signal='#{signal}']")
-      assert has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/~/pulse/traces']")
-      assert has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/~/pulse/errors']")
+      assert has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/pulse/traces']")
+      assert has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/pulse/errors']")
+      # Only the current signal is selected, not the Pulse landing page.
+      assert has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/pulse/#{signal}'] [data-selected]")
+      refute has_element?(view, "#sidebar-pulse [data-part='header'][data-selected]")
       assert has_element?(view, "#pulse-table", "server")
 
       assert has_element?(
@@ -89,13 +92,13 @@ defmodule TuistWeb.PulseLiveTest do
       {:ok, %{result("logs") | rows: [row]}}
     end)
 
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/logs")
     render_async(view)
-    render_patch(view, "/#{ctx.account.name}/~/pulse/logs?range=6h")
+    render_patch(view, "/#{ctx.account.name}/pulse/logs?range=6h")
     render_async(view)
     view |> element("#pulse-toggle-query") |> render_click()
     view |> form("#pulse-expression-form", pulse: %{query: "timeout"}) |> render_submit()
-    assert_patch(view, "/#{ctx.account.name}/~/pulse/logs?query=timeout&range=6h")
+    assert_patch(view, "/#{ctx.account.name}/pulse/logs?query=timeout&range=6h")
     render_async(view)
     assert has_element?(view, "#pulse-table", "timeout 6h")
     send(view.pid, :refresh)
@@ -108,13 +111,14 @@ defmodule TuistWeb.PulseLiveTest do
     stub(Pulse, :query, fn _, _, signal, _ -> {:ok, result(signal)} end)
 
     stub(Pulse, :analytics, fn _, _, signal, params ->
-      send(test, {:analytics_range, params["range"]})
+      send(test, {:analytics_range, params["range"], params["widgets"]})
       {:ok, analytics(signal)}
     end)
 
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/traces")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/traces")
     render_async(view)
-    assert_receive {:analytics_range, "1h"}
+    assert_receive {:analytics_range, "1h", ["spans", "errors"]}
+    assert_receive {:analytics_range, "1h", ["duration_p95"]}
     view |> element("[phx-value-widget='duration_p95']") |> render_click()
     render_async(view)
     assert has_element?(view, "#pulse-analytics[data-widget='duration_p95']")
@@ -122,22 +126,90 @@ defmodule TuistWeb.PulseLiveTest do
     assert hd(chart_data(render(view))["series"])["name"] == "p95 span duration"
     view |> form("#pulse-query-form", pulse: %{search: "request"}) |> render_change()
     render_async(view)
-    refute_received {:analytics_range, _}
+    refute_received {:analytics_range, _, _}
     assert has_element?(view, "#pulse-analytics[data-widget='duration_p95']")
 
-    render_patch(view, "/#{ctx.account.name}/~/pulse/traces?range=6h&widget=duration_p95")
+    render_patch(view, "/#{ctx.account.name}/pulse/traces?range=6h&widget=duration_p95")
     render_async(view)
-    assert_receive {:analytics_range, "6h"}
+    assert_receive {:analytics_range, "6h", ["spans", "errors"]}
+    assert_receive {:analytics_range, "6h", ["duration_p95"]}
     send(view.pid, :refresh)
     render_async(view)
-    assert_receive {:analytics_range, "6h"}
+    assert_receive {:analytics_range, "6h", ["spans", "errors"]}
+    assert_receive {:analytics_range, "6h", ["duration_p95"]}
+  end
+
+  test "trace widgets render without waiting for the p95 duration", ctx do
+    test = self()
+
+    stub(Pulse, :query, fn _, _, signal, _ ->
+      send(test, {:loading, self()})
+      {:ok, result(signal)}
+    end)
+
+    stub(Pulse, :analytics, fn _, _, signal, params ->
+      if params["widgets"] == ["duration_p95"] do
+        send(test, {:duration, self()})
+        receive(do: (:continue -> :ok))
+      else
+        send(test, {:loading, self()})
+      end
+
+      {:ok, analytics(signal)}
+    end)
+
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/traces")
+    worker = receive(do: ({:duration, pid} -> pid))
+    await_loads(view, 2)
+
+    assert has_element?(view, "#pulse-analytics[data-state='ready'] #pulse-chart")
+    refute has_element?(view, "#pulse-widget-spans[data-loading]")
+    assert has_element?(view, "#pulse-widget-duration_p95[data-loading]")
+    view |> element("[phx-value-widget='duration_p95']") |> render_click()
+    refute has_element?(view, "#pulse-chart")
+
+    send(worker, :continue)
+    await_exit(worker)
+    render(view)
+    refute has_element?(view, "#pulse-widget-duration_p95[data-loading]")
+    assert has_element?(view, "#pulse-widget-duration_p95", "187.5 ms")
+    assert has_element?(view, "#pulse-chart")
+  end
+
+  test "a failed p95 duration is unavailable while the other trace widgets render", ctx do
+    stub(Pulse, :query, fn _, _, signal, _ -> {:ok, result(signal)} end)
+
+    stub(Pulse, :analytics, fn _, _, signal, params ->
+      if params["widgets"] == ["duration_p95"], do: {:error, :timeout}, else: {:ok, analytics(signal)}
+    end)
+
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/traces")
+    render_async(view)
+
+    assert has_element?(view, "#pulse-analytics[data-state='ready'] #pulse-chart")
+    assert has_element?(view, "#pulse-widget-duration_p95 [data-part='value']", "Unavailable")
+    refute has_element?(view, "#pulse-widget-spans [data-part='value']", "Unavailable")
+    view |> element("[phx-value-widget='duration_p95']") |> render_click()
+    refute has_element?(view, "#pulse-chart")
   end
 
   test "refresh retains content and respects a widget selected during the load", ctx do
+    # Every wait below is on an event, never on a clock, so the outcome does
+    # not depend on how quickly a busy machine schedules the load tasks.
     test = self()
-    stub(Pulse, :query, fn _, _, signal, _ -> {:ok, result(signal)} end)
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/traces")
-    render_async(view)
+
+    stub(Pulse, :query, fn _, _, signal, _ ->
+      send(test, {:loading, self()})
+      {:ok, result(signal)}
+    end)
+
+    stub(Pulse, :analytics, fn _, _, signal, _ ->
+      send(test, {:loading, self()})
+      {:ok, analytics(signal)}
+    end)
+
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/traces")
+    await_loads(view, 3)
 
     stub(Pulse, :analytics, fn _, _, signal, _ ->
       send(test, {:refreshing, self()})
@@ -148,17 +220,37 @@ defmodule TuistWeb.PulseLiveTest do
     end)
 
     send(view.pid, :refresh)
-    assert_receive {:refreshing, worker}
+    # The trace widgets and their p95 duration refresh as two loads.
+    workers = for _ <- 1..2, do: receive(do: ({:refreshing, pid} -> pid))
     assert has_element?(view, "#pulse-analytics[data-state='refreshing'] #pulse-chart")
     assert has_element?(view, "#pulse-table", "server")
+    # A second refresh while the first is in flight must not restart the load:
+    # a restart would cancel `workers` and block forever, so the analytics would
+    # never reach the ready state asserted below.
     send(view.pid, :refresh)
     render(view)
-    refute_receive {:refreshing, _}
     view |> element("[phx-value-widget='duration_p95']") |> render_click()
     assert has_element?(view, "#pulse-analytics[data-widget='duration_p95'] #pulse-chart")
-    send(worker, :continue)
-    render_async(view)
+    for worker <- workers, do: send(worker, :continue)
+    Enum.each(workers, &await_exit/1)
+    render(view)
     assert has_element?(view, "#pulse-analytics[data-state='ready'][data-widget='duration_p95']")
+  end
+
+  # Waits for `count` load tasks that reported `{:loading, pid}` to finish. A
+  # task sends its result to the LiveView before it exits, so the following
+  # render shows it.
+  defp await_loads(view, count) do
+    for _ <- 1..count do
+      receive(do: ({:loading, pid} -> await_exit(pid)))
+    end
+
+    render(view)
+  end
+
+  defp await_exit(pid) do
+    ref = Process.monitor(pid)
+    receive(do: ({:DOWN, ^ref, :process, ^pid, _} -> :ok))
   end
 
   test "analytics failure is independent of searchable rows and recovers on period change", ctx do
@@ -168,12 +260,12 @@ defmodule TuistWeb.PulseLiveTest do
       if params["range"] == "6h", do: {:ok, analytics("logs")}, else: {:error, :unavailable}
     end)
 
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/logs")
     render_async(view)
     assert has_element?(view, "#pulse-analytics[data-state='failed']")
     assert has_element?(view, "#pulse-table", "server")
     assert has_element?(view, "#pulse-query-form")
-    render_patch(view, "/#{ctx.account.name}/~/pulse/logs?range=6h")
+    render_patch(view, "/#{ctx.account.name}/pulse/logs?range=6h")
     render_async(view)
     assert has_element?(view, "#pulse-analytics[data-state='ready'] #pulse-chart")
   end
@@ -187,7 +279,7 @@ defmodule TuistWeb.PulseLiveTest do
       {:ok, %{data | widgets: [%{first | value: nil, points: []} | rest]}}
     end)
 
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs?widget=invalid")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/logs?widget=invalid")
     render_async(view)
     assert has_element?(view, "#pulse-widget-entries", "No data")
     assert has_element?(view, "#pulse-chart-empty")
@@ -207,16 +299,16 @@ defmodule TuistWeb.PulseLiveTest do
       end
     end)
 
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs?query=empty")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/logs?query=empty")
     render_async(view)
     assert has_element?(view, "#pulse-empty")
     refute has_element?(view, "#pulse-error")
-    render_patch(view, "/#{ctx.account.name}/~/pulse/logs?query=invalid")
+    render_patch(view, "/#{ctx.account.name}/pulse/logs?query=invalid")
     render_async(view)
     assert has_element?(view, "#pulse-error", "Check your query")
     refute has_element?(view, "#pulse-empty")
     assert has_element?(view, "#pulse-query-form")
-    render_patch(view, "/#{ctx.account.name}/~/pulse/logs")
+    render_patch(view, "/#{ctx.account.name}/pulse/logs")
     render_async(view)
     assert has_element?(view, "#pulse-table", "server")
     refute has_element?(view, "#pulse-error")
@@ -240,7 +332,7 @@ defmodule TuistWeb.PulseLiveTest do
        }}
     end)
 
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/traces?range=15m")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/traces?range=15m")
     render_async(view)
     assert has_element?(view, "#pulse-widget-spans [data-color='neutral']", "+50.0%")
     assert has_element?(view, "#pulse-widget-errors", "No change")
@@ -257,10 +349,10 @@ defmodule TuistWeb.PulseLiveTest do
     refute has_element?(view, "#pulse-analytics", "vs previous")
   end
 
-  test "error rows and trends preserve distinct service identity", ctx do
-    rows = [issue(), Map.put(issue(), "service", "cache")]
+  test "error rows show service and environment and keep distinct service identity", ctx do
+    rows = [issue(), %{issue() | "service" => "cache", "environment" => "staging", "environments" => 1}]
     stub(Pulse, :query, fn _, _, "errors", _ -> {:ok, %{result("errors") | rows: rows}} end)
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/errors")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/errors")
     document = view |> render_async() |> Floki.parse_document!()
     row_ids = document |> Floki.find("#pulse-table tbody tr") |> Floki.attribute("id")
     chart_ids = document |> Floki.find("#pulse-table .noora-chart") |> Floki.attribute("id")
@@ -268,7 +360,15 @@ defmodule TuistWeb.PulseLiveTest do
     assert length(Enum.uniq(chart_ids)) == 2
     links = document |> Floki.find("#pulse-table [data-part='row-link']") |> Floki.attribute("href")
     assert Enum.map(links, &URI.decode_query(URI.parse(&1).query)["service"]) == ["server", "cache"]
-    assert Enum.all?(links, &(URI.parse(&1).path == "/#{ctx.account.name}/~/pulse/errors/issues/#{fingerprint()}"))
+    assert Enum.all?(links, &(URI.parse(&1).path == "/#{ctx.account.name}/pulse/errors/issues/#{fingerprint()}"))
+
+    column =
+      &(document
+        |> Floki.find("#pulse-table [data-column='#{&1}']")
+        |> Enum.map(fn cell -> cell |> Floki.text() |> String.trim() end))
+
+    assert column.("service") == ["server", "cache"]
+    assert column.("environment") == ["production +1", "staging"]
   end
 
   test "grouped errors link through issue and occurrence details without losing their window", ctx do
@@ -284,6 +384,7 @@ defmodule TuistWeb.PulseLiveTest do
           "function" => "MyApp.Worker.run/1",
           "filename" => "lib/worker.ex",
           "lineno" => 42,
+          "context_line" => "raise \"<script>source</script>\"",
           "in_app" => true
         }
       ]
@@ -297,6 +398,16 @@ defmodule TuistWeb.PulseLiveTest do
       "level" => "error",
       "environment" => "production",
       "release" => "1.2.3",
+      "sdk" => "sentry-elixir/11.0",
+      "request" => %{"method" => "POST", "url" => "https://example.test/api/projects"},
+      "breadcrumbs" => [
+        %{
+          "timestamp" => 1_790_000_010.5,
+          "category" => "http",
+          "message" => "<script>breadcrumb</script>",
+          "level" => "warning"
+        }
+      ],
       "tags" => %{"deployment.region" => "eu-central", "worker" => "<script>tag</script>"},
       "contexts" => %{
         "runtime.name" => "Elixir",
@@ -336,10 +447,20 @@ defmodule TuistWeb.PulseLiveTest do
       {:ok, %{event: event, warnings: []}}
     end)
 
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/errors")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/errors")
     html = render_async(view)
     headers = html |> Floki.parse_document!() |> Floki.find("#pulse-table th") |> Enum.map(&Floki.text/1)
-    assert Enum.map(headers, &String.trim/1) == ["Issue", "Last seen", "First seen", "Trend", "Events"]
+
+    assert Enum.map(headers, &String.trim/1) == [
+             "Issue",
+             "Service",
+             "Environment",
+             "Last seen",
+             "First seen",
+             "Trend",
+             "Events"
+           ]
+
     assert has_element?(view, "#pulse-table [data-part='issue-context']", "error")
     assert has_element?(view, "#pulse-table [data-part='issue-culprit']", "MyApp.Worker.run/1")
     assert has_element?(view, "#pulse-table [title='Elixir'] svg")
@@ -360,10 +481,16 @@ defmodule TuistWeb.PulseLiveTest do
     assert has_element?(detail, "#pulse-issue-overview", "Elixir")
     assert has_element?(detail, "#pulse-issue-overview", "First seen in this period")
     assert has_element?(detail, "#pulse-event-tags", "<script>tag</script>")
-    assert has_element?(detail, "#pulse-event-contexts [data-part='context-heading']", "runtime")
+    assert has_element?(detail, "#pulse-event-contexts [data-part='context-heading']", "Runtime")
     assert has_element?(detail, "#pulse-event-contexts", "1.20.2")
     assert has_element?(detail, "#pulse-event-extra code.language-json .boolean", "false")
-    assert has_element?(detail, "#pulse-stack-frames-0 th", "File")
+    assert has_element?(detail, "#pulse-stack-frames-0 [data-part='frame-context']", "raise \"<script>source</script>\"")
+    assert has_element?(detail, "#pulse-event-request", "POST")
+    assert has_element?(detail, "#pulse-event-request", "https://example.test/api/projects")
+    assert has_element?(detail, "#pulse-event-breadcrumbs", "<script>breadcrumb</script>")
+    assert has_element?(detail, "#pulse-event-breadcrumbs [data-part='timeline-time']", "14:13:30 UTC")
+    assert has_element?(detail, "#pulse-event-sdk", "sentry-elixir")
+    assert has_element?(detail, "#pulse-event-sdk", "11.0")
     refute html =~ "<script>"
     detail |> element("#pulse-error-occurrences-tab") |> render_click()
     render_async(detail)
@@ -376,6 +503,9 @@ defmodule TuistWeb.PulseLiveTest do
     assert has_element?(occurrence, "#pulse-stacktrace", "MyApp.Worker")
     assert has_element?(occurrence, "#pulse-stacktrace", "lib/worker.ex:42")
     assert has_element?(occurrence, "#pulse-stacktrace", "RootCause")
+    assert has_element?(occurrence, "#pulse-event-request", "POST")
+    assert has_element?(occurrence, "#pulse-event-breadcrumbs", "<script>breadcrumb</script>")
+    assert has_element?(occurrence, "#pulse-event-sdk", "sentry-elixir")
     assert has_element?(occurrence, "[data-part='metadata-grid']", String.duplicate("b", 16))
     assert has_element?(occurrence, "#pulse-event-extra code.language-json .string", "<script>extra</script>")
 
@@ -402,15 +532,19 @@ defmodule TuistWeb.PulseLiveTest do
     }
 
     stub(Pulse, :error_event, fn _, _, _, _, _ -> {:ok, %{event: event, warnings: []}} end)
-    path = "/#{ctx.account.name}/~/pulse/errors/issues/#{fingerprint()}/events/#{event["event_id"]}?service=server"
+    path = "/#{ctx.account.name}/pulse/errors/issues/#{fingerprint()}/events/#{event["event_id"]}?service=server"
     {:ok, view, _} = live(ctx.conn, path)
     render_async(view)
-    assert has_element?(view, "#pulse-stacktrace", "No exception recorded")
+    assert has_element?(view, "#pulse-stacktrace [data-part='message-body']", "Message only")
+    refute has_element?(view, "#pulse-stacktrace", "No exception recorded")
     assert has_element?(view, "#pulse-stacktrace", "This event recorded a message, not an exception.")
     refute has_element?(view, "#pulse-stacktrace [data-part='stack-frame']")
     refute has_element?(view, "#pulse-event-tags")
     refute has_element?(view, "#pulse-event-contexts")
     refute has_element?(view, "#pulse-event-extra")
+    refute has_element?(view, "#pulse-event-request")
+    refute has_element?(view, "#pulse-event-breadcrumbs")
+    refute has_element?(view, "#pulse-event-sdk")
 
     # The issue page's latest-event summary leaves out empty environment and
     # release values instead of rendering blank badges.
@@ -426,7 +560,7 @@ defmodule TuistWeb.PulseLiveTest do
        }}
     end)
 
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/errors/issues/#{fingerprint()}?service=server")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/errors/issues/#{fingerprint()}?service=server")
     render_async(view)
     assert has_element?(view, "#pulse-stacktrace dd[title='2026-09-21 14:13:30.123456 UTC']")
     refute has_element?(view, "#pulse-stacktrace dd", "2026-09-21 14:13:30.123456")
@@ -436,7 +570,7 @@ defmodule TuistWeb.PulseLiveTest do
 
   test "error detail routes remain private and fail visibly", ctx do
     stub(Pulse, :error_issue, fn _, _, _, _ -> {:error, :not_found} end)
-    path = "/#{ctx.account.name}/~/pulse/errors/issues/#{fingerprint()}"
+    path = "/#{ctx.account.name}/pulse/errors/issues/#{fingerprint()}"
     {:ok, view, _} = live(ctx.conn, path <> "?service=server")
     render_async(view)
     assert has_element?(view, "#pulse-detail-error", "not found")
@@ -455,7 +589,7 @@ defmodule TuistWeb.PulseLiveTest do
     reject(Pulse, :query, 4)
 
     assert_raise NotFoundError, fn ->
-      live(log_in_user(ctx.conn, outsider), "/#{ctx.account.name}/~/pulse/logs")
+      live(log_in_user(ctx.conn, outsider), "/#{ctx.account.name}/pulse/logs")
     end
   end
 
@@ -464,12 +598,12 @@ defmodule TuistWeb.PulseLiveTest do
     reject(Pulse, :query, 4)
     {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/projects")
     refute has_element?(view, "#sidebar-pulse")
-    assert_raise NotFoundError, fn -> live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs") end
+    assert_raise NotFoundError, fn -> live(ctx.conn, "/#{ctx.account.name}/pulse/logs") end
   end
 
   test "signed-out visitors must authenticate", ctx do
     conn = Phoenix.ConnTest.build_conn()
-    path = "/#{ctx.account.name}/~/pulse/logs"
+    path = "/#{ctx.account.name}/pulse/logs"
     assert {:error, {:redirect, %{to: destination}}} = live(conn, path)
     assert destination == ~p"/users/log_in?#{%{return_to: path}}"
   end
@@ -477,7 +611,7 @@ defmodule TuistWeb.PulseLiveTest do
   test "automatic refresh rechecks membership", ctx do
     Process.flag(:trap_exit, true)
     stub(Pulse, :query, fn _, _, _, _ -> {:ok, result("logs")} end)
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/logs")
     render_async(view)
     Accounts.remove_user_from_organization(ctx.user, ctx.organization)
 
@@ -485,9 +619,10 @@ defmodule TuistWeb.PulseLiveTest do
     assert {{%NotFoundError{}, _}, _} = catch_exit(render(view))
   end
 
-  test "Pulse routes preserve the pulse project handle", ctx do
+  test "pulse is an account page, not a project handle", ctx do
     route = Phoenix.Router.route_info(TuistWeb.Router, "GET", "/#{ctx.account.name}/pulse", "localhost")
-    assert route.path_params == %{"account_handle" => ctx.account.name, "project_handle" => "pulse"}
+    assert route.path_params == %{"account_handle" => ctx.account.name}
+    assert "pulse" in Environment.blocked_project_handles()
   end
 
   test "table controls preserve a paged snapshot and reuse analytics", ctx do
@@ -500,7 +635,7 @@ defmodule TuistWeb.PulseLiveTest do
       {:ok, %{result(signal) | meta: meta}}
     end)
 
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs?range=6h")
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/logs?range=6h")
     render_async(view)
     assert_receive {:table_inputs, first}
     view |> element("#pulse-next-page") |> render_click()
@@ -546,7 +681,7 @@ defmodule TuistWeb.PulseLiveTest do
     {:ok, view, _} =
       live(
         ctx.conn,
-        "/#{ctx.account.name}/~/pulse/traces?page=2&filter_service_op=%3D%3D&filter_service_val=server&range=15m"
+        "/#{ctx.account.name}/pulse/traces?page=2&filter_service_op=%3D%3D&filter_service_val=server&range=15m"
       )
 
     render_async(view)
@@ -652,6 +787,8 @@ defmodule TuistWeb.PulseLiveTest do
       "title" => "<script>not executable</script>",
       "level" => "error",
       "platform" => "elixir",
+      "environment" => "production",
+      "environments" => 2,
       "culprit" => "MyApp.Worker.run/1",
       "occurrence_series" => [[1_790_000_000, 40], [1_790_000_060, 0], [1_790_000_120, 3]],
       "events" => 43,

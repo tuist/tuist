@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep Faro and Cloud delivery live while the rendered Pulse log sink is down."""
+"""Keep Faro accepting browser logs while the rendered Pulse log sink is down."""
 
 import concurrent.futures
 import http.server
@@ -80,9 +80,7 @@ with tempfile.TemporaryDirectory(prefix="log-destination-outage-") as temporary:
                             "otelcol.processor.batch.k8s_fixture.input")
     backend = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Backend)
     threading.Thread(target=backend.serve_forever, daemon=True).start()
-    config = re.sub(r'url = "[^"]+"', f'url = "http://127.0.0.1:{backend.server_port}/cloud"', config)
-    pulse = block(config, 'loki.write "pulse_logs"')
-    config = config.replace(pulse, pulse.replace('/cloud"', '/pulse"'))
+    config = re.sub(r'url = "[^"]+"', f'url = "http://127.0.0.1:{backend.server_port}/pulse"', config)
     ingest, admin, otlp = unused_port(), unused_port(), unused_port()
     config = re.sub(
         r'endpoint = "([^"]+)"',
@@ -139,18 +137,20 @@ with tempfile.TemporaryDirectory(prefix="log-destination-outage-") as temporary:
                            if f'component_id="loki.write.{destination}"' in labels)
 
             deadline = time.monotonic() + 15
-            while delivered("grafana_cloud_logs") != 1800 or Backend.failures == 0:
-                assert time.monotonic() < deadline, "Cloud stalled behind Pulse"
+            while Backend.failures == 0:
+                assert time.monotonic() < deadline, "Pulse writer never attempted delivery"
                 time.sleep(.1)
-            assert delivered("pulse_logs") == 0
-            print("Pulse unavailable: 30/30 Faro POSTs accepted; all 1800 logs delivered to Cloud")
+            assert delivered("pulse_web_logs") == 0
+            print("Pulse unavailable: 30/30 Faro POSTs accepted and buffered")
 
             Backend.available = True
             deadline = time.monotonic() + 30
-            while delivered("pulse_logs") != 1800:
+            while delivered("pulse_web_logs") != 1800:
                 assert time.monotonic() < deadline, "Pulse did not recover buffered logs"
                 time.sleep(.1)
-            print("Pulse recovered: all 1800 buffered logs delivered")
+            # Browser lines go only to their own table, not opentelemetry_logs.
+            assert delivered("pulse_logs") == 0
+            print("Pulse recovered: all 1800 buffered logs delivered to tuist_web_logs")
 
             payload = {"resourceLogs": [{
                 "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "otlp-fixture"}}]},
@@ -166,10 +166,11 @@ with tempfile.TemporaryDirectory(prefix="log-destination-outage-") as temporary:
             with urllib.request.urlopen(request, timeout=2) as response:
                 assert response.status == 200, response.status
             deadline = time.monotonic() + 30
-            while delivered("grafana_cloud_logs") != 1801 or delivered("pulse_logs") != 1801:
-                assert time.monotonic() < deadline, "OTLP log did not reach both destinations"
+            while delivered("pulse_logs") != 1:
+                assert time.monotonic() < deadline, "OTLP log did not reach Pulse"
                 time.sleep(.1)
-            print("Full receiver graph: OTLP log delivered to both Cloud and Pulse")
+            assert delivered("pulse_web_logs") == 1800
+            print("Full receiver graph: OTLP log delivered to Pulse")
         except BaseException:
             print((temporary / "alloy.log").read_text())
             raise

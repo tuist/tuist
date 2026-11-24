@@ -1049,9 +1049,9 @@ A: A-37.
 
 ## 5. Push removal (2026-09-11)
 
-The flip reached every account, so the push path came out: `src/replication/`
+The flip reached every account, so the push path came out: `crates/kura-node/src/replication/`
 keeps only the membership loop and the peer body streaming every pass uses,
-`src/backfill/lifecycle.rs` is gone (the links schedule their own passes and
+`crates/kura-node/src/backfill/lifecycle.rs` is gone (the links schedule their own passes and
 own the bootstrap failure budget; `ClaimSet` moved to `AppState.backfill_claims`),
 the store no longer reserves outbox slots on the write path or threads
 replication targets through its persist calls, the write gates lost their

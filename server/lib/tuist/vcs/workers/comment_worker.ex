@@ -43,7 +43,8 @@ defmodule Tuist.VCS.Workers.CommentWorker do
         command_run_url: &command_run_url/1,
         test_run_url: &test_run_url/1,
         bundle_url: &bundle_url/1,
-        build_url: &build_url/1
+        build_url: &build_url/1,
+        coverage_url: &coverage_url/1
       })
     end
 
@@ -79,6 +80,14 @@ defmodule Tuist.VCS.Workers.CommentWorker do
 
   defp build_url(%{project: %{account: account} = project, build: build}) do
     app_url([account.name, project.name, "builds", "build-runs", build.id])
+  end
+
+  defp coverage_url(%{project: %{account: account} = project, pull_request_number: number}) when is_integer(number) do
+    app_url([account.name, project.name, "tests", "coverage", "pulls", number])
+  end
+
+  defp coverage_url(%{project: %{account: account} = project, sha: sha}) do
+    app_url([account.name, project.name, "tests", "coverage", "commits", sha])
   end
 
   defp app_url(segments) do

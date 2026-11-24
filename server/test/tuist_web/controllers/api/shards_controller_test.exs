@@ -5,10 +5,10 @@ defmodule TuistWeb.API.ShardsControllerTest do
   import OpenApiSpex.TestAssertions, only: [assert_schema: 3]
 
   alias Tuist.Shards
-  alias Tuist.TestImpactAnalysis.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.TestSelectionFixtures
   alias TuistWeb.API.Spec
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
@@ -56,26 +56,56 @@ defmodule TuistWeb.API.ShardsControllerTest do
       end
     end
 
+    test "offers public shard storage only to Xcode CLIs that split uploads and download in parallel", %{
+      conn: conn,
+      user: user
+    } do
+      stub(Shards, :create_shard_plan, fn project, params, opts ->
+        send(self(), {:public_storage, project.build_system, Keyword.fetch!(opts, :public_storage)})
+        Mimic.call_original(Shards, :create_shard_plan, [project, params, opts])
+      end)
+
+      for {build_system, cli_version, expected} <- [
+            {:xcode, nil, false},
+            {:xcode, "4.219.0-canary.45", false},
+            {:xcode, "4.219.0-rc.1", false},
+            {:xcode, "4.219.0-rc.2", true},
+            {:xcode, "4.219.0", true},
+            {:xcode, "4.220.0", true},
+            {:mix, nil, true}
+          ] do
+        project =
+          ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id, build_system: build_system)
+
+        conn =
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+
+        conn = if cli_version, do: Headers.put_cli_version(conn, cli_version), else: conn
+
+        conn
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards", %{
+          reference: "public-gate-#{build_system}-#{cli_version}",
+          modules: ["AppTests"],
+          shard_max: 1
+        })
+        |> json_response(:ok)
+
+        assert_received {:public_storage, ^build_system, ^expected}
+      end
+    end
+
     test "plans the suites with selected tests of the impact run", %{conn: conn, user: user, project: project} do
-      {:ok, run} =
-        Storage.create_run(
-          %{project_id: project.id, head_sha: "head", commit_sha: "head", build_system: "xcode", outcome: "selected"},
-          [
-            %{
-              test_case_id: UUIDv7.generate(),
-              module_name: "AppTests",
-              suite_name: "LoginTests",
-              name: "testLogin",
-              reason: "impacted"
-            },
-            %{
-              test_case_id: UUIDv7.generate(),
-              module_name: "CoreTests",
-              suite_name: "CoreSuite",
-              name: "testCore",
-              reason: "no_evidence"
-            }
-          ]
+      run =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          requested_modules: ["AppTests", "CoreTests"],
+          selected: [
+            %{module_name: "AppTests", suite_name: "LoginTests", name: "testLogin", reason: "impacted"},
+            %{module_name: "CoreTests", suite_name: "CoreSuite", name: "testCore", reason: "no_evidence"}
+          ],
+          skipped: [%{module_name: "AppTests", suite_name: "SignupTests", name: "testSignup"}]
         )
 
       response =
@@ -732,7 +762,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "returns signed upload URL for a shard plan id", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 
-      stub(Shards, :generate_upload_url_for_plan, fn _project, _account, ^plan_id, _upload_id, _part, _artifact, _opts ->
+      stub(Shards, :generate_upload_url_for_plan, fn _project, _account, ^plan_id, _upload_id, _part, _artifact, _ ->
         {:ok, "https://upload.example.com/part"}
       end)
 

@@ -2,12 +2,12 @@
 {
   "title": "Телеметрия",
   "titleTemplate": ":title | Самостоятельное размещение | Сервер | Руководства | Tuist",
-  "description": "Мониторинг сервера Tuist с помощью метрик Prometheus, трассировок OpenTelemetry и пересылки логов."
+  "description": "Отслеживайте работу вашего сервера Tuist с помощью метрик Prometheus, трассировок OpenTelemetry и перенаправления логов."
 }
 ---
 # Телеметрия {#telemetry}
 
-Tuist предоставляет три взаимодополняющих сигнала наблюдаемости: **метрики** (Prometheus), **трейсы** (OpenTelemetry) и **логи** (совместимые с Loki). Все три опциональны и могут включаться независимо.
+Tuist предоставляет три взаимодополняющих сигнала наблюдаемости: **метрики** (Prometheus), **трейсы** (OpenTelemetry) и **логи** (совместимые с Loki). Все три опциональны и могут быть включены независимо.
 
 ## Распределённая трассировка (OpenTelemetry) {#opentelemetry}
 
@@ -19,9 +19,9 @@ Tuist поддерживает [OpenTelemetry](https://opentelemetry.io/) для
 
 | Переменная окружения | Описание | Обязательно | По умолчанию | Пример |
 | --- | --- | --- | --- | --- |
-| `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | gRPC-эндпоинт коллектора OpenTelemetry (например, Grafana Alloy, Jaeger или любой коллектор, совместимый с OTLP) | Нет | | `http://localhost:4317` |
+| `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | gRPC-эндпоинт OpenTelemetry Collector (например, Grafana Alloy, Jaeger или любой коллектор, совместимый с OTLP) | Нет | | `http://localhost:4317` |
 
-Если эта переменная не задана, трассировка отключена и не создаёт дополнительной нагрузки.
+Если эта переменная не установлена, трассировка отключена и не добавляет накладных расходов.
 
 ### Инструментируемые библиотеки {#opentelemetry-instrumented-libraries}
 
@@ -30,12 +30,12 @@ Tuist поддерживает [OpenTelemetry](https://opentelemetry.io/) для
 - **Bandit** — спаны соединений HTTP-сервера
 - **Phoenix** — спаны жизненного цикла запроса (действия контроллеров, LiveView)
 - **Ecto** — спаны запросов к базе данных с метаданными запроса
-- **Finch** — спаны исходящих запросов HTTP-клиента
+- **Finch** — спаны исходящих HTTP-запросов клиента
 - **Broadway** — спаны конвейера обработки сообщений
 
 ### Пример настройки с Grafana Alloy {#opentelemetry-alloy-example}
 
-Если вы используете [Grafana Alloy](https://grafana.com/docs/alloy/latest/) в качестве коллектора, настройте его на приём OTLP-трейсов и пересылку их в ваш бэкенд трассировки (например, Grafana Cloud Tempo):
+Если вы используете [Grafana Alloy](https://grafana.com/docs/alloy/latest/) в качестве коллектора, настройте его на приём OTLP-трейсов и их пересылку в ваш бэкенд трассировки (например, Grafana Cloud Tempo):
 
 ```alloy
 otelcol.receiver.otlp "default" {
@@ -52,19 +52,19 @@ otelcol.receiver.otlp "default" {
 
 ## Пересылка логов (Loki) {#log-forwarding}
 
-Tuist может пересылать логи приложения на эндпоинт, совместимый с [Loki](https://grafana.com/oss/loki/). Это позволяет централизовать логи вместе с метриками и трейсами для полной картины наблюдаемости. Логи отправляются через HTTP API Loki (`/loki/api/v1/push`) и включают метки для `app`, `env` и `level`.
+Tuist может пересылать логи приложения на эндпоинт, совместимый с [Loki](https://grafana.com/oss/loki/). Это позволяет централизовать логи вместе с метриками и трейсами для полной картины наблюдаемости. Логи отправляются через HTTP Push API Loki (`/loki/api/v1/push`) и включают метки для `app`, `env` и `level`.
 
 ### Конфигурация {#log-forwarding-configuration}
 
 | Переменная окружения | Описание | Обязательно | По умолчанию | Пример |
 | --- | --- | --- | --- | --- |
-| `TUIST_LOKI_URL` | Базовый URL эндпоинта push API, совместимого с Loki | Нет | | `http://localhost:3100` |
+| `TUIST_LOKI_URL` | Базовый URL эндпоинта Push API, совместимого с Loki | Нет | | `http://localhost:3100` |
 
-Если эта переменная не задана, пересылка логов отключена.
+Если эта переменная не установлена, пересылка логов отключена.
 
 ### Пример настройки с Grafana Alloy {#log-forwarding-alloy-example}
 
-Grafana Alloy может выступать в роли локального ретранслятора логов, используя компонент [`loki.source.api`](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.api/):
+Grafana Alloy может выступать в роли локального реле логов, используя компонент [`loki.source.api`](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.api/):
 
 ```alloy
 loki.source.api "default" {
@@ -89,15 +89,15 @@ loki.write "your_backend" {
 
 Затем установите `TUIST_LOKI_URL=http://alloy:3100`.
 
-Вы также можете направить `TUIST_LOKI_URL` напрямую на экземпляр Loki, если он предоставляет push API.
+Вы также можете направить `TUIST_LOKI_URL` непосредственно на экземпляр Loki, если он предоставляет Push API.
 
 ## Метрики Prometheus {#prometheus-metrics}
 
-Вы можете собирать метрики, полученные сервером Tuist, с помощью [Prometheus](https://prometheus.io/) и инструмента визуализации, такого как [Grafana](https://grafana.com/), чтобы создать пользовательскую панель мониторинга, адаптированную под ваши нужды. Метрики Prometheus доступны через эндпоинт `/metrics` на порту 9091. Параметр [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) в Prometheus следует установить меньше 10 000 секунд (мы рекомендуем 30 секунд, чтобы сбалансировать наблюдаемость и затраты на сбор метрик).
+Вы можете собирать метрики, полученные сервером Tuist, с помощью [Prometheus](https://prometheus.io/) и инструмента визуализации, такого как [Grafana](https://grafana.com/), чтобы создать пользовательскую панель мониторинга под ваши нужды. Метрики Prometheus доступны через эндпоинт `/metrics` на порту 9091. Параметр [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) в Prometheus следует установить меньше 10_000 секунд (мы рекомендуем 30 секунд, чтобы соблюсти баланс между наблюдаемостью и затратами на сбор метрик).
 
 ## Мониторинг реальных пользователей {#real-user-monitoring}
 
-Tuist может сообщать о производительности браузера на маркетинговом сайте, в документации и на панели управления, используя Web SDK [Grafana Faro](https://grafana.com/oss/faro/), который встроен в отдаваемый JavaScript. Он фиксирует основные веб-метрики (включая Largest Contentful Paint), необработанные ошибки и просмотры страниц, а затем отправляет их в запускаемый вами [Faro receiver](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/) — например, компонент `faro.receiver` в Grafana Alloy, который пересылает данные в Loki и Tempo.
+Tuist может отправлять данные о производительности браузера с маркетингового сайта, из документации и панели управления, используя веб-SDK [Grafana Faro](https://grafana.com/oss/faro/), который встроен в раздаваемый JavaScript. Он фиксирует основные веб-метрики (включая Largest Contentful Paint), необработанные ошибки и просмотры страниц, а затем отправляет их в запускаемый вами [Faro receiver](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/) — например, компонент `faro.receiver` в Grafana Alloy, который пересылает данные в Loki и Tempo.
 
 ### Конфигурация {#real-user-monitoring-configuration}
 
@@ -106,26 +106,26 @@ Tuist может сообщать о производительности бра
 | `TUIST_FARO_COLLECTOR_URL` | URL, на который браузер отправляет полезные нагрузки Faro | Нет | | `/-/faro` |
 
 > [!NOTE]
-> Мониторинг реальных пользователей включается только при установке `TUIST_FARO_COLLECTOR_URL`. Без него браузерная телеметрия не собирается и сторонние скрипты не загружаются.
+> Мониторинг реальных пользователей включается только при установке `TUIST_FARO_COLLECTOR_URL`. Без него телеметрия браузера не собирается и сторонние скрипты не загружаются.
 
-Путь того же источника, например `/-/faro`, позволяет избежать кросс-доменных запросов и не требует изменений в политике безопасности контента (CSP) браузера. Направьте его на ваш Faro receiver через ingress.
+Путь того же источника, например `/-/faro`, позволяет избежать кросс-доменных запросов и оставляет политику безопасности контента (Content Security Policy) браузера без изменений. Настройте его на ваш Faro receiver через ingress.
 
 ### Что собирается {#real-user-monitoring-collected}
 
 - **Веб-метрики**: LCP, CLS, INP, FCP и TTFB, автоматически фиксируемые браузером
 - **Просмотры страниц**: записываются при загрузке и при навигации через Phoenix LiveView
 - **Разделы**: каждая полезная нагрузка содержит раздел, который её сгенерировал — `marketing`, `docs`, `dashboard` или `api-docs`
-- **Ошибки**: необработанные исключения и неотловленные отклонения промисов
+- **Ошибки**: неперехваченные исключения и необработанные отклонения промисов
 
 ### Вопросы конфиденциальности {#real-user-monitoring-privacy}
 
-- Идентификация пользователя не привязывается: полезные нагрузки не содержат ID пользователя, email или аккаунт
+- Идентификатор пользователя не привязывается: полезные нагрузки не содержат ID пользователя, email или аккаунт
 - Сессии не сохраняются между посещениями, поэтому в хранилище браузера ничего не записывается
-- Захват консоли отключён, поэтому вывод логов приложения никогда не отправляется из браузера
+- Захват консоли отключен, поэтому вывод логов приложения никогда не отправляется из браузера
 
 ## Метрики Elixir {#elixir-metrics}
 
-По умолчанию мы включаем метрики среды выполнения Elixir, BEAM, Elixir и некоторых используемых библиотек. Вот некоторые из доступных метрик:
+По умолчанию мы включаем метрики среды выполнения Elixir, BEAM, Elixir и некоторых используемых библиотек. Ниже приведены некоторые из доступных метрик:
 
 - [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
@@ -140,7 +140,7 @@ Tuist может сообщать о производительности бра
 
 Набор метрик, связанных с запусками Tuist.
 
-### `tuist_runs_total` (счётчик) {#tuist_runs_total-counter}
+### `tuist_runs_total` (счетчик) {#tuist_runs_total-counter}
 
 Общее количество запусков Tuist.
 
@@ -149,26 +149,26 @@ Tuist может сообщать о производительности бра
 | Тег | Описание |
 |--- | ---- |
 | `name` | Имя выполненной команды `tuist`, например `build`, `test` и т. д. |
-| `is_ci` | Логическое значение, указывающее, выполнялся ли запуск в CI или на машине разработчика. |
+| `is_ci` | Булево значение, указывающее, был ли исполнителем CI или машина разработчика. |
 | `status` | `0` в случае `success`, `1` в случае `failure`. |
 
 ### `tuist_runs_duration_milliseconds` (гистограмма) {#tuist_runs_duration_milliseconds-histogram}
 
-Общая длительность каждого запуска tuist в миллисекундах.
+Общая продолжительность каждого запуска tuist в миллисекундах.
 
 #### Теги {#tuist-runs-duration-miliseconds-tags}
 
 | Тег | Описание |
 |--- | ---- |
 | `name` | Имя выполненной команды `tuist`, например `build`, `test` и т. д. |
-| `is_ci` | Логическое значение, указывающее, выполнялся ли запуск в CI или на машине разработчика. |
+| `is_ci` | Булево значение, указывающее, был ли исполнителем CI или машина разработчика. |
 | `status` | `0` в случае `success`, `1` в случае `failure`. |
 
 ## Метрики кэша {#cache-metrics}
 
 Набор метрик, связанных с кэшем Tuist.
 
-### `tuist_cache_events_total` (счётчик) {#tuist_cache_events_total-counter}
+### `tuist_cache_events_total` (счетчик) {#tuist_cache_events_total-counter}
 
 Общее количество событий бинарного кэша.
 
@@ -178,7 +178,7 @@ Tuist может сообщать о производительности бра
 |--- | ---- |
 | `event_type` | Может быть `local_hit`, `remote_hit` или `miss`. |
 
-### `tuist_cache_uploads_total` (счётчик) {#tuist_cache_uploads_total-counter}
+### `tuist_cache_uploads_total` (счетчик) {#tuist_cache_uploads_total-counter}
 
 Количество загрузок в бинарный кэш.
 
@@ -186,7 +186,7 @@ Tuist может сообщать о производительности бра
 
 Количество байт, загруженных в бинарный кэш.
 
-### `tuist_cache_downloads_total` (счётчик) {#tuist_cache_downloads_total-counter}
+### `tuist_cache_downloads_total` (счетчик) {#tuist_cache_downloads_total-counter}
 
 Количество скачиваний из бинарного кэша.
 
@@ -212,47 +212,47 @@ Tuist может сообщать о производительности бра
 
 ## Метрики хранилища {#storage-metrics}
 
-Набор метрик, связанных с хранением артефактов в удалённом хранилище (например, s3).
+Набор метрик, связанных с хранением артефактов в удаленном хранилище (например, S3).
 
 > [!TIP]
-> Эти метрики полезны для понимания производительности операций хранения и выявления потенциальных узких мест.
+> Эти метрики полезны для понимания производительности операций с хранилищем и выявления потенциальных узких мест.
 
 
 ### `tuist_storage_get_object_size_size_bytes` (гистограмма) {#tuist_storage_get_object_size_size_bytes-histogram}
 
-Размер (в байтах) объекта, полученного из удалённого хранилища.
+Размер (в байтах) объекта, полученного из удаленного хранилища.
 
 #### Теги {#tuist-storage-get-object-size-size-bytes-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
 
 ### `tuist_storage_get_object_size_duration_miliseconds` (гистограмма) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-Длительность (в миллисекундах) получения размера объекта из удалённого хранилища.
+Продолжительность (в миллисекундах) получения размера объекта из удаленного хранилища.
 
 #### Теги {#tuist-storage-get-object-size-duration-miliseconds-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
 
-### `tuist_storage_get_object_size_count` (счётчик) {#tuist_storage_get_object_size_count-counter}
+### `tuist_storage_get_object_size_count` (счетчик) {#tuist_storage_get_object_size_count-counter}
 
-Количество запросов размера объекта из удалённого хранилища.
+Количество запросов размера объекта из удаленного хранилища.
 
 #### Теги {#tuist-storage-get-object-size-count-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
 ### `tuist_storage_delete_all_objects_duration_milliseconds` (гистограмма) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
-Длительность (в миллисекундах) удаления всех объектов из удалённого хранилища.
+Продолжительность (в миллисекундах) удаления всех объектов из удаленного хранилища.
 
 #### Теги {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
@@ -261,9 +261,9 @@ Tuist может сообщать о производительности бра
 | `project_slug` | Слаг проекта, объекты которого удаляются. |
 
 
-### `tuist_storage_delete_all_objects_count` (счётчик) {#tuist_storage_delete_all_objects_count-counter}
+### `tuist_storage_delete_all_objects_count` (счетчик) {#tuist_storage_delete_all_objects_count-counter}
 
-Количество удалений всех объектов проекта из удалённого хранилища.
+Количество удалений всех объектов проекта из удаленного хранилища.
 
 #### Теги {#tuist-storage-delete-all-objects-count-tags}
 
@@ -274,132 +274,132 @@ Tuist может сообщать о производительности бра
 
 ### `tuist_storage_multipart_start_upload_duration_milliseconds` (гистограмма) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
-Длительность (в миллисекундах) начала загрузки в удалённое хранилище.
+Продолжительность (в миллисекундах) начала загрузки в удаленное хранилище.
 
 #### Теги {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
-### `tuist_storage_multipart_start_upload_duration_count` (счётчик) {#tuist_storage_multipart_start_upload_duration_count-counter}
+### `tuist_storage_multipart_start_upload_duration_count` (счетчик) {#tuist_storage_multipart_start_upload_duration_count-counter}
 
-Количество начатых загрузок в удалённое хранилище.
+Количество начатых загрузок в удаленное хранилище.
 
 #### Теги {#tuist-storage-multipart-start-upload-duration-count-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
 
 ### `tuist_storage_get_object_as_string_duration_milliseconds` (гистограмма) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-Длительность (в миллисекундах) получения объекта в виде строки из удалённого хранилища.
+Продолжительность (в миллисекундах) получения объекта в виде строки из удаленного хранилища.
 
 #### Теги {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
-### `tuist_storage_get_object_as_string_count` (счётчик) {#tuist_storage_get_object_as_string_count-count}
+### `tuist_storage_get_object_as_string_count` (счетчик) {#tuist_storage_get_object_as_string_count-count}
 
-Количество запросов объекта в виде строки из удалённого хранилища.
+Количество запросов объекта в виде строки из удаленного хранилища.
 
 #### Теги {#tuist-storage-get-object-as-string-count-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
 
 ### `tuist_storage_check_object_existence_duration_milliseconds` (гистограмма) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-Длительность (в миллисекундах) проверки наличия объекта в удалённом хранилище.
+Продолжительность (в миллисекундах) проверки существования объекта в удаленном хранилище.
 
 #### Теги {#tuist-storage-check-object-existence-duration-milliseconds-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
-### `tuist_storage_check_object_existence_count` (счётчик) {#tuist_storage_check_object_existence_count-count}
+### `tuist_storage_check_object_existence_count` (счетчик) {#tuist_storage_check_object_existence_count-count}
 
-Количество проверок наличия объекта в удалённом хранилище.
+Количество проверок существования объекта в удаленном хранилище.
 
 #### Теги {#tuist-storage-check-object-existence-count-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
 ### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (гистограмма) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
-Длительность (в миллисекундах) генерации предподписанного URL для скачивания объекта из удалённого хранилища.
+Продолжительность (в миллисекундах) генерации предварительно подписанного URL для скачивания объекта из удаленного хранилища.
 
 #### Теги {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
 
-### `tuist_storage_generate_download_presigned_url_count` (счётчик) {#tuist_storage_generate_download_presigned_url_count-count}
+### `tuist_storage_generate_download_presigned_url_count` (счетчик) {#tuist_storage_generate_download_presigned_url_count-count}
 
-Количество сгенерированных предподписанных URL для скачивания объекта из удалённого хранилища.
+Количество генераций предварительно подписанного URL для скачивания объекта из удаленного хранилища.
 
 #### Теги {#tuist-storage-generate-download-presigned-url-count-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (гистограмма) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
-Длительность (в миллисекундах) генерации предподписанного URL для загрузки части объекта в удалённое хранилище.
+Продолжительность (в миллисекундах) генерации предварительно подписанного URL для загрузки части объекта в удаленное хранилище.
 
 #### Теги {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 | `part_number` | Номер части загружаемого объекта. |
 | `upload_id` | Идентификатор многокомпонентной загрузки. |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (счётчик) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
+### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (счетчик) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
-Количество сгенерированных предподписанных URL для загрузки части объекта в удалённое хранилище.
+Количество генераций предварительно подписанного URL для загрузки части объекта в удаленное хранилище.
 
 #### Теги {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 | `part_number` | Номер части загружаемого объекта. |
 | `upload_id` | Идентификатор многокомпонентной загрузки. |
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds` (гистограмма) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
-Длительность (в миллисекундах) завершения загрузки в удалённое хранилище.
+Продолжительность (в миллисекундах) завершения загрузки в удаленное хранилище.
 
 #### Теги {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 | `upload_id` | Идентификатор многокомпонентной загрузки. |
 
 
-### `tuist_storage_multipart_complete_upload_count` (счётчик) {#tuist_storage_multipart_complete_upload_count-count}
+### `tuist_storage_multipart_complete_upload_count` (счетчик) {#tuist_storage_multipart_complete_upload_count-count}
 
-Общее количество завершённых загрузок в удалённое хранилище.
+Общее количество завершенных загрузок в удаленное хранилище.
 
 #### Теги {#tuist-storage-multipart-complete-upload-count-tags}
 
 | Тег | Описание |
 |--- | ---- |
-| `object_key` | Ключ поиска объекта в удалённом хранилище. |
+| `object_key` | Ключ поиска объекта в удаленном хранилище. |
 | `upload_id` | Идентификатор многокомпонентной загрузки. |
 
 ---
@@ -408,7 +408,7 @@ Tuist может сообщать о производительности бра
 
 Набор метрик, связанных с аутентификацией.
 
-### `tuist_authentication_token_refresh_error_total` (счётчик) {#tuist_authentication_token_refresh_error_total-counter}
+### `tuist_authentication_token_refresh_error_total` (счетчик) {#tuist_authentication_token_refresh_error_total-counter}
 
 Общее количество ошибок обновления токена.
 
@@ -448,40 +448,40 @@ Tuist может сообщать о производительности бра
 
 Набор метрик, связанных с подключением к базе данных.
 
-Метрики пула репозиториев собираются внутри каждые 100 мс и затем передаются в Prometheus по адресу `/metrics`. Метрики `last_value` ниже показывают последнее состояние пула на момент сбора. Метрики нагрузки далее представляют собой суммы, полученные из этих 100-миллисекундных выборок, что позволяет легче обнаруживать кратковременные периоды насыщения, даже если они завершаются до следующего сбора.
+Метрики пула репозиториев собираются внутри каждые 100 мс и затем передаются в Prometheus на `/metrics`. Метрики `last_value` ниже показывают последнее состояние пула на момент сбора. Метрики нагрузки далее представляют собой суммы, полученные из этих 100-миллисекундных выборок, что позволяет легче обнаруживать короткие периоды насыщения, даже если они восстанавливаются до следующего сбора.
 
 ### `tuist_repo_pool_checkout_queue_length` (последнее значение) {#tuist_repo_pool_checkout_queue_length-last_value}
 
-Количество запросов к базе данных, находящихся в очереди и ожидающих назначения подключения.
+Количество запросов к базе данных, находящихся в очереди и ожидающих назначения соединения с базой данных.
 
 #### Теги {#tuist_repo_pool_checkout_queue_length-tags}
 
 | Тег | Описание |
 |--- | ---- |
 | `repo` | Репозиторий, который сгенерировал метрику, например `postgres`, `clickhouse_read` или `clickhouse_write`. |
-| `database` | Тип базовой базы данных, например `postgres` или `clickhouse`. |
+| `database` | Тип используемой базы данных, например `postgres` или `clickhouse`. |
 
 ### `tuist_repo_pool_ready_conn_count` (последнее значение) {#tuist_repo_pool_ready_conn_count-last_value}
 
-Количество подключений к базе данных, готовых к выполнению запроса.
+Количество соединений с базой данных, готовых к выполнению запроса.
 
 #### Теги {#tuist_repo_pool_ready_conn_count-tags}
 
 | Тег | Описание |
 |--- | ---- |
 | `repo` | Репозиторий, который сгенерировал метрику, например `postgres`, `clickhouse_read` или `clickhouse_write`. |
-| `database` | Тип базовой базы данных, например `postgres` или `clickhouse`. |
+| `database` | Тип используемой базы данных, например `postgres` или `clickhouse`. |
 
 ### `tuist_repo_pool_size` (последнее значение) {#tuist_repo_pool_size-last_value}
 
-Настроенное количество подключений в пуле.
+Настроенное количество соединений в пуле.
 
 #### Теги {#tuist_repo_pool_size-tags}
 
 | Тег | Описание |
 |--- | ---- |
 | `repo` | Репозиторий, который сгенерировал метрику, например `postgres`, `clickhouse_read` или `clickhouse_write`. |
-| `database` | Тип базовой базы данных, например `postgres` или `clickhouse`. |
+| `database` | Тип используемой базы данных, например `postgres` или `clickhouse`. |
 
 ### `tuist_repo_pool_checkout_queue_total_samples_sum` (сумма) {#tuist_repo_pool_checkout_queue_total_samples_sum-sum}
 
@@ -492,48 +492,48 @@ Tuist может сообщать о производительности бра
 | Тег | Описание |
 |--- | ---- |
 | `repo` | Репозиторий, который сгенерировал метрику, например `postgres`, `clickhouse_read` или `clickhouse_write`. |
-| `database` | Тип базовой базы данных, например `postgres` или `clickhouse`. |
+| `database` | Тип используемой базы данных, например `postgres` или `clickhouse`. |
 
 ### `tuist_repo_pool_checkout_queue_observed_sum` (сумма) {#tuist_repo_pool_checkout_queue_observed_sum-sum}
 
-Сумма запросов на получение подключения из очереди, наблюдаемых при опросах пула репозиториев. Это полезно для обнаружения кратковременных всплесков конкуренции за пул, которые могут быть не видны только по последнему значению длины очереди.
+Сумма поставленных в очередь запросов на получение соединения, наблюдаемых при опросах пула репозиториев. Это полезно для обнаружения кратковременных всплесков конкуренции за пул, которые могут быть не видны только по последней выборке длины очереди.
 
 #### Теги {#tuist_repo_pool_checkout_queue_observed_sum-tags}
 
 | Тег | Описание |
 |--- | ---- |
 | `repo` | Репозиторий, который сгенерировал метрику, например `postgres`, `clickhouse_read` или `clickhouse_write`. |
-| `database` | Тип базовой базы данных, например `postgres` или `clickhouse`. |
+| `database` | Тип используемой базы данных, например `postgres` или `clickhouse`. |
 
 ### `tuist_repo_pool_checkout_queue_busy_samples_sum` (сумма) {#tuist_repo_pool_checkout_queue_busy_samples_sum-sum}
 
-Количество опросов пула репозиториев, при которых хотя бы один запрос на получение подключения ожидал в очереди.
+Количество опросов пула репозиториев, при которых хотя бы один запрос на получение соединения из базы данных ожидал в очереди.
 
 #### Теги {#tuist_repo_pool_checkout_queue_busy_samples_total-tags}
 
 | Тег | Описание |
 |--- | ---- |
 | `repo` | Репозиторий, который сгенерировал метрику, например `postgres`, `clickhouse_read` или `clickhouse_write`. |
-| `database` | Тип базовой базы данных, например `postgres` или `clickhouse`. |
+| `database` | Тип используемой базы данных, например `postgres` или `clickhouse`. |
 
 ### `tuist_repo_pool_checkout_queue_starved_samples_sum` (сумма) {#tuist_repo_pool_checkout_queue_starved_samples_sum-sum}
 
-Количество опросов пула репозиториев, при которых запросы на получение подключения стояли в очереди и не было доступных готовых подключений. Устойчивый рост этого показателя обычно означает насыщение пула.
+Количество опросов пула репозиториев, при которых запросы на получение соединения были поставлены в очередь, а готовых соединений не было. Устойчивый рост этого показателя обычно означает насыщение пула.
 
 #### Теги {#tuist_repo_pool_checkout_queue_starved_samples_total-tags}
 
 | Тег | Описание |
 |--- | ---- |
 | `repo` | Репозиторий, который сгенерировал метрику, например `postgres`, `clickhouse_read` или `clickhouse_write`. |
-| `database` | Тип базовой базы данных, например `postgres` или `clickhouse`. |
+| `database` | Тип используемой базы данных, например `postgres` или `clickhouse`. |
 
 ### `tuist_repo_pool_db_connection_connected` (счетчик) {#tuist_repo_pool_db_connection_connected-counter}
 
-Количество установленных подключений к базе данных.
+Количество установленных соединений с базой данных.
 
 ### `tuist_repo_pool_db_connection_disconnected` (счетчик) {#tuist_repo_pool_db_connection_disconnected-counter}
 
-Количество отключенных от базы данных подключений.
+Количество отключенных от базы данных соединений.
 
 #### Теги {#tuist_repo_pool_db_connection_connected_and_disconnected-tags}
 
@@ -551,10 +551,10 @@ Tuist может сообщать о производительности бра
 
 ### `tuist_http_request_duration_nanoseconds_sum` (сумма) {#tuist_http_request_duration_nanoseconds_sum-last_value}
 
-Сумма длительности исходящих запросов (включая время ожидания назначения подключения).
+Суммарная длительность исходящих запросов (включая время ожидания назначения соединения).
 
 ### `tuist_http_request_duration_nanoseconds_bucket` (распределение) {#tuist_http_request_duration_nanoseconds_bucket-distribution}
-Распределение длительности исходящих запросов (включая время ожидания назначения подключения).
+Распределение длительности исходящих запросов (включая время ожидания назначения соединения).
 
 ### `tuist_http_queue_count` (счетчик) {#tuist_http_queue_count-counter}
 
@@ -562,43 +562,43 @@ Tuist может сообщать о производительности бра
 
 ### `tuist_http_queue_duration_nanoseconds_sum` (сумма) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-Время, необходимое для получения подключения из пула.
+Время, необходимое для получения соединения из пула.
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (сумма) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-Время простоя подключения в ожидании получения.
+Время простоя соединения в ожидании получения.
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (распределение) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-Время, необходимое для получения подключения из пула.
+Время, необходимое для получения соединения из пула.
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (распределение) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-Время простоя подключения в ожидании получения.
+Время простоя соединения в ожидании получения.
 
 ### `tuist_http_connection_count` (счетчик) {#tuist_http_connection_count-counter}
 
-Количество установленных подключений.
+Количество установленных соединений.
 
 ### `tuist_http_connection_duration_nanoseconds_sum` (сумма) {#tuist_http_connection_duration_nanoseconds_sum-sum}
 
-Время, необходимое для установления подключения к хосту.
+Время, необходимое для установления соединения с хостом.
 
 ### `tuist_http_connection_duration_nanoseconds_bucket` (распределение) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
-Распределение времени, необходимого для установления подключения к хосту.
+Распределение времени, необходимого для установления соединения с хостом.
 
 ### `tuist_http_send_count` (счетчик) {#tuist_http_send_count-counter}
 
-Количество запросов, отправленных после назначения им подключения из пула.
+Количество запросов, отправленных после назначения им соединения из пула.
 
 ### `tuist_http_send_duration_nanoseconds_sum` (сумма) {#tuist_http_send_duration_nanoseconds_sum-sum}
 
-Время, необходимое для завершения запросов после назначения им подключения из пула.
+Время, необходимое для завершения запросов после назначения им соединения из пула.
 
 ### `tuist_http_send_duration_nanoseconds_bucket` (распределение) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
-Распределение времени, необходимого для завершения запросов после назначения им подключения из пула.
+Распределение времени, необходимого для завершения запросов после назначения им соединения из пула.
 
 ### `tuist_http_receive_count` (счетчик) {#tuist_http_receive_count-counter}
 
@@ -614,8 +614,8 @@ Tuist может сообщать о производительности бра
 
 ### `tuist_http_queue_available_connections` (последнее значение) {#tuist_http_queue_available_connections-last_value}
 
-Количество доступных подключений в очереди.
+Количество доступных соединений в очереди.
 
 ### `tuist_http_queue_in_use_connections` (последнее значение) {#tuist_http_queue_in_use_connections-last_value}
 
-Количество используемых подключений в очереди.
+Количество используемых соединений в очереди.

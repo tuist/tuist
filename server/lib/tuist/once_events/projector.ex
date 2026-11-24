@@ -135,64 +135,9 @@ defmodule Tuist.OnceEvents.Projector do
     :ok
   end
 
-  def project(%RunEvent{payload: {:cache_upload, %CacheUpload{} = up}} = ev, project_id, run_id) do
-    with %{} = run <- OnceEvents.get_run(project_id, run_id) do
-      OnceEvents.ingest_cache_event(run, %{
-        kind: "upload",
-        target_execution_id: safe_string(up.target_execution_id),
-        cache_decision_id: nil_if_empty(up.cache_decision_id),
-        tier: nil_if_empty(up.tier),
-        category: nil_if_empty(up.kind),
-        content_hash: content_ref_hash(up.content),
-        content_size_bytes: content_ref_size(up.content),
-        bytes_transferred: up.bytes_transferred || 0,
-        duration_ms: up.duration_ms || 0,
-        outcome: "stored",
-        observed_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
-      })
-    end
-
-    :ok
-  end
-
-  def project(%RunEvent{payload: {:cache_download, %CacheDownload{} = down}} = ev, project_id, run_id) do
-    with %{} = run <- OnceEvents.get_run(project_id, run_id) do
-      OnceEvents.ingest_cache_event(run, %{
-        kind: "download",
-        target_execution_id: safe_string(down.target_execution_id),
-        cache_decision_id: nil_if_empty(down.cache_decision_id),
-        tier: nil_if_empty(down.tier),
-        category: nil_if_empty(down.kind),
-        content_hash: content_ref_hash(down.content),
-        content_size_bytes: content_ref_size(down.content),
-        bytes_transferred: down.bytes_transferred || 0,
-        duration_ms: down.duration_ms || 0,
-        outcome: "hit",
-        observed_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
-      })
-    end
-
-    :ok
-  end
-
-  def project(%RunEvent{payload: {:cache_store_reused, %CacheStoreReused{} = reused}} = ev, project_id, run_id) do
-    with %{} = run <- OnceEvents.get_run(project_id, run_id) do
-      OnceEvents.ingest_cache_event(run, %{
-        kind: "reused",
-        target_execution_id: safe_string(reused.target_execution_id),
-        cache_decision_id: nil_if_empty(reused.cache_decision_id),
-        tier: nil_if_empty(reused.tier),
-        category: nil_if_empty(reused.kind),
-        content_hash: content_ref_hash(reused.content),
-        content_size_bytes: content_ref_size(reused.content),
-        bytes_transferred: 0,
-        duration_ms: 0,
-        outcome: "reused",
-        observed_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
-      })
-    end
-
-    :ok
+  def project(%RunEvent{payload: {kind, _}} = ev, project_id, run_id)
+      when kind in [:cache_upload, :cache_download, :cache_store_reused] do
+    project_cache_events([ev], project_id, run_id)
   end
 
   def project(%RunEvent{payload: {:test_suite_started, %TestSuiteStarted{} = started}} = ev, project_id, run_id) do
@@ -277,6 +222,80 @@ defmodule Tuist.OnceEvents.Projector do
   end
 
   def project(event, project_id, run_id, _account_id), do: project(event, project_id, run_id)
+
+  @doc """
+  Project a batch's events in order. Consecutive cache events, one per blob
+  a remote build transfers and most of its events, share one run lookup and
+  one write instead of a transaction each.
+  """
+  def project_all(events, project_id, run_id, account_id) do
+    events
+    |> Enum.chunk_by(&cache_event?/1)
+    |> Enum.each(fn [first | _] = chunk ->
+      if cache_event?(first),
+        do: project_cache_events(chunk, project_id, run_id),
+        else: Enum.each(chunk, &project(&1, project_id, run_id, account_id))
+    end)
+  end
+
+  defp cache_event?(%RunEvent{payload: {kind, _}}), do: kind in [:cache_upload, :cache_download, :cache_store_reused]
+  defp cache_event?(_event), do: false
+
+  defp project_cache_events(events, project_id, run_id) do
+    with %{} = run <- OnceEvents.get_run(project_id, run_id) do
+      OnceEvents.ingest_cache_events(run, Enum.map(events, &cache_event_attrs/1))
+    end
+
+    :ok
+  end
+
+  defp cache_event_attrs(%RunEvent{payload: {:cache_upload, %CacheUpload{} = up}} = ev) do
+    %{
+      kind: "upload",
+      target_execution_id: safe_string(up.target_execution_id),
+      cache_decision_id: nil_if_empty(up.cache_decision_id),
+      tier: nil_if_empty(up.tier),
+      category: nil_if_empty(up.kind),
+      content_hash: content_ref_hash(up.content),
+      content_size_bytes: content_ref_size(up.content),
+      bytes_transferred: up.bytes_transferred || 0,
+      duration_ms: up.duration_ms || 0,
+      outcome: "stored",
+      observed_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
+    }
+  end
+
+  defp cache_event_attrs(%RunEvent{payload: {:cache_download, %CacheDownload{} = down}} = ev) do
+    %{
+      kind: "download",
+      target_execution_id: safe_string(down.target_execution_id),
+      cache_decision_id: nil_if_empty(down.cache_decision_id),
+      tier: nil_if_empty(down.tier),
+      category: nil_if_empty(down.kind),
+      content_hash: content_ref_hash(down.content),
+      content_size_bytes: content_ref_size(down.content),
+      bytes_transferred: down.bytes_transferred || 0,
+      duration_ms: down.duration_ms || 0,
+      outcome: "hit",
+      observed_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
+    }
+  end
+
+  defp cache_event_attrs(%RunEvent{payload: {:cache_store_reused, %CacheStoreReused{} = reused}} = ev) do
+    %{
+      kind: "reused",
+      target_execution_id: safe_string(reused.target_execution_id),
+      cache_decision_id: nil_if_empty(reused.cache_decision_id),
+      tier: nil_if_empty(reused.tier),
+      category: nil_if_empty(reused.kind),
+      content_hash: content_ref_hash(reused.content),
+      content_size_bytes: content_ref_size(reused.content),
+      bytes_transferred: 0,
+      duration_ms: 0,
+      outcome: "reused",
+      observed_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
+    }
+  end
 
   # Only these bounded diagnostic fields belong in the run. They are not in
   # upsert_run's conflict updates, so even an empty first context is immutable.

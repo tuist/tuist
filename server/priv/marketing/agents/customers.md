@@ -20,4 +20,4 @@ Where the customer reported them, a story also states:
 
 ## Next steps
 
-Evaluate the matching area: [Cache](/marketing-markdown/cache), [Compute](/marketing-markdown/compute), [Tests](/marketing-markdown/tests), or [Previews](/marketing-markdown/previews).
+Evaluate the matching area: [Cache](/marketing-markdown/cache), [Runners](/marketing-markdown/runners), [Tests](/marketing-markdown/tests), or [Previews](/marketing-markdown/previews).

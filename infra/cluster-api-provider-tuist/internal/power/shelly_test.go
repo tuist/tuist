@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// The Shelly plug for the BER1 prototype has not been delivered, so nothing
+// The Shelly plug for the alder prototype has not been delivered, so nothing
 // here has been run against real firmware. These fakes are therefore written
 // from the published API shapes and from RFC 7616 rather than from captured
 // traffic, and the digest server below is a conformant SERVER: it recomputes

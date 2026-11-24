@@ -147,6 +147,12 @@ func (a *agent) checkout(ctx context.Context, input checkoutRequest, asked time.
 	a.grants.remember(input.PodUID, task)
 	a.checkouts.Track(task)
 	if a.checkouts.Master(grant.Scope, grant.Generation) == "" {
+		// A lineage this host just refused to start would be refused again: denying
+		// it keeps the job from exporting at all.
+		if task.BaseGeneration == 0 && a.checkouts.Refusing(grant.Scope) {
+			a.endUse(grant.ID, false)
+			return checkoutUnavailable("denied"), nil
+		}
 		if task.BaseGeneration > 0 {
 			a.checkouts.Enqueue(task)
 		}

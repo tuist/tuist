@@ -30,6 +30,8 @@ defmodule TuistWeb.UserMFAControllerTest do
     confirmed = enrollment |> recycle() |> post(~p"/users/settings/mfa/confirm", %{"mfa_code" => code(secret, now)})
     assert html_response(confirmed, 200)
     assert confirmed.resp_cookies["_tuist_key_auth"]
+    # The login did not ask to stay signed in, so neither does its replacement.
+    refute confirmed.resp_cookies["_tuist_key_auth"][:max_age]
     refute Accounts.get_user_session(old_token)
     new_token = get_session(confirmed, :user_token)
     assert new_token != old_token
@@ -39,6 +41,24 @@ defmodule TuistWeb.UserMFAControllerTest do
     assert restored.assigns.current_user.id == user.id
     assert restored.assigns.current_user_session.token == new_token
     assert restored.assigns.current_user_session.mfa_verified_at
+  end
+
+  test "MFA enrollment keeps a remembered browser signed in across restarts", %{user: user, now: now} do
+    enrollment = user |> login(%{"remember_me" => "true"}) |> recycle() |> post(~p"/users/settings/mfa/enroll")
+    secret = setup_secret(enrollment)
+
+    confirmed = enrollment |> recycle() |> post(~p"/users/settings/mfa/confirm", %{"mfa_code" => code(secret, now)})
+    assert confirmed.resp_cookies["_tuist_key_auth"].max_age > 0
+
+    # Replay only the cookies a browser keeps after it restarts.
+    restarted =
+      confirmed.resp_cookies
+      |> Enum.filter(fn {_name, cookie} -> is_integer(cookie[:max_age]) and cookie.max_age > 0 end)
+      |> Enum.reduce(build_conn(), fn {name, cookie}, conn -> put_req_cookie(conn, name, cookie.value) end)
+      |> get(~p"/#{user.account.name}/settings/authentication")
+
+    assert html_response(restarted, 200)
+    assert restarted.assigns.current_user_session.token == get_session(confirmed, :user_token)
   end
 
   test "enrollment requires a fresh session, confirms possession and revokes older sessions", %{user: user, now: now} do

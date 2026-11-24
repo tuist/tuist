@@ -1,0 +1,58 @@
+<%!-- The runners pages' closing CTA. --%>
+<%!-- CTA framed by dithered divider bands, same recipe as the cache
+page's closing CTA. --%>
+<div data-part="features-divider" aria-hidden="true">
+  <canvas
+    data-part="dither"
+    id="compute-cta-divider-top-dither"
+    phx-hook="DitherTexture"
+    data-pitch="2"
+    data-dot="2"
+    data-top="0"
+    data-bottom="0.95"
+    data-wave="0.335"
+    data-wave-scale="2.5"
+    data-levels="0"
+    data-speed="1"
+    data-phase="22.1"
+    data-dither="on"
+    data-opacity="0.3"
+  ></canvas>
+</div>
+
+<section data-part="cta" aria-labelledby="cta-title">
+  <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
+  <h2 id="cta-title">{dgettext("marketing", "Move your next CI job to Tuist")}</h2>
+  <div data-part="actions" role="group" aria-labelledby="cta-title">
+    <.button
+      href={~p"/users/register"}
+      label={dgettext("marketing", "Get started")}
+    />
+    <.button
+      href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+      target="_blank"
+      rel="noopener noreferrer"
+      variant="secondary"
+      label={dgettext("marketing", "Talk to us")}
+    />
+  </div>
+</section>
+
+<div data-part="features-divider" aria-hidden="true">
+  <canvas
+    data-part="dither"
+    id="compute-cta-divider-bottom-dither"
+    phx-hook="DitherTexture"
+    data-pitch="2"
+    data-dot="2"
+    data-top="0"
+    data-bottom="0.95"
+    data-wave="0.335"
+    data-wave-scale="2.5"
+    data-levels="0"
+    data-speed="1"
+    data-phase="29.6"
+    data-dither="on"
+    data-opacity="0.3"
+  ></canvas>
+</div>

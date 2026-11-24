@@ -9,7 +9,12 @@ defmodule Tuist.Pulse.Table do
   }
 
   def validate(signal, params) when is_map(params) and is_map_key(@sorts, signal) do
-    filters = if signal in ~w(logs errors), do: ~w(service level), else: ~w(service)
+    filters =
+      case signal do
+        "errors" -> ~w(service level environment)
+        "logs" -> ~w(service level)
+        _ -> ~w(service)
+      end
 
     keys =
       ~w(range end_at page page_size query search sort_by sort_order) ++ filters ++ Enum.map(filters, &(&1 <> "_op"))

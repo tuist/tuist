@@ -10,7 +10,7 @@ Both products also give teams usage data and agent access. Cachely's dashboard r
 
 Cachely's [security model](https://cachely.dev/security) is a documented strength: tokens are fixed at creation as read-only or read-write and enforced by the server, so pull-request and fork builds can read the cache without being able to upload a poisoned artifact. Tuist's Gradle plugin has a `push` option for read-only clients; check how your trusted and untrusted builds authenticate before switching.
 
-Cachely covers JavaScript monorepo tools, Nx, Lerna, and Turborepo, that Tuist does not integrate with. Tuist covers Xcode, Elixir, and canary Once builds that Cachely does not list. The rest of this guide compares the Bazel and Gradle workflows both products support.
+Cachely covers JavaScript monorepo tools, Nx, Lerna, and Turborepo, that Tuist does not integrate with. Tuist covers Xcode, Elixir, and canary Struo builds that Cachely does not list. The rest of this guide compares the Bazel and Gradle workflows both products support.
 
 ## Compare the Bazel and Gradle workflow
 

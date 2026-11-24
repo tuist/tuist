@@ -48,7 +48,7 @@ Every Linux profile supports <.localized_link href="/guides/features/runners#and
 
 Larger macOS shapes run on fewer machines in the fleet, so a job that asks for one can wait longer to start than the same job on a smaller shape. Reach for a larger shape when a job is limited by CPU, and keep the default shape for everything else. If you are not sure, run the job on both and compare the durations in the dashboard.
 
-macOS profiles also pin an **Xcode version**. The version selects a runner image with that Xcode preinstalled, so jobs start with the toolchain already in place. Supported versions today:
+macOS profiles also pin an **Xcode version**. The version selects a runner image with that Xcode preinstalled, so jobs start with the toolchain already in place. See <.localized_link href="/guides/features/runners/images">Images</.localized_link> for everything else each image contains. Supported versions today:
 
 {{runner_macos_xcode_versions}}
 

@@ -5,6 +5,7 @@ import NooraCheckbox from "./Checkbox.js";
 import NooraCollapsible from "./Collapsible.js";
 import NooraDatePicker from "./DatePicker/index.js";
 import NooraDigitInput from "./DigitInput.js";
+import NooraDitherWave from "./DitherWave.js";
 import NooraDropdown from "./Dropdown.js";
 import NooraDropdownCheckbox from "./DropdownCheckbox.js";
 import NooraIconTransition from "./IconTransition.js";
@@ -12,6 +13,9 @@ import NooraModal from "./Modal.js";
 import NooraPopover from "./Popover.js";
 import NooraScrollArea from "./ScrollArea.js";
 import NooraSelect from "./Select.js";
+// Defines the <noora-spinner> and <noora-button-group-indicator> elements.
+import "./Spinner.js";
+import "./ButtonGroup.js";
 import NooraTable from "./Table.js";
 import NooraTabs from "./Tabs.js";
 import NooraTagsInput from "./TagsInput.js";
@@ -26,8 +30,11 @@ const Hooks = {
   NooraCollapsible,
   NooraDatePicker,
   NooraDigitInput,
+  NooraDitherWave,
   NooraDropdown,
   NooraDropdownCheckbox,
+  // The shared menu hook; Noora.Menu uses this name.
+  NooraMenu: NooraDropdown,
   NooraIconTransition,
   NooraModal,
   NooraPopover,

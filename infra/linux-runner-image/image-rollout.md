@@ -163,7 +163,7 @@ opt-outs, execution binding and repository authorization still apply. Production
 retains its `runner_docker_cache` flag and currently has pool caching disabled.
 
 The three sequential Docker phases cover both `docker` and `docker-container`
-drivers: cold (with an in-job changed-source build), same-size write and final verification.
+drivers: cold (with an in-job seed build of the changed source that asserts no cache reuse), same-size write and final verification.
 The next job's layer and mutable-cache assertions establish persistence; a sleep
 or successful teardown handoff alone does not. An authorization denial or missing
 mount fails the gate before building. Do not retry assertions or accept fallback

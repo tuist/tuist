@@ -62,7 +62,7 @@ msgstr "詳細"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "Tuistアプリがインストールされていませんか？"
+msgstr "Tuistアプリがインストールされていませんか?"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:110
@@ -94,7 +94,7 @@ msgstr "なし"
 #: lib/tuist_web/live/preview_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Or run using CLI"
-msgstr "またはCLIを使用して実行"
+msgstr "またはCLIで実行"
 
 #: lib/tuist_web/live/previews_live.html.heex:78
 #, elixir-autogen, elixir-format
@@ -145,12 +145,12 @@ msgstr "QRコードをスキャン"
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "このバージョンのアプリをインストールするには、iOSデバイスでこのQRコードをスキャンしてください"
+msgstr "iOSデバイスでこのQRコードをスキャンして、このバージョンのアプリをインストールしてください"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "アプリのプレビューをワンクリックで共有"
+msgstr "ワンクリックでアプリのプレビューを共有"
 
 #: lib/tuist_web/live/preview_live.html.heex:138
 #, elixir-autogen, elixir-format
@@ -160,7 +160,7 @@ msgstr "対応プラットフォーム"
 #: lib/tuist_web/live/preview_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "このプレビューはシミュレーターでのみサポートされており、実機にはインストールできません"
+msgstr "このプレビューはシミュレーターでのみサポートされており、物理デバイスにはインストールできません"
 
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
@@ -192,7 +192,7 @@ msgstr "検索..."
 #: lib/tuist_web/live/previews_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Track"
-msgstr "追跡"
+msgstr "トラッキング"
 
 #: lib/tuist_web/live/preview_live.html.heex:154
 #, elixir-autogen, elixir-format
@@ -202,12 +202,12 @@ msgstr "パッケージ名"
 #: lib/tuist_web/live/preview_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "AndroidデバイスでこのQRコードをスキャンして、このバージョンのアプリをダウンロードおよびインストールしてください"
+msgstr "このQRコードをAndroidデバイスでスキャンして、このバージョンのアプリをダウンロードおよびインストールしてください"
 
 #: lib/tuist_web/live/preview_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "The APK for this preview is no longer available"
-msgstr "このプレビューのAPKは利用できなくなりました"
+msgstr "このプレビューのAPKは利用できません"
 
 #: lib/tuist_web/live/preview_live.html.heex:252
 #, elixir-autogen, elixir-format
@@ -242,7 +242,7 @@ msgstr "コマンドラインプレビュー"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "デスクトッププレビューはユーザー権限で実行され、ファイルや環境にアクセスできます。サンドボックス化されていません。"
+msgstr "デスクトッププレビューはユーザー権限で実行され、ファイルや環境変数にアクセスできます。サンドボックス化されていません。"
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format

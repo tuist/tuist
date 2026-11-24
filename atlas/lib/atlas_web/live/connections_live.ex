@@ -56,7 +56,7 @@ defmodule AtlasWeb.ConnectionsLive do
         >
           <div data-part="header">
             <span data-part="title">
-              <span data-part="icon"><.icon name={"brand_#{entry.provider}"} /></span>
+              <span data-part="icon"><.icon name={icon_name(entry.provider)} /></span>
               {entry.name}
             </span>
             <span data-part="subtitle">{description(entry.provider)}</span>
@@ -181,10 +181,19 @@ defmodule AtlasWeb.ConnectionsLive do
   defp description("google"),
     do:
       gettext(
-        "Drive files and read-only calendar access. Allow Gmail access to search and read your mail from Atlas tools (search_my_gmail, get_my_gmail_message). Allow Gmail drafts to let them prepare drafts (create_my_gmail_draft, update_my_gmail_draft); a draft is only sent after you approve it in My approvals."
+        "Drive files and read-only calendar access. Allow Gmail access to search and read your mail from Atlas tools (search_my_gmail, get_my_gmail_message). Allow Gmail drafts to let them prepare and send drafts (create_my_gmail_draft, update_my_gmail_draft, send_my_gmail_draft). The calling client handles confirmation; Atlas sends immediately."
+      )
+
+  defp description("qonto"),
+    do:
+      gettext(
+        "Prepare vendor payments as transfer requests in Qonto from Atlas tools (finance_create_transfer_request). Nothing is paid until someone with review rights approves the request in Qonto."
       )
 
   defp description(_provider), do: nil
+
+  defp icon_name("qonto"), do: "building"
+  defp icon_name(provider), do: "brand_" <> provider
 
   # Google returns only the scopes requested by the latest consent, so a plain
   # reconnect or a new Gmail consent would silently drop a granted Gmail scope.

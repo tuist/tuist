@@ -819,7 +819,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     "/customers",
     "/cache",
     "/tests",
-    "/compute",
+    "/runners",
     "/globe",
     "/previews",
     "/download",
@@ -1071,24 +1071,28 @@ defmodule TuistWeb.Marketing.MarketingController do
     render(conn, :pricing, layout: false)
   end
 
-  def compute(conn, _params) do
+  def runners(conn, _params) do
     description =
       dgettext(
         "marketing",
-        "Run existing CI jobs next to your shared build cache. Tuist Compute is an optional, invite-only execution environment for teams and coding agents."
+        "Managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise, next to a shared build cache. One-line setup."
       )
 
     conn
-    |> assign(:head_title, dgettext("marketing", "Compute for build work · Tuist"))
+    |> assign(:head_title, dgettext("marketing", "macOS and Linux CI runners · Tuist"))
+    # Rendered title card until a designed `runners` card ships; SocialCards
+    # switches to it on its own once the PNG is added to its card list.
     |> assign(
       :head_image,
-      SocialCards.image_url("compute")
+      SocialCards.head_image("runners", fn ->
+        OpenGraph.image_path(:marketing, title: dgettext("marketing", "Runners"))
+      end)
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_description, description)
     # Runners are billed per minute on every plan, so the node claims no free offer.
-    |> assign_feature_structured_data(dgettext("marketing", "Compute"), description, "/compute", free: false)
-    |> render(:compute, layout: false)
+    |> assign_feature_structured_data(dgettext("marketing", "Runners"), description, "/runners", free: false)
+    |> render(:runners, layout: false)
   end
 
   def tests(conn, _params) do
@@ -1146,29 +1150,42 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def guide(conn, _params) do
     guide = MarketingMarkdown.guide_page(String.trim_trailing(conn.request_path, "/"))
-    parent = MarketingMarkdown.guide_page(Path.dirname(guide.path))
+    parent_path = Path.dirname(guide.path)
+    parent_title = if parent_path != "/", do: MarketingMarkdown.short_title(parent_path)
 
     breadcrumbs =
       [{dgettext("marketing", "Tuist"), "/"}] ++
-        if(parent, do: [{parent.title, parent.path}], else: []) ++ [{guide.title, guide.path}]
+        if(parent_title, do: [{parent_title, parent_path}], else: []) ++ [{guide.title, guide.path}]
 
     template =
-      if guide.path in [
-           "/compare",
-           "/compare/develocity",
-           "/compare/namespace",
-           "/compare/buildkite",
-           "/compare/xcodegen",
-           "/compare/swift-package-manager",
-           "/compare/nx"
-         ],
-         do: :comparison,
-         else: :page
+      cond do
+        String.starts_with?(guide.path, "/runners/") ->
+          :runners_provider
+
+        guide.path in [
+          "/compare",
+          "/compare/develocity",
+          "/compare/namespace",
+          "/compare/buildkite",
+          "/compare/xcodegen",
+          "/compare/swift-package-manager",
+          "/compare/nx"
+        ] ->
+          :comparison
+
+        true ->
+          :page
+      end
 
     conn
+    |> then(&if(template == :runners_provider, do: assign_runners_provider(&1, guide), else: &1))
     |> assign(:head_title, guide.title)
     |> assign(:head_description, guide.head_description)
-    |> assign(:head_image, OpenGraph.image_path(:marketing, title: guide.title))
+    # Social crawlers ignore relative og:image URLs.
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: guide.title), marketing: true)
+    )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:english_only, true)
     |> assign_structured_data(
@@ -1181,6 +1198,123 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:breadcrumbs, breadcrumbs)
     |> render(template, layout: false)
   end
+
+  # A provider's runners page shows its FAQ as an accordion of `guide.faqs`.
+  defp assign_runners_provider(conn, guide) do
+    slug = Path.basename(guide.path)
+
+    conn
+    |> assign(
+      :provider,
+      Map.fetch!(
+        %{"github-actions" => "github", "gitlab-ci" => "gitlab", "buildkite" => "buildkite"},
+        slug
+      )
+    )
+    |> assign(:docs_url, "https://tuist.dev/en/docs/guides/features/runners/ci-providers/#{slug}")
+    |> assign_runners_provider_body(guide.body)
+  end
+
+  # The body skips the lead paragraph (the meta description) and moves the
+  # paragraph after it into the hero as its subtitle. It ends before the
+  # sources, further reading and FAQ: the FAQ renders as the accordion, and
+  # the sources stay in the Markdown guide (their date still feeds the
+  # sitemap).
+  defp assign_runners_provider_body(conn, html) do
+    [body | _rest] =
+      ~r{\A\s*<p>.*?</p>}s
+      |> Regex.replace(html, "", global: false)
+      |> String.split(~r{<h2[^>]*>(?:<a[^>]*></a>)?Sources and review</h2>}, parts: 2)
+
+    {intro, body} =
+      case Regex.run(~r{\A\s*<p>(.*?)</p>(.*)\z}s, body, capture: :all_but_first) do
+        [intro, rest] -> {intro, rest}
+        nil -> {nil, body}
+      end
+
+    conn
+    |> assign(:intro, intro)
+    |> assign(:body, split_code_sections(body))
+  end
+
+  # Lays out each guide section holding a code sample or a list in two
+  # columns: its heading (and, beside code, prose) on the left, the code (with
+  # the paragraph introducing it) or the list and its prose on the right
+  # (styled in css/routes/compute.css). Other sections stay single-column.
+  defp split_code_sections(html) do
+    # Floki drops whitespace-only text between tags, such as the space in
+    # `<strong>…</strong> <a>`, so encode it first to keep it.
+    ~r{>(\s+)<}
+    |> Regex.replace(html, fn _match, space ->
+      ">" <> Enum.map_join(String.to_charlist(space), &"&##{&1};") <> "<"
+    end)
+    |> Floki.parse_fragment!()
+    |> Enum.chunk_while(
+      [],
+      fn
+        {"h2", _, _} = heading, [] -> {:cont, [heading]}
+        {"h2", _, _} = heading, section -> {:cont, Enum.reverse(section), [heading]}
+        node, section -> {:cont, [node | section]}
+      end,
+      fn
+        [] -> {:cont, []}
+        section -> {:cont, Enum.reverse(section), []}
+      end
+    )
+    |> Enum.flat_map(fn section ->
+      case Enum.split_while(section, &(not code_window?(&1))) do
+        {text, []} ->
+          split_list_section(text)
+
+        {before, rest} ->
+          # The paragraph introducing the code ("…point runs-on at a Tuist
+          # profile:") sits above it in the right column.
+          {lead, before} = pop_lead_paragraph(before)
+          {code, after_code} = Enum.split_with(rest, &code_window?/1)
+
+          # Two rows of two columns: the heading beside that lead
+          # paragraph, then the remaining prose beside the code.
+          [
+            {"section", [{"data-part", "split"}],
+             [
+               {"div", [{"data-part", "head"}],
+                [{"div", [{"data-part", "text"}], before}, {"div", [{"data-part", "lead"}], lead}]},
+               {"div", [{"data-part", "body"}],
+                [{"div", [{"data-part", "text"}], after_code}, {"div", [{"data-part", "code-sample"}], code}]}
+             ]}
+          ]
+      end
+    end)
+    |> Floki.raw_html()
+  end
+
+  # A section with a list (such as "How it differs from …") keeps its heading on the left and puts everything else, the list
+  # included, on the right.
+  defp split_list_section([{"h2", _, _} = heading | rest] = section) do
+    if Enum.any?(rest, &match?({tag, _, _} when tag in ["ul", "ol"], &1)) do
+      [
+        {"section", [{"data-part", "split"}],
+         [
+           {"div", [{"data-part", "body"}],
+            [{"div", [{"data-part", "text"}], [heading]}, {"div", [{"data-part", "list"}], rest}]}
+         ]}
+      ]
+    else
+      section
+    end
+  end
+
+  defp split_list_section(section), do: section
+
+  defp pop_lead_paragraph(nodes) do
+    case nodes |> Enum.reverse() |> Enum.drop_while(&is_binary/1) do
+      [{"p", _, _} = lead | earlier] -> {[lead], Enum.reverse(earlier)}
+      _other -> {[], nodes}
+    end
+  end
+
+  defp code_window?({"div", attrs, _}), do: {"class", "code-window"} in attrs
+  defp code_window?(_node), do: false
 
   def assign_default_head_tags(conn, _params) do
     conn

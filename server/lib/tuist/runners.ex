@@ -16,8 +16,8 @@ defmodule Tuist.Runners do
       each pool's Pods + per-Pod ServiceAccounts directly via
       owner refs — no `RunnerAssignment` CRD. Pod terminates →
       reconciler reaps the Pod + SA, then boots a replacement.
-    * **Runner availability is gated by the `:runners` feature
-      flag** (`Tuist.FeatureFlags.runners_enabled?/1`). Independent
+    * **Every account can use runners** on deployments that offer
+      them (`Tuist.Environment.runners_available?/0`). Independent
       Linux and macOS vCPU/RAM budgets protect shared capacity from
       a single account consuming every runner.
     * **Postgres is the workflow_job lifecycle store.** One
@@ -106,7 +106,9 @@ defmodule Tuist.Runners do
 
   alias Tuist.Accounts
   alias Tuist.GitHub.Client, as: GitHubClient
+  alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.AirShare
   alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
@@ -160,6 +162,7 @@ defmodule Tuist.Runners do
   @operator_drain_label "tuist.dev/runner-operator-drain"
   @drain_eligible_label "tuist.dev/drain-eligible"
   @max_claim_attempts_per_dispatch 16
+  @mint_hold_ttl to_timeout(minute: 1)
 
   # Dispatch-time volume affinity. `pick_queued` fetches the K
   # oldest queued jobs; the server hands the polling runner the oldest one
@@ -683,13 +686,19 @@ defmodule Tuist.Runners do
       the last hour (Postgres). Keeps sparse but real bursts warm
       and includes post-job cache and teardown time.
     * `learned_warm_floor` — the burst this fleet's jobs arrive in, or 0
-      when it had no job in the last day (`LearnedWarmFloors`). The
-      controller keeps up to that many runners idle above load, capped per
-      pool by `maxLearnedWarmPoolFloor`.
+      when it had no job in the last day (`LearnedWarmFloors`), capped at
+      the jobs the accounts that ran on it in the last 14 days can still
+      claim under their concurrency limits. The controller keeps up to
+      that many runners idle above load, capped per pool by
+      `maxLearnedWarmPoolFloor`.
+    * `cold_jobs` — how many of this fleet's jobs of the last 14 days
+      arrived with another of its jobs in the 30 s before them, the jobs
+      one warm runner does not cover, or 0 when it had no job in the last
+      day (`LearnedWarmFloors`). The controller funds warm floors on a full
+      fleet most cold jobs first.
     * `hours_with_jobs` — how many hours of the last 14 days had one of
       this fleet's jobs, or 0 when it had no job in the last day
-      (`LearnedWarmFloors`). The controller funds idle pools' floors on a
-      full fleet in this order, most used first.
+      (`LearnedWarmFloors`). Breaks ties between equal `cold_jobs`.
     * `preferred_nodes` — for a macOS fleet, one Node per oldest queued
       job, most imminent first, that holds the custom volumes the job is
       predicted to attach and has cache room for them
@@ -716,12 +725,35 @@ defmodule Tuist.Runners do
         queued: queued,
         withheld: withheld,
         p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
-        learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
+        learned_warm_floor: claimable_learned_warm_floor(fleet_name),
         hours_with_jobs: LearnedWarmFloors.hours_with_jobs(fleet_name),
+        cold_jobs: LearnedWarmFloors.cold_jobs(fleet_name),
         preferred_nodes: preferred_nodes(fleet_name)
       },
       macos_sandbox_warm_signals(fleet_name)
     )
+  end
+
+  # Warm runners beyond what the pool's accounts can claim go unused while
+  # they hold seats: on 2026-11-18 the internal-only 27.0 and 27.2 pools
+  # kept their learned floors while their one account sat at its limit, and
+  # outranked 27.1, whose customer bursts then booted cold. Headroom is
+  # account-wide, so an account using several pools counts in each of them.
+  defp claimable_learned_warm_floor(fleet_name) do
+    with floor when floor > 0 <- LearnedWarmFloors.for_fleet(fleet_name),
+         {:ok, resources} <- Catalog.resources_for_fleet(fleet_name) do
+      claimable =
+        fleet_name
+        |> LearnedWarmFloors.account_ids()
+        |> Concurrency.headroom_jobs_by_account(resources)
+        |> Map.values()
+        |> Enum.sum()
+
+      min(floor, claimable)
+    else
+      0 -> 0
+      {:error, _reason} -> LearnedWarmFloors.for_fleet(fleet_name)
+    end
   end
 
   # A warm macOS sandbox pool runs no job; its usage is the sandbox creates
@@ -777,11 +809,21 @@ defmodule Tuist.Runners do
       case Catalog.resources_for_fleet(fleet_name) do
         {:ok, resources} ->
           headrooms = Concurrency.headroom_jobs_by_account(Map.keys(queued_by_account), resources)
+          air_ids = AirShare.air_account_ids(Map.keys(queued_by_account))
 
-          dispatchable =
-            Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
-              acc + min(count, Map.get(headrooms, account_id, 0))
+          {paid, air} =
+            Enum.reduce(queued_by_account, {0, 0}, fn {account_id, count}, {paid, air} ->
+              jobs = min(count, Map.get(headrooms, account_id, 0))
+              if MapSet.member?(air_ids, account_id), do: {paid, air + jobs}, else: {paid + jobs, air}
             end)
+
+          # Air jobs past the Air fleet share are no more claimable than
+          # jobs past their account's own limit.
+          dispatchable =
+            case air do
+              0 -> paid
+              _ -> paid + capped(air, AirShare.remaining_jobs(resources))
+            end
 
           {dispatchable, raw - dispatchable}
 
@@ -797,6 +839,9 @@ defmodule Tuist.Runners do
 
     {dispatchable, withheld}
   end
+
+  defp capped(count, :unlimited), do: count
+  defp capped(count, remaining), do: min(count, remaining)
 
   @doc """
   Claims the next eligible queued job for the SA's fleet and mints the
@@ -936,14 +981,40 @@ defmodule Tuist.Runners do
   end
 
   defp claim_candidate(%{candidate: candidate, fleet_name: fleet_name} = context) do
-    case candidate_resources(candidate, fleet_name) do
-      {:ok, resources} ->
-        attempt_candidate(context, resources)
-
-      {:error, reason} ->
-        {:error, reason}
+    with nil <- mint_hold(candidate),
+         {:ok, resources} <- candidate_resources(candidate, fleet_name) do
+      attempt_candidate(context, resources)
+    else
+      scope when scope in [:account, :repository] -> retry_claim_and_serve(context, scope)
+      {:error, reason} -> {:error, reason}
     end
   end
+
+  # A mint that failed for the account or repository (the GitHub App lacks a
+  # permission, is uninstalled, the repository runner endpoint is missing)
+  # fails the same way on the next poll. Without a hold, each idle runner's
+  # poll claims the job, mints, fails and re-queues it, about once a second
+  # for as long as the job stays queued. The hold skips that account or
+  # repository before the claim for `@mint_hold_ttl`, so the job stays queued
+  # and is retried about once a minute per server node, and dispatches on its
+  # own once the customer fixes the installation. It is node-local Cachex on
+  # purpose: losing it in a deploy costs one failed mint per node.
+  defp mint_hold(candidate) do
+    cond do
+      KeyValueStore.get(mint_hold_key(candidate, :account)) -> :account
+      KeyValueStore.get(mint_hold_key(candidate, :repository)) -> :repository
+      true -> nil
+    end
+  end
+
+  defp hold_mint(candidate, scope) do
+    KeyValueStore.put(mint_hold_key(candidate, scope), true, ttl: @mint_hold_ttl)
+  end
+
+  defp mint_hold_key(candidate, :account), do: [__MODULE__, :mint_hold, candidate.account_id]
+
+  defp mint_hold_key(candidate, :repository),
+    do: [__MODULE__, :mint_hold, candidate.account_id, Map.get(candidate, :repository)]
 
   defp attempt_candidate(%{candidate: candidate, fleet_name: fleet_name, sa_name: sa_name} = context, resources) do
     # The machine shape the claim was admitted under rides along to
@@ -1007,6 +1078,19 @@ defmodule Tuist.Runners do
     retry_claim_and_serve(context, :account)
   end
 
+  defp handle_claim_attempt({:error, {:air_fleet_share_reached, details}}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: Air accounts hold their fleet share; trying next account",
+      fleet: fleet_name,
+      sa: sa_name,
+      account_id: candidate.account_id,
+      reason: inspect({:air_fleet_share_reached, details})
+    )
+
+    retry_claim_and_serve(context, :account)
+  end
+
   defp handle_claim_attempt({:error, :pod_in_use}, %{fleet_name: fleet_name, sa_name: sa_name}) do
     Logger.debug("runners: claim attempt declined",
       reason: :pod_in_use,
@@ -1034,6 +1118,7 @@ defmodule Tuist.Runners do
               :bitrise_mint_failed,
               :api_job_mint_failed
             ] and exclusion_scope in [:account, :repository, :workflow_job] do
+    if exclusion_scope in [:account, :repository], do: hold_mint(context.candidate, exclusion_scope)
     retry_claim_and_serve(context, exclusion_scope)
   end
 
@@ -1155,37 +1240,34 @@ defmodule Tuist.Runners do
   # pick the one to hand this node: the oldest candidate whose master this node
   # likely holds, unless the head has waited past the age tolerance, else the
   # head. With no node identity or no residency, this is exactly today's
-  # "oldest queued job". A runner at a rack site first passes over, for a short
-  # while, the jobs whose runner cache is warm at another site
-  # (`Sites.prefer_cache_site/3`).
+  # "oldest queued job".
   defp pick_affine_candidate(
          fleet_name,
-         %{node_name: node_name, site: site},
+         %{node_name: node_name},
          excluded_account_ids,
          excluded_repositories,
          excluded_workflow_job_ids
        ) do
     result =
-      with {:ok, candidates} <-
-             Jobs.pick_queued_top_k(
-               fleet_name,
-               excluded_account_ids,
-               excluded_repositories,
-               excluded_workflow_job_ids,
-               volume_affinity_top_k()
-             ),
-           [_ | _] = candidates <- Sites.prefer_cache_site(candidates, site) do
-        if volume_affinity_enabled?(fleet_name) do
-          select_affine_candidate(candidates, fleet_name, node_name)
-        else
-          # No volumes on this fleet: hand out the plain oldest-queued head, no
-          # affinity scoring or reordering. A nil outcome means "affinity never
-          # ran here", which is what suppresses the metric for this fleet.
-          {:ok, List.first(candidates), nil}
-        end
-      else
-        {:error, :empty} -> {:error, :empty}
-        [] -> {:error, :empty}
+      case Jobs.pick_queued_top_k(
+             fleet_name,
+             excluded_account_ids,
+             excluded_repositories,
+             excluded_workflow_job_ids,
+             volume_affinity_top_k()
+           ) do
+        {:ok, candidates} ->
+          if volume_affinity_enabled?(fleet_name) do
+            select_affine_candidate(candidates, fleet_name, node_name)
+          else
+            # No volumes on this fleet: hand out the plain oldest-queued head, no
+            # affinity scoring or reordering. A nil outcome means "affinity never
+            # ran here", which is what suppresses the metric for this fleet.
+            {:ok, List.first(candidates), nil}
+          end
+
+        {:error, :empty} ->
+          {:error, :empty}
       end
 
     note_poll(fleet_name, node_name, result)

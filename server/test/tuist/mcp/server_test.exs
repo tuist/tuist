@@ -64,6 +64,9 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_gradle_build_step" in tool_names
       assert "list_bazel_build_steps" in tool_names
       assert "get_bazel_build_step" in tool_names
+      assert "list_bazel_remote_actions" in tool_names
+      assert "get_bazel_remote_action" in tool_names
+      assert "get_bazel_remote_action_log" in tool_names
       assert "list_xcode_build_steps" in tool_names
       assert "get_xcode_build_step" in tool_names
       assert "get_build_trace" in tool_names
@@ -123,7 +126,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.69.0"
+      assert server.version == "1.84.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."

@@ -613,16 +613,20 @@ defmodule TuistEx.Analytics.Coverage do
   end
 
   @doc """
-  Puts the block into the run's payload: inline when it compresses to no more
-  than the server's threshold, and otherwise uploaded first, the run naming
-  the upload's key.
+  Puts the block into the run's payload: inline when its uncompressed size is
+  within the server's threshold, and otherwise uploaded first, compressed, the
+  run naming the upload's key. The server holds an inline run to its body
+  limit after inflating it, and coverage compresses tenfold or more, so the
+  decision reads the uncompressed size.
   """
   def attach(payload, coverage, options) do
-    compressed = deflate(Enum.map_join(coverage.files, "\n", &JSON.encode!/1))
+    ndjson = Enum.map_join(coverage.files, "\n", &JSON.encode!/1)
 
-    if byte_size(compressed) <= inline_threshold(options) do
+    if byte_size(ndjson) <= inline_threshold(options) do
       {:ok, Map.put(payload, :coverage, coverage)}
     else
+      compressed = deflate(ndjson)
+
       with {:ok, %{"storage_key" => key, "upload_url" => url}} <-
              HTTP.project_request(
                :post,

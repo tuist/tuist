@@ -207,6 +207,21 @@ let project = Project(
                 .external(name: "Mockable"),
             ]
         ),
+        // Renders every SwiftUI preview in the iOS app and uploads it to Tuist Snapshots in CI.
+        .target(
+            name: "TuistAppSnapshotTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.app-snapshot-tests",
+            deploymentTargets: .iOS("18.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistAppSnapshotTests/**"],
+            dependencies: [
+                .target(name: "TuistApp"),
+                .external(name: "TuistSnapshotsTesting"),
+                .external(name: "TestCoverageAttribution"),
+            ]
+        ),
         .target(
             name: "TuistNavigation",
             destinations: [.mac, .iPhone],
@@ -379,6 +394,11 @@ let project = Project(
             name: "TuistPreviews",
             buildAction: .buildAction(targets: [.target("TuistPreviews")]),
             testAction: .targets([.testableTarget(target: "TuistPreviewsTests")])
+        ),
+        .scheme(
+            name: "TuistAppSnapshots",
+            buildAction: .buildAction(targets: [.target("TuistApp")]),
+            testAction: .targets([.testableTarget(target: "TuistAppSnapshotTests")])
         ),
         .scheme(
             name: "TuistNotifications",

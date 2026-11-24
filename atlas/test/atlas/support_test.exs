@@ -13,7 +13,6 @@ defmodule Atlas.SupportTest do
   alias Atlas.Support.Message
   alias Atlas.Support.Workers.DeliverChatEmailVerification
   alias Atlas.Support.Workers.DeliverReply
-  alias Atlas.Support.Workers.PostNotification
   alias Atlas.SupportInbox.Workers.ClassifyInbound
   alias Atlas.Users.User
 
@@ -34,8 +33,6 @@ defmodule Atlas.SupportTest do
       assert message.inbox_email_id == inbox_email.id
       assert message.message_id == "account-#{suffix}@customer-#{suffix}.example"
 
-      # Ingest now enqueues the classifier first; PostNotification is
-      # chained by ClassifyInbound after the decision is persisted.
       assert_enqueued(
         worker: ClassifyInbound,
         args: %{"thread_id" => thread.id, "message_id" => message.id}
@@ -177,11 +174,6 @@ defmodule Atlas.SupportTest do
 
       assert message.kind == "chat"
       assert message.body =~ "the branch was ignored"
-
-      assert_enqueued(
-        worker: PostNotification,
-        args: %{"event" => "agent_feedback_received", "thread_id" => thread.id, "message_id" => message.id}
-      )
     end
 
     test "links the thread to the account the agent reported from, ahead of the email domain" do
@@ -287,11 +279,6 @@ defmodule Atlas.SupportTest do
                "source_url" => "https://tuist.dev/docs/cache"
              }
 
-      assert_enqueued(
-        worker: PostNotification,
-        args: %{"event" => "chat_received", "thread_id" => thread.id, "message_id" => message.id}
-      )
-
       assert_enqueued(worker: DeliverChatEmailVerification, args: %{"thread_id" => thread.id})
 
       actor = insert_user!()
@@ -395,26 +382,11 @@ defmodule Atlas.SupportTest do
       assert {:ok, note} = Support.add_note(updated_thread, %{"body" => "Customer is on a release deadline."}, actor)
       assert note.kind == "note"
 
-      assert_enqueued(
-        worker: PostNotification,
-        args: %{"event" => "note_added", "thread_id" => thread.id, "message_id" => note.id}
-      )
-
       assert {:ok, assigned_thread} = Support.assign(updated_thread, actor.id, actor)
       assert assigned_thread.owner_id == actor.id
 
-      assert_enqueued(
-        worker: PostNotification,
-        args: %{"event" => "assigned", "thread_id" => thread.id, "assignee_id" => actor.id}
-      )
-
       assert {:ok, resolved_thread} = Support.set_status(assigned_thread, "resolved", actor)
       assert resolved_thread.status == "resolved"
-
-      assert_enqueued(
-        worker: PostNotification,
-        args: %{"event" => "status_changed", "thread_id" => thread.id, "status" => "resolved"}
-      )
     end
 
     test "sends a queued reply at most once" do
@@ -432,11 +404,6 @@ defmodule Atlas.SupportTest do
       delivered_message = Repo.get!(Message, message.id)
       assert delivered_message.delivery_status == "delivered"
       assert delivered_message.provider_message_id == "provider-#{suffix}"
-
-      assert_enqueued(
-        worker: PostNotification,
-        args: %{"event" => "reply_delivered", "thread_id" => thread.id, "message_id" => message.id}
-      )
     end
 
     test "keeps replies in an agent-feedback conversation when the provider replaces Message-ID" do

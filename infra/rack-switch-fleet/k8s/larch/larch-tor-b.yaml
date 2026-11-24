@@ -9,12 +9,13 @@ spec:
   site: larch
   role: tor
   model: s5860-24xmg
-  managedBy: standalone
+  mac: 64:9d:99:d9:81:0b
+  managedBy: controller
   managementAddress: 192.168.61.6
   applyOrder: 1
   applyNote: Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.
   credentialItem: rack-switch-controller picos admin
-  configRevision: cb74d087a1c54771
+  configRevision: f659540c07895cd7
   config:
     hostname: larch-tor-b
     managementVlan: 20
@@ -42,27 +43,27 @@ spec:
       - port: 1
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 2
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 3
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 4
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 5
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 6
         description: ""
@@ -142,7 +143,7 @@ spec:
       - port: 21
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 20
         taggedVlans: []
       - port: 22
         description: ""
@@ -185,7 +186,7 @@ spec:
       - port: 28
         description: ""
         spanningTree: true
-        nativeVlan: 20
+        nativeVlan: 1
         taggedVlans: []
       - port: 29
         description: ""
@@ -216,6 +217,30 @@ spec:
         nativeVlan: 1
         taggedVlans: []
   ports:
+    - port: 1
+      purpose: data
+      peer: larch-runner-b01
+      detail: runner/en0
+    - port: 2
+      purpose: data
+      peer: larch-runner-b02
+      detail: runner/en0
+    - port: 3
+      purpose: data
+      peer: larch-runner-b03
+      detail: runner/en0
+    - port: 4
+      purpose: data
+      peer: larch-runner-b04
+      detail: runner/en0
+    - port: 5
+      purpose: data
+      peer: larch-runner-b05
+      detail: runner/en0
+    - port: 21
+      purpose: management
+      peer: larch-edge-a
+      detail: edge/bmc
     - port: 22
       purpose: management
       peer: larch-store-a
@@ -240,10 +265,6 @@ spec:
       purpose: wan
       peer: spare
       detail: fibre
-    - port: 28
-      purpose: management
-      peer: larch-edge-a
-      detail: edge/bmc
     - port: 29
       purpose: data
       peer: larch-edge-a

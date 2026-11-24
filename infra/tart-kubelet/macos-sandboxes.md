@@ -11,6 +11,9 @@ the OS by environment: connect a `claude_code` environment with
 `platform: "darwin"` (`infra/claude-code-runners/README.md`). Defaults are template `macos`, 8 vCPU, 8 GiB RAM and a
 10 GB workspace. The other native shapes are 8 vCPU with 16 or 24 GiB RAM.
 The workspace is `/Users/runner/work`; Linux requests retain their existing defaults.
+The image preinstalls the Tuist CLI and carries a generated guide for agents at
+`/opt/tuist/agent-guide.md` ("Tuist CLI and the agent guide" in
+`infra/runner-image/AGENTS.md`).
 
 ## Deployment and enablement
 
@@ -103,6 +106,12 @@ sandbox vCPU, memory and disk limits bound how much of it that account can take.
 The server reserves native CPU, RAM and one VM slot in a PostgreSQL transaction
 under a per-node advisory lock. It binds ownership to the Kubernetes Node UID;
 reusing a node name cannot move a checkpoint to a replacement machine.
+The host's execution reservation Pod is named after the sandbox
+(`macos-sbx-<id>`), so a restore the server passes from one refusing Mac to the
+next can find it held by another Mac. Releasing it is then a no-op on this Mac;
+refusing would strand the record, whose every `Hold` fails the CI launch guard.
+A retried restore matches its journal by the archive's checksum and size, not
+its presigned URL, which the server signs anew for every attempt.
 Account sandbox concurrency quotas also apply to native creation and resume,
 including resident resume. Pausing releases the account's active concurrency
 quota; a retained VM still holds its full host reservation against CI capacity.
@@ -123,6 +132,9 @@ gates only new capacity, and CI demand arriving later never takes a running
 VM's place.
 An explicit host capacity refusal returns HTTP 503 and leaves a saved environment
 paused for retry; its server charge stays conservative until the next host report.
+A paused VM resumes only on its own host, so the refusal (`{:host_busy, why}`)
+says why that host can't take it: CI holds its grant, it has no slot left, its
+grant is stale, or it is disconnected or replaced.
 A create the host refuses for capacity moves on to the next host.
 Uncertain cleanup or fencing errors remain failures, not capacity retries.
 The kubelet refreshes host memory and process pressure on each heartbeat. macOS
@@ -186,6 +198,12 @@ its reservation. No capacity is released merely because a save was requested.
 A VM the runtime proves lost (its process gone with no checkpoint, or its VM
 missing) holds no CPU or memory and never cold-boots, so it releases its
 reservation once and stays in `error`, with its disk, until the server deletes it.
+A create that failed never ran, so the server deletes it from the host as soon
+as the create fails, or when the host next reports it in `error`, and keeps its
+row in `error` without a node. The host also deletes a create or claim still
+journaled as failed by itself; a report that no longer lists an errored VM
+clears the row's `resident`, so it stops holding CPU, memory and a slot
+(`server/lib/tuist/sandboxes/AGENTS.md`, Invariants).
 Node hello/report frames always include the resident boolean, including false
 after eviction, so the server releases its reservation after the host's fence.
 
@@ -226,7 +244,7 @@ parses the pool name): `hours_with_jobs` ranks it against idle CI pools by the
 hours of the last 14 days with a create, and a create in the last hour marks it
 in use, so its floor is funded with those of the CI pools running jobs. Queued
 CI jobs still take its slot. Production
-keeps one 8 GiB VM on the BER1 rack: a cold create there took 17 to 19 s on a
+keeps one 8 GiB VM on the alder rack: a cold create there took 17 to 19 s on a
 host with room, and a claim skips its clone and boot, leaving the workspace
 volume (`macOS sandbox boot phases` and `claim phases` in the kubelet log time
 each step). 8 GiB is the default of Claude Code, Amp Orbs and the tuist-mac
@@ -307,6 +325,73 @@ deletes retry after restart. The existing server 14-day cleanup applies; orphan
 VMs are deleted on reconnect when their server row no longer exists. Runtime/tool
 versions and template caches are deliberately retained for compatibility; reclaim
 those only after verifying no journal or checkpoint references them.
+
+## Disk snapshots
+
+Amp Orb project snapshots (`ORB_SNAPSHOT_ID`) are saved and booted on the host
+(`internal/macosandbox/snapshot.go`). A snapshot is a stopped Tart VM named
+`sbs-<snapshot id>` in the sandbox store, so a create clones it like the template.
+
+- Every pause runs `/bin/sync` in the guest first and journals `disks_synced`
+  (see archives); a resume clears it. A failed sync still pauses.
+- `save_disks {sandbox_id, snapshot_id}` needs a paused sandbox with synced
+  disks. It evicts a resident VM first (the checkpoint and fence free its slot),
+  then APFS-clones `config.json`, `nvram.bin` and the stacked VM's
+  `manifest.json` and private `overlay.asif` (base layers stay shared in the
+  content store) into `snapshots.tmp/<id>`, writes `disk-snapshot.json` and
+  renames it to `vms/sbs-<id>`. A VM with a standalone `disk.img` is refused:
+  that disk is the whole image, which could never be archived or copied, so
+  only its host could boot from it. `state.vzvmsave` and
+  the runtime's control files stay behind, so a clone cold boots. The workspace
+  is an APFS volume inside the root disk, so it comes along with its quota.
+  It answers `bytes`, the overlay's allocated size. Saving an existing ID
+  answers it unchanged. Startup empties `snapshots.tmp`.
+- `delete_disks {snapshot_id}` removes it; an absent one succeeds.
+- `create {from_disk_snapshot}` clones `sbs-<id>`, runs the snapshot's image tag,
+  sets shape and identity, boots, then mounts the existing `TuistSandboxWorkspace`
+  volume at `/Users/runner/work` instead of adding one. A host without the
+  snapshot answers `disk snapshot not found` before reserving anything. Warm VMs
+  are never used for these creates.
+- `hello` and `report` list `disk_snapshots` with their `bytes`, and
+  `disk.snapshots_bytes` sums them. `diskRoom` and the server's
+  `MacosCapacity.disk_room?` count them against half the filesystem; the server
+  does not reserve the Linux ceiling for them, because only the host can measure
+  what an overlay holds.
+
+Placement (`Sandboxes.place_and_create/4`, darwin clause): a create from a
+snapshot goes through `MacosCapacity.place/2` restricted to the hosts holding it.
+When none can take it or the clone fails, an archived snapshot is restored on
+another host like an archived session (`create {from_archive, template_tag}`,
+placed by `place_macos_restore/3`); without an archive, or when no host can restore
+it, the template boots on any host at once, since waiting for the snapshot's
+host could take as long as a CI job.
+
+Claude Code repository snapshots (`Tuist.Sandboxes.ClaudeCodeSnapshots`) are
+built as on Linux: a builder VM with the build's id clones the repository and
+runs the environment's setup script as `runner` for up to an hour, then pauses
+with synced disks and is saved like an Orb. A builder serves no session, so
+`MacosCapacity` places it only where it leaves a granted slot free: no other VM
+on the host and a grant of two slots. While CI or sessions hold a slot it waits
+and retries every minute, and once it runs, CI waits for it like any VM.
+
+Replication follows Linux snapshot copies and reuses the session archive above.
+While the archive tier is on, a ready snapshot is uploaded (`archive_disks`) as
+an evicted session is (`uploadDisk`): `config.json`, `nvram.bin` and
+`overlay.asif`, sized by the snapshot's measured `disk_bytes`. A popular
+snapshot (`DiskSnapshots.copy/1`) is then copied
+(`copy_disks {..., template_tag, bytes}`) onto hosts picked by rendezvous
+hashing of its lineage among those serving its template and restoring archives
+(`MacosCapacity.snapshot_hosts/1`). A copy is a restore that stays stopped
+(`cloneArchived`): the host clones the image the snapshot was saved from into
+`vms/sbs-<id>`, pulling that digest first when its template moved on, puts the
+archived files over the clone's and writes `disk-snapshot.json` last, so a
+partial copy is never reported or cloned; a failed one is removed, and startup
+removes `sbs-*` VMs without metadata. The server admits a copy against the
+host's budget with the measured bytes and the copies still downloading there
+(`MacosCapacity.reserve_snapshot_copy/3`); the host checks again first.
+Qualification on a rack host (`TestAppleRuntimeAcceptance`) is still owed:
+clone of a saved or copied snapshot, cold boot and the workspace remount have
+only been exercised with fakes and, for the remount commands, in a guest.
 
 ## Cached checkouts
 

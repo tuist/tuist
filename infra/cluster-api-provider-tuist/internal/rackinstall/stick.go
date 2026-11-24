@@ -12,6 +12,17 @@ const StickMarker = "tuist-install-stick"
 
 var stickServerPattern = regexp.MustCompile(`^http://[A-Za-z0-9.-]+(:[0-9]+)?$`)
 
+// ForcedLinksPath lists, a MAC a line, the ports the installer's
+// early-command found linked only at a forced 25G with FEC off, a 10G DAC in
+// an SFP28 port that runs at 25G alone (a PicOS S5860's ports 29 to 32). The
+// install's late-command keeps the setting for them on the installed system.
+// It is the early-command's seed path in production and a suffix. Only
+// bnxt_en ports are tried: the ASUS RS501A's Broadcom N225P, the racks' only
+// SFP28 card.
+const ForcedLinksPath = "/run/tuist-user-data" + forcedLinksSuffix
+
+const forcedLinksSuffix = ".forced-25g"
+
 type stickPaths struct {
 	// Medium is the live system's boot medium, which a preinstalled
 	// installer partition carries rack-node on.
@@ -170,6 +181,24 @@ static_wan() {
     done
   done
 }
+force_25g() {
+  for nic in ` + p.Sys + `/class/net/*; do
+    [ -e "$nic/device/driver" ] && [ "$(cat "$nic/carrier" 2>/dev/null)" != 1 ] || continue
+    [ "$(basename "$(readlink "$nic/device/driver")")" = bnxt_en ] || continue
+    addr=$(cat "$nic/address") dev=$(basename "$nic")
+    ! grep -qx "$addr" ` + p.Seed + forcedLinksSuffix + `.tried 2>/dev/null || continue
+    echo "$addr" >>` + p.Seed + forcedLinksSuffix + `.tried
+    ethtool -s "$dev" autoneg off speed 25000 duplex full 2>/dev/null && ethtool --set-fec "$dev" encoding off 2>/dev/null
+    sleep 8
+    if [ "$(cat "$nic/carrier" 2>/dev/null)" = 1 ]; then
+      echo "$addr" >>` + p.Seed + forcedLinksSuffix + `
+      say "$dev linked only at 25G with FEC off; the install keeps that for $addr"
+    else
+      ethtool -s "$dev" autoneg on 2>/dev/null
+      ethtool --set-fec "$dev" encoding auto 2>/dev/null
+    fi
+  done
+}
 resident_layout() {
   grep -q '` + InstallerRestPlaceholder + `' "$1" || return 0
   inst=$(readlink -f ` + p.Dev + `/disk/by-label/` + InstallerLabel + `)
@@ -188,6 +217,7 @@ resident_layout() {
 }
 started=$(uptime) said=""
 while :; do
+  [ $(($(uptime) - started)) -lt 20 ] || force_25g
   static_wan
   answered=0 code=1
   macs=$(ip -o link show | awk '{for (i = 1; i < NF; i++) if ($i == "link/ether") print $(i + 1)}' | tr 'A-F:' 'a-f-')

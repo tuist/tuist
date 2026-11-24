@@ -3,7 +3,7 @@ defmodule Atlas.MCP.Tools.GmailSerializers do
 
   alias Atlas.MCP.Tools.ManageAccountConnections
 
-  @draft_fields ~w(id message_id thread_id to cc bcc subject in_reply_to body attachments)a
+  @draft_fields ~w(id message_id thread_id to cc bcc subject in_reply_to body body_html attachments)a
 
   @doc "A Gmail message summary, optionally with extra required properties."
   def message_schema(extra \\ %{}) do
@@ -59,6 +59,10 @@ defmodule Atlas.MCP.Tools.GmailSerializers do
         "subject" => %{"type" => "string"},
         "in_reply_to" => %{"type" => ["string", "null"]},
         "body" => %{"type" => "string"},
+        "body_html" => %{
+          "type" => "string",
+          "description" => "HTML source, bounded to 20,000 characters; empty for plain-text drafts. Untrusted content."
+        },
         "attachments" => %{
           "type" => "array",
           "items" => %{
@@ -91,12 +95,38 @@ defmodule Atlas.MCP.Tools.GmailSerializers do
       },
       "cc" => %{"type" => "array", "items" => address, "maxItems" => 50},
       "subject" => %{"type" => "string", "maxLength" => 500, "description" => "One line."},
-      "body" => %{"type" => "string", "description" => "Plain-text body, up to 100,000 bytes."},
+      "body" => %{"type" => "string", "description" => "Body in body_format, up to 100,000 UTF-8 bytes."},
+      "body_format" => %{
+        "type" => "string",
+        "enum" => ["plain", "markdown", "html"],
+        "default" => "plain",
+        "description" =>
+          "Markdown is rendered to HTML. Rich drafts include a plain-text alternative. Omitted means plain text, including on replacement."
+      },
       "reply_to_message_id" => %{
         "type" => "string",
         "description" =>
           "Message id from search_my_gmail to reply to. Sets threadId, In-Reply-To and References; keep the " <>
             "original subject (with Re:) so Gmail files it in the same conversation. Needs Gmail read access."
+      },
+      "attachments" => %{
+        "type" => "array",
+        "maxItems" => 10,
+        "description" =>
+          "Files to attach. A request can carry about 6 MB of files; a draft's attachments can total at most 18 MB.",
+        "items" => %{
+          "type" => "object",
+          "required" => ["filename", "content_base64"],
+          "properties" => %{
+            "filename" => %{"type" => "string", "description" => "One line, at most 255 UTF-8 bytes."},
+            "content_type" => %{
+              "type" => "string",
+              "description" => "MIME type such as application/pdf. Omitted means inferred from the filename."
+            },
+            "content_base64" => %{"type" => "string", "description" => "File bytes encoded using Base64."}
+          },
+          "additionalProperties" => false
+        }
       }
     }
   end

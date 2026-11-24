@@ -1,7 +1,7 @@
 defmodule Tuist.Accounts.AISubscriptions do
   @moduledoc """
   Personal Claude and ChatGPT subscriptions a user connects for AI features
-  (gated by `Tuist.FeatureFlags.guild_enabled?/1`).
+  (gated by `Tuist.FeatureFlags.luft_enabled?/1`).
 
   Claude connects with the subscription token `claude setup-token` prints.
   ChatGPT connects through OpenAI's device authorization

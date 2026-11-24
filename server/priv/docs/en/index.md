@@ -1,29 +1,29 @@
 ---
 {
   "title": "What is Tuist?",
-  "description": "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
+  "description": "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Struo support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
 }
 ---
 
 # A build platform for teams and their coding agents
 
-**Tuist is a build platform for engineering teams and their coding agents.** It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. It works with the build systems you already use instead of replacing them. Available features depend on your toolchain: Rust projects get Cargo build and test insights, including doctests, flaky test detection, and experimental compilation caching. Once connects natively for shared caching, build and test insights, sharding, and supported application previews.
+**Tuist is a build platform for engineering teams and their coding agents.** It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Struo support is in canary. It works with the build systems you already use instead of replacing them. Available features depend on your toolchain: Rust projects get Cargo build and test insights, including doctests, flaky test detection, and experimental compilation caching. Struo connects natively for shared caching, build and test insights, sharding, and supported application previews.
 
-Follow one of the <.localized_link href="/guides/get-started">Get Started paths</.localized_link> for your build system. Once connects directly without the Tuist CLI; other paths explain which Tuist tooling to install.
+Follow one of the <.localized_link href="/guides/get-started">Get Started paths</.localized_link> for your build system. Struo connects directly without the Tuist CLI; other paths explain which Tuist tooling to install.
 
 <br/>
 
 <.home_cards>
   <.home_card
     title="Cache"
-    details="Share build outputs across your team and CI. Works with Xcode's compilation cache, Tuist's module cache, Gradle's build cache, Bazel's remote cache, Elixir's dependency cache, Rust's experimental compilation cache, and Once's shared action cache."
-    supported_for="apple,gradle,bazel,elixir,rust,once"
+    details="Share build outputs across your team and CI. Works with Xcode's compilation cache, Tuist's module cache, Gradle's build cache, Bazel's remote cache, Elixir's dependency cache, Rust's experimental compilation cache, and Struo's shared action cache."
+    supported_for="apple,gradle,bazel,elixir,rust,struo"
     link="/guides/features/cache"
 />
   <.home_card
     title="Build & test insights"
-    details="Track build and test duration, failures, flakiness, and regressions across Xcode, Gradle, Bazel, Elixir, Rust, and Once projects."
-    supported_for="apple,gradle,bazel,elixir,rust,once"
+    details="Track build and test duration, failures, flakiness, and regressions across Xcode, Gradle, Bazel, Elixir, Rust, and Struo projects."
+    supported_for="apple,gradle,bazel,elixir,rust,struo"
     link="/guides/features/build-insights"
 />
   <.home_card

@@ -260,7 +260,7 @@
               align-items: center;
               box-sizing: border-box;
               border: 1px solid var(--noora-purple-400);
-              background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+              background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
               color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
 
               & > [data-part="value"] {
@@ -426,7 +426,7 @@
            the cached-box recipe (solid tints in light mode, alpha/deep
            tints in dark). */
         & > [data-part="illustration"][data-illustration="observability"] {
-          --observability-local: light-dark(var(--noora-purple-100), var(--noora-alpha-purple));
+          --observability-local: light-dark(var(--noora-purple-100), var(--noora-alpha-purple-32));
           --observability-remote: light-dark(var(--noora-purple-200), var(--noora-purple-700));
           --observability-uploaded: light-dark(var(--noora-purple-400), var(--noora-purple-500));
           position: relative;
@@ -446,7 +446,7 @@
 
             & [data-part="panel"] {
               box-sizing: border-box;
-              box-shadow: var(--noora-border-light-default);
+              box-shadow: var(--noora-border-small-default);
               background: var(--noora-surface-background-primary);
               padding: var(--noora-spacing-6) var(--noora-spacing-7);
 
@@ -543,7 +543,7 @@
                 flex-direction: column;
                 gap: var(--noora-spacing-3);
                 box-sizing: border-box;
-                box-shadow: var(--noora-border-light-default);
+                box-shadow: var(--noora-border-small-default);
                 background: var(--noora-surface-background-primary);
                 padding: var(--noora-spacing-5) var(--noora-spacing-6);
                 min-width: 0;
@@ -662,7 +662,7 @@
               transform 0.45s var(--ease-out-cubic),
               box-shadow 0.3s ease;
             box-sizing: border-box;
-            box-shadow: var(--noora-border-light-default);
+            box-shadow: var(--noora-border-small-default);
             background: var(--noora-surface-background-primary);
             padding: var(--noora-spacing-6) var(--noora-spacing-7);
             width: 500px;
@@ -707,7 +707,7 @@
             &:hover {
               box-shadow:
                 0 0 0 1px var(--noora-purple-400),
-                0 0 28px 0 var(--noora-alpha-purple);
+                0 0 28px 0 var(--noora-alpha-purple-32);
             }
           }
 

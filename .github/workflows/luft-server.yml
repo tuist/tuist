@@ -1,0 +1,109 @@
+name: Luft Server
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - luft-server/**
+      - condukt/**
+      - tuist_ex/**
+      - .github/workflows/luft-server.yml
+  push:
+    branches:
+      - main
+    paths:
+      - luft-server/**
+      - condukt/**
+      - tuist_ex/**
+      - .github/workflows/luft-server.yml
+  merge_group: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: luft-server-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_CEILING_PATHS: ${{ github.workspace }}
+  CONDUKT_MICROSANDBOX_DISABLE: 1
+  CONDUKT_BASHKIT_DISABLE: 1
+
+defaults:
+  run:
+    working-directory: luft-server
+
+jobs:
+  lint:
+    name: Format and Credo
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            luft-server/deps
+            luft-server/_build
+          key: luft-server-mix-${{ hashFiles('luft-server/mix.lock') }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "erlang elixir"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: luft-server
+      - run: mix deps.get
+      - run: mix format --check-formatted
+      - run: mix compile --warnings-as-errors
+      - run: mix credo
+
+  test:
+    name: Test
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      # tuist_ex exchanges the job's OIDC token to report to tuist/luft-server.
+      id-token: write
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: luft_server_test
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            luft-server/deps
+            luft-server/_build
+          key: luft-server-mix-test-${{ hashFiles('luft-server/mix.lock') }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "erlang elixir"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: luft-server
+      - run: mix deps.get
+      # Forks have no OIDC token; reporting is skipped and never fails the run.
+      - name: Test (reported to tuist/luft-server)
+        run: mix do ecto.create --quiet + ecto.migrate --quiet + tuist.test --warnings-as-errors

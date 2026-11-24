@@ -70,7 +70,7 @@
         }
       }
     ],
-    "execErrState": "Error",
+    "execErrState": "KeepLast",
     "folderUID": "df5dn1g4rckxsf",
     "for": "15m",
     "isPaused": false,
@@ -157,7 +157,7 @@
         }
       }
     ],
-    "execErrState": "Error",
+    "execErrState": "KeepLast",
     "folderUID": "df5dn1g4rckxsf",
     "for": "5m",
     "isPaused": false,

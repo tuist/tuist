@@ -340,6 +340,11 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 				}
 			}
 		}
+		if tartRuntime, ok := m.Runtime.(*TartRuntime); ok {
+			if err = tartRuntime.clearSnapshotStaging(); err != nil {
+				return err
+			}
+		}
 		// Recreate reservations from durable local ownership before admitting CI,
 		// including errors whose runtime state remains uncertain.
 		for _, r := range m.records {
@@ -413,11 +418,13 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			}
 		}
 		// A runtime without a store reports no disk budget, which the server does not budget.
-		disk := func() protocol.DiskReport {
+		disk := func(snapshots []protocol.DiskSnapshotInfo) protocol.DiskReport {
 			if tartRuntime == nil {
 				return protocol.DiskReport{}
 			}
-			return diskReport(tartRuntime.Client.HomeDir)
+			report := diskReport(tartRuntime.Client.HomeDir)
+			report.SnapshotsBytes = snapshotBytes(snapshots)
+			return report
 		}
 		rootfs := func() int64 {
 			if tartRuntime == nil {
@@ -440,10 +447,12 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		capacity := protocol.Capacity{CPUs: int(node.Status.Allocatable.Cpu().Value()), MemoryBytes: uint64(node.Status.Allocatable.Memory().Value())}
 		client := server.New(server.Config{URL: cfg.URL, NodeName: s.Node, Token: func(ctx context.Context) (string, error) { return minter.Mint(ctx, control) }, ReportInterval: 5 * time.Second,
 			Hello: func() protocol.Hello {
-				return protocol.Hello{Platform: "darwin", Archives: true, Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Templates: templates(), Sandboxes: m.Snapshot()}
+				snapshots := m.DiskSnapshots()
+				return protocol.Hello{Platform: "darwin", Archives: true, Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(snapshots), Templates: templates(), Sandboxes: m.Snapshot(), DiskSnapshots: snapshots}
 			},
 			Report: func() protocol.Report {
-				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Sandboxes: m.Snapshot(), Templates: templates()}
+				snapshots := m.DiskSnapshots()
+				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(snapshots), Sandboxes: m.Snapshot(), Templates: templates(), DiskSnapshots: snapshots}
 			},
 			Handler: m.Dispatch})
 		m.Gate.Lock()
@@ -560,14 +569,18 @@ func (s *Service) LaunchGuard(ctx context.Context, _ string) (func(), error) {
 func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(protocol.Stream)) protocol.Result {
 	var args struct {
 		protocol.CreateArgs
-		Env       map[string]string       `json:"env"`
-		Cmd       []string                `json:"cmd"`
-		Cwd       string                  `json:"cwd"`
-		TimeoutMs int64                   `json:"timeout_ms"`
-		NodeUID   string                  `json:"node_uid"`
-		WorkID    string                  `json:"work_id"`
-		HoldMs    int64                   `json:"hold_ms"`
-		Checkout  *protocol.CheckoutGrant `json:"checkout"`
+		Env        map[string]string       `json:"env"`
+		Cmd        []string                `json:"cmd"`
+		Cwd        string                  `json:"cwd"`
+		TimeoutMs  int64                   `json:"timeout_ms"`
+		NodeUID    string                  `json:"node_uid"`
+		WorkID     string                  `json:"work_id"`
+		HoldMs     int64                   `json:"hold_ms"`
+		Checkout   *protocol.CheckoutGrant `json:"checkout"`
+		SnapshotID string                  `json:"snapshot_id"`
+		PartSize   int64                   `json:"part_size"`
+		PartURLs   []string                `json:"part_urls"`
+		Bytes      int64                   `json:"bytes"`
 	}
 	if err := json.Unmarshal(cmd.Args, &args); err != nil {
 		return protocol.ErrorResult(cmd.ID, errors.New("invalid command"))
@@ -576,7 +589,7 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		return protocol.ErrorResult(cmd.ID, errors.New("sandbox owner generation changed"))
 	}
 	timeout := 2 * time.Minute
-	if cmd.Op == protocol.OpArchive || (cmd.Op == protocol.OpCreate && args.FromArchive != nil) {
+	if cmd.Op == protocol.OpArchive || cmd.Op == protocol.OpArchiveDisks || cmd.Op == protocol.OpCopyDisks || (cmd.Op == protocol.OpCreate && args.FromArchive != nil) {
 		timeout = archiveTimeout
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
@@ -598,7 +611,22 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		data = protocol.ResumeResult{RestoreMs: time.Since(started).Milliseconds()}
 	case protocol.OpPause:
 		err = m.Pause(ctx, args.SandboxID)
-		data = map[string]any{"resident": true, "snapshot_ms": time.Since(started).Milliseconds()}
+		data = map[string]any{"resident": true, "snapshot_ms": time.Since(started).Milliseconds(), "disks_synced": m.disksSynced(args.SandboxID)}
+	case protocol.OpSaveDisks:
+		var snapshot protocol.DiskSnapshotInfo
+		snapshot, err = m.SaveDisks(ctx, args.SandboxID, args.SnapshotID)
+		data = protocol.SaveDisksResult{DurationMs: time.Since(started).Milliseconds(), Bytes: snapshot.Bytes}
+	case protocol.OpDeleteDisks:
+		err = m.DeleteDisks(ctx, args.SnapshotID)
+	case protocol.OpArchiveDisks:
+		var res protocol.ArchiveResult
+		res, err = m.ArchiveDisks(ctx, protocol.ArchiveDisksArgs{SnapshotID: args.SnapshotID, PartSize: args.PartSize, PartURLs: args.PartURLs})
+		res.DurationMs = time.Since(started).Milliseconds()
+		data = res
+	case protocol.OpCopyDisks:
+		var snapshot protocol.DiskSnapshotInfo
+		snapshot, err = m.CopyDisks(ctx, protocol.CopyDisksArgs{SnapshotID: args.SnapshotID, Template: args.Template, WorkspaceGB: args.WorkspaceGB, FromArchive: args.FromArchive, TemplateTag: args.TemplateTag, Bytes: args.Bytes})
+		data = protocol.SaveDisksResult{DurationMs: time.Since(started).Milliseconds(), Bytes: snapshot.Bytes}
 	case protocol.OpDelete:
 		err = m.Delete(ctx, args.SandboxID)
 	case protocol.OpArchive:

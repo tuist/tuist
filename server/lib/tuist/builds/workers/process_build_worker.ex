@@ -89,10 +89,12 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         Logger.warning("Build processing skipped: project #{project_id} not found for build #{build_id}")
         {:discard, :project_not_found}
 
-      {:error, :corrupt_archive} ->
-        Logger.warning("Build processing discarded: build #{build_id} archive is not a valid zip")
+      # A corrupt archive, or one that extracts past the size limits, is a bad
+      # upload that retries won't heal.
+      {:error, reason} when reason in [:corrupt_archive, :archive_too_large] ->
+        Logger.warning("Build processing discarded: build #{build_id} archive is unusable (#{reason})")
         mark_failed_build_processing(build_id, project_id, account_id, build_metadata)
-        {:discard, :corrupt_archive}
+        {:discard, reason}
 
       {:error, :object_not_found} when attempt <= @not_visible_snoozes ->
         {:snooze, @not_visible_snooze_seconds}

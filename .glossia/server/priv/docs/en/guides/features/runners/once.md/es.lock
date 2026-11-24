@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "18933ba244f854a8077d7e2422dbb827e681aa5ff7c45739ca9cf29b860b0fc6",
+  "hash": "caad679b96cbdc3de2a87dd005239a7b9a8ef6fdc039bab2bc6da60a7f24a64b",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,10 +11,13 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Once remote execution {#once-remote-execution}": {
-                  "content_hash": "40ef1d8a6ae1f59ce521baa8c24d5cc575a9401af6e494762308918d89bc5e28"
+                  "content_hash": "c9b79175b185749345013ea434a1ac3b3b69aeb4290ce8e555aaf49c0eea887e"
+                },
+                "## Inspect remote execution {#inspect-remote-execution}": {
+                  "content_hash": "b1ad5a9ad8b4bf6445c7018ffad1cac7dfe5adc5cd3a1b51cc41bc8e2d2caac9"
                 },
                 "## Prepare actions for workers {#prepare-actions-for-workers}": {
-                  "content_hash": "bb4a8cdb5e6e0e0111932afb493453c1b87f58f4d2b2f7cddaeacd4dadecf63e"
+                  "content_hash": "76003a37c5360391fb50705a71088d14aca4dbdd68d5e3d9df82b5fc6c4a2bac"
                 },
                 "## Setup {#setup}": {
                   "content_hash": "37b51116bc7976cf51c8219b1fdf5896b2e5ca37f59af39690f186efae66264d"
@@ -26,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "9e46f3cf83df25bd75009bc6e2b59a59edfcd82824fa2b1f039fc571cc9f2d3a",
+          "hash": "e0a2b17d5f77bbb59aad1cb588c283e83a2ebe4cc61458bf870a14dd8bc8feba",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/once.md",
           "metadata": {
-            "content_hash": "72cf1b7ddb3bb79faddeeeb49fe23eaeaf1129abd8b5748f2d783bf0eea19d31"
+            "content_hash": "a88f6e059552a9b25a22cec4cffe98f659ef8d0d242c7f0dd8ed7ce162d52dec"
           }
         },
         {
@@ -91,7 +94,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -110,7 +113,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -139,11 +142,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -229,21 +232,21 @@
             }
           ],
           "details": {},
-          "hash": "3740ee859172b23b3742e70e055a2edc6bc7a7ea07dcb9bbb04853c4e3955f45",
+          "hash": "684ba544fc4e00551f34f6ae50582bdf75359aba6b24ab2b9021ff2561daf294",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "18933ba244f854a8077d7e2422dbb827e681aa5ff7c45739ca9cf29b860b0fc6",
+      "hash": "caad679b96cbdc3de2a87dd005239a7b9a8ef6fdc039bab2bc6da60a7f24a64b",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/once.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f80a8e254a3fb053f8c0a290ee0596f25eb685ddd1e70a177fbc6ab83318ea21",
+  "output_hash": "96cb4465c84e04281748cba25b64060cc333d3bb913bdb65113803497b21059d",
   "output_path": "server/priv/docs/es/guides/features/runners/once.md",
   "protection_state": "recorded",
   "provider": "",
@@ -264,8 +267,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
+  "source_commit_sha": "1c5f2719555ef6a364756c8b4816d6bfaa654288",
   "source_path": "server/priv/docs/en/guides/features/runners/once.md",
-  "translated_at": "2026-11-06T19:16:40.768691Z",
-  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
+  "translated_at": "2026-11-18T22:46:24.898797Z",
+  "translation_session_id": "01a1f0d5-0649-7925-a79d-a6aef802c1ae"
 }

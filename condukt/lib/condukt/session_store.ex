@@ -41,6 +41,12 @@ defmodule Condukt.SessionStore do
   must leave the snapshot alone: the session decides when each is cleared.
   Records are opaque terms to the store, like snapshots.
 
+  A journaling store is the session's durable record, so a session does not
+  start when its snapshot or journal cannot be loaded (`{:error,
+  {:snapshot_load_failed, reason}}` or `{:error, {:journal_load_failed,
+  reason}}`) rather than starting over and later saving over what it could
+  not read. A snapshot-only store is a cache: a failed load starts fresh.
+
   `Condukt.SessionStore.Conformance` holds the tests a store has to pass.
 
   ## Implementing one

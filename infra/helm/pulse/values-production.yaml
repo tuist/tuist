@@ -6,7 +6,7 @@ environment: production
 topology: cluster
 storage:
   bucket: tuist-pulso-production
-# Sized for production's load: requests total 8.6 CPUs and 23 GiB.
+# Sized for production's load: requests total 10.15 CPUs and 23.1 GiB.
 cluster:
   frontend:
     # PromQL runs in a query pool of 50% of the limit, shared by every query on
@@ -24,10 +24,25 @@ cluster:
     # Pulse caps scan memory at 25% of the limit and fails scans past it, and
     # every metrics read shares the one datanode holding the metric region. At
     # 4Gi that 1GiB budget sat at 99% and failed dashboard and alert queries.
-    # Greptime's capacity plan pairs 1 CPU with about 4GB.
+    # Greptime's capacity plan pairs 1 CPU with about 4GB. opentelemetry_logs
+    # is one region, so every log read runs on the datanode that leads it. On
+    # 2026-11-23 a deploy moved that datanode onto a node a server pod already
+    # kept 75% busy; the node saturated, the datanode got one CPU's share, and
+    # the hour-long log alert scans ran past Grafana's 60s deadline. The
+    # request sets that share under contention, and the chart now prefers
+    # nodes without a server pod. 1500m is the most the deploy's capacity gate
+    # (one-node loss plus the server's surge slot) admitted on that day.
     resources:
-      requests: {cpu: "1", memory: 4Gi}
+      requests: {cpu: 1500m, memory: 4Gi}
       limits: {memory: 8Gi}
+    # At 128MB the shared write buffer filled within seconds, so the metric
+    # region flushed a 1MB, one-row-group L0 file every ~5s (64 files in 6
+    # minutes between compactions). A scan of recent data merges every
+    # overlapping file at once and reserves ~16MiB of scan memory per file, so
+    # each alert rule needed ~1GiB and two at once filled the 2GiB budget.
+    # 1GB is upstream's own default for an 8Gi node.
+    writeBufferSize: 1GB
+    writeBufferRejectSize: 2GB
   etcd:
     resources:
       requests: {cpu: 250m, memory: 512Mi}

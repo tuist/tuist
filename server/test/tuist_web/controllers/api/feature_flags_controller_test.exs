@@ -40,14 +40,14 @@ defmodule TuistWeb.API.FeatureFlagsControllerTest do
   test "lists the flags enabled for the signed-in user", %{bearer: bearer} do
     conn = flags(bearer)
 
-    assert json_response(conn, 200) == %{"enabled" => ["guild"]}
+    assert json_response(conn, 200) == %{"enabled" => ["luft"]}
     assert get_resp_header(conn, "cache-control") == ["no-store"]
   end
 
   test "accepts user sessions", %{user: user} do
     {:ok, bearer, _claims} = Tuist.Guardian.encode_and_sign(user, %{}, token_type: "access_token")
 
-    assert bearer |> flags() |> json_response(200) == %{"enabled" => ["guild"]}
+    assert bearer |> flags() |> json_response(200) == %{"enabled" => ["luft"]}
   end
 
   test "rejects account tokens and other OAuth clients", %{user: user} do

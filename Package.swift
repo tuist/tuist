@@ -62,6 +62,7 @@ var tuistDependencies: [Target.Dependency] = [
     "TuistRunCommand",
     "TuistRunnerCommand",
     "TuistSandboxCommand",
+    "TuistSnapshotsCommand",
     "TuistInspectCommand",
     argumentParserDependency,
     "TuistServer",
@@ -446,6 +447,21 @@ var tuistSandboxCommandDependencies: [Target.Dependency] = [
     "TuistNooraExtension",
     .product(name: "Noora", package: "tuist.Noora"),
 ]
+var tuistSnapshotsCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    mockableDependency,
+    .product(name: "Crypto", package: "apple.swift-crypto"),
+    .product(name: "Noora", package: "tuist.Noora"),
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistNooraExtension",
+    "TuistSupport",
+    "TuistGit",
+    "TuistAlert",
+]
 var tuistInspectCommandDependencies: [Target.Dependency] = [
     pathDependency,
     argumentParserDependency,
@@ -499,7 +515,7 @@ tuistGenerateCommandDependencies.append(contentsOf: [
     "TuistExtension", "TuistServer", "TuistSupport",
 ])
 tuistTestCommandDependencies.append(contentsOf: [
-    "TuistKit", "TuistBuildCommand", "TuistCore",
+    "TuistKit", "TuistBuildCommand", "TuistCore", "TuistSnapshotsCommand",
     "TuistExtension", "TuistServer", "TuistSupport",
 ])
 tuistInitCommandDependencies.append(contentsOf: [
@@ -1041,6 +1057,15 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistSnapshotsCommand",
+        dependencies: tuistSnapshotsCommandDependencies,
+        path: "cli/Sources/TuistSnapshotsCommand",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistInspectCommand",
         dependencies: tuistInspectCommandDependencies,
         path: "cli/Sources/TuistInspectCommand",
@@ -1340,6 +1365,22 @@ var targets: [Target] = [
         path: "cli/Tests/TuistSandboxCommandTests"
     ),
     .testTarget(
+        name: "TuistSnapshotsCommandTests",
+        dependencies: [
+            "TuistSnapshotsCommand",
+            "TuistConfig",
+            "TuistConfigLoader",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
+            "TuistGit",
+            "TuistNooraTesting",
+            "TuistServer",
+            pathDependency,
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistSnapshotsCommandTests"
+    ),
+    .testTarget(
         name: "TuistInitCommandTests",
         dependencies: [
             "TuistInitCommand",
@@ -1363,6 +1404,7 @@ var targets: [Target] = [
         name: "TuistAndroidTests",
         dependencies: [
             "TuistAndroid",
+            "TuistEnvironment",
             pathDependency,
             fileSystemDependency,
             .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
@@ -1558,6 +1600,7 @@ targets.append(contentsOf: [
             "TuistCacheCommand",
             "TuistAuthCommand",
             "TuistVersionCommand",
+            "TuistSnapshotsCommand",
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             "TuistCAS",
@@ -1959,6 +2002,7 @@ targets.append(
 #endif
 
 #if TUIST
+    import enum ProjectDescription.Environment
     import struct ProjectDescription.PackageSettings
 
     let packageSettings = PackageSettings(
@@ -1978,7 +2022,15 @@ targets.append(
             "TestCoverageAttribution": .framework,
             "TestCoverageAttributionObserver": .framework,
         ],
-        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
+        // The release build (`mise run cli:bundle`) links the executable statically, and the
+        // linker only loads the archive members some symbol references. Swift looks up
+        // protocol conformances and type descriptors at runtime, so without prelinking each
+        // package into one object, the release executable drops them and crashes. Prelinking
+        // also replaces the objects' DWARF with a debug map to temporary intermediates, which
+        // keeps the cache warm from storing the packages, so it is limited to that build.
+        baseSettings: Environment.forceStaticLinking.getBoolean(default: false)
+            ? .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
+            : .settings()
     )
 #endif
 
@@ -2164,6 +2216,8 @@ let package = Package(
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
         .package(name: "XCResultNIF", path: "server/native/xcresult_nif"),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
+        // Renders the app's SwiftUI previews as snapshots (app/Tests/TuistAppSnapshotTests).
+        .package(url: "https://github.com/tuist/snapshots", .upToNextMinor(from: "0.1.0")),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

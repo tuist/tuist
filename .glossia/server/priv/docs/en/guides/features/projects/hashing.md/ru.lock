@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "74f158c5da2404637c30c5a734a3099a66d24dc9c34942beee03fda4ea706307",
+  "hash": "3b44351eec9db51050c554ea17a81ffc90ec56b9cd93f60c87187007b1194629",
   "hash_tree": {
     "root": {
       "children": [
@@ -97,7 +97,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -116,7 +116,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -145,11 +145,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -232,21 +232,21 @@
             }
           ],
           "details": {},
-          "hash": "413260dec7f2ee4f4e147edc657afac333c79c445e3fb5fe67be4805e5f049f8",
+          "hash": "14a4414978e08b965e9d4506c416ea36fe84e33643db5652d4b39392be6e3771",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "74f158c5da2404637c30c5a734a3099a66d24dc9c34942beee03fda4ea706307",
+      "hash": "3b44351eec9db51050c554ea17a81ffc90ec56b9cd93f60c87187007b1194629",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/hashing.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "3ecee7f6da0ae0f8e8801e3082dfbb5d5b3afec3d677f3e0e017515eabbb1b70",
+  "output_hash": "cd27bf3357dc57a263332b8ecca63401141563f6606a037e46b42c5a8b007274",
   "output_path": "server/priv/docs/ru/guides/features/projects/hashing.md",
   "protection_state": "recorded",
   "provider": "",
@@ -267,8 +267,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
+  "source_commit_sha": "75faa70c0c7fcd506f3afa58e5882f2fd424afa3",
   "source_path": "server/priv/docs/en/guides/features/projects/hashing.md",
-  "translated_at": "2026-11-06T18:52:37.136335Z",
-  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
+  "translated_at": "2026-11-18T22:00:31.041707Z",
+  "translation_session_id": "01a1f0a3-3436-7d6f-a743-8efef43bf3c4"
 }

@@ -22,13 +22,14 @@ defmodule Tuist.Tests.Coverage do
   target, a method is a function, and their branch counters fill the columns
   `xccov` leaves empty.
 
-  Every file a report covered is stored in `coverage_files` with its line
-  data, tagged with the build system and the tool that produced it. A row's
-  scope is the run for now (`scope_kind` `run`); per-target, per-suite and
-  per-test rows use the same table once tests are attributed. Its evidence
-  kind is `observed`, measured in this run; `cached` and `carried` rows are
-  reused evidence, recorded by later phases. `in_repository` marks the paths
-  Git knows, the only ones evidence may rely on. Test code (files only `.xctest` bundles compiled) is stored but left
+  Every file a report covered is stored in `coverage_run_files` with its
+  counts, tagged with the build system, and the file's version (blob,
+  executable lines, functions) once per week in `coverage_file_layouts`,
+  which the rows name: runs of the same version would otherwise repeat it in
+  every row. `report_files_for_runs/2` joins them back. The per-test evidence
+  is stored apart, in `coverage_files` (`Tuist.Tests.Coverage.Evidence`).
+  `in_repository` marks the paths Git knows, the only ones evidence may rely
+  on. Test code (files only `.xctest` bundles compiled) is stored but left
   out of every figure: a test that runs covers its own body, which says nothing
   about the product. A run that left tests out on purpose (selective testing,
   `-only-testing`) is marked partial: its coverage describes the tests that ran
@@ -55,6 +56,8 @@ defmodule Tuist.Tests.Coverage do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouse.ArrayInParams
+  alias Tuist.ClickHouse.Inserts
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHistory
@@ -63,18 +66,23 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.Projects.Project
   alias Tuist.Tests
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Workers.CommitWorker
-  alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.Coverage.Workers.TotalsWorker
+  alias Tuist.Tests.CoverageFileLayout
   alias Tuist.Tests.CoverageRun
+  alias Tuist.Tests.CoverageRunFile
   alias Tuist.Tests.Test
   alias Tuist.Tests.Workers.PublishCoverageWorker
+  alias TuistCommon.Ingestion.Bufferable
 
   @insert_chunk_size 2_000
+  @max_count 4_294_967_295
 
   # The build systems whose clients report coverage (`supported?/1`). Add one
   # here once its client does.
-  @build_systems [:xcode, :mix, :cargo, :gradle]
+  @build_systems [:xcode, :mix, :cargo, :gradle, :once]
 
   # ClickHouse sends every query parameter as an HTTP form field and refuses a
   # request carrying more than `http_max_fields`, which defaults to 1000. A
@@ -240,21 +248,19 @@ defmodule Tuist.Tests.Coverage do
   `expected_shards` is how many shards the run's plan has: until each of them
   reported coverage, the published totals are partial, since the missing
   shards' tests are not in them.
+
+  The totals reach `coverage_runs` only once every replica holds the
+  report's rows (`Workers.TotalsWorker`): at once when they already do,
+  otherwise moments later from a job, which then folds the commit again.
+
+  It does not fold the run's commit: the caller schedules that with
+  `enqueue_fold/2` once it has written the rest of the run.
   """
   def publish(test, coverage, shard_index, expected_shards \\ 1)
 
   def publish(%Test{reporting_version: 1}, _coverage, _shard_index, _expected_shards), do: :skipped
 
-  # A run that measured nothing still changes what its commit knows: a scheme
-  # selective testing skipped whole reports no coverage, and the commit's
-  # reported figure carries that scheme's tests forward only once it can see
-  # the run. It can land after the completion signal, so the commit is
-  # refolded here — but only when it is already measured, so a project that
-  # never reports coverage schedules nothing.
-  def publish(%Test{} = test, nil, _shard_index, _expected_shards) do
-    if Commits.measured?(test.project_id, test.git_commit_sha), do: Commits.enqueue_recompute(test)
-    :ok
-  end
+  def publish(%Test{}, nil, _shard_index, _expected_shards), do: :ok
 
   def publish(%Test{} = test, coverage, shard_index, expected_shards) do
     shard_index = shard_index || 0
@@ -265,11 +271,35 @@ defmodule Tuist.Tests.Coverage do
       others = other_shards(test.project_id, test.id, shard_index, excluded)
       excluded_regex = ExcludedPaths.compile(excluded)
       folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others, excluded_regex)
-      :ok = publish_totals(test, coverage, expected_shards, reported_at, others, folded)
-      Commits.enqueue_recompute(test)
+      :ok = Inserts.record("coverage_run_files", report_key(test.id, shard_index), test.project_id, reported_at)
+      run = totals_row(test, coverage, {shard_index, expected_shards}, reported_at, others, folded)
+      :ok = TotalsWorker.publish(run, shard_index, reported_at, folded.files)
 
       {:ok, %{files: folded.files, covered_lines: elem(folded.totals, 0), executable_lines: elem(folded.totals, 1)}}
     end)
+  end
+
+  @doc """
+  Schedules the fold of the run's commit (`Commits.enqueue_recompute/1`).
+  Call it only after everything the run reports is written, test case runs
+  included: the fold reads them, and nothing folds the commit again when they
+  land after it. `coverage` is the run's `coverage` block, or nil.
+
+  A run that measured nothing still changes what its commit knows: a scheme
+  selective testing skipped whole reports no coverage, and the commit's
+  reported figure carries that scheme's tests forward only once it can see
+  the run. It can land after the completion signal, so the commit is
+  refolded then too, but only when it is already measured, so a project that
+  never reports coverage schedules nothing.
+  """
+  def enqueue_fold(%Test{reporting_version: 1}, _coverage), do: :skipped
+  def enqueue_fold(%Test{submission_auth: "network_trusted"}, _coverage), do: :skipped
+
+  def enqueue_fold(%Test{} = test, coverage) do
+    if (not is_nil(coverage) and enabled_for_project?(test.project_id)) or
+         Commits.measured?(test.project_id, test.git_commit_sha),
+       do: Commits.enqueue_recompute(test),
+       else: :skipped
   end
 
   @doc """
@@ -310,14 +340,21 @@ defmodule Tuist.Tests.Coverage do
     end
   end
 
-  # One pass over the report's files, which may be a lazy stream: each chunk is
-  # inserted and folded into the run's totals as it goes by, so nothing holds
-  # the report whole. The report's own files are merged from memory, since rows
-  # inserted moments ago are not reliably read back within the same request;
-  # the other shards' latest reports come from ClickHouse. A file's lines are
-  # only kept when another shard reported the same path, for the union; every
-  # other file adds its counts and is let go. Excluded paths are stored and
-  # counted as files, but add nothing to the totals.
+  # One pass over the report's files, which may be a lazy stream: each chunk's
+  # layouts are inserted and its files folded into the run's totals as it goes
+  # by, so nothing holds the report whole. The report's own files are merged
+  # from memory, since rows inserted moments ago are not reliably read back
+  # within the same request; the other shards' latest reports come from
+  # ClickHouse. A file's lines are only kept when another shard reported the
+  # same path, for the union; every other file adds its counts and is let go.
+  # Excluded paths are stored and counted as files, but add nothing to the
+  # totals.
+  #
+  # The run's rows are encoded to a scratch file as the chunks go by and sent
+  # afterwards as one insert. They share one `inserted_at`, so they land as
+  # one part, which every replica attaches whole: a reader sees all of the
+  # report or none of it, never the chunks inserted so far. Each chunk's
+  # layouts were acknowledged before that insert starts.
   defp insert_files_and_fold(
          %Test{id: test_run_id, project_id: project_id} = test,
          coverage,
@@ -328,42 +365,32 @@ defmodule Tuist.Tests.Coverage do
        ) do
     others_by_path = Map.new(others.files)
 
+    report = %{
+      test_run_id: test_run_id,
+      project_id: project_id,
+      build_system: test.build_system,
+      shard_index: shard_index,
+      partial: coverage.partial,
+      git_commit_sha: test.git_commit_sha || "",
+      reported_on: NaiveDateTime.to_date(reported_at),
+      inserted_at: reported_at
+    }
+
     {{covered, executable}, overlap, object_format, files} =
-      coverage.files
-      |> Stream.map(
-        &Map.merge(&1, %{
-          id: UUIDv7.generate(),
-          test_run_id: test_run_id,
-          project_id: project_id,
-          build_system: test.build_system,
-          shard_index: shard_index,
-          partial: coverage.partial,
-          git_commit_sha: test.git_commit_sha || "",
-          scope_kind: "run",
-          scope_id: "",
-          evidence_kind: "observed",
-          inserted_at: reported_at
-        })
-      )
-      |> Stream.chunk_every(@insert_chunk_size)
-      |> Enum.reduce({{0, 0}, %{}, "", 0}, fn chunk, acc ->
-        IngestRepo.insert_all(CoverageFile, chunk)
+      with_scratch_file(fn path ->
+        folded =
+          File.open!(path, [:write, :binary], fn io ->
+            coverage.files
+            |> Stream.chunk_every(@insert_chunk_size)
+            |> Enum.reduce({{0, 0}, %{}, "", 0}, fn chunk, acc ->
+              IO.binwrite(io, insert_report_layouts(report, chunk))
 
-        Enum.reduce(chunk, acc, fn file, {totals, overlap, object_format, files} ->
-          object_format = if object_format == "", do: git_object_format(file), else: object_format
+              Enum.reduce(chunk, acc, &fold_file(&1, &2, others_by_path, excluded))
+            end)
+          end)
 
-          cond do
-            file.is_test or ExcludedPaths.excluded?(excluded, file.path) ->
-              {totals, overlap, object_format, files + 1}
-
-            Map.has_key?(others_by_path, file.path) ->
-              {totals, Map.put(overlap, file.path, file_evidence(file)), object_format, files + 1}
-
-            true ->
-              {covered, executable} = totals
-              {{covered + file.covered_lines, executable + file.executable_lines}, overlap, object_format, files + 1}
-          end
-        end)
+        if elem(folded, 3) > 0, do: insert_encoded_file(CoverageRunFile, path)
+        folded
       end)
 
     totals =
@@ -380,10 +407,168 @@ defmodule Tuist.Tests.Coverage do
     %{totals: totals, object_format: object_format, files: files}
   end
 
-  defp publish_totals(
+  defp fold_file(file, {totals, overlap, object_format, files}, others_by_path, excluded) do
+    object_format = if object_format == "", do: git_object_format(file), else: object_format
+
+    cond do
+      file.is_test or ExcludedPaths.excluded?(excluded, file.path) ->
+        {totals, overlap, object_format, files + 1}
+
+      Map.has_key?(others_by_path, file.path) ->
+        {totals, Map.put(overlap, file.path, file_evidence(file)), object_format, files + 1}
+
+      true ->
+        {covered, executable} = totals
+        {{covered + file.covered_lines, executable + file.executable_lines}, overlap, object_format, files + 1}
+    end
+  end
+
+  # A chunk of a report's files: inserts their versions the week doesn't hold
+  # yet and returns the run's rows naming them, encoded for the report's one
+  # insert. Shards reporting at once may both write a version; readers take
+  # either copy. Known versions are looked up within the chunk's range of
+  # paths, which the layouts' sort key starts with after the week, so reports
+  # listing files in path order read only theirs.
+  defp insert_report_layouts(report, files) do
+    files =
+      Enum.map(files, &Map.merge(&1, %{layout_id: layout_id(&1), epoch: layout_epoch(&1.path, report.reported_on)}))
+
+    layouts = Enum.uniq_by(files, &{&1.path, &1.layout_id})
+    {first_path, last_path} = layouts |> Enum.map(& &1.path) |> Enum.min_max()
+
+    known =
+      from(l in CoverageFileLayout,
+        where:
+          l.project_id == ^report.project_id and l.epoch in ^(layouts |> Enum.map(& &1.epoch) |> Enum.uniq()) and
+            l.path >= ^first_path and l.path <= ^last_path and
+            l.layout_id in ^Enum.map(layouts, & &1.layout_id),
+        select: {l.epoch, l.path, l.layout_id}
+      )
+      |> ClickHouseRepo.all()
+      |> MapSet.new()
+
+    new_layouts =
+      for file <- layouts, not MapSet.member?(known, {file.epoch, file.path, file.layout_id}) do
+        %{
+          project_id: report.project_id,
+          epoch: file.epoch,
+          path: file.path,
+          layout_id: file.layout_id,
+          git_blob_id: file.git_blob_id,
+          line_numbers: file.line_numbers,
+          function_names: file.function_names,
+          function_line_numbers: file.function_line_numbers,
+          function_executable_lines: file.function_executable_lines
+        }
+      end
+
+    if new_layouts != [], do: insert_encoded(CoverageFileLayout, new_layouts)
+
+    encode_rows(CoverageRunFile, Enum.map(files, &run_file_row(report, &1)))
+  end
+
+  # A run row stores counts only when something ran, so a file the run
+  # loaded but never executed costs no arrays.
+  defp run_file_row(report, file) do
+    functions_ran? =
+      Enum.any?(file.function_execution_counts, &(&1 > 0)) or Enum.any?(file.function_covered_lines, &(&1 > 0))
+
+    Map.merge(report, %{
+      path: file.path,
+      layout_id: file.layout_id,
+      in_repository: file.in_repository,
+      is_test: file.is_test,
+      targets: file.targets,
+      covered_lines: file.covered_lines,
+      executable_lines: file.executable_lines,
+      execution_counts: if(Enum.any?(file.execution_counts, &(&1 > 0)), do: capped(file.execution_counts), else: []),
+      function_execution_counts: if(functions_ran?, do: capped(file.function_execution_counts), else: []),
+      function_covered_lines: if(functions_ran?, do: file.function_covered_lines, else: [])
+    })
+  end
+
+  # Run rows store counts as UInt32. No line has come near its maximum, but
+  # RowBinary would wrap a larger count rather than reject it.
+  defp capped(counts) do
+    if Enum.any?(counts, &(&1 > @max_count)), do: Enum.map(counts, &min(&1, @max_count)), else: counts
+  end
+
+  # Encodes the rows to ClickHouse's RowBinary as the ingestion buffers do,
+  # without Ecto dumping every value of every array first.
+  defp insert_encoded(schema, rows) do
+    %{header: header, insert_sql: sql, insert_opts: opts} = Bufferable.compile_time_prepare(schema)
+    IngestRepo.query!(sql, [header, encode_rows(schema, rows)], opts)
+  end
+
+  defp encode_rows(schema, rows) do
+    %{fields: fields, encoding_types: types} = Bufferable.compile_time_prepare(schema)
+
+    rows
+    |> Enum.map(fn row -> Enum.map(fields, &Map.fetch!(row, &1)) end)
+    |> Ch.RowBinary._encode_rows(types)
+    |> IO.iodata_to_binary()
+  end
+
+  # Sends the rows `encode_rows/2` wrote to the file as one insert, streamed
+  # from disk in a chunked request. ClickHouse cuts an insert into parts only
+  # past `max_insert_block_size` rows (about a million), far above any report.
+  defp insert_encoded_file(schema, path) do
+    %{header: header, insert_sql: sql, insert_opts: opts} = Bufferable.compile_time_prepare(schema)
+    IngestRepo.query!(sql, Stream.concat([header], File.stream!(path, 1_048_576)), opts)
+  end
+
+  defp with_scratch_file(fun) do
+    path = Path.join(System.tmp_dir!(), "tuist-coverage-#{UUIDv7.generate()}.rowbinary")
+
+    try do
+      fun.(path)
+    after
+      File.rm(path)
+    end
+  end
+
+  @doc """
+  The first day of the week a file's layouts are stored under, for a report
+  written on `date`. Each path starts its weeks on its own weekday (the CRC32
+  of the path, modulo 7), so a project's versions are not all written again
+  by the first report of the same day: each day's first report rewrites
+  about a seventh of them. `RunFilesBackfillWorker` computes the same day in
+  ClickHouse.
+  """
+  def layout_epoch(path, %Date{} = date) do
+    days = Date.diff(date, ~D[1970-01-01])
+    Date.add(date, -rem(days - rem(:erlang.crc32(path), 7), 7))
+  end
+
+  @doc """
+  The id a file version's layout is stored under: a 32-bit hash of what the
+  layout holds. It only has to tell apart one path's versions within a week
+  (readers join on the path too), and a path has a handful of those, so 32
+  bits keep collisions out of reach.
+  """
+  def layout_id(file) do
+    layout =
+      {file.path, file.git_blob_id, file.line_numbers, file.function_names, file.function_line_numbers,
+       file.function_executable_lines}
+
+    <<id::unsigned-32, _::binary>> = :crypto.hash(:sha256, :erlang.term_to_binary(layout, [:deterministic]))
+    id
+  end
+
+  @doc """
+  The key a shard report's inserts are recorded under in
+  `Tuist.ClickHouse.Inserts`, which `Workers.TotalsWorker` waits for.
+  """
+  def report_key(test_run_id, shard_index), do: "#{test_run_id}/#{shard_index || 0}"
+
+  # The report's `coverage_runs` row: totals over the shards reported so far,
+  # versioned by how many those are, then by the newest report among them,
+  # pinning the reports they cover: the others' newest, and this one when it
+  # stored rows.
+  defp totals_row(
          %Test{id: test_run_id, project_id: project_id} = test,
          coverage,
-         expected_shards,
+         {shard_index, expected_shards},
          reported_at,
          others,
          folded
@@ -391,29 +576,31 @@ defmodule Tuist.Tests.Coverage do
     {covered, executable} = folded.totals
     newest_report_at = Enum.max([reported_at, others.newest_report_at], NaiveDateTime)
 
-    IngestRepo.insert_all(CoverageRun, [
-      %{
-        project_id: project_id,
-        test_run_id: test_run_id,
-        build_system: test.build_system,
-        coverage_tool: coverage.tool,
-        coverage_tool_version: coverage.tool_version,
-        git_object_format: folded.object_format,
-        scheme: test.scheme || "",
-        platform: Map.get(coverage, :platform) || "",
-        git_commit_sha: test.git_commit_sha || "",
-        covered_lines: covered,
-        executable_lines: executable,
-        files: folded.files + others.files_count,
-        partial: coverage.partial or others.partial or others.shards_count + 1 < expected_shards,
-        version:
-          (others.shards_count + 1) * @shard_count_weight +
-            NaiveDateTime.diff(newest_report_at, ~N[1970-01-01 00:00:00], :microsecond),
-        inserted_at: NaiveDateTime.utc_now()
-      }
-    ])
+    version =
+      (others.shards_count + 1) * @shard_count_weight +
+        NaiveDateTime.diff(newest_report_at, ~N[1970-01-01 00:00:00], :microsecond)
 
-    :ok
+    pins = Enum.sort(if(folded.files > 0, do: [{shard_index, reported_at}], else: []) ++ others.reports)
+
+    %{
+      project_id: project_id,
+      test_run_id: test_run_id,
+      build_system: test.build_system,
+      coverage_tool: coverage.tool,
+      coverage_tool_version: coverage.tool_version,
+      git_object_format: folded.object_format,
+      scheme: test.scheme || "",
+      platform: Map.get(coverage, :platform) || "",
+      git_commit_sha: test.git_commit_sha || "",
+      covered_lines: covered,
+      executable_lines: executable,
+      files: folded.files + others.files_count,
+      partial: coverage.partial or others.partial or others.shards_count + 1 < expected_shards,
+      version: version,
+      inserted_at: NaiveDateTime.utc_now(),
+      report_shards: Enum.map(pins, &elem(&1, 0)),
+      report_inserted_at: Enum.map(pins, &elem(&1, 1))
+    }
   end
 
   # A blob id is 40 hex digits in a SHA-1 repository and 64 in a SHA-256 one;
@@ -446,12 +633,14 @@ defmodule Tuist.Tests.Coverage do
 
     summary =
       ClickHouseRepo.one(
-        from(f in reports,
+        from(f in report_files_for_runs(project_id, [test_run_id], lines: false, pinned: false),
+          where: f.shard_index != ^shard_index,
           select: %{
             shards_count: fragment("uniqExact(?)", f.shard_index),
             files_count: count(),
             partial_rows: fragment("countIf(?)", f.partial),
-            newest_report_at: max(f.inserted_at)
+            newest_report_at: max(f.inserted_at),
+            reports: fragment("groupUniqArray((?, ?))", f.shard_index, f.inserted_at)
           }
         ),
         settings: [select_sequential_consistency: 1]
@@ -462,7 +651,8 @@ defmodule Tuist.Tests.Coverage do
       files_count: summary.files_count,
       shards_count: summary.shards_count,
       partial: summary.partial_rows > 0,
-      newest_report_at: summary.newest_report_at || ~N[1970-01-01 00:00:00]
+      newest_report_at: summary.newest_report_at || ~N[1970-01-01 00:00:00],
+      reports: summary.reports || []
     }
   end
 
@@ -550,13 +740,7 @@ defmodule Tuist.Tests.Coverage do
   end
 
   @retention_tables %{
-    files: [
-      "coverage_files",
-      "coverage_target_sources",
-      "coverage_test_sources",
-      "test_impact_diffs",
-      "test_impact_run_tests"
-    ],
+    files: ["coverage_files", "coverage_run_files", "coverage_file_layouts", "test_impact_diffs"],
     runs: ["coverage_runs", "test_impact_runs"]
   }
 
@@ -569,13 +753,14 @@ defmodule Tuist.Tests.Coverage do
   deltas and targets with the commit totals, by when the commit was made
   (`Tuist.Environment.coverage_commit_retention_days/1`). The tables get it
   at creation; this re-applies it after the configuration changed. The
-  commits' uploaded listings keep their own fixed days
-  (`Tuist.GitHistory.listing_retention_days/0`).
+  commits' uploaded listings, the per-test evidence in `coverage_files`
+  (`Tuist.Tests.Coverage.Evidence.retention_days/0`) and the target sources
+  keep their own fixed days (`Tuist.GitHistory.listing_retention_days/0`).
   """
   def apply_retention do
     detail =
       for {kind, days} <- Environment.coverage_retention_days(), table <- Map.fetch!(@retention_tables, kind) do
-        IngestRepo.query!("ALTER TABLE #{table} MODIFY TTL toDateTime(inserted_at) + INTERVAL #{days} DAY")
+        IngestRepo.query!("ALTER TABLE #{table} MODIFY TTL #{detail_ttl(table, days)}")
         {table, days}
       end
 
@@ -592,6 +777,18 @@ defmodule Tuist.Tests.Coverage do
 
     detail ++ commits ++ [{"git_commit_files", listing_days}]
   end
+
+  # The run's own rows keep the file retention; its evidence (every other
+  # scope) expires sooner, whatever that retention is.
+  defp detail_ttl("coverage_files", days) do
+    "toDateTime(inserted_at) + INTERVAL #{Evidence.retention_days()} DAY DELETE WHERE scope_kind != 'run', " <>
+      "toDateTime(inserted_at) + INTERVAL #{days} DAY"
+  end
+
+  # A week's layouts outlive the run rows of its last day.
+  defp detail_ttl("coverage_file_layouts", days), do: "epoch + INTERVAL #{days + 8} DAY"
+
+  defp detail_ttl(_table, days), do: "toDateTime(inserted_at) + INTERVAL #{days} DAY"
 
   def percentage(_covered, 0), do: 0.0
   def percentage(_covered, nil), do: 0.0
@@ -689,27 +886,161 @@ defmodule Tuist.Tests.Coverage do
     |> Enum.sort_by(&{&1.line_number, &1.name})
   end
 
-  # The run-scoped rows of each shard's latest report.
-  defp report_files(project_id, test_run_id), do: report_files_for_runs(project_id, [test_run_id])
+  # The run-scoped rows of each shard's newest report, synced or not: a shard
+  # publishing its totals covers the reports the others made so far, and
+  # `Workers.TotalsWorker` waits for those to reach every replica too.
+  defp report_files(project_id, test_run_id), do: report_files_for_runs(project_id, [test_run_id], pinned: false)
 
   @doc """
-  The rows of the given runs' latest run-scoped report per shard: what every
-  reader of a run's, or a commit's, coverage starts from.
+  The rows of the given runs' reports their published totals cover, one per
+  shard, each with its file version's blob, lines and functions and its
+  counts laid out against them (zeros where the run stored none): what every
+  reader of a run's, or a commit's, coverage starts from. A subquery, so a
+  reader's filter on the path reaches both the rows and the layouts it joins.
+  `lines: false` leaves the layouts out, for a reader of paths, targets and
+  counts only.
+
+  The reports are the ones the run's newest `coverage_runs` row pins
+  (`report_shards`, `report_inserted_at`), which every replica held when it
+  was written: a replica that already holds a retried shard's newer report
+  keeps serving the pinned one until totals covering the retry are written.
+  `pinned: false` reads each shard's newest report instead, synced or not,
+  for the write path, whose totals cover the reports the others made so far.
   """
-  def report_files_for_runs(project_id, test_run_ids) do
+  def report_files_for_runs(project_id, test_run_ids, opts \\ []) do
+    rows = from(f in CoverageRunFile, where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids)
+
     latest_reports =
-      from(f in CoverageFile,
-        where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind == "run",
-        group_by: [f.test_run_id, f.shard_index],
-        select: %{test_run_id: f.test_run_id, shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
+      if Keyword.get(opts, :pinned, true),
+        do: pinned_reports(project_id, test_run_ids),
+        else:
+          from(f in rows,
+            group_by: [f.test_run_id, f.shard_index],
+            select: %{test_run_id: f.test_run_id, shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
+          )
+
+    reported =
+      from(f in rows,
+        join: r in subquery(latest_reports),
+        on: r.test_run_id == f.test_run_id and r.shard_index == f.shard_index and r.inserted_at == f.inserted_at,
+        select: %{
+          test_run_id: f.test_run_id,
+          shard_index: f.shard_index,
+          partial: f.partial,
+          path: f.path,
+          in_repository: f.in_repository,
+          is_test: f.is_test,
+          targets: f.targets,
+          covered_lines: f.covered_lines,
+          executable_lines: f.executable_lines,
+          inserted_at: f.inserted_at
+        }
       )
 
-    from(f in CoverageFile,
-      join: r in subquery(latest_reports),
-      on: r.test_run_id == f.test_run_id and r.shard_index == f.shard_index and r.inserted_at == f.inserted_at,
-      where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind == "run"
+    if Keyword.get(opts, :lines, true) do
+      # One read of the runs' rows names the layouts by week and id; two
+      # (`epoch IN` and `layout_id IN`) read them twice for a looser filter.
+      layouts =
+        from(l in CoverageFileLayout,
+          where:
+            l.project_id == ^project_id and
+              fragment(
+                "(?, ?) IN ?",
+                l.epoch,
+                l.layout_id,
+                subquery(select(rows, [f], %{epoch: f.epoch, layout_id: f.layout_id}))
+              )
+        )
+
+      subquery(
+        from([f, _r] in reported,
+          left_join: l in subquery(layouts),
+          hints: ["ANY"],
+          on: l.path == f.path and l.layout_id == f.layout_id,
+          select_merge: %{
+            git_blob_id: l.git_blob_id,
+            line_numbers: l.line_numbers,
+            execution_counts: fragment("arrayResize(?, length(?))", f.execution_counts, l.line_numbers),
+            function_names: l.function_names,
+            function_line_numbers: l.function_line_numbers,
+            function_execution_counts:
+              fragment("arrayResize(?, length(?))", f.function_execution_counts, l.function_names),
+            function_covered_lines: fragment("arrayResize(?, length(?))", f.function_covered_lines, l.function_names),
+            function_executable_lines: l.function_executable_lines
+          }
+        )
+      )
+    else
+      subquery(reported)
+    end
+  end
+
+  @doc """
+  `report_files_for_runs/3`'s choice of reports as raw SQL, for raw queries
+  that read `coverage_run_files` themselves (`Tuist.TestImpactAnalysis.Snapshots`):
+  the `(test_run_id, shard_index, inserted_at)` of each shard's report the
+  runs' newest totals pin, read from `coverage_runs` alone. It reads the
+  parameters `{project_id:Int64}` and `{run_ids:Array(UUID)}`, so a query
+  filters its rows with
+  `(test_run_id, shard_index, inserted_at) IN (\#{pinned_reports_sql()})`.
+  """
+  def pinned_reports_sql do
+    """
+    SELECT test_run_id, tupleElement(pin, 1) AS shard_index, tupleElement(pin, 2) AS report_inserted_at
+    FROM (
+      SELECT test_run_id, arrayJoin(arrayZip(argMax(report_shards, version), argMax(report_inserted_at, version))) AS pin
+      FROM coverage_runs
+      WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)}
+      GROUP BY test_run_id
+    )
+    """
+  end
+
+  # Each shard's report the run's newest totals pin (`pinned_reports_sql/0`
+  # is the same as raw SQL), one row per pinned shard. A shard the pins leave
+  # out has no synced report yet and is read as not reported; a run whose
+  # totals pin nothing (none of its reports listed a file) reads no rows.
+  # Every run's totals carry pins: `Workers.PinsBackfillWorker` wrote them for
+  # the runs reported before.
+  defp pinned_reports(project_id, test_run_ids) do
+    pins =
+      from(c in CoverageRun,
+        where: c.project_id == ^project_id and c.test_run_id in ^test_run_ids,
+        group_by: c.test_run_id,
+        select: %{
+          test_run_id: c.test_run_id,
+          pin:
+            fragment(
+              "arrayJoin(arrayZip(argMax(?, ?), argMax(?, ?)))",
+              c.report_shards,
+              c.version,
+              c.report_inserted_at,
+              c.version
+            )
+        }
+      )
+
+    from(p in subquery(pins),
+      select: %{
+        test_run_id: p.test_run_id,
+        shard_index: fragment("tupleElement(?, 1)", p.pin),
+        inserted_at: fragment("tupleElement(?, 2)", p.pin)
+      }
     )
   end
+
+  @doc """
+  An Ecto query as SQL with its parameters inlined, for a raw query to read
+  it as a subquery, as the carried fold (`Coverage.Reported`) and the delta
+  writes (`Coverage.Deltas`) read the runs' rows. Lists are inlined as one
+  array each (`Tuist.ClickHouse.ArrayInParams`), so the SQL's size grows
+  with them: keep to queries over a few runs.
+  """
+  def inline_sql(%Ecto.Query{} = query), do: inline_sql(subquery(query))
+
+  # A subquery names its columns, which a query's own map select doesn't.
+  def inline_sql(%Ecto.SubQuery{} = query),
+    do: Ecto.Adapters.ClickHouse.to_inline_sql(:all, ArrayInParams.rewrite(from(f in query, select: f)))
 
   # One row per path, its shards' reports merged: the lines are the union
   # across shards. A file whose archive entry was missing keeps the counts the

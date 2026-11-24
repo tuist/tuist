@@ -33,6 +33,9 @@ enum SimulatorsViewModelError: FatalError, Equatable {
             case let .androidDevice(androidDevice):
                 name = androidDevice.name
                 platform = "Android"
+            case .thisMac:
+                name = String(localized: "This Mac")
+                platform = "macOS"
             }
             let platforms = destinations.map {
                 switch $0 {
@@ -84,12 +87,14 @@ enum Device: Codable, Equatable {
     case simulator(SimulatorDeviceAndRuntime)
     case device(PhysicalDevice)
     case androidDevice(AndroidDevice)
+    case thisMac
 }
 
 enum SelectedDevice: Codable, Equatable {
     case simulator(id: String)
     case device(id: String)
     case androidDevice(id: String)
+    case thisMac
 }
 
 @Observable
@@ -164,6 +169,10 @@ final class DevicesViewModel: Sendable {
 
     @MainActor func selectAndroidDevice(_ device: AndroidDevice) {
         deviceService.selectDevice(.androidDevice(device))
+    }
+
+    @MainActor func selectThisMac() {
+        deviceService.selectDevice(.thisMac)
     }
 
     func simulatorPinned(_ simulator: SimulatorDeviceAndRuntime, pinned: Bool) {

@@ -4,6 +4,150 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
+  /* Phase colours shared by the card-header legend and each row's bar. */
+  & [data-phase="queue"] {
+    --phase-color: var(--noora-chart-p50);
+  }
+
+  & [data-phase="input-fetch"] {
+    --phase-color: var(--noora-chart-secondary);
+  }
+
+  & [data-phase="execution"] {
+    --phase-color: var(--noora-chart-primary);
+  }
+
+  & [data-phase="output-upload"] {
+    --phase-color: var(--noora-chart-tertiary);
+  }
+
+  & [data-part="phase-legend"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-5);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+    & > span {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--noora-spacing-2);
+
+      &::before {
+        border-radius: 2px;
+        background: var(--phase-color);
+        width: 8px;
+        height: 8px;
+        content: "";
+      }
+    }
+  }
+
+  & [data-part="remote-execution-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    min-width: 0;
+
+    & > [data-part="filters"] {
+      display: flex;
+    }
+
+    & > [data-part="finished-note"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & > [data-part="skeleton"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+    }
+
+    /* Same as refreshing async cards: dim the previous rows only once a reload
+     * takes longer than 200ms, so fast re-sorts don't flicker. */
+    &[data-state="refreshing"] .noora-table {
+      animation: tuist-chart-refresh 0s linear 200ms forwards;
+    }
+
+    /* The action column takes the width the other columns leave and clips long
+     * titles, so Started at, Phases and Duration stay visible. Noora sizes tables
+     * to their max-content, which would let a long title widen the column instead. */
+    & table:has([data-part="trace-action"]) {
+      min-width: 100%;
+    }
+
+    & td:has(> [data-part="trace-action"]) {
+      width: 100%;
+      max-width: 0;
+    }
+
+    & [data-part="trace-action"] {
+      display: flex;
+      min-width: 0;
+
+      & > [data-part="cell"] {
+        min-width: 0;
+
+        & [data-part="column"] {
+          max-width: none;
+        }
+      }
+    }
+
+    /* Noora tooltips are inline-sized; the bar needs the cell's width. */
+    & .noora-tooltip {
+      display: flex;
+      min-width: 160px;
+
+      & > [data-part="trigger"] {
+        display: block;
+        flex: 1;
+        min-width: 0;
+      }
+    }
+
+    /* The chart tooltip card inside a Noora tooltip, which would otherwise paint
+     * it as its dark single-line content. */
+    & .noora-tooltip [data-part="content"].noora-chart-tooltip {
+      box-shadow: var(--noora-border-medium);
+      background: var(--noora-surface-background-primary);
+      min-width: 200px;
+      max-width: 320px;
+
+      & > [data-part="title"] {
+        display: block;
+        overflow: hidden;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      & [data-part="dot"] {
+        --color: var(--phase-color);
+      }
+
+      /* Keep each duration beside its phase name instead of the right edge. */
+      & [data-part="value"] {
+        margin-left: 0;
+      }
+    }
+
+    & [data-part="phase-bar"] {
+      display: flex;
+      border-radius: 3px;
+      background: var(--noora-surface-background-tertiary);
+      height: 12px;
+      overflow: hidden;
+
+      & > span {
+        flex-shrink: 0;
+        background: var(--phase-color);
+      }
+    }
+  }
+
   & [data-part="custom-metadata-section"] > [data-part="custom-metadata-label"] {
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
@@ -72,10 +216,19 @@
           }
         }
 
+        & > [data-part="badge-processing"] {
+          background: var(--noora-surface-background-secondary);
+
+          & > [data-part="icon"] {
+            color: var(--noora-surface-label-secondary);
+          }
+        }
+
         & > [data-part="badge-success"],
         & > [data-part="badge-failure"],
         & > [data-part="badge-warning"],
-        & > [data-part="badge-flaky"] {
+        & > [data-part="badge-flaky"],
+        & > [data-part="badge-processing"] {
           flex-shrink: 0;
           border-radius: var(--noora-radius-4);
 

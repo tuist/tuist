@@ -60,7 +60,7 @@ jobs:
       # checking it out would run that line's vintage of channel-version.sh.
       # The resolver reads the line's tags and resolves its HEAD from the
       # remote, so it needs no local checkout of the branch.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}

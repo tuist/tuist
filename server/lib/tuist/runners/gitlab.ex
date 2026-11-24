@@ -17,7 +17,7 @@ defmodule Tuist.Runners.GitLab do
   import Ecto.Query
 
   alias Tuist.Accounts
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Claims
@@ -123,7 +123,7 @@ defmodule Tuist.Runners.GitLab do
 
     with %Connection{enabled: true} = current <- connection,
          {:ok, account} <- Accounts.get_account_by_id(current.account_id),
-         true <- FeatureFlags.runners_enabled?(account),
+         true <- Environment.runners_available?(),
          false <- Allowance.exhausted?(account) do
       if length(waiting) < @max_waiting_jobs and headroom_left?(current.account_id, waiting) do
         case Client.request_job(current) do
@@ -135,7 +135,6 @@ defmodule Tuist.Runners.GitLab do
         {:ok, 0}
       end
     else
-      nil -> {:ok, 0}
       false -> {:ok, :inactive}
       true -> {:ok, :inactive}
       %Connection{} -> {:ok, 0}
@@ -164,9 +163,9 @@ defmodule Tuist.Runners.GitLab do
         Client.write_trace(job.url, payload, waiting_trace(job, payload, resolved))
         {:ok, 1}
 
-      {{:ok, job}, {:error, _}} ->
+      {{:ok, job}, {:error, reason}} ->
         settle_rejected(job, payload)
-        {:error, :invalid_job_tags}
+        {:error, reason}
 
       {{:error, _}, _} ->
         Client.update_job(connection.url, payload, "failed", "runner_system_failure")
@@ -235,8 +234,9 @@ defmodule Tuist.Runners.GitLab do
          true <- Enum.all?(tags, &is_binary/1),
          [label] <-
            tags |> Enum.map(&String.downcase/1) |> Enum.filter(&String.starts_with?(&1, Profile.prefix())) |> Enum.uniq(),
-         {:ok, profile} <- Profiles.match_for_dispatch(account, [label]) do
-      Dispatch.resolve_dispatch_target(account, [Profile.dispatch_label(profile)])
+         {:ok, profile} <- Profiles.match_for_dispatch(account, [label]),
+         {:ok, target} <- Dispatch.resolve_dispatch_target(account, [Profile.dispatch_label(profile)]) do
+      {:ok, target}
     else
       _ -> {:error, :invalid_job_tags}
     end
@@ -507,7 +507,13 @@ defmodule Tuist.Runners.GitLab do
         where: c.id == ^connection.id,
         update: [
           set: [
-            last_error: fragment("CASE WHEN ? = ? THEN ? ELSE NULL END", c.last_error, ^@routing_poll_error, c.last_error)
+            last_error:
+              fragment(
+                "CASE WHEN ? = ? THEN ? ELSE NULL END",
+                c.last_error,
+                ^@routing_poll_error,
+                c.last_error
+              )
           ]
         ]
       ),

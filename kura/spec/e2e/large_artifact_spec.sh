@@ -42,10 +42,10 @@ Describe 'module artifact larger than the segment size'
   BeforeAll 'setup_suite'
   AfterAll 'teardown_suite'
 
-  # A segment caps at MAX_SEGMENT_BYTES = 512 MiB (src/constants.rs), but a single
+  # A segment caps at MAX_SEGMENT_BYTES = 512 MiB (crates/kura-core/src/constants.rs), but a single
   # artifact is appended whole and may exceed that ceiling: active_segment rotates
   # to a fresh segment when current_size + incoming_size > MAX_SEGMENT_BYTES and then
-  # writes the artifact regardless of its size (src/store.rs). Multipart module uploads
+  # writes the artifact regardless of its size (crates/kura-core/src/store.rs). Multipart module uploads
   # (2 GiB cap, 10 MiB per part) are the only client path that can produce such an
   # artifact, and it is far past MAX_INLINE_REPLICATION_BODY_BYTES (4 MiB) so it also
   # rides the streaming peer-replication path (bounded by MAX_REPLICATION_BODY_BYTES =

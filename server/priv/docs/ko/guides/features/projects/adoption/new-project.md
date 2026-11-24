@@ -1,15 +1,15 @@
 ---
 {
-  "title": "새 프로젝트 생성",
+  "title": "새 프로젝트 만들기",
   "titleTemplate": ":title · 도입 · 프로젝트 · 기능 · 가이드 · Tuist",
-  "description": "Tuist로 새 프로젝트를 생성하는 방법을 알아보세요."
+  "description": "Tuist로 새 프로젝트를 만드는 방법을 알아보세요."
 }
 ---
 # 새 프로젝트 생성 {#create-a-new-project}
 
-Tuist로 새 프로젝트를 시작하는 가장 간단한 방법은 `tuist init` 명령어를 사용하는 것입니다. 이 명령어는 프로젝트 설정을 안내하는 상호작용형 CLI를 실행합니다. 프롬프트가 표시되면 "생성된 프로젝트"를 생성하는 옵션을 선택하세요.
+Tuist로 새 프로젝트를 시작하는 가장 간단한 방법은 `tuist init` 명령을 사용하는 것입니다. 이 명령은 프로젝트 설정을 안내하는 상호작용형 CLI를 실행합니다. 프롬프트가 표시되면 "generated project" 생성 옵션을 선택하세요.
 
-그런 다음 `tuist edit`를 실행하여 <.localized_link href="/guides/features/projects/editing">프로젝트를 편집</.localized_link>할 수 있으며, Xcode가 열려 프로젝트를 편집할 수 있습니다. 생성되는 파일 중 하나인 `Project.swift`에는 프로젝트 정의가 포함되어 있습니다. Swift Package Manager에 익숙하다면, 이를 Xcode 프로젝트 용어를 사용한 `Package.swift`라고 생각하면 됩니다.
+이후 `tuist edit`를 실행하여 <.localized_link href="/guides/features/projects/editing">프로젝트를 편집</.localized_link>할 수 있으며, Xcode에서 프로젝트를 열어 편집할 수 있습니다. 생성되는 파일 중 하나인 `Project.swift`에는 프로젝트 정의가 포함됩니다. Swift Package Manager에 익숙하다면, 이를 Xcode 프로젝트 용어를 사용한 `Package.swift`라고 생각하면 됩니다.
 
 ::: code-group
 ```swift [Project.swift]
@@ -52,19 +52,19 @@ let project = Project(
 :::
 
 > [!NOTE]
-> 유지 관리 부담을 최소화하기 위해 사용 가능한 템플릿 목록을 의도적으로 짧게 유지합니다. 애플리케이션이 아닌 프로젝트(예: 프레임워크)를 생성하려면 `tuist init`를 시작점으로 사용한 후 생성된 프로젝트를 필요에 맞게 수정하면 됩니다.
+> 유지보수 부담을 최소화하기 위해 사용 가능한 템플릿 목록을 의도적으로 짧게 유지합니다. 애플리케이션이 아닌 프로젝트(예: 프레임워크)를 생성하려면 `tuist init`를 시작점으로 삼고, 생성된 프로젝트를 필요에 맞게 수정하면 됩니다.
 
 
 ## 프로젝트 수동 생성 {#manually-creating-a-project}
 
-또는 프로젝트를 수동으로 생성할 수 있습니다. Tuist와 그 개념에 이미 익숙한 경우에만 이 방법을 권장합니다. 먼저 프로젝트 구조를 위한 추가 디렉터리를 생성해야 합니다:
+대안으로 프로젝트를 수동으로 생성할 수 있습니다. Tuist와 그 개념에 이미 익숙한 경우에만 이 방법을 권장합니다. 먼저 프로젝트 구조를 위한 추가 디렉터리를 생성해야 합니다:
 
 ```bash
 mkdir MyFramework
 cd MyFramework
 ```
 
-그런 다음 Tuist를 구성하고 Tuist가 프로젝트의 루트 디렉터리를 결정하는 데 사용하는 `Tuist.swift` 파일과 프로젝트가 선언되는 `Project.swift` 파일을 생성합니다:
+그런 다음 Tuist를 구성하고 프로젝트의 루트 디렉터리를 결정하는 데 사용되는 `Tuist.swift` 파일과 프로젝트가 선언되는 `Project.swift`를 생성합니다:
 
 ::: code-group
 ```swift [Project.swift]

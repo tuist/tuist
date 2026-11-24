@@ -1,1 +1,1 @@
-La puerta de estrés vuelve a ejecutar los casos de prueba que añade tu rama, varias veces cada uno en un proceso nuevo, e informa de aquellos que resultan inestables. Verás una nueva prueba inestable en la pull request que la introdujo, no semanas después.
+La puerta de estrés vuelve a ejecutar los casos de prueba que añade tu rama, varias veces cada uno en un proceso nuevo, e informa de los que resultan inestables. Verás un nuevo test inestable en la pull request que lo introdujo, no semanas después.

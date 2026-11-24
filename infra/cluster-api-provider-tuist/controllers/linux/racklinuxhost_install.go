@@ -75,7 +75,12 @@ type RackInstall struct {
 	AuthorizedKeys []string
 }
 
-func rackBootSecretName(fleet string) string    { return fleet + "-boot" }
+func rackBootSecretName(fleet string) string { return fleet + "-boot" }
+
+// rackConsolePasswordHashAnnotation holds a SHA-512 crypt hash its installs set
+// as the host's console password in place of the minted one.
+const rackConsolePasswordHashAnnotation = "tuist.dev/console-password-hash"
+
 func rackConsoleSecretName(fleet string) string { return fleet + "-console" }
 
 // reconcileInstall publishes an install for a host that has no tailnet device
@@ -186,7 +191,7 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		case device != nil:
 			previous = device.DeviceID
 		}
-		if err := r.publishInstall(ctx, host, previous, triggered, now); err != nil {
+		if err := r.publishInstall(ctx, host, previous, triggered, host.Spec.Role == "edge" && len(edges) == 0, now); err != nil {
 			conditions.MarkFalse(host, InstalledCondition, "InstallNotPublished", clusterv1.ConditionSeverityWarning, "%v", err)
 			setProvisioningState(host, infrav1.RackLinuxHostProvisioning, fmt.Sprintf("could not publish the install: %v", err), now)
 			return time.Minute, nil
@@ -266,7 +271,9 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 
 // publishInstall mints a join key and writes the host's seed and iPXE script to
 // the boot Secret, under the host's boot MAC.
-func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infrav1.RackLinuxHost, previous string, triggered *metav1.Time, now time.Time) error {
+// firstEdge is an edge with no other edge of its site to go out through, whose
+// install carries the site's WAN in its netplan.
+func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infrav1.RackLinuxHost, previous string, triggered *metav1.Time, firstEdge bool, now time.Time) error {
 	fleetKey, err := r.CredentialsManager.ReadFleetSSHKey(ctx, r.Install.FleetName)
 	if err != nil {
 		return err
@@ -291,6 +298,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 	}
 	seed := rackinstall.Seed{
 		KuraLVM:         kuraLVMRequested(host.Annotations),
+		KuraDataLVSize:  host.Annotations[rackinstall.KuraDataLVSizeAnnotation],
 		Host:            host.Spec.Hostname,
 		Role:            host.Spec.Role,
 		User:            firstNonEmpty(host.Spec.SSHUser, "tuist"),
@@ -302,6 +310,13 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		Built:           now,
 		HostKey:         hostKey,
 		Edge:            rackEdgeNetwork(host.Spec.Edge),
+		// A hash its operators keep, such as in 1Password, set on the host as
+		// rackConsolePasswordHashAnnotation, takes the place of the minted
+		// console password.
+		ConsolePasswordHash: host.Annotations[rackConsolePasswordHashAnnotation],
+	}
+	if seed.Edge != nil {
+		seed.Edge.WANInNetplan = firstEdge
 	}
 	if hw := host.Status.Hardware; hw != nil && slices.Contains(r.Install.PreinstalledProducts, hw.Product) {
 		seed.ResidentInstaller = true
@@ -350,6 +365,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		HostKeyFingerprint: hostKey.Fingerprint,
 		TriggeredAt:        triggered,
 	}
+	host.Status.WANInInstall = seed.Edge != nil && seed.Edge.WANInNetplan && seed.Edge.WAN != nil
 	r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallPublished",
 		"Published install %s for %s to boot from %s, with a single-use join key tagged %s valid until %s",
 		key.ID, host.Spec.Hostname, host.Status.BootMAC, strings.Join(host.Spec.Tailnet.Tags, ","), expires.UTC().Format(time.RFC3339))
@@ -361,8 +377,12 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 // connected to the tailnet, whose boot servers serve the host's netboot while
 // it is down. One being deleted is going away.
 func (r *RackLinuxHostReconciler) servingEdges(ctx context.Context, host *infrav1.RackLinuxHost) ([]string, error) {
+	return servingEdges(ctx, r.Client, host)
+}
+
+func servingEdges(ctx context.Context, c client.Reader, host *infrav1.RackLinuxHost) ([]string, error) {
 	hosts := &infrav1.RackLinuxHostList{}
-	if err := r.List(ctx, hosts, client.InNamespace(host.Namespace)); err != nil {
+	if err := c.List(ctx, hosts, client.InNamespace(host.Namespace)); err != nil {
 		return nil, err
 	}
 	var edges []string

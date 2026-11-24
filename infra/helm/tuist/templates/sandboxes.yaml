@@ -139,6 +139,70 @@ preemptionPolicy: Never
 globalDefault: false
 description: "sandboxd: scheduled ahead of runner Pods, never preempts them."
 ---
+{{- /*
+The daemon's deploy-varying configuration. Without the vmm container it is
+the daemon's environment, as before; with it, a ConfigMap file both
+containers read (SANDBOXD_CONFIG), so step 2b can restart the daemon in place
+with new configuration (a Pod's environment cannot change).
+*/}}
+{{- $vmm := .Values.sandboxes.vmm.enabled }}
+{{- $daemonOnlyPorts := list }}
+{{- if not .Values.sandboxes.networkPolicy.guestServerAccess }}
+{{- $daemonOnlyPorts = append $daemonOnlyPorts (.Values.server.service.targetPort | default 8080) }}
+{{- end }}
+{{- if .Values.sandboxes.networkPolicy.archiveStoreEgress }}
+{{- $daemonOnlyPorts = append $daemonOnlyPorts 3900 }}
+{{- end }}
+{{- if .Values.sandboxes.networkPolicy.rustfsNamespace }}
+{{- $daemonOnlyPorts = append $daemonOnlyPorts 9000 }}
+{{- end }}
+{{- if $checkoutAgent }}
+{{- $daemonOnlyPorts = append $daemonOnlyPorts 8090 }}
+{{- end }}
+{{- $config := dict
+  "SERVER_URL" $serverURL
+  "TEMPLATE_NAME" (.Values.sandboxes.templateName | toString)
+  "PREBUILD_SHAPES" (.Values.sandboxes.prebuildShapes | toString)
+  "ALLOWED_SHAPES" (.Values.sandboxes.allowedShapes | toString)
+  "MEMORY_FLOOR_GIB" (.Values.sandboxes.memoryGiB | toString)
+  "MEMORY_CEILING_GIB" (max .Values.sandboxes.memoryGiB (.Values.sandboxes.maxMemoryGiB | default 0) | toString)
+  "CPU_FLOOR_MILLI" (include "tuist.milliCPU" .Values.sandboxes.cpu)
+  "CPU_CEILING_MILLI" (include "tuist.milliCPU" (.Values.sandboxes.daemonMaxCpu | default .Values.sandboxes.maxCpu | default .Values.sandboxes.cpu))
+  "DISK_BUDGET_GIB" (.Values.sandboxes.diskGiB | toString)
+  "DAEMON_ONLY_TCP_PORTS" (join "," $daemonOnlyPorts)
+  "GUESTS_REACH_SERVER" (.Values.sandboxes.networkPolicy.guestServerAccess | default false | toString)
+  "JAILER_ENABLED" (.Values.sandboxes.jailer | toString)
+  "LOG_LEVEL" (.Values.sandboxes.logLevel | toString) }}
+{{- if $checkoutAgent }}
+{{- $_ := set $config "CHECKOUT_AGENT_URL" (printf "http://%s.%s.svc.cluster.local:8090" $checkoutAgentName $checkoutAgentNamespace) }}
+{{- if .Values.sandboxes.checkoutWorkspacesGiB }}
+{{- $_ := set $config "CHECKOUT_WORKSPACES_GIB" (.Values.sandboxes.checkoutWorkspacesGiB | toString) }}
+{{- end }}
+{{- if .Values.sandboxes.cacheImagesGiB }}
+{{- $_ := set $config "CACHE_IMAGE_DIR" "/data/sandboxes/cache-images" }}
+{{- $_ := set $config "CACHE_IMAGES_GIB" (.Values.sandboxes.cacheImagesGiB | toString) }}
+{{- $_ := set $config "CACHE_DRIVE_IN_TEMPLATE" (.Values.sandboxes.cacheDriveInTemplate | default false | toString) }}
+{{- end }}
+{{- end }}
+{{- $_ := set $config "BALLOON_FREE_PAGE_REPORTING" (.Values.sandboxes.balloonFreePageReporting | default false | toString) }}
+{{- $configData := "" }}
+{{- range $key, $value := $config }}
+{{- $configData = printf "%s%s=%s\n" $configData $key $value }}
+{{- end }}
+{{- if $vmm }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-config
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxd
+data:
+  config.env: |
+    {{- $configData | nindent 4 }}
+---
+{{- end }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -155,8 +219,9 @@ spec:
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
-      # Each host pulls the template image before it is Ready (6-11 min in
-      # production), so one host at a time outlasts the deploy's Helm wait.
+      # A daemon restart pauses the node's running sandboxes, so a few nodes
+      # roll at a time. Template upgrades do not roll it (see the installer
+      # DaemonSet below).
       maxUnavailable: 3
   template:
     metadata:
@@ -169,8 +234,17 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: {{ .Values.sandboxes.metricsPort | quote }}
         prometheus.io/path: /metrics
+        {{- if $vmm }}
+        # Until step 2b restarts the daemon in place, a configuration change
+        # rolls the Pods as an environment change did.
+        checksum/config: {{ $configData | sha256sum }}
+        {{- end }}
     spec:
       serviceAccountName: {{ $name }}
+      {{- if $vmm }}
+      # The daemon reads the VMs' /proc and signals them; vmm spawns them.
+      shareProcessNamespace: true
+      {{- end }}
       automountServiceAccountToken: false
       {{- with .Values.sandboxes.imagePullSecrets }}
       imagePullSecrets:
@@ -194,27 +268,30 @@ spec:
                     operator: In
                     values:
                       {{- toYaml .Values.sandboxes.nodePools | nindent 22 }}
-      {{- with .Values.sandboxes.tolerations }}
+      # The runners-controller taints a host `tuist.dev/reserved-for` while
+      # it gathers seats for one pool, and already counts the daemon's
+      # allocation there. Without this toleration a rollout during a
+      # reservation leaves the host without a daemon, and its sandboxes
+      # unreachable, until the taint lifts.
       tolerations:
+        - key: tuist.dev/reserved-for
+          operator: Exists
+      {{- with .Values.sandboxes.tolerations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if and $checkoutAgent .Values.sandboxes.cacheImagesGiB }}
+      # The daemon writes copied masters into CACHE_IMAGE_DIR but does not
+      # create it. Done here rather than in the daemon so nodes without cache
+      # grants keep their daemon image, and with it their running sandboxes.
       initContainers:
-        # Seeds the node with this template version's kernel and rootfs. The
-        # daemon builds the per-shape snapshots from them on the node, because
-        # Firecracker snapshots are tied to the host CPU.
-        - name: template
-          image: "{{ .Values.sandboxes.templateImage.repository }}:{{ $templateTag }}"
-          imagePullPolicy: {{ .Values.sandboxes.templateImage.pullPolicy }}
-          env:
-            - name: TEMPLATE_TAG
-              value: {{ $templateTag | quote }}
-            - name: TEMPLATE_DIR
-              value: "/host/templates/{{ .Values.sandboxes.templateName }}/{{ $templateTag }}"
-            - name: ROOTFS_SIZE
-              value: "{{ .Values.sandboxes.rootfsGiB }}G"
+        - name: cache-image-dir
+          image: "{{ .Values.sandboxes.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.sandboxes.image.pullPolicy }}
+          command: ["mkdir", "-p", "-m", "0700", "/data/sandboxes/cache-images"]
           volumeMounts:
             - name: data
-              mountPath: /host
+              mountPath: /data/sandboxes
+      {{- end }}
       containers:
         - name: sandboxd
           image: "{{ .Values.sandboxes.image.repository }}:{{ $imageTag }}"
@@ -231,20 +308,42 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            - name: SERVER_URL
-              value: {{ $serverURL | quote }}
+            {{- if $vmm }}
             - name: TOKEN_PATH
               value: /var/run/secrets/tuist/token
             - name: DATA_DIR
               value: /data/sandboxes
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: METRICS_ADDR
+              value: "$(POD_IP):{{ .Values.sandboxes.metricsPort }}"
+            {{- if .Values.sandboxes.admin.enabled }}
+            - name: ADMIN_ADDR
+              value: "$(POD_IP):{{ .Values.sandboxes.admin.port }}"
+            {{- end }}
+            # The rest comes from the ConfigMap above.
+            - name: SANDBOXD_CONFIG
+              value: /etc/sandboxd/config.env
+            - name: VMM_SOCKET
+              value: /run/vmm/vmm.sock
+            {{- else }}
+            - name: SERVER_URL
+              value: {{ $config.SERVER_URL | quote }}
+            - name: TOKEN_PATH
+              value: /var/run/secrets/tuist/token
+            - name: DATA_DIR
+              value: /data/sandboxes
+            # No TEMPLATE_TAG: the daemon follows the tag the installer
+            # DaemonSet below completed last, so a template upgrade never
+            # restarts it.
             - name: TEMPLATE_NAME
-              value: {{ .Values.sandboxes.templateName | quote }}
-            - name: TEMPLATE_TAG
-              value: {{ $templateTag | quote }}
+              value: {{ $config.TEMPLATE_NAME | quote }}
             - name: PREBUILD_SHAPES
-              value: {{ .Values.sandboxes.prebuildShapes | quote }}
+              value: {{ $config.PREBUILD_SHAPES | quote }}
             - name: ALLOWED_SHAPES
-              value: {{ .Values.sandboxes.allowedShapes | quote }}
+              value: {{ $config.ALLOWED_SHAPES | quote }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -253,39 +352,49 @@ spec:
             # starts at up to the ceiling, as sandboxes need it, and shrinks it
             # back once they pause.
             - name: MEMORY_FLOOR_GIB
-              value: {{ .Values.sandboxes.memoryGiB | quote }}
+              value: {{ $config.MEMORY_FLOOR_GIB | quote }}
             - name: MEMORY_CEILING_GIB
-              value: {{ max .Values.sandboxes.memoryGiB (.Values.sandboxes.maxMemoryGiB | default 0) | quote }}
+              value: {{ $config.MEMORY_CEILING_GIB | quote }}
+            # The CPU request moves the same way, without a CPU limit, to
+            # what the node's running sandboxes are guaranteed.
+            - name: CPU_FLOOR_MILLI
+              value: {{ $config.CPU_FLOOR_MILLI | quote }}
+            # Only reported in hello; the server's own ceiling (maxCpu) wins.
+            # daemonMaxCpu pins it so raising maxCpu rolls no daemon.
+            - name: CPU_CEILING_MILLI
+              value: {{ $config.CPU_CEILING_MILLI | quote }}
             - name: DISK_BUDGET_GIB
-              value: {{ .Values.sandboxes.diskGiB | quote }}
+              value: {{ $config.DISK_BUDGET_GIB | quote }}
             # The guests reach the Tuist API through its public URL; the
             # in-cluster server (SERVER_URL's Service and its Pods' port) and
             # the archive store are the daemon's alone.
-            {{- $daemonOnlyPorts := list }}
-            {{- if not .Values.sandboxes.networkPolicy.guestServerAccess }}
-            {{- $daemonOnlyPorts = append $daemonOnlyPorts (.Values.server.service.targetPort | default 8080) }}
-            {{- end }}
-            {{- if .Values.sandboxes.networkPolicy.archiveStoreEgress }}
-            {{- $daemonOnlyPorts = append $daemonOnlyPorts 3900 }}
-            {{- end }}
-            {{- if $checkoutAgent }}
-            {{- $daemonOnlyPorts = append $daemonOnlyPorts 8090 }}
-            {{- end }}
             - name: DAEMON_ONLY_TCP_PORTS
-              value: {{ join "," $daemonOnlyPorts | quote }}
+              value: {{ $config.DAEMON_ONLY_TCP_PORTS | quote }}
             - name: GUESTS_REACH_SERVER
-              value: {{ .Values.sandboxes.networkPolicy.guestServerAccess | default false | quote }}
-            {{- if $checkoutAgent }}
+              value: {{ $config.GUESTS_REACH_SERVER | quote }}
+            {{- if $config.CHECKOUT_AGENT_URL }}
             # Seeds workers' repositories from the node's checkout masters and
             # takes their exports; the Service keeps traffic on this node.
             - name: CHECKOUT_AGENT_URL
-              value: "http://{{ $checkoutAgentName }}.{{ $checkoutAgentNamespace }}.svc.cluster.local:8090"
-            {{- if .Values.sandboxes.checkoutWorkspacesGiB }}
+              value: {{ $config.CHECKOUT_AGENT_URL | quote }}
+            {{- end }}
+            {{- if $config.CHECKOUT_WORKSPACES_GIB }}
             # Prepared workspaces built from those seeds, out of DISK_BUDGET_GIB.
             - name: CHECKOUT_WORKSPACES_GIB
-              value: {{ .Values.sandboxes.checkoutWorkspacesGiB | quote }}
+              value: {{ $config.CHECKOUT_WORKSPACES_GIB | quote }}
             {{- end }}
+            {{- if $config.CACHE_IMAGES_GIB }}
+            # Runner-cache masters copied for sessions' cache grants, out of
+            # DISK_BUDGET_GIB; the server only grants where hello says so.
+            - name: CACHE_IMAGE_DIR
+              value: {{ $config.CACHE_IMAGE_DIR | quote }}
+            - name: CACHE_IMAGES_GIB
+              value: {{ $config.CACHE_IMAGES_GIB | quote }}
+            - name: CACHE_DRIVE_IN_TEMPLATE
+              value: {{ $config.CACHE_DRIVE_IN_TEMPLATE | quote }}
             {{- end }}
+            - name: BALLOON_FREE_PAGE_REPORTING
+              value: {{ $config.BALLOON_FREE_PAGE_REPORTING | quote }}
             - name: METRICS_ADDR
               value: "$(POD_IP):{{ .Values.sandboxes.metricsPort }}"
             {{- if .Values.sandboxes.admin.enabled }}
@@ -293,14 +402,21 @@ spec:
               value: "$(POD_IP):{{ .Values.sandboxes.admin.port }}"
             {{- end }}
             - name: JAILER_ENABLED
-              value: {{ .Values.sandboxes.jailer | quote }}
+              value: {{ $config.JAILER_ENABLED | quote }}
             - name: LOG_LEVEL
-              value: {{ .Values.sandboxes.logLevel | quote }}
+              value: {{ $config.LOG_LEVEL | quote }}
+            {{- end }}
           securityContext:
             # KVM, tap devices, network namespaces, chroot jails and cgroup
             # placement for the jailer: the same reasons the datapath agents
             # run privileged rather than with a capabilities-only grant.
             privileged: true
+          {{- if $vmm }}
+          # The VMs sit in the vmm container's cgroup, which the server
+          # resizes; the daemon's own memory is fixed.
+          resources:
+            {{- toYaml .Values.sandboxes.vmm.daemonResources | nindent 12 }}
+          {{- else }}
           # Resized in place by the server; restarting the daemon would kill
           # every running guest.
           resizePolicy:
@@ -314,6 +430,7 @@ spec:
               memory: "{{ .Values.sandboxes.memoryGiB }}Gi"
             limits:
               memory: "{{ .Values.sandboxes.memoryGiB }}Gi"
+          {{- end }}
           ports:
             - name: metrics
               containerPort: {{ .Values.sandboxes.metricsPort }}
@@ -342,6 +459,56 @@ spec:
             - name: token
               mountPath: /var/run/secrets/tuist
               readOnly: true
+            {{- if $vmm }}
+            - name: vmm
+              mountPath: /run/vmm
+            - name: config
+              mountPath: /etc/sandboxd
+              readOnly: true
+            {{- end }}
+        {{- if $vmm }}
+        # Spawns the daemon's Firecracker VMs, which sit in this container's
+        # cgroup, so step 2b can restart the daemon without them. It spawns
+        # the jailer in the daemon's mount namespace (an fd the daemon passes
+        # over the socket), so the jailer sees the daemon's network
+        # namespaces and lazy-disk mounts without propagating any mount to
+        # the host. See infra/sandboxd/AGENTS.md, "Process model".
+        - name: vmm
+          image: "{{ .Values.sandboxes.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.sandboxes.image.pullPolicy }}
+          command: ["/usr/local/bin/vmm"]
+          env:
+            - name: SANDBOXD_CONFIG
+              value: /etc/sandboxd/config.env
+            - name: VMM_SOCKET
+              value: /run/vmm/vmm.sock
+          securityContext:
+            # setns into the daemon's mount namespace, cgroup placement and
+            # the jailer it spawns.
+            privileged: true
+          # Resized in place by the server; restarting the daemon would kill
+          # every running guest.
+          resizePolicy:
+            - resourceName: memory
+              restartPolicy: NotRequired
+            - resourceName: cpu
+              restartPolicy: NotRequired
+          resources:
+            requests:
+              cpu: {{ .Values.sandboxes.cpu | quote }}
+              memory: "{{ .Values.sandboxes.memoryGiB }}Gi"
+            limits:
+              memory: "{{ .Values.sandboxes.memoryGiB }}Gi"
+          volumeMounts:
+            # Firecracker's log and the jail roots.
+            - name: data
+              mountPath: /data/sandboxes
+            - name: vmm
+              mountPath: /run/vmm
+            - name: config
+              mountPath: /etc/sandboxd
+              readOnly: true
+        {{- end }}
       volumes:
         - name: data
           hostPath:
@@ -363,6 +530,107 @@ spec:
                   audience: tuist-sandboxes
                   expirationSeconds: 3600
                   path: token
+        {{- if $vmm }}
+        - name: vmm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+        - name: config
+          configMap:
+            name: {{ $name }}-config
+        {{- end }}
+---
+# Installs the guest template on every sandbox node. Its init container seeds
+# this template version's kernel and rootfs under the node's
+# /data/sandboxes/templates and then names it in the template's `current`
+# file; the daemon there builds the per-shape snapshots (Firecracker
+# snapshots are tied to the host CPU) and switches new sandboxes to it without
+# restarting. A template upgrade therefore rolls only these Pods, which hold
+# no sandboxes, so every node rolls at once.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}-template
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandbox-template
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sandbox-template
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: "100%"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sandbox-template
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: sandbox-template
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.sandboxes.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      priorityClassName: {{ $name }}
+      terminationGracePeriodSeconds: 5
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/pool
+                    operator: In
+                    values:
+                      {{- toYaml .Values.sandboxes.nodePools | nindent 22 }}
+      # Same as the daemon: a template rollout must reach reserved hosts.
+      tolerations:
+        - key: tuist.dev/reserved-for
+          operator: Exists
+      {{- with .Values.sandboxes.tolerations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: template
+          image: "{{ .Values.sandboxes.templateImage.repository }}:{{ $templateTag }}"
+          imagePullPolicy: {{ .Values.sandboxes.templateImage.pullPolicy }}
+          env:
+            - name: TEMPLATE_TAG
+              value: {{ $templateTag | quote }}
+            - name: TEMPLATE_NAME
+              value: {{ .Values.sandboxes.templateName | quote }}
+            - name: TEMPLATE_DIR
+              value: "/host/templates/{{ .Values.sandboxes.templateName }}/{{ $templateTag }}"
+            - name: ROOTFS_SIZE
+              value: "{{ .Values.sandboxes.rootfsGiB }}G"
+          volumeMounts:
+            - name: data
+              mountPath: /host
+      containers:
+        # Keeps the Pod, and with it the installed version, until the next
+        # template upgrade replaces it.
+        - name: installed
+          image: "{{ .Values.sandboxes.templateImage.repository }}:{{ $templateTag }}"
+          imagePullPolicy: {{ .Values.sandboxes.templateImage.pullPolicy }}
+          command: ["/bin/sh", "-c", "trap 'exit 0' TERM; while :; do sleep 3600 & wait $!; done"]
+          resources:
+            requests:
+              cpu: 1m
+              memory: 8Mi
+            limits:
+              memory: 16Mi
+      volumes:
+        - name: data
+          hostPath:
+            path: /data/sandboxes
+            type: DirectoryOrCreate
 {{- if .Values.sandboxes.admin.enabled }}
 ---
 # Stable in-cluster address for the admin API during bring-up. With more
@@ -497,6 +765,20 @@ spec:
       ports:
         - protocol: TCP
           port: 3900
+    {{- end }}
+    {{- with .Values.sandboxes.networkPolicy.rustfsNamespace }}
+    # The daemon's archive uploads and restores on the RustFS store.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+          podSelector:
+            matchLabels:
+              app: rustfs
+              component: store
+      ports:
+        - protocol: TCP
+          port: 9000
     {{- end }}
 {{- end }}
 {{- end }}

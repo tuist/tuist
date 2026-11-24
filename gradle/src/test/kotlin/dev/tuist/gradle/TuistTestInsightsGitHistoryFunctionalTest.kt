@@ -143,6 +143,41 @@ class TuistTestInsightsGitHistoryFunctionalTest {
     }
 
     @Test
+    fun `a coverage run on a depth-1 merge checkout uploads the pull request's head`() {
+        val origin = fixture.pullRequestOrigin(File(tempDir, "pull-request").apply { mkdirs() })
+        projectDir = fixture.shallowCheckout(origin.url, "refs/pull/7/merge", File(tempDir, "merge-checkout"))
+        writeProject(coverage = true)
+
+        val result = runner().build()
+
+        assertTrue(requests.any { it.first == apiPath }, "the run was not reported:\n${result.output}")
+        val run = body(apiPath)
+        assertEquals(origin.mainHead, run.get("merge_base_sha").asString, run.toString())
+        val uploaded = uploadedCommits()
+        assertTrue(origin.pullRequestHead in uploaded, uploaded.toString())
+        assertTrue(origin.merge in uploaded, uploaded.toString())
+    }
+
+    @Test
+    fun `a run without coverage on a depth-1 merge checkout fetches nothing`() {
+        val origin = fixture.pullRequestOrigin(File(tempDir, "pull-request").apply { mkdirs() })
+        projectDir = fixture.shallowCheckout(origin.url, "refs/pull/7/merge", File(tempDir, "merge-checkout"))
+        writeProject()
+
+        val result = runner().build()
+
+        assertTrue(requests.any { it.first == apiPath }, "the run was not reported:\n${result.output}")
+        assertFalse(body(apiPath).has("merge_base_sha"))
+        assertEquals(listOf(origin.merge), uploadedCommits())
+        assertFalse(fixture.hasObject(projectDir, origin.pullRequestHead))
+    }
+
+    private fun uploadedCommits(): List<String> =
+        requests.filter { it.first == "$apiPath/git-history/commits" }.flatMap { (_, body) ->
+            JsonParser.parseString(body).asJsonObject.getAsJsonArray("commits").map { it.asJsonObject.get("sha").asString }
+        }
+
+    @Test
     fun `collects no Git history when the upload is disabled`() {
         val result = runner("TUIST_GIT_UPLOAD_ENABLED" to "false").build()
 
@@ -172,8 +207,9 @@ class TuistTestInsightsGitHistoryFunctionalTest {
                     ) + environment
             )
 
-    private fun writeProject(stressMode: String? = null) {
-        val stress = stressMode?.let { "\n    stressNewTests {\n        mode = \"$it\"\n    }" }.orEmpty()
+    private fun writeProject(stressMode: String? = null, coverage: Boolean = false) {
+        val stress = stressMode?.let { "\n    stressNewTests {\n        mode = \"$it\"\n    }" }.orEmpty() +
+            if (coverage) "\n    coverage {\n        enabled = true\n    }" else ""
         File(projectDir, "settings.gradle.kts").writeText(
             """
             plugins {
@@ -195,6 +231,13 @@ class TuistTestInsightsGitHistoryFunctionalTest {
 
             dependencies {
                 testImplementation(files(${junitClasspath()}))
+            }
+
+            // The agent from the plugin's own test classpath, so the fixture needs no repository.
+            plugins.withId("jacoco") {
+                dependencies {
+                    "jacocoAgent"(files(${classpath("org.jacoco.agent")}))
+                }
             }
 
             tasks.withType<Test>().configureEach {
@@ -219,10 +262,12 @@ class TuistTestInsightsGitHistoryFunctionalTest {
         )
     }
 
-    private fun junitClasspath(): String =
+    private fun junitClasspath(): String = classpath("junit", "opentest4j", "apiguardian")
+
+    private fun classpath(vararg names: String): String =
         System.getProperty("java.class.path")
             .split(File.pathSeparator)
-            .filter { it.contains("junit") || it.contains("opentest4j") || it.contains("apiguardian") }
+            .filter { entry -> names.any { entry.contains(it) } }
             .joinToString(", ") { "\"${it.replace("\\", "\\\\")}\"" }
 
     private val ciEnvironmentVariables = setOf(

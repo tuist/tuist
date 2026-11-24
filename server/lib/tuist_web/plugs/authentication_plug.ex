@@ -13,14 +13,11 @@ defmodule TuistWeb.AuthenticationPlug do
   alias Tuist.Authentication.SubjectCache
   alias Tuist.Authentication.UnavailableError
   alias Tuist.OIDC
-  alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Sandboxes
   alias TuistWeb.API.CacheController
   alias TuistWeb.Errors.ServiceUnavailableError
-  alias TuistWeb.Headers
   alias TuistWeb.RequestOrigin
-  alias TuistWeb.WarningsHeaderPlug
 
   @bounded_write_controllers [
     TuistWeb.API.AnalyticsController,
@@ -127,7 +124,7 @@ defmodule TuistWeb.AuthenticationPlug do
 
     case resolve_subject(conn, token, bounded) do
       %Project{} = project ->
-        put_project(conn, token, project)
+        put_project(conn, project)
 
       %User{} = user ->
         TuistWeb.Authentication.put_current_user(conn, user)
@@ -145,20 +142,7 @@ defmodule TuistWeb.AuthenticationPlug do
     end
   end
 
-  defp put_project(conn, token, %Project{account: account} = project) do
-    cli_version = Headers.get_cli_version(conn)
-
-    conn =
-      if Projects.legacy_token?(token) and not is_nil(cli_version) and
-           Version.compare(cli_version, Version.parse!("4.20.0")) == :gt do
-        WarningsHeaderPlug.put_warning(
-          conn,
-          "The project token you are using is deprecated. Please create a new token by running `tuist projects token create #{account.name}/#{project.name}."
-        )
-      else
-        conn
-      end
-
+  defp put_project(conn, project) do
     TuistWeb.Authentication.put_current_project(conn, project)
   end
 

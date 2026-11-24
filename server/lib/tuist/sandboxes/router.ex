@@ -202,7 +202,9 @@ defmodule Tuist.Sandboxes.Router do
   only one that died, with whether this call created it. A created sandbox
   is cloned from `opts[:from_disk_snapshot]` when given, and otherwise goes
   to the `prefer_nodes:` first when they have room
-  (`Tuist.Sandboxes.create_sandbox/3`).
+  (`Tuist.Sandboxes.create_sandbox/3`). A created Linux sandbox starts with
+  the `cache:` (`Tuist.Runners.CacheVolumes.sandbox_cache/2`) when its node
+  can attach it.
   """
   def find_or_create_sandbox(agent_environment, session_id, opts \\ []) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
@@ -210,7 +212,10 @@ defmodule Tuist.Sandboxes.Router do
       %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming, :archived] ->
         {:ok, sandbox, false}
 
-      %Sandbox{platform: :darwin, state: :error} ->
+      # A placed macOS sandbox keeps its disk for recovery. One without a
+      # node (a create refused for room, or a failed create whose host
+      # deleted it) holds nothing and is replaced below.
+      %Sandbox{platform: :darwin, state: :error, node_name: node_name} when is_binary(node_name) ->
         {:error, :sandbox_recovery_required}
 
       # A sandbox that died or was deleted from under us cannot be
@@ -225,7 +230,18 @@ defmodule Tuist.Sandboxes.Router do
     end
   end
 
+  # `cache:` is the session's cache, or a function that finds it, called only
+  # when a sandbox is created. Nodes holding it go first.
   defp create_sandbox(agent_environment, session_id, opts) do
+    cache =
+      case Keyword.get(opts, :cache) do
+        find when is_function(find, 0) -> find.()
+        cache -> cache
+      end
+
+    prefer_nodes = Enum.uniq(Sandboxes.cache_nodes(cache) ++ Keyword.get(opts, :prefer_nodes, []))
+    opts = Keyword.merge(opts, cache: cache, prefer_nodes: prefer_nodes)
+
     with {:ok, account} <- Accounts.get_account_by_id(agent_environment.account_id),
          {:ok, sandbox} <-
            Sandboxes.create_sandbox(
@@ -239,7 +255,7 @@ defmodule Tuist.Sandboxes.Router do
                memory_mb: agent_environment.memory_mb,
                workspace_gb: agent_environment.workspace_gb
              },
-             Keyword.take(opts, [:from_disk_snapshot, :prefer_nodes])
+             Keyword.take(opts, [:from_disk_snapshot, :prefer_nodes, :cache])
            ) do
       {:ok, sandbox, true}
     end

@@ -58,19 +58,14 @@ defmodule Tuist.Projects do
     Repo.aggregate(maybe_filter_visibility(query, opts), :count, :id)
   end
 
-  def legacy_token?(token) do
-    not String.starts_with?(token, "tuist_")
+  def has_remote_execution_projects?(%Account{id: account_id}) do
+    Repo.exists?(from p in Project, where: p.account_id == ^account_id and p.build_system in [:bazel, :once])
   end
 
   def get_project_by_full_token(full_token) do
-    if legacy_token?(full_token) do
-      hash = Tuist.Tokens.legacy_token_hash(full_token)
-      Repo.one(from(p in Project, where: p.token_hash == ^hash, preload: [:account]))
-    else
-      case get_project_token(full_token) do
-        {:error, _} -> nil
-        {:ok, token} -> get_project_by_id(token.project_id)
-      end
+    case get_project_token(full_token) do
+      {:error, _} -> nil
+      {:ok, token} -> get_project_by_id(token.project_id)
     end
   end
 
@@ -354,8 +349,11 @@ defmodule Tuist.Projects do
     end
   end
 
+  # New projects get no legacy token: `ProjectToken`s and OIDC replace it, and
+  # it was never shown to anyone. `token:` sets one, for tests of projects
+  # that still have one.
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
-    token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())
+    token = Keyword.get(opts, :token)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     visibility = Keyword.get(opts, :visibility, :private)
 
@@ -386,7 +384,7 @@ defmodule Tuist.Projects do
   end
 
   def create_project!(%{name: name, account: %{id: account_id}}, opts \\ []) do
-    token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())
+    token = Keyword.get(opts, :token)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     visibility = Keyword.get(opts, :visibility, :private)
     preload = Keyword.get(opts, :preload, [])

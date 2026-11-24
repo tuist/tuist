@@ -68,7 +68,15 @@ defmodule Tuist.GitHistory.FileChanges do
   # replica it reaches, so each statement returns once the replicas have its
   # rows: `auto` is a majority, which is all of them up to two replicas. With
   # one of them away the statement fails and the job comes back.
-  @replicated [insert_quorum: "auto", insert_quorum_timeout: 10_000, select_sequential_consistency: 1]
+  #
+  # A statement also reads the listing twice, its files and their count
+  # (`@complete`), and the count only vouches for the files when both read
+  # the same parts. A server whose `compatibility` is older than 25.12 takes a
+  # snapshot per subquery, so a listing part landing between the two (a
+  # replica still fetching the last part of an upload) passed the count while
+  # the files lacked it, and the write recorded a partial listing as whole.
+  @one_snapshot [enable_shared_storage_snapshot_in_query: 1]
+  @replicated [insert_quorum: "auto", insert_quorum_timeout: 10_000, select_sequential_consistency: 1] ++ @one_snapshot
   @changed "(l.git_blob_id != s.git_blob_id OR l.mode != s.mode)"
   @complete """
   (
@@ -624,7 +632,8 @@ defmodule Tuist.GitHistory.FileChanges do
     %{rows: [[unchanged]]} =
       ClickHouseRepo.query!(
         "SELECT countIf(#{@changed}) = 0 AND #{files.complete} #{compared_sql(commit, files)}",
-        Map.merge(files.params, %{repository_id: listing.repository_id, sha: listing.sha})
+        Map.merge(files.params, %{repository_id: listing.repository_id, sha: listing.sha}),
+        settings: @one_snapshot
       )
 
     unchanged == 1

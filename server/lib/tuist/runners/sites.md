@@ -95,20 +95,20 @@ Node), falling back to the pool's site. The site then drives:
 No runner image change: `dispatch-poll.sh` sends nothing new. The server
 trusts the Node it reads over anything the guest could report.
 
-### 3. Cache affinity is a claim preference with a bound
+### 3. No cache affinity at claim
 
-A runner at site S that picks a queued job whose account has an active
-private runner-cache node at another site and none at S skips that job until
-it has queued for 60 seconds (one more filter in `pick_affine_candidate`, over
-the top-K candidates it already fetches, with one query for their accounts'
-cache sites). So:
+A runner takes the oldest queued job it can, whichever site holds the
+account's runner cache. This section first described a claim preference: a
+runner at site S skipped a job whose account had a runner cache at another
+site and none at S until the job had queued for 60 seconds. It was removed on
+2026-11-23. With the `tuist` account's cache only at larch, 20 of the 23
+27.2-pool jobs that waited over a minute between 11:40 and 13:10 waited 61 to
+70 s while alder runners were idle. A job claimed at a site without its
+account's cache node is handed that node's entrance on the claim site's
+gateway (`Kura.runner_cache_endpoint_url/3`, `gatewayEntrances`), so it keeps
+the warm cache over the cross-rack link rather than running cold.
 
-- while the warm site has an idle runner, it gets the job first;
-- while it is busy or dark, the job runs elsewhere after at most 60 seconds;
-- an account with no rack runner cache, or one at S, is never deferred.
-
-With one site this never triggers. Volume affinity stays per Node as it is
-(`select_candidate/3`, its 30 second tolerance). Placement can later prefer a
+Volume affinity stays per Node as it is (`select_candidate/3`, its 30 second tolerance). Placement can later prefer a
 Node at the account's cache site in `preferred_nodes` the same way it prefers
 Nodes holding a job's volumes; that is not needed for correctness.
 
@@ -153,7 +153,7 @@ worker is a no-op, as it is now.
 
 Until a second site enables runners, nothing changes for ber1: the same pools
 with the same names select the same fleet, every claim resolves to ber1 (Node
-label or fallback), the Kura endpoint is the same, no job is ever deferred,
+label or fallback), the Kura endpoint is the same,
 and the Kura rules see the same jobs. The new code paths are the Node read
 (cached) and the `site` column write.
 

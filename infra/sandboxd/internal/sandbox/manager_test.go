@@ -365,6 +365,85 @@ func TestLifecycle(t *testing.T) {
 	}
 }
 
+func TestResumeGrowsARootfsSmallerThanItsTemplate(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.create(t, testID, 10)
+	root := vm.RootDir(h.jailBase, testID)
+	rootfs := filepath.Join(root, firecracker.RootfsPath)
+	resizes := func(inst *fakevm.Instance) []string {
+		var scripts []string
+		for _, req := range inst.Agent.RequestsOf("exec") {
+			if cmd, _ := req["cmd"].([]any); len(cmd) == 3 && strings.Contains(fmt.Sprint(cmd[2]), "resize2fs /dev/vda") {
+				scripts = append(scripts, fmt.Sprint(cmd[2]))
+			}
+		}
+		return scripts
+	}
+	rootfsPatched := func(inst *fakevm.Instance) bool {
+		return strings.Contains(strings.Join(callPaths(inst), ","), "PATCH /drives/rootfs")
+	}
+	pending := func() bool {
+		meta, err := LoadMetadata(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return meta.RootfsGrowPending
+	}
+	cycle := func() *fakevm.Instance {
+		t.Helper()
+		if _, err := h.m.Pause(ctx, testID); err != nil {
+			t.Fatalf("pause: %v", err)
+		}
+		if _, err := h.m.Resume(ctx, testID); err != nil {
+			t.Fatalf("resume: %v", err)
+		}
+		return h.launcher.Last()
+	}
+
+	// A sandbox whose rootfs already matches its template is left alone.
+	if inst := cycle(); rootfsPatched(inst) || len(resizes(inst)) != 0 {
+		t.Fatalf("a full-size rootfs was resized: %v", callPaths(inst))
+	}
+
+	// The node's template grows, as a new tag with a larger rootfs does,
+	// and the guest's first resize fails.
+	const templateBytes = 3 << 20
+	if err := os.Truncate(filepath.Join(h.tmplDir, template.RootfsFile), templateBytes); err != nil {
+		t.Fatal(err)
+	}
+	h.launcher.ExecHook = func(req map[string]any, out func(string, []byte)) (int, bool) {
+		cmd, _ := req["cmd"].([]any)
+		if len(cmd) == 3 && strings.Contains(fmt.Sprint(cmd[2]), "resize2fs") {
+			out("stderr", []byte("resize2fs: Permission denied\n"))
+			return 1, true
+		}
+		return 0, false
+	}
+	inst := cycle()
+	if size := vm.FileSize(rootfs); size != templateBytes {
+		t.Fatalf("rootfs is %d bytes, want the template's %d", size, templateBytes)
+	}
+	if !rootfsPatched(inst) || len(resizes(inst)) != 1 || !strings.Contains(resizes(inst)[0], fmt.Sprintf("-ge %d ]", templateBytes)) {
+		t.Fatalf("the guest was not asked to grow to %d bytes: calls %v, resizes %v", templateBytes, callPaths(inst), resizes(inst))
+	}
+	if !pending() {
+		t.Fatal("a failed guest resize was not kept for the next resume")
+	}
+
+	// The next resume retries it, although the file already has its size.
+	h.launcher.ExecHook = nil
+	if inst := cycle(); !rootfsPatched(inst) || len(resizes(inst)) != 1 {
+		t.Fatalf("the pending resize was not retried: calls %v", callPaths(inst))
+	}
+	if pending() {
+		t.Fatal("a finished resize is still pending")
+	}
+	if inst := cycle(); rootfsPatched(inst) || len(resizes(inst)) != 0 {
+		t.Fatalf("a grown rootfs was resized again: %v", callPaths(inst))
+	}
+}
+
 func TestCreateValidation(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
@@ -484,7 +563,7 @@ func TestPauseWhileDisksLoadKeepsRunning(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A warm restore whose disks still arrive from its archive.
-	ld := &lazyDisks{loaded: make(chan struct{}), filled: make(chan struct{})}
+	ld := &lazyDisks{start: make(chan struct{}), loaded: make(chan struct{}), filled: make(chan struct{})}
 	sb.mu.Lock()
 	sb.lazy, sb.disksPending = ld, true
 	sb.mu.Unlock()
@@ -532,9 +611,9 @@ func TestRecover(t *testing.T) {
 			}
 		}
 	}
-	write("wasrunning", Metadata{ID: "wasrunning", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, Hostname: "sbx-wasrunning", State: protocol.StateRunning, Slot: 3, Generation: 2}, "mem", "snapshot", "mem.new", "rootfs.ext4", "workspace.ext4", "vmlinux")
+	write("wasrunning", Metadata{ID: "wasrunning", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, Hostname: "sbx-wasrunning", State: protocol.StateRunning, Slot: 3, Generation: 2, PausedCPUMs: 9000}, "mem", "snapshot", "mem.new", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("nosnapshot", Metadata{ID: "nosnapshot", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StateRunning, Slot: 1})
-	write("waspaused", Metadata{ID: "waspaused", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 0, Generation: 1, FirecrackerVersion: "v1.16.1"}, "mem", "snapshot")
+	write("waspaused", Metadata{ID: "waspaused", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 0, Generation: 1, FirecrackerVersion: "v1.16.1", PausedCPUMs: 1200}, "mem", "snapshot")
 	write("sameversion", Metadata{ID: "sameversion", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 5, Generation: 2, FirecrackerVersion: "v1.16.1"}, "mem", "snapshot", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("oldversion", Metadata{ID: "oldversion", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 4, Generation: 3, FirecrackerVersion: "v1.16.0"}, "mem", "snapshot", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("tmpl-default-t1-2x4096", Metadata{}, "mem")
@@ -558,6 +637,11 @@ func TestRecover(t *testing.T) {
 	}
 	if byID["waspaused"].ColdBoot {
 		t.Fatalf("a cleanly paused sandbox must keep its memory image: %+v", byID["waspaused"])
+	}
+	// A clean pause keeps reporting its CPU reading; a VM the daemon lost
+	// was never read, and must not report an earlier pause's.
+	if byID["waspaused"].CPUMs != 1200 || byID["wasrunning"].CPUMs != 0 {
+		t.Fatalf("paused cpu_ms: waspaused %d, wasrunning %d; want 1200 and 0", byID["waspaused"].CPUMs, byID["wasrunning"].CPUMs)
 	}
 	// Another Firecracker version cannot load the memory image a clean
 	// pause left, so the sandbox cold boots on its disks instead.
@@ -660,7 +744,7 @@ func TestCreateUsesConfiguredDefaultTemplateTag(t *testing.T) {
 	if _, err := h.m.Create(context.Background(), protocol.CreateArgs{SandboxID: "ambiguous", VCPUs: 2, MemoryMB: 4096}); err == nil {
 		t.Fatal("without a configured tag two versions on disk must be ambiguous")
 	}
-	h.m.cfg.DefaultTemplateTag = "t2"
+	h.m.SetDefaultTemplateTag("t2")
 	if _, err := h.m.Create(context.Background(), protocol.CreateArgs{SandboxID: "configured", VCPUs: 2, MemoryMB: 4096}); err != nil {
 		t.Fatalf("create with the configured default tag: %v", err)
 	}
@@ -675,6 +759,17 @@ func TestCreateUsesConfiguredDefaultTemplateTag(t *testing.T) {
 	info, _ = h.m.Status(context.Background(), "explicit")
 	if info.TemplateTag != "t1" {
 		t.Fatalf("expected the explicit tag t1, got %+v", info)
+	}
+	// Following the installer moves the default for later creates only.
+	h.m.SetDefaultTemplateTag("t1")
+	if _, err := h.m.Create(context.Background(), protocol.CreateArgs{SandboxID: "switched", VCPUs: 2, MemoryMB: 4096}); err != nil {
+		t.Fatalf("create after the default tag moved: %v", err)
+	}
+	if info, _ = h.m.Status(context.Background(), "switched"); info.TemplateTag != "t1" {
+		t.Fatalf("expected the new default tag t1, got %+v", info)
+	}
+	if info, _ = h.m.Status(context.Background(), "configured"); info.TemplateTag != "t2" {
+		t.Fatalf("an existing sandbox must keep its tag, got %+v", info)
 	}
 }
 
@@ -692,6 +787,12 @@ func TestShutdownStopsWorkersAndPausesEverything(t *testing.T) {
 	busy, _ := h.m.Status(ctx, "busy")
 	if idle.State != protocol.StatePaused {
 		t.Fatalf("idle sandbox should be paused: %+v", idle)
+	}
+	// A rollout's pauses must leave sandboxes the server can archive.
+	for _, id := range []string{"idle", "busy"} {
+		if meta, _ := LoadMetadata(vm.RootDir(h.jailBase, id)); !meta.DisksSynced {
+			t.Fatalf("a shutdown pause must sync the disks of %s: %+v", id, meta)
+		}
 	}
 	if busy.State != protocol.StatePaused || busy.WorkerRunning {
 		t.Fatalf("busy sandbox should have its worker stopped and be paused: %+v", busy)
@@ -1235,7 +1336,7 @@ func TestDeleteFailureRetainsInstanceAndReservationForRetry(t *testing.T) {
 	}
 }
 
-func TestListReportsCPUTimeOfRunningSandboxesOnly(t *testing.T) {
+func TestCPUTimeIsReportedWhileRunningAndAtPause(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	h.create(t, testID, 1)
@@ -1244,10 +1345,47 @@ func TestListReportsCPUTimeOfRunningSandboxesOnly(t *testing.T) {
 	if got := h.m.List()[0].CPUMs; got != 1500 {
 		t.Fatalf("running cpu_ms = %d, want 1500", got)
 	}
+	h.launcher.Last().SetCPUTime(2500 * time.Millisecond)
+	h.launcher.Last().SetResidentMemory(vm.Memory{AnonBytes: 3 << 30, FileBytes: 1 << 29})
+	res, err := h.m.Pause(ctx, testID)
+	if err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	if res.CPUMs != 2500 {
+		t.Fatalf("pause cpu_ms = %d, want 2500", res.CPUMs)
+	}
+	if res.MemoryAnonBytes != 3<<30 || res.MemoryFileBytes != 1<<29 {
+		t.Fatalf("pause memory = %d anon, %d file", res.MemoryAnonBytes, res.MemoryFileBytes)
+	}
+	// A paused sandbox keeps reporting the reading of its pause, also
+	// after the daemon restarts, so the server bills a pause it only learns
+	// of from a report.
+	if got := h.m.List()[0].CPUMs; got != 2500 {
+		t.Fatalf("paused cpu_ms = %d, want the pause's 2500", got)
+	}
+	meta, err := LoadMetadata(vm.RootDir(h.jailBase, testID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.PausedCPUMs != 2500 {
+		t.Fatalf("persisted paused_cpu_ms = %d, want 2500", meta.PausedCPUMs)
+	}
+}
+
+func TestListReportsMemoryOfRunningSandboxesOnly(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.create(t, testID, 1)
+	h.launcher.Last().SetResidentMemory(vm.Memory{AnonBytes: 3 << 30, FileBytes: 1 << 29})
+
+	got := h.m.List()[0]
+	if got.MemoryAnonBytes != 3<<30 || got.MemoryFileBytes != 1<<29 {
+		t.Fatalf("running memory = %d anon, %d file", got.MemoryAnonBytes, got.MemoryFileBytes)
+	}
 	if _, err := h.m.Pause(ctx, testID); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
-	if got := h.m.List()[0].CPUMs; got != 0 {
-		t.Fatalf("paused cpu_ms = %d, want 0", got)
+	if got := h.m.List()[0]; got.MemoryAnonBytes != 0 || got.MemoryFileBytes != 0 {
+		t.Fatalf("paused memory = %d anon, %d file, want none", got.MemoryAnonBytes, got.MemoryFileBytes)
 	}
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Prepare a BER1 rack switch over its USB-C console (hostname, management IP, SSH, fleet key)"
+#MISE description="Prepare a alder rack switch over its USB-C console (hostname, management IP, SSH, fleet key)"
 #
 # A factory TP-Link switch ships on 192.168.0.1 with SSH disabled, which is the
 # gateway address of most networks it is ever unboxed on: the unit collides with

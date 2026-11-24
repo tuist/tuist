@@ -111,49 +111,6 @@ defmodule TuistWeb.Storybook.Breadcrumbs do
         ]
       },
       %VariationGroup{
-        id: :with_badges,
-        description: "Breadcrumbs with badges displayed next to labels",
-        variations: [
-          %Variation{
-            id: :badge_on_trigger,
-            attributes: %{
-              id: "breadcrumbs-badge-trigger",
-              style: "slash"
-            },
-            slots: [
-              """
-              <.breadcrumb id="org-badge" label="Tuist" show_avatar avatar_color="blue" />
-              <.breadcrumb id="project-badge" label="iOS App" badge_label="Xcode" badge_color="focus">
-                <.breadcrumb_item id="ios-item" value="ios" label="iOS App" badge_label="Xcode" badge_color="focus" selected={true} href="#" />
-                <.breadcrumb_item id="android-item" value="android" label="Android App" badge_label="Gradle" badge_color="success" href="#" />
-              </.breadcrumb>
-              <.breadcrumb id="cache-badge" label="Cache" />
-              """
-            ]
-          },
-          %Variation{
-            id: :badge_only_on_items,
-            attributes: %{
-              id: "breadcrumbs-badge-items",
-              style: "slash"
-            },
-            slots: [
-              """
-              <.breadcrumb id="org-badge-items" label="Organization">
-                <:icon><.smart_home /></:icon>
-              </.breadcrumb>
-              <.breadcrumb id="project-badge-items" label="Project">
-                <.breadcrumb_item id="proj-alpha" value="alpha" label="Alpha" badge_label="Xcode" badge_color="focus" href="#" />
-                <.breadcrumb_item id="proj-beta" value="beta" label="Beta" badge_label="Gradle" badge_color="success" href="#" selected={true} />
-                <.breadcrumb_item id="proj-gamma" value="gamma" label="Gamma" badge_label="Xcode" badge_color="focus" href="#" />
-              </.breadcrumb>
-              <.breadcrumb id="settings-badge-items" label="Settings" />
-              """
-            ]
-          }
-        ]
-      },
-      %VariationGroup{
         id: :dropdown_variations,
         description: "Breadcrumbs with different dropdown configurations",
         variations: [

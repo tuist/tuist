@@ -11,14 +11,22 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
   was cut off, or is not DEFLATE-compressed NDJSON is cancelled rather than
   retried, since another attempt reads the same object. A run that has not
   appeared an hour after the job was enqueued is given up on.
+
+  One job publishes a shard's coverage. A newer upload for the same run and
+  shard (a re-run of the shard, under a new storage key) replaces the args of
+  the job not yet finished with it, so the newer coverage is the one
+  published. A job that was running when that happened reads its args back
+  once it is done and runs again with them.
   """
   use Oban.Worker,
     queue: :default,
     max_attempts: 5,
-    unique: [keys: [:test_run_id, :shard_index], states: :incomplete, period: :infinity]
+    unique: [keys: [:test_run_id, :shard_index], states: :incomplete, period: :infinity],
+    replace: [available: [:args], scheduled: [:args], executing: [:args], retryable: [:args]]
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
@@ -28,7 +36,19 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
   @run_wait_seconds 3600
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: args, inserted_at: inserted_at}) do
+  def perform(%Oban.Job{id: job_id, args: args, inserted_at: inserted_at}) do
+    result = publish_upload(args, inserted_at)
+    if replaced?(job_id, args), do: {:snooze, 0}, else: result
+  end
+
+  defp replaced?(job_id, %{"storage_key" => storage_key}) do
+    case job_id && Repo.get(Oban.Job, job_id) do
+      %Oban.Job{args: %{"storage_key" => current}} -> current != storage_key
+      _not_stored -> false
+    end
+  end
+
+  defp publish_upload(args, inserted_at) do
     %{"test_run_id" => test_run_id, "project_id" => project_id, "storage_key" => storage_key} = args
 
     coverage = %{
@@ -73,13 +93,18 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
 
     try do
       with {:ok, _} <- Storage.download_to_file(storage_key, compressed, account),
-           :ok <- inflate(compressed, inflated, Environment.coverage_max_inflated_bytes()) do
-        Coverage.publish(
-          test,
-          Coverage.rows(test.project_id, Map.put(coverage, :path, inflated)),
-          shard_index,
-          expected_shards
-        )
+           :ok <- inflate(compressed, inflated, Environment.coverage_max_inflated_bytes()),
+           :ok <-
+             Coverage.publish(
+               test,
+               Coverage.rows(test.project_id, Map.put(coverage, :path, inflated)),
+               shard_index,
+               expected_shards
+             ) do
+        # A job that ran while the run's request was still writing is folded
+        # again when that request finishes (`Tuist.Tests.create_test/1`).
+        Coverage.enqueue_fold(test, coverage)
+        :ok
       end
     rescue
       error in JSON.DecodeError -> {:cancel, {:invalid_coverage, error}}

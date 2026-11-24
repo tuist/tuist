@@ -1,25 +1,25 @@
 ---
 {
-  "title": "Gradleキャッシュ",
-  "titleTemplate": ":title · キャッシュ · 機能 · ガイド · Tuist",
-  "description": "Tuistを使用して、チームやCI間でGradleビルドキャッシュの成果物を共有します。"
+  "title": "Gradle キャッシュ",
+  "titleTemplate": ":title · Cache · Features · Guides · Tuist",
+  "description": "Tuist を使って、チームや CI 間で Gradle ビルドキャッシュの成果物を共有します。"
 }
 ---
-# Gradleキャッシュ {#gradle-cache}
+# Gradle キャッシュ {#gradle-cache}
 
-Tuistは、[Gradleの組み込みビルドキャッシュ](https://docs.gradle.org/current/userguide/build_cache.html)と連携してビルド成果物をリモートで共有するGradleプラグインを提供します。タスクの出力がすでにキャッシュされている場合、Gradleは実行をスキップし、Tuistのリモートキャッシュから結果を取得するため、チーム全体やCI環境でのビルド時間を短縮できます。
+Tuist は、[Gradle の組み込みビルドキャッシュ](https://docs.gradle.org/current/userguide/build_cache.html)と連携してビルド成果物をリモートで共有する Gradle プラグインを提供します。タスクの出力がすでにキャッシュされている場合、Gradle は実行をスキップし、Tuist のリモートキャッシュから結果を取得するため、チームや CI 環境全体でビルド時間を短縮できます。Gradle のローカルおよびリモートビルドキャッシュが up-to-date チェックや構成キャッシュとどのように異なるかについては、<.localized_link href="/references/concepts/build-cache#gradle">ビルドキャッシュとは何か？</.localized_link>をご覧ください。キャッシュが遅いビルドのどの部分を削減するのか、またプロジェクトで最初に修正すべき点を確認するには、[低速なビルド](https://tuist.dev/solutions/slow-builds)を参照してください。
 
-<.localized_link href="/guides/install-gradle-plugin">Tuist Gradleプラグイン</.localized_link>をインストールしたら、`gradle.properties`ファイルでGradleのビルドキャッシュを有効にする必要があります。
+<.localized_link href="/guides/install-gradle-plugin">Tuist Gradle プラグイン</.localized_link>をインストールしたら、`gradle.properties` ファイルで Gradle のビルドキャッシュを有効にする必要があります：
 
 ```properties
 org.gradle.caching=true
 ```
 
-これを設定しないと、リモートキャッシュを設定していてもGradleはビルドキャッシュサブシステムを活性化せず、すべてのタスクがキャッシュのヒットや登録なしに実行されます。有効にすると、GradleはTuistをリモートビルドキャッシュとして使用し、キャッシュヒット時にキャッシュされたタスク出力をダウンロードし、タスク実行後にアップロードします。
+これを設定しないと、リモートキャッシュを設定していても Gradle はビルドキャッシュサブシステムを活性化せず、すべてのタスクはキャッシュへのヒットや登録を行わずに実行されます。有効にすると、Gradle は Tuist をリモートビルドキャッシュとして使用し、キャッシュヒット時にキャッシュされたタスク出力をダウンロードし、タスク実行後にアップロードします。
 
 ## キャッシュアップロードポリシー {#cache-upload-policy}
 
-デフォルトでは、このプラグインはリモートキャッシュへのアーティファクトのダウンロードとアップロードの両方を行います。`buildCache`ブロック内の`push`オプションでアップロードを制御できます。
+デフォルトでは、プラグインはリモートキャッシュへのアーティファクトのダウンロードとアップロードの両方を行います。`buildCache` ブロック内の `push` オプションでアップロードを制御できます：
 
 ```kotlin
 tuist {
@@ -29,7 +29,7 @@ tuist {
 }
 ```
 
-一般的なパターンは、ビルドが再現可能なCIからのみアーティファクトをプッシュし、ローカル環境は読み取り専用のままにすることです。
+一般的なパターンは、ビルドが再現可能な CI からのみアーティファクトをプッシュし、ローカル環境は読み取り専用モードにすることです：
 
 ```kotlin
 tuist {
@@ -39,19 +39,19 @@ tuist {
 }
 ```
 
-この設定により、ローカルビルドはアップロードなしでキャッシュされたアーティファクトの恩恵を受け、CIビルドはチームの他のメンバーのためにキャッシュに登録します。
+この設定により、ローカルビルドはアップロードなしでキャッシュされたアーティファクトの恩恵を受け、CI ビルドはチームの他のメンバーのためにキャッシュに登録します。
 
 ## 継続的インテグレーション {#continuous-integration}
 
-CI環境では、<.localized_link href="/guides/server/authentication#continuous-integration">認証ガイド</.localized_link>に記載された方法のいずれかを使用して認証してください。プロバイダー固有のCI例については、<.localized_link href="/guides/integrations/continuous-integration">継続的インテグレーションガイド</.localized_link>を参照してください。
+CI 環境では、<.localized_link href="/guides/server/authentication#continuous-integration">認証ガイド</.localized_link>に記載された方法のいずれかを使用して認証してください。プロバイダー固有の CI 例については、<.localized_link href="/guides/integrations/continuous-integration">継続的インテグレーションガイド</.localized_link>をご覧ください。
 
 ### ローカルビルドキャッシュの無効化 {#disabling-the-local-build-cache}
 
-Gradleはローカルビルドキャッシュとリモートビルドキャッシュの両方を維持します。ローカルビルドキャッシュは、`~/.gradle/caches/build-cache-1`以下のディスクにタスク出力を保存します。
+Gradle はローカルビルドキャッシュとリモートビルドキャッシュの両方を維持します。ローカルビルドキャッシュは、`~/.gradle/caches/build-cache-1` 以下のディスク上にタスク出力を保存します。
 
-Tuistをリモートビルドキャッシュとして構成する場合、CIではローカルビルドキャッシュを無効にすることを推奨します。これにより、CIランナーに冗長なアーティファクトを保存することを避け、ビルドが常にチームの他のメンバーのために新しいエントリでリモートキャッシュに登録されることを保証します。
+Tuist がリモートビルドキャッシュとして構成されている場合、CI でローカルビルドキャッシュを無効にすることをお勧めします。これにより、CI ランナー上に冗長なアーティファクトが保存されるのを防ぎ、ビルドが常にチームの他のメンバーのために新しいエントリでリモートキャッシュに登録されることを保証します。
 
-`settings.gradle.kts`でCI上のGradleローカルビルドキャッシュを無効にします。
+`settings.gradle.kts` で CI 上の Gradle ローカルビルドキャッシュを無効にします：
 
 ```kotlin
 buildCache {
@@ -61,14 +61,14 @@ buildCache {
 }
 ```
 
-これにより、ローカル開発ではローカルビルドキャッシュを利用可能にしつつ、Tuistのリモートキャッシュがアーティファクト共有を処理するCI上ではこれを無効にします。
+これにより、ローカル開発ではローカルビルドキャッシュを利用可能にしつつ、Tuist のリモートキャッシュがアーティファクト共有を処理する CI では無効にします。
 
-## 設定リファレンス {#configuration-reference}
+## 構成リファレンス {#configuration-reference}
 
-`buildCache`ブロックは以下をサポートします。
+`buildCache` ブロックは以下をサポートします：
 
 | オプション | 型 | デフォルト | 説明 |
 | --- | --- | --- | --- |
 | `enabled` | `Boolean` | `true` | リモートビルドキャッシュを有効にするかどうか。 |
 | `push` | `Boolean` | `true` | タスク出力をリモートキャッシュにアップロードするかどうか。 |
-| `allowInsecureProtocol` | `Boolean` | `false` | 安全でないHTTP接続を許可するかどうか。 |
+| `allowInsecureProtocol` | `Boolean` | `false` | 安全でない HTTP 接続を許可するかどうか。 |

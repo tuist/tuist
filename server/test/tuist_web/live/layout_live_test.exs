@@ -32,17 +32,13 @@ defmodule TuistWeb.LayoutLiveTest do
         preload: [:account]
       )
 
-    # The socket loads the project from the database, which holds no legacy token.
     project =
-      %{
-        ProjectsFixtures.project_fixture(
-          name: "tuist",
-          account_id: account.id,
-          visibility: :private,
-          preload: [:account]
-        )
-        | token: nil
-      }
+      ProjectsFixtures.project_fixture(
+        name: "tuist",
+        account_id: account.id,
+        visibility: :private,
+        preload: [:account]
+      )
 
     if role = Map.get(context, :user_role, nil) do
       Accounts.add_user_to_organization(user, organization, role: role)
@@ -152,7 +148,7 @@ defmodule TuistWeb.LayoutLiveTest do
                      value: project.id,
                      selected: true,
                      href: ~p"/#{organization.account.name}/#{project.name}",
-                     badge: %{label: "Xcode", color: "focus"}
+                     image: ~p"/images/build-systems/xcode.png"
                    }
                  ],
                  footer_items: [
@@ -165,7 +161,7 @@ defmodule TuistWeb.LayoutLiveTest do
                    }
                  ],
                  label: project.name,
-                 badge: %{label: "Xcode", color: "focus"}
+                 image: ~p"/images/build-systems/xcode.png"
                }
              ]
 

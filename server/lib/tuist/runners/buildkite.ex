@@ -50,7 +50,6 @@ defmodule Tuist.Runners.Buildkite do
 
   alias Tuist.Accounts
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Buildkite.Client
@@ -704,7 +703,7 @@ defmodule Tuist.Runners.Buildkite do
   defp fetch_enabled_account(%Installation{account_id: account_id}) do
     case Accounts.get_account_by_id(account_id) do
       {:ok, account} ->
-        if FeatureFlags.runners_enabled?(account) do
+        if Environment.runners_available?() do
           {:ok, account}
         else
           {:error, :runners_disabled}
@@ -861,7 +860,9 @@ defmodule Tuist.Runners.Buildkite do
   defp describe_error(:not_found), do: "Buildkite does not recognize this stack. Check the organization and cluster."
 
   defp describe_error(:runners_disabled), do: "Runners are not enabled for this account."
+
   defp describe_error(:allowance_exhausted), do: "The account's runner allowance is exhausted."
+
   defp describe_error(:no_profiles), do: "The account has no runner profiles to map queues onto."
   defp describe_error(reason), do: inspect(reason)
 end

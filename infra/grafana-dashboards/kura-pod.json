@@ -42,7 +42,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -156,7 +156,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -276,7 +276,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -397,7 +397,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -485,7 +485,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -671,7 +671,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -692,7 +692,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -814,7 +814,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -930,7 +930,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1080,7 +1080,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1196,7 +1196,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1217,7 +1217,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1239,7 +1239,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1362,7 +1362,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1483,7 +1483,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1604,7 +1604,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1725,7 +1725,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1846,7 +1846,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1967,13 +1967,13 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (pod, route, status) ((rate(kura_http_requests_total_total{env=~\"$env\", pod=~\"$pod\", route=~\"/_internal/bootstrap/.*\"}[$__rate_interval])) and on (pod) max by (pod) (kura_node_info{env=~\"$env\", pod=~\"$pod\"}))",
+                        "expr": "sum by (pod, route, status) ((rate(kura_http_requests_total_total{env=~\"$env\", pod=~\"$pod\", route=~\"/_internal/bootstrap/.*\"}[$__rate_interval])) * on (pod) group_left () (max by (pod) (kura_node_info{env=~\"$env\", pod=~\"$pod\"}) * 0 + 1))",
                         "legendFormat": "{{route}} {{status}}",
                         "range": true
                       },
@@ -2084,7 +2084,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2177,7 +2177,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2297,7 +2297,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2423,7 +2423,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2544,7 +2544,7 @@
                     "hidden": true,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2569,7 +2569,7 @@
                     "hidden": true,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2691,7 +2691,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2793,7 +2793,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2880,7 +2880,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2967,7 +2967,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -3088,7 +3088,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -3204,7 +3204,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -3320,7 +3320,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -3437,7 +3437,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -3553,7 +3553,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -3668,7 +3668,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -3785,7 +3785,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -3868,7 +3868,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -3955,7 +3955,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -4042,7 +4042,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -4129,7 +4129,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -4250,7 +4250,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -4337,7 +4337,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -4452,7 +4452,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -4540,7 +4540,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -4656,7 +4656,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -4777,7 +4777,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -4898,7 +4898,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -4988,7 +4988,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "$datasource"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -5858,6 +5858,26 @@
     "title": "Tuist Kura / Pod",
     "variables": [
       {
+        "kind": "DatasourceVariable",
+        "spec": {
+          "allowCustomValue": false,
+          "current": {
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
+          },
+          "hide": "dontHide",
+          "includeAll": false,
+          "label": "Data Source",
+          "multi": false,
+          "name": "datasource",
+          "options": [],
+          "pluginId": "prometheus",
+          "refresh": "onDashboardLoad",
+          "regex": "/^Tuist Pulse Metrics/",
+          "skipUrlSync": false
+        }
+      },
+      {
         "kind": "QueryVariable",
         "spec": {
           "allowCustomValue": true,
@@ -5877,15 +5897,16 @@
           "options": [],
           "query": {
             "datasource": {
-              "name": "grafanacloud-prom"
+              "name": "$datasource"
             },
             "group": "prometheus",
             "kind": "DataQuery",
             "spec": {
               "label": "env",
               "qryType": 1,
-              "query": "label_values(env)",
-              "refId": "PrometheusVariableQueryEditor-VariableQuery"
+              "query": "label_values(up, env)",
+              "refId": "PrometheusVariableQueryEditor-VariableQuery",
+              "metric": "up"
             },
             "version": "v0"
           },
@@ -5916,7 +5937,7 @@
           "options": [],
           "query": {
             "datasource": {
-              "name": "grafanacloud-prom"
+              "name": "$datasource"
             },
             "group": "prometheus",
             "kind": "DataQuery",
@@ -5935,8 +5956,9 @@
                 }
               ],
               "qryType": 1,
-              "query": "label_values({pod=~\"kura-.*\",env=~\"$env\"},pod)",
-              "refId": "PrometheusVariableQueryEditor-VariableQuery"
+              "query": "label_values(kura_node_info{pod=~\"kura-.*\",env=~\"$env\"},pod)",
+              "refId": "PrometheusVariableQueryEditor-VariableQuery",
+              "metric": "kura_node_info"
             },
             "version": "v0"
           },

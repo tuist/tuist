@@ -91,6 +91,15 @@ private enum CredentialFileLocator {
         return value
     }
 
+    /// URLComponents percent-decodes hosts, so a host can contain `/` and point the file outside `credentials/`.
+    static func fileName(host: String, serverURL: URL) throws -> String {
+        let host = normalizedHost(host)
+        guard !host.isEmpty, !host.contains("/") else {
+            throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
+        }
+        return "\(host).json"
+    }
+
     static func paths(defaultPath: AbsolutePath, fileSystem: FileSysteming) async throws -> [AbsolutePath] {
         guard try await fileSystem.exists(defaultPath.parentDirectory) else { return [defaultPath] }
         let host = normalizedHost(defaultPath.basenameWithoutExt)
@@ -99,6 +108,28 @@ private enum CredentialFileLocator {
             .sorted { $0.pathString < $1.pathString }
         if try await fileSystem.exists(defaultPath) { return [defaultPath] + aliases }
         return aliases.isEmpty ? [defaultPath] : aliases
+    }
+
+    /// Credentials are bearer tokens, so other local users must not be able to read the file or list its directory.
+    /// Restricting is best-effort: a directory owned by another user, or a filesystem without POSIX modes, must not
+    /// fail a login or lose the token pair a refresh already rotated.
+    static func write(_ data: Data, to path: AbsolutePath, fileSystem: FileSysteming) async throws {
+        if try await !fileSystem.exists(path.parentDirectory) {
+            try await fileSystem.makeDirectory(at: path.parentDirectory)
+        }
+        try? setPermissions(0o700, at: path.parentDirectory)
+        try data.write(to: URL(fileURLWithPath: path.pathString), options: .atomic)
+        try? setPermissions(0o600, at: path)
+    }
+
+    /// Tightens files written by versions that used the default mode.
+    static func restrictExistingPermissions(of path: AbsolutePath) {
+        try? setPermissions(0o700, at: path.parentDirectory)
+        try? setPermissions(0o600, at: path)
+    }
+
+    private static func setPermissions(_ permissions: Int, at path: AbsolutePath) throws {
+        try FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: path.pathString)
     }
 }
 
@@ -195,10 +226,7 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 case .fileSystem:
                     let path = try credentialsFilePath(serverURL: serverURL)
                     let data = try JSONEncoder().encode(credentials)
-                    if try await !fileSystem.exists(path.parentDirectory) {
-                        try await fileSystem.makeDirectory(at: path.parentDirectory)
-                    }
-                    try data.write(to: URL(fileURLWithPath: path.pathString), options: .atomic)
+                    try await CredentialFileLocator.write(data, to: path, fileSystem: fileSystem)
             #endif
             }
 
@@ -227,6 +255,7 @@ public enum ServerCredentialsStoreBackend: Sendable {
                     )
                     let path = paths[0]
                     guard try await fileSystem.exists(path) else { return nil }
+                    CredentialFileLocator.restrictExistingPermissions(of: path)
                     let data = try await fileSystem.readFile(at: path)
 
                     do {
@@ -285,8 +314,8 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 } else {
                     Environment.current.configDirectory
                 }
-                return try directory
-                    .appending(RelativePath(validating: "credentials/\(CredentialFileLocator.normalizedHost(host)).json"))
+                let fileName = try CredentialFileLocator.fileName(host: host, serverURL: serverURL)
+                return try directory.appending(RelativePath(validating: "credentials/\(fileName)"))
             }
         #endif
 
@@ -331,9 +360,12 @@ public enum ServerCredentialsStoreBackend: Sendable {
         }
 
         private static func defaultConfigDirectory() -> AbsolutePath {
-            let homeDirectory = ProcessInfo.processInfo.environment["HOME"] ?? "/tmp"
+            if let home = ProcessInfo.processInfo.environment["HOME"], let homeDirectory = try? AbsolutePath(validating: home) {
+                return homeDirectory.appending(components: ".config", "tuist")
+            }
+            // Without HOME, NSHomeDirectory resolves the user's passwd entry instead of a shared directory such as /tmp.
             // swiftlint:disable:next force_try
-            return try! AbsolutePath(validating: homeDirectory).appending(component: ".config").appending(component: "tuist")
+            return try! AbsolutePath(validating: NSHomeDirectory()).appending(components: ".config", "tuist")
         }
 
         // MARK: - CredentialsStoring
@@ -343,10 +375,7 @@ public enum ServerCredentialsStoreBackend: Sendable {
             case .fileSystem:
                 let path = try credentialsFilePath(serverURL: serverURL)
                 let data = try JSONEncoder().encode(credentials)
-                if try await !fileSystem.exists(path.parentDirectory) {
-                    try await fileSystem.makeDirectory(at: path.parentDirectory)
-                }
-                try data.write(to: URL(fileURLWithPath: path.pathString), options: .atomic)
+                try await CredentialFileLocator.write(data, to: path, fileSystem: fileSystem)
             }
 
             credentialsChangedContinuation.continuation.yield(credentials)
@@ -361,6 +390,7 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 )
                 let path = paths[0]
                 guard try await fileSystem.exists(path) else { return nil }
+                CredentialFileLocator.restrictExistingPermissions(of: path)
                 let data = try await fileSystem.readFile(at: path)
 
                 do {
@@ -400,8 +430,8 @@ public enum ServerCredentialsStoreBackend: Sendable {
             else {
                 throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
             }
-            return try configDirectory
-                .appending(RelativePath(validating: "credentials/\(CredentialFileLocator.normalizedHost(host)).json"))
+            let fileName = try CredentialFileLocator.fileName(host: host, serverURL: serverURL)
+            return try configDirectory.appending(RelativePath(validating: "credentials/\(fileName)"))
         }
 
         #if DEBUG

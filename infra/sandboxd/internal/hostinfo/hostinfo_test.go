@@ -3,6 +3,7 @@ package hostinfo
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -140,5 +141,170 @@ func TestSnapshotCompatFollowsTheCPUKernelAndFirecracker(t *testing.T) {
 		if other == base {
 			t.Errorf("a different %s kept the key", name)
 		}
+	}
+}
+
+// A cgroupfs stand-in: the files setupVMCgroups reads and writes. The
+// kernel's side (moving processes, enforcing weights) is not simulated.
+func fakeCgroup(t *testing.T, controllers string) (root string) {
+	t.Helper()
+	root = t.TempDir()
+	dir := filepath.Join(root, "pod", "container")
+	if err := os.MkdirAll(filepath.Join(dir, "vm-left-behind"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{"cgroup.controllers": controllers, "cgroup.procs": "", "cgroup.subtree_control": "", "memory.current": "4096"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() { containerCgroup.Store(nil) })
+	return root
+}
+
+func TestSetupVMCgroupsWeighsVMsByTheirGuarantee(t *testing.T) {
+	root := fakeCgroup(t, "cpuset cpu io memory pids")
+	dir := filepath.Join(root, "pod", "container")
+
+	cgroups, err := setupVMCgroups(root, "/pod/container", daemonCgroup, 250)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func(path string) string {
+		data, _ := os.ReadFile(filepath.Join(dir, path))
+		return string(data)
+	}
+	if got := read("cgroup.subtree_control"); got != "+cpu +memory" {
+		t.Fatalf("subtree_control = %q", got)
+	}
+	if got := read("sandboxd/cpu.weight"); got != "25" {
+		t.Fatalf("daemon weight = %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "vm-left-behind")); !os.IsNotExist(err) {
+		t.Fatalf("a leftover VM cgroup survived setup: %v", err)
+	}
+	// Memory is still read from the container's cgroup, which holds the
+	// guests, not from the daemon's leaf.
+	if path, _ := ownCgroup(); path != "/pod/container" {
+		t.Fatalf("own cgroup = %q", path)
+	}
+
+	for id, milli := range map[string]uint64{"quarter": 250, "four": 4000, "tiny": 1} {
+		file, err := cgroups.Open(id, milli, milli<<20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file.Close()
+		if got, want := read("vm-"+id+"/cpu.weight"), strconv.FormatUint(CPUWeight(milli), 10); got != want {
+			t.Fatalf("%s weight = %q, want %q", id, got, want)
+		}
+		// Its guest memory is protected from the container's reclaim.
+		if got, want := read("vm-"+id+"/memory.low"), strconv.FormatUint(milli<<20, 10); got != want {
+			t.Fatalf("%s memory.low = %q, want %q", id, got, want)
+		}
+	}
+	// Weights keep the guarantees' proportions: four cores weigh sixteen
+	// quarter cores, and the kernel's minimum of 1 bounds the smallest.
+	if CPUWeight(4000) != 16*CPUWeight(250) || CPUWeight(1) != 1 || CPUWeight(10_000_000) != 10000 {
+		t.Fatalf("weights %d %d %d %d", CPUWeight(250), CPUWeight(4000), CPUWeight(1), CPUWeight(10_000_000))
+	}
+	// The VM's memory is read from its own cgroup.
+	if err := os.WriteFile(filepath.Join(dir, "vm-four", "memory.current"), []byte("123456\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := cgroups.MemoryCurrent("four"); !ok || got != 123456 {
+		t.Fatalf("memory.current = %d, %v", got, ok)
+	}
+	if _, ok := cgroups.MemoryCurrent("never-opened"); ok {
+		t.Fatal("read the memory of a VM without a cgroup")
+	}
+	// cgroupfs removes a cgroup's interface files with it; a plain
+	// directory needs them gone first.
+	for _, name := range []string{"cpu.weight", "memory.low", "memory.current"} {
+		_ = os.Remove(filepath.Join(dir, "vm-four", name))
+	}
+	if err := cgroups.Remove("four"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cgroups.Remove("never-opened"); err != nil {
+		t.Fatalf("removing a missing cgroup: %v", err)
+	}
+}
+
+// Without the memory controller VMs still get their CPU weights, and
+// memory is neither protected nor read per VM.
+func TestVMCgroupsWithoutTheMemoryController(t *testing.T) {
+	root := fakeCgroup(t, "cpu pids")
+	dir := filepath.Join(root, "pod", "container")
+	cgroups, err := setupVMCgroups(root, "/pod/container", daemonCgroup, 250)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, "cgroup.subtree_control")); string(data) != "+cpu" {
+		t.Fatalf("subtree_control = %q", data)
+	}
+	file, err := cgroups.Open("vm", 1000, 1<<30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+	if _, err := os.Stat(filepath.Join(dir, "vm-vm", "memory.low")); !os.IsNotExist(err) {
+		t.Fatalf("wrote memory.low without the memory controller: %v", err)
+	}
+	if _, ok := cgroups.MemoryCurrent("vm"); ok {
+		t.Fatal("read per-VM memory without the memory controller")
+	}
+}
+
+func TestSetupVMCgroupsNeedsTheCPUController(t *testing.T) {
+	root := fakeCgroup(t, "memory pids")
+	if _, err := setupVMCgroups(root, "/pod/container", daemonCgroup, 250); err == nil {
+		t.Fatal("set up without a cpu controller")
+	}
+	if containerCgroup.Load() != nil {
+		t.Fatal("a failed setup redirected memory reads")
+	}
+}
+
+func TestAdoptVMCgroupsUsesTheVMMContainersCgroup(t *testing.T) {
+	root := fakeCgroup(t, "cpuset cpu io memory pids")
+	dir := filepath.Join(root, "pod", "container")
+	if _, err := setupVMCgroups(root, "/pod/container", "vmm", 250); err != nil {
+		t.Fatal(err)
+	}
+	// A VM leaf still holding a process: rmdir fails, as on cgroupfs.
+	if err := os.MkdirAll(filepath.Join(dir, "vm-running"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "vm-running", "cgroup.procs"), []byte("42"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "vm-gone"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	containerCgroup.Store(nil)
+
+	cgroups, err := adoptVMCgroups(root, "/pod/container")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cgroups.memory {
+		t.Fatal("adopted cgroups lost per-VM memory")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "vm-gone")); !os.IsNotExist(err) {
+		t.Fatalf("an empty VM leaf survived adoption: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "vm-running")); err != nil {
+		t.Fatalf("a VM leaf in use was removed: %v", err)
+	}
+	if path, _ := ownCgroup(); path != "/pod/container" {
+		t.Fatalf("memory is read from %q, not the vmm container's cgroup", path)
+	}
+}
+
+func TestAdoptVMCgroupsRefusesACgroupWithoutCPU(t *testing.T) {
+	root := fakeCgroup(t, "cpuset cpu io memory pids")
+	if _, err := adoptVMCgroups(root, "/pod/container"); err == nil {
+		t.Fatal("adopted a cgroup that delegates no cpu controller")
 	}
 }

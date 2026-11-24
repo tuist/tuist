@@ -37,7 +37,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
     test "opens a relocation when traffic has durably moved" do
       account = paid_account()
       insert_server!(account, "us-east", held_for_days: 60)
-      seed_runs(account, "FR", 30, 20)
+      seed_hits_moved_to_paris(account)
 
       assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
 
@@ -65,7 +65,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       # same answer, against its own floors and its own once-a-quarter budget.
       account = paid_account()
       insert_server!(account, "us-east", held_for_days: 30)
-      seed_runs(account, "FR", 7, 20)
+      seed_hits_moved_to_paris(account)
 
       assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
 
@@ -332,9 +332,9 @@ defmodule Tuist.Kura.PlacementProposalsTest do
     test "does not reopen a region the account gave up on what it served" do
       account = paid_account()
       insert_server!(account, "us-east", held_for_days: 60)
-      seed_runs(account, "US-VA", 30, 100)
-      seed_runs(account, "FR", 30, 60)
-      seed_rollups(account, "us-east", 28, 30_000)
+      seed_rollups(account, "us-east", 28, 20_000)
+      seed_origin_hits(account, "US-VA", 14, 15_000)
+      seed_origin_hits(account, "FR", 14, 5_000)
       FunWithFlags.enable(:kura_placement_served_signal, for_actor: account)
 
       Repo.insert!(%PlacementProposal{
@@ -363,10 +363,12 @@ defmodule Tuist.Kura.PlacementProposalsTest do
   end
 
   describe "apply_placement_proposal/2" do
-    test "relocating writes the destination as primary and marks the source retiring" do
+    test "relocating writes the destination as primary and keeps a source that still serves" do
+      # A quarter of the hits still come from near us-east, which a Pro account
+      # keeps as a secondary; giving the source up is the unit tests' business.
       account = paid_account()
       insert_server!(account, "us-east", held_for_days: 60)
-      seed_runs(account, "FR", 30, 20)
+      seed_hits_moved_to_paris(account)
       {:ok, _summary} = PlacementProposals.sweep(@today)
 
       proposal = PlacementProposals.open_proposal_for(account)
@@ -375,7 +377,8 @@ defmodule Tuist.Kura.PlacementProposalsTest do
                Kura.apply_placement_proposal(proposal, "operator@tuist.dev")
 
       assert PlacerRegions.primary_region(account) == "eu-west"
-      assert PlacerRegions.retiring_regions(account) == ["us-east"]
+      assert PlacerRegions.retiring_regions(account) == []
+      assert account |> PlacerRegions.serving_regions() |> Enum.sort() == ["eu-west", "us-east"]
       assert Repo.get(PlacementProposal, proposal.id).status == :applied
       assert Repo.get(PlacementProposal, proposal.id).resolved_by == "operator@tuist.dev"
     end
@@ -411,8 +414,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
     test "expanding adds a secondary and keeps the primary" do
       account = paid_account()
       insert_server!(account, "us-east")
-      seed_runs(account, "US-VA", 14, 500)
-      seed_runs(account, "FR", 14, 40)
+      seed_second_site_in_paris(account)
       {:ok, _summary} = PlacementProposals.sweep(@today)
 
       proposal = PlacementProposals.open_proposal_for(account)
@@ -431,8 +433,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       # gate the very next sweep would propose closing it again.
       account = paid_account()
       insert_server!(account, "us-east")
-      seed_runs(account, "US-VA", 14, 500)
-      seed_runs(account, "FR", 14, 40)
+      seed_second_site_in_paris(account)
       {:ok, _summary} = PlacementProposals.sweep(@today)
 
       {:ok, _outcome} =
@@ -652,6 +653,23 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       "status" => %{"phase" => "Running"},
       "spec" => %{"containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => disk}}}]}
     }
+  end
+
+  # us-east, the only region the account holds, serves every hit, and three in
+  # four of them come from Paris.
+  defp seed_hits_moved_to_paris(account) do
+    FunWithFlags.enable(:kura_placement_served_signal, for_actor: account)
+    seed_rollups(account, "us-east", 28, 20_000)
+    seed_origin_hits(account, "FR", 14, 15_000)
+    seed_origin_hits(account, "US-VA", 14, 5_000)
+  end
+
+  # A quarter of the hits us-east serves come from Paris.
+  defp seed_second_site_in_paris(account) do
+    FunWithFlags.enable(:kura_placement_served_signal, for_actor: account)
+    seed_rollups(account, "us-east", 28, 20_000)
+    seed_origin_hits(account, "US-VA", 14, 15_000)
+    seed_origin_hits(account, "FR", 14, 5_000)
   end
 
   defp seed_runs(account, origin, days, runs_per_day) do

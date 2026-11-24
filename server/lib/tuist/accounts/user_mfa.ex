@@ -15,6 +15,9 @@ defmodule Tuist.Accounts.UserMFA do
   alias Tuist.Repo
   alias Tuist.Time
 
+  # Matches the five minutes a session counts as fresh for changing factors.
+  @verification_carry_over_seconds 300
+
   schema "user_mfa" do
     belongs_to :user, User
     field :secret, Tuist.Vault.Binary, redact: true
@@ -230,6 +233,33 @@ defmodule Tuist.Accounts.UserMFA do
 
   defp verify_proof(user, verifier) when is_function(verifier, 1), do: verifier.(user)
   defp verify_proof(user, code), do: verify(user, code)
+
+  @doc """
+  Issues a new session for `user` when `token` is this browser's current
+  MFA-verified session for the same user, such as a passkey session that an
+  organization's SSO sends through its provider. The factor was already proven
+  in this browser moments ago, so the new session keeps that verification time
+  instead of challenging again. Older verifications are challenged, so an old
+  stolen session cookie plus the provider's credentials cannot skip the factor.
+  Returns nil when a challenge is still needed.
+  """
+  def continue_verified_session(user, token, auth) when is_binary(token) do
+    transaction(fn ->
+      lock_user(user.id)
+
+      # get_user_session also refuses sessions verified before the current factor.
+      with %UserToken{user_id: user_id, mfa_verified_at: %DateTime{} = verified_at} when user_id == user.id <-
+             Accounts.get_user_session(token),
+           true <- DateTime.diff(now(), verified_at) in 0..@verification_carry_over_seconds do
+        token = Accounts.generate_user_session_token(user, Map.put(auth, :mfa_verified_at, verified_at))
+        Accounts.get_user_session(token, preload: [:account])
+      else
+        _ -> nil
+      end
+    end)
+  end
+
+  def continue_verified_session(_user, _token, _auth), do: nil
 
   # Call only while holding the user lock. Proof consumption, factor changes
   # and session creation must commit together, before reset can revoke them.

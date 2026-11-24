@@ -157,13 +157,25 @@
   & > [data-part="delete-organization-card-section"],
   & > [data-part="delete-user-card-section"] {
     & {
-      box-shadow: var(--noora-border-light-error);
+      box-shadow: var(--noora-border-small-error);
     }
   }
 
   &[data-page="organization-ai"] {
     & > [data-part="ai-configuration-card-section"] {
       grid-template-columns: minmax(0, 1fr) auto;
+
+      & > [data-part="button-container"] {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--noora-spacing-4);
+      }
+
+      & > [data-part="content"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+      }
 
       @media (max-width: 768px) {
         grid-template-columns: minmax(0, 1fr);

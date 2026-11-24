@@ -15,11 +15,12 @@ import (
 )
 
 // Disk admission reserves complete writable root disks (including APFS clone
-// growth) and two memory images per VM. Half the filesystem stays outside the
-// sandbox budget; the free-space check also protects current CI disk use.
-// next is the ceiling of a VM not yet cloned, so not in vms.
-func diskRoom(vms []tart.VM, total, free uint64, nextMemoryMB int, next uint64) error {
-	ceiling := next
+// growth) and two memory images per VM, and what each disk snapshot holds.
+// Half the filesystem stays outside the sandbox budget; the free-space check
+// also protects current CI disk use. next is the ceiling of a VM or snapshot
+// not yet cloned, so not in vms or snapshots.
+func diskRoom(vms []tart.VM, snapshots, total, free uint64, nextMemoryMB int, next uint64) error {
+	ceiling := next + snapshots
 	for _, vm := range vms {
 		if !isSandboxVM(vm.Name) {
 			continue
@@ -159,9 +160,19 @@ func (t *TartRuntime) roomForClone(ctx context.Context, c *tart.Client, memoryMB
 	return t.admitDisk(ctx, c, memoryMB, sandboxCeiling(uint64(max(t.rootfs.Load(), 0)), memoryMB))
 }
 
-func (t *TartRuntime) admitDisk(ctx context.Context, c *tart.Client, memoryMB int, next uint64) error {
+// filesystemSize answers the size and free space of the filesystem at path.
+// A variable so tests can stand in a host-sized disk.
+var filesystemSize = func(path string) (total, free uint64, err error) {
 	var fs syscall.Statfs_t
-	if err := syscall.Statfs(t.Client.HomeDir, &fs); err != nil {
+	if err = syscall.Statfs(path, &fs); err != nil {
+		return 0, 0, err
+	}
+	return uint64(fs.Blocks) * uint64(fs.Bsize), uint64(fs.Bavail) * uint64(fs.Bsize), nil
+}
+
+func (t *TartRuntime) admitDisk(ctx context.Context, c *tart.Client, memoryMB int, next uint64) error {
+	total, free, err := filesystemSize(t.Client.HomeDir)
+	if err != nil {
 		return err
 	}
 	vms, err := c.List(ctx)
@@ -185,7 +196,19 @@ func (t *TartRuntime) admitDisk(ctx context.Context, c *tart.Client, memoryMB in
 	if size := rootDisk(vms); size > 0 {
 		t.rootfs.Store(size)
 	}
-	return diskRoom(vms, uint64(fs.Blocks)*uint64(fs.Bsize), uint64(fs.Bavail)*uint64(fs.Bsize), memoryMB, next)
+	snapshots, err := t.DiskSnapshots()
+	if err != nil {
+		return err
+	}
+	return diskRoom(vms, snapshotBytes(snapshots), total, free, memoryMB, next)
+}
+
+func snapshotBytes(snapshots []protocol.DiskSnapshotInfo) uint64 {
+	var total uint64
+	for _, s := range snapshots {
+		total += uint64(max(s.Bytes, 0))
+	}
+	return total
 }
 
 // hasImage reports whether the store has cached image. `tart get` opens only

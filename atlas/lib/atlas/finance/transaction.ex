@@ -31,6 +31,7 @@ defmodule Atlas.Finance.Transaction do
     field :provider_updated_at, :utc_datetime
     field :affects_cash_balance, :boolean, default: true
     field :affects_runway, :boolean, default: true
+    field :runway_override, :boolean
     field :categorized_at, :utc_datetime
     field :categorization_confidence, :decimal
     field :categorization_reason, :string
@@ -69,6 +70,7 @@ defmodule Atlas.Finance.Transaction do
       :provider_updated_at,
       :affects_cash_balance,
       :affects_runway,
+      :runway_override,
       :finance_category_id,
       :categorized_at,
       :categorization_confidence,

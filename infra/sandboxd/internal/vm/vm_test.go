@@ -2,6 +2,7 @@ package vm
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -234,8 +235,66 @@ func TestParseStatCPUTime(t *testing.T) {
 	}
 }
 
+func TestParseSmapsRollup(t *testing.T) {
+	text := `55d0c0000000-7ffd2a3f0000 ---p 00000000 00:00 0                          [rollup]
+Rss:             6291456 kB
+Pss:             5767168 kB
+Pss_Dirty:       4194304 kB
+Pss_Anon:        4194304 kB
+Pss_File:        1048576 kB
+Pss_Shmem:        524288 kB
+Shared_Clean:    1048576 kB
+Anonymous:       4194304 kB
+Swap:                  0 kB
+`
+	got, ok := parseSmapsRollup(text)
+	if !ok || got.AnonBytes != 4<<30 || got.FileBytes != 3<<29 {
+		t.Fatalf("got %+v %v, want 4 GiB anon and 1.5 GiB file", got, ok)
+	}
+	if _, ok := parseSmapsRollup("Rss: 12 kB\n"); ok {
+		t.Fatal("parsed a rollup without Pss_Anon (kernel before 5.x)")
+	}
+}
+
 func TestProcessCPUTimeOfAMissingProcess(t *testing.T) {
-	if _, ok := processCPUTime(0); ok {
+	if _, ok := vcpuCPUTime("/proc", 0); ok {
 		t.Fatal("read a CPU time for pid 0")
+	}
+}
+
+func TestCPUTimeCountsOnlyTheVCPUThreads(t *testing.T) {
+	proc := t.TempDir()
+	stat := func(utime, stime int) string {
+		return fmt.Sprintf("1 (x) S 1 1 1 0 -1 0 0 0 0 0 %d %d 0 0 20 0 1 0 1 0 0\n", utime, stime)
+	}
+	write := func(path, data string) {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(proc, path)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(proc, path), []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// As read on a staging node: the VMM thread emulates devices, the
+	// vCPU threads run the guest.
+	write("42/stat", stat(100, 900))
+	write("42/task/42/comm", "firecracker\n")
+	write("42/task/42/stat", stat(50, 350))
+	write("42/task/43/comm", "fc_api\n")
+	write("42/task/43/stat", stat(0, 10))
+	write("42/task/44/comm", "fc_vcpu 0\n")
+	write("42/task/44/stat", stat(10, 90))
+	write("42/task/45/comm", "fc_vcpu 1\n")
+	write("42/task/45/stat", stat(40, 360))
+	if got, ok := vcpuCPUTime(proc, 42); !ok || got != 5*time.Second {
+		t.Fatalf("got %v %v, want the vCPU threads' 5s", got, ok)
+	}
+
+	// Without vCPU threads it falls back to the whole process.
+	write("7/stat", stat(100, 200))
+	write("7/task/7/comm", "vmm\n")
+	write("7/task/7/stat", stat(100, 200))
+	if got, ok := vcpuCPUTime(proc, 7); !ok || got != 3*time.Second {
+		t.Fatalf("got %v %v, want the process's 3s", got, ok)
 	}
 }

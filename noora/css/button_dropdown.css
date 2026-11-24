@@ -1,4 +1,9 @@
-.noora-button-dropdown {
+/* Noora.Menu's split trigger is a button dropdown and shares its styles. A
+   selector list keeps each selector's own specificity, so button dropdowns
+   style exactly as before. The menu places its own panel, so the
+   positioner rules below stay the button dropdown's. */
+.noora-button-dropdown,
+.noora-menu[data-trigger="split"] {
   display: inline-flex;
   position: relative;
   flex-direction: row;
@@ -15,11 +20,11 @@
   }
 
   &:has(:focus-visible) {
-    box-shadow: var(--noora-button-border-secondary-focus);
+    box-shadow: var(--noora-button-border-focus);
   }
 
   &:has([data-part="main-button"]:disabled) {
-    box-shadow: var(--noora-button-border-secondary-disabled);
+    box-shadow: var(--noora-button-border-disabled);
   }
 
   & [data-part="main-button"],
@@ -54,8 +59,8 @@
     }
 
     &:disabled {
-      background: var(--noora-button-background-secondary-disabled);
-      color: var(--noora-button-secondary-disabled-label);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
   }
 
@@ -76,8 +81,8 @@
     }
 
     &:disabled {
-      background: var(--noora-button-background-secondary-disabled);
-      color: var(--noora-button-secondary-disabled-label);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
   }
 
@@ -98,29 +103,6 @@
       width: 100%;
       height: 100%;
     }
-  }
-
-  & [data-part="positioner"] {
-    display: none;
-  }
-
-  & > [data-state="open"] ~ [data-part="positioner"] {
-    display: flex;
-    position: absolute !important;
-    top: 100% !important;
-    inset-inline-start: 0 !important;
-    inset-inline-end: unset !important;
-    bottom: unset !important;
-    z-index: var(--noora-z-index-10);
-    margin-top: var(--noora-spacing-2);
-    min-width: 100%;
-    width: max-content !important;
-    transform: none !important;
-  }
-
-  &[data-align="end"] > [data-state="open"] ~ [data-part="positioner"] {
-    inset-inline-start: unset !important;
-    inset-inline-end: 0 !important;
   }
 
   /* Size: medium */
@@ -167,5 +149,30 @@
       width: var(--noora-icon-size-large);
       height: var(--noora-icon-size-large);
     }
+  }
+}
+
+.noora-button-dropdown {
+  & [data-part="positioner"] {
+    display: none;
+  }
+
+  & > [data-state="open"] ~ [data-part="positioner"] {
+    display: flex;
+    position: absolute !important;
+    top: 100% !important;
+    inset-inline-start: 0 !important;
+    inset-inline-end: unset !important;
+    bottom: unset !important;
+    z-index: var(--noora-z-index-10);
+    margin-top: var(--noora-spacing-2);
+    min-width: 100%;
+    width: max-content !important;
+    transform: none !important;
+  }
+
+  &[data-align="end"] > [data-state="open"] ~ [data-part="positioner"] {
+    inset-inline-start: unset !important;
+    inset-inline-end: 0 !important;
   }
 }

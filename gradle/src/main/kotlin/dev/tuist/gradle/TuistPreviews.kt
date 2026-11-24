@@ -90,7 +90,7 @@ class TuistPreviewsPlugin : Plugin<Project> {
     }
 }
 
-private fun Any.androidCall(name: String, vararg arguments: Any): Any =
+internal fun Any.androidCall(name: String, vararg arguments: Any): Any =
     javaClass.methods.first { method ->
         method.name == name && method.parameterTypes.size == arguments.size &&
             method.parameterTypes.zip(arguments).all { (type, argument) -> type.isInstance(argument) }

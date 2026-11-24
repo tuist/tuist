@@ -58,6 +58,29 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
     @Option(name: .long, help: "Workspace disk size in GB (1–100).")
     var workspaceGb: Int?
 
+    /// The guarantees the server offers, in vCPUs.
+    static let guarantees: [Double] = [1, 2, 4, 8]
+
+    @Option(
+        name: .customLong("guaranteed-vcpus"),
+        help: """
+        Linux: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4 or 8. \
+        Without it, a quarter vCPU per GB of memory; with it, the larger of the two. The sandbox bursts into idle cores \
+        past its guarantee, and is billed for at least it. A sandbox keeps its guarantee.
+        """
+    )
+    var guaranteedVCPUs: Double?
+
+    @Option(
+        name: .customLong("lifetime-minutes"),
+        help: """
+        How long the sandbox may run, from creation and again after each resume: 5 to 1440 minutes, 120 by default. \
+        Then its running commands are cancelled and it is paused and archived, keeping its files. \
+        Extend it with `tuist sandbox extend`.
+        """
+    )
+    var lifetimeMinutes: Int?
+
     public var jsonThroughNoora: Bool { true }
 
     /// The platform the sandbox boots: --platform, else macOS when an Xcode is named, else Linux.
@@ -82,6 +105,15 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
         if let workspaceGb, !(1 ... 100).contains(workspaceGb) {
             throw ValidationError("Workspace size must be 1–100 GB.")
         }
+        try SandboxExtendCommand.validate(lifetimeMinutes: lifetimeMinutes)
+        if let guaranteedVCPUs {
+            if platform != .linux {
+                throw ValidationError("--guaranteed-vcpus is for Linux sandboxes; a macOS sandbox holds every vCPU.")
+            }
+            if !Self.guarantees.contains(guaranteedVCPUs) {
+                throw ValidationError("--guaranteed-vcpus must be one of 1, 2, 4 or 8.")
+            }
+        }
     }
 
     public func run() async throws {
@@ -92,7 +124,9 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
             xcodeVersion: xcode,
             vcpus: vcpus,
             memoryGB: memoryGB,
-            workspaceGB: workspaceGb
+            workspaceGB: workspaceGb,
+            guaranteedVCPUs: guaranteedVCPUs,
+            lifetimeMinutes: lifetimeMinutes
         )
     }
 }

@@ -159,6 +159,32 @@ struct CargoCacheInputs {
         return result
     }
 
+    /// The arguments a compilation the cache missed runs with on CI: without `-C incremental` when this target has
+    /// neither compiled the crate before nor holds a session of it, as in a fresh checkout. That first
+    /// compilation is a full one either way, and building its session costs a quarter more than compiling without one
+    /// (Codex's `codex-core`: 73 s against 55 s). Keys leave the option out, so the entry is shared either way. The
+    /// target remembers the unit (`<incremental>/.tuist-compiled`, which `cargo clean` removes with the sessions), so
+    /// its next compilation there, as in a CI job that keeps its target directory, runs incrementally as Cargo asked.
+    /// Whatever cannot be remembered keeps the option.
+    static func withoutFirstIncrementalSession(_ arguments: [String], directory: AbsolutePath) -> [String] {
+        guard let sessions = incrementalDirectory(arguments, directory: directory),
+              let name = values("--crate-name", in: arguments).first, !name.isEmpty
+        else { return arguments }
+        let codegen = values("-C", in: arguments) + arguments.filter { $0.hasPrefix("-C") && $0.count > 2 }
+            .map { String($0.dropFirst(2)) }
+        let unit = name + (codegen.last(where: { $0.hasPrefix("extra-filename=") }).map { String($0.dropFirst(15)) } ?? "")
+        guard !unit.contains("/"), !unit.hasPrefix(".") else { return arguments }
+        let marker = sessions.appendingPathComponent(".tuist-compiled").appendingPathComponent(unit)
+        guard !FileManager.default.fileExists(atPath: marker.path) else { return arguments }
+        // A session from before the target remembered units (rustc names it `<crate>-<stable crate id>`).
+        let hasSession = ((try? FileManager.default.contentsOfDirectory(atPath: sessions.path)) ?? [])
+            .contains { $0.hasPrefix(name + "-") }
+        guard (try? FileManager.default.createDirectory(
+            at: marker.deletingLastPathComponent(), withIntermediateDirectories: true
+        )) != nil, FileManager.default.createFile(atPath: marker.path, contents: nil) else { return arguments }
+        return hasSession ? arguments : withoutIncremental(arguments)
+    }
+
     /// The arguments a key holds: without incremental compilation's directory, a front-end thread count or a terminal
     /// width, none of which changes what rustc produces.
     static func keyArguments(_ arguments: [String]) -> [String] {

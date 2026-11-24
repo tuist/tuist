@@ -18,7 +18,7 @@ ready for independent installation.
   network-policy control-channel supervisor. No cluster connection or sandbox
   starts just because that supervisor exists. Its transitive K8s package remains
   a build dependency. Atlas disables both bundled Rust NIFs in compile config,
-  including Once's isolated dependency builds; it does not need their native
+  including Struo's isolated dependency builds; it does not need their native
   release artifacts.
 - `Atlas.LLMs.Runner` builds model client options. Local mode dispatches through
   `Atlas.LLMs.LocalTransport` to Atlas' inference relay in-process; the relay
@@ -40,18 +40,16 @@ Paths in this table are relative to `lib/atlas/`. All are native execution.
 | `accounts/agents/{overview_summary_agent,outcome_proposal_agent,screenshot_note_agent}.ex` | Audited text/structured generation from supplied account data or images; no coding tools. |
 | `accounts/agents/email_event_agent.ex` | Audited extraction with inline account lookup/update and event storage tools. |
 | `accounts/agents/granola_meeting_agent.ex` | Anonymous structured run with inline account/contact/event tools. |
-| `accounts/agents/{service_level_extraction_agent,invoice_paid_celebration_agent}.ex` | Anonymous structured extraction or copy generation; no domain tools. |
+| `accounts/agents/service_level_extraction_agent.ex` | Anonymous structured extraction; no domain tools. |
 | `documents/agents/document_classifier_agent.ex` | Audited classification with inline document-type and correspondent tools. |
 | `finance/agents/invoice_extractor_agent.ex` | Audited structured invoice extraction; no domain tools. |
-| `finance/agents/payment_detection_agent.ex` | Anonymous structured run with inline account search/context tools. |
-| `finance/agents/{cost_digest_agent,weekly_summary_agent}.ex` | Anonymous structured reporting with inline finance queries. |
+| `finance/agents/weekly_summary_agent.ex` | Anonymous structured reporting with inline finance queries. |
 | `finance/categorization.ex` | Anonymous structured run with inline web search and category/transaction tools. |
 | `letters/agents/delivery_address_agent.ex` | Audited extraction after storage download and local text extraction; no agent tools. `delivery_details_agent.ex` delegates here. |
 | `outreach/agents/recommendation_agent.ex` | Audited drafting with inline public-research/message-learning tools. |
 | `support_inbox/agents/classifier_agent.ex` | Audited structured classification with inline support-thread and transaction queries. |
 | `memory/{edge_classifier,bulletin_synthesizer}.ex` | Audited classification/synthesis from supplied memory data; no tools. |
 | `moodboard/suggestions.ex` | Audited, tool-free, one-turn title/description/tag suggestions from untrusted shared text and safe public previews. Uses the global provider, no project instructions; prompts/results and telemetry payloads are redacted. Saving is a separate explicit action. |
-| `engineering/errors/agents/summary_agent.ex` | Audited structured operation over a bounded error snapshot; no domain tools. |
 | `slack/{conversation_agent,conversation_responder}.ex` | Native runs with inline account/content, search, memory, and MCP tools; buffered model delivery in local mode, incremental streaming for external providers. Account/systems investigator subagents are native sessions with explicit tool lists, not coding agents. |
 | `orbit/runs.ex` (`Orbit.Agent`) | Native runs prefer the acting person's ChatGPT account, then Claude, then the explicit `orbit` inference role, with fenced, read-only Atlas MCP tools executed in-process as the acting user. Credentials reload each turn and never enter options/checkpoints. Session rows store only a run label, a redacted result and fixed error categories; telemetry keeps names and timings. Per-turn snapshots are encrypted on the run row for resumption. |
 | `slack/mcp_tools.ex`, `memory/tools.ex`, `slack/url_content.ex` | Tool definitions, not remote runtimes. Atlas MCP calls run in-process with caller claims; optional proxy/provider calls retain their own transport and authorization. |

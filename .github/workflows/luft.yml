@@ -1,0 +1,362 @@
+name: Luft
+on:
+  workflow_dispatch:
+    inputs:
+      publish_previews:
+        description: Publish native previews from a manual run on main (pushes to main always publish), including the signed iOS device IPA and Developer ID macOS app, to the private tuist/luft internal track
+        type: boolean
+        default: false
+  pull_request:
+    paths: ['luft/**', '!luft/web/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/luft.yml']
+  push:
+    branches: [main]
+    paths: ['luft/**', '!luft/web/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/luft.yml']
+permissions:
+  contents: read
+  id-token: write
+env:
+  MISE_CEILING_PATHS: ${{ github.workspace }}
+  MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
+  STRUO_CACHE_PROVIDER: ${{ github.event.pull_request.head.repo.fork == true && 'local' || 'tuist' }}
+concurrency:
+  group: luft-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+jobs:
+  macos:
+    name: macOS development build and core tests
+    runs-on: tuist-macos
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: luft
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      # Struo's kotlin_jvm_test targets (the Android WebSocket tests) compile for
+      # Java 17; Luft's mise config has no JDK, and runner defaults are older.
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: luft
+          install_args: rust github:tuist/struo
+          cache: "false"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: struo auth login --provider tuist --no-browser
+      - name: Build the GPUI shell and independent Rust core
+        run: |
+          python3 prepare-native.py
+          struo build LuftDesktop
+      - name: Core and app tests
+        run: mise run --skip-tools test
+      - name: Graph, formatting and Clippy
+        run: mise run --skip-tools check
+  # Stays on GitHub-hosted runners: Linux packages keep the Ubuntu 22.04
+  # glibc baseline (see distribution/README.md), and the tuist account has
+  # no Ubuntu 22.04 or Windows runner profile.
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+        working-directory: luft
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            luft
+            app/Fixtures/Navigation
+            .github/actions/mise
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        if: runner.os == 'Windows'
+      - name: Prefer MSVC tools in every Bash process
+        if: runner.os == 'Windows'
+        run: |
+          cat > "$RUNNER_TEMP/desktop-bash-env.sh" <<'EOF'
+          # Git Bash otherwise places its GNU link.exe ahead of MSVC's linker.
+          msvc_bin="$(cygpath -u "${VCToolsInstallDir:?}bin/Hostx64/x64")"
+          test -x "$msvc_bin/link.exe" || exit 1
+          export PATH="$msvc_bin:$PATH"
+          EOF
+          echo "BASH_ENV=$RUNNER_TEMP/desktop-bash-env.sh" >> "$GITHUB_ENV"
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake clang pkg-config libasound2-dev libfontconfig1-dev libfreetype6-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev libwayland-dev libvulkan-dev libssl-dev libglib2.0-dev libgtk-3-dev libfuse2
+      - name: Linux signature verification tool
+        if: runner.os == 'Linux'
+        run: |
+          bash distribution/install-minisign.sh "$RUNNER_TEMP/minisign-bin"
+          echo "$RUNNER_TEMP/minisign-bin" >> "$GITHUB_PATH"
+      - name: Windows packaging tools
+        if: runner.os == 'Windows'
+        run: choco install nsis minisign -y --no-progress
+      # Struo's kotlin_jvm_test targets (the Android WebSocket tests) compile for
+      # Java 17; Luft's mise config has no JDK, and runner defaults are older.
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: luft
+          install_args: rust github:tuist/struo jq yq
+          cache: "false"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: struo auth login --provider tuist --no-browser
+      - name: Install pinned packager (tool only, never builds the app)
+        run: cargo install --locked cargo-packager --version '=0.11.7'
+      - name: Hosted Struo build and tests
+        run: |
+          python3 prepare-native.py
+          struo build LuftDesktop
+          status=0
+          if test "$RUNNER_OS" = Windows; then
+            # The Android client's Kotlin tests need a Kotlin toolchain and cover
+            # nothing Windows ships, so Windows runs every other test target. Its
+            # batches race on shared per-package outputs, so run them one at a time,
+            # as distribution/release.sh does.
+            targets=$(struo --format json query 'MATCH (t:Target)-[:EXPOSES]->(c:Capability {name: "test"}) RETURN t.id, t.kind' |
+              jq -r '.rows[] | select(.[1] != "kotlin_jvm_test") | .[0]' | tr -d '\r')
+            test -n "$targets"
+            for target in $targets; do
+              struo test "$target" --jobs 1 || status=1
+            done
+          else
+            struo test --all || status=1
+          fi
+          if test "$status" != 0; then
+            for log in .struo/out/*/test/rust-libtest.log; do
+              test -f "$log" || continue
+              printf '\n--- %s ---\n' "$log"
+              cat "$log"
+            done
+            exit 1
+          fi
+      - name: Script tests and shared navigation fixture
+        run: |
+          for test in distribution/test_*.sh; do bash "$test"; done
+          git diff --no-index --exit-code -- ../app/Fixtures/Navigation/routes.json crates/navigation/src/routes.json
+      - name: Native Struo optimized build, tests and unsigned package
+        run: bash distribution/release.sh build --output "$RUNNER_TEMP/desktop-package"
+      - name: Install and uninstall smoke
+        run: bash distribution/smoke.sh "$RUNNER_TEMP/desktop-package"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: desktop-${{ runner.os }}-unsigned
+          path: ${{ runner.temp }}/desktop-package/assets/*
+          if-no-files-found: warn
+  apple:
+    name: Swift client (${{ matrix.target }})
+    needs: [macos, core]
+    # Xcode 26 or later: the SwiftUI sources use Liquid Glass APIs behind availability checks.
+    runs-on: tuist-macos
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `signed` names the bundle:<name> and preview:<name> mise tasks that sign
+          # and publish a delivery copy; unsigned builds publish through Struo.
+          - target: LuftIOS
+            rust-target: aarch64-apple-ios-sim
+            artifact: ios-simulator
+            signed: ''
+          - target: LuftIOSDevice
+            rust-target: aarch64-apple-ios
+            artifact: ios-device-unprovisioned
+            signed: ios-device
+          - target: LuftMacOS
+            rust-target: aarch64-apple-darwin
+            app: Luft.app
+            artifact: macos-unsigned
+            signed: macos
+    env:
+      PUBLISH_PREVIEW: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_previews)) }}
+      PUBLISH_SIGNED_PREVIEW: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_previews)) && matrix.signed != '' }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: luft
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: luft
+          install_args: rust github:tuist/struo${{ env.PUBLISH_SIGNED_PREVIEW == 'true' && ' 1password-cli tuist' || '' }}
+          cache: "false"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: struo auth login --provider tuist --no-browser
+      - name: Install Rust Apple standard library
+        env:
+          RUST_TARGET: ${{ matrix.rust-target }}
+        run: rustup target add "$RUST_TARGET"
+      - name: Build the Swift client
+        env:
+          TARGET: ${{ matrix.target }}
+          APP: ${{ matrix.app || 'Luft.app' }}
+        run: |
+          python3 prepare-native.py
+          struo build "$TARGET"
+          ditto -c -k --sequesterRsrc --keepParent ".struo/out/$TARGET/$APP" "$RUNNER_TEMP/Luft.zip"
+      - name: Publish internal Tuist preview
+        if: env.PUBLISH_PREVIEW == 'true' && matrix.signed == ''
+        env:
+          TARGET: ${{ matrix.target }}
+        run: struo artifact publish "$TARGET" --track internal
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: luft-${{ matrix.artifact }}
+          path: ${{ runner.temp }}/Luft.zip
+          if-no-files-found: error
+          retention-days: 14
+      # Signing runs after the unsigned artifact upload and only reads the already built
+      # bundle; the 1Password token is never present while code builds or tools install.
+      - name: Sign internal Tuist preview
+        if: env.PUBLISH_SIGNED_PREVIEW == 'true'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          SIGNED: ${{ matrix.signed }}
+        run: mise run --skip-tools "bundle:$SIGNED"
+      # Struo publishes only its own outputs, so signed copies go through the Tuist CLI.
+      - name: Publish signed internal Tuist preview
+        if: env.PUBLISH_SIGNED_PREVIEW == 'true'
+        env:
+          SIGNED: ${{ matrix.signed }}
+        run: mise run --skip-tools "preview:$SIGNED"
+  core:
+    name: Independent Rust core tests
+    runs-on: tuist-macos
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: luft
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: luft
+          install_args: rust github:tuist/struo
+          cache: "false"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: struo auth login --provider tuist --no-browser
+      - run: |
+          python3 prepare-native.py
+          struo test LuftCoreTests
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: luft-core-tests
+          path: luft/.struo/out/LuftCoreTests/test/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+  android:
+    name: Android arm64 debug preview
+    needs: [macos, core]
+    runs-on: tuist-linux-large
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: luft
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: luft
+          install_args: rust kotlin github:tuist/struo
+          cache: "false"
+      # Struo's Linux binary links ALSA, so even signing in fails without it.
+      - name: Install Struo runtime libraries
+        run: |
+          sudo apt-get update
+          # Ubuntu 24.04 renamed libasound2 to libasound2t64; the runner image comes in 22.04 and 24.04.
+          asound=libasound2
+          if apt-cache show libasound2t64 >/dev/null 2>&1; then asound=libasound2t64; fi
+          sudo apt-get install -y "$asound"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: struo auth login --provider tuist --no-browser
+      # The runner image ships the SDK with cmdline-tools/latest and accepted
+      # licenses but leaves sdkmanager off PATH. setup-android would download
+      # another cmdline-tools release into the image's read-only cmdline-tools/.
+      - name: Put the Android SDK tools on PATH
+        run: |
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+      - name: Install Android SDK and Rust standard library
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> "$GITHUB_ENV"
+          # build_script_tools in native-dependencies/struo.toml finds the NDK clang here.
+          echo "$ANDROID_HOME/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
+          rustup target add aarch64-linux-android
+      - name: Generate ephemeral debug keystore
+        run: |
+          keystore="$RUNNER_TEMP/luft-debug.keystore"
+          keytool -genkeypair -noprompt \
+            -keystore "$keystore" -storepass android -keypass android \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          echo "ANDROID_DEBUG_KEYSTORE=$keystore" >> "$GITHUB_ENV"
+      - run: |
+          python3 prepare-native.py
+          python3 android/dependencies_test.py
+          python3 android/dependencies.py prepare
+          struo build LuftAndroid
+          python3 android/dependencies.py verify "$ANDROID_HOME/build-tools/35.0.0/aapt2" .struo/out/LuftBrowser/R.txt .struo/out/LuftAndroid/LuftAndroid.apk
+      - name: Publish internal Tuist preview
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_previews))
+        run: struo artifact publish LuftAndroid --track internal
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: luft-android-arm64-debug
+          path: luft/.struo/out/LuftAndroid/LuftAndroid.apk
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

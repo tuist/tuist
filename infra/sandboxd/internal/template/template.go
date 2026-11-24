@@ -1,4 +1,4 @@
-// Package template discovers the golden templates the init container seeds
+// Package template discovers the golden templates the installer seeds
 // under DATA_DIR/templates/<name>/<tag> and builds their per-shape
 // snapshots on the node.
 package template
@@ -29,8 +29,11 @@ const (
 	SnapshotFile  = "snapshot"
 	MetadataFile  = "metadata.json"
 	ReadyFile     = "ready"
-	shapesDir     = "shapes"
-	buildSuffix   = ".building"
+	// CurrentFile, beside a template's tag directories, names the tag the
+	// installer last completed: the one a daemon without a pinned tag uses.
+	CurrentFile = "current"
+	shapesDir   = "shapes"
+	buildSuffix = ".building"
 )
 
 // Shape is the vCPU and memory size a snapshot was taken with. A snapshot
@@ -88,13 +91,18 @@ func ParseShapes(csv string) ([]Shape, error) {
 
 // Metadata describes a built shape snapshot.
 type Metadata struct {
-	Name               string    `json:"name"`
-	Tag                string    `json:"tag"`
-	Kernel             string    `json:"kernel"`
-	VCPUs              int       `json:"vcpus"`
-	MemoryMB           int       `json:"memory_mb"`
-	WorkspaceGB        int       `json:"workspace_gb"`
-	WorkspacePrepared  bool      `json:"workspace_prepared,omitempty"`
+	Name              string `json:"name"`
+	Tag               string `json:"tag"`
+	Kernel            string `json:"kernel"`
+	VCPUs             int    `json:"vcpus"`
+	MemoryMB          int    `json:"memory_mb"`
+	WorkspaceGB       int    `json:"workspace_gb"`
+	WorkspacePrepared bool   `json:"workspace_prepared,omitempty"`
+	// CacheDrive: the snapshot has a CachePlaceholderBytes cache drive that
+	// every jail restored from it must provide.
+	CacheDrive bool `json:"cache_drive,omitempty"`
+	// Balloon: the snapshot has firecracker.ReportingBalloon.
+	Balloon            bool      `json:"balloon,omitempty"`
 	FirecrackerVersion string    `json:"firecracker_version"`
 	BuiltAt            time.Time `json:"built_at"`
 }
@@ -168,6 +176,10 @@ func (t Template) ReadyShapes() []Shape {
 }
 
 // Artifacts are the files a sandbox is created from.
+// CachePlaceholderBytes is the size of the empty cache drive in a shape
+// snapshot built with Builder.CacheDrive.
+const CachePlaceholderBytes = 1 << 20
+
 type Artifacts struct {
 	Dir       string
 	Rootfs    string
@@ -343,6 +355,28 @@ func (s *Store) Resolve(name, tag string) (Template, error) {
 	}
 }
 
+// CurrentTag returns the tag template `name`'s current file names, or ""
+// when the installer has not written one. The tag must be installed: the
+// installer writes the file only once the tag's files are in place.
+func (s *Store) CurrentTag(name string) (string, error) {
+	name, err := safepath.Segment(name)
+	if err != nil {
+		return "", fmt.Errorf("template name: %w", err)
+	}
+	data, err := os.ReadFile(filepath.Join(s.Dir, name, CurrentFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	tag, err := safepath.Segment(strings.TrimSpace(string(data)))
+	if err != nil {
+		return "", fmt.Errorf("template %s current tag: %w", name, err)
+	}
+	return tag, nil
+}
+
 // RemoveStaleTags deletes every tag directory of template `name` other than
 // `current` and the tags `inUse` reports, and returns the tags it removed.
 // The init container seeds a new tag directory on every template upgrade and
@@ -379,13 +413,47 @@ func (s *Store) RemoveStaleTags(name, current string, inUse func(tag string) boo
 	return removed, nil
 }
 
+// PreviousTag returns the tag of template `name`, other than `current`, that
+// the node ran most recently, or "" when there is none. The template init
+// container rewrites a tag's metadata.json every time a Pod starts with it,
+// so the newest one names the tag this node ran before `current`.
+func (s *Store) PreviousTag(name, current string) (string, error) {
+	name, err := safepath.Segment(name)
+	if err != nil {
+		return "", fmt.Errorf("template name: %w", err)
+	}
+	entries, err := os.ReadDir(filepath.Join(s.Dir, name))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	var previous string
+	var newest time.Time
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == current {
+			continue
+		}
+		info, err := os.Lstat(filepath.Join(s.Dir, name, e.Name(), MetadataFile))
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		if previous == "" || info.ModTime().After(newest) {
+			previous, newest = e.Name(), info.ModTime()
+		}
+	}
+	return previous, nil
+}
+
 // CleanPartialBuilds removes shape directories an interrupted build left
 // behind, shapes snapshotted by a different Firecracker version, which
 // that version cannot load, shapes built with a workspace of another size
-// than workspaceGB, which creates of that size could not clone, and shapes
+// than workspaceGB, which creates of that size could not clone, shapes
+// whose cache placeholder drive does not match cacheDrive, and shapes
 // holding a file the daemon does not own; the next create rebuilds them.
 // Sandboxes linked to a removed memfile keep their own hard link.
-func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int) error {
+func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int, cacheDrive, balloon bool) error {
 	templates, err := s.List()
 	if err != nil {
 		return err
@@ -402,7 +470,7 @@ func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int) e
 			dir := filepath.Join(t.Dir, shapesDir, e.Name())
 			meta := shapeMetadata(dir)
 			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) ||
-				meta.FirecrackerVersion != firecrackerVersion || meta.WorkspaceGB != workspaceGB || !ownedByDaemon(dir) {
+				meta.FirecrackerVersion != firecrackerVersion || meta.WorkspaceGB != workspaceGB || meta.CacheDrive != cacheDrive || meta.Balloon != balloon || !ownedByDaemon(dir) {
 				if err := os.RemoveAll(dir); err != nil {
 					return err
 				}

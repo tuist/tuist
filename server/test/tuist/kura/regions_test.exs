@@ -222,7 +222,7 @@ defmodule Tuist.Kura.RegionsTest do
 
     test "descends the storage ladder and floors it at air" do
       claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
-      assert claims == ["16Gi", "8Gi", "8Gi"]
+      assert claims == ["16Gi", "6Gi", "6Gi"]
 
       # Air is the floor, and unknown plans land on it.
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
@@ -267,7 +267,7 @@ defmodule Tuist.Kura.RegionsTest do
 
       for plan <- [:enterprise, :pro, :air, :open_source] do
         {claim_gib, "Gi"} = Integer.parse(Regions.storage_profile(plan).claim_size)
-        staging = min(div(claim_gib * gib, 2), 8 * gib)
+        staging = (claim_gib * gib) |> div(8) |> min(8 * gib) |> max(2 * gib)
         ring = div((claim_gib * gib - staging - 512 * 1024 * 1024) * 97, 100)
 
         assert ring >= kura_ring_floor * 5 / 4,
@@ -720,7 +720,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.site(ber1) == "ber1"
       assert Regions.site(larch) == "larch"
 
-      assert ber1.display_name == "BER1 rack (runner cache)"
+      assert ber1.display_name == "Alder rack (runner cache)"
       assert larch.display_name == "Larch rack (runner cache)"
 
       assert %{

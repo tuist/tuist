@@ -13,7 +13,6 @@ defmodule Atlas.GTM.AudiencesTest do
   alias Atlas.GTM.AudienceMembership
   alias Atlas.GTM.Audiences
   alias Atlas.GTM.Subscriber
-  alias Atlas.GTM.Workers.PostAudienceMemberNotification
 
   test "normalizes subscriber emails and paginates the result" do
     assert {:ok, subscriber} =
@@ -41,31 +40,12 @@ defmodule Atlas.GTM.AudiencesTest do
     assert {:ok, repeated} = Audiences.add_subscriber(audience, subscriber)
     assert repeated.id == membership.id
 
-    assert [job] = all_enqueued(worker: PostAudienceMemberNotification)
-    assert job.args["membership_id"] == membership.id
-    assert is_binary(job.args["notification_id"])
-
     {[listed], _meta} = Audiences.list_audiences(page_size: 100)
     assert listed.subscribers_count == 1
 
     assert {:ok, membership} = Audiences.unsubscribe(audience, subscriber)
     assert membership.status == "unsubscribed"
     refute Audiences.subscribed?(audience, subscriber)
-  end
-
-  test "announces a pending member only after the subscription is confirmed" do
-    audience = insert_audience!("Email Digest")
-    subscriber = insert_subscriber!("reader@example.com", "pending")
-
-    assert {:ok, membership} = Audiences.add_subscriber(audience, subscriber, nil, "pending")
-    refute_enqueued(worker: PostAudienceMemberNotification)
-
-    assert {:ok, confirmed} = Audiences.add_subscriber(audience, subscriber)
-    assert confirmed.id == membership.id
-    assert_enqueued(worker: PostAudienceMemberNotification, args: %{"membership_id" => membership.id})
-
-    assert {:ok, _repeated} = Audiences.add_subscriber(audience, subscriber)
-    assert [_job] = all_enqueued(worker: PostAudienceMemberNotification)
   end
 
   test "returns only subscribers who are active globally and in the audience" do

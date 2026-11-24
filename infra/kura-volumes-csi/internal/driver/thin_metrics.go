@@ -15,6 +15,7 @@ type thinMetrics struct {
 	registry                                    *prometheus.Registry
 	dataSize, dataUsed, metadataSize, metaUsed  *prometheus.GaugeVec
 	readOnly, outOfDataSpace, healthy, observed *prometheus.GaugeVec
+	usable, committed, unattributed, available  *prometheus.GaugeVec
 }
 
 func newThinMetrics() *thinMetrics {
@@ -32,8 +33,16 @@ func newThinMetrics() *thinMetrics {
 		outOfDataSpace: gauge("out_of_data_space", "1 when the pool ran out of data space and errors new allocations."),
 		healthy:        gauge("healthy", "1 when the last observation admits new volumes."),
 		observed:       gauge("last_observation_timestamp_seconds", "Unix time of the last successful pool observation."),
+		// The scheduler sees only usable_bytes (advertised as
+		// tuist.dev/kura-disk) less pod requests; admission refuses on
+		// committed_bytes, which also counts volumes no pod requests and
+		// mappings no volume accounts for.
+		usable:       gauge("usable_bytes", "Pool data capacity less the data reserve, advertised as tuist.dev/kura-disk."),
+		committed:    gauge("committed_bytes", "Virtual ceilings of every thin volume plus unattributed mappings, which volume admission refuses against."),
+		unattributed: gauge("unattributed_mapped_bytes", "Pool data mapped by no known volume, counted against admission but invisible to the scheduler."),
+		available:    gauge("available_commitment_bytes", "Usable bytes not yet committed: the largest virtual volume the driver admits now."),
 	}
-	m.registry.MustRegister(m.dataSize, m.dataUsed, m.metadataSize, m.metaUsed, m.readOnly, m.outOfDataSpace, m.healthy, m.observed)
+	m.registry.MustRegister(m.dataSize, m.dataUsed, m.metadataSize, m.metaUsed, m.readOnly, m.outOfDataSpace, m.healthy, m.observed, m.usable, m.committed, m.unattributed, m.available)
 	return m
 }
 
@@ -83,9 +92,13 @@ func (d *Driver) recordThin(ctx context.Context, s *ThinSnapshot, observeErr err
 		m.readOnly.With(labels).Set(boolean(s.poolReadOnly))
 		m.outOfDataSpace.With(labels).Set(boolean(s.poolOutOfDataSpace))
 		m.observed.With(labels).Set(float64(s.ObservedAt.UnixNano()) / 1e9)
+		m.usable.With(labels).Set(float64(s.UsableBytes))
+		m.committed.With(labels).Set(float64(s.CommittedBytes))
+		m.unattributed.With(labels).Set(float64(s.UnattributedBytes))
+		m.available.With(labels).Set(float64(s.AvailableCommitment))
 		return
 	}
-	for _, g := range []*prometheus.GaugeVec{m.dataSize, m.dataUsed, m.metadataSize, m.metaUsed, m.healthy} {
+	for _, g := range []*prometheus.GaugeVec{m.dataSize, m.dataUsed, m.metadataSize, m.metaUsed, m.healthy, m.usable, m.committed, m.unattributed, m.available} {
 		g.Delete(labels)
 	}
 	fields, err := d.poolStatus(ctx)

@@ -3,7 +3,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
   use Mimic
 
   alias Tuist.Accounts
-  alias Tuist.FeatureFlags
   alias Tuist.MCP.Components.Tools.CreateRunnerProfile
   alias Tuist.MCP.Components.Tools.DeleteRunnerProfile
   alias Tuist.MCP.Components.Tools.GetRunnerCatalog
@@ -28,7 +27,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
 
       stub(Accounts, :get_account_by_handle, fn "acme" -> account end)
       stub(Tuist.Authorization, :authorize, fn :runners_read, :subject, ^account -> :ok end)
-      stub(FeatureFlags, :runners_enabled?, fn ^account -> true end)
       stub(Jobs, :count_for_account, fn 1, [] -> 1 end)
       stub(Jobs, :list_for_account, fn 1, [limit: 20, offset: 0] -> [job] end)
 
@@ -51,7 +49,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
 
       stub(Accounts, :get_account_by_handle, fn "acme" -> account end)
       stub(Tuist.Authorization, :authorize, fn :runners_read, :subject, ^account -> :ok end)
-      stub(FeatureFlags, :runners_enabled?, fn ^account -> true end)
       stub(Jobs, :get_for_account, fn 1, 42 -> {:ok, runner_job_fixture()} end)
 
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
@@ -67,7 +64,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
 
       stub(Accounts, :get_account_by_handle, fn "acme" -> account end)
       stub(Tuist.Authorization, :authorize, fn :runners_read, :subject, ^account -> :ok end)
-      stub(FeatureFlags, :runners_enabled?, fn ^account -> true end)
       stub(Jobs, :get_for_account, fn 1, 920_201 -> {:ok, %{runner_job_fixture() | workflow_job_id: 920_201}} end)
 
       :ok =
@@ -166,7 +162,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
         :ok
       end)
 
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       %{account: account, conn: %Plug.Conn{assigns: %{current_subject: :subject}}}
     end
 
@@ -243,7 +238,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       assert %{"shapes" => shapes, "xcode_versions" => xcode_versions} = JSON.decode!(text)
       assert %{"platform" => "linux", "vcpus" => 4, "memory_gb" => 8, "default" => false} in shapes
       assert %{"platform" => "macos", "vcpus" => 8, "memory_gb" => 24, "default" => true} in shapes
-      assert %{"xcode_version" => "26.5", "default" => true} in xcode_versions
+      assert %{"xcode_version" => "27.2", "default" => true} in xcode_versions
     end
 
     test "creates a profile and returns its runs-on label", %{account: account, conn: conn} do
@@ -295,7 +290,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
                  "xcode_version" => "15.0"
                })
 
-      assert text =~ "xcode_version must be one of: 26.5, 26.4.1"
+      assert text =~ "xcode_version must be one of: 27.3-beta, 27.2, 27.1"
     end
 
     test "refuses to create a profile past the account limit", %{account: account, conn: conn} do

@@ -144,6 +144,130 @@ defmodule Atlas.Finance.Categorization do
     end
   end
 
+  @doc """
+  Recategorizes one transaction on behalf of a person, replacing whatever the
+  categorization agent chose. `affects_runway` sets a runway override that
+  provider syncs keep; pass `nil` to drop the override and return to the
+  provider's own runway flag at the next sync.
+  """
+  def recategorize_transaction(transaction_id, attrs) do
+    with {:ok, transaction_id} <- Ecto.UUID.cast(transaction_id),
+         %Transaction{} = transaction <- Repo.get(Transaction, transaction_id),
+         {:ok, category} <- fetch_category(attrs, transaction.direction),
+         :ok <- validate_category_direction(transaction, category) do
+      changes =
+        %{
+          finance_category_id: category.id,
+          categorized_at: DateTime.truncate(DateTime.utc_now(), :second),
+          categorization_confidence: Decimal.new(1),
+          categorization_reason: attrs[:reason],
+          categorized_by_agent: nil
+        }
+        |> put_runway_override(transaction, attrs)
+
+      transaction
+      |> Transaction.changeset(changes)
+      |> Repo.update()
+      |> case do
+        {:ok, updated} = success ->
+          Audit.record("finance_transaction.recategorized", %{
+            target_type: "finance_transaction",
+            target_id: updated.id,
+            target_label: updated.counterparty_name || updated.external_id,
+            metadata: %{
+              "path" => "/finance",
+              "previous_category_id" => transaction.finance_category_id,
+              "category_id" => category.id,
+              "category_name" => category.name,
+              "affects_runway" => updated.affects_runway,
+              "runway_override" => updated.runway_override,
+              "reason" => updated.categorization_reason
+            }
+          })
+
+          success
+
+        error ->
+          error
+      end
+    else
+      :error -> {:error, :not_found}
+      nil -> {:error, :not_found}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  @doc """
+  Reapplies a person's runway override after a provider sync rewrote
+  `affects_runway` from the provider's data.
+  """
+  def apply_runway_override(%Transaction{runway_override: override, affects_runway: current} = transaction)
+      when is_boolean(override) and override != current do
+    transaction
+    |> Transaction.changeset(%{affects_runway: override})
+    |> Repo.update()
+  end
+
+  def apply_runway_override(%Transaction{} = transaction), do: {:ok, transaction}
+
+  defp fetch_category(%{category_id: id}, _direction) when is_binary(id) do
+    with {:ok, uuid} <- Ecto.UUID.cast(id),
+         %Category{} = category <- Repo.get(Category, uuid) do
+      {:ok, category}
+    else
+      _missing -> {:error, {:category_not_found, id}}
+    end
+  end
+
+  defp fetch_category(%{category_slug: slug}, _direction) when is_binary(slug) do
+    case Repo.get_by(Category, slug: Category.slugify(slug)) do
+      %Category{} = category -> {:ok, category}
+      nil -> {:error, {:category_not_found, slug}}
+    end
+  end
+
+  defp fetch_category(%{new_category_name: name} = attrs, direction) when is_binary(name) do
+    case Repo.get_by(Category, slug: Category.slugify(name)) do
+      %Category{} = category -> {:ok, category}
+      nil -> insert_category(name, attrs[:new_category_description], direction)
+    end
+  end
+
+  defp fetch_category(_attrs, _direction), do: {:error, :category_required}
+
+  defp insert_category(name, description, direction) do
+    %Category{}
+    |> Category.changeset(%{name: name, description: description, direction: direction})
+    |> Repo.insert()
+    |> case do
+      {:ok, category} = success ->
+        Audit.record("finance_category.created", %{
+          target_type: "finance_category",
+          target_id: category.id,
+          target_label: category.name,
+          metadata: %{"path" => "/finance", "slug" => category.slug, "direction" => category.direction}
+        })
+
+        success
+
+      error ->
+        error
+    end
+  end
+
+  defp put_runway_override(changes, transaction, attrs) do
+    case Map.fetch(attrs, :affects_runway) do
+      {:ok, override} when is_boolean(override) ->
+        Map.merge(changes, %{runway_override: override, affects_runway: override})
+
+      {:ok, nil} when is_boolean(transaction.runway_override) ->
+        Map.put(changes, :runway_override, nil)
+
+      _no_change ->
+        changes
+    end
+  end
+
   defp system_prompt do
     """
     You categorize treasury transactions into reusable finance categories.

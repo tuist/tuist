@@ -3,8 +3,11 @@ import Path
 import XcodeGraph
 
 /// Rewrites only module declarations and header path tokens, leaving comments, requirements,
-/// exports, links, textual/private declarations and submodules intact. Unsupported external
-/// module-map references are rejected instead of publishing an artifact tied to its checkout.
+/// exports, links, textual/private declarations and submodules intact. Absolute paths outside the
+/// target, such as a Linux-only system module's `/usr/include/zlib.h`, name system headers the
+/// package itself spells, so they stay verbatim, exactly as a source build reads them. Unsupported
+/// external module-map references, and relative paths that leave the target, are rejected instead
+/// of publishing an artifact tied to its checkout.
 enum SwiftPackageModuleMapRelocator {
     struct Result {
         let contents: String
@@ -50,6 +53,7 @@ enum SwiftPackageModuleMapRelocator {
             let path: AbsolutePath
             if pathText.hasPrefix("/") {
                 path = try AbsolutePath(validating: pathText)
+                guard path.isDescendantOfOrEqual(to: layout.root) else { continue }
             } else {
                 path = layout.moduleMap.parentDirectory.appending(try RelativePath(validating: pathText))
             }

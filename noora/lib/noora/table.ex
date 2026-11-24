@@ -92,7 +92,8 @@ defmodule Noora.Table do
 
   attr(:row_navigate, :fun,
     default: nil,
-    doc: "A function to generate the link to navigate to when clicking on a row."
+    doc:
+      "A function to generate the link to navigate to when clicking on a row. Return `nil` to leave a row without a link."
   )
 
   attr(:row_click, :fun,
@@ -192,6 +193,7 @@ defmodule Noora.Table do
               <% row_key = @row_key && @row_key.(row) %>
               <% is_expandable = @row_expandable && @row_expandable.(row) %>
               <% is_expanded = row_key in @expanded_rows %>
+              <% navigate_to = @row_navigate && @row_navigate.(row) %>
 
               <%!-- Expansion is presentational, toggled client-side via the disclosure button
               in the first cell — not a click handler on the row. A passive row keeps text
@@ -211,7 +213,7 @@ defmodule Noora.Table do
                   :for={{col, index} <- Enum.with_index(@col)}
                   data-selectable={
                     !is_expandable &&
-                      (not is_nil(@row_navigate) or
+                      (not is_nil(navigate_to) or
                          (not is_nil(@row_click) && not is_nil(@row_click.(row))))
                   }
                 >
@@ -246,7 +248,7 @@ defmodule Noora.Table do
                         </button>
                         {render_slot(col, row)}
                       </div>
-                    <% @row_navigate && !is_expandable && index == 0 -> %>
+                    <% navigate_to && !is_expandable && index == 0 -> %>
                       <%!-- Whole-row navigation, built from real anchors so browsers keep their
                       native link affordances (hover URL preview, Safari/Firefox link previews,
                       Cmd/middle-click to open in a new tab) with no JS. The first cell carries the
@@ -254,10 +256,10 @@ defmodule Noora.Table do
                       cell by a `::after` overlay (see table.css); every other cell gets a decorative
                       empty overlay anchor below. The row reads as one link — one tab stop, announced
                       once. --%>
-                      <.link navigate={@row_navigate.(row)} data-part="row-link">
+                      <.link navigate={navigate_to} data-part="row-link">
                         {render_slot(col, row)}
                       </.link>
-                    <% @row_navigate && !is_expandable -> %>
+                    <% navigate_to && !is_expandable -> %>
                       <%!-- Decorative per-cell overlay: an empty real anchor stretched over the
                       cell (`<td>` IS a valid containing block in every engine — only `<tr>` is not,
                       which is why a single row-spanning overlay can't work in WebKit). It widens the
@@ -265,7 +267,7 @@ defmodule Noora.Table do
                       a11y tree, so only the first cell's link is announced. --%>
                       {render_slot(col, row)}
                       <.link
-                        navigate={@row_navigate.(row)}
+                        navigate={navigate_to}
                         data-part="row-link-overlay"
                         tabindex="-1"
                         aria-hidden="true"
@@ -431,12 +433,18 @@ defmodule Noora.Table do
     doc: "The color of the badge"
   )
 
+  attr(:size, :string,
+    values: ~w(small medium large),
+    default: "medium",
+    doc: "The size of the badge"
+  )
+
   attr(:rest, :global)
 
   def badge_cell(assigns) do
     ~H"""
     <div data-part="cell" data-type="badge" {@rest}>
-      <.badge style={@style} color={@color} size="large" label={@label}>
+      <.badge style={@style} color={@color} size={@size} label={@label}>
         <:icon :if={@icon}>
           <.icon name={@icon} />
         </:icon>

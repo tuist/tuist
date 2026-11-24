@@ -1,0 +1,520 @@
+[
+  {
+    "annotations": {
+      "description": "5xx responses from ingress-nginx for the server Ingress are above 14.4 times the 0.1% budget over both the last hour and the last 5 minutes: at this rate 2% of the 30-day budget is gone in an hour. Split by status and path (sum by (status) (rate(nginx_ingress_controller_requests{cluster=\"tuist-production\", ingress=\"tuist-tuist-server\", status=~\"5..\"}[5m]))) and correlate with the last deploy.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#server-ingress-slo-fast-burn",
+      "summary": "The server is burning its 99.9% availability budget {{ $values.A.Value | printf \"%.1f\" }}x too fast"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster) (rate(nginx_ingress_controller_requests{cluster=\"tuist-production\", namespace=\"tuist\", ingress=\"tuist-tuist-server\", status=~\"5..\"}[1h])) / sum by (cluster) (rate(nginx_ingress_controller_requests{cluster=\"tuist-production\", namespace=\"tuist\", ingress=\"tuist-tuist-server\"}[1h])) / 0.001",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster) (rate(nginx_ingress_controller_requests{cluster=\"tuist-production\", namespace=\"tuist\", ingress=\"tuist-tuist-server\", status=~\"5..\"}[5m])) / sum by (cluster) (rate(nginx_ingress_controller_requests{cluster=\"tuist-production\", namespace=\"tuist\", ingress=\"tuist-tuist-server\"}[5m])) / 0.001",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "B"
+        },
+        "queryType": "",
+        "refId": "B",
+        "relativeTimeRange": {
+          "from": 300,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A > 14.4 && $B > 14.4",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "2m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "critical",
+      "affected_service": "API"
+    },
+    "noDataState": "OK",
+    "notification_settings": {
+      "receiver": "Incidents"
+    },
+    "orgID": 1,
+    "ruleGroup": "Production availability",
+    "title": "Server ingress SLO fast burn",
+    "uid": "server-ingress-slo-fast-burn"
+  },
+  {
+    "annotations": {
+      "description": "5xx responses from the regional Kura ingress controllers of {{ $labels.kura_gateway }} are above 14.4 times the 0.1% budget over both the last hour and the last 5 minutes, at over one request a second. 503 and 504 include capacity shedding and draining: read the Kura shedding and malformed-response rules to tell shedding from faults.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#cache-ingress-slo-fast-burn",
+      "summary": "Kura gateway {{ $labels.kura_gateway }} is burning its 99.9% availability budget {{ $values.A.Value | printf \"%.1f\" }}x too fast"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster, kura_gateway) (rate(nginx_ingress_controller_requests{cluster=\"tuist-production\", job=\"kura-ingress-nginx\", status=~\"5..\"}[1h])) / sum by (cluster, kura_gateway) (rate(nginx_ingress_controller_requests{cluster=\"tuist-production\", job=\"kura-ingress-nginx\"}[1h])) / 0.001 and on (cluster, kura_gateway) sum by (cluster, kura_gateway) (rate(nginx_ingress_controller_requests{cluster=\"tuist-production\", job=\"kura-ingress-nginx\"}[1h])) > 1",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster, kura_gateway) (rate(nginx_ingress_controller_requests{cluster=\"tuist-production\", job=\"kura-ingress-nginx\", status=~\"5..\"}[5m])) / sum by (cluster, kura_gateway) (rate(nginx_ingress_controller_requests{cluster=\"tuist-production\", job=\"kura-ingress-nginx\"}[5m])) / 0.001",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "B"
+        },
+        "queryType": "",
+        "refId": "B",
+        "relativeTimeRange": {
+          "from": 300,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A > 14.4 && $B > 14.4",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "2m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "critical",
+      "affected_service": "Cache"
+    },
+    "noDataState": "OK",
+    "notification_settings": {
+      "receiver": "Incidents"
+    },
+    "orgID": 1,
+    "ruleGroup": "Production availability",
+    "title": "Cache ingress SLO fast burn",
+    "uid": "cache-ingress-slo-fast-burn"
+  },
+  {
+    "annotations": {
+      "description": "Fewer than two Synthetic Monitoring probes reached https://registry.tuist.dev/up in the last three minutes. Check the registry Deployment in namespace tuist, its Ingress, and the registry Worker in front of tuist.dev/api/registry.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#registry-unavailable-from-multiple-locations",
+      "summary": "The package registry is unavailable from multiple external probe locations"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum(max by (probe) (max_over_time(probe_success{job=\"tuist-registry-readiness\"}[3m])))",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 180,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  2
+                ],
+                "type": "lt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "critical",
+      "affected_service": "Registry"
+    },
+    "noDataState": "OK",
+    "notification_settings": {
+      "receiver": "Incidents"
+    },
+    "orgID": 1,
+    "ruleGroup": "Production availability",
+    "title": "Registry unavailable from multiple locations",
+    "uid": "registry-probe-failing"
+  },
+  {
+    "annotations": {
+      "description": "No probe_success series for job tuist-registry-readiness in three minutes: the check was disabled or deleted, so the registry probe rule cannot fire.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#registry-probe-telemetry-missing",
+      "summary": "The registry Synthetic Monitoring check stopped producing telemetry"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "absent_over_time(probe_success{job=\"tuist-registry-readiness\"}[3m])",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 180,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Production availability",
+    "title": "Registry probe telemetry missing",
+    "uid": "registry-probe-missing"
+  },
+  {
+    "annotations": {
+      "description": "Fewer than two Synthetic Monitoring probes reached {{ $labels.instance }} in the last three minutes. Check that region's kura-<region>-ingress-nginx controllers, the region's Kura instances (Kura instance has no ready replicas) and its DNS.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-region-unavailable-from-multiple-locations",
+      "summary": "Kura region endpoint {{ $labels.instance }} is unavailable from multiple external probe locations"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (instance) (max by (instance, probe) (max_over_time(probe_success{job=\"kura-region-readiness\"}[3m])))",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 180,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  2
+                ],
+                "type": "lt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "critical",
+      "affected_service": "Cache"
+    },
+    "noDataState": "OK",
+    "notification_settings": {
+      "receiver": "Incidents"
+    },
+    "orgID": 1,
+    "ruleGroup": "Production availability",
+    "title": "Kura region unavailable from multiple locations",
+    "uid": "kura-region-probe-failing"
+  },
+  {
+    "annotations": {
+      "description": "No probe_success series for job kura-region-readiness in three minutes: every region check was disabled or deleted, so the Kura region probe rule cannot fire.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-region-probe-telemetry-missing",
+      "summary": "The Kura region Synthetic Monitoring checks stopped producing telemetry"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "absent_over_time(probe_success{job=\"kura-region-readiness\"}[3m])",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 180,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Production availability",
+    "title": "Kura region probe telemetry missing",
+    "uid": "kura-region-probe-missing"
+  }
+]

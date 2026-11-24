@@ -89,6 +89,7 @@ The following options are available in the `tuist` extension block in `settings.
 | `url` | `String?` | `null` | The base URL of the Tuist server. If not set, it defaults to `"https://tuist.dev"` or the value defined in `tuist.toml`. |
 | `uploadInBackground` | `Boolean?` | `null` | Whether to upload build and test insights in the background. When `null` (default), uploads run in the background for local builds and in the foreground on continuous integration runners. |
 | `stressNewTests.mode` | `String?` | `null` | `"report"` or `"enforce"`. Reruns the test cases a build adds and flags any that prove flaky; see <.localized_link href="/guides/features/test-insights/flaky-tests/gradle#stress-testing-new-tests">stress-testing new tests</.localized_link>. Off when unset. |
+| `coverage.enabled` | `Boolean?` | `null` | Measures test coverage with JaCoCo and uploads it with each test run. Off when unset. The `TUIST_TEST_COVERAGE` environment variable overrides it; see <.localized_link href="/guides/features/test-code-coverage/gradle">Gradle code coverage</.localized_link>. |
 
 For a local server that uses an `http://` URL, allow the insecure protocol only in that local configuration:
 
@@ -124,3 +125,4 @@ Once the plugin is installed and configured, you can enable:
 - <.localized_link href="/guides/features/build-insights/gradle">Build insights</.localized_link> to track task timings and cache behavior in the Tuist dashboard.
 - <.localized_link href="/guides/features/test-insights/gradle">Test insights</.localized_link> to track test performance and detect flaky tests.
 - <.localized_link href="/guides/features/test-insights/flaky-tests">Flaky tests</.localized_link> to automatically detect, track, and quarantine flaky tests.
+- <.localized_link href="/guides/features/test-code-coverage/gradle">Code coverage</.localized_link> to follow the coverage of your tests per commit, project, and file.

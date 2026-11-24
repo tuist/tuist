@@ -1,6 +1,6 @@
 # Tuist with Mix and Elixir
 
-Tuist brings Mix- and ExUnit-native depth to one productivity platform for organizations with diverse build systems. The `tuist_ex` Hex package caches supported compiled dependencies, reports compilation/test evidence, and supports flaky-test detection and balanced test sharding alongside the platform's supported Gradle, Bazel, Xcode, and canary Once workflows. Keep your Elixir toolchain and existing task setup; you do not need the Tuist CLI for this integration.
+Tuist brings Mix- and ExUnit-native depth to one productivity platform for organizations with diverse build systems. The `tuist_ex` Hex package caches supported compiled dependencies, reports compilation/test evidence, and supports flaky-test detection and balanced test sharding alongside the platform's supported Gradle, Bazel, Xcode, and canary Struo workflows. Keep your Elixir toolchain and existing task setup; you do not need the Tuist CLI for this integration.
 
 ## One productivity platform, native depth
 

@@ -47,7 +47,7 @@ Nx orchestrates and caches tasks that other tools define, such as a bundler, a t
 
 ### Does Tuist support JavaScript or TypeScript monorepos?
 
-Not as a task runner. Tuist does not run or orchestrate JavaScript or TypeScript tasks; its integrations target build systems such as Xcode, Gradle, Bazel, and Mix. Once, a build tool that can wrap commands such as `npm run build` and use Tuist for remote caching, has a Tuist integration in canary. For orchestrating and caching JavaScript or TypeScript tasks across a workspace, Nx is designed for that job.
+Not as a task runner. Tuist does not run or orchestrate JavaScript or TypeScript tasks; its integrations target build systems such as Xcode, Gradle, Bazel, and Mix. Struo, a build tool that can wrap commands such as `npm run build` and use Tuist for remote caching, has a Tuist integration in canary. For orchestrating and caching JavaScript or TypeScript tasks across a workspace, Nx is designed for that job.
 
 ### Can I use Nx and Tuist together?
 

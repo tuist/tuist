@@ -57,12 +57,12 @@ msgstr "刪除預覽"
 #: lib/tuist_web/live/preview_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Details"
-msgstr "詳細資料"
+msgstr "詳細資訊"
 
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "尚未安裝 Tuist 應用程式？"
+msgstr "尚未安裝 Tuist App？"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:110
@@ -73,12 +73,12 @@ msgstr "下載"
 #: lib/tuist_web/live/preview_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Install App"
-msgstr "安裝應用程式"
+msgstr "安裝 App"
 
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "最新應用程式預覽"
+msgstr "最新 App 預覽"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -114,7 +114,7 @@ msgstr "預覽"
 #: lib/tuist_web/live/preview_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "QR code"
-msgstr "QR 碼"
+msgstr "QR Code"
 
 #: lib/tuist_web/live/preview_live.html.heex:164
 #, elixir-autogen, elixir-format
@@ -134,23 +134,23 @@ msgstr "執行"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "執行以下指令以分享應用程式預覽。"
+msgstr "執行以下指令以分享 App 預覽。"
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #: lib/tuist_web/live/preview_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Scan QR code"
-msgstr "掃描 QR 碼"
+msgstr "掃描 QR Code"
 
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "在 iOS 裝置上掃描此 QR Code 以安裝此版本的應用程式"
+msgstr "在 iOS 裝置上掃描此 QR Code 以安裝此版本的 App"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "一鍵分享應用程式預覽"
+msgstr "一鍵分享 App 預覽"
 
 #: lib/tuist_web/live/preview_live.html.heex:138
 #, elixir-autogen, elixir-format
@@ -170,7 +170,7 @@ msgstr "此預覽不支援安裝至裝置"
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "若要直接在瀏覽器中執行預覽，請下載並安裝 Tuist macOS 應用程式"
+msgstr "若要直接從瀏覽器執行預覽，請下載並安裝 Tuist macOS App"
 
 #: lib/tuist_web/live/preview_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -242,7 +242,7 @@ msgstr "命令列預覽"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "桌面版預覽以你的使用者身分執行，可存取你的檔案與環境。它們不在沙箱中執行。"
+msgstr "桌面版預覽會以你的使用者身分執行，可存取你的檔案與環境。它們並未沙箱化。"
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format

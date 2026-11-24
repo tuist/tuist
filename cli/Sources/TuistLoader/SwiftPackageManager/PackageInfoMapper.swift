@@ -202,12 +202,19 @@ public struct ResolvedExternalDependencies: Equatable, Sendable {
     /// by its manifest name and the name part of its registry identity.
     public let packageProducts: [String: [String: [ProjectDescription.TargetDependency]]]
 
+    /// Sanitized names of the frameworks and modules that the packages' targets emit: the aliased names of their non-test
+    /// targets and the names of the xcframeworks their binary targets ship. Hoisting a product name onto a target that
+    /// differs from it must not reuse one of them.
+    public let graphTargetNames: Set<String>
+
     public init(
         products: [String: [ProjectDescription.TargetDependency]],
-        packageProducts: [String: [String: [ProjectDescription.TargetDependency]]]
+        packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
+        graphTargetNames: Set<String> = []
     ) {
         self.products = products
         self.packageProducts = packageProducts
+        self.graphTargetNames = graphTargetNames
     }
 }
 
@@ -235,6 +242,7 @@ public protocol PackageInfoMapping {
         packageSettings: TuistCore.PackageSettings,
         packageModuleAliases: [String: [String: String]],
         packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
+        graphTargetNames: Set<String>,
         enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project?
 }
@@ -394,7 +402,28 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 .map(ProjectDescription.XCFrameworkSignature.from)
             externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: signature)]
         }
-        return ResolvedExternalDependencies(products: externalDependencies, packageProducts: packageProducts)
+        let graphTargetNames = packageInfos.values.reduce(into: Set<String>()) { names, packageInfo in
+            let moduleAliases = packageModuleAliases[packageInfo.name]
+            for target in packageInfo.targets {
+                switch target.type {
+                case .regular, .system, .macro:
+                    names.insert(Self.sanitize(targetName: moduleAliases?[target.name] ?? target.name))
+                case .binary:
+                    if let framework = targetDependencyToFramework[target.name] {
+                        let basename = URL(fileURLWithPath: framework.pathString).deletingPathExtension().lastPathComponent
+                        names.insert(Self.sanitize(targetName: basename))
+                    }
+                case .executable, .test, .plugin:
+                    continue
+                }
+            }
+        }
+
+        return ResolvedExternalDependencies(
+            products: externalDependencies,
+            packageProducts: packageProducts,
+            graphTargetNames: graphTargetNames
+        )
     }
 
     /// Returns the products of the package a product dependency names. A registry package overridden by a local package is
@@ -480,6 +509,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         packageSettings: TuistCore.PackageSettings,
         packageModuleAliases: [String: [String: String]],
         packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
+        graphTargetNames: Set<String>,
         enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
@@ -546,6 +576,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageProducts: packageProducts,
+                    graphTargetNames: graphTargetNames,
                     packageTraits: packageInfo.traits ?? [],
                     enabledTraits: enabledTraits,
                     prebuilts: prebuiltTargets[target.name]
@@ -614,7 +645,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private static func effectiveProductName(
         targetName: String,
         products: Set<PackageInfo.Product>,
-        targetsByName: [String: PackageInfo.Target]
+        targetsByName: [String: PackageInfo.Target],
+        graphTargetNames: Set<String>
     ) -> String {
         guard products.count == 1,
               let singleProduct = products.first,
@@ -636,16 +668,20 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         // Target name differs from the product. SwiftPM hoists the product name onto single-target wrappers whose
         // name has the product as a prefix (e.g. `FirebaseCrashlyticsTarget` becomes `FirebaseCrashlytics`). Skip
-        // the hoist when the rename would collide with a sibling target or the framework a wrapped binary already
-        // emits.
+        // the hoist when the rename would collide with a sibling target, the framework a wrapped binary already emits,
+        // or a target or binary framework of any package in the graph (e.g. swift-distributed-tracing 1.7.0's
+        // `ServiceContextModule` target and swift-service-context 1.4.0+'s `ServiceContextModuleCompatibility`, which
+        // vends a `ServiceContextModule` product).
         guard targetName.hasPrefix(productName) else { return targetName }
-        return wrapsProductFramework ? targetName : productName
+        return wrapsProductFramework || graphTargetNames.contains(sanitize(targetName: productName))
+            ? targetName : productName
     }
 
     private static func effectiveModuleName(
         targetName: String,
         products: Set<PackageInfo.Product>,
-        targetsByName: [String: PackageInfo.Target]
+        targetsByName: [String: PackageInfo.Target],
+        graphTargetNames: Set<String>
     ) -> String {
         guard products.count == 1,
               let singleProduct = products.first,
@@ -666,10 +702,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         // Target name differs from the product. SwiftPM hoists the product name onto single-target wrappers whose
         // name has the product as a prefix (e.g. `FirebaseCrashlyticsTarget` becomes `FirebaseCrashlytics`). Skip
-        // the hoist when the rename would collide with a sibling target or the framework a wrapped binary already
-        // emits.
+        // the hoist when the rename would collide with a sibling target, the framework a wrapped binary already emits,
+        // or a target or binary framework of any package in the graph (e.g. swift-distributed-tracing 1.7.0's
+        // `ServiceContextModule` target and swift-service-context 1.4.0+'s `ServiceContextModuleCompatibility`, which
+        // vends a `ServiceContextModule` product).
         guard targetName.hasPrefix(productName) else { return targetName }
-        return wrapsProductFramework ? targetName : productName
+        return wrapsProductFramework || graphTargetNames.contains(sanitize(targetName: productName))
+            ? targetName : productName
     }
 
     private static func wrapsProductNamedFramework(
@@ -697,8 +736,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     isSamePackageDependency = false
                 }
 
-                // A same-package target already uses the product name, so renaming would collide.
-                // Skip .product deps since those reference external packages and won't collide.
+                // A same-package target already uses the product name, so renaming would collide. Targets of other
+                // packages are checked against `graphTargetNames` instead.
                 if isSamePackageDependency, dependencyName == productName {
                     return true
                 }
@@ -1111,6 +1150,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]],
         packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
+        graphTargetNames: Set<String>,
         packageTraits: [PackageTrait],
         enabledTraits: Set<String>,
         prebuilts: PrebuiltTarget?
@@ -1199,7 +1239,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular, .test:
             let resolvedModuleName = PackageInfoMapper.effectiveModuleName(
-                targetName: target.name, products: products, targetsByName: targetsByName
+                targetName: target.name, products: products, targetsByName: targetsByName, graphTargetNames: graphTargetNames
             )
             moduleMapModuleName = resolvedModuleName
             let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
@@ -1207,12 +1247,21 @@ public struct PackageInfoMapper: PackageInfoMapping {
             } else {
                 nil
             }
-            moduleMap = try await moduleMapGenerator.generate(
+            let generatedModuleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
                 moduleName: resolvedModuleName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path),
                 swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
+            // Below tools version 6.5, SwiftPM ignores a pure Swift target's public headers directory,
+            // including a module map there for other build systems (ReactiveCocoa's names its Objective-C target's headers).
+            if generatedModuleMap != .none,
+               try await isSwiftOnlyModule(target: target, targetPath: targetPath, toolsVersion: packageInfo.toolsVersion)
+            {
+                moduleMap = ModuleMap.none
+            } else {
+                moduleMap = generatedModuleMap
+            }
         default:
             moduleMapModuleName = nil
             moduleMap = nil
@@ -1397,13 +1446,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
         let sanitizedTargetName = PackageInfoMapper.sanitize(targetName: targetName)
         let effectiveModuleName = PackageInfoMapper.effectiveModuleName(
-            targetName: target.name, products: products, targetsByName: targetsByName
+            targetName: target.name, products: products, targetsByName: targetsByName, graphTargetNames: graphTargetNames
         )
         let aliasedEffectiveModuleName = packageModuleAliases[packageInfo.name]?[effectiveModuleName] ?? effectiveModuleName
         let moduleName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveModuleName)
             .replacingOccurrences(of: "-", with: "_")
         let effectiveProductName = PackageInfoMapper.effectiveProductName(
-            targetName: target.name, products: products, targetsByName: targetsByName
+            targetName: target.name, products: products, targetsByName: targetsByName, graphTargetNames: graphTargetNames
         )
         let aliasedEffectiveProductName = packageModuleAliases[packageInfo.name]?[effectiveProductName] ?? effectiveProductName
         let productName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveProductName)
@@ -1470,7 +1519,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
         case .custom, .header: usesDirectoryModuleMap = false
         }
 
-        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        // SwiftPM's header extensions, plus files headers include textually, such as aws-c-common's
+        // `<aws/common/error.inl>`. SwiftPM reaches those through the include directory; cached artifacts
+        // only carry the headers listed here.
+        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def,inl,inc,tcc,tpp}"
         let excluding: [ProjectDescription.Path] = try await target.exclude.concurrentMap {
             let path = targetPath.appending(try RelativePath(validating: $0))
             let isDirectory = try await fileSystem.exists(path, isDirectory: true)
@@ -1492,26 +1544,54 @@ public struct PackageInfoMapper: PackageInfoMapping {
     /// Whether the target compiles C++ or Objective-C++ sources. SwiftPM links the C++ standard library into every client of
     /// such a module, which a client that only compiles Swift, C, or Objective-C would otherwise not link.
     private func hasCxxSources(target: PackageInfo.Target, targetPath: AbsolutePath) async throws -> Bool {
-        guard target.type.supportsSources else { return false }
-        let cxxExtensions = "{cpp,cc,cxx,mm}"
+        let cxxExtensions: Set<String> = ["cpp", "cc", "cxx", "mm"]
+        return try await !sourceExtensions(target: target, targetPath: targetPath) {
+            !$0.isDisjoint(with: cxxExtensions)
+        }.isDisjoint(with: cxxExtensions)
+    }
+
+    /// Whether SwiftPM builds the target as a Swift module without an underlying Clang module. Like
+    /// `PackageBuilder`, a Swift target only gets one from its public headers directory when it also
+    /// compiles C-family sources or, from tools version 6.5, when that directory exists.
+    private func isSwiftOnlyModule(
+        target: PackageInfo.Target, targetPath: AbsolutePath, toolsVersion: XcodeGraph.Version
+    ) async throws -> Bool {
+        guard toolsVersion < XcodeGraph.Version(6, 5, 0) else { return false }
+        let clangExtensions: Set<String> = ["c", "m", "mm", "cc", "cpp", "cxx", "s", "S"]
+        let extensions = try await sourceExtensions(target: target, targetPath: targetPath) {
+            $0.contains("swift") && !$0.isDisjoint(with: clangExtensions)
+        }
+        return extensions.contains("swift") && extensions.isDisjoint(with: clangExtensions)
+    }
+
+    /// Extensions of the target's non-excluded source files, read in a single traversal of each source
+    /// path that stops as soon as `isComplete` holds for the extensions found so far.
+    private func sourceExtensions(
+        target: PackageInfo.Target, targetPath: AbsolutePath, until isComplete: (Set<String>) -> Bool
+    ) async throws -> Set<String> {
+        guard target.type.supportsSources else { return [] }
         let excludedPaths = try target.exclude.map { targetPath.appending(try RelativePath(validating: $0)) }
         let sourcePaths = try target.sources?.map { targetPath.appending(try RelativePath(validating: $0)) } ?? [targetPath]
+        var extensions: Set<String> = []
+        func record(_ path: AbsolutePath) -> Bool {
+            guard let fileExtension = path.extension,
+                  !excludedPaths.contains(where: { path.isDescendantOfOrEqual(to: $0) })
+            else { return false }
+            extensions.insert(fileExtension)
+            return isComplete(extensions)
+        }
         for sourcePath in sourcePaths {
-            let candidates: [AbsolutePath] = if try await fileSystem.exists(sourcePath, isDirectory: true) {
-                try await fileSystem.glob(directory: sourcePath, include: ["*.\(cxxExtensions)", "**/*.\(cxxExtensions)"])
-                    .collect()
-            } else if let fileExtension = sourcePath.extension, ["cpp", "cc", "cxx", "mm"].contains(fileExtension) {
-                [sourcePath]
-            } else {
-                []
-            }
-            if candidates.contains(where: { candidate in
-                !excludedPaths.contains(where: { candidate.isDescendantOfOrEqual(to: $0) })
-            }) {
-                return true
+            if try await fileSystem.exists(sourcePath, isDirectory: true) {
+                for try await candidate in try fileSystem.glob(directory: sourcePath, include: ["*", "**/*"])
+                    where record(candidate)
+                {
+                    return extensions
+                }
+            } else if record(sourcePath) {
+                return extensions
             }
         }
-        return false
+        return extensions
     }
 
     private func prebuiltDependency(
@@ -2648,6 +2728,7 @@ extension ProjectDescription.Settings {
             "Testing", // https://github.com/apple/swift-testing
             "Cuckoo", // https://github.com/Brightify/Cuckoo
             "SnapshottingTests", // https://github.com/EmergeTools/SnapshotPreviews
+            "TuistSnapshotsTesting", // https://github.com/tuist/snapshots
             "_SwiftSyntaxTestSupport", // https://github.com/swiftlang/swift-syntax
             "SwiftSyntaxMacrosTestSupport", // https://github.com/swiftlang/swift-syntax
         ]

@@ -1,0 +1,58 @@
+<%!-- A CI provider's runners page (/runners/<provider>, styles in
+css/routes/compute.css): the runners hub's frame with the provider's guide
+(priv/marketing/agents/runners/<provider>.md) as its content: the hero, the
+guide in its own frame, its FAQ as the pricing page's accordion, then the
+hub's CTA. English-only, like the other Markdown-sourced pages. --%>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-compute" data-page="provider" lang="en" dir="ltr">
+    <%!-- Hero: centered like a blog post's header — the title, the guide's
+    intro paragraph, this provider's one-line diff, and the actions. The
+    breadcrumb trail stays in the page's BreadcrumbList structured data. --%>
+    <header data-part="header">
+      <h1 data-part="title">{@page.title}</h1>
+      <p :if={@intro} data-part="subtitle">{raw(@intro)}</p>
+      <.runners_migration providers={[@provider]} />
+      <nav data-part="actions">
+        <.button
+          href={~p"/users/register"}
+          label={dgettext("marketing", "Get started")}
+        />
+        <.button href={@docs_url} variant="secondary" label={dgettext("marketing", "Read docs")} />
+      </nav>
+    </header>
+
+    <article data-part="guide">
+      <div data-part="content" data-prose>
+        {raw(content_html(@body))}
+      </div>
+    </article>
+
+    <%!-- The guide's FAQ (also its FAQPage structured data) as the pricing
+    page's accordion; the shared rows live in css/layouts/components/faq.css. --%>
+    <section :if={@page.faqs != []} data-part="faq" aria-labelledby="runners-faq-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "FAQs")}</span>
+        <h2 data-part="title" id="runners-faq-title">
+          {dgettext("marketing", "Frequently asked questions")}
+        </h2>
+      </div>
+      <div data-part="questions">
+        <details :for={{question, answer} <- @page.faqs} data-part="question">
+          <summary data-part="summary">
+            <span data-part="label">{question}</span>
+            <span
+              data-part="chevron"
+              class="noora-ghost-button"
+              data-size="medium"
+              data-icon-only
+              aria-hidden="true"
+            ><.chevron_down /></span>
+          </summary>
+          <div data-part="answer">{raw(content_html(answer))}</div>
+        </details>
+      </div>
+    </section>
+
+    <.runners_cta />
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

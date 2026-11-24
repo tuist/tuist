@@ -86,6 +86,28 @@
   ],
   "packageRules": [
     {
+      "description": "Deploy and release workflows, and the composite actions they run, reference third-party actions by commit SHA with the exact version in a trailing comment (`@<sha> # v4.4.0`), so a moved or hijacked tag can't change what runs next to deploy and signing credentials. pinDigests pins any new tag reference added to these files; the github-actions manager reads the comment and bumps SHA and comment together. tuist/* actions are released from this organization and stay on their major tags, and container: and services: images keep their tags (matchDepTypes). Other secret-holding workflows that don't match these names (app.yml, guild.yml, handbook.yml, …) were pinned by hand and are kept current by the same manager, but new references in them aren't pinned automatically.",
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["action"],
+      "matchPackageNames": ["!tuist/**"],
+      "matchFileNames": [
+        ".github/workflows/*deploy*.yml",
+        ".github/workflows/*release*.yml",
+        ".github/workflows/*publish*.yml",
+        ".github/workflows/*promote*.yml",
+        ".github/workflows/*-rc.yml",
+        ".github/workflows/*apply*.yml",
+        ".github/actions/**"
+      ],
+      "pinDigests": true
+    },
+    {
+      "description": "SHA-pinned actions need a PR for every patch release that a floating major tag used to pick up silently. Batch those minor and patch bumps into one weekly PR to bound review load; major bumps stay separate because they can change inputs.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "GitHub Actions"
+    },
+    {
       "description": "Digest updates for git deps in server/mix.exs. Renovate only ever proposes the default-branch head, but the ref-pinned deps there are deliberately NOT on it: ex_aws_s3 (tuist fork branch fix/presigned-url-config-defaults, makes presigned URLs honour the virtual_host/bucket_as_host config production sets), emcp (branch fix/streamable-http-inline-response-on-post, keeps JSON-RPC responses inline on the POST instead of the SSE stream), cachex (TBK145/cachex@patch-1, the Elixir 1.19 record/0 type rename from whitfin/cachex#433), and boruta (a 3.0 pre-release snapshot; moving it means running its bundled migrations and a nebulex 2->3 major). Every digest PR here would silently revert a patch or start a migration, and Renovate cannot regenerate mix.lock anyway, so the rule matches by datasource rather than by name: a new ref-pinned git dep is covered without editing this list. Tag-pinned git deps (e.g. heroicons) are version updates, not digests, and stay tracked. Those bumps are done by hand.",
       "matchManagers": ["mix"],
       "matchDatasources": ["git-tags", "github-tags"],
@@ -103,9 +125,53 @@
       "automerge": true
     },
     {
+      "description": "Tuist CLI preinstalled in the macOS runner image for sandboxes. tuist/tuist tags every component, so only bare versions are CLI releases. Weekly, because each bump rebuilds every runner image.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
+      "matchPackageNames": ["tuist/tuist"],
+      "allowedVersions": "/^\\d+\\.\\d+\\.\\d+$/",
+      "schedule": ["before 6am on monday"],
+      "commitMessagePrefix": "fix(runner-image):",
+      "commitMessageTopic": "preinstalled Tuist CLI"
+    },
+    {
+      "description": "Go on PATH in the macOS runner image. Jobs expect it to stay put, so Renovate proposes only patch releases (security and bug fixes, weekly with everything else); a new minor changes the toolchain customers build with and is bumped by hand. Each bump also needs go_sha256_darwin_arm64 updated from https://go.dev/dl/?mode=json, or the image build fails its checksum.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
+      "matchPackageNames": ["go"],
+      "commitMessagePrefix": "fix(runner-image):",
+      "commitMessageTopic": "preinstalled Go"
+    },
+    {
+      "description": "Minor and major Go releases for the runner image are bumped by hand; see the rule above.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
+      "matchPackageNames": ["go"],
+      "matchUpdateTypes": ["minor", "major"],
+      "enabled": false
+    },
+    {
+      "description": "Temurin JDK 21 in the macOS runner image, pinned like Go. Tags are `jdk-21.0.<update>[.<respin>]+<build>`; the regex versioning reads each Java update release as a patch and skips the `-ea-beta` tags. The repository only carries Java 21, so another Java major is a deliberate change of depName, never a Renovate bump. Each bump also needs jdk21_sha256_darwin_arm64 updated from the release's .sha256.txt asset.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
+      "matchPackageNames": ["adoptium/temurin21-binaries"],
+      "versioning": "regex:^jdk-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?\\+(?<revision>\\d+)$",
+      "commitMessagePrefix": "fix(runner-image):",
+      "commitMessageTopic": "preinstalled JDK 21"
+    },
+    {
       "description": "Refresh Linux runner base digests through the image release pipeline.",
       "matchManagers": ["dockerfile"],
       "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
+      "commitMessagePrefix": "fix(linux-runner-image):"
+    },
+    {
+      "description": "Linux CI runners and sandbox guests share one Ubuntu 24.04 digest (infra/linux-vm-foundations.md). Bump both Dockerfiles in one PR so they never drift; the prefix keeps the runner image release flow.",
+      "matchManagers": ["dockerfile"],
+      "matchFileNames": ["infra/linux-runner-image/Dockerfile", "infra/sandbox-image/Dockerfile"],
+      "matchPackageNames": ["ubuntu"],
+      "matchCurrentValue": "24.04",
+      "groupName": "Linux guest Ubuntu 24.04 base",
       "commitMessagePrefix": "fix(linux-runner-image):"
     },
     {

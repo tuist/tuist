@@ -1,0 +1,297 @@
+/* The menu: a button (a label, dots for overflow actions, or a split
+   button) and the panel it opens. The label and dots buttons are the
+   dropdown's own (see dropdown.css) and the split button is the button
+   dropdown's (button_dropdown.css); the rules below only keep them within
+   their container. */
+.noora-menu {
+  position: relative;
+  max-width: 100%;
+
+  & > [data-part="trigger"] {
+    max-width: 100%;
+  }
+
+  /* The dots button matches the labelled button's height: a 20px icon box
+     (the label's line height) with the same 6px padding. */
+  &[data-trigger] > [data-part="trigger"][data-icon-only] {
+    width: var(--noora-icon-size-large);
+    height: var(--noora-icon-size-large);
+  }
+
+  & [data-part="label-wrapper"] {
+    min-width: 0;
+  }
+
+  /* The label is moved into the button's label wrapper, inside the target
+     element and LiveView's portal wrapper; neither may add a box, or the
+     label drops below the wrapper's row. */
+  & [data-part="trigger-content"],
+  & [data-part="trigger-content"] > div {
+    display: contents;
+  }
+
+  /* The label middle-truncates. */
+  & [data-part="label"] {
+    display: flex;
+    min-width: 0;
+  }
+
+  /* The chevron turns from down to up as the menu opens (the
+     NooraIconTransition hook). Its two stacked icons fill the indicator. */
+  & [data-part="indicator"] .noora-icon-transition,
+  & [data-part="indicator"] .noora-icon-transition > span {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Zag hides the content the instant the menu closes, which would cut the
+     exit animation. The positioner is the presence gate instead, keyed to
+     the trigger's state, and `allow-discrete` holds it until the content's
+     transition ends. */
+  & [data-part="positioner"] {
+    display: none;
+    transition: display 150ms allow-discrete;
+  }
+
+  & > [data-part="trigger"][data-state="open"] + [data-part="positioner"] {
+    display: flex;
+  }
+
+  /* The positioner takes its stacking layer inline from the content's
+     z-index, so the layer is set here; on the positioner it would be
+     overridden, and the panel would open under later controls. */
+  & [data-part="content"] {
+    z-index: var(--noora-z-index-12);
+    display: block;
+    outline: none;
+    opacity: 0;
+    transform: translateY(-0.25rem);
+    transition:
+      opacity 150ms var(--ease-out-cubic),
+      transform 150ms var(--ease-out-cubic);
+  }
+
+  &
+    > [data-part="trigger"][data-state="open"]
+    + [data-part="positioner"]
+    > [data-part="content"] {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity 200ms var(--ease-out-cubic),
+      transform 200ms var(--ease-out-cubic);
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(-0.25rem);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    & [data-part="positioner"],
+    & [data-part="content"] {
+      transition: none !important;
+    }
+  }
+}
+
+/* The menu panel, shared by Noora.Menu and the breadcrumb menu so every menu
+   looks the same. Each component keeps its own show and hide rules. */
+.noora-menu-panel {
+  box-sizing: border-box;
+  box-shadow: var(--noora-border-medium);
+  border-radius: var(--noora-radius-5);
+  background: var(--noora-surface-background-primary);
+  /* Block padding only: items carry the inline inset themselves, so
+     separators can run edge to edge inside the scrolling list. */
+  padding-block: var(--noora-spacing-2);
+  min-width: 200px;
+  /* Wide enough for most labels, never wider than the screen; longer labels
+     truncate. */
+  max-width: min(24rem, calc(100vw - 2rem));
+  width: max-content;
+
+  /* Long menus scroll vertically. A scroll container can't let content
+     overflow sideways, so nothing inside may be wider than the list. The
+     height stops halfway through the ninth row, and a half-shown row reads
+     as more to scroll to. */
+  & > [data-part="items"] {
+    display: flex;
+    flex-direction: column;
+    max-height: min(calc(36px * 8.5), calc(100vh - 8rem));
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-color: light-dark(
+        var(--noora-neutral-light-600),
+        var(--noora-neutral-dark-600)
+      )
+      transparent;
+    scrollbar-width: thin;
+  }
+
+  /* Actions pinned below the scrolling list, such as Create project. */
+  & > [data-part="footer"] {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.noora-menu-item {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  gap: var(--noora-spacing-4);
+  cursor: pointer;
+  outline: none;
+  margin-inline: var(--noora-spacing-2);
+  border-radius: var(--noora-radius-3);
+  padding: var(--noora-spacing-4);
+  min-height: 36px;
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+  text-decoration: none;
+  text-align: start;
+
+  & > [data-part="icon"] {
+    display: flex;
+    flex: none;
+    width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  & > [data-part="checkbox"] {
+    display: flex;
+    flex: none;
+  }
+
+  & > [data-part="image"] {
+    display: flex;
+    flex: none;
+    width: var(--noora-icon-size-large);
+    height: var(--noora-icon-size-large);
+
+    & > * {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+
+  & > [data-part="body"] {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+    min-width: 0;
+  }
+
+  & > [data-part="body"] > [data-part="text"] {
+    display: flex;
+    align-items: baseline;
+    gap: var(--noora-spacing-2);
+    min-width: 0;
+  }
+
+  /* The label keeps its room; a long sublabel shrinks first (a far larger
+     shrink factor), then the label truncates. */
+  & [data-part="text"] > [data-part="label"] {
+    flex: 0 1 auto;
+    overflow: hidden;
+    /* Room for stacked accents, which a tight line box with hidden overflow
+       would clip. */
+    margin-block: -2px;
+    padding-block: 2px;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &[data-truncate="middle"] {
+      display: flex;
+      overflow: visible;
+      margin-block: 0;
+      padding-block: 0;
+    }
+  }
+
+  & [data-part="text"] > [data-part="sublabel"],
+  & > [data-part="body"] > [data-part="description"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & [data-part="text"] > [data-part="sublabel"] {
+    flex: 0 1000 auto;
+    overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  & > [data-part="extra"] {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & > [data-part="check"] {
+    display: flex;
+    flex: none;
+    width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  /* The highlight is the item's only focus state: no outline, which a
+     page's own focus ring would otherwise draw around the item. */
+  &:focus-visible {
+    outline: none;
+  }
+
+  /* Zag marks the item under the pointer or keyboard focus as highlighted. */
+  &[data-highlighted] {
+    background: var(--noora-surface-background-secondary);
+  }
+
+  &[data-variant="destructive"] {
+    &,
+    & [data-part="text"] > [data-part="sublabel"],
+    & > [data-part="body"] > [data-part="description"] {
+      color: var(--noora-surface-label-destructive);
+    }
+
+    &[data-highlighted] {
+      background: var(--noora-surface-background-destructive);
+    }
+  }
+
+  &[data-disabled] {
+    cursor: not-allowed;
+
+    &,
+    & [data-part="text"] > [data-part="sublabel"],
+    & > [data-part="body"] > [data-part="description"] {
+      color: var(--noora-surface-label-disabled);
+    }
+
+    &[data-highlighted] {
+      background: none;
+    }
+  }
+}
+
+/* A Noora line divider between items, or above the footer. It's targeted by
+   its part: the divider keeps its own class. */
+.noora-menu-panel [data-part="separator"] {
+  flex: none;
+  margin-block: var(--noora-spacing-2);
+}

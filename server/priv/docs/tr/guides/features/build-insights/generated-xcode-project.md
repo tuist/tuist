@@ -2,7 +2,7 @@
 {
   "title": "Oluşturulan Xcode projesi",
   "titleTemplate": ":title · Derleme içgörüleri · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist kontrol panelinde, Tuist tarafından oluşturulan bir Xcode projesinin derleme analizlerini takip edin."
+  "description": "Tuist ile oluşturulan bir Xcode projesinin derleme analizlerini Tuist panosunda takip edin."
 }
 ---
 # Oluşturulan Xcode projesi {#generated-xcode-project-build-insights}
@@ -43,7 +43,7 @@ let project = Project(
 )
 ```
 
-Mise kullanmıyorsanız, Xcode post-action'ları kabuğunuzun `PATH` değerini miras almadığından `tuist` öğesinin şema ortamında kullanılabilir olduğundan emin olmanız gerekir. [Homebrew](https://brew.sh/) kurulumları için:
+Mise kullanmıyorsanız, Xcode post-action'ları kabuğunuzun `PATH` değişkenini miras almadığından `tuist` öğesinin şema ortamında mevcut olduğundan emin olmanız gerekir. [Homebrew](https://brew.sh/) kurulumları için:
 
 ```swift
 buildAction: .buildAction(

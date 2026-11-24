@@ -25,7 +25,8 @@ defmodule Tuist.Tests.Test do
       :claimed_actor_id,
       :is_ci,
       :build_system,
-      :ran_at
+      :ran_at,
+      :selective_testing
     ],
     sortable: [:ran_at, :duration, :inserted_at],
     adapter_opts: [
@@ -33,6 +34,12 @@ defmodule Tuist.Tests.Test do
         verified_actor: [
           filter: {Tuist.ReportActor, :verified_account_filter, []},
           ecto_type: :integer,
+          operators: [:==, :!=]
+        ],
+        # Needs `extra_opts: [project_id: id]` (`Tuist.Tests.list_test_runs/2`).
+        selective_testing: [
+          filter: {Tuist.Tests.RunSelections, :strategy_filter, []},
+          ecto_type: :string,
           operators: [:==, :!=]
         ]
       ]

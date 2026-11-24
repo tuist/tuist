@@ -21,9 +21,10 @@ use common_query::error::{
     ExecuteSnafu, InvalidFuncArgsSnafu, MissingFlowServiceHandlerSnafu, Result,
     UnsupportedInputDataTypeSnafu,
 };
-use datafusion_expr::{Signature, Volatility};
+use datafusion_expr::{Signature, TypeSignature, Volatility};
 use datatypes::value::{Value, ValueRef};
 use session::context::QueryContextRef;
+use session::hints::FLOW_RECOMPUTE_RETAINED_EXTENSION_KEY;
 use snafu::{ResultExt, ensure};
 use sql::ast::ObjectNamePartExt;
 use sql::parser::ParserContext;
@@ -31,7 +32,13 @@ use sql::parser::ParserContext;
 use crate::handlers::FlowServiceHandlerRef;
 
 fn flush_signature() -> Signature {
-    Signature::uniform(1, vec![ArrowDataType::Utf8], Volatility::Immutable)
+    Signature::one_of(
+        vec![
+            TypeSignature::Exact(vec![ArrowDataType::Utf8]),
+            TypeSignature::Exact(vec![ArrowDataType::Utf8, ArrowDataType::Boolean]),
+        ],
+        Volatility::Immutable,
+    )
 }
 
 #[admin_fn(
@@ -45,10 +52,28 @@ pub(crate) async fn flush_flow(
     query_ctx: &QueryContextRef,
     params: &[ValueRef<'_>],
 ) -> Result<Value> {
-    let (catalog_name, flow_name) = parse_flush_flow(params, query_ctx)?;
+    ensure!(
+        (1..=2).contains(&params.len()),
+        InvalidFuncArgsSnafu {
+            err_msg: "flush_flow expects a flow name and optional retained-recompute boolean",
+        }
+    );
+    let recompute = match params.get(1) {
+        None => false,
+        Some(ValueRef::Boolean(value)) => *value,
+        _ => {
+            return InvalidFuncArgsSnafu {
+                err_msg: "flush_flow retained-recompute argument must be a boolean",
+            }
+            .fail();
+        }
+    };
+    let (catalog_name, flow_name) = parse_flush_flow(&params[..1], query_ctx)?;
+    let mut ctx = query_ctx.fork();
+    ctx.set_extension(FLOW_RECOMPUTE_RETAINED_EXTENSION_KEY, recompute.to_string());
 
     let res = flow_service_handler
-        .flush(&catalog_name, &flow_name, query_ctx.clone())
+        .flush(&catalog_name, &flow_name, std::sync::Arc::new(ctx))
         .await?;
     let affected_rows = res.affected_rows;
 
@@ -115,10 +140,12 @@ mod test {
         let f = factory.provide(FunctionContext::mock());
         assert_eq!("flush_flow", f.name());
         assert_eq!(ArrowDataType::UInt64, f.return_type(&[]).unwrap());
-        let expected_signature = datafusion_expr::Signature::uniform(
-            1,
-            vec![ArrowDataType::Utf8],
-            datafusion_expr::Volatility::Immutable,
+        let expected_signature = Signature::one_of(
+            vec![
+                TypeSignature::Exact(vec![ArrowDataType::Utf8]),
+                TypeSignature::Exact(vec![ArrowDataType::Utf8, ArrowDataType::Boolean]),
+            ],
+            Volatility::Immutable,
         );
         assert_eq!(*f.signature(), expected_signature);
     }

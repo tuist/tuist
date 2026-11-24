@@ -2,7 +2,7 @@
 {{- $fleetName := include "tuist.rackFleetName" . }}
 {{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
 {{- /*
-Rack-owned Mac mini fleet (the BER1 colo programme): one RackHost per box,
+Rack-owned Mac mini fleet (the alder colo programme): one RackHost per box,
 rendered from `rackFleet.hosts`, so adding a mini to the rack is a values PR
 reviewed like any other. The operator keeps a CAPI Machine and a
 RackAppleSiliconMachine for each host, named `<fleet>-<host>`, which make it a

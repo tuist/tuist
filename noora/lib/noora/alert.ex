@@ -25,7 +25,7 @@ defmodule Noora.Alert do
   )
 
   attr(:status, :string,
-    values: ~w(information warning error success),
+    values: ~w(default information warning error success),
     required: true,
     doc: "The status of the alert."
   )
@@ -72,11 +72,7 @@ defmodule Noora.Alert do
       <%= if @size in ["small", "medium"] do %>
         <.icon :if={@show_icon} status={@status} />
         <span data-part="title">{@title}</span>
-        <div :if={@action != []} data-part="actions">
-          <%= for action <- @action do %>
-            {render_slot(action)}
-          <% end %>
-        </div>
+        <.actions actions={@action} />
         <.dismiss_icon
           :if={@dismissible}
           size={if @size == "small", do: "small", else: "large"}
@@ -95,11 +91,7 @@ defmodule Noora.Alert do
           <span :if={@inner_block == [] and @description} data-part="description">
             {@description}
           </span>
-          <div :if={@action != []} data-part="actions">
-            <div :for={action <- @action}>
-              {render_slot(action)}
-            </div>
-          </div>
+          <.actions actions={@action} />
         </div>
         <.dismiss_icon
           :if={@dismissible}
@@ -108,6 +100,25 @@ defmodule Noora.Alert do
           phx-click={JS.hide(to: "##{@id}")}
         />
       <% end %>
+    </div>
+    """
+  end
+
+  defp actions(assigns) do
+    ~H"""
+    <div :if={@actions != []} data-part="actions">
+      <%= for {action, index} <- Enum.with_index(@actions) do %>
+        <span :if={index > 0} data-part="action-separator" aria-hidden="true"></span>
+        <div data-part="action">{render_slot(action)}</div>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp icon(%{status: "default"} = assigns) do
+    ~H"""
+    <div data-part="icon">
+      <Icon.apps />
     </div>
     """
   end

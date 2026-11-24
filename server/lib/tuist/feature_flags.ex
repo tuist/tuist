@@ -15,6 +15,13 @@ defmodule Tuist.FeatureFlags do
     )
   end
 
+  @doc """
+  Whether `user` is blocked from sending telemetry from Tuist's clients
+  (`TuistWeb.API.TelemetryController`), set with the `:telemetry_blocked`
+  FunWithFlags toggle for that user when their clients abuse the endpoint.
+  """
+  def telemetry_blocked?(user), do: FunWithFlags.enabled?(:telemetry_blocked, for: user)
+
   @doc "Default-off account opt-in to Linux Bazel remote execution in every environment."
   def bazel_remote_execution_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
@@ -30,6 +37,15 @@ defmodule Tuist.FeatureFlags do
       :runner_shard_storage,
       account,
       flag_enabled?(:runner_shard_storage, account, flags)
+    )
+  end
+
+  @doc "Default-off account enrollment in public shard artifact storage."
+  def public_shard_storage_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :public_shard_storage,
+      account,
+      flag_enabled?(:public_shard_storage, account, flags)
     )
   end
 
@@ -128,17 +144,24 @@ defmodule Tuist.FeatureFlags do
   defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
-  Whether a user may use Tuist Guild's features: threads, AI subscriptions and
-  MCP servers. Canary and production require an explicit `:guild` FunWithFlags
-  toggle. Development, test and staging default to enabled. Organization
-  routing uses `organization_guild_enabled?/1` instead.
+  Global kill switch for copying long remote action logs to object storage:
+  while `:remote_action_log_copies_disabled` is on, records get no uploads and
+  the gateway copies nothing.
   """
-  def guild_enabled?(actor) do
-    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:guild, for: actor)
+  def remote_action_log_copies_disabled?, do: FunWithFlags.enabled?(:remote_action_log_copies_disabled)
+
+  @doc """
+  Whether a user may use Luft's features: threads, AI subscriptions and
+  MCP servers. Canary and production require an explicit `:luft` FunWithFlags
+  toggle. Development, test and staging default to enabled. Organization
+  routing uses `organization_luft_enabled?/1` instead.
+  """
+  def luft_enabled?(actor) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:luft, for: actor)
   end
 
-  @doc "Organization AI requires the account's `:guild` flag in every environment."
-  def organization_guild_enabled?(account), do: FunWithFlags.enabled?(:guild, for: account)
+  @doc "Organization AI requires the account's `:luft` flag in every environment."
+  def organization_luft_enabled?(account), do: FunWithFlags.enabled?(:luft, for: account)
 
   @doc """
   The names of the flags enabled for `user` that the Tuist apps read
@@ -147,28 +170,17 @@ defmodule Tuist.FeatureFlags do
   only when an app feature depends on it.
   """
   def app_flags(user) do
-    for {name, true} <- [{"guild", guild_enabled?(user)}], do: name
+    for {name, true} <- [{"luft", luft_enabled?(user)}], do: name
   end
 
-  @doc """
-  Whether the Runners dashboard (and its sub-pages) should be visible
-  for the given account. Canary and production require an explicit
-  `:runners` FunWithFlags toggle for the actor. Development, test, and
-  staging default to enabled.
-
-  This is also the source of truth for co-located private Kura cache
-  infrastructure, so enabling runners provides the cache without a second
-  operator-managed switch.
-  """
-  def runners_enabled?(account, flags \\ nil) do
+  @doc "Enabling the pause flag holds current runner limits, globally or for one account."
+  def runner_concurrency_growth_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
-      :runners,
+      :runner_concurrency_growth_paused,
       account,
-      not runner_flag_required?() or flag_enabled?(:runners, account, flags)
+      not flag_enabled?(:runner_concurrency_growth_paused, account, flags)
     )
   end
-
-  defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
   Whether the account's Linux jobs get a persistent Docker data root per
@@ -180,6 +192,17 @@ defmodule Tuist.FeatureFlags do
   """
   def runner_docker_cache_enabled?(account) do
     Environment.env() != :prod or FunWithFlags.enabled?(:runner_docker_cache, for: account)
+  end
+
+  @doc """
+  Whether a new Linux sandbox of the account's Claude Code sessions starts with
+  a copy of its repository's CI cache volume
+  (`Tuist.Runners.CacheVolumes.sandbox_cache/2`). Production requires the
+  `:sandbox_runner_cache` flag for the account during the rollout; nodes attach
+  a cache only where sandboxd copies them (`CACHE_IMAGES_GIB`).
+  """
+  def sandbox_runner_cache_enabled?(account) do
+    Environment.env() != :prod or FunWithFlags.enabled?(:sandbox_runner_cache, for: account)
   end
 
   @doc """
@@ -276,6 +299,23 @@ defmodule Tuist.FeatureFlags do
   """
   def test_impact_analysis_enabled?(account, project, flags \\ nil) do
     Coverage.supported?(project) and test_impact_analysis_account_enabled?(account, flags)
+  end
+
+  @doc """
+  Hosted snapshot testing (`Tuist.Snapshots`): on outside canary and
+  production, and behind the `:snapshots` account flag there while it is in
+  early access.
+  """
+  def snapshots_enabled?(account, flags \\ nil)
+
+  def snapshots_enabled?(nil, _flags), do: Observability.feature_flag_evaluated(:snapshots, :unknown, false)
+
+  def snapshots_enabled?(account, flags) do
+    Observability.feature_flag_evaluated(
+      :snapshots,
+      account,
+      Environment.env() not in [:can, :prod] or flag_enabled?(:snapshots, account, flags)
+    )
   end
 
   @doc """

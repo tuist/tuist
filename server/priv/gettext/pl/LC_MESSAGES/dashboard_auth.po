@@ -34,7 +34,7 @@ msgstr "Masz już konto?"
 #: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
-msgstr "Masz już skonfigurowany projekt Tuist? Pomiń konfigurację i przejdź do panelu."
+msgstr "Skonfigurowałeś już projekt Tuist? Pomiń konfigurację i przejdź do panelu."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:92
 #: lib/tuist_web/live/user_forgot_password_live.ex:73
@@ -56,7 +56,7 @@ msgstr "Sprawdź swoją skrzynkę e-mail"
 #: lib/tuist_web/live/user_registration_live.ex:268
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr "Sprawdź skrzynkę odbiorczą w poszukiwaniu e-maila z potwierdzeniem i kliknij link, aby kontynuować."
+msgstr "Sprawdź skrzynkę odbiorczą w poszukiwaniu e-maila potwierdzającego i kliknij link, aby kontynuować."
 
 #: lib/tuist_web/live/choose_username_live.ex:57
 #, elixir-autogen, elixir-format
@@ -93,18 +93,19 @@ msgstr "Połącz swój projekt"
 #: lib/tuist_web/live/connect_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Connect your project to the dashboard"
-msgstr "Połącz swój projekt z dashboardem"
+msgstr "Połącz swój projekt z panelem"
 
 #: lib/tuist_web/live/connect_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Connection successful"
 msgstr "Połączenie nawiązane"
 
-#: lib/tuist_web/live/sso_login_live.ex:112
+#: lib/tuist_web/live/sso_login_live.ex:116
 #, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr "Skontaktuj się z nami"
 
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:26
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:119
 #: lib/tuist_web/live/choose_username_live.ex:100
 #, elixir-autogen, elixir-format
@@ -118,15 +119,15 @@ msgstr "Kontynuuj"
 msgid "Dashboard"
 msgstr "Panel"
 
-#: lib/tuist_web/live/user_login_live.ex:256
+#: lib/tuist_web/live/user_login_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr "Nie masz konta?"
 
-#: lib/tuist_web/live/sso_login_live.ex:95
+#: lib/tuist_web/live/sso_login_live.ex:99
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:72
 #: lib/tuist_web/live/user_forgot_password_live.ex:53
-#: lib/tuist_web/live/user_login_live.ex:144
+#: lib/tuist_web/live/user_login_live.ex:177
 #: lib/tuist_web/live/user_registration_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "Email address"
@@ -140,62 +141,62 @@ msgstr "Ten adres e-mail jest już zajęty"
 #: lib/tuist_web/live/connect_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "Poznaj funkcje Tuist, takie jak Binary Caching i testy selektywne, aby przyspieszyć pracę."
+msgstr "Poznaj funkcje Tuist, takie jak Binary Caching i testy selektywne, aby przyspieszyć rozwój aplikacji."
 
-#: lib/tuist_web/live/user_login_live.ex:178
+#: lib/tuist_web/live/user_login_live.ex:211
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
-msgstr "Nie pamiętasz hasła?"
+msgstr "Zapomniałeś hasła?"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Forgot your password?"
-msgstr "Nie pamiętasz hasła?"
+msgstr "Zapomniałeś swojego hasła?"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "Jeśli Twój adres e-mail znajduje się w naszej bazie, wkrótce otrzymasz instrukcje resetowania hasła."
+msgstr "Jeśli Twój adres e-mail znajduje się w naszych rekordach, wkrótce otrzymasz instrukcje resetowania."
 
 #: lib/tuist_web/live/connect_live.ex:104
 #: lib/tuist_web/live/connect_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
-msgstr "Zainstaluj CLI Tuist"
+msgstr "Zainstaluj Tuist CLI"
 
 #: lib/tuist_web/live/user_registration_live.ex:79
 #, elixir-autogen, elixir-format
 msgid "Instantly share your app using a URL."
 msgstr "Natychmiast udostępnij swoją aplikację za pomocą adresu URL."
 
-#: lib/tuist_web/live/sso_login_live.ex:107
+#: lib/tuist_web/live/sso_login_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr "Interesuje Cię SSO?"
 
-#: lib/tuist_web/live/user_login_live.ex:171
+#: lib/tuist_web/live/user_login_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
-msgstr "Pozostań zalogowany"
+msgstr "Pozostaw mnie zalogowanego"
 
-#: lib/tuist_web/live/sso_login_live.ex:103
-#: lib/tuist_web/live/user_login_live.ex:20
-#: lib/tuist_web/live/user_login_live.ex:194
+#: lib/tuist_web/live/sso_login_live.ex:107
+#: lib/tuist_web/live/user_login_live.ex:21
+#: lib/tuist_web/live/user_login_live.ex:227
 #: lib/tuist_web/live/user_registration_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr "Zaloguj się"
 
-#: lib/tuist_web/live/sso_login_live.ex:78
-#: lib/tuist_web/live/user_login_live.ex:52
+#: lib/tuist_web/live/sso_login_live.ex:82
+#: lib/tuist_web/live/user_login_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr "Zaloguj się do Tuist"
 
-#: lib/tuist_web/live/sso_login_live.ex:80
+#: lib/tuist_web/live/sso_login_live.ex:84
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via SSO"
-msgstr "Zaloguj się do konta Enterprise przez SSO"
+msgstr "Zaloguj się do konta firmowego przez SSO"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:57
 #, elixir-autogen, elixir-format
@@ -213,7 +214,7 @@ msgstr "Kolejne kroki"
 msgid "OR"
 msgstr "LUB"
 
-#: lib/tuist_web/live/user_login_live.ex:156
+#: lib/tuist_web/live/user_login_live.ex:189
 #: lib/tuist_web/live/user_registration_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "Password"
@@ -244,7 +245,7 @@ msgstr "Zresetuj hasło"
 #: lib/tuist_web/live/connect_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "Run the following command to install Tuist CLI."
-msgstr "Uruchom poniższe polecenie, aby zainstalować CLI Tuist."
+msgstr "Uruchom poniższe polecenie, aby zainstalować Tuist CLI."
 
 #: lib/tuist_web/live/connect_live.ex:124
 #, elixir-autogen, elixir-format
@@ -256,7 +257,7 @@ msgstr "Uruchom to polecenie, aby połączyć projekt z panelem."
 msgid "Selective testing"
 msgstr "Testy selektywne"
 
-#: lib/tuist_web/live/user_login_live.ex:261
+#: lib/tuist_web/live/user_login_live.ex:265
 #: lib/tuist_web/live/user_registration_live.ex:233
 #: lib/tuist_web/live/user_registration_live.ex:315
 #, elixir-autogen, elixir-format
@@ -276,16 +277,16 @@ msgstr "Ta nazwa użytkownika jest już zajęta"
 #: lib/tuist_web/live/device_codes_success_live.ex:31
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
-msgstr "Tuist CLI jest podłączony!"
+msgstr "CLI Tuist jest połączone!"
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
 #: lib/tuist_web/live/device_codes_success_live.ex:20
-#: lib/tuist_web/live/sso_login_live.ex:72
+#: lib/tuist_web/live/sso_login_live.ex:76
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
 #: lib/tuist_web/live/user_forgot_password_live.ex:24
-#: lib/tuist_web/live/user_login_live.ex:46
+#: lib/tuist_web/live/user_login_live.ex:48
 #: lib/tuist_web/live/user_registration_live.ex:102
 #: lib/tuist_web/live/user_registration_live.ex:260
 #: lib/tuist_web/live/user_reset_password_live.ex:24
@@ -296,7 +297,7 @@ msgstr "Logo Tuist"
 #: lib/tuist_web/live/device_codes_success_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
-msgstr "Aplikacja Tuist jest podłączona!"
+msgstr "Aplikacja Tuist jest połączona!"
 
 #: lib/tuist_web/live/connect_live.ex:80
 #, elixir-autogen, elixir-format
@@ -313,7 +314,7 @@ msgstr "Dokumentacja Tuist"
 #: lib/tuist_web/live/device_codes_success_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
-msgstr "Tuist jest podłączony!"
+msgstr "Tuist jest połączone!"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:53
 #, elixir-autogen, elixir-format
@@ -342,10 +343,10 @@ msgstr "Oczekiwanie na połączenie"
 msgid "We'll send a password reset link to your inbox"
 msgstr "Wyślemy link do resetowania hasła na Twój adres e-mail"
 
-#: lib/tuist_web/live/user_login_live.ex:54
+#: lib/tuist_web/live/user_login_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "Welcome back! Please log in to continue"
-msgstr "Witamy z powrotem! Zaloguj się, aby kontynuować"
+msgstr "Witamy ponownie! Zaloguj się, aby kontynuować"
 
 #: lib/tuist_web/live/user_registration_live.ex:110
 #, elixir-autogen, elixir-format
@@ -385,7 +386,7 @@ msgstr "Twoje konto zostało potwierdzone. Za chwilę nastąpi przekierowanie...
 #: lib/tuist_web/live/user_reset_password_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Your new password must be different to previously used passwords."
-msgstr "Nowe hasło musi różnić się od wcześniej używanych."
+msgstr "Nowe hasło musi różnić się od wcześniej używanych haseł."
 
 #: lib/tuist_web/live/connect_live.ex:116
 #: lib/tuist_web/live/connect_live.ex:134
@@ -407,7 +408,7 @@ msgstr "korzystanie z CLI"
 #: lib/tuist_web/components/app_auth_components.ex:13
 #, elixir-autogen, elixir-format
 msgid "By continuing, you agree to Tuist's"
-msgstr "Kontynuując, zgadzasz się na warunki Tuist"
+msgstr "Kontynuując, akceptujesz warunki Tuist"
 
 #: lib/tuist_web/components/app_auth_components.ex:19
 #, elixir-autogen, elixir-format
@@ -424,7 +425,7 @@ msgstr "Warunki korzystania z usługi"
 msgid "and"
 msgstr "i"
 
-#: lib/tuist_web/live/user_login_live.ex:251
+#: lib/tuist_web/live/user_login_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
 msgstr "Zaloguj się jako użytkownik testowy"
@@ -434,17 +435,17 @@ msgstr "Zaloguj się jako użytkownik testowy"
 msgid "Choose a username for your account"
 msgstr "Wybierz nazwę użytkownika dla swojego konta"
 
-#: lib/tuist_web/live/user_login_live.ex:108
+#: lib/tuist_web/live/user_login_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "Log in with SSO"
 msgstr "Zaloguj się przez SSO"
 
-#: lib/tuist_web/live/sso_login_live.ex:57
+#: lib/tuist_web/live/sso_login_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr "Dla tego adresu e-mail nie skonfigurowano organizacji SSO. Sprawdź adres i poproś administratora swojej organizacji o weryfikację konfiguracji domeny SSO."
 
-#: lib/tuist_web/controllers/auth_controller.ex:709
+#: lib/tuist_web/controllers/auth_controller.ex:782
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr "Konto z tym adresem e-mail już istnieje. Zaloguj się zamiast tego."
@@ -452,17 +453,17 @@ msgstr "Konto z tym adresem e-mail już istnieje. Zaloguj się zamiast tego."
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:22
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
-msgstr "Potwierdź swój e-mail"
+msgstr "Potwierdź swój adres e-mail"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "Confirm your email address to finish signing in"
-msgstr "Potwierdź adres e-mail, aby dokończyć logowanie"
+msgstr "Potwierdź swój adres e-mail, aby dokończyć logowanie"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "If your email is registered and not yet confirmed, you'll receive a confirmation link shortly."
-msgstr "Jeśli Twój e-mail jest zarejestrowany i jeszcze niepotwierdzony, wkrótce otrzymasz link potwierdzający."
+msgstr "Jeśli Twój adres e-mail jest zarejestrowany i nie został jeszcze potwierdzony, wkrótce otrzymasz link potwierdzający."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:60
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:81
@@ -478,20 +479,20 @@ msgstr "Wyślemy nowy link potwierdzający na adres %{email}."
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Your email isn't confirmed yet"
-msgstr "Twój e-mail nie został jeszcze potwierdzony"
+msgstr "Twój adres e-mail nie został jeszcze potwierdzony"
 
-#: lib/tuist_web/controllers/user_session_controller.ex:65
+#: lib/tuist_web/controllers/user_session_controller.ex:67
 #: lib/tuist_web/live/choose_username_live.ex:162
 #: lib/tuist_web/live/user_registration_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Please complete the security check and try again."
-msgstr "Zakończ sprawdzanie bezpieczeństwa i spróbuj ponownie."
+msgstr "Przejdź weryfikację bezpieczeństwa i spróbuj ponownie."
 
 #: lib/tuist_web/live/choose_username_live.ex:177
 #: lib/tuist_web/live/user_registration_live.ex:406
 #, elixir-autogen, elixir-format
 msgid "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
-msgstr "Nie udało się załadować sprawdzania bezpieczeństwa. Sprawdź, czy nic nie blokuje challenges.cloudflare.com i odśwież stronę."
+msgstr "Nie udało się załadować weryfikacji bezpieczeństwa. Sprawdź, czy nic nie blokuje strony challenges.cloudflare.com, i odśwież stronę."
 
 #: lib/tuist_web/live/choose_username_live.ex:191
 #: lib/tuist_web/live/user_registration_live.ex:420
@@ -511,6 +512,9 @@ msgstr "Zbyt wiele prób rejestracji. Spróbuj ponownie później."
 msgid "Your session has expired. Please reload the page and try again."
 msgstr "Twoja sesja wygasła. Odśwież stronę i spróbuj ponownie."
 
+#: lib/tuist_web/components/user_security.ex:206
+#: lib/tuist_web/components/user_security.ex:253
+#: lib/tuist_web/live/authentication_settings_live.html.heex:154
 #: lib/tuist_web/live/choose_username_live.ex:251
 #: lib/tuist_web/live/choose_username_live.ex:279
 #: lib/tuist_web/live/choose_username_live.ex:290
@@ -527,7 +531,7 @@ msgstr "Weryfikacja, proszę czekać..."
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:87
 #, elixir-autogen, elixir-format
 msgid "Just a quick check"
-msgstr "Szybka weryfikacja"
+msgstr "Szybkie sprawdzenie"
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:89
 #, elixir-autogen, elixir-format
@@ -554,25 +558,28 @@ msgstr "Weryfikacja nie powiodła się. Spróbuj ponownie."
 msgid "Verify you're human"
 msgstr "Potwierdź, że jesteś człowiekiem"
 
-#: lib/tuist_web/controllers/auth_controller.ex:80
+#: lib/tuist_web/controllers/auth_controller.ex:104
 #, elixir-autogen, elixir-format
 msgid "Google sign-in could not be completed. Please try logging in again."
 msgstr "Logowanie przez Google nie mogło zostać ukończone. Spróbuj zalogować się ponownie."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:62
+#: lib/tuist_web/controllers/sso_link_controller.ex:63
 #, elixir-autogen, elixir-format
 msgid "Already linked"
 msgstr "Już połączone"
 
+#: lib/tuist_web/components/user_security.ex:86
+#: lib/tuist_web/components/user_security.ex:144
+#: lib/tuist_web/components/user_security.ex:225
+#: lib/tuist_web/components/user_security.ex:278
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:45
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:38
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:34
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:58
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:72
-#: lib/tuist_web/live/user_security_settings_live.html.heex:106
-#: lib/tuist_web/live/user_security_settings_live.html.heex:198
-#: lib/tuist_web/live/user_security_settings_live.html.heex:264
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:61
+#: lib/tuist_web/live/authentication_settings_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "Anuluj"
@@ -582,7 +589,7 @@ msgstr "Anuluj"
 msgid "Link account"
 msgstr "Połącz konto"
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:120
+#: lib/tuist_web/controllers/sso_link_controller.ex:121
 #, elixir-autogen, elixir-format
 msgid "Link expired"
 msgstr "Link wygasł"
@@ -592,7 +599,7 @@ msgstr "Link wygasł"
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
 msgstr "Połącz tylko, jeśli %{organization} to Twoja organizacja. Każdy, kto może zalogować się do tego konta dostawcy tożsamości, uzyska dostęp do całego Twojego konta Tuist."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:128
+#: lib/tuist_web/controllers/sso_link_controller.ex:129
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on · Tuist"
 msgstr "Połącz logowanie jednokrotne · Tuist"
@@ -602,17 +609,18 @@ msgstr "Połącz logowanie jednokrotne · Tuist"
 msgid "Link single sign-on?"
 msgstr "Połączyć logowanie jednokrotne?"
 
-#: lib/tuist_web/controllers/auth_controller.ex:515
+#: lib/tuist_web/controllers/auth_controller.ex:587
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
 msgstr "Zaloguj się na swoje konto Tuist, aby połączyć je z logowaniem jednokrotnym swojej organizacji."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:121
+#: lib/tuist_web/controllers/sso_link_controller.ex:122
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
 msgstr "Zaloguj się ponownie przez logowanie jednokrotne, aby połączyć swoje konto."
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:18
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
 #: lib/tuist_web/live/device_authorization_live.ex:37
 #, elixir-autogen, elixir-format
@@ -624,7 +632,7 @@ msgstr "Zalogowano do Tuist jako %{email}"
 msgid "The %{organization} identity provider account that will sign in to your Tuist account."
 msgstr "Konto dostawcy tożsamości %{organization}, które będzie używane do logowania do Twojego konta Tuist."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:64
+#: lib/tuist_web/controllers/sso_link_controller.ex:65
 #, elixir-autogen, elixir-format
 msgid "This identity provider account is already linked to another Tuist account."
 msgstr "To konto dostawcy tożsamości jest już połączone z innym kontem Tuist."
@@ -638,7 +646,7 @@ msgstr "Logo Tuist"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Let the %{organization} identity provider sign you in to your Tuist account."
-msgstr "Zezwól dostawcy tożsamości %{organization} na logowanie do Twojego konta w Tuist."
+msgstr "Zezwól dostawcy tożsamości %{organization} na logowanie do Twojego konta Tuist."
 
 #: lib/tuist_web/live/connect_live.ex:207
 #, elixir-autogen, elixir-format
@@ -670,7 +678,7 @@ msgstr "Wskaż ten projekt"
 #: lib/tuist_web/live/connect_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Report your builds, catch flaky tests, and split your tests across machines."
-msgstr "Raportuj buildy, wykrywaj niestabilne testy i rozdzielaj testy między maszyny."
+msgstr "Raportuj builds, wykrywaj niestabilne testy i rozdzielaj testy między maszyny."
 
 #: lib/tuist_web/live/connect_live.ex:232
 #, elixir-autogen, elixir-format
@@ -697,32 +705,32 @@ msgstr "przy użyciu Cargo"
 msgid "Choose an organization"
 msgstr "Wybierz organizację"
 
-#: lib/tuist_web/controllers/integration_installation_controller.ex:53
+#: lib/tuist_web/controllers/integration_installation_controller.ex:93
 #, elixir-autogen, elixir-format
 msgid "Choose an organization · Tuist"
 msgstr "Wybierz organizację · Tuist"
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:27
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr "Organizacja"
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:28
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Personal account"
 msgstr "Konto osobiste"
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:12
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Select the Tuist organization to connect to %{provider}."
 msgstr "Wybierz organizację Tuist, aby połączyć się z %{provider}."
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:36
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "You need administrator access to connect an integration."
-msgstr "Aby podłączyć integrację, potrzebujesz uprawnień administratora."
+msgstr "Aby połączyć integrację, potrzebujesz uprawnień administratora."
 
-#: lib/tuist_web/live/sso_login_live.ex:46
+#: lib/tuist_web/live/sso_login_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
 msgstr "Wiele organizacji korzysta z tej domeny logowania. Użyj linku SSO swojej organizacji lub poproś administratora o weryfikację domeny za pomocą DNS."
@@ -745,7 +753,7 @@ msgstr "Cache"
 #: lib/tuist_web/live/user_registration_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Cut build times by caching and reusing binaries."
-msgstr "Skróć czas kompilacji dzięki buforowaniu i ponownemu wykorzystywaniu plików binarnych."
+msgstr "Skróć czas buildów dzięki buforowaniu i ponownemu wykorzystywaniu binariów."
 
 #: lib/tuist_web/live/user_registration_live.ex:67
 #, elixir-autogen, elixir-format
@@ -763,14 +771,15 @@ msgid "Speed up CI by testing only what changed."
 msgstr "Przyspiesz CI, testując tylko to, co się zmieniło."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:121
+#: lib/tuist_web/live/authentication_settings_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "Authentication code"
 msgstr "Kod uwierzytelniający"
 
+#: lib/tuist_web/components/user_security.ex:213
+#: lib/tuist_web/components/user_security.ex:266
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:42
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:36
-#: lib/tuist_web/live/user_security_settings_live.html.heex:187
-#: lib/tuist_web/live/user_security_settings_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Authentication or recovery code"
 msgstr "Kod uwierzytelniania lub kod odzyskiwania"
@@ -785,10 +794,9 @@ msgstr "Powrót do logowania"
 msgid "Cancel setup"
 msgstr "Anuluj konfigurację"
 
+#: lib/tuist_web/components/user_security.ex:241
+#: lib/tuist_web/components/user_security.ex:286
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:166
-#: lib/tuist_web/live/user_security_settings_live.html.heex:231
-#: lib/tuist_web/live/user_security_settings_live.html.heex:237
-#: lib/tuist_web/live/user_security_settings_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Disable two-factor authentication"
 msgstr "Wyłącz uwierzytelnianie dwuskładnikowe"
@@ -801,7 +809,7 @@ msgstr "Włącz uwierzytelnianie dwuskładnikowe"
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Enter a code from your authenticator app or an unused recovery code."
-msgstr "Wprowadź kod z aplikacji uwierzytelniającej lub niewykorzystany kod odzyskiwania."
+msgstr "Wprowadź kod z aplikacji uwierzytelniającej lub nieużyty kod odzyskiwania."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:39
 #, elixir-autogen, elixir-format
@@ -809,23 +817,24 @@ msgid "I saved my recovery codes"
 msgstr "Zapisałem moje kody odzyskiwania"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:4
-#: lib/tuist_web/live/user_security_settings_live.html.heex:11
+#: lib/tuist_web/live/user_security_settings_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Protect your account with an authenticator app and recovery codes."
 msgstr "Chroń swoje konto za pomocą aplikacji uwierzytelniającej i kodów odzyskiwania."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:2
+#: lib/tuist_web/live/authentication_settings_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Save your recovery codes"
-msgstr "Zapisz swoje kody odzyskiwania"
+msgstr "Zapisz kody odzyskiwania"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:172
-#: lib/tuist_web/live/user_security_settings_live.html.heex:222
+#: lib/tuist_web/live/user_security_settings_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Set up authenticator app"
 msgstr "Skonfiguruj aplikację uwierzytelniającą"
 
-#: lib/tuist_web/controllers/user_mfa_controller.ex:203
+#: lib/tuist_web/controllers/user_mfa_controller.ex:201
 #, elixir-autogen, elixir-format
 msgid "The code is invalid, already used, or too many attempts were made. Try a new code later."
 msgstr "Kod jest nieprawidłowy, został już użyty lub przekroczono liczbę prób. Spróbuj ponownie później."
@@ -837,7 +846,7 @@ msgstr "Kod jest nieprawidłowy, został już użyty lub przekroczono liczbę pr
 msgid "Two-factor authentication"
 msgstr "Uwierzytelnianie dwuskładnikowe"
 
-#: lib/tuist_web/controllers/user_mfa_controller.ex:193
+#: lib/tuist_web/controllers/user_mfa_controller.ex:191
 #, elixir-autogen, elixir-format
 msgid "Two-factor authentication · Tuist"
 msgstr "Uwierzytelnianie dwuskładnikowe · Tuist"
@@ -850,60 +859,59 @@ msgstr "Zweryfikuj"
 #: lib/tuist_web/controllers/user_passkey_controller.ex:69
 #, elixir-autogen, elixir-format
 msgid "Passkey added."
-msgstr "Klucz dostępu dodany."
+msgstr "Klucz dostępowy dodany."
 
 #: lib/tuist_web/controllers/user_passkey_controller.ex:117
 #, elixir-autogen, elixir-format
 msgid "Passkey removed."
-msgstr "Klucz dostępu usunięty."
-
-#: lib/tuist_web/controllers/user_passkey_controller.ex:178
-#, elixir-autogen, elixir-format
-msgid "Remove a passkey before adding another one."
-msgstr "Usuń klucz dostępu przed dodaniem kolejnego."
-
-#: lib/tuist_web/controllers/user_mfa_controller.ex:199
-#: lib/tuist_web/controllers/user_passkey_controller.ex:145
-#: lib/tuist_web/controllers/user_passkey_controller.ex:182
-#, elixir-autogen, elixir-format
-msgid "The passkey could not be verified. Try again."
-msgstr "Nie udało się zweryfikować klucza dostępu. Spróbuj ponownie."
+msgstr "Klucz dostępowy usunięty."
 
 #: lib/tuist_web/controllers/user_passkey_controller.ex:180
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Remove a passkey before adding another one."
+msgstr "Usuń klucz dostępowy przed dodaniem kolejnego."
+
+#: lib/tuist_web/controllers/user_mfa_controller.ex:197
+#: lib/tuist_web/controllers/user_passkey_controller.ex:147
+#: lib/tuist_web/controllers/user_passkey_controller.ex:184
+#, elixir-autogen, elixir-format
+msgid "The passkey could not be verified. Try again."
+msgstr "Nie udało się zweryfikować klucza dostępowego. Spróbuj ponownie."
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:182
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:37
+#: lib/tuist_web/live/authentication_settings_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "This passkey is already registered."
-msgstr "Ten klucz dostępu jest już zarejestrowany."
+msgstr "Ten klucz dostępowy jest już zarejestrowany."
 
-#: lib/tuist_web/authentication.ex:789
+#: lib/tuist_web/authentication.ex:865
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
-msgstr "Każda z Twoich organizacji wymaga własnego pojedynczego logowania (SSO), więc ta sesja nie może zalogować się do CLI Tuist, aplikacji ani klientów MCP. Poproś administratora organizacji o pomoc."
+msgstr "Każda z Twoich organizacji wymaga własnego logowania jednokrotnego (SSO), dlatego ta sesja nie może zalogować się do CLI Tuist, aplikacji ani klientów MCP. Poproś administratora organizacji o pomoc."
 
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:2
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:61
-#: lib/tuist_web/live/user_security_settings_live.html.heex:38
+#: lib/tuist_web/live/user_security_settings_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Add a passkey"
-msgstr "Dodaj klucz dostępu"
+msgstr "Dodaj klucz dostępowy"
 
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:44
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:34
+#: lib/tuist_web/live/authentication_settings_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Adding the passkey was cancelled."
 msgstr "Dodawanie klucza dostępu zostało anulowane."
 
-#: lib/tuist_web/live/user_login_live.ex:222
+#: lib/tuist_web/live/user_login_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Log in with a passkey"
 msgstr "Zaloguj się za pomocą klucza dostępu"
 
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:34
-#: lib/tuist_web/live/user_security_settings_live.html.heex:89
+#: lib/tuist_web/components/user_security.ex:75
 #, elixir-autogen, elixir-format
 msgid "Passkey name"
 msgstr "Nazwa klucza dostępu"
 
-#: lib/tuist_web/live/user_login_live.ex:231
+#: lib/tuist_web/live/user_login_live.ex:141
 #, elixir-autogen, elixir-format
 msgid "Passkey sign-in was cancelled."
 msgstr "Logowanie kluczem dostępu zostało anulowane."
@@ -911,36 +919,33 @@ msgstr "Logowanie kluczem dostępu zostało anulowane."
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "Passkey verification was cancelled."
-msgstr "Weryfikacja klucza dostępu została anulowana."
+msgstr "Weryfikacja kluczem dostępu została anulowana."
 
 #: lib/tuist_web/live/user_security_settings_live.ex:20
 #, elixir-autogen, elixir-format
 msgid "Passkeys"
 msgstr "Klucze dostępu"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:126
+#: lib/tuist_web/components/user_security.ex:48
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr "Usuń"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:127
-#, elixir-autogen, elixir-format
-msgid "Remove %{name}"
-msgstr "Usuń %{name}"
-
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:45
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:35
+#: lib/tuist_web/live/authentication_settings_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "The passkey could not be added. Try again."
 msgstr "Nie udało się dodać klucza dostępu. Spróbuj ponownie."
 
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:32
-#: lib/tuist_web/live/user_login_live.ex:232
+#: lib/tuist_web/live/user_login_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "The passkey could not be used. Try again."
 msgstr "Nie udało się użyć klucza dostępu. Spróbuj ponownie."
 
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:33
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:49
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:39
+#: lib/tuist_web/live/authentication_settings_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "This browser does not support passkeys."
 msgstr "Ta przeglądarka nie obsługuje kluczy dostępu."
@@ -950,7 +955,7 @@ msgstr "Ta przeglądarka nie obsługuje kluczy dostępu."
 msgid "Use a passkey"
 msgstr "Użyj klucza dostępu"
 
-#: lib/tuist_web/controllers/auth_controller.ex:420
+#: lib/tuist_web/controllers/auth_controller.ex:494
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Log in with its email and password instead."
 msgstr "Konto z tym adresem e-mail już istnieje. Zaloguj się, używając tego adresu i hasła."
@@ -976,7 +981,7 @@ msgstr "Wprowadzaj tylko kody z terminala, którego aktualnie używasz. Nigdy ni
 msgid "Sign in"
 msgstr "Zaloguj się"
 
-#: lib/tuist_web/controllers/auth_controller.ex:602
+#: lib/tuist_web/controllers/auth_controller.ex:674
 #: lib/tuist_web/live/device_authorization_live.ex:19
 #, elixir-autogen, elixir-format
 msgid "Sign in to Tuist"
@@ -985,19 +990,19 @@ msgstr "Zaloguj się do Tuist"
 #: lib/tuist_web/live/device_authorization_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Sign in to the Tuist CLI"
-msgstr "Zaloguj się w CLI Tuist"
+msgstr "Zaloguj się do CLI Tuist"
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in to the Tuist CLI?"
-msgstr "Zalogować się w CLI Tuist?"
+msgstr "Zalogować się do CLI Tuist?"
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Sign in to the Tuist app?"
 msgstr "Zalogować się do aplikacji Tuist?"
 
-#: lib/tuist_web/controllers/auth_controller.ex:650
+#: lib/tuist_web/controllers/auth_controller.ex:722
 #: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Sign-in link expired"
@@ -1006,9 +1011,9 @@ msgstr "Link logowania wygasł"
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Signing in gives whoever started it access to your Tuist account. If you did not start it, cancel."
-msgstr "Logowanie przyznaje dostęp do Twojego konta Tuist osobie, która je zainicjowała. Jeśli to nie Ty rozpocząłeś ten proces, anuluj go."
+msgstr "Logowanie przyznaje dostęp do Twojego konta Tuist osobie, która je zainicjowała. Jeśli to nie Ty rozpocząłeś proces, anuluj go."
 
-#: lib/tuist_web/controllers/auth_controller.ex:632
+#: lib/tuist_web/controllers/auth_controller.ex:704
 #, elixir-autogen, elixir-format
 msgid "That code is incorrect or has expired. Check it and try again."
 msgstr "Ten kod jest nieprawidłowy lub wygasł. Sprawdź go i spróbuj ponownie."
@@ -1016,27 +1021,21 @@ msgstr "Ten kod jest nieprawidłowy lub wygasł. Sprawdź go i spróbuj ponownie
 #: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "This sign-in link has expired or was already used. Start the sign-in again."
-msgstr "Ten link logowania wygasł lub został już użyty. Rozpocznij proces logowania ponownie."
+msgstr "Ten link logowania wygasł lub został już użyty. Rozpocznij logowanie od nowa."
 
-#: lib/tuist_web/controllers/auth_controller.ex:638
+#: lib/tuist_web/controllers/auth_controller.ex:710
 #, elixir-autogen, elixir-format
 msgid "Too many attempts. Wait a few minutes and try again."
 msgstr "Zbyt wiele prób. Poczekaj kilka minut i spróbuj ponownie."
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:151
-#, elixir-autogen, elixir-format
-msgid "%{count} recovery code remaining."
-msgid_plural "%{count} recovery codes remaining."
-msgstr[0] "Pozostał %{count} kod odzyskiwania."
-msgstr[1] "Pozostało %{count} kody odzyskiwania."
-msgstr[2] "Pozostało %{count} kody odzyskiwania."
-
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:56
+#: lib/tuist_web/live/authentication_settings_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Authenticator setup QR code"
-msgstr "Kod QR konfiguracji aplikacji uwierzytelniającej"
+msgstr "Kod QR konfiguracji uwierzytelniania"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:59
+#: lib/tuist_web/live/authentication_settings_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Can't scan the QR code?"
 msgstr "Nie możesz zeskanować kodu QR?"
@@ -1044,7 +1043,7 @@ msgstr "Nie możesz zeskanować kodu QR?"
 #: lib/tuist_web/controllers/user_reset_password_controller.ex:30
 #, elixir-autogen, elixir-format
 msgid "Check that your passwords match and meet the password requirements."
-msgstr "Sprawdź, czy hasła są zgodne i spełniają wymagania dotyczące haseł."
+msgstr "Upewnij się, że hasła są zgodne i spełniają wymagania dotyczące haseł."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:32
 #, elixir-autogen, elixir-format
@@ -1059,12 +1058,12 @@ msgstr "Skopiuj klucz konfiguracyjny"
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Could not copy automatically. Select and copy the setup key."
-msgstr "Nie udało się skopiować automatycznie. Zaznacz i skopiuj klucz konfiguracyjny."
+msgstr "Nie udało się automatycznie skopiować. Zaznacz i skopiuj klucz konfiguracyjny."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Could not copy automatically. Select and copy your recovery codes."
-msgstr "Nie udało się skopiować automatycznie. Zaznacz i skopiuj kody odzyskiwania."
+msgstr "Nie udało się automatycznie skopiować. Zaznacz i skopiuj swoje kody odzyskiwania."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:60
 #, elixir-autogen, elixir-format
@@ -1072,20 +1071,20 @@ msgid "Enter this setup key in your authenticator app."
 msgstr "Wprowadź ten klucz konfiguracyjny w aplikacji uwierzytelniającej."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:163
-#: lib/tuist_web/live/user_security_settings_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Generate new recovery codes"
 msgstr "Wygeneruj nowe kody odzyskiwania"
 
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:51
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:41
+#: lib/tuist_web/live/authentication_settings_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "JavaScript is required to use passkeys."
 msgstr "JavaScript jest wymagany do korzystania z kluczy passkey."
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:58
+#: lib/tuist_web/components/user_security.ex:23
 #, elixir-autogen, elixir-format
 msgid "Never used"
-msgstr "Nigdy nie używany"
+msgstr "Nigdy nie używane"
 
 #: lib/tuist_web/controllers/user_passkey_controller.ex:83
 #, elixir-autogen, elixir-format
@@ -1097,17 +1096,18 @@ msgstr "Klucz passkey został zmieniony."
 msgid "Recovery codes copied"
 msgstr "Kody odzyskiwania skopiowane"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:161
-#: lib/tuist_web/live/user_security_settings_live.html.heex:167
+#: lib/tuist_web/components/user_security.ex:188
 #, elixir-autogen, elixir-format
 msgid "Regenerate recovery codes"
 msgstr "Wygeneruj ponownie kody odzyskiwania"
 
+#: lib/tuist_web/components/user_security.ex:104
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Remove %{name} from your Tuist account."
 msgstr "Usuń %{name} ze swojego konta Tuist."
 
+#: lib/tuist_web/components/user_security.ex:152
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "Remove passkey"
@@ -1118,20 +1118,16 @@ msgstr "Usuń klucz dostępu"
 msgid "Remove passkey · Tuist"
 msgstr "Usuń klucz dostępu · Tuist"
 
+#: lib/tuist_web/components/user_security.ex:102
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Remove passkey?"
 msgstr "Usunąć klucz dostępu?"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:70
+#: lib/tuist_web/components/user_security.ex:40
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr "Zmień nazwę"
-
-#: lib/tuist_web/live/user_security_settings_live.html.heex:71
-#, elixir-autogen, elixir-format
-msgid "Rename %{name}"
-msgstr "Zmień nazwę %{name}"
 
 #: lib/tuist_web/controllers/user_reset_password_controller.ex:23
 #, elixir-autogen, elixir-format
@@ -1139,6 +1135,7 @@ msgid "Reset password link is invalid or it has expired."
 msgstr "Link do resetowania hasła jest nieprawidłowy lub wygasł."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:65
+#: lib/tuist_web/live/authentication_settings_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Setup key"
 msgstr "Klucz konfiguracyjny"
@@ -1146,29 +1143,25 @@ msgstr "Klucz konfiguracyjny"
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Setup key copied"
-msgstr "Klucz konfiguracyjny skopiowany"
+msgstr "Skopiowano klucz konfiguracyjny"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:41
+#: lib/tuist_web/live/user_security_settings_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "You haven't added any passkeys yet."
 msgstr "Nie dodano jeszcze żadnych kluczy dostępu."
 
+#: lib/tuist_web/components/user_security.ex:121
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Your other sessions will be signed out"
-msgstr "Inne sesje zostaną wylogowane"
+msgstr "Twoje inne sesje zostaną wylogowane"
 
 #: lib/tuist_web/controllers/user_passkey_controller.ex:39
 #, elixir-autogen, elixir-format
 msgid "Add a passkey · Tuist"
 msgstr "Dodaj klucz dostępu · Tuist"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:48
-#, elixir-autogen, elixir-format
-msgid "Added"
-msgstr "Dodano"
-
-#: lib/tuist_web/live/user_security_settings_live.html.heex:136
+#: lib/tuist_web/live/user_security_settings_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Authenticator app"
 msgstr "Aplikacja uwierzytelniająca"
@@ -1178,85 +1171,75 @@ msgstr "Aplikacja uwierzytelniająca"
 msgid "Enter an authentication or recovery code to confirm this change."
 msgstr "Wprowadź kod uwierzytelniający lub kod odzyskiwania, aby potwierdzić tę zmianę."
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:56
+#: lib/tuist_web/components/user_security.ex:18
 #, elixir-autogen, elixir-format
 msgid "Last used"
-msgstr "Ostatnio użyty"
+msgstr "Ostatnio używany"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:149
-#, elixir-autogen, elixir-format
-msgid "Recovery codes"
-msgstr "Kody odzyskiwania"
-
-#: lib/tuist_web/live/user_security_settings_live.html.heex:64
+#: lib/tuist_web/components/user_security.ex:59
 #, elixir-autogen, elixir-format
 msgid "Rename passkey"
 msgstr "Zmień nazwę klucza dostępu"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:116
+#: lib/tuist_web/components/user_security.ex:94
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "Zapisz"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:244
+#: lib/tuist_web/components/user_security.ex:257
 #, elixir-autogen, elixir-format
 msgid "Your account will no longer require an authenticator code at sign-in."
 msgstr "Twoje konto nie będzie już wymagać kodu z aplikacji uwierzytelniającej podczas logowania."
 
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:35
-#, elixir-autogen, elixir-format
-msgid "For example, 1Password"
-msgstr "Na przykład 1Password"
-
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Each code can be used once if you lose access to your authenticator."
-msgstr "Każdy kod może zostać użyty tylko raz w przypadku utraty dostępu do aplikacji uwierzytelniającej."
+msgstr "Każdy kod można użyć tylko raz, jeśli utracisz dostęp do aplikacji uwierzytelniającej."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Open the browser extension, select your Tuist login, then choose Scan 2FA QR code from the three-dot menu. Save it, then enter the generated code."
-msgstr "Otwórz rozszerzenie przeglądarki, wybierz swoje konto Tuist, a następnie z menu pod trzema kropkami wybierz opcję Skanuj kod QR 2FA. Zapisz go, a następnie wprowadź wygenerowany kod."
+msgstr "Otwórz rozszerzenie przeglądarki, wybierz swoje konto Tuist, a następnie z menu z trzema kropkami wybierz „Skanuj kod QR 2FA”. Zapisz go, a następnie wprowadź wygenerowany kod."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:4
+#: lib/tuist_web/live/authentication_settings_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Save these codes somewhere safe. You won't see them again."
-msgstr "Zapisz te kody w bezpiecznym miejscu. Nie będą one już dostępne."
+msgstr "Zapisz te kody w bezpiecznym miejscu. Nie będziesz mieć do nich ponownego dostępu."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:46
+#: lib/tuist_web/live/authentication_settings_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Scan the QR code, then enter the six-digit code."
 msgstr "Zeskanuj kod QR, a następnie wprowadź sześciocyfrowy kod."
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:6
+#: lib/tuist_web/live/user_security_settings_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in without a password."
 msgstr "Zaloguj się bez hasła."
 
+#: lib/tuist_web/components/user_security.ex:127
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "The saved credential will remain in your password manager or on your security key."
 msgstr "Zapisane dane logowania pozostaną w menedżerze haseł lub na kluczu bezpieczeństwa."
 
+#: lib/tuist_web/components/user_security.ex:121
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "This browser stays signed in."
 msgstr "Ta przeglądarka pozostaje zalogowana."
 
+#: lib/tuist_web/components/user_security.ex:133
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "This is your last passkey. Make sure you can sign in another way, or set a password using password reset first."
-msgstr "To Twój ostatni klucz dostępu. Upewnij się, że możesz zalogować się w inny sposób lub najpierw ustaw hasło, korzystając z funkcji resetowania hasła."
-
-#: lib/tuist_web/live/user_security_settings_live.html.heex:95
-#, elixir-autogen, elixir-format
-msgid "This name is only used in Tuist."
-msgstr "Ta nazwa jest używana tylko w Tuist."
+msgstr "To jest Twój ostatni klucz passkey. Upewnij się, że możesz zalogować się inną metodą lub najpierw ustaw hasło, korzystając z funkcji resetowania hasła."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "To use the setup key instead, edit your Tuist login in 1Password, add a One-Time Password field, paste the key, and save."
-msgstr "Aby użyć klucza konfiguracyjnego, edytuj swoje dane logowania do Tuist w 1Password, dodaj pole Jednorazowe Hasło (OTP), wklej klucz i zapisz zmiany."
+msgstr "Aby zamiast tego użyć klucza konfiguracji, edytuj swoje dane logowania Tuist w 1Password, dodaj pole Hasło jednorazowe (OTP), wklej klucz i zapisz zmiany."
 
 #: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:4
 #, elixir-autogen, elixir-format
@@ -1266,29 +1249,138 @@ msgstr "Użyj menedżera haseł lub klucza bezpieczeństwa."
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Using 1Password?"
-msgstr "Używasz 1Password?"
+msgstr "Korzystasz z 1Password?"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:178
+#: lib/tuist_web/components/user_security.ex:190
 #, elixir-autogen, elixir-format
 msgid "Your old codes will stop working and other sessions will be signed out."
 msgstr "Twoje stare kody przestaną działać, a inne sesje zostaną wylogowane."
 
-#: lib/tuist_web/controllers/sso_link_html.ex:78
+#: lib/tuist_web/controllers/sso_link_html.ex:80
 #, elixir-autogen, elixir-format
 msgid "Sign in again"
 msgstr "Zaloguj się ponownie"
 
-#: lib/tuist_web/controllers/user_passkey_controller.ex:176
+#: lib/tuist_web/controllers/user_passkey_controller.ex:178
 #, elixir-autogen, elixir-format
 msgid "Sign in again to continue changing passkeys."
-msgstr "Zaloguj się ponownie, aby kontynuować zmianę kluczy passkey."
+msgstr "Zaloguj się ponownie, aby kontynuować zmianę kluczy dostępu."
 
-#: lib/tuist_web/controllers/user_mfa_controller.ex:197
+#: lib/tuist_web/controllers/user_mfa_controller.ex:195
 #, elixir-autogen, elixir-format
 msgid "Sign in again to continue changing two-factor authentication."
 msgstr "Zaloguj się ponownie, aby kontynuować zmianę uwierzytelniania dwuskładnikowego."
 
-#: lib/tuist_web/controllers/sso_link_html.ex:63
+#: lib/tuist_web/controllers/sso_link_html.ex:65
 #, elixir-autogen, elixir-format
 msgid "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."
-msgstr "Aby chronić Twoje konto, potwierdź swoją tożsamość przed zmianą ustawień zabezpieczeń. Po zalogowaniu wrócisz na tę stronę."
+msgstr "Aby chronić Twoje konto, potwierdź swoją tożsamość przed zmianą ustawień bezpieczeństwa. Po zalogowaniu wrócisz na tę stronę."
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "Back to authentication settings"
+msgstr "Wróć do ustawień uwierzytelniania"
+
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:2
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Create a passkey"
+msgstr "Utwórz klucz dostępu"
+
+#: lib/tuist_web/components/user_security.ex:36
+#, elixir-autogen, elixir-format
+msgid "Actions"
+msgstr "Akcje"
+
+#: lib/tuist_web/components/user_security.ex:15
+#, elixir-autogen, elixir-format
+msgid "Created"
+msgstr "Utworzono"
+
+#: lib/tuist_web/components/user_security.ex:12
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "Nazwa"
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:48
+#: lib/tuist_web/live/authentication_settings_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Add passkey"
+msgstr "Dodaj klucz dostępu"
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:165
+#, elixir-autogen, elixir-format
+msgid "XXXXXX"
+msgstr "XXXXXX"
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:185
+#, elixir-autogen, elixir-format
+msgid "Enable"
+msgstr "Włącz"
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:103
+#: lib/tuist_web/live/authentication_settings_live.html.heex:111
+#: lib/tuist_web/live/authentication_settings_live.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "Enable 2FA"
+msgstr "Włącz 2FA"
+
+#: lib/tuist_web/components/user_security.ex:180
+#, elixir-autogen, elixir-format
+msgid "Disable"
+msgstr "Wyłącz"
+
+#: lib/tuist_web/components/user_security.ex:233
+#, elixir-autogen, elixir-format
+msgid "Generate"
+msgstr "Wygeneruj"
+
+#: lib/tuist_web/components/user_security.ex:173
+#, elixir-autogen, elixir-format
+msgid "Regenerate"
+msgstr "Wygeneruj ponownie"
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:102
+#, elixir-autogen, elixir-format
+msgid "Manage 2FA"
+msgstr "Zarządzaj 2FA"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "%{client} will be able to use your Tuist account as you, including your threads and AI subscriptions."
+msgstr "%{client} będzie mógł korzystać z Twojego konta Tuist jako Ty, w tym z Twoich wątków i subskrypcji AI."
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Continue only if you just started signing in to %{client} yourself."
+msgstr "Kontynuuj tylko wtedy, gdy właśnie samodzielnie logujesz się do %{client}."
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:146
+#, elixir-autogen, elixir-format
+msgid "Sign in to %{client} · Tuist"
+msgstr "Zaloguj się do %{client} · Tuist"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Sign in to %{client}?"
+msgstr "Zalogować się do %{client}?"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Create an organization"
+msgstr "Utwórz organizację"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Don't see your organization?"
+msgstr "Nie widzisz swojej organizacji?"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Select the Tuist organization to connect to the %{github_organization} GitHub organization."
+msgstr "Wybierz organizację Tuist, aby połączyć ją z organizacją GitHub %{github_organization}."
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Only organizations you administer are listed. Create one, or ask an admin to promote you."
+msgstr "Widoczne są tylko organizacje, którymi zarządzasz. Utwórz nową lub poproś administratora o nadanie Ci uprawnień."

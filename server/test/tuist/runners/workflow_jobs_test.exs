@@ -1,5 +1,6 @@
 defmodule Tuist.Runners.WorkflowJobsTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
@@ -187,12 +188,20 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     test "the stamped handle does not match the minting claim's" do
       account = account_fixture()
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_028))
-      minting_claimed_at = DateTime.utc_now()
+      now = DateTime.utc_now()
+      stub(DateTime, :utc_now, fn -> now end)
+      # Distinct generations must not depend on consecutive clock reads advancing.
+      minting_claimed_at = DateTime.add(now, -1, :microsecond)
 
       assert :ok = WorkflowJobs.transition_executing(910_028, "runner-x", "pod-1")
 
+      row = get_row!(910_028)
+      assert DateTime.compare(row.claimed_at, now) == :eq
       assert :noop = WorkflowJobs.requeue_by_handle(910_028, minting_claimed_at)
       assert get_row!(910_028).status == "running"
+
+      assert :ok = WorkflowJobs.requeue_by_handle(910_028, row.claimed_at)
+      assert get_row!(910_028).status == "queued"
     end
   end
 
@@ -497,6 +506,27 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert row.conclusion == "success"
     end
 
+    test "stores workflow, job, and branch names longer than 255 characters" do
+      # GitHub sends the run name as `workflow_name`; one built from a pull
+      # request title and commit message can run to hundreds of characters.
+      account = account_fixture()
+      workflow_name = "Merge queue: " <> String.duplicate("Describe the change in detail. ", 15)
+      job_name = String.duplicate("Test Shard ", 30)
+      head_branch = "gh-readonly-queue/main/" <> String.duplicate("a", 300)
+
+      attrs =
+        account
+        |> attrs(910_099)
+        |> Map.merge(%{workflow_name: workflow_name, job_name: job_name, head_branch: head_branch})
+
+      assert :ok = WorkflowJobs.record_completed(attrs, "skipped", DateTime.utc_now())
+
+      row = get_row!(910_099)
+      assert row.workflow_name == workflow_name
+      assert row.job_name == job_name
+      assert row.head_branch == head_branch
+    end
+
     test "maps a cancelled conclusion to the cancelled status" do
       account = account_fixture()
 
@@ -575,7 +605,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       on_exit(fn -> :telemetry.detach(handler_id) end)
 
       account = account_fixture()
-      enqueued_at = ~U[2026-10-28 15:37:30.000000Z]
+      enqueued_at = DateTime.utc_now()
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_056, enqueued_at: enqueued_at))
 
       Repo.insert!(%RunnerSession{

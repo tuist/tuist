@@ -95,7 +95,7 @@ func TestCustomPrefetchJoinsDuplicatesAndServesRequestedMastersFirst(t *testing.
 func TestCustomPrefetchBoundsEachDownload(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	finished := make(chan error, 1)
+	finished := make(chan error, customPrefetchIdleBudgets)
 	p := &customPrefetcher{ctx: ctx, budget: 20 * time.Millisecond, pending: map[string]*customPrefetch{}, failed: map[string]time.Time{},
 		requested: make(chan *customPrefetch, 1), background: make(chan *customPrefetch, 1),
 		restore: func(ctx context.Context, _ cachevolumes.Slot, _ bool) error {
@@ -373,6 +373,84 @@ func TestCustomPrefetchContinuesADownloadItsBudgetCutShort(t *testing.T) {
 	defer p.mu.Unlock()
 	if len(p.failed) != 0 {
 		t.Fatal("treated a download that made progress as failed")
+	}
+}
+
+// A budget that ends while the archive expands, or before any byte of it
+// arrives, is a turn like one that cut a download short: the master is not
+// marked failed, so it does not wait customPrefetchRetry to resume. Evidence:
+// on 2026-11-22 a 10 GB tuist-xcode master ended its budget with a bare
+// "context deadline exceeded" and resumed only twelve minutes later.
+func TestCustomPrefetchContinuesAfterABudgetWithoutBytes(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	var mu sync.Mutex
+	var order []string
+	queued := make(chan struct{})
+	p := newCustomPrefetcher(ctx, func(ctx context.Context, slot cachevolumes.Slot, _ bool) error {
+		<-queued
+		mu.Lock()
+		order = append(order, slot.Scope[:1])
+		first := slot.Scope[0] == 'a' && len(order) == 1
+		mu.Unlock()
+		if first {
+			<-ctx.Done()
+			return ctx.Err()
+		}
+		return nil
+	}, nil)
+	p.budget = 50 * time.Millisecond
+	defer func() {
+		cancel()
+		p.wait.Wait()
+	}()
+	first := p.start(warmCustomIdentity("a", 1), false)
+	second := p.start(warmCustomIdentity("b", 1), false)
+	close(queued)
+
+	waitClosed(t, first, "the master whose budget ended never finished")
+	waitClosed(t, second, "the next download never ran")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if got := strings.Join(order, ""); got != "aba" {
+		t.Fatal("did not resume the master after the next one", order)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.failed) != 0 {
+		t.Fatal("treated a master whose budget ended as failed")
+	}
+}
+
+// A master that never gets anywhere within its budget still fails eventually,
+// so it cannot hold the queue forever.
+func TestCustomPrefetchFailsAMasterThatNeverProgresses(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	var mu sync.Mutex
+	attempts := 0
+	p := newCustomPrefetcher(ctx, func(ctx context.Context, _ cachevolumes.Slot, _ bool) error {
+		mu.Lock()
+		attempts++
+		mu.Unlock()
+		<-ctx.Done()
+		return ctx.Err()
+	}, nil)
+	p.budget = 20 * time.Millisecond
+	defer func() {
+		cancel()
+		p.wait.Wait()
+	}()
+	waitClosed(t, p.start(warmCustomIdentity("a", 1), false), "the master never gave up")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if attempts != customPrefetchIdleBudgets {
+		t.Fatalf("attempts = %d, want %d", attempts, customPrefetchIdleBudgets)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.failed) != 1 {
+		t.Fatal("a master that never progressed was not marked failed")
 	}
 }
 

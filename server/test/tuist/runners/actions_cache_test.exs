@@ -375,6 +375,39 @@ defmodule Tuist.Runners.ActionsCacheTest do
       assert {:error, :not_found} = ActionsCache.upload(upload)
     end
 
+    test "a public store's entries go to its private endpoint, never its public host", ctx do
+      store =
+        Map.merge(@store, %{
+          "access" => "public",
+          "endpoint" => "https://s3.tuist.dev",
+          "private_endpoint" => "http://rustfs-s3.rustfs-production.svc.cluster.local:9000",
+          "region" => "us-east-1"
+        })
+
+      stub(Environment, :shard_storage_targets, fn -> %{"rustfs-v1" => store} end)
+      pod = running(ctx, "pod-main", push("main"))
+      id = Ecto.UUID.generate()
+
+      {:ok, ^id} =
+        ActionsCache.reserve(%{
+          "pod_name" => pod,
+          "node_name" => "node",
+          "id" => id,
+          "key" => "deps",
+          "version" => @version
+        })
+
+      expect(Storage, :generate_upload_url, fn _key, %S3Target{id: "rustfs-v1", config: config}, _opts ->
+        assert {config.scheme, config.host, config.port} ==
+                 {"http://", "rustfs-s3.rustfs-production.svc.cluster.local", 9000}
+
+        "http://store/upload"
+      end)
+
+      assert {:ok, _} =
+               ActionsCache.upload(%{"node_name" => "node", "id" => id, "size_bytes" => 10, "sha256" => @sha256})
+    end
+
     test "a host at another site misses an entry rather than read a store it cannot reach", ctx do
       pod = running(ctx, "pod-main", push("main"))
       save(pod, "deps")

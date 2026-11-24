@@ -102,7 +102,7 @@
         display: flex;
         align-items: stretch;
         align-self: stretch;
-        box-shadow: var(--noora-border-light-default);
+        box-shadow: var(--noora-border-small-default);
         border-radius: var(--noora-radius-3);
         background: var(--noora-surface-background-primary);
         overflow: hidden;
@@ -112,7 +112,7 @@
         }
 
         &:focus-within {
-          box-shadow: var(--noora-border-light-focus);
+          box-shadow: var(--noora-border-small-focus);
         }
 
         & > [data-part="prefix"] {

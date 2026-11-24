@@ -3,112 +3,61 @@ defmodule Tuist.TestImpactAnalysis do
   Coverage-based test selection: which of the tests in scope a run can skip
   because nothing they executed at the baseline changed.
 
-  Selection is a pipeline of rules (`Tuist.TestImpactAnalysis.Rule`) run in a
-  fixed order over one shared input (`Tuist.TestImpactAnalysis.Input`). Every
-  test starts undecided; a rule can select or skip an undecided test, and a
-  decided test is final, so the first rule that decides a test gives its
-  reason. Each rule returns a verdict:
+  The baseline is the nearest ancestor with a checkpoint of the scope
+  (`Tuist.TestImpactAnalysis.Baselines`). A changed tracked file runs every
+  test (`tracked_file_changed`). Otherwise each test of the checkpoint gets
+  the reason of the first rule that decides it, in this order
+  (`Tuist.TestImpactAnalysis.Candidate`, combined across candidates by
+  `Tuist.TestImpactAnalysis.Decision`):
 
-  - `:continue` runs the next rule;
-  - `:done` stops the pipeline and keeps the decisions so far;
-  - `{:abort, reason, matched_path}` says selection can't happen: every
-    decision is discarded and the outcome is `:fallback`, after which the
-    client runs default selective testing.
+  1. `test_file_changed`: a changed test file belongs to its suite;
+  2. `failed_last_run`: it failed or was flaky where its files are unchanged;
+  3. `no_evidence`: it has no evidence of its own, or it's `stale`;
+  4. `impacted`: a file it, its suite's setup or its module's processes
+     executed changed;
+  5. `owned_without_evidence`: a changed file no evidence includes affects
+     its module;
+  6. `unaffected`: skipped.
 
-  Tests still undecided when the pipeline stops are selected as
-  `:undecided`, so a missing rule or an early `:done` can only select more.
-
-  The rules are pure: they read the input and return decisions, with no
-  writes and no reads of their own. The order is code, versioned by
-  `rules_version/0`, and every run leaves a trace of what each rule decided.
+  The order is code, versioned by `rules_version/0`, and every run records
+  how many tests each rule decided (`rule_trace/1`).
   """
-  alias Tuist.TestImpactAnalysis.Input
-  alias Tuist.TestImpactAnalysis.Rules
-  alias Tuist.TestImpactAnalysis.State
 
   # Bump when a rule's behaviour or the order changes, so a stored decision
   # can be traced to the rules that made it.
-  @rules_version "1"
+  @rules_version "3"
 
-  @rules [
-    Rules.TrackedFiles,
-    Rules.TestFileChanged,
-    Rules.FailedLastRun,
-    Rules.NoEvidence,
-    Rules.Impacted,
-    Rules.OwnedWithoutEvidence,
-    Rules.Unaffected
-  ]
+  @reasons [:test_file_changed, :failed_last_run, :no_evidence, :impacted, :owned_without_evidence, :unaffected]
 
-  @doc "The version of the rule list `run/1` applies."
+  @doc "The version of the rules that decide a run."
   def rules_version, do: @rules_version
 
-  @doc "The rules `run/1` applies, in order."
-  def rules, do: @rules
+  @doc "Why a test is decided, in the rules' order."
+  def reasons, do: @reasons
+
+  @doc "The invocation's coverage scope, with the legacy Xcode scheme as a fallback."
+  def scope(params), do: Map.get(params, :scope) || get_in(params, [:xcode, :scheme])
 
   @doc """
-  Applies the rules to the input and returns the decision:
-
-  - `outcome`: `:selected`, or `:fallback` when a rule aborted;
-  - `reason` and `matched_path`: why it fell back, and the file that caused
-    it; nil when selected;
-  - `decisions`: `%{test_case_id => %{decision: :selected | :skipped,
-    reason:, matched_path:}}` for every test in scope, empty on a fallback;
-  - `counts`: tests `requested`, `selected` and `skipped`, zero on a
-    fallback but for `requested`;
-  - `rules_version` and `rule_trace`, one `%{rule:, selected:, skipped:,
-    verdict:}` per rule that ran, in order; the last names the rule that
-    aborted or finished.
-
-  `rules` replaces the rule list, for tests.
+  The trace of a decision (`Decision.decide/4`): one `%{rule:, selected:,
+  skipped:, verdict:}` per rule in order, the last one `done`.
   """
-  def run(%Input{} = input, rules \\ @rules) do
-    {state, trace, verdict} =
-      Enum.reduce_while(rules, {State.new(), [], :continue}, fn rule, {state, trace, _verdict} ->
-        {next, verdict} = rule.decide(input, state)
-        {selected, skipped} = State.added(state, next)
-        trace = [%{rule: rule.name(), selected: selected, skipped: skipped, verdict: verdict_name(verdict)} | trace]
+  def rule_trace(decisions) do
+    counts = decisions |> Map.values() |> Enum.frequencies_by(&{&1.reason, &1.decision})
+    last = length(@reasons) - 1
 
-        case verdict do
-          :continue -> {:cont, {next, trace, verdict}}
-          _halt -> {:halt, {next, trace, verdict}}
-        end
-      end)
-
-    result(input, state, Enum.reverse(trace), verdict)
+    @reasons
+    |> Enum.with_index()
+    |> Enum.map(fn {reason, i} ->
+      %{
+        rule: to_string(reason),
+        selected: Map.get(counts, {reason, :selected}, 0),
+        skipped: Map.get(counts, {reason, :skipped}, 0),
+        verdict: if(i == last, do: "done", else: "continue")
+      }
+    end)
   end
 
-  defp result(input, _state, trace, {:abort, reason, matched_path}) do
-    %{
-      outcome: :fallback,
-      reason: reason,
-      matched_path: matched_path,
-      decisions: %{},
-      counts: %{requested: length(input.tests), selected: 0, skipped: 0},
-      rules_version: @rules_version,
-      rule_trace: trace
-    }
-  end
-
-  defp result(input, state, trace, _verdict) do
-    state = Enum.reduce(State.undecided(state, input.tests), state, &State.select(&2, &1.test_case_id, :undecided))
-    decisions = state.decisions
-
-    %{
-      outcome: :selected,
-      reason: nil,
-      matched_path: nil,
-      decisions: decisions,
-      counts: %{
-        requested: length(input.tests),
-        selected: Enum.count(decisions, fn {_id, d} -> d.decision == :selected end),
-        skipped: Enum.count(decisions, fn {_id, d} -> d.decision == :skipped end)
-      },
-      rules_version: @rules_version,
-      rule_trace: trace
-    }
-  end
-
-  defp verdict_name({:abort, _reason, _matched_path}), do: :abort
-  defp verdict_name(verdict), do: verdict
+  @doc "The trace of a run every test of which runs because a tracked file changed."
+  def tracked_trace, do: [%{rule: "tracked_files", selected: 0, skipped: 0, verdict: "abort"}]
 end

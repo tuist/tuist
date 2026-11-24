@@ -2,7 +2,7 @@
   /* Selected-option surface: purple-50 washes out on dark backgrounds, so
      dark mode uses the translucent alpha purple instead (same pairing noora
      uses for primary badge fills). */
-  --cache-selected-option-background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+  --cache-selected-option-background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-10);
@@ -111,7 +111,7 @@
       align-items: flex-start;
       cursor: pointer;
       box-sizing: border-box;
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border: 0;
       border-radius: var(--noora-radius-4);
       background: transparent;
@@ -136,7 +136,7 @@
          selectors have equal specificity, so source order decides. */
       &:focus-visible {
         outline: none;
-        box-shadow: var(--noora-border-light-focus);
+        box-shadow: var(--noora-border-small-focus);
       }
     }
 
@@ -157,7 +157,7 @@
         background 0.2s ease,
         box-shadow 0.2s ease;
       box-sizing: border-box;
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-99);
       background: var(--noora-choice-selector-uncheck-background);
       width: 16px;

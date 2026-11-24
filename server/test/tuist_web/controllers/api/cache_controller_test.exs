@@ -980,11 +980,11 @@ defmodule TuistWeb.API.CacheControllerTest do
       cases = [
         {account_token.(["project:cache:read"]), project, handle, true, false},
         {account_token.(["project:previews:read"]), project, handle, false, false},
-        {viewer.token, project, handle, true, false},
-        {member.token, tokens_only_project, tokens_only_handle, true, false},
+        {AccountsFixtures.user_access_token(viewer), project, handle, true, false},
+        {AccountsFixtures.user_access_token(member), tokens_only_project, tokens_only_handle, true, false},
         # Controls: the same reach with write access keeps it.
         {account_token.(["project:cache:write"]), project, handle, true, true},
-        {admin.token, project, handle, true, true}
+        {AccountsFixtures.user_access_token(admin), project, handle, true, true}
       ]
 
       for {credential, project, handle, may_read, may_write} <- cases do

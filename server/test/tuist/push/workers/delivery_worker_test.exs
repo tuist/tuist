@@ -76,6 +76,34 @@ defmodule Tuist.Push.Workers.DeliveryWorkerTest do
     assert :ok = perform(installation)
   end
 
+  test "delivers to Luft on its own APNs topic", %{user: user} do
+    client = %{id: Clients.luft_client_id()}
+    bearer = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: client.id})
+
+    Repo.insert!(%Token{
+      type: "access_token",
+      value: bearer,
+      refresh_token: Ecto.UUID.generate(),
+      client_id: client.id,
+      sub: to_string(user.id),
+      scope: ""
+    })
+
+    {:ok, session} = Push.oauth_session(bearer, user, ["luft"])
+    token = Base.encode16(:crypto.strong_rand_bytes(32), case: :lower)
+
+    {:ok, mac} =
+      Push.register(user, session, Ecto.UUID.generate(), %{platform: "macos", token: token, environment: "production"})
+
+    expect(Req, :post, fn url, opts ->
+      assert url == "https://api.push.apple.com/3/device/#{token}"
+      assert Map.new(opts[:headers])["apns-topic"] == "dev.tuist.code"
+      {:ok, %Req.Response{status: 200, body: ""}}
+    end)
+
+    assert :ok = perform(mac)
+  end
+
   test "retires the registration when APNs says the token is gone", %{installation: installation} do
     expect(Req, :post, fn _url, _opts -> {:ok, %Req.Response{status: 410, body: ~s({"reason":"Unregistered"})}} end)
 

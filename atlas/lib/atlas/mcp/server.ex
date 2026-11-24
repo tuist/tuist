@@ -33,6 +33,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CancelChatGPTProviderLogin
   alias Atlas.MCP.Tools.CancelHoliday
   alias Atlas.MCP.Tools.CancelInsurancePolicy
+  alias Atlas.MCP.Tools.CategorizeFinanceTransaction
   alias Atlas.MCP.Tools.CheckLetterDelivery
   alias Atlas.MCP.Tools.CheckOutAirGappedLicense
   alias Atlas.MCP.Tools.ClaimNudge
@@ -124,6 +125,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.FinalizeDocumentUpload
   alias Atlas.MCP.Tools.FinalizeLetterDocumentUpload
   alias Atlas.MCP.Tools.FinanceAddTransactionAttachment
+  alias Atlas.MCP.Tools.FinanceCreateTransferRequest
   alias Atlas.MCP.Tools.FinanceDeleteTransactionAttachment
   alias Atlas.MCP.Tools.FinanceGetTransaction
   alias Atlas.MCP.Tools.FinanceListTransactionAttachments
@@ -179,6 +181,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetTuistAccount
   alias Atlas.MCP.Tools.GetTuistAccountPlan
   alias Atlas.MCP.Tools.GetTuistFeatureFlag
+  alias Atlas.MCP.Tools.GetTuistKuraRollout
   alias Atlas.MCP.Tools.GetTuistRunnerBilling
   alias Atlas.MCP.Tools.GetTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.IgnoreErrorIssue
@@ -356,6 +359,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateTuistAccountPlan
   alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
   alias Atlas.MCP.Tools.UpdateTuistRunnerConcurrencyLimits
+  alias Atlas.MCP.Tools.UpdateTuistRunnerTrial
   alias Atlas.MCP.Tools.UploadPostalLetter
   alias Atlas.Users.BusinessProfile
 
@@ -399,6 +403,13 @@ defmodule Atlas.MCP.Server do
   to attach an Atlas document to a transaction that lacks a receipt or supporting file,
   and `finance_delete_transaction_attachment` to remove an incorrect or duplicate
   attachment. All finance attachment tools are executive-only.
+
+  To pay vendor invoices, use `finance_create_transfer_request` with the amount,
+  IBAN, beneficiary name, and invoice number from the invoice. It creates one
+  pending request in Qonto and pays nothing until someone with review rights
+  approves it there with strong customer authentication. It acts with the caller's
+  own Qonto connection; if it reports one is missing, send them to Connections in
+  Atlas settings.
 
   For any request to create, draft, prepare, generate, or fill an order form, enterprise contract, Master Services Agreement, or contract package:
   1. Call `generate_enterprise_contract` with `document_scope` set to `order_form` or `contract_package`. Follow the workflow it returns.
@@ -447,6 +458,8 @@ defmodule Atlas.MCP.Server do
     EditStripeDraftInvoice,
     FinanceGetTransaction,
     FinanceListTransactionAttachments,
+    CategorizeFinanceTransaction,
+    FinanceCreateTransferRequest,
     FinanceAddTransactionAttachment,
     FinanceDeleteTransactionAttachment
   ]
@@ -585,7 +598,9 @@ defmodule Atlas.MCP.Server do
     GetTuistAccountPlan,
     UpdateTuistAccountPlan,
     GetTuistRunnerBilling,
-    ActivateTuistRunnerPrepaidPool
+    ActivateTuistRunnerPrepaidPool,
+    UpdateTuistRunnerTrial,
+    GetTuistKuraRollout
   ]
   # Tuist account tools (runner limits, plans) share the flag tools' scopes and Slack/interface rules.
   @feature_flag_read_tools [
@@ -601,7 +616,8 @@ defmodule Atlas.MCP.Server do
     UpdateTuistFeatureFlag,
     UpdateTuistRunnerConcurrencyLimits,
     UpdateTuistAccountPlan,
-    ActivateTuistRunnerPrepaidPool
+    ActivateTuistRunnerPrepaidPool,
+    UpdateTuistRunnerTrial
   ]
   @error_alert_read_tools [ListErrorAlertRules, PreviewErrorAlertRule]
   @error_alert_write_tools [SaveErrorAlertRule, DeleteErrorAlertRule]
@@ -720,6 +736,8 @@ defmodule Atlas.MCP.Server do
     ListEmailInbox,
     ListEmailOutbox,
     GetSentEmail,
+    CategorizeFinanceTransaction,
+    FinanceCreateTransferRequest,
     FinanceAddTransactionAttachment,
     FinanceDeleteTransactionAttachment,
     FinanceGetTransaction,
@@ -874,6 +892,8 @@ defmodule Atlas.MCP.Server do
     UpdateTuistAccountPlan,
     GetTuistRunnerBilling,
     ActivateTuistRunnerPrepaidPool,
+    UpdateTuistRunnerTrial,
+    GetTuistKuraRollout,
     ListAssets,
     GetAsset,
     ListAssetFinancings,

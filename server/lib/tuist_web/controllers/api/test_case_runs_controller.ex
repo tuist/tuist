@@ -4,6 +4,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Tests
+  alias Tuist.Tests.Selections.Query, as: SelectionQuery
+  alias Tuist.Tests.Selections.Schemas, as: SelectionSchemas
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Tests.TestCaseRunsList
@@ -388,7 +390,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
                  },
                  required: [:file_name, :url]
                }
-             }
+             },
+             selective_testing: SelectionSchemas.test_case_run()
            },
            required: [
              :id,
@@ -456,7 +459,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
                 }
               end),
             crash_report: map_crash_report(conn, run),
-            attachments: map_attachments(conn, run)
+            attachments: map_attachments(conn, run),
+            selective_testing: SelectionQuery.test_case_run(run)
           })
         else
           conn

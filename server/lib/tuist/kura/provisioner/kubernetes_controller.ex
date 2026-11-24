@@ -37,7 +37,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @client_endpoint_fields ~w(publicHost privateHost grpcPublicHost clientHostAliases)
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
-  # Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
+  # Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/crates/kura-core/src/constants.rs): 4 x
   # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. The ceiling upload
   # staging reaches inside the data volume when nothing narrows it. Keep in sync
   # if either constant moves.
@@ -233,7 +233,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
            {:ok, observed_at, _} <- DateTime.from_iso8601(timestamp),
            age = DateTime.diff(DateTime.utc_now(), observed_at),
            true <- age >= 0 and age < Regions.private_endpoint_staleness_seconds() do
-        {:ok, %{url: status["privateURL"], observed_at: DateTime.truncate(observed_at, :second)}}
+        {:ok,
+         %{
+           url: status["privateURL"],
+           observed_at: DateTime.truncate(observed_at, :second),
+           entrances: entrance_observations(instance)
+         }}
       else
         _ -> {:error, :private_endpoint_not_ready}
       end
@@ -241,6 +246,22 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   def external_endpoint(_name, %Regions{}), do: {:error, :private_endpoint_not_ready}
+
+  # The entrances the controller observed ready for the current spec, by site,
+  # each with its own observation time. Freshness is judged at dispatch.
+  defp entrance_observations(instance) do
+    generation = get_in(instance, ["metadata", "generation"])
+    hosts = Map.new(get_in(instance, ["spec", "gatewayEntrances"]) || [], &{&1["site"], &1["host"]})
+
+    for %{"site" => site, "url" => url, "lastCheckedAt" => checked_at} = status <-
+          get_in(instance, ["status", "gatewayEntrances"]) || [],
+        is_binary(url) and is_binary(hosts[site]) and url == "https://#{hosts[site]}",
+        status["observedGeneration"] == generation,
+        {:ok, observed_at, _} <- [DateTime.from_iso8601(checked_at)],
+        into: %{} do
+      {site, %{"url" => url, "observed_at" => observed_at |> DateTime.truncate(:second) |> DateTime.to_iso8601()}}
+    end
+  end
 
   @impl true
   def caught_up?(name, %Regions{} = region) do
@@ -475,6 +496,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "private" => Regions.private?(region),
           "exposeNodePort" => region.provisioner_config[:expose_node_port],
           "clientCIDRs" => client_cidrs(region),
+          "gatewayEntrances" => if(owns_public_endpoints?(server), do: gateway_entrances(endpoint_handle, region)),
           # The account's effective pair, not the region's. The controller
           # derives the shaper's tuist.dev/egress-class from these same two
           # fields, so one number per knob keeps the reservation, the pacing and
@@ -549,6 +571,74 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
        when is_binary(template), do: interpolate_host(template, dns_handle(handle), config)
 
   defp private_host(_handle, _region), do: nil
+
+  # A rack site's node is published on every other available site's gateway,
+  # so a job at that site whose own node is missing or not serving can read
+  # this one through its local gateway (`Tuist.Kura.runner_cache_endpoint_url/3`).
+  # Only the site gateway's own fields come from the other region; the host and
+  # the limits are this region's, because they describe traffic leaving it.
+  defp gateway_entrances(handle, %Regions{provisioner_config: %{entrance_host_template: template} = config} = region)
+       when is_binary(template) do
+    entrances =
+      for other <- entrance_sites(region) do
+        %{
+          "site" => Regions.site(other),
+          "host" =>
+            template |> String.replace("{site}", Regions.site(other)) |> interpolate_host(dns_handle(handle), config),
+          "ingressClassName" => other.provisioner_config[:ingress_class_name],
+          "clientCIDRs" => other.provisioner_config[:client_cidrs],
+          "nodeSelector" => node_selector(other),
+          "rateLimitKBps" => config[:entrance_rate_limit_kbps],
+          "connectionLimit" => config[:entrance_connection_limit]
+        }
+        |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+        |> Map.new()
+      end
+
+    if entrances == [], do: nil, else: entrances
+  end
+
+  defp gateway_entrances(_handle, _region), do: nil
+
+  defp entrance_sites(%Regions{} = region) do
+    site = Regions.site(region)
+
+    if is_binary(site) do
+      Regions.available()
+      |> Enum.filter(fn other ->
+        Regions.private?(other) and Regions.observed_private_endpoint?(other) and
+          Regions.site(other) not in [nil, site] and is_binary(other.provisioner_config[:ingress_class_name]) and
+          (other.provisioner_config[:client_cidrs] || []) != []
+      end)
+      |> Enum.sort_by(&Regions.site/1)
+    else
+      []
+    end
+  end
+
+  # Keyed on what the entrances render, and empty where there are none, so a
+  # single-site environment keeps its revision and rolls nothing.
+  defp entrances_revision_suffix(region) do
+    case gateway_entrances("{account_handle}", region) do
+      nil ->
+        ""
+
+      entrances ->
+        inputs =
+          Enum.flat_map(entrances, fn entrance ->
+            [
+              "site=#{entrance["site"]}",
+              "class=#{entrance["ingressClassName"]}",
+              "rate=#{entrance["rateLimitKBps"]}",
+              "connections=#{entrance["connectionLimit"]}"
+            ] ++
+              Enum.map(entrance["clientCIDRs"], &"cidr=#{entrance["site"]}:#{&1}") ++
+              Enum.map(entrance["nodeSelector"] || %{}, fn {key, value} -> "node=#{entrance["site"]}:#{key}=#{value}" end)
+          end)
+
+        "+entrances#{revision_digest(inputs)}"
+    end
+  end
 
   # Host-network gateways publish per-account DNS directly. Private gateways
   # use the node's PN address; public gateways use its public InternalIP.
@@ -684,7 +774,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           Enum.map(config[:client_cidrs] || [], &"cidr=#{&1}")
 
       digest = revision_digest(inputs)
-      "+replicas#{replicas(region)}+endpoint#{digest}"
+      "+replicas#{replicas(region)}+endpoint#{digest}" <> entrances_revision_suffix(region)
     else
       ""
     end

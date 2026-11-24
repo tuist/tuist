@@ -10,6 +10,7 @@ enum SandboxOutput {
             String(sandbox.vcpus),
             megabytes(sandbox.memory_mb),
             sandbox.last_active_at.map(Formatters.formatDate) ?? "Never",
+            sandbox.expires_at.map(Formatters.formatDate) ?? "-",
         ]
     }
 
@@ -25,6 +26,11 @@ enum SandboxOutput {
             "Created: \(Formatters.formatDate(sandbox.inserted_at))",
             "Last active: \(sandbox.last_active_at.map(Formatters.formatDate) ?? "Never")",
         ]
+        if let guaranteed = sandbox.guaranteed_vcpus { lines.insert("Guaranteed: \(guaranteed.formatted()) vCPUs", at: 5) }
+        if let lifetime = sandbox.lifetime_seconds {
+            let expiry = sandbox.expires_at.map { ", expires \(Formatters.formatDate($0))" } ?? ""
+            lines.append("Lifetime: \(minutes(lifetime))\(expiry)")
+        }
         if let pausedAt = sandbox.paused_at { lines.append("Paused: \(Formatters.formatDate(pausedAt))") }
         if let archivedAt = sandbox.archived_at {
             let size = sandbox.archive_bytes.map { " (\(Formatters.formatBytes($0)))" } ?? ""
@@ -82,6 +88,16 @@ enum SandboxOutput {
         guard seconds >= 60 else { return Formatters.formatDuration(value) }
         let (hours, minutes) = (seconds / 3600, seconds % 3600 / 60)
         return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m \(seconds % 60)s"
+    }
+
+    /// Lifetimes are whole minutes from the CLI, so "2h" or "1h 30m" rather than seconds.
+    private static func minutes(_ seconds: Int) -> String {
+        let (hours, minutes) = (seconds / 3600, seconds % 3600 / 60)
+        return switch (hours, minutes) {
+        case (0, _): "\(minutes)m"
+        case (_, 0): "\(hours)h"
+        default: "\(hours)h \(minutes)m"
+        }
     }
 
     private static func trend(_ value: Double) -> String {

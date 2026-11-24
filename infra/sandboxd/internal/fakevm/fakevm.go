@@ -40,6 +40,9 @@ type Launcher struct {
 	// SizedMemory makes snapshots write a mem file as long as the guest's
 	// memory (sparse) rather than a short marker, as Uffd loads need.
 	SizedMemory bool
+	// ExecHook becomes the Agent.ExecHook of every instance launched after
+	// it is set.
+	ExecHook func(req map[string]any, out func(stream string, data []byte)) (exitCode int, handled bool)
 }
 
 func (l *Launcher) Launch(ctx context.Context, spec vm.Spec) (vm.Instance, error) {
@@ -61,7 +64,7 @@ func (l *Launcher) Launch(ctx context.Context, spec vm.Spec) (vm.Instance, error
 		spec:      spec,
 		root:      root,
 		done:      make(chan struct{}),
-		Agent:     &Agent{delay: l.AgentBootDelay, started: time.Now()},
+		Agent:     &Agent{delay: l.AgentBootDelay, started: time.Now(), ExecHook: l.ExecHook},
 		jailed:    spec.JailerEnabled,
 		bootedNow: time.Now(),
 		sizedMem:  l.SizedMemory,
@@ -107,13 +110,14 @@ type Instance struct {
 	client      *firecracker.Client
 	Agent       *Agent
 
-	mu     sync.Mutex
-	calls  []Call
-	state  string
-	killed atomic.Bool
-	cpu    atomic.Int64
-	done   chan struct{}
-	once   sync.Once
+	mu       sync.Mutex
+	calls    []Call
+	state    string
+	killed   atomic.Bool
+	cpu      atomic.Int64
+	resident vm.Memory
+	done     chan struct{}
+	once     sync.Once
 	// FailSnapshotCreate makes PUT /snapshot/create answer 400.
 	FailSnapshotCreate bool
 
@@ -312,6 +316,19 @@ func (i *Instance) Killed() bool                  { return i.killed.Load() }
 func (i *Instance) CPUTime() (time.Duration, bool) { return time.Duration(i.cpu.Load()), true }
 
 func (i *Instance) SetCPUTime(d time.Duration) { i.cpu.Store(int64(d)) }
+
+// ResidentMemory reports what SetResidentMemory last set.
+func (i *Instance) ResidentMemory() (vm.Memory, bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.resident, true
+}
+
+func (i *Instance) SetResidentMemory(mem vm.Memory) {
+	i.mu.Lock()
+	i.resident = mem
+	i.mu.Unlock()
+}
 
 func (i *Instance) GuestPath(inJail string) string {
 	if i.jailed {

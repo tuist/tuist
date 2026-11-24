@@ -8,6 +8,9 @@ defmodule Tuist.MCP.AuthorizationTest do
   alias Tuist.MCP.Components.Tools.UpdateTestCase
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.Coverage.Query, as: CoverageQuery
+  alias Tuist.Tests.Coverage.Report
+  alias Tuist.Tests.Selections.Query, as: SelectionQuery
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -55,10 +58,10 @@ defmodule Tuist.MCP.AuthorizationTest do
   end
 
   defp stub_test_run(project) do
-    stub(Tests, :get_test, fn "run-1" ->
+    stub(Tests, :get_test, fn "0198a1f4-54bf-7cf6-92d1-774f9cf3cd8b" ->
       {:ok,
        %{
-         id: "run-1",
+         id: "0198a1f4-54bf-7cf6-92d1-774f9cf3cd8b",
          status: :success,
          duration: 10_000,
          is_ci: true,
@@ -71,11 +74,13 @@ defmodule Tuist.MCP.AuthorizationTest do
        }}
     end)
 
-    stub(Analytics, :get_test_run_metrics, fn %{id: "run-1"} ->
+    stub(Analytics, :get_test_run_metrics, fn %{id: "0198a1f4-54bf-7cf6-92d1-774f9cf3cd8b"} ->
       %{total_count: 1, failed_count: 0, flaky_count: 0, avg_duration: 1}
     end)
 
     stub(Tuist.Storage, :generate_download_url, fn _key, _actor, _opts -> "https://storage.test/signed" end)
+    stub(CoverageQuery, :test_run, fn run -> Report.run_coverage(run, nil) end)
+    stub(SelectionQuery, :test_run, fn _run -> nil end)
   end
 
   describe "an OAuth-token MCP session from an operator calling through Atlas" do
@@ -87,11 +92,11 @@ defmodule Tuist.MCP.AuthorizationTest do
     test "reads a customer project without a grant", %{project: project, operator: operator} do
       stub_test_run(project)
 
-      result = GetTestRun.call(atlas_conn(operator), %{"test_run_id" => "run-1"})
+      result = GetTestRun.call(atlas_conn(operator), %{"test_run_id" => "0198a1f4-54bf-7cf6-92d1-774f9cf3cd8b"})
 
       refute Map.get(result, "isError")
       assert %{"content" => [%{"type" => "text", "text" => text}]} = result
-      assert JSON.decode!(text)["id"] == "run-1"
+      assert JSON.decode!(text)["id"] == "0198a1f4-54bf-7cf6-92d1-774f9cf3cd8b"
     end
 
     test "reads a customer account", %{project: project, operator: operator} do
@@ -123,7 +128,10 @@ defmodule Tuist.MCP.AuthorizationTest do
     test "is refused when the token does not carry the mcp scope", %{project: project, operator: operator} do
       stub_test_run(project)
 
-      result = GetTestRun.call(atlas_conn(operator, ["project:cache:read"]), %{"test_run_id" => "run-1"})
+      result =
+        GetTestRun.call(atlas_conn(operator, ["project:cache:read"]), %{
+          "test_run_id" => "0198a1f4-54bf-7cf6-92d1-774f9cf3cd8b"
+        })
 
       assert %{"isError" => true} = result
     end
@@ -217,7 +225,7 @@ defmodule Tuist.MCP.AuthorizationTest do
       %{assigns: assigns} = atlas_conn(operator)
       conn = %Plug.Conn{assigns: Map.put(assigns, :mcp_account_scope, operator.account)}
 
-      assert %{"isError" => true} = GetTestRun.call(conn, %{"test_run_id" => "run-1"})
+      assert %{"isError" => true} = GetTestRun.call(conn, %{"test_run_id" => "0198a1f4-54bf-7cf6-92d1-774f9cf3cd8b"})
     end
   end
 end

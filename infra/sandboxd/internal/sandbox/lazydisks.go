@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,7 +30,10 @@ import (
 // restore through the mounts failed on this node, the restore fills the
 // disks before it starts the VM, which is the old wait for the whole tail.
 const (
-	lazyDiskSuffix      = ".fill"
+	lazyDiskSuffix = ".fill"
+	// Per disk. Eight streams on each disk of two restores on one node
+	// OOM-killed the daemon in production (2026-11-18) while their fills
+	// still went through the page cache.
 	lazyDiskFillWorkers = 4
 	// lazyDiskPauseWait bounds how long a pause waits, with the guest still
 	// running, for the disks of a restore still filling, which it must hold
@@ -47,6 +51,12 @@ var lazyDiskNames = []string{firecracker.RootfsPath, firecracker.WorkspacePath}
 // lazyDisks are a restored sandbox's disks while they still arrive.
 type lazyDisks struct {
 	disks []*lazyDisk
+	// The fill waits for startFill, so a warm restore fetches its memory,
+	// which every vCPU waits on, before the disks, which the guest reads
+	// little of while it boots. The guest's own reads fetch their chunks
+	// meanwhile.
+	start     chan struct{}
+	startOnce sync.Once
 	// loaded is closed once both disks are complete, filled once the fill
 	// ended, after which err holds why it failed, if it did.
 	loaded, filled chan struct{}
@@ -62,10 +72,10 @@ type lazyDisk struct {
 }
 
 // openLazyDisks prepares the disks of a restore from their indexes in the
-// jail root, each mounted over its path when mount is set, and starts
-// filling them.
+// jail root, each mounted over its path when mount is set. Their fill
+// starts with startFill.
 func (m *Manager) openLazyDisks(sb *Sandbox, src *protocol.ArchiveSource, workspaceGB, uid int, mount bool) (ld *lazyDisks, err error) {
-	ld = &lazyDisks{loaded: make(chan struct{}), filled: make(chan struct{})}
+	ld = &lazyDisks{start: make(chan struct{}), loaded: make(chan struct{}), filled: make(chan struct{})}
 	defer func() {
 		if err != nil {
 			ld.close()
@@ -125,8 +135,12 @@ func (m *Manager) openLazyDisks(sb *Sandbox, src *protocol.ArchiveSource, worksp
 	return ld, nil
 }
 
+// startFill lets the fill begin; later calls do nothing.
+func (ld *lazyDisks) startFill() { ld.startOnce.Do(func() { close(ld.start) }) }
+
 func (ld *lazyDisks) fill() {
 	defer close(ld.filled)
+	<-ld.start
 	errs := make(chan error, len(ld.disks))
 	for _, disk := range ld.disks {
 		go func() { errs <- disk.image.Fill(lazyDiskFillWorkers) }()
@@ -188,6 +202,8 @@ func (ld *lazyDisks) release() {
 // close detaches the mounts and stops fetching, without waiting for the
 // mounts' users.
 func (ld *lazyDisks) close() {
+	// A fill that never started ends at once on the closed images.
+	ld.startFill()
 	for _, disk := range ld.disks {
 		if disk.mount != nil {
 			_ = disk.mount.Detach()
@@ -220,6 +236,7 @@ func (m *Manager) fillDisks(ctx context.Context, sb *Sandbox, src *protocol.Arch
 		return err
 	}
 	defer ld.close()
+	ld.startFill()
 	if err := ld.wait(ctx); err != nil {
 		return fmt.Errorf("restoring the disks from the archive: %w", err)
 	}
@@ -295,6 +312,9 @@ func (m *Manager) awaitLazyDisks(ctx context.Context, id string, sb *Sandbox) er
 	if ld == nil {
 		return nil
 	}
+	// The pause needs the disks whole now, and its snapshot reads the
+	// memory still missing anyway.
+	ld.startFill()
 	ctx, cancel := context.WithTimeout(ctx, lazyDiskPauseWait)
 	defer cancel()
 	select {

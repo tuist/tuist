@@ -25,7 +25,6 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
         owner
         |> Map.take(User.__schema__(:fields))
         |> Map.delete(:id)
-        |> Map.put(:token_hash, Tuist.Tokens.legacy_token_hash("admin-#{index}-#{organization.id}"))
         |> Map.put(:email, "admin-#{index}-#{organization.id}@example.com")
       end)
       |> Enum.chunk_every(500)

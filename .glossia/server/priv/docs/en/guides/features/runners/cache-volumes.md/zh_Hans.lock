@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ab968be2d83c53f4c82ecdcf90b97f7e1ee39f806e273ad9edb3cc47b9f8910b",
+  "hash": "60abae9d6edc981db682e48b8fbdc3027b7ace2fff510ae5a68827d06a4c7b1b",
   "hash_tree": {
     "root": {
       "children": [
@@ -118,7 +118,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -137,7 +137,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -166,11 +166,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -259,21 +259,21 @@
             }
           ],
           "details": {},
-          "hash": "6a30ec2f312fa215aa16f0fb153c29693b527f2dda337604f6cae6d207a22042",
+          "hash": "59616f227dd5b04bc81bcccbb515566aea0302565a5c70747f580e550486119b",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "ab968be2d83c53f4c82ecdcf90b97f7e1ee39f806e273ad9edb3cc47b9f8910b",
+      "hash": "60abae9d6edc981db682e48b8fbdc3027b7ace2fff510ae5a68827d06a4c7b1b",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "3857384198816b982457e91fda69d13a987b7c957b0ce80198ecd0d7a61720b9",
+  "output_hash": "9b5ab9bb03d8102aceb8d4b750bcd09b9e97e3b09f4035162c0a2587f5c2690b",
   "output_path": "server/priv/docs/zh_Hans/guides/features/runners/cache-volumes.md",
   "protection_state": "recorded",
   "provider": "",
@@ -295,8 +295,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
+  "source_commit_sha": "8d4e08dcf051ab2b7e244b180b46d91e841207e7",
   "source_path": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
-  "translated_at": "2026-11-06T19:10:05.643188Z",
-  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
+  "translated_at": "2026-11-18T22:22:10.219706Z",
+  "translation_session_id": "01a1f0be-0914-7938-a78a-2b2186aa9559"
 }

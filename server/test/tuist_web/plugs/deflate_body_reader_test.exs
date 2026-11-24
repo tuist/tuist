@@ -88,4 +88,33 @@ defmodule TuistWeb.Plugs.DeflateBodyReaderTest do
       parse("not deflate", [{"content-encoding", "deflate"} | @json])
     end
   end
+
+  test "parses every member of a multi-member gzip body" do
+    body = JSON.encode!(%{"files" => Enum.to_list(1..1_000)})
+    {first, second} = String.split_at(body, div(byte_size(body), 2))
+
+    conn = parse(:zlib.gzip(first) <> :zlib.gzip(second), [{"content-encoding", "gzip"} | @json])
+
+    assert conn.body_params["files"] == Enum.to_list(1..1_000)
+
+    assert_raise Plug.BadRequestError, fn ->
+      parse(:zlib.gzip(body) <> "trailing", [{"content-encoding", "gzip"} | @json])
+    end
+  end
+
+  test "rejects a truncated body instead of parsing what it inflated so far" do
+    body = JSON.encode!(%{"files" => Enum.to_list(1..1_000)})
+    deflated = deflate(body)
+    gzipped = :zlib.gzip(body)
+
+    for {payload, encoding} <- [
+          {binary_part(deflated, 0, byte_size(deflated) - 2), "deflate"},
+          # Only the gzip trailer (CRC and length) is missing.
+          {binary_part(gzipped, 0, byte_size(gzipped) - 4), "gzip"}
+        ] do
+      assert_raise Plug.BadRequestError, fn ->
+        parse(payload, [{"content-encoding", encoding} | @json])
+      end
+    end
+  end
 end

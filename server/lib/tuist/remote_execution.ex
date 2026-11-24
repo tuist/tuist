@@ -8,6 +8,7 @@ defmodule Tuist.RemoteExecution do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
+  alias Tuist.Bazel
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.KeyValueStore
@@ -19,6 +20,7 @@ defmodule Tuist.RemoteExecution do
   alias Tuist.RemoteExecution.Settings
   alias Tuist.RemoteExecution.VMs
   alias Tuist.Repo
+  alias Tuist.Runners.Allowance
   alias Tuist.Sandboxes.Capacity
 
   @max_wait_ms 5_000
@@ -70,7 +72,8 @@ defmodule Tuist.RemoteExecution do
          concurrency when concurrency > 0 <-
            Settings.max_concurrency(account.remote_execution_vcpus_limit, account.remote_execution_memory_gb_limit),
          image_tag when is_binary(image_tag) <- Capacity.execution_image_tag(),
-         cas_endpoint when is_binary(cas_endpoint) <- cas_endpoint(account) do
+         cache_url when is_binary(cache_url) <- Kura.runner_cache_endpoint_url(account, :linux),
+         cas_endpoint when is_binary(cas_endpoint) <- cas_endpoint(cache_url) do
       {:ok,
        %Settings{
          vcpus: account.remote_execution_vcpus_limit,
@@ -78,6 +81,7 @@ defmodule Tuist.RemoteExecution do
          max_concurrency: concurrency,
          image_tag: image_tag,
          cas_endpoint: cas_endpoint,
+         client_cas_endpoint: account |> Kura.public_cache_endpoint_url(cache_url) |> cas_endpoint(),
          executor_endpoint: Environment.remote_execution_endpoint()
        }}
     else
@@ -85,11 +89,10 @@ defmodule Tuist.RemoteExecution do
     end
   end
 
-  # The cache a Linux runner job of the account uploads into, which is where
-  # the CI builds this serves put their inputs. Kura serves gRPC on the same
-  # port as HTTP.
-  defp cas_endpoint(account) do
-    with url when is_binary(url) and url != "" <- Kura.runner_cache_endpoint_url(account, :linux),
+  # Kura serves gRPC on the same port as HTTP. Both routes must address the
+  # same instance; asynchronous mesh replication cannot provide read-after-write.
+  defp cas_endpoint(url) do
+    with url when is_binary(url) and url != "" <- url,
          %URI{scheme: scheme} = uri when scheme in ["http", "https"] <- URI.parse(url) do
       URI.to_string(%{uri | scheme: if(scheme == "https", do: "grpcs", else: "grpc"), path: nil})
     else
@@ -162,16 +165,26 @@ defmodule Tuist.RemoteExecution do
         size: size,
         skip_cache: skip_cache,
         inputs: inputs,
-        memory_gb: memory_gb
+        memory_gb: memory_gb,
+        invocation_id: label(params["invocation_id"], 256),
+        mnemonic: label(params["mnemonic"], 128),
+        target: label(params["target"], 1_024)
       }
 
-      Scheduler.submit(project.account_id, attrs, wait(opts))
+      with :ok <- admit(project), do: Scheduler.submit(project.account_id, attrs, wait(opts))
     else
       {:error, :invalid_request}
     end
   end
 
   def submit(_project, _params, _opts), do: {:error, :invalid_request}
+
+  # Bazel's request metadata only describes the action, so an invalid value
+  # is dropped rather than refusing the action.
+  defp label(value, max_bytes) when is_binary(value) and value != "" and byte_size(value) <= max_bytes,
+    do: if(String.valid?(value), do: value)
+
+  defp label(_value, _max_bytes), do: nil
 
   defp valid_inputs?(inputs), do: is_nil(inputs) or (is_binary(inputs) and byte_size(inputs) <= @max_inputs_bytes)
 
@@ -195,7 +208,120 @@ defmodule Tuist.RemoteExecution do
   """
   def lease(project, opts \\ []) do
     attrs = %{project_id: project.id, account_name: project.account.name, project_name: project.name}
-    Scheduler.lease(project.account_id, attrs, wait(opts))
+    with :ok <- admit(project), do: Scheduler.lease(project.account_id, attrs, wait(opts))
+  end
+
+  # Remote execution is billed on the Linux runner meter, so it spends the
+  # same free minutes runners do. An account without a paid plan or a runner
+  # trial has nothing to bill past them, so, like runner dispatch, it is
+  # refused new work once they are spent. Paid and trial accounts never are.
+  defp admit(project) do
+    if Allowance.exhausted?(project.account), do: {:error, :allowance_exhausted}, else: :ok
+  end
+
+  @doc """
+  The project's remote actions running and queued right now in the account's
+  scheduler, which holds them only in memory: running actions first, each
+  group oldest first, with the Bazel invocation, mnemonic and target the
+  gateway forwarded for them. Actions the gateway runs on a VM it leased
+  ahead of demand never pass through the scheduler, so they are not listed;
+  their usage is recorded once they finish.
+
+  `invocations` are the project's running invocations, as
+  `running_invocations/1` describes them. Returns `{:error, :unavailable}`
+  when the scheduler does not answer.
+  """
+  def activity(%Project{} = project) do
+    with {:ok, actions} <- Scheduler.activity(project.account_id, project.id) do
+      actions =
+        actions
+        |> Enum.map(&Map.put(&1, :vcpus, Settings.shape(&1.memory_gb).vcpus))
+        |> Enum.sort_by(&{&1.state != "running", DateTime.to_unix(&1.since, :millisecond)})
+
+      {:ok,
+       %{
+         observed_at: DateTime.utc_now(),
+         running: Enum.count(actions, &(&1.state == "running")),
+         queued: Enum.count(actions, &(&1.state == "queued")),
+         actions: actions,
+         invocations: invocations(project, actions)
+       }}
+    end
+  end
+
+  @doc """
+  The project's running Bazel invocations, newest first: those Kura reports
+  as still running (see `Tuist.Bazel.running_invocations/2`), and those with remote actions
+  in the scheduler that Kura has not reported, whose command is then `nil`.
+  `running` and `queued` count each one's remote actions; they are `nil`
+  when the scheduler does not answer.
+  """
+  def running_invocations(%Project{} = project) do
+    case activity(project) do
+      {:ok, activity} -> activity.invocations
+      {:error, :unavailable} -> invocations(project, nil)
+    end
+  end
+
+  @doc """
+  One running invocation, as `running_invocations/1` describes it (`nil` when
+  it is not running), with its remote actions as `activity/1` lists them, or
+  `:unavailable` when the scheduler does not answer.
+  """
+  def invocation_activity(%Project{} = project, invocation_id) do
+    {actions, invocations} =
+      case activity(project) do
+        {:ok, activity} -> {Enum.filter(activity.actions, &(&1.invocation_id == invocation_id)), activity.invocations}
+        {:error, :unavailable} -> {:unavailable, invocations(project, nil)}
+      end
+
+    %{
+      observed_at: DateTime.utc_now(),
+      invocation: Enum.find(invocations, &(&1.invocation_id == invocation_id)),
+      actions: actions
+    }
+  end
+
+  defp invocations(project, actions) do
+    by_invocation = Enum.group_by(actions || [], & &1.invocation_id)
+
+    starts =
+      if Project.bazel_project?(project) do
+        Enum.map(Bazel.running_invocations(project.id), fn start ->
+          start
+          |> Map.take([:invocation_id, :command, :target_patterns, :git_branch, :git_commit_sha, :is_ci])
+          |> Map.put(:started_at, DateTime.from_naive!(start.started_at, "Etc/UTC"))
+        end)
+      else
+        []
+      end
+
+    started = MapSet.new(starts, & &1.invocation_id)
+
+    unreported =
+      for {invocation_id, invocation_actions} <- by_invocation,
+          is_binary(invocation_id) and not MapSet.member?(started, invocation_id) do
+        %{
+          invocation_id: invocation_id,
+          command: nil,
+          target_patterns: [],
+          git_branch: "",
+          git_commit_sha: "",
+          is_ci: nil,
+          started_at: invocation_actions |> Enum.map(& &1.since) |> Enum.min(DateTime)
+        }
+      end
+
+    (starts ++ unreported)
+    |> Enum.map(fn invocation ->
+      invocation_actions = Map.get(by_invocation, invocation.invocation_id, [])
+
+      Map.merge(invocation, %{
+        running: if(actions, do: Enum.count(invocation_actions, &(&1.state == "running"))),
+        queued: if(actions, do: Enum.count(invocation_actions, &(&1.state == "queued")))
+      })
+    end)
+    |> Enum.sort_by(& &1.started_at, {:desc, DateTime})
   end
 
   def maintain, do: VMs.reap()

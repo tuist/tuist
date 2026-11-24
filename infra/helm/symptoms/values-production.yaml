@@ -1,0 +1,23 @@
+environment: production
+host: symptoms-production.taild6d7bb.ts.net
+
+# Production starts with paging off. Turn it on only once shadow precision
+# covers the backstops (README "Backstops and watching the watcher").
+decision:
+  pagingEnabled: false
+
+tuist:
+  url: http://tuist-tuist-server.tuist.svc.cluster.local
+  namespace: tuist
+
+service:
+  tailscale:
+    hostname: symptoms-production
+
+postgresql:
+  backup:
+    destinationPath: s3://tuist-prod-pg-backups/symptoms
+
+# Keep production workloads off the processor pool (infra/helm/AGENTS.md).
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general

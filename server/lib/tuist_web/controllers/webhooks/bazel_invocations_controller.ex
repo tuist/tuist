@@ -42,6 +42,12 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
         |> Enum.uniq()
         |> Projects.projects_by_full_handles()
 
+      # Kura reports an invocation as running once its target patterns arrive,
+      # and again with its result when it finishes.
+      {running_events, events} = Enum.split_with(events, &match?(%{"status" => "running"}, &1))
+      starts = Enum.flat_map(running_events, &List.wrap(start_from_event(&1, projects_map)))
+      Bazel.create_invocation_starts(starts)
+
       {invocations, logs, summaries} =
         Enum.reduce(events, {[], [], []}, fn event, {invocations, logs, summaries} ->
           case invocation_from_event(event, projects_map, cache_endpoint) do
@@ -64,7 +70,10 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
 
       conn
       |> put_status(:accepted)
-      |> json(%{accepted: length(invocations), rejected: received_count - length(invocations)})
+      |> json(%{
+        accepted: length(invocations) + length(starts),
+        rejected: received_count - length(invocations) - length(starts)
+      })
       |> halt()
     end
   end
@@ -140,6 +149,42 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
   end
 
   defp invocation_from_event(_, _, _), do: nil
+
+  # Only signed reports start invocations: running state is shown for
+  # projects using Tuist's remote execution, which Kura reports signed.
+  defp start_from_event(
+         %{"invocation_id" => invocation_id, "command" => command, "started_at_ms" => started_at_ms} = event,
+         projects_map
+       ) do
+    target_patterns = Map.get(event, "target_patterns", [])
+    git_branch = Map.get(event, "git_branch", "")
+    git_commit_sha = Map.get(event, "git_commit_sha", "")
+    is_ci = Map.get(event, "is_ci", false)
+
+    with true <- Map.get(event, "submission_auth", "") == "",
+         true <- valid_project_reference?(event),
+         true <- valid_identifiers?(invocation_id, command),
+         true <- valid_context?(target_patterns, git_branch, git_commit_sha, is_ci),
+         true <- is_integer(started_at_ms) and started_at_ms >= 0 and plausible_timestamp?(started_at_ms),
+         %{id: project_id, build_system: :bazel} <-
+           Map.get(projects_map, "#{event["account_handle"]}/#{event["project_handle"]}") do
+      %{
+        project_id: project_id,
+        invocation_id: invocation_id,
+        command: command,
+        target_patterns: target_patterns,
+        git_branch: git_branch,
+        git_commit_sha: git_commit_sha,
+        is_ci: is_ci,
+        started_at:
+          started_at_ms |> DateTime.from_unix!(:millisecond) |> DateTime.to_naive() |> NaiveDateTime.add(0, :microsecond)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp start_from_event(_event, _projects_map), do: nil
 
   defp publication_enabled?(event, project) do
     case Map.get(event, "submission_auth", "") do

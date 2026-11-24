@@ -21,9 +21,11 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   the master back under CI's rules. The runner exits
   after the session has been idle for the environment's `max_idle_seconds`,
   which ends the residency and pauses the sandbox; the session's next message
-  resumes the same sandbox, checkout included.
+  resumes the same sandbox, checkout included. A new Linux sandbox of such a
+  session also starts with a copy of the repository's CI cache when a node
+  holding it takes the sandbox (`Tuist.Runners.CacheVolumes.sandbox_cache/2`).
 
-  When the environment has a setup script, a new Linux sandbox boots from
+  When the environment has a setup script, a new sandbox boots from
   the repository's snapshot, where the runner finds its clone in place and
   only fetches what changed since. A new session that finds no snapshot
   starts on the template and has one built for the sessions after it
@@ -54,7 +56,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
           %Sandbox{residency_work_id: work_id} when is_binary(work_id) ->
             {:ok, :running}
 
-          %Sandbox{platform: :darwin, state: :error} ->
+          # As in `Router.find_or_create_sandbox/3`: only a placed one.
+          %Sandbox{platform: :darwin, state: :error, node_name: node_name} when is_binary(node_name) ->
             {:error, :sandbox_recovery_required}
 
           _sandbox ->
@@ -116,7 +119,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
           with {:ok, sandbox, created?} <-
                  Router.find_or_create_sandbox(agent_environment, session_id,
                    from_disk_snapshot: snapshot,
-                   prefer_nodes: prefer_nodes
+                   prefer_nodes: prefer_nodes,
+                   cache: fn -> cache(agent_environment, repository) end
                  ),
                placement_ms = milliseconds_since(started_at),
                {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
@@ -190,6 +194,17 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   end
 
   defp checkout_nodes(_agent_environment, _repository), do: []
+
+  # The CI cache a new Linux sandbox of the session starts with, or nil. The
+  # repository passes the same check as its checkout.
+  defp cache(%AgentEnvironment{platform: :linux} = agent_environment, %{owner: owner, name: name}) do
+    %{account: account} = Repo.preload(agent_environment, :account)
+
+    if FeatureFlags.sandbox_runner_cache_enabled?(account),
+      do: CacheVolumes.sandbox_cache(account.id, "#{owner}/#{name}")
+  end
+
+  defp cache(_agent_environment, _repository), do: nil
 
   # The session's checkout grant, or nil: a session without one clones.
   defp checkout(_sandbox, nil, _work_id), do: nil

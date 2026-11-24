@@ -1,6 +1,25 @@
 {
   "site": "larch",
   "location": "NTT Berlin 1, rack 2. NTT calls this campus BER1; our ber1 rack is at NTT's BER2 campus",
+  "contracted_power": [
+    {
+      "from": "2026-11-09",
+      "watts": 3000
+    },
+    {
+      "from": "2027-05-09",
+      "watts": 5000
+    },
+    {
+      "from": "2027-08-09",
+      "watts": 6000
+    }
+  ],
+  "power_budget": {
+    "chain_amps": 8,
+    "other_watts": 600,
+    "note": "A chain stops taking new runner VMs at 8 A, 80% of what feeds it: NTT's rails at Berlin 1 carry only C13 sockets rated 10 A, and each transfer switch takes its feed through a C14-to-C19 cord, whose C14 plug is also rated 10 A. other_watts is the dual-PSU gear (edges, storage, ToRs), about 0.6 kW."
+  },
   "credentials": {
     "username": "tuist"
   },
@@ -15,6 +34,7 @@
       "interface": "mgmt0",
       "address": "192.168.60.10",
       "provisioning": "192.168.70.1/24",
+      "boot_alias": "192.168.50.1",
       "domain": "rack.tuist.dev",
       "vrrp": {
         "vlan": 4000,
@@ -53,7 +73,22 @@
         "address": "149.6.170.1/31",
         "gateway": "149.6.170.0",
         "address6": "2001:978:2:b::4:13/127",
-        "gateway6": "2001:978:2:b::4:12"
+        "gateway6": "2001:978:2:b::4:12",
+        "bgp": {
+          "asn": 218377,
+          "peer_asn": 174,
+          "prefixes": [
+            "95.130.119.0/24",
+            "2a11:83c0::/29"
+          ],
+          "site_prefixes": [
+            "95.130.119.32/28"
+          ],
+          "site_prefix_community": "174:990"
+        },
+        "egress": {
+          "prefix": "95.130.119.32/28"
+        }
       }
     },
     "picos": {
@@ -139,12 +174,13 @@
       "console_baud": 115200,
       "apply_order": 1,
       "apply_note": "Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.",
-      "adopted": false,
+      "mac": "64:9d:99:d9:81:0b",
+      "adopted": true,
       "feeds": [
         "feed-a",
         "feed-b"
       ],
-      "note": "The second S5860 (FS order FS261015598071). Standalone until its label MAC is recorded: the controller identifies a switch by MAC. Its MAC, and larch-edge-b's tor_management link to it, go in once the unit is unpacked. Its management port and console go to larch-edge-b.",
+      "note": "The second S5860 (FS order FS261015598071). Its MAC was read on site on 20 Nov 2026 from its management port's IPv6 link-local address, with the unit still at factory state. Its management port and console go to larch-edge-b.",
       "ports": {
         "25": {
           "purpose": "isl",
@@ -255,7 +291,7 @@
         },
         {
           "switch": "larch-tor-b",
-          "port": 28,
+          "port": 21,
           "media": "copper",
           "nic": "bmc",
           "purpose": "management"
@@ -299,13 +335,18 @@
           "nic": "bmc",
           "purpose": "management"
         }
-      ]
+      ],
+      "tor_management": {
+        "switch": "larch-tor-b",
+        "nic": "lan1",
+        "address": "192.168.61.5/30"
+      }
     },
     {
       "name": "larch-store-a",
       "role": "storage",
       "hardware": "rs501a-e12",
-      "status": "planned",
+      "status": "installed",
       "note": "The design's store-b, which pairs with ber1-store-a. Single-homed to larch-tor-a over SFP28. Its BMC is on larch-tor-b copper port 22, so losing larch-tor-a still leaves its out-of-band path: ports 29 to 32 are one speed group on the S5860, and a 1G module there would not commit beside the 25G edge legs.",
       "feeds": [
         "feed-a",
@@ -317,7 +358,8 @@
           "port": 31,
           "media": "dac",
           "nic": "n225p-1",
-          "purpose": "data"
+          "purpose": "data",
+          "mac": "34:d8:68:5a:10:5a"
         },
         {
           "switch": "larch-tor-b",
@@ -332,7 +374,8 @@
       "name": "larch-ats-a",
       "role": "power",
       "hardware": "eats16n",
-      "status": "planned",
+      "status": "installed",
+      "mac": "00:20:85:a6:51:09",
       "note": "Chain A: its C19 output feeds larch-pdu-a and nothing else. Prefers feed A. Its card is on larch-tor-b, opposite the minis it powers.",
       "preferred_source": 1,
       "mgmt_address": "192.168.60.14",
@@ -350,7 +393,8 @@
       "name": "larch-ats-b",
       "role": "power",
       "hardware": "eats16n",
-      "status": "planned",
+      "status": "installed",
+      "mac": "00:20:85:a6:50:b0",
       "note": "Chain B: its C19 output feeds larch-pdu-b and nothing else. Prefers feed B. Its card is on larch-tor-a.",
       "preferred_source": 2,
       "mgmt_address": "192.168.60.15",
@@ -368,7 +412,8 @@
       "name": "larch-pdu-a",
       "role": "power",
       "hardware": "evmafc20a",
-      "status": "planned",
+      "status": "installed",
+      "mac": "00:20:85:b8:5b:30",
       "note": "Eaton Rack PDU G4 on chain A: the minis cabled to larch-tor-a. Its card is on larch-tor-b.",
       "ats": "larch-ats-a",
       "mgmt_address": "192.168.60.16",
@@ -386,7 +431,8 @@
       "name": "larch-pdu-b",
       "role": "power",
       "hardware": "evmafc20a",
-      "status": "planned",
+      "status": "installed",
+      "mac": "00:20:85:b8:2c:76",
       "note": "Eaton Rack PDU G4 on chain B: the minis cabled to larch-tor-b. Its card is on larch-tor-a.",
       "ats": "larch-ats-b",
       "mgmt_address": "192.168.60.17",
@@ -397,6 +443,176 @@
           "media": "copper",
           "nic": "netpack",
           "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-a01",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-a01",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-a",
+          "port": 1,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:e1:35:a5"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-a02",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-a02",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-a",
+          "port": 2,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:ab:e4:18"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-a03",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-a03",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-a",
+          "port": 3,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:b0:76:53"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-a04",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-a04",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-a",
+          "port": 4,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:ae:d2:51"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-a05",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-a05",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-a",
+          "port": 5,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:b1:3f:85"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-b01",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-b01",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-b",
+          "port": 1,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:b9:79:6e"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-b02",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-b02",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-b",
+          "port": 2,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:a8:0f:4e"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-b03",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-b03",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-b",
+          "port": 3,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:b8:a0:ec"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-b04",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-b04",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-b",
+          "port": 4,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:bd:c9:bd"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-b05",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-b05",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-b",
+          "port": 5,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:ac:5a:25"
         }
       ]
     }

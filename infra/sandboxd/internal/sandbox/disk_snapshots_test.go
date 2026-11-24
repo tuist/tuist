@@ -145,3 +145,72 @@ func TestRecoverRemovesPartialDiskSnapshots(t *testing.T) {
 		t.Fatal("recover must remove a partial disk snapshot")
 	}
 }
+
+func TestCacheImageDrive(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := os.MkdirAll(h.m.cfg.SnapshotDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	h.create(t, "source", 10)
+	if err := os.WriteFile(filepath.Join(vm.RootDir(h.jailBase, "source"), "workspace.ext4"), []byte("workspace"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "source", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.SaveDisks(ctx, protocol.SaveDisksArgs{SandboxID: "source", SnapshotID: "snap1"}); err != nil {
+		t.Fatal(err)
+	}
+	clone := protocol.CreateArgs{SandboxID: "cached", Template: "default", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 10, FromDiskSnapshot: "snap1", CacheImage: "go-cache"}
+	if _, err := h.m.Create(ctx, clone); !errors.Is(err, ErrCacheImage) {
+		t.Fatalf("a daemon without a cache image directory must refuse, got %v", err)
+	}
+
+	h.m.cfg.CacheImageDir = filepath.Join(h.dataDir, "cache-images")
+	if err := os.MkdirAll(h.m.cfg.CacheImageDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	master := filepath.Join(h.m.cfg.CacheImageDir, "go-cache")
+	if err := os.WriteFile(master, []byte("warm cache"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(master, filepath.Join(h.m.cfg.CacheImageDir, "linked")); err != nil {
+		t.Fatal(err)
+	}
+	fromTemplate := protocol.CreateArgs{SandboxID: "warm", Template: "default", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 10, CacheImage: "go-cache"}
+	if _, err := h.m.Create(ctx, fromTemplate); !errors.Is(err, ErrCacheImage) {
+		t.Fatalf("a memory-snapshot create cannot gain a drive, got %v", err)
+	}
+	linked := clone
+	linked.SandboxID, linked.CacheImage = "linked", "linked"
+	if _, err := h.m.Create(ctx, linked); !errors.Is(err, ErrCacheImage) {
+		t.Fatalf("a symlinked cache image must be refused, got %v", err)
+	}
+
+	if _, err := h.m.Create(ctx, clone); err != nil {
+		t.Fatalf("create with a cache drive: %v", err)
+	}
+	attached := filepath.Join(vm.RootDir(h.jailBase, "cached"), "cache.ext4")
+	if err := os.WriteFile(attached, []byte("guest writes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(master); string(data) != "warm cache" {
+		t.Fatalf("guest writes must not reach the master, got %q", data)
+	}
+	var drive bool
+	for _, call := range h.launcher.Last().Calls() {
+		if call.Path == "/drives/cache" {
+			drive = true
+		}
+	}
+	if !drive {
+		t.Fatal("the cold boot must attach the cache drive")
+	}
+	if err := h.m.Delete(ctx, "cached"); err != nil {
+		t.Fatal(err)
+	}
+	if vm.Exists(attached) {
+		t.Fatal("deleting the sandbox must discard its cache clone")
+	}
+}

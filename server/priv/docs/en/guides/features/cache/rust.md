@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Rust cache",
+  "title": "Cargo build cache for Rust",
   "titleTemplate": ":title · Cache · Features · Guides · Tuist",
-  "description": "Reuse supported Rust compilation outputs locally and through Tuist's remote cache with Cargo."
+  "description": "Cut Rust compile time in CI and fresh clones with Tuist's Cargo build cache, which reuses compilation outputs locally and through a remote cache."
 }
 ---
-# Rust cache {#rust-cache}
+# Cargo build cache for Rust {#rust-cache}
 
-Tuist caches supported Rust compilation outputs so Cargo can reuse them after its build outputs have been removed. The cache is built into the Tuist CLI. There is no separate cache executable or Cargo plugin to install.
+Tuist caches supported Rust compilation outputs so Cargo can reuse them after its build outputs have been removed, such as after `cargo clean`, a branch switch, or in another checkout. You might also see this called a Cargo build cache or a Rust compile cache: it shortens Rust compile times by reusing what an earlier build compiled, including your workspace's incrementally compiled crates. The cache is built into the Tuist CLI. There is no separate cache executable or Cargo plugin to install.
 
 <!-- @snippet: ./_rust-experimental -->
 
@@ -29,7 +29,9 @@ Before Cargo starts, Tuist restores the outputs of your registry and git depende
 
 1. Checks its local cache for matching outputs.
 2. On a local miss, queries Kura through the Remote Execution API (REAPI), downloads any missing content, and verifies the outputs before restoring them.
-3. On a cache miss, runs the compiler normally. After a successful compilation, it stores the outputs locally and uploads them to Kura through REAPI when authorized. The remote cache entry is published only after all of its referenced content is available.
+3. On a cache miss, runs the compiler. After a successful compilation, it stores the outputs locally and uploads them to Kura through REAPI when authorized. The remote cache entry is published only after all of its referenced content is available.
+
+On CI, a crate's first compilation in a target directory runs without incremental compilation, as Cargo 1.99 and later already do by default: there is no earlier session to reuse, CI doesn't edit what it compiled, and building a session makes that compilation slower and its cache entry larger. Tuist remembers the crate in the target directory, so a job that keeps its target directory compiles it incrementally next time. Local builds compile incrementally as Cargo asks, so the first edit after a fresh build stays fast. Cache entries are shared either way.
 
 Builds on the same machine share the local cache, including builds in other worktrees or target directories. When another build is already compiling the same crate or running the same build script, Tuist waits for it and restores its outputs instead of doing the same work twice. If that build takes longer than 10 minutes, Tuist stops waiting and compiles the crate itself.
 
@@ -51,7 +53,7 @@ The following still build normally:
 
 - Build scripts and recorded compilations on Linux distributions without glibc, such as Alpine.
 - Build scripts that connect to the network, start programs Tuist can't observe (on Linux, statically linked programs), or write outside their output directory.
-- Incremental compilations, custom targets, and unsupported compiler arguments or source inputs.
+- Custom targets, and unsupported compiler arguments or source inputs.
 - Clippy compilations of procedural macros and build scripts, and Clippy runs that enable the `cargo` lint group, which reads every manifest of the workspace and its lockfile through `cargo metadata`.
 - Compilations that emit unexpected compiler output.
 - Compilations that run with dynamic loader settings, such as `LD_PRELOAD`, or with `LD_LIBRARY_PATH` directories outside the Rust toolchain and the target directory, for example ones inherited from your shell or a `build.build-dir` outside the target directory.

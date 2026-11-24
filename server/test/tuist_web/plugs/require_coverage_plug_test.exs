@@ -54,8 +54,8 @@ defmodule TuistWeb.Plugs.RequireCoveragePlugTest do
            |> json_response(200) == %{"missing" => [@sha]}
   end
 
-  test "lets requests for Xcode, Mix, Cargo and Gradle projects through in every account", %{conn: conn, user: user} do
-    for build_system <- [:xcode, :mix, :cargo, :gradle] do
+  test "lets requests for supported coverage producers through in every account", %{conn: conn, user: user} do
+    for build_system <- [:xcode, :mix, :cargo, :gradle, :once] do
       project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: build_system)
       base = "/api/projects/#{user.account.name}/#{project.name}"
 

@@ -7,6 +7,7 @@ defmodule Atlas.Finance.QontoInvoiceBackfill do
   alias Atlas.Audit
   alias Atlas.Documents
   alias Atlas.Finance.Account
+  alias Atlas.Finance.Categorization
   alias Atlas.Finance.Config
   alias Atlas.Finance.Providers.Helpers
   alias Atlas.Finance.Providers.Qonto
@@ -219,6 +220,10 @@ defmodule Atlas.Finance.QontoInvoiceBackfill do
       conflict_target: [:finance_account_id, :external_id],
       returning: true
     )
+    |> case do
+      {:ok, transaction} -> Categorization.apply_runway_override(transaction)
+      error -> error
+    end
   end
 
   defp flag_internal_transfer(attrs, internal_names) do

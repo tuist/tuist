@@ -91,6 +91,7 @@ winner_tree.workspace = true
 zstd.workspace = true
 
 [dev-dependencies]
+allocation-counter.workspace = true
 common-function.workspace = true
 common-meta = { workspace = true, features = ["testing"] }
 common-test-util.workspace = true

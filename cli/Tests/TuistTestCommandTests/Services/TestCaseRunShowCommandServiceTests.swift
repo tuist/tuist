@@ -366,4 +366,29 @@ struct TestCaseRunShowCommandServiceTests {
         #expect(ui().contains("CoreTests"))
         #expect(!ui().contains("Suite:"))
     }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora) func run_shows_why_selective_testing_kept_the_test() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let run = ServerTestCaseRun.test(
+            selectiveTesting: .init(decision: .selected, matched_path: "Sources/App.swift", reason: "impacted", shard_index: 1)
+        )
+        given(getTestCaseRunService).getTestCaseRun(fullHandle: .any, testCaseRunId: .value("run-id"), serverURL: .any)
+            .willReturn(run)
+
+        // When
+        try await subject.run(project: nil, testCaseRunId: "run-id", path: nil, json: false)
+
+        // Then
+        #expect(ui().contains("Selective Testing"))
+        #expect(ui().contains("Decision:  selected"))
+        #expect(ui().contains("Reason:    impacted"))
+        #expect(ui().contains("Matched:   Sources/App.swift"))
+        #expect(ui().contains("Shard:     1"))
+    }
 }

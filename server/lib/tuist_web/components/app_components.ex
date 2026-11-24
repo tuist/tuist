@@ -68,6 +68,36 @@ defmodule TuistWeb.AppComponents do
     """
   end
 
+  attr :id, :string, default: nil
+  attr :page, :integer, required: true
+  attr :has_next_page, :boolean, required: true
+  attr :page_patch, :any, required: true, doc: "Returns the patch for a page number."
+
+  # Prev/Next over numbered pages, for lists too long to show every page
+  # number.
+  def page_pagination(assigns) do
+    ~H"""
+    <div :if={@page > 1 or @has_next_page} id={@id} class="tuist-pagination">
+      <.button
+        variant="secondary"
+        label={dgettext("dashboard", "Prev")}
+        disabled={@page == 1}
+        patch={@page_patch.(@page - 1)}
+      >
+        <:icon_left><.chevron_left /></:icon_left>
+      </.button>
+      <.button
+        variant="secondary"
+        label={dgettext("dashboard", "Next")}
+        disabled={not @has_next_page}
+        patch={@page_patch.(@page + 1)}
+      >
+        <:icon_right><.chevron_right /></:icon_right>
+      </.button>
+    </div>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do

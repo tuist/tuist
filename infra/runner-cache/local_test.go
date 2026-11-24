@@ -2,10 +2,13 @@ package cachevolumes
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +19,7 @@ type testTransfer struct {
 	source             string
 	conflict, fail     bool
 	generation         int64
+	paths              []string
 }
 
 func (t *testTransfer) Download(_ context.Context, _ Slot, path string) error {
@@ -26,8 +30,9 @@ func (t *testTransfer) Download(_ context.Context, _ Slot, path string) error {
 	}
 	return os.WriteFile(path, data, 0600)
 }
-func (t *testTransfer) Publish(_ Slot, path, digest, content string) (int64, error) {
+func (t *testTransfer) Publish(slot Slot, path, digest, content string) (int64, error) {
 	t.uploads++
+	t.paths = append(t.paths, slot.Paths)
 	if t.fail {
 		return 0, errors.New("upload failed")
 	}
@@ -673,5 +678,133 @@ func TestLocalSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
 	}
 	if speculative(b.master(wanted)) || remote.downloads != 1 {
 		t.Fatal("a job's clone left the master speculative or downloaded again", remote.downloads)
+	}
+}
+
+// A sandbox's copy of a master is a reflink taken under the lineage lock. The
+// host never fetches for it, and the use keeps the master from looking idle.
+func TestLocalCloneMasterForSandboxes(t *testing.T) {
+	b, remote := newLocal(t)
+	saved := identity(first)
+	saved.BaseGeneration = 3
+	saved.ImageDigest = strings.Repeat("c", 40)
+	saved.ContentDigest = strings.Repeat("b", 64)
+	dst := filepath.Join(b.Root, "sandbox.img")
+	if _, _, err := b.CloneMaster(context.Background(), saved, dst, nil); !errors.Is(err, ErrNoMaster) || remote.downloads != 0 {
+		t.Fatalf("a host without the master answered %v after %d downloads", err, remote.downloads)
+	}
+	unsaved := saved
+	unsaved.ImageDigest = ""
+	if _, _, err := b.CloneMaster(context.Background(), unsaved, dst, nil); !errors.Is(err, ErrInvalidMaster) {
+		t.Fatalf("an identity without a saved head answered %v", err)
+	}
+
+	// A host that kept an older master of the lineage, as prefetch does
+	// between refreshes, lends the newest of those and says which.
+	for generation, contents := range map[int64]string{1: "first contents", 2: "second contents", 5: "newer contents"} {
+		older := saved
+		older.BaseGeneration, older.ContentDigest = generation, strings.Repeat(strconv.FormatInt(generation, 10), 64)
+		path := b.master(Slot{Identity: older})
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	generation, cloned, err := b.CloneMaster(context.Background(), saved, dst, nil)
+	if err != nil || generation != 2 || !cloned || remote.downloads != 0 {
+		t.Fatalf("a host with older masters lent generation %d (cloned %v, %v)", generation, cloned, err)
+	}
+	if data, _ := os.ReadFile(dst); string(data) != "second contents" {
+		t.Fatalf("the clone of the older master holds %q", data)
+	}
+	_ = os.Remove(dst)
+	generation, cloned, err = b.CloneMaster(context.Background(), saved, dst, func(g int64) bool { return g == 2 })
+	if err != nil || generation != 2 || cloned {
+		t.Fatalf("a caller holding generation 2 got %d (cloned %v, %v)", generation, cloned, err)
+	}
+	if _, err := os.Stat(dst); !os.IsNotExist(err) {
+		t.Fatal("a held generation must not be cloned")
+	}
+
+	master := b.master(Slot{Identity: saved})
+	if err := os.WriteFile(master, []byte("saved contents"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(master+".spare", nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(master, old, old); err != nil {
+		t.Fatal(err)
+	}
+	if generation, cloned, err := b.CloneMaster(context.Background(), saved, dst, func(g int64) bool { return g == 2 }); err != nil || generation != 3 || !cloned {
+		t.Fatalf("the head's master lent generation %d (cloned %v, %v)", generation, cloned, err)
+	}
+	if data, _ := os.ReadFile(dst); string(data) != "saved contents" {
+		t.Fatalf("the clone holds %q", data)
+	}
+	info, err := os.Stat(master)
+	if err != nil || time.Since(info.ModTime()) > time.Hour || speculative(master) {
+		t.Fatal("a sandbox's use must mark the master used")
+	}
+}
+
+// A sealed branch reports the spellings its .tuist-paths records under
+// tuist-cache-volume's rules, also from a seal retried once it is unmounted,
+// and reports nothing for a manifest the job pointed outside the volume.
+func TestSealReportsTheBranchPathManifest(t *testing.T) {
+	sum := func(spelling string) string {
+		h := sha256.Sum256([]byte(spelling))
+		return hex.EncodeToString(h[:])
+	}
+	b, remote := newLocal(t)
+	remote.fail = true
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, path)
+	manifest, _ := json.Marshal(map[string]any{"version": 1, "paths": map[string]string{
+		"server/deps":    "data",
+		"~/.cache/mix":   sum("~/.cache/mix"),
+		"/opt/toolchain": sum("/opt/toolchain"),
+		"~/.hex":         "not-its-digest",
+		"../escape":      sum("../escape"),
+	}})
+	writeFile(t, filepath.Join(path, ".tuist-paths"), string(manifest))
+	if err := b.Seal(slot, path); err == nil {
+		t.Fatal("upload failure was not reported")
+	}
+	// The retry finds the branch verified and unmounted: the manifest is gone.
+	os.Remove(filepath.Join(path, ".tuist-paths"))
+	remote.fail = false
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	want := `["/opt/toolchain","server/deps","~/.cache/mix"]`
+	if len(remote.paths) != 2 || remote.paths[0] != want || remote.paths[1] != want {
+		t.Fatalf("reported %q, want %s twice", remote.paths, want)
+	}
+
+	b, remote = newLocal(t)
+	other := Slot{Identity: identity(second), PodUID: "q"}
+	otherPath := t.TempDir()
+	if err := b.Attach(context.Background(), other, otherPath); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, otherPath)
+	outside := filepath.Join(t.TempDir(), "manifest")
+	writeFile(t, outside, string(manifest))
+	if err := os.Symlink(outside, filepath.Join(otherPath, ".tuist-paths")); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Seal(other, otherPath); err != nil {
+		t.Fatal(err)
+	}
+	if len(remote.paths) != 1 || remote.paths[0] != "" {
+		t.Fatal("followed a manifest outside the volume:", remote.paths)
 	}
 }

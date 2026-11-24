@@ -826,9 +826,9 @@ defmodule Tuist.Tests.RunSelections do
   end
 
   @doc """
-  One test run's `%{scope_tests, avoided_tests}`, or nil while its row is not
-  recorded yet. The row carries the run's `ran_at`, which bounds the read to
-  its partition.
+  One test run's `%{strategy, scope_tests, avoided_tests, estimated_tests}`,
+  or nil while its row is not recorded yet. The row carries the run's
+  `ran_at`, which bounds the read to its partition.
   """
   def get_run(project_id, test_run_id, %NaiveDateTime{} = ran_at) do
     ClickHouseRepo.one(
@@ -836,9 +836,53 @@ defmodule Tuist.Tests.RunSelections do
         where: s.project_id == ^project_id and s.test_run_id == ^test_run_id and s.ran_at == ^usec(ran_at),
         order_by: [desc: s.inserted_at],
         limit: 1,
-        select: %{scope_tests: s.scope_tests, avoided_tests: s.avoided_tests}
+        select: %{
+          strategy: s.strategy,
+          scope_tests: s.scope_tests,
+          avoided_tests: s.avoided_tests,
+          estimated_tests: s.estimated_tests
+        }
       )
     )
+  end
+
+  @doc """
+  The latest recorded strategy of each of `test_run_ids` that has a row, by
+  id: one read by the table's sorting key.
+  """
+  def strategies(project_id, test_run_ids) do
+    from(s in RunSelection,
+      where: s.project_id == ^project_id and s.test_run_id in ^test_run_ids,
+      group_by: s.test_run_id,
+      select: {s.test_run_id, fragment("argMax(?, ?)", s.strategy, s.inserted_at)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  @doc """
+  The Flop filter of test runs by selection strategy (`coverage` or
+  `module_hash`), as `Tuist.Tests.Test`'s `selective_testing` field: `==`
+  keeps the runs whose latest row has the strategy, `!=` the others,
+  including runs without a row. A fallback recorded under its impact run's
+  strategy, so `coverage` includes them. Takes the project from
+  `extra_opts`, so only its rows are read, by the table's sorting key.
+  """
+  def strategy_filter(query, %Flop.Filter{op: op, value: strategy}, opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    ids =
+      from(s in RunSelection,
+        where: s.project_id == ^project_id,
+        group_by: s.test_run_id,
+        having: fragment("argMax(?, ?)", s.strategy, s.inserted_at) == ^strategy,
+        select: s.test_run_id
+      )
+
+    case op do
+      :== -> from(t in query, where: t.id in subquery(ids))
+      :!= -> from(t in query, where: t.id not in subquery(ids))
+    end
   end
 
   @doc """

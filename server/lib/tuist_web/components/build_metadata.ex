@@ -2,7 +2,7 @@ defmodule TuistWeb.Components.BuildMetadata do
   @moduledoc false
   use TuistWeb, :html
 
-  import Noora.Button, only: [neutral_button: 1]
+  import Noora.Button, only: [ghost_button: 1]
   import Noora.Card, only: [card: 1, card_section: 1]
   import Noora.Icon, only: [chevron_down: 1]
   import Noora.Table, only: [table: 1, text_cell: 1]
@@ -64,7 +64,8 @@ defmodule TuistWeb.Components.BuildMetadata do
         data-state="closed"
       >
         <:actions>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             id="build-environment-toggle"
             data-part="trigger"
             phx-click={
@@ -79,7 +80,7 @@ defmodule TuistWeb.Components.BuildMetadata do
             aria-controls="build-environment-content"
           >
             <.chevron_down />
-          </.neutral_button>
+          </.ghost_button>
         </:actions>
         <.card_section
           id="build-environment-content"

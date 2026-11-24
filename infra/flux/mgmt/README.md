@@ -2,21 +2,22 @@
 
 Flux reconciles management-cluster desired state from git onto the
 self-hosted CAPI + caph **management cluster** (three-node Talos). This is
-**Pillar 1** of [hive/specs/72](https://hive.tuist.dev/specs/72): continuous
+**Pillar 1** of [spec 72](https://atlas.tuist.dev/engineering/specs/72): continuous
 GitOps reconciliation, so drift is corrected on an interval instead of only
 on merge, and no routine change needs the break-glass kubeconfig.
 
-Health alerting is a separate, independent path — **Pillar 2**, Grafana
-Cloud (`infra/helm/k8s-monitoring/values-management.yaml` +
-`infra/helm/k8s-monitoring/alerts.md`). A GitOps dashboard is not the health
-mechanism; a degraded control plane pages via Grafana Cloud.
+Health alerting is a separate, independent path — **Pillar 2**
+(`infra/helm/k8s-monitoring/values-management.yaml` +
+`infra/helm/k8s-monitoring/alerts.md`): metrics are stored in management's own
+Pulse, and Grafana Cloud evaluates the rules over them. A GitOps dashboard is
+not the health mechanism; a degraded control plane pages via Grafana Cloud.
 
 ## What Flux owns (and deliberately does not)
 
 | Owned by Flux | Kept on `mgmt-cluster-apply.yml` |
 |---|---|
 | `tuist-staging`, `tuist-canary`, `tuist` (production) | `clusterclass-tuist.yaml`, `bare-metal*.yaml` (immutable templates — the delete-and-apply fallback for `field is immutable` can't be reproduced by a Kustomization) |
-| tenants `hive-production`, `once-production`, `atlas-production` | `cluster-pentest.yaml` (isolated security-assessment cluster) |
+| tenant `atlas-production` | `cluster-pentest.yaml` (isolated security-assessment cluster) |
 | Cloudflare operator Helm release and `tuist.dev` rate-limit configuration; management's own Pulse and its Grafana PDC agent | the other mgmt-side workloads (etcd-snapshot, tailscale, autoscaler, hetzner-robot-controller) |
 
 One Flux `Kustomization` per cluster (`cluster-*.yaml` here), each `path`
@@ -238,7 +239,7 @@ empty diff means the first sync changes nothing; anything else is a live
 mutation you are about to make unattended.
 
 ```bash
-for c in staging canary production hive once atlas; do
+for c in staging canary production atlas; do
   echo "== $c =="
   kubectl kustomize "infra/k8s/clusters/workloads/$c" | kubectl diff -f - || true
 done

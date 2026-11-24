@@ -313,7 +313,9 @@ As an on-premise user, you'll receive a license that you'll need to expose as an
 | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
 | `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |
-| `TUIST_SECRET_KEY_ENCRYPTION` | 32-byte key for AES-GCM encryption of sensitive data | No | `$TUIST_SECRET_KEY_BASE` | |
+| `TUIST_SECRET_KEY_ENCRYPTION` | Key for AES-GCM encryption of sensitive data. Values longer than 32 bytes are cut to their first 32 bytes; prefer `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | No | `$TUIST_SECRET_KEY_BASE` | |
+| `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | Comma-separated `id:base64` encryption keys, each 32 bytes (`openssl rand -base64 32`). The first encrypts new data; the others and `TUIST_SECRET_KEY_ENCRYPTION` (id `V1`) still decrypt existing data. Move existing data to the current key with `bin/tuist eval 'Tuist.Release.reencrypt_vault("<id>")'` | No | | `k2:3q2+7w...` |
+| `TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY` | Id of the key that encrypts new data, when it should not be the first of `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | No | | `V1` |
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
 | `TUIST_GITHUB_APP_NAME` | The slug of your GitHub app, taken from `https://github.com/apps/<slug>`. Required to install the app. See <.localized_link href="/guides/server/self-host/server#platform-github">GitHub</.localized_link> | No | | `my-app` |
@@ -595,7 +597,7 @@ Grant the **Members: read-only** organization permission as well. During github.
 
 Subscribe the App to the `Check run`, `Pull request`, and `Issue comment` events.
 
-Keep **Request user authorization (OAuth) during installation** disabled so GitHub sends installers to the Setup URL. Tuist starts a separate authorization step using the additional `/integrations/github/authorize` callback to verify installation ownership. When installation starts on GitHub, the installer then selects a Tuist organization; installs started in Tuist retain their organization.
+Keep **Request user authorization (OAuth) during installation** disabled so GitHub sends installers to the Setup URL. Tuist starts a separate authorization step using the additional `/integrations/github/authorize` callback to verify installation ownership. When installation starts on GitHub, the installer then selects a Tuist organization. Installations on a GitHub organization always show this choice; installs started in Tuist retain their organization.
 
 ##### Configuring the server {#platform-github-configuring-the-server}
 

@@ -1,49 +1,102 @@
+/* A 20px box, the line height of medium body text, with the 16px checkbox
+   centered inside. States are set on the control; the box draws them. */
 .noora-checkbox-control {
+  /* The unchecked fill, which a hover can change. */
+  --noora-checkbox-surface: var(--noora-surface-background-primary);
+
   display: flex;
+  flex: none;
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  box-sizing: border-box;
-  border-radius: var(--noora-radius-2);
-  width: 16px;
-  height: 16px;
-  color: var(--noora-choice-selector-label);
+  width: 20px;
+  height: 20px;
+  color: var(--noora-button-primary-label);
 
-  & svg {
-    width: 12px;
-    height: 12px;
+  /* The box is always drawn unchecked, like an outline ghost button. */
+  & > [data-part="box"] {
+    position: relative;
+    box-sizing: border-box;
+    box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-outline-border);
+    border-radius: var(--noora-radius-2);
+    background: var(--noora-checkbox-surface);
+    width: 16px;
+    height: 16px;
   }
 
+  /* The checked fill, drawn like a primary button on a layer over the box,
+     so it can grow in when the box is checked and shrink away when it's
+     unchecked. */
+  & > [data-part="box"]::before {
+    position: absolute;
+    transform: scale(0.6);
+    opacity: 0;
+    transition:
+      opacity 100ms var(--ease-out-cubic),
+      transform 100ms var(--ease-out-cubic);
+    inset: 0;
+    box-shadow: var(--noora-button-border-primary);
+    border-radius: inherit;
+    background: var(--noora-button-background-primary);
+    content: "";
+  }
+
+  &[data-state="checked"] > [data-part="box"]::before,
+  &[data-state="indeterminate"] > [data-part="box"]::before {
+    transform: none;
+    opacity: 1;
+    transition:
+      opacity 150ms var(--ease-out-cubic),
+      transform 150ms var(--ease-out-cubic);
+  }
+
+  /* The marks fill the box, stacked over the fill; their paths are centered
+     on its grid. Each is drawn along its length (pathLength is 1): the
+     offset hides it, a little past its length so no cap shows. Leaving its
+     state, a mark fades out with the fill and only then resets. */
   & [data-part="check"],
   & [data-part="minus"] {
-    display: none;
-    width: 12px;
-    height: 12px;
-    color: var(--noora-choice-selector-label);
+    position: absolute;
+    inset: 0;
+    transform: scale(0.6);
+    transition: transform 100ms var(--ease-out-cubic);
+    width: 100%;
+    height: 100%;
+    color: var(--noora-button-primary-label);
 
-    & svg {
-      width: 100%;
-      height: 100%;
+    & path {
+      opacity: 0;
+      transition:
+        opacity 100ms var(--ease-out-cubic),
+        stroke-dashoffset 0s linear 100ms;
+      stroke-dasharray: 1 2;
+      stroke-dashoffset: 1.05;
     }
   }
 
-  &[data-state="unchecked"] {
-    box-shadow: var(--noora-border-light-default);
-    background: var(--noora-choice-selector-uncheck-background);
-  }
-
-  &[data-state="checked"],
-  &[data-state="indeterminate"] {
-    box-shadow: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset;
-    border: 1px solid var(--noora-purple-500);
-    background: var(--noora-choice-selector-check-background);
-  }
-
-  &[data-state="checked"] [data-part="check"] {
-    display: flex;
-  }
-
+  /* A mark scales with the fill, so the two move as one. */
+  &[data-state="checked"] [data-part="check"],
   &[data-state="indeterminate"] [data-part="minus"] {
-    display: flex;
+    transform: none;
+    transition: transform 150ms var(--ease-out-cubic);
+  }
+
+  /* The mark draws itself once the fill is on its way. Transitions, not
+     animations, so a box that loads or re-renders checked doesn't redraw. */
+  &[data-state="checked"] [data-part="check"] path,
+  &[data-state="indeterminate"] [data-part="minus"] path {
+    opacity: 1;
+    transition: stroke-dashoffset 180ms var(--ease-out-quad) 60ms;
+    stroke-dashoffset: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &[data-state] > [data-part="box"]::before,
+    &[data-state] [data-part="check"],
+    &[data-state] [data-part="minus"],
+    &[data-state] [data-part="check"] path,
+    &[data-state] [data-part="minus"] path {
+      transition: none;
+    }
   }
 }

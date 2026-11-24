@@ -1,4 +1,4 @@
-რეესტრის იდენტიფიკატორი ყოველთვის `{organization}.{repository}` ფორმატითაა. მაგალითად, `swift-composable-architecture` პაკეტის რეესტრის გამოსაყენებლად გააკეთეთ შემდეგი:
+რეგისტრის იდენტიფიკატორი ყოველთვის არის `{organization}.{repository}` ფორმატში. მაგალითად, `swift-composable-architecture` პაკეტის რეგისტრის გამოსაყენებლად, გააკეთეთ შემდეგი:
 
 ```diff
 dependencies: [

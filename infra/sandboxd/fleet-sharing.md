@@ -79,8 +79,8 @@ work. There is no sandbox count: the account's disk limit charges every sandbox
 on a node, paused ones included, with its workspace and memory image.
 
 A host reservation or unhealthy node revokes admission and reclaims eligible idle
-sandboxes. It also moves the node's paused sandboxes to object storage, one upload
-at a time, with their memory images, so their sessions resume warm on
+sandboxes. Once the reclaim has lasted two minutes, it also moves the node's
+paused sandboxes to object storage, one upload at a time, with their memory images, so their sessions resume warm on
 another node of the same snapshot compatibility (processes kept) instead of
 waiting for this one; a resume the node refuses for room does the same for
 that sandbox. CI waits on neither: a paused sandbox holds no memory, and its
@@ -93,7 +93,11 @@ The lexicographically first enabled pool in each fleet publishes per-node grants
 through `POST /api/internal/sandboxes/allocation`, authenticated as the exact
 runners-controller ServiceAccount. A grant is an admission ceiling, not a request
 to grow a daemon. It carries the daemon Pod name, observation timestamp, maximum
-memory, currently free memory and a reclaim flag. Grants expire after 15 seconds.
+memory, currently free memory and a reclaim flag. On a host that also runs a
+remote execution worker, each daemon's grant also carries the memory it counted
+the other carve-out at; the server takes what that carve-out was asked to grow
+by since then off the grant, and both daemons share the host's advisory lock.
+Grants expire after 15 seconds.
 The database stores them on `sandbox_nodes`, under the node advisory lock, and
 rejects older/equal observations. Controller and server clocks must be synchronized;
 observations more than one second in the future are refused. Pod replacement
@@ -149,10 +153,66 @@ in two services. Refuse new sandbox placement before exhausting the host reserve
 paused sessions remain charged until their files are deleted. A joint dynamic
 disk allocator can follow after measured occupancy justifies it.
 
-Keep the existing CPU request initially. Increasing it reserves scheduler capacity
-but does not create idle CPU and can remove runner seats. Measure CI CPU contention
-before selecting CPU weights, caps or elastic requests. Memory accounting alone
-is not proof that sandboxes have no effect on running CI latency.
+Sandboxes burst, the way [Modal's do](https://modal.com/blog/sandbox-bursting):
+each creating, resuming or running Linux agent sandbox boots with 16 vCPUs, is
+guaranteed a quarter vCPU per GiB of its memory (the hosts' own ratio), and runs on any idle core of the node's shared pool up
+to its vCPUs. Its shape only picks its memory, which stays reserved. It is billed,
+at every 30-second node report, for the larger of its guarantee and the
+CPU its VM used (`sandbox_usage_events`), plus its memory, at Tuist Runners' Linux rates, and the account's concurrency counts its
+guarantee. Guests have no CPU limit. The server raises the daemon's CPU request in place, from the
+chart's `sandboxes.cpu` floor up to `sandboxes.maxCpu` (passed to the server, not
+the daemons, so changing it pauses no sandbox), to the floor plus those
+guarantees, and lowers it as sandboxes pause (`Capacity.sync_cpu/1`, on every
+grant and every minute). The request keeps those cores out of exclusive-CPU
+runners, which otherwise take whole cores from the pool the guests burst into,
+and weighs the guests against the pool's other Pods when it is contended.
+
+Inside the daemon's Pod, each VM runs in its own cgroup (`vm-<id>`, beside the
+daemon's own `sandboxd` leaf) with `cpu.weight` a tenth of its guarantee in
+millicores, so under contention the guests split the Pod's share in proportion
+to their guarantees and one busy sandbox cannot take a neighbour's. Memory stays
+limited at the container's cgroup, but each VM's cgroup also accounts its own
+(`memory.current`, reported as `memory_current_bytes`) and protects its guest
+memory with `memory.low`, so the reclaim the container's limit drives takes the
+daemon's page cache before a guest's pages. `memory.low` rather than
+`memory.min`: the carve-out is reserved memory plus 512 MiB, so the kernel must
+still be able to drop a running guest's clean memory-file pages before it
+OOM-kills the container, which `memory.min` forbade. A creator can pick a larger
+guarantee for a Linux sandbox (1, 2, 4 or 8 vCPUs: API and MCP
+`guaranteed_vcpus`, CLI `--guaranteed-vcpus`). A sandbox is only placed on a
+node whose hello offers `cpu_guarantees` if its guarantee fits under the
+daemon's CPU ceiling and in the grant's free CPU; a node without per-VM
+cgroups, or whose controller reports no free CPU, takes only sandboxes without
+a picked guarantee (`Capacity.cpu_room?/2`).
+
+Placement packs agent sandboxes onto the node that already runs the most of
+them, while it has room: mostly idle sandboxes burst into each other's idle
+cores rather than beside CI jobs that keep theirs busy, and the nodes left
+without a sandbox take whole runners.
+
+A growth goes into CPU no Pod requests (`cpu_free_milli` in the grant; an
+older controller sends none, and its nodes' requests do not grow) and into CPU
+idle warm runners hold (`cpu_reclaimable_milli`), the way memory growths take
+idle runners' memory: guarantees outrank warm CI seats, never running jobs. The
+kubelet defers the part idle runners hold, and the runners-controller retires
+the oldest idle warm runners on the node until their CPU covers it
+(`deferredCPU`, the same path as a deferred memory growth). The kubelet judges a
+Pod's resize as a whole, so a deferred CPU growth holds up the daemon's memory
+growths too: the grant counts the daemon at the CPU the kubelet allocated, and
+when a runner claims a job before it is retired, the next sync lowers the
+request to what fits. A request is cached only once applied. A guarantee that
+fits neither waits for CPU to free up; admission does not wait for it. A shrink
+always goes ahead. The runners-controller already subtracts the daemon's CPU request
+from its seat accounting.
+
+Production measurements over the week to 2026-11-17 (5-minute rates, before
+exclusive CPUs reached every even shape): runner hosts were busy 8-52% at p95
+and at most 89%, CPU pressure (PSI some) stayed under 3.3% at p95 and 15% at
+most, sandbox guests used up to 9.6 cores on one host and 36 across the fleet,
+and a running sandbox averaged 0.54 cores. With at most 7 running sandboxes on a
+host, their guarantees reserve under 2 cores, well below the default 8-core
+ceiling. A 16-vCPU guest on a host whose shared pool exclusive runners have
+shrunk overcommits its vCPUs; that slows bursts, not the guarantee.
 
 ## Validation and rollout
 

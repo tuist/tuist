@@ -559,7 +559,7 @@ if previous_repository_id do
   Repo.delete_all(from(r in GitHistory.Repository, where: r.id == ^previous_repository_id))
 end
 
-for table <- ["coverage_files", "coverage_runs"] do
+for table <- ["coverage_files", "coverage_run_files", "coverage_file_layouts", "coverage_runs"] do
   IngestRepo.query!("DELETE FROM #{table} WHERE project_id = {project_id:Int64}", %{project_id: project.id})
 end
 

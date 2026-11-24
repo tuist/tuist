@@ -1,9 +1,7 @@
 defmodule Atlas.MCP.Tools.SendMyGmailDraft do
   @moduledoc """
-  Sends a draft from the caller's own mailbox after its owner approved that
-  exact content in Atlas. The approval pins a digest of the recipients,
-  subject, body and attachments, is spent by one send and expires after an
-  hour; a draft that changed since then needs a new approval.
+  Sends a draft immediately from the caller's own mailbox. The calling client
+  handles user confirmation; Atlas does not create a separate approval.
   """
 
   use Atlas.MCP.Tool,
@@ -35,11 +33,10 @@ defmodule Atlas.MCP.Tools.SendMyGmailDraft do
 
   @impl EMCP.Tool
   def description do
-    "Send a draft from the caller's own Gmail mailbox. Every send needs the mailbox owner's approval of the draft's " <>
-      "current recipients, subject and body: the first call files a request and returns a link, the person reviews " <>
-      "and approves it in Atlas, and the same call then sends the draft once. The person may edit the draft before " <>
-      "approving, so read the sent message with get_my_gmail_message if you need its final text. Editing the draft " <>
-      "after approval voids it. Requires Allow Gmail drafts in Atlas settings."
+    "Send the current draft immediately from the caller's own Gmail mailbox, including its recipients, body and " <>
+      "attachments. The calling client must obtain user confirmation before calling; Atlas has no separate approval step. " <>
+      "Requires Allow Gmail drafts in Atlas settings and a personal Atlas MCP session. " <>
+      "If the send is unconfirmed, check Sent with search_my_gmail before retrying to avoid duplicate mail."
   end
 
   def execute(conn, args) do
@@ -50,34 +47,18 @@ defmodule Atlas.MCP.Tools.SendMyGmailDraft do
          {:ok, sent} <- Gmail.send_draft(user, args["draft_id"]) do
       {:ok, sent}
     else
-      {:error, {:approval_required, approval, changed?}} -> {:error, approval_message(approval, changed?)}
       {:error, :send_unconfirmed} -> {:error, unconfirmed_message()}
       error -> GmailSerializers.error(error)
     end
   end
 
-  # Approval-gated tools run only over a person's own Atlas MCP session.
+  # Sending remains limited to a person's own Atlas MCP session.
   defp mcp_user(%{assigns: %{current_user: %User{} = user, audit_interface: "mcp"}}), do: user
 
-  defp mcp_user(_conn),
-    do: {:error, "Sending Gmail drafts needs the mailbox owner's approval and is only callable over Atlas MCP."}
-
-  defp approval_message(approval, changed?) do
-    prefix =
-      if changed?,
-        do: "The draft changed after it was approved, so that approval no longer covers it. ",
-        else: ""
-
-    prefix <>
-      "Sending this draft needs the mailbox owner's approval of its current content. Ask the person you are " <>
-      "working for to review request #{approval.id} at " <>
-      "#{AtlasWeb.Endpoint.url()}/approvals/#{approval.id} " <>
-      "(it expires at #{DateTime.to_iso8601(approval.expires_at)}), then repeat the call without editing the draft. " <>
-      "Never approve it yourself."
-  end
+  defp mcp_user(_conn), do: {:error, "Sending Gmail drafts is only callable over a personal Atlas MCP session."}
 
   defp unconfirmed_message do
-    "Gmail did not confirm the send and the approval is spent. Check the Sent folder with search_my_gmail " <>
-      "(in:sent) before asking for a new approval; do not retry blindly."
+    "Gmail did not confirm the send. Check the Sent folder with search_my_gmail " <>
+      "(in:sent) before retrying; the message may already have been sent."
   end
 end

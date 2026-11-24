@@ -15,9 +15,11 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
   alias Tuist.Billing.UsagePricing
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.CacheVolumeBilling
+  alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Trials
 
   # Unfortunately, this data can't be obtained and cached
@@ -151,9 +153,11 @@ defmodule Tuist.Billing do
     # so neither Meter exists yet, and reporting to an unprovisioned meter
     # just errors the job and adds Sentry noise. Each platform turns on
     # independently, the moment its key lands in config.
+    # Remote execution rides on the Linux meter, so its time is part of
+    # that platform's value rather than a meter of its own.
     runner_values =
       account_id
-      |> RunnerBilling.compute_units_by_platform(period_start, period_end)
+      |> RemoteExecutionUsage.metered_units_by_platform(period_start, period_end)
       |> Enum.map(fn usage ->
         %{event_name: RunnerBilling.meter_event_name(usage.platform), value: usage.total_units}
       end)
@@ -638,6 +642,62 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Moves `subscription` onto the Pro plan at `starts_at`, through a Stripe
+  subscription schedule, so a customer can agree today to be billed from a
+  later date.
+
+  The schedule keeps the subscription's items until `starts_at`, then swaps
+  them for the Pro items `update_plan/1` would put on it, starts a new billing
+  cycle there and charges the customer's default payment method from then on.
+  Proration is off: the old phase is not settled. Its metered items, if any,
+  stop counting usage at the swap, so the swap is meant for subscriptions
+  without metered usage of their own, such as a $0 Enterprise one. After the
+  switch the schedule releases the subscription, which then renews as Pro.
+
+  When Stripe refuses the phases, the schedule it created is released again,
+  so the subscription is left as it was.
+  """
+  def schedule_pro_plan(%Account{} = account, %Subscription{} = subscription, %DateTime{} = starts_at) do
+    with {:ok, schedule} <- Stripe.SubscriptionSchedule.create(%{from_subscription: subscription.subscription_id}) do
+      [current_phase | _] = schedule.phases
+
+      phases = [
+        %{
+          items: Enum.map(current_phase.items, &schedule_phase_item/1),
+          start_date: current_phase.start_date,
+          end_date: DateTime.to_unix(starts_at)
+        },
+        %{
+          items: get_subscription_items("pro", account),
+          billing_cycle_anchor: "phase_start",
+          proration_behavior: "none",
+          collection_method: "charge_automatically"
+        }
+      ]
+
+      case Stripe.SubscriptionSchedule.update(schedule.id, %{phases: phases, end_behavior: "release"}) do
+        {:ok, schedule} ->
+          {:ok, schedule}
+
+        {:error, reason} ->
+          Stripe.SubscriptionSchedule.release(schedule.id)
+          {:error, reason}
+      end
+    end
+  end
+
+  # A phase item names its Price by ID, expanded or not, and carries a
+  # quantity only when it is licensed.
+  defp schedule_phase_item(item) do
+    price_id = with %{id: id} <- item.price, do: id
+
+    case Map.get(item, :quantity) do
+      nil -> %{price: price_id}
+      quantity -> %{price: price_id, quantity: quantity}
+    end
+  end
+
+  @doc """
   Whether a Stripe customer already has the name, email and address an
   invoice-billed Enterprise subscription needs, so `upgrade_to_enterprise/2`
   can run with `%{}` instead of asking for them.
@@ -1116,7 +1176,8 @@ defmodule Tuist.Billing do
         lookback = DateTime.add(now, -@runner_price_swap_lookback_days, :day)
         since = Enum.min([DateTime.from_unix!(period_start), lookback], DateTime)
 
-        RunnerBilling.compute_milliseconds(account_id, since, now) > 0
+        RunnerBilling.compute_milliseconds(account_id, since, now) > 0 or
+          RemoteExecutionUsage.compute_units(account_id, since, now) > 0
 
       _ ->
         true
@@ -1264,37 +1325,45 @@ defmodule Tuist.Billing do
     current_period_start = stripe_timestamp(subscription, :current_period_start)
     current_period_end = stripe_timestamp(subscription, :current_period_end)
 
-    cond do
-      plan == :none ->
-        raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
+    stored =
+      cond do
+        plan == :none ->
+          raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
 
-      is_nil(current_subscription) ->
-        %Subscription{}
-        |> Subscription.create_changeset(%{
-          plan: plan,
-          subscription_id: subscription.id,
-          status: subscription.status,
-          account_id: account.id,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
-          current_period_start: current_period_start,
-          current_period_end: current_period_end
-        })
-        |> Repo.insert!()
+        is_nil(current_subscription) ->
+          %Subscription{}
+          |> Subscription.create_changeset(%{
+            plan: plan,
+            subscription_id: subscription.id,
+            status: subscription.status,
+            account_id: account.id,
+            default_payment_method: subscription.default_payment_method,
+            trial_end: trial_end,
+            cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+            current_period_start: current_period_start,
+            current_period_end: current_period_end
+          })
+          |> Repo.insert!()
 
-      true ->
-        current_subscription
-        |> Subscription.update_changeset(%{
-          plan: plan,
-          status: subscription.status,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
-          current_period_start: current_period_start,
-          current_period_end: current_period_end
-        })
-        |> Repo.update!()
+        true ->
+          current_subscription
+          |> Subscription.update_changeset(%{
+            plan: plan,
+            status: subscription.status,
+            default_payment_method: subscription.default_payment_method,
+            trial_end: trial_end,
+            cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+            current_period_start: current_period_start,
+            current_period_end: current_period_end
+          })
+          |> Repo.update!()
+      end
+
+    # Air starts with lower runner limits than the paid plans; a live paid
+    # subscription brings the account up to its plan's. `plan` is
+    # `get_plan/1`'s string, the stored row's is the atom.
+    if stored.status in @live_subscription_statuses do
+      RunnerConcurrency.raise_to_plan_defaults(account, stored.plan)
     end
 
     notify_when_turned_unpaid(account, current_subscription, subscription)
@@ -1607,14 +1676,21 @@ defmodule Tuist.Billing do
   Whether the account's metered cache usage this month has reached either
   cache allowance, regardless of its plan.
 
+  An account on a runner trial never has: the trial is extended to accounts
+  we are bringing onto runners, typically before they subscribe, and it would
+  defeat it to cut their cache off at Air's caps meanwhile. Every Air limit
+  that reads this (`cache_access_blocked?/1`, `cache_blocked_account_ids/1`
+  and the API's `BillingPlug`) therefore leaves a trial account alone.
+
   Both counters are refreshed nightly, so the check never reaches ClickHouse
   from the cache authorization path.
   """
   def over_free_tier?(%Account{} = account) do
-    UsagePricing.cache_allowance_reached?(%{
-      egress_megabytes: account.current_month_cache_egress_megabytes,
-      requests: account.current_month_cache_requests
-    })
+    not Trials.on_trial?(account) and
+      UsagePricing.cache_allowance_reached?(%{
+        egress_megabytes: account.current_month_cache_egress_megabytes,
+        requests: account.current_month_cache_requests
+      })
   end
 
   defp latest_subscription([subscription | subscriptions]) do

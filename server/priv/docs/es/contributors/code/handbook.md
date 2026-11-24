@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Manual",
+  "title": "Guía",
   "titleTemplate": ":title · Código · Colaboradores · Tuist",
-  "description": "Contribuye al Manual de Tuist."
+  "description": "Contribuye a la Guía de Tuist."
 }
 ---
 # Manual {#handbook}
@@ -11,7 +11,7 @@ Fuente: [github.com/tuist/tuist/tree/main/handbook](https://github.com/tuist/tui
 
 ## Para qué sirve {#what-it-is-for}
 
-El manual documenta cómo funciona Tuist como empresa: valores, políticas y prácticas de ingeniería. Es un sitio de VitePress.
+El manual describe cómo funciona Tuist como empresa: valores, políticas y prácticas de ingeniería. Es un sitio de VitePress.
 
 ## Cómo contribuir {#how-to-contribute}
 

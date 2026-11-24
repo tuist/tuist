@@ -13,6 +13,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 )
 
 const (
@@ -101,7 +102,7 @@ type provisioningAdmission struct {
 }
 
 func isLinuxKataPool(pool *tuistv1.RunnerPool) bool {
-	return pool.Spec.OS == "linux" && pool.Spec.RuntimeClass == "kata-qemu"
+	return pool.Spec.OS == "linux" && podtemplate.IsKataRuntimeClass(pool.Spec.RuntimeClass)
 }
 
 // isLinuxProvisioningPod is true until the dispatch poller starts. A

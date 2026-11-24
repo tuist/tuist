@@ -60,7 +60,20 @@ type Spec struct {
 	GID            int
 	NetNS          string
 	NetNSDir       string
+	// Cgroup, when set, is the cgroup v2 directory the process is spawned
+	// into (clone3 CLONE_INTO_CGROUP), so Firecracker and its vCPU threads
+	// run there from their first instruction. The jailer moves nothing
+	// without --cgroup arguments.
+	Cgroup *os.File `json:"-"`
+	// MountNS, when set, is the mount namespace the process starts in
+	// (nsenter --mount): the daemon's, when the vmm container spawns it, so
+	// the jailer sees the network namespaces and lazy-disk mounts the daemon
+	// made in its own namespace.
+	MountNS *os.File `json:"-"`
 }
+
+// NsenterBin runs a spawn inside Spec.MountNS.
+var NsenterBin = "nsenter"
 
 // Instance is a spawned Firecracker process.
 type Instance interface {
@@ -71,9 +84,13 @@ type Instance interface {
 	API() *firecracker.Client
 	VsockPath() string
 	PID() int
-	// CPUTime is the VMM process's user and system time, its vCPU threads
-	// included; false where it cannot be read.
+	// CPUTime is the guest's CPU time: the user and system time of the
+	// VM's vCPU threads, without the VMM's own device emulation; false
+	// where it cannot be read.
 	CPUTime() (time.Duration, bool)
+	// ResidentMemory is what the VMM process holds resident; false where it cannot
+	// be read.
+	ResidentMemory() (Memory, bool)
 	Done() <-chan struct{}
 	ExitError() error
 	Kill(ctx context.Context) error
@@ -197,6 +214,16 @@ func (l *FirecrackerLauncher) Launch(ctx context.Context, spec Spec) (Instance, 
 	if err := Prepare(root, spec.UID, spec.GID); err != nil {
 		return nil, fmt.Errorf("preparing jail %s: %w", root, err)
 	}
+	// The jailer copies Firecracker into the jail root and fails with
+	// ETXTBSY when a killed predecessor's image is still mapped, as after a
+	// warm restore whose userfaultfd server still held its memory. Unlinking
+	// the copy lets the jailer write a new one either way.
+	if spec.JailerEnabled {
+		jailed := filepath.Join(root, filepath.Base(spec.FirecrackerBin))
+		if err := os.Remove(jailed); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("removing %s: %w", jailed, err)
+		}
+	}
 	logFile, err := openCappedLog(filepath.Join(root, LogFileName), MaxLogBytes)
 	if err != nil {
 		return nil, err
@@ -212,11 +239,24 @@ func (l *FirecrackerLauncher) Launch(ctx context.Context, spec Spec) (Instance, 
 		return nil, err
 	}
 	bin, args := Command(spec)
+	if spec.MountNS != nil {
+		// ExtraFiles start at fd 3. nsenter execs in place, so the process
+		// group below is still the jailer's.
+		args = append([]string{"--mount=/proc/self/fd/3", "--wd=" + root, "--", bin}, args...)
+		bin = NsenterBin
+	}
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = root
+	if spec.MountNS != nil {
+		cmd.ExtraFiles = []*os.File{spec.MountNS}
+	}
 	cmd.Stdout = pipeW
 	cmd.Stderr = pipeW
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if spec.Cgroup != nil {
+		cmd.SysProcAttr.UseCgroupFD = true
+		cmd.SysProcAttr.CgroupFD = int(spec.Cgroup.Fd())
+	}
 	fmt.Fprintf(logFile, "\n==== %s sandboxd spawn: %s %s\n", time.Now().UTC().Format(time.RFC3339), bin, strings.Join(args, " "))
 	if err := cmd.Start(); err != nil {
 		pipeW.Close()
@@ -490,20 +530,107 @@ func (l *cappedLog) Close() error {
 	return l.file.Close()
 }
 
-func (m *machine) CPUTime() (time.Duration, bool) { return processCPUTime(m.PID()) }
+func (m *machine) CPUTime() (time.Duration, bool) { return vcpuCPUTime("/proc", m.PID()) }
 
 // userHZ is the unit of utime and stime in /proc/<pid>/stat.
 const userHZ = 100
 
-func processCPUTime(pid int) (time.Duration, bool) {
+// vcpuThreadPrefix names Firecracker's vCPU threads (`fc_vcpu <index>`).
+// Its other threads (the VMM's event loop, which emulates the virtio
+// devices, and the API server) do the host's work for the guest, which
+// the guest cannot see and is not billed for.
+const vcpuThreadPrefix = "fc_vcpu"
+
+// vcpuCPUTime sums the CPU time of the process's vCPU threads. A process
+// without any, such as a VMM that names its threads otherwise, counts as
+// a whole.
+func vcpuCPUTime(proc string, pid int) (time.Duration, bool) {
 	if pid <= 0 {
 		return 0, false
 	}
-	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	process := filepath.Join(proc, strconv.Itoa(pid))
+	tasks, err := os.ReadDir(filepath.Join(process, "task"))
+	if err != nil {
+		return 0, false
+	}
+	var total time.Duration
+	vcpus := 0
+	for _, task := range tasks {
+		comm, err := os.ReadFile(filepath.Join(process, "task", task.Name(), "comm"))
+		if err != nil || !strings.HasPrefix(string(comm), vcpuThreadPrefix) {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(process, "task", task.Name(), "stat"))
+		if err != nil {
+			continue
+		}
+		if cpu, ok := parseStatCPUTime(string(data)); ok {
+			total += cpu
+			vcpus++
+		}
+	}
+	if vcpus > 0 {
+		return total, true
+	}
+	data, err := os.ReadFile(filepath.Join(process, "stat"))
 	if err != nil {
 		return 0, false
 	}
 	return parseStatCPUTime(string(data))
+}
+
+// Memory is a VMM process's resident memory, proportional to sharing
+// (/proc/<pid>/smaps_rollup's Pss fields), so summing it over every VM on a
+// node does not count a page twice. Guest memory restored from a memory
+// file (the File backend maps it private) is file-backed until the guest
+// writes it: clean file pages, such as the shared template memfile, are host
+// page cache the kernel can drop and read back, while anonymous pages are
+// what the guest wrote and the host can only keep (no swap).
+type Memory struct {
+	AnonBytes uint64
+	FileBytes uint64
+}
+
+func (m *machine) ResidentMemory() (Memory, bool) { return processMemory(m.PID()) }
+
+func processMemory(pid int) (Memory, bool) {
+	if pid <= 0 {
+		return Memory{}, false
+	}
+	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/smaps_rollup")
+	if err != nil {
+		return Memory{}, false
+	}
+	return parseSmapsRollup(string(data))
+}
+
+// parseSmapsRollup reads Pss_Anon, Pss_File and Pss_Shmem (kB). Shmem
+// counts as file: it is what a memfd backend would show.
+func parseSmapsRollup(text string) (Memory, bool) {
+	var mem Memory
+	found := false
+	for _, line := range strings.Split(text, "\n") {
+		key, rest, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		fields := strings.Fields(rest)
+		if len(fields) == 0 {
+			continue
+		}
+		kb, err := strconv.ParseUint(fields[0], 10, 64)
+		if err != nil {
+			continue
+		}
+		switch key {
+		case "Pss_Anon":
+			mem.AnonBytes = kb << 10
+			found = true
+		case "Pss_File", "Pss_Shmem":
+			mem.FileBytes += kb << 10
+		}
+	}
+	return mem, found
 }
 
 // parseStatCPUTime sums utime and stime, fields 14 and 15 of a

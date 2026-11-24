@@ -612,6 +612,40 @@ defmodule TuistEx.Analytics.CoverageTest do
              }
     end
 
+    test "uploads coverage that compresses under the threshold but inflates past it" do
+      # Inline, the server would inflate the run's body past the limit the
+      # threshold is meant to stay under.
+      files =
+        for n <- 1..2000,
+            do: %{path: "lib/file_#{n}.ex", line_numbers: [1, 2, 3], execution_counts: [1, 0, 1]}
+
+      coverage = %{@coverage | files: files}
+      ndjson = Enum.map_join(files, "\n", &JSON.encode!/1)
+      threshold = div(byte_size(ndjson), 2)
+      test_pid = self()
+
+      stub(HTTP, :project_request, fn
+        :get, "/tests/coverage/settings", nil, _ ->
+          {:ok, %{"inline_threshold_bytes" => threshold}}
+
+        :post, "/tests/coverage/uploads", %{test_run_id: "run"}, _ ->
+          {:ok, %{"storage_key" => "key", "upload_url" => "https://upload"}}
+      end)
+
+      stub(TuistEx.HTTP, :put_binary, fn "https://upload", compressed ->
+        send(test_pid, {:uploaded, compressed})
+        {:ok, "etag"}
+      end)
+
+      assert {:ok, %{coverage: %{storage_key: "key"} = attached}} =
+               Coverage.attach(%{id: "run"}, coverage, [])
+
+      refute Map.has_key?(attached, :files)
+      assert_received {:uploaded, compressed}
+      assert byte_size(compressed) < threshold
+      assert :zlib.unzip(compressed) == ndjson
+    end
+
     test "reports a failed upload" do
       stub(HTTP, :project_request, fn
         :get, "/tests/coverage/settings", nil, _ -> {:ok, %{"inline_threshold_bytes" => 1}}

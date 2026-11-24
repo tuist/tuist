@@ -8,17 +8,29 @@ defmodule Tuist.Tests.Coverage.Reported do
   skipped: every test of a target selective testing skipped (the command
   event names it as a hit, a scheme skipped whole included) and the tests
   the runs' skip identifiers name (`--skip-test-targets`, `-skip-testing`),
-  less what another run of their scheme executed at the commit. A test
-  quarantine skipped is outside the suite: the client doesn't report it, so
-  it is neither carried nor a gap. A target's tests are the ones it executed in the nearest
-  ancestor run that ran it, and per-test evidence
-  (`Tuist.Tests.Coverage.Evidence`) says which lines each of them ran the
-  last time it executed. What a caller's `-only-testing` left out was never
-  Tuist's to skip: it is not carried, and the figure is a lower bound. That
-  coverage is carried forward only when it provably still applies:
+  less what another run of their scheme executed at the commit, plus the
+  tests the commit's impact runs skipped, as their stored decisions say
+  (`Tuist.TestImpactAnalysis.Carry.skipped_tests/2`). A test quarantine
+  skipped is outside the suite: the client doesn't report it, so it is
+  neither carried nor a gap. A target's tests are the ones it executed in
+  the run recorded under the hash it was skipped with
+  (`Tuist.Tests.Coverage.TargetSources`), or else in the commit's baseline
+  (per scheme and platform, the checkpoint coverage-based test selection
+  would decide from at the commit). What a caller's
+  `-only-testing` left out was never Tuist's to skip: it is not carried,
+  and the figure is a lower bound.
 
-  - the evidence comes from an ancestor of the commit, from a run on a clean
-    checkout, and the nearest such ancestor wins;
+  Where each skipped test's coverage comes from, and its lines, are read
+  from coverage-based test selection's test maps
+  (`Tuist.TestImpactAnalysis.Carry` over
+  `Tuist.TestImpactAnalysis.Snapshots`), never from the runs' per-test
+  evidence rows, which expire after days. That coverage is carried forward
+  only when it provably still applies:
+
+  - a test coverage-based test selection skipped carries from the snapshot
+    whose evidence decided it, which already proved the checks below but
+    for lines; any other from the baseline's checkpoint, or from the
+    overlay the commit's impact run decided from;
   - the test passed in that run;
   - every file the test executed there, and every file its suite's setup
     executed, has the same blob at the commit, and so does every tracked file
@@ -26,12 +38,15 @@ defmodule Tuist.Tests.Coverage.Reported do
     submodule's, has no blob to compare and never counts);
   - the evidence holds lines, not only files, for every file that counts.
 
-  A test target selective testing skipped carries whole, from the evidence
-  of the target's own process, when the source run hashed the target the
-  same way the commit's run did: the same inputs, so the same tests over the
-  same code. The guards above apply to it as to a test. It needs no observer
-  scope per test, so it covers Swift Testing without the attribution trait
-  and tests that ran in parallel.
+  A test target selective testing skipped carries whole, from its
+  processes' lines in the snapshot of the run that hashed the target the
+  same way the commit's run did: the same inputs, so the same tests over
+  the same code. The guards above apply to it as to a test, but for the
+  blobs and the tracked files: the hash is trusted for every build input,
+  so a commit that changes a tracked file still carries its targets skipped
+  by hash, and nothing else.
+  It needs no observer scope per test, so it covers Swift Testing without
+  the attribution trait and tests that ran in parallel.
 
   A skipped test that fails any of these is a **gap**: nothing is carried for
   it and the figure is a lower bound, which `kind` says (`partial`), and
@@ -47,10 +62,12 @@ defmodule Tuist.Tests.Coverage.Reported do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.Environment
   alias Tuist.GitHistory
   alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
+  alias Tuist.TestImpactAnalysis.Baselines
+  alias Tuist.TestImpactAnalysis.Carry
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Evidence
@@ -58,9 +75,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.TargetSources
-  alias Tuist.Tests.Coverage.TestEvidence
   alias Tuist.Tests.Coverage.Xcode
-  alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
@@ -75,9 +91,7 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   @listing_read_paths 900
 
-  # Scope ids per evidence read: each is bound twice, once to find each
-  # shard's latest report and once to read it.
-  @scope_chunk 800
+  @carry_timeout to_timeout(minute: 2)
 
   @doc """
   The commit's reported coverage, or nil when no run measured it.
@@ -119,11 +133,16 @@ defmodule Tuist.Tests.Coverage.Reported do
       skipping = skipping(context, {runs, hits, skips, clean})
       skipping = %{skipping | gaps: skipping.gaps ++ uninstrumented(project.id, runs)}
 
+      # The hit targets that hold no tests, which a selective run's
+      # checkpoint records as carried without copying a row
+      # (`Tuist.TestImpactAnalysis.Snapshots.record/3`).
+      empty = Map.get(skipping, :empty, [])
+
       if skipping.skipped == [] and skipping.gaps == [] do
-        result(observed, "measured", [], [], {0, []}, [])
+        observed |> result("measured", [], [], {0, []}, []) |> Map.put(:empty_targets, empty)
       else
         context = Map.merge(context, skipping)
-        carry(context, {run_ids, hits, covered_schemes}, observed, excluded)
+        context |> carry({run_ids, hits, covered_schemes}, observed, excluded) |> Map.put(:empty_targets, empty)
       end
     end
   end
@@ -170,7 +189,8 @@ defmodule Tuist.Tests.Coverage.Reported do
           scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),
           build_system: fragment("any(?)", t.build_system),
           git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
-          skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at)
+          skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at),
+          test_impact_run_id: fragment("toString(argMax(?, ?))", t.test_impact_run_id, t.inserted_at)
         }
       ),
       settings: [select_sequential_consistency: 1]
@@ -185,49 +205,81 @@ defmodule Tuist.Tests.Coverage.Reported do
       project: project,
       repository_id: repository_id,
       sha: sha,
-      run_ids: run_ids,
       hits: hits,
       indexed: skipping.indexed,
       observed: observed,
       blobs: run_blobs(project.id, run_ids),
       excluded: ExcludedPaths.compile(excluded),
-      excluded_pattern: excluded,
-      baseline: skipping.baseline
+      baseline: skipping.baseline,
+      schemes: schemes,
+      impact_run_ids: skipping.impact_run_ids,
+      only_hashed: Map.get(skipping, :only_hashed, false)
     }
 
-    {units, reasons} = carried(context, skipped)
+    {units, reasons, plan} = carry_units(context, skipped)
     carried_tests = units |> Enum.flat_map(& &1.tests) |> Enum.uniq_by(& &1.test_case_id)
-    {carried_lines, sources} = unit_lines(context, units)
+    # The targets carried by hash, which a selective run's checkpoint copies
+    # (`Tuist.TestImpactAnalysis.Snapshots.record/3`).
+    targets =
+      for %{kind: :target} = unit <- units, do: Map.take(unit, [:module, :hash, :snapshot_id, :checkpoint_id, :source])
 
-    {files, gap_files, file_reasons} =
-      observed
-      |> add_carried_lines(context, carried_lines, sources)
-      |> add_unbuilt_files(context, schemes)
+    carry = %{plan: plan, excluded: excluded, targets: targets}
+    {observed, sources} = add_carried_lines(observed, context, run_ids, carry)
+
+    {files, gap_files, file_reasons} = add_unbuilt_files(observed, context, schemes)
 
     kept = MapSet.new(carried_tests, & &1.test_case_id)
     gaps = Enum.reject(skipped, &MapSet.member?(kept, &1.test_case_id))
     test_reasons = test_gap_reasons(context, gaps, reasons)
 
     kind = if gaps == [] and gap_files == 0 and run_gaps == [], do: "reported", else: "partial"
-    shas = sources |> Map.values() |> Enum.map(& &1.sha) |> Enum.uniq() |> Enum.sort()
+    shas = sources |> Enum.map(& &1.sha) |> Enum.uniq() |> Enum.sort()
 
     files
     |> result(kind, skipped, carried_tests, {gap_files, test_reasons ++ file_reasons ++ run_gaps}, shas)
-    |> Map.put(:carried_lines, carried_lines)
+    |> Map.put(:carry, carry)
   end
 
-  # A commit whose tracked files differ from every parent's carries nothing:
-  # every ancestor's evidence predates the change, so it is decided before
-  # any of it is read. Only an ancestor from before a change this commit
-  # undoes would still qualify, which is not worth carrying for. A merge
-  # whose tracked files match one parent's can still carry from that side.
-  # Without the listings, each source is checked as usual.
-  defp changes_tracked_files?(%{repository_id: repository_id}) when repository_id in [nil, 0], do: false
+  # The units carried, from snapshots (`Tuist.TestImpactAnalysis.Carry`), and
+  # where their lines are read from (`Carry.plan/1`). The lines themselves
+  # stay in ClickHouse: the fold reads only what they change in each file
+  # (`add_carried_lines/4`), and a file's page reads that file's
+  # (`carried_lines/3`).
+  defp carry_units(context, skipped) do
+    context =
+      Map.merge(context, %{
+        validity: &validity(context, &1),
+        run_blobs: &run_blobs(context.project.id, &1),
+        blobs_now: &blobs_now(context.repository_id, context.sha, &1),
+        blobs_then: &blobs_now(context.repository_id, &1, &2)
+      })
 
-  defp changes_tracked_files?(context) do
+    {units, reasons} = Carry.units(context, skipped)
+    {units, reasons, Carry.plan(units)}
+  end
+
+  # Which of the skipped tests a commit's own tracked-file change leaves
+  # carriable: `:all` when its tracked files match some parent's, and
+  # otherwise `:hashed` when targets were skipped by their hash, which is
+  # trusted for every build input, or `:none`. Every ancestor's evidence
+  # predates such a change, so it is decided before any of it is read. Only
+  # an ancestor from before a change this commit undoes would still qualify,
+  # which is not worth carrying for. A merge whose tracked files match one
+  # parent's can still carry from that side. Without the listings, each
+  # source is checked as usual.
+  defp carriable(%{repository_id: repository_id}, _hits) when repository_id in [nil, 0], do: :all
+
+  defp carriable(context, hits) do
     case GitHistory.parents(context.repository_id, context.sha) do
-      [] -> false
-      parents -> Enum.all?(parents, &(validity(context, &1) == :tracked_file_changed))
+      [] ->
+        :all
+
+      parents ->
+        cond do
+          not Enum.all?(parents, &(validity(context, &1) == :tracked_file_changed)) -> :all
+          hits != [] -> :hashed
+          true -> :none
+        end
     end
   end
 
@@ -256,12 +308,11 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp missing_evidence_reasons(context, tests) do
     source_runs = context.baseline
     collected = Enum.filter(source_runs, &(&1.coverage_evidence_status == "collected"))
-    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -Environment.coverage_retention_days().files * 86_400, :second)
-    live = collected |> Enum.filter(&(NaiveDateTime.compare(&1.ran_at, cutoff) != :lt)) |> Enum.map(& &1.test_run_id)
+    live = live_runs(context.project.id, Enum.map(collected, & &1.test_run_id))
 
     cond do
       source_runs == [] ->
-        [:no_ancestor]
+        [expired_ancestor_reason(context)]
 
       collected == [] ->
         [:collection_off]
@@ -288,6 +339,33 @@ defmodule Tuist.Tests.Coverage.Reported do
     end
   end
 
+  # Why a commit without a baseline checkpoint has no evidence: none of its
+  # ancestors measured its schemes, or the nearest that did is past the test
+  # maps' retention, collecting evidence or not.
+  defp expired_ancestor_reason(context) do
+    case Commits.nearest_measured_ancestor(context.project.id, context.repository_id, context.sha, context.schemes) do
+      nil ->
+        :no_ancestor
+
+      {ancestor, _depth} ->
+        runs = Commits.runs(context.project.id, ancestor)
+        if Enum.any?(runs, &(&1.coverage_evidence_status == "collected")), do: :evidence_expired, else: :collection_off
+    end
+  end
+
+  # The runs whose evidence carry can still read: those a checkpoint that
+  # hasn't expired holds (`Tuist.TestImpactAnalysis.Snapshots`).
+  defp live_runs(project_id, run_ids) do
+    now = DateTime.utc_now()
+
+    project_id
+    |> Snapshots.for_runs(run_ids)
+    |> Enum.filter(fn {_run_id, snapshot} ->
+      snapshot.kind == :checkpoint and DateTime.after?(snapshot.expires_at, now)
+    end)
+    |> Enum.map(fn {run_id, _snapshot} -> run_id end)
+  end
+
   # The tests some of the runs recorded only as overlapping another, so nothing
   # could be attributed to them.
   defp overlapped_tests(project_id, test_case_ids, run_ids) do
@@ -310,27 +388,28 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # The targets some of the runs recorded test-level evidence for. Only
-  # TestCoverageAttribution records `test` and `suite` scopes; every target has
-  # a `target` scope, which the client reads from Xcode's raw profiles. Their
-  # `scope_id` starts with the module (`Evidence.test_scope_id/3`).
+  # TestCoverageAttribution records a test's own evidence; every target has
+  # a `target` scope, which the client reads from Xcode's raw profiles. Read
+  # from what the test case runs recorded at ingestion (`coverage_evidence`),
+  # which outlives the evidence rows themselves.
   defp linked_targets(project_id, modules, run_ids) do
     run_ids
     |> Enum.chunk_every(@run_id_chunk)
     |> Enum.flat_map(fn runs ->
       ClickHouseRepo.all(
-        from(f in CoverageFile,
+        from(r in TestCaseRun,
           where:
-            f.project_id == ^project_id and f.test_run_id in ^runs and f.scope_kind in ["test", "suite"] and
-              fragment("splitByChar('\\x1F', ?)[1]", f.scope_id) in ^modules,
+            r.project_id == ^project_id and r.test_run_id in ^runs and r.module_name in ^modules and
+              r.coverage_evidence == "own",
           distinct: true,
-          select: fragment("splitByChar('\\x1F', ?)[1]", f.scope_id)
+          select: r.module_name
         )
       )
     end)
     |> MapSet.new()
   end
 
-  # What the pages read (`merged_files/4`, `file/4`) is the reported coverage
+  # What the pages read (`files/3`, `file/4`) is the reported coverage
   # the commit's published version settled, cached against that version: on a
   # suite of thousands a compute costs about a second and a page reads it more
   # than once. The settings that change the answer without a new version are
@@ -352,28 +431,27 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   @doc """
-  The commit's files with their reported line totals, by path, as
+  The commit's files with their reported line totals and targets, by path, as
   `Tuist.Tests.Coverage.Commits.merged_files/3` lists the measured ones: what
   the comparison reads when the commit's reported coverage is exact, so its
-  targets and files compare as a full run's would. `measured` are the
-  commit's measured files; a file only an ancestor compiled takes its targets
-  from there.
+  targets and files compare as a full run's would. A file only an ancestor
+  compiled takes its targets from there. Nil when the commit's reported
+  coverage is not exact.
   """
-  def merged_files(%Project{} = project, sha, measured, opts \\ []) do
+  def files(%Project{} = project, sha, opts \\ []) do
     case settled(project, sha, opts) do
       %{kind: "reported", files: files} ->
-        by_path = Map.new(measured, &{&1.path, &1})
-
         files
         |> Enum.map(fn {path, file} ->
-          by_path
-          |> Map.get(path, %{path: path, targets: Map.get(file, :targets, [])})
-          |> Map.merge(Map.take(file, [:git_blob_id, :covered_lines, :executable_lines]))
+          Map.merge(
+            %{path: path, targets: Map.get(file, :targets, [])},
+            Map.take(file, [:git_blob_id, :covered_lines, :executable_lines])
+          )
         end)
         |> Enum.sort_by(& &1.path)
 
       _ ->
-        measured
+        nil
     end
   end
 
@@ -387,10 +465,15 @@ defmodule Tuist.Tests.Coverage.Reported do
   def file(%Project{} = project, sha, path, opts \\ []) do
     case settled(project, sha, opts) do
       %{kind: "reported", files: %{^path => file}} = reported ->
-        %{
-          carried_lines: reported.carried_lines |> Map.get(path, MapSet.new()) |> Enum.sort(),
-          source_run_ids: Map.get(file, :source_run_ids, [])
-        }
+        # Cached like the figure: a page reads the file more than once.
+        key = [:coverage_carried_lines, project.id, sha, path, :erlang.phash2(reported.carry, 4_294_967_296)]
+
+        ranges =
+          KeyValueStore.get_or_update(key, [ttl: @cache_ttl, locking: false], fn ->
+            project |> carried_lines(reported, [path]) |> Map.get(path, [])
+          end)
+
+        %{carried_lines: Evidence.range_lines(ranges), source_run_ids: Map.get(file, :source_run_ids, [])}
 
       _ ->
         nil
@@ -400,7 +483,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp result(files, kind, skipped, carried_tests, {gap_files, gap_reasons}, shas) do
     %{
       files: files,
-      carried_lines: %{},
+      carry: nil,
       kind: kind,
       covered_lines: files |> Map.values() |> Enum.map(& &1.covered_lines) |> Enum.sum(),
       executable_lines: files |> Map.values() |> Enum.map(& &1.executable_lines) |> Enum.sum(),
@@ -413,11 +496,18 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # The files the commit's runs measured, by path, as the commit's own totals
-  # count them.
+  # count them, with their targets: the pages list them from here
+  # (`files/3`) without merging the runs' rows again.
   defp observed_files(project_id, run_ids, excluded) do
     from(f in subquery(Coverage.merged_files_query_for_runs(project_id, run_ids, excluded)),
       select:
-        {f.path, %{git_blob_id: f.git_blob_id, covered_lines: f.covered_lines, executable_lines: f.executable_lines}}
+        {f.path,
+         %{
+           git_blob_id: f.git_blob_id,
+           targets: f.targets,
+           covered_lines: f.covered_lines,
+           executable_lines: f.executable_lines
+         }}
     )
     |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
     |> Map.new()
@@ -435,40 +525,65 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # What Tuist skipped at the commit: every test of a target selective testing
-  # hit, and the tests the runs' skip identifiers name. A target's tests are
-  # those of the run recorded under the hash it was skipped with, or else
-  # those it ran at the commit's baseline while its test files are unchanged.
-  defp skipping(context, {runs, _hits, _skips, _clean} = all) do
+  # hit, the tests the runs' skip identifiers name, and the tests their
+  # coverage-based test selection skipped. A target's tests are those of the
+  # run recorded under the hash it was skipped with, or else those it ran at
+  # the commit's baseline while its test files are unchanged.
+  defp skipping(context, {runs, _hits, _skips, clean} = all) do
     selected = if caller_selected?(runs), do: [:caller_selected_tests], else: []
-    skipping = tuist_skipped(context, all)
-    %{skipping | gaps: skipping.gaps ++ selected}
+    impact_run_ids = impact_run_ids(runs ++ clean)
+    impact_skipped = Enum.flat_map(impact_run_ids, &impact_skipped(context, &1))
+    skipping = tuist_skipped(context, all, impact_skipped)
+    Map.merge(skipping, %{gaps: skipping.gaps ++ selected, impact_run_ids: impact_run_ids})
   end
 
-  defp tuist_skipped(_context, {_runs, [], [], _clean}), do: %{skipped: [], gaps: [], baseline: [], indexed: %{}}
+  # What the run's stored decision skipped, read from its bitmaps without
+  # listing the baseline's tests. A run without a stored decision skipped
+  # nothing carry can name.
+  defp impact_skipped(%{project: project}, run_id), do: Carry.skipped_tests(project.id, run_id) || []
 
-  defp tuist_skipped(%{project: project, repository_id: repository_id, sha: sha} = context, runs) do
-    # A commit that changes a tracked file carries nothing.
-    if changes_tracked_files?(context),
-      do: %{skipped: [], gaps: [:tracked_file_changed], baseline: [], indexed: %{}},
-      else: skipped_tests(project, repository_id, sha, runs)
+  # The runs' impact runs. The tests they skipped in the modules they decided
+  # are left out by the client without naming them, so only the impact run
+  # says which.
+  defp impact_run_ids(runs) do
+    runs |> Enum.map(&Map.get(&1, :test_impact_run_id)) |> Enum.reject(&(&1 in [nil, ""])) |> Enum.uniq()
   end
 
-  defp skipped_tests(_project, repository_id, _sha, _runs) when repository_id in [nil, 0],
+  defp tuist_skipped(_context, {_runs, [], [], _clean}, []), do: %{skipped: [], gaps: [], baseline: [], indexed: %{}}
+
+  defp tuist_skipped(%{project: project, repository_id: repository_id, sha: sha} = context, runs, impact_skipped) do
+    {_runs, hits, _skips, _clean} = runs
+
+    # A commit that changes a tracked file carries nothing, but for the
+    # targets skipped by their hash.
+    case carriable(context, hits) do
+      :none ->
+        %{skipped: [], gaps: [:tracked_file_changed], baseline: [], indexed: %{}}
+
+      carriable ->
+        project
+        |> skipped_tests(repository_id, sha, runs, impact_skipped)
+        |> Map.put(:only_hashed, carriable == :hashed)
+    end
+  end
+
+  defp skipped_tests(_project, repository_id, _sha, _runs, _impact_skipped) when repository_id in [nil, 0],
     do: %{skipped: [], gaps: [:no_ancestor], baseline: [], indexed: %{}}
 
-  defp skipped_tests(project, repository_id, sha, {runs, hits, skips, clean}) do
+  defp skipped_tests(project, repository_id, sha, {runs, hits, skips, clean}, impact_skipped) do
     # An identifier naming a test needs no target's tests to resolve it.
     {named, by_target} = Enum.split_with(skips, &match?([_module, _suite, _name], &1))
     modules = Enum.uniq(Enum.map(hits, & &1.name) ++ Enum.map(by_target, &hd/1))
     # A target recorded under the hash it was skipped with is the same target
     # that run executed, so its tests are the target's, whatever branch it ran.
     indexed = indexed_sources(project.id, repository_id, hits)
-    baseline = baseline(project.id, repository_id, sha, runs ++ clean)
+    baseline = baseline(project, sha, runs ++ clean)
     schemes = Map.new(runs ++ clean, &{&1.test_run_id, &1.scheme})
     skipped_in = Enum.group_by(hits, & &1.name, &schemes[&1.test_run_id])
+    hashes = Map.new(hits, &{&1.name, &1.hash})
 
     {listed, list_gaps} =
-      baseline_lists(project.id, {repository_id, sha}, baseline, {modules -- Map.keys(indexed), skipped_in})
+      baseline_lists(project.id, {repository_id, sha}, baseline, {modules -- Map.keys(indexed), skipped_in, hashes})
 
     inventory =
       inventory(project.id, Map.merge(listed, Map.new(indexed, fn {module, source} -> {module, source.run_id} end)))
@@ -477,21 +592,28 @@ defmodule Tuist.Tests.Coverage.Reported do
       Enum.flat_map(hits, &Map.get(inventory, &1.name, [])) ++
         Enum.flat_map(by_target, fn identifier ->
           inventory |> Map.get(hd(identifier), []) |> Enum.filter(&named?(&1, identifier))
-        end) ++ named_tests(project.id, named)
+        end) ++ named_tests(project.id, named) ++ impact_skipped
 
     ran = ran(project.id, Enum.map(runs, & &1.test_run_id))
 
+    {empty, unlisted} =
+      hits |> Enum.reject(&Map.has_key?(inventory, &1.name)) |> Enum.split_with(&empty?(&1, listed, list_gaps))
+
     %{
       skipped: candidates |> Enum.uniq_by(& &1.test_case_id) |> Enum.reject(&MapSet.member?(ran, &1.test_case_id)),
-      gaps:
-        hits
-        |> Enum.reject(&Map.has_key?(inventory, &1.name))
-        |> Enum.map(&Map.get(list_gaps, &1.name, :target_without_history))
-        |> Enum.uniq(),
+      gaps: unlisted |> Enum.map(&Map.get(list_gaps, &1.name, :target_without_history)) |> Enum.uniq(),
+      empty: empty |> Enum.map(&%{module: &1.name, hash: &1.hash}) |> Enum.uniq(),
       baseline: baseline,
       indexed: indexed
     }
   end
+
+  # A hit target that holds no tests: `baseline_lists/4` found it empty, or
+  # the baseline's checkpoint copied it under its hash without a row, which
+  # a checkpoint only does for a target a run skipped empty: a copied target
+  # with tests is copied whole.
+  defp empty?(hit, listed, list_gaps),
+    do: match?({:ok, nil}, Map.fetch(list_gaps, hit.name)) or match?({:checkpoint, _id}, listed[hit.name])
 
   # The run each hit target was recorded under with the hash it was skipped
   # with (`Tuist.Tests.Coverage.TargetSources`).
@@ -503,40 +625,80 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Map.new(fn {{module, _hash}, source} -> {module, Map.put(source, :depth, nil)} end)
   end
 
-  # The commit's baseline: for each of its schemes, the runs of the nearest
-  # ancestor whose figure was measured, every test of the scheme run. Read
-  # once per fold, it is the only history the carry reads: which tests a
-  # skipped target holds when no run was recorded under its hash, a source
-  # for a target it hashed the same way, and why a test has nothing to carry.
-  defp baseline(project_id, repository_id, sha, runs) do
-    runs
-    |> Enum.map(& &1.scheme)
-    |> Enum.reject(&(&1 in [nil, ""]))
-    |> Enum.uniq()
-    |> Enum.flat_map(fn scheme ->
-      case Commits.nearest_measured_ancestor(project_id, repository_id, sha, [scheme], kind: "measured") do
-        {ancestor, depth} ->
-          project_id
-          |> Commits.runs(ancestor)
-          |> Enum.filter(&(&1.scheme == scheme))
-          |> Enum.map(&Map.put(&1, :depth, depth))
+  # The commit's baseline: for each scheme and platform its runs ran, the
+  # checkpoint coverage-based test selection would decide from at this
+  # commit (`Baselines.resolve/3`, the nearest ancestor with a live
+  # checkpoint of the scope), with the runs it holds, each with its
+  # `checkpoint` and `depth`. A checkpoint of the runs' platform is
+  # preferred and any platform's taken otherwise: the lines a test covered
+  # on another platform are only counted where the commit's runs compiled
+  # them as executable. Read once per fold, it is the only history the
+  # carry reads: which tests a skipped target holds when no run was
+  # recorded under its hash, a source for a target it hashed the same way,
+  # the checkpoint a skipped test carries from, and why a test has nothing
+  # to carry.
+  defp baseline(project, sha, runs) do
+    platforms = platforms(project.id, Enum.map(runs, & &1.test_run_id))
 
-        nil ->
-          []
-      end
-    end)
+    runs
+    |> Enum.reject(&(&1.scheme in [nil, ""]))
+    |> Enum.map(&{&1.scheme, Map.get(platforms, &1.test_run_id, "")})
+    |> Enum.uniq()
+    |> Enum.flat_map(fn {scheme, platform} -> baseline_runs(project, sha, scheme, platform) end)
     |> Enum.uniq_by(& &1.test_run_id)
+  end
+
+  defp baseline_runs(project, sha, scheme, platform) do
+    scope = %{commit_sha: sha, scheme: scheme}
+
+    with {:error, _reason} <- Baselines.resolve(project, Map.put(scope, :platform, platform), ancestors_only: true),
+         {:error, _reason} <- Baselines.resolve(project, Map.put(scope, :platform, :any), ancestors_only: true) do
+      []
+    else
+      {:ok, %{checkpoint: checkpoint, distance: depth}} ->
+        held = MapSet.new(checkpoint.test_run_ids)
+
+        project.id
+        |> Commits.runs(checkpoint.commit_sha)
+        |> Enum.filter(&MapSet.member?(held, &1.test_run_id))
+        |> Enum.map(&Map.merge(&1, %{checkpoint: checkpoint, depth: depth}))
+    end
+  end
+
+  # The platform each run's coverage recorded, "" for none.
+  defp platforms(_project_id, []), do: %{}
+
+  defp platforms(project_id, run_ids) do
+    run_ids
+    |> Enum.chunk_every(@run_id_chunk)
+    |> Enum.flat_map(fn ids ->
+      ClickHouseRepo.all(
+        from(r in CoverageRun,
+          where: r.project_id == ^project_id and r.test_run_id in ^ids,
+          group_by: r.test_run_id,
+          select: {fragment("toString(?)", r.test_run_id), fragment("argMax(?, ?)", r.platform, r.version)}
+        )
+      )
+    end)
+    |> Map.new()
   end
 
   # The baseline run each skipped target's tests are taken from, and why the
   # others have none. The tests a target held at the baseline still hold
   # unless one of its test files changed since, or a file was added beside
   # them; without both commits' listings that can't be told, and they are
-  # taken as they were.
-  defp baseline_lists(_project_id, _commit, _baseline, {[], _skipped_in}), do: {%{}, %{}}
-  defp baseline_lists(_project_id, _commit, [], {modules, _skipped_in}), do: {%{}, Map.new(modules, &{&1, :no_ancestor})}
+  # taken as they were. A target the baseline's checkpoint copied from an
+  # earlier one (`carried_targets`) under the hash the commit skipped it
+  # with is listed from the checkpoint's rows (`{:checkpoint, id}`): its
+  # runs never executed it, and the same hash means the same tests. A target
+  # without tests (`empty_targets/5`) has none to list and no reason either
+  # (`nil`).
+  defp baseline_lists(_project_id, _commit, _baseline, {[], _skipped_in, _hashes}), do: {%{}, %{}}
 
-  defp baseline_lists(project_id, {repository_id, sha}, baseline, {modules, skipped_in}) do
+  defp baseline_lists(_project_id, _commit, [], {modules, _skipped_in, _hashes}),
+    do: {%{}, Map.new(modules, &{&1, :no_ancestor})}
+
+  defp baseline_lists(project_id, {repository_id, sha}, baseline, {modules, skipped_in, hashes}) do
     by_id = Map.new(baseline, &{&1.test_run_id, &1})
 
     # A target in several schemes is taken from the scheme that skipped it.
@@ -561,10 +723,22 @@ defmodule Tuist.Tests.Coverage.Reported do
         {from_sha, changes(repository_id, from_sha, sha, directories |> Enum.concat() |> Enum.uniq())}
       end)
 
+    copied = copied_targets(baseline)
+    empty = empty_targets(project_id, by_id, Enum.reject(modules, &Map.has_key?(executed, &1)), skipped_in, hashes)
+
     Enum.reduce(modules, {%{}, %{}}, fn module, {listed, gaps} ->
       case executed[module] do
         nil ->
-          {listed, Map.put(gaps, module, :target_without_history)}
+          cond do
+            checkpoint_id = copied[{module, hashes[module]}] ->
+              {Map.put(listed, module, {:checkpoint, checkpoint_id}), gaps}
+
+            MapSet.member?(empty, module) ->
+              {listed, Map.put(gaps, module, nil)}
+
+            true ->
+              {listed, Map.put(gaps, module, :target_without_history)}
+          end
 
         run_id ->
           if changed_tests?(Map.get(test_files, {run_id, module}, []), changes[by_id[run_id].git_commit_sha]),
@@ -574,6 +748,55 @@ defmodule Tuist.Tests.Coverage.Reported do
     end)
   end
 
+  # The skipped targets that hold no tests: a baseline run of a scheme that
+  # skipped one built it under the hash it was skipped with, recorded no
+  # tests of it and passed. A run that failed may have crashed launching the
+  # target's bundle before any test ran, so only a passed run tells an empty
+  # target from one whose tests never reported.
+  defp empty_targets(_project_id, _by_id, [], _skipped_in, _hashes), do: MapSet.new()
+
+  defp empty_targets(project_id, by_id, modules, skipped_in, hashes) do
+    modules = MapSet.new(modules)
+
+    project_id
+    |> Xcode.selective_testing_hashes(project_id |> passed_runs(Map.keys(by_id)) |> MapSet.to_list())
+    |> Enum.filter(fn %{test_run_id: run_id, name: name, hash: hash, hit: hit} ->
+      MapSet.member?(modules, name) and hit not in ["local", "remote"] and hash == hashes[name] and
+        by_id[run_id].scheme in Map.get(skipped_in, name, [])
+    end)
+    |> MapSet.new(& &1.name)
+  end
+
+  defp passed_runs(project_id, run_ids) do
+    for ids <- Enum.chunk_every(run_ids, @run_id_chunk),
+        id <-
+          ClickHouseRepo.all(
+            from(t in Test.query(),
+              where: t.project_id == ^project_id and t.id in ^ids,
+              group_by: t.id,
+              having: fragment("argMax(?, ?)", t.status, t.inserted_at) == "success",
+              select: t.id
+            )
+          ),
+        into: MapSet.new(),
+        do: id
+  end
+
+  # The baseline's checkpoint that copied each target under each hash,
+  # nearest first.
+  defp copied_targets(baseline) do
+    baseline
+    |> Enum.uniq_by(& &1.checkpoint.id)
+    |> Enum.sort_by(& &1.depth, :desc)
+    |> Enum.flat_map(fn %{checkpoint: checkpoint} ->
+      Enum.map(checkpoint.carried_targets, fn key ->
+        [module, hash] = String.split(key, "\u001F", parts: 2)
+        {{module, hash}, checkpoint.id}
+      end)
+    end)
+    |> Map.new()
+  end
+
   # The test files each of the given runs compiled into the given targets'
   # test bundles.
   defp test_files(_project_id, [], _modules), do: %{}
@@ -581,7 +804,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp test_files(project_id, run_ids, modules) do
     modules = MapSet.new(modules)
 
-    from(f in Coverage.report_files_for_runs(project_id, Enum.uniq(run_ids)),
+    from(f in Coverage.report_files_for_runs(project_id, Enum.uniq(run_ids), lines: false),
       where: f.is_test,
       distinct: true,
       select: {fragment("toString(?)", f.test_run_id), f.path, f.targets}
@@ -742,8 +965,28 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp inventory(project_id, sources) do
     sources
     |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
-    |> Enum.flat_map(fn {run_id, run_modules} -> run_tests(project_id, run_id, run_modules) end)
+    |> Enum.flat_map(fn
+      {{:checkpoint, checkpoint_id}, modules} -> checkpoint_tests(project_id, checkpoint_id, modules)
+      {run_id, run_modules} -> run_tests(project_id, run_id, run_modules)
+    end)
     |> Enum.group_by(& &1.module_name)
+  end
+
+  # A checkpoint's tests of the given targets, named from `test_cases`.
+  defp checkpoint_tests(project_id, checkpoint_id, modules) do
+    """
+    SELECT DISTINCT toString(t.test_case_id), t.module_name, t.suite_name, c.name
+    FROM test_impact_snapshot_tests AS t FINAL
+    LEFT JOIN (
+      SELECT DISTINCT id, name FROM test_cases
+      WHERE project_id = {project_id:Int64} AND module_name IN {modules:Array(String)}
+    ) AS c ON c.id = t.test_case_id
+    WHERE t.project_id = {project_id:Int64} AND t.snapshot_id = {snapshot_id:UUID} AND t.module_name IN {modules:Array(String)}
+    """
+    |> Snapshots.query!(%{project_id: project_id, snapshot_id: checkpoint_id, modules: modules})
+    |> Enum.map(fn [test_case_id, module_name, suite_name, name] ->
+      %{test_case_id: test_case_id, module_name: module_name, suite_name: suite_name, name: name}
+    end)
   end
 
   defp run_tests(project_id, run_id, modules) do
@@ -804,372 +1047,6 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Enum.filter(&(&1.hit in ["local", "remote"]))
   end
 
-  # The skipped tests whose coverage still applies, as units carried from one
-  # source run each, and why each of the others cannot be. A target selective
-  # testing skipped is one unit; a test is one otherwise, or when its target
-  # could not be carried whole. Deciding reads which files each unit's
-  # evidence touches, never its lines.
-  defp carried(%{repository_id: repository_id}, _skipped) when repository_id in [nil, 0], do: {[], %{}}
-
-  defp carried(context, skipped) do
-    source_runs =
-      context.baseline
-      |> Map.new(&{&1.test_run_id, %{sha: &1.git_commit_sha, depth: &1.depth, ran_at: &1.ran_at}})
-      |> Map.merge(Map.new(context.indexed, fn {_module, source} -> {source.run_id, Map.delete(source, :run_id)} end))
-
-    hashes = Map.new(context.hits, &{&1.name, &1.hash})
-    {in_hits, others} = Enum.split_with(skipped, &Map.has_key?(hashes, &1.module_name))
-
-    {target_units, target_reasons} =
-      in_hits
-      |> Enum.group_by(& &1.module_name)
-      |> target_units(context, hashes, source_runs)
-      |> check(context)
-
-    carried_modules = MapSet.new(target_units, & &1.module)
-
-    {test_units, test_reasons} =
-      test_units(others ++ Enum.reject(in_hits, &MapSet.member?(carried_modules, &1.module_name)), context)
-
-    {target_units ++ test_units, Map.merge(target_reasons, test_reasons)}
-  end
-
-  # A target selective testing skipped carries whole. Its evidence is
-  # everything its test process executed, so carrying it is exact only when
-  # none of its tests ran at the commit and they are the tests that ran then:
-  # the hit says the first, and a source run that hashed the target the same
-  # says the second, since the hash covers the target's sources, its tests
-  # and everything they depend on. Every other guard is the per-test one. It
-  # needs no observer in the test process and no serial execution, so it
-  # covers what per-test evidence cannot: Swift Testing without the
-  # attribution trait, and tests that ran in parallel.
-  defp target_units(by_module, _context, _hashes, _source_runs) when by_module == %{}, do: []
-
-  defp target_units(by_module, context, hashes, source_runs) do
-    {indexed, rest} = Enum.split_with(by_module, fn {module, _tests} -> Map.has_key?(context.indexed, module) end)
-
-    indexed
-    |> Enum.map(fn {module, _tests} -> {module, context.indexed[module].run_id} end)
-    |> Enum.concat(baseline_target_sources(Map.new(rest), context, hashes))
-    |> Enum.map(fn {module, run_id} ->
-      %{
-        kind: :target,
-        key: {:module, module},
-        module: module,
-        tests: by_module[module],
-        scopes: [{"target", module}],
-        run_id: run_id,
-        source: Map.put(source_runs[run_id], :run_id, run_id)
-      }
-    end)
-  end
-
-  # A target no run was recorded under with its hash carries from the
-  # baseline when a baseline run holds its evidence and hashed it the same
-  # way: the run whose hashes landed after its fold, in local inspect mode.
-  defp baseline_target_sources(by_module, _context, _hashes) when by_module == %{}, do: %{}
-
-  defp baseline_target_sources(by_module, context, hashes) do
-    held = evidence_runs(context.project.id, Map.keys(by_module), Enum.map(context.baseline, & &1.test_run_id), "target")
-
-    same_hash =
-      context.project.id
-      |> Xcode.selective_testing_hashes(held |> Enum.map(&elem(&1, 1)) |> Enum.uniq())
-      |> MapSet.new(&{&1.test_run_id, &1.name, &1.hash})
-
-    held
-    |> Enum.filter(fn {module, run_id} -> MapSet.member?(same_hash, {run_id, module, hashes[module]}) end)
-    |> Map.new()
-  end
-
-  # Each skipped test not carried with its target, from the latest run whose
-  # version of it (`Tuist.Tests.Coverage.TestEvidence`) the commit's blobs
-  # reproduce: that run executed exactly these files, so what it recorded
-  # holds here, on whatever branch it ran. Then the test passed there, the
-  # tracked files are the same, and its evidence has lines for every file
-  # that counts. A test with versions none of which the commit reproduces
-  # executed a file that changed since; one with none is explained by what
-  # its ancestors collected (`missing_evidence_reasons/2`).
-  defp test_units([], _context), do: {[], %{}}
-
-  defp test_units(tests, context) do
-    evidence =
-      TestEvidence.lookup(context.project.id, context.repository_id, Enum.map(tests, & &1.test_case_id), fn paths ->
-        missing = Enum.reject(paths, &Map.has_key?(context.blobs, &1))
-        Map.merge(blobs_now(context.repository_id, context.sha, missing), context.blobs)
-      end)
-
-    depths = Map.new(context.baseline, &{&1.git_commit_sha, &1.depth})
-
-    tests
-    |> Enum.map(&{&1, source_version(Map.get(evidence, &1.test_case_id))})
-    |> Enum.reduce({[], %{}, %{}}, fn
-      {_test, :none}, acc ->
-        acc
-
-      {test, source}, {units, reasons, validity} ->
-        validity = remember_validity(validity, context, source)
-
-        case version_failure(context, source, validity) do
-          nil -> {[test_unit(test, source, depths) | units], reasons, validity}
-          reason -> {units, Map.put(reasons, test.test_case_id, reason), validity}
-        end
-    end)
-    |> then(fn {units, reasons, _validity} -> {units, reasons} end)
-  end
-
-  # The latest version the commit reproduces, nil when it reproduces none,
-  # and `:none` for a test without versions.
-  defp source_version(nil), do: :none
-  defp source_version(%{reproduced: reproduced}), do: reproduced
-
-  defp remember_validity(validity, _context, nil), do: validity
-
-  defp remember_validity(validity, context, source),
-    do: Map.put_new_lazy(validity, source.sha, fn -> validity(context, source.sha) end)
-
-  defp version_failure(_context, nil, _validity), do: :executed_file_changed
-
-  defp version_failure(context, source, validity) do
-    cond do
-      not source.passed -> :test_failed
-      validity[source.sha] != :ok -> validity[source.sha]
-      Enum.any?(source.unlined_paths, &(not ExcludedPaths.excluded?(context.excluded, &1))) -> :evidence_without_lines
-      true -> nil
-    end
-  end
-
-  defp test_unit(test, source, depths) do
-    scope_id = Evidence.test_scope_id(test.module_name, test.suite_name, test.name)
-
-    suite =
-      if test.suite_name == "", do: [], else: [{"suite", Evidence.suite_scope_id(test.module_name, test.suite_name)}]
-
-    %{
-      kind: :test,
-      key: test.test_case_id,
-      module: test.module_name,
-      tests: [test],
-      scopes: [{"test", scope_id} | suite],
-      run_id: source.run_id,
-      source: %{sha: source.sha, depth: Map.get(depths, source.sha), ran_at: source.ran_at, run_id: source.run_id}
-    }
-  end
-
-  # The target units whose source still applies, and why each of the others
-  # does not: the target passed there, the tracked files are the same, and
-  # the evidence holds lines for every file that counts. The hash is trusted
-  # for the rest: it covers the target's sources, its tests and every
-  # dependency, so the files it executed are not compared blob by blob.
-  defp check([], _context), do: {[], %{}}
-
-  defp check(units, context) do
-    project_id = context.project.id
-    validity = units |> Enum.map(& &1.source.sha) |> Enum.uniq() |> Map.new(&{&1, validity(context, &1)})
-    failed = failed_units(project_id, units)
-    without_lines = unlined_scopes(context, units)
-
-    Enum.reduce(units, {[], %{}}, fn unit, {kept, reasons} ->
-      reason =
-        cond do
-          MapSet.member?(failed, unit.key) -> :test_failed
-          validity[unit.source.sha] != :ok -> validity[unit.source.sha]
-          Enum.any?(unit.scopes, &MapSet.member?(without_lines, {unit.run_id, &1})) -> :evidence_without_lines
-          true -> nil
-        end
-
-      if reason, do: {kept, Map.put(reasons, unit.key, reason)}, else: {[unit | kept], reasons}
-    end)
-  end
-
-  # The target units whose source run had a failing test of the target.
-  defp failed_units(project_id, units) do
-    failed_targets = failed_targets(project_id, units)
-    units |> Enum.filter(&MapSet.member?(failed_targets, {&1.run_id, &1.module})) |> MapSet.new(& &1.key)
-  end
-
-  # The scopes, by source run, whose evidence names a file that counts
-  # without its lines. Only which files each scope touched is read, never
-  # the lines.
-  defp unlined_scopes(context, units) do
-    units
-    |> Enum.group_by(& &1.run_id)
-    |> Enum.reduce(MapSet.new(), fn {run_id, run_units}, without_lines ->
-      files = context.project.id |> source_files([run_id]) |> Map.get(run_id, %{})
-      touched = run_units |> Enum.flat_map(& &1.scopes) |> Enum.uniq() |> touched_files(context.project.id, run_id)
-
-      # A file the source run did not report is one its repository's Git
-      # does not track (a submodule's): nothing holds its blob, and it never
-      # counts.
-      for {scope, path, false} <- touched,
-          Map.has_key?(files, path),
-          counted?(context, files, path),
-          into: without_lines,
-          do: {run_id, scope}
-    end)
-  end
-
-  # Which files each of the given scopes touched in a run, and whether it
-  # recorded lines in it, each shard's latest report only.
-  defp touched_files(scopes, project_id, run_id) do
-    scopes
-    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-    |> Enum.flat_map(fn {kind, scope_ids} ->
-      for chunk <- Enum.chunk_every(scope_ids, div(@scope_chunk, 2)),
-          {scope_id, path, lines?} <-
-            ClickHouseRepo.all(
-              from(f in latest_evidence(project_id, run_id, kind, chunk),
-                group_by: [f.scope_id, f.path],
-                select: {f.scope_id, f.path, fragment("min(notEmpty(?))", f.line_numbers)}
-              )
-            ),
-          do: {{kind, scope_id}, path, lines? == 1}
-    end)
-  end
-
-  # Each shard's latest report of the given scopes in a run.
-  defp latest_evidence(project_id, run_id, kind, scope_ids) do
-    latest =
-      from(f in CoverageFile,
-        where:
-          f.project_id == ^project_id and f.test_run_id == ^run_id and f.scope_kind == ^kind and
-            f.scope_id in ^scope_ids,
-        group_by: [f.shard_index, f.scope_id],
-        select: %{shard_index: f.shard_index, scope_id: f.scope_id, inserted_at: max(f.inserted_at)}
-      )
-
-    from(f in CoverageFile,
-      join: l in subquery(latest),
-      on: l.shard_index == f.shard_index and l.scope_id == f.scope_id and l.inserted_at == f.inserted_at,
-      where:
-        f.project_id == ^project_id and f.test_run_id == ^run_id and f.scope_kind == ^kind and
-          f.scope_id in ^scope_ids
-    )
-  end
-
-  # The lines the carried units ran in each file that counts, merged per
-  # file in ClickHouse, and per file the source its lines came from (the
-  # nearest when several did). What comes back is one set of lines per file,
-  # however many tests and runs are carried.
-  defp unit_lines(context, units) do
-    project_id = context.project.id
-
-    units
-    |> Enum.group_by(& &1.run_id)
-    |> Enum.sort_by(fn {_run_id, [unit | _]} -> source_rank(unit.source) end)
-    |> Enum.reduce({%{}, %{}}, fn {run_id, run_units}, {lines, sources} ->
-      source = hd(run_units).source
-
-      counted =
-        from(
-          f in Coverage.without_excluded(Coverage.report_files_for_runs(project_id, [run_id]), context.excluded_pattern),
-          where: not f.is_test,
-          distinct: true,
-          select: f.path
-        )
-
-      run_lines =
-        run_units
-        |> Enum.flat_map(& &1.scopes)
-        |> Enum.uniq()
-        |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-        |> Enum.flat_map(fn {kind, scope_ids} ->
-          for chunk <- Enum.chunk_every(scope_ids, div(@scope_chunk, 2)),
-              row <-
-                ClickHouseRepo.all(
-                  from(f in latest_evidence(project_id, run_id, kind, chunk),
-                    where: f.path in subquery(counted),
-                    group_by: f.path,
-                    select: {f.path, fragment("groupUniqArrayArray(?)", f.line_numbers)}
-                  )
-                ),
-              do: row
-        end)
-
-      Enum.reduce(run_lines, {lines, sources}, fn {path, path_lines}, {lines, sources} ->
-        {Map.update(lines, path, MapSet.new(path_lines), &MapSet.union(&1, MapSet.new(path_lines))),
-         Map.put_new(sources, path, source)}
-      end)
-    end)
-  end
-
-  # The targets that had a failing test in the run their evidence comes from.
-  defp failed_targets(_project_id, []), do: MapSet.new()
-
-  defp failed_targets(project_id, units) do
-    run_ids = units |> Enum.map(& &1.run_id) |> Enum.uniq()
-    modules = units |> Enum.map(& &1.module) |> Enum.uniq()
-
-    from(r in TestCaseRun,
-      where:
-        r.project_id == ^project_id and r.test_run_id in ^run_ids and r.module_name in ^modules and
-          r.status == "failure",
-      distinct: true,
-      select: {r.test_run_id, r.module_name}
-    )
-    |> ClickHouseRepo.all()
-    |> MapSet.new()
-  end
-
-  defp source_rank(%{depth: depth, ran_at: ran_at}), do: {depth, -DateTime.to_unix(to_datetime(ran_at), :microsecond)}
-
-  defp to_datetime(%DateTime{} = datetime), do: datetime
-  defp to_datetime(%NaiveDateTime{} = datetime), do: DateTime.from_naive!(datetime, "Etc/UTC")
-
-  # Which of the given runs hold evidence for each of the given scopes, as
-  # `{scope_id, test_run_id}`, without reading its lines.
-  defp evidence_runs(_project_id, _scope_ids, [], _kind), do: []
-
-  defp evidence_runs(project_id, scope_ids, run_ids, kind) do
-    for runs <- Enum.chunk_every(run_ids, @run_id_chunk),
-        chunk <- Coverage.id_chunks(scope_ids, length(runs)),
-        held <-
-          ClickHouseRepo.all(
-            from(f in CoverageFile,
-              where:
-                f.project_id == ^project_id and f.scope_kind == ^kind and f.scope_id in ^chunk and
-                  f.test_run_id in ^runs,
-              distinct: true,
-              select: {f.scope_id, f.test_run_id}
-            )
-          ),
-        do: held
-  end
-
-  # What each source run reported per path: the blob, whether it is test
-  # code, and the targets that compiled it.
-  defp source_files(project_id, run_ids) do
-    run_ids
-    |> Coverage.id_chunks()
-    |> Enum.flat_map(fn runs ->
-      ClickHouseRepo.all(
-        from(f in Coverage.report_files_for_runs(project_id, runs),
-          select: %{
-            test_run_id: f.test_run_id,
-            path: f.path,
-            git_blob_id: f.git_blob_id,
-            is_test: f.is_test,
-            targets: f.targets
-          }
-        )
-      )
-    end)
-    |> Enum.group_by(& &1.test_run_id)
-    |> Map.new(fn {run_id, rows} ->
-      {run_id,
-       rows
-       |> Enum.group_by(& &1.path)
-       |> Map.new(fn {path, path_rows} ->
-         {path,
-          %{
-            git_blob_id: path_rows |> Enum.map(& &1.git_blob_id) |> Enum.find("", &(&1 != "")),
-            is_test: Enum.all?(path_rows, & &1.is_test),
-            targets: path_rows |> Enum.flat_map(& &1.targets) |> Enum.uniq()
-          }}
-       end)}
-    end)
-  end
-
   # Whether evidence from `sha` holds at the commit as far as the tracked
   # files go: none of them differs between the two.
   defp validity(%{project: project, repository_id: repository_id} = context, sha) do
@@ -1186,72 +1063,107 @@ defmodule Tuist.Tests.Coverage.Reported do
     end
   end
 
-  defp counted?(context, source_files, path) do
-    not ExcludedPaths.excluded?(context.excluded, path) and
-      case Map.get(source_files, path) do
-        %{is_test: is_test} -> not is_test
-        nil -> false
-      end
+  @doc """
+  The lines carried into the given files of a commit's reported coverage
+  (`compute/3`), or into all of them when `paths` is nil, as ranges
+  (`Evidence.line_ranges/1`) by path: those its skipped tests covered, read
+  from the snapshots its fold carried from.
+  """
+  def carried_lines(project, reported, paths \\ nil)
+
+  def carried_lines(_project, %{carry: %{plan: []}}, _paths), do: %{}
+  def carried_lines(_project, %{carry: nil}, _paths), do: %{}
+  def carried_lines(_project, _reported, []), do: %{}
+
+  def carried_lines(%Project{} = project, %{carry: %{plan: plan, excluded: excluded}}, paths) do
+    {carried, params} = Carry.lines_sql(project.id, plan, paths: paths, excluded: excluded)
+
+    """
+    SELECT path, arraySort(arrayDistinct(groupArrayArray(lines))) FROM (#{carried}) GROUP BY path
+    """
+    |> ClickHouseRepo.query!(params, settings: [select_sequential_consistency: 1], timeout: @carry_timeout)
+    |> Map.fetch!(:rows)
+    |> Map.new(fn [path, lines] -> {path, Evidence.line_ranges(lines)} end)
   end
 
-  defp add_carried_lines(files, _context, carried_lines, _sources) when carried_lines == %{}, do: files
+  # What the carried lines add to the files. One query merges each file's
+  # carried lines (`Carry.lines_sql/3`) with what the commit's runs executed
+  # in it, or, for a file no run at the commit compiled, with the lines its
+  # source run reported, and returns counts only: no file's lines reach
+  # Elixir. A file's lines come from every source that carried any, and the
+  # file from the nearest of them. Returns the files and the sources that
+  # were nearest for any file.
+  defp add_carried_lines(files, _context, _run_ids, %{plan: []}), do: {files, []}
 
-  defp add_carried_lines(files, context, carried_lines, sources) do
-    {observed_paths, unbuilt_paths} = carried_lines |> Map.keys() |> Enum.split_with(&Map.has_key?(files, &1))
-    line_counts = Commits.line_counts(context.project.id, context.sha, observed_paths, excluded: nil)
+  defp add_carried_lines(files, context, run_ids, %{plan: plan, excluded: excluded}) do
+    project_id = context.project.id
+    {carried, params} = Carry.lines_sql(project_id, plan, excluded: excluded)
+    source_runs = plan |> Enum.map(& &1.source.run_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    observed = Coverage.inline_sql(Coverage.report_files_for_runs(project_id, run_ids))
+    sources = Coverage.inline_sql(Coverage.report_files_for_runs(project_id, source_runs))
+
+    # The carried lines are read once, as the joins' left side: ClickHouse
+    # runs a CTE again wherever it is named, and they are the costly part.
+    # A source run's file only counts when no run at the commit observed it,
+    # which the observed side of the same row tells: filtering the source
+    # runs' rows by the observed paths read the commit's runs a second time.
+    rows =
+      """
+      SELECT c.path, c.nearest,
+        o.path != '', length(o.executable),
+        length(arrayDistinct(arrayConcat(o.covered, arrayIntersect(c.carried_lines, o.executable)))),
+        o.path = '' AND u.path != '', u.git_blob_id, u.targets, length(u.executable),
+        length(arrayIntersect(c.carried_lines, u.executable))
+      FROM (
+        SELECT path, min(rank) AS nearest, argMin(source_run, rank) AS nearest_run,
+          arrayDistinct(groupArrayArray(lines)) AS carried_lines
+        FROM (#{carried}) GROUP BY path
+      ) AS c
+      LEFT JOIN (
+        SELECT path, groupUniqArrayArray(line_numbers) AS executable,
+          groupUniqArrayArray(arrayFilter((l, c) -> c > 0, line_numbers, execution_counts)) AS covered
+        FROM (#{observed}) WHERE NOT is_test
+        GROUP BY path
+      ) AS o ON o.path = c.path
+      LEFT JOIN (
+        SELECT toString(test_run_id) AS run, path, anyIf(git_blob_id, git_blob_id != '') AS git_blob_id,
+          groupUniqArrayArray(targets) AS targets, groupUniqArrayArray(line_numbers) AS executable
+        FROM (#{sources})
+        GROUP BY test_run_id, path
+      ) AS u ON u.path = c.path AND u.run = c.nearest_run
+      SETTINGS join_use_nulls = 0
+      """
+      |> ClickHouseRepo.query!(params, settings: [select_sequential_consistency: 1], timeout: @carry_timeout)
+      |> Map.fetch!(:rows)
 
     files =
-      Enum.reduce(observed_paths, files, fn path, files ->
-        counts = Map.get(line_counts, path, [])
-        executable = MapSet.new(counts, &elem(&1, 0))
-        covered = for {line, count} <- counts, count > 0, into: MapSet.new(), do: line
-        carried = MapSet.intersection(carried_lines[path], executable)
+      Enum.reduce(rows, files, fn
+        [path, rank, observed?, executable, covered, unbuilt?, git_blob_id, targets, unbuilt_executable, carried],
+        files ->
+          cond do
+            Map.has_key?(files, path) ->
+              # A file whose rows hold no lines keeps the counts its report gave it.
+              if observed? in [true, 1] and executable > 0,
+                do: Map.update!(files, path, &%{&1 | covered_lines: covered}),
+                else: files
 
-        if counts == [] do
-          files
-        else
-          Map.update!(files, path, &%{&1 | covered_lines: MapSet.size(MapSet.union(covered, carried))})
-        end
+            unbuilt? in [true, 1] ->
+              Map.put(files, path, %{
+                git_blob_id: git_blob_id,
+                targets: targets,
+                source_run_ids: [Enum.at(plan, rank).source.run_id],
+                covered_lines: carried,
+                executable_lines: unbuilt_executable
+              })
+
+            true ->
+              files
+          end
       end)
 
-    unbuilt_paths
-    |> Enum.group_by(&sources[&1].run_id)
-    |> Enum.reduce(files, fn {run_id, paths}, files ->
-      context.project.id
-      |> unbuilt_carried_files(run_id, paths, carried_lines)
-      |> Enum.into(files)
-    end)
-  end
-
-  # The carried files no run at the commit compiled, as their source run
-  # reported them. These are usually most of the project, so their
-  # executable lines are merged per file in ClickHouse and reduced to counts a
-  # chunk of paths at a time instead of all being held at once.
-  defp unbuilt_carried_files(project_id, run_id, paths, carried_lines) do
-    paths
-    |> Coverage.id_chunks(2)
-    |> Enum.flat_map(fn chunk ->
-      from(f in Coverage.report_files_for_runs(project_id, [run_id]),
-        where: f.path in ^chunk,
-        group_by: f.path,
-        select:
-          {f.path, fragment("anyIf(?, ? != '')", f.git_blob_id, f.git_blob_id),
-           fragment("groupUniqArrayArray(?)", f.targets), fragment("groupUniqArrayArray(?)", f.line_numbers)}
-      )
-      |> ClickHouseRepo.all()
-      |> Enum.map(fn {path, git_blob_id, targets, executable} ->
-        carried = carried_lines[path]
-
-        {path,
-         %{
-           git_blob_id: git_blob_id,
-           targets: targets,
-           source_run_ids: [run_id],
-           covered_lines: Enum.count(executable, &MapSet.member?(carried, &1)),
-           executable_lines: length(executable)
-         }}
-      end)
-    end)
+    nearest = rows |> Enum.map(&Enum.at(&1, 1)) |> Enum.uniq() |> Enum.map(&Enum.at(plan, &1).source)
+    {files, nearest}
   end
 
   # The files the nearest ancestor that measured one of the schemes measured

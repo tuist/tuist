@@ -7,7 +7,7 @@ defmodule TuistWeb.IntegrationsLive do
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
   alias Tuist.EntireTrails
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Origin
   alias Tuist.Origin.Client, as: OriginClient
   alias Tuist.Projects
@@ -41,7 +41,7 @@ defmodule TuistWeb.IntegrationsLive do
 
     vcs_connections = vcs_connections(selected_account)
     github_enterprise_available? = Entitlements.allows?(selected_account, :github_enterprise_server)
-    github_app_configured? = Tuist.Environment.github_app_configured?()
+    github_app_configured? = Environment.github_app_configured?()
 
     # When github.com isn't configured (no `TUIST_GITHUB_APP_*` env
     # vars on the deployment) but the account is entitled to GHES,
@@ -73,7 +73,7 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(github_enterprise_available?: github_enterprise_available?)
       |> assign(github_app_configured?: github_app_configured?)
       |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
-      |> assign(runner_integrations_visible?: FeatureFlags.runners_enabled?(selected_account))
+      |> assign(runner_integrations_visible?: Environment.runners_available?())
       |> assign(buildkite_field_errors: %{})
       |> assign(buildkite_form_error: nil)
       |> assign(buildkite_flash: nil)
@@ -239,7 +239,7 @@ defmodule TuistWeb.IntegrationsLive do
 
   @impl true
   def handle_event("save-gitlab", params, %{assigns: %{selected_account: account}} = socket) do
-    if FeatureFlags.runners_enabled?(account) do
+    if Environment.runners_available?() do
       attrs =
         params
         |> Map.take(["_id", "url", "runner_token", "api_token"])
@@ -287,7 +287,7 @@ defmodule TuistWeb.IntegrationsLive do
   # workspace from it. A token that sees several workspaces is held in
   # the socket while the customer picks one.
   def handle_event("connect-bitrise", params, %{assigns: %{selected_account: account}} = socket) do
-    if FeatureFlags.runners_enabled?(account) do
+    if Environment.runners_available?() do
       api_token =
         case Map.get(params, "api_token") do
           token when token in [nil, ""] -> socket.assigns.bitrise_pending_token
@@ -343,7 +343,7 @@ defmodule TuistWeb.IntegrationsLive do
 
   @impl true
   def handle_event("add-bitrise-pool", params, %{assigns: %{selected_account: account}} = socket) do
-    if FeatureFlags.runners_enabled?(account) do
+    if Environment.runners_available?() do
       attrs =
         params
         |> Map.take(["stack_identifier", "profile_label", "intro_secret"])
@@ -1012,7 +1012,7 @@ defmodule TuistWeb.IntegrationsLive do
   #   * The account is entitled to GHES (so they can start the manifest
   #     flow without github.com env vars on a self-hosted Tuist).
   defp github_card_visible?(account, github_installation) do
-    Tuist.Environment.github_app_configured?() or
+    Environment.github_app_configured?() or
       not is_nil(github_installation) or
       Entitlements.allows?(account, :github_enterprise_server)
   end

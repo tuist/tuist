@@ -62,7 +62,7 @@
 //                            per env values file. Today every Mac the
 //                            env's operator bootstraps carries it:
 //                            the xcresult fleet, the runner fleet,
-//                            the image builders and the BER1 rack.
+//                            the image builders and the alder rack.
 //                            Each env joins with its own OAuth client
 //                            scoped to this tag, never a pre-auth key,
 //                            which Tailscale caps at 90 days and which
@@ -387,10 +387,10 @@
 		},
 
 		// ---------------------------------------------------------------
-		// BER1 rack.
+		// Alder rack.
 		// ---------------------------------------------------------------
 
-		// Production cluster -> the BER1 rack's Mac minis, on SSH only.
+		// Production cluster -> the alder rack's Mac minis, on SSH only.
 		//
 		// This is the FIRST-DIAL path for rack-owned Mac minis
 		// (RackAppleSiliconMachine). A rented mini has a public IP the
@@ -417,8 +417,9 @@
 		// One /32 per mini, matching exactly what the edges advertise
 		// (infra/helm/rack-edge/sites/ber1/tailnet-routes.sh, rendered from
 		// infra/rack-switch-fleet/sites/ber1.json, and the hosts' addresses
-		// in rackFleet.hosts in values-managed-production.yaml): b01-b16 at
-		// 10.10.0.101-10.10.0.116. Not the segment's /24, although the
+		// in rackFleet.hosts in values-managed-production.yaml): alder's b01-b16 at
+		// 10.10.0.101-10.10.0.116, and larch's a01-a05 at 10.20.0.101-10.20.0.105 and
+		// b01-b05 at 10.20.0.151-10.20.0.155. Not the segment's /24, although the
 		// edges' routes are auto-approved inside it: the segment also holds
 		// the edges (10.10.0.2, .3) and ber1-store-a (10.10.0.11), and a
 		// /24 here would hand SSH to any of them the moment an edge
@@ -443,6 +444,16 @@
 				"10.10.0.114/32",
 				"10.10.0.115/32",
 				"10.10.0.116/32",
+				"10.20.0.101/32",
+				"10.20.0.102/32",
+				"10.20.0.103/32",
+				"10.20.0.104/32",
+				"10.20.0.105/32",
+				"10.20.0.151/32",
+				"10.20.0.152/32",
+				"10.20.0.153/32",
+				"10.20.0.154/32",
+				"10.20.0.155/32",
 			],
 			"ip":  ["tcp:22"],
 		},
@@ -477,6 +488,16 @@
 				"10.10.0.114/32",
 				"10.10.0.115/32",
 				"10.10.0.116/32",
+				"10.20.0.101/32",
+				"10.20.0.102/32",
+				"10.20.0.103/32",
+				"10.20.0.104/32",
+				"10.20.0.105/32",
+				"10.20.0.151/32",
+				"10.20.0.152/32",
+				"10.20.0.153/32",
+				"10.20.0.154/32",
+				"10.20.0.155/32",
 			],
 			"ip":  ["tcp:22"],
 		},
@@ -504,7 +525,7 @@
 		},
 
 		// Production cluster -> rack 2's PDU and ATS cards (larch-pdu-a,
-		// larch-pdu-b, larch-ats-a, larch-ats-b), the same path as BER1's above,
+		// larch-pdu-b, larch-ats-a, larch-ats-b), the same path as alder's above,
 		// on rack 2's management VLAN. HTTPS only.
 		{
 			"src": ["tag:tuist-k8s-production"],
@@ -523,7 +544,7 @@
 			"ip":  ["tcp:22", "tcp:830"],
 		},
 
-		// Production cluster -> the BER1 rack's Linux nodes. SSH: the operator
+		// Production cluster -> the alder rack's Linux nodes. SSH: the operator
 		// joins each one over its own tailnet address and keeps it converged
 		// (RackLinuxMachine), through the macmini-egress ProxyGroup. 10250: the
 		// API server reaches each node's kubelet (logs, exec, port-forward)
@@ -534,7 +555,7 @@
 			"ip":  ["tcp:22", "tcp:10250"],
 		},
 
-		// The BER1 switches -> the Omada controller in the production cluster,
+		// The alder switches -> the Omada controller in the production cluster,
 		// on its device ports only. The switches are not on the tailnet: their
 		// traffic reaches it through the rack's edge node, translated to the
 		// edge node's own address, so the source here is the edge node's tag
@@ -549,7 +570,7 @@
 			"ip":  ["tcp:29811-29817", "tcp:8044", "udp:29810", "udp:19810"],
 		},
 
-		// BER1's Linux nodes -> the production Alloy receiver: pod logs to its
+		// Alder's Linux nodes -> the production Alloy receiver: pod logs to its
 		// loki.source.api (3100) and node-local Kura metrics to its
 		// prometheus.receive_http (9009), both from alloy-rack in
 		// infra/helm/k8s-monitoring, and Kura's traces to its OTLP HTTP
@@ -559,6 +580,18 @@
 			"src": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
 			"dst": ["tag:tuist-k8s-production"],
 			"ip":  ["tcp:3100", "tcp:9009", "tcp:4318"],
+		},
+
+		// Production rack minis -> the racks' VM image cache, a zot registry on
+		// a rack storage node (rackFleet.imageCache), which their tart-kubelet
+		// pulls golden bases from. Over the tailnet because one site's minis
+		// have no route to the other site's machines segment until the
+		// inter-site link carries it. The hosts only: their pf refuses the
+		// VMs the tailnet range, and zot takes pushes from whoever reaches it.
+		{
+			"src": ["tag:tuist-macmini-production"],
+			"dst": ["tag:tuist-rack-node"],
+			"ip":  ["tcp:5000"],
 		},
 
 		// ---------------------------------------------------------------
@@ -610,7 +643,7 @@
 			"ip":  ["tcp:8043"],
 		},
 
-		// Admins -> SSH on the BER1 rack's Linux nodes. The edges' SSH is
+		// Admins -> SSH on the alder rack's Linux nodes. The edges' SSH is
 		// reachable over the tailnet only (their WAN drops inbound :22,
 		// infra/rack-switch-fleet/AGENTS.md "Closed from outside"), and the
 		// fleet tooling uses `tuist@ber1-edge-a` as its jump host
@@ -753,7 +786,7 @@
 	// predates this section and stays manually approved; it is the
 	// tailnet's own range and no grant here targets it.
 	//
-	// The BER1 edges' routes are auto-approved too, and only inside the
+	// The alder edges' routes are auto-approved too, and only inside the
 	// rack's machines segment. They advertise one /32 per Mac mini,
 	// rendered from the rack's inventory (infra/rack-switch-fleet), so
 	// racking a mini changes their routes and hand approval would be a step
@@ -1025,6 +1058,7 @@
 				"tag:tuist-k8s-production:8123",
 				"tag:tuist-k8s-production:4317",
 				"tag:tuist-k8s-production:3100",
+				"tag:tuist-rack-node:5000",
 			],
 			"deny": [
 				"tag:tuist-k8s-production:443",
@@ -1104,7 +1138,7 @@
 			],
 		},
 
-		// The BER1 rack and the production cluster: the operator to the rack
+		// The alder rack and the production cluster: the operator to the rack
 		// (every mini's first-dial address, the power cards, the Linux
 		// nodes), the switches to the Omada controller, and the rack nodes'
 		// telemetry.

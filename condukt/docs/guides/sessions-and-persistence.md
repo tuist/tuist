@@ -11,9 +11,12 @@ snapshot and restore them.
   state within a running BEAM (for example after a `GenServer` crash).
 * `Condukt.SessionStore.Disk` writes snapshots to disk. Useful for crashing
   recovery, deployments, and CLIs.
+* `Condukt.SessionStore.ObjectStore` writes to S3 or a service compatible with
+  it, such as Tigris, R2, or MinIO. Useful when a session moves between
+  machines, as when a deployment replaces the one running it.
 
-Both also keep a journal of the run in progress, so a run the process dies in
-can be resumed. See [Resuming an interrupted run](#resuming-an-interrupted-run).
+All three also keep a journal of the run in progress, so a run the process
+dies in can be resumed. See [Resuming an interrupted run](#resuming-an-interrupted-run).
 
 ```elixir
 # Restore within the current VM
@@ -39,6 +42,37 @@ can be resumed. See [Resuming an interrupted run](#resuming-an-interrupted-run).
 
 When a store is configured, Condukt loads the snapshot at `start_link/1` and
 saves a fresh snapshot after every completed run.
+
+## Object storage
+
+`Condukt.SessionStore.ObjectStore` only ever creates objects, using S3's
+conditional writes (`If-None-Match: *`), so it needs no database next to the
+bucket:
+
+```elixir
+bucket =
+  {Condukt.SessionStore.ObjectStore.S3,
+   endpoint: "https://t3.storage.dev",
+   bucket: "sessions",
+   access_key_id: System.fetch_env!("AWS_ACCESS_KEY_ID"),
+   secret_access_key: System.fetch_env!("AWS_SECRET_ACCESS_KEY")}
+
+{:ok, agent} =
+  MyApp.CodingAgent.start_link(
+    session_store: {Condukt.SessionStore.ObjectStore, bucket: bucket, key: "thread-42", epoch: lease.epoch}
+  )
+```
+
+A save writes only the messages the run added, and each journal record is
+one small object. Pass `:encrypt` and `:decrypt` functions to encrypt every
+object before it leaves the process.
+
+When something outside Condukt hands a session from one machine to another,
+such as a lease in a database, pass the owner's `:epoch`, which must grow
+with every new owner. The new owner's first call fences the store, and every
+later write from an older epoch fails with `{:error, :fenced}`, so a process
+that lost its session but is still running cannot write over the new one.
+The module documentation describes the layout and the protocol.
 
 ## Store keys and options
 
@@ -209,7 +243,10 @@ Aborting a resumed run keeps the same, and drops only what the resume itself did
 A tool is replay-safe when running the same call twice leaves the world as
 running it once. `Condukt.Tools.Read`, `Glob`, `Grep`, and `Write` declare it;
 `Bash`, `Edit`, `Command`, and MCP tools do not, since running them twice can
-do something different from running them once.
+do something different from running them once. `Bash` can opt in with
+`{Condukt.Tools.Bash, replay_safe: true}` on a sandbox whose processes outlive
+the session's node: a rerun call follows the command its interrupted call
+started instead of starting it again.
 
 ```elixir
 defmodule MyApp.Tools.FetchInvoice do
@@ -283,7 +320,9 @@ default is 5; pass `restart_limit: n` when starting the session, set
   failure. `Condukt.SessionStore.Memory` survives the session process but not
   the virtual machine.
 * One process writes a session's store at a time. Start a session on a store
-  only after the previous process for it has exited.
+  only after the previous process for it has exited, or give each new owner
+  a higher `:epoch` on `Condukt.SessionStore.ObjectStore`, which refuses the
+  previous owner's writes.
 
 ## Implementing a store
 

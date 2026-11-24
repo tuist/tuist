@@ -14,7 +14,7 @@ msgstr "Language: pt\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/bundle_live.html.heex:434
 #, elixir-autogen, elixir-format
 msgid "%{duplicates_count} duplicates"
-msgstr "%{duplicates_count} duplicados"
+msgstr "%{duplicates_count} duplicatas"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:769
 #: lib/tuist_web/live/xcode_cache_live.html.heex:898
@@ -72,7 +72,7 @@ msgstr "< 0,1 %"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Analytics"
-msgstr "Análises"
+msgstr "Análise"
 
 #: lib/tuist_web/live/bundles_live.ex:432
 #: lib/tuist_web/live/bundles_live.html.heex:40
@@ -128,7 +128,7 @@ msgstr "Média"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Avg. cache hit rate"
-msgstr "Taxa média de acertos de cache"
+msgstr "Taxa média de acerto de cache"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:143
 #, elixir-autogen, elixir-format
@@ -212,14 +212,14 @@ msgstr "CI"
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
-msgstr "Execuções de Cache"
+msgstr "Execuções em Cache"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:259
 #: lib/tuist_web/live/xcode_cache_live.ex:242
 #: lib/tuist_web/live/xcode_cache_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
-msgstr "Downloads de cache"
+msgstr "Downloads do cache"
 
 #: lib/tuist_web/components/module_invalidations_table.ex:41
 #: lib/tuist_web/live/module_cache_live.ex:398
@@ -235,17 +235,17 @@ msgstr "Downloads de cache"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:801
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
-msgstr "Taxa de acerto de cache"
+msgstr "Taxa de acertos de cache"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "A taxa de acerto de cache representa a porcentagem de alvos que podem ser armazenados em cache e que foram resolvidos a partir do cache (local ou remoto) em vez de serem recompilados."
+msgstr "A taxa de acertos de cache representa a porcentagem de destinos armazenáveis em cache que foram resolvidos a partir do cache (local ou remoto) em vez de serem recompilados."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "A taxa de acertos de cache representa a porcentagem de tarefas que podem ser armazenadas em cache e que foram resolvidas a partir do cache (local ou remoto), em vez de serem recompiladas."
+msgstr "A taxa de acertos de cache representa a porcentagem de tarefas armazenáveis em cache que foram resolvidas a partir do cache (local ou remoto) em vez de serem recompiladas."
 
 #: lib/tuist_web/live/module_cache_live.ex:380
 #, elixir-autogen, elixir-format
@@ -255,7 +255,7 @@ msgstr "Acertos de cache"
 #: lib/tuist_web/live/module_cache_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
-msgstr "Os acertos de cache representam o total de destinos que foram resolvidos a partir do cache (local ou remoto) durante o período informado."
+msgstr "Os acertos de cache representam o total de alvos que foram resolvidos a partir do cache (local ou remoto) durante o período informado."
 
 #: lib/tuist_web/live/module_cache_live.ex:389
 #, elixir-autogen, elixir-format
@@ -265,7 +265,7 @@ msgstr "Falhas de cache"
 #: lib/tuist_web/live/module_cache_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
-msgstr "As falhas de cache representam o total de destinos que podem ser armazenados em cache e que precisaram ser recompilados porque não foram encontrados no cache durante o período informado."
+msgstr "As falhas de cache representam o total de alvos armazenáveis em cache que precisaram ser recompilados porque não foram encontrados no cache durante o período informado."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:260
 #: lib/tuist_web/live/xcode_cache_live.ex:247
@@ -374,7 +374,7 @@ msgstr "Arquivo"
 #: lib/tuist_web/live/bundle_live.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "File Breakdown"
-msgstr "Detalhamento por arquivo"
+msgstr "Detalhamento de arquivos"
 
 #: lib/tuist_web/live/bundle_live.html.heex:544
 #: lib/tuist_web/live/bundles_live.html.heex:346
@@ -508,7 +508,7 @@ msgstr "Nome"
 #: lib/tuist_web/live/bundles_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "No bundles yet"
-msgstr "Ainda não há bundles"
+msgstr "Nenhum bundle ainda"
 
 #: lib/tuist_web/live/bundles_live.html.heex:427
 #: lib/tuist_web/live/cache_runs_live.html.heex:135
@@ -519,7 +519,7 @@ msgstr "Ainda não há bundles"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:916
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "Ainda não há dados"
+msgstr "Sem dados ainda"
 
 #: lib/tuist_web/live/bundle_live.html.heex:609
 #, elixir-autogen, elixir-format
@@ -529,7 +529,7 @@ msgstr "Nenhum arquivo encontrado"
 #: lib/tuist_web/live/bundle_live.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "No insights yet"
-msgstr "Nenhuma insight ainda"
+msgstr "Sem insights ainda"
 
 #: lib/tuist_web/live/bundle_live.html.heex:702
 #, elixir-autogen, elixir-format
@@ -623,12 +623,12 @@ msgstr "Representa o tamanho do pacote de aplicativo compactado que é baixado p
 #: lib/tuist_web/live/bundle_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
-msgstr "Representa o tamanho do pacote da aplicação descomprimido que é instalado pelo utilizador. Este é o número apresentado na App Store."
+msgstr "Representa o tamanho do pacote de aplicativo descompactado que é instalado pelo usuário. Este é o número exibido na App Store."
 
 #: lib/tuist_web/live/bundles_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to analyze a bundle."
-msgstr "Execute o seguinte comando para analisar um pacote."
+msgstr "Execute o comando a seguir para analisar um pacote."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:519
 #: lib/tuist_web/live/xcode_cache_live.ex:424
@@ -667,29 +667,29 @@ msgstr "Ordenar por:"
 #: lib/tuist_web/live/bundle_live.html.heex:696
 #, elixir-autogen, elixir-format
 msgid "Space usage"
-msgstr "Utilização de espaço"
+msgstr "Uso de espaço"
 
 #: lib/tuist_web/live/cache_runs_live.ex:52
 #: lib/tuist_web/live/xcode_cache_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "Status"
-msgstr "Estado"
+msgstr "Status"
 
 #: lib/tuist_web/live/bundles_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
-msgstr "O tamanho do download do pacote. Este é o tamanho compactado do app que o usuário baixa da App Store."
+msgstr "O tamanho do download do pacote. Este é o tamanho compactado do aplicativo que o usuário baixa da App Store."
 
 #: lib/tuist_web/live/bundles_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
-msgstr "O tamanho de instalação do pacote. Este é o tamanho descompactado do app e representa quanto espaço ele ocupa no dispositivo."
+msgstr "O tamanho de instalação do pacote. Este é o tamanho descompactado do aplicativo e representa quanto espaço ele ocupa no dispositivo."
 
 #: lib/tuist_web/live/bundle_live.html.heex:610
 #: lib/tuist_web/live/bundle_live.html.heex:703
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "Tente alterar seu termo de busca"
+msgstr "Tente alterar seu termo de pesquisa"
 
 #: lib/tuist_web/live/bundle_live.ex:1040
 #: lib/tuist_web/live/bundle_live.html.heex:53
@@ -748,7 +748,7 @@ msgstr "Cache do Xcode"
 #: lib/tuist_web/live/bundle_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "compared to last bundle"
-msgstr "em comparação com o último pacote"
+msgstr "em comparação com o último bundle"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:496
 #: lib/tuist_web/live/xcode_cache_live.html.heex:633
@@ -760,12 +760,12 @@ msgstr "p50"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "p50 cache hit rate"
-msgstr "taxa de acertos de cache p50"
+msgstr "taxa de acerto de cache p50"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "p50 hit rate"
-msgstr "taxa de acertos p50"
+msgstr "taxa de acerto p50"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:483
 #: lib/tuist_web/live/xcode_cache_live.html.heex:620
@@ -904,17 +904,17 @@ msgstr "desde ontem"
 #: lib/tuist_web/live/cache_runs_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
-msgstr "Endpoint de Cache"
+msgstr "Endpoint de cache"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Set up Xcode cache for your project"
-msgstr "Configure o cache do Xcode para o seu projeto"
+msgstr "Configure o cache do Xcode para seu projeto"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Xcode cache for your project by running:"
-msgstr "Você pode configurar o cache do Xcode para o seu projeto executando:"
+msgstr "Você pode configurar o cache do Xcode para seu projeto executando:"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:29
 #, elixir-autogen, elixir-format
@@ -963,17 +963,17 @@ msgstr "Ambiente"
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "O limite de 10.000 entradas foi atingido, os dados estão incluídos apenas até %{date}. Tente filtrar para reduzir o conjunto de dados."
+msgstr "O limite de 10.000 entradas foi atingido; os dados estão incluídos apenas até %{date}. Tente aplicar filtros para reduzir o conjunto de dados."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data."
-msgstr "O limite de 10.000 entradas foi atingido, os dados estão incluídos apenas até %{date}. Tente reduzir o intervalo de datas para ver dados mais recentes."
+msgstr "O limite de 10.000 entradas foi atingido; os dados estão incluídos apenas até %{date}. Tente reduzir o intervalo de datas para ver dados mais recentes."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Average latency of read (download) and write (upload) operations against remote cache storage during the given period."
-msgstr "Latência média das operações de leitura (download) e escrita (upload) no armazenamento de cache remoto durante o período informado."
+msgstr "Latência média das operações de leitura (download) e escrita (upload) no armazenamento remoto do cache durante o período informado."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:261
 #: lib/tuist_web/live/xcode_cache_live.ex:261
@@ -1002,12 +1002,12 @@ msgstr "Transferência de cache"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Cache transfer represents the total size of cache artifacts downloaded from and uploaded to remote storage during the given period."
-msgstr "A transferência de cache representa o tamanho total dos artefatos de cache baixados e enviados para o armazenamento remoto durante o período informado."
+msgstr "A transferência de cache representa o tamanho total dos artefatos de cache baixados e enviados para o armazenamento remoto durante o período indicado."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Combined download and upload throughput against remote cache storage during the given period, derived from bytes transferred over time."
-msgstr "Taxa combinada de download e upload em relação ao armazenamento remoto de cache durante o período informado, derivada dos bytes transferidos ao longo do tempo."
+msgstr "Taxa combinada de download e upload em relação ao armazenamento de cache remoto durante o período indicado, derivada dos bytes transferidos ao longo do tempo."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:265
 #: lib/tuist_web/live/xcode_cache_live.ex:290
@@ -1093,7 +1093,7 @@ msgstr "Frio"
 #: lib/tuist_web/live/modules_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "Cold misses"
-msgstr "Falhas de cache por inicialização"
+msgstr "Falhas por cache frio"
 
 #: lib/tuist_web/components/module_invalidations_table.ex:49
 #: lib/tuist_web/live/module_cache_module_live.html.heex:151
@@ -1143,13 +1143,13 @@ msgstr "N/D"
 #: lib/tuist_web/live/module_cache_live.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "Needs CLI graph edges"
-msgstr "Necessita de arestas do grafo da CLI"
+msgstr "Requer arestas do grafo da CLI"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:649
 #: lib/tuist_web/live/modules_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "No cache misses yet"
-msgstr "Ainda não há falhas de cache"
+msgstr "Sem falhas de cache ainda"
 
 #: lib/tuist_web/live/modules_live.html.heex:429
 #, elixir-autogen, elixir-format
@@ -1169,17 +1169,17 @@ msgstr "Pesquisar módulos"
 #: lib/tuist_web/live/module_cache_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Share of invalidations caused only by an upstream dependency changing rather than the module's own code (upstream ÷ changed + upstream). This is the fraction better module boundaries can remove."
-msgstr "Parcela das invalidações causadas apenas por alterações em uma dependência upstream, e não pelo código do próprio módulo (upstream ÷ alterado + upstream). Essa fração pode ser eliminada com melhores limites entre módulos."
+msgstr "Proporção de invalidações causadas apenas por alterações em uma dependência upstream, e não pelo código do próprio módulo (upstream ÷ alterado + upstream). Essa é a fração que limites de módulo mais bem definidos podem eliminar."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Share of this module's builds that were served from cache instead of rebuilt."
-msgstr "Parcela dos builds deste módulo que foram servidos a partir do cache em vez de recompilados."
+msgstr "Proporção das compilações deste módulo que foram atendidas pelo cache em vez de recompiladas."
 
 #: lib/tuist_web/live/module_cache_live.html.heex:585
 #, elixir-autogen, elixir-format
 msgid "The module that was a cache miss most often during the period. Reducing how often it rebuilds has the largest direct payoff."
-msgstr "O módulo que mais frequentemente resultou em falha de cache durante o período. Reduzir a frequência com que ele é recompilado traz o maior benefício direto."
+msgstr "O módulo com mais falhas de cache durante o período. Reduzir a frequência com que ele é recompilado traz o maior benefício direto."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:325
 #: lib/tuist_web/live/module_cache_module_live.ex:349
@@ -1210,7 +1210,7 @@ msgstr "Ver todos os módulos"
 #: lib/tuist_web/live/module_cache_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "The module that invalidates the most other modules when it changes. It is the highest-impact target for better boundaries."
-msgstr "O módulo que invalida a maior quantidade de outros módulos quando é alterado. É o alvo de maior impacto para melhorar os limites."
+msgstr "O módulo que invalida mais outros módulos quando é alterado. É o alvo de maior impacto para melhorar os limites."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:429
 #, elixir-autogen, elixir-format
@@ -1237,7 +1237,7 @@ msgstr "Nenhuma compilação corresponde a esses filtros"
 #: lib/tuist_web/live/module_cache_module_live.html.heex:441
 #, elixir-autogen, elixir-format
 msgid "Search commit sha"
-msgstr "Buscar SHA do commit"
+msgstr "Procurar SHA do commit"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:524
 #, elixir-autogen, elixir-format
@@ -1299,32 +1299,32 @@ msgstr "e mais %{count}"
 #: lib/tuist_web/helpers/module_cache.ex:59
 #, elixir-autogen, elixir-format
 msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
-msgstr "Esta chave exata teve um acerto remoto no mesmo endpoint de cache anteriormente, mas agora resulta em falha. O artefato em cache provavelmente foi removido."
+msgstr "Esta chave exata já teve um acerto remoto no mesmo endpoint de cache, mas agora resulta em falha. O artefato em cache provavelmente foi removido."
 
 #: lib/tuist_web/helpers/module_cache.ex:38
 #, elixir-autogen, elixir-format
 msgid "The module's reported inputs changed, such as its files, build settings, configuration, or compiler version."
-msgstr "Os inputs relatados do módulo foram alterados, como arquivos, configurações de compilação, configuração ou versão do compilador."
+msgstr "Os inputs reportados do módulo mudaram, como seus arquivos, configurações de build, configuração ou versão do compilador."
 
 #: lib/tuist_web/helpers/module_cache.ex:52
 #, elixir-autogen, elixir-format
 msgid "No earlier comparison is available, or the reported inputs and remote-hit history do not explain this miss."
-msgstr "Nenhuma comparação anterior está disponível, ou os inputs relatados e o histórico de acertos remotos não explicam esta falha."
+msgstr "Nenhuma comparação anterior está disponível, ou os inputs reportados e o histórico de acertos remotos não explicam esta falha."
 
 #: lib/tuist_web/helpers/module_cache.ex:66
 #, elixir-autogen, elixir-format
 msgid "This observation reports a local or remote cache hit."
-msgstr "Esta observação relata um acerto de cache local ou remoto."
+msgstr "Esta observação reporta um acerto de cache local ou remoto."
 
 #: lib/tuist_web/helpers/module_cache.ex:45
 #, elixir-autogen, elixir-format
 msgid "The module's own reported inputs stayed the same, but a dependency or external package hash changed."
-msgstr "As entradas relatadas pelo próprio módulo permaneceram iguais, mas o hash de uma dependência ou pacote externo mudou."
+msgstr "Os próprios inputs relatados pelo módulo permaneceram iguais, mas o hash de uma dependência ou pacote externo mudou."
 
 #: lib/tuist_web/helpers/module_cache.ex:70
 #, elixir-autogen, elixir-format
 msgid "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Evicted: a previously served key now misses."
-msgstr "Alterado: as entradas do módulo mudaram. Upstream: as dependências mudaram. Cold: evidências insuficientes. Evicted: uma chave anteriormente servida agora apresenta falha."
+msgstr "Alterado: os inputs do módulo mudaram. Upstream: as dependências mudaram. Cold: evidências insuficientes. Evicted: uma chave previamente servida agora resulta em falha."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:327
 #: lib/tuist_web/live/module_cache_module_live.ex:351
@@ -1347,17 +1347,17 @@ msgstr "Falhas por remoção de itens"
 msgid "Unavailable"
 msgstr "Indisponível"
 
-#: lib/tuist_web/live/mix_build_live.ex:340
+#: lib/tuist_web/live/mix_build_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Local hit"
 msgstr "Acerto local"
 
-#: lib/tuist_web/live/mix_build_live.ex:341
+#: lib/tuist_web/live/mix_build_live.ex:342
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "Falha"
+msgstr "Falha de cache"
 
-#: lib/tuist_web/live/mix_build_live.ex:339
+#: lib/tuist_web/live/mix_build_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
 msgstr "Acerto remoto"
@@ -1372,7 +1372,7 @@ msgstr[1] "Resultados de cache registrados para %{measured} de %{total} compila�
 #: lib/tuist_web/live/toolchain_cache_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Average and percentiles of individual build cache hit rates. Hits reuse cached outputs; misses include lookup misses, cold compilations, and verification rebuilds. Prefetches are excluded."
-msgstr "Média e percentis das taxas individuais de acerto de cache por compilação. Acertos reutilizam saídas em cache; falhas incluem falhas de busca, compilações a frio e recompilações de verificação. Pré-buscas são excluídas."
+msgstr "Média e percentis das taxas individuais de acerto de cache por compilação. Os acertos reutilizam saídas em cache; as falhas incluem falhas de busca, compilações a frio e recompilações de verificação. Pré-buscagens são excluídas."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:182
 #, elixir-autogen, elixir-format

@@ -12,7 +12,7 @@
 > [!NOTE]
 > **什么是全局安装**
 >
-> 全局安装是指在你的 Shell 的 `$PATH` 环境变量中可用的安装方式。这意味着你可以在终端的任何目录中运行 `tuist`。这是 Homebrew 的默认安装方式。
+> 全局安装是指在你的 Shell 的 `$PATH` 环境变量中可用的安装。这意味着你可以在终端的任何目录中运行 `tuist`。这是 Homebrew 的默认安装方式。
 
 
 ## Zsh {#zsh}
@@ -39,7 +39,7 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 
 ## Bash {#bash}
 
-如果你已安装 [bash-completion](https://github.com/scop/bash-completion)，只需将新生成的补全脚本复制到 bash-completion 的目录中：
+如果你已安装 [bash-completion](https://github.com/scop/bash-completion)，只需将新生成的补全脚本复制到 bash-completion 的目录：
 
 ```bash
 tuist --generate-completion-script bash > "$(brew --prefix)/etc/bash_completion.d/_tuist"

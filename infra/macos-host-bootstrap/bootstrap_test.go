@@ -1540,7 +1540,7 @@ func TestHostConfigHash_ChangesWithGuestSizedFields(t *testing.T) {
 // rather than decoding them, because decoding needed /usr/bin/python3 and that
 // is a Command Line Tools shim: on a host without Xcode it fails with
 // "xcode-select: error: No developer tools were found" and takes the whole
-// bootstrap with it. That is what stopped the BER1 prototype on 2026-09-09.
+// bootstrap with it. That is what stopped the alder prototype on 2026-09-09.
 //
 // Hardcoding is only safe if the constant really is the encoding of the marker,
 // so derive it here from the same encoder the writer uses instead of restating

@@ -5,6 +5,7 @@ defmodule TuistWeb.DashboardNavigation do
 
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
   alias Tuist.Tests.Coverage
@@ -20,7 +21,7 @@ defmodule TuistWeb.DashboardNavigation do
       [
         item(dgettext("dashboard", "Projects"), root <> "/projects", "folders"),
         group(
-          FeatureFlags.runners_enabled?(account),
+          Environment.runners_available?(),
           "sidebar-runners",
           dgettext("dashboard", "Runners"),
           root <> "/runners",
@@ -51,11 +52,11 @@ defmodule TuistWeb.DashboardNavigation do
           "users",
           Accounts.organization?(account) and Authorization.authorize(:organization_read, user, account) == :ok
         ),
-        group(Tuist.Pulse.authorized?(user, account), "sidebar-pulse", "Pulse", nil, "chart_arcs", [
-          item(dgettext("dashboard", "Metrics"), root <> "/~/pulse/metrics", "chart_arcs"),
-          item(dgettext("dashboard", "Logs"), root <> "/~/pulse/logs", "file_text"),
-          item(dgettext("dashboard", "Traces"), root <> "/~/pulse/traces", "list_tree"),
-          item(dgettext("dashboard", "Errors"), root <> "/~/pulse/errors", "alert_circle")
+        group(Tuist.Pulse.authorized?(user, account), "sidebar-pulse", "Pulse", root <> "/pulse", "chart_arcs", [
+          item(dgettext("dashboard", "Metrics"), root <> "/pulse/metrics", "chart_arcs"),
+          item(dgettext("dashboard", "Logs"), root <> "/pulse/logs", "file_text"),
+          item(dgettext("dashboard", "Traces"), root <> "/pulse/traces", "list_tree"),
+          item(dgettext("dashboard", "Errors"), root <> "/pulse/errors", "alert_circle")
         ]),
         item(dgettext("dashboard", "Webhooks"), root <> "/webhooks", "webhook", admin?),
         item(dgettext("dashboard", "Cache"), root <> "/cache", "database", admin?),
@@ -106,8 +107,8 @@ defmodule TuistWeb.DashboardNavigation do
         if(Accounts.organization?(account), do: settings <> "/ai/routing", else: settings <> "/ai"),
         dgettext("dashboard", "Manage AI subscriptions and routing"),
         if(Accounts.organization?(account),
-          do: admin? and FeatureFlags.organization_guild_enabled?(account),
-          else: account.user_id == user.id and FeatureFlags.guild_enabled?(user)
+          do: admin? and FeatureFlags.organization_luft_enabled?(account),
+          else: account.user_id == user.id and FeatureFlags.luft_enabled?(user)
         )
       )
     ]
@@ -168,7 +169,13 @@ defmodule TuistWeb.DashboardNavigation do
         Project.gradle_project?(project) and not Enum.any?(resources, &(&1.key == :gradle_tasks))
       ),
       page(dgettext("dashboard", "Bazel Cache"), root <> "/bazel-cache", project.name, Project.bazel_project?(project)),
-      page(dgettext("dashboard", "Once Cache"), root <> "/once-cache", project.name, once?),
+      page(dgettext("dashboard", "Struo Cache"), root <> "/once-cache", project.name, once?),
+      page(
+        dgettext("dashboard", "Remote execution"),
+        root <> "/remote-execution",
+        project.name,
+        Project.bazel_project?(project) or once?
+      ),
       page(dgettext("dashboard", "Cargo Cache"), root <> "/cargo-cache", project.name, Project.cargo_project?(project)),
       page(dgettext("dashboard", "Mix Cache"), root <> "/mix-cache", project.name, Project.mix_project?(project)),
       page(dgettext("dashboard", "Xcode Cache"), root <> "/xcode-cache", project.name, Project.xcode_project?(project)),
@@ -261,6 +268,7 @@ defmodule TuistWeb.DashboardNavigation do
           "/module-cache/modules" -> "apps"
           "/previews" -> "devices"
           "/bundles" -> "package"
+          "/remote-execution" -> "cloud_computing"
           "/settings" <> _ -> "settings"
           "/" <> cache when cache in ~w(bazel-cache once-cache cargo-cache mix-cache xcode-cache gradle-cache) -> "server"
           _ -> "subtask"

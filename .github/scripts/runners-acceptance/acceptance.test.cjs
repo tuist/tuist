@@ -80,7 +80,7 @@ for (const environment of ['canary', 'production']) {
   }
 }
 
-// Production has no macOS probe while the BER1 one is paused; restore 3 with it.
+// Production has no macOS probe while the alder one is paused; restore 3 with it.
 for (const [environment, label, count] of [['canary', 'tuist-canary-linux', 7], ['production', 'tuist-linux', 2]]) {
   test(`${environment} plans native and container Linux probes in the watchdog count`, () => {
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-plan-'));
@@ -363,9 +363,9 @@ test('only the cold phase empties the build cache, before the builder is set up'
 });
 
 // The same-size write reads the `second` marker, which only the cold job's
-// in-job changed-source build publishes now that the gate has no separate
+// in-job seed build publishes now that the gate has no separate
 // changed-source job. Without it every canary deploy would fail at that phase.
-for (const [phase, expected] of [['cold', ['cold', 'changed-source']], ['same-size-write', ['same-size-write']], ['verify-final', ['verify-final']]]) {
+for (const [phase, expected] of [['cold', ['cold', 'seed']], ['same-size-write', ['same-size-write']], ['verify-final', ['verify-final']]]) {
   test(`${phase} probe runs the ${expected.join(' then ')} build for both drivers`, () => {
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'docker-phases-'));
     try {

@@ -536,7 +536,7 @@ defmodule Tuist.KuraTest do
       assert {:ok, server} =
                Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
 
-      assert server.storage_claim_size == "8Gi"
+      assert server.storage_claim_size == "6Gi"
     end
 
     test "pins runner creation and cold return before rendering an account-sized claim", %{account: account} do
@@ -583,7 +583,7 @@ defmodule Tuist.KuraTest do
                })
 
       assert server.account_id == account.id
-      assert server.storage_claim_size == "8Gi"
+      assert server.storage_claim_size == "6Gi"
     end
 
     test "pins nothing where the region sizes every instance alike", %{account: account} do
@@ -598,13 +598,13 @@ defmodule Tuist.KuraTest do
 
     test "reads the plan again on the cold return, which is when the volumes are rebuilt", %{account: account} do
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-      assert server.storage_claim_size == "8Gi"
+      assert server.storage_claim_size == "6Gi"
 
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
 
       assert {:ok, returned} = server |> archive() |> Kura.return_from_archive("0.5.2")
 
-      assert returned.storage_claim_size == "8Gi"
+      assert returned.storage_claim_size == "6Gi"
     end
 
     test "leaves a serving instance on the footprint it was built with", %{account: account} do
@@ -615,7 +615,7 @@ defmodule Tuist.KuraTest do
       # Nothing re-derives it: the claim cannot be expanded under a running
       # instance on this storage class, so the upgrade lands when the volumes
       # are next built.
-      assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "6Gi"
     end
 
     test "builds a warm-handoff target at the claim the account is measured at", %{account: account} do
@@ -1450,53 +1450,41 @@ defmodule Tuist.KuraTest do
       {:ok, _active} = Kura.activate_server(server, "0.5.2")
       assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == "https://tuist-larch-runners.kura.tuist.dev"
     end
-  end
 
-  describe "runner_cache_elsewhere/2" do
-    setup do
-      stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.Environment, :test?, fn -> false end)
+    test "a site without a serving node of its own falls back to another site's through its entrance", %{
+      account: account
+    } do
+      [alder] = Repo.all(from(s in Server, where: s.account_id == ^account.id and s.region == "ber1-runners"))
+      via_larch = "https://tuist-ber1-runners-via-larch.kura.tuist.dev"
+      fresh = DateTime.to_iso8601(DateTime.truncate(DateTime.utc_now(), :second))
+      set_entrances = &(alder |> Repo.reload!() |> Ecto.Changeset.change(&1) |> Repo.update!())
 
-      stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "ber1-runners"]
-      end)
+      set_entrances.(gateway_entrances: %{"larch" => %{"url" => via_larch, "observed_at" => fresh}})
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == via_larch
+      # Alder's own jobs keep alder's own host; an entrance is never handed to
+      # the site it belongs to.
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == "https://tuist-ber1-runners.kura.tuist.dev"
 
-      stub(Provisioner, :external_endpoint, fn %Server{region: region} ->
-        {:ok,
-         %{url: "https://tuist-#{region}.kura.tuist.dev", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
-      end)
+      # A local node that serves always wins over the entrance.
+      {:ok, larch} = Kura.create_server(%{account_id: account.id, region: "larch-runners", image_tag: "0.5.2"})
+      {:ok, larch} = Kura.activate_server(larch, "0.5.2")
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == "https://tuist-larch-runners.kura.tuist.dev"
 
-      warm = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
-      cold = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      # Once larch's node stops serving, the fallback takes over again.
+      larch |> Ecto.Changeset.change(last_ready_at: ~U[2020-01-01 00:00:00Z]) |> Repo.update!()
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == via_larch
 
-      {:ok, server} = Kura.create_server(%{account_id: warm.id, region: "ber1-runners", image_tag: "0.5.2"})
-      {:ok, _active} = Kura.activate_server(server, "0.5.2")
+      # A stale entrance observation is not handed out: larch's gateway is dark.
+      set_entrances.(gateway_entrances: %{"larch" => %{"url" => via_larch, "observed_at" => "2020-01-01T00:00:00Z"}})
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
 
-      %{warm: warm, cold: cold}
-    end
+      # Nor is a fresh entrance to a node that itself stopped serving.
+      set_entrances.(
+        gateway_entrances: %{"larch" => %{"url" => via_larch, "observed_at" => fresh}},
+        last_ready_at: ~U[2020-01-01 00:00:00Z]
+      )
 
-    test "names the accounts whose runner cache is at another site", %{warm: warm, cold: cold} do
-      assert Kura.runner_cache_elsewhere([warm.id, cold.id], "larch") == MapSet.new([warm.id])
-    end
-
-    test "names none whose cache is at the claiming site", %{warm: warm, cold: cold} do
-      assert Kura.runner_cache_elsewhere([warm.id, cold.id], "ber1") == MapSet.new()
-    end
-
-    test "ignores a node that is not active", %{warm: warm} do
-      Server
-      |> Repo.get_by!(account_id: warm.id, region: "ber1-runners")
-      |> Ecto.Changeset.change(status: :drain_pending)
-      |> Repo.update!()
-
-      assert Kura.runner_cache_elsewhere([warm.id], "larch") == MapSet.new()
-    end
-
-    test "reads nothing while every site region is at the claiming site", %{warm: warm} do
-      reject(&Repo.all/1)
-      reject(&Repo.all/2)
-
-      assert Kura.runner_cache_elsewhere([warm.id], "ber1") == MapSet.new()
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
     end
   end
 
@@ -1506,7 +1494,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "us-east", "us-west", "ber1-runners"]
+        ["ca-east", "eu-west", "us-east", "us-west", "ber1-runners"]
       end)
 
       user = AccountsFixtures.user_fixture()
@@ -1527,12 +1515,18 @@ defmodule Tuist.KuraTest do
 
     test "prefers the account's eu-west instance among the CLI's candidates", %{account: account} do
       activate_public_server!(account, "us-east")
-      activate_public_server!(account, "eu-west")
+      activate_public_server!(account, "ca-east")
+      server = activate_public_server!(account, "eu-west")
 
       handle = String.downcase(account.name)
+      internal = "http://kura-#{handle}-eu-west-1.kura.svc.cluster.local:4000"
 
-      assert Kura.runner_cache_endpoint_url(account, :linux) ==
-               "http://kura-#{handle}-eu-west-1.kura.svc.cluster.local:4000"
+      assert Kura.runner_cache_endpoint_url(account, :linux) == internal
+      assert Kura.public_cache_endpoint_url(account, internal) == server.url
+      assert Kura.public_cache_endpoint_url(account, "http://unmatched-cache:4000") == nil
+
+      other_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      assert Kura.public_cache_endpoint_url(other_account, internal) == nil
     end
 
     test "falls back to the account's first instance when it has none in eu-west",
@@ -1583,6 +1577,11 @@ defmodule Tuist.KuraTest do
 
       assert Kura.runner_cache_endpoint_url(account, :linux) ==
                "http://kura-#{handle}-eu-west-1-m.kura.svc.cluster.local:4000"
+
+      assert Kura.public_cache_endpoint_url(account, "http://kura-#{handle}-eu-west-1-m.kura.svc.cluster.local:4000") ==
+               server.url
+
+      assert Kura.public_cache_endpoint_url(account, "http://kura-#{handle}-eu-west-1.kura.svc.cluster.local:4000") == nil
     end
 
     test "never hands macOS fleets a cluster-DNS URL", %{account: account} do

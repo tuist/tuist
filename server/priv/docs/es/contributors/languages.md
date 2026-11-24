@@ -47,7 +47,7 @@ El flujo de trabajo es:
 
 ## Estructura de L10N.md {#l10n-md-structure}
 
-Los archivos `L10N.md` definen el contexto que utiliza Glossia al traducir. La forma más sencilla de entenderlos es como instrucciones de idioma con alcance específico que pueden ubicarse en diferentes niveles de directorio.
+Los archivos `L10N.md` definen el contexto que utiliza Glossia al traducir. La forma más sencilla de entenderlos es considerarlos como instrucciones de idioma con alcance específico que pueden ubicarse en distintos niveles de directorio.
 
 Por ejemplo:
 
@@ -70,7 +70,7 @@ Glossia recorre desde la raíz del repositorio hasta el directorio que se está 
 
 En el ejemplo anterior:
 
-- `L10N.md` se aplica globalmente.
+- `L10N.md` se aplica de forma global.
 - `server/L10N.md` añade contexto específico del servidor.
 - `server/L10N/es.md` añade anulaciones exclusivas para español en esa misma área.
 

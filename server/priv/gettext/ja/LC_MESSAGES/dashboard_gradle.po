@@ -50,7 +50,7 @@ msgstr "%{percentage}%"
 #: lib/tuist_web/live/mix_overview_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Analytics"
-msgstr "アナリティクス"
+msgstr "分析"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:32
 #: lib/tuist_web/live/gradle_builds_live.ex:184
@@ -87,12 +87,12 @@ msgstr "適用"
 #: lib/tuist_web/live/gradle_build_live.html.heex:773
 #, elixir-autogen, elixir-format
 msgid "Artifact"
-msgstr "成果物"
+msgstr "アーティファクト"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:664
 #, elixir-autogen, elixir-format
 msgid "Artifact Transforms"
-msgstr "成果物の変換"
+msgstr "アーティファクト変換"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:672
 #, elixir-autogen, elixir-format
@@ -118,7 +118,7 @@ msgstr "平均ビルド時間"
 #: lib/tuist_web/live/gradle_build_live.html.heex:1046
 #, elixir-autogen, elixir-format
 msgid "Average download throughput in megabits per second."
-msgstr "平均ダウンロードスループット（メガビット/秒）。"
+msgstr "平均ダウンロードスループット（Mbps）。"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:153
 #, elixir-autogen, elixir-format
@@ -128,17 +128,17 @@ msgstr "平均テスト時間"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to complete a Gradle build during the selected period."
-msgstr "選択した期間中にGradleビルドを完了するのにかかる平均時間。"
+msgstr "選択した期間中にGradleビルドを完了するまでの平均時間。"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to run tests during the selected period."
-msgstr "選択した期間中にテストを実行するのにかかる平均時間。"
+msgstr "選択した期間中にテストを実行するまでの平均時間。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1064
 #, elixir-autogen, elixir-format
 msgid "Average upload throughput in megabits per second."
-msgstr "平均アップロードスループット（メガビット/秒）。"
+msgstr "平均アップロードスループット（Mbps）。"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:165
 #: lib/tuist_web/live/mix_builds_live.html.heex:156
@@ -178,7 +178,7 @@ msgstr "ビルド詳細"
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "ビルド実行"
+msgstr "ビルド実行回数"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:88
 #, elixir-autogen, elixir-format
@@ -289,7 +289,7 @@ msgstr "キャッシュヒット率"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
-msgstr "キャッシュヒット率は、実行されずにキャッシュから解決されたキャッシュ可能タスクの割合を表します。"
+msgstr "キャッシュヒット率は、実行ではなくキャッシュから解決されたキャッシュ可能なタスクの割合を表します。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1212
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:107
@@ -312,7 +312,7 @@ msgstr "キャッシュアップロードは、指定された期間中にリモ
 #: lib/tuist_web/live/gradle_build_live.html.heex:908
 #, elixir-autogen, elixir-format
 msgid "Cacheable Tasks"
-msgstr "キャッシュ可能タスク"
+msgstr "キャッシュ可能なタスク"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:967
 #, elixir-autogen, elixir-format
@@ -327,12 +327,12 @@ msgstr "キャッシュに見つからなかったキャッシュ可能なタス
 #: lib/tuist_web/live/gradle_build_live.html.heex:855
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "キャッシュ（ローカルおよびリモート）から取得されたキャッシュ可能なタスク。"
+msgstr "キャッシュ（ローカル + リモート）から取得されたキャッシュ可能なタスク。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:919
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks:"
-msgstr "キャッシュ可能なタスク:"
+msgstr "キャッシュ可能なタスク："
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:71
 #: lib/tuist_web/live/gradle_cache_live.html.heex:102
@@ -375,7 +375,7 @@ msgstr "構成"
 #: lib/tuist_web/live/mix_builds_live.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "Configuration Insights"
-msgstr "構成のインサイト"
+msgstr "構成インサイト"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:394
 #, elixir-autogen, elixir-format
@@ -398,7 +398,7 @@ msgstr "構成時間"
 #: lib/tuist_web/live/gradle_build_live.html.heex:582
 #, elixir-autogen, elixir-format
 msgid "Configured unit"
-msgstr "設定された単位"
+msgstr "設定単位"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:62
 #: lib/tuist_web/live/gradle_cache_live.html.heex:93
@@ -490,13 +490,13 @@ msgstr "失敗"
 #: lib/tuist_web/live/mix_overview_live.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
-msgstr "ビルドの失敗"
+msgstr "失敗したビルド"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:338
 #: lib/tuist_web/live/mix_overview_live.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "Failed runs"
-msgstr "実行の失敗"
+msgstr "失敗した実行"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:294
 #: lib/tuist_web/live/gradle_build_live.html.heex:544
@@ -559,14 +559,14 @@ msgstr "無効化の理由"
 #: lib/tuist_web/live/gradle_build_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Java Version"
-msgstr "Java バージョン"
+msgstr "Javaバージョン"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:286
 #: lib/tuist_web/live/gradle_builds_live.ex:253
 #: lib/tuist_web/live/gradle_builds_live.html.heex:513
 #, elixir-autogen, elixir-format
 msgid "Java version"
-msgstr "Java バージョン"
+msgstr "Javaバージョン"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:59
 #: lib/tuist_web/live/gradle_cache_live.html.heex:90
@@ -577,7 +577,7 @@ msgstr "Java バージョン"
 #: lib/tuist_web/live/mix_overview_live.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
-msgstr "過去 12 か月"
+msgstr "過去12ヶ月"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:44
 #: lib/tuist_web/live/gradle_cache_live.html.heex:75
@@ -589,7 +589,7 @@ msgstr "過去 12 か月"
 #: lib/tuist_web/live/mix_overview_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
-msgstr "過去 24 時間"
+msgstr "過去24時間"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:54
 #: lib/tuist_web/live/gradle_cache_live.html.heex:85
@@ -601,19 +601,19 @@ msgstr "過去 24 時間"
 #: lib/tuist_web/live/mix_overview_live.html.heex:417
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
-msgstr "過去 30 日間"
+msgstr "過去30日間"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:581
 #: lib/tuist_web/live/mix_overview_live.html.heex:520
 #, elixir-autogen, elixir-format
 msgid "Last 30 runs"
-msgstr "直近 30 回の実行"
+msgstr "直近30回の実行"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:391
 #: lib/tuist_web/live/mix_overview_live.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "Last 40 runs"
-msgstr "直近 40 回の実行"
+msgstr "直近40回の実行"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:49
 #: lib/tuist_web/live/gradle_cache_live.html.heex:80
@@ -625,7 +625,7 @@ msgstr "直近 40 回の実行"
 #: lib/tuist_web/live/mix_overview_live.html.heex:412
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
-msgstr "過去 7 日間"
+msgstr "過去7日間"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:30
 #: lib/tuist_web/live/gradle_build_live.ex:768
@@ -730,7 +730,7 @@ msgstr "リモートエントリなし"
 #: lib/tuist_web/live/gradle_build_live.ex:802
 #, elixir-autogen, elixir-format
 msgid "No remote entry, then stored"
-msgstr "リモートエントリなし（その後保存）"
+msgstr "リモートエントリなし、その後保存済み"
 
 #: lib/tuist_web/helpers/gradle_task.ex:20
 #: lib/tuist_web/live/gradle_build_live.ex:730
@@ -746,7 +746,7 @@ msgstr "タスクなし"
 #: lib/tuist_web/live/gradle_build_live.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "Not requested"
-msgstr "リクエストなし"
+msgstr "リクエストされていません"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:477
 #, elixir-autogen, elixir-format
@@ -777,19 +777,19 @@ msgstr "一部無効"
 #: lib/tuist_web/live/mix_builds_live.html.heex:691
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "成功"
+msgstr "合格"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:524
 #: lib/tuist_web/live/mix_overview_live.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Passed builds"
-msgstr "成功したビルド"
+msgstr "合格したビルド"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:333
 #: lib/tuist_web/live/mix_overview_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "Passed runs"
-msgstr "成功した実行"
+msgstr "合格した実行"
 
 #: lib/tuist_web/live/gradle_build_live.ex:578
 #: lib/tuist_web/live/gradle_build_live.ex:647
@@ -913,7 +913,7 @@ msgstr "サイズ"
 #: lib/tuist_web/live/gradle_build_live.ex:729
 #, elixir-autogen, elixir-format
 msgid "Skipped"
-msgstr "スキップ"
+msgstr "スキップ済み"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:250
 #: lib/tuist_web/live/gradle_build_live.html.heex:507
@@ -924,7 +924,7 @@ msgstr "スキップ"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:399
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
-msgstr "並べ替え:"
+msgstr "並び替え:"
 
 #: lib/tuist_web/live/gradle_build_live.ex:580
 #: lib/tuist_web/live/gradle_build_live.html.heex:247
@@ -934,7 +934,7 @@ msgstr "並べ替え:"
 #: lib/tuist_web/live/gradle_build_live.html.heex:608
 #, elixir-autogen, elixir-format
 msgid "Started after"
-msgstr "開始後"
+msgstr "開始時刻が次より後"
 
 #: lib/tuist_web/live/gradle_build_live.ex:764
 #: lib/tuist_web/live/gradle_build_live.html.heex:117
@@ -948,7 +948,7 @@ msgstr "ステータス"
 #: lib/tuist_web/live/gradle_build_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Status of Gradle's configuration cache for this build."
-msgstr "このビルドのGradle構成キャッシュのステータス。"
+msgstr "このビルドにおけるGradle構成キャッシュのステータス。"
 
 #: lib/tuist_web/live/gradle_build_live.ex:616
 #: lib/tuist_web/live/gradle_build_live.ex:698
@@ -981,12 +981,12 @@ msgstr "タスク"
 #: lib/tuist_web/live/gradle_build_live.html.heex:853
 #, elixir-autogen, elixir-format
 msgid "Task hits"
-msgstr "タスクのキャッシュヒット"
+msgstr "タスクのキャッシュヒット数"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:864
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr "タスクのキャッシュミス"
+msgstr "タスクのキャッシュミス数"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:219
 #: lib/tuist_web/live/gradle_tasks_live.ex:45
@@ -1011,13 +1011,13 @@ msgstr "テスト"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "10,000件の上限に達したため、%{date}までのデータのみが含まれています。フィルターを使ってデータセットを絞り込んでください。"
+msgstr "10,000 件の上限に達したため、%{date} までのデータのみが含まれます。フィルターを使ってデータを絞り込んでください。"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:177
 #: lib/tuist_web/live/mix_builds_live.html.heex:168
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "各パーセンタイル区間ごとの平均ビルド時間。"
+msgstr "各パーセンタイル区間における平均ビルド時間"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:146
 #: lib/tuist_web/live/mix_builds_live.html.heex:137
@@ -1034,12 +1034,12 @@ msgstr "ビルド成功率"
 #: lib/tuist_web/live/gradle_build_live.html.heex:874
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "キャッシュ可能なタスクのキャッシュヒット率（ローカル＋リモート）"
+msgstr "キャッシュ可能なタスクのキャッシュヒット率（ローカル + リモート）"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "The total number of Gradle builds."
-msgstr "Gradle ビルド総数"
+msgstr "Gradle ビルドの総数"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1219
 #, elixir-autogen, elixir-format
@@ -1054,12 +1054,12 @@ msgstr "このビルドにはタスクデータがありません。"
 #: lib/tuist_web/live/gradle_build_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Time Gradle spent configuring this build."
-msgstr "このビルドの設定に Gradle が費やした時間"
+msgstr "このビルドの構成に Gradle が費やした時間"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Time spent loading a reused configuration cache entry."
-msgstr "再利用された設定キャッシュエントリの読み込みにかかった時間"
+msgstr "再利用された構成キャッシュエントリの読み込みにかかった時間"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:109
 #: lib/tuist_web/live/mix_builds_live.html.heex:98
@@ -1080,7 +1080,7 @@ msgstr "リモートキャッシュにアップロードされたキャッシュ
 #: lib/tuist_web/live/gradle_build_live.html.heex:680
 #, elixir-autogen, elixir-format
 msgid "Total time spent in recorded artifact transforms."
-msgstr "記録されたアーティファクト変換にかかった合計時間。"
+msgstr "記録されたアーティファクト変換に費やされた合計時間。"
 
 #: lib/tuist_web/live/gradle_build_live.ex:614
 #: lib/tuist_web/live/gradle_build_live.ex:682
@@ -1098,13 +1098,13 @@ msgstr "変換時間"
 #: lib/tuist_web/live/gradle_build_live.html.heex:670
 #, elixir-autogen, elixir-format
 msgid "Transforms"
-msgstr "変換数"
+msgstr "変換"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:646
 #: lib/tuist_web/live/gradle_build_live.html.heex:826
 #, elixir-autogen, elixir-format
 msgid "Try adjusting your search or filters."
-msgstr "検索条件やフィルターを調整してみてください。"
+msgstr "検索条件やフィルターを調整してください。"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:29
 #, elixir-autogen, elixir-format
@@ -1151,17 +1151,17 @@ msgstr "有効"
 #: lib/tuist_web/live/mix_overview_live.html.heex:554
 #, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "さらに表示"
+msgstr "詳細を表示"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1209
 #, elixir-autogen, elixir-format
 msgid "Why it missed"
-msgstr "キャッシュミスとなった理由"
+msgstr "キャッシュミスになった理由"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Gradle cache for your project by running:"
-msgstr "次のコマンドを実行して、プロジェクトの Gradle キャッシュを設定できます:"
+msgstr "次のコマンドを実行して、プロジェクトの Gradle キャッシュを設定できます。"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:371
 #: lib/tuist_web/live/gradle_cache_live.html.heex:438
@@ -1254,7 +1254,7 @@ msgstr "先週から"
 #: lib/tuist_web/live/gradle_tasks_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "去年から"
+msgstr "昨年から"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:34
 #: lib/tuist_web/live/gradle_builds_live.ex:188
@@ -1295,7 +1295,7 @@ msgstr "実行回数"
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Incremental"
-msgstr "インクリメンタル"
+msgstr "増分"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:276
 #, elixir-autogen, elixir-format
@@ -1310,7 +1310,7 @@ msgstr "一致するパスがありません"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Refresh the page to try again."
-msgstr "ページを再読み込みして、もう一度お試しください。"
+msgstr "ページを更新して再試行してください。"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:232
 #, elixir-autogen, elixir-format
@@ -1320,7 +1320,7 @@ msgstr "パスで検索"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Showing the 10,000 entities with the most execution time. Narrow the filters to see more."
-msgstr "実行時間が最も長い10,000件のエンティティを表示しています。フィルターを絞り込んで詳細を確認してください。"
+msgstr "実行時間が最も長い10,000件のエンティティを表示しています。フィルターを絞り込んでさらに表示してください。"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:356
 #, elixir-autogen, elixir-format
@@ -1330,12 +1330,12 @@ msgstr "出力を再利用せず、代わりに実行されたタスク。"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "Try a different date range or adjust the filters."
-msgstr "日付範囲を変更するか、フィルターを調整してください。"
+msgstr "別の期間を選択するか、フィルターを調整してください。"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks observed in matching builds. Each chart point counts distinct tasks in that interval."
-msgstr "一致するビルドで観測された個別のタスク。各チャートポイントは、その期間内の個別タスク数を示します。"
+msgstr "一致するビルドで観測された個別のタスク。各チャートポイントは、その間隔内の個別のタスク数を示します。"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:198
 #, elixir-autogen, elixir-format
@@ -1362,12 +1362,12 @@ msgstr "p50 所要時間"
 #: lib/tuist_web/live/gradle_tasks_live.ex:518
 #, elixir-autogen, elixir-format
 msgid "p90 duration"
-msgstr "p90 継続時間"
+msgstr "p90 期間"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:519
 #, elixir-autogen, elixir-format
 msgid "p99 duration"
-msgstr "p99 継続時間"
+msgstr "p99 期間"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:515
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:308
@@ -1378,27 +1378,27 @@ msgstr "ミス"
 #: lib/tuist_web/live/gradle_tasks_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Task duration percentile across executions in the selected period."
-msgstr "選択した期間内の実行におけるタスク継続時間のパーセンタイル。"
+msgstr "選択した期間における実行ごとのタスク期間のパーセンタイル。"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "p50 task duration"
-msgstr "p50 タスク継続時間"
+msgstr "p50 タスク期間"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "p90 task duration"
-msgstr "p90 タスク継続時間"
+msgstr "p90 タスク期間"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "p99 task duration"
-msgstr "p99 タスク継続時間"
+msgstr "p99 タスク期間"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Average task duration across executions in the selected period."
-msgstr "選択した期間内の実行における平均タスク継続時間。"
+msgstr "選択した期間における実行ごとの平均タスク期間。"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:377
 #, elixir-autogen, elixir-format
@@ -1408,12 +1408,12 @@ msgstr "平均タスク実行時間"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "No task executions found"
-msgstr "タスクの実行履歴が見つかりません"
+msgstr "タスクの実行が見つかりません"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:370
 #, elixir-autogen, elixir-format
 msgid "Task executions"
-msgstr "タスクの実行履歴"
+msgstr "タスク実行"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:478
 #, elixir-autogen, elixir-format
@@ -1438,12 +1438,12 @@ msgstr "このタスクにはキャッシュヒット率は適用されません
 #: lib/tuist_web/live/gradle_tasks_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Remote cache hits divided by hits and confirmed misses. Local cache hits and up-to-date tasks are excluded."
-msgstr "リモートキャッシュのヒット数を、ヒット数と確認済みのミス数の合計で割った値です。ローカルキャッシュのヒットおよび最新状態のタスクは除外されます。"
+msgstr "リモートキャッシュのヒット数を、ヒット数と確認済みのミス数の合計で割った値です。ローカルキャッシュのヒットと最新の状態のタスクは除外されます。"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "These builds did not report enough cache information to calculate a hit rate."
-msgstr "これらのビルドは、ヒット率を計算するために十分なキャッシュ情報を報告していません。"
+msgstr "これらのビルドは、ヒット率を計算するのに十分なキャッシュ情報を報告していません。"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:101
 #, elixir-autogen, elixir-format
@@ -1521,7 +1521,7 @@ msgstr "キャッシュヒット"
 #: lib/tuist_web/live/mix_builds_live.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "The total number of mix compile runs."
-msgstr "Mix コンパイル実行の合計回数です。"
+msgstr "Mixコンパイル実行の合計数です。"
 
 #: lib/tuist_web/components/build_health.ex:49
 #: lib/tuist_web/live/gradle_build_live.html.heex:200
@@ -1532,29 +1532,29 @@ msgstr "未報告"
 #: lib/tuist_web/components/build_health.ex:34
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved. Only builds with a reported estimate are included."
-msgstr "キャッシュヒットによるタスク実行時間の推定節約値です。並列タスクは重複して実行される可能性があるため、これはビルドの経過時間の節約分ではありません。推定値が報告されたビルドのみが含まれます。"
+msgstr "キャッシュヒットにより節約されたタスク実行時間の推定値。並列タスクは重複して実行される可能性があるため、これはビルドの経過時間の節約分ではありません。推定値が報告されたビルドのみが含まれます。"
 
 #: lib/tuist_web/components/build_health.ex:133
 #, elixir-autogen, elixir-format
 msgid "No task time estimates reported for this period."
-msgstr "この期間のタスク時間推定値は報告されていません。"
+msgstr "この期間に報告されたタスク時間の推定値はありません。"
 
 #: lib/tuist_web/components/build_health.ex:31
 #: lib/tuist_web/components/build_health.ex:112
 #: lib/tuist_web/live/gradle_build_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Cumulative task time saved"
-msgstr "累積タスク節約時間"
+msgstr "累積タスク時間節約"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved."
-msgstr "キャッシュヒットによるタスク実行時間の推定節約値です。並列タスクは重複して実行される可能性があるため、これはビルドの経過時間の節約分ではありません。"
+msgstr "キャッシュヒットにより節約されたタスク実行時間の推定値。並列タスクは重複して実行される可能性があるため、これはビルドの経過時間の節約分ではありません。"
 
 #: lib/tuist_web/components/build_health.ex:66
 #, elixir-autogen, elixir-format
 msgid "No comparison available"
-msgstr "比較対象がありません"
+msgstr "比較できません"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:241
 #, elixir-autogen, elixir-format
@@ -1564,4 +1564,4 @@ msgstr "報告された名前"
 #: lib/tuist_web/live/gradle_build_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Tuist Gradle plugin version"
-msgstr "Tuist Gradle プラグインバージョン"
+msgstr "Tuist Gradle プラグインのバージョン"

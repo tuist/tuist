@@ -8,18 +8,38 @@ defmodule Tuist.SandboxesTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Repo
+  alias Tuist.Runners.VolumeAffinities
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxCommand
   alias Tuist.Sandboxes.SandboxEvent
+  alias Tuist.Sandboxes.UsageEvent
+  alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
 
   defp events(%Sandbox{id: id}) do
     ClickHouseRepo.all(from(e in SandboxEvent, where: e.sandbox_id == ^id, order_by: e.inserted_at, select: e.event))
+  end
+
+  test "a thread's sandbox is left out of the account's sandbox list and lookup" do
+    account = account_fixture()
+    thread = Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "threads/#{Ecto.UUID.generate()}"})
+    other = Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "orb-provider/1"})
+    hidden = sandbox_fixture(account: account, provider_environment_id: thread.id)
+    shown = sandbox_fixture(account: account, provider_environment_id: other.id)
+    plain = sandbox_fixture(account: account)
+
+    assert Enum.sort(Enum.map(Sandboxes.list_sandboxes(account), & &1.id)) == Enum.sort([shown.id, plain.id])
+    assert Sandboxes.count_sandboxes(account) == 2
+    assert Sandboxes.count_sandboxes_by_state(account).running == 2
+    assert {:error, :not_found} = Sandboxes.get_sandbox(account, hidden.id)
+    assert {:ok, _} = Sandboxes.get_sandbox(account, shown.id)
   end
 
   test "creator matching excludes organizations, disabled users and fallback labels" do
@@ -200,7 +220,8 @@ defmodule Tuist.SandboxesTest do
         assert %Sandbox{state: :creating} = Repo.get(Sandbox, args.sandbox_id)
         assert args.hostname == "sbx-" <> String.slice(args.sandbox_id, 0, 8)
         assert args.template == "default"
-        assert args.vcpus == 2
+        # Every Linux sandbox bursts to 16 vCPUs; its shape picks the memory.
+        assert args.vcpus == 16
         assert args.memory_mb == 4096
         assert args.workspace_gb == 10
         {:ok, %{"boot_ms" => 180, "template_tag" => "sha-1"}}
@@ -248,12 +269,12 @@ defmodule Tuist.SandboxesTest do
 
       expect(Nodes, :call, fn "node-a",
                               "create",
-                              %{template: "xcode", vcpus: 8, memory_mb: 16_384, workspace_gb: 40},
+                              %{template: "xcode", vcpus: 16, memory_mb: 16_384, workspace_gb: 40},
                               _ ->
         {:ok, %{}}
       end)
 
-      assert {:ok, %Sandbox{vcpus: 8, memory_mb: 16_384, workspace_gb: 40, template: "xcode"}} =
+      assert {:ok, %Sandbox{vcpus: 16, memory_mb: 16_384, workspace_gb: 40, template: "xcode"}} =
                Sandboxes.create_sandbox(account, %{template: "xcode", vcpus: 8, memory_mb: 16_384, workspace_gb: 40})
     end
 
@@ -268,6 +289,30 @@ defmodule Tuist.SandboxesTest do
 
       assert message =~ "no node"
       assert events(sandbox) == ["created", "failed"]
+    end
+
+    test "a create refused for room records no events and, with capacity_wait_ms, waits for room on the same row" do
+      account = account_fixture()
+      expect(Capacity, :place, 3, fn _ -> {:error, :no_capacity} end)
+
+      assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{}, capacity_wait_ms: 25)
+
+      assert [%Sandbox{state: :error, node_name: nil} = refused] = Sandboxes.list_sandboxes(account)
+      assert events(refused) == []
+
+      expect(Capacity, :place, 2, fn _ -> {:error, :no_capacity} end)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %Sandbox{state: :running} = sandbox} = Sandboxes.create_sandbox(account, %{}, capacity_wait_ms: 5_000)
+      assert events(sandbox) == ["created", "started"]
+    end
+
+    test "a create without capacity_wait_ms answers a refusal at once" do
+      account = account_fixture()
+      expect(Capacity, :place, fn _ -> {:error, :no_capacity} end)
+
+      assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
     end
 
     test "marks the sandbox as errored when the node rejects the create" do
@@ -299,6 +344,52 @@ defmodule Tuist.SandboxesTest do
 
       assert %Sandbox{state: :paused, residency_work_id: nil, residency_epoch: 4} = Repo.reload!(sandbox)
       assert events(sandbox) == ["paused"]
+    end
+
+    test "pause/1 bills the time since the last report from the CPU and memory the node read as it paused" do
+      # 2 GiB of memory: a guarantee of half a vCPU, 10 s of CPU over 20 s.
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", memory_mb: 2048)
+      old_daemon = sandbox_fixture(state: :running, node_name: "node-a")
+
+      Repo.update_all(from(s in Sandbox, where: s.id in ^[sandbox.id, old_daemon.id]),
+        set: [metered_cpu_ms: 10_000, metered_at: DateTime.add(DateTime.utc_now(), -20, :second)]
+      )
+
+      stub(Nodes, :call, fn "node-a", "pause", %{sandbox_id: id}, _opts ->
+        if id == sandbox.id,
+          # 2612 MiB at the pause: 500 MiB past the request and the VMM's 64 MiB.
+          do:
+            {:ok,
+             %{
+               "snapshot_ms" => 300,
+               "mem_bytes" => 1024,
+               "cpu_ms" => 30_000,
+               "memory_anon_bytes" => 2500 * 1024 * 1024,
+               "memory_file_bytes" => 112 * 1024 * 1024
+             }},
+          else: {:ok, %{"snapshot_ms" => 300, "mem_bytes" => 1024}}
+      end)
+
+      assert {:ok, %Sandbox{state: :paused, metered_at: nil}} = Sandboxes.pause(sandbox)
+      assert {:ok, %Sandbox{state: :paused}} = Sandboxes.pause(old_daemon)
+
+      assert [%{sandbox_id: sandbox_id, used: 20_000, billed: 20_000, duration_ms: duration_ms, excess: excess}] =
+               ClickHouseRepo.all(
+                 from(u in UsageEvent,
+                   where: u.sandbox_id in ^[sandbox.id, old_daemon.id],
+                   select: %{
+                     sandbox_id: u.sandbox_id,
+                     used: u.used_cpu_ms,
+                     billed: u.billed_cpu_ms,
+                     duration_ms: u.duration_ms,
+                     excess: u.excess_memory_mib_ms
+                   }
+                 )
+               )
+
+      assert sandbox_id == sandbox.id
+      assert duration_ms in 20_000..20_500
+      assert excess == 500 * duration_ms
     end
 
     test "pause/1 leaves the sandbox running when the node refuses" do
@@ -644,6 +735,113 @@ defmodule Tuist.SandboxesTest do
       # A new VM process starts its count again.
       assert :ok = Sandboxes.reconcile_node_report("node-a", report.(50))
       assert %Sandbox{guest_cpu_ms: 50} = Repo.reload!(sandbox)
+    end
+
+    test "bills a running Linux sandbox the larger of its memory's CPU floor and the CPU it used at each report" do
+      # 2 GiB of memory: a floor of half a vCPU, above its quarter-core guarantee.
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", memory_mb: 2048)
+      darwin = sandbox_fixture(state: :running, node_name: "node-a", platform: :darwin, vcpus: 8, memory_mb: 8192)
+      execution = sandbox_fixture(state: :running, node_name: "node-a", purpose: :remote_execution)
+
+      report = fn cpu_ms, seconds_since_last ->
+        Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id and not is_nil(s.metered_at)),
+          set: [metered_at: DateTime.add(DateTime.utc_now(), -seconds_since_last, :second)]
+        )
+
+        reported = for s <- [sandbox, darwin, execution], do: %{"id" => s.id, "state" => "running", "cpu_ms" => cpu_ms}
+        assert :ok = Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => reported})
+      end
+
+      # The first report of a run bills the CPU its VM used since it started.
+      report.(5_000, 0)
+      # Idle for 30 s: half a vCPU over 30 s is 15 s.
+      report.(6_000, 30)
+      # Bursting: 29 s of CPU in 30 s.
+      report.(35_000, 30)
+      # A gap, such as a server restart, bills the floor for one minute.
+      report.(36_000, 600)
+      # A new VM process counts from zero.
+      report.(2_000, 30)
+
+      rows =
+        ClickHouseRepo.all(
+          from(u in UsageEvent,
+            where: u.sandbox_id in ^[sandbox.id, darwin.id, execution.id],
+            order_by: u.inserted_at,
+            select: %{sandbox_id: u.sandbox_id, used: u.used_cpu_ms, billed: u.billed_cpu_ms}
+          )
+        )
+
+      assert Enum.all?(rows, &(&1.sandbox_id == sandbox.id))
+      assert [5_000, 1_000, 29_000, 1_000, 2_000] = Enum.map(rows, & &1.used)
+      assert [5_000, idle, 29_000, gap, new_process] = Enum.map(rows, & &1.billed)
+      assert idle in 15_000..15_100 and new_process in 15_000..15_100 and gap in 30_000..30_100
+
+      # A pause ends the run, so the next one starts its metering over. The
+      # report adopts a pause once the last running report has settled, and
+      # bills the time since the last report up to the CPU reading the node
+      # took at the pause: 7 s used in 10 s, above the floor's 5 s.
+      Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id),
+        set: [
+          updated_at: DateTime.add(DateTime.utc_now(:second), -60, :second),
+          metered_at: DateTime.add(DateTime.utc_now(), -10, :second)
+        ]
+      )
+
+      paused = %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused", "cpu_ms" => 9_000}]}
+      assert :ok = Sandboxes.reconcile_node_report("node-a", paused)
+      assert %Sandbox{state: :paused, metered_cpu_ms: nil, metered_at: nil} = Repo.reload!(sandbox)
+
+      # The paused sandbox keeps reporting that reading; it is billed once.
+      assert :ok = Sandboxes.reconcile_node_report("node-a", paused)
+
+      usage =
+        ClickHouseRepo.all(
+          from(u in UsageEvent,
+            where: u.sandbox_id == ^sandbox.id,
+            order_by: u.inserted_at,
+            select: %{used: u.used_cpu_ms, billed: u.billed_cpu_ms}
+          )
+        )
+
+      assert [%{used: 7_000, billed: 7_000}] = Enum.drop(usage, 5)
+    end
+
+    test "bills a running Linux sandbox the memory its VM held past its request" do
+      # 2 GiB of guest memory and the VMM's 64 MiB: 2112 MiB before any excess.
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", memory_mb: 2048)
+      mib = 1024 * 1024
+
+      report = fn reading, seconds_since_last ->
+        Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id and not is_nil(s.metered_at)),
+          set: [metered_at: DateTime.add(DateTime.utc_now(), -seconds_since_last, :second)]
+        )
+
+        reported = Map.merge(%{"id" => sandbox.id, "state" => "running", "cpu_ms" => 1_000}, reading)
+        assert :ok = Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [reported]})
+      end
+
+      # The first report of a run covers no interval.
+      report.(%{"memory_anon_bytes" => 3000 * mib, "memory_file_bytes" => 112 * mib}, 0)
+      # 3112 MiB held for 30 s: 1000 MiB past the request, anonymous and file pages alike.
+      report.(%{"memory_anon_bytes" => 3000 * mib, "memory_file_bytes" => 112 * mib}, 30)
+      # Under its request it is billed the request alone.
+      report.(%{"memory_anon_bytes" => 1500 * mib, "memory_file_bytes" => 100 * mib}, 30)
+      # A daemon that does not read the VM's memory leaves no excess.
+      report.(%{}, 30)
+
+      rows =
+        ClickHouseRepo.all(
+          from(u in UsageEvent,
+            where: u.sandbox_id == ^sandbox.id,
+            order_by: u.inserted_at,
+            select: %{used: u.used_memory_bytes, excess: u.excess_memory_mib_ms}
+          )
+        )
+
+      assert [3112, 3112, 1600, 0] = Enum.map(rows, &div(&1.used, mib))
+      assert [0, excess, 0, 0] = Enum.map(rows, & &1.excess)
+      assert excess in (1000 * 30_000)..(1000 * 30_100)
     end
 
     test "queues a pause for a running Orb whose guest has been quiet for ten minutes" do
@@ -1112,6 +1310,256 @@ defmodule Tuist.SandboxesTest do
       reject(&Nodes.call/4)
       assert :ok = perform_job(PauseSandboxWorker, args)
       assert %Sandbox{state: :running} = Repo.reload!(sandbox)
+    end
+  end
+
+  describe "create_sandbox/3 with a cache" do
+    setup do
+      cache = %{
+        volume_id: Ecto.UUID.generate(),
+        scope: String.duplicate("a", 64),
+        generation: 3,
+        base_generation: 7,
+        image_digest: String.duplicate("b", 40),
+        content_digest: String.duplicate("c", 64)
+      }
+
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)
+      %{account: account_fixture(), cache: cache}
+    end
+
+    defp node_info(info), do: stub(Nodes, :lookup, fn "node-a" -> {:ok, self(), info} end)
+
+    test "grants it on a node that accepts grants, attaches it to template creates and holds the master", %{
+      account: account,
+      cache: cache
+    } do
+      node_info(%{cache_grants: true, cache_drive_in_template: true})
+      expect(VolumeAffinities, :holds_volume?, fn "node-a", scope -> scope == cache.scope end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        refute Map.has_key?(args, :cache)
+
+        assert args.cache_grant == %{
+                 id: args.sandbox_id,
+                 scope: cache.scope,
+                 base_generation: 7,
+                 image_digest: cache.image_digest,
+                 content_digest: cache.content_digest
+               }
+
+        {:ok, %{"boot_ms" => 170}}
+      end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+      assert sandbox.cache_volume_id == cache.volume_id
+      assert sandbox.cache_generation == 7
+    end
+
+    test "records the generation the node attached when it lent an older one", %{account: account, cache: cache} do
+      node_info(%{cache_grants: true, cache_drive_in_template: true})
+      stub(VolumeAffinities, :holds_volume?, fn "node-a", _scope -> true end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 170, "cache_generation" => 5}} end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+      assert sandbox.cache_volume_id == cache.volume_id
+      assert sandbox.cache_generation == 5
+    end
+
+    test "creates without it where the node cannot attach it", %{account: account, cache: cache} do
+      # The node's shape snapshots carry no placeholder, so a template create
+      # would have to cold boot.
+      node_info(%{cache_grants: true, cache_drive_in_template: false})
+      stub(VolumeAffinities, :holds_volume?, fn _node, _scope -> true end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        refute Map.has_key?(args, :cache_grant)
+        refute Map.has_key?(args, :cache)
+        {:ok, %{"boot_ms" => 170}}
+      end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+      assert is_nil(sandbox.cache_volume_id)
+      assert is_nil(sandbox.cache_generation)
+    end
+
+    test "retries without it when the node no longer holds the master", %{account: account, cache: cache} do
+      node_info(%{cache_grants: true, cache_drive_in_template: true})
+      stub(VolumeAffinities, :holds_volume?, fn _node, _scope -> true end)
+
+      expect(Nodes, :call, 2, fn "node-a", "create", args, _opts ->
+        if Map.has_key?(args, :cache_grant),
+          do: {:error, "invalid cache image: this node holds no copy of the granted cache"},
+          else: {:ok, %{"boot_ms" => 1200}}
+      end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+      assert sandbox.state == :running
+      assert is_nil(sandbox.cache_volume_id)
+    end
+
+    test "does not retry other create failures without it", %{account: account, cache: cache} do
+      node_info(%{cache_grants: true, cache_drive_in_template: true})
+      stub(VolumeAffinities, :holds_volume?, fn _node, _scope -> true end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:error, "jailer exited with status 1"} end)
+
+      assert {:error, "jailer exited with status 1"} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+    end
+  end
+
+  describe "lifetimes" do
+    defp ago(seconds), do: DateTime.add(DateTime.utc_now(), -seconds, :second)
+
+    test "extend/2 starts the lifetime again, with a new length when given, up to a day" do
+      sandbox = sandbox_fixture(state: :running, lifetime_seconds: 7200, expires_at: ago(60))
+
+      assert {:ok, %Sandbox{lifetime_seconds: 7200, expires_at: expires_at}} = Sandboxes.extend(sandbox, nil)
+      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now()), 7200, 5
+
+      assert {:ok, %Sandbox{lifetime_seconds: 86_400, expires_at: expires_at}} = Sandboxes.extend(sandbox, 86_400)
+      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now()), 86_400, 5
+
+      assert {:error, %Ecto.Changeset{}} = Sandboxes.extend(sandbox, 86_401)
+      assert %Sandbox{lifetime_seconds: 86_400} = Repo.reload!(sandbox)
+    end
+
+    test "extend/2 refuses a sandbox an integration owns" do
+      orb = sandbox_fixture(state: :running, amp_orb_id: "orb-1")
+      assert {:error, :no_lifetime} = Sandboxes.extend(orb, 3600)
+    end
+
+    test "expire_sandboxes/0 pauses expired running sandboxes and leaves the rest alone" do
+      account = account_fixture()
+      expired = sandbox_fixture(account: account, node_name: "node-a", lifetime_seconds: 300, expires_at: ago(10))
+      live = sandbox_fixture(account: account, node_name: "node-a", lifetime_seconds: 300, expires_at: ago(-600))
+      unbounded = sandbox_fixture(account: account, node_name: "node-a")
+      # Integrations own these, even with a stray expiry.
+      orb = sandbox_fixture(account: account, node_name: "node-a", amp_orb_id: "orb-1", expires_at: ago(10))
+
+      expired_id = expired.id
+
+      expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^expired_id}, _opts -> {:ok, %{}} end)
+
+      Sandboxes.expire_sandboxes()
+
+      assert %Sandbox{state: :paused} = Repo.reload!(expired)
+      for sandbox <- [live, unbounded, orb], do: assert(%Sandbox{state: :running} = Repo.reload!(sandbox))
+    end
+
+    test "expire_sandboxes/0 cancels a running command with a note, pauses, and a read does not resume it" do
+      account = account_fixture()
+      busy = sandbox_fixture(account: account, node_name: "node-a", lifetime_seconds: 300, expires_at: ago(10))
+
+      command =
+        Repo.insert!(%SandboxCommand{
+          id: Ecto.UUID.generate(),
+          sandbox_id: busy.id,
+          account_id: account.id,
+          command: "xcodebuild",
+          status: :running,
+          deadline_at: DateTime.truncate(ago(-3600), :second)
+        })
+
+      busy_id = busy.id
+      command_id = command.id
+
+      expect(Nodes, :call, 2, fn
+        "node-a", "exec", %{sandbox_id: ^busy_id, env: %{"TUIST_COMMAND_ID" => ^command_id} = env}, _opts ->
+          assert env["TUIST_REASON"] == "cancelled"
+          assert env["TUIST_NOTE"] =~ "lifetime ended"
+          {:ok, %{"exit_code" => 0}}
+
+        "node-a", "pause", %{sandbox_id: ^busy_id}, _opts ->
+          {:ok, %{}}
+      end)
+
+      Sandboxes.expire_sandboxes()
+
+      assert %Sandbox{state: :paused} = paused = Repo.reload!(busy)
+      assert %SandboxCommand{status: :cancelled} = Repo.reload!(command)
+
+      # The client's next read answers from the row instead of resuming the sandbox.
+      reject(&Nodes.call/4)
+      assert {:ok, %{status: "cancelled", complete: true}} = Tuist.Sandboxes.Commands.read(paused, command_id)
+    end
+
+    test "expire_sandboxes/0 archives an expired paused Mac once its host evicted it" do
+      paused_at = ago(120)
+
+      evicted =
+        sandbox_fixture(
+          platform: :darwin,
+          state: :paused,
+          paused_at: paused_at,
+          resident: false,
+          expires_at: ago(60),
+          lifetime_seconds: 300
+        )
+
+      resident =
+        sandbox_fixture(
+          platform: :darwin,
+          state: :paused,
+          paused_at: paused_at,
+          resident: true,
+          expires_at: ago(60),
+          lifetime_seconds: 300
+        )
+
+      reject(&Nodes.call/4)
+      Sandboxes.expire_sandboxes()
+
+      assert_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: evicted.id})
+      refute_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: resident.id})
+    end
+
+    test "a resume starts a new lifetime" do
+      sandbox =
+        sandbox_fixture(
+          state: :paused,
+          node_name: "node-a",
+          paused_at: ago(600),
+          lifetime_seconds: 3600,
+          expires_at: ago(300)
+        )
+
+      stub(Capacity, :admit, fn sandbox -> {:ok, sandbox} end)
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %Sandbox{state: :running, expires_at: expires_at}} = Sandboxes.resume(sandbox)
+      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now()), 3600, 5
+    end
+
+    test "a Mac's guest CPU does not extend its session, but an Orb's does" do
+      quiet_since = DateTime.truncate(ago(100), :second)
+
+      mac =
+        sandbox_fixture(
+          platform: :darwin,
+          state: :running,
+          node_name: "mac-a",
+          guest_cpu_ms: 1000,
+          last_active_at: quiet_since
+        )
+
+      orb =
+        sandbox_fixture(
+          platform: :darwin,
+          state: :running,
+          node_name: "mac-a",
+          amp_orb_id: "orb-1",
+          guest_cpu_ms: 1000,
+          last_active_at: quiet_since
+        )
+
+      report =
+        for sandbox <- [mac, orb], do: %{"id" => sandbox.id, "state" => "running", "cpu_ms" => 90_000, "resident" => true}
+
+      assert :ok = Sandboxes.reconcile_node_report("mac-a", %{"sandboxes" => report})
+
+      assert %Sandbox{last_active_at: ^quiet_since} = Repo.reload!(mac)
+      assert %Sandbox{last_active_at: active_at} = Repo.reload!(orb)
+      assert DateTime.after?(active_at, quiet_since)
     end
   end
 end

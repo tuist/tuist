@@ -15,6 +15,7 @@ defmodule Tuist.ClickHouseCapabilities do
   alias Tuist.Environment
 
   @deduplicate_insert_select_since [26, 1]
+  @skip_indexes_if_final_exact_mode_since [25, 5]
   @minimum_supported_version ClickHouseVersions.minimum_supported_version()
                              |> String.split(".")
                              |> Enum.map(&String.to_integer/1)
@@ -103,6 +104,23 @@ defmodule Tuist.ClickHouseCapabilities do
       [deduplicate_insert_select: "force_enable"]
     else
       []
+    end
+  end
+
+  @doc """
+  Settings that let a `FINAL` read use skip indexes without widening the
+  granules they select back to whole key ranges.
+
+  `use_skip_indexes_if_final_exact_mode` arrived in ClickHouse 25.5 and is on by
+  default from 25.6. Earlier releases in the supported range reject the name
+  with `UNKNOWN_SETTING`, and always use skip indexes under `FINAL` the inexact
+  way, which is what turning exact mode off asks for.
+  """
+  def skip_indexes_if_final_settings(repo) do
+    if Enum.take(server_version(repo), 2) >= @skip_indexes_if_final_exact_mode_since do
+      [use_skip_indexes_if_final: 1, use_skip_indexes_if_final_exact_mode: 0]
+    else
+      [use_skip_indexes_if_final: 1]
     end
   end
 

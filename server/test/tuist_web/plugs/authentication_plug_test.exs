@@ -10,7 +10,6 @@ defmodule TuistWeb.AuthenticationPlugTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.AuthenticationPlug
-  alias TuistWeb.Headers
 
   # This is needed in combination with "async: false" to ensure
   # that mocks are used within the cache process.
@@ -428,7 +427,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
       # Given
       opts = AuthenticationPlug.init(:load_authenticated_subject)
       user = AccountsFixtures.user_fixture()
-      conn = :get |> conn("/") |> put_req_header("authorization", "Bearer " <> user.token)
+      conn = :get |> conn("/") |> put_req_header("authorization", "Bearer " <> AccountsFixtures.user_access_token(user))
 
       # When
       got = AuthenticationPlug.call(conn, opts)
@@ -436,49 +435,6 @@ defmodule TuistWeb.AuthenticationPlugTest do
       # Then
       assert TuistWeb.Authentication.current_user(got).id == user.id
       assert TuistWeb.Authentication.authenticated?(got) == true
-    end
-
-    test "loads the authenticated project with a legacy token" do
-      # Given
-      opts = AuthenticationPlug.init(:load_authenticated_subject)
-      project = ProjectsFixtures.project_fixture(preload: [:account])
-      conn = :get |> conn("/") |> put_req_header("authorization", "Bearer " <> project.token)
-
-      # When
-      got =
-        conn
-        |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.21.0")
-        |> AuthenticationPlug.call(opts)
-
-      # Then
-      assert TuistWeb.Authentication.current_project(got).id == project.id
-      assert TuistWeb.Authentication.authenticated?(got) == true
-
-      assert TuistWeb.WarningsHeaderPlug.get_warnings(got) ==
-               [
-                 "The project token you are using is deprecated. Please create a new token by running `tuist projects token create #{project.account.name}/#{project.name}."
-               ]
-    end
-
-    test "loads the authenticated project with a legacy token without warnings if the version is lower than 4.21.0" do
-      # Given
-      opts = AuthenticationPlug.init(:load_authenticated_subject)
-      project = ProjectsFixtures.project_fixture(preload: [:account])
-
-      conn =
-        :get
-        |> conn("/")
-        |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.20.0")
-        |> put_req_header("authorization", "Bearer " <> project.token)
-
-      # When
-      got = AuthenticationPlug.call(conn, opts)
-
-      # Then
-      assert TuistWeb.Authentication.current_project(got).id == project.id
-      assert TuistWeb.Authentication.authenticated?(got) == true
-
-      assert TuistWeb.WarningsHeaderPlug.get_warnings(got) == []
     end
 
     test "loads the authenticated project" do

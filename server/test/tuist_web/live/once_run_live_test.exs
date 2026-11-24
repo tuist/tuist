@@ -42,7 +42,7 @@ defmodule TuistWeb.OnceRunLiveTest do
 
     {:ok, view, _} = live(conn, path)
 
-    for label <- ["Once version", "Host"] do
+    for label <- ["Struo version", "Host"] do
       assert has_element?(view, "#build-environment-content[hidden]", label)
       refute has_element?(view, "[data-part=build-details]", label)
     end
@@ -241,9 +241,9 @@ defmodule TuistWeb.OnceRunLiveTest do
     run: run
   } do
     {:ok, view, _} = live(conn, path <> "?page=2&sort_by=duration&sort_order=desc")
-    assert has_element?(view, "h1", "Once build")
+    assert has_element?(view, "h1", "Struo build")
     refute has_element?(view, "h1", "opaque")
-    assert has_element?(view, "[data-part=command-note]", "redacted by Once")
+    assert has_element?(view, "[data-part=command-note]", "redacted by Struo")
     assert row_count(view) == 10
 
     view |> form("#once-actions-search-form", %{search: "compiler"}) |> render_change()

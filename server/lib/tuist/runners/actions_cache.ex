@@ -9,8 +9,9 @@ defmodule Tuist.Runners.ActionsCache do
 
   This index scopes and orders entries the way GitHub does. A job saves under
   its own ref and restores from its ref, its pull request's base branch and the
-  repository's default branch, in that order. Scope comes from GitHub's API for
-  the job the runner executes, never from the job.
+  repository's default branch, in that order. Scope comes from GitHub, through
+  its `workflow_run` webhook or its API, for the job the runner executes, never
+  from the job.
 
   Only the trusted storage agent calls this module.
   """
@@ -331,7 +332,7 @@ defmodule Tuist.Runners.ActionsCache do
   defp stores do
     for {id, %{"actions_cache_bucket" => bucket} = config} <- Environment.shard_storage_targets(),
         is_binary(bucket) and bucket != "",
-        {:ok, target} <- [ShardStorage.s3_target(id, Map.put(config, "bucket", bucket))],
+        {:ok, target} <- [ShardStorage.in_cluster_target(id, Map.put(config, "bucket", bucket))],
         into: %{},
         do: {id, {config, target}}
   end

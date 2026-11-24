@@ -54,6 +54,11 @@ public protocol GitControlling {
     /// Return whether the git working tree has uncommitted changes.
     func hasUncommittedChanges(workingDirectory: AbsolutePath) async throws -> Bool
 
+    /// The paths of tracked files the working tree or the index changed, in `git status` order.
+    /// Untracked files are left out: a coverage run measured the commit's code as long as no tracked
+    /// file differs from it, whatever the CI job wrote next to it.
+    func uncommittedTrackedFiles(workingDirectory: AbsolutePath) async throws -> [String]
+
     /// Return the git URL origin
     func urlOrigin(workingDirectory: AbsolutePath) async throws -> String
 
@@ -437,28 +442,12 @@ public struct GitController: GitControlling {
             )
         }
 
-        // SHA — if CI checked out a PR merge ref (e.g. refs/pull/N/merge),
-        // HEAD is an ephemeral merge commit. Use the second parent (the actual
-        // PR branch tip) instead, since the merge commit doesn't exist on the remote.
-        // On GitHub Actions, GITHUB_SHA is that merge commit: a workflow that checked out
-        // another commit, such as the pull request's head, reports HEAD, since that commit's
-        // second parent, if it has one, is not the pull request.
+        // SHA — the checkout's HEAD, which is what a run measures. On a pull request's merge ref
+        // (refs/pull/N/merge) that is the merge commit CI checked out: its files are the ones the
+        // run built, and the server keeps it on the pull request's ref, off the branch.
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-            let head = try? await currentCommitSHA(workingDirectory: workingDirectory)
-            let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
-            let isPullRequestMergeCheckout = gitRef?.hasPrefix("refs/pull/") == true
-                && (mergeCommit == nil || mergeCommit == head)
-            if isPullRequestMergeCheckout,
-               let secondParent = try? await capture(
-                   command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
-               ).trimmingCharacters(in: .whitespacesAndNewlines),
-               !secondParent.isEmpty
-            {
-                commitSHA = secondParent
-            } else {
-                commitSHA = head
-            }
+            commitSHA = try? await currentCommitSHA(workingDirectory: workingDirectory)
         } else {
             commitSHA = nil
         }

@@ -557,7 +557,7 @@ func TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad(t *testing.T) {
 		t.Errorf("busy Replicas = %d, want 7 (real load plus the last free slot)", gotBusy.Spec.Replicas)
 	}
 	// idle is held at floor 1. Per-pool it would scale to 6 (p95 5 +
-	// floor 1); the fleet allocator denies the speculative warm buffer.
+	// floor 1); the compute allocator denies the speculative warm buffer.
 	if gotIdle.Spec.Replicas != 1 {
 		t.Errorf("idle Replicas = %d, want 1 (speculative headroom reclaimed)", gotIdle.Spec.Replicas)
 	}
@@ -1150,7 +1150,7 @@ func TestAutoscaler_ShapePlacementCapsCountSeatsPerNode(t *testing.T) {
 	large := podShape{cpuMilli: 12000, memoryMB: 28672}
 	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "darwin", FleetSelector: fleet}}
 
-	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
+	caps, _, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
 		small.key(): small,
 		large.key(): large,
 	})
@@ -1181,7 +1181,7 @@ func TestAutoscaler_ShapePlacementCapsBindOnCPUNotOnlyMemory(t *testing.T) {
 	shape := podShape{cpuMilli: 6000, memoryMB: 14336}
 	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "darwin", FleetSelector: fleet}}
 
-	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
+	caps, _, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
 	if err != nil {
 		t.Fatalf("shapePlacementCaps: %v", err)
 	}
@@ -1219,7 +1219,7 @@ func TestAutoscaler_ShapePlacementCapsCountLinuxSeats(t *testing.T) {
 	ceiling := podShape{cpuMilli: 16250, memoryMB: 32*1024 + 2560}
 	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: fleet}}
 
-	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
+	caps, _, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
 		small.key(): small, big.key(): big, ceiling.key(): ceiling,
 	})
 	if err != nil {
@@ -1241,6 +1241,58 @@ func TestAutoscaler_ShapePlacementCapsCountLinuxSeats(t *testing.T) {
 	}
 }
 
+// 16vcpu-32gb and 16vcpu-64gb each take a whole RISE-L, so together they
+// seat once per host. Capped apart they read 10 + 10 on ten hosts, and on
+// 2026-11-23 the excess sat Pending until reaped as unschedulable. The
+// 8vcpu-32gb shape seats more than once per host and keeps its own cap.
+func TestAutoscaler_ShapePlacementCapsShareWholeHostSeats(t *testing.T) {
+	const fleet = "runners-linux"
+
+	objects := []client.Object{}
+	for i := 0; i < 10; i++ {
+		objects = append(objects, linuxNodeWithResources(fmt.Sprintf("rise-l-%d", i), fleet, 30, 117*1024))
+	}
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	medium := podShape{cpuMilli: 8250, memoryMB: 32*1024 + 5120}
+	large := podShape{cpuMilli: 16250, memoryMB: 32*1024 + 5120}
+	ceiling := podShape{cpuMilli: 16250, memoryMB: 64*1024 + 6400}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: fleet}}
+
+	caps, groups, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
+		medium.key(): medium, large.key(): large, ceiling.key(): ceiling,
+	})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+
+	group, ok := groups[large.key()]
+	if !ok || groups[ceiling.key()] != group {
+		t.Fatalf("groups = %v, want both 16 vCPU shapes in one group", groups)
+	}
+	if got := caps[group]; got != 10 {
+		t.Fatalf("shared 16 vCPU seats = %d, want 10 (one per host)", got)
+	}
+	if _, grouped := groups[medium.key()]; grouped {
+		t.Fatalf("8vcpu-32gb grouped as whole-host: %v", groups)
+	}
+
+	demands := []scaling.PoolDemand{
+		{Name: "large", PerPodCost: 1, Load: 8, Target: 10, ShapeKey: group},
+		{Name: "ceiling", PerPodCost: 1, Load: 3, Target: 4, ShapeKey: group},
+	}
+	alloc := scaling.AllocateCompute(demands, 1000, caps)
+	if sum := alloc["large"] + alloc["ceiling"]; sum != 10 {
+		t.Fatalf("allocation = %v, want 10 Pods across both shapes", alloc)
+	}
+	if alloc["large"] < 7 || alloc["ceiling"] < 2 {
+		t.Fatalf("allocation = %v, want real load (8 + 3) funded before warm spare", alloc)
+	}
+}
+
 // An unrecognised OS is left uncapped rather than capped against the
 // wrong node set: fleetNodeSelector falls through to darwin, which
 // matches no node in a Linux fleet, and a zero cap would freeze the pool
@@ -1254,7 +1306,7 @@ func TestAutoscaler_ShapePlacementCapsNoNodesLeavesZero(t *testing.T) {
 	shape := podShape{cpuMilli: 2250, memoryMB: 10752}
 	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: "runners-linux"}}
 
-	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
+	caps, _, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
 	if err != nil {
 		t.Fatalf("shapePlacementCaps: %v", err)
 	}

@@ -26,9 +26,18 @@ defmodule Tuist.Sandboxes.Schemas do
         resident: %Schema{type: :boolean, description: "Whether a macOS sandbox retains its process and capacity."},
         template: %Schema{type: :string},
         template_tag: %Schema{type: :string, nullable: true},
-        vcpus: %Schema{type: :integer},
+        vcpus: %Schema{
+          type: :integer,
+          description:
+            "The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU."
+        },
         memory_mb: %Schema{type: :integer},
         workspace_gb: %Schema{type: :integer},
+        guaranteed_vcpus: %Schema{
+          type: :number,
+          description:
+            "The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one."
+        },
         node_name: %Schema{type: :string, nullable: true},
         hostname: %Schema{type: :string, nullable: true},
         agent_environment_id: %Schema{type: :integer, nullable: true},
@@ -44,6 +53,19 @@ defmodule Tuist.Sandboxes.Schemas do
           description: "When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`."
         },
         archive_bytes: %Schema{type: :integer, nullable: true, description: "Size of the stored archive in bytes."},
+        lifetime_seconds: %Schema{
+          type: :integer,
+          nullable: true,
+          description:
+            "How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire."
+        },
+        expires_at: %Schema{
+          type: :string,
+          format: "date-time",
+          nullable: true,
+          description:
+            "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+        },
         error_message: %Schema{type: :string, nullable: true},
         inserted_at: %Schema{type: :string, format: "date-time"},
         updated_at: %Schema{type: :string, format: "date-time"}
@@ -65,15 +87,42 @@ defmodule Tuist.Sandboxes.Schemas do
         type: :string,
         nullable: true,
         description:
-          "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+          "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
       },
       vcpus: %Schema{
         type: :integer,
         enum: [2, 4, 8],
-        description: "Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576."
+        description:
+          "With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576."
       },
       memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384, 24_576]},
       workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 100}
+    }
+  end
+
+  @doc "What a sandbox is created with: its shape, its lifetime and, on Linux, the CPU it is guaranteed."
+  def create do
+    choices = Enum.map(Sandbox.guaranteed_cpu_choices(), &Sandbox.vcpus/1)
+
+    shape()
+    |> Map.put(:lifetime_seconds, lifetime())
+    |> Map.put(:guaranteed_vcpus, %Schema{
+      type: :number,
+      minimum: List.first(choices),
+      maximum: List.last(choices),
+      description:
+        "Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: #{Enum.join(choices, ", ")}. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life."
+    })
+  end
+
+  @doc "A sandbox lifetime in seconds, for create and extend."
+  def lifetime do
+    %Schema{
+      type: :integer,
+      minimum: 300,
+      maximum: Sandbox.max_lifetime_seconds(),
+      description:
+        "How long the sandbox may run, in seconds, from now and again after each resume: #{div(Sandbox.default_lifetime_seconds(), 3600)} hours by default, at most #{div(Sandbox.max_lifetime_seconds(), 3600)}. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac."
     }
   end
 
@@ -102,7 +151,13 @@ defmodule Tuist.Sandboxes.Schemas do
       },
       vcpu_hours: %Schema{
         type: :number,
-        description: "vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs."
+        description:
+          "vCPU-hours sandboxes were billed for in the range. A Linux sandbox counts the larger of the CPU it used and a quarter vCPU per GiB of its memory; a macOS sandbox counts its vCPUs for each running hour."
+      },
+      memory_gib_hours: %Schema{
+        type: :number,
+        description:
+          "GiB-hours of memory sandboxes were billed for in the range: each running sandbox's memory for every hour it runs."
       },
       created:
         object("SandboxAnalyticsCount", %{
@@ -116,6 +171,7 @@ defmodule Tuist.Sandboxes.Schemas do
       concurrency:
         object("SandboxAnalyticsConcurrency", %{
           limits: resources.("SandboxResourceLimits"),
+          # Guaranteed vCPUs, which the limit counts, rounded up.
           in_use: resources.("SandboxResourcesInUse"),
           points:
             array(
@@ -154,7 +210,22 @@ defmodule Tuist.Sandboxes.Schemas do
           %{start: timestamp(), end: timestamp()}
 
         :create ->
-          shape()
+          Map.put(create(), :repository, %Schema{
+            type: :string,
+            pattern: "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$",
+            description:
+              "macOS only: the github.com repository (`owner/name`) the sandbox is for, connected to one of the account's projects. When a Linux Claude Code environment of the account has a macOS setup script, the sandbox boots from that repository's snapshot for its Xcode, with the default branch cloned to `$HOME/work/<name>`, the script run and the project built there, so the first `tuist sandbox sync` sends only what changed. Without a snapshot it boots bare and one is built for the next sandbox."
+          })
+
+        :extend ->
+          %{
+            sandbox_id: %Schema{type: :string, format: "uuid"},
+            lifetime_seconds: %{
+              lifetime()
+              | description:
+                  "The new lifetime, in seconds from now, at most #{div(Sandbox.max_lifetime_seconds(), 3600)} hours. Omitted, the sandbox's current lifetime starts again."
+            }
+          }
 
         _ ->
           %{sandbox_id: %Schema{type: :string, format: "uuid"}}

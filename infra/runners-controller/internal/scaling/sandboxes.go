@@ -19,7 +19,26 @@ type SandboxAllocation struct {
 	ObservedAt  time.Time `json:"observed_at"`
 	MemoryBytes int64     `json:"memory_bytes"`
 	FreeBytes   int64     `json:"free_bytes"`
-	Reclaim     bool      `json:"reclaim"`
+	// CPUFreeMilli is the node's allocatable CPU no Pod requests, with the
+	// daemon counted at the CPU the kubelet allocated it: room its CPU
+	// request can grow into at once.
+	CPUFreeMilli int64 `json:"cpu_free_milli"`
+	// CPUReclaimableMilli is the CPU idle warm runners on the node hold. A
+	// growth into it is deferred by the kubelet until the autoscaler retires
+	// them, as for memory; a deferred resize holds up the daemon's memory
+	// growths with it, and the server lowers a growth that stops fitting.
+	CPUReclaimableMilli int64 `json:"cpu_reclaimable_milli"`
+	Reclaim             bool  `json:"reclaim"`
+	// WarmBytes is the carve-out a remote execution worker is kept at while
+	// this grant is fresh: its share of the fleet-wide floor. 0 for other
+	// daemons, and from controllers that predate it.
+	WarmBytes int64 `json:"warm_bytes,omitempty"`
+	// SiblingMemoryBytes is the memory this grant counted the host's other
+	// carve-out at (the agent daemon or the remote execution worker). The
+	// server takes what that carve-out grew by since off this grant, so the
+	// two cannot grow into the same free memory between observations. Nil
+	// when the host runs only one carve-out.
+	SiblingMemoryBytes *int64 `json:"sibling_memory_bytes,omitempty"`
 }
 
 func (c *Client) PublishSandboxAllocation(ctx context.Context, allocation SandboxAllocation) error {

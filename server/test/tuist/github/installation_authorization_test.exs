@@ -43,8 +43,8 @@ defmodule Tuist.GitHub.InstallationAuthorizationTest do
     :ok
   end
 
-  test "exchanges the App code and verifies administration of the exact App installation" do
-    assert :ok = verify()
+  test "exchanges the App code, verifies administration of the exact App installation, and returns its owner" do
+    assert {:ok, %{type: :organization, login: "acme"}} = verify()
   end
 
   test "repository access alone does not grant permission to bind an organization installation" do
@@ -62,7 +62,7 @@ defmodule Tuist.GitHub.InstallationAuthorizationTest do
 
   test "personal installations require the same authenticated GitHub account" do
     for user_id <- [7, 8] do
-      installation = Map.put(@installation, "account", %{"type" => "User", "id" => 7})
+      installation = Map.put(@installation, "account", %{"type" => "User", "id" => 7, "login" => "octocat"})
 
       stub(Req, :get, fn opts ->
         case opts[:url] do
@@ -71,7 +71,9 @@ defmodule Tuist.GitHub.InstallationAuthorizationTest do
         end
       end)
 
-      if user_id == 7, do: assert(:ok == verify()), else: assert({:error, :invalid_github_installation} == verify())
+      if user_id == 7,
+        do: assert({:ok, %{type: :user, login: "octocat"}} == verify()),
+        else: assert({:error, :invalid_github_installation} == verify())
     end
   end
 
@@ -104,7 +106,7 @@ defmodule Tuist.GitHub.InstallationAuthorizationTest do
       response(%{"state" => "active", "role" => "admin"})
     end)
 
-    assert :ok = verify()
+    assert {:ok, %{type: :organization}} = verify()
   end
 
   test "bounds installation pagination to ten pages" do

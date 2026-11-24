@@ -9,9 +9,13 @@ dependency, so changes here affect `server/` directly. Component code lives in
 - Formatting: `mise run noora:lint` or `mise run noora:lint --fix`.
 - Preview components in `storybook/`. Its independent deployment is defined by
   `infra/helm/noora-storybook/` and `.github/workflows/noora-storybook-deployment.yml`.
-- `.github/workflows/noora-release.yml` stamps the version into `mix.exs` and publishes
-  to Hex; releases use `cliff.toml` for changelogs. `package.json` is private and is
-  never published to npm.
+- The version lives in `mix.exs`; `.github/workflows/noora-release.yml` publishes to
+  Hex, using `cliff.toml` for changelogs. `package.json` is private build tooling for
+  the JavaScript hooks and CSS bundles; it is not published.
+- Each component's `attr` and `slot` declarations (`values:`, `default:`, `doc:`) are
+  the single source of truth for its API. The documentation at `tuist.dev/noora` reads
+  them through `__components__/0` (see `server/lib/tuist_web/noora/AGENTS.md`), so keep
+  `doc:` strings accurate and written for Phoenix users.
 
 ## Component contracts
 
@@ -43,6 +47,10 @@ dependency, so changes here affect `server/` directly. Component code lives in
 - `Noora.Icon` uses per-SVG `@external_resource` and `__mix_recompile__?/0` for
   additions/removals, never the directory itself (Mix cannot digest directories).
   Brand SVGs use monochrome filled `currentColor` and `brand_<name>/1` helpers.
+- `Noora.Brand` (`tuist_logo/1`, `tuist_wordmark/1`) reads its shapes at compile time
+  from `lib/noora/brand`, copies of the color assets in
+  `server/priv/static/marketing/images/brand`; update both when the brand changes.
+  Colors live in `css/brand.css` and follow the color scheme; `surface` pins it.
 - Delegate date-picker navigation from the hook root so patched controls still work.
 - Charts initialize near the viewport only when `data-lazy="true"`; offscreen
   updates/destruction remain safe and resize listeners register once per lifetime.

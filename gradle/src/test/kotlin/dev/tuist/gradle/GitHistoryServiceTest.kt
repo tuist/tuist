@@ -70,12 +70,24 @@ class GitHistoryServiceTest {
         private val history: (String, String?, GitHistoryLimits) -> GitHistory
     ) : GitHistoryReading {
         val limits = mutableListOf<GitHistoryLimits>()
+        val connections = mutableListOf<Pair<String, List<String>>>()
 
         override fun isRepository(): Boolean = repository
 
         override fun read(headSha: String, baseBranch: String?, limits: GitHistoryLimits): GitHistory {
             this.limits += limits
             return history(headSha, baseBranch, limits)
+        }
+
+        override fun connect(
+            history: GitHistory,
+            branch: String,
+            limits: GitHistoryLimits,
+            unknown: (List<String>) -> List<String>
+        ): GitHistory {
+            // As the reader does, only a coverage run's access reaches past the checkout.
+            if (limits.remoteAccess == GitHistoryRemoteAccess.HISTORY) connections += branch to unknown(listOf("boundaryparent"))
+            return history
         }
     }
 
@@ -209,6 +221,86 @@ class GitHistoryServiceTest {
             .collect(pullRequest, workingDirectory, isCi = true)
 
         assertEquals(GitHistoryRemoteAccess.NONE, reader.limits.single().remoteAccess)
+    }
+
+    @Test
+    fun `a coverage run fetches history and closes the gap through the base branch`() {
+        missing = { shas -> shas.filter { it == "boundaryparent" } }
+        val reader = FakeReader { _, _, _ -> history() }
+
+        service(reader = reader).collect(pullRequest, workingDirectory, isCi = true, coverage = true)
+
+        assertEquals(GitHistoryRemoteAccess.HISTORY, reader.limits.single().remoteAccess)
+        assertEquals(listOf("main" to listOf("boundaryparent")), reader.connections)
+        val missingRequest = json(requests.single { it.path == "$apiPath/commits/missing" })
+        assertEquals("git@github.com:acme/app.git", missingRequest.get("repository_url").asString)
+        assertEquals(listOf("boundaryparent"), missingRequest.getAsJsonArray("shas").map { it.asString })
+    }
+
+    @Test
+    fun `a coverage run on a push closes the gap through its own branch`() {
+        val reader = FakeReader { _, _, _ -> history(baseBranch = null, baseHeadSha = null) }
+        val push = pullRequest.copy(branch = "main", ref = "refs/heads/main")
+
+        service(reader = reader, environment = emptyMap()).collect(push, workingDirectory, isCi = true, coverage = true)
+
+        assertEquals(listOf("main"), reader.connections.map { it.first })
+    }
+
+    @Test
+    fun `a coverage run reads only the checkout when unshallowing is disabled`() {
+        val reader = FakeReader { _, _, _ -> history() }
+
+        service(reader = reader, environment = mapOf("GITHUB_BASE_REF" to "main", "TUIST_GIT_UNSHALLOW_ENABLED" to "false"))
+            .collect(pullRequest, workingDirectory, isCi = true, coverage = true)
+
+        assertEquals(GitHistoryRemoteAccess.NONE, reader.limits.single().remoteAccess)
+    }
+
+    @Test
+    fun `a server that cannot be asked counts as having the commits the clone stops at`() {
+        val reader = FakeReader { _, _, _ -> history() }
+        server.shutdown()
+
+        service(reader = reader).collect(pullRequest, workingDirectory, isCi = true, coverage = true)
+
+        assertEquals(listOf("main" to emptyList<String>()), reader.connections)
+    }
+
+    @Test
+    fun `a coverage run on a depth-1 merge checkout uploads the pull request's head`() {
+        val origin = GitRepositoryFixture().pullRequestOrigin(workingDirectory)
+        val (uploaded, checkout) = uploadedFromMergeCheckout(origin, coverage = true)
+
+        assertTrue(origin.pullRequestHead in uploaded, uploaded.toString())
+        assertTrue(origin.forkPoint in uploaded, uploaded.toString())
+        assertEquals(origin.merge, uploaded.last())
+        assertTrue(GitRepositoryFixture().hasObject(checkout, origin.pullRequestHead))
+    }
+
+    @Test
+    fun `a run without coverage on a depth-1 merge checkout fetches nothing`() {
+        val origin = GitRepositoryFixture().pullRequestOrigin(workingDirectory)
+        val (uploaded, checkout) = uploadedFromMergeCheckout(origin, coverage = false)
+
+        assertEquals(listOf(origin.merge), uploaded)
+        assertFalse(GitRepositoryFixture().hasObject(checkout, origin.pullRequestHead))
+        assertFalse(GitRepositoryFixture().hasRef(checkout, "refs/remotes/origin/main"))
+    }
+
+    /** Collects and uploads a depth-1 checkout of the pull request's merge ref, and returns the SHAs uploaded. */
+    private fun uploadedFromMergeCheckout(origin: GitRepositoryFixture.PullRequestOrigin, coverage: Boolean): Pair<List<String>, File> {
+        val fixture = GitRepositoryFixture()
+        val checkout = fixture.shallowCheckout(origin.url, "refs/pull/7/merge", File(workingDirectory, "checkout"))
+        val subject = service(reader = GitHistoryReader(ProcessGitRunner(checkout, environment = fixture.environment), checkout))
+        val gitInfo = GitInfo(branch = "feature", commitSha = origin.merge, ref = "refs/pull/7/merge", remoteUrlOrigin = origin.url)
+
+        val collected = assertNotNull(subject.collect(gitInfo, checkout, isCi = true, coverage = coverage))
+        assertTrue(subject.upload(collected))
+
+        val uploaded = requests.filter { it.path == "$apiPath/commits" }
+            .flatMap { json(it).getAsJsonArray("commits").map { commit -> commit.asJsonObject.get("sha").asString } }
+        return uploaded to checkout
     }
 
     @Test
@@ -467,7 +559,11 @@ class GitHistoryServiceTest {
         assertTrue(GitHistoryEnvironment(mapOf("TUIST_GIT_UPLOAD_ENABLED" to "1")).enabled(isCi = true))
         assertEquals(false, GitHistoryEnvironment(emptyMap()).enabled(isCi = false))
         assertEquals(false, GitHistoryEnvironment(mapOf("TUIST_GIT_UPLOAD_ENABLED" to "no")).enabled(isCi = true))
-        assertEquals(GitHistoryRemoteAccess.BASE_HEAD, GitHistoryEnvironment(emptyMap()).remoteAccess())
-        assertEquals(GitHistoryRemoteAccess.NONE, GitHistoryEnvironment(mapOf("TUIST_GIT_UNSHALLOW_ENABLED" to "0")).remoteAccess())
+        assertEquals(GitHistoryRemoteAccess.BASE_HEAD, GitHistoryEnvironment(emptyMap()).remoteAccess(coverage = false))
+        assertEquals(GitHistoryRemoteAccess.HISTORY, GitHistoryEnvironment(emptyMap()).remoteAccess(coverage = true))
+        assertEquals(
+            GitHistoryRemoteAccess.NONE,
+            GitHistoryEnvironment(mapOf("TUIST_GIT_UNSHALLOW_ENABLED" to "0")).remoteAccess(coverage = true)
+        )
     }
 }

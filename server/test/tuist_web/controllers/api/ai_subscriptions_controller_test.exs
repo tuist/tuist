@@ -173,8 +173,8 @@ defmodule TuistWeb.API.AISubscriptionsControllerTest do
     assert json_response(start.(), 429)
   end
 
-  test "is not found for users without the guild flag", %{bearer: bearer} do
-    stub(FeatureFlags, :guild_enabled?, fn _user -> false end)
+  test "is not found for users without the luft flag", %{bearer: bearer} do
+    stub(FeatureFlags, :luft_enabled?, fn _user -> false end)
 
     for request <- [
           &get(&1, @base),
@@ -206,7 +206,7 @@ defmodule TuistWeb.API.AISubscriptionsControllerTest do
     {:ok, other_client} = Clients.create_client(%{redirect_uris: ["https://example.com/callback"], name: "other"})
     other_client_bearer = sign_in_oauth(user, other_client)
 
-    for bearer <- [account_token, project.token, other_client_bearer],
+    for bearer <- [account_token, Tuist.Projects.create_project_token(project), other_client_bearer],
         request <- [
           &get(&1, @base),
           # Rejected before its body is validated.

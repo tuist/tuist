@@ -58,9 +58,11 @@ defmodule Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting do
     ## Available MCP tools
 
     - **list_projects**: List all accessible projects.
-    - **list_test_runs**: List test runs for a project (supports git_branch, status, scheme filters, and richer query expressions such as `-git_branch~"gh-readonly-queue"`).
-    - **get_test_run**: Get detailed test run info including `xcode_selective_testing_targets`, `xcode_selective_testing_local_hits`, and `xcode_selective_testing_remote_hits`.
+    - **list_test_runs**: List test runs for a project, each with its `selective_testing_strategy` (supports git_branch, status, scheme and `selective_testing` (`coverage` or `module_hash`) filters, and richer query expressions such as `-git_branch~"gh-readonly-queue"`).
+    - **get_test_run**: Get detailed test run info including its `selective_testing` summary: the `strategy` (`coverage` or `module_hash`), the `baseline_sha` coverage compared against, and the `requested`, `selected` and `skipped` test counts.
     - **list_xcode_test_targets**: List per-target selective testing hit/miss status and hash for a test run. Supports `hit_status` filter (miss, local, remote).
+    - **list_selective_testing_tests**: For a run whose strategy is `coverage`, list every test its selection decided, with `decision` (selected or skipped), `reason`, the changed file that selected it (`matched_path`) and its outcome in the run. Supports `decision`, `reason` and `search` filters.
+    - **list_selective_testing_changed_files**: For a run whose strategy is `coverage`, list the files that changed since its baseline, with how many tests each selected and whether it's a tracked file.
 
     ## Workflow
 
@@ -68,7 +70,9 @@ defmodule Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting do
 
     ### 2. Assess overall selective testing effectiveness
 
-    From `get_test_run`, compute:
+    Read `selective_testing.strategy` from `get_test_run`. When it's `coverage`, the run used coverage-based test selection: follow "Coverage-based selection" below instead of steps 3 and 4.
+
+    Otherwise, from `selective_testing` the share of tests skipped is `skipped / requested * 100`. From `list_xcode_test_targets`, compute:
     - **Effectiveness**: `(local_hits + remote_hits) / targets * 100`
     - **Targets tested**: targets that had status `miss` (i.e. actually ran)
     - **Targets skipped**: targets with `local` or `remote` hits (skipped because unchanged)
@@ -112,6 +116,14 @@ defmodule Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting do
     3. Compare hashes between runs — if all hashes differ, suspect a global change (environment, project settings)
     4. If only some targets changed, trace the dependency chain to find the root cause target
     5. Check git history around the regression date for dependency or configuration changes
+
+    ### Coverage-based selection
+
+    For a run whose strategy is `coverage`, `selective_testing` gives the effectiveness: `skipped / requested * 100`.
+
+    1. Use `list_selective_testing_tests` with `decision=selected` and group the tests by `reason`. Rules such as `impacted` (a changed file is in the test's coverage) or `test_file_changed` kept a test on evidence; `no_evidence` means the baseline had no coverage for it. Any other reason, such as `tracked_file_changed` or `no_baseline`, is a fallback: coverage couldn't decide, so the test ran anyway.
+    2. Use `list_selective_testing_changed_files` to see which changes drove the selection: the files that selected the most tests come first, and a `tracked` file explains a fallback.
+    3. If a base run is provided, compare the reasons and the changed files between the two runs: a jump in selected tests usually traces to a widely covered file or a tracked file that changed.
 
     ### Summary format
 

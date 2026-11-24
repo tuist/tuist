@@ -98,4 +98,4 @@ For Apple simulator and macOS previews, see the <.localized_link href="/guides/f
 
 ## Related workflows {#publish-from-once}
 
-Existing Once integrations have a separate <.localized_link href="/guides/features/previews/once">artifact publication guide</.localized_link>. Both workflows keep publication separate from cached graph execution.
+Existing Struo integrations have a separate <.localized_link href="/guides/features/previews/struo">artifact publication guide</.localized_link>. Both workflows keep publication separate from cached graph execution.

@@ -265,31 +265,85 @@ struct ServerAuthenticationControllerTests {
         }
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func expired_account_token_returns_expired() async throws {
-        let date = Date()
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies(),
+        arguments: [false, true]
+    ) func expired_account_token_renews_only_with_a_workload_identity(hasWorkloadIdentity: Bool) async throws {
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.variables = [
-            "CI": "1",
-        ]
+        mockEnvironment.variables = hasWorkloadIdentity ? ["TUIST_OIDC_TOKEN": "workload-identity-token"] : ["CI": "1"]
+        let date = Date()
         try await Date.$now.withValue({ date }) {
             // Given
             let serverURL: URL = .test()
             let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
-            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+            let expiredToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+            let renewedToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "access", type: "account")
+            let stored = TestStore(ServerCredentials.test(accessToken: expiredToken.token, refreshToken: nil))
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willProduce { _ in stored.value }
+            given(serverCredentialsStore).store(credentials: .any, serverURL: .any).willProduce { credentials, _ in
+                stored.value = credentials
+            }
+            given(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .any, serverURL: .any)
+                .willReturn(renewedToken.token)
 
-            let storeCredentials: ServerCredentials = .test(
-                accessToken: accessToken.token,
-                refreshToken: ""
-            )
+            // When / Then
+            if hasWorkloadIdentity {
+                let got = try await subject.authenticationToken(serverURL: serverURL)
+                #expect(got == .account(try JWT.parse(renewedToken.token)))
+            } else {
+                // Nothing can renew it, so the lookup fails at once rather than retrying under the refresh lock.
+                await #expect(throws: ServerAuthenticationControllerError.workloadSessionExpired(serverURL: serverURL)) {
+                    try await subject.authenticationToken(serverURL: serverURL)
+                }
+                verify(exchangeOIDCTokenService).exchangeOIDCToken(oidcToken: .any, serverURL: .any).called(0)
+            }
+        }
+    }
 
-            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
-            given(cachedValueStore).getValue(key: .any, computeIfNeeded: .any).willReturn(nil as AuthenticationToken?)
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    func expired_account_token_fails_at_once_when_the_server_refuses_the_workload_identity() async throws {
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["TUIST_OIDC_TOKEN": "ended-command-token"]
+        let date = Date()
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let expiredToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+            given(serverCredentialsStore).read(serverURL: .value(serverURL))
+                .willReturn(.test(accessToken: expiredToken.token, refreshToken: nil))
+            let reason = "The sandbox command this token was minted for is no longer running."
+            given(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .any, serverURL: .any)
+                .willThrow(ExchangeOIDCTokenServiceError.unauthorized(reason))
 
-            // When
-            let got = try await subject.authenticationToken(serverURL: .test())
-
-            // Then
-            #expect(got == nil)
+            // When / Then: the CLI refreshes in the background, which polled a helper process until timing out.
+            try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
+                await #expect(
+                    throws: ServerAuthenticationControllerError.workloadSessionRenewalRefused(
+                        serverURL: serverURL, reason: reason
+                    )
+                ) {
+                    try await subject.authenticationToken(serverURL: serverURL)
+                }
+            }
+            verify(exchangeOIDCTokenService).exchangeOIDCToken(oidcToken: .any, serverURL: .any).called(1)
         }
     }
 

@@ -7,7 +7,7 @@
 ---
 # Android {#bundle-insights-android}
 
-Analiza un paquete de Android apuntando `tuist inspect bundle` a un paquete de aplicación o a un instalable:
+Analiza un bundle de Android indicando `tuist inspect bundle` hacia un app bundle o un instalable:
 
 ::: code-group
 ```bash [Analyze an .aab (recommended)]

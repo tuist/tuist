@@ -34,7 +34,7 @@
 
     & > [data-part="content"] {
       box-sizing: border-box;
-      box-shadow: var(--noora-border-heavy);
+      box-shadow: var(--noora-border-large);
       border-radius: var(--noora-radius-8);
       background: var(--noora-surface-background-primary);
 
@@ -116,7 +116,7 @@
           }
 
           &[data-type="icon"] [data-part="icon"] {
-            box-shadow: var(--noora-border-light-default);
+            box-shadow: var(--noora-border-small-default);
           }
 
           &[data-type="error"] [data-part="icon"] {

@@ -345,6 +345,45 @@ defmodule Tuist.Sandboxes.CommandsTest do
       assert File.read!(Path.join(dir, "stdin")) == "abcde"
       assert File.exists?(Path.join(dir, "stdin_closed"))
     end
+
+    @tag :tmp_dir
+    test "a read answers Struo progress and retains legacy command progress", %{tmp_dir: home} do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      command = running_command(sandbox)
+      dir = Path.join(home, ".cache/tuist/commands/#{command.id}")
+      File.mkdir_p!(dir)
+      File.write!(Path.join(dir, "stdout"), "Compiling\n")
+      File.write!(Path.join(dir, "stderr"), "")
+      File.write!(Path.join(dir, "exit_code"), "0\n")
+
+      # Runs the real read script against the command's directory.
+      stub(Nodes, :call, fn "node-a", "exec", %{cmd: ["/bin/bash", "-c", script], env: env}, opts ->
+        {output, code} = System.cmd("/bin/bash", ["-c", script], env: Map.put(env, "HOME", home))
+        opts[:on_stream].({:stdout, output})
+        {:ok, %{"exit_code" => code}}
+      end)
+
+      assert {:ok, %{progress: nil, stdout: "Compiling\n"}} = Commands.read(sandbox, command.id)
+
+      File.write!(Path.join(dir, "once-progress.jsonl"), """
+      {"v":1,"command":"build","state":"running","done":1,"planned":4}
+      {"v":1,"command":"build","state":"succeeded","done":4,"planned":4}
+      """)
+
+      assert {:ok, %{progress: %{"state" => "succeeded", "done" => 4}, stdout: "Compiling\n"}} =
+               Commands.read(sandbox, command.id)
+
+      File.write!(Path.join(dir, "struo-progress.jsonl"), """
+      {"v":1,"command":"test","state":"running","done":2,"planned":6}
+      """)
+
+      assert {:ok, %{progress: %{"command" => "test", "state" => "running", "done" => 2}}} =
+               Commands.read(sandbox, command.id)
+
+      # Whatever else a command writes there is not a snapshot.
+      File.write!(Path.join(dir, "struo-progress.jsonl"), "not json\n")
+      assert {:ok, %{progress: nil}} = Commands.read(sandbox, command.id)
+    end
   end
 
   test "pause_idle/2 leaves a sandbox with running commands up" do
@@ -377,14 +416,18 @@ defmodule Tuist.Sandboxes.CommandsTest do
         admission: grant
       }
 
-      stub_grant(node, nil)
+      stub_grant(node, 0)
       %{node: node}
     end
 
-    # CI holds the Mac's grant until `opens_at` (monotonic milliseconds).
-    defp stub_grant(node, opens_at) do
+    # CI holds the Mac's grant for its first `refusals` lookups, or for all
+    # of them with `:always`.
+    defp stub_grant(node, refusals) do
+      lookups = :counters.new(1, [])
+
       stub(Nodes, :lookup, fn "mac-a" ->
-        open = is_nil(opens_at) or System.monotonic_time(:millisecond) >= opens_at
+        :counters.add(lookups, 1, 1)
+        open = refusals != :always and :counters.get(lookups, 1) > refusals
         {:ok, self(), %{node | admission: Map.put(node.admission, "allow", open)}}
       end)
     end
@@ -428,7 +471,7 @@ defmodule Tuist.Sandboxes.CommandsTest do
 
     test "a command joins the lease while CI holds the Mac's grant", %{node: node} do
       sandbox = mac(state: :running, residency_work_id: "commands", last_active_at: DateTime.utc_now())
-      stub_grant(node, System.monotonic_time(:millisecond) + 60_000)
+      stub_grant(node, :always)
 
       expect(Nodes, :call, on_mac("hold_residency", {:ok, %{}}))
       expect(Nodes, :call, on_mac("exec"))
@@ -441,21 +484,15 @@ defmodule Tuist.Sandboxes.CommandsTest do
 
     test "without a lease, a command waits in the request for CI to give the Mac's grant back", %{node: node} do
       sandbox = mac(state: :paused, resident: true, last_active_at: DateTime.utc_now())
-      started = System.monotonic_time(:millisecond)
-      # CI gives the grant back while the request waits.
-      stub_grant(node, started + 1_500)
+      # CI gives the grant back after the first two tries, so only a start
+      # that tries again while the request waits resumes the sandbox.
+      stub_grant(node, 2)
 
-      expect(Nodes, :call, fn "mac-a", "resume", _args, _opts ->
-        send(self(), {:resumed_after_ms, System.monotonic_time(:millisecond) - started})
-        {:ok, %{"restore_ms" => 400}}
-      end)
-
+      expect(Nodes, :call, fn "mac-a", "resume", _args, _opts -> {:ok, %{"restore_ms" => 400}} end)
       expect(Nodes, :call, on_mac("hold_residency", {:ok, %{}}))
       expect(Nodes, :call, on_mac("exec"))
 
       assert {:ok, %{status: "running"}} = Commands.start(sandbox, %{command: "true"})
-      assert_received {:resumed_after_ms, waited}
-      assert waited in 1_500..3_000
       assert %Sandbox{state: :running, residency_work_id: "commands"} = Repo.reload!(sandbox)
     end
 

@@ -98,7 +98,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # Guard 1. A failed read is indistinguishable from every Pod having
     # vanished. Acting on it would free the whole fleet's capacity.
     test "does nothing when the cluster read fails" do
-      account = account_fixture()
+      account = pro_account_fixture()
       claim_fixture(account, 9001, "pod-1")
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:error, :timeout} end)
@@ -110,7 +110,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # Guard 2. Zero Pods returned while claims exist means a bad
     # selector, wrong namespace, or an empty cache — not an empty fleet.
     test "does nothing when the read returns no pods at all" do
-      account = account_fixture()
+      account = pro_account_fixture()
       claim_fixture(account, 9002, "pod-1")
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, []} end)
@@ -123,7 +123,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # read is eventually consistent, so a young claim is legitimately
     # absent and must never be marked.
     test "ignores claims inside the grace window, without even reading the cluster" do
-      account = account_fixture()
+      account = pro_account_fixture()
       claim_fixture(account, 9003, "pod-young", age_seconds: 30)
 
       # Nothing is eligible, so the worker must not spend an apiserver
@@ -138,7 +138,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # Guard 4. One absence only starts the clock. Releasing on a single
     # observation would let any transient read free a live runner.
     test "a first absence marks but does not release" do
-      account = account_fixture()
+      account = pro_account_fixture()
       claim_fixture(account, 9004, "pod-gone")
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-other")]} end)
@@ -152,7 +152,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # that reappears resets the clock rather than accumulating toward a
     # release across unrelated blips.
     test "a reappearing pod clears the absence clock" do
-      account = account_fixture()
+      account = pro_account_fixture()
       claim_fixture(account, 9005, "pod-flaky", missing_for_seconds: 240)
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-flaky")]} end)
@@ -166,7 +166,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # The kill switch has to work without a deploy, so it is checked
     # before anything else the worker does.
     test "does nothing at all while paused" do
-      account = account_fixture()
+      account = pro_account_fixture()
       claim_fixture(account, 9006, "pod-gone", missing_for_seconds: 600)
 
       stub(FunWithFlags, :enabled?, fn :runner_pod_reconciliation_paused -> true end)
@@ -181,7 +181,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # The behaviour the whole worker exists for: capacity held by a Pod
     # that no longer exists, invisible to every store-keyed sweep.
     test "releases a claim whose pod has been absent past the confirmation window" do
-      account = account_fixture()
+      account = pro_account_fixture()
       claim_fixture(account, 9101, "pod-dead", missing_for_seconds: 600)
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
@@ -191,7 +191,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     end
 
     test "leaves a claim whose pod is present" do
-      account = account_fixture()
+      account = pro_account_fixture()
       claim_fixture(account, 9102, "pod-live", missing_for_seconds: 600)
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
@@ -203,7 +203,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
 
     # Absence recorded, but not for long enough yet.
     test "leaves a claim still inside the confirmation window" do
-      account = account_fixture()
+      account = pro_account_fixture()
       claim_fixture(account, 9103, "pod-gone", missing_for_seconds: 60)
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
@@ -215,7 +215,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # The release and the re-queue are one transaction now (#12031), so
     # a freed slot always comes with a claimable job.
     test "re-queues the lifecycle row with the claim delete" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       :ok =
         WorkflowJobs.upsert_queued(%{
@@ -237,7 +237,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # Guard 5. A wrong-but-plausible read that survives every other
     # check still cannot free everything at once.
     test "caps releases per tick and leaves the remainder for the next one" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       for i <- 1..30 do
         claim_fixture(account, 9200 + i, "pod-dead-#{i}", missing_for_seconds: 600)
@@ -256,7 +256,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # Guard 1. A failed read is indistinguishable from every Pod having
     # vanished, and acting on it would close the whole fleet's sessions.
     test "does nothing when the cluster read fails" do
-      account = account_fixture()
+      account = pro_account_fixture()
       session = session_fixture(account, "pod-1")
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:error, :timeout} end)
@@ -268,7 +268,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # Guard 2. Zero Pods returned while sessions are open means a bad
     # selector, wrong namespace, or an empty cache — not an empty fleet.
     test "does nothing when the read returns no pods at all" do
-      account = account_fixture()
+      account = pro_account_fixture()
       session = session_fixture(account, "pod-1")
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, []} end)
@@ -282,7 +282,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     # absent. Rejecting the mock also asserts a quiet fleet costs no
     # apiserver call.
     test "ignores sessions inside the grace window, without reading the cluster" do
-      account = account_fixture()
+      account = pro_account_fixture()
       session = session_fixture(account, "pod-young", age_seconds: 30)
 
       reject(&K8sClient.list_pods/2)
@@ -292,7 +292,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     end
 
     test "ignores sessions that are already closed" do
-      account = account_fixture()
+      account = pro_account_fixture()
       closed_at = DateTime.add(DateTime.utc_now(), -600, :second)
 
       session = session_fixture(account, "pod-closed", ended_at: closed_at)
@@ -304,7 +304,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     end
 
     test "leaves a session alone while its Pod is present" do
-      account = account_fixture()
+      account = pro_account_fixture()
       session = session_fixture(account, "pod-alive")
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-alive")]} end)
@@ -316,7 +316,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
 
   describe "session arm: closing orphans" do
     test "closes a session whose Pod is absent from a complete read" do
-      account = account_fixture()
+      account = pro_account_fixture()
       session = session_fixture(account, "pod-gone", age_seconds: 1800)
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
@@ -329,7 +329,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
       # The rows production accumulated started days ago and were already
       # being charged against `started_at + 6h`. Closing them there keeps
       # the drain billing-neutral.
-      account = account_fixture()
+      account = pro_account_fixture()
       started_at = DateTime.add(DateTime.utc_now(), -5 * 24 * 3600, :second)
 
       session =
@@ -346,7 +346,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     test "a closed orphan stops counting as occupied capacity" do
       # The failure that started this: seventeen phantom sessions on a
       # nine-mini fleet read to the allocator as a saturated fleet.
-      account = account_fixture()
+      account = pro_account_fixture()
       fleet = "fleet-phantom"
 
       session_fixture(account, "pod-phantom",
@@ -363,7 +363,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     end
 
     test "emits recovery telemetry for the closed sessions" do
-      account = account_fixture()
+      account = pro_account_fixture()
       session_fixture(account, "pod-gone", age_seconds: 3600)
 
       handler_id = "orphaned-runner-sessions-test-#{System.unique_integer([:positive])}"
@@ -393,7 +393,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
       # This is what keeps the backlog drain from being a no-op on
       # billing: 90 seconds of real work bills as 90 seconds, not as the
       # six-hour bound the open row was already charged against.
-      account = account_fixture()
+      account = pro_account_fixture()
       now = DateTime.utc_now()
       started_at = DateTime.add(now, -5 * 24 * 3600, :second)
       completed_at = DateTime.add(started_at, 90, :second)
@@ -415,7 +415,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     test "prefers the job GitHub proved ran over the job the claim was minted for" do
       # A runner handed a sibling's job: the executed job's completion is
       # what released the Pod, so it dates the session's end.
-      account = account_fixture()
+      account = pro_account_fixture()
       now = DateTime.utc_now()
       started_at = DateTime.add(now, -3600, :second)
       claimed_job_completion = DateTime.add(started_at, 60, :second)
@@ -438,7 +438,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     end
 
     test "falls back to the claim-time job when GitHub never proved an execution" do
-      account = account_fixture()
+      account = pro_account_fixture()
       now = DateTime.utc_now()
       started_at = DateTime.add(now, -3600, :second)
       completed_at = DateTime.add(started_at, 300, :second)
@@ -458,7 +458,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     end
 
     test "falls back to the clamp for a job that never reached a terminal state" do
-      account = account_fixture()
+      account = pro_account_fixture()
       started_at = DateTime.add(DateTime.utc_now(), -5 * 24 * 3600, :second)
 
       session =
@@ -476,7 +476,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     end
 
     test "resolves the whole batch in a single lifecycle-store read" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       for i <- 1..3 do
         session_fixture(account, "pod-batch-#{i}", workflow_job_id: 79_100 + i, age_seconds: 3600)
@@ -495,7 +495,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
 
   describe "session arm: kill switch" do
     test "does nothing while paused" do
-      account = account_fixture()
+      account = pro_account_fixture()
       session = session_fixture(account, "pod-gone", age_seconds: 3600)
 
       stub(FunWithFlags, :enabled?, fn :runner_pod_reconciliation_paused -> true end)
@@ -504,5 +504,12 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
       assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
       assert reload_session(session).ended_at == nil
     end
+  end
+
+  # The paid plans' limits, which these tests' resource figures assume.
+  defp pro_account_fixture do
+    account = account_fixture()
+    Tuist.Runners.Concurrency.raise_to_plan_defaults(account, :pro)
+    account
   end
 end

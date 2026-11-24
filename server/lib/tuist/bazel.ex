@@ -5,6 +5,7 @@ defmodule Tuist.Bazel do
 
   alias Tuist.Bazel.Invocation
   alias Tuist.Bazel.InvocationLog
+  alias Tuist.Bazel.InvocationStart
   alias Tuist.Bazel.TestInvocation
   alias Tuist.Bazel.TestReportIngestor
   alias Tuist.Bazel.TestResult
@@ -23,13 +24,70 @@ defmodule Tuist.Bazel do
 
   @max_test_artifact_bytes_per_invocation 64 * 1_024 * 1_024
   @ingest_pruning_slack_seconds 24 * 60 * 60
+  @running_invocation_hours 24
+  @running_invocation_report_minutes 10
   @invocation_log_streams ~w(stdout stderr)
   @invocation_log_error_pattern "(?m)^\\r*(?:ERROR|FAIL|TIMEOUT): "
 
   def sanitize_invocation_log(message), do: Sanitizer.sanitize(message)
 
+  @doc "The primary output of each of `event_ids` in the invocation's published profile."
+  defdelegate profile_primary_outputs(invocation, event_ids), to: Tuist.Bazel.ProfileSteps, as: :primary_outputs
+
   def ingest_test_report(project, invocation, test_results, test_summaries) do
     TestReportIngestor.ingest(project, invocation, test_results, test_summaries)
+  end
+
+  @doc """
+  Records invocations Kura saw start or still sees running. A later report of
+  the same invocation replaces the earlier one, so `inserted_at` is when it
+  was last reported.
+  """
+  def create_invocation_starts([]), do: :ok
+
+  def create_invocation_starts(starts) when is_list(starts) do
+    inserted_at = NaiveDateTime.utc_now()
+    IngestRepo.insert_all(InvocationStart, Enum.map(starts, &Map.put(&1, :inserted_at, inserted_at)))
+    :ok
+  end
+
+  @doc """
+  The project's invocations that started in the last 24 hours, were reported
+  in the last 10 minutes, and have not finished, newest first, at most
+  `:limit` (50). Kura re-reports an invocation every few minutes while its
+  build event stream is open, so a start it stopped reporting was cancelled
+  or lost without finishing. `:invocation_id` narrows the result to that
+  invocation.
+  """
+  def running_invocations(project_id, opts \\ []) do
+    now = NaiveDateTime.utc_now()
+    since = NaiveDateTime.add(now, -@running_invocation_hours, :hour)
+    reported_since = NaiveDateTime.add(now, -@running_invocation_report_minutes, :minute)
+
+    # An invocation finishes after it starts, so its row is no older than `since`.
+    finished =
+      from(invocation in Invocation,
+        where: invocation.project_id == ^project_id and invocation.inserted_at >= ^since,
+        select: invocation.invocation_id
+      )
+
+    query =
+      from(start in InvocationStart,
+        hints: ["FINAL"],
+        where: start.project_id == ^project_id and start.started_at >= ^since,
+        where: start.inserted_at >= ^reported_since,
+        where: start.invocation_id not in subquery(finished),
+        order_by: [desc: start.started_at],
+        limit: ^Keyword.get(opts, :limit, 50)
+      )
+
+    query =
+      case Keyword.fetch(opts, :invocation_id) do
+        {:ok, invocation_id} -> where(query, [start], start.invocation_id == ^invocation_id)
+        :error -> query
+      end
+
+    ClickHouseRepo.all(query)
   end
 
   def create_invocations([]), do: {0, nil}

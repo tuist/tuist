@@ -1,0 +1,14 @@
+environment: staging
+host: symptoms-staging.taild6d7bb.ts.net
+
+tuist:
+  url: http://tuist-tuist-server.tuist-staging.svc.cluster.local
+  namespace: tuist-staging
+
+service:
+  tailscale:
+    hostname: symptoms-staging
+
+postgresql:
+  backup:
+    destinationPath: s3://tuist-stag-pg-backups/symptoms

@@ -1,18 +1,18 @@
 ---
 {
   "title": "Swift paketi",
-  "titleTemplate": ":title · Swift · Paket Kayıtları · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Registry'nin bir Swift paketinde nasıl kullanılacağını öğrenin."
+  "titleTemplate": ":title · Swift · Paket Kayıt Defterleri · Özellikler · Kılavuzlar · Tuist",
+  "description": "Tuist Registry'yi bir Swift paketinde nasıl kullanacağınızı öğrenin."
 }
 ---
 # Swift paketi {#swift-package}
 
-Bir Swift paketi üzerinde çalışıyorsanız, bağımlılıklar kayıt defterinde mevcutsa bunları çözmek için `--replace-scm-with-registry` bayrağını kullanabilirsiniz:
+Bir Swift paketi üzerinde çalışıyorsanız, bağımlılıklar varsa bunları kayıt defterinden çözmek için `--replace-scm-with-registry` bayrağını kullanabilirsiniz:
 
 ```bash
 swift package --replace-scm-with-registry resolve
 ```
 
-Bağımlılıkları her çözdüğünüzde kayıt defterinin kullanılmasını sağlamak istiyorsanız, bir URL yerine kayıt defteri tanımlayıcısını kullanmak için `Package.swift` dosyanızdaki `dependencies` alanını güncellemeniz gerekir.
+Bağımlılıkları her çözümlediğinizde kayıt defterinin kullanılmasını sağlamak istiyorsanız, bir URL yerine kayıt tanımlayıcısını kullanmak için `Package.swift` dosyanızdaki `dependencies` alanını güncellemeniz gerekir.
 
 <!-- @snippet: ./_registry-identifier -->

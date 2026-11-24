@@ -3,6 +3,29 @@ defmodule TuistWeb.EndpointTest do
 
   import Plug.Conn
 
+  test "conversation sockets and routes are retired without removing generic sockets or capabilities" do
+    sockets = Enum.map(TuistWeb.Endpoint.__sockets__(), &elem(&1, 0))
+    assert "/live" in sockets
+    assert "/socket" in sockets
+    refute "/threads/socket" in sockets
+    refute "/jams/socket" in sockets
+
+    paths = Enum.map(TuistWeb.Router.__routes__(), & &1.path)
+
+    for prefix <- [
+          "/api/accounts/:account_handle/threads",
+          "/api/accounts/:account_handle/jams",
+          "/api/accounts/:account_handle/halls",
+          "/api/me/thread-runners",
+          "/api/thread-runner"
+        ] do
+      refute Enum.any?(paths, &String.starts_with?(&1, prefix))
+    end
+
+    assert "/api/accounts/:account_handle/luft-context" in paths
+    assert "/api/accounts/:account_handle/workspace-capabilities" in paths
+  end
+
   test "keeps credential headers and actor claims out of Sentry events" do
     conn =
       :post
@@ -24,20 +47,6 @@ defmodule TuistWeb.EndpointTest do
       )
 
     assert request.headers == %{"accept" => "application/json"}
-  end
-
-  test "keeps private thread request bodies out of Sentry" do
-    for collection <- ["threads", "jams"] do
-      conn = %{
-        Plug.Test.conn(:post, "/api/accounts/account/#{collection}/thread/messages")
-        | params: %{"content" => "Private conversation", "request_id" => "private-approval"}
-      }
-
-      request =
-        Sentry.PlugContext.build_request_interface_data(conn, body_scrubber: {TuistWeb.Endpoint, :scrub_sentry_body})
-
-      assert request.data == %{}
-    end
   end
 
   test "keeps second-factor codes out of Sentry request bodies" do

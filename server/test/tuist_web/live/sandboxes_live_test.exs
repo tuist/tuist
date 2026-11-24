@@ -81,7 +81,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert Enum.all?(recent, &has_element?(lv, "#sandbox-#{&1.id}"))
       refute has_element?(lv, "#sandboxes-concurrency-sandboxes")
       refute has_element?(lv, "#sandboxes-empty-state")
-      assert has_element?(lv, "#sandboxes-concurrency-vcpus", "2 of 32 in use now")
+      assert has_element?(lv, "#sandboxes-concurrency-vcpus", "1 of 32 in use now")
       refute has_element?(lv, "#sandboxes-concurrency-disk")
     end
 
@@ -445,6 +445,19 @@ defmodule TuistWeb.SandboxesLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{archived.id}")
       refute has_element?(lv, "#sandbox-resume")
       refute has_element?(lv, "#sandbox-archive")
+    end
+
+    test "members who aren't admins manage sandboxes", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, node_name: "node-a")
+      expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
+      conn = log_in_with_role(conn, account, :user)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")
+      assert has_element?(lv, "#sandbox-delete")
+      lv |> element("#sandbox-pause") |> render_click()
+      render_async(lv, 5_000)
+
+      assert Repo.get!(Sandbox, sandbox.id).state == :paused
     end
 
     test "read-only members cannot manage sandboxes", %{conn: conn, account: account} do

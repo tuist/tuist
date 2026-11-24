@@ -1,13 +1,13 @@
 ---
 {
-  "title": "生成プロジェクトを作成する",
+  "title": "生成されたプロジェクトを作成する",
   "titleTemplate": ":title · Xcode · チュートリアル · Tuist",
-  "description": "最初のTuist生成Xcodeプロジェクトを作成し、依存関係を追加する方法を学びます"
+  "description": "最初のTuistで生成されたXcodeプロジェクトを作成し、依存関係を追加する方法を学びます"
 }
 ---
-# 生成プロジェクトを作成する {#create-a-generated-project}
+# 生成プロジェクトの作成 {#create-a-generated-project}
 
-空のディレクトリ、または既存のプロジェクトのディレクトリで `tuist init` を実行します。
+空のディレクトリ、または既存のプロジェクトのディレクトリで `tuist init` を実行します:
 
 ::: code-group
 
@@ -21,23 +21,23 @@ tuist init
 <!-- -->
 :::
 
-このコマンドは、<.localized_link href="/guides/features/projects">生成プロジェクトを作成</.localized_link>するか、既存のXcodeプロジェクトまたはワークスペースを統合する手順を案内します。セットアップをリモートサーバーに接続し、<.localized_link href="/guides/features/selective-testing">選択的テスト</.localized_link>、<.localized_link href="/guides/features/previews">プレビュー</.localized_link>、<.localized_link href="/guides/features/package-registries/swift">レジストリ</.localized_link>などの機能を利用できるようにします。
+このコマンドは、<.localized_link href="/guides/features/projects">生成プロジェクトの作成</.localized_link>、または既存の Xcode プロジェクトやワークスペースの統合の手順を案内します。セットアップをリモートサーバーに接続し、<.localized_link href="/guides/features/selective-testing">選択的テスト</.localized_link>、<.localized_link href="/guides/features/previews">プレビュー</.localized_link>、<.localized_link href="/guides/features/package-registries/swift">レジストリ</.localized_link> などの機能を利用できるようにします。
 
 > [!NOTE]
-> **既存のプロジェクトを移行**
+> **既存のプロジェクトの移行**
 >
-> 開発者体験を向上させ、<.localized_link href="/guides/features/cache">キャッシュ</.localized_link>を活用するために既存のプロジェクトを生成プロジェクトに移行したい場合は、<.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">移行ガイド</.localized_link>をご覧ください。
+> 開発者体験を向上させ、<.localized_link href="/guides/features/cache">キャッシュ</.localized_link> の利点を活用するために既存のプロジェクトを生成プロジェクトに移行したい場合は、<.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">移行ガイド</.localized_link> を参照してください。
 
 
-## 依存関係を追加する {#add-dependencies}
+## 依存関係の追加 {#add-dependencies}
 
-プロジェクトが追加機能を提供するためにサードパーティ製ライブラリに依存することは一般的です。そのためには、以下のコマンドを実行して、プロジェクト編集の最適な環境を整えます。
+プロジェクトが追加機能を提供するためにサードパーティ製ライブラリに依存することは一般的です。そのためには、次のコマンドを実行して、プロジェクト編集の最適な環境を整えます:
 
 ```bash
 tuist edit
 ```
 
-プロジェクトファイルを含むXcodeプロジェクトが開きます。`Tuist/Package.swift` を編集し、Kingfisherを追加します。
+プロジェクトファイルを含む Xcode プロジェクトが開きます。`Tuist/Package.swift` を編集し、Kingfisher を追加します:
 
 ```swift
 // swift-tools-version: 5.9
@@ -65,7 +65,7 @@ let package = Package(
 )
 ```
 
-次に、プロジェクト内のアプリケーションターゲットを編集し、`Kingfisher` を依存関係として宣言します。
+次に、プロジェクト内のアプリケーションターゲットを編集し、`Kingfisher` を依存関係として宣言します:
 
 ```swift
 import ProjectDescription
@@ -105,29 +105,29 @@ let project = Project(
 )
 ```
 
-その後、`tuist install` を実行して、[Swift Package Manager](https://www.swift.org/documentation/package-manager/)を使用して依存関係を解決および取得します。
+その後、`tuist install` を実行して、[Swift Package Manager](https://www.swift.org/documentation/package-manager/) を使用して依存関係を解決および取得します。
 
 > [!NOTE]
-> **依存関係解決ツールとしてのSwiftPM**
+> **依存関係の解決ツールとしての SwiftPM**
 >
-> Tuistが推奨する依存関係の扱いは、Swift Package Manager (SPM) を依存関係の解決のみに使用します。その後、TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の設定可能性と制御を実現します。
+> Tuist が推奨する依存関係の管理アプローチでは、Swift Package Manager (SPM) を依存関係の解決のみに使用します。その後、Tuist はそれらを最大限の設定可能性と制御性を実現するために Xcode プロジェクトとターゲットに変換します。
 
 
-## プロジェクトを可視化する {#visualize-the-project}
+## プロジェクトの可視化 {#visualize-the-project}
 
-以下のコマンドを実行すると、プロジェクト構造を可視化できます。
+次のコマンドを実行することで、プロジェクト構造を可視化できます:
 
 ```bash
 tuist graph
 ```
 
-このコマンドは、プロジェクトのディレクトリに `graph.png` ファイルを出力して開きます。
+このコマンドは、プロジェクトのディレクトリに `graph.png` ファイルを出力して開きます:
 
 ![プロジェクトグラフ](/images/guides/quick-start/graph.png)
 
-## 依存関係を使用する {#use-the-dependency}
+## 依存関係の使用 {#use-the-dependency}
 
-`tuist generate` を実行してXcodeでプロジェクトを開き、`ContentView.swift` ファイルに以下の変更を加えます。
+`tuist generate` を実行して Xcode でプロジェクトを開き、`ContentView.swift` ファイルに以下の変更を加えます:
 
 ```swift
 import SwiftUI
@@ -149,4 +149,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Xcodeからアプリを実行すると、URLから画像が読み込まれているのが確認できます。
+Xcode からアプリを実行すると、URL から画像が読み込まれているのが確認できます。

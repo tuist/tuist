@@ -17,6 +17,9 @@ case "${1:-}" in
         complete=false
       fi
     done
+    if [[ ! -d "$cache/next/phoenix-colocated/tuist" ]]; then
+      complete=false
+    fi
     if [[ "$complete" == true ]]; then
       rm -rf "$cache/current"
       mv "$cache/next" "$cache/current"

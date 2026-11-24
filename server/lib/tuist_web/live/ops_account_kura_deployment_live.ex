@@ -7,13 +7,16 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   use Noora
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Server
 
   @poll_interval_ms 2_000
   @grafana_base_url "https://tuist.grafana.net/explore"
-  @grafana_logs_datasource "grafanacloud-tuist-logs"
+  # Kura logs are in Pulse, which Grafana reads over SQL: Pulse serves no Loki
+  # query API, so the Loki data source pointing at it cannot run this query.
+  @grafana_logs_datasource %{"uid" => "pulse-sql", "type" => "grafana-postgresql-datasource"}
 
   @impl true
   def mount(%{"id" => account_id, "deployment_id" => deployment_id}, _session, socket) do
@@ -87,23 +90,44 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   def format_time(nil), do: dgettext("dashboard", "None")
   def format_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S UTC")
 
+  # Only production's Pulse has a SQL data source in Grafana, so elsewhere there
+  # is no link to offer and the card is hidden.
   defp grafana_logs_url(%Deployment{kura_server: %Server{provisioner_node_ref: ref}}) when is_binary(ref) do
-    query = ~s({namespace="kura", app_kubernetes_io_instance="#{ref}"})
+    if Environment.prod?(), do: pulse_logs_url(ref)
+  end
+
+  defp grafana_logs_url(_deployment), do: nil
+
+  defp pulse_logs_url(ref) do
+    # The instance's StatefulSet is named after the ref, so its pods are
+    # `<ref>-<ordinal>`. The ref is validated to [a-z0-9-] on creation.
+    query = """
+    SELECT timestamp, json_get_string(log_attributes, 'pod') AS pod, body
+    FROM opentelemetry_logs
+    WHERE $__timeFilter(timestamp)
+      AND json_get_string(resource_attributes, 'namespace') = 'kura'
+      AND regexp_like(json_get_string(log_attributes, 'pod'), '^#{ref}-[0-9]+$')
+    ORDER BY timestamp DESC
+    LIMIT 1000
+    """
 
     left =
       JSON.encode!(%{
-        "datasource" => @grafana_logs_datasource,
+        "datasource" => @grafana_logs_datasource["uid"],
         "queries" => [
           %{
             "refId" => "A",
-            "expr" => query
+            "datasource" => @grafana_logs_datasource,
+            "rawSql" => query,
+            "rawQuery" => true,
+            "editorMode" => "code",
+            "format" => "table"
           }
         ],
-        "range" => %{"from" => "now-6h", "to" => "now"}
+        # The query scans every production log line in the range, so keep it short.
+        "range" => %{"from" => "now-1h", "to" => "now"}
       })
 
     @grafana_base_url <> "?" <> URI.encode_query(%{"orgId" => "1", "left" => left})
   end
-
-  defp grafana_logs_url(_deployment), do: @grafana_base_url
 end

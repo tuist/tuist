@@ -77,11 +77,13 @@ defmodule Tuist.Runners.Claims do
 
   alias Tuist.Accounts.Account
   alias Tuist.Repo
+  alias Tuist.Runners.AirShare
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
 
   require Logger
@@ -108,6 +110,9 @@ defmodule Tuist.Runners.Claims do
     * `{:error, {:concurrency_limit_reached, details}}` — adding the
       requested shape would exceed either the platform's vCPU or
       memory limit.
+    * `{:error, {:air_fleet_share_reached, details}}` — the account is
+      on Air and Air accounts together already hold their share of the
+      platform's fleet (`Tuist.Runners.AirShare`).
     * `{:error, :pod_in_use}` — `pod_name` already owns a live
       claim. Closes the SA-token-reuse path.
 
@@ -118,12 +123,16 @@ defmodule Tuist.Runners.Claims do
   def attempt(workflow_job_id, account_id, fleet_name, pod_name, resources, site \\ nil) do
     with :ok <- validate_claim_inputs(workflow_job_id, account_id, fleet_name, pod_name, resources),
          :ok <- validate_resources(resources) do
+      # Read before the transaction: it may reach the cluster on a cache miss.
+      air_budget = AirShare.budget(resources.platform)
+
       Repo.transaction(fn ->
         result =
           with {:ok, account} <- fetch_account(account_id),
                {:ok, claim} <- insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources, site),
                {:ok, limit} <- try_lock_concurrency_limit(account.id, resources.platform),
-               :ok <- check_reserved_capacity(account.id, limit, resources) do
+               :ok <- check_reserved_capacity(account.id, limit, resources),
+               :ok <- AirShare.check(account, resources, air_budget) do
             # Same transaction as the claim insert, so the claim and the
             # lifecycle row's `queued → claimed` commit or roll back
             # together. A `:noop` does not fail the claim — a completion
@@ -1033,6 +1042,88 @@ defmodule Tuist.Runners.Claims do
   end
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
+
+  @doc """
+  Records the workflow run of the job the runner on `pod_name` started, as
+  its job-started hook reports it, and frees the claimed job when that run
+  is not the claimed job's.
+
+  This covers the runner shuffle when GitHub gives the runner a job we never
+  hear about. Our JIT runners register at the organization, so any queued job
+  whose labels the runner satisfies can take one, including jobs from a
+  repository the App does not see or jobs without a Tuist label, whose
+  `in_progress` webhook the webhook controller drops. Nothing then names the
+  executed job: `record_execution/3` never runs and `ExecutionLookupWorker`
+  searches only runs we recorded. The claimed job stays attached until the
+  Pod stops and `OrphanedRunnersWorker` confirms with GitHub a minute later,
+  about two minutes after the claim. On 2026-11-22 and 11-23 this produced
+  customer macOS waits of 130 to 252 s.
+
+  The runner sets `GITHUB_RUN_ID` for the job it runs before any step, and a
+  run id is unique on its GitHub host, so a different run is proof the
+  claimed job is not running here. The claim then stops naming the job and
+  the job goes back to the queue in the same transaction, as the detach in
+  `record_execution/3` does; the claim keeps the Pod's slot for the job it
+  took. A runner of the same run is left to GitHub's report and the lookup,
+  which list that run's jobs and can name the executed one.
+
+  The report comes from the guest, so it can only ever detach the reporting
+  Pod's own claim, and a false one costs its account one idle runner.
+
+  Returns:
+
+    * `{:displaced, %{workflow_job_id: id, requeued: boolean}}` — the claimed
+      job was detached; `requeued` is false when its row had already moved on.
+    * `:same_run` — the runner took a job of the claimed job's run.
+    * `:noop` — the Pod holds no running claim naming a job, its execution is
+      already recorded, or the claimed job's run is unknown.
+  """
+  def record_started_run(pod_name, run_id)
+      when is_binary(pod_name) and pod_name != "" and is_integer(run_id) and run_id > 0 do
+    case Repo.get_by(Claim, pod_name: pod_name) do
+      %Claim{account_id: account_id} ->
+        {:ok, outcome} =
+          Repo.transaction(fn ->
+            # The lock `record_execution/3` takes, so a report and GitHub's
+            # webhook for the same runner never interleave.
+            Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["runner_executions:#{account_id}"])
+
+            from(c in Claim, where: c.pod_name == ^pod_name, lock: "FOR UPDATE")
+            |> Repo.one()
+            |> detach_from_other_run(run_id)
+          end)
+
+        outcome
+
+      nil ->
+        :noop
+    end
+  end
+
+  defp detach_from_other_run(
+         %Claim{lifecycle_state: "running", executed_workflow_job_id: nil, workflow_job_id: claimed_job_id} = claim,
+         run_id
+       )
+       when is_integer(claimed_job_id) do
+    case Repo.get_by(WorkflowJob, workflow_job_id: claimed_job_id, account_id: claim.account_id) do
+      %WorkflowJob{workflow_run_id: ^run_id} ->
+        :same_run
+
+      %WorkflowJob{workflow_run_id: claimed_run_id} when is_integer(claimed_run_id) and claimed_run_id > 0 ->
+        1 = bind_execution(claim, workflow_job_id: nil)
+
+        {:displaced,
+         %{
+           workflow_job_id: claimed_job_id,
+           requeued: WorkflowJobs.requeue_by_handle(claimed_job_id, claim.claimed_at) == :ok
+         }}
+
+      _ ->
+        :noop
+    end
+  end
+
+  defp detach_from_other_run(_claim, _run_id), do: :noop
 
   # The runner's claim together with any stale claim naming the executed
   # job: dispatch can hand out a job GitHub has already started elsewhere,

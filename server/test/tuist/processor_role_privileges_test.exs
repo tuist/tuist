@@ -16,6 +16,9 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   alias Tuist.MCP.Events.Workers.FanoutWorker
   alias Tuist.Processor.BuildProcessor
   alias Tuist.Processor.XCResultProcessor
+  alias Tuist.Repo
+  alias Tuist.Snapshots
+  alias Tuist.Storage
   alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias Tuist.VCS.Workers.CommentWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -107,6 +110,76 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
     ]
 
     assert :ok == process_xcresult_as_processor(context, "success", test_modules)
+  end
+
+  test "the snapshot comparison path only reads and writes granted tables", %{account: account} do
+    project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+    store = :ets.new(:snapshot_objects, [:public])
+    stub(Storage, :put_object, fn key, content, _actor -> :ets.insert(store, {key, content}) && :ok end)
+
+    stub(Storage, :get_object_as_string, fn key, _actor ->
+      case :ets.lookup(store, key) do
+        [{_, content}] -> content
+        [] -> nil
+      end
+    end)
+
+    stub(Storage, :object_exists?, fn key, _actor -> :ets.member(store, key) end)
+
+    # The pull request's commit sits on top of main's in the graph the clients
+    # uploaded, so the baseline is found by walking it.
+    url = "git@github.com:acme/app.git"
+    repository = GitHistory.repository_id(account.id, url)
+    main_sha = String.duplicate("a", 40)
+    feature_sha = String.duplicate("b", 40)
+
+    GitHistory.record_commits(repository, "sha1", [
+      %{sha: main_sha, parents: [], committed_at: ~U[2026-09-01 00:00:00Z]},
+      %{sha: feature_sha, parents: [main_sha], committed_at: ~U[2026-09-02 00:00:00Z]}
+    ])
+
+    snapshot_build = fn sha, branch, color ->
+      {:ok, image} = Image.new(20, 10, color: color)
+      {:ok, png} = Image.write(image, :memory, suffix: ".png")
+      hash = Base.encode16(:crypto.hash(:sha256, png), case: :lower)
+      Storage.put_object(Snapshots.blob_key(project, hash), png, account)
+
+      {:ok, build, _} =
+        Snapshots.create_build(
+          project,
+          %{set_name: "phone", git_commit_sha: sha, git_branch: branch, git_remote_url_origin: url},
+          [%{name: "Card.png", content_hash: hash, width: 20, height: 10}]
+        )
+
+      {:ok, build} = Snapshots.complete_build(project, build)
+      build
+    end
+
+    {:ok, _} = main_sha |> snapshot_build.("main", [255, 255, 255]) |> Snapshots.process_build()
+
+    # A rejected build of the same commit: refreshing the commit reads its
+    # review, and a rejected build is no baseline, so the rerun still walks
+    # the graph to main's.
+    {:ok, reviewed} = feature_sha |> snapshot_build.("feature", [0, 0, 255]) |> Snapshots.process_build()
+    {:ok, _} = Snapshots.reject_build(reviewed, account)
+
+    rerun = snapshot_build.(feature_sha, "feature", [0, 0, 255])
+
+    assert :ok ==
+             ProcessorRole.as_processor(fn ->
+               Tuist.Snapshots.Workers.ProcessBuildWorker.perform(%Oban.Job{
+                 args: %{"build_id" => rerun.id},
+                 attempt: 1,
+                 max_attempts: 3
+               })
+             end)
+
+    main_build = Repo.get_by!(Snapshots.Build, git_commit_sha: main_sha)
+    assert %{state: "processed", changed_count: 1, baseline_build_id: baseline_id} = Repo.get!(Snapshots.Build, rerun.id)
+    assert baseline_id == main_build.id
+
+    # Its changes are unreviewed again, so the commit is back to needing review.
+    assert %{runs_count: 2, status: "needs_review"} = Repo.get_by!(Snapshots.Commit, git_commit_sha: feature_sha)
   end
 
   test "a failed test run publishes its event to a subscribed agent with processor privileges", context do
@@ -256,7 +329,7 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   end
 
   defp process_build_as_processor(%{account: account, project: project, build: build}, status, targets \\ []) do
-    stub(Tuist.Storage, :download_to_file, fn @storage_key, _path, _account -> {:ok, :done} end)
+    stub(Storage, :download_to_file, fn @storage_key, _path, _account -> {:ok, :done} end)
 
     stub(BuildProcessor, :process_build, fn _path, _upload_enabled, consume ->
       consume.(%{
@@ -289,7 +362,7 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   end
 
   defp process_xcresult_as_processor(%{account: account, project: project}, status, test_modules \\ []) do
-    stub(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+    stub(Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
 
     stub(XCResultProcessor, :process_local, fn _path, _opts ->
       {:ok,

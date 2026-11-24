@@ -91,6 +91,7 @@ struct CompleteCommitCoverageServiceTests {
                 covered_lines: 61800,
                 executable_lines: 147_122,
                 gap_files_count: 0,
+                gap_reasons: ["dirty_run_excluded", "baseline_missing"],
                 kind: .partial,
                 skipped_tests_count: 1771
             ),
@@ -106,6 +107,45 @@ struct CompleteCommitCoverageServiceTests {
         }
         #expect(coverage.coverage == 42.0)
         #expect(coverage.incomplete)
+        #expect(coverage.gapReasons == ["dirty_run_excluded", "baseline_missing"])
+        #expect(coverage.excludesDirtyRuns)
+    }
+
+    @Test func takesAServerThatSendsNoGapReasonsAsAGenericGap() throws {
+        // Servers deployed before `gap_reasons` leave it out.
+        let response = Output.ok(.init(body: .json(.init(
+            complete: true,
+            completeness: "complete",
+            coverage: 0,
+            covered_lines: 0,
+            executable_lines: 0,
+            git_commit_sha: "abcdef1234567",
+            measured_files_count: 0,
+            partial: true,
+            partial_schemes: ["App"],
+            reported: .init(
+                carried_from: [],
+                carried_tests_count: 0,
+                coverage: 0,
+                covered_lines: 0,
+                executable_lines: 0,
+                gap_files_count: 0,
+                kind: .partial,
+                skipped_tests_count: 0
+            ),
+            schemes: ["App"],
+            targets: [],
+            test_run_ids: [],
+            unmeasured_files_count: 0
+        ))))
+
+        guard case let .complete(coverage) = try CompleteCommitCoverageService.completion(from: response) else {
+            Issue.record("Expected a complete coverage")
+            return
+        }
+        #expect(coverage.incomplete)
+        #expect(coverage.gapReasons.isEmpty)
+        #expect(!coverage.excludesDirtyRuns)
     }
 
     @Test func isPendingWhenTheServerKeptTheSignal() throws {

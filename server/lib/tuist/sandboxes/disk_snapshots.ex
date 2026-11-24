@@ -43,6 +43,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshotCopy
+  alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.BuildRepositorySnapshotWorker
@@ -105,14 +106,17 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   @doc """
   The newest ready snapshot of `repository` (`owner/name`) a Claude Code
   environment saved after running the setup script whose SHA-256 is
-  `setup_sha256`, for the environment's template and workspace size. Only a
-  snapshot of a template tag a connected node creates new sandboxes with
-  qualifies: the rootfs carries `sbx-worker`, so a snapshot of an older
-  image would hold sessions back on it.
+  `setup_sha256`, for the environment's template and workspace size, or the
+  `template:` and `workspace_gb:` given. Only a snapshot of a template tag a
+  connected node creates new sandboxes with qualifies: the rootfs carries
+  `sbx-worker`, so a snapshot of an older image would hold sessions back on it.
   """
-  def find_ready_for_repository(%AgentEnvironment{} = agent_environment, repository, setup_sha256)
+  def find_ready_for_repository(%AgentEnvironment{} = agent_environment, repository, setup_sha256, opts \\ [])
       when is_binary(repository) and is_binary(setup_sha256) do
-    case current_template_tags(agent_environment.template) do
+    template = Keyword.get(opts, :template, agent_environment.template)
+    workspace_gb = Keyword.get(opts, :workspace_gb, agent_environment.workspace_gb)
+
+    case current_template_tags(template) do
       [] ->
         nil
 
@@ -121,8 +125,8 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
           from(s in DiskSnapshot,
             where: s.agent_environment_id == ^agent_environment.id and s.repository == ^repository,
             where: s.setup_sha256 == ^setup_sha256 and s.state == :ready,
-            where: s.template == ^agent_environment.template and s.template_tag in ^tags,
-            where: s.workspace_gb == ^agent_environment.workspace_gb,
+            where: s.template == ^template and s.template_tag in ^tags,
+            where: s.workspace_gb == ^workspace_gb,
             order_by: [desc: s.inserted_at],
             limit: 1
           )
@@ -150,19 +154,22 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   @doc """
   Starts building the snapshot of `repository` for a Claude Code
   environment and the setup script whose SHA-256 is `setup_sha256`
-  (`Tuist.Sandboxes.Workers.BuildRepositorySnapshotWorker`). Answers
+  (`Tuist.Sandboxes.Workers.BuildRepositorySnapshotWorker`), on the
+  environment's platform, template and workspace size, or the `platform:`,
+  `template:` and `workspace_gb:` given. Answers
   `{:error, :already_building}` while a build of the same key runs or for a
   while after one failed.
   """
-  def start_build(%AgentEnvironment{} = agent_environment, repository, setup_sha256)
+  def start_build(%AgentEnvironment{} = agent_environment, repository, setup_sha256, opts \\ [])
       when is_binary(repository) and is_binary(setup_sha256) do
     attrs = %{
       account_id: agent_environment.account_id,
       agent_environment_id: agent_environment.id,
       repository: repository,
       setup_sha256: setup_sha256,
-      template: agent_environment.template,
-      workspace_gb: agent_environment.workspace_gb,
+      platform: Keyword.get(opts, :platform, agent_environment.platform),
+      template: Keyword.get(opts, :template, agent_environment.template),
+      workspace_gb: Keyword.get(opts, :workspace_gb, agent_environment.workspace_gb),
       last_used_at: now()
     }
 
@@ -244,30 +251,30 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       template: sandbox.template,
       template_tag: sandbox.template_tag,
       workspace_gb: sandbox.workspace_gb,
+      platform: sandbox.platform,
       last_used_at: now()
     }
 
     attrs = Map.merge(attrs, key)
+    insert = fn -> %DiskSnapshot{} |> DiskSnapshot.create_changeset(attrs) |> Repo.insert() end
 
     with {:ok, node} <- connected_node(node_name),
-         {:ok, snapshot} <-
-           Capacity.reserve_disk_snapshot(
-             node,
-             attrs,
-             fn -> %DiskSnapshot{} |> DiskSnapshot.create_changeset(attrs) |> Repo.insert() end,
-             reserve_opts
-           ) do
-      case Nodes.call(node_name, "save_disks", %{sandbox_id: sandbox.id, snapshot_id: snapshot.id},
-             timeout: @save_timeout
-           ) do
+         {:ok, snapshot} <- reserve_disk(sandbox, node, attrs, insert, reserve_opts) do
+      case Nodes.call(node_name, "save_disks", save_args(sandbox, snapshot), timeout: @save_timeout) do
         {:ok, data} ->
-          {:ok, ready} = snapshot |> DiskSnapshot.update_changeset(%{state: :ready, last_used_at: now()}) |> Repo.update()
+          {:ok, ready} =
+            snapshot
+            |> DiskSnapshot.update_changeset(%{state: :ready, last_used_at: now(), disk_bytes: data["bytes"]})
+            |> Repo.update()
+
+          release_macos_slot(sandbox)
 
           Logger.info("sandboxes: disk snapshot saved",
             disk_snapshot_id: ready.id,
             sandbox_id: sandbox.id,
             node: node_name,
-            duration_ms: data["duration_ms"]
+            duration_ms: data["duration_ms"],
+            bytes: data["bytes"]
           )
 
           delete_superseded(ready, sandbox)
@@ -280,6 +287,22 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       end
     end
   end
+
+  # A macOS snapshot holds only the blocks its overlay wrote, which only the
+  # host can measure: the host admits the save against its disk budget and
+  # reports the bytes its snapshots hold (`MacosCapacity`). The Linux ceiling
+  # would charge each one a whole macOS root disk.
+  defp reserve_disk(%Sandbox{platform: :darwin}, _node, _attrs, insert, _opts), do: insert.()
+  defp reserve_disk(_sandbox, node, attrs, insert, opts), do: Capacity.reserve_disk_snapshot(node, attrs, insert, opts)
+
+  # A macOS host saves only a stopped VM's disks, so the save evicted the
+  # paused VM and gave its slot back. The host's next report says so too;
+  # this frees the slot for placement without waiting for it.
+  defp release_macos_slot(%Sandbox{platform: :darwin, id: id}) do
+    Repo.update_all(from(s in Sandbox, where: s.id == ^id and s.state == :paused), set: [resident: false])
+  end
+
+  defp release_macos_slot(_sandbox), do: :ok
 
   # The refresh chain a save continues: the lineage of an older save of this
   # id or of the snapshot the Orb was spawned from, else the id the Orb was
@@ -310,8 +333,11 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     Repo.exists?(query)
   end
 
-  # A Claude Code environment keeps one snapshot per repository: the newest
-  # save replaces the older ready ones, whichever setup script they ran.
+  # A Claude Code environment keeps one snapshot per repository for its
+  # sessions: the newest save replaces the older ready ones of its platform,
+  # whichever setup script or template they ran. The Macs its sessions create
+  # keep one per Xcode template (`ClaudeCodeSnapshots.mac_build?/2`), which
+  # those of the environment's own platform leave alone.
   # Builds of the repository are left to finish.
   #
   # Amp refreshes a project snapshot under a new identifier: it spawns an
@@ -320,11 +346,23 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   # was spawned from are superseded too, not only older saves of this one.
   defp delete_superseded(%DiskSnapshot{agent_environment_id: agent_environment_id} = snapshot, _sandbox)
        when is_integer(agent_environment_id) do
-    from(s in DiskSnapshot,
-      where:
-        s.agent_environment_id == ^agent_environment_id and s.repository == ^snapshot.repository and
-          s.state == :ready and s.id != ^snapshot.id and s.inserted_at <= ^snapshot.inserted_at
-    )
+    query =
+      from(s in DiskSnapshot,
+        where:
+          s.agent_environment_id == ^agent_environment_id and s.repository == ^snapshot.repository and
+            s.platform == ^snapshot.platform and s.state == :ready and s.id != ^snapshot.id and
+            s.inserted_at <= ^snapshot.inserted_at
+      )
+
+    environment_platform =
+      Repo.one(from(e in AgentEnvironment, where: e.id == ^agent_environment_id, select: e.platform))
+
+    query =
+      if snapshot.platform == environment_platform,
+        do: query,
+        else: where(query, [s], s.template == ^snapshot.template)
+
+    query
     |> Repo.all()
     |> Enum.each(&delete/1)
   end
@@ -457,7 +495,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   end
 
   defp delete_node_copy(snapshot_id, node_name) do
-    case Nodes.call(node_name, "delete_disks", %{snapshot_id: snapshot_id}, []) do
+    case Nodes.call(node_name, "delete_disks", Nodes.command_args(node_name, %{snapshot_id: snapshot_id}), []) do
       {:ok, _data} ->
         :ok
 
@@ -629,16 +667,23 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   # while it is live.
   #
   # A Claude Code snapshot has no Amp identifier: its spawns are the
-  # sessions of its environment (builders have no session). Sandboxes do not
-  # record their repository, so an environment's sessions count for each of
-  # its repositories' snapshots.
-  defp spawns(%DiskSnapshot{agent_environment_id: agent_environment_id}) when is_integer(agent_environment_id) do
+  # sessions of its environment on the snapshot's platform (builders have no
+  # session; sessions do not record their repository, so they count for each
+  # of its repositories' snapshots), and the Macs created through the account
+  # API for its repository on its template, which the macOS snapshot of a
+  # Linux environment serves (`Query.run(:create)`). A create that failed
+  # (`:error`, such as a busy fleet) booted nothing and does not count.
+  defp spawns(%DiskSnapshot{agent_environment_id: agent_environment_id} = snapshot)
+       when is_integer(agent_environment_id) do
     since = DateTime.add(now(), -@popularity_window_hours, :hour)
 
     from(s in Sandbox,
       where:
-        s.agent_environment_id == ^agent_environment_id and not is_nil(s.anthropic_session_id) and
-          s.inserted_at >= ^since,
+        s.inserted_at >= ^since and s.state != :error and
+          ((s.agent_environment_id == ^agent_environment_id and not is_nil(s.anthropic_session_id) and
+              s.platform == ^snapshot.platform) or
+             (s.account_id == ^snapshot.account_id and s.repository == ^snapshot.repository and
+                s.template == ^snapshot.template)),
       select: {s.inserted_at, s.state, s.updated_at}
     )
     |> Repo.all()
@@ -713,8 +758,8 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     site = Archives.restore_site(snapshot)
 
     peers =
-      snapshot.template
-      |> Capacity.ready_nodes()
+      snapshot
+      |> copy_candidates()
       |> Enum.filter(&(is_nil(site) or Sites.shard_storage_site(&1.name) == site))
       |> Map.new(&{&1.name, &1})
 
@@ -739,6 +784,17 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     end
   end
 
+  # A macOS snapshot only copies onto hosts running the image it was saved
+  # from; a Linux one onto any node with its template.
+  defp copy_candidates(%DiskSnapshot{platform: :darwin} = snapshot), do: MacosCapacity.snapshot_hosts(snapshot)
+  defp copy_candidates(%DiskSnapshot{template: template}), do: Capacity.ready_nodes(template)
+
+  defp reserve_copy(%DiskSnapshot{platform: :darwin} = snapshot, node, insert),
+    do: MacosCapacity.reserve_snapshot_copy(node, snapshot, insert)
+
+  defp reserve_copy(snapshot, node, insert),
+    do: Capacity.reserve_disk_snapshot(node, snapshot, insert, budget_percent: copy_budget_percent(snapshot))
+
   # Enough nodes hold the lineage, or the snapshot has its most copies.
   defp enough?({holders, room}, wanted), do: holders >= wanted or room <= 0
 
@@ -749,7 +805,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       |> Repo.insert()
     end
 
-    case Capacity.reserve_disk_snapshot(node, snapshot, insert, budget_percent: copy_budget_percent(snapshot)) do
+    case reserve_copy(snapshot, node, insert) do
       {:ok, copy} ->
         case fill_copy(snapshot, copy) do
           {:ok, _copy} -> {:cont, {holders + 1, room - 1}}
@@ -792,6 +848,14 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
 
   defp fill_copy(snapshot, %DiskSnapshotCopy{node_name: node_name} = copy) do
     args = %{snapshot_id: snapshot.id, template: snapshot.template, workspace_gb: snapshot.workspace_gb}
+    # A macOS host admits the copy's measured bytes before downloading, and
+    # clones the image the snapshot was saved from.
+    args =
+      if snapshot.platform == :darwin,
+        do: Map.merge(args, %{bytes: snapshot.disk_bytes, template_tag: snapshot.template_tag}),
+        else: args
+
+    args = Nodes.command_args(node_name, args)
 
     with {:ok, source} <- Archives.restore_source(snapshot),
          {:ok, data} <- Nodes.call(node_name, "copy_disks", Map.put(args, :from_archive, source), timeout: @copy_timeout) do
@@ -919,7 +983,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     )
 
     Tasks.run_async(fn ->
-      case Nodes.call(node_name, "delete_disks", %{snapshot_id: snapshot_id}, []) do
+      case Nodes.call(node_name, "delete_disks", Nodes.command_args(node_name, %{snapshot_id: snapshot_id}), []) do
         {:ok, _data} ->
           :ok
 
@@ -932,6 +996,12 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       end
     end)
   end
+
+  # A macOS host runs only commands that name its current incarnation.
+  defp save_args(%Sandbox{platform: :darwin} = sandbox, snapshot),
+    do: %{sandbox_id: sandbox.id, snapshot_id: snapshot.id, node_uid: sandbox.node_uid}
+
+  defp save_args(sandbox, snapshot), do: %{sandbox_id: sandbox.id, snapshot_id: snapshot.id}
 
   defp connected_node(node_name) do
     case Enum.find(Nodes.connected_nodes(), &(&1.name == node_name)) do

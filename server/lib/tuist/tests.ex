@@ -366,6 +366,36 @@ defmodule Tuist.Tests do
 
   def result_bundle_run_ids(%Test{id: id}), do: [id]
 
+  @doc """
+  Every report a sharded run's shards sent, as `%{shard_index, source_test_run_id,
+  status, reported_at}` ordered by shard and time, one per report ID: a shard
+  run again in a CI retry reports, and uploads its result bundle, under a new ID.
+  Reports recorded before `shard_runs.source_test_run_id` existed are left out.
+  """
+  def shard_reports(%{id: id, project_id: project_id} = test) do
+    if is_nil(Map.get(test, :shard_plan_id)), do: [], else: query_shard_reports(id, project_id)
+  end
+
+  defp query_shard_reports(id, project_id) do
+    # ShardRun stores this UUID as a String, and Swift clients historically
+    # supplied uppercase IDs.
+    ids = [String.downcase(id), String.upcase(id)]
+
+    ClickHouseRepo.all(
+      from(sr in ShardRun.query(),
+        where: sr.project_id == ^project_id and sr.test_run_id in ^ids and sr.source_test_run_id != "",
+        group_by: [sr.shard_index, sr.source_test_run_id],
+        order_by: [asc: sr.shard_index, asc: min(sr.inserted_at)],
+        select: %{
+          shard_index: sr.shard_index,
+          source_test_run_id: sr.source_test_run_id,
+          status: fragment("argMax(?, ?)", sr.status, sr.inserted_at),
+          reported_at: max(sr.inserted_at)
+        }
+      )
+    )
+  end
+
   def get_latest_test_by_build_run_id(build_run_id, project_id) do
     query =
       from(t in Test.query(),
@@ -395,7 +425,17 @@ defmodule Tuist.Tests do
   end
 
   def list_test_runs(attrs) do
-    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test.query(), attrs, for: Test)
+    # The `selective_testing` filter reads only the project's selection rows.
+    project_id =
+      attrs
+      |> Map.get(:filters, [])
+      |> Enum.find_value(fn
+        %{field: :project_id, op: :==, value: value} -> value
+        _filter -> nil
+      end)
+
+    {results, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(Test.query(), attrs, for: Test, extra_opts: [project_id: project_id])
 
     results = Repo.preload(results, [:ran_by_account, :actor_account])
 
@@ -543,6 +583,14 @@ defmodule Tuist.Tests do
     # when its command event arrives.
     with {:ok, %Test{test_impact_run_id: impact_run_id} = test} when not is_nil(impact_run_id) <- result do
       RunSelections.enqueue(test.project_id, test.id)
+    end
+
+    # Only now is everything the commit's fold reads for this run written: the
+    # test case runs were flushed through, and the fold's delay outlasts the
+    # buffers' tick for the rows still buffered (`CommitWorker.enqueue/2`).
+    # A fold scheduled earlier is pushed back to this one's time.
+    with {:ok, test} <- result do
+      Coverage.enqueue_fold(test, Map.get(attrs, :coverage))
     end
 
     result
@@ -731,7 +779,14 @@ defmodule Tuist.Tests do
   defp record_coverage_data(%{submission_auth: "network_trusted"}, _attrs, _coverage, _shard_index, _expected_shards),
     do: :ok
 
+  # The evidence goes first: the run's coverage totals, inline or uploaded,
+  # wait for the evidence the shard stored to reach every replica, and see
+  # only what was recorded by then (`Coverage.Workers.TotalsWorker`).
   defp record_coverage_data(test, attrs, coverage, shard_index, expected_shards) do
+    enrich(test, "coverage evidence", fn ->
+      Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
+    end)
+
     enrich(test, "coverage", fn -> Coverage.publish(test, coverage, shard_index, expected_shards) end)
 
     with %{storage_key: storage_key} = uploaded when is_binary(storage_key) <- Map.get(attrs, :coverage) do
@@ -739,10 +794,6 @@ defmodule Tuist.Tests do
         Coverage.enqueue_publish(test, uploaded, shard_index, expected_shards)
       end)
     end
-
-    enrich(test, "coverage evidence", fn ->
-      Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
-    end)
   end
 
   defp run_test_followups(test, test_case_runs, shard_plan) do
@@ -935,6 +986,9 @@ defmodule Tuist.Tests do
     shard_index = Map.get(attrs, :shard_index)
     shard_status = Map.get(attrs, :status, "success")
     shard_duration = Map.get(attrs, :duration, 0)
+    # The xcresult worker reports under the merged ID and names the upload in
+    # `source_test_run_id`; the CLI's own request reports under the upload's ID.
+    source_test_run_id = Map.get(attrs, :source_test_run_id) || Map.get(attrs, :id)
 
     # `shard_runs` is the only authority on which run a plan's shards report
     # into. The first shard claims that mapping before its run row exists, so a
@@ -951,6 +1005,7 @@ defmodule Tuist.Tests do
         shard_index,
         shard_status,
         shard_duration,
+        source_test_run_id,
         attrs
       )
     end
@@ -1017,6 +1072,7 @@ defmodule Tuist.Tests do
             shard_index,
             shard_status,
             shard_duration,
+            source_test_run_id,
             attrs
           )
 
@@ -1096,6 +1152,7 @@ defmodule Tuist.Tests do
           shard_index,
           shard_status,
           shard_duration,
+          source_test_run_id,
           attrs
         )
       end
@@ -1207,7 +1264,7 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp insert_shard_run(plan_id, project_id, test_run_id, shard_index, status, duration, attrs) do
+  defp insert_shard_run(plan_id, project_id, test_run_id, shard_index, status, duration, source_test_run_id, attrs) do
     now = NaiveDateTime.utc_now()
 
     IngestRepo.insert_all(ShardRun, [
@@ -1219,7 +1276,8 @@ defmodule Tuist.Tests do
         status: status,
         duration: duration || 0,
         ran_at: attrs |> Map.get(:ran_at, now) |> shard_run_ran_at(),
-        inserted_at: now
+        inserted_at: now,
+        source_test_run_id: source_test_run_id || ""
       }
     ])
   end

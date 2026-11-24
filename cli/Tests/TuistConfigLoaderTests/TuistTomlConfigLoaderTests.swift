@@ -201,4 +201,69 @@ struct TuistTomlConfigLoaderTests {
 
         #expect(config?.project == "parent/project")
     }
+
+    @Test(.inTemporaryDirectory)
+    func loadCargoManifestConfig_reads_the_workspace_root_from_a_member() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let source = root.appending(try RelativePath(validating: "crates/cli/src"))
+        try await fileSystem.makeDirectory(at: source)
+        try await fileSystem.writeText(
+            """
+            [workspace]
+            members = ["crates/*"]
+            resolver = "2"
+
+            [workspace.dependencies]
+            serde = { version = "1", features = ["derive"] }
+
+            [workspace.metadata.tuist]
+            project = "org/workspace"
+            url = "https://custom.tuist.dev"
+
+            [workspace.metadata.tuist.test_insights.coverage]
+            upload = true
+
+            [profile.dev]
+            debug = "line-tables-only"
+            """,
+            at: root.appending(component: "Cargo.toml")
+        )
+        try await fileSystem.writeText(
+            """
+            [package]
+            name = "cli"
+            version = "0.1.0"
+
+            [package.metadata.tuist]
+            project = "org/member"
+            """,
+            at: root.appending(try RelativePath(validating: "crates/cli/Cargo.toml"))
+        )
+
+        let config = try await TuistTomlConfigLoader(fileSystem: fileSystem).loadCargoManifestConfig(at: source)
+
+        #expect(config?.project == "org/workspace")
+        #expect(config?.url == URL(string: "https://custom.tuist.dev")!)
+        #expect(config?.testInsights?.coverage?.upload == true)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func loadCargoManifestConfig_reads_a_package_without_a_workspace() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.writeText(
+            """
+            [package]
+            name = "tool"
+            version = "0.1.0"
+
+            [package.metadata.tuist]
+            project = "org/tool"
+            """,
+            at: root.appending(component: "Cargo.toml")
+        )
+
+        let config = try await TuistTomlConfigLoader(fileSystem: fileSystem).loadCargoManifestConfig(at: root)
+
+        #expect(config?.project == "org/tool")
+    }
 }

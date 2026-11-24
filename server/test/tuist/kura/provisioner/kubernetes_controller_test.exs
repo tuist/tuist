@@ -1309,7 +1309,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # segment and 3% for the index are taken: a region-derived budget would
       # hand all three the same ring and let a small instance overrun the claim
       # its pod reserved.
-      for {claim, ring_gib} <- [{"50Gi", 41.95}, {"30Gi", 24.98}, {"8Gi", 5.33}] do
+      for {claim, ring_gib} <- [{"50Gi", 41.95}, {"30Gi", 24.98}, {"8Gi", 5.33}, {"6Gi", 3.40}] do
         manifest =
           KubernetesController.manifest(
             "kura-tuist-eu-west-1",
@@ -2164,11 +2164,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       end
     end
 
-    test "keeps BER1 unchanged until its LVM region is enrolled" do
+    test "keeps alder unchanged until its LVM region is enrolled" do
       assert %Regions{provisioner_config: %{encrypted_volumes: false}} = Regions.get("ber1-runners")
     end
 
-    test "enrolled BER1 uses encrypted LVM without the account flag" do
+    test "enrolled alder uses encrypted LVM without the account flag" do
       stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["ber1-runners"] end)
       stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _ -> false end)
       region = Regions.get("ber1-runners")
@@ -2375,7 +2375,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                "http://actual-ref.kura.svc.cluster.local:4000"
     end
 
-    test "places the BER1 rack's cache on its storage node, in the mesh on the cluster network" do
+    test "places the alder rack's cache on its storage node, in the mesh on the cluster network" do
       stub(Tuist.Environment, :env, fn -> :stag end)
       stub(Tuist.Environment, :kura_tuist_base_url, fn -> "http://tuist.tuist.svc.cluster.local" end)
       region = Regions.get("ber1-runners")
@@ -2401,6 +2401,39 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert env["KURA_MESH_PEERS_SYNC"] == "true"
       refute Map.has_key?(env, "KURA_ANALYTICS_SERVER_URL")
       refute Map.has_key?(env, "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+    end
+
+    test "publishes a rack site's node on every other available site's gateway" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_tuist_base_url, fn -> "http://tuist.tuist.svc.cluster.local" end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "ber1-runners", "larch-runners"] end)
+      region = Regions.get("larch-runners")
+      account = %Account{id: 1, name: "Tuist", subscriptions: []}
+      manifest = KubernetesController.manifest("kura-tuist-larch", "0.5.2", account, region, %Server{})
+
+      # The entrance is served by alder's gateway and admits alder's runners,
+      # while its host and limits describe larch's node.
+      assert manifest["spec"]["gatewayEntrances"] == [
+               %{
+                 "site" => "ber1",
+                 "host" => "tuist-larch-runners-via-ber1.kura.tuist.dev",
+                 "ingressClassName" => "kura-ber1-runners",
+                 "clientCIDRs" => ["10.10.0.0/24"],
+                 "nodeSelector" => %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"},
+                 "rateLimitKBps" => 6400
+               }
+             ]
+
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] =~ "+entrances"
+
+      # With no other site available there is nothing to publish, and the
+      # revision is the one instances already carry, so nothing re-applies.
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "larch-runners"] end)
+      alone = KubernetesController.manifest("kura-tuist-larch", "0.5.2", account, region, %Server{})
+      refute Map.has_key?(alone["spec"], "gatewayEntrances")
+      refute alone["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] =~ "+entrances"
     end
 
     test "keeps cluster-routed private regions on the cluster network" do

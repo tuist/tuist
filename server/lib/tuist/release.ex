@@ -6,6 +6,10 @@ defmodule Tuist.Release do
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Adapters.SQL
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.CredentialRevocation
+  alias Tuist.Accounts.Workers.CredentialRotationNoticeWorker
+  alias Tuist.Billing.AirUsageNotifications
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
@@ -13,8 +17,10 @@ defmodule Tuist.Release do
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Workers.BackfillWorkflowJobsWorker
   alias Tuist.Sandboxes.Archives
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Workers.RunSelectionsBackfillWorker
+  alias Tuist.Vault.Reencryption
 
   require Logger
 
@@ -26,6 +32,10 @@ defmodule Tuist.Release do
     bazel_test_invocations
     bazel_test_results
     bazel_test_summaries
+    snapshot_builds
+    snapshot_images
+    snapshot_commits
+    clickhouse_inserts
   )
   @processor_read_tables ~w(
     accounts
@@ -37,6 +47,7 @@ defmodule Tuist.Release do
     git_repositories
     git_refs
     git_commits
+    git_commit_parents
   )
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
   @grafana_query_log_view "grafana_query_log"
@@ -46,7 +57,7 @@ defmodule Tuist.Release do
   # Column-level rather than table-level because application data sits next to a
   # secret in the same row: table-level SELECT would hand the dashboard's
   # credential — the one we store in Grafana Cloud — `users.encrypted_password`,
-  # `users.token`, `projects.token`, `accounts.s3_secret_access_key`, and
+  # `projects.slack_webhook_url`, `accounts.s3_secret_access_key`, and
   # `organizations.oauth2_encrypted_client_secret`. `users` is the clearest case:
   # the dashboard needs only the signup timestamp. The runner cache volume
   # columns leave out the account, repository and pod the rows belong to.
@@ -143,6 +154,25 @@ defmodule Tuist.Release do
   end
 
   @doc """
+  Writes the test maps of a project's commits measured in the last `days`
+  days (31 by default, the maps' retention) from their runs' retained
+  evidence (`Tuist.TestImpactAnalysis.Snapshots.backfill/2`), as their folds
+  would have. Evidence is kept two days, so only the runs of those days
+  still write. The migration that ships the maps queues it per project on its
+  own (`Tuist.TestImpactAnalysis.Workers.SnapshotBackfillWorker`); this runs
+  it again by hand. It reads through the application's repositories, so it
+  runs on a live node, and repeating it writes nothing already written:
+
+      bin/tuist rpc "Tuist.Release.backfill_test_impact_snapshots(<project id>)"
+      bin/tuist rpc "Tuist.Release.backfill_test_impact_snapshots(<project id>, <days>)"
+  """
+  def backfill_test_impact_snapshots(project_id, days \\ 31) do
+    project = Tuist.Projects.get_project_by_id(project_id)
+    :ok = Snapshots.backfill(project, days)
+    Logger.info("Test maps of project #{project_id} for the last #{days} days recorded")
+  end
+
+  @doc """
   Writes the coverage file deltas of every complete commit whose runs' rows
   are still kept (`Tuist.Tests.Coverage.Deltas.backfill/1`), for one project
   or every project, each ref's oldest commit first. The migration that
@@ -167,26 +197,6 @@ defmodule Tuist.Release do
     end
 
     counts
-  end
-
-  @doc """
-  Records the test versions and target sources carried coverage reads
-  (`Tuist.Tests.Coverage.TestSources.backfill/1`) for the runs still within
-  the file retention, for one project or every project. The migration that
-  ships the index queues it on its own
-  (`Tuist.Tests.Coverage.Workers.SourceBackfillWorker`); this runs it
-  again by hand, on a live node:
-
-      bin/tuist rpc "Tuist.Release.backfill_coverage_sources()"
-      bin/tuist rpc "Tuist.Release.backfill_coverage_sources(<project id>)"
-  """
-  def backfill_coverage_sources(project_id \\ nil) do
-    if project_id do
-      Coverage.TestSources.backfill(project_id)
-      Logger.info("Coverage sources of project #{project_id} recorded")
-    else
-      Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
-    end
   end
 
   @doc """
@@ -226,12 +236,15 @@ defmodule Tuist.Release do
 
       bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>")'
 
-  Cordoning the Node starts the drain (`Tuist.Sandboxes.Archives.node_drain/1`).
+  Cordoning the Node starts the drain (`Tuist.Sandboxes.Archives.node_drain/2`).
   Raises, so the command exits nonzero, until no sandbox but errored ones is
-  left; rerun it until it passes.
+  left; rerun it until it passes. A turn that does not end moves too with
+  `pause_turns: true`, which pauses it with its memory:
+
+      bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>", pause_turns: true)'
   """
-  def sandbox_node_drain(node_name) when is_binary(node_name) do
-    drain = Archives.node_drain(node_name)
+  def sandbox_node_drain(node_name, opts \\ []) when is_binary(node_name) do
+    drain = Archives.node_drain(node_name, opts)
 
     if !drain.reclaiming,
       do: IO.puts("#{node_name} is not reclaimed by CI: cordon the Node; nothing is archived until it is.")
@@ -257,6 +270,8 @@ defmodule Tuist.Release do
       )
     end)
 
+    if drain.reclaiming, do: print_failed_archives(drain.sandboxes)
+
     left = Enum.count(drain.sandboxes, &(&1.state != :error))
 
     if drain.drained do
@@ -264,6 +279,19 @@ defmodule Tuist.Release do
     else
       raise "#{node_name} still holds #{left} sandbox(es) to archive; rerun the check."
     end
+  end
+
+  # A failed archive backs its sandbox off for a few minutes while the next
+  # one moves; a row that keeps failing never leaves the node on its own.
+  defp print_failed_archives(sandboxes) do
+    failed = Enum.count(sandboxes, &(&1.state == :paused and not &1.uploading and not is_nil(&1.archive_attempted_at)))
+
+    if failed > 0,
+      do:
+        IO.puts(
+          "#{failed} paused sandbox(es) failed their last archive and are retried after a backoff: " <>
+            "server logs \"sandboxes: could not move a sandbox off a node CI reclaims\" give the reason."
+        )
   end
 
   @doc """
@@ -298,52 +326,131 @@ defmodule Tuist.Release do
   end
 
   @doc """
-  Reports how many legacy user and project tokens (the ones without a
-  `tuist_` prefix) are still set and how many authenticated within `days`,
-  to decide when they can be retired:
+  Revokes customer-facing credentials in bulk
+  (`Tuist.Accounts.CredentialRevocation`), for everyone or for one account,
+  on a live node so connected dashboards are disconnected too:
 
-      bin/tuist rpc 'Tuist.Release.legacy_token_usage()'
+      bin/tuist rpc 'Tuist.Release.revoke_credentials(<account id>)'
+      bin/tuist rpc 'Tuist.Release.revoke_credentials(:everything)'
+
+  Follow it with `send_credential_rotation_notice/2` so admins know to create
+  new tokens.
   """
-  def legacy_token_usage(days \\ 30) do
-    since = DateTime.add(DateTime.utc_now(), -days, :day)
+  def revoke_credentials(:everything) do
+    counts = CredentialRevocation.revoke_everything()
+    Logger.warning("Revoked every customer credential: #{inspect(counts)}")
+    counts
+  end
 
-    usage =
-      for table <- ["users", "projects"], into: %{} do
-        {table,
-         Repo.one(
-           from(r in table,
-             select: %{
-               set: filter(count(r.id), not is_nil(r.token_hash)),
-               used_since: filter(count(r.id), r.legacy_token_last_used_at >= ^since),
-               plaintext: filter(count(r.id), not is_nil(r.token))
-             }
-           )
-         )}
-      end
+  def revoke_credentials(account_id) when is_integer(account_id) do
+    case CredentialRevocation.revoke_account(account_id) do
+      {:ok, counts} ->
+        Logger.warning("Revoked the credentials of account #{account_id}: #{inspect(counts)}")
+        counts
 
-    Logger.info("Legacy tokens (used within #{days} days): #{inspect(usage)}")
-    usage
+      {:error, :not_found} ->
+        raise "No account #{account_id}"
+    end
   end
 
   @doc """
-  Hashes the legacy tokens written by replicas that predate hashing and clears
-  the plaintext `users.token` and `projects.token` columns. The digest is taken
-  from the plaintext, so a token an old replica replaced during the rollout
-  (a password reset) is not left matching its previous digest. Run it once every
-  replica runs the hashed lookup; a later migration drops the columns:
+  Emails the admins of one account, or of every account (personal accounts
+  reach their owner), a credential rotation notice
+  (`Tuist.Accounts.Workers.CredentialRotationNoticeWorker`), on a live node:
 
-      bin/tuist rpc 'Tuist.Release.clear_plaintext_legacy_tokens()'
+      bin/tuist rpc 'Tuist.Release.send_credential_rotation_notice(<account id>, kind: :revoked)'
+      bin/tuist rpc 'Tuist.Release.send_credential_rotation_notice(:everything, kind: :rotate, details_url: "https://...")'
+
+  `kind` is `:revoked` after `revoke_credentials/1`, or `:rotate` to ask
+  admins to rotate them. `notice_id` names the sending: pass the one a run
+  returned to resume it without emailing anyone twice. Returns how many
+  notices it queued, not counting those an earlier run already queued.
   """
-  def clear_plaintext_legacy_tokens do
-    for table <- ["users", "projects"], into: %{} do
-      {:ok, %{num_rows: count}} =
-        SQL.query(
-          Repo,
-          "UPDATE #{table} SET token_hash = sha256(convert_to(token, 'UTF8')), token = NULL WHERE token IS NOT NULL",
-          []
-        )
+  def send_credential_rotation_notice(scope, opts) do
+    kind = Keyword.fetch!(opts, :kind)
+    true = kind in [:revoked, :rotate]
+    notice_id = Keyword.get_lazy(opts, :notice_id, &Ecto.UUID.generate/0)
+    args = %{notice_id: notice_id, kind: kind, details_url: Keyword.get(opts, :details_url)}
 
-      {table, count}
+    queued =
+      case scope do
+        :everything ->
+          queue_rotation_notices_from(0, args, 0)
+
+        account_id when is_integer(account_id) ->
+          queue_rotation_notices(Repo.all(from(a in Account, where: a.id == ^account_id)), args)
+      end
+
+    Logger.info("Queued #{queued} credential rotation notices for notice #{notice_id}")
+    %{notice_id: notice_id, queued: queued}
+  end
+
+  defp queue_rotation_notices_from(after_id, args, queued) do
+    accounts = Repo.all(from(a in Account, where: a.id > ^after_id, order_by: a.id, limit: 500))
+
+    case accounts do
+      [] -> queued
+      _ -> queue_rotation_notices_from(List.last(accounts).id, args, queued + queue_rotation_notices(accounts, args))
+    end
+  end
+
+  defp queue_rotation_notices(accounts, args) do
+    accounts
+    |> Enum.flat_map(fn account ->
+      account
+      |> AirUsageNotifications.recipients()
+      |> Enum.reject(&(is_nil(&1) or not &1.active))
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.map(&CredentialRotationNoticeWorker.new(Map.merge(args, %{account_id: account.id, user_id: &1.id})))
+    end)
+    # One insert per job, because uniqueness, which makes a resumed sending
+    # skip the notices already queued, is not enforced by `Oban.insert_all/1`.
+    |> Enum.count(fn changeset -> match?({:ok, %Oban.Job{conflict?: false}}, Oban.insert(changeset)) end)
+  end
+
+  @doc """
+  Re-encrypts every stored `Tuist.Vault.Binary` value, and the ciphertexts
+  `Tuist.Vault.Reencryption.embedded_tables/0` lists, under `key_id`, which
+  must already be the current encryption key
+  (`TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY`) on every node:
+
+      bin/tuist eval 'Tuist.Release.reencrypt_vault("<key id>")'
+
+  It works in bounded batches and skips values already under the key, so
+  rerun it after an interruption. Raises, so the command exits nonzero, when
+  a value could not be decrypted with any configured key; drop a retired key
+  only after a run passes, and after the Oban jobs queued before the key
+  change have run, since some carry values encrypted with `Tuist.Vault`.
+  Options: `batch_size` (default 500).
+  """
+  def reencrypt_vault(key_id, opts \\ []) when is_binary(key_id) do
+    Application.load(@app)
+
+    {:ok, counts, _apps} =
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
+        with_vault(fn -> Reencryption.run(key_id, opts) end)
+      end)
+
+    failed = for {field, %{failed: failed}} <- counts, failed != 0, do: "#{field} (#{failed})"
+
+    if failed != [] do
+      raise "Some values could not be re-encrypted: #{Enum.join(failed, ", ")}. Keep the retired keys."
+    end
+
+    counts
+  end
+
+  defp with_vault(fun) do
+    if Process.whereis(Tuist.Vault) do
+      fun.()
+    else
+      {:ok, pid} = Tuist.Vault.start_link()
+
+      try do
+        fun.()
+      after
+        GenServer.stop(pid)
+      end
     end
   end
 

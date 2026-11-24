@@ -2,8 +2,9 @@ defmodule Atlas.TuistAccounts do
   @moduledoc """
   Authorized, audited operator access to Tuist accounts: resolving a handle
   to the Tuist account ID that feature flag gates, runner limits and plans are
-  keyed by, reading or changing the account's runner concurrency limits, and
-  reading or changing its billing plan as the ops account page does.
+  keyed by, reading or changing the account's runner concurrency limits,
+  reading or changing its billing plan, and starting or cancelling its runner
+  trial, as the ops account page does.
 
   These are rollout controls alongside `Atlas.TuistFeatureFlags`, so they use
   the same `feature_flags:read`/`feature_flags:write` scopes and the same
@@ -55,7 +56,12 @@ defmodule Atlas.TuistAccounts do
     "type" => "object",
     "properties" => %{
       "account_id" => @account_id,
-      "operation" => %{"type" => "string", "enum" => ~w(upgrade_to_enterprise start_open_source cancel_at_period_end)},
+      "operation" => %{
+        "type" => "string",
+        "enum" => ~w(upgrade_to_enterprise start_open_source cancel_at_period_end schedule_pro)
+      },
+      # Only for schedule_pro, which requires it: when the switch to Pro happens.
+      "starts_at" => %{"type" => "string", "format" => "date-time"},
       # Only for upgrade_to_enterprise, when the Stripe customer lacks them.
       "billing_details" => %{
         "type" => "object",
@@ -87,6 +93,21 @@ defmodule Atlas.TuistAccounts do
     "additionalProperties" => false
   }
 
+  @update_runner_trial_schema %{
+    "type" => "object",
+    "properties" => %{
+      "account_id" => @account_id,
+      "operation" => %{"type" => "string", "enum" => ~w(start cancel)},
+      # Only for cancel, when the account has no paid plan and so falls back to Air's caps.
+      "confirm_air_limits" => %{"type" => "boolean"},
+      "expected_revision" => %{"type" => "string", "minLength" => 1},
+      "reason" => %{"type" => "string", "minLength" => 1, "maxLength" => 1000},
+      "change_id" => %{"type" => "string", "format" => "uuid"}
+    },
+    "required" => ~w(account_id operation expected_revision reason change_id),
+    "additionalProperties" => false
+  }
+
   def lookup_schema, do: @lookup_schema
   def limits_schema, do: @limits_schema
   def update_limits_schema, do: @update_limits_schema
@@ -95,6 +116,7 @@ defmodule Atlas.TuistAccounts do
   def update_plan_schema, do: @update_plan_schema
 
   def runner_billing_schema, do: @limits_schema
+  def update_runner_trial_schema, do: @update_runner_trial_schema
 
   def activate_runner_prepaid_pool_schema do
     %{
@@ -365,7 +387,7 @@ defmodule Atlas.TuistAccounts do
     # Billing details stay out of the audit metadata; mcp.tool_called keeps the arguments.
     metadata =
       if is_map(args),
-        do: Map.take(args, ~w(operation expected_revision reason change_id)),
+        do: Map.take(args, ~w(operation starts_at expected_revision reason change_id)),
         else: %{}
 
     metadata =
@@ -415,6 +437,30 @@ defmodule Atlas.TuistAccounts do
         else: %{}
 
     record("tuist_runner_billing.activated", user, account_id(args), metadata, result, opts)
+  end
+
+  def update_runner_trial(user, args, opts \\ []) do
+    result =
+      with :ok <- validate_interface(opts),
+           :ok <- authorize(user, "feature_flags:write"),
+           :ok <- validate(@update_runner_trial_schema, args),
+           :ok <- validate_update(args),
+           :ok <- TuistFeatureFlags.approve_write(user, "update-runner-trial", args, opts) do
+        attrs =
+          args
+          |> Map.delete("account_id")
+          |> Map.put("actor", %{"id" => user.id, "email" => user.email})
+          |> Map.put("interface", Keyword.get(opts, :interface, "mcp"))
+
+        TuistServer.update_runner_trial(args["account_id"], attrs)
+      end
+
+    metadata =
+      if is_map(args),
+        do: Map.take(args, ~w(operation confirm_air_limits expected_revision reason change_id)),
+        else: %{}
+
+    record("tuist_runner_trial.updated", user, account_id(args), metadata, result, opts)
   end
 
   defp validate_prepaid_term(args) do

@@ -148,9 +148,10 @@ defmodule Tuist.OpenGraph.ProjectImage do
           }
           /* Noora's status badge (.noora-status-badge) in dark mode, scaled
              3.5x so it sits comfortably beside the footer wordmark: the
-             4px/8px padding, 4px gap, 6px radius, 16px icon and the
-             light-default border ring all scale together. Token values are
-             the dark-mode results of tokens.css, written as hex. */
+             2px/8px/4px padding, 4px gap, 4px radius, 16px icon, 13px/20px
+             label and the small-default border ring all scale together.
+             Token values are the dark-mode results of tokens.css, written as
+             hex. */
           .badge[data-status] {
             right: 76px;
             bottom: 70px;
@@ -158,18 +159,18 @@ defmodule Tuist.OpenGraph.ProjectImage do
             align-items: center;
             gap: 14px;
             margin: 0;
-            padding: 14px 28px 14px 14px;
-            border-radius: 21px;
+            padding: 7px 28px 7px 14px;
+            border-radius: 14px;
             background: #0E0E0E;
             box-shadow:
               0 3.5px 3.5px 0 rgba(14,14,14, 0.3),
               0 0 0 3.5px rgba(113,113,113, 0.45),
               0 7px 10.5px 0 rgba(0, 0, 0, 0.3);
-            font-size: 42px;
+            font-size: 45.5px;
             font-weight: 500;
-            line-height: 56px;
+            line-height: 70px;
             letter-spacing: 0;
-            color: #FDFDFD;
+            color: #F6F6F6;
             overflow: visible;
           }
           .badge[data-status="disabled"] { color: #A4A4A4; }
@@ -184,10 +185,10 @@ defmodule Tuist.OpenGraph.ProjectImage do
             overflow: hidden;
             text-overflow: ellipsis;
           }
-          .badge[data-status="success"] [data-part="icon"] { color: #008C1C; }
-          .badge[data-status="error"] [data-part="icon"] { color: #BC0000; }
-          .badge[data-status="warning"] [data-part="icon"] { color: #F25F00; }
-          .badge[data-status="attention"] [data-part="icon"] { color: #FFC100; }
+          .badge[data-status="success"] [data-part="icon"] { color: #02B247; }
+          .badge[data-status="error"] [data-part="icon"] { color: #FF4742; }
+          .badge[data-status="warning"] [data-part="icon"] { color: #E86800; }
+          .badge[data-status="attention"] [data-part="icon"] { color: #FFCF50; }
           .badge[data-status="disabled"] [data-part="icon"] { color: #A4A4A4; }
           .badge[data-status="in_progress"] [data-part="icon"] { color: #D2D2D2; }
         </style>

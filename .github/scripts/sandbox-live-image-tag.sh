@@ -2,9 +2,10 @@
 set -euo pipefail
 
 # Called only when the rendered chart enables sandboxd. A pre-built server
-# deployment without an override for one of the DaemonSet's images (the
-# `template` init container or the `sandboxd` container) must retain the live
-# version, not revert it to the bootstrap pin in the chart's environment values.
+# deployment without an override for one of the sandbox images (the template
+# installer's `template` init container, or the `sandboxd` container) must
+# retain the live version, not revert it to the bootstrap pin in the chart's
+# environment values.
 namespace=$1
 daemonset=$2
 container=$3

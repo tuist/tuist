@@ -86,7 +86,8 @@ logo_cells = [
         <ul data-part="grid">
           <li :for={cell <- wordmark_cells} data-part="cell" data-surface={cell.surface}>
             <img src={cell.src} alt={cell.alt} />
-            <.neutral_button
+            <.ghost_button
+              variant="secondary"
               data-part="download"
               href={cell.src}
               aria-label={dgettext("marketing", "Download %{name}", name: cell.alt)}
@@ -94,7 +95,7 @@ logo_cells = [
               {[download: true]}
             >
               <:icon_left><Noora.Icon.icon name="download" /></:icon_left>
-            </.neutral_button>
+            </.ghost_button>
           </li>
         </ul>
       </div>
@@ -112,7 +113,8 @@ logo_cells = [
         <ul data-part="grid">
           <li :for={cell <- logo_cells} data-part="cell" data-surface={cell.surface}>
             <img src={cell.src} alt={cell.alt} />
-            <.neutral_button
+            <.ghost_button
+              variant="secondary"
               data-part="download"
               href={cell.src}
               aria-label={dgettext("marketing", "Download %{name}", name: cell.alt)}
@@ -120,7 +122,7 @@ logo_cells = [
               {[download: true]}
             >
               <:icon_left><Noora.Icon.icon name="download" /></:icon_left>
-            </.neutral_button>
+            </.ghost_button>
           </li>
         </ul>
       </div>

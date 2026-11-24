@@ -129,7 +129,7 @@ msgstr "Uruchomione przez"
 #: lib/tuist_web/live/preview_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Run"
-msgstr "Uruchomienie"
+msgstr "Uruchom"
 
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
@@ -145,7 +145,7 @@ msgstr "Zeskanuj kod QR"
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "Zeskanuj ten kod QR na urządzeniu z iOS, aby zainstalować tę wersję aplikacji"
+msgstr "Zeskanuj ten kod QR na swoim urządzeniu z iOS, aby zainstalować tę wersję aplikacji"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -242,7 +242,7 @@ msgstr "Podgląd z wiersza poleceń"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "Podglądy desktopowe działają jako Twój użytkownik, z dostępem do Twoich plików i środowiska. Nie są one izolowane."
+msgstr "Podglądy desktopowe działają jako Twój użytkownik, mając dostęp do Twoich plików i środowiska. Nie są piaskownicowane."
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format

@@ -535,33 +535,45 @@ fleet_edge_check_machines() {
   fi
 }
 
-# What the minis reach on their own segment, beside the edges: the rack's
-# cache gateways (rackFleet.vmCacheGatewayCIDRs, which their VMs may reach)
-# and its VM image caches (rackFleet.imageCache.nodes, which their hosts pull
-# from). Each has to be a storage node of this site that is in the rack, at
-# the address its RackLinuxHost reserves, or the minis would be pointed at an
-# address nothing answers on.
+# What the minis reach beside the edges: the rack's cache gateways
+# (rackFleet.vmCacheGatewayCIDRs, which their VMs may reach) and its VM image
+# caches (rackFleet.imageCache.nodes, which their hosts pull from). Both lists
+# are one for every rack host, so each entry has to be a storage node of a
+# rack site (this one or one of rackFleet.sites) that is in the rack, at the
+# address its RackLinuxHost reserves, or the minis would be pointed at an
+# address nothing answers on. An image cache may instead be at its node's
+# tailnet address (100.64.0.0/10), which every site's hosts reach before the
+# sites' segments are routed to each other; the repo does not record that
+# address, so only its range is checked.
 fleet_edge_check_rack_caches() {
-  local site_file="$1" values="${2:-}" storage linux bad="" node address cidr
+  local site_file="$1" values="${2:-}" storage linux bad="" node address cidr other_site other
   [ -n "$values" ] || values="$(fleet_rack_values "$site_file")" || return 1
   [ -f "$values" ] || return 0
-  # The caches are rackFleet's, which serves one site: another site's are not
-  # this one's to check.
+  # The caches are rackFleet's, which the site it names checks: another
+  # site's run would check the same lists again.
   [ "$(yq -r '.rackFleet.site // ""' "$values" 2>/dev/null)" = "$(jq -r '.site' "$site_file")" ] || return 0
   storage="$(jq -c '[.nodes[]? | select(.role == "storage" and .status != "planned") | .name]' "$site_file")"
+  for other_site in $(yq -r '.rackFleet.sites // {} | keys | .[]' "$values" 2>/dev/null); do
+    for other in "$FLEET_ROOT"/sites/*.json; do
+      [ "$(jq -r '.site' "$other")" = "$other_site" ] || continue
+      storage="$(jq -c --argjson a "$storage" '$a + [.nodes[]? | select(.role == "storage" and .status != "planned") | .name] | unique' "$other")"
+    done
+  done
   linux="$(yq -o=json '[.rackLinuxFleet.hosts[]? | {"key": .hostname, "value": (.address // "")}] | from_entries' "$values" 2>/dev/null)" || linux=''
   [ -n "$linux" ] || linux='{}'
   while IFS=$'\t' read -r node address; do
     [ -n "$node" ] || continue
     if [ "$(jq -r --arg n "$node" 'index($n) != null' <<<"$storage")" != true ]; then
-      bad="${bad:+$bad$'\n'}the image cache on $node is not on a storage node of this site that is in the rack"
+      bad="${bad:+$bad$'\n'}the image cache on $node is not on a storage node of a rack site that is in the rack"
+    elif [[ "$address" =~ ^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]+\.[0-9]+$ ]]; then
+      :
     elif [ "$(jq -r --arg n "$node" '.[$n] // ""' <<<"$linux")" != "$address" ]; then
       bad="${bad:+$bad$'\n'}the image cache on $node is at $address, but its RackLinuxHost is at $(jq -r --arg n "$node" '.[$n] // "no address"' <<<"$linux")"
     fi
   done < <(yq -r '.rackFleet.imageCache.nodes[]? | [.name, (.address // "")] | @tsv' "$values" 2>/dev/null)
   for cidr in $(yq -r '.rackFleet.vmCacheGatewayCIDRs[]?' "$values" 2>/dev/null); do
     if [ "${cidr#*/}" != 32 ] || [ -z "$(jq -r --argjson storage "$storage" --arg a "${cidr%/*}" 'to_entries[] | select(.value == $a and (.key as $k | $storage | index($k) != null)) | .key' <<<"$linux")" ]; then
-      bad="${bad:+$bad$'\n'}cache gateway $cidr is not the address of a storage node of this site that is in the rack"
+      bad="${bad:+$bad$'\n'}cache gateway $cidr is not the address of a storage node of a rack site that is in the rack"
     fi
   done
   if [ -n "$bad" ]; then
@@ -859,6 +871,19 @@ SCRIPT
     power_nat="    iifname \"tailscale0\" oifname \"$interface\" ip daddr { $power } masquerade"
     power_clamp="    oifname \"tailscale0\" ip saddr { $power } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu"
   fi
+  # A preinstalled installer asks the boot server at the address its image was
+  # written with, the env's (rackLinuxFleet.boot.address), before the
+  # internet's. At a site whose provisioning address is another one,
+  # management.edge.boot_alias names that address, and the edge translates it
+  # to its own, where the site's boot server listens.
+  local boot_alias boot_dnat=""
+  boot_alias="$(jq -r '.management.edge.boot_alias // ""' "$site_file")"
+  if [ -n "$boot_alias" ]; then
+    boot_dnat="  chain prerouting {
+    type nat hook prerouting priority dstnat;
+    iifname \"$interface\" ip saddr $(fleet_network "$provisioning") ip daddr $boot_alias dnat to ${provisioning%/*}
+  }"
+  fi
   # The SG3452's DHCP client (firmware 1.30) sets the broadcast flag and then
   # ignores broadcast replies, so the netdev table addresses each known
   # switch's replies to its MAC, matched on the client hardware address in the
@@ -868,7 +893,8 @@ nft -f - <<'NFT'
 table ip tuist_mgmt_path
 delete table ip tuist_mgmt_path
 table ip tuist_mgmt_path {
-  chain postrouting {
+${boot_dnat:+$boot_dnat
+}  chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname "tailscale0" ip saddr { $sources } masquerade
 ${power_nat:+$power_nat
@@ -893,7 +919,7 @@ SCRIPT
 }
 SCRIPT
   [ -n "$machines_vlan" ] && fleet_edge_machines_filter "$site_file"
-  [ -n "$wan_vlan" ] && fleet_edge_wan_filter
+  [ -n "$wan_vlan" ] && fleet_edge_wan_filter "$site_file"
   echo NFT
 }
 
@@ -937,8 +963,23 @@ SCRIPT
 # are the ones the edge translated itself: the cluster ports of the site's
 # cluster-network hosts, from the cluster's nodes only, which the CAPI
 # operator renders into the edge's node configuration (tuist_cluster_forwards).
+#
+# A BGP segment from the upstream that this edge has no connection for is
+# answered with a reset rather than dropped. After a failover the upstream
+# still holds the session the other edge had from the same WAN address, and
+# its next keepalive reaches this edge. Dropped, the upstream kept that
+# session until its hold timer ran out, and this edge's own came up only then
+# (larch, 2026-11-20 and 2026-11-21: about three minutes without IPv4 BGP).
+# Reset, the upstream closes it at its next keepalive.
 fleet_edge_wan_filter() {
-  cat <<'SCRIPT'
+  local site_file="$1" gateway gateway6 bgp=""
+  IFS=$'\x1f' read -r gateway gateway6 < <(jq -r '.management.edge.wan | select(.bgp != null) |
+    [(.gateway // ""), (.gateway6 // "")] | join("\u001f")' "$site_file")
+  [ -n "$gateway" ] && bgp+="    iifname \"wan0\" ip saddr $gateway tcp sport 179 reject with tcp reset"$'\n'
+  [ -n "$gateway" ] && bgp+="    iifname \"wan0\" ip saddr $gateway tcp dport 179 reject with tcp reset"$'\n'
+  [ -n "$gateway6" ] && bgp+="    iifname \"wan0\" ip6 saddr $gateway6 tcp sport 179 reject with tcp reset"$'\n'
+  [ -n "$gateway6" ] && bgp+="    iifname \"wan0\" ip6 saddr $gateway6 tcp dport 179 reject with tcp reset"$'\n'
+  cat <<SCRIPT
 table inet tuist_rack_wan
 delete table inet tuist_rack_wan
 table inet tuist_rack_wan {
@@ -947,7 +988,7 @@ table inet tuist_rack_wan {
     iifname "wan0" ct state established,related accept
     iifname "wan0" meta l4proto { icmp, ipv6-icmp } accept
     iifname "wan0" udp dport 41641 accept
-    iifname "wan0" drop
+${bgp}    iifname "wan0" drop
   }
   chain forward {
     type filter hook forward priority filter;
@@ -1356,7 +1397,10 @@ SCRIPT
   *) echo "$NODE_NAME provisions no ToR"; exec sleep infinity ;;
 esac
 if [ "${1:-}" = console ]; then
-  exec rack-tor-console -address "$tor_address"
+  # The container's /dev has the console's tty but not udev's
+  # /dev/serial/by-id links, so the default glob never matched. The console
+  # cable is the edge's only USB serial device.
+  exec rack-tor-console -address "$tor_address" -device '/dev/ttyUSB*'
 fi
 ip link set "$interface" up
 ip addr replace "$address" dev "$interface"

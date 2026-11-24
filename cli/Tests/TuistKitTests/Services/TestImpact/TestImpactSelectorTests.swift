@@ -91,8 +91,8 @@ struct TestImpactSelectorTests {
             fullHandle: .value("acme/shop"),
             serverURL: .value(serverURL),
             request: .value(TestImpactRunRequest(
-                headSHA: "head",
-                commitSHA: "merge",
+                headSHA: "merge",
+                commitSHA: nil,
                 parentSHAs: ["main-tip", "head"],
                 basis: .baseline(
                     sha: "baseline",
@@ -147,10 +147,10 @@ struct TestImpactSelectorTests {
         _ = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
 
         #expect(calls.names == ["publish", "baseline"])
-        // The pull request's head as `gitInfo` reports it, never the merge commit, from the
-        // repository's top level, where the run's report reads the history too.
+        // The merge commit `gitInfo` reports, from the repository's top level, where the run's
+        // report reads the history too.
         verify(gitHistoryService).publish(
-            gitInfo: .matching { $0.sha == "head" },
+            gitInfo: .matching { $0.sha == "merge" },
             workingDirectory: .value(repository),
             fullHandle: .value("acme/shop"),
             serverURL: .value(serverURL),
@@ -513,7 +513,7 @@ struct TestImpactSelectorTests {
         given(gitController).gitInfo(workingDirectory: .any).willReturn(.test(
             ref: "refs/pull/7/merge",
             branch: "feature",
-            sha: "head",
+            sha: "merge",
             baseBranch: "main",
             pullRequestNumber: 7
         ))

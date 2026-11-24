@@ -2,7 +2,7 @@
 {
   "title": "Xcode 미리보기",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "기존 Xcode 프로젝트와 Tuist가 생성한 프로젝트에서 앱 미리보기를 공유하세요."
+  "description": "기존 Xcode 프로젝트와 Tuist로 생성된 프로젝트에서 애플리케이션 미리보기를 공유하세요."
 }
 ---
 # Xcode 미리보기
@@ -11,7 +11,7 @@
 
 ## 빌드 및 공유
 
-Tuist가 생성한 프로젝트의 경우:
+Tuist로 생성된 프로젝트의 경우:
 
 ```bash
 tuist generate App
@@ -28,11 +28,11 @@ tuist xcodebuild build -scheme App -project App.xcodeproj \
 tuist share App --configuration Debug --platforms iOS
 ```
 
-스킴, 프로젝트 및 워크스페이스 이름을 자신의 것으로 대체하세요. Release 빌드를 공유하려면 빌드할 때 `-configuration Release`를 사용하고 공유할 때 `--configuration Release`를 사용하세요.
+스킴, 프로젝트 및 워크스페이스 이름을 자신의 것으로 바꾸세요. 릴리스 빌드를 공유하려면 빌드할 때 `-configuration Release`를 사용하고 공유할 때 `--configuration Release`를 사용하세요.
 
 ## 실제 기기
 
-수신자의 기기에 설치할 수 있는 프로비저닝 프로필로 기기용 빌드에 서명하는 것은 여러분의 책임입니다. 시뮬레이터 SDK 대신 기기 대상을 사용하여 빌드하세요:
+수신자의 기기에 설치할 수 있는 프로비저닝 프로필로 기기 빌드에 서명하는 책임은 귀하에게 있습니다. 시뮬레이터 SDK 대신 기기 대상을 사용하여 빌드하세요:
 
 ```bash
 tuist xcodebuild build -scheme App -project App.xcodeproj \
@@ -50,7 +50,7 @@ tuist share App.ipa
 
 ## CI 및 빌드 번호
 
-기존 <.localized_link href="/guides/integrations/continuous-integration">CI 인증</.localized_link>을 사용하고 각 새 빌드마다 `CFBundleVersion`를 고유하게 만드세요. 예를 들어 GitHub Actions의 <code v-pre>${{ github.run_number }}</code>를 사용하세요. `tuist share`를 통해 동일한 바이너리와 빌드 번호를 다시 업로드하면 중복이 생성되지 않고 실패합니다.
+기존 <.localized_link href="/guides/integrations/continuous-integration">CI 인증</.localized_link>을 사용하고 각 새 빌드마다 `CFBundleVersion`를 고유하게 만드세요. 예를 들어 GitHub Actions의 <code v-pre>${{ github.run_number }}</code>를 사용하세요. 동일한 바이너리와 빌드 번호를 `tuist share`를 통해 다시 업로드하면 중복이 생성되지 않고 실패합니다.
 
 ```bash
 tuist share App --track beta --release-notes "Fix sign-in"

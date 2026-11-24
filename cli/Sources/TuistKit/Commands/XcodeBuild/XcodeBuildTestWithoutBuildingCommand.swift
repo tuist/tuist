@@ -66,6 +66,20 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
     )
     var inspectMode: TestProcessingMode?
 
+    @Flag(
+        inversion: .prefixedNo,
+        help: "Export the images your SwiftUI previews render with the tuist/snapshots library (TEST_RUNNER_SNAPSHOTS_EXPORT_DIR) and upload them to Tuist after the run, which compares them with their baseline and fails the run when they changed and nobody approved the changes. On by default in CI for projects connected to Tuist; a run that renders no images uploads nothing. Pass --snapshots to also upload from a local run, or --no-snapshots to turn it off.",
+        envKey: .testSnapshots
+    )
+    var snapshots: Bool?
+
+    @Option(
+        name: .long,
+        help: "The snapshot set the uploaded snapshot images belong to, such as 'ios-iphone': builds are compared within a set. Defaults to the scheme.",
+        envKey: .testSnapshotSet
+    )
+    var snapshotSet: String?
+
     public func run() async throws {
         let shardArchivePath = try await { () async throws -> AbsolutePath? in
             if let shardArchivePath = self.shardArchivePath {
@@ -81,7 +95,9 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
                 shardReference: shardReference,
                 shardPlanId: shardPlanId,
                 shardArchivePath: shardArchivePath,
-                mode: inspectMode
+                mode: inspectMode,
+                snapshots: snapshots ?? EnvKey.testSnapshots.envValue(),
+                snapshotSet: snapshotSet
             )
     }
 }

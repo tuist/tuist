@@ -22,7 +22,7 @@ defmodule TuistWeb.CreateProjectLiveTest do
         bazel: "Bazel",
         mix: "Mix (Elixir)",
         cargo: "Cargo (Rust)",
-        once: "Once"
+        once: "Struo"
       ] do
     @build_system build_system
     @label label

@@ -67,8 +67,6 @@ defmodule Atlas.OutreachTest do
     assert candidate.organization_domain == "search.example"
     assert candidate.metadata["country"] == "United States"
     assert candidate.metadata["search_definition"]["organization_locations"] == nil
-    assert %DateTime{} = candidate.slack_notification_requested_at
-    assert candidate.slack_notification_posted_at == nil
     assert Repo.aggregate(Contact, :count) == 0
     assert Repo.aggregate(Account, :count) == 0
     assert Repo.aggregate(Event, :count) == 0
@@ -80,31 +78,6 @@ defmodule Atlas.OutreachTest do
     assert {:ok, %{created: 0, updated: 1}} = Outreach.search_apollo(actor, opts)
     assert Repo.aggregate(Candidate, :count) == 1
     assert Repo.aggregate(Contact, :count) == 0
-
-    assert Repo.get!(Candidate, candidate.id).slack_notification_requested_at ==
-             candidate.slack_notification_requested_at
-  end
-
-  test "tracks candidates waiting for their sales notification" do
-    candidate =
-      %Candidate{slack_notification_requested_at: ~U[2026-07-20 12:00:00Z]}
-      |> Candidate.changeset(candidate_attrs())
-      |> Repo.insert!()
-
-    assert [pending] = Outreach.list_candidates_pending_notification()
-    assert pending.id == candidate.id
-
-    assert {:ok, notified} =
-             Outreach.mark_candidate_notified(candidate, %{
-               channel_id: "C_SALES",
-               thread_ts: "1717400000.000100"
-             })
-
-    assert %DateTime{} = notified.slack_notification_posted_at
-    assert Outreach.list_candidates_pending_notification() == []
-
-    assert %Activity{interface: "system"} =
-             Repo.get_by!(Activity, action: "outreach.candidate_notified", target_id: candidate.id)
   end
 
   test "enrolls an Atlas candidate explicitly and records its provenance" do

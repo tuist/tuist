@@ -21,19 +21,21 @@ To keep your threads on their current orbs and only build, test and run Apple-pl
 You need to be an administrator of both the Amp workspace and the Tuist account.
 
 1. In Amp, open your workspace's **Settings → Orbs**, click **Add Orb Provider**, and name it, for example `tuist`. Members pick the provider by this name. Copy the `aop_live_…` token; Amp shows it only once.
-2. In the provider's **Edit** dialog in Amp, add the **Orb types** you want to offer and pick the default. The Linux types match the sizes of [Amp's own orbs](https://ampcode.com/docs/orbs/sizes-and-costs):
+2. In the provider's **Edit** dialog in Amp, add the **Orb types** you want to offer and pick the default. The Linux types match the memory of [Amp's own orbs](https://ampcode.com/docs/orbs/sizes-and-costs). Each one is guaranteed a quarter of a vCPU per GiB of memory and bursts to 16 vCPUs when its machine has idle cores (see <.localized_link href="/guides/features/sandboxes#guaranteed-cpu">Guaranteed CPU</.localized_link>):
 
-   | Type | Platform | Shape |
-   | --- | --- | --- |
-   | `linux` | Linux | 4 vCPU, 8 GiB RAM, 10 GB workspace |
-   | `linux-tiny` | Linux | 1 vCPU, 2 GiB RAM, 10 GB workspace |
-   | `linux-small` | Linux | 2 vCPU, 4 GiB RAM, 10 GB workspace |
-   | `linux-medium` | Linux | 4 vCPU, 8 GiB RAM, 10 GB workspace (same as `linux`) |
-   | `linux-large` | Linux | 8 vCPU, 16 GiB RAM, 10 GB workspace |
-   | `linux-xxlarge` | Linux | 16 vCPU, 32 GiB RAM, 10 GB workspace |
-   | `linux-3xlarge` | Linux | 16 vCPU, 44 GiB RAM, 10 GB workspace |
-   | `macos` | macOS with the default Xcode | 8 vCPU, 8 GiB RAM, 10 GB workspace |
-   | `macos-xcode-<version>` | macOS with that Xcode, such as `macos-xcode-26-1-1` for Xcode 26.1.1 | 8 vCPU, 8 GiB RAM, 10 GB workspace |
+   | Type | Shape |
+   | --- | --- |
+   | `linux` | Linux, 8 GiB RAM, 2 guaranteed vCPUs |
+   | `linux-tiny` | Linux, 2 GiB RAM, 0.5 guaranteed vCPUs |
+   | `linux-small` | Linux, 4 GiB RAM, 1 guaranteed vCPU |
+   | `linux-medium` | Same as `linux` |
+   | `linux-large` | Linux, 16 GiB RAM, 4 guaranteed vCPUs |
+   | `linux-xxlarge` | Linux, 32 GiB RAM, 8 guaranteed vCPUs |
+   | `linux-3xlarge` | Linux, 44 GiB RAM, 11 guaranteed vCPUs |
+   | `macos` | macOS with the default Xcode, 8 vCPU, 8 GiB RAM |
+   | `macos-xcode-<version>` | macOS with that [Xcode](#xcode), 8 vCPU, 8 GiB RAM |
+
+   Linux types have a 10 GB workspace, macOS types 30 GB.
 
 3. In Tuist, open **Sandboxes** in your account's dashboard, click **Connect** on the Amp card, and paste the token.
 
@@ -86,7 +88,7 @@ Amp keeps editing code where it runs. Before each command on the Mac, the plugin
 | `tuist_mac_download` | Copies a file back, such as a built `.app` |
 | `tuist_mac_stop` | Deletes the thread's Mac |
 
-The Mac has no Tuist CLI of its own: after the first sync, Amp runs `mise install` in the repository root so the project's pinned Tuist is installed, and `tuist_mac_shell` puts mise's shims on `PATH`. Each command on the Mac is <.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">signed in to your account's cache</.localized_link> on its own with Tuist 4.218.0 or later; with 4.215.0 to 4.217.x, Amp runs `tuist auth login` first.
+The Mac has the Tuist CLI, and runs the project's own version when it pins one through mise; `tuist_mac_shell` puts mise's shims first on `PATH`. Each command on the Mac is <.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">signed in to your account's cache</.localized_link> on its own with Tuist 4.218.0 or later; with 4.215.0 to 4.217.x, Amp runs `tuist auth login` first.
 
 A thread uses one Mac. Amp passes `tuist_mac_start` the <.localized_link href="/guides/features/sandboxes#xcode">Xcode</.localized_link> the repository pins, such as in `.xcode-version`, or you can ask for one ("use Xcode 26.1.1"); without one, the Mac runs the default. The Mac keeps its Xcode, so switching means stopping it and starting another. Tuist pauses it when it's idle and the next command resumes it. Amp deletes it when the task is done; a Mac left behind is deleted after 14 days paused. Macs count toward your Tuist account like any other sandbox.
 

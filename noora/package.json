@@ -3,20 +3,31 @@
   "version": "0.81.4",
   "private": true,
   "type": "module",
+  "description": "Build tooling and JavaScript tests for the Noora Phoenix component library",
   "license": "MIT",
   "main": "index.js",
   "module": "./priv/static/noora.js",
   "exports": {
     ".": "./priv/static/noora.js",
     "./noora.css": "./priv/static/noora.css",
-    "./fonts.css": "./priv/static/fonts.css"
+    "./fonts.css": "./priv/static/fonts.css",
+    "./tokens.css": "./priv/static/tokens.css"
   },
+  "sideEffects": [
+    "./css/*.css",
+    "./js/index.js",
+    "./js/Spinner.js",
+    "./js/ButtonGroup.js",
+    "./priv/static/*.css",
+    "./priv/static/noora.js"
+  ],
   "scripts": {
     "build:css": "esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css",
     "build:fonts": "esbuild css/fonts.css --bundle --minify --sourcemap --outfile=./priv/static/fonts.css",
     "build:js": "esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js",
+    "build:tokens": "esbuild css/tokens.css --bundle --minify --sourcemap --outfile=./priv/static/tokens.css",
     "test": "vitest",
-    "build": "aube run build:js && aube run build:css && aube run build:fonts"
+    "build": "aube run build:js && aube run build:css && aube run build:fonts && aube run build:tokens"
   },
   "devDependencies": {
     "@zag-js/avatar": "^1.8.2",

@@ -17,7 +17,7 @@ func TestCheckHostSerialAcceptsTheExpectedHost(t *testing.T) {
 	}
 }
 
-// The case found racking the first BER1 tray: the box still holding an address
+// The case found racking the first alder tray: the box still holding an address
 // on an old lease answered for its neighbour's inventory record.
 func TestCheckHostSerialRefusesAnotherHost(t *testing.T) {
 	err := checkHostSerial("JC332QMX73", ioregWithSerial("K9YLWQHQM2"))

@@ -160,7 +160,7 @@ defmodule TuistWeb.Components.BuildMetadataTest do
     environment =
       render_component(&BuildMetadata.environment_metadata/1,
         values: values,
-        fields: [{"Once version", "<script>version</script>"}]
+        fields: [{"Struo version", "<script>version</script>"}]
       )
 
     custom = render_component(&BuildMetadata.build_metadata/1, values: values)

@@ -483,6 +483,243 @@ async fn test_default_execution_remains_inline_and_cancellable() {
     .expect("default execution must not leave an owned child holding the lock");
 }
 
+struct RetainedRecoveryHandler {
+    source: std::sync::atomic::AtomicUsize,
+    sink: std::sync::atomic::AtomicUsize,
+    captured: tokio::sync::Notify,
+    release: tokio::sync::Notify,
+    first: AtomicBool,
+}
+
+#[async_trait::async_trait]
+impl crate::batching_mode::frontend_client::GrpcQueryHandlerWithBoxedError
+    for RetainedRecoveryHandler
+{
+    async fn do_query(
+        &self,
+        _query: api::v1::greptime_request::Request,
+        _ctx: QueryContextRef,
+    ) -> std::result::Result<Output, BoxedError> {
+        // Model the frontend's materialized snapshot and sink upsert. Gate the
+        // first write so a concurrent arrival and live evaluation can compete.
+        let snapshot = self.source.load(Ordering::SeqCst);
+        if self.first.swap(false, Ordering::SeqCst) {
+            self.captured.notify_one();
+            self.release.notified().await;
+        }
+        self.sink.store(snapshot, Ordering::SeqCst);
+        Ok(Output::new_with_affected_rows(1))
+    }
+}
+
+#[tokio::test]
+async fn test_retained_recovery_preserves_concurrent_arrivals() {
+    let query = "SELECT number, date_bin(INTERVAL '5 second', ts) AS time_window \
+                 FROM numbers_with_ts GROUP BY time_window, number";
+    let TestTaskParts {
+        mut task,
+        query_engine,
+        ..
+    } = new_time_window_test_task_with_query(query).await;
+    Arc::get_mut(&mut task.config).unwrap().expire_after = Some(60);
+    configure_source_ttl(&query_engine, Some(TimeToLive::Forever)).await;
+    register_twe_sink(&query_engine, "missing_sink", 9201);
+    let handler = Arc::new(RetainedRecoveryHandler {
+        source: std::sync::atomic::AtomicUsize::new(1),
+        sink: std::sync::atomic::AtomicUsize::new(0),
+        captured: tokio::sync::Notify::new(),
+        release: tokio::sync::Notify::new(),
+        first: AtomicBool::new(true),
+    });
+    let grpc_handler: Arc<
+        dyn crate::batching_mode::frontend_client::GrpcQueryHandlerWithBoxedError,
+    > = handler.clone();
+    let frontend = Arc::new(FrontendClient::from_grpc_handler(
+        Arc::downgrade(&grpc_handler),
+        QueryOptions::default(),
+    ));
+    // No dirty marker exists: the source row arrived while the flow was absent.
+    let repair_task = task.clone();
+    let repair_engine = query_engine.clone();
+    let repair_frontend = frontend.clone();
+    let repair = tokio::spawn(async move {
+        repair_task
+            .recompute_retained_serialized(&repair_engine, &repair_frontend)
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(5), handler.captured.notified())
+        .await
+        .unwrap();
+    handler.source.store(2, Ordering::SeqCst);
+    task.mark_all_windows_as_dirty().unwrap();
+    let live = task.execute_once_serialized(&query_engine, &frontend, None);
+    tokio::pin!(live);
+    let premature_live = futures::poll!(&mut live);
+    handler.release.notify_one();
+    repair.await.unwrap().unwrap();
+    // If repair bypassed the lock, live would already have written 2 before
+    // the held repair wrote 1, and consumed the only dirty marker.
+    assert!(
+        premature_live.is_pending(),
+        "live flow raced the held repair snapshot"
+    );
+    assert!(
+        live.await.unwrap().is_some(),
+        "concurrent arrival must remain dirty"
+    );
+    assert_eq!(handler.sink.load(Ordering::SeqCst), 2);
+    // A retry rebuilds from the source, rather than adding to the sink.
+    task.recompute_retained_serialized(&query_engine, &frontend)
+        .await
+        .unwrap();
+    assert_eq!(handler.sink.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn test_retained_recovery_excludes_preceding_fractional_dirty_window() {
+    let query = "SELECT number, date_bin(INTERVAL '1 hour', ts, \
+                 TIMESTAMP '1970-01-01 00:00:00.256') AS time_window \
+                 FROM numbers_with_ts GROUP BY time_window, number";
+    let TestTaskParts {
+        mut task,
+        query_engine,
+        ..
+    } = new_time_window_test_task_with_query(query).await;
+    let ctx = task.query_context_snapshot();
+    let plan = sql_to_df_plan(ctx.clone(), query_engine.clone(), query, true)
+        .await
+        .unwrap();
+    let (column, expr, _, schema) = find_time_window_expr(
+        &plan,
+        query_engine.engine_state().catalog_manager().clone(),
+        ctx,
+    )
+    .await
+    .unwrap();
+    let config = Arc::get_mut(&mut task.config).unwrap();
+    config.expire_after = Some(60);
+    config.time_window_expr = Some(
+        TimeWindowExpr::from_expr(
+            &expr.unwrap(),
+            &column,
+            &schema,
+            &query_engine.engine_state().session_state(),
+        )
+        .unwrap(),
+    );
+    // At 01:01:00.300 the retained hour starts at 01:00:00.256.
+    // Rounding the cutoff to 01:00:00 instead admits the previous hour.
+    task.evaluation_time = Some(Timestamp::new_millisecond(3_660_300));
+    task.state.write().unwrap().dirty_time_windows.add_window(
+        Timestamp::new_millisecond(256),
+        Some(Timestamp::new_millisecond(3_600_256)),
+    );
+    register_twe_sink(&query_engine, "missing_sink", 9202);
+    let budget = task.mark_all_windows_as_dirty().unwrap();
+    assert_eq!(budget, Some(1));
+    let plan = task
+        .gen_insert_plan_unlocked(&query_engine, budget)
+        .await
+        .unwrap()
+        .unwrap();
+    let DirtyRestore::Scoped(filter) = plan.dirty_restore else {
+        panic!("retained recovery must remain a scoped base snapshot");
+    };
+    assert_eq!(
+        filter.time_ranges,
+        vec![(
+            Timestamp::new_millisecond(3_600_256),
+            Timestamp::new_millisecond(7_200_256),
+        )],
+        "the previous dirty hour must not consume the retained hour's budget"
+    );
+}
+
+#[tokio::test]
+async fn test_unrepresentable_window_end_never_falls_back_to_unfiltered() {
+    let query = "SELECT number, date_bin(INTERVAL '100000 days', \
+                 arrow_cast(ts, 'Timestamp(Nanosecond, None)'), \
+                 TIMESTAMP '2025-01-01T00:00:00Z') AS time_window \
+                 FROM numbers_with_ts GROUP BY time_window, number";
+    let TestTaskParts {
+        mut task,
+        query_engine,
+        ..
+    } = new_time_window_test_task_with_query(query).await;
+    let ctx = task.query_context_snapshot();
+    let plan = sql_to_df_plan(ctx.clone(), query_engine.clone(), query, true)
+        .await
+        .unwrap();
+    let (column, expr, _, schema) = find_time_window_expr(
+        &plan,
+        query_engine.engine_state().catalog_manager().clone(),
+        ctx,
+    )
+    .await
+    .unwrap();
+    let config = Arc::get_mut(&mut task.config).unwrap();
+    config.expire_after = Some(86_400);
+    config.time_window_expr = Some(
+        TimeWindowExpr::from_expr(
+            &expr.unwrap(),
+            &column,
+            &schema,
+            &query_engine.engine_state().session_state(),
+        )
+        .unwrap(),
+    );
+    task.evaluation_time = Some(Timestamp::new_second(1_767_225_600)); // 2026-01-01
+    let lower = Timestamp::new_nanosecond(1_735_689_600_000_000_000);
+    assert_eq!(
+        task.config
+            .time_window_expr
+            .as_ref()
+            .unwrap()
+            .eval(
+                task.evaluation_time
+                    .unwrap()
+                    .sub_duration(Duration::from_secs(86_400))
+                    .unwrap()
+            )
+            .unwrap(),
+        (Some(lower), None),
+    );
+    task.state
+        .write()
+        .unwrap()
+        .dirty_time_windows
+        .add_window(lower, None);
+    let sink_schema = Arc::new(Schema::new(vec![
+        ColumnSchema::new("number", CDT::uint32_datatype(), false),
+        ColumnSchema::new("time_window", CDT::timestamp_nanosecond_datatype(), false)
+            .with_time_index(true),
+    ]));
+    // Ordinary, retained-budget and forced-snapshot planning must all fail
+    // without consuming dirty work rather than silently scanning old history.
+    for (budget, force_full_snapshot) in [(None, false), (Some(1), false), (Some(1), true)] {
+        let result = task
+            .gen_query_with_time_window_with_values(
+                query_engine.clone(),
+                &sink_schema,
+                &[],
+                false,
+                budget,
+                &BTreeMap::new(),
+                force_full_snapshot,
+            )
+            .await;
+        assert!(
+            result.is_err(),
+            "an unrepresentable upper bound must not become an unfiltered plan"
+        );
+        assert_eq!(
+            task.state.read().unwrap().dirty_time_windows.len(),
+            1,
+            "failed planning must preserve pending dirty work"
+        );
+    }
+}
+
 async fn new_test_task_and_plan_with_missing_sink() -> (BatchingTask, LogicalPlan) {
     new_test_task_engine_and_plan_with_query(
         "SELECT number, ts FROM numbers_with_ts",
@@ -920,6 +1157,65 @@ async fn configure_source_capability(
 }
 
 #[tokio::test]
+async fn test_retained_recovery_validates_aligned_source_retention_before_writing() {
+    let mut outcomes = Vec::new();
+    for ttl in [
+        Some(TimeToLive::Duration(Duration::from_secs(30))),
+        Some(TimeToLive::Duration(Duration::from_secs(61))),
+        Some(TimeToLive::Duration(Duration::from_secs(64))),
+        Some(TimeToLive::Forever),
+        None,
+    ] {
+        let TestTaskParts {
+            mut task,
+            query_engine,
+            ..
+        } = new_time_window_test_task_with_query(
+            "SELECT number, date_bin(INTERVAL '5 second', ts) AS time_window \
+                 FROM numbers_with_ts GROUP BY time_window, number",
+        )
+        .await;
+        Arc::get_mut(&mut task.config).unwrap().expire_after = Some(60);
+        // The retained lower bound is 63.4s old after alignment, not 60s.
+        task.evaluation_time = Some(Timestamp::new_millisecond(123_400));
+        configure_source_ttl(&query_engine, ttl).await;
+        register_twe_sink(&query_engine, "missing_sink", 9203);
+        let handler = Arc::new(RetainedRecoveryHandler {
+            source: std::sync::atomic::AtomicUsize::new(1),
+            sink: std::sync::atomic::AtomicUsize::new(99),
+            captured: tokio::sync::Notify::new(),
+            release: tokio::sync::Notify::new(),
+            first: AtomicBool::new(false),
+        });
+        let grpc_handler: Arc<
+            dyn crate::batching_mode::frontend_client::GrpcQueryHandlerWithBoxedError,
+        > = handler.clone();
+        let frontend = Arc::new(FrontendClient::from_grpc_handler(
+            Arc::downgrade(&grpc_handler),
+            QueryOptions::default(),
+        ));
+        let result = task
+            .recompute_retained_serialized(&query_engine, &frontend)
+            .await;
+        outcomes.push((
+            result.is_ok(),
+            handler.sink.load(Ordering::SeqCst),
+            task.state.read().unwrap().dirty_time_windows.is_empty(),
+        ));
+    }
+    assert_eq!(
+        outcomes,
+        vec![
+            (false, 99, true), // Source expires before the nominal retention range.
+            (false, 99, true), // Nominal range fits, but the leading aligned bin does not.
+            (true, 1, true),
+            (true, 1, true),
+            (false, 99, true), // Unknown inherited TTL must fail closed.
+        ]
+    );
+}
+
+#[tokio::test]
 async fn test_validate_recovery_retention_explicit_source_ttls() {
     struct Case {
         name: &'static str,
@@ -1018,6 +1314,33 @@ async fn test_validate_recovery_retention_explicit_source_ttls() {
             case.should_pass,
             "{}",
             case.name
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_validate_recovery_retention_long_finite_ttl() {
+    let TestTaskParts {
+        mut task,
+        query_engine,
+        ..
+    } = new_test_task_engine_and_plan_with_query("SELECT number, ts FROM numbers_with_ts", "sink")
+        .await;
+    Arc::get_mut(&mut task.config).unwrap().expire_after = Some(60);
+    configure_source_ttl(
+        &query_engine,
+        Some(TimeToLive::Duration(Duration::from_secs(10_000_000_000))),
+    )
+    .await;
+    let now = Timestamp::current_time(common_time::timestamp::TimeUnit::Nanosecond);
+    let oldest = now.sub_duration(Duration::from_secs(65)).unwrap();
+    for clock in [None, Some(now)] {
+        task.evaluation_time = clock;
+        assert!(
+            task.validate_recovery_retention(Some(oldest), &[])
+                .await
+                .is_ok(),
+            "long finite TTL must cover a small retained range with clock {clock:?}"
         );
     }
 }

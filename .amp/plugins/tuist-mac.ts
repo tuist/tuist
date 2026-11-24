@@ -32,9 +32,10 @@ export const description =
 
 const DOCS = 'https://tuist.dev/en/docs/guides/features/sandboxes/amp#remote-mac'
 const CLI = process.env.TUIST_MAC_CLI ?? 'tuist'
-// mise's shims first, so `tuist` and other tools the repository pins resolve to its versions.
+// mise's shims first, so `tuist` and other tools the repository pins resolve to its versions; the
+// image's own Tuist last, for a repository that pins none.
 const PATH_PREFIX =
-	'export PATH="$HOME/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH" PAGER=cat GIT_PAGER=cat\n'
+	'export PATH="$HOME/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH:/opt/tuist/cli/bin" PAGER=cat GIT_PAGER=cat\n'
 const MAX_OUTPUT = 30_000
 
 const SKILL = `---
@@ -55,7 +56,7 @@ These tools give this thread a Tuist macOS sandbox: a Mac with Xcode, iOS simula
 ## Workflow
 
 1. \`tuist_mac_start\` once per thread. It creates the Mac (or reuses the thread's), mirrors the worktree and reports the macOS and Xcode versions.
-2. Then \`tuist_mac_shell\` with \`mise install\`, in the repository root. The Mac has no Tuist CLI of its own; this installs the version the repository pins (and its other mise tools), and \`tuist_mac_shell\` puts mise's shims on \`PATH\`. Without a mise config, install the repository's pinned Tuist another way rather than the latest. Each command on the Mac is signed in to the account's Tuist cache: Tuist 4.218.0 or later does it on its own (every command gets \`TUIST_OIDC_TOKEN\`, \`TUIST_URL\` and, where available, the in-rack \`TUIST_CACHE_ENDPOINT\`); with 4.215.0 to 4.217.x, start the command with \`tuist auth login &&\`. Don't pass Tuist credentials to the Mac yourself.
+2. The Mac has \`tuist\`: the version the repository pins through mise (installed on first use), else the image's own. Read its guide once with \`tuist_mac_shell\` and \`cat /opt/tuist/agent-guide.md\`: its Xcode and simulators, and what a ready snapshot holds. When \`tuist_mac_start\` says the Mac has no Tuist CLI (an older image), run \`mise install\` in the repository root first. Each command on the Mac is signed in to the account's Tuist cache: Tuist 4.218.0 or later does it on its own (every command gets \`TUIST_OIDC_TOKEN\`, \`TUIST_URL\` and, where available, the in-rack \`TUIST_CACHE_ENDPOINT\`); with 4.215.0 to 4.217.x, start the command with \`tuist auth login &&\`. Don't pass Tuist credentials to the Mac yourself.
 3. \`tuist_mac_shell\` for every command. It runs bash in the repository root on the Mac (or \`cwd\`, relative to it) and streams output however long the command takes. Sync is one way: never edit tracked files on the Mac, because the next sync overwrites them. Ignored files the Mac creates, such as \`DerivedData\`, survive, so builds stay incremental.
 4. \`tuist_mac_screenshot\` returns the booted simulator (or \`target: "screen"\`) as an image.
 5. \`tuist_mac_download\` copies a file or directory, such as a built \`.app\` or an \`.xcresult\`, back here.
@@ -231,11 +232,14 @@ export default async function (amp: PluginAPI) {
 				try {
 					const booted = Date.now()
 					const synced = await sync(record, ctx.signal)
-					const info = await run(record, ['exec', record.sandboxId, '--', `${PATH_PREFIX}sw_vers -productVersion; xcodebuild -version | head -1`], ctx.signal)
+					const info = await run(record, ['exec', record.sandboxId, '--', `${PATH_PREFIX}sw_vers -productVersion; xcodebuild -version | head -1; [ -f /opt/tuist/agent-guide.md ] && echo tuist-agent-guide || true`], ctx.signal)
+					const guide = info.stdout.includes('tuist-agent-guide')
 					return (
 						`Mac ready (sandbox ${created.id} on ${created.node_name ?? 'a Tuist host'}): booted in ${Math.round((booted - started) / 1000)}s, ` +
-						`synced ${synced} in ${Math.round((Date.now() - booted) / 1000)}s.\n${info.stdout.trim()}\nRepository: ${record.root}\n` +
-						'The Mac has no Tuist CLI: run `mise install` with tuist_mac_shell next to install the versions the repository pins.'
+						`synced ${synced} in ${Math.round((Date.now() - booted) / 1000)}s.\n${info.stdout.replace('tuist-agent-guide', '').trim()}\nRepository: ${record.root}\n` +
+						(guide
+							? 'The Mac has `tuist` (the repository\'s pinned version, else the image\'s). Read /opt/tuist/agent-guide.md with tuist_mac_shell once.'
+							: 'The Mac has no Tuist CLI: run `mise install` with tuist_mac_shell next to install the versions the repository pins.')
 					)
 				} catch (error) {
 					await stop(thread).catch(() => {})

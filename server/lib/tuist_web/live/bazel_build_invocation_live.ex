@@ -18,4 +18,6 @@ defmodule TuistWeb.BazelBuildInvocationLive do
   defdelegate render(assigns), to: BazelInvocationLive
   defdelegate handle_params(params, uri, socket), to: BazelInvocationLive
   defdelegate handle_event(event, params, socket), to: BazelInvocationLive
+  defdelegate handle_info(message, socket), to: BazelInvocationLive
+  defdelegate handle_async(name, result, socket), to: BazelInvocationLive
 end

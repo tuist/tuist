@@ -167,7 +167,7 @@ defmodule Condukt.Session do
 
     with :ok <- validate_llm_request_options(agent_opts[:llm_request_options]),
          {:ok, hooks} <- Hooks.normalize(agent_opts[:hooks]),
-         snapshot = load_snapshot(agent_opts[:session_store], agent_opts),
+         {:ok, snapshot} <- load_snapshot(agent_opts[:session_store], agent_opts),
          {:ok, durable} <- load_durable(agent_opts, snapshot),
          model = restore_value(agent_opts, :model, snapshot && snapshot.model),
          {:ok, compaction} <- Compaction.new(agent_opts[:compactor], agent_opts[:background_compaction], model) do
@@ -2679,9 +2679,34 @@ defmodule Condukt.Session do
   defp journal_input(_state, []), do: :ok
   defp journal_input(state, steering), do: append_to_journal(state, [{:input, steering}])
 
-  defp load_snapshot(nil, _opts), do: nil
+  # A store that keeps a journal is the session's durable record, so one that
+  # cannot be read must not start the session over: the next save would
+  # replace the stored history with an empty one. A snapshot-only store is a
+  # cache, and a session without it starts fresh.
+  defp load_snapshot(nil, _opts), do: {:ok, nil}
 
-  defp load_snapshot(session_store, opts), do: read_snapshot(session_store, session_store_opts(opts))
+  defp load_snapshot(session_store, opts) do
+    store_opts = session_store_opts(opts)
+
+    if SessionStore.journal?(session_store) do
+      case SessionStore.load(session_store, store_opts) do
+        {:ok, loaded} -> migrate_durable_snapshot(loaded)
+        :not_found -> {:ok, nil}
+        {:error, reason} -> {:error, {:snapshot_load_failed, reason}}
+      end
+    else
+      {:ok, read_snapshot(session_store, store_opts)}
+    end
+  end
+
+  # A snapshot from a newer Condukt, as after a rollback, is refused for the
+  # same reason: starting without it would save over it.
+  defp migrate_durable_snapshot(loaded) do
+    case Snapshot.migrate(loaded) do
+      {:ok, snapshot} -> {:ok, snapshot}
+      {:error, reason} -> {:error, {:snapshot_load_failed, reason}}
+    end
+  end
 
   defp read_snapshot(session_store, store_opts) do
     case SessionStore.load(session_store, store_opts) do

@@ -94,7 +94,7 @@ currently has one host; two process replicas do not provide host redundancy.
 
 Runner caches use the same account disk sizing and plan memory/CPU profiles as
 public managed regions. New instances and cold returns start with the account's
-sized claim (or the plan default: 8Gi for Air/Pro, 16Gi for Enterprise). The
+sized claim (or the plan default: 6Gi for Air/Pro, 16Gi for Enterprise). The
 storage-sizing worker includes runner-region occupancy and eviction telemetry
 in the existing account-wide decision, so a runner region can drive growth and
 must agree with the other measured regions before a shrink.

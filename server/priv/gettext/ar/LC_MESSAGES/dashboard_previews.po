@@ -31,7 +31,7 @@ msgstr "الفرع"
 #: lib/tuist_web/live/previews_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "بُني في"
+msgstr "تاريخ البناء"
 
 #: lib/tuist_web/live/preview_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -62,7 +62,7 @@ msgstr "التفاصيل"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "ألم تقم بتثبيت تطبيق Tuist؟"
+msgstr "أليس تطبيق Tuist مثبتًا لديك؟"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:110
@@ -78,7 +78,7 @@ msgstr "تثبيت التطبيق"
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "أحدث معاينات التطبيق"
+msgstr "آخر معاينات التطبيقات"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -114,7 +114,7 @@ msgstr "المعاينات"
 #: lib/tuist_web/live/preview_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "QR code"
-msgstr "رمز الاستجابة السريعة"
+msgstr "رمز الاستجابة السريعة (QR)"
 
 #: lib/tuist_web/live/preview_live.html.heex:164
 #, elixir-autogen, elixir-format
@@ -140,12 +140,12 @@ msgstr "شغّل الأمر التالي لمشاركة معاينة التطب�
 #: lib/tuist_web/live/preview_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Scan QR code"
-msgstr "امسح رمز الاستجابة السريعة"
+msgstr "امسح رمز الاستجابة السريعة (QR)"
 
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "امسح رمز الاستجابة السريعة هذا على جهاز iOS الخاص بك لتثبيت هذا الإصدار من التطبيق"
+msgstr "امسح رمز الاستجابة السريعة (QR) هذا على جهاز iOS لديك لتثبيت هذا الإصدار من التطبيق"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -160,17 +160,17 @@ msgstr "المنصات المدعومة"
 #: lib/tuist_web/live/preview_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "هذا العرض التجريبي مدعوم فقط على المحاكيات ولا يمكن تثبيته على جهاز فعلي"
+msgstr "هذه المعاينة مدعومة فقط على المحاكيات ولا يمكن تثبيتها على جهاز فعلي"
 
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "هذا العرض التجريبي غير متاح للتثبيت على الجهاز"
+msgstr "هذه المعاينة غير متاحة للتثبيت على الجهاز"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "لتشغيل المعاينة مباشرة من المتصفح، قم بتنزيل وتثبيت تطبيق Tuist لنظام macOS"
+msgstr "لتشغيل المعاينة مباشرةً من المتصفح، نزّل وثبّت تطبيق Tuist لنظام macOS"
 
 #: lib/tuist_web/live/preview_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -202,7 +202,7 @@ msgstr "اسم الحزمة"
 #: lib/tuist_web/live/preview_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "امسح رمز الاستجابة السريعة هذا على جهاز أندرويد لديك لتنزيل وتثبيت هذا الإصدار من التطبيق"
+msgstr "امسح رمز الاستجابة السريعة هذا على جهاز Android الخاص بك لتنزيل وتثبيت هذا الإصدار من التطبيق"
 
 #: lib/tuist_web/live/preview_live.html.heex:258
 #, elixir-autogen, elixir-format
@@ -232,7 +232,7 @@ msgstr "ملاحظات الإصدار"
 #: lib/tuist_web/live/preview_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "CLI"
-msgstr "واجهة سطر الأوامر (CLI)"
+msgstr "واجهة سطر الأوامر"
 
 #: lib/tuist_web/live/preview_live.html.heex:62
 #, elixir-autogen, elixir-format
@@ -242,12 +242,12 @@ msgstr "معاينة عبر سطر الأوامر"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "تعمل معاينات سطح المكتب بصفتك مستخدماً، مع إمكانية الوصول إلى ملفاتك وبيئتك. وهي غير معزولة."
+msgstr "تعمل معاينات سطح المكتب بصلاحيات المستخدم الخاص بك، مع الوصول إلى ملفاتك وبيئتك. وهي غير معزولة."
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Only run previews you trust"
-msgstr "لا تشغّل إلا المعاينات التي تثق بها"
+msgstr "شغّل فقط المعاينات التي تثق بها"
 
 #: lib/tuist_web/live/preview_live.html.heex:214
 #, elixir-autogen, elixir-format

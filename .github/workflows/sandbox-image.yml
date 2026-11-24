@@ -12,6 +12,8 @@ on:
       - infra/sandbox-image/**
       - infra/amp-orbs/**
       - infra/claude-code-runners/**
+      # Its Claude Code pin is checked by sbx-worker's claude_code_pins_test.go.
+      - infra/tart-kubelet/internal/macosandbox/tools.go
       - infra/helm/tuist/**
       - .github/workflows/sandbox-image.yml
       - .github/scripts/sandbox-image-*.sh
@@ -43,8 +45,11 @@ env:
   GATEWAY_IMAGE_NAME: tuist/tuist-remote-execution
 
 jobs:
+  # PR validation only. The cascade publishes source that already passed it
+  # on its PR, so publication does not wait on it; the build job still smoke
+  # tests a new guest before pushing it.
   test:
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
     runs-on: tuist-linux
     timeout-minutes: 45
     steps:
@@ -86,30 +91,11 @@ jobs:
           push: false
           load: true
           tags: sandbox-guest:test
-      - name: Exercise guest recording and image tools
-        run: |
-          docker run --rm --read-only --user user --tmpfs /tmp:rw,size=64m \
-            --entrypoint sh -i sandbox-guest:test -eu <<'EOF'
-          work=$(mktemp -d)
-          trap 'rm -rf "$work"' EXIT
-          ffmpeg -v error -f lavfi -i color=c=blue:s=16x16:d=0.2 \
-            -c:v libx264 -pix_fmt yuv420p "$work/recording.mp4"
-          ffmpeg -v error -i "$work/recording.mp4" -frames:v 1 "$work/frame.png"
-          convert "$work/frame.png" -resize 8x8 "$work/thumbnail.png"
-          test "$(identify -format '%wx%h' "$work/thumbnail.png")" = 8x8
-          EOF
-      - name: Check agent Tuist access configuration
-        run: |
-          # Not --read-only: the CLI writes under the passwd home of `user`,
-          # whatever HOME says, and that home is writable in the guest.
-          docker run --rm --user user --entrypoint sh -i sandbox-guest:test -eu <<'EOF'
-          tuist version
-          test -O /home/user/.claude/skills/verifying-work-with-tuist/SKILL.md
-          EOF
+      - name: Exercise guest
+        run: bash .github/scripts/sandbox-image-check-guest.sh sandbox-guest:test
       # The template builds without a layer cache: importing and exporting its
       # multi-GiB rootfs layers takes longer than rebuilding them.
       - name: Validate template build
-        if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
         with:
           context: infra/sandbox-image
@@ -117,7 +103,6 @@ jobs:
           platforms: linux/amd64
           push: false
       - name: Validate execution gateway build
-        if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
         with:
           context: infra/sandbox-image
@@ -157,7 +142,6 @@ jobs:
 
   build:
     if: github.event_name != 'pull_request'
-    needs: test
     permissions:
       contents: read
       packages: write
@@ -196,6 +180,22 @@ jobs:
           set -euo pipefail
           exists=$(bash .github/scripts/sandbox-image-exists.sh "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG")
           echo "exists=$exists" >> "$GITHUB_OUTPUT"
+      # Validate before publishing. The template build below reuses these
+      # guest layers from this builder.
+      - name: Build guest for validation
+        if: steps.existing.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          target: guest
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: sandbox-guest:test
+      - name: Exercise guest
+        if: steps.existing.outputs.exists != 'true'
+        run: bash .github/scripts/sandbox-image-check-guest.sh sandbox-guest:test
       - uses: docker/build-push-action@v6
         if: steps.existing.outputs.exists != 'true'
         with:

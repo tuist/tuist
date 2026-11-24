@@ -13,7 +13,7 @@ defmodule Tuist.Docs.HTML do
                    |> String.trim()
 
   @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
-  @code_window_content_regex ~r/(<div data-part="code"><code>)(.*?)(<\/code>\s*<\/div>)/s
+  @code_window_content_regex ~r/(<div data-part="code"><code class="lumis">)(.*?)(<\/code>\s*<\/div>)/s
   @whitespace_between_tags_regex ~r/>(\s+)</
   @whitespace_placeholder_prefix "__TUIST_DOCS_HTML_WHITESPACE_"
   @whitespace_placeholder_regex ~r/__TUIST_DOCS_HTML_WHITESPACE_([0-9A-F]+)__/
@@ -23,10 +23,10 @@ defmodule Tuist.Docs.HTML do
   <div class="code-window">\
   <div data-part="bar">\
   <div data-part="language"><%= language %></div>\
-  <div data-part="copy" class="noora-neutral-button" data-size="large"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></div>\
+  <div data-part="copy" class="noora-ghost-button" data-variant="secondary" data-size="large"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></div>\
   </div>\
   <template data-part="copy-source"><%= copy_source %></template>\
-  <div data-part="code"><code><%= code %></code>\
+  <div data-part="code"><code class="lumis"><%= code %></code>\
   </div>\
   </div>\
   """

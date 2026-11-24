@@ -76,7 +76,7 @@ A commit's coverage often comes from several jobs: one per scheme, per shard, or
 tuist coverage complete
 ```
 
-The command reads the commit from the checkout or from your CI provider; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
+The command reads the commit from the checkout's `HEAD`, the commit your tests ran on; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
 
 ### Run the whole suite on your default branch {#full-runs}
 
@@ -87,7 +87,7 @@ The command reads the commit from the checkout or from your CI provider; pass `-
 > tuist test --no-selective-testing
 > ```
 >
-> Once on every merge is ideal. Daily or weekly can be enough for a repository with few changes. The recorded coverage expires after 90 days, so run it more often than that.
+> Once on every merge is ideal. Daily or weekly can be enough for a repository with few changes. The recorded coverage expires after 31 days, so run it more often than that.
 
 Carried coverage relies on full runs. They refresh every target's recorded coverage before it expires, and they give Tuist a recent state of the files a selective run doesn't build. The more a repository changes between full runs, the more often a selective run finds a file that changed since and its commit's coverage is **Incomplete**.
 
@@ -123,7 +123,7 @@ Tuist's upload resolves the mapped paths, but Xcode's coverage report and `xccov
 
 ### Skipped tests {#skipped-tests}
 
-Selective testing skips a test target when an earlier passing run already tested it with the same hash. The hash covers the target's sources, its tests and all its dependencies, so the same hash means the same tests over the same code. Tuist reuses the [target-level coverage](#target-level-coverage) that earlier run recorded for the target. If it recorded none, for example because coverage was off back then or the run is older than 90 days, there's nothing to carry and the commit is **Incomplete**.
+Selective testing skips a test target when an earlier passing run already tested it with the same hash. The hash covers the target's sources, its tests and all its dependencies, so the same hash means the same tests over the same code. Tuist reuses the [target-level coverage](#target-level-coverage) that earlier run recorded for the target. If it recorded none, for example because coverage was off back then or the run is older than 31 days, there's nothing to carry and the commit is **Incomplete**.
 
 A selective run also doesn't build every file. For the files it didn't compile, Tuist takes the lines from the nearest earlier full run, as long as the files haven't changed since. That's why the [full runs](#full-runs) on your default branch matter.
 
@@ -180,6 +180,12 @@ The `tuist coverage` commands read what the dashboard shows. Without `--commit`,
 tuist coverage show                          # the project's coverage and its targets
 tuist coverage files --commit <sha>          # files, least covered first
 tuist coverage file Sources/Cart.swift --lines  # a file's functions, with per-line counts
+tuist coverage targets                       # targets, least covered first, then those taken from the binary cache without coverage
+tuist coverage commits --branch main         # a branch's commits with their status and change, newest first
+tuist coverage runs --commit <sha>           # the test runs behind a commit, marked full, partial or discarded
+tuist coverage branches                      # the branches with coverage
 ```
+
+A test run's own coverage shows in `tuist test show <test-run-id>`.
 
 All of them accept `--json` for scripting. The same data is available to agents through the <.localized_link href="/guides/features/agentic-coding/mcp">Model Context Protocol server</.localized_link>.

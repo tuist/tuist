@@ -10,6 +10,22 @@ defmodule Tuist.Docs.Redirects do
 
   @docs_path_regex ~r{^/(?<locale>[^/]+)/docs(?<rest>/.*)?$}
 
+  # Only English source pages moved; published translations keep their slugs.
+  @struo_redirects Map.new(
+                     for representation <- ~w(docs docs-markdown),
+                         {from, to} <- [
+                           {"get-started/once-project", "get-started/struo-project"},
+                           {"features/cache/once", "features/cache/struo"},
+                           {"features/build-insights/once", "features/build-insights/struo"},
+                           {"features/test-insights/once", "features/test-insights/struo"},
+                           {"features/test-insights/flaky-tests/once", "features/test-insights/flaky-tests/struo"},
+                           {"features/test-sharding/once", "features/test-sharding/struo"},
+                           {"features/previews/once", "features/previews/struo"},
+                           {"features/runners/once", "features/runners/struo"}
+                         ],
+                         do: {"/en/#{representation}/guides/#{from}", "/en/#{representation}/guides/#{to}"}
+                   )
+
   @rules [
     # Release navigation
     {:exact, "/cli/release-channels", "/cli/release/channels"},
@@ -194,6 +210,13 @@ defmodule Tuist.Docs.Redirects do
   def resolve(request_path, query_string \\ "")
 
   def resolve(request_path, query_string) when is_binary(request_path) do
+    case Map.fetch(@struo_redirects, request_path) do
+      {:ok, destination} -> {:ok, append_query_string(destination, query_string)}
+      :error -> resolve_legacy(request_path, query_string)
+    end
+  end
+
+  defp resolve_legacy(request_path, query_string) do
     case Regex.named_captures(@docs_path_regex, request_path) do
       %{"locale" => locale, "rest" => rest} ->
         rest = rest || ""

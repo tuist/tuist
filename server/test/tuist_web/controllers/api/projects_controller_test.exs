@@ -223,22 +223,23 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response["token"] == ""
     end
 
-    test "creates a Once project", %{conn: conn, user: user} do
-      conn = Authentication.put_current_user(conn, user)
+    test "creates Struo and legacy Once projects with the same build-system identity", %{conn: conn, user: user} do
+      for build_system <- ["struo", "once"] do
+        response =
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects",
+            full_handle: "#{user.account.name}/my-#{build_system}-project",
+            build_system: build_system
+          )
+          |> json_response(:ok)
 
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects",
-          full_handle: "#{user.account.name}/my-once-project",
-          build_system: "once"
-        )
+        refute Map.has_key?(response, "build_system")
 
-      response = json_response(conn, :ok)
-      refute Map.has_key?(response, "build_system")
-
-      assert {:ok, %{build_system: :once}} =
-               Projects.get_project_by_slug("#{user.account.name}/my-once-project")
+        assert {:ok, %{build_system: :once}} =
+                 Projects.get_project_by_slug("#{user.account.name}/my-#{build_system}-project")
+      end
     end
 
     test "creates a Mix project", %{conn: conn, user: user} do

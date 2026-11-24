@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "f03317b799c5e7cdfe62235c9d87982abc42c074fee94e55e377d1ac35326e2b",
+  "hash": "6c1f0cf54e91004463004e5ae1925ab6cc0f032c13ee985632e766b9e09b7f04",
   "hash_tree": {
     "root": {
       "children": [
@@ -97,7 +97,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -116,7 +116,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -145,11 +145,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -226,21 +226,21 @@
             }
           ],
           "details": {},
-          "hash": "841d9c59a789f19b16511982389de0260fd9f830718de51d519e4c5dbfbeb1b0",
+          "hash": "bdec6dbc6dbe67fe750a40d923e82d2dff9b4ee2bb187e857da19e8a4fa8b6cb",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "f03317b799c5e7cdfe62235c9d87982abc42c074fee94e55e377d1ac35326e2b",
+      "hash": "6c1f0cf54e91004463004e5ae1925ab6cc0f032c13ee985632e766b9e09b7f04",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/build-insights/bazel.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "3b94ff97805b7ffc90b87b0298026353863b6da7ad812389267edffa16a4ae08",
+  "output_hash": "119c9bcb6a500b6992721fe5364d36e7414d19367040a5802f02cc98f947dcb5",
   "output_path": "server/priv/docs/ru/guides/features/build-insights/bazel.md",
   "protection_state": "recorded",
   "provider": "",
@@ -260,8 +260,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5e9d7c17d002aff6035ec604c8e944aa411b79fa",
+  "source_commit_sha": "43b523bdc7ac780541c4d77ba209a93f9062b01f",
   "source_path": "server/priv/docs/en/guides/features/build-insights/bazel.md",
-  "translated_at": "2026-11-04T18:36:36.641369Z",
-  "translation_session_id": "01a1a7d6-1524-7d6d-85ce-7d4c649e29cb"
+  "translated_at": "2026-11-18T20:16:04.030354Z",
+  "translation_session_id": "01a1f03a-4133-7890-9c7b-fd93095f7225"
 }

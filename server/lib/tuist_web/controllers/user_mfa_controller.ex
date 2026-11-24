@@ -5,7 +5,6 @@ defmodule TuistWeb.UserMFAController do
   alias Tuist.Accounts.UserPasskey
   alias Tuist.Accounts.UserToken
   alias TuistWeb.Authentication
-  alias TuistWeb.BrowserSession
   alias TuistWeb.Endpoint
   alias TuistWeb.UserPasskeyController
 
@@ -153,8 +152,7 @@ defmodule TuistWeb.UserMFAController do
     # verified session created in the same transaction as the factor change.
     conn
     |> configure_session(renew: true)
-    |> BrowserSession.put_authentication(result.session.token, UserMFA.auth_params(result.session).auth_method)
-    |> Authentication.delete_remember_me_cookie()
+    |> Authentication.replace_session_token(result.session.token, UserMFA.auth_params(result.session).auth_method)
   end
 
   defp private_response(conn, _opts) do

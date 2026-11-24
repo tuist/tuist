@@ -50,4 +50,21 @@ defmodule Tuist.Sandboxes.Workers.PauseSandboxWorkerTest do
     assert {:error, "exec running"} = perform_job(PauseSandboxWorker, %{sandbox_id: sandbox.id, residency_epoch: 1})
     assert %Sandbox{state: :running} = Repo.reload!(sandbox)
   end
+
+  test "snoozes while a restore's disks still load, then pauses once they are whole" do
+    sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_epoch: 2)
+    args = %{sandbox_id: sandbox.id, residency_epoch: 2}
+
+    expect(Nodes, :call, fn "node-a", "pause", _args, _opts ->
+      {:error, "sandbox disks are still loading from its archive: #{sandbox.id}"}
+    end)
+
+    assert {:snooze, 60} = perform_job(PauseSandboxWorker, args)
+    assert %Sandbox{state: :running} = Repo.reload!(sandbox)
+
+    expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
+
+    assert :ok = perform_job(PauseSandboxWorker, args)
+    assert %Sandbox{state: :paused} = Repo.reload!(sandbox)
+  end
 end

@@ -11,87 +11,161 @@
 msgid ""
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:19
+#: lib/atlas_web/live/spec_live/index.ex:110
+#: lib/atlas_web/live/spec_live/index.ex:125
+#, elixir-autogen
 msgid "Specs"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:111
+#, elixir-autogen
 msgid "Editable engineering proposals shaped by the team."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:32
+#: lib/atlas_web/live/spec_live/form.ex:116
+#: lib/atlas_web/live/spec_live/index.ex:116
+#, elixir-autogen
 msgid "New spec"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:33
+#: lib/atlas_web/live/spec_live/form.ex:117
+#, elixir-autogen
 msgid "Edit spec"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:130
+#, elixir-autogen
 msgid "Filter"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:159
+#: lib/atlas_web/live/spec_live/index.ex:61
+#: lib/atlas_web/live/spec_live/index.ex:186
+#, elixir-autogen
 msgid "Status"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:79
+#: lib/atlas_web/live/spec_live/show.ex:228
+#, elixir-autogen
 msgid "Draft"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:80
+#: lib/atlas_web/live/spec_live/show.ex:229
+#, elixir-autogen
 msgid "Proposed"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:81
+#: lib/atlas_web/live/spec_live/show.ex:230
+#, elixir-autogen
 msgid "Approved"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:82
+#: lib/atlas_web/live/spec_live/show.ex:231
+#, elixir-autogen
 msgid "Paused"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:83
+#: lib/atlas_web/live/spec_live/show.ex:232
+#, elixir-autogen
 msgid "Rejected"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:84
+#: lib/atlas_web/live/spec_live/show.ex:233
+#, elixir-autogen
 msgid "In progress"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:85
+#: lib/atlas_web/live/spec_live/show.ex:234
+#, elixir-autogen
 msgid "Shipped"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:86
+#: lib/atlas_web/live/spec_live/show.ex:235
+#, elixir-autogen
 msgid "Archived"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:127
+#: lib/atlas_web/live/spec_live/index.ex:150
+#, elixir-autogen
 msgid "Spec"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:141
+#, elixir-autogen
 msgid "No specs yet"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:142
+#, elixir-autogen
 msgid "Draft the first proposal to see it here."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:153
+#: lib/atlas_web/live/spec_live/show.ex:113
+#, elixir-autogen
 msgid "#%{number} %{title}"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/index.ex:194
+#, elixir-autogen
 msgid "Updated"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:130
+#, elixir-autogen
 msgid "Title"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:133
+#, elixir-autogen
 msgid "Summary"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:134
+#, elixir-autogen
 msgid "One line, no em dashes."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:138
+#, elixir-autogen
 msgid "Markdown body"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:144
+#, elixir-autogen
 msgid "Engineering project"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:149
+#, elixir-autogen
 msgid "Choose project"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:164
+#, elixir-autogen
 msgid "Choose status"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:174
+#: lib/atlas_web/live/spec_live/index.ex:167
+#, elixir-autogen
 msgid "Domains"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:225
+#, elixir-autogen
 msgid "Select domains"
 msgstr ""
 
@@ -107,68 +181,144 @@ msgstr ""
 msgid "Private"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:199
+#, elixir-autogen
 msgid "Create"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:200
+#, elixir-autogen
 msgid "Save changes"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:82
+#, elixir-autogen
 msgid "Spec saved."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:98
+#, elixir-autogen
 msgid "A spec write is in progress. Try again in a moment."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:46
+#: lib/atlas_web/live/spec_live/form.ex:90
+#, elixir-autogen
 msgid "Only organization members can edit specs."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/form.ex:120
+#, elixir-autogen
 msgid "Write the spec body in Markdown. Bind it to an engineering project so reviewers know where it lives."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:136
+#, elixir-autogen
 msgid "Edit"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:143
+#: lib/atlas_web/live/spec_live/show.ex:182
+#, elixir-autogen
 msgid "Delete"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:145
+#, elixir-autogen
 msgid "Delete this spec?"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:89
+#, elixir-autogen
 msgid "Spec deleted."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:96
+#, elixir-autogen
 msgid "Could not delete spec. Refresh and retry."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:93
+#, elixir-autogen
 msgid "You cannot delete this spec."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:151
+#, elixir-autogen
 msgid "Body"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:160
+#, elixir-autogen
 msgid "Comments"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:163
+#, elixir-autogen
 msgid "No comments yet."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:209
+#, elixir-autogen
 msgid "Add a comment"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:215
+#, elixir-autogen
 msgid "Post comment"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:38
+#, elixir-autogen
 msgid "Comment added."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:43
+#, elixir-autogen
 msgid "You cannot comment on this spec."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:185
+#, elixir-autogen
 msgid "Delete this comment?"
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:58
+#, elixir-autogen
 msgid "Comment not found."
 msgstr ""
 
+#: lib/atlas_web/live/spec_live/show.ex:242
+#, elixir-autogen
 msgid "Anonymous"
+msgstr ""
+
+#: lib/atlas_web/live/spec_live/index.ex:162
+#, elixir-autogen, elixir-format
+msgid "Author"
+msgstr ""
+
+#: lib/atlas_web/live/spec_live/show.ex:77
+#, elixir-autogen, elixir-format
+msgid "Could not update status."
+msgstr ""
+
+#: lib/atlas_web/live/spec_live/index.ex:174
+#, elixir-autogen, elixir-format
+msgid "No domains"
+msgstr ""
+
+#: lib/atlas_web/live/spec_live/show.ex:70
+#, elixir-autogen, elixir-format
+msgid "Status updated."
+msgstr ""
+
+#: lib/atlas_web/live/spec_live/index.ex:102
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr ""
+
+#: lib/atlas_web/live/spec_live/show.ex:74
+#, elixir-autogen, elixir-format
+msgid "You cannot edit this spec."
 msgstr ""

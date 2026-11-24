@@ -1,6 +1,8 @@
 defmodule Tuist.Tests.Coverage.HistoryTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  import Ecto.Query
+
   alias Tuist.GitHistory
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.Commits
@@ -116,6 +118,134 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert %{git_commit_sha: "m"} = History.head_commit(project, "main")
       run(project, account, %{git_commit_sha: "c"}, [1, 1, 1, 1])
       assert %{git_commit_sha: "m"} = History.head_commit(project, "main")
+    end
+
+    test "keep a pull request's merge checkout off its branch, which keeps the pull request's head", %{
+      project: project,
+      account: account
+    } do
+      # main: a → d. The pull request's head p is off d, and m is the merge
+      # commit CI checks out for it (refs/pull/1/merge): base tip first, p second.
+      repository =
+        CoverageFixtures.seed_history(account, [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("d", ["a"], 1),
+          CoverageFixtures.commit("p", ["d"], 2),
+          CoverageFixtures.commit("m", ["d", "p"], 3)
+        ])
+
+      pull_request = %{git_branch: "feature", is_pull_request: true, pull_request_number: 1}
+
+      # The client names the merge commit it reports as the branch's head,
+      # beside the base branch's.
+      GitHistory.record_branch_heads(repository, [%{branch: "feature", sha: "m"}, %{branch: "main", sha: "d"}], "main")
+      run(project, account, Map.merge(pull_request, %{git_commit_sha: "m", scheme: "UITests"}), [1, 0, 0, 0])
+
+      # Another job of the pull request reported its head.
+      GitHistory.record_branch_heads(repository, [%{branch: "feature", sha: "p"}, %{branch: "main", sha: "d"}], "main")
+      run(project, account, Map.merge(pull_request, %{git_commit_sha: "p", scheme: "UnitTests"}), [1, 1, 1, 0])
+
+      assert CoverageFixtures.branch_head(repository, "feature") == "p"
+      assert Enum.map(branch_commits(project, "feature"), & &1.git_commit_sha) == ["p"]
+      assert %{git_commit_sha: "p", coverage: 75.0} = History.head_commit(project, "feature")
+
+      # The merge commit is the pull request's.
+      assert {pull, _position} = GitHistory.position(repository, "m")
+      assert GitHistory.get_ref(pull).name == "pull/1"
+
+      # Runs are read by the branch they were labelled with, the merge
+      # checkout's included.
+      runs = Commits.run_cursor_page(project.id, {:branch, "feature"}, page_size: 10)
+      assert runs.runs |> Enum.map(& &1.git_commit_sha) |> Enum.sort() == ["m", "p"]
+    end
+
+    test "show each push's merge checkout at the pull request commit it merged", %{project: project, account: account} do
+      repository =
+        CoverageFixtures.seed_history(account, [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("d", ["a"], 1),
+          CoverageFixtures.commit("p1", ["d"], 2),
+          CoverageFixtures.commit("p2", ["p1"], 3),
+          CoverageFixtures.commit("m1", ["d", "p1"], 4),
+          CoverageFixtures.commit("m2", ["d", "p2"], 5),
+          CoverageFixtures.commit("x", ["d", "p2"], 6)
+        ])
+
+      pull_request = %{git_branch: "feature", is_pull_request: true, pull_request_number: 1}
+
+      for {merge, ran_at, counts} <- [
+            {"m1", ~N[2026-09-01 10:00:00], [1, 0, 0, 0]},
+            {"m2", ~N[2026-09-01 11:00:00], [1, 1, 0, 0]}
+          ] do
+        GitHistory.record_branch_heads(
+          repository,
+          [%{branch: "feature", sha: merge}, %{branch: "main", sha: "d"}],
+          "main"
+        )
+
+        run(project, account, Map.merge(pull_request, %{git_commit_sha: merge, ran_at: ran_at}), counts)
+      end
+
+      # A merge of p2 into main measured on main is main's, not the branch's.
+      run(project, account, %{git_commit_sha: "x", ran_at: ~N[2026-09-01 12:00:00]}, [1, 1, 1, 1])
+
+      assert CoverageFixtures.branch_head(repository, "feature") == "p2"
+      page = History.commit_cursor_page(project, "feature", page_size: 100)
+      assert page.ordered_by == :graph
+
+      assert Enum.map(page.commits, &{&1.git_commit_sha, &1.measured, &1.coverage}) == [
+               {"m2", true, 50.0},
+               {"m1", true, 25.0}
+             ]
+
+      # The Commits tab filters by status, measured by default, which a
+      # commit gets from the merge checkout it stands with.
+      filtered = fn status ->
+        Enum.map(
+          History.commit_cursor_page(project, "feature", page_size: 100, status: status).commits,
+          & &1.git_commit_sha
+        )
+      end
+
+      Commits.signal_complete(project, "m2")
+      assert filtered.("measured") == ["m2", "m1"]
+      assert filtered.("complete") == ["m2"]
+      assert filtered.("not-measured") == []
+
+      assert %{git_commit_sha: "m2", coverage: 50.0} = History.head_commit(project, "feature")
+    end
+
+    test "list every push of a pull request whose depth-1 checkouts ran its merge commits", %{
+      project: project,
+      account: account
+    } do
+      # Each push's merge checkout lists only its merge commit: the pull
+      # request's heads p1 and p2 are parent edges, not commits the graph has.
+      repository =
+        CoverageFixtures.seed_history(account, [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("d1", ["a"], 1),
+          CoverageFixtures.commit("d2", ["d1"], 2),
+          CoverageFixtures.commit("m1", ["d1", "p1"], 3),
+          CoverageFixtures.commit("m2", ["d2", "p2"], 4)
+        ])
+
+      pull_request = %{git_branch: "feature", is_pull_request: true, pull_request_number: 1}
+
+      for {merge, base, ran_at} <- [{"m1", "d1", ~N[2026-09-01 10:00:00]}, {"m2", "d2", ~N[2026-09-01 11:00:00]}] do
+        GitHistory.record_branch_heads(
+          repository,
+          [%{branch: "feature", sha: merge}, %{branch: "main", sha: base}],
+          "main"
+        )
+
+        run(project, account, Map.merge(pull_request, %{git_commit_sha: merge, ran_at: ran_at}), [1, 1, 0, 0])
+      end
+
+      page = History.commit_cursor_page(project, "feature", page_size: 100)
+      assert page.ordered_by == :time
+      assert Enum.map(page.commits, & &1.git_commit_sha) == ["m2", "m1"]
+      assert %{git_commit_sha: "m2"} = History.head_commit(project, "feature")
     end
 
     test "cut a branch at its merge base with the default branch", %{project: project, account: account} do
@@ -435,6 +565,56 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
                [{"a", 25.0}, {"c", 75.0}]
     end
 
+    test "draws a branch's commits measured through merge checkouts with their newest one, as the list shows them", %{
+      project: project,
+      account: account
+    } do
+      # feature: p1 → p2 → p3 off main's d. p1 was merged twice (main
+      # unchanged, a re-run), p2 once, and p3 ran on its own commit. q is a
+      # force-pushed head the branch no longer holds, and mq its merge.
+      repository =
+        CoverageFixtures.seed_history(account, [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("d", ["a"], 1),
+          CoverageFixtures.commit("q", ["d"], 2),
+          CoverageFixtures.commit("p1", ["d"], 3),
+          CoverageFixtures.commit("p2", ["p1"], 4),
+          CoverageFixtures.commit("p3", ["p2"], 5),
+          CoverageFixtures.commit("mq", ["d", "q"], 6),
+          CoverageFixtures.commit("m1a", ["d", "p1"], 7),
+          CoverageFixtures.commit("m1b", ["d", "p1"], 8),
+          CoverageFixtures.commit("m2", ["d", "p2"], 9)
+        ])
+
+      pull_request = %{git_branch: "feature", is_pull_request: true, pull_request_number: 1}
+
+      for {sha, ran_at, counts} <- [
+            {"mq", ~N[2026-09-01 09:00:00], [0, 0, 0, 0]},
+            {"m1a", ~N[2026-09-01 10:00:00], [1, 0, 0, 0]},
+            {"m1b", ~N[2026-09-01 10:30:00], [1, 1, 0, 0]},
+            {"m2", ~N[2026-09-01 11:00:00], [1, 1, 1, 0]},
+            {"p3", ~N[2026-09-01 12:00:00], [1, 1, 1, 1]}
+          ] do
+        GitHistory.record_branch_heads(repository, [%{branch: "feature", sha: sha}, %{branch: "main", sha: "d"}], "main")
+        run(project, account, Map.merge(pull_request, %{git_commit_sha: sha, ran_at: ran_at}), counts)
+        Commits.signal_complete(project, sha)
+      end
+
+      assert CoverageFixtures.branch_head(repository, "feature") == "p3"
+      listed = Enum.map(branch_commits(project, "feature"), &{&1.git_commit_sha, &1.coverage})
+      assert listed == [{"p3", 100.0}, {"m2", 75.0}, {"m1b", 50.0}]
+
+      trend = History.trend_points(project, "feature")
+      assert Enum.map(trend.points, &{&1.git_commit_sha, &1.coverage}) == Enum.reverse(listed)
+      # Each merge checkout stands at the commit it merged.
+      assert hd(trend.points).committed_at == ~U[2026-09-01 00:03:00.000000Z]
+      assert History.latest_complete_commit(project, "feature") == "p3"
+
+      # The period bounds the branch's commits, not when their merge checkouts ran.
+      since = ~U[2026-09-01 00:04:00Z]
+      assert shas(History.trend_points(project, "feature", since: since)) == ["m2", "p3"]
+    end
+
     test "draws every complete commit when they fit", %{project: project} do
       publish(project, Enum.map(0..40, &DateTime.add(@epoch, &1, :hour)), ["c40"])
 
@@ -601,6 +781,45 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       run(project, account, %{git_commit_sha: "e", ran_at: ~N[2026-09-02 10:00:00]}, [1, 0])
       assert History.branches(project) == ["main", "develop", "release"]
       assert History.branches(project, limit: 1) == ["main", "develop"]
+    end
+  end
+
+  describe "recent_commits_page/2" do
+    test "pages the project's listed commits on every branch and pull request, the most recently run first, both ways",
+         %{project: project} do
+      publish(
+        project,
+        [
+          ~U[2026-09-01 10:00:00.000000Z],
+          ~U[2026-09-02 10:00:00.000000Z],
+          ~U[2026-09-03 10:00:00.000000Z],
+          ~U[2026-09-04 10:00:00.000000Z],
+          ~U[2026-09-05 10:00:00.000000Z]
+        ],
+        ["c3"]
+      )
+
+      # c0 measured nothing, so no list shows it; c2 ran on a pull request.
+      Repo.update_all(from(c in CoverageCommit, where: c.git_commit_sha == "c0"), set: [executable_lines: 0])
+
+      Repo.update_all(from(c in CoverageCommit, where: c.git_commit_sha == "c2"),
+        set: [git_branch: "feature", pull_request_number: 7]
+      )
+
+      other = ProjectsFixtures.project_fixture(account_id: project.account_id)
+      publish(other, [~U[2026-09-06 10:00:00.000000Z]])
+
+      first = History.recent_commits_page(project, page_size: 2)
+      assert Enum.map(first.commits, &{&1.git_commit_sha, &1.complete}) == [{"c4", true}, {"c3", false}]
+      assert {first.has_previous_page?, first.has_next_page?} == {false, true}
+
+      second = History.recent_commits_page(project, page_size: 2, after: first.end_cursor)
+      assert Enum.map(second.commits, &{&1.git_commit_sha, &1.pull_request_number}) == [{"c2", 7}, {"c1", 0}]
+      assert {second.has_previous_page?, second.has_next_page?} == {true, false}
+
+      back = History.recent_commits_page(project, page_size: 2, before: second.start_cursor)
+      assert Enum.map(back.commits, & &1.git_commit_sha) == ["c4", "c3"]
+      assert {back.has_previous_page?, back.has_next_page?} == {false, true}
     end
   end
 end

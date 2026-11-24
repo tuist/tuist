@@ -28,6 +28,12 @@ defmodule Tuist.Docs do
   def slugs, do: Enum.sort(static_slugs() ++ Enum.map(cli_pages(), & &1.slug))
 
   @doc """
+  Slugs of the pages compiled into the server, without the CLI pages fetched
+  from GitHub at runtime.
+  """
+  def compiled_slugs, do: static_slugs()
+
+  @doc """
   Slugs worth indexing: every page except near-empty translations.
   """
   def indexable_slugs, do: Enum.reject(slugs(), &MapSet.member?(@near_empty_translations, &1))

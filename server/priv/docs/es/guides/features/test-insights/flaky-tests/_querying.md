@@ -1,4 +1,4 @@
-## Consulta del estado de tests inestables y en cuarentena {#querying}
+## Consulta del estado de inestabilidad y cuarentena {#querying}
 
 ### CLI {#querying-cli}
 

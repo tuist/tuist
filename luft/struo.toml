@@ -1,0 +1,462 @@
+# Luft workspace. Cargo owns the GPUI graph; native frontends share
+# the Rust core without pulling GPUI or a second HTTP stack into native builds.
+[workspace]
+include = ["struo.toml", "native-dependencies/struo.toml"]
+exclude = ["**/Cargo.toml"]
+
+[modules]
+paths = ["modules/*.star"]
+
+[infrastructure.cache]
+provider = "tuist"
+
+[infrastructure.artifacts]
+name = "tuist"
+
+[infrastructures.tuist]
+kind = "tuist"
+account = "tuist"
+project = "luft"
+
+[[target]]
+name = "LuftDesktop"
+kind = "cargo_workspace"
+srcs = ["Cargo.toml", "Cargo.lock", "*/Cargo.toml", "crates/*/Cargo.toml", "gpui/src/**/*.rs", "gpui/resources/**/*", "crates/*/src/**/*.rs", "crates/*/src/**/*.txt"]
+
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "gpui/Cargo.toml", "crates/*/Cargo.toml"]
+
+[target.attrs.build_script_sources."gpui_apple@0.1.0"]
+"../gpui/src/scene.rs" = "gpui@0.2.2/src/scene.rs"
+"../gpui/src/geometry.rs" = "gpui@0.2.2/src/geometry.rs"
+"../gpui/src/color.rs" = "gpui@0.2.2/src/color.rs"
+"../gpui/src/window.rs" = "gpui@0.2.2/src/window.rs"
+"../gpui/src/platform.rs" = "gpui@0.2.2/src/platform.rs"
+
+[[target]]
+name = "LuftCoreIOS"
+kind = "rust_library"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/IOS", "./LuftOAuthIOS", "./LuftJWTIOS"]
+[target.attrs]
+crate_name = "tuist_app_core"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+target = "aarch64-apple-ios-sim"
+crate_type = "staticlib"
+
+[[target]]
+name = "LuftCoreIOSDevice"
+kind = "rust_library"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/IOSDevice", "./LuftOAuthIOSDevice", "./LuftJWTIOSDevice"]
+[target.attrs]
+crate_name = "tuist_app_core"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+target = "aarch64-apple-ios"
+crate_type = "staticlib"
+
+[[target]]
+name = "LuftCoreMacOS"
+kind = "rust_library"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/Host", "./LuftOAuthMacOS", "./LuftJWTMacOS"]
+[target.attrs]
+crate_name = "tuist_app_core"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+target = "aarch64-apple-darwin"
+crate_type = "staticlib"
+
+[[target]]
+name = "LuftCoreAndroid"
+kind = "rust_library"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/Android", "./LuftOAuthAndroid", "./LuftJWTAndroid"]
+[target.attrs]
+crate_name = "tuist_app_core"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+target = "aarch64-linux-android"
+crate_type = "cdylib"
+android_abi = "arm64-v8a"
+android_api = 26
+
+[[target]]
+name = "LuftCoreTests"
+kind = "rust_test"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/Host", "./LuftOAuth", "./LuftJWT"]
+[target.attrs]
+crate_name = "tuist_app_core_tests"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+
+[[target]]
+name = "LuftCoreFFI"
+kind = "apple_system_module"
+[target.attrs]
+modulemap = "crates/core/include/module.modulemap"
+headers = ["crates/core/include/tuist_app.h"]
+header_dirs = ["crates/core/include"]
+
+[[target]]
+name = "LuftIOS"
+kind = "apple_application"
+srcs = ["apple/Sources/**/*.swift", "ios/LiveActivity/LuftActivityAttributes.swift"]
+deps = ["./LuftCoreIOS", "./LuftCoreFFI", "./LuftNSHSimulator", "./LuftLiveActivitySimulator"]
+[target.attrs]
+platform = "ios"
+bundle_id = "dev.tuist.code"
+product_name = "Luft"
+minimum_os = "17.0"
+sdk_variant = "simulator"
+families = ["iphone", "ipad"]
+info_plist = "ios/Info.plist"
+info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NAME = "iphonesimulator", LUFT_PUSH_ENVIRONMENT = "sandbox" }
+entitlements = "ios/Simulator.entitlements"
+asset_catalogs = ["apple/Resources/Assets.xcassets"]
+resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png", "cards/bundle.js", "cards/decision-bundle.js"]
+postbuild_actions = ['{"id":"embed-live-activity","argv":["/bin/bash","modules/embed-widget.sh",".struo/out/LuftIOS/LuftLiveActivity.appex",".struo/out/LuftIOS/Luft.app/PlugIns/LuftLiveActivity.appex"],"inputs":["modules/embed-widget.sh",".struo/out/LuftIOS/LuftLiveActivity.appex"],"outputs":[".struo/out/LuftIOS/Luft.app/PlugIns/LuftLiveActivity.appex"],"cacheable":true}', '{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphonesimulator","apple/Sources/AppShortcuts.swift",".struo/out/LuftIOS/Luft.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".struo/out/LuftIOS/Luft.app/Metadata.appintents"],"cacheable":false}']
+
+[[target]]
+name = "LuftIOSDevice"
+kind = "apple_application"
+srcs = ["apple/Sources/**/*.swift", "ios/LiveActivity/LuftActivityAttributes.swift"]
+deps = ["./LuftCoreIOSDevice", "./LuftCoreFFI", "./LuftNSHDevice", "./LuftLiveActivityDevice"]
+[target.attrs]
+platform = "ios"
+bundle_id = "dev.tuist.code"
+product_name = "Luft"
+minimum_os = "17.0"
+sdk_variant = "device"
+families = ["iphone", "ipad"]
+info_plist = "ios/Info.plist"
+info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneOS", PLATFORM_NAME = "iphoneos", LUFT_PUSH_ENVIRONMENT = "" }
+asset_catalogs = ["apple/Resources/Assets.xcassets"]
+resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png"]
+postbuild_actions = ['{"id":"embed-live-activity","argv":["/bin/bash","modules/embed-widget.sh",".struo/out/LuftIOSDevice/LuftLiveActivity.appex",".struo/out/LuftIOSDevice/Luft.app/PlugIns/LuftLiveActivity.appex"],"inputs":["modules/embed-widget.sh",".struo/out/LuftIOSDevice/LuftLiveActivity.appex"],"outputs":[".struo/out/LuftIOSDevice/Luft.app/PlugIns/LuftLiveActivity.appex"],"cacheable":true}', '{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphoneos","apple/Sources/AppShortcuts.swift",".struo/out/LuftIOSDevice/Luft.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".struo/out/LuftIOSDevice/Luft.app/Metadata.appintents"],"cacheable":false}']
+
+[[target]]
+name = "LuftMacOS"
+kind = "apple_application"
+srcs = ["apple/Sources/**/*.swift"]
+deps = ["./LuftCoreMacOS", "./LuftCoreFFI", "./LuftRunnerApple"]
+[target.attrs]
+# Copies the runner daemon beside the app's executable before signing.
+prepackage_actions = ["{\"id\": \"embed-runner\", \"display_name\": \"Embed the runner daemon\", \"cacheable\": true, \"inputs\": [\".struo/out/LuftRunnerApple/luft-runner\"], \"outputs\": [\".struo/out/LuftMacOS/Luft.app/Contents/MacOS/luft-runner\"], \"script\": \"install -m 755 .struo/out/LuftRunnerApple/luft-runner \\\".struo/out/LuftMacOS/Luft.app/Contents/MacOS/luft-runner\\\"\"}"]
+platform = "macos"
+bundle_id = "dev.tuist.code"
+product_name = "Luft"
+module_name = "Luft"
+minimum_os = "14.0"
+info_plist = "macos/Info.plist"
+asset_catalogs = ["apple/Resources/Assets.xcassets"]
+resources = ["apple/Resources/en.lproj/Localizable.strings", "macos/Resources/AppIcon.icns"]
+
+# The threads Live Activity's WidgetKit extension (modules/widget.star), which
+# each iOS host embeds before Struo signs it. It only draws the document the
+# server pushes; see ios/LiveActivity/AGENTS.md.
+[[target]]
+name = "LuftLiveActivitySimulator"
+kind = "luft_widget_extension"
+srcs = ["ios/LiveActivity/*.swift"]
+[target.attrs]
+sdk_variant = "simulator"
+bundle_id = "dev.tuist.code.live-activity"
+info_plist = "ios/LiveActivity/Info.plist"
+
+[[target]]
+name = "LuftLiveActivityDevice"
+kind = "luft_widget_extension"
+srcs = ["ios/LiveActivity/*.swift"]
+[target.attrs]
+sdk_variant = "device"
+bundle_id = "dev.tuist.code.live-activity"
+info_plist = "ios/LiveActivity/Info.plist"
+
+# NSH's iOS runtime, which shows the cards models write in conversations
+# (modules/nsh.star). macOS has no NSH slice yet; it shows the cards' text.
+[[target]]
+name = "LuftNSHSimulator"
+kind = "luft_nsh_apple"
+[target.attrs]
+sdk = "simulator"
+
+[[target]]
+name = "LuftNSHDevice"
+kind = "luft_nsh_apple"
+[target.attrs]
+sdk = "device"
+
+[[target]]
+name = "LuftAndroid"
+kind = "android_binary"
+srcs = ["android/src/**/*.kt"]
+deps = ["./LuftCoreAndroid", "./LuftBrowser"]
+[target.attrs]
+application_id = "dev.tuist.guild"
+manifest = "android/AndroidManifest.xml"
+resource_files = ["android/res/**"]
+resource_dirs = ["android/res"]
+compile_sdk = 36
+target_sdk_version = 35
+min_sdk_version = 26
+build_tools_version = "35.0.0"
+version_code = 1
+version_name = "0.1.0"
+launch_activity = ".MainActivity"
+signing = "debug"
+
+# The Android WebSocket client uses only the JDK, so its framing and handshake run on the host JVM.
+[[target]]
+name = "LuftAndroidWebSocketTests"
+kind = "kotlin_jvm_test"
+srcs = ["android/src/dev/tuist/guild/WebSocket.kt", "android/test/**/*.kt"]
+[target.attrs]
+labels = ["unit"]
+
+[[target]]
+name = "LuftOAuth"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+
+[[target]]
+name = "LuftJWT"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+
+[[target]]
+name = "LuftOAuthIOS"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/IOS"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+target = "aarch64-apple-ios-sim"
+
+[[target]]
+name = "LuftJWTIOS"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/IOS"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+target = "aarch64-apple-ios-sim"
+
+[[target]]
+name = "LuftOAuthIOSDevice"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/IOSDevice"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+target = "aarch64-apple-ios"
+
+[[target]]
+name = "LuftJWTIOSDevice"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/IOSDevice"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+target = "aarch64-apple-ios"
+
+[[target]]
+name = "LuftOAuthMacOS"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+target = "aarch64-apple-darwin"
+
+[[target]]
+name = "LuftJWTMacOS"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+target = "aarch64-apple-darwin"
+
+[[target]]
+name = "LuftOAuthAndroid"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/Android"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+target = "aarch64-linux-android"
+
+[[target]]
+name = "LuftJWTAndroid"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/Android"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+target = "aarch64-linux-android"
+
+[[target]]
+name = "LuftBrowser"
+kind = "tuist_browser"
+srcs = ["android/dependencies.py", "android/dependencies.lock.json", "android/AndroidManifest.xml", "android/res/**/*"]
+
+# The runner daemon (crates/runner): a library, the binary every desktop app
+# bundles, and its tests. The macOS app embeds the binary as
+# Contents/MacOS/luft-runner, which installs itself as a launchd agent.
+[[target]]
+name = "LuftRunnerLibMacOS"
+kind = "rust_library"
+srcs = ["crates/runner/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "luft_runner"
+crate_root = "crates/runner/src/lib.rs"
+cargo_package = "luft-runner"
+edition = "2024"
+target = "aarch64-apple-darwin"
+
+[[target]]
+name = "LuftRunnerMacOS"
+kind = "rust_binary"
+srcs = ["crates/runner/src/main.rs"]
+deps = ["native-dependencies/Host", "./LuftRunnerLibMacOS"]
+[target.attrs]
+crate_name = "luft_runner_bin"
+crate_root = "crates/runner/src/main.rs"
+cargo_package = "luft-runner"
+edition = "2024"
+target = "aarch64-apple-darwin"
+_binary_output_name = "luft-runner"
+
+[[target]]
+name = "LuftRunnerApple"
+kind = "luft_runner_apple"
+deps = ["./LuftRunnerMacOS"]
+
+[[target]]
+name = "LuftRunnerTests"
+kind = "rust_test"
+srcs = ["crates/runner/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "luft_runner_tests"
+cargo_package = "luft-runner"
+crate_root = "crates/runner/src/lib.rs"
+edition = "2024"
+
+# The web edge (web/, served at luft.work): the core compiled to wasm, bound
+# for the browser by wasm-bindgen, and bundled with the TypeScript edge by
+# Vite (modules/web.star).
+[[target]]
+name = "LuftOAuthWeb"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/Web"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+target = "wasm32-unknown-unknown"
+
+[[target]]
+name = "LuftJWTWeb"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/Web"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+target = "wasm32-unknown-unknown"
+
+[[target]]
+name = "LuftCoreWeb"
+kind = "rust_library"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/Web", "./LuftOAuthWeb", "./LuftJWTWeb"]
+[target.attrs]
+crate_name = "tuist_app_core"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+target = "wasm32-unknown-unknown"
+
+[[target]]
+name = "LuftCoreWasm"
+kind = "rust_library"
+srcs = ["crates/web/src/**/*.rs"]
+deps = ["native-dependencies/Web", "./LuftCoreWeb"]
+[target.attrs]
+crate_name = "luft_web"
+cargo_package = "luft-web"
+crate_root = "crates/web/src/lib.rs"
+edition = "2024"
+target = "wasm32-unknown-unknown"
+crate_type = "cdylib"
+rustc_flags = ["-C", "opt-level=s"]
+# The wasm_bindgen macro reads Cargo's package identity.
+rustc_env = { CARGO_PKG_NAME = "luft-web", CARGO_PKG_VERSION = "0.1.0", CARGO_MANIFEST_DIR = "crates/web" }
+
+[[target]]
+name = "LuftCoreBindings"
+kind = "luft_wasm_bindgen"
+deps = ["./LuftCoreWasm"]
+[target.attrs]
+out_name = "luft_core"
+
+[[target]]
+name = "LuftWeb"
+kind = "luft_vite"
+srcs = ["web/index.html", "web/vite.config.ts", "web/package.json", "web/src/**/*.ts"]
+deps = ["./LuftCoreBindings"]
+[target.attrs]
+package_dir = "web"

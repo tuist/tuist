@@ -1,0 +1,151 @@
+name: Luft Server Deployment
+
+on:
+  # Pull requests build the image; only main pushes it and deploys.
+  pull_request:
+    paths:
+      - luft-server/**
+      - condukt/**
+      - infra/helm/luft-server/**
+      - .github/workflows/luft-server-deployment.yml
+  push:
+    branches:
+      - main
+    paths:
+      - luft-server/**
+      - condukt/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
+      - infra/helm/luft-server/**
+      - .github/workflows/luft-server-deployment.yml
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Commit SHA to deploy (defaults to github.sha)
+        required: false
+      image_tag:
+        description: Pre-built image tag to deploy instead of building
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: luft-server-${{ github.event_name == 'pull_request' && github.ref || 'deploy-production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/luft-server
+  HELM_CHART_PATH: infra/helm/luft-server
+  HELM_RELEASE_NAME: luft-server
+  NAMESPACE: luft
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+
+jobs:
+  guard:
+    name: Guard production source
+    if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Require main, a commit main contains, and an image built from main
+        env:
+          REF: ${{ github.ref }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: bash .github/scripts/production-source-guard.sh "$REF" "$DEPLOY_SHA" "image_tag=$IMAGE_TAG"
+
+  build:
+    name: Build and push Luft server image
+    needs: guard
+    if: always() && github.repository == 'tuist/tuist' && inputs.image_tag == '' && (needs.guard.result == 'success' || github.event_name == 'pull_request')
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - id: tag
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: luft-server/Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          cache-from: type=gha,scope=luft-server
+          cache-to: type=gha,mode=max,scope=luft-server
+
+  deploy:
+    name: Deploy to production
+    needs: [guard, build]
+    if: always() && github.repository == 'tuist/tuist' && github.event_name != 'pull_request' && needs.guard.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: server-k8s-production
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-production" \
+            --vault "tuist-k8s-production" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Resolve image tag
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+          BUILT_IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          IMAGE_TAG="${INPUT_IMAGE_TAG:-$BUILT_IMAGE_TAG}"
+          if [ -z "$IMAGE_TAG" ]; then echo "No image tag available to deploy."; exit 1; fi
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            -f "$HELM_CHART_PATH/values-production.yaml" \
+            --set image.tag="$IMAGE_TAG" \
+            --atomic --timeout 10m --wait
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10
+          kubectl -n "$NAMESPACE" get deploy,svc,ingress,externalsecret,pods,cluster.postgresql.cnpg.io \
+            -l app.kubernetes.io/instance="$HELM_RELEASE_NAME" -o wide
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp | tail -60

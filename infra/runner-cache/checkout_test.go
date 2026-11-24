@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -290,10 +291,30 @@ func TestCheckoutTipOnlyMovesToCompleteDefaultBranchCommits(t *testing.T) {
 
 func TestCheckoutColdBuildNeedsEveryLFSObjectOfItsCommit(t *testing.T) {
 	c, host := newCheckouts(t)
+	var build error
+	c.Observe = func(o Observation) {
+		if o.Operation == "checkout_build" {
+			build = o.Err
+		}
+	}
 	host.lfs = []string{lfsOID("missing")}
 	c.Process(context.Background(), exportFrom(t, c, "job", checkoutTestCommit, nil))
 	if c.Master(checkoutTestScope, 1) != "" {
 		t.Fatal("a master with LFS pointers in its working tree would serve them as content")
+	}
+	// Every job of the lineage exports the same way, so the refusal is not a fault.
+	if !errors.Is(build, errCheckoutLFSMissing) || Result(build) != "withheld" {
+		t.Fatalf("checkout_build reported %v", build)
+	}
+	// The host denies the lineage for a while instead of taking the same export again.
+	now := time.Now()
+	c.Now = func() time.Time { return now.Add(checkoutRefusedFor - time.Minute) }
+	if !c.Refusing(checkoutTestScope) {
+		t.Fatal("a refused lineage was granted again at once")
+	}
+	c.Now = func() time.Time { return now.Add(checkoutRefusedFor + time.Minute) }
+	if c.Refusing(checkoutTestScope) {
+		t.Fatal("a refused lineage was denied for good")
 	}
 }
 
@@ -507,6 +528,8 @@ func TestCheckoutBranchJobsOnlyStartLineagesTheServerAllows(t *testing.T) {
 		change func(*CheckoutTask)
 		// parents are the exported commit's.
 		parents []string
+		// refused is set when the host ingested the export and then refused it.
+		refused bool
 	}{
 		// The server never allows forks or events that run untrusted code.
 		"not eligible": {change: func(task *CheckoutTask) {}},
@@ -519,17 +542,17 @@ func TestCheckoutBranchJobsOnlyStartLineagesTheServerAllows(t *testing.T) {
 			task.MayStartMaster, task.Commit, task.BaseGeneration = true, checkoutTestOther, 2
 			task.ImageDigest, task.ContentDigest = strings.Repeat("b", 40), strings.Repeat("c", 64)
 		}},
-		"export is not the job's commit": {change: func(task *CheckoutTask) {
+		"export is not the job's commit": {refused: true, change: func(task *CheckoutTask) {
 			task.MayStartMaster, task.Commit = true, checkoutTestOther
 		}},
-		"export merges another commit": {parents: merge, change: func(task *CheckoutTask) {
+		"export merges another commit": {parents: merge, refused: true, change: func(task *CheckoutTask) {
 			task.MayStartMaster, task.Commit = true, strings.Repeat("6", 40)
 		}},
 		// The fake commit message is a line naming checkoutTestOther as a parent.
-		"export's message names the job's commit": {parents: merge[:1], change: func(task *CheckoutTask) {
+		"export's message names the job's commit": {parents: merge[:1], refused: true, change: func(task *CheckoutTask) {
 			task.MayStartMaster, task.Commit = true, checkoutTestOther
 		}},
-		"export merges more than two commits": {parents: append(merge, strings.Repeat("4", 40)), change: func(task *CheckoutTask) {
+		"export merges more than two commits": {parents: append(merge, strings.Repeat("4", 40)), refused: true, change: func(task *CheckoutTask) {
 			task.MayStartMaster, task.Commit = true, checkoutTestOther
 		}},
 	}
@@ -539,12 +562,24 @@ func TestCheckoutBranchJobsOnlyStartLineagesTheServerAllows(t *testing.T) {
 			host.parents = map[string][]string{checkoutTestCommit: test.parents}
 			transfer := &fakeCheckoutTransfer{}
 			c.Transfer = transfer
+			var build error
+			c.Observe = func(o Observation) {
+				if o.Operation == "checkout_build" {
+					build = o.Err
+				}
+			}
 			task := exportFrom(t, c, "branch", checkoutTestCommit, nil)
 			task.DefaultBranchJob = false
 			test.change(&task)
 			c.Process(context.Background(), task)
 			if c.Master(checkoutTestScope, 1) != "" || len(transfer.published) != 0 {
 				t.Fatal("a branch job started a master")
+			}
+			if test.refused && (!errors.Is(build, errCheckoutNotJobCheckout) || Result(build) != "withheld") {
+				t.Fatalf("checkout_build reported %v", build)
+			}
+			if c.Refusing(checkoutTestScope) != test.refused {
+				t.Fatalf("refusing %v", c.Refusing(checkoutTestScope))
 			}
 		})
 	}

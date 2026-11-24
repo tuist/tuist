@@ -39,7 +39,9 @@ sudo mount "$loop" "$work/data"
 docker run --rm -v "$work/data:/host" -e TEMPLATE_TAG=validation sandbox-orbs-template:validation
 
 start_daemon() {
-  docker run -d --name "$daemon" --privileged --cgroupns=host \
+  # Guests are always 10.0.0.2 (sandboxd internal/network/addr.go). Some hosted
+  # runners resolve through 10.0.0.2 too, which a guest would answer itself.
+  docker run -d --name "$daemon" --privileged --cgroupns=host --dns 1.1.1.1 --dns 8.8.8.8 \
     -v "$work/data:/data/sandboxes" \
     -p 127.0.0.1:9471:9471 \
     -e ADMIN_ADDR=:9471 -e TEMPLATE_TAG=validation \

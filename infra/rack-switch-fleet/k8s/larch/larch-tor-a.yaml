@@ -15,7 +15,7 @@ spec:
   applyOrder: 2
   applyNote: Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to larch-tor-b and the rack is still up.
   credentialItem: rack-switch-controller picos admin
-  configRevision: 8dfeec28d192f5fe
+  configRevision: a1b59770a5b2d4a6
   config:
     hostname: larch-tor-a
     managementVlan: 20
@@ -43,27 +43,27 @@ spec:
       - port: 1
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 2
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 3
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 4
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 5
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 6
         description: ""
@@ -217,6 +217,26 @@ spec:
         nativeVlan: 1
         taggedVlans: []
   ports:
+    - port: 1
+      purpose: data
+      peer: larch-runner-a01
+      detail: runner/en0
+    - port: 2
+      purpose: data
+      peer: larch-runner-a02
+      detail: runner/en0
+    - port: 3
+      purpose: data
+      peer: larch-runner-a03
+      detail: runner/en0
+    - port: 4
+      purpose: data
+      peer: larch-runner-a04
+      detail: runner/en0
+    - port: 5
+      purpose: data
+      peer: larch-runner-a05
+      detail: runner/en0
     - port: 23
       purpose: management
       peer: larch-pdu-b

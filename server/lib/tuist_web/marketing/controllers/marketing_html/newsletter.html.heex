@@ -53,7 +53,7 @@ the page stays put and the server's message shows under the row. --%>
 
     <%!-- Past issues (Figma: eyebrow and title over a hairline list, one
     row per issue — number, title, date — each linking to the issue page).
-    Rows render newest first; the neutral button above the list flips the
+    Rows render newest first; the ghost button above the list flips the
     order in place through NewsletterIssuesSort, so sorting never
     round-trips. The hook mirrors the direction into the button's
     data-state, which Noora's icon transition watches to morph the glyph
@@ -66,7 +66,8 @@ the page stays put and the server's message shows under the row. --%>
         </h2>
       </div>
       <div data-part="toolbar">
-        <.neutral_button
+        <.ghost_button
+          variant="secondary"
           id="newsletter-issues-sort"
           size="large"
           phx-hook="NewsletterIssuesSort"
@@ -85,7 +86,7 @@ the page stays put and the server's message shows under the row. --%>
             watch="#newsletter-issues-sort"
             active_state="ascending"
           />
-        </.neutral_button>
+        </.ghost_button>
       </div>
       <ol id="newsletter-issues-list" data-part="list" data-direction="descending">
         <li

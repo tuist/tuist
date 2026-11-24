@@ -3,10 +3,12 @@ module github.com/tuist/tuist/infra/sandboxd
 go 1.26.10
 
 require (
+	github.com/bazelbuild/remote-apis v0.0.0-20261020142950-c2c07e3d718d
 	github.com/coder/websocket v1.8.13
 	github.com/hanwen/go-fuse/v2 v2.12.1
 	github.com/klauspost/compress v1.18.7
 	github.com/prometheus/client_golang v1.23.2
+	github.com/tuist/tuist/infra/runner-cache v0.0.0
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	golang.org/x/sys v0.48.0
@@ -15,6 +17,7 @@ require (
 )
 
 require (
+	cloud.google.com/go/longrunning v0.8.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -25,8 +28,11 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 )
 
 godebug default=go1.25
+
+replace github.com/tuist/tuist/infra/runner-cache => ../runner-cache

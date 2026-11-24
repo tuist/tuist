@@ -3167,7 +3167,6 @@ defmodule Tuist.AccountsTest do
       refute Accounts.get_user_by_session_token(squatter_session)
       assert_receive %Broadcast{event: "disconnect"}
       refute Accounts.get_device_code(device_code)
-      refute Accounts.get_user_by_token(squatted.token)
       assert {:error, _} = Tuist.Guardian.resource_from_token(squatter_refresh, %{"typ" => "refresh"})
     end
 
@@ -3243,7 +3242,6 @@ defmodule Tuist.AccountsTest do
       Repo.insert!(user_token)
 
       {:ok, _} = Accounts.reset_user_password(token, %{"password" => "reset StrongP@ss 2038"})
-      refute Accounts.get_user_by_token(squatted.token)
       assert {:error, _} = Tuist.Guardian.resource_from_token(squatter_refresh, %{"typ" => "refresh"})
     end
 

@@ -8,6 +8,7 @@ metadata:
 spec:
   site: larch
   model: eats16n
+  mac: 00:20:85:a6:50:b0
   address: 192.168.60.15
-  managedBy: standalone
+  managedBy: controller
   preferredSource: 2

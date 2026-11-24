@@ -3,6 +3,8 @@ package executiongateway
 import (
 	"log"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -21,6 +23,9 @@ type metrics struct {
 	prefetches   *prometheus.CounterVec
 	publications *prometheus.CounterVec
 	phases       *prometheus.HistogramVec
+	records      *prometheus.CounterVec
+	logCopies    *prometheus.CounterVec
+	logBytes     prometheus.Counter
 }
 
 func newMetrics(registry prometheus.Registerer) *metrics {
@@ -51,15 +56,27 @@ func newMetrics(registry prometheus.Registerer) *metrics {
 			Help:    "Executed actions by phase, from the executor's metadata: queued (admission to worker start, including VM creation), input_fetch (reading the action and materializing its input tree), execution and output_upload.",
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 20),
 		}, []string{"phase"}),
+		records: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "reapi_gateway_action_records_total",
+			Help: "Records of finished actions sent to the server: sent or failed (counted per record), dropped while the queue was full, unattributed when the client sent no invocation ID, and incomplete when the action, command or a log could not be read (also sent).",
+		}, []string{"result"}),
+		logCopies: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "reapi_gateway_action_log_copies_total",
+			Help: "Copies of long action logs to the server's object storage: copied, dropped while the queue was full, refused when the server's upload was out of bounds, and failed.",
+		}, []string{"result"}),
+		logBytes: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "reapi_gateway_action_log_copy_bytes_total",
+			Help: "Bytes of action logs copied to the server's object storage.",
+		}),
 	}
-	registry.MustRegister(m.executions, m.duration, m.streams, m.prefetches, m.publications, m.phases)
+	registry.MustRegister(m.executions, m.duration, m.streams, m.prefetches, m.publications, m.phases, m.records, m.logCopies, m.logBytes)
 	return m
 }
 
 // observePhases records how long each phase of an executed action took, so a
 // slow action can be attributed to queueing, input fetch, the command itself
 // or output upload. Phases with a missing or reversed timestamp are skipped.
-func (m *metrics) observePhases(md *re.ExecutedActionMetadata) {
+func (m *metrics) observePhases(md *re.ExecutedActionMetadata, queueWaits map[string]int64) {
 	if md == nil {
 		return
 	}
@@ -89,6 +106,7 @@ func (m *metrics) observePhases(md *re.ExecutedActionMetadata) {
 	if line == "" {
 		return
 	}
+	line += formatQueueWaits(queueWaits)
 	if slowInputs {
 		line += casReads(md)
 	}
@@ -132,4 +150,19 @@ func casReads(md *re.ExecutedActionMetadata) string {
 		return " cas_reads=" + string(b)
 	}
 	return ""
+}
+
+// formatQueueWaits returns the control plane's queue wait causes as a log
+// suffix, such as " waits=account_limit:500,node_capacity:1500", sorted by
+// cause so lines compare across actions.
+func formatQueueWaits(waits map[string]int64) string {
+	if len(waits) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(waits))
+	for cause, ms := range waits {
+		parts = append(parts, cause+":"+strconv.FormatInt(ms, 10))
+	}
+	slices.Sort(parts)
+	return " waits=" + strings.Join(parts, ",")
 }

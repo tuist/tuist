@@ -50,13 +50,6 @@ defmodule Atlas.Licenses do
 
   def get_license(_id), do: nil
 
-  def list_licenses_expiring_on(%Date{} = date) do
-    License
-    |> where([license], license.expires_on == ^date)
-    |> preload(:account)
-    |> Repo.all()
-  end
-
   def change_license_request(attrs \\ %{}) do
     License.request_changeset(%License{}, attrs)
   end

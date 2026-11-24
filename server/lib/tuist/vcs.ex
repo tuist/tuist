@@ -14,6 +14,7 @@ defmodule Tuist.VCS do
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
   alias Tuist.Cargo
+  alias Tuist.ClickHouseCapabilities
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHub.Client
@@ -28,6 +29,8 @@ defmodule Tuist.VCS do
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.Analytics, as: TestsAnalytics
+  alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS.GitHubAppInstallation
@@ -38,6 +41,7 @@ defmodule Tuist.VCS do
   @tuist_run_report_footer "\n<sub>Reported by [Tuist](https://tuist.dev), faster builds and reliable tests for Xcode, Gradle, Bazel, and more.</sub>\n"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
+  @max_coverage_rows_in_comment 10
   @test_body_build_systems [
     {"xcode", "Xcode"},
     {"gradle", "Gradle"},
@@ -531,6 +535,51 @@ defmodule Tuist.VCS do
   end
 
   @doc """
+  Queues the pull request comment of a commit whose coverage was just folded
+  complete (`Tuist.Tests.Coverage.Commits.recompute/3`): the completion
+  signal, or a run landing after it. The runs' own reports queue the comment
+  too, but before their fold, so that comment can't show the figure. The
+  pull request's ref is the newest one the commit's signed runs reported.
+
+  Unlike the other reports, this one isn't folded into a comment job that is
+  already running: that job may have read the commit before the fold, so a
+  job of its own follows it (and cancels it, `CommentWorker`).
+  """
+  def enqueue_coverage_pull_request_comment(
+        %Project{} = project,
+        %{complete: true, pull_request_number: number} = summary
+      )
+      when number > 0 do
+    with true <- project.vcs_comments_enabled,
+         remote when is_binary(remote) <- Projects.get_repository_url(project),
+         git_ref when is_binary(git_ref) <- pull_request_git_ref(summary) do
+      %{
+        git_commit_sha: summary.git_commit_sha,
+        git_ref: git_ref,
+        git_remote_url_origin: remote,
+        project_id: project.id
+      }
+      |> CommentWorker.new(unique: [keys: [:project_id, :git_ref], states: [:available, :scheduled], period: :infinity])
+      |> Oban.insert()
+    else
+      _ -> :skipped
+    end
+  end
+
+  def enqueue_coverage_pull_request_comment(_project, _summary), do: :skipped
+
+  defp pull_request_git_ref(summary) do
+    ClickHouseRepo.one(
+      from(t in Coverage.Commits.measured_runs_query(summary),
+        where: t.is_pull_request and t.git_ref != "",
+        order_by: [desc: t.inserted_at],
+        limit: 1,
+        select: t.git_ref
+      )
+    )
+  end
+
+  @doc """
   Returns the pull request number of a `refs/pull/<number>/<suffix>` git ref,
   such as `refs/pull/23958/merge`, or `nil` for any other ref.
   """
@@ -596,17 +645,19 @@ defmodule Tuist.VCS do
     end
   end
 
-  def post_vcs_pull_request_comment(%{
-        git_ref: git_ref,
-        git_remote_url_origin: git_remote_url_origin,
-        git_commit_sha: git_commit_sha,
-        project: project,
-        preview_url: preview_url,
-        preview_qr_code_url: preview_qr_code_url,
-        test_run_url: test_run_url,
-        bundle_url: bundle_url,
-        build_url: build_url
-      }) do
+  def post_vcs_pull_request_comment(
+        %{
+          git_ref: git_ref,
+          git_remote_url_origin: git_remote_url_origin,
+          git_commit_sha: git_commit_sha,
+          project: project,
+          preview_url: preview_url,
+          preview_qr_code_url: preview_qr_code_url,
+          test_run_url: test_run_url,
+          bundle_url: bundle_url,
+          build_url: build_url
+        } = params
+      ) do
     with true <- project.vcs_comments_enabled,
          true <- is_binary(git_commit_sha) and git_commit_sha != "",
          true <- is_binary(git_ref) and git_ref != "",
@@ -642,6 +693,7 @@ defmodule Tuist.VCS do
           test_run_url: test_run_url,
           build_url: build_url,
           bundle_url: bundle_url,
+          coverage_url: Map.get(params, :coverage_url),
           project: project
         }
         |> get_run_report()
@@ -820,7 +872,24 @@ defmodule Tuist.VCS do
         project: project
       })
 
-    bodies = [previews_body, test_body, failed_tests_body, flaky_tests_body, builds_body, bundles_body]
+    coverage_body =
+      get_coverage_body(%{
+        project: project,
+        sha: Map.get(params, :git_commit_sha) || newest_test_run_commit_sha(test_runs),
+        pull_request_number: pull_request_number_from_git_ref(Map.get(params, :git_ref)),
+        git_remote_url_origin: git_remote_url_origin,
+        coverage_url: Map.get(params, :coverage_url)
+      })
+
+    bodies = [
+      previews_body,
+      test_body,
+      failed_tests_body,
+      flaky_tests_body,
+      coverage_body,
+      builds_body,
+      bundles_body
+    ]
 
     if Enum.all?(bodies, &is_nil/1) do
       nil
@@ -906,6 +975,205 @@ defmodule Tuist.VCS do
 
   defp format_bundle_download_size(nil), do: dgettext("dashboard_account", "Unknown")
   defp format_bundle_download_size(size) when is_integer(size), do: ByteFormatter.format_bytes(size)
+
+  # A pull request's coverage is its latest commit's: the commit of its newest
+  # signed test run, the latest commit the Tests section reports. Not the
+  # commit the comment was queued for, which may be an earlier commit whose
+  # build or preview finished after the newer commit's coverage was reported.
+  defp newest_test_run_commit_sha([]), do: nil
+
+  defp newest_test_run_commit_sha(test_runs), do: Enum.max_by(test_runs, & &1.inserted_at, NaiveDateTime).git_commit_sha
+
+  # Coverage is reported only once the commit's pipeline signalled
+  # completion: before then a scheme or shard may still be missing, so the
+  # section says it is in progress rather than showing a figure that may
+  # move. An incomplete figure is a lower bound, shown as such without a
+  # change.
+  defp get_coverage_body(%{sha: sha}) when sha in [nil, ""], do: nil
+
+  defp get_coverage_body(%{project: project, sha: sha} = args) do
+    if Coverage.supported?(project) do
+      case Comparison.compare(project, sha, files: @max_coverage_rows_in_comment) do
+        nil -> nil
+        comparison -> coverage_section(comparison, %{args | project: Repo.preload(project, :account)})
+      end
+    end
+  end
+
+  defp coverage_section(%{status: :in_progress}, %{sha: sha, git_remote_url_origin: remote} = args) do
+    """
+
+    #### Coverage ☂️
+
+    ⏳ Coverage for #{commit_link(sha, remote)} is still being collected. It's reported here once every test run of the commit has reported and the pipeline signals completion (`tuist coverage complete`).#{coverage_details_link(args)}
+    """
+  end
+
+  defp coverage_section(%{status: :incomplete, head: head}, %{sha: sha, git_remote_url_origin: remote} = args) do
+    """
+
+    #### Coverage ☂️
+
+    ⚠️ Coverage for #{commit_link(sha, remote)} is incomplete: **#{head.coverage}%** is a lower bound, since #{incomplete_reason(head)}, so it isn't compared with the base.#{coverage_details_link(args)}
+    """
+  end
+
+  defp coverage_section(%{status: :complete} = comparison, %{sha: sha, git_remote_url_origin: remote} = args) do
+    %{head: head, change: change} = comparison
+    change_text = if change, do: " `Δ #{signed_points(change)}`", else: " `Δ unknown`"
+
+    """
+
+    #### Coverage ☂️
+
+    **#{head.coverage}%**#{change_text} (#{format_number(head.covered_lines)} of #{format_number(head.executable_lines)} lines) at #{commit_link(sha, remote)}
+
+    #{coverage_base_text(comparison, args)}#{coverage_details_link(args)}
+    #{coverage_targets_table(comparison, args.project)}#{coverage_files_table(comparison)}
+    """
+  end
+
+  # Why the figure is a lower bound, in the order the coverage page explains
+  # it (`TuistWeb.Coverage.Components.incomplete_title/1`).
+  defp incomplete_reason(head) do
+    reasons = Coverage.Commits.gap_reasons(head)
+
+    cond do
+      :dirty_run_excluded in reasons ->
+        "some schemes only ran on a checkout with uncommitted changes, whose coverage doesn't count"
+
+      :uninstrumented_code in reasons ->
+        "some of the code the tests ran came from the binary cache without coverage counters"
+
+      true ->
+        "the coverage of some tests the runs skipped couldn't be determined"
+    end
+  end
+
+  defp coverage_base_text(%{requested_base_sha: nil}, _args),
+    do: "The pull request's base commit isn't known, so the change is unknown."
+
+  defp coverage_base_text(%{base: nil} = comparison, args),
+    do:
+      "Neither the base commit #{requested_base_link(comparison, args)} nor any of its ancestors on the base branch has complete coverage, so the change is unknown."
+
+  defp coverage_base_text(%{requested_base_sha: requested, base: %{git_commit_sha: requested}}, args),
+    do: "Compared with the base commit #{coverage_commit_link(requested, args)}."
+
+  defp coverage_base_text(%{base: base} = comparison, args) do
+    commits = if base.distance == 1, do: "1 commit", else: "#{base.distance} commits"
+
+    "Compared with #{coverage_commit_link(base.git_commit_sha, args)}, the nearest ancestor of the base commit #{requested_base_link(comparison, args)} with complete coverage (#{commits} earlier)."
+  end
+
+  # A base commit no run measured has no coverage page, so it links to the
+  # repository like the comment's other commits.
+  defp requested_base_link(%{requested_base_sha: sha, requested_base_measured: true}, args),
+    do: coverage_commit_link(sha, args)
+
+  defp requested_base_link(%{requested_base_sha: sha}, args), do: commit_link(sha, args.git_remote_url_origin)
+
+  # A base commit opens its coverage page, which is what the comparison read.
+  defp coverage_commit_link(sha, %{coverage_url: url, project: project}) when is_function(url, 1),
+    do: "[#{String.slice(sha, 0, 9)}](#{url.(%{project: project, sha: sha, pull_request_number: nil})})"
+
+  defp coverage_commit_link(sha, args), do: commit_link(sha, args.git_remote_url_origin)
+
+  # The pull request's coverage page when the report is for one, else the
+  # commit's.
+  defp coverage_details_link(%{coverage_url: url} = args) when is_function(url, 1),
+    do: " [View coverage](#{url.(Map.take(args, [:project, :sha, :pull_request_number]))})"
+
+  defp coverage_details_link(_args), do: ""
+
+  # With a base, the modules whose coverage changed, most first, and how many
+  # didn't; a module the base didn't have counts as changed. Without a base no
+  # change is known, so the least covered. Mix calls modules applications and
+  # Cargo packages; Xcode targets and Gradle projects are modules, as the Tests
+  # section and Module Cache call them.
+  defp coverage_targets_table(%{targets: []}, _project), do: ""
+
+  defp coverage_targets_table(%{base: nil, targets: targets}, project) do
+    shown = targets |> Enum.sort_by(&{&1.coverage, &1.name}) |> Enum.take(@max_coverage_rows_in_comment)
+    more = length(targets) - length(shown)
+
+    coverage_targets_rows(shown, project, if(more > 0, do: "#{more} more not shown."))
+  end
+
+  defp coverage_targets_table(%{targets: targets}, project) do
+    {changed, unchanged} = Enum.split_with(targets, &(&1.change != 0.0))
+
+    shown =
+      changed
+      |> Enum.sort_by(&{-abs(&1.change || 0.0), &1.coverage, &1.name})
+      |> Enum.take(@max_coverage_rows_in_comment)
+
+    more = length(changed) - length(shown)
+
+    note =
+      [
+        if(more > 0, do: "#{more} more changed not shown."),
+        if(unchanged != [], do: "#{count_modules(length(unchanged), project)} unchanged.")
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(" ")
+
+    coverage_targets_rows(shown, project, note)
+  end
+
+  defp coverage_targets_rows(targets, project, note) do
+    rows =
+      if targets == [],
+        do: "",
+        else: """
+
+        | #{coverage_target_label(project)} | Coverage | Δ |
+        | - | - | - |
+        #{Enum.map_join(targets, "\n", fn target -> "| #{escape_table_cell(target.name)} | #{target.coverage}% | #{coverage_change_cell(target.change)} |" end)}
+        """
+
+    note = if note in [nil, ""], do: "", else: "\n<sub>#{note}</sub>\n"
+    rows <> note
+  end
+
+  defp count_modules(1, project), do: "1 #{String.downcase(coverage_target_label(project))}"
+  defp count_modules(count, project), do: "#{count} #{String.downcase(coverage_target_label(project))}s"
+
+  defp coverage_files_table(%{changed_files: []}), do: ""
+
+  defp coverage_files_table(%{changed_files: files}) do
+    """
+
+    <details>
+    <summary>Files whose coverage changed most</summary>
+
+    | File | Coverage | Δ |
+    | - | - | - |
+    #{Enum.map_join(files, "\n", fn file -> "| `#{escape_table_cell(file.path)}` | #{Coverage.percentage(file.covered_lines, file.executable_lines)}% | #{coverage_change_cell(file.change)} |" end)}
+
+    </details>
+    """
+  end
+
+  defp coverage_target_label(%Project{build_system: :mix}), do: "Application"
+  defp coverage_target_label(%Project{build_system: :cargo}), do: "Package"
+  defp coverage_target_label(_project), do: "Module"
+
+  defp coverage_change_cell(nil), do: "—"
+  defp coverage_change_cell(change), do: "`#{signed_points(change)}`"
+
+  defp signed_points(change) when change > 0, do: "+#{change}%"
+  defp signed_points(change), do: "#{change}%"
+
+  defp escape_table_cell(text), do: String.replace(text, "|", "\\|")
+
+  defp format_number(number) when is_integer(number) do
+    number
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
+    |> String.reverse()
+  end
 
   defp commit_link(nil, _git_remote_url_origin), do: ""
 
@@ -1410,12 +1678,21 @@ defmodule Tuist.VCS do
     |> Enum.uniq_by(fn build -> {build.root_project_name, Enum.sort(build.requested_tasks)} end)
   end
 
+  # The view reads `test_runs` with `FINAL`, under which ClickHouse uses skip
+  # indexes only when `use_skip_indexes_if_final` is on; it's off at the
+  # 24.12 compatibility level the server's profile pins, so it's set here.
+  # Its exact mode expands the granules the ref and commit SHA indexes select
+  # back to whole key ranges, reading the project's whole run history. Exact
+  # mode only matters when a run's newest version could stop matching while
+  # an older one still does; a run's ref and SHA are only ever filled in,
+  # never changed (a shard's report fills a placeholder's blanks), so the
+  # version the filter finds is the newest.
   defp get_latest_test_runs(params) do
     from(t in Tests.Test.query())
     |> filter_run_report_query(params)
     |> where([t], t.submission_auth != "network_trusted")
     |> order_by([t], desc: t.inserted_at)
-    |> ClickHouseRepo.all()
+    |> ClickHouseRepo.all(settings: ClickHouseCapabilities.skip_indexes_if_final_settings(ClickHouseRepo))
     |> Enum.group_by(& &1.build_system)
     |> Enum.flat_map(fn
       {"xcode", test_runs} -> latest_test_run_per_scheme(test_runs)

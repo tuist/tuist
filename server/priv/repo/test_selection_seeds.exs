@@ -22,7 +22,15 @@
 #     changed resource (`owned_without_evidence`), and skip the rest of the
 #     baseline's tests in the requested modules; a changed tracked file and a
 #     few others fall back; some runs are sharded, packed by duration, with a
-#     shard plan that points to the impact run.
+#     shard plan that points to the impact run;
+#   - a selected run stores its decision as coverage-based test selection
+#     does (`Tuist.TestImpactAnalysis.Decision`): bitmaps of the tests it
+#     selected and skipped in `test_impact_run_decisions`, numbered by a
+#     checkpoint at its baseline for its scheme (`test_impact_snapshots`,
+#     one per baseline and scheme, holding every test a run against it
+#     decided, with the files each test's evidence executed). These
+#     checkpoints have no test runs, which is how a rerun finds and replaces
+#     them.
 #
 # Starts from a clean slate on every run. Runnable on its own after the main
 # seed: `mix run priv/repo/test_selection_seeds.exs`.
@@ -35,7 +43,7 @@ alias Tuist.Projects
 alias Tuist.Shards.ShardPlan
 alias Tuist.Shards.ShardPlanTestSuite
 alias Tuist.TestImpactAnalysis.Run
-alias Tuist.TestImpactAnalysis.RunTest
+alias Tuist.TestImpactAnalysis.Snapshot
 alias Tuist.TestImpactAnalysis.Storage
 
 defmodule TestSelectionSeed do
@@ -129,10 +137,31 @@ end
 {:ok, project} = Projects.get_project_by_slug("tuist/tuist")
 now = NaiveDateTime.utc_now()
 
-for table <- ~w(test_impact_diffs test_impact_runs test_impact_run_tests) do
+for table <- ~w(test_impact_diffs test_impact_runs test_impact_run_decisions) do
   IngestRepo.query!("ALTER TABLE #{table} DELETE WHERE project_id = {project_id:Int64} SETTINGS mutations_sync = 2", %{
     "project_id" => project.id
   })
+end
+
+# The checkpoints an earlier run of this seed wrote: no test run made them.
+{_count, seeded_snapshot_ids} =
+  Tuist.Repo.delete_all(
+    from(s in Snapshot,
+      where: s.project_id == ^project.id and s.kind == :checkpoint and s.test_run_ids == ^[],
+      select: s.id
+    )
+  )
+
+if seeded_snapshot_ids != [] do
+  for table <- ~w(test_impact_snapshot_tests test_impact_snapshot_files) do
+    IngestRepo.query!(
+      """
+      ALTER TABLE #{table} DELETE WHERE project_id = {project_id:Int64} AND snapshot_id IN {ids:Array(UUID)}
+      SETTINGS mutations_sync = 2
+      """,
+      %{"project_id" => project.id, "ids" => seeded_snapshot_ids}
+    )
+  end
 end
 
 # Every commit a run measured coverage for, with its branch and first run.
@@ -329,7 +358,7 @@ fallbacks = %{0 => "baseline_too_old", 1 => "history_unavailable", 2 => "diff_un
 # could skip.
 baseline_tests = fn sha, scheme ->
   """
-  SELECT toString(assumeNotNull(c.test_case_id)), any(c.module_name)
+  SELECT toString(assumeNotNull(c.test_case_id)), any(c.module_name), any(c.suite_name), any(c.name)
   FROM test_case_runs AS c
   WHERE c.project_id = {project_id:Int64} AND c.test_case_id IS NOT NULL
     AND c.test_run_id IN (
@@ -339,7 +368,7 @@ baseline_tests = fn sha, scheme ->
   GROUP BY assumeNotNull(c.test_case_id)
   """
   |> TestSelectionSeed.query(%{"project_id" => project.id, "sha" => sha, "scheme" => scheme})
-  |> Enum.map(fn [id, module] -> %{test_case_id: id, module: module} end)
+  |> Enum.map(fn [id, module, suite, name] -> %{test_case_id: id, module: module, suite: suite, name: name} end)
 end
 
 seeded =
@@ -405,15 +434,12 @@ seeded =
                 {rule, matched} ->
                   [
                     %{
-                      test_impact_run_id: run_id,
-                      project_id: project.id,
                       test_case_id: test.test_case_id,
                       module_name: test.module,
                       suite_name: test.suite,
                       name: test.name,
                       reason: rule,
-                      matched_path: matched,
-                      inserted_at: selected_at
+                      matched_path: matched
                     }
                   ]
               end
@@ -424,14 +450,28 @@ seeded =
 
         selected_ids = MapSet.new(selected, & &1.test_case_id)
 
-        skipped_count =
+        # The baseline's tests in the requested modules the rules left: what
+        # the decision skips as `unaffected`.
+        skipped =
           if reason == "" do
             baseline.sha
             |> baseline_tests.(test_run.scheme)
-            |> Enum.count(&(MapSet.member?(target_set, &1.module) and not MapSet.member?(selected_ids, &1.test_case_id)))
+            |> Enum.filter(&(MapSet.member?(target_set, &1.module) and not MapSet.member?(selected_ids, &1.test_case_id)))
+            |> Enum.map(fn test ->
+              %{
+                test_case_id: test.test_case_id,
+                module_name: test.module,
+                suite_name: test.suite,
+                name: test.name,
+                reason: "unaffected",
+                matched_path: ""
+              }
+            end)
           else
-            0
+            []
           end
+
+        skipped_count = length(skipped)
 
         # The modules the run never reached, which selective testing skipped
         # by hash, each with its number of tests in the baseline.
@@ -505,7 +545,17 @@ seeded =
           if baseline && reason in ["", "tracked_file_changed"],
             do: %{commit_sha: commit.sha, baseline_sha: baseline.sha, changed_files: impact.changed_files}
 
-        [%{run: run, selected: selected, test_run_id: test_run.id, shard_count: shard_count, diff: diff}]
+        [
+          %{
+            run: run,
+            selected: selected,
+            skipped: skipped,
+            baseline: if(reason == "", do: baseline),
+            test_run_id: test_run.id,
+            shard_count: shard_count,
+            diff: diff
+          }
+        ]
       end
     end)
   end)
@@ -527,10 +577,126 @@ end)
 |> Enum.chunk_every(2_000)
 |> Enum.each(&IngestRepo.insert_all(Run, &1))
 
+# A checkpoint per baseline and scheme that a selected run decided against,
+# holding every test those runs decided, numbered in module, suite and name
+# order, with the files each test's evidence at the baseline executed.
+repository_id =
+  "SELECT toInt64(max(git_repository_id)) FROM test_runs WHERE project_id = {project_id:Int64}"
+  |> TestSelectionSeed.query(%{"project_id" => project.id})
+  |> then(fn [[id]] -> id || 0 end)
+
+checkpoints =
+  seeded
+  |> Enum.filter(& &1.baseline)
+  |> Enum.group_by(&{&1.baseline, &1.run.build_context["scheme"]})
+  |> Map.new(fn {{baseline, scheme}, entries} ->
+    snapshot_id = UUIDv7.generate()
+    ran_at = baseline.ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.add(0, :microsecond)
+    expires_at = DateTime.add(DateTime.utc_now(), 31, :day)
+
+    tests =
+      entries
+      |> Enum.flat_map(&(&1.selected ++ &1.skipped))
+      |> Enum.uniq_by(& &1.test_case_id)
+      |> Enum.sort_by(&{&1.module_name, &1.suite_name, &1.name})
+      |> Enum.with_index()
+
+    Tuist.Repo.insert!(%Snapshot{
+      id: snapshot_id,
+      project_id: project.id,
+      repository_id: repository_id,
+      commit_sha: baseline.sha,
+      kind: :checkpoint,
+      scheme: scheme,
+      platform: "ios",
+      tests_count: length(tests),
+      ran_at: ran_at,
+      expires_at: expires_at
+    })
+
+    params = %{"project_id" => project.id, "snapshot_id" => snapshot_id, "expires_at" => DateTime.to_unix(expires_at)}
+
+    tests
+    |> Enum.chunk_every(10_000)
+    |> Enum.each(fn chunk ->
+      IngestRepo.query!(
+        """
+        INSERT INTO test_impact_snapshot_tests (project_id, snapshot_id, test_idx, test_case_id, module_name,
+          suite_name, status, files_hash, lines_hash, expires_at)
+        SELECT {project_id:Int64}, {snapshot_id:UUID}, t.1, toUUID(t.2), t.3, t.4, 'passed', 0, 0,
+          toDateTime({expires_at:Int64})
+        FROM (SELECT arrayJoin(arrayZip({idx:Array(UInt32)}, {ids:Array(String)}, {modules:Array(String)},
+          {suites:Array(String)})) AS t)
+        """,
+        Map.merge(params, %{
+          "idx" => Enum.map(chunk, &elem(&1, 1)),
+          "ids" => Enum.map(chunk, &elem(&1, 0).test_case_id),
+          "modules" => Enum.map(chunk, &elem(&1, 0).module_name),
+          "suites" => Enum.map(chunk, &elem(&1, 0).suite_name)
+        })
+      )
+    end)
+
+    idx = Map.new(tests, fn {test, i} -> {test.test_case_id, i} end)
+
+    baseline.evidence
+    |> Enum.filter(&Map.has_key?(idx, &1.test_case_id))
+    |> Enum.flat_map(fn test ->
+      test.module
+      |> TestSelectionSeed.covered_paths(test.suite, test.paths)
+      |> Enum.map(&{&1, idx[test.test_case_id]})
+    end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Enum.chunk_every(500)
+    |> Enum.each(fn files ->
+      IngestRepo.query!(
+        """
+        INSERT INTO test_impact_snapshot_files (project_id, snapshot_id, path, is_test, tests, suite_tests,
+          target_tests, expires_at)
+        SELECT {project_id:Int64}, {snapshot_id:UUID}, f.1, startsWith(f.1, 'Tests/'), bitmapBuild(f.2),
+          bitmapBuild(emptyArrayUInt32()), bitmapBuild(emptyArrayUInt32()), toDateTime({expires_at:Int64})
+        FROM (SELECT arrayJoin(arrayZip({paths:Array(String)}, {tests:Array(Array(UInt32))})) AS f)
+        """,
+        Map.merge(params, %{"paths" => Enum.map(files, &elem(&1, 0)), "tests" => Enum.map(files, &elem(&1, 1))})
+      )
+    end)
+
+    {{baseline.sha, scheme}, %{id: snapshot_id, idx: idx}}
+  end)
+
+# Each selected run's decision: a bitmap per decision, reason and matched
+# path, in its checkpoint's numbering, its evidence that checkpoint's.
 seeded
-|> Enum.flat_map(& &1.selected)
-|> Enum.chunk_every(2_000)
-|> Enum.each(&IngestRepo.insert_all(RunTest, &1))
+|> Enum.filter(& &1.baseline)
+|> Enum.each(fn %{run: run, selected: selected, skipped: skipped, baseline: baseline} ->
+  checkpoint = Map.fetch!(checkpoints, {baseline.sha, run.build_context["scheme"]})
+  decided = selected ++ skipped
+
+  decided
+  |> Enum.group_by(&{if(&1.reason == "unaffected", do: "skipped", else: "selected"), &1.reason, &1.matched_path})
+  |> Enum.each(fn {{decision, reason, matched_path}, tests} ->
+    IngestRepo.query!(
+      """
+      INSERT INTO test_impact_run_decisions (project_id, test_impact_run_id, snapshot_id, evidence_snapshot_id,
+        decision, reason, matched_path, chunk, tests, decided, inserted_at)
+      SELECT {project_id:Int64}, {run_id:UUID}, {snapshot_id:UUID}, {snapshot_id:UUID}, {decision:String},
+        {reason:String}, {matched_path:String}, 0, bitmapBuild({idx:Array(UInt32)}), {decided:UInt32},
+        {inserted_at:DateTime64(6)}
+      """,
+      %{
+        "project_id" => project.id,
+        "run_id" => run.id,
+        "snapshot_id" => checkpoint.id,
+        "decision" => decision,
+        "reason" => reason,
+        "matched_path" => matched_path,
+        "idx" => Enum.map(tests, &Map.fetch!(checkpoint.idx, &1.test_case_id)),
+        "decided" => length(decided),
+        "inserted_at" => run.inserted_at
+      }
+    )
+  end)
+end)
 
 # Shard plans that distribute the sharded runs' selected tests by suite.
 {plans, suites} =
@@ -594,7 +760,11 @@ IngestRepo.query!(
 
 tests_count = seeded |> Enum.map(&length(&1.selected)) |> Enum.sum()
 
-IO.puts("  - test selection: #{length(seeded)} impact runs, #{tests_count} selected tests, #{length(plans)} shard plans")
+IO.puts(
+  "  - test selection: #{length(seeded)} impact runs, #{tests_count} selected tests, " <>
+    "#{map_size(checkpoints)} checkpoints, #{length(plans)} shard plans"
+)
+
 IO.puts("    /tuist/tuist/tests/test-selection")
 
 # Record how many tests each of the project's runs avoided, the effectiveness

@@ -88,7 +88,16 @@ spec:
                 fi
               }
               while :; do
-                install
+                # Only the configuration this pod was rolled out with. The
+                # kubelet refreshes the mounted ConfigMap in every installer
+                # as soon as helm changes it, the old ones too, so without
+                # this each edge's old installer put the new static pod in
+                # at once (2026-11-21: both of larch's edges within a second,
+                # edge-a's static pod then gone four minutes for want of its
+                # configuration directory), and minReadySeconds held nothing back.
+                if grep -qF "tuist.dev/rack-edge-hash: \"$RACK_EDGE_HASH\"" /config/rack-edge.yaml; then
+                  install
+                fi
                 if [ "$(cat /host/run/rack-edge/started 2>/dev/null)" = "$RACK_EDGE_HASH" ]; then
                   for d in /host/etc/rack-edge/*; do
                     case "$d" in

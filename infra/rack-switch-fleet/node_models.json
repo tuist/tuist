@@ -114,6 +114,7 @@
   },
   "rs501a-e12": {
     "product": "ASUS RS501A-E12-RS12U/1G",
+    "preinstall_product": "ASUSTeK COMPUTER INC. RS501A-E12-RS12U",
     "note": "Rack 2's edge and storage server. Interface names and MACs as the bench unit (TAS0CG000177) reported them on Ubuntu 24.04. Its BMC is adopted over Redfish (infra/rack-nodes).",
     "interfaces": {
       "bmc": {
@@ -142,6 +143,48 @@
         "controller": "bnxt_en",
         "os_name": "ens17f0np0",
         "note": "Broadcom N225P port 1. Linked at 10G with FEC off on a 10G SFP+ DAC; 25G needs an SFP28 DAC into the ToR's SFP28 ports. An admin-down port keeps its link, so a bond on it runs fast LACP. Its rings hold at most 2047 descriptors (ethtool -g, measured 26 Oct).",
+        "ring_max": 2047
+      },
+      "n225p-2": {
+        "media": "dac",
+        "speed": "25G",
+        "controller": "bnxt_en",
+        "os_name": "ens17f1np1",
+        "note": "Broadcom N225P port 2.",
+        "ring_max": 2047
+      }
+    }
+  },
+  "rs521a-e12": {
+    "product": "ASUS RS521A-E12-RS24U/1G",
+    "preinstall_product": "ASUSTeK COMPUTER INC. RS521A-E12-RS24U",
+    "note": "The 2U sibling of the RS501A-E12, bought for alder's storage node (primeLine order B 10054287) when the RS501A was out of stock. primeLine says it has the same motherboard and TPM-SPI module, so its rear ports, N225P OCP 3.0 card and BMC are the RS501A's; the interface names are the RS501A's until the unit reports its own. The SMBIOS product is the RS501A's pattern; the box's first announcement confirms it. The data drive is in a front bay and the 480 GB M.2 boot drive on the board.",
+    "interfaces": {
+      "bmc": {
+        "media": "copper",
+        "speed": "1G",
+        "out_of_band": "redfish",
+        "note": "The BMC's dedicated RJ45 on the back, as on the RS501A."
+      },
+      "lan1": {
+        "media": "copper",
+        "speed": "1G",
+        "controller": "i350",
+        "os_name": "eno1",
+        "note": "The first onboard RJ45. The BMC's NC-SI sideband rides it, as on the RS501A."
+      },
+      "lan2": {
+        "media": "copper",
+        "speed": "1G",
+        "controller": "i350",
+        "os_name": "eno2"
+      },
+      "n225p-1": {
+        "media": "dac",
+        "speed": "25G",
+        "controller": "bnxt_en",
+        "os_name": "ens17f0np0",
+        "note": "Broadcom N225P port 1, in the board's OCP 3.0 slot. Links at 10G with FEC off on a 10G SFP+ DAC.",
         "ring_max": 2047
       },
       "n225p-2": {

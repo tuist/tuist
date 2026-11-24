@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "35dfc2314168a01cadae61fbebd7461f5c20a24b84b57b120b51053df25894b9",
+  "hash": "428c5befa075539b18be2e2e2b4889bbf8e999c8a318b09586967a963bfe2482",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,29 +11,41 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Amp {#amp}": {
-                  "content_hash": "10708babd23ca5432f53e7f8778119f06d5ff24a678b60f5e354c4ef9003e382"
+                  "content_hash": "bbb14cfac86918e87d51181c9de7fcc18e80ef65c459ab457c85f897ecba66ef"
                 },
                 "## Connect Amp {#connect}": {
-                  "content_hash": "972894d0c9b81e776256332325612bd5819a62bb2c2af648e896a32ea3e610d9"
+                  "content_hash": "94a7e0b747b57566d205ab897bdb97d15f3ba384ad907a8af451bf097ae66277"
                 },
                 "## Pausing and retention {#retention}": {
-                  "content_hash": "9f44b5025262634cea89dccc8fbb44a8f90140ffb4e26607d4fea3c5fbfd4bfd"
+                  "content_hash": "112ff088a0fe019c510829062ffa469d865a454e90337716be13ea51a94c43c8"
                 },
                 "## Start a thread {#start-a-thread}": {
-                  "content_hash": "c028648ccad832eb74d47626415dec8ea2b8797156a07a3709ee2ea8bcff9d0b"
+                  "content_hash": "493cf0909437617b88d541066f5944632deeba209946bc2b80e1d2ba87d3e33e"
+                },
+                "## Use a Mac from any Amp thread {#remote-mac}": {
+                  "content_hash": "710b0b0e1a4375c293eb932faf718a7ecfbd920a32ab945ce1deb7965299a76b"
+                },
+                "### Choose an Xcode {#xcode}": {
+                  "content_hash": "efbe8c892e6ce0cedfd9c48457ab6146eef528cf59e524331ad0713868796ad7"
+                },
+                "### Set it up {#remote-mac-setup}": {
+                  "content_hash": "681f146c964e0fecb02b82c78c1592e746e122cb7a49a8fe3d847d3908977aed"
+                },
+                "### Use Tuist Macs instead of Amp's macOS Satellites {#remote-mac-satellites}": {
+                  "content_hash": "9bce5a2c35751cf35f469f9483f46324ab0a75e142f50e93a8430f2a6be73a24"
                 },
                 "Preamble": {
-                  "content_hash": "2996b17a31da1432832d632b226643881236649c098b2b5a4cd4c432491b597d"
+                  "content_hash": "0162acb0ee070843ecf6f51fc7879f9696e0955a7ead29521e3f87675a624a84"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "cbdf7258d0824088efc90626149063bbc78c5708b8eccdac89c3eef4564ee92a",
+          "hash": "83816979435c6089fdfa83003b872bd17f34582ace15c1b1b5e91ad9e3503be9",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes/amp.md",
           "metadata": {
-            "content_hash": "085411627be45f0c2beb711a9410f005d8f345aabc6e2e8852db91c0c773bee0"
+            "content_hash": "8cf665ad2cc1261fea116c80c2d3f72a5f6798f053f27280435cb23d1da76450"
           }
         },
         {
@@ -94,7 +106,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,7 +125,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -142,11 +154,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -223,21 +235,21 @@
             }
           ],
           "details": {},
-          "hash": "86fb7607ec8b391bedbe8b3bb655bbf094da8514355c754315de05e619622043",
+          "hash": "6a4ff7594570e87b6872fb45f5f99c3c13fa30ab7a749eef5286188a3e603fa9",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "35dfc2314168a01cadae61fbebd7461f5c20a24b84b57b120b51053df25894b9",
+      "hash": "428c5befa075539b18be2e2e2b4889bbf8e999c8a318b09586967a963bfe2482",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes/amp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "abccc6ca3a9fd65a5ea49dfa8806217a9dd9ec556764366100cd650b2e900a80",
+  "output_hash": "ad9192d8a127bb82a3da13078c3a6bc7a6931ef45b1e6efac6bae31a050963c8",
   "output_path": "server/priv/docs/zh_Hans/guides/features/sandboxes/amp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -257,8 +269,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "1c5f2719555ef6a364756c8b4816d6bfaa654288",
   "source_path": "server/priv/docs/en/guides/features/sandboxes/amp.md",
-  "translated_at": "2026-11-06T21:23:41.823820Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-18T22:51:49.314927Z",
+  "translation_session_id": "01a1f0d5-0649-7925-a79d-a6aef802c1ae"
 }

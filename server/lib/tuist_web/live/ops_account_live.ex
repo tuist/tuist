@@ -45,6 +45,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:prepaid_pool_quote, nil)
          |> assign(:prepaid_pool_coverage, nil)
          |> assign(:has_subscription, not is_nil(subscription))
+         |> assign(:on_air, Billing.effective_plan(account) == :air)
          |> assign_free_tier(account)
          |> assign_kura(account)
          |> assign(:upgrade_target_account, nil)

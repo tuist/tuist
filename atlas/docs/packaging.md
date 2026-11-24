@@ -32,7 +32,7 @@ It is an audit and a plan, not a commitment to a timeline.
 | Noora asset build | `mix.exs` `assets.setup`/`assets.build` (`cmd --cd ../noora aube ...`), `config/config.exs` esbuild aliases to `../../noora/priv/static` | Use the prebuilt `priv/static/noora.{js,css}` from `deps/noora` and drop the `aube` steps. |
 | Toolchain pins | root `mise.toml` | Pin Erlang, Elixir and Node in `atlas/mise.toml`. Move Tuist ops tools (kubectl, helm, 1Password CLI, clusterctl) to a private overlay. |
 | Dockerfile | `Dockerfile` | Build from `atlas/` only, remove the Noora stage, and vendor or drop the `infra/certificate-trust` check. |
-| CI and releases | `.github/workflows/atlas*.yml`, root `once.toml`, `mise/tasks/release/*` | Standalone workflows using plain `mix` (or a local `once.toml`) on public runners. |
+| CI and releases | `.github/workflows/atlas*.yml`, root `struo.toml`, `mise/tasks/release/*` | Standalone workflows using plain `mix` (or a local `struo.toml`) on public runners. |
 | Helm chart | `infra/helm/atlas/` (outside `atlas/`), `deploy/validate.sh` | Move the chart, without the managed overlay, under `atlas/deploy/`. |
 | Git dependencies | `mix.exs`: `tuist/condukt`, `tuist/ecto_ch` fork, `emcp` fork, `boruta` on `master` | Keep public, pin `boruta` to a commit, plan Hex releases. |
 | Changelog config | `cliff.toml` | Point links at the new repository. |
@@ -119,7 +119,7 @@ itself through small extension points.
   product metrics. Make it an optional widget and give `/` a generic home.
 - **Feature usage** catalog and collector query Tuist tables. Keep the snapshot
   storage in core behind a feature usage source behaviour; the catalog comes from
-  the integration. The Loki query hardcodes `service_name="tuist-server"`.
+  the integration.
 - **Nudges:** Air, cache, selective testing, SSO and activation signals are
   Tuist-specific. Keep the framework and add a signal registry instead of the
   static list in `nudges/workers/evaluate_signals.ex`.

@@ -1,0 +1,150 @@
+name: Ingress NGINX Image
+
+# Builds ingress-nginx from the Chainguard fork pinned in
+# infra/ingress-nginx-image/fork.env (nginx base with the fork's CVE patches
+# plus ours, the controller on top of it, and kube-webhook-certgen), checks
+# them against the official images they replace, and runs the fork's nginx
+# test suite. Pull requests only build. Pushes to main and manual dispatches
+# on main publish immutable `<fork version>-tuist.<n>` tags to
+# ghcr.io/tuist/ingress-nginx-{nginx,controller,kube-webhook-certgen}. See infra/ingress-nginx-image/README.md.
+#
+# The fork's source is untrusted input: the jobs that build and run it get a
+# read-only token, and the publishing job only loads and pushes their output.
+
+on:
+  pull_request:
+    paths:
+      - infra/ingress-nginx-image/**
+      - "!infra/ingress-nginx-image/**/*.md"
+      - .github/workflows/ingress-nginx-image.yml
+  push:
+    branches:
+      - main
+    paths:
+      - infra/ingress-nginx-image/**
+      - "!infra/ingress-nginx-image/**/*.md"
+      - .github/workflows/ingress-nginx-image.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ingress-nginx-image-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build and verify (amd64)
+    runs-on: tuist-linux-large
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build images
+        env:
+          TUIST_REVISION: ${{ github.sha }}
+        run: bash infra/ingress-nginx-image/build.sh "$RUNNER_TEMP/ingress-nginx"
+      - name: Verify against the official images
+        run: bash infra/ingress-nginx-image/verify.sh "$RUNNER_TEMP/ingress-nginx"
+      - name: Save images
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/ingress-nginx"
+          mkdir -p "$RUNNER_TEMP/images"
+          # shellcheck disable=SC1091
+          source "$work/images.env"
+          docker save "$NGINX_IMAGE" "$CONTROLLER_IMAGE" "$CERTGEN_IMAGE" -o "$RUNNER_TEMP/images/images.tar"
+          cp "$work/images.env" "$work/patches.txt" "$work/report.md" "$RUNNER_TEMP/images/"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ingress-nginx-images
+          path: ${{ runner.temp }}/images/
+          retention-days: 7
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: ingress-nginx-build-logs
+          path: |
+            ${{ runner.temp }}/ingress-nginx/*.log
+            ${{ runner.temp }}/ingress-nginx/*.txt
+            ${{ runner.temp }}/ingress-nginx/*.diff
+            ${{ runner.temp }}/ingress-nginx/report.md
+          retention-days: 14
+          if-no-files-found: ignore
+
+  nginx-tests:
+    name: nginx test suite (patched, AddressSanitizer)
+    runs-on: tuist-linux-large
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Fetch the pinned fork with our patches
+        run: bash infra/ingress-nginx-image/source.sh "$RUNNER_TEMP/ingress-nginx"
+      # The fork's own target: nginx-tests plus the fork's tests/t, against
+      # nginx built with AddressSanitizer from the same version and patch
+      # stack as the base image (ours included).
+      - name: Run the fork's nginx tests
+        run: make -C "$RUNNER_TEMP/ingress-nginx/src/images/nginx" test
+
+  publish:
+    name: Publish to GHCR
+    needs: [build, nginx-tests]
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ingress-nginx-images
+          path: ${{ runner.temp }}/images
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push immutable tags
+        working-directory: ${{ runner.temp }}/images
+        run: |
+          set -euo pipefail
+          # images.env comes from the build job: read it as data, never source it.
+          refs=()
+          for key in NGINX_IMAGE CONTROLLER_IMAGE CERTGEN_IMAGE; do
+            ref=$(sed -n "s/^${key}=//p" images.env)
+            if [[ ! "$ref" =~ ^ghcr\.io/tuist/ingress-nginx-(nginx|controller|kube-webhook-certgen):v[0-9]+\.[0-9]+\.[0-9]+-tuist\.[0-9]+$ ]]; then
+              echo "::error::unexpected $key in images.env: $ref"
+              exit 1
+            fi
+            refs+=("$ref")
+          done
+          for ref in "${refs[@]}"; do
+            if docker buildx imagetools inspect "$ref" > /dev/null 2>&1; then
+              echo "::error::$ref already exists. Published tags are immutable: bump TUIST_BUILD in infra/ingress-nginx-image/fork.env."
+              exit 1
+            fi
+          done
+          docker load -i images.tar
+          {
+            echo "## Published"
+            echo
+            echo "| Image | Digest |"
+            echo "| --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for ref in "${refs[@]}"; do
+            docker push "$ref"
+            digest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)
+            echo "Pushed ${ref}@${digest}"
+            echo "| \`$ref\` | \`$digest\` |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          cat report.md >> "$GITHUB_STEP_SUMMARY"

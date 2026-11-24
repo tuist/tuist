@@ -52,9 +52,9 @@ defmodule TuistWeb.Components.PublicProjectCTABanner do
           />
         </div>
       </div>
-      <.neutral_button data-part="dismiss" size="medium">
+      <.ghost_button variant="secondary" data-part="dismiss" size="medium">
         <.close />
-      </.neutral_button>
+      </.ghost_button>
     </div>
     """
   end

@@ -22,7 +22,7 @@ defmodule Atlas.FeatureUsage.Catalog do
 
   Each source declares:
 
-    * `:store` — `:clickhouse` (the default), `:postgres`, or `:loki`.
+    * `:store` — `:clickhouse` (the default) or `:postgres`.
 
     * `:table` — the ClickHouse table.
     * `:time_expr` — the event-timestamp column used both to bucket usage into
@@ -41,10 +41,6 @@ defmodule Atlas.FeatureUsage.Catalog do
       makes a row count as in use (e.g. the automation being enabled).
     * `:total_predicate` — an optional predicate for the total configuration
       count when it differs from the in-use predicate.
-
-  Loki sources are account-handle scoped log queries. They are used where the
-  authoritative product signal is operational telemetry rather than a database
-  row, such as Model Context Protocol requests.
 
   Add a feature by appending an entry here; the collector and the read/alert
   surfaces pick it up automatically. `registry_download_events` is intentionally
@@ -196,13 +192,6 @@ defmodule Atlas.FeatureUsage.Catalog do
           predicate: "o.sso_provider IS NOT NULL",
           total_predicate: "o.sso_provider IS NOT NULL"
         }
-      ]
-    },
-    %{
-      slug: "model_context_protocol",
-      label: "Model Context Protocol server",
-      sources: [
-        %{store: :loki, attribution: :account_handle}
       ]
     }
   ]

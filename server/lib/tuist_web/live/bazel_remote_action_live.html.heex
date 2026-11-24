@@ -1,0 +1,385 @@
+<div
+  :if={@pending}
+  id="bazel-remote-action"
+  phx-hook="PageFavicon"
+  data-favicon-status="in_progress"
+>
+  <.button
+    label={dgettext("dashboard_builds", "Remote execution")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={invocation_path(assigns)}
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div data-part="badge-processing">
+          <div data-part="icon"><.circle_dashed /></div>
+        </div>
+        <h1 data-part="label">
+          {if @pending.mnemonic in [nil, ""],
+            do: dgettext("dashboard_builds", "Remote action"),
+            else: @pending.mnemonic}
+        </h1>
+      </div>
+      <span :if={@pending.target not in [nil, ""]} data-part="target">{@pending.target}</span>
+    </div>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_builds", "Action Details")}
+    icon="chart_arcs"
+    data-part="build-details"
+  >
+    <.card_section data-part="build-details-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <.detail label={dgettext("dashboard_builds", "Status")}>
+            <.badge
+              label={elem(pending_status(@pending), 0)}
+              color={elem(pending_status(@pending), 1)}
+              style="fill"
+              size="large"
+              data-part="status"
+            />
+          </.detail>
+          <.detail label={
+            if @pending.state == "queued",
+              do: dgettext("dashboard_builds", "Waiting for"),
+              else: dgettext("dashboard_builds", "Running for")
+          }>
+            <.history />
+            {pending_duration(@pending, @observed_at)}
+          </.detail>
+          <.detail label={dgettext("dashboard_builds", "Machine")}>
+            {dgettext("dashboard_builds", "%{vcpus} vCPU · %{memory} GB",
+              vcpus: @pending.vcpus,
+              memory: @pending.memory_gb
+            )}
+          </.detail>
+        </div>
+        <div data-part="metadata-row">
+          <.detail label={dgettext("dashboard_builds", "Action digest")} data-field="wide">
+            <code>{@pending.action_digest}</code>
+          </.detail>
+        </div>
+      </div>
+    </.card_section>
+    <.card_section>
+      <.alert
+        id="remote-action-pending"
+        type="secondary"
+        status="information"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_builds",
+            "The command, output and timings appear here when the action finishes."
+          )
+        }
+      />
+    </.card_section>
+  </.card>
+</div>
+
+<div
+  :if={!@pending}
+  id="bazel-remote-action"
+  phx-hook="PageFavicon"
+  data-favicon-status={elem(@status, 0)}
+>
+  <.button
+    label={dgettext("dashboard_builds", "Remote execution")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={invocation_path(assigns)}
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div data-part={"badge-" <> elem(@status, 0)}>
+          <div data-part="icon">
+            <.circle_check :if={elem(@status, 0) == "success"} />
+            <.alert_circle :if={elem(@status, 0) == "failure"} />
+          </div>
+        </div>
+        <h1 data-part="label">
+          {if @action.mnemonic == "",
+            do: dgettext("dashboard_builds", "Remote action"),
+            else: @action.mnemonic}
+        </h1>
+      </div>
+      <span :if={@action.target != ""} data-part="target">{@action.target}</span>
+    </div>
+  </div>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Overview")}
+      selected={@selected_tab == "overview"}
+      patch="?tab=overview"
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Logs")}
+      selected={@selected_tab == "logs"}
+      patch="?tab=logs"
+    />
+  </.tab_menu_horizontal>
+
+  <%= if @selected_tab == "overview" do %>
+    <.card
+      title={dgettext("dashboard_builds", "Action Details")}
+      icon="chart_arcs"
+      data-part="build-details"
+    >
+      <.card_section data-part="build-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <.detail label={dgettext("dashboard_builds", "Status")}>
+              <.badge
+                label={elem(@status, 1)}
+                color={elem(@status, 2)}
+                style="fill"
+                size="large"
+                data-part="status"
+              />
+            </.detail>
+            <.detail label={dgettext("dashboard_builds", "Exit code")} data-field="exit-code">
+              {@action.exit_code}
+            </.detail>
+            <.detail label={dgettext("dashboard_builds", "Duration")}>
+              <.history />
+              {duration(@action.duration_ms)}
+            </.detail>
+            <.detail label={dgettext("dashboard_builds", "Queued at")}>
+              {timestamp(@action.queued_at || @action.worker_start_at, @user_timezone)}
+            </.detail>
+          </div>
+          <div data-part="metadata-row">
+            <.detail
+              :for={phase <- Actions.phases()}
+              label={phase_label(phase)}
+              data-phase={phase}
+            >
+              {duration(Map.get(@action, phase))}
+            </.detail>
+          </div>
+          <div data-part="metadata-row">
+            <.detail label={dgettext("dashboard_builds", "Execution path")}>
+              {execution_path(@action.execution_path)}
+            </.detail>
+            <.detail :if={@action.worker != ""} label={dgettext("dashboard_builds", "Worker")}>
+              {@action.worker}
+            </.detail>
+            <.detail
+              :if={@action.sandbox_id != ""}
+              label={dgettext("dashboard_builds", "Sandbox")}
+            >
+              {@action.sandbox_id}
+            </.detail>
+            <.detail :if={@action.memory_gb > 0} label={dgettext("dashboard_builds", "Memory")}>
+              {dgettext("dashboard_builds", "%{size} GB", size: @action.memory_gb)}
+            </.detail>
+            <.detail :if={@action.timeout_ms > 0} label={dgettext("dashboard_builds", "Timeout")}>
+              {duration(@action.timeout_ms)}
+            </.detail>
+            <.detail :if={@action.tool_name != ""} label={dgettext("dashboard_builds", "Client")}>
+              {String.trim("#{@action.tool_name} #{@action.tool_version}")}
+            </.detail>
+          </div>
+          <div :if={@action.status_message != ""} data-part="metadata-row">
+            <.detail label={dgettext("dashboard_builds", "Status message")} data-field="wide">
+              {@action.status_message}
+            </.detail>
+          </div>
+          <div data-part="metadata-row">
+            <.detail label={dgettext("dashboard_builds", "Action digest")} data-field="wide">
+              <code>{@action.action_hash}/{@action.action_size}</code>
+            </.detail>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={elem(@status, 0) == "failure"}
+      title={dgettext("dashboard_builds", "Errors")}
+      icon="alert_circle"
+      data-part="errors-card"
+    >
+      <.card_section data-part="errors-card-section">
+        <div data-part="header">
+          <span data-part="title">{dgettext("dashboard_builds", "Errors")}</span>
+          <span data-part="dot">{dgettext("dashboard_builds", "•")}</span>
+          <span data-part="count">{max(length(@errors), 1)}</span>
+        </div>
+        <div data-part="issues-list">
+          <.issue_card
+            :for={{{path, issues}, index} <- Enum.with_index(errors_by_path(@errors))}
+            id={"remote-action-error-#{index}"}
+            title={dgettext("dashboard_builds", "Failed compiling %{path}", path: path)}
+            subtitle={@action.target}
+            items={Enum.map(issues, &issue_message/1)}
+          />
+          <.issue_card
+            :if={@errors == []}
+            id="remote-action-error-0"
+            title={failure_title(@action)}
+            subtitle={@action.target}
+            items={@failure_output}
+            output
+          />
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card
+      id="remote-action-command"
+      title={dgettext("dashboard_builds", "Command")}
+      icon="devices_code"
+      data-part="sections"
+    >
+      <.card_section data-part="section">
+        <p :if={@action.arguments_truncated} data-part="note">
+          {dgettext(
+            "dashboard_builds",
+            "The command exceeded the recorded size and is incomplete."
+          )}
+        </p>
+        <div :if={@action.arguments != []} data-part="command">
+          <pre
+            id="remote-action-command-line"
+            data-part="command-line"
+            data-state={if long_command?(@command_line), do: "closed", else: "open"}
+          >{@command_line}</pre>
+          <.button
+            id="remote-action-command-copy"
+            variant="secondary"
+            size="small"
+            icon_only
+            type="button"
+            phx-hook="Clipboard"
+            data-clipboard-value={@command_line}
+            aria-label={dgettext("dashboard_builds", "Copy command")}
+          >
+            <.copy />
+          </.button>
+        </div>
+        <button
+          :if={long_command?(@command_line)}
+          type="button"
+          id="remote-action-command-expand"
+          data-part="expand"
+          phx-click={
+            JS.toggle_attribute({"data-state", "closed", "open"},
+              to: "#remote-action-command-line"
+            )
+            |> JS.toggle_attribute({"hidden", ""}, to: "#remote-action-command-expand > span")
+          }
+        >
+          <span>{dgettext("dashboard_builds", "Show full command")}</span>
+          <span hidden>{dgettext("dashboard_builds", "Show less")}</span>
+        </button>
+        <p :if={@action.arguments == []} data-part="empty">
+          {dgettext("dashboard_builds", "The command was not recorded.")}
+        </p>
+      </.card_section>
+      <.card_section data-part="build-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <.detail label={dgettext("dashboard_builds", "Working directory")}>
+              <code>{working_directory(@action)}</code>
+            </.detail>
+            <.detail
+              :if={@action.output_paths != []}
+              id="remote-action-outputs"
+              label={dgettext("dashboard_builds", "Outputs")}
+              data-field="outputs"
+            >
+              <p :if={@action.output_count > length(@action.output_paths)} data-part="note">
+                {dgettext(
+                  "dashboard_builds",
+                  "Showing %{shown} of %{count} outputs; the rest were not recorded.",
+                  shown: length(@action.output_paths),
+                  count: @action.output_count
+                )}
+              </p>
+              <ul data-part="paths">
+                <li
+                  :for={{path, index} <- Enum.with_index(@action.output_paths)}
+                  hidden={index >= @shown_outputs}
+                  data-part={if index >= @shown_outputs, do: "more-output"}
+                >
+                  <code>{path}</code>
+                </li>
+              </ul>
+              <button
+                :if={length(@action.output_paths) > @shown_outputs}
+                type="button"
+                id="remote-action-outputs-expand"
+                data-part="expand"
+                phx-click={
+                  JS.toggle_attribute({"hidden", ""},
+                    to: "#remote-action-outputs [data-part=more-output]"
+                  )
+                  |> JS.toggle_attribute({"hidden", ""},
+                    to: "#remote-action-outputs-expand > span"
+                  )
+                }
+              >
+                <span>
+                  {dgettext("dashboard_builds", "Show all %{count} outputs",
+                    count: length(@action.output_paths)
+                  )}
+                </span>
+                <span hidden>{dgettext("dashboard_builds", "Show fewer")}</span>
+              </button>
+            </.detail>
+          </div>
+        </div>
+      </.card_section>
+      <.card_section data-part="build-details-section">
+        <span data-part="section-title">{dgettext("dashboard_builds", "Environment")}</span>
+        <.pairs
+          :if={environment(@action) != []}
+          id="remote-action-environment"
+          pairs={environment(@action)}
+        />
+        <p :if={environment(@action) == []} data-part="empty">
+          {dgettext("dashboard_builds", "The action set no environment variables.")}
+        </p>
+      </.card_section>
+      <.card_section data-part="build-details-section">
+        <span data-part="section-title">{dgettext("dashboard_builds", "Platform")}</span>
+        <.pairs
+          :if={platform(@action) != []}
+          id="remote-action-platform"
+          pairs={platform(@action)}
+        />
+        <p :if={platform(@action) == []} data-part="empty">
+          {dgettext("dashboard_builds", "The action requested no platform properties.")}
+        </p>
+      </.card_section>
+    </.card>
+  <% end %>
+
+  <.card
+    :if={@selected_tab == "logs"}
+    title={dgettext("dashboard_builds", "Logs")}
+    icon="file_text"
+  >
+    <.logs
+      rows={@streams.log_rows}
+      has_earlier={@log_first_page > 0}
+      empty={@log_pages == []}
+    />
+  </.card>
+</div>

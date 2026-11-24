@@ -160,7 +160,9 @@ defmodule Tuist.Kura.StorageTelemetry do
   `evicted_at - newest_content_at`: how soon after being written the youngest
   artifact in an evicted segment was shed. `median_ring_span_seconds` measures
   `evicted_at - segment_created_at`: how much history the ring held when it
-  rotated, the value claim growth is projected from.
+  rotated, the value claim growth is projected from. `shed_age_seconds` lists
+  every capacity eviction's shed age, for the rollup to count against the
+  growth thresholds; it carries no verdict of its own on a pressure day.
   """
   def eviction_day_aggregates([]), do: []
 
@@ -212,6 +214,13 @@ defmodule Tuist.Kura.StorageTelemetry do
               e.reason,
               e.segment_created_at,
               e.evicted_at
+            ),
+          shed_age_seconds:
+            fragment(
+              "groupArrayIf(toInt64(dateDiff('second', ?, ?)), ? = 'capacity')",
+              e.newest_content_at,
+              e.evicted_at,
+              e.reason
             )
         }
       )

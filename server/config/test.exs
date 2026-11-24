@@ -108,8 +108,12 @@ config :tuist, Tuist.Repo,
   timeout: 60_000
 
 config :tuist, Tuist.Runners, volume_master_readable_interval_ms: 0
-config :tuist, Tuist.Sandboxes.Capacity, grow_wait_ms: 300, admission_grow_wait_ms: 300
+config :tuist, Tuist.Sandboxes, capacity_poll_ms: 10
+config :tuist, Tuist.Sandboxes.Capacity, grow_wait_ms: 300, admission_grow_wait_ms: 300, resume_deferral_wait_ms: 1_000
+config :tuist, Tuist.Sandboxes.Commands, host_poll_ms: 10
+config :tuist, Tuist.Sandboxes.Concurrency, busy_wait_ms: 200
 config :tuist, Tuist.Sandboxes.Nodes, presence_wait_ms: 0
+config :tuist, Tuist.Sandboxes.Query, capacity_wait_ms: 100
 config :tuist, Tuist.Tasks, sync: true
 
 # Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.

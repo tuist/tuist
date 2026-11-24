@@ -3,10 +3,26 @@ import Path
 import TuistProcess
 
 extension GitController {
+    public func uncommittedTrackedFiles(workingDirectory: AbsolutePath) async throws -> [String] {
+        // `XY <path>`, NUL-terminated so no path is quoted; a rename or copy is followed by the
+        // path it came from, which is not listed.
+        let output = try await capture(
+            arguments: ["git", "-C", workingDirectory.pathString, "status", "--porcelain", "-z", "--untracked-files=no"]
+        )
+        var entries = output.split(separator: "\0").makeIterator()
+        var paths: [String] = []
+        while let entry = entries.next() {
+            guard entry.count > 3 else { continue }
+            paths.append(String(entry.dropFirst(3)))
+            if entry.prefix(2).contains(where: { $0 == "R" || $0 == "C" }) { _ = entries.next() }
+        }
+        return paths
+    }
+
     public func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles {
         guard limit > 0 else { return GitCommitFiles(files: [], truncated: true) }
-        // The commit's tree rather than the index: on a pull request's merge checkout the run
-        // reports the pull request's head, while the index is the merge commit's.
+        // The commit's tree rather than the index, which is the checkout's and need not be the
+        // reported commit's.
         let output = try await capture(
             arguments: ["git", "-C", workingDirectory.pathString, "ls-tree", "-r", "-z", "--full-tree", sha]
         )

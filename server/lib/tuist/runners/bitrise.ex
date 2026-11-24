@@ -25,7 +25,7 @@ defmodule Tuist.Runners.Bitrise do
   import Ecto.Query
 
   alias Tuist.Accounts
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Bitrise.Build
@@ -183,10 +183,10 @@ defmodule Tuist.Runners.Bitrise do
          {:ok, builds} <- Client.list_unfinished_builds(connection) do
       settle_finished(connection, account, MapSet.new(builds, & &1.build_slug))
 
-      with :ok <- check_enabled(account) do
-        waiting =
-          Enum.filter(builds, &(is_nil(&1.started_on_worker_at) and Map.has_key?(pools_by_stack, &1.stack_identifier)))
+      waiting =
+        Enum.filter(builds, &(is_nil(&1.started_on_worker_at) and Map.has_key?(pools_by_stack, &1.stack_identifier)))
 
+      with :ok <- check_enabled(account, waiting) do
         {:ok, enqueue_waiting(connection, account, pools_by_stack, waiting)}
       end
     end
@@ -206,11 +206,17 @@ defmodule Tuist.Runners.Bitrise do
     end
   end
 
-  defp check_enabled(account) do
-    cond do
-      not FeatureFlags.runners_enabled?(account) -> {:error, :runners_disabled}
-      Allowance.exhausted?(account) -> {:error, :allowance_exhausted}
-      true -> :ok
+  defp check_enabled(account, waiting) do
+    result =
+      cond do
+        not Environment.runners_available?() -> {:error, :runners_disabled}
+        Allowance.exhausted?(account) -> {:error, :allowance_exhausted}
+        true -> :ok
+      end
+
+    with {:error, reason} when waiting != [] <- result do
+      Dispatch.report_refused("bitrise", reason, length(waiting))
+      result
     end
   end
 
@@ -490,9 +496,21 @@ defmodule Tuist.Runners.Bitrise do
 
   def record_poll_result(%Connection{} = connection, {:error, reason}) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
+    error = describe_error(reason)
+
+    # Polls repeat every few seconds, so only a new error is logged. A
+    # refused build otherwise sits on Bitrise with nothing in the logs
+    # saying why.
+    if error != connection.last_error do
+      Logger.warning("runners: bitrise poll refused or failed",
+        connection_id: connection.id,
+        account_id: connection.account_id,
+        reason: inspect(reason)
+      )
+    end
 
     connection
-    |> Ecto.Changeset.change(%{last_polled_at: now, last_error: describe_error(reason), last_error_at: now})
+    |> Ecto.Changeset.change(%{last_polled_at: now, last_error: error, last_error_at: now})
     |> Repo.update()
   end
 
@@ -500,6 +518,9 @@ defmodule Tuist.Runners.Bitrise do
   defp describe_error(:forbidden), do: "The API token cannot list this workspace's builds."
   defp describe_error(:not_found), do: "Bitrise does not recognize this workspace."
   defp describe_error(:runners_disabled), do: "Runners are not enabled for this account."
-  defp describe_error(:allowance_exhausted), do: "The account's runner allowance is exhausted."
+
+  defp describe_error(:allowance_exhausted),
+    do: "The account's free runner allowance is exhausted, so waiting builds stay queued on Bitrise."
+
   defp describe_error(reason), do: inspect(reason)
 end

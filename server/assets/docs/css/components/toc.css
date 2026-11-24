@@ -22,7 +22,7 @@
       width: fit-content;
 
       & .noora-dropdown-content {
-        box-shadow: var(--noora-border-light-default);
+        box-shadow: var(--noora-border-small-default);
         width: 280px;
       }
     }

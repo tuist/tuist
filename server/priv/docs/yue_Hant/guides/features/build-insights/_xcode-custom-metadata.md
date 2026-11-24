@@ -6,12 +6,12 @@
 
 | 變數 | 格式 | 描述 |
 |----------|--------|-------------|
-| `TUIST_BUILD_TAGS` | 逗號分隔 | 單一變數中包含多個標籤。 |
+| `TUIST_BUILD_TAGS` | 逗號分隔 | 一個變數中包含多個標籤。 |
 | `TUIST_BUILD_VALUE_*` | 單一值 | 鍵值對，其中後綴為鍵。 |
 
 ### 範例
 
-在調用構建之前，於 CI 或你的 shell 中設定這些值：
+在呼叫構建之前，於 CI 或你的 shell 中設定這些值：
 
 ```sh
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"

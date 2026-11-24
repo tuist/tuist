@@ -6,7 +6,7 @@
 //
 // These exist because alive/desired replica counts only show the pool
 // converging to its target — they can't reveal that the target itself
-// was squeezed below the configured warm floor by the fleet allocator.
+// was squeezed below the configured warm floor by the compute allocator.
 // That squeeze is the leading indicator for cold boots, so it gets its
 // own series.
 package metrics
@@ -33,21 +33,21 @@ var podStartTimeoutReasons = []string{"poller_not_started", "unschedulable"}
 
 var (
 	// target is the per-pool replica count the autoscaler policy wants
-	// BEFORE the fleet allocator apportions shared capacity
+	// BEFORE the compute allocator apportions shared capacity
 	// (scaling.DesiredReplicas). Pair with `allocated` to see how much
 	// of the ask the shared-capacity allocator could fund this tick.
 	target = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_autoscaler_target_replicas",
-		Help: "Per-pool replicas the autoscaler policy wants before fleet-capacity allocation (DesiredReplicas).",
+		Help: "Per-pool replicas the autoscaler policy wants before compute allocation (DesiredReplicas).",
 	}, []string{poolLabel})
 
-	// allocated is what the pool got after AllocateFleet split the
+	// allocated is what the pool got after AllocateCompute split the
 	// shared capacity domain across sibling shapes — the value patched
 	// to spec.replicas. Equals `target` when the pool isn't contended
 	// (or the allocator fell back to the per-pool policy).
 	allocated = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_autoscaler_allocated_replicas",
-		Help: "Per-pool replicas granted after fleet-capacity allocation (patched to spec.replicas).",
+		Help: "Per-pool replicas granted after compute allocation (patched to spec.replicas).",
 	}, []string{poolLabel})
 
 	// warmDeficitReplicas is the warm-pool capacity the allocator
@@ -59,7 +59,7 @@ var (
 	// for cold boots that alive/desired can't surface.
 	warmDeficitReplicas = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_autoscaler_warm_deficit_replicas",
-		Help: "Warm-pool replicas the fleet allocator could not fund under capacity contention (cold-boot risk).",
+		Help: "Warm-pool replicas the compute allocator could not fund under capacity contention (cold-boot risk).",
 	}, []string{poolLabel})
 
 	// minWarmFloor mirrors the configured
@@ -242,7 +242,7 @@ func RecordLearnedWarmFloor(pool string, learned, spare int32) {
 
 // RecordDemand publishes the server's demand signals for a pool as
 // separate series. Called on every autoscaler tick, including when the
-// fleet allocator falls back to the per-pool target, so the signals stay
+// compute allocator falls back to the per-pool target, so the signals stay
 // live even while allocation is degraded.
 func RecordDemand(pool string, claimed, occupied, queued int32) {
 	claimedJobs.WithLabelValues(pool).Set(float64(claimed))
@@ -381,7 +381,7 @@ func Clear(pool string) {
 	ClearRunnerPool(pool)
 }
 
-// warmDeficit is the warm-pool capacity the fleet allocator wanted to
+// warmDeficit is the warm-pool capacity the compute allocator wanted to
 // fund but couldn't under contention. The allocator funds real load
 // (occupied+queued) inviolably, then the warm floor above it; the floor
 // is what yields first. So the deficit is the floor portion — (load +

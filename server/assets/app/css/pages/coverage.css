@@ -2,6 +2,7 @@
    detail, and a file — are page roots laid out like every other dashboard
    page. The Test Selection page is laid out the same way. */
 #coverage,
+#coverage-commits,
 #coverage-detail,
 #coverage-file-page,
 #test-selections {
@@ -119,6 +120,7 @@
 
 /* A branch, a commit or a file: a title block above the tabs, as the test
    run detail page has. */
+#coverage-commits,
 #coverage-detail,
 #coverage-file-page {
   & > [data-part="back-button"] {
@@ -188,6 +190,7 @@
 /* A file's coverage as a bar and a percentage: a table cell with no Noora
    equivalent. */
 #coverage,
+#coverage-commits,
 #coverage-detail,
 #coverage-file-page {
   & [data-part="coverage-cell"] {
@@ -313,7 +316,7 @@
 
       & > [data-part="more-card"] {
         position: absolute;
-        box-shadow: var(--noora-border-light-default);
+        box-shadow: var(--noora-border-small-default);
         border-radius: var(--noora-radius-4);
         background-color: var(--noora-surface-background-primary);
         height: 48px;
@@ -335,7 +338,7 @@
 .coverage-change-card {
   display: block;
   z-index: var(--noora-z-index-1);
-  box-shadow: var(--noora-border-light-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-4);
   background-color: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-4);

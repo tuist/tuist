@@ -11,8 +11,8 @@
 -- Deliberately NOT `pg_read_all_data` (which is what `tuist_ops_ro` uses): every
 -- table this dashboard reads sits next to a secret in the same row, so even
 -- table-level SELECT would over-grant. Concretely, table-level SELECT would
--- expose `users.encrypted_password`, `users.token`, `users.reset_password_token`,
--- `projects.token`, `projects.slack_webhook_url`, `accounts.s3_secret_access_key`,
+-- expose `users.encrypted_password`, `users.reset_password_token`,
+-- `projects.slack_webhook_url`, `accounts.s3_secret_access_key`,
 -- and `organizations.oauth2_encrypted_client_secret`. Hence column-level grants.
 --
 -- The grants below are an exact allowlist of dashboard, alert and incident-query
@@ -41,8 +41,7 @@ GRANT SELECT (
   id, name, billing_email, organization_id
 ) ON :"tuist_schema".accounts TO tuist_grafana_ro;
 
--- projects: identity + the Gradle build-system panels. Excludes `token` and the
--- Slack webhook URLs.
+-- projects: identity + the Gradle build-system panels. Excludes the Slack webhook URLs.
 GRANT SELECT (
   id, name, account_id, created_at, build_system
 ) ON :"tuist_schema".projects TO tuist_grafana_ro;
@@ -50,7 +49,7 @@ GRANT SELECT (
 -- organizations: only the signup curve. Excludes the OAuth2 client secret.
 GRANT SELECT (id, created_at) ON :"tuist_schema".organizations TO tuist_grafana_ro;
 
--- users: ONLY the signup timestamp. No email, no encrypted_password, no token,
+-- users: ONLY the signup timestamp. No email, no encrypted_password,
 -- no reset/confirmation/unlock tokens, no sign-in IPs.
 GRANT SELECT (created_at) ON :"tuist_schema".users TO tuist_grafana_ro;
 

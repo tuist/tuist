@@ -52,4 +52,48 @@ defmodule TuistWeb.Marketing.MarketingComponents do
     </svg>
     """
   end
+
+  @doc """
+  A feature page's static logo strip, right below its hero: each logo links
+  to one of the page's English-only sub-pages (the toolchains on /cache and
+  /tests, the CI providers on /runners), so crawlers and visitors reach them
+  from the hub. The home page's company-logos frame, without its animation.
+  """
+  attr :id, :string, required: true, doc: "The id of the strip's heading."
+  attr :title, :string, required: true
+  attr :items, :list, required: true, doc: "{label, Noora icon name, href} tuples."
+
+  def logo_strip(assigns) do
+    ~H"""
+    <section data-part="logo-strip" aria-labelledby={@id}>
+      <h2 data-part="title" id={@id}>{@title}</h2>
+      <ul data-part="logos">
+        <li :for={{label, icon, href} <- @items}>
+          <a :if={href} href={href} data-part="logo">
+            <.icon name={icon} />
+            <span data-part="label">{label}</span>
+          </a>
+          <span :if={!href} data-part="logo">
+            <.icon name={icon} />
+            <span data-part="label">{label}</span>
+          </span>
+        </li>
+      </ul>
+    </section>
+    """
+  end
+
+  @doc """
+  The build systems with an English-only `/build-systems/<slug>` page, as
+  `logo_strip/1` items for the cache and tests pages.
+  """
+  def build_system_logos do
+    [
+      {"Xcode", "brand_apple", "/build-systems/xcode"},
+      {"Gradle", "brand_gradle", "/build-systems/gradle"},
+      {"Bazel", "brand_bazel", "/build-systems/bazel"},
+      {"Elixir", "brand_elixir", "/build-systems/elixir"},
+      {"Struo", "brand_once", "/build-systems/struo"}
+    ]
+  end
 end

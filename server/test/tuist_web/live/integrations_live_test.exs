@@ -8,6 +8,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
   alias Tuist.Entire.Client, as: Entire
   alias Tuist.Entire.Installation
   alias Tuist.EntireTrails
+  alias Tuist.Environment
   alias Tuist.Origin.Client, as: OriginClient
   alias Tuist.Origin.Installation, as: OriginInstallation
   alias Tuist.Projects
@@ -26,14 +27,14 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(handle: "user123#{System.unique_integer([:positive])}")
-    stub(Tuist.Environment, :github_app_configured?, fn -> true end)
+    stub(Environment, :github_app_configured?, fn -> true end)
     # The integrations UI gates its Enterprise tab on
     # `Entitlements.allows?(account, :github_enterprise_server)` which
     # short-circuits to true on self-hosted (`tuist_hosted?` false).
     # CI runs with `TUIST_HOSTED=1`, so without this stub the tab is
     # hidden and every test that interacts with it fails. The dedicated
     # entitlement-gate describe block (further down) overrides this.
-    stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+    stub(Environment, :tuist_hosted?, fn -> false end)
 
     %{account: account} =
       organization =
@@ -107,7 +108,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       conn: conn,
       organization: organization
     } do
-      stub(Tuist.Environment, :dev?, fn -> true end)
+      stub(Environment, :dev?, fn -> true end)
       stub(OriginClient, :configured?, fn -> false end)
 
       {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
@@ -120,7 +121,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     end
 
     test "hides unconfigured Origin on a self-hosted release", %{conn: conn, organization: organization} do
-      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Environment, :dev?, fn -> false end)
       stub(OriginClient, :configured?, fn -> false end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
@@ -133,7 +134,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       organization: organization,
       account: account
     } do
-      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Environment, :dev?, fn -> false end)
       stub(OriginClient, :configured?, fn -> true end)
 
       {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
@@ -152,7 +153,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   describe "Origin account connections" do
     setup %{account: account} do
-      stub(Tuist.Environment, :origin_app_id, fn -> "app_tuist" end)
+      stub(Environment, :origin_app_id, fn -> "app_tuist" end)
       stub(OriginClient, :configured?, fn -> true end)
       installation = origin_installation_fixture(account)
 
@@ -882,7 +883,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     # github.com tab by default — clicking Install would generate a
     # broken `/apps//installations/new` URL because there is no global
     # app name to interpolate.
-    stub(Tuist.Environment, :github_app_configured?, fn -> false end)
+    stub(Environment, :github_app_configured?, fn -> false end)
 
     {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
@@ -906,7 +907,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     # Regression: the install URL interpolates `TUIST_GITHUB_APP_NAME`, so
     # with no github.com App configured the button linked to
     # `https://github.com/apps//installations/new`, which 404s on GitHub.
-    stub(Tuist.Environment, :github_app_configured?, fn -> false end)
+    stub(Environment, :github_app_configured?, fn -> false end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
@@ -1247,7 +1248,6 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   describe "Bitrise" do
     setup do
-      stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> true end)
       :ok
     end
 
@@ -1424,7 +1424,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do
     setup do
-      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :tuist_hosted?, fn -> true end)
       :ok
     end
 
@@ -1460,7 +1460,6 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   describe "GitLab CI" do
     setup do
-      stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> true end)
       :ok
     end
 
@@ -1558,7 +1557,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     end
 
     test "does not connect runners when the feature is disabled", %{conn: conn, account: account} do
-      stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
       refute html =~ "connect-gitlab-form"
 
@@ -1573,7 +1572,6 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   describe "Buildkite" do
     setup do
-      stub(Tuist.FeatureFlags, :runners_enabled?, fn _account -> true end)
       :ok
     end
 
@@ -1741,7 +1739,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     end
 
     test "is hidden when runners are not enabled for the account", %{conn: conn, account: account} do
-      stub(Tuist.FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
 
       {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
 

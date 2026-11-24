@@ -4,15 +4,27 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
+  alias Tuist.IngestRepo
+  alias Tuist.TestImpactAnalysis.Baselines
+  alias Tuist.TestImpactAnalysis.Carry
+  alias Tuist.TestImpactAnalysis.Snapshot
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
+  alias Tuist.Tests.CoverageRun
+  alias Tuist.Tests.CoverageRunFile
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
+  alias TuistTestSupport.Fixtures.TestSelectionFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   setup do
     account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -99,33 +111,10 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert {[%{path: "Sources/B.swift"}], 1} = Commits.list_files(project.id, "abc123", 1, 10, search: "b.SWIFT")
     assert {[], 0} = Commits.list_files(project.id, "abc123", 1, 10, search: "missing")
 
-    assert Commits.line_counts(project.id, "abc123", ["Sources/A.swift"]) == %{
-             "Sources/A.swift" => [{1, 1}, {2, 1}, {3, 0}]
-           }
-
     assert %{lines: [{1, 1}, {2, 1}, {3, 0}]} =
              Commits.file_detail(project.id, "abc123", "Sources/A.swift")
 
     assert Commits.file_detail(project.id, "abc123", "Missing.swift") == nil
-  end
-
-  test "reads the line counts of more paths than one query binds", %{project: project, account: account} do
-    # More paths than one chunk of hashes, and past the 128 KiB a single list
-    # of the paths themselves would take. Non-ASCII and quoted paths check
-    # that the server hashes them as ClickHouse does.
-    paths =
-      ["Sources/Café/Ünïcödé.swift", "Sources/It's/Quoted.swift"] ++
-        for index <- 1..5_100, do: "Sources/Feature#{div(index, 40)}/Implementation/File#{index}.swift"
-
-    CoverageFixtures.run_with_coverage(project, account, Enum.map(paths, &file(&1, [1, 0])))
-    CoverageFixtures.run_with_coverage(project, account, [file(List.last(paths), [2, 3])], %{scheme: "Other"})
-
-    counts = Commits.line_counts(project.id, "abc123", ["Sources/Missing.swift" | paths] ++ [hd(paths)])
-
-    assert map_size(counts) == length(paths)
-    assert counts[hd(paths)] == [{1, 1}, {2, 0}]
-    assert counts["Sources/It's/Quoted.swift"] == [{1, 1}, {2, 0}]
-    assert counts[List.last(paths)] == [{1, 3}, {2, 3}]
   end
 
   test "reads a run's scheme off the run, which a client-reported run gets after its coverage published", %{
@@ -186,22 +175,34 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
   test "a scheme only runs from a dirty checkout measured leaves the figure a lower bound, and its runs are listed on request",
        %{project: project, account: account} do
-    # Alone, a dirty run folds nothing: no run that counts measured the commit.
+    # Alone, a dirty CI run counts for nothing: the figure is a lower bound of nothing,
+    # labelled with where the run ran, out of every comparison.
     dirty =
       CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{
         scheme: "AppTests",
-        git_dirty: true
+        git_dirty: true,
+        git_branch: "feature",
+        is_pull_request: true,
+        pull_request_number: 9
       })
 
-    assert Commits.summary(project.id, "abc123") == nil
+    summary = Commits.summary(project.id, "abc123")
+
+    assert {summary.reported_kind, Commits.gap_reasons(summary), summary.schemes, summary.test_run_ids} ==
+             {"partial", [:dirty_run_excluded], [], []}
+
+    assert {summary.executable_lines, summary.reported_executable_lines} == {0, 0}
+    assert {summary.git_branch, summary.pull_request_number} == {"feature", 9}
+    assert Commits.status(Commits.signal_complete(project, "abc123")) == :incomplete
+    assert Commits.by_shas(project.id, ["abc123"]) == %{}
+    assert Map.has_key?(Commits.by_shas(project.id, ["abc123"], listed: true), "abc123")
 
     clean = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
 
     summary = Commits.summary(project.id, "abc123")
     assert {summary.schemes, summary.covered_lines, summary.executable_lines} == {["App"], 1, 2}
     assert {summary.reported_kind, Commits.gap_reasons(summary)} == {"partial", [:dirty_run_excluded]}
-    assert Commits.status(summary) == :in_progress
-    assert Commits.status(Commits.signal_complete(project, "abc123")) == :incomplete
+    assert Commits.status(summary) == :incomplete
 
     assert Enum.map(Commits.run_cursor_page(project.id, {:commit, "abc123"}).runs, &{&1.test_run_id, &1.git_dirty}) ==
              [{clean.id, false}]
@@ -236,23 +237,51 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.status(summary) == :incomplete
   end
 
-  test "a local dirty run of a scheme CI never ran leaves a complete commit whole", %{
+  test "a local dirty run publishes a commit nothing else measured, but never turns one incomplete", %{
     project: project,
     account: account
   } do
-    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
-    Commits.signal_complete(project, "abc123")
+    repository_id =
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("abc123", [], 0)],
+        branch_heads: [{"main", "abc123"}]
+      )
 
     local =
-      CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1])], %{
-        scheme: "LocalScheme",
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{
         is_ci: false,
         git_dirty: true
       })
 
-    assert Commits.enqueue_recompute(local) == :skipped
-    summary = Commits.recompute(project, "abc123")
-    assert {Commits.status(summary), Commits.gap_reasons(summary)} == {:complete, []}
+    assert {:ok, _job} = Commits.enqueue_recompute(local)
+    summary = Commits.summary(project.id, "abc123")
+
+    assert {summary.reported_kind, Commits.gap_reasons(summary), summary.executable_lines} ==
+             {"partial", [:dirty_run_excluded], 0}
+
+    # Placed on its ref like any commit, so the branch's commits list it.
+    {ref_id, position} = GitHistory.position(repository_id, "abc123")
+    assert {summary.repository_id, summary.ref_id, summary.position} == {repository_id, ref_id, position}
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+    assert {:complete, []} ==
+             then(Commits.signal_complete(project, "abc123"), &{Commits.status(&1), Commits.gap_reasons(&1)})
+
+    # A later dirty run of a scheme a clean run measured changes nothing.
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 1])], %{git_dirty: true})
+    summary = Commits.summary(project.id, "abc123")
+    assert {Commits.status(summary), Commits.gap_reasons(summary), summary.covered_lines} == {:complete, [], 1}
+
+    # Nor does a local dirty run of a scheme no clean run measured, such as
+    # one a developer is adding.
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1])], %{
+      scheme: "LocalScheme",
+      is_ci: false,
+      git_dirty: true
+    })
+
+    summary = Commits.summary(project.id, "abc123")
+    assert {Commits.status(summary), Commits.gap_reasons(summary), summary.schemes} == {:complete, [], ["App"]}
   end
 
   test "signals completion and keeps it across recomputes", %{project: project, account: account} do
@@ -538,7 +567,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
     assert {:ok, _job} = Commits.enqueue_recompute(%{run | git_dirty: nil})
     assert {:ok, _job} = Commits.enqueue_recompute(%{run | git_dirty: true})
-    assert Commits.enqueue_recompute(%{run | git_dirty: true, is_ci: false}) == :skipped
+    assert {:ok, _job} = Commits.enqueue_recompute(%{run | git_dirty: true, is_ci: false})
     assert Commits.enqueue_recompute(%{run | git_commit_sha: ""}) == :skipped
   end
 
@@ -671,6 +700,475 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
       assert Coverage.refold_after_selective_testing(%{test_run_id: nil, project_id: project.id}, graph("local")) ==
                :skipped
+    end
+  end
+
+  describe "folding a commit whose evidence may have expired" do
+    # A full run of AppTests at `sha`: testAdd() with evidence over A.swift.
+    defp evidenced_run(project, account, sha, attrs \\ %{}) do
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/A.swift", [1, 0])],
+        Map.merge(
+          %{
+            git_commit_sha: sha,
+            test_modules: [
+              %{
+                name: "AppTests",
+                status: "success",
+                duration: 1,
+                test_cases: [%{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 10}]
+              }
+            ],
+            coverage_evidence: %{
+              paths: ["Sources/A.swift"],
+              scopes: [
+                %{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[1, 1]]}
+              ]
+            }
+          },
+          attrs
+        )
+      )
+    end
+
+    # A shard report of the run three days old, which its totals cover: its
+    # evidence is past the two days `coverage_files` keeps it, so merges may
+    # have deleted any of it.
+    defp report_days_ago(run, days) do
+      inserted_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -days * 86_400)
+
+      [totals] =
+        ClickHouseRepo.all(from(c in CoverageRun, where: c.test_run_id == ^run.id, order_by: [desc: c.version], limit: 1))
+
+      IngestRepo.insert_all(CoverageRun, [
+        %{
+          Map.take(totals, CoverageRun.__schema__(:fields))
+          | version: totals.version + 1,
+            report_shards: totals.report_shards ++ [1],
+            report_inserted_at: totals.report_inserted_at ++ [inserted_at]
+        }
+      ])
+
+      IngestRepo.insert_all(CoverageRunFile, [
+        %{
+          test_run_id: run.id,
+          project_id: run.project_id,
+          shard_index: 1,
+          build_system: "xcode",
+          path: "Sources/Old.swift",
+          layout_id: 1,
+          git_commit_sha: run.git_commit_sha,
+          targets: ["App"],
+          covered_lines: 0,
+          executable_lines: 1,
+          execution_counts: [],
+          function_execution_counts: [],
+          function_covered_lines: [],
+          inserted_at: inserted_at
+        }
+      ])
+    end
+
+    defp snapshots(project), do: Repo.all(from(s in Snapshot, where: s.project_id == ^project.id, order_by: s.id))
+
+    test "writes no test map from a run whose evidence may be gone", %{account: account, project: project} do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("old", [], 0)])
+      run = evidenced_run(project, account, "old", %{recompute: false})
+      report_days_ago(run, 3)
+
+      Commits.recompute(project, "old")
+
+      assert snapshots(project) == []
+    end
+
+    test "keeps the commit's checkpoint when a run arrives beside one whose evidence may be gone",
+         %{account: account, project: project} do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("old", [], 0)])
+      first = evidenced_run(project, account, "old")
+      assert [%Snapshot{kind: :checkpoint} = checkpoint] = snapshots(project)
+
+      # Days later the first run's evidence is expiring and another full run
+      # of the scope reports at the commit: a checkpoint over both would
+      # read whatever is left of the first run's evidence.
+      report_days_ago(first, 3)
+      evidenced_run(project, account, "old")
+
+      assert snapshots(project) == [checkpoint]
+      assert %{checkpoint: ^checkpoint} = Snapshots.at(project.id, "old", "App", "")
+    end
+
+    test "writes the checkpoint of a scope that has none from its runs whose evidence is whole",
+         %{account: account, project: project} do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("old", [], 0)])
+      first = evidenced_run(project, account, "old", %{recompute: false})
+      report_days_ago(first, 3)
+      second = evidenced_run(project, account, "old")
+
+      assert [%Snapshot{kind: :checkpoint, test_run_ids: [run_id], tests_count: 1}] = snapshots(project)
+      assert run_id == second.id
+    end
+  end
+
+  describe "a selective run whose every skip was carried" do
+    setup %{account: account} do
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("base", [], 0),
+        CoverageFixtures.commit("mid", ["base"], 1),
+        CoverageFixtures.commit("head", ["mid"], 2),
+        CoverageFixtures.commit("tip", ["head"], 3)
+      ])
+
+      stub(GitHistory, :settings, fn project ->
+        GitHistory |> call_original(:settings, [project]) |> Map.put(:tracked_file_globs, [])
+      end)
+
+      :ok
+    end
+
+    defp case_run(name, suite), do: %{name: name, test_suite_name: suite, status: "success", duration: 1}
+
+    defp text_kit_tests,
+      do: %{
+        name: "TextKitTests",
+        status: "success",
+        duration: 1,
+        test_cases: [case_run("testPad()", "TextTests"), case_run("testTrim()", "TextTests")]
+      }
+
+    defp hashed(project, run, hits) do
+      event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
+
+      for {target, hit, hash} <- hits do
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: target,
+          selective_testing_hash: hash,
+          selective_testing_hit: hit
+        )
+      end
+
+      CoverageFixtures.recompute_commit(run)
+      run
+    end
+
+    # AppTests and TextKitTests run whole at `base`, with each TextKitTests
+    # test's lines in Text.swift, its suite's setup's (3) and its target's
+    # outside any test (5).
+    # `opts` sets its `status` and the other targets it built (`hits`).
+    defp full_run(project, account, ran_at, opts \\ %{}) do
+      run =
+        CoverageFixtures.run_with_coverage(
+          project,
+          account,
+          [file("Sources/Math.swift", [1, 1, 0]), file("Sources/Text.swift", [1, 1, 1, 0, 1])],
+          %{
+            git_commit_sha: "base",
+            ran_at: ran_at,
+            status: Map.get(opts, :status, "success"),
+            recompute: false,
+            test_modules: [
+              %{name: "AppTests", status: "success", duration: 1, test_cases: [case_run("testAdd()", "MathTests")]},
+              text_kit_tests()
+            ],
+            coverage_evidence: %{
+              paths: ["Sources/Math.swift", "Sources/Text.swift"],
+              scopes: [
+                %{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[1, 2]]},
+                %{
+                  kind: "test",
+                  module: "TextKitTests",
+                  suite: "TextTests",
+                  name: "testPad()",
+                  files: [1],
+                  lines: [[2, 2]]
+                },
+                %{
+                  kind: "test",
+                  module: "TextKitTests",
+                  suite: "TextTests",
+                  name: "testTrim()",
+                  files: [1],
+                  lines: [[1, 1]]
+                },
+                %{kind: "suite", module: "TextKitTests", suite: "TextTests", name: "", files: [1], lines: [[3, 3]]},
+                %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [1], lines: [[5, 5]]}
+              ]
+            }
+          }
+        )
+
+      hashed(project, run, [{"AppTests", :miss, "app"}, {"TextKitTests", :miss, "text"} | Map.get(opts, :hits, [])])
+    end
+
+    # AppTests runs at `sha` and selective testing skips TextKitTests under
+    # `text_hash`, and the other targets `attrs` name (`hits`).
+    defp selective_run(project, account, sha, text_hash, attrs \\ %{}) do
+      {hits, attrs} = Map.pop(attrs, :hits, [])
+
+      run =
+        CoverageFixtures.run_with_coverage(
+          project,
+          account,
+          [file("Sources/Math.swift", [1, 1, 0])],
+          Map.merge(
+            %{
+              git_commit_sha: sha,
+              partial: true,
+              recompute: false,
+              test_modules: [
+                %{name: "AppTests", status: "success", duration: 1, test_cases: [case_run("testAdd()", "MathTests")]}
+              ],
+              coverage_evidence: %{
+                paths: ["Sources/Math.swift"],
+                scopes: [
+                  %{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[1, 2]]}
+                ]
+              }
+            },
+            attrs
+          )
+        )
+
+      hashed(project, run, [{"AppTests", :miss, "app-" <> sha}, {"TextKitTests", :remote, text_hash} | hits])
+    end
+
+    defp checkpoints(project, sha),
+      do:
+        Repo.all(
+          from(s in Snapshot, where: s.project_id == ^project.id and s.commit_sha == ^sha and s.kind == :checkpoint)
+        )
+
+    # The lines a snapshot holds for a TextKitTests test, its suite's setup
+    # and its target, as a carry plan reads them.
+    defp text_kit_lines(project, snapshot, test) do
+      [[idx]] =
+        Snapshots.query!(
+          """
+          SELECT t.test_idx FROM test_impact_snapshot_tests AS t FINAL
+          INNER JOIN (SELECT DISTINCT id, name FROM test_cases WHERE project_id = {project_id:Int64}) AS c
+            ON c.id = t.test_case_id
+          WHERE t.project_id = {project_id:Int64} AND t.snapshot_id = {id:UUID} AND c.name = {name:String}
+          """,
+          %{project_id: project.id, id: snapshot.id, name: test}
+        )
+
+      plan = [
+        %{
+          snapshot_id: snapshot.id,
+          checkpoint_id: snapshot.checkpoint_id || "00000000-0000-0000-0000-000000000000",
+          idx: Snapshots.idx_chunks([idx]),
+          targets: ["TextKitTests"],
+          source: %{run_id: ""}
+        }
+      ]
+
+      {sql, params} = Carry.lines_sql(project.id, plan)
+      sql |> Snapshots.query!(params) |> Enum.map(fn [path, lines, _rank, _run] -> {path, lines} end)
+    end
+
+    test "copies the targets skipped by hash into its checkpoint, which selection walks to and carry reads", %{
+      account: account,
+      project: project
+    } do
+      # Measured in an earlier week than the copy, whose rows live in its own.
+      full_run(project, account, NaiveDateTime.add(NaiveDateTime.utc_now(), -9 * 86_400))
+      [original] = checkpoints(project, "base")
+      head = selective_run(project, account, "head", "text")
+
+      assert [copy] = checkpoints(project, "head")
+      assert copy.test_run_ids == [head.id]
+      assert copy.tests_count == 3
+      assert copy.carried_targets == ["TextKitTests\u001Ftext"]
+      assert copy.evidence_measured_at == original.ran_at
+      assert DateTime.diff(copy.expires_at, copy.ran_at, :day) == 31
+
+      for test <- ["testPad()", "testTrim()"] do
+        assert text_kit_lines(project, copy, test) == text_kit_lines(project, original, test)
+      end
+
+      assert text_kit_lines(project, copy, "testPad()") == [{"Sources/Text.swift", [2, 3, 5]}]
+      assert {:ok, %{sha: "head", distance: 1}} = Baselines.resolve(project, %{commit_sha: "tip", scheme: "App"})
+
+      # Once the snapshot it was measured in expires, the copy carries it.
+      Repo.update_all(from(s in Snapshot, where: s.id == ^original.id), set: [expires_at: DateTime.utc_now()])
+      selective_run(project, account, "tip", "text")
+
+      assert %{kind: "reported", carried_tests_count: 2, carried_from: ["base"]} = Reported.compute(project, "tip")
+    end
+
+    test "lists a target without tests it skipped, which the next commit skipping it finds empty there", %{
+      account: account,
+      project: project
+    } do
+      full_run(project, account, NaiveDateTime.utc_now(), %{hits: [{"EmptyKitTests", :miss, "empty"}]})
+      selective_run(project, account, "head", "text", %{hits: [{"EmptyKitTests", :local, "empty"}]})
+
+      assert %{carried_tests_count: 2, gap_reasons: reasons} = Reported.compute(project, "head")
+      refute :target_without_history in Coverage.GapReasons.decode(reasons)
+      assert [copy] = checkpoints(project, "head")
+      assert copy.tests_count == 3
+      assert Enum.sort(copy.carried_targets) == ["EmptyKitTests\u001Fempty", "TextKitTests\u001Ftext"]
+
+      selective_run(project, account, "tip", "text", %{hits: [{"EmptyKitTests", :local, "empty"}]})
+
+      assert %{carried_tests_count: 2, gap_reasons: reasons} = Reported.compute(project, "tip")
+      refute :target_without_history in Coverage.GapReasons.decode(reasons)
+      assert [tip] = checkpoints(project, "tip")
+      assert {tip.tests_count, Enum.sort(tip.carried_targets)} == {copy.tests_count, Enum.sort(copy.carried_targets)}
+    end
+
+    test "writes a checkpoint for a run whose only skip is a target without tests", %{
+      account: account,
+      project: project
+    } do
+      full_run(project, account, NaiveDateTime.utc_now(), %{hits: [{"EmptyKitTests", :miss, "empty"}]})
+
+      head =
+        CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 1, 0])], %{
+          git_commit_sha: "head",
+          partial: true,
+          recompute: false,
+          test_modules: [
+            %{name: "AppTests", status: "success", duration: 1, test_cases: [case_run("testAdd()", "MathTests")]}
+          ]
+        })
+
+      hashed(project, head, [{"AppTests", :miss, "app-head"}, {"EmptyKitTests", :local, "empty"}])
+
+      assert %{kind: "measured"} = Reported.compute(project, "head")
+      assert [%Snapshot{tests_count: 1, carried_targets: ["EmptyKitTests\u001Fempty"]}] = checkpoints(project, "head")
+    end
+
+    test "writes no checkpoint when a target without tests it skipped was built under another hash", %{
+      account: account,
+      project: project
+    } do
+      full_run(project, account, NaiveDateTime.utc_now(), %{hits: [{"EmptyKitTests", :miss, "old"}]})
+      selective_run(project, account, "head", "text", %{hits: [{"EmptyKitTests", :local, "empty"}]})
+
+      assert %{carried_tests_count: 2, gap_reasons: reasons} = Reported.compute(project, "head")
+      assert :target_without_history in Coverage.GapReasons.decode(reasons)
+      assert checkpoints(project, "head") == []
+    end
+
+    test "writes no checkpoint when only a failed run built a target without tests it skipped", %{
+      account: account,
+      project: project
+    } do
+      full_run(project, account, NaiveDateTime.utc_now(), %{
+        status: "failure",
+        hits: [{"EmptyKitTests", :miss, "empty"}]
+      })
+
+      selective_run(project, account, "head", "text", %{hits: [{"EmptyKitTests", :local, "empty"}]})
+
+      assert %{carried_tests_count: 2, gap_reasons: reasons} = Reported.compute(project, "head")
+      assert :target_without_history in Coverage.GapReasons.decode(reasons)
+      assert checkpoints(project, "head") == []
+    end
+
+    test "on a pull request's merge checkout writes no checkpoint", %{account: account, project: project} do
+      full_run(project, account, NaiveDateTime.utc_now())
+      selective_run(project, account, "head", "text", %{git_ref: "refs/pull/7/merge"})
+
+      assert %{carried_tests_count: 2} = Reported.compute(project, "head")
+      assert checkpoints(project, "head") == []
+    end
+
+    test "writes no checkpoint while a shard's report is on the replicas but not in the totals", %{
+      account: account,
+      project: project
+    } do
+      full_run(project, account, NaiveDateTime.utc_now())
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      sharded = %{shard_plan_id: plan.id, shard_index: 0}
+      head = selective_run(project, account, "head", "text", sharded)
+
+      # Shard 1's rows land before its totals do.
+      IngestRepo.insert_all(CoverageRunFile, [
+        %{
+          test_run_id: head.id,
+          project_id: project.id,
+          shard_index: 1,
+          build_system: "xcode",
+          path: "Sources/Math.swift",
+          layout_id: 1,
+          git_commit_sha: "head",
+          targets: ["App"],
+          covered_lines: 0,
+          executable_lines: 1,
+          execution_counts: [],
+          function_execution_counts: [],
+          function_covered_lines: [],
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      ])
+
+      CoverageFixtures.recompute_commit(head)
+      assert checkpoints(project, "head") == []
+
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 1, 0])], %{
+        sharded
+        | shard_index: 1
+      })
+
+      assert [%Snapshot{carried_targets: ["TextKitTests\u001Ftext"]}] = checkpoints(project, "head")
+    end
+
+    test "copies a target from an overlay with the tests it doesn't override from its checkpoint", %{
+      account: account,
+      project: project
+    } do
+      full_run(project, account, NaiveDateTime.utc_now())
+      [original] = checkpoints(project, "base")
+
+      impact = TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "mid", baseline_sha: "base")
+      TestSelectionFixtures.diff_fixture(project_id: project.id, commit_sha: "mid", baseline_sha: "base")
+
+      # A run of TextKitTests alone, skipping AppTests by name: only testTrim()
+      # changed, so the overlay holds it and its target's new lines (4).
+      mid =
+        CoverageFixtures.run_with_coverage(project, account, [file("Sources/Text.swift", [1, 1, 1, 1, 1])], %{
+          git_commit_sha: "mid",
+          partial: true,
+          recompute: false,
+          test_impact_run_id: impact.id,
+          skip_test_identifiers: ["AppTests/MathTests/testAdd()"],
+          test_modules: [text_kit_tests()],
+          coverage_evidence: %{
+            paths: ["Sources/Text.swift"],
+            scopes: [
+              %{kind: "test", module: "TextKitTests", suite: "TextTests", name: "testPad()", files: [0], lines: [[2, 2]]},
+              %{
+                kind: "test",
+                module: "TextKitTests",
+                suite: "TextTests",
+                name: "testTrim()",
+                files: [0],
+                lines: [[1, 2]]
+              },
+              %{kind: "suite", module: "TextKitTests", suite: "TextTests", name: "", files: [0], lines: [[3, 3]]},
+              %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0], lines: [[4, 4]]}
+            ]
+          }
+        })
+
+      hashed(project, mid, [{"TextKitTests", :miss, "text-mid"}])
+
+      assert [%Snapshot{kind: :overlay, checkpoint_id: checkpoint_id, overridden_count: 1}] =
+               project
+               |> snapshots()
+               |> Enum.filter(&(&1.commit_sha == "mid"))
+
+      assert checkpoint_id == original.id
+
+      selective_run(project, account, "head", "text-mid")
+
+      assert [copy] = checkpoints(project, "head")
+      assert text_kit_lines(project, copy, "testPad()") == [{"Sources/Text.swift", [2, 3, 4]}]
+      assert text_kit_lines(project, copy, "testTrim()") == [{"Sources/Text.swift", [1, 2, 3, 4]}]
     end
   end
 

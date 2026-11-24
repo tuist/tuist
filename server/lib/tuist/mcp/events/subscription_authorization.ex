@@ -17,12 +17,13 @@ defmodule Tuist.MCP.Events.SubscriptionAuthorization do
   alias Tuist.OAuth.Clients
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Pulse
   alias Tuist.Repo
 
   def authorized_target(conn, name, args) do
     case Catalog.target(name) do
       {:project, category} -> authorized_project(conn, args, category)
-      {:account, :runners} -> authorized_account(conn, args)
+      {:account, category} -> authorized_account(conn, args, category)
       nil -> {:error, :unsupported_event}
     end
   end
@@ -38,8 +39,8 @@ defmodule Tuist.MCP.Events.SubscriptionAuthorization do
          %Project{} = project <-
            Projects.get_project_by_account_and_project_handles(account_handle, project_handle),
          true <- member?(user, project.account),
-         true <- Authorization.authorize(user, :read, project, category),
-         true <- Authorization.authorize(subject, :read, project, category),
+         true <- reads?(user, project, category),
+         true <- reads?(subject, project, category),
          {:ok, credential} <- credential(conn, user, subject) do
       {:ok, user, credential, %{account_id: project.account_id, project_id: project.id}}
     else
@@ -49,14 +50,14 @@ defmodule Tuist.MCP.Events.SubscriptionAuthorization do
 
   defp authorized_project(_conn, _args, _category), do: {:error, :invalid_arguments}
 
-  defp authorized_account(%{assigns: assigns} = conn, %{"account_handle" => account_handle} = args)
+  defp authorized_account(%{assigns: assigns} = conn, %{"account_handle" => account_handle} = args, category)
        when is_binary(account_handle) and map_size(args) == 1 do
     with %AuthenticatedAccount{} = subject <- assigns[:current_subject],
          %User{} = user <- assigns[:current_user] || subject.issued_by,
          %Account{} = account <- Accounts.get_account_by_handle(account_handle),
          true <- member?(user, account),
-         true <- Authorization.authorize(user, :read, account, :runners),
-         true <- Authorization.authorize(subject, :read, account, :runners),
+         true <- reads?(user, account, category),
+         true <- reads?(subject, account, category),
          {:ok, credential} <- credential(conn, user, subject) do
       {:ok, user, credential, %{account_id: account.id, project_id: nil}}
     else
@@ -64,7 +65,26 @@ defmodule Tuist.MCP.Events.SubscriptionAuthorization do
     end
   end
 
-  defp authorized_account(_conn, _args), do: {:error, :invalid_arguments}
+  defp authorized_account(_conn, _args, _category), do: {:error, :invalid_arguments}
+
+  # Pulse has no token policy, so the user behind the credential decides
+  # (`Tuist.Pulse.authorized?/2`). The credential needs the `mcp` scope, and an
+  # account token must also belong to the account it subscribes to; other
+  # credentials act for their user across that user's accounts.
+  defp reads?(%User{} = user, account, :pulse), do: Pulse.authorized?(user, account)
+
+  defp reads?(
+         %AuthenticatedAccount{token_id: token_id, account: %Account{id: id}} = subject,
+         %Account{id: account_id},
+         :pulse
+       )
+       when not is_nil(token_id), do: id == account_id and mcp_scoped?(subject)
+
+  defp reads?(%AuthenticatedAccount{} = subject, _account, :pulse), do: mcp_scoped?(subject)
+
+  defp reads?(subject, resource, category), do: Authorization.authorize(subject, :read, resource, category)
+
+  defp mcp_scoped?(%AuthenticatedAccount{scopes: scopes}), do: is_list(scopes) and AccountToken.mcp_scope() in scopes
 
   defp member?(user, %Account{} = account) do
     Accounts.owns_account_or_is_member_of_account_organization?(user, Repo.preload(account, :organization))
@@ -118,14 +138,14 @@ defmodule Tuist.MCP.Events.SubscriptionAuthorization do
 
     match?(%User{active: true}, user) and not is_nil(resource) and member?(user, resource) and
       DateTime.after?(subscription.refresh_before, now) and
-      Authorization.authorize(user, :read, resource, category) and
+      reads?(user, resource, category) and
       credential_active?(subscription, user, resource, category)
   end
 
   defp authorization_target(%Subscription{event_name: name, account_id: account_id, project_id: project_id}) do
     case Catalog.target(name) do
-      {:account, :runners} when is_nil(project_id) ->
-        {Repo.get(Account, account_id), :runners}
+      {:account, category} when is_nil(project_id) ->
+        {Repo.get(Account, account_id), category}
 
       {:project, category} when not is_nil(project_id) ->
         case Repo.get(Project, project_id) do
@@ -153,7 +173,7 @@ defmodule Tuist.MCP.Events.SubscriptionAuthorization do
               issued_by: user
             }
 
-            Authorization.authorize(subject, :read, resource, category)
+            reads?(subject, resource, category)
 
           :error ->
             false
@@ -186,7 +206,7 @@ defmodule Tuist.MCP.Events.SubscriptionAuthorization do
           agent_registration_id: registration_id
         }
 
-        active_credential? and Authorization.authorize(subject, :read, resource, category)
+        active_credential? and reads?(subject, resource, category)
 
       _ ->
         false
@@ -211,7 +231,7 @@ defmodule Tuist.MCP.Events.SubscriptionAuthorization do
         "mcp" in token.scopes and
           match?(%User{id: ^user_id}, Accounts.claimed_agent_registration_user(token.id)) and
           not Accounts.account_token_expired?(token) and
-          Authorization.authorize(subject, :read, resource, category)
+          reads?(subject, resource, category)
 
       _ ->
         false

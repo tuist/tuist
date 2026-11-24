@@ -33,11 +33,14 @@ defmodule TuistWeb.SandboxAllocationsControllerTest do
     end)
 
     conn = put_req_header(conn, "authorization", "Bearer controller")
-    payload = payload()
+    payload = Map.put(payload(), "warm_bytes", 9_663_676_416)
     assert conn |> post("/api/internal/sandboxes/allocation", payload) |> response(204)
-    assert Repo.get!(SandboxNode, payload["node"]).allocation_memory_bytes == payload["memory_bytes"]
+    row = Repo.get!(SandboxNode, payload["node"])
+    assert row.allocation_memory_bytes == payload["memory_bytes"]
+    assert row.allocation_warm_bytes == payload["warm_bytes"]
     assert conn |> post("/api/internal/sandboxes/allocation", payload) |> response(409)
     assert conn |> post("/api/internal/sandboxes/allocation", Map.put(payload, "memory_bytes", -1)) |> response(400)
+    assert conn |> post("/api/internal/sandboxes/allocation", Map.put(payload, "warm_bytes", -1)) |> response(400)
 
     for field <- ["node", "pod", "observed_at"] do
       assert conn |> post("/api/internal/sandboxes/allocation", Map.put(payload, field, 123)) |> response(400)

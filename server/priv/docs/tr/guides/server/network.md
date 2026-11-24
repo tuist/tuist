@@ -7,7 +7,7 @@
 ---
 # Ağ {#network}
 
-Bu sayfa, Tuist'i altyapınızla entegre ederken ihtiyaç duyulabilecek ağ ile ilgili yapılandırmaları kapsar.
+Bu sayfa, Tuist'i altyapınızla entegre ederken gerekebilecek ağ ile ilgili yapılandırmaları kapsar.
 
 ## Giden IP adresleri {#outbound-ip-addresses}
 
@@ -24,11 +24,11 @@ Tuist hizmetlerinden ve entegrasyonlarından gelen bağlantılar için her iki a
 | 116.202.0.10 | `116.202.0.10/32` |
 | 116.202.4.195 | `116.202.4.195/32` |
 
-Tuist altyapınıza yalnızca HTTPS üzerinden bağlanır, bu nedenle bu adreslerden yalnızca HTTPS trafiğine (TCP port 443 veya HTTPS uç noktanızın dinlediği port) izin vermeniz yeterlidir. Tuist'in SSH erişimine ihtiyacı yoktur.
+Tuist, altyapınıza yalnızca HTTPS üzerinden bağlanır; bu nedenle bu adreslerden yalnızca HTTPS trafiğine (TCP port 443 veya HTTPS uç noktanızın dinlediği port) izin vermeniz yeterlidir. Tuist'in SSH erişimine ihtiyacı yoktur.
 
-### Tuist Çalıştırıcıları {#tuist-runners}
+### Tuist Runners {#tuist-runners}
 
-<.localized_link href="/guides/features/runners">Tuist Çalıştırıcıları</.localized_link> üzerinde çalışan işler aşağıdaki giden adresleri kullanır. Bir işin, örneğin IP izin listesine sahip bir GitHub kuruluşundan bir depoyu çekmek gibi, trafiği IP adresine göre kısıtlayan bir altyapıya erişmesi gerekiyorsa, iş akışlarınızın çalıştığı her platform için adresleri veya aralıkları izin listesine ekleyin.
+<.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> üzerinde çalışan işler aşağıdaki giden adresleri kullanır. Bir işin, örneğin IP izin listesine sahip bir GitHub kuruluşundan bir depo çekmek gibi, trafiği IP adresine göre kısıtlayan altyapıya erişmesi gerekiyorsa, iş akışlarınızın çalıştığı her platform için adresleri veya aralıkları izin listesine ekleyin.
 
 #### macOS {#tuist-runners-macos}
 

@@ -34,9 +34,8 @@ defmodule Tuist.Marketing.MDExConverter do
       unsafe: true
     ],
     syntax_highlight: [
-      # light-dark() token colors so code blocks follow the page's
-      # color-scheme, same as the docs (see Tuist.DocsLoader).
-      formatter: {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+      # CSS classes, colored with Noora tokens by assets/shared/css/syntax.css.
+      formatter: :html_linked
     ]
   ]
 
@@ -199,7 +198,7 @@ defmodule Tuist.Marketing.MDExConverter do
       <div class="code-window" phx-no-curly-interpolation>\
       <div data-part="bar">\
       <div data-part="language">#{language}</div>\
-      <div data-part="copy" class="noora-neutral-button" data-size="large"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
+      <div data-part="copy" class="noora-ghost-button" data-variant="secondary" data-size="large"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
       </div>\
       <template data-part="copy-source">#{copy_source}</template>\
       <div data-part="code">#{highlighted_html}</div>\
@@ -208,11 +207,39 @@ defmodule Tuist.Marketing.MDExConverter do
     }
   end
 
-  # The highlighter can end a token (a Rust `///` doc comment, for example)
-  # after the newline, so the token's `</span>` lands inside the next line's
-  # wrapper. Browsers tolerate it, but HEEx rejects the markup in live posts.
+  # The highlighter can carry a token across lines (a Rust `///` doc comment,
+  # a shell line continuation, or a diff hunk, for example), so its `<span>`
+  # opens in one line's wrapper and closes in a later one. Browsers tolerate
+  # it, but HEEx rejects the markup in live posts. At each line break, close
+  # the spans still open and reopen them in the next line, so every line's
+  # markup is balanced and keeps its token classes.
+  @line_break ~r/\n<\/div><div class="l-line"[^>]*>/
+  @span_tag ~r/<span\b[^>]*>|<\/span>/
+
   defp close_tokens_before_line_breaks(html) do
-    String.replace(html, ~r/\n(<\/div><div class="l-line"[^>]*>)<\/span>/, "</span>\n\\1")
+    {parts, _open} =
+      @line_break
+      |> Regex.split(html, include_captures: true)
+      |> Enum.map_reduce([], fn part, open ->
+        if Regex.match?(@line_break, part) do
+          reopened = open |> Enum.reverse() |> Enum.join()
+          {String.duplicate("</span>", length(open)) <> part <> reopened, open}
+        else
+          {part, track_open_spans(part, open)}
+        end
+      end)
+
+    Enum.join(parts)
+  end
+
+  defp track_open_spans(content, open) do
+    @span_tag
+    |> Regex.scan(content)
+    |> Enum.reduce(open, fn
+      ["</span>"], [_ | rest] -> rest
+      ["</span>"], [] -> []
+      [tag], stack -> [tag | stack]
+    end)
   end
 
   defp protect_highlight_whitespace(html) do

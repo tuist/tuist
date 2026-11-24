@@ -32,6 +32,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.GitHistory
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
@@ -39,20 +40,21 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.TargetSources
-  alias Tuist.Tests.Coverage.TestSources
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.Test
+  alias Tuist.VCS
 
   @doc """
   Schedules the commit's totals to be republished after a run reported
-  coverage for it. Nothing is scheduled for a run without a commit, or for a
-  local run from a dirty checkout. A CI run from a dirty checkout schedules a
-  fold too: it never counts, but a scheme only it measured leaves the
-  commit's figure a lower bound, whichever of the commit's runs lands last.
+  coverage for it. Nothing is scheduled for a run without a commit. A run
+  from a dirty checkout schedules a fold too: it never counts, but a commit
+  only dirty runs measured is published as a lower bound, and a scheme only
+  dirty CI runs measured leaves the commit's figure one, whichever of the
+  commit's runs lands last.
   """
-  def enqueue_recompute(%Test{git_commit_sha: sha, git_dirty: dirty, is_ci: ci} = test) do
-    if is_binary(sha) and sha != "" and (dirty != true or ci == true),
+  def enqueue_recompute(%Test{git_commit_sha: sha} = test) do
+    if is_binary(sha) and sha != "",
       do: enqueue_recompute(test.project_id, sha),
       else: :skipped
   end
@@ -71,7 +73,9 @@ defmodule Tuist.Tests.Coverage.Commits do
   `partial`, `gap_reasons` saying why): the coverage of some skipped tests
   could not be determined, a scheme's runs executed only the tests their
   caller selected, or a scheme's coverage only came from CI runs on a dirty
-  checkout. The fold decides it, so the actual coverage may be higher. A figure whose
+  checkout (every scheme's, for a commit only dirty runs, local or CI, measured, whose
+  figure has no measured line). The fold decides it, so the actual coverage
+  may be higher. A figure whose
   skipped tests were all carried forward is complete, as is one nothing
   skipped in.
   """
@@ -106,10 +110,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   @publish_attempts 3
   @pending_completions "coverage_commit_completions"
 
-  # Paths bind as 63-bit hashes (at most 19 digits), so a chunk's size doesn't
-  # depend on how long the paths are; 5,000 stay under 128 KiB.
-  @path_hashes_per_query 5_000
-
   @doc """
   Republishes the commit's totals from its runs' retained reports and
   returns the row published, or nil when no run measured the commit.
@@ -117,7 +117,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   state already published is kept.
   """
   def recompute(%Project{} = project, sha, opts \\ []) do
-    {row, runs} = fold_and_publish(project, sha, opts, @publish_attempts)
+    {row, runs, carried_targets} = fold_and_publish(project, sha, opts, @publish_attempts)
 
     # Outside the commit's lock: advancing a ref takes the repository's.
     if row do
@@ -129,13 +129,21 @@ defmodule Tuist.Tests.Coverage.Commits do
       # than that one or finding the branch already holds it, moves nothing.
       if row.git_repository_id > 0, do: GitHistory.sync_coverage_places(row.git_repository_id, [sha])
 
-      # The targets the commit's runs executed whole, and the versions of the
-      # tests they ran, become carry sources for the commits that skip them.
+      # The targets the commit's runs executed whole become carry sources for
+      # the commits that skip them.
       TargetSources.record(project.id, runs)
-      TestSources.record(project.id, runs)
+
+      # The test maps coverage-based test selection and coverage carry
+      # will read, for every project with coverage, copying into a selective
+      # run's checkpoint the targets the fold carried by hash.
+      Snapshots.record(project, runs, carried_targets)
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
+
+      # The pull request comment reports a commit's coverage once complete.
+      VCS.enqueue_coverage_pull_request_comment(project, summary)
+
       summary
     end
   end
@@ -151,11 +159,11 @@ defmodule Tuist.Tests.Coverage.Commits do
   # so it always ends up reading what the previous write left.
   defp fold_and_publish(project, sha, opts, attempts) when attempts > 1 do
     previous = summary(project.id, sha)
-    {row, runs} = fold(project, sha, previous, opts)
+    {row, runs, carried_targets} = fold(project, sha, previous, opts)
 
     case publish_unless_changed(project, sha, previous && previous.version, row, opts) do
       :changed -> fold_and_publish(project, sha, opts, attempts - 1)
-      published -> {published, runs}
+      published -> {published, runs, carried_targets}
     end
   end
 
@@ -164,8 +172,8 @@ defmodule Tuist.Tests.Coverage.Commits do
       project,
       sha,
       fn ->
-        {row, runs} = fold(project, sha, summary(project.id, sha), opts)
-        {write(project, sha, row, opts), runs}
+        {row, runs, carried_targets} = fold(project, sha, summary(project.id, sha), opts)
+        {write(project, sha, row, opts), runs, carried_targets}
       end,
       timeout: to_timeout(minute: 5)
     )
@@ -244,10 +252,26 @@ defmodule Tuist.Tests.Coverage.Commits do
   defp ref_name(%{git_branch: branch}) when branch not in [nil, ""], do: branch
   defp ref_name(_run), do: nil
 
-  # The row the commit's runs make, unwritten, or nil when there is none.
+  # The figure of a commit no counted run measured: nothing, a lower bound.
+  @nothing_reported %{
+    covered_lines: 0,
+    executable_lines: 0,
+    kind: "partial",
+    skipped_tests_count: 0,
+    carried_tests_count: 0,
+    gap_files_count: 0,
+    gap_reasons: 0,
+    carried_from: []
+  }
+
+  # The row the commit's runs make, unwritten, or nil when there is none,
+  # with the runs that count and the targets their reported coverage carried
+  # by hash.
   defp fold(project, sha, previous, opts) do
     runs = runs(project.id, sha)
-    reported = project |> Reported.compute(sha, runs: runs) |> then(&(&1 && Map.drop(&1, [:files, :carried_lines])))
+    dirty = dirty_runs(project.id, sha)
+    dirty_ci = Enum.filter(dirty, & &1.is_ci)
+    {reported, carried_targets} = project |> Reported.compute(sha, runs: runs) |> split_carried_targets()
 
     cond do
       # Every scheme was skipped whole, so no run measured the commit, but
@@ -258,30 +282,76 @@ defmodule Tuist.Tests.Coverage.Commits do
       # schemes skipped) has no coverage to publish and keeps none.
       runs == [] and not is_nil(reported) and reported.executable_lines > 0 ->
         clean = clean_runs(project.id, sha)
-        {project |> carried_row(sha, previous, reported, clean, opts) |> lower_bound(project.id, sha), clean}
+        source = clean_source(project.id, sha, previous)
+
+        {project |> carried_row(sha, previous, reported, clean, source, opts) |> lower_bound(project.id, sha, dirty_ci),
+         clean, []}
+
+      # Only runs from a dirty checkout, local or CI, gathered coverage. None
+      # of them counts, so the commit is what a scheme only they measured
+      # makes it (`lower_bound/4`), for every scheme: a lower bound, here of
+      # nothing, labelled with where those runs ran. Their runs are not the commit's,
+      # so they move no ref and are no carry source.
+      runs == [] and dirty != [] ->
+        {dirty_only_row(project, sha, previous, dirty, opts), [], []}
 
       runs == [] ->
-        {nil, []}
+        {nil, [], []}
 
       true ->
-        {project |> measured_row(sha, runs, previous, reported, opts) |> lower_bound(project.id, sha), runs}
+        {project |> measured_row(sha, runs, previous, reported, opts) |> lower_bound(project.id, sha, dirty_ci), runs,
+         carried_targets}
     end
+  end
+
+  # The figure without its files and carry plan, and the targets it carried
+  # by hash, with the skipped targets that hold no tests (`empty: true`).
+  defp split_carried_targets(nil), do: {nil, []}
+
+  defp split_carried_targets(reported) do
+    carried = (reported.carry && reported.carry.targets) || []
+    empty = reported |> Map.get(:empty_targets, []) |> Enum.map(&Map.put(&1, :empty, true))
+    {Map.drop(reported, [:files, :carry, :empty_targets]), carried ++ empty}
+  end
+
+  # Where a carried commit's clean runs name its repository and build system.
+  defp clean_source(project_id, sha, previous) do
+    %{
+      repository_id: Reported.repository_id(project_id, sha),
+      build_system: Reported.build_system(project_id, sha),
+      ran_at: previous && previous.ran_at
+    }
+  end
+
+  # A commit only runs from a dirty checkout measured: a lower bound of
+  # nothing, named and placed by those runs.
+  defp dirty_only_row(project, sha, previous, dirty, opts) do
+    reported = %{@nothing_reported | gap_reasons: GapReasons.encode([:dirty_run_excluded])}
+    newest = List.last(dirty)
+
+    source = %{
+      repository_id: dirty |> Enum.map(& &1.git_repository_id) |> Enum.max(),
+      build_system: newest.build_system,
+      ran_at: utc(newest.ran_at)
+    }
+
+    carried_row(project, sha, previous, reported, dirty, source, opts)
   end
 
   # Besides the gaps `Reported` finds, the figure is a lower bound when a
   # scheme's runs all left tests out and nothing names what Tuist skipped, or
   # when a scheme's coverage only came from CI runs on a dirty checkout: the
   # pipeline set out to measure it, and no clean run of it did, not even one
-  # skipped whole. A local run measures what a developer tried, not what the pipeline
-  # owes the commit. Settled on the built row, so the unmeasured files are
+  # skipped whole. A local dirty run never does this, so a developer trying a
+  # new scheme can't turn a commit incomplete. Settled on the built row, so the unmeasured files are
   # still read the way the coverage was reached.
-  defp lower_bound(row, project_id, sha) do
+  defp lower_bound(row, project_id, sha, dirty) do
     row =
       if row.reported_kind == "measured" and row.partial_schemes != [],
         do: %{row | reported_kind: "partial"},
         else: row
 
-    if dirty_only_scheme?(project_id, sha) do
+    if dirty_only_scheme?(project_id, sha, dirty) do
       reasons = GapReasons.decode(row.gap_reasons) ++ [:dirty_run_excluded]
       %{row | reported_kind: "partial", gap_reasons: GapReasons.encode(reasons)}
     else
@@ -289,32 +359,51 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  defp dirty_only_scheme?(project_id, sha) do
-    covered = from(c in subquery(Coverage.run_totals_query(project_id, shas: [sha])), select: c.test_run_id)
+  defp dirty_only_scheme?(_project_id, _sha, []), do: false
 
-    dirty =
-      ClickHouseRepo.all(
-        from(t in Test.query(),
-          where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.is_ci and t.id in subquery(covered),
-          group_by: t.id,
-          having:
-            fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == true and
-              fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) != "network_trusted",
-          select: fragment("argMax(?, ?)", t.scheme, t.inserted_at)
-        ),
-        settings: [select_sequential_consistency: 1]
-      )
-
-    if dirty == [] do
-      false
-    else
-      clean = project_id |> clean_runs(sha) |> MapSet.new(& &1.scheme)
-      Enum.any?(dirty, &(not MapSet.member?(clean, &1)))
-    end
+  defp dirty_only_scheme?(project_id, sha, dirty) do
+    clean = project_id |> clean_runs(sha) |> MapSet.new(& &1.scheme)
+    Enum.any?(dirty, &(not MapSet.member?(clean, &1.scheme)))
   end
 
-  defp carried_row(project, sha, previous, reported, clean, opts) do
-    repository_id = Reported.repository_id(project.id, sha)
+  # The commit's runs from a dirty checkout that gathered coverage, oldest
+  # first, with where they ran. Read from `test_runs` itself rather than
+  # `Test.query/0`: grouping by run already takes each run's latest row, and
+  # the view's `FINAL` reads every part's whole range of the project, since
+  # UUIDs don't sort by time, where the SHA's bloom index reads a few
+  # granules. The view's other half, immutable reports, gathers no coverage.
+  defp dirty_runs(project_id, sha) do
+    covered = from(c in subquery(Coverage.run_totals_query(project_id, shas: [sha])), select: c.test_run_id)
+
+    ClickHouseRepo.all(
+      from(t in Test,
+        where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.id in subquery(covered),
+        group_by: t.id,
+        having:
+          fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == true and
+            fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) != "network_trusted",
+        order_by: [asc: min(t.ran_at)],
+        select: %{
+          scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),
+          git_branch: fragment("any(?)", t.git_branch),
+          is_pull_request: fragment("argMax(?, ?)", t.is_pull_request, t.inserted_at),
+          pull_request_number: fragment("argMax(?, ?)", t.pull_request_number, t.inserted_at),
+          base_branch: fragment("argMax(?, ?)", t.base_branch, t.inserted_at),
+          is_ci: fragment("argMax(?, ?)", t.is_ci, t.inserted_at),
+          git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
+          build_system: fragment("argMax(?, ?)", t.build_system, t.inserted_at),
+          ran_at: min(t.ran_at)
+        }
+      ),
+      settings: [select_sequential_consistency: 1]
+    )
+  end
+
+  # `clean` labels the row and `source` names its repository, build system
+  # and when it ran: the clean runs', or, for a commit only dirty runs
+  # measured, its dirty runs', so that row is placed on its ref like any other.
+  defp carried_row(project, sha, previous, reported, clean, source, opts) do
+    %{repository_id: repository_id, build_system: build_system, ran_at: ran_at} = source
 
     unmeasured =
       unmeasured_paths(
@@ -334,7 +423,7 @@ defmodule Tuist.Tests.Coverage.Commits do
     |> Map.merge(if(clean == [], do: %{}, else: labels(clean)))
     |> Map.merge(%{
       repository_id: positive(repository_id),
-      build_system: Reported.build_system(project.id, sha),
+      build_system: build_system,
       covered_lines: 0,
       executable_lines: 0,
       measured_files_count: 0,
@@ -343,7 +432,7 @@ defmodule Tuist.Tests.Coverage.Commits do
       partial_schemes: [],
       test_run_ids: []
     })
-    |> Map.merge(place(repository_id, sha, previous && previous.ran_at))
+    |> Map.merge(place(repository_id, sha, ran_at))
   end
 
   defp measured_row(project, sha, runs, previous, reported, opts) do
@@ -612,10 +701,9 @@ defmodule Tuist.Tests.Coverage.Commits do
   Only when no first parent within the window qualifies does the walk cover
   the window.
   """
-  def nearest_measured_ancestor(project_id, repository_id, sha, schemes, opts \\ [])
-  def nearest_measured_ancestor(_project_id, _repository_id, _sha, [], _opts), do: nil
+  def nearest_measured_ancestor(_project_id, _repository_id, _sha, []), do: nil
 
-  def nearest_measured_ancestor(project_id, repository_id, sha, schemes, opts) do
+  def nearest_measured_ancestor(project_id, repository_id, sha, schemes) do
     measured =
       from(c in CoverageCommit,
         where:
@@ -623,18 +711,12 @@ defmodule Tuist.Tests.Coverage.Commits do
             fragment("? && ?", c.schemes, type(^schemes, {:array, :string}))
       )
 
-    measured =
-      case Keyword.get(opts, :kind) do
-        nil -> measured
-        kind -> where(measured, [c], c.reported_kind == ^kind)
-      end
-
     nearest =
-      case first_parent_distance_in(measured, repository_id, sha) do
+      case nearest_first_parent_in(measured, repository_id, sha) do
         nil ->
           nil
 
-        distance ->
+        {_sha, distance} ->
           ancestors = repository_id |> GitHistory.ancestors(sha, max_depth: distance) |> Enum.reject(&(elem(&1, 1) == 0))
           found = shas_in(measured, Enum.map(ancestors, &elem(&1, 0)))
           Enum.find(ancestors, fn {ancestor, _depth} -> MapSet.member?(found, ancestor) end)
@@ -643,47 +725,55 @@ defmodule Tuist.Tests.Coverage.Commits do
     nearest || GitHistory.nearest_ancestor(repository_id, sha, Repo.all(select(measured, [c], c.git_commit_sha)))
   end
 
-  defp first_parent_distance_in(measured, repository_id, sha) do
+  @doc """
+  The nearest commit matching `query` (a query over `CoverageCommit`) on a
+  commit's first-parent chain, the commit itself included at distance 0, as
+  `{sha, distance}`, or nil when none does. The chain is the commits no ref
+  placed yet, then the refs' segments down from where it meets them (each
+  ref's commits up to its fork, then its parent's), so it follows the branch
+  the commit sits on and never a branch merged into it.
+  """
+  def nearest_first_parent_in(query, repository_id, sha) do
     {unowned, owned} = repository_id |> GitHistory.first_parents_to_segment(sha) |> Enum.split_with(&is_nil(&1.ref_id))
-    found = shas_in(measured, Enum.map(unowned, & &1.sha))
+    found = shas_in(query, Enum.map(unowned, & &1.sha))
 
     case Enum.find(unowned, &MapSet.member?(found, &1.sha)) do
-      %{depth: depth} ->
-        depth
+      %{sha: nearest, depth: depth} ->
+        {nearest, depth}
 
       nil ->
         with [%{depth: depth, ref_id: ref_id, position: position}] <- owned,
-             distance when is_integer(distance) <- segments_distance_in(measured, ref_id, position, 0) do
-          depth + distance
+             {nearest, distance} <- segments_nearest_in(query, ref_id, position, 0) do
+          {nearest, depth + distance}
         else
           _ -> nil
         end
     end
   end
 
-  defp segments_distance_in(_measured, nil, _position, _distance), do: nil
+  defp segments_nearest_in(_query, nil, _position, _distance), do: nil
 
-  defp segments_distance_in(measured, ref_id, position, distance) do
+  defp segments_nearest_in(query, ref_id, position, distance) do
     nearest =
-      measured
+      query
       |> where([c], c.ref_id == ^ref_id and c.position <= ^position)
       |> order_by([c], desc: c.position)
       |> limit(1)
-      |> select([c], c.position)
+      |> select([c], {c.git_commit_sha, c.position})
       |> Repo.one()
 
     case nearest do
       nil ->
         case GitHistory.get_ref(ref_id) do
           %{parent_ref_id: parent_id, fork_position: fork} when not is_nil(parent_id) ->
-            segments_distance_in(measured, parent_id, fork, distance + position - fork)
+            segments_nearest_in(query, parent_id, fork, distance + position - fork)
 
           _ ->
             nil
         end
 
-      found ->
-        distance + position - found
+      {sha, found} ->
+        {sha, distance + position - found}
     end
   end
 
@@ -768,16 +858,48 @@ defmodule Tuist.Tests.Coverage.Commits do
       skipped_tests_count: summary.skipped_tests_count,
       carried_tests_count: summary.carried_tests_count,
       gap_files_count: summary.gap_files_count,
-      carried_from: summary.carried_from
+      carried_from: summary.carried_from,
+      gap_reasons: summary |> gap_reasons() |> Enum.map(&Atom.to_string/1)
     }
   end
 
   def reported_figure(_summary), do: nil
 
+  @max_measured_run_ids 900
+
+  @doc """
+  The signed runs of a published commit (`summary/2`), as a query over
+  `Tuist.Tests.Test.query/0` that reads those runs rather than the project's
+  history. The view reads `test_runs` with `FINAL`, under which the commit
+  SHA's skip index narrows nothing (its granules are expanded back to whole
+  key ranges), so the runs are found by the table's partition (`inserted_at`,
+  from a day before the commit was made or first folded, whichever is
+  earlier) and by the run ids the fold recorded, the primary key, falling
+  back to the SHA when it recorded none or too many to bind.
+  """
+  def measured_runs_query(%{project_id: project_id} = summary) do
+    since =
+      [summary.committed_at, summary.inserted_at]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.min(DateTime, fn -> DateTime.utc_now() end)
+      |> DateTime.add(-1, :day)
+
+    query =
+      from(t in Test.query(),
+        where: t.project_id == ^project_id and t.inserted_at >= ^since and t.submission_auth != "network_trusted"
+      )
+
+    case summary.test_run_ids do
+      ids when ids != [] and length(ids) <= @max_measured_run_ids -> where(query, [t], t.id in ^ids)
+      _ids -> where(query, [t], t.git_commit_sha == ^summary.git_commit_sha)
+    end
+  end
+
   @doc """
   The runs that measured the commit and count towards it: one row per run
-  with its scheme, whether it was partial, and its repository. Runs from a
-  dirty checkout are left out.
+  with its scheme, whether it was partial, its repository, and the impact
+  run that selected its tests, if any. Runs from a dirty checkout are left
+  out.
   """
   def runs(project_id, sha) when is_binary(sha), do: runs(project_id, [sha])
 
@@ -820,6 +942,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           coverage_evidence_status: fragment("argMax(?, ?)", t.coverage_evidence_status, t.inserted_at),
           only_test_identifiers: fragment("argMax(?, ?)", t.only_test_identifiers, t.inserted_at),
           skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at),
+          test_impact_run_id: fragment("toString(argMax(?, ?))", t.test_impact_run_id, t.inserted_at),
           ran_at: min(t.ran_at)
         }
       )
@@ -848,6 +971,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           coverage_evidence_status: t.coverage_evidence_status,
           only_test_identifiers: t.only_test_identifiers,
           skip_test_identifiers: t.skip_test_identifiers,
+          test_impact_run_id: t.test_impact_run_id,
           ran_at: t.ran_at,
           covered_lines: c.covered_lines,
           executable_lines: c.executable_lines
@@ -862,8 +986,8 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   One page of the runs with coverage of a subject, newest first: a commit's
-  (`{:commit, sha}`), or those that named a branch (`{:branch, name}`), run
-  between `since` and `until`.
+  (`{:commit, sha}`), or those that named a branch (`{:branch, name}`) or a
+  pull request (`{:pull_request, number}`), run between `since` and `until`.
   Runs from a dirty checkout are left out, as `runs/2` does, unless
   `dirty: true` lists them too, with `git_dirty` set, to show why a scheme
   is missing from a figure.
@@ -956,6 +1080,7 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp run_scope(query, {:commit, sha}), do: where(query, [t], t.git_commit_sha == ^sha)
   defp run_scope(query, {:branch, branch}), do: where(query, [t], t.git_branch == ^branch)
+  defp run_scope(query, {:pull_request, number}), do: where(query, [t], t.pull_request_number == ^number)
 
   defp run_dirty(query, true), do: query
   defp run_dirty(query, false), do: having(query, [t], fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false)
@@ -1097,7 +1222,7 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp report_paths(project_id, run_ids) do
     ClickHouseRepo.all(
-      from(f in Coverage.report_files_for_runs(project_id, run_ids), distinct: true, select: f.path),
+      from(f in Coverage.report_files_for_runs(project_id, run_ids, lines: false), distinct: true, select: f.path),
       settings: [select_sequential_consistency: 1]
     )
   end
@@ -1395,8 +1520,11 @@ defmodule Tuist.Tests.Coverage.Commits do
          true <- carried?(summary),
          %Project{} = project <- Tuist.Projects.get_project_by_id(project_id) do
       excluded = Coverage.excluded(project_id, opts)
-      measured = merged_files(project_id, sha, excluded: excluded, consistent: Keyword.get(opts, :consistent, false))
-      Reported.merged_files(project, sha, measured, excluded: excluded)
+
+      # The settled reported coverage holds every file with its targets, so
+      # the runs' rows are merged again only when it is not exact.
+      Reported.files(project, sha, excluded: excluded) ||
+        merged_files(project_id, sha, excluded: excluded, consistent: Keyword.get(opts, :consistent, false))
     else
       _ -> nil
     end
@@ -1433,11 +1561,23 @@ defmodule Tuist.Tests.Coverage.Commits do
         {[], 0}
 
       ids ->
+        excluded = Coverage.excluded(project_id, opts)
+        search = Keyword.get(opts, :search, "")
+
         files_query =
           project_id
-          |> Coverage.merged_files_query_for_runs(ids, Coverage.excluded(project_id, opts))
+          |> Coverage.merged_files_query_for_runs(ids, excluded)
           |> subquery()
-          |> search_paths(Keyword.get(opts, :search, ""))
+          |> search_paths(search)
+
+        # The merged files are the product paths, which the count reads off the
+        # rows without their layouts.
+        paths_query =
+          project_id
+          |> Coverage.report_files_for_runs(ids, lines: false)
+          |> Coverage.without_excluded(excluded)
+          |> where([f], not f.is_test)
+          |> search_paths(search)
 
         [files, count] =
           Tuist.Tasks.parallel_tasks([
@@ -1450,7 +1590,7 @@ defmodule Tuist.Tests.Coverage.Commits do
                 )
               )
             end,
-            fn -> ClickHouseRepo.one(from(f in files_query, select: count(f.path))) || 0 end
+            fn -> ClickHouseRepo.one(from(f in paths_query, select: fragment("uniqExact(?)", f.path))) || 0 end
           ])
 
         {files, count}
@@ -1471,60 +1611,6 @@ defmodule Tuist.Tests.Coverage.Commits do
       {direction, dynamic([f], fragment("? / greatest(?, 1)", f.covered_lines, f.executable_lines))},
       {direction, dynamic([f], f.path)}
     ]
-
-  @doc """
-  The merged per-line execution counts of the given paths at the commit,
-  keyed by path, as `{line, count}` pairs in line order. The paths are bound
-  as hashes, in chunks: a list travels as one parameter, which ClickHouse
-  refuses past `http_max_field_value_size` (128 KiB by default), and a hash's
-  size doesn't depend on the path's length.
-  """
-  def line_counts(project_id, sha, paths, opts \\ [])
-
-  def line_counts(_project_id, _sha, [], _opts), do: %{}
-
-  def line_counts(project_id, sha, paths, opts) do
-    case run_ids(project_id, sha) do
-      [] ->
-        %{}
-
-      ids ->
-        files =
-          Coverage.without_excluded(Coverage.report_files_for_runs(project_id, ids), Coverage.excluded(project_id, opts))
-
-        wanted = MapSet.new(paths)
-
-        wanted
-        |> Enum.map(&path_hash/1)
-        |> Enum.chunk_every(@path_hashes_per_query)
-        |> Enum.flat_map(fn hashes ->
-          ClickHouseRepo.all(
-            from(f in files,
-              where:
-                fragment("bitShiftRight(halfMD5(?), 1) IN (?)", f.path, type(^hashes, {:array, :integer})) and
-                  not f.is_test,
-              select: {f.path, f.line_numbers, f.execution_counts}
-            )
-          )
-        end)
-        |> Enum.filter(&MapSet.member?(wanted, elem(&1, 0)))
-        |> Enum.group_by(&elem(&1, 0), fn {_path, lines, counts} -> Enum.zip(lines, counts) end)
-        |> Map.new(fn {path, rows} ->
-          {path,
-           rows
-           |> List.flatten()
-           |> Enum.reduce(%{}, fn {line, count}, acc -> Map.update(acc, line, count, &(&1 + count)) end)
-           |> Enum.sort()}
-        end)
-    end
-  end
-
-  # `halfMD5` in ClickHouse: the first 8 bytes of the MD5, big-endian, shifted
-  # into a non-negative Int64.
-  defp path_hash(path) do
-    <<hash::unsigned-big-64, _::binary>> = :crypto.hash(:md5, path)
-    Bitwise.bsr(hash, 1)
-  end
 
   @doc """
   One file's merged coverage at the commit (`Tuist.Tests.Coverage.detail/2`

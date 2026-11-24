@@ -82,14 +82,36 @@ defaults:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.resolve.outputs.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          fetch-depth: 0
+          filter: tree:0
           persist-credentials: false
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm jq yq node"
           cache: "false"
+      # The newest Pulse canary this commit contains, the way Kura's deploy legs
+      # resolve kura@ canaries (server-deployment.yml). Commits without one keep
+      # the chart's pinned image. Validation runs the image the deploy job
+      # installs, so tests of new Pulse behavior pass once its canary exists.
+      - id: resolve
+        run: |
+          set -euo pipefail
+          version="$(git tag --list 'pulse@*' --merged HEAD \
+            | sed 's|^pulse@||' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
+            | sort -V | tail -n1 || true)"
+          if [[ -z "$version" ]]; then
+            echo "image=$(yq '.image' infra/helm/pulse/values.yaml)" >> "$GITHUB_OUTPUT"
+            echo "No pulse@ canary in ${GITHUB_SHA}; using the chart's pinned image." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "image=ghcr.io/tuist/pulse:${version}" >> "$GITHUB_OUTPUT"
+          echo "Using ghcr.io/tuist/pulse:${version}, the newest canary in ${GITHUB_SHA}." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Validate backend and shared prerequisites
         run: |
           set -euo pipefail
@@ -99,6 +121,10 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/pulse-grafana-tests"
           "$RUNNER_TEMP/pulse-grafana-tests/bin/pip" install PyYAML==6.0.3
           "$RUNNER_TEMP/pulse-grafana-tests/bin/python" infra/helm/pulse-grafana/test_chart.py
+          bash -n .github/scripts/pulse-datanode-rollout.sh
+          bash -n .github/scripts/pulse-probe.sh
+          bash -n .github/scripts/pulse-metric-split.sh
+          bash -n .github/scripts/pulse-gc-flip.sh
           node --check .github/scripts/pulse-smoke.mjs
           node --check .github/scripts/pulse-live-smoke.mjs
           node --test .github/scripts/openobserve-preflight.test.mjs
@@ -110,20 +136,21 @@ jobs:
           bash .github/scripts/pulse-collectors.test.sh
           mkdir -p "$RUNNER_TEMP/pulse-chart"
           helm package infra/helm/pulse --destination "$RUNNER_TEMP/pulse-chart"
-      - name: Run the Sentry errors pipeline in the pinned Pulse release
+      - name: Run the Sentry errors and Symptoms inputs pipelines in the pinned Pulse release
         run: |
           set -euo pipefail
           printf 'pilot=ci\n' > "$RUNNER_TEMP/pulse-users"
           chmod 644 "$RUNNER_TEMP/pulse-users"
           docker run -d --name pulse -p 127.0.0.1:4000:4000 -v "$RUNNER_TEMP/pulse-users:/users:ro" \
-            "$(yq '.image' infra/helm/pulse/values.yaml)" \
+            "${{ steps.resolve.outputs.image }}" \
             standalone start --http-addr 0.0.0.0:4000 --user-provider=static_user_provider:file:/users
           for _ in $(seq 60); do
             curl -fsS -u pilot:ci 'http://127.0.0.1:4000/v1/sql?sql=SELECT%201' > /dev/null 2>&1 && break
             sleep 2
           done
           PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:ci node infra/helm/pulse/test-sentry-errors.mjs
-      - uses: actions/upload-artifact@v4
+          PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:ci node infra/helm/pulse/test-symptoms-inputs.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           # One cascade run calls this workflow once per environment.
           name: pulse-chart-${{ inputs.environment || github.event_name }}
@@ -131,39 +158,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # The newest Pulse canary this commit contains, the way Kura's deploy legs
-  # resolve kura@ canaries (server-deployment.yml). Commits without one keep
-  # the chart's pinned image.
-  resolve-image:
-    if: inputs.environment && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      image: ${{ steps.resolve.outputs.image }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          filter: tree:0
-          persist-credentials: false
-      - id: resolve
-        run: |
-          set -euo pipefail
-          version="$(git tag --list 'pulse@*' --merged HEAD \
-            | sed 's|^pulse@||' \
-            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
-            | sort -V | tail -n1 || true)"
-          if [[ -z "$version" ]]; then
-            echo "No pulse@ canary in ${GITHUB_SHA}; deploying the chart's pinned image." | tee -a "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          echo "image=ghcr.io/tuist/pulse:${version}" >> "$GITHUB_OUTPUT"
-          echo "Deploying ghcr.io/tuist/pulse:${version}, the newest canary in ${GITHUB_SHA}." | tee -a "$GITHUB_STEP_SUMMARY"
-
   deploy:
     if: inputs.environment && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
-    needs: [validate, resolve-image]
+    needs: validate
     runs-on: tuist-linux
     timeout-minutes: 60
     environment:
@@ -178,9 +175,9 @@ jobs:
       STORAGE_POD: pulse-storage-${{ github.run_id }}-${{ github.run_attempt }}
       SMOKE_POD: pulse-smoke-${{ github.run_id }}-${{ github.run_attempt }}
       # The chart arguments every render and upgrade below shares.
-      PULSE_CHART_ARGS: ${{ inputs.environment == 'production' && '-f infra/helm/pulse/values-production.yaml ' || '' }}--set environment=${{ inputs.environment }},storage.bucket=tuist-pulso-${{ inputs.environment }},dashboard.enabled=${{ inputs.dashboard }}${{ needs.resolve-image.outputs.image && format(',image={0}', needs.resolve-image.outputs.image) || '' }}
+      PULSE_CHART_ARGS: ${{ inputs.environment == 'production' && '-f infra/helm/pulse/values-production.yaml ' || '' }}--set environment=${{ inputs.environment }},storage.bucket=tuist-pulso-${{ inputs.environment }},dashboard.enabled=${{ inputs.dashboard }}${{ format(',image={0}', needs.validate.outputs.image) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -188,7 +185,7 @@ jobs:
         with:
           install_args: "--locked helm kubectl jq yq node"
           cache: "false"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: pulse-chart-${{ inputs.environment }}
           path: ${{ runner.temp }}/pulse-deploy
@@ -216,7 +213,7 @@ jobs:
             helm template pulse "$dir/tuist-pulse-0.1.0.tgz" -n observability "${chart_args[@]}" \
               --set migration.standalone=serving | yq ea -o=json -I=0 '.' | jq -s 'map(select(. != null))' > "$dir/migration.json"
           fi
-      - uses: 1password/install-cli-action@v4
+      - uses: 1password/install-cli-action@1a3160d5e9de1ae0803eaa08a88746f5ae3daa50 # v4.1.0
       - name: Load selected deployment identity in CI only
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -458,8 +455,13 @@ jobs:
           jq --rawfile pipeline infra/helm/pulse/loki-otlp.yaml \
             --rawfile errors_table infra/helm/pulse/errors.sql \
             --rawfile errors_pipeline infra/helm/pulse/sentry-errors.yaml \
+            --rawfile error_issues infra/helm/pulse/error-issues.sql \
+            --rawfile sessions_table infra/helm/pulse/sessions.sql \
+            --rawfile symptoms infra/helm/pulse/symptoms.sql \
             '.spec.containers[0].env += [{name:"PULSE_LOKI_PIPELINE",value:$pipeline},
-              {name:"PULSE_ERRORS_TABLE",value:$errors_table},{name:"PULSE_ERRORS_PIPELINE",value:$errors_pipeline}]' \
+              {name:"PULSE_ERRORS_TABLE",value:$errors_table},{name:"PULSE_ERRORS_PIPELINE",value:$errors_pipeline},
+              {name:"PULSE_ERROR_ISSUES",value:$error_issues},{name:"PULSE_SESSIONS_TABLE",value:$sessions_table},
+              {name:"PULSE_SYMPTOMS_SQL",value:$symptoms}]' \
             "$dir/native.json" > "$dir/smoke.json"
       - name: Install private backend, retaining state on failure
         run: |
@@ -467,8 +469,10 @@ jobs:
           dir="$RUNNER_TEMP/pulse-deploy"
           read -ra chart_args <<< "$PULSE_CHART_ARGS"
           upgrade() {
+            # pulse-datanode-rollout.sh patches the datanode partition; after an
+            # interrupted drain the chart must take it back, and the script resumes.
             if ! helm upgrade --install pulse "$dir/tuist-pulse-0.1.0.tgz" "${chart_args[@]}" "$@" \
-              -n observability --timeout 20m --wait > "$dir/helm.log" 2>&1; then
+              -n observability --force-conflicts --timeout 20m --wait > "$dir/helm.log" 2>&1; then
               # Helm's error line names the failing step, not rendered values.
               grep -m1 '^Error' "$dir/helm.log" || true
               echo '::error::Pulse rollout failed; state retained for diagnosis.'
@@ -476,6 +480,13 @@ jobs:
             fi
           }
           if [[ "${MIGRATE_STANDALONE:-}" != true ]]; then
+            # A GC switch stops the frontends while metasrv and every datanode
+            # restart on it; a rerun resumes an interrupted switch.
+            if [[ "$(bash .github/scripts/pulse-gc-flip.sh needed "$dir/resources.json")" == true ]]; then
+              bash .github/scripts/pulse-gc-flip.sh begin
+              upgrade --set cluster.frontend.stopped=true
+              bash .github/scripts/pulse-gc-flip.sh finish
+            fi
             upgrade
           else
             # 1. Start the cluster beside the standalone pod, which keeps serving
@@ -496,7 +507,8 @@ jobs:
                 if .name == "PULSE_URL" then .value = "http://pulse-frontend.observability:4000"
                 elif .name == "SMOKE_RUN" then .value = $run else . end)' "$dir/smoke.json" > "$dir/cluster-smoke.json"
             kubectl create -f "$dir/cluster-smoke.json" > /dev/null
-            kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$probe" --timeout=180s
+            kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$probe" --timeout=180s ||
+              { kubectl -n observability logs "$probe" || true; exit 1; }
             kubectl -n observability logs "$probe"
             kubectl -n observability delete pod "$probe" --wait=true --timeout=30s > /dev/null
             # 3. Move Service `pulse` to the frontends. Standalone stays until the
@@ -513,6 +525,13 @@ jobs:
             kubectl -n observability delete pod pulse-0 --wait=true --timeout=120s
             echo "Moved Service pulse from the standalone pod to the cluster frontends." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
+          # Spread regions over the datanodes before they restart: region
+          # failover never moves regions back, and every restart below keeps
+          # the placement it finds.
+          bash .github/scripts/pulse-datanode-rollout.sh rebalance
+          # Held datanodes do not restart with the upgrade; this restarts them
+          # one at a time with their regions moved away first.
+          bash .github/scripts/pulse-datanode-rollout.sh
           kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
           if [[ "$DASHBOARD_ENABLED" == true ]]; then
             kubectl -n observability wait --for=condition=Ready externalsecret/pulse-dashboard-auth --timeout=60s
@@ -522,7 +541,8 @@ jobs:
           set -euo pipefail
           dir="$RUNNER_TEMP/pulse-deploy"
           kubectl create -f "$dir/smoke.json" > /dev/null
-          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s
+          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s ||
+            { kubectl -n observability logs "$SMOKE_POD" || true; exit 1; }
           kubectl -n observability logs "$SMOKE_POD"
           kubectl -n observability delete pod "$SMOKE_POD" --wait=true --timeout=30s > /dev/null
           # Reread after restarting every stateful process that held the data.
@@ -533,11 +553,15 @@ jobs:
           fi
           for workload in "${workloads[@]}"; do
             kubectl -n observability rollout restart "$workload"
+            if [[ "$workload" == statefulset/pulse-datanode ]]; then
+              bash .github/scripts/pulse-datanode-rollout.sh
+            fi
             kubectl -n observability rollout status "$workload" --timeout=600s
           done
           jq '.spec.containers[0].env += [{name:"SMOKE_READ_ONLY",value:"true"}]' "$dir/smoke.json" > "$dir/read.json"
           kubectl create -f "$dir/read.json" > /dev/null
-          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s
+          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s ||
+            { kubectl -n observability logs "$SMOKE_POD" || true; exit 1; }
           kubectl -n observability logs "$SMOKE_POD"
       - name: Verify recent real collector telemetry
         if: inputs.verify_telemetry
@@ -549,7 +573,8 @@ jobs:
             '.spec.activeDeadlineSeconds = 360 | .spec.containers[0].command = ["node","--input-type=module","-e",$script]' \
             "$dir/smoke.json" > "$dir/live-smoke.json"
           kubectl create -f "$dir/live-smoke.json" > /dev/null
-          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=360s
+          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=360s ||
+            { kubectl -n observability logs "$SMOKE_POD" || true; exit 1; }
           kubectl -n observability logs "$SMOKE_POD"
       - name: Remove the standalone backend after the cluster qualified
         if: env.MIGRATE_STANDALONE == 'true'
@@ -559,7 +584,7 @@ jobs:
           read -ra chart_args <<< "$PULSE_CHART_ARGS"
           echo 'MIGRATION_PHASE=retiring' >> "$GITHUB_ENV"
           if ! helm upgrade pulse "$dir/tuist-pulse-0.1.0.tgz" "${chart_args[@]}" \
-            -n observability --timeout 20m --wait > "$dir/helm.log" 2>&1; then
+            -n observability --force-conflicts --timeout 20m --wait > "$dir/helm.log" 2>&1; then
             grep -m1 '^Error' "$dir/helm.log" || true
             echo '::error::Removing the standalone backend failed; readers stay on the cluster.'
             exit 1
@@ -605,6 +630,6 @@ jobs:
           if [[ -f "$KUBECONFIG" ]]; then
             kubectl -n observability delete pod "$SMOKE_POD" "$SMOKE_POD-cluster" "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
             kubectl -n observability delete pod "$STORAGE_POD-reset" --ignore-not-found --wait=true --timeout=30s
+            kubectl -n observability delete pod "pulse-rollout-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --ignore-not-found --wait=true --timeout=30s
             kubectl -n observability delete externalsecret "$STORAGE_POD" "$STORAGE_POD-reset" --ignore-not-found --wait=true --timeout=30s
           fi
-

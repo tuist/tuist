@@ -9,7 +9,7 @@ defmodule TuistWeb.CreateOrganizationLive do
   alias Tuist.Accounts.Account
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     form = to_form(Account.create_changeset(%Account{}, %{}))
     current_user = socket.assigns.current_user
 
@@ -18,10 +18,15 @@ defmodule TuistWeb.CreateOrganizationLive do
       |> Accounts.get_user_organization_accounts()
       |> Enum.any?()
 
+    # Only a fixed sentinel is accepted, so the parameter can't redirect anywhere else.
+    return_to =
+      if params["return_to"] == "integration_installation", do: ~p"/integrations/installation"
+
     socket =
       assign(socket,
         form: form,
-        has_organizations: has_organizations
+        has_organizations: has_organizations,
+        return_to: return_to
       )
 
     {:ok, socket}
@@ -73,7 +78,13 @@ defmodule TuistWeb.CreateOrganizationLive do
                   label={dgettext("dashboard_account", "Continue")}
                 />
                 <.button
-                  :if={@has_organizations}
+                  :if={@return_to}
+                  href={@return_to}
+                  variant="secondary"
+                  label={dgettext("dashboard_account", "Cancel")}
+                />
+                <.button
+                  :if={@has_organizations and is_nil(@return_to)}
                   navigate={~p"/dashboard"}
                   variant="secondary"
                   label={dgettext("dashboard_account", "Cancel")}
@@ -98,7 +109,9 @@ defmodule TuistWeb.CreateOrganizationLive do
     case Accounts.create_organization(%{name: name, creator: socket.assigns.current_user}) do
       {:ok, organization} ->
         socket =
-          push_navigate(socket, to: ~p"/projects/new?account_id=#{organization.account.id}")
+          if socket.assigns.return_to,
+            do: redirect(socket, to: socket.assigns.return_to),
+            else: push_navigate(socket, to: ~p"/projects/new?account_id=#{organization.account.id}")
 
         {:noreply, socket}
 

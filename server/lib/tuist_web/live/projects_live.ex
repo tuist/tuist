@@ -187,7 +187,7 @@ defmodule TuistWeb.ProjectsLive do
                 :if={build_system_badge(project.build_system)}
                 label={build_system_badge(project.build_system).label}
                 color={build_system_badge(project.build_system).color}
-                size="large"
+                size="medium"
               />
             </div>
             <div
@@ -236,7 +236,7 @@ defmodule TuistWeb.ProjectsLive do
                   :if={build_system_badge(project.build_system)}
                   label={build_system_badge(project.build_system).label}
                   color={build_system_badge(project.build_system).color}
-                  size="large"
+                  size="medium"
                 />
               </div>
               <div
@@ -311,7 +311,7 @@ defmodule TuistWeb.ProjectsLive do
                   :if={build_system_badge(project.build_system)}
                   label={build_system_badge(project.build_system).label}
                   color={build_system_badge(project.build_system).color}
-                  size="large"
+                  size="medium"
                 />
               </div>
               <div
@@ -412,7 +412,7 @@ defmodule TuistWeb.ProjectsLive do
               <:item value="bazel" label="Bazel" />
               <:item value="mix" label="Mix (Elixir)" />
               <:item value="cargo" label="Cargo (Rust)" />
-              <:item value="once" label="Once" />
+              <:item value="once" label="Struo" />
             </.select>
           </div>
         </div>
@@ -517,7 +517,7 @@ defmodule TuistWeb.ProjectsLive do
   defp build_system_badge(:bazel), do: %{label: "Bazel", color: "warning"}
   defp build_system_badge(:mix), do: %{label: "Mix", color: "information"}
   defp build_system_badge(:cargo), do: %{label: "Cargo", color: "information"}
-  defp build_system_badge(:once), do: %{label: "Once", color: "primary"}
+  defp build_system_badge(:once), do: %{label: "Struo", color: "primary"}
   defp build_system_badge(_), do: nil
 
   # Signed-out visitors on a public account see the account's public

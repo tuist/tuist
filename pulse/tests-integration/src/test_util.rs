@@ -755,6 +755,7 @@ pub async fn setup_test_http_app_with_frontend_and_custom_options(
     let mut http_server = http_server
         .with_sql_handler(instance.fe_instance().clone())
         .with_log_ingest_handler(instance.fe_instance().clone(), None, None)
+        .with_sentry_handler(instance.fe_instance().clone(), None)
         .with_logs_handler(instance.fe_instance().clone())
         .with_influxdb_handler(instance.fe_instance().clone())
         .with_otlp_handler(instance.fe_instance().clone(), true)

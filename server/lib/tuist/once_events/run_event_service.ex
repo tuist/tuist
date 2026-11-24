@@ -178,28 +178,27 @@ defmodule Tuist.OnceEvents.RunEventService do
   end
 
   defp project_events(batch, project, account_id) do
-    Enum.reduce_while(batch.events, :ok, fn event, _acc ->
-      case project_event(event, project.id, batch.run_id, account_id) do
-        :ok ->
-          {:cont, :ok}
+    case project_batch(batch.events, project.id, batch.run_id, account_id) do
+      :ok ->
+        :ok
 
-        {:error, error} ->
-          Logger.error(
-            "Once event projector failed: " <>
-              inspect(error) <>
-              " (run_id=" <> to_string(batch.run_id) <> ")"
-          )
+      {:error, error} ->
+        Logger.error(
+          "Once event projector failed: " <>
+            inspect(error) <>
+            " (run_id=" <> to_string(batch.run_id) <> ")"
+        )
 
-          {:halt, {:error, error}}
-      end
-    end)
+        {:error, error}
+    end
   end
 
   # The projector reaches Ecto, which raises rather than returning a tagged
   # tuple. This is the transport boundary, so an unexpected crash is turned
   # into a retryable ack instead of taking the stream (and the run) down.
-  defp project_event(event, project_id, run_id, account_id) do
-    Projector.project(event, project_id, run_id, account_id)
+  # Events projected before the crash replay idempotently.
+  defp project_batch(events, project_id, run_id, account_id) do
+    Projector.project_all(events, project_id, run_id, account_id)
     :ok
   rescue
     error -> {:error, error}

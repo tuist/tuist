@@ -128,30 +128,30 @@ url = "https://github.com/cli/cli/releases/download/v2.92.0/gh_2.92.0_macOS_amd6
 url_api = "https://api.github.com/repos/cli/cli/releases/assets/407353532"
 provenance = "github-attestations"
 
-[[tools."github:tuist/once"]]
-version = "0.75.0"
-backend = "github:tuist/once"
-specifiers = ["0.75.0"]
+[[tools."github:tuist/struo"]]
+version = "1.0.0"
+backend = "github:tuist/struo"
+specifiers = ["1.0.0"]
 
-[tools."github:tuist/once"."platforms.linux-arm64"]
-checksum = "sha256:2c01372a3bf2ac4761f8598ba72ccea720cb6d29497b9c6cc0aadab298f859b2"
-url = "https://github.com/tuist/once/releases/download/0.75.0/once-0.75.0-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/tuist/once/releases/assets/714199783"
+[tools."github:tuist/struo"."platforms.linux-arm64"]
+checksum = "sha256:fb02025287ae828f8d602390000b861ab1d5ea6bd3ab3092d0fc50757bf1a394"
+url = "https://github.com/tuist/struo/releases/download/1.0.0/struo-1.0.0-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/struo/releases/assets/765138846"
 
-[tools."github:tuist/once"."platforms.linux-x64"]
-checksum = "sha256:d1c67f70358fe886602d9c54f46ad9841d115479b83c4aca022445c921385cc1"
-url = "https://github.com/tuist/once/releases/download/0.75.0/once-0.75.0-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/tuist/once/releases/assets/714199773"
+[tools."github:tuist/struo"."platforms.linux-x64"]
+checksum = "sha256:e6677aa4e086ea3d1c0b70fc06341f4c978c06fd0b2d0aee586aff46be048a33"
+url = "https://github.com/tuist/struo/releases/download/1.0.0/struo-1.0.0-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/struo/releases/assets/765138877"
 
-[tools."github:tuist/once"."platforms.macos-arm64"]
-checksum = "sha256:55fba278c51e1be38feabf4ac0f1073ffe25d0a50fe44b2819537140d5a73118"
-url = "https://github.com/tuist/once/releases/download/0.75.0/once-0.75.0-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/once/releases/assets/714199818"
+[tools."github:tuist/struo"."platforms.macos-arm64"]
+checksum = "sha256:07b50fd9f424814f502e5985e8ce848f39c766bedf31949a85661a95d2453a2c"
+url = "https://github.com/tuist/struo/releases/download/1.0.0/struo-1.0.0-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/struo/releases/assets/765138954"
 
-[tools."github:tuist/once"."platforms.macos-x64"]
-checksum = "sha256:6319b3dffdd8a7396daa38f453b05988f8f25a4433513fd40b4ac3765bf53b10"
-url = "https://github.com/tuist/once/releases/download/0.75.0/once-0.75.0-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/once/releases/assets/714199713"
+[tools."github:tuist/struo"."platforms.macos-x64"]
+checksum = "sha256:c5d483f318be81b49aefdd74c0833c0a5a3cbada3cc9dcb0aa99fd69513f7085"
+url = "https://github.com/tuist/struo/releases/download/1.0.0/struo-1.0.0-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/struo/releases/assets/765138844"
 
 [[tools.helm]]
 version = "4.3.0"

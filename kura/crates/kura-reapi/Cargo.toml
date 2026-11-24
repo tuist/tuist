@@ -1,0 +1,46 @@
+# Kura's REAPI services, on top of kura-node's state; see src/lib.rs.
+[package]
+name = "kura-reapi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+kura-core.workspace = true
+kura-node.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+base64.workspace = true
+bazel-remote-apis.workspace = true
+bytes.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+http-body.workspace = true
+http-body-util.workspace = true
+hyper.workspace = true
+jsonwebtoken.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+rcgen.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tokio-rustls.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
+tonic-prost.workspace = true
+tower.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+zstd.workspace = true
+
+[dev-dependencies]
+kura-core = { workspace = true, features = ["test-support"] }
+kura-node = { workspace = true, features = ["test-support"] }
+tokio = { workspace = true, features = ["test-util"] }

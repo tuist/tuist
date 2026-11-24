@@ -53,13 +53,16 @@ cluster:
   # Environments whose metasrv and datanodes run object-storage GC. Splitting a
   # table (ALTER TABLE ... PARTITION ON) requires GC, and after the first split
   # metasrv refuses to start with GC off, so never remove an environment once
-  # it has split a table. Changing this restarts metasrv and datanodes together;
-  # until both run the same setting, datanode heartbeats fail and writes are
-  # rejected.
+  # it has split a table. Until metasrv and datanodes run the same setting,
+  # datanode heartbeats fail and writes are rejected, so the deploy switches it
+  # with a coordinated stop (.github/scripts/pulse-gc-flip.sh).
   gc:
-    environments: [staging]
+    environments: [staging, canary, production]
   frontend:
     replicas: 2
+    # Set only by pulse-gc-flip.sh's deploy: runs no frontends, so writers
+    # queue and retry while metasrv and datanodes switch GC.
+    stopped: false
     resources:
       requests: {cpu: 100m, memory: 256Mi}
       limits: {memory: 1Gi}
@@ -67,12 +70,27 @@ cluster:
     resources:
       requests: {cpu: 50m, memory: 128Mi}
       limits: {memory: 512Mi}
+  # Runs the error_issues flow, whose queries execute on the frontends.
+  flownode:
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {memory: 512Mi}
   datanode:
     replicas: 3
+    # Environments whose datanodes restart one at a time with their regions
+    # moved away first (.github/scripts/pulse-datanode-rollout.sh), so reads
+    # and writes do not fail while a datanode is down. Elsewhere the
+    # StatefulSet rolls itself and each restart waits for region failover.
+    drainedRolloutEnvironments: [staging, canary, production]
     # Local data is a rebuildable cache: acknowledged writes live in the Kafka
     # WAL until flushed to object storage, so a datanode may start empty.
     cacheSize: 10Gi
     writeCacheSize: 1GB
+    # Memtables of every region on the datanode share this buffer; when it
+    # fills, the largest region flushes. Each flush is a new SST file, and a
+    # scan reserves a row group per overlapping file (see values-production.yaml).
+    writeBufferSize: 128MB
+    writeBufferRejectSize: 256MB
     resources:
       requests: {cpu: 250m, memory: 768Mi}
       limits: {memory: 2Gi}

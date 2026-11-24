@@ -4,17 +4,23 @@
 # alpine (not distroless): the daemon shells out to `ip` and `iptables` for
 # the per-sandbox network namespaces and to `cp --reflink=always` (coreutils)
 # as the FICLONE fallback. Root user: it drives the jailer, mknods device
-# nodes into chroots and chowns files to per-sandbox uids.
+# nodes into chroots and chowns files to per-sandbox uids. The same image
+# runs the Pod's vmm container (cmd/vmm), which spawns the jailer inside the
+# daemon's mount namespace with nsenter (util-linux).
 ARG ALPINE_VERSION=3.22
 ARG FIRECRACKER_VERSION=v1.16.2
 ARG FIRECRACKER_SHA256=32e3cdcd4081f91fe2b024a266f57dcb3b4e5fec5033e0cb22467ad7f7820bda
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 
-WORKDIR /src
+# go.mod replaces ../runner-cache: pkg/archive shares its sparse extent
+# walker and internal/checkout calls its checkout agent API.
+WORKDIR /src/sandboxd
+COPY infra/runner-cache/go.mod /src/runner-cache/go.mod
 COPY infra/sandboxd/go.mod infra/sandboxd/go.sum ./
 RUN go mod download
 
+COPY infra/runner-cache /src/runner-cache
 COPY infra/sandboxd ./
 
 ARG TARGETOS
@@ -23,7 +29,9 @@ ARG VERSION=dev
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/sandboxd ./cmd/sandboxd
+    go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/sandboxd ./cmd/sandboxd \
+    && GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+       go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/vmm ./cmd/vmm
 
 # Firecracker release binaries. The tarball unpacks to
 # release-<version>-x86_64/{firecracker,jailer,snapshot-editor}-<version>-x86_64.
@@ -41,10 +49,10 @@ RUN apk add --no-cache curl \
 
 FROM alpine:${ALPINE_VERSION}
 
-RUN apk add --no-cache iproute2 iptables e2fsprogs coreutils curl
+RUN apk add --no-cache iproute2 iptables e2fsprogs coreutils curl util-linux-misc
 
 COPY --from=firecracker /usr/local/bin/firecracker /usr/local/bin/jailer /usr/local/bin/snapshot-editor /usr/local/bin/
-COPY --from=builder /out/sandboxd /usr/local/bin/sandboxd
+COPY --from=builder /out/sandboxd /out/vmm /usr/local/bin/
 
 USER 0:0
 ENTRYPOINT ["/usr/local/bin/sandboxd"]

@@ -4,6 +4,14 @@ This chart deploys the Tuist server, cache service, processor, and optional serv
 
 Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so it can keep an independent deployment workflow.
 
+## Conversation runtime cutover
+
+The conversation runtime belongs to the standalone headless Luft API/auth server in `infra/helm/luft-server/`. This chart no longer deploys the dedicated `Tuist.Agents`/Threads workers, their HPA or PDB, or the server delegation flag. Old `agents` values do not recreate those resources. Sandbox agent sessions and sandbox/runner infrastructure are separate and remain in Tuist.
+
+**Removing these templates is not approval to perform the live cutover.** An authorized operator must stop new conversation work and quiesce all old writers, including the dedicated production agents pods, before taking the offline export. Draining one pod while others can reclaim its leases is not quiescence; account for old web-hosted sessions as well. Resolve or explicitly retain uncertain external-tool effects rather than replaying them. Keep the old runtime stopped throughout export/import, preserve customer/author identity and delegation bindings, validate the imported state, and only then admit work in Luft. Never run both runtimes against the migrated conversations. A rollback after Luft accepts writes requires data reconciliation, not just a Helm rollback.
+
+Deploying this chart removes the old worker resources from the release; it does not export/import their data or prove that outstanding work has drained. Schedule that removal with the offline migration, rather than letting an ordinary server rollout trigger it early. Do not delete Tuist's personal AI/MCP credentials or sandbox/runner resources as part of this cutover.
+
 ## Infrastructure dependencies
 
 - `postgresql`

@@ -32,6 +32,7 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
     - tuist-tuist-clickhouse.tuist-staging.svc.cluster.local:8123
     - pulse.observability.svc.cluster.local:4000
+    - pulse.observability.svc.cluster.local:4003
 
 capi:
   ovhRunnerEgress:
@@ -72,6 +73,9 @@ kuraController:
 egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
+  # Staging first: validates the private-network class on the ca-east box
+  # (vRack peers: the Gravelines cache and runner hosts).
+  privateNetworkMbps: 10000
 
 # CSI installation and upgrades are separate from tenant enrollment. Routine
 # server deployments preserve its installed image; upgrades require an explicit digest.
@@ -79,8 +83,12 @@ kuraVolumesCSI:
   enabled: true
   # Public half of the staging KURA_VOLUME_TRANSPORT_KEYS item.
   keyServicePublicKey: t1i8qEBEdu1wb6Gvl7uaf5tmXwTvCQ89lxokelDjKQ8=
-  # Paris thin-ready labels were removed after the last rehearsal.
-  thinRegions: []
+  # Staging runs Kura on thin volumes only, as production does. Both cache
+  # hosts (the ca-east box and the Gravelines box serving eu-west) were
+  # reinstalled lvm-v1 with thin pools on 2026-11-16; their earlier legacy
+  # volumes were discarded rather than migrated.
+  thinRegions: [ca-east, eu-west]
+  thinEnrolledRegions: [ca-east, eu-west]
 
 registry:
   publicHost: registry-staging.tuist.dev
@@ -90,17 +98,25 @@ registry:
   ingress:
     host: registry-staging.tuist.dev
     tlsSecretName: registry-staging-tls
-  # Point registry's Sentry envelopes at the Registry domain DSN in the
-  # self-hosted Hive ingest (hive.tuist.dev). Prereq (MUST land before this
-  # merges): add a SENTRY_DSN_REGISTRY_HIVE field to the REGISTRY 1Password
-  # item in `tuist-k8s-staging` holding the Registry-domain Hive DSN;
-  # otherwise the ES sync errors on a missing remoteRef. Rollback is a
-  # revert; the old SENTRY_DSN_REGISTRY field on the same item stays put.
+  # Point registry's Sentry envelopes at the Registry domain DSN of the
+  # Tuist project in the self-hosted Atlas ingest (atlas.tuist.dev); Hive
+  # is retired. Prereq (MUST land before this merges): add a
+  # SENTRY_DSN_REGISTRY_ATLAS field to the REGISTRY 1Password item in
+  # `tuist-k8s-staging` holding that DSN; otherwise the ES sync errors on a
+  # missing remoteRef. The old SENTRY_DSN_REGISTRY_HIVE field stays put
+  # until the Hive cluster is deleted.
   externalSecrets:
     fields:
-      sentryDsn: SENTRY_DSN_REGISTRY_HIVE
+      sentryDsn: SENTRY_DSN_REGISTRY_ATLAS
 
 server:
+  # The Symptoms evaluator (infra/helm/symptoms, release `symptoms` in
+  # `symptoms-staging`). Enable once SYMPTOMS/api_token exists in this environment's
+  # vault and the evaluator is deployed.
+  symptoms:
+    enabled: false
+    url: http://symptoms.symptoms-staging.svc.cluster.local
+    evaluatorNamespace: symptoms-staging
   kuraCapacityAdmission:
     enabled: true
 
@@ -120,6 +136,12 @@ server:
       enabled: true
     originAppKey:
       enabled: true
+    # Rotation rehearsal, step 2 of the Tuist.Vault moduledoc: every pod holds
+    # V1 and k2026-11 and encrypts new values with k2026-11.
+    encryptionKeys:
+      enabled: true
+      keyIds: [V1, k2026-11]
+      currentKeyId: k2026-11
     apns:
       enabled: true
     fcm:
@@ -159,7 +181,7 @@ server:
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
-  # them to Grafana Cloud Tempo. Logs follow a different path — the server
+  # them to the environment's Pulse. Logs follow a different path — the server
   # writes to stdout and a per-node Alloy DaemonSet tails /var/log/pods —
   # so TUIST_LOKI_URL stays unset (the in-app LokiLoggerHandler only
   # attaches when TUIST_LOKI_INPROC=1).
@@ -766,7 +788,7 @@ ovhFleets:
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
 macosFleet:
-  # Every Mac host this env runs, including the BER1 rack hosts production
+  # Every Mac host this env runs, including the alder rack hosts production
   # lends it. Keep the three envs on one release.
   tart:
     version: "2.41.1"
@@ -848,7 +870,7 @@ macosFleet:
     hostMemoryMB: 14336
 
 # Staging rents no Scaleway hosts for its macOS runners: they run on the
-# BER1 rack host production lends it (`rackFleet`), and every staging account
+# alder rack host production lends it (`rackFleet`), and every staging account
 # runs there (`runner_site`). `enabled` stays on, since it also renders the
 # runners controller, the runner namespace and the rack's RunnerPools. With
 # `hostCount: 0` the chart renders no rented macOS pools, and the
@@ -928,6 +950,9 @@ buildersFleet:
 # validation Jobs can drive the daemon without going through the server.
 sandboxes:
   enabled: true
+  # Keep 4 remote execution slots ready on staging's one worker (chart
+  # floor 1, ceiling 10) through the compute allocator.
+  remoteExecutionFloorSlots: 4
   image:
     tag: "sha-bea84a441ea2"
   templateImage:
@@ -940,7 +965,13 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
-  prebuildShapes: "2x4096,4x8192"
+  # Qualifying the vmm container (step 2a of seamless daemon restarts) on
+  # KVM before canary and production.
+  vmm:
+    enabled: true
+  prebuildShapes: "16x4096,16x8192"
+  # Memory bursting prototype: measure how much memory guests return.
+  balloonFreePageReporting: true
   diskGiB: 100
   archiveAfterHours: 24
   admin:
@@ -953,6 +984,10 @@ sandboxes:
 # every bare-metal worker that joins the workload cluster.
 kataContainers:
   enabled: true
+  # Exclusive-CPU Pods' host cgroup is their budget plus this, so it must
+  # cover Kata's 2 GiB guest base plus QEMU's page tables and slab.
+  podFixed:
+    memory: "3584Mi"
 
 runnersController:
   features:
@@ -1073,7 +1108,7 @@ runnersFleetLinux:
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }
 
-# BER1 rack hosts production lends staging: production keeps them in its
+# Alder rack hosts production lends staging: production keeps them in its
 # inventory (rackFleet.hosts there, with `lendTo: staging`), and staging's
 # operator runs their runtime and registers their Nodes here, so staging jobs
 # run on rack hardware. They are staging's only macOS runners: every staging
@@ -1131,10 +1166,17 @@ ampOrbProvider:
   enabled: true
   url: https://staging.tuist.dev
 
-# A copy of every error from the server's web instances to Pulse, beside
+# A copy of every error from the server (web, processor and registry sync
+# pods) and the registry to Pulse, beside
 # Atlas, to compare the two (sentryPulse in values.yaml). Needs
 # PULSE_SENTRY_WRITER/password in this vault and staging in the Pulse chart's
 # sentryWriter.environments.
 sentryPulse:
   services:
     server: true
+    registry: true
+  # The `tuist` account token xcresult-pulse (only account:pulse:write),
+  # stored in PULSE_SENTRY_XCRESULT/token in this vault.
+  xcresultProcessor:
+    enabled: true
+    url: https://staging.tuist.dev/api/accounts/tuist/pulse/sentry/server/1

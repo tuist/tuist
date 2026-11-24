@@ -135,6 +135,15 @@ defmodule Tuist.Runners.VolumeAffinities do
 
   def cache_volumes_from_node_labels(_labels), do: no_cache_volumes()
 
+  @doc """
+  Whether `node_name`'s labels advertise a master of the custom volume lineage
+  `scope`, read through the same short-lived cache as dispatch. A label can
+  lag an eviction by a heartbeat, so callers treat it as a prediction.
+  """
+  def holds_volume?(node_name, scope) when is_binary(scope) do
+    MapSet.member?(node_cache_volumes(node_name).custom, String.slice(scope, 0, @custom_volume_label_scope_length))
+  end
+
   # The custom volume lineages the host holds a master of, as the scope prefix it
   # advertises.
   defp custom_volumes_from_labels(labels) do

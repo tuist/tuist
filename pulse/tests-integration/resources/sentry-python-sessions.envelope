@@ -1,0 +1,3 @@
+{}
+{"type":"sessions","content_type":"application/json","length":138}
+{"attrs":{"environment":"staging","release":"shop@2.4.1"},"aggregates":[{"started":"2026-11-21T08:03:00.000000Z","exited":2,"errored":1}]}

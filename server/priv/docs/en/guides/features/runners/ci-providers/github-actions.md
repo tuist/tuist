@@ -7,7 +7,10 @@
 ---
 # GitHub Actions {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
+> [!IMPORTANT]
+> **GitHub organizations only**
+>
+> Tuist Runners only run jobs from repositories owned by a GitHub organization, not a personal account.
 
 Running a job on the fleet takes three changes: connect GitHub, point `runs-on` at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>, and push.
 

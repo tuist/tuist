@@ -1,6 +1,6 @@
 # Tuist with Gradle
 
-Tuist brings Gradle-native depth to one productivity platform for organizations with diverse build systems. Its settings plugin connects Gradle task-output reuse and build/test evidence to the same platform serving supported Bazel, Xcode, Mix, and canary Once workflows. Keep Gradle, the Android Gradle Plugin where applicable, and your existing build commands.
+Tuist brings Gradle-native depth to one productivity platform for organizations with diverse build systems. Its settings plugin connects Gradle task-output reuse and build/test evidence to the same platform serving supported Bazel, Xcode, Mix, and canary Struo workflows. Keep Gradle, the Android Gradle Plugin where applicable, and your existing build commands.
 
 ## One productivity platform, native depth
 

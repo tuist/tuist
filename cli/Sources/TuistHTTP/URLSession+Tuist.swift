@@ -204,10 +204,26 @@ private let sharedTuistLargeTransferURLSession = SharedTuistURLSession {
     makeTuistLargeTransferURLSession(useEnvironmentProxy: $0)
 }
 
+/// Each URLSession keeps its own connection pool. An HTTP/2 storage host otherwise multiplexes
+/// every part of a multipart upload onto one connection, so a single TCP congestion window (and a
+/// single proxy worker) carries the whole upload and one loss event stalls every part at once.
+/// Spreading parts over separate sessions gives them separate connections, as HTTP/1.1 hosts
+/// already get by opening a connection per in-flight request.
+private let sharedTuistMultipartUploadURLSessions = (0 ..< 10).map { _ in
+    SharedTuistURLSession { makeTuistURLSession(useEnvironmentProxy: $0) }
+}
+
+/// Separate sessions, so separate connections, for the byte ranges of one parallel download.
+private let sharedTuistLargeTransferURLSessions = (0 ..< 8).map { _ in
+    SharedTuistURLSession { makeTuistLargeTransferURLSession(useEnvironmentProxy: $0) }
+}
+
 func invalidateSharedTuistURLSession() {
     sharedTuistURLSession.invalidate()
     sharedTuistCASURLSession.invalidate()
     sharedTuistLargeTransferURLSession.invalidate()
+    sharedTuistMultipartUploadURLSessions.forEach { $0.invalidate() }
+    sharedTuistLargeTransferURLSessions.forEach { $0.invalidate() }
 }
 
 private final class NoDiscoveryRedirects: NSObject, URLSessionTaskDelegate, Sendable {
@@ -273,6 +289,22 @@ extension URLSession {
     /// `tuistShared`'s wall-clock resource timeout cancels healthy transfers.
     public static var tuistLargeTransfer: URLSession {
         sharedTuistLargeTransferURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
+    }
+
+    /// One of several large-transfer sessions, for the concurrent byte ranges of one download. Ranges on
+    /// different lanes use different connections even when the host negotiates HTTP/2.
+    public static func tuistLargeTransfer(lane: Int) -> URLSession {
+        let sessions = sharedTuistLargeTransferURLSessions
+        return sessions[abs(lane) % sessions.count]
+            .resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
+    }
+
+    /// One of several shared sessions for multipart upload parts. Concurrent parts on different
+    /// lanes use different connections even when the host negotiates HTTP/2.
+    public static func tuistMultipartUpload(lane: Int) -> URLSession {
+        let sessions = sharedTuistMultipartUploadURLSessions
+        return sessions[abs(lane) % sessions.count]
+            .resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
     }
 }
 

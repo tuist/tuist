@@ -58,7 +58,7 @@ struct BuildOnceListCommandService {
         }
 
         if initialPage.runs.isEmpty {
-            Noora.current.passthrough("No Once runs found for project \(context.fullHandle).")
+            Noora.current.passthrough("No Struo runs found for project \(context.fullHandle).")
             return
         }
 
@@ -123,7 +123,7 @@ struct BuildOnceShowCommandService {
 
     func format(_ run: Operations.getOnceRun.Output.Ok.Body.jsonPayload) -> String {
         var info = [
-            "Once run".bold(),
+            "Struo run".bold(),
             "Run ID: \(run.run_id)",
             "Kind: \(run.kind.rawValue)",
             "Command: \(run.command)",
@@ -135,7 +135,7 @@ struct BuildOnceShowCommandService {
         if let gitBranch = run.git_branch { info.append("Git Branch: \(gitBranch)") }
         if let gitRev = run.git_rev { info.append("Git Revision: \(gitRev)\(run.git_dirty ? " (dirty)" : "")") }
         if let hostClass = run.host_class { info.append("Host: \(hostClass)") }
-        if let onceVersion = run.once_version { info.append("Once Version: \(onceVersion)") }
+        if let onceVersion = run.once_version { info.append("Struo Version: \(onceVersion)") }
 
         info.append("")
         info.append("Actions".bold())

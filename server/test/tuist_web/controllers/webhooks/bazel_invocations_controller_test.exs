@@ -6,7 +6,9 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
 
   alias Tuist.Bazel
   alias Tuist.Bazel.Invocation
+  alias Tuist.Bazel.InvocationStart
   alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -26,6 +28,91 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
     stub(Tuist.Environment, :cache_api_key, fn -> @cache_api_key end)
 
     %{conn: conn, project: project}
+  end
+
+  describe "POST /webhooks/bazel-invocations running events" do
+    test "an invocation runs from its start until its completed row arrives", %{conn: conn, project: project} do
+      now_ms = System.system_time(:millisecond)
+
+      event = fn invocation_id, attrs ->
+        Map.merge(
+          %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "invocation_id" => invocation_id,
+            "command" => "build",
+            "target_patterns" => ["//app:all"],
+            "git_branch" => "main",
+            "git_commit_sha" => "abc",
+            "is_ci" => true,
+            "status" => "running",
+            "started_at_ms" => now_ms - 60_000
+          },
+          attrs
+        )
+      end
+
+      post_events = fn events ->
+        {json_body, signature} = sign_request(%{"events" => events})
+
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
+        |> post(~p"/webhooks/bazel-invocations", json_body)
+        |> json_response(202)
+      end
+
+      assert %{"accepted" => 2, "rejected" => 2} =
+               post_events.([
+                 event.("running-1", %{}),
+                 event.("abandoned", %{"started_at_ms" => now_ms - 25 * 60 * 60 * 1000}),
+                 event.("unsigned", %{"submission_auth" => "network_trusted"}),
+                 event.("bad", %{"started_at_ms" => "yesterday"})
+               ])
+
+      assert [
+               %{
+                 invocation_id: "running-1",
+                 command: "build",
+                 target_patterns: ["//app:all"],
+                 git_branch: "main",
+                 is_ci: true
+               }
+             ] = Bazel.running_invocations(project.id)
+
+      # Kura re-reports a running invocation every few minutes; a start it
+      # stopped reporting was cancelled or lost without finishing.
+      now = NaiveDateTime.utc_now()
+
+      IngestRepo.insert_all(InvocationStart, [
+        %{
+          project_id: project.id,
+          invocation_id: "lost",
+          command: "build",
+          started_at: NaiveDateTime.add(now, -30, :minute),
+          inserted_at: NaiveDateTime.add(now, -11, :minute)
+        }
+      ])
+
+      assert ["running-1"] = Enum.map(Bazel.running_invocations(project.id), & &1.invocation_id)
+
+      assert %{"accepted" => 1} = post_events.([event.("lost", %{})])
+
+      assert ["lost", "running-1"] =
+               project.id |> Bazel.running_invocations() |> Enum.map(& &1.invocation_id) |> Enum.sort()
+
+      assert %{"accepted" => 1} =
+               post_events.([
+                 event.("running-1", %{
+                   "status" => "success",
+                   "exit_code" => 0,
+                   "finished_at_ms" => now_ms
+                 })
+               ])
+
+      assert ["lost"] = Enum.map(Bazel.running_invocations(project.id), & &1.invocation_id)
+    end
   end
 
   describe "POST /webhooks/bazel-invocations" do

@@ -18,6 +18,9 @@ defmodule Tuist.Push.Installation do
     field :installation_id, Ecto.UUID
     belongs_to :user, User
     field :oauth_grant_id, Ecto.UUID
+    # `tuist` or `luft`: the first-party app, and so the OAuth client, the
+    # registration's sign-in went through.
+    field :app, :string, default: "tuist"
     field :platform, :string
     field :device_name, :string
     field :environment, :string

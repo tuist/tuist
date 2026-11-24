@@ -7,17 +7,17 @@
 ---
 # 測試洞察 {#test-insights}
 
-使用測試洞察來監控你的測試套件健康狀況，包括識別緩慢測試、追蹤不穩定測試，以及快速了解失敗的 CI 執行。目前支援 Xcode、Gradle、Bazel、Elixir、Rust 和 Once。可用的結果與時間取決於你的 runner。若要查看在支援的建置系統上測試執行了哪些程式碼，請參閱 <.localized_link href="/guides/features/test-code-coverage">程式碼涵蓋率</.localized_link>。
+使用測試洞察，透過識別緩慢測試、追蹤不穩定測試，並快速了解失敗的 CI 執行，來監控你的測試套件健康狀況。目前支援 Xcode、Gradle、Bazel、Elixir、Rust 和 Once。可用的結果與時間取決於你的執行器。若要追蹤在受支援的建置系統上由哪些程式碼執行測試，請參閱 <.localized_link href="/guides/features/test-code-coverage">程式碼涵蓋率</.localized_link>。如需關於 [緩慢測試](https://tuist.dev/solutions/slow-tests) 和 [不穩定測試](https://tuist.dev/solutions/flaky-tests) 的指引，請參閱解決方案指南。
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="透過 scheme post-actions 與 Tuist CLI 追蹤 Xcode 測試分析數據。"
+    details="使用 Scheme 後置動作和 Tuist CLI 追蹤 Xcode 測試分析數據。"
     link="/guides/features/test-insights/xcode"
 />
   <.home_card
     title="Gradle"
-    details="透過 Tuist Gradle 外掛程式追蹤 Gradle 測試分析數據。"
+    details="使用 Tuist Gradle 外掛程式追蹤 Gradle 測試分析數據。"
     link="/guides/features/test-insights/gradle"
 />
   <.home_card
@@ -27,17 +27,17 @@
 />
   <.home_card
     title="Elixir"
-    details="透過 Tuist Hex 套件追蹤你的 Elixir 專案測試。"
+    details="使用 Tuist Hex 套件追蹤你的 Elixir 專案測試。"
     link="/guides/features/test-insights/elixir"
 />
   <.home_card
     title="Rust"
-    details="使用你慣用的測試指令追蹤 Cargo 測試結果、套件持續時間與 doctests。"
+    details="使用你慣用的測試指令追蹤 Cargo 測試結果、套件持續時間和文件測試。"
     link="/guides/features/test-insights/rust"
 />
   <.home_card
     title="Once"
-    details="透過 Once 的原生整合追蹤回報的測試目標、套件、案例、失敗與重試次數。"
+    details="透過 Once 的原生整合，追蹤回報的測試目標、套件、案例、失敗和重試次數。"
     link="/guides/features/test-insights/once"
 />
 </.home_cards>

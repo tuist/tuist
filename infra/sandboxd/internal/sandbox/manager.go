@@ -15,17 +15,19 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
 	"github.com/tuist/tuist/infra/sandboxd/internal/checkout"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
+	"github.com/tuist/tuist/infra/sandboxd/internal/hostinfo"
 	"github.com/tuist/tuist/infra/sandboxd/internal/lazydisk"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
-	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 )
 
 const (
@@ -46,7 +48,8 @@ type Config struct {
 	DefaultTemplate string
 	// DefaultTemplateTag is the tag creates use for the default template
 	// when the caller names none, so older template versions left on disk
-	// never make the default ambiguous.
+	// never make the default ambiguous. SetDefaultTemplateTag moves it when
+	// the installer completes a newer tag.
 	DefaultTemplateTag string
 	BootTimeout        time.Duration
 	WorkerPath         string
@@ -57,6 +60,15 @@ type Config struct {
 	AllowedShapes []template.Shape
 	// SnapshotDir holds disk snapshots; empty disables them.
 	SnapshotDir string
+	// CacheImageDir holds ext4 cache images that creates may attach as an
+	// extra drive; empty disables cache drives.
+	CacheImageDir string
+	// CacheImagesBytes bounds the masters copied into CacheImageDir for
+	// cache grants; zero refuses grants.
+	CacheImagesBytes int64
+	// CacheImagesTTL removes a copied master unused for this long, so one of
+	// a cleared volume or a deleted account does not linger on the node.
+	CacheImagesTTL time.Duration
 	// FirecrackerVersion is the running binary's version, recorded with
 	// every memory image a pause writes.
 	FirecrackerVersion string
@@ -89,8 +101,15 @@ type Deps struct {
 	// from seeds, which a fresh sandbox's first worker starts from; see
 	// preparedWorkspace.
 	Workspaces *checkout.Workspaces
-	Events     func(protocol.Event)
-	Log        *slog.Logger
+	// Cgroups, when set, spawns each VM into its own cgroup weighted by its
+	// guaranteed CPU (hostinfo.VMCgroups).
+	Cgroups *hostinfo.VMCgroups
+	Events  func(protocol.Event)
+	Log     *slog.Logger
+
+	// CacheImages copies granted runner-cache masters onto the node: the
+	// node's runner-cache agent. Nil refuses cache grants.
+	CacheImages CacheImageSource
 }
 
 type Manager struct {
@@ -110,8 +129,13 @@ type Manager struct {
 	blobs     *blobcache.Cache
 	// checkouts and checkoutLimits serve workers' checkout grants.
 	checkouts      checkout.Agent
+	cacheImages    cacheImages
 	checkoutLimits checkout.Limits
 	workspaces     *checkout.Workspaces
+	cgroups        *hostinfo.VMCgroups
+
+	// defaultTag is the current DefaultTemplateTag.
+	defaultTag atomic.Pointer[string]
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -154,6 +178,9 @@ type Sandbox struct {
 	// first exec or worker: its workspace is the empty disk the create
 	// formatted, which a prepared workspace may replace.
 	fresh bool
+	// inputsSwapped is set once an execution VM got its scope's inputs
+	// image as its workspace; see inputsWorkspace.
+	inputsSwapped bool
 	// memoryPending is set while a warm restore still reads memory from
 	// its archive, disksPending while it still reads its disks (lazy, until
 	// then); EventMemoryLoaded reports both cleared.
@@ -199,17 +226,28 @@ func New(cfg Config, deps Deps) *Manager {
 	if deps.HTTPClient == nil {
 		deps.HTTPClient = defaultHTTPClient()
 	}
-	return &Manager{
+	m := &Manager{
 		cfg: cfg, store: deps.Store, builder: deps.Builder, launcher: deps.Launcher, net: deps.Network,
 		slots: deps.Slots, agent: deps.Agent, metrics: deps.Metrics, events: deps.Events, log: deps.Log,
 		cloneFile: deps.CloneFile,
 		http:      deps.HTTPClient,
 		blobs:     deps.Blobs,
-		checkouts: deps.Checkouts, checkoutLimits: deps.CheckoutLimits, workspaces: deps.Workspaces,
+		checkouts: deps.Checkouts, checkoutLimits: deps.CheckoutLimits, workspaces: deps.Workspaces, cacheImages: cacheImages{source: deps.CacheImages},
+		cgroups:   deps.Cgroups,
 		sandboxes: map[string]*Sandbox{},
 		claims:    NewClaims(),
 	}
+	m.SetDefaultTemplateTag(cfg.DefaultTemplateTag)
+	return m
 }
+
+// DefaultTemplateTag is the tag creates of the default template use when
+// the caller names none.
+func (m *Manager) DefaultTemplateTag() string { return *m.defaultTag.Load() }
+
+// SetDefaultTemplateTag makes creates that name no tag use tag from now on.
+// Sandboxes already created keep the tag they were created from.
+func (m *Manager) SetDefaultTemplateTag(tag string) { m.defaultTag.Store(&tag) }
 
 // Claims holds the claimed execs waiting for their direct caller.
 func (m *Manager) Claims() *Claims { return m.claims }
@@ -266,6 +304,33 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	if fromSnapshot && fromArchive {
 		return res, errors.New("create takes a disk snapshot or an archive, not both")
 	}
+	if args.CacheGrant != nil {
+		if args.CacheImage != "" {
+			return res, fmt.Errorf("%w: a create takes a cache image or a cache grant, not both", ErrCacheImage)
+		}
+		name, generation, release, err := m.grantedCacheImage(ctx, *args.CacheGrant)
+		if err != nil {
+			return res, err
+		}
+		defer release()
+		defer func() {
+			if err == nil {
+				res.CacheGeneration = generation
+			}
+		}()
+		args.CacheImage = name
+	}
+	if args.CacheImage != "" {
+		if m.cfg.CacheImageDir == "" {
+			return res, fmt.Errorf("%w: this daemon has no cache image directory", ErrCacheImage)
+		}
+		if fromArchive {
+			return res, fmt.Errorf("%w: a create from an archive cannot attach one", ErrCacheImage)
+		}
+		if err := vm.ValidateID(args.CacheImage); err != nil {
+			return res, fmt.Errorf("%w: %v", ErrCacheImage, err)
+		}
+	}
 	var tmpl template.Template
 	if fromSnapshot || fromArchive {
 		if fromSnapshot {
@@ -288,7 +353,8 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	root := vm.RootDir(m.cfg.JailBase, args.SandboxID)
 	sb := &Sandbox{root: root, meta: Metadata{
 		ID: args.SandboxID, Template: tmpl.Name, Tag: tmpl.Tag, VCPUs: shape.VCPUs, MemoryMB: shape.MemoryMB,
-		WorkspaceGB: args.WorkspaceGB, Hostname: args.Hostname, State: "creating", Slot: -1, CreatedAt: time.Now().UTC(),
+		WorkspaceGB: args.WorkspaceGB, Hostname: args.Hostname, CPUGuaranteeMilli: args.CPUGuaranteeMilli,
+		State: "creating", Slot: -1, CreatedAt: time.Now().UTC(),
 	}}
 	m.mu.Lock()
 	// Check under the same lock that publishes the new sandbox. After the
@@ -324,6 +390,9 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	artifacts, err := m.builder.Ensure(ctx, tmpl, shape)
 	if err != nil {
 		return res, fmt.Errorf("template %s/%s %s: %w", tmpl.Name, tmpl.Tag, shape, err)
+	}
+	if args.CacheImage != "" && !artifacts.Meta.CacheDrive {
+		return res, fmt.Errorf("%w: template %s/%s %s has no cache drive to swap one into", ErrCacheImage, tmpl.Name, tmpl.Tag, shape)
 	}
 	slot, err := m.slots.Allocate()
 	if err != nil {
@@ -370,15 +439,36 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	if err := vm.Chown(workspace, uid, uid); err != nil {
 		return res, err
 	}
+	// The snapshot opens its placeholder cache drive on restore, so the jail
+	// needs one; a requested cache image takes its place.
+	if artifacts.Meta.CacheDrive {
+		if args.CacheImage != "" {
+			err = m.attachCacheImage(args.CacheImage, root, uid)
+			sb.mu.Lock()
+			sb.meta.CacheImage = args.CacheImage
+			sb.mu.Unlock()
+		} else {
+			err = m.cachePlaceholder(root, uid)
+		}
+		if err != nil {
+			return res, err
+		}
+	}
 
 	bootStart := time.Now()
 	inst, agent, err := m.restore(ctx, sb, log, func(api *firecracker.Client, inst vm.Instance) error {
+		// The guest cached each drive's capacity at template boot; a drive
+		// patch makes Firecracker re-read the file size and notify the
+		// guest. The guest must drop its buffers for /dev/vdc before it
+		// mounts a cache, since it may have read the placeholder's blocks.
+		if args.CacheImage != "" {
+			if err := api.PatchDrive(ctx, firecracker.DrivePatch{DriveID: firecracker.CacheDriveID, PathOnHost: inst.GuestPath(firecracker.CachePath)}); err != nil {
+				return fmt.Errorf("swapping in cache drive: %w", err)
+			}
+		}
 		if args.WorkspaceGB == artifacts.Meta.WorkspaceGB {
 			return nil
 		}
-		// The guest cached the template's workspace capacity at boot; a
-		// drive patch makes Firecracker re-read the file size and notify
-		// the guest before the agent formats it.
 		return api.PatchDrive(ctx, firecracker.DrivePatch{DriveID: firecracker.WorkspaceDriveID, PathOnHost: inst.GuestPath(firecracker.WorkspacePath)})
 	}, !preparedWorkspace)
 	if err != nil {
@@ -409,7 +499,7 @@ func (m *Manager) resolveTemplate(name, tag string) (template.Template, error) {
 		name = m.cfg.DefaultTemplate
 	}
 	if tag == "" && name == m.cfg.DefaultTemplate {
-		tag = m.cfg.DefaultTemplateTag
+		tag = m.DefaultTemplateTag()
 	}
 	return m.store.Resolve(name, tag)
 }
@@ -426,10 +516,27 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 	}
 	m.observePhase("network_setup", networkStarted)
 	launchStarted := time.Now()
-	inst, err := m.launcher.Launch(ctx, vm.Spec{
+	spec := vm.Spec{
 		ID: meta.ID, JailBase: m.cfg.JailBase, FirecrackerBin: m.cfg.FirecrackerBin, JailerBin: m.cfg.JailerBin,
 		JailerEnabled: m.cfg.JailerEnabled, UID: uid, GID: uid, NetNS: ns,
-	})
+	}
+	if m.cgroups != nil {
+		guarantee := meta.CPUGuaranteeMilli
+		if guarantee == 0 {
+			guarantee = protocol.DefaultCPUGuaranteeMilli
+		}
+		// Without its own cgroup the VM still runs, in the daemon's, as
+		// before guarantees: it then shares the daemon's weight.
+		// The shape's guest memory is the VM's request: the container's
+		// limit reclaims from the daemon's page cache before it.
+		if cgroup, err := m.cgroups.Open(meta.ID, guarantee, uint64(meta.MemoryMB)<<20); err != nil { //nolint:gosec // Shapes are positive.
+			m.log.Warn("opening the sandbox's cgroup failed; it runs in the daemon's", "sandbox", meta.ID, "error", err)
+		} else {
+			defer cgroup.Close()
+			spec.Cgroup = cgroup
+		}
+	}
+	inst, err := m.launcher.Launch(ctx, spec)
 	if err != nil {
 		_ = m.net.Teardown(context.Background(), ns, meta.Slot)
 		return nil, nil, fmt.Errorf("launching firecracker: %w", err)
@@ -547,11 +654,26 @@ func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.I
 		{"workspace drive", func() error {
 			return api.PutDrive(ctx, firecracker.Drive{DriveID: firecracker.WorkspaceDriveID, PathOnHost: inst.GuestPath(firecracker.WorkspacePath)})
 		}},
+		// A cold reboot keeps the cache drive the sandbox was created with.
+		{"cache drive", func() error {
+			if !vm.Exists(filepath.Join(sb.root, firecracker.CachePath)) {
+				return nil
+			}
+			return api.PutDrive(ctx, firecracker.Drive{DriveID: firecracker.CacheDriveID, PathOnHost: inst.GuestPath(firecracker.CachePath)})
+		}},
 		{"network-interface", func() error {
 			return api.PutNetworkInterface(ctx, firecracker.NetworkInterface{IfaceID: firecracker.IfaceID, GuestMAC: firecracker.GuestMAC, HostDevName: firecracker.TapName})
 		}},
 		{"vsock", func() error {
 			return api.PutVsock(ctx, firecracker.Vsock{GuestCID: firecracker.GuestCID, UDSPath: inst.GuestPath(firecracker.VsockPath)})
+		}},
+		// A cold boot gets the balloon shape snapshots get, so the sandbox
+		// returns free memory from here on whatever it was created from.
+		{"balloon", func() error {
+			if m.builder == nil || !m.builder.Balloon {
+				return nil
+			}
+			return api.PutBalloon(ctx, firecracker.ReportingBalloon)
 		}},
 		{"instance start", func() error { return api.InstanceStart(ctx) }},
 	}
@@ -562,6 +684,20 @@ func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.I
 	}
 	log.Info("sandbox cold booting on its own disks", "generation", meta.Generation)
 	return m.attach(ctx, sb, inst, meta, false, fail)
+}
+
+// releaseCgroup removes the cgroup of a VM whose process is gone. The page
+// cache it is still charged for (the memory image a pause wrote, its disk
+// I/O) moves to the container's cgroup, out of the VM's memory.low, so the
+// reclaim before a carve-out shrink can drop it. The next spawn opens a
+// fresh cgroup.
+func (m *Manager) releaseCgroup(id string) {
+	if m.cgroups == nil {
+		return
+	}
+	if err := m.cgroups.Remove(id); err != nil {
+		m.log.Warn("removing the sandbox's cgroup failed", "sandbox", id, "error", err)
+	}
 }
 
 // watch turns an unexpected Firecracker exit into the error state.
@@ -584,6 +720,7 @@ func (m *Manager) watch(sb *Sandbox, inst vm.Instance, epoch uint64) {
 	_ = sb.meta.Save(sb.root)
 	sb.mu.Unlock()
 	m.log.Error("sandbox died", "sandbox", meta.ID, "reason", reason, "log", vm.LogTail(filepath.Join(sb.root, vm.LogFileName), 1024))
+	m.releaseCgroup(meta.ID)
 	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
 	m.refreshGauges()
 	m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventSandboxDied, SandboxID: meta.ID, Reason: reason})
@@ -612,6 +749,7 @@ func (m *Manager) discard(sb *Sandbox) {
 	sb.mu.Lock()
 	meta := sb.meta
 	sb.mu.Unlock()
+	m.releaseCgroup(meta.ID)
 	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
 	m.dropLazyDisks(sb)
 	_ = os.RemoveAll(vm.JailDir(m.cfg.JailBase, meta.ID))
@@ -694,14 +832,16 @@ func (m *Manager) Resume(ctx context.Context, id string) (res protocol.ResumeRes
 	}
 	log := m.log.With("sandbox", id)
 	var inst vm.Instance
+	var agent vsock.Agent
 	if coldBoot {
-		inst, _, err = m.boot(ctx, sb, log)
+		inst, agent, err = m.boot(ctx, sb, log)
 	} else {
-		inst, _, err = m.restore(ctx, sb, log, nil, false)
+		inst, agent, err = m.restore(ctx, sb, log, nil, false)
 	}
 	if err != nil {
 		return res, err
 	}
+	m.growRootfs(ctx, sb, inst, agent, log)
 	if coldBoot {
 		// The old memory image can never be valid again; the next pause
 		// writes a fresh pair.
@@ -772,18 +912,41 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		sb.pausing = false
 		sb.mu.Unlock()
 	}()
-	synced := false
+	synced, syncFailed := false, false
 	if args.SyncDisks {
 		if err := m.syncGuest(ctx, sb); err != nil {
 			m.log.Warn("guest sync before pause failed; the disks will not be saved", "sandbox", id, "error", err)
+			syncFailed = true
 		} else {
 			synced = true
+		}
+	}
+	// A ballooned guest returns the cache it drops, so the snapshot stores
+	// zeros (punched below) instead of cache the guest rereads from disk.
+	// A guest whose sync just timed out would only time out again, which
+	// would push the pause past the server's 120 s call.
+	if m.builder != nil && m.builder.Balloon && !syncFailed {
+		dropStart := time.Now()
+		if cached, err := m.dropGuestCache(ctx, sb); err != nil {
+			m.log.Warn("dropping the guest's page cache before pause failed", "sandbox", id, "error", err)
+		} else if cached > 64<<20 {
+			awaitReturnedMemory(ctx, inst, 5*time.Second)
+			m.log.Info("dropped the guest's page cache before pause", "sandbox", id, "cached_bytes", cached, "duration", time.Since(dropStart))
 		}
 	}
 	api := inst.API()
 	if err := api.PatchVMState(ctx, firecracker.VMPaused); err != nil {
 		return res, err
 	}
+	// The guest's CPU time up to its pause, read before the snapshot's own
+	// work adds to the process's, so the server bills the time since the
+	// VM's last report.
+	var cpuMs int64
+	if cpu, ok := inst.CPUTime(); ok {
+		cpuMs = cpu.Milliseconds()
+	}
+	// Its memory too, before writing the snapshot reads every guest page.
+	mem, _ := inst.ResidentMemory()
 	memNew := filepath.Join(sb.root, "mem.new")
 	snapNew := filepath.Join(sb.root, "snapshot.new")
 	if err := api.CreateSnapshot(ctx, firecracker.SnapshotCreateParams{
@@ -809,6 +972,18 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		m.markDied(sb, fmt.Sprintf("pause: firecracker did not die: %v", err))
 		return res, err
 	}
+	m.releaseCgroup(id)
+	// A guest that returns its free memory (the balloon) leaves those pages
+	// zero in the image; free their blocks before it is installed so the
+	// image uses disk for what the guest holds. Readers see the same bytes.
+	if m.builder != nil && m.builder.Balloon {
+		punchStart := time.Now()
+		if punched, err := vm.PunchZeros(memNew); err != nil {
+			m.log.Warn("punching the memory image's zero blocks failed", "sandbox", id, "error", err)
+		} else {
+			m.log.Info("punched the memory image's zero blocks", "sandbox", id, "punched_bytes", punched, "duration", time.Since(punchStart))
+		}
+	}
 	// A restore whose disks still arrive from its archive holds them
 	// whole only once the fill ends.
 	if err := m.settleLazyDisks(context.Background(), sb); err != nil {
@@ -832,6 +1007,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		sb.meta.State = protocol.StatePaused
 		sb.meta.ColdBoot = true
 		sb.meta.DisksSynced = synced
+		sb.meta.PausedCPUMs = cpuMs
 		sb.meta.Error = ""
 		saveErr := sb.meta.Save(sb.root)
 		sb.mu.Unlock()
@@ -839,7 +1015,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		if saveErr != nil {
 			return res, saveErr
 		}
-		return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), DisksSynced: synced}, nil
+		return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), DisksSynced: synced, CPUMs: cpuMs, MemoryAnonBytes: mem.AnonBytes, MemoryFileBytes: mem.FileBytes}, nil
 	}
 	memBytes := vm.FileSize(filepath.Join(sb.root, firecracker.MemPath))
 	sb.mu.Lock()
@@ -851,6 +1027,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	sb.meta.Generation++
 	sb.meta.FirecrackerVersion = m.cfg.FirecrackerVersion
 	sb.meta.DisksSynced = synced
+	sb.meta.PausedCPUMs = cpuMs
 	sb.meta.Error = ""
 	err = sb.meta.Save(sb.root)
 	sb.mu.Unlock()
@@ -862,7 +1039,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventMemoryLoaded, SandboxID: id})
 	}
 	m.log.Info("sandbox paused", "sandbox", id, "snapshot", time.Since(start), "mem_bytes", memBytes, "generation", meta.Generation+1)
-	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced}, nil
+	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced, CPUMs: cpuMs, MemoryAnonBytes: mem.AnonBytes, MemoryFileBytes: mem.FileBytes}, nil
 }
 
 func (m *Manager) Delete(ctx context.Context, id string) (err error) {
@@ -928,6 +1105,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	sb.inst = nil
 	sb.mu.Unlock()
 	m.dropLazyDisks(sb)
+	m.releaseCgroup(id)
 	started = time.Now()
 	if err := os.RemoveAll(vm.JailDir(m.cfg.JailBase, id)); err != nil {
 		return err
@@ -1025,6 +1203,7 @@ func (m *Manager) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.Ou
 		return res, err
 	}
 	defer sb.releaseAgent()
+	m.inputsWorkspace(ctx, sb, agent, args)
 	defer m.serveBlobs(sb, args)()
 	if args.TimeoutMs > 0 {
 		var cancel context.CancelFunc
@@ -1177,10 +1356,10 @@ func (m *Manager) Status(ctx context.Context, id string) (protocol.SandboxInfo, 
 	if err != nil {
 		return protocol.SandboxInfo{}, err
 	}
-	return sb.info(), nil
+	return sb.info(m.cgroups), nil
 }
 
-func (sb *Sandbox) info() protocol.SandboxInfo {
+func (sb *Sandbox) info(cgroups *hostinfo.VMCgroups) protocol.SandboxInfo {
 	sb.mu.Lock()
 	info := sb.meta.Info(sb.worker != nil)
 	inst := sb.inst
@@ -1188,6 +1367,12 @@ func (sb *Sandbox) info() protocol.SandboxInfo {
 	if inst != nil && info.State == protocol.StateRunning {
 		if cpu, ok := inst.CPUTime(); ok {
 			info.CPUMs = cpu.Milliseconds()
+		}
+		if mem, ok := inst.ResidentMemory(); ok {
+			info.MemoryAnonBytes, info.MemoryFileBytes = mem.AnonBytes, mem.FileBytes
+		}
+		if current, ok := cgroups.MemoryCurrent(info.ID); ok {
+			info.MemoryCurrentBytes = current
 		}
 	}
 	return info
@@ -1202,7 +1387,7 @@ func (m *Manager) List() []protocol.SandboxInfo {
 	m.mu.Unlock()
 	infos := make([]protocol.SandboxInfo, 0, len(all))
 	for _, sb := range all {
-		infos = append(infos, sb.info())
+		infos = append(infos, sb.info(m.cgroups))
 	}
 	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
 	return infos
@@ -1261,6 +1446,7 @@ func (m *Manager) refreshGauges() {
 // restart interrupted) are removed, as are stale namespaces.
 func (m *Manager) Recover(ctx context.Context) error {
 	m.removePartialDiskSnapshots()
+	m.removePartialCacheImages()
 	base := filepath.Join(m.cfg.JailBase, "firecracker")
 	entries, err := os.ReadDir(base)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -1322,6 +1508,9 @@ func (m *Manager) Recover(ctx context.Context) error {
 				meta.State = protocol.StatePaused
 				meta.ColdBoot = true
 				meta.Error = ""
+				// Nothing read its CPU time as it stopped; an earlier
+				// pause's reading would bill the wrong interval.
+				meta.PausedCPUMs = 0
 			} else {
 				meta.State = protocol.StateError
 				meta.Error = "daemon restarted while running and the sandbox disks are missing"
@@ -1375,7 +1564,9 @@ func (m *Manager) Shutdown(ctx context.Context) {
 					return
 				}
 			}
-			if _, err := m.Pause(ctx, id); err != nil {
+			// Synced, so the paused sandbox can be archived or saved
+			// without its memory image, like any other pause.
+			if _, err := m.PauseWith(ctx, protocol.PauseArgs{SandboxID: id, SyncDisks: true}); err != nil {
 				m.log.Error("pausing sandbox on shutdown", "sandbox", id, "error", err)
 			}
 		}(info.ID, info.WorkerRunning)

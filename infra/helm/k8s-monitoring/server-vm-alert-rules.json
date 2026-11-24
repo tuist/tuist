@@ -9,7 +9,7 @@
     "for": "0s",
     "keep_firing_for": "5m",
     "noDataState": "OK",
-    "execErrState": "Error",
+    "execErrState": "KeepLast",
     "isPaused": false,
     "labels": {
       "cluster": "tuist-production",
@@ -23,36 +23,35 @@
     "data": [
       {
         "refId": "A",
-        "datasourceUid": "grafanacloud-logs",
-        "queryType": "instant",
+        "queryType": "",
         "relativeTimeRange": {
           "from": 300,
           "to": 0
         },
+        "datasourceUid": "pulse-sql",
         "model": {
           "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({cluster=\"tuist-production\",namespace=\"tuist\",container=\"server\"} |= \"literal_alloc: Cannot allocate\" [5m])) or vector(0)",
-          "queryType": "instant",
-          "refId": "A",
+          "format": "table",
           "intervalMs": 1000,
-          "maxDataPoints": 43200
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value\nFROM opentelemetry_logs\nWHERE timestamp > now() - INTERVAL '5 minutes'\n  AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n  AND json_get_string(resource_attributes, 'namespace') = 'tuist'\n  AND json_get_string(resource_attributes, 'container') = 'server'\n  AND body LIKE '%literal_alloc: Cannot allocate%'",
+          "refId": "A"
         }
       },
       {
         "refId": "C",
-        "datasourceUid": "__expr__",
+        "queryType": "",
         "relativeTimeRange": {
           "from": 0,
           "to": 0
         },
+        "datasourceUid": "__expr__",
         "model": {
-          "refId": "C",
-          "type": "threshold",
-          "expression": "A",
           "conditions": [
             {
               "evaluator": {
@@ -70,12 +69,15 @@
                 ]
               },
               "reducer": {
-                "params": [],
                 "type": "last"
-              },
-              "type": "query"
+              }
             }
-          ]
+          ],
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
         }
       }
     ]
@@ -90,7 +92,7 @@
     "for": "0s",
     "keep_firing_for": "15m",
     "noDataState": "OK",
-    "execErrState": "Error",
+    "execErrState": "OK",
     "isPaused": false,
     "labels": {
       "cluster": "tuist-production",
@@ -105,36 +107,35 @@
     "data": [
       {
         "refId": "A",
-        "datasourceUid": "grafanacloud-logs",
-        "queryType": "instant",
+        "queryType": "",
         "relativeTimeRange": {
           "from": 300,
           "to": 0
         },
+        "datasourceUid": "pulse-sql",
         "model": {
           "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
           },
           "editorMode": "code",
-          "expr": "count(sum by (pod) (count_over_time({cluster=\"tuist-production\",namespace=\"tuist\",container=\"server\"} |= \"literal_alloc: Cannot allocate\" | pod != \"\" [5m]))) or vector(0)",
-          "queryType": "instant",
-          "refId": "A",
+          "format": "table",
           "intervalMs": 1000,
-          "maxDataPoints": 43200
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT count(DISTINCT json_get_string(log_attributes, 'pod')) AS value\nFROM opentelemetry_logs\nWHERE timestamp > now() - INTERVAL '5 minutes'\n  AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n  AND json_get_string(resource_attributes, 'namespace') = 'tuist'\n  AND json_get_string(resource_attributes, 'container') = 'server'\n  AND body LIKE '%literal_alloc: Cannot allocate%'\n  AND COALESCE(json_get_string(log_attributes, 'pod'), '') <> ''",
+          "refId": "A"
         }
       },
       {
         "refId": "C",
-        "datasourceUid": "__expr__",
+        "queryType": "",
         "relativeTimeRange": {
           "from": 0,
           "to": 0
         },
+        "datasourceUid": "__expr__",
         "model": {
-          "refId": "C",
-          "type": "threshold",
-          "expression": "A",
           "conditions": [
             {
               "evaluator": {
@@ -152,12 +153,15 @@
                 ]
               },
               "reducer": {
-                "params": [],
                 "type": "last"
-              },
-              "type": "query"
+              }
             }
-          ]
+          ],
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
         }
       }
     ]

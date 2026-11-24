@@ -82,7 +82,7 @@ func TestRankImageLinesGroupsPoolsByTheImageTheyRunNext(t *testing.T) {
 	}
 }
 
-// From 2026-10-24 to 10-28 every BER1 rack runner Pod Pending for over a
+// From 2026-10-24 to 10-28 every alder rack runner Pod Pending for over a
 // minute with most guest slots free waited 3 to 29 minutes on a pull, on a
 // host without its pool's image. With a budget, a host stages the images of
 // the top of the ranking it lacks, whether or not it holds their current

@@ -25,7 +25,7 @@ place up to `sandboxes.maxMemoryGiB` (see "Server side").
 | Piece | Where | Runs as |
 |---|---|---|
 | `sandboxd` | `infra/sandboxd` (Go) | privileged DaemonSet Pod in `tuist-sandboxes` on nodes selected by `sandboxes.nodePools` |
-| template image | `infra/sandbox-image` (Dockerfile) | init container of the DaemonSet Pod; copies `vmlinux` + `rootfs.ext4` onto the node |
+| template image | `infra/sandbox-image` (Dockerfile) | init container of the separate template installer DaemonSet (`<name>-template`); copies `vmlinux` + `rootfs.ext4` onto the node and names the tag in the template's `current` file |
 | `sbx-init` | `infra/sandbox-image/cmd/sbx-init` (Go) | PID 1 inside the guest |
 | `sbx-agent` | `infra/sandbox-image/cmd/sbx-agent` (Go) | vsock server inside the guest; exec, files, time |
 | `sbx-worker` | `infra/sandbox-image/cmd/sbx-worker` (Go) | Anthropic SDK `EnvironmentWorker.HandleItem` inside the guest, one process per residency |
@@ -37,6 +37,8 @@ Everything lives under `/data/sandboxes` on the node (`/data` is XFS with
 reflink, so rootfs clones are instant copy-on-write):
 
 ```
+/data/sandboxes/templates/<name>/current
+                      the tag the installer completed last
 /data/sandboxes/templates/<name>/<tag>/
   vmlinux             kernel from the template image
   rootfs.ext4         pristine rootfs from the template image
@@ -51,11 +53,12 @@ reflink, so rootfs clones are instant copy-on-write):
   vmlinux             hard link to the template kernel
   rootfs.ext4         reflink clone of rootfs.boot.ext4
   workspace.ext4      sparse raw ext4 mounted at /workspace in the guest
+  cache.ext4          optional private reflink clone of a CACHE_IMAGE_DIR image, the guest's /dev/vdc
   mem                 hard link to the template memfile, replaced by the sandbox's own memory file on the first pause
   snapshot            template vmstate, replaced on the first pause
   run/firecracker.socket, v.sock
   firecracker.log     Firecracker and guest console output, drained through a pipe and started over past 8 MiB
-  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, firecracker_version, disks_synced}
+  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, firecracker_version, disks_synced, rootfs_grow_pending}
 /data/sandboxes/snapshots/<snapshot_id>/
   vmlinux             hard link to the kernel the source sandbox booted
   rootfs.ext4         reflink clone of the source sandbox's rootfs
@@ -63,6 +66,10 @@ reflink, so rootfs clones are instant copy-on-write):
   disk-snapshot.json  {id, template, tag, workspace_gb, source_sandbox, created_at}
 /data/sandboxes/blobs/<scope>/<sha256>-<size>
                       remote-execution input blobs (BLOB_CACHE_GIB), emptied at startup
+<CACHE_IMAGE_DIR>/rc-<scope digest>-<generation>
+                      runner-cache masters copied for cache grants (CACHE_IMAGES_GIB), least
+                      recently used first past the budget, removed CACHE_IMAGES_TTL after
+                      their last use; unfinished .copy-* files are removed at startup
 /data/sandboxes/checkouts/<key digest>.ext4, <key digest>.json
                       prepared checkout workspaces (CHECKOUT_WORKSPACES_GIB); unfinished
                       .build-* directories are removed at startup
@@ -123,6 +130,21 @@ memory image until they cold boot.
   `configure` (flushes ARP) and `ping`. Reports `restore_ms`. Resuming a
   sandbox that is already running succeeds without doing anything, so a
   retried resume whose first answer was lost is harmless.
+- Rootfs growth (`internal/sandbox/rootfs.go`): a sandbox keeps the rootfs
+  it was created with, so after every `resume` and every create that cold
+  boots its own disks (disk snapshot, archive), a rootfs smaller than the
+  largest rootfs of its template's tags on the node is extended to it
+  (sparse, refusing a planted symlink). That is the size the server reserves
+  for it (`templates[].rootfs_bytes`), so growth takes no more of the disk
+  budget. Then `PATCH /drives/rootfs` makes Firecracker re-read the size and
+  notify the guest, which also covers a memory restore whose guest cached
+  the old capacity, and an exec waits for `/dev/vda` to show it and runs
+  `resize2fs /dev/vda` online. It is an exec, not an agent op, because an
+  old sandbox runs the `sbx-agent` of its own rootfs. A failure never fails
+  the call: `rootfs_grow_pending` in the metadata keeps it for the next
+  resume. Disks still arriving from an archive (lazy) wait for a later
+  resume. The guest's lazy inode-table init then writes about 2 MiB of zeros
+  per 128 MiB added (128 MiB for 12 to 20 GiB), inside the ceiling.
 - `pause {sandbox_id, sync_disks: true}` first runs `/bin/sync` in the
   guest and records `disks_synced` in the metadata (cleared by the next
   resume), so the disks alone hold everything written. A failed sync still
@@ -134,7 +156,9 @@ memory image until they cold boot.
   removes `.tmp-*` leftovers. `delete_disks {snapshot_id}` removes the
   directory and succeeds when it is absent. `hello` and `report` list the
   snapshots under `disk_snapshots`; the disk report counts their exclusive
-  bytes as `snapshots_bytes`.
+  bytes as `snapshots_bytes`. macOS hosts implement these differently
+  (`infra/tart-kubelet/macos-sandboxes.md`, "Disk snapshots"): they also
+  answer `bytes` from `save_disks` and per snapshot.
 - `create {..., from_disk_snapshot}`: link the snapshot's kernel and
   reflink its disks into the jail instead of the template's (the template
   name and workspace size must match the snapshot), then cold boot like a
@@ -143,10 +167,14 @@ memory image until they cold boot.
   image.
 - `archive {sandbox_id, part_size, part_urls, memory, lazy_disks}`: refuse unless the
   sandbox is paused with `disks_synced`, so a cold restore of the disks
-  alone is always possible; stream `vmlinux`, `rootfs.ext4` and
+  alone is always possible, or its current memory image travels with it
+  (below), which holds what the guest had not synced: the header then says
+  `disks_synced: false`, and a `create` from it on a node of another
+  snapshot compatibility fails instead of cold booting; stream `vmlinux`, `rootfs.ext4` and
   `workspace.ext4` as one zstd object (`pkg/archive`: magic `SBXARC1`, a JSON
-  header, file records with data blocks at their offsets, holes and zero
-  blocks left out) cut into `part_size` parts, each PUT to the next
+  header, file records with data blocks at their offsets, holes and
+  zero runs left out by `runner-cache/sparse`, shared with runner cache
+  masters; a data record never exceeds 1 MiB, which older readers require) cut into `part_size` parts, each PUT to the next
   presigned UploadPart URL (two parts in memory at most, three attempts per
   part). With `memory` and a current memory image (not `cold_boot`,
   written by this Firecracker, and the node's snapshot compatibility known), the object
@@ -190,15 +218,23 @@ memory image until they cold boot.
   VM state with a `Uffd` memory backend: `internal/uffd` takes
   Firecracker's userfaultfd on the jail's `mem.sock`, fetches the chunk of
   each first-touched page by ranged GET (checked against the index's
-  SHA-256) ahead of a two-stream fill of the rest, answers
+  SHA-256) ahead of an eight-stream fill of the rest, whose streams also
+  take the chunks a vCPU waits on first (a restored guest touches most of
+  its memory before its agent answers), answers
   `memory_pending`, and emits `memory_loaded` once every chunk is
   installed (or a pause wrote the memory locally). A chunk that cannot be
-  fetched kills the VM. Elsewhere it cold boots the disks. With
+  fetched kills the VM. Elsewhere it cold boots the disks, and so does a
+  warm restore of synced disks whose guest agent never answers (`agent not
+  ready`): the memory image is dropped, processes are lost, and lazy disks
+  keep arriving through their mounts. With
   `lazy_disks` (`internal/lazydisk`, `internal/sandbox/lazydisks.go`) each
   disk is a FUSE mount over its path in the jail, which the jailer's
   recursive bind carries into the chroot: a chunk the guest reads or
   writes first is fetched then into `<disk>.fill`, a four-stream fill per
-  disk fetches the rest, and once both are complete the files replace the
+  disk (written back and dropped from the daemon's page cache chunk by
+  chunk) fetches the rest once the memory is loaded (or a pause needs the
+  disks), so the memory every vCPU waits on gets the bandwidth first, and
+  once both are complete the files replace the
   mounts (detached lazily) and Firecracker reopens its drives on them
   (`PATCH /drives`); `memory_loaded` waits for the disks too. A pause
   waits up to 30 s for the fill with the guest still running, so it stays
@@ -319,7 +355,10 @@ One request per connection, a JSON line:
 A read answers `{"ok":true}` and exactly `L` bytes of the blob from `O`, or
 `{"error":"..."}`, and the guest then reads that blob from the CAS. A miss
 downloads the whole blob with the exec's credential, verifies its digest, and
-serves every concurrent request for it from that one download. Blobs are kept
+serves every concurrent request for it from that one download. A download that
+receives nothing for 30 seconds fails, and the CAS connection pings while
+downloads run, so a stalled stream or a silently dead connection fails its
+waiting reads within seconds instead of holding them for minutes. Blobs are kept
 per CAS scope (endpoint, account, instance), so a hit never serves another
 project's blob. The least recently used are evicted to stay within the
 budget and to leave 20% of the data filesystem free, which the cache shares
@@ -397,6 +436,37 @@ NetworkPolicy identity, so the chart lists 8090 in `DAEMON_ONLY_TCP_PORTS`:
 nothing the guest sends reaches the agent except the export bytes the daemon
 relays, which the agent verifies as it does a CI job's.
 
+## Guest to host: cache images
+
+A `create` may carry `cache_grant {id, scope, base_generation, image_digest,
+content_digest}` instead of `cache_image`: the saved head of a Linux
+runner-cache volume. The daemon names copies by lineage and generation,
+`rc-<sha256 of the scope>-<generation>` in `CACHE_IMAGE_DIR`. It uses the
+grant's generation when it has it, and otherwise asks the node's runner-cache
+agent with `POST /sandbox-cache/image` (`{"pod_name": POD_NAME, "grant": ...,
+"held": [generations it has of the lineage]}`, authorized like the checkout
+routes). The agent lends the head's master, or the newest older master of the
+lineage when that is all the node keeps (prefetch holds a refreshed master
+rather than download every head, so this is common), and names it in the
+`Tuist-Cache-Generation` header: `204` when that generation is in `held`, else
+`200` with the reflinked clone streamed in runner-cache's sparse zstd format.
+It marks the master used and never fetches one the node lacks: with no master
+of the lineage it answers `404 cold`, which fails the create, so the server
+picks nodes whose labels advertise the lineage. The create answers
+`cache_generation`, which the server records on the sandbox. A generation
+newer than the grant is refused. Concurrent creates for one lineage share one
+copy (15-minute budget, written to `.copy-*` and renamed); the sandbox then gets
+its own reflink of it exactly as with `cache_image`. Copies a sandbox is
+attaching are pinned; eviction and expiry skip them and never touch images
+without the `rc-` prefix. The copy is one way: nothing the sandbox writes
+reaches the runner-cache volume. Hello's `cache_grants` says the daemon takes
+grants, and `cache_drive_in_template` that its template creates can attach
+one; the server sends a grant only to such nodes (a disk-snapshot create cold
+boots and needs only `cache_grants`) and retries a create without its grant
+when the daemon answers an `invalid cache image` error. Every grant error
+names the cache image (`copying the granted cache image: ...` when the agent
+has no route), so the server's retry covers them all.
+
 ## Node to server: WebSocket
 
 The daemon dials `GET /api/internal/sandboxes/nodes/connect` on the in-cluster
@@ -411,11 +481,12 @@ Node to server:
 ```
 {"type":"hello","node":"...","daemon_version":"...","firecracker_version":"...",
  "capacity":{"memory_bytes":N,"cpus":N},
- "elastic":{"pod_name":"...","memory_floor_bytes":N,"memory_ceiling_bytes":N},
+ "elastic":{"pod_name":"...","memory_floor_bytes":N,"memory_ceiling_bytes":N,
+            "cpu_floor_milli":N,"cpu_ceiling_milli":N},
  "disk":{"total_bytes":N,"available_bytes":N,"sandboxes_bytes":N,"templates_bytes":N,"budget_bytes":N},
  "templates":[{"name":"default","tag":"sha-...","ready":true,"rootfs_bytes":N}],
  "sandboxes":[{"id":"...","state":"running","template":"default","template_tag":"...",
-               "vcpus":2,"memory_mb":4096,"worker_running":false,"cpu_ms":1234}]}
+               "vcpus":2,"memory_mb":4096,"worker_running":false,"cpu_ms":1234,"disk_bytes":N}]}
 {"type":"result","id":"c1","ok":true,"data":{...}}
 {"type":"result","id":"c1","ok":false,"error":"..."}
 {"type":"stream","id":"c1","stream":"stdout","data_b64":"..."}
@@ -443,10 +514,25 @@ Server to node:
 {"type":"command","id":"c13","op":"copy_disks","args":{"snapshot_id":"...","template":"default","workspace_gb":10,"from_archive":{"url":"https://...","bytes":N,"sha256":"..."}}}
 ```
 
-A running sandbox's `cpu_ms` is its Firecracker process's user and system
-time from `/proc/<pid>/stat` (vCPU threads included), restarting from zero
-with each new VM process; the server uses it to pause idle Amp Orbs. Paused
-sandboxes, and hosts without `/proc`, omit it.
+A running sandbox's `cpu_ms` is the guest's CPU time: the user and system
+time of its Firecracker process's `fc_vcpu` threads
+(`/proc/<pid>/task/*/stat`), without the VMM thread's device emulation,
+restarting from zero with each new VM process (a process without such
+threads counts whole); the server uses it to pause idle Amp Orbs and to bill
+bursting sandboxes. Hosts without `/proc` omit it. A `pause` result carries
+the same reading, taken as the VM's vCPUs stop and before the snapshot, so
+the server bills the time since the last report; a paused sandbox keeps
+reporting it (`paused_cpu_ms` in its metadata), so a pause the server only
+learns of from a report, such as a shutdown's, is billed too. A VM the
+daemon lost while running reports none. `memory_anon_bytes` and
+`memory_file_bytes` of a running sandbox are its Firecracker process's
+`Pss_Anon`, and `Pss_File` plus `Pss_Shmem`, from `/proc/<pid>/smaps_rollup`:
+pages the guest wrote, and pages still mapped from the memory file it restored
+from (clean, so the host can drop and reread them). Next to `memory_mb` they
+show how much of a running guest's reservation it holds; paused sandboxes and
+hosts without `/proc` omit them. A `pause` result carries the same two
+readings, taken before the snapshot, so the server bills memory past the
+request up to the pause.
 
 Every command gets exactly one `result`. `exec` emits `stream` frames before
 its result (`data.exit_code`). `start_worker` results as soon as the worker
@@ -506,7 +592,9 @@ a guest without the pinned binary downloads and checksums it first.
   without room for another memory image on disk (`disk.available_bytes`,
   plus 1 GiB headroom) is skipped too, as is one whose `disk.budget_bytes`
   cannot take the new sandbox's ceiling on top of the ceilings of every
-  sandbox placed there, including errored ones whose jail it still reports. A sandbox's ceiling is its rootfs
+  sandbox placed there, including errored ones whose jail it still reports;
+  a paused sandbox counts at the `disk_bytes` its report carries, plus one
+  resume's growth per node (server `Capacity.reserved_disk_bytes/1`). A sandbox's ceiling is its rootfs
   image (`templates[].rootfs_bytes`), its workspace image (`workspace_gb`)
   and its memory image, all fixed-size files it can never write past, so
   the reservation holds however the sandboxes later fill them. The
@@ -572,6 +660,33 @@ From 2026-11-11 to 2026-11-13, 31 of 67 snapshot spawns that booted missed
 the snapshot's node (29 from the archive, 2 from the template, whose setup
 then takes 411 s at p50), almost all for `:no_capacity` on that node. That
 is what node copies of popular snapshots (`copy_disks`) remove.
+
+Warm restores of Orb archives, production, 2026-11-13 to 2026-11-18, from
+the daemon's `sandbox resumed from its archived memory` and `sandbox memory
+loaded from its archive` lines: the guest faults about 70% of the stored
+memory chunks before its agent answers, so `restore` follows the stored
+memory, about 11 s at 800 stored 2 MiB chunks and 45 to 58 s at 4,050 (an
+8 GiB guest its page cache filled). Chunks took about 63 ms per stream
+with only two memory streams running and about 144 ms with 8 fault, 2 fill
+and 8 disk-fill streams together, so the restore shared the node's
+bandwidth to the store with the disks; it now fetches the memory first.
+ClickHouse `sandbox_events` over the 7 days to 2026-11-18 count 832 Amp
+spawns restored from an archive (p50 44 s, p90 80 s) against 3,133 resumes
+on the node; 731 of those Orbs had been archived less than 4 h after their
+pause (median 13 min), so not by `archiveAfterHours` but by CI reclaims,
+refused resumes or disk pressure (the archive jobs Oban still held, about
+two hours' worth, were 20 CI reclaims, 5 single sandboxes and 2 pressure
+sweeps). From 2026-11-15 to 2026-11-18, 129 of 631 Linux archives started
+during a CI host reservation on their node, and those reservations lasted
+38 s at the median and 114 s at p90, so the server now waits two minutes of
+reclaim before it moves a node's paused sandboxes. Most of the rest come from
+disk: nodes reserved each paused Orb's ceiling (its rootfs, workspace and
+memory image, about 38 GiB for 4 vCPU / 8 GiB) against a 240 GiB budget, so
+a node kept about five before the pressure sweep (85%) or a new sandbox's
+placement archived the oldest. Each sandbox in a report now carries
+`disk_bytes`, its jail's share of `sandboxes_bytes` (the list is taken
+before the walk, so a paused one was measured after its pause), and the
+server reserves a paused Orb at that use plus one resume's growth per node.
 
 The VM is not the bottleneck: half of all resumes spend longer in
 `Capacity.admit/1` (grant check, node lock, carve-out growth) than the
@@ -642,7 +757,7 @@ agent so the manager runs end to end without KVM).
 | `SERVER_URL` | | Server base URL; the daemon dials `/api/internal/sandboxes/nodes/connect`. Empty = admin-only. |
 | `TOKEN_PATH` | `/var/run/secrets/tuist/token` | Projected SA token, re-read on every reconnect. |
 | `DATA_DIR` | `/data/sandboxes` | Templates under `templates/`, jails under `jail/`. |
-| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node. With a tag set and no `EXECUTION_SLOTS`, startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. |
+| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, followed | Default template and the tag creates use for it when the caller names none. Without `TEMPLATE_TAG` (the sandboxes chart) the daemon uses the tag in `templates/<name>/current`, which the template installer writes once a tag is complete (before any installer ran, the tag whose `metadata.json` was rewritten last), checks that file every 30 s, and when it names another tag builds `PREBUILD_SHAPES` for it, then switches new creates to it, prunes unused tags and reports the new `templates` and `default_template_tag`; a tag whose shapes fail to build is retried after 10 minutes while creates keep the previous tag. A template upgrade therefore never restarts the daemon or its VMs. With a tag set (remote execution), the daemon keeps it until restarted, and startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. Remote-execution daemons (`EXECUTION_SLOTS`) also keep the tag the node ran before, the other tag whose `metadata.json` the init container rewrote last, because the server keeps placing executions on it until most nodes roll. |
 | `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |
@@ -652,18 +767,27 @@ agent so the manager runs end to end without KVM).
 | `DIRECT_EXEC_ADDR` | | Listen address for claims of claimed execs, e.g. `$(POD_IP):7071`. Empty disables claims. |
 | `POD_NAME` | | The daemon's Pod (downward API), reported in `hello.elastic` so the server can resize it. |
 | `MEMORY_FLOOR_GIB`, `MEMORY_CEILING_GIB` | `0`, `0` | The memory the Pod starts at and the most the server may grow it to, reported in `hello.elastic`. A ceiling not above the floor keeps the limit fixed. |
+| `CPU_FLOOR_MILLI`, `CPU_CEILING_MILLI` | `0`, `0` | The CPU request the Pod starts at and the most the server may raise it to, in millicores, reported in `hello.elastic`. There is no CPU limit either way. A ceiling not above the floor keeps the request fixed. |
+| `VM_CGROUPS` | `true` | Run each VM in its own cgroup v2 child of the container's, weighted by its `create.cpu_guarantee_milli` (default 250), with the daemon in a `sandboxd` leaf weighted by `CPU_FLOOR_MILLI`; hello then sets `cpu_guarantees`. Where the memory controller is available too, each VM's cgroup sets `memory.low` (best-effort protection, not `memory.min`, so a running guest's clean file pages stay reclaimable before an OOM) to its guest memory and reports `memory.current` as `memory_current_bytes`. If the cpu controller is unavailable the daemon logs it and every VM shares its cgroup as before. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. Shapes built with another size are removed at startup and rebuilt. |
 | `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
+| `CACHE_IMAGE_DIR` | | ext4 cache images a `create {..., from_disk_snapshot, cache_image}` may attach as a writable `cache` drive (`/dev/vdc`). Each sandbox gets a reflink clone in its jail, deleted with it and never saved by `save_disks` or archives; the master is never written. The guest's `configure` mounts it at `/mnt/tuist-cache` and binds the `~/` paths of its `.tuist-paths` manifest under `user`'s home (`infra/sandbox-image/AGENTS.md`). Must be on the `DATA_DIR` filesystem. Empty refuses `cache_image`. Template creates refuse it too unless the shape snapshot has a cache placeholder (`CACHE_DRIVE_IN_TEMPLATE`): Firecracker cannot add a drive to a restored memory snapshot. A cold reboot keeps the drive. A sandbox with a cache attached archives without its memory, since the clone does not travel and its guest has it mounted. `validation/validate-cache-drive.sh` measures it on a KVM runner. |
+| `BALLOON_FREE_PAGE_REPORTING` | `false` | Experimental. Shape snapshots and cold boots get a virtio-balloon that is never inflated, with `free_page_reporting`, `deflate_on_oom` and 1 s statistics (`firecracker.ReportingBalloon`, `balloon` in shape metadata). The guest reports the pages it frees and Firecracker drops them from the host, so a VM's Pss and `memory.current` fall back as its processes free memory. Page cache is not free memory: the guest only returns it after dropping or reclaiming it, so a pause first runs `sync`, `drop_caches` and `compact_memory` (the guest reports only free 2 MiB blocks) in a guest that has the balloon and, when it held more than 64 MiB of cache, waits up to 5 s for its resident memory to settle before the snapshot. The drop gets 20 s, and is skipped when the pause's guest sync failed. Startup removes shapes built the other way; a sandbox restored from an older memory image gets the balloon on its next cold boot. Free page reporting is stable in Firecracker 1.16.2 (only hinting is a developer preview) and needs the guest's `PAGE_REPORTING`, which the 6.1.155 kernel has. |
+| `CACHE_DRIVE_IN_TEMPLATE` | `false` | Experimental, needs `CACHE_IMAGE_DIR`. Shape snapshots carry an empty 1 MiB `cache` drive (`cache_drive` in their metadata), and every template create puts one in its jail. A template create with `cache_image` clones the image there instead and `PATCH /drives/cache` makes the guest see its size, so it restores from memory (about 166 ms) instead of cold booting (about 1.2 s). The guest's `configure` drops its `/dev/vdc` buffers before mounting, since the guest may hold the placeholder's blocks, and leaves the blank placeholder unmounted. Startup removes shapes built the other way. Archives with memory record `cache_placeholder`, and a warm restore recreates the placeholder; daemons older than that field cannot warm restore such archives, so enable it only after every node runs a daemon that reads it. `validation/validate-cache-snapshot.sh` measures it. |
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
 | `DAEMON_ONLY_TCP_PORTS` | | Comma-separated TCP ports the daemon reaches through the pod and the guests may not, on any address: forwarded guest traffic to them is dropped. The chart lists the server Pods' target port (unless `guestServerAccess`) and the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `DAEMON_ONLY_TCP_PORT`, the single port an older chart sets, is still read. |
 | `CHECKOUT_AGENT_URL` | | The node's runner-cache agent, e.g. `http://<runner-cache-volumes Service>.tuist-runners.svc.cluster.local:8090`; see "Guest to host: checkout". Needs `POD_NAME`. Empty ignores checkout grants. The chart sets it, and lists 8090 in `DAEMON_ONLY_TCP_PORTS`, when Linux cache volumes are enabled. |
 | `CHECKOUT_WORKSPACES_GIB` | `0` | Budget for prepared checkout workspaces under `DATA_DIR/checkouts`, taken out of `DISK_BUDGET_GIB` (the daemon reports the budget less this and the blob cache, and refuses to start unless both fit). Needs `CHECKOUT_AGENT_URL`. `0` disables them. A build also needs free space for four times the budget plus 10 GiB. |
 | `CHECKOUT_WORKSPACES_TTL` | `6h` | How long a prepared workspace is used after it is built. |
+| `CACHE_IMAGES_GIB` | `0` | Budget for runner-cache masters copied into `CACHE_IMAGE_DIR` for `create {..., cache_grant}`, taken out of `DISK_BUDGET_GIB` like the checkout workspaces. Needs `CACHE_IMAGE_DIR` and `CHECKOUT_AGENT_URL`. `0` refuses grants. See "Guest to host: cache images". |
+| `CACHE_IMAGES_TTL` | `24h` | How long a copied master stays after a sandbox last attached it; checked every 10 minutes. |
 | `GUESTS_REACH_SERVER` | `false` | With `SERVER_URL` set and this false, the daemon resolves `SERVER_URL` at startup (retrying cluster DNS for a minute) and drops guest traffic to those addresses and port. |
 | `LOG_LEVEL` | `info` | slog level. |
+| `SANDBOXD_CONFIG` | | A file of `KEY=VALUE` lines (`internal/envfile`) that fills any variable above the environment leaves unset. With `sandboxes.vmm.enabled` the chart puts the deploy-varying ones in a ConfigMap read this way, so step 2b can restart the daemon in place with new configuration; until then the Pod carries a checksum of it and a change still rolls the Pods. `cmd/vmm` reads the same file. |
+| `VMM_SOCKET` | | The vmm container's socket (see Process model). Set, the daemon spawns every VM through it and places VM cgroups under vmm's cgroup; unset, it spawns them itself as before. |
 
 ### Validation scripts
 
@@ -672,12 +796,25 @@ every image change: `validate-job.sh` runs create, exec, pause, resume and
 delete against a node's admin API from a Job in the cluster;
 `managed-agents-smoke.sh` runs a two-turn Managed Agents session across a
 pause and resume on a connected environment; `managed-agents-chat.sh` is an
-interactive terminal session on the same path.
+interactive terminal session on the same path. `validate-cache-drive.sh`
+runs only on a disposable GitHub-hosted KVM runner
+(`sandbox-orbs-validation.yml`, `cache_drive` input): it fills a Go cache
+in a CI-shaped container and measures it attached to a sandbox.
+`validate-runner-cache-master.sh` (`runner_cache_master` input) instead
+makes a master with runner-cache's `LocalImages` (`validation/cachemaster`),
+fills it with the Linux runner image, and attaches it at the sandbox's own
+paths and at the runner's. `validate-checkout-cache.sh` (`checkout_cache`
+input) binds a volume's checkout-relative path (`server/deps`) into a
+checkout inside the guest. `validate-cache-snapshot.sh` (`cache_snapshot` input)
+compares template creates with and without the cache placeholder, with a
+cache swapped in, and today's disk-snapshot cold boot.
 
 ### Admin API
 
-`POST /v1/sandboxes {id?,template,template_tag?,vcpus,memory_mb,workspace_gb,hostname}`
-returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`;
+`POST /v1/sandboxes {id?,template,template_tag?,vcpus,memory_mb,workspace_gb,hostname,from_disk_snapshot?,cache_image?}`
+returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`
+(`pause` takes an optional `{sync_disks}`); `POST
+/v1/sandboxes/{id}/save_disks {snapshot_id}`;
 `POST /v1/sandboxes/{id}/exec {cmd,env,cwd,timeout_ms}` returns
 `{stdout,stderr,exit_code,duration_ms}`; `POST
 /v1/sandboxes/{id}/worker/{start,stop}`; `GET /v1/sandboxes`, `GET
@@ -685,6 +822,26 @@ returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`;
 /v1/templates/{name}/{tag}/build {vcpus,memory_mb}`.
 
 ### Process model
+
+With `sandboxes.vmm.enabled` (step 2a of seamless daemon restarts, staging
+only so far), the Pod has a second container, `vmm` (`cmd/vmm`, the same
+image), that spawns the VMs so they sit in its cgroup instead of the
+daemon's container's. The server resizes `vmm`, not `sandboxd`, whose own
+resources are fixed (`Tuist.Kubernetes.Client.sandbox_vm_container/1`; the
+runners-controller sums both). The daemon opens one connection per VM to
+`VMM_SOCKET` (`internal/vm/vmm.go`) carrying the `Spec` and, as SCM_RIGHTS,
+its own mount namespace and the VM's cgroup; vmm runs the jailer under
+`nsenter --mount` into that namespace, so it sees the daemon's network
+namespaces and lazy-disk mounts without any mount propagating to the host,
+and holds Firecracker's output and `firecracker.log`. The Pod shares one PID
+namespace (`shareProcessNamespace`), so the daemon still reads
+`/proc/<pid>`; vmm reports exits over the connection. A VM lives as long as
+its connection: vmm kills it when the daemon goes away, because a restarted
+daemon cold boots what it finds `running`. The daemon also holds its hello
+connection open and restarts when vmm does (vmm's VMs died with it and its
+cgroup moved). Behaviour is otherwise unchanged: SIGTERM still pauses every
+VM, and vmm keeps serving after its own SIGTERM until the daemon released
+its VMs. Step 2b makes the VMs outlive a daemon restart.
 
 The jailer parent exits as soon as it has forked Firecracker into the new
 pid namespace, so the daemon sets itself as child subreaper, reads the pid
@@ -734,7 +891,7 @@ removed.
 On SIGTERM the daemon stops every running worker (SIGTERM, then SIGKILL
 after `STOP_WORKER_GRACE`; the SDK worker force-stops its work item and
 Anthropic re-queues the session on its next event) and pauses every running
-sandbox within `SHUTDOWN_TIMEOUT`, so a rollout restores memory rather than
+sandbox, syncing its disks like the server's pauses, within `SHUTDOWN_TIMEOUT`, so a rollout restores memory rather than
 cold booting, except one that changes the Firecracker version. Whatever is still running at the deadline takes the cold-boot
 path on recovery.
 
@@ -767,6 +924,10 @@ inside an error.
 `sandboxd_pause_seconds`, `sandboxd_template_build_seconds{shape}`
 (histograms), `sandboxd_sandboxes{state}`, `sandboxd_workers_running`
 (gauges), `sandboxd_operations_total{op,result}` (counter).
+Each report also sets `sandboxd_vm_reserved_bytes`, `sandboxd_vm_anon_bytes`
+and `sandboxd_vm_file_bytes` (the running VMs' guest memory and what their
+processes hold, summed over the node) and observes every running VM's
+resident share of its guest memory in `sandboxd_vm_resident_share`.
 `sandboxd_lifecycle_phase_seconds{phase}` breaks down fixed lifecycle phases;
 `sandboxd_blob_cache_requests_total{result}`, `sandboxd_blob_cache_fetched_bytes_total` and `sandboxd_blob_cache_bytes` cover the blob cache. sandbox IDs are never labels. Delete overlaps process exit and network teardown,
 but retains files, the instance reference and slot until both succeed.

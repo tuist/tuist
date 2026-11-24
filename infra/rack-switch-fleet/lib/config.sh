@@ -577,7 +577,9 @@ fleet_prefix_mask() {
 # it. Every other port's untagged VLAN is 1, which reaches nothing: a mini
 # racked before its node is recorded sits on no segment rather than on the
 # management one, and a port facing an edge or the other ToR carries the
-# management VLAN tagged with the rest.
+# management VLAN tagged with the rest. A node link's `native_vlan` overrides
+# its port's untagged VLAN and drops it from the tagged ones, such as the
+# management VLAN on the port of an edge whose installer asks for DHCP untagged.
 fleet_port_settings() {
   local site_file="$1" device="$2" spec="$3"
   jq -r --argjson d "$device" --argjson spec "$spec" '
@@ -592,6 +594,7 @@ fleet_port_settings() {
     ([(.node_roles // {}) | to_entries[] | select(.value.segment == "machines") | .key]) as $machine_roles |
     ([.nodes[]? | select(.role as $r | $machine_roles | index($r)) | .links[] |
       select(.purpose == "data" and .switch == $d.name and .port != null) | .port]) as $machine_ports |
+    ([.nodes[]? | .links[] | select(.switch == $d.name and .port != null and .native_vlan != null) | {key: (.port | tostring), value: .native_vlan}] | from_entries) as $link_natives |
     ($d.lags // []) as $lags |
     $spec.port_groups[] as $g |
     range($g.first; $g.last + 1) as $n |
@@ -609,8 +612,9 @@ fleet_port_settings() {
       ((if $wan_facing then []
         elif $machine_facing then ((if $lag then $lag.vlans else $p.vlans end) // [])
         else (if $lag then ($lag.vlans // $site_vlans) else ($p.vlans // $site_vlans) end) +
-          (if $edge_facing then $edge_vlans else [] end) end) | unique | map(tostring) | join(",")),
-      (if $wan_facing then ($wan_vlan | tostring) elif $machine_facing then ($machines_vlan | tostring)
+          (if $edge_facing then $edge_vlans else [] end) end) - [$link_natives[($n | tostring)]] | unique | map(tostring) | join(",")),
+      (if $link_natives[($n | tostring)] != null then ($link_natives[($n | tostring)] | tostring)
+       elif $wan_facing then ($wan_vlan | tostring) elif $machine_facing then ($machines_vlan | tostring)
        elif $management_on_uplinks and ($members | any(. as $m | $management_ports | index($m)) | not) then "1"
        else "" end)
     ] | join("\u001f")
@@ -681,6 +685,81 @@ fleet_check_contracted_power() {
   ' "$site_file")" || return 1
   if [ -n "$bad" ]; then
     echo "error: contracted_power is wrong:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
+}
+
+# Whether a site is ready for someone to go and rack it: what larch's bring-up
+# found missing one visit at a time, any of which needs someone at the rack or
+# a deploy while they wait. Every gap at once, not the first. Reads the site's
+# values file (or the second argument) and the tailnet policy (or the third).
+#  - power: contracted_power and power_budget, once the site has minis, so the
+#    chains hold runner VMs back below what the sockets carry.
+#  - MACs: a ToR's, which its edge answers DHCP for alone, and each power
+#    card's, which the edge reserves its address by.
+#  - the first edge (the first VRRP member, the one nothing else can reach)
+#    declared with its TPM check code: the internet boot server takes
+#    announcements only from hosts with one. Never the empty-key hash
+#    e3b0-c442-98fc-1c14, the hash of empty input that an early
+#    `rack-node check-code` printed when it could not read the TPM's key.
+#  - a boot server for the site, which every other host installs from.
+#  - each planned node whose model arrives preinstalled (`preinstall_product`
+#    in node_models.json) listed in rackLinuxFleet.preinstall.products and
+#    declared without bootMAC, so it announces its product and installs beside
+#    its installer partition. Otherwise the install takes the whole largest
+#    drive for /, a storage node's data drive, as larch-store-a's did.
+#  - each mini's /32 in the env's tailnet SSH grant (infra/tailscale/acls.json),
+#    which the operator dials it through before it joins the tailnet.
+fleet_check_ready() {
+  local site_file="$1" values="${2:-}" acls="${3:-$FLEET_ROOT/../tailscale/acls.json}" env inventory policy bad
+  [ -n "$values" ] || values="$(fleet_rack_values "$site_file")" || return 1
+  env="$(fleet_site_env "$site_file")" || return 1
+  inventory="$(yq -o=json '{
+      "linuxSite": (.rackLinuxFleet.site // ""), "linux": (.rackLinuxFleet.hosts // []),
+      "boot": (.rackLinuxFleet.boot // {}),
+      "preinstalled": (.rackLinuxFleet.preinstall.products // []),
+      "fleetSite": (.rackFleet.site // ""), "minis": (.rackFleet.hosts // [])}' "$values")" || return 1
+  # The policy is HuJSON: comments and trailing commas.
+  policy="$(sed -E 's#^[[:space:]]*//.*$##' "$acls" | perl -0pe 's/,(\s*[\]}])/$1/g')" || return 1
+  bad="$(jq -r --argjson inv "$inventory" --argjson policy "$policy" --arg env "$env" --slurpfile hw "$FLEET_NODE_MODELS" '
+    .site as $site |
+    ([$policy.grants[]? | select((.ip // []) | index("tcp:22")) |
+      select((.src // []) | index("tag:tuist-k8s-\($env)")) | .dst[]]) as $ssh |
+    ([$inv.minis[] | select((.site // $inv.fleetSite) == $site)]) as $minis |
+    ([$inv.linux[] | select((.site // $inv.linuxSite) == $site)]) as $linux |
+    (.management.edge.vrrp.members[0].node // "") as $first |
+    (if any(.nodes[]?; .rack_host != null) then
+      (if (.contracted_power // []) == [] then "no contracted_power: nothing to alert on before the colocation contract'\''s cap" else empty end),
+      (if .power_budget == null then "no power_budget: the minis take runner VMs whatever the chains draw" else empty end)
+    else empty end),
+    (.devices[] | select(.role == "tor" and (.mac // "") == "") |
+      "\(.name) has no mac: its edge answers DHCP for that MAC alone"),
+    (.nodes[]? | select(.role == "power" and (.mgmt_address // "") != "" and (.mac // "") == "") |
+      "\(.name) has no mac: the edge reserves its card'\''s address by it"),
+    ($linux[] | select(.tpmCheckCode == "e3b0-c442-98fc-1c14") |
+      "\(.hostname): tpmCheckCode e3b0-c442-98fc-1c14 is the empty-key hash, not its TPM'\''s"),
+    (if $first == "" then "no management.edge.vrrp.members: no first edge"
+     elif ([$linux[] | select(.hostname == $first)] | length) == 0 then "\($first), the first edge, is not in rackLinuxFleet.hosts"
+     elif ([$linux[] | select(.hostname == $first and (.tpmCheckCode // "") != "")] | length) == 0 then
+       "\($first), the first edge, has no tpmCheckCode: the internet boot server will not take its announcement"
+     else empty end),
+    (if (($inv.boot.enabled // false) and (($inv.boot.site // "") | if . == "" then $inv.linuxSite else . end) == $site)
+        or any($inv.boot.sites[]?; .site == $site) then empty
+     else "no boot server: rackLinuxFleet.boot.sites has no entry for \($site)" end),
+    (.nodes[]? | select(.status == "planned") | . as $n |
+      ($hw[0][.hardware // ""].preinstall_product // "") as $product | select($product != "") |
+      (if ($inv.preinstalled | index($product)) == null then
+         "\($n.name): rackLinuxFleet.preinstall.products does not list \($product), so its install would put / on its largest drive"
+       else empty end),
+      ($linux[] | select(.hostname == $n.name and (.bootMAC // "") != "") |
+         "\($n.name) is declared with bootMAC, so it installs without announcing its product and puts / on its largest drive")),
+    ($minis[] | select((.address // "") == "") | "\(.name) has no address"),
+    ($minis[] | select((.address // "") != "") | "\(.address)/32" as $route | select($ssh | index($route) | not) |
+      "\(.name): \(.address)/32 is not in tag:tuist-k8s-\($env)'\''s tcp:22 grant in acls.json")
+  ' "$site_file")" || return 1
+  if [ -n "$bad" ]; then
+    echo "error: $(jq -r .site "$site_file") is not ready to rack:" >&2
     printf '  %s\n' "$bad" >&2
     return 1
   fi

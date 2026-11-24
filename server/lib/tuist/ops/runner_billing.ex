@@ -1,6 +1,7 @@
 defmodule Tuist.Ops.RunnerBilling do
   @moduledoc """
-  Audited, resumable activation of prepaid runner orders for Atlas.
+  Audited, resumable activation of prepaid runner orders for Atlas, and
+  audited starts and cancellations of runner trials (`update_trial/3`).
 
   The request is committed before any external effect. A failed activation
   keeps its checkpoints and error; repeating the identical change resumes it.
@@ -13,6 +14,7 @@ defmodule Tuist.Ops.RunnerBilling do
   alias Tuist.Accounts.Account
   alias Tuist.Billing
   alias Tuist.Billing.CreditGrants
+  alias Tuist.Ops.RunnerTrialChange
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Billing, as: RunnerUsage
@@ -22,6 +24,7 @@ defmodule Tuist.Ops.RunnerBilling do
   alias Tuist.Runners.Trials
 
   @fields ~w(paid_cents credit_multiplier platforms starts_on expires_on invoice_id expected_revision reason change_id actor interface)
+  @trial_fields ~w(operation expected_revision reason change_id actor interface)
   @platforms %{"macos" => :macos, "linux" => :linux}
 
   def get(account_id) do
@@ -41,6 +44,89 @@ defmodule Tuist.Ops.RunnerBilling do
       if activation.status == "applied", do: {:ok, activation.after}, else: run(activation)
     end
   end
+
+  @doc """
+  Starts or cancels the account's runner trial through `Tuist.Runners.Trials`,
+  as the ops account page's trial buttons do, with the revision, reason,
+  change UUID and replay contract of `Tuist.Ops.AccountPlans`. The revision is
+  `get/1`'s, which covers the trial timestamps and the live subscription.
+
+  Cancelling the trial of an account with no paid plan leaves it on Air, where
+  the free runner allowance and cache caps apply again and its runner usage has
+  no subscription to be billed on. That is refused with `:paid_plan_required`
+  unless the request sets `confirm_air_limits`, so moving an account off its
+  trial before it subscribes is a deliberate choice rather than a slip.
+
+  The change row is inserted before Stripe is called and the trial transition
+  reconciles Stripe inside the same transaction, so a failed request records
+  nothing and leaves the trial as it was.
+  """
+  def update_trial(account_id, params, principal) do
+    with {:ok, account_id} <- account_id(account_id),
+         :ok <- validate_trial(params) do
+      Repo.transaction(
+        fn ->
+          account = locked_account(account_id)
+
+          case Repo.get_by(RunnerTrialChange, change_id: params["change_id"]) do
+            nil -> change_trial(account, params, principal)
+            # An identical retry returns the recorded result, even after later changes.
+            %RunnerTrialChange{account_id: ^account_id, request: ^params, after: after_state} -> after_state
+            _ -> Repo.rollback(:change_id_conflict)
+          end
+        end,
+        timeout: to_timeout(minute: 1)
+      )
+    end
+  end
+
+  defp change_trial(account, params, principal) do
+    before = unwrap(snapshot(account))
+    if before.revision != params["expected_revision"], do: Repo.rollback(:stale_revision)
+
+    change =
+      %{
+        change_id: params["change_id"],
+        account_id: account.id,
+        request: params,
+        principal: principal,
+        before: json_map(before),
+        after: %{}
+      }
+      |> RunnerTrialChange.create_changeset()
+      |> Repo.insert()
+      |> case do
+        {:ok, change} -> change
+        {:error, _changeset} -> Repo.rollback(:change_id_conflict)
+      end
+
+    account = transition_trial(params["operation"], account, params)
+    # A trial change leaves credit grants alone, so they are not read again: a
+    # failed read now would roll back a change Stripe has already applied.
+    after_state = account |> snapshot(before.prepaid_grants) |> json_map()
+    change |> Ecto.Changeset.change(after: after_state) |> Repo.update!()
+    after_state
+  end
+
+  # Restarting a running trial would move its start to now and make the usage
+  # it already covered read as billable.
+  defp transition_trial("start", account, _params) do
+    if Trials.on_trial?(account), do: Repo.rollback(:already_on_trial)
+    account |> Trials.start() |> trial_result()
+  end
+
+  defp transition_trial("cancel", account, params) do
+    if not Trials.on_trial?(account), do: Repo.rollback(:not_on_trial)
+
+    if Billing.effective_plan(account) == :air and params["confirm_air_limits"] != true,
+      do: Repo.rollback(:paid_plan_required)
+
+    account |> Trials.cancel() |> trial_result()
+  end
+
+  # With the trial state checked above, a transition only fails in Stripe.
+  defp trial_result({:ok, account}), do: account
+  defp trial_result({:error, _reason}), do: Repo.rollback(:stripe_request_failed)
 
   defp prepare(account_id, params, principal) do
     Repo.transaction(
@@ -261,33 +347,36 @@ defmodule Tuist.Ops.RunnerBilling do
   end
 
   defp snapshot(account) do
-    with {:ok, grants} <- grants(account) do
-      activation =
-        Repo.one(from(a in PrepaidActivation, where: a.account_id == ^account.id, order_by: [desc: a.id], limit: 1))
+    with {:ok, grants} <- grants(account), do: {:ok, snapshot(account, grants)}
+  end
 
-      subscription = Billing.get_current_active_subscription(account)
+  defp snapshot(account, grants) do
+    activation =
+      Repo.one(from(a in PrepaidActivation, where: a.account_id == ^account.id, order_by: [desc: a.id], limit: 1))
 
-      state = %{
-        account_id: account.id,
-        account_handle: account.name,
-        stripe_customer_id: account.customer_id,
-        runner_trial: %{
-          active: Trials.on_trial?(account),
-          started_at: account.runner_trial_started_at,
-          ended_at: account.runner_trial_ended_at
-        },
-        prepaid_grants: grants,
-        activation: activation && activation_json(activation)
-      }
+    subscription = Billing.get_current_active_subscription(account)
 
-      revision =
-        {json_map(state), subscription && {subscription.subscription_id, subscription.status, subscription.updated_at}}
-        |> :erlang.term_to_binary()
-        |> then(&:crypto.hash(:sha256, &1))
-        |> Base.encode16(case: :lower)
+    state = %{
+      account_id: account.id,
+      account_handle: account.name,
+      stripe_customer_id: account.customer_id,
+      runner_trial: %{
+        active: Trials.on_trial?(account),
+        started_at: account.runner_trial_started_at,
+        ended_at: account.runner_trial_ended_at
+      },
+      prepaid_grants: grants,
+      activation: activation && activation_json(activation)
+    }
 
-      {:ok, Map.put(state, :revision, revision)}
-    end
+    revision =
+      {json_map(state), subscription && {subscription.subscription_id, subscription.status, subscription.updated_at}}
+      # Timestamp struct keys can have different internal atom orders on each replica.
+      |> :erlang.term_to_binary([:deterministic])
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.encode16(case: :lower)
+
+    Map.put(state, :revision, revision)
   end
 
   defp grants(%Account{customer_id: nil}), do: {:ok, []}
@@ -362,6 +451,28 @@ defmodule Tuist.Ops.RunnerBilling do
   end
 
   defp validate(_), do: {:error, :invalid_request}
+
+  # `confirm_air_limits` is optional and only means anything to a cancel.
+  defp validate_trial(params) when is_map(params) do
+    with true <- Enum.sort(Map.keys(params) -- ["confirm_air_limits"]) == Enum.sort(@trial_fields),
+         true <- params["operation"] in ~w(start cancel),
+         true <-
+           not Map.has_key?(params, "confirm_air_limits") or
+             (params["operation"] == "cancel" and is_boolean(params["confirm_air_limits"])),
+         true <- text?(params["expected_revision"], 64) and byte_size(params["expected_revision"]) == 64,
+         true <- text?(params["reason"], 1000),
+         {:ok, _} <- Ecto.UUID.cast(params["change_id"]),
+         %{"id" => actor_id, "email" => email} = actor when map_size(actor) == 2 <- params["actor"],
+         {:ok, _} <- Ecto.UUID.cast(actor_id),
+         true <- text?(email, 320),
+         true <- params["interface"] == "mcp" do
+      :ok
+    else
+      _ -> {:error, :invalid_request}
+    end
+  end
+
+  defp validate_trial(_), do: {:error, :invalid_request}
   defp text?(value, max), do: is_binary(value) and byte_size(value) <= max and String.trim(value) != ""
   defp expiry(params), do: Date.from_iso8601!(params["expires_on"])
   defp metadata(grant), do: Map.new(Map.get(grant, :metadata) || %{}, fn {k, v} -> {to_string(k), v} end)

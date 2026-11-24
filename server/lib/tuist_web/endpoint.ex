@@ -35,18 +35,6 @@ defmodule TuistWeb.Endpoint do
     websocket: true,
     longpoll: false
 
-  # `auth_token` must be a socket option: Phoenix overwrites a transport-level
-  # value with it, which left every native connection without its bearer.
-  socket "/threads/socket", TuistWeb.ThreadsSocket,
-    auth_token: true,
-    websocket: true,
-    longpoll: false
-
-  socket "/jams/socket", TuistWeb.ThreadsSocket,
-    auth_token: true,
-    websocket: true,
-    longpoll: false
-
   plug TuistWeb.Plugs.DrainingPlug
 
   # Serve at "/" the static files from "priv/static" directory.
@@ -189,10 +177,6 @@ defmodule TuistWeb.Endpoint do
   # `token` and `api_key` carry subscription and organization credentials, and
   # MCP tool `arguments` can carry them at any depth of a JSON-RPC body.
   @sentry_scrubbed_body_keys ["mfa_code", "token", "api_key", "arguments"]
-
-  # Private conversations and Ship approvals must not become error-report data.
-  def scrub_sentry_body(%{path_info: ["api", "accounts", _handle, collection | _]})
-      when collection in ["threads", "jams"], do: %{}
 
   def scrub_sentry_body(conn) do
     conn

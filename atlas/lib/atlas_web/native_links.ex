@@ -5,8 +5,8 @@ defmodule AtlasWeb.NativeLinks do
   It drives Apple's app-site association, the public `/open` landing page, and the
   dashboard's explicit "Open in Atlas" action. Destinations are navigation intents
   only: the server never reads a record to build them, and the native clients still
-  authorize every record they load. Screen keys must match the native destination
-  catalog (`atlas-native/core/src/destinations.rs`) and are frozen once shipped.
+  authorize every record they load. Screen keys are frozen for compatibility with
+  previously shipped native clients.
 
   Matching is exact. Only the listed pages and one lowercase UUID segment are
   recognized; children such as `/new`, `/edit`, settings sub-pages, and actions are

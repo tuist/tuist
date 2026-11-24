@@ -577,7 +577,7 @@ not cost hits that a warm source would have served.
 
 ### 4.1 Two directions over the `version_ms` index
 
-Both directions read the index `src/backfill/` already maintains — keyed by
+Both directions read the index `crates/kura-node/src/backfill/` already maintains — keyed by
 inverted `version_ms`, one row per live artifact. No new structure.
 
 - **Sync backward** walks newest → oldest, bounded by

@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistEnvironment
 import TuistGit
 import TuistTesting
@@ -88,7 +89,7 @@ struct GitHistoryServiceTests {
             .willReturn(())
         gitController.reset()
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         let collected = GitHistory(
             objectFormat: "sha1",
             headSHA: "head",
@@ -145,7 +146,7 @@ struct GitHistoryServiceTests {
     @Test(.withMockedEnvironment())
     func neverDeepensADevelopersOwnClone() async throws {
         // Off CI, a coverage run still collects the history, but the clone is the developer's.
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
 
         let collected = await subject.collect(
             gitInfo: gitInfo,
@@ -169,7 +170,7 @@ struct GitHistoryServiceTests {
             .willThrow(TestError("the server predates the commit graph"))
         gitController.reset()
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         given(gitController)
             .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any)
             .willReturn(
@@ -208,10 +209,13 @@ struct GitHistoryServiceTests {
         #expect(await unknown?(["parent"]) == [])
     }
 
-    @Test(.withMockedEnvironment())
+    @Test(.withMockedEnvironment(), .withScopedAlertController())
     func collectsTheHistoryWithTheRemoteAndWhetherTheCheckoutIsDirty() async throws {
-        // A dirty checkout is collected in full but its listing is never uploaded.
-        given(gitController).hasUncommittedChanges(workingDirectory: .value(workingDirectory)).willReturn(true)
+        // A dirty checkout is collected in full but its listing is never uploaded, and the run says
+        // why its coverage won't count toward the commit.
+        given(gitController)
+            .uncommittedTrackedFiles(workingDirectory: .value(workingDirectory))
+            .willReturn((1 ... 12).map { "Sources/File\($0).swift" })
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
             .willReturn([])
@@ -228,7 +232,13 @@ struct GitHistoryServiceTests {
 
         let collected = try #require(
             await subject.collect(
-                gitInfo: gitInfo,
+                gitInfo: GitInfo(
+                    ref: "refs/heads/feature",
+                    branch: "feature",
+                    sha: "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+                    remoteURLOrigin: "git@github.com:acme/app.git",
+                    baseBranch: "main"
+                ),
                 workingDirectory: workingDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
@@ -238,6 +248,23 @@ struct GitHistoryServiceTests {
 
         #expect(collected.payload.source == "client")
         #expect(collected.payload.dirty)
+        #expect(AlertController.current.warnings().map { $0.message.plain() } == [
+            """
+            This run's coverage won't count toward commit 1a2b3c4 because the checkout has uncommitted changes, so it measured code that isn't the commit's:
+                   - Sources/File1.swift
+                   - Sources/File2.swift
+                   - Sources/File3.swift
+                   - Sources/File4.swift
+                   - Sources/File5.swift
+                   - Sources/File6.swift
+                   - Sources/File7.swift
+                   - Sources/File8.swift
+                   - Sources/File9.swift
+                   - Sources/File10.swift
+                   and 2 more
+                 Commit or discard these changes, or keep the files the CI job writes out of the checkout.
+            """,
+        ])
         #expect(collected.payload.mergeBaseSHA == "base")
         #expect(collected.repositoryURL == "git@github.com:acme/app.git")
         #expect(collected.settings.commitFileLimit == 3)
@@ -270,10 +297,27 @@ struct GitHistoryServiceTests {
         verify(gitController).commitFiles(workingDirectory: .any, sha: .any, limit: .any).called(0)
     }
 
+    @Test(.withMockedEnvironment(), .withScopedAlertController())
+    func reportsADirtyCheckoutWithoutWarningWhenTheRunHasNoCoverage() async throws {
+        Environment.mocked?.variables["CI"] = "1"
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn(["Package.resolved"])
+
+        let collected = await subject.collect(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: false
+        )
+
+        #expect(collected?.payload.dirty == true)
+        #expect(AlertController.current.warnings().isEmpty)
+    }
+
     @Test(.withMockedEnvironment())
     func collectsOnCIWithoutCoverageButNeverUploadsAListing() async throws {
         Environment.mocked?.variables["CI"] = "1"
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
             .willReturn(["head"])
@@ -326,7 +370,7 @@ struct GitHistoryServiceTests {
     func publishesOnceAndTheReportReusesTheCollection() async throws {
         // The stress gate publishes before its plan; the run's report then reads the same checkout.
         Environment.mocked?.variables["CI"] = "1"
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
             .willReturn(["head"])
@@ -392,7 +436,7 @@ struct GitHistoryServiceTests {
     func theReportSendsNothingAgainAfterTestSelectionPublished() async throws {
         // Coverage-based test selection publishes before its baseline request; the run's report then
         // publishes and uploads for the same checkout, as `InspectResultBundleService` does.
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
             .willReturn(["head"])
@@ -452,7 +496,7 @@ struct GitHistoryServiceTests {
     @Test(.withMockedEnvironment())
     func retriesCommitsTheEarlyPublishCouldNotUpload() async throws {
         Environment.mocked?.variables["CI"] = "1"
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
             .willThrow(TestError("unavailable"))
@@ -531,7 +575,7 @@ struct GitHistoryServiceTests {
     func readsTheCheckoutWithoutFetchingWhenUnshallowingIsDisabled() async throws {
         Environment.mocked?.variables["CI"] = "1"
         Environment.mocked?.variables["TUIST_GIT_UNSHALLOW_ENABLED"] = "false"
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
 
         _ = await subject.collect(
             gitInfo: gitInfo,
@@ -557,7 +601,7 @@ struct GitHistoryServiceTests {
     ])
     func fetchesHistoryOnlyForCoverage(coverage: Bool, remoteAccess: GitHistoryRemoteAccess) async throws {
         Environment.mocked?.variables["CI"] = "1"
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
 
         _ = await subject.collect(
             gitInfo: gitInfo,
@@ -589,7 +633,7 @@ struct GitHistoryServiceTests {
         let gitController = MockGitControlling()
         stubConnectedHistory(gitController)
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         given(gitController)
             .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any)
             .willReturn(
@@ -655,7 +699,7 @@ struct GitHistoryServiceTests {
         let gitController = MockGitControlling()
         stubConnectedHistory(gitController)
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         given(gitController)
             .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any)
             .willReturn(
@@ -728,7 +772,7 @@ struct GitHistoryServiceTests {
 
     @Test(.withMockedEnvironment())
     func uploadsTheMissingCommitsAndTheListingOfACleanCheckoutOnce() async throws {
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         given(missingCommitsService)
             .findMissingCommits(
                 fullHandle: .any,
@@ -820,7 +864,7 @@ struct GitHistoryServiceTests {
 
     @Test(.withMockedEnvironment())
     func neverUploadsAListingTheServerHas() async throws {
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
             .willReturn([])
@@ -886,7 +930,7 @@ struct GitHistoryServiceTests {
         let gitController = MockGitControlling()
         stubConnectedHistory(gitController)
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         given(gitController)
             .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any)
             .willReturn(
@@ -942,7 +986,7 @@ struct GitHistoryServiceTests {
 
     @Test(.withMockedEnvironment())
     func uploadsNothingWithoutARemote() async throws {
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
         let local = GitInfo(ref: "refs/heads/feature", branch: "feature", sha: "head", remoteURLOrigin: nil, baseBranch: "main")
 
         let collected = await subject.collect(

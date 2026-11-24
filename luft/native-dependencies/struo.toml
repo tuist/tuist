@@ -1,0 +1,53 @@
+# Generated Cargo metadata is isolated from desktop feature unification.
+# prepare-native.py derives manifests/versions from the checked-in Cargo files.
+[[target]]
+name = "Host"
+kind = "cargo_dependencies"
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+vendor_dir = "vendor"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]
+
+[[target]]
+name = "IOS"
+kind = "cargo_dependencies"
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+vendor_dir = "vendor"
+target = "aarch64-apple-ios-sim"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]
+
+[[target]]
+name = "IOSDevice"
+kind = "cargo_dependencies"
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+vendor_dir = "vendor"
+target = "aarch64-apple-ios"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]
+
+[[target]]
+name = "Android"
+kind = "cargo_dependencies"
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+vendor_dir = "vendor"
+target = "aarch64-linux-android"
+# Build scripts get a fresh PATH: name the NDK clang so cc-rs finds it (and llvm-ar beside it)
+# for C dependencies such as bundled SQLite. The NDK's toolchain bin must be on PATH.
+build_script_tools = ["cmake", "nasm", "perl", "pkg-config", "protoc", "python3", "aarch64-linux-android21-clang"]
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]
+
+[[target]]
+name = "Web"
+kind = "cargo_dependencies"
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+vendor_dir = "vendor"
+target = "wasm32-unknown-unknown"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]

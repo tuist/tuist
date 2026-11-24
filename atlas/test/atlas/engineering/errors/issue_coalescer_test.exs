@@ -192,6 +192,240 @@ defmodule Atlas.Engineering.Errors.IssueCoalescerTest do
     end
   end
 
+  describe "regrouping" do
+    setup ctx do
+      legacy = String.duplicate("1", 64)
+      user = Atlas.TimeOffFixtures.user_fixture()
+      first_seen = ~U[2026-01-01 00:00:00.000000Z]
+      :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, legacy, fake_event(timestamp: first_seen))
+      :ok = IssueCoalescer.flush(ctx.coalescer)
+      legacy_id = Issue.deterministic_id(ctx.project.id, legacy)
+      Repo.update_all(from(i in Issue, where: i.id == ^legacy_id), set: [assignee_id: user.id])
+
+      %{legacy: legacy, legacy_id: legacy_id, user: user, first_seen: first_seen}
+    end
+
+    defp observe_regrouped(ctx, fingerprint, timestamp) do
+      event = fake_event(timestamp: timestamp)
+      :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, fingerprint, event, legacy_fingerprint: ctx.legacy)
+      :ok = IssueCoalescer.flush(ctx.coalescer)
+      Repo.get!(Issue, Issue.deterministic_id(ctx.project.id, fingerprint))
+    end
+
+    test "a new issue starts from its legacy issue", ctx do
+      issue = observe_regrouped(ctx, String.duplicate("2", 64), ~U[2026-02-01 00:00:00.000000Z])
+
+      assert issue.assignee_id == ctx.user.id
+      assert issue.first_seen == ctx.first_seen
+      assert issue.status == :unresolved
+      assert issue.event_count == 1
+    end
+
+    test "a resolved legacy issue regresses only on a newer event", ctx do
+      resolved_at = ~U[2026-03-01 00:00:00.000000Z]
+
+      Repo.update_all(from(i in Issue, where: i.id == ^ctx.legacy_id),
+        set: [status: :resolved, resolved_at: resolved_at]
+      )
+
+      older = observe_regrouped(ctx, String.duplicate("3", 64), ~U[2026-02-01 00:00:00.000000Z])
+      assert {older.status, older.resolved_at} == {:resolved, resolved_at}
+
+      newer = observe_regrouped(ctx, String.duplicate("4", 64), ~U[2026-04-01 00:00:00.000000Z])
+      assert {newer.status, newer.resolved_at} == {:unresolved, nil}
+    end
+
+    test "an ignored legacy issue stays ignored", ctx do
+      Repo.update_all(from(i in Issue, where: i.id == ^ctx.legacy_id), set: [status: :ignored])
+
+      assert observe_regrouped(ctx, String.duplicate("5", 64), ~U[2026-04-01 00:00:00.000000Z]).status == :ignored
+    end
+
+    for order <- [:ignored_first, :missing_first], batches <- [:together, :separate] do
+      test "a missing legacy origin prevents suppression: #{order}, #{batches}", ctx do
+        missing = String.duplicate("e", 64)
+        fingerprint = String.duplicate("f", 64)
+        event = fake_event(timestamp: ~U[2026-02-01 00:00:00.000000Z])
+        missing_id = Issue.deterministic_id(ctx.project.id, missing)
+        refute Repo.get(Issue, missing_id)
+        Repo.update_all(from(i in Issue, where: i.id == ^ctx.legacy_id), set: [status: :ignored])
+        origins = if unquote(order) == :ignored_first, do: [ctx.legacy, missing], else: [missing, ctx.legacy]
+
+        for origin <- origins do
+          :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, fingerprint, event, legacy_fingerprint: origin)
+          if unquote(batches) == :separate, do: IssueCoalescer.flush(ctx.coalescer)
+        end
+
+        :ok = IssueCoalescer.flush(ctx.coalescer)
+        issue = Repo.get!(Issue, Issue.deterministic_id(ctx.project.id, fingerprint))
+        assert issue.status == :unresolved
+        assert issue.resolved_at == nil
+        assert issue.first_seen == ctx.first_seen
+        assert issue.assignee_id == ctx.user.id
+        assert issue.event_count == 2
+        assert Enum.sort(issue.legacy_ids) == Enum.sort([ctx.legacy_id, missing_id])
+      end
+    end
+
+    for order <- [:ignored_first, :unresolved_first], batches <- [:together, :separate] do
+      test "conflicting legacy origins remain unresolved: #{order}, #{batches}", ctx do
+        other = String.duplicate("7", 64)
+        fingerprint = String.duplicate("8", 64)
+        earliest = ~U[2025-12-01 00:00:00.000000Z]
+        event = fake_event(timestamp: ~U[2026-02-01 00:00:00.000000Z])
+
+        :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, other, fake_event(timestamp: earliest))
+        :ok = IssueCoalescer.flush(ctx.coalescer)
+        Repo.update_all(from(i in Issue, where: i.id == ^ctx.legacy_id), set: [status: :ignored])
+
+        origins = if unquote(order) == :ignored_first, do: [ctx.legacy, other], else: [other, ctx.legacy]
+
+        for origin <- origins do
+          :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, fingerprint, event, legacy_fingerprint: origin)
+          if unquote(batches) == :separate, do: IssueCoalescer.flush(ctx.coalescer)
+        end
+
+        :ok = IssueCoalescer.flush(ctx.coalescer)
+        issue = Repo.get!(Issue, Issue.deterministic_id(ctx.project.id, fingerprint))
+        assert issue.status == :unresolved
+        assert issue.resolved_at == nil
+        assert issue.first_seen == earliest
+        assert issue.assignee_id == ctx.user.id
+        assert issue.event_count == 2
+      end
+    end
+
+    for order <- [:newer_first, :older_first] do
+      test "unequal legacy resolutions reconcile all observed events: #{order}", ctx do
+        other = String.duplicate("c", 64)
+        fingerprint = String.duplicate("d", 64)
+        newer = ~U[2026-03-15 00:00:00.000000Z]
+        older = ~U[2026-03-05 00:00:00.000000Z]
+        :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, other, fake_event(timestamp: older))
+        :ok = IssueCoalescer.flush(ctx.coalescer)
+        other_id = Issue.deterministic_id(ctx.project.id, other)
+
+        Repo.update_all(from(i in Issue, where: i.id == ^ctx.legacy_id),
+          set: [status: :resolved, resolved_at: ~U[2026-03-20 00:00:00.000000Z]]
+        )
+
+        Repo.update_all(from(i in Issue, where: i.id == ^other_id),
+          set: [status: :resolved, resolved_at: ~U[2026-03-10 00:00:00.000000Z]]
+        )
+
+        origins = [{ctx.legacy, newer}, {other, older}]
+        origins = if unquote(order) == :newer_first, do: origins, else: Enum.reverse(origins)
+
+        for {origin, timestamp} <- origins do
+          :ok =
+            IssueCoalescer.observe(ctx.coalescer, ctx.project, fingerprint, fake_event(timestamp: timestamp),
+              legacy_fingerprint: origin
+            )
+
+          :ok = IssueCoalescer.flush(ctx.coalescer)
+        end
+
+        issue = Repo.get!(Issue, Issue.deterministic_id(ctx.project.id, fingerprint))
+        assert issue.status == :unresolved
+        assert issue.resolved_at == nil
+        assert issue.last_seen == newer
+        assert issue.first_seen == ctx.first_seen
+        assert issue.assignee_id == ctx.user.id
+        assert issue.event_count == 2
+      end
+    end
+
+    test "a known legacy origin does not overwrite a manual decision", ctx do
+      fingerprint = String.duplicate("9", 64)
+      timestamp = ~U[2026-02-01 00:00:00.000000Z]
+      issue = observe_regrouped(ctx, fingerprint, timestamp)
+      Repo.update_all(from(i in Issue, where: i.id == ^issue.id), set: [status: :ignored, assignee_id: nil])
+
+      repeated = observe_regrouped(ctx, fingerprint, timestamp)
+      assert repeated.status == :ignored
+      assert repeated.assignee_id == nil
+    end
+
+    for status <- [:ignored, :resolved, :unresolved], batches <- [:together, :separate] do
+      test "known origins do not replay manual overrides with a new origin: #{status}, #{batches}", ctx do
+        other = String.duplicate("a", 64)
+        fingerprint = String.duplicate("b", 64)
+        timestamp = ~U[2026-02-01 00:00:00.000000Z]
+        resolved_at = if unquote(status) == :resolved, do: ~U[2026-03-01 00:00:00.000000Z]
+        :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, other, fake_event(timestamp: timestamp))
+        :ok = IssueCoalescer.flush(ctx.coalescer)
+        other_id = Issue.deterministic_id(ctx.project.id, other)
+
+        Repo.update_all(from(i in Issue, where: i.id == ^other_id),
+          set: [status: unquote(status), resolved_at: resolved_at]
+        )
+
+        issue = observe_regrouped(ctx, fingerprint, timestamp)
+
+        Repo.update_all(from(i in Issue, where: i.id == ^issue.id),
+          set: [status: unquote(status), resolved_at: resolved_at, assignee_id: nil]
+        )
+
+        for origin <- [other, ctx.legacy] do
+          :ok =
+            IssueCoalescer.observe(ctx.coalescer, ctx.project, fingerprint, fake_event(timestamp: timestamp),
+              legacy_fingerprint: origin
+            )
+
+          if unquote(batches) == :separate, do: IssueCoalescer.flush(ctx.coalescer)
+        end
+
+        :ok = IssueCoalescer.flush(ctx.coalescer)
+        updated = Repo.get!(Issue, issue.id)
+        assert updated.status == unquote(status)
+        assert updated.resolved_at == resolved_at
+        assert updated.assignee_id == nil
+        assert updated.first_seen == ctx.first_seen
+        assert updated.event_count == 3
+        assert Enum.sort(updated.legacy_ids) == Enum.sort([ctx.legacy_id, other_id])
+      end
+    end
+
+    for status <- [:ignored, :resolved] do
+      test "unanimous legacy origins preserve #{status} across batches", ctx do
+        other = String.duplicate("a", 64)
+        fingerprint = String.duplicate("b", 64)
+        timestamp = ~U[2026-02-01 00:00:00.000000Z]
+        resolved_at = if unquote(status) == :resolved, do: ~U[2026-03-01 00:00:00.000000Z]
+        :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, other, fake_event(timestamp: timestamp))
+        :ok = IssueCoalescer.flush(ctx.coalescer)
+        other_id = Issue.deterministic_id(ctx.project.id, other)
+
+        Repo.update_all(from(i in Issue, where: i.id in ^[ctx.legacy_id, other_id]),
+          set: [status: unquote(status), resolved_at: resolved_at]
+        )
+
+        observe_regrouped(ctx, fingerprint, timestamp)
+        event = fake_event(timestamp: timestamp)
+        :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, fingerprint, event, legacy_fingerprint: other)
+        :ok = IssueCoalescer.flush(ctx.coalescer)
+        issue = Repo.get!(Issue, Issue.deterministic_id(ctx.project.id, fingerprint))
+        assert issue.status == unquote(status)
+        assert issue.resolved_at == resolved_at
+        assert issue.assignee_id == ctx.user.id
+        assert issue.first_seen == ctx.first_seen
+      end
+    end
+
+    test "an existing current issue keeps its own state", ctx do
+      fingerprint = String.duplicate("6", 64)
+      :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, fingerprint, fake_event())
+      :ok = IssueCoalescer.flush(ctx.coalescer)
+      Repo.update_all(from(i in Issue, where: i.id == ^ctx.legacy_id), set: [status: :ignored])
+
+      issue = observe_regrouped(ctx, fingerprint, DateTime.utc_now())
+
+      assert issue.status == :unresolved
+      assert issue.assignee_id == nil
+      assert issue.event_count == 2
+    end
+  end
+
   describe "deterministic id" do
     test "same inputs always produce the same id" do
       project_id = Ecto.UUID.generate()

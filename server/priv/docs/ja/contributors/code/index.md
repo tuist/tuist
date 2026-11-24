@@ -2,7 +2,7 @@
 {
   "title": "コード",
   "titleTemplate": ":title · コントリビューター · Tuist",
-  "description": "Tuistのコンポーネントを選択し、ローカルでの開発方法を学びます。"
+  "description": "Tuistのコンポーネントを選び、ローカルでの開発方法を学びましょう。"
 }
 ---
 # コード {#code}

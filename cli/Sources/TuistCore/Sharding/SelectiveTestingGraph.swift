@@ -26,6 +26,23 @@ public struct SelectiveTestingGraph: Codable {
     /// bundles produced before these were persisted.
     public let builtTestTargetNames: [String]?
 
+    /// The test targets the shard plan split across more than one shard, with the shards holding part of
+    /// each. A shard passing its part of one of these does not show the target passed, so its hash is
+    /// stored only once every one of those shards passed its part. Set once the plan is created; nil for
+    /// unsharded products and for bundles produced before split targets were persisted.
+    public var splitTestTargets: SplitTestTargets?
+
+    public struct SplitTestTargets: Codable, Equatable {
+        public let shardPlanId: String
+        /// Test target name → indices of the shards holding part of it.
+        public let shardIndices: [String: [Int]]
+
+        public init(shardPlanId: String, shardIndices: [String: [Int]]) {
+            self.shardPlanId = shardPlanId
+            self.shardIndices = shardIndices
+        }
+    }
+
     public init(
         testTargetHashes: [String: String],
         attemptedTestPlans: [String] = [],
@@ -51,5 +68,6 @@ public struct SelectiveTestingGraph: Codable {
             try container.decodeIfPresent([String].self, forKey: .requestedTestIdentifiers) ?? []
         testTargetTags = try container.decodeIfPresent([String: Set<String>].self, forKey: .testTargetTags)
         builtTestTargetNames = try container.decodeIfPresent([String].self, forKey: .builtTestTargetNames)
+        splitTestTargets = try container.decodeIfPresent(SplitTestTargets.self, forKey: .splitTestTargets)
     }
 }

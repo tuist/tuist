@@ -973,7 +973,7 @@ defmodule Atlas.Slack.ConversationAgent do
           }
 
         with_slack_audit(ctx.assigns, fn ->
-          case GTM.create_blog_post_idea(attrs, nil, announce: true) do
+          case GTM.create_blog_post_idea(attrs) do
             {:ok, idea} ->
               {:ok, %{captured: true, blog_post_idea: serialize_blog_post_idea(idea)}}
 

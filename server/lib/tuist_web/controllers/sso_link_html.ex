@@ -24,6 +24,7 @@ defmodule TuistWeb.SSOLinkHTML do
   attr :subtitle, :string, required: true
   attr :show_terms, :boolean, default: true
   slot :inner_block
+  slot :footer, doc: "Rendered at the bottom of the frame, like the sign-up page's bottom link."
 
   def link_frame(assigns) do
     ~H"""
@@ -42,6 +43,7 @@ defmodule TuistWeb.SSOLinkHTML do
             </div>
             {render_slot(@inner_block)}
           </div>
+          <div :if={@footer != []} data-part="bottom-link">{render_slot(@footer)}</div>
         </div>
       </div>
 

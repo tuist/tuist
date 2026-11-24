@@ -460,83 +460,75 @@ defmodule Tuist.OnceEvents do
 
   @doc """
   Insert one cache event and roll it up into the parent run's cache
-  counters in one transaction. Idempotent on
-  `(once_run_id, kind, target_execution_id, content_hash,
-  observed_at)`; a resend after a stream break replays cleanly.
+  counters. See `ingest_cache_events/2`.
   """
-  def ingest_cache_event(%Run{} = run, attrs) do
-    event_attrs =
-      attrs
-      |> Map.put(:once_run_id, run.id)
-      |> Map.put(:run_id, run.run_id)
-      |> Map.put(:project_id, run.project_id)
-      |> truncate_datetimes([:observed_at])
+  def ingest_cache_event(%Run{} = run, attrs), do: ingest_cache_events(run, [attrs])
 
+  @doc """
+  Insert cache events and roll the ones not already stored into the parent
+  run's cache counters, in one transaction. Idempotent on
+  `(once_run_id, kind, target_execution_id, content_hash, observed_at)`; a
+  resend after a stream break replays cleanly.
+  """
+  def ingest_cache_events(%Run{}, []), do: :ok
+
+  def ingest_cache_events(%Run{} = run, attrs_list) do
     now = DateTime.truncate(DateTime.utc_now(), :microsecond)
-
-    event_attrs =
-      event_attrs
-      |> Map.put_new(:observed_at, now)
-      |> Map.put(:inserted_at, now)
-      |> Map.put(:updated_at, now)
 
     # The transport replays a batch whenever an ack is lost, so the row
     # id is derived from the event's own identity rather than generated.
     # A replayed event then collides on the primary key, `on_conflict:
-    # :nothing` drops it, and the `count == 1` guard below keeps the
-    # run's byte and latency roll-ups from being applied twice.
-    event_attrs = Map.put(event_attrs, :id, cache_event_id(event_attrs))
-
-    kind = Map.get(event_attrs, :kind)
-    bytes = Map.get(event_attrs, :bytes_transferred, 0)
-    duration = Map.get(event_attrs, :duration_ms, 0)
-
-    kind_delta =
-      case kind do
-        "download" ->
-          %{
-            cache_bytes_downloaded: bytes,
-            cache_action_read_count: 1,
-            cache_action_read_ms_total: duration
-          }
-
-        "upload" ->
-          %{
-            cache_bytes_uploaded: bytes,
-            cache_action_write_count: 1,
-            cache_action_write_ms_total: duration
-          }
-
-        "reused" ->
-          %{cache_bytes_saved: Map.get(event_attrs, :content_size_bytes, 0)}
-
-        _ ->
-          %{}
-      end
-
-    run_delta = Map.put(kind_delta, :cache_event_count, 1)
+    # :nothing` drops it, and only the rows the insert returned count
+    # towards the run's byte and latency roll-ups. Rows repeated within
+    # the batch are stored once, so they are counted once.
+    rows =
+      attrs_list
+      |> Enum.map(fn attrs ->
+        attrs
+        |> Map.put(:once_run_id, run.id)
+        |> Map.put(:run_id, run.run_id)
+        |> Map.put(:project_id, run.project_id)
+        |> truncate_datetimes([:observed_at])
+        |> Map.put_new(:observed_at, now)
+        |> Map.put(:inserted_at, now)
+        |> Map.put(:updated_at, now)
+      end)
+      |> Enum.map(&Map.put(&1, :id, cache_event_id(&1)))
+      |> Enum.uniq_by(& &1.id)
 
     multi =
       Multi.new()
-      |> Multi.run(:event, fn repo, _ ->
-        {count, _} =
-          repo.insert_all(CacheEvent, [event_attrs],
-            on_conflict: :nothing,
-            conflict_target: :id
-          )
+      |> Multi.run(:inserted, fn repo, _ ->
+        # Bounded well under PostgreSQL's 65,535 bind parameters.
+        inserted =
+          rows
+          |> Enum.chunk_every(500)
+          |> Enum.flat_map(fn chunk ->
+            {_count, returned} =
+              repo.insert_all(CacheEvent, chunk,
+                on_conflict: :nothing,
+                conflict_target: :id,
+                returning: [:id]
+              )
 
-        {:ok, count}
+            Enum.map(returned, & &1.id)
+          end)
+          |> MapSet.new()
+
+        {:ok, inserted}
       end)
-      |> Multi.run(:rollup, fn repo, %{event: count} ->
-        if count == 1 do
+      |> Multi.run(:rollup, fn repo, %{inserted: inserted} ->
+        stored = Enum.filter(rows, &MapSet.member?(inserted, &1.id))
+
+        if stored != [] do
           repo.update_all(
             from(r in Run, where: r.id == ^run.id),
-            inc: Map.to_list(run_delta),
-            set: [heartbeat_at: DateTime.truncate(DateTime.utc_now(), :microsecond)]
+            inc: stored |> Enum.map(&cache_event_delta/1) |> sum_deltas() |> Map.to_list(),
+            set: [heartbeat_at: now]
           )
         end
 
-        {:ok, count}
+        {:ok, length(stored)}
       end)
 
     case Repo.transaction(multi) do
@@ -548,6 +540,29 @@ defmodule Tuist.OnceEvents do
         {:error, reason}
     end
   end
+
+  defp cache_event_delta(%{kind: "download"} = row),
+    do: %{
+      cache_event_count: 1,
+      cache_bytes_downloaded: Map.get(row, :bytes_transferred, 0),
+      cache_action_read_count: 1,
+      cache_action_read_ms_total: Map.get(row, :duration_ms, 0)
+    }
+
+  defp cache_event_delta(%{kind: "upload"} = row),
+    do: %{
+      cache_event_count: 1,
+      cache_bytes_uploaded: Map.get(row, :bytes_transferred, 0),
+      cache_action_write_count: 1,
+      cache_action_write_ms_total: Map.get(row, :duration_ms, 0)
+    }
+
+  defp cache_event_delta(%{kind: "reused"} = row),
+    do: %{cache_event_count: 1, cache_bytes_saved: Map.get(row, :content_size_bytes, 0)}
+
+  defp cache_event_delta(_row), do: %{cache_event_count: 1}
+
+  defp sum_deltas(deltas), do: Enum.reduce(deltas, %{}, &Map.merge(&2, &1, fn _key, a, b -> a + b end))
 
   @doc """
   Insert one SystemSampled event. Idempotent on `(once_run_id,

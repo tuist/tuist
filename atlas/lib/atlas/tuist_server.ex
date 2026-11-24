@@ -150,9 +150,20 @@ defmodule Atlas.TuistServer do
     request(:get, "/api/internal/atlas/accounts/#{account_id}/runner-billing", [], opts)
   end
 
+  @doc "Read a Kura fleet rollout (the active one, else the latest, when `id` is nil) with its waves, unconverged servers and recent events."
+  def get_kura_rollout(id, opts \\ []) when is_nil(id) or is_binary(id) do
+    params = if id, do: [params: [id: id]], else: []
+    request(:get, "/api/internal/atlas/kura/rollout", params, opts)
+  end
+
   @doc "Activate a paid runner credit grant once; reconcile partial effects with the same change ID and payload."
   def activate_runner_prepaid_pool(account_id, attrs, opts \\ []) when is_integer(account_id) and is_map(attrs) do
     request(:put, "/api/internal/atlas/accounts/#{account_id}/runner-billing", [json: attrs, retry: false], opts)
+  end
+
+  @doc "Start or cancel an account's runner trial with the runner billing revision, idempotent change ID and trusted actor metadata."
+  def update_runner_trial(account_id, attrs, opts \\ []) when is_integer(account_id) and is_map(attrs) do
+    request(:put, "/api/internal/atlas/accounts/#{account_id}/runner-trial", [json: attrs, retry: false], opts)
   end
 
   defp clickhouse_limit(opts) do

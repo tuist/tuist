@@ -215,7 +215,7 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
                 }
 
                 let request = uploadRequest(url: url, fileSize: UInt64(bytesRead), data: partData)
-                let etag = try await upload(for: request)
+                let etag = try await upload(for: request, partNumber: currentPartNumber)
                 uploadedParts.mutate { $0.append((etag: etag, partNumber: currentPartNumber)) }
                 updateProgress(Double(uploadedParts.value.count) / Double(numberOfParts))
             }
@@ -247,8 +247,9 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
         return partData.isEmpty ? nil : partData
     }
 
-    private func upload(for request: URLRequest) async throws -> String {
-        let urlSession = urlSession ?? .tuistShared
+    private func upload(for request: URLRequest, partNumber: Int) async throws -> String {
+        // Consecutive parts are in flight together, so their lanes, and connections, differ.
+        let urlSession = urlSession ?? .tuistMultipartUpload(lane: partNumber)
         let (data, response) = try await urlSession.data(for: request)
         guard let urlResponse = response as? HTTPURLResponse else {
             throw MultipartUploadArtifactServiceError.noURLResponse(request.url)

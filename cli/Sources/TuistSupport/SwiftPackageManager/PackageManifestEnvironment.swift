@@ -47,6 +47,7 @@ public enum PackageManifestEnvironment {
         if ["GITHUB_ACTIONS", "RUNNER_OS", "RUNNER_ARCH"].contains(key) { return true }
         guard forDependencyResolution else { return false }
         return [
+            "TUIST_OIDC_TOKEN",
             "SSH_AUTH_SOCK",
             "GITHUB_TOKEN",
             "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
@@ -69,6 +70,12 @@ public enum PackageManifestEnvironment {
             "TMUX_PANE",
             "XPC_SERVICE_NAME",
             "__MISE_*",
+            // mise sets these for the hooks and tasks it runs, such as a
+            // postinstall hook running `tuist install`, and the shell lacks them.
+            "MISE_INSTALLED_TOOLS",
+            "MISE_NO_HOOKS",
+            "MISE_ORIGINAL_CWD",
+            "MISE_PROJECT_ROOT",
             "CLAUDECODE",
             "CLAUDE_*",
             "TUIST_CACHE_ENDPOINT",
@@ -76,6 +83,11 @@ public enum PackageManifestEnvironment {
             "TUIST_CACHE_SIGNING_GRANT",
             "TUIST_RUNNER_POD_NAME",
             "TUIST_RUNNER_POD_UID",
+            // A Tuist sandbox sets these afresh for every command.
+            "TUIST_COMMAND_ID",
+            "TUIST_OIDC_TOKEN",
+            "STRUO_PROGRESS",
+            "ONCE_PROGRESS",
         ].filter { pattern in variables.keys.contains { matches(key: $0, patterns: [pattern]) } }
 
         if variables["GITLAB_CI"] == "true" {

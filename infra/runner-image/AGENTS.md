@@ -1,6 +1,6 @@
 # macOS Runner Image
 
-Tart Layer 2 over `macos-tahoe-xcode`: one VM per Pod, one ephemeral GitHub Actions job per VM. Keep Xcode/tool installation in [Layer 1](../macos-xcode-image/AGENTS.md).
+Tart Layer 2 over `macos-tahoe-xcode`: one VM per Pod, one ephemeral GitHub Actions job per VM. Keep Xcode and large or slow installs in [Layer 1](../macos-xcode-image/AGENTS.md); small runtimes that should stay current, such as Go, live here pinned (`go_version`), because every release rebuilds this layer while a base rebuilds only for a new Xcode.
 
 ## Runtime contracts
 
@@ -491,6 +491,35 @@ added to catch that failed on `admin`'s unwritable cache instead.
   agent's privileged ops (installing /etc/tuist.env, halting the
   VM at job exit). Single-tenant ephemeral VM — the entire OS is
   the customer's job environment.
+
+## Tuist CLI and the agent guide
+
+Sandboxes boot this image, so it carries what an agent on the Mac needs:
+
+- **Tuist CLI.** `tuist_version` in `runner.pkr.hcl` is installed with mise
+  into a scratch data directory and moved to `/opt/tuist/cli/<version>`
+  (`/opt/tuist/cli/current` links to it). Keep it out of `runner`'s
+  `~/.local/share/mise`: workflows mount `tuist/cache-volume` there, which
+  requires an absent or empty directory, and a Tuist install left there failed
+  every production deploy's acceptance job. The last provisioners remove that
+  directory and assert it is absent. `/opt/tuist/cli/bin/tuist`
+  (`tuist-cli.sh`) runs `mise exec -- tuist` when the working directory pins
+  Tuist through mise (`mise.toml`, `.tool-versions`), which installs the pin
+  on first use, and the preinstalled one otherwise. Sandbox commands put the
+  mise shims first on `PATH` and `/opt/tuist/cli/bin` last
+  (`server/lib/tuist/sandboxes/commands.ex`). CI jobs do not get
+  `/opt/tuist/cli/bin`, so workflows keep installing the Tuist they pin. Sets
+  no global mise version: a global default would apply to every workflow that
+  activates mise.
+- **Agent guide.** `agent-guide.sh write` generates `/opt/tuist/agent-guide.md`
+  at build time from what the image holds (macOS, Xcodes, simulators, Tuist,
+  tools) plus where the repository is and what a ready snapshot means.
+  `agent-guide.sh link` points Claude Code (`~/.claude/CLAUDE.md`,
+  `~/CLAUDE.md`, both importing it with `@`), Codex (`~/.codex/AGENTS.md`), Amp
+  (`~/.config/amp/AGENTS.md`) and `~/AGENTS.md` at it. Nothing can go under
+  `/Users/runner/work`: the workspace volume is mounted over it at boot. The
+  `create_sandbox` MCP tool tells agents off the Mac to read it, so keep the
+  path stable and keep it in step with that description.
 
 ## Build
 

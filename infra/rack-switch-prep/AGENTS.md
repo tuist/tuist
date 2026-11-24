@@ -1,6 +1,6 @@
 # Rack switch prep
 
-First-touch provisioning for the BER1 rack's switches, driven over the USB-C
+First-touch provisioning for the alder rack's switches, driven over the USB-C
 console port. Run it once per switch, at the bench or in the colo, before the
 switch has any usable network identity.
 

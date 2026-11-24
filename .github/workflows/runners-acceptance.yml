@@ -4,7 +4,7 @@ name: Runners Acceptance
 # way a customer's job runs: a job targets a runner label, dispatch places it
 # on a runner VM or Pod and hands it a cache endpoint, and the job builds with
 # the Xcode compilation cache through that endpoint. Each failure names the
-# layer that broke: Dispatch, Runner file limits, Server auth, Kura
+# layer that broke: Dispatch, Runner file limits, VM memory, Server auth, Kura
 # reachability, Kura auth, Kura data path, Xcode cache setup, Xcode build, Cache
 # hits or Cache volumes.
 #
@@ -98,7 +98,7 @@ jobs:
               ;;
             production)
               server=https://tuist.dev
-              # The BER1 probe is paused: the `tuist` account is excluded from
+              # The alder probe is paused: the `tuist` account is excluded from
               # the rack's runner cache (`runner_site_cache_excluded`) to free
               # its storage, so dispatch hands the probe no cache endpoint.
               # Restore this line once the larger rack storage lands.
@@ -129,7 +129,7 @@ jobs:
       actions: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
           sparse-checkout: .github/scripts/runners-acceptance
@@ -188,7 +188,7 @@ jobs:
         env:
           OVERRIDE: ${{ inputs.cache_endpoint }}
         run: echo "TUIST_CACHE_ENDPOINT=${OVERRIDE}" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
           sparse-checkout: |
@@ -251,7 +251,7 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
           sparse-checkout: |
@@ -297,7 +297,7 @@ jobs:
         env:
           OVERRIDE: ${{ inputs.cache_endpoint }}
         run: echo "TUIST_CACHE_ENDPOINT=${OVERRIDE}" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
           sparse-checkout: |
@@ -309,10 +309,13 @@ jobs:
         run: bash .github/scripts/runners-acceptance/linux-runtime.sh
       - name: File limits
         run: .github/scripts/runners-acceptance/file-limits.sh
+      - name: VM memory
+        timeout-minutes: 5
+        run: bash .github/scripts/runners-acceptance/vm-memory.sh
       - name: Kura round trip
         timeout-minutes: 3
         run: .github/scripts/runners-acceptance/kura-roundtrip.sh
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: infra/runners-controller/go.mod
           cache: false
@@ -321,8 +324,17 @@ jobs:
         working-directory: infra/runners-controller
         env:
           GOWORK: "off"
-        run: go test -count=1 ./internal/podtemplate
-      - uses: erlef/setup-beam@v1
+        # The module download goes through proxy.golang.org, not the runners;
+        # retry its transient stream resets so they cannot fail the deploy gate.
+        run: |
+          for attempt in 1 2 3; do
+            go mod download && break
+            [ "${attempt}" -lt 3 ] || exit 1
+            echo "::warning::go mod download failed (attempt ${attempt}/3), retrying"
+            sleep $((attempt * 5))
+          done
+          go test -count=1 ./internal/podtemplate
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           otp-version: "28"
           elixir-version: "1.19"
@@ -355,14 +367,16 @@ jobs:
           test -d /__w
           test -x /__e/node20/bin/node || test -x /__e/node24/bin/node
           test -x /__e/tuist-cache-volume
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
           sparse-checkout: .github/scripts/runners-acceptance
       - name: Workspace and action mounts
         run: |
           set -euo pipefail
-          test -f /__w/_actions/actions/checkout/v4/dist/index.js
+          # The runner stores an action under the ref it was pinned to (a tag
+          # or a commit SHA), so match any ref.
+          compgen -G '/__w/_actions/actions/checkout/*/dist/index.js' > /dev/null
           test -f "$GITHUB_WORKSPACE/.github/scripts/runners-acceptance/linux-runtime.sh"
           test -n "${TUIST_CACHE_ENDPOINT:-}"
       - name: Write environment file

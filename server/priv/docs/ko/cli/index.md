@@ -2,7 +2,7 @@
 {
   "title": "CLI",
   "titleTemplate": ":title · Tuist",
-  "description": "Tuist CLI, 해당 명령어 및 워크플로에 맞춘 구성 방법입니다."
+  "description": "Tuist CLI, 명령어 및 워크플로우에 맞는 구성 방법입니다."
 }
 ---
 # CLI {#cli}
@@ -19,7 +19,7 @@ Tuist를 아직 설치하지 않았다면, <.localized_link href="/guides/instal
 tuist --help
 ```
 
-## 설정 {#configuration}
+## 구성 {#configuration}
 
 CLI 동작은 `tuist.toml` 파일을 통해 구성할 수 있습니다. 사용 가능한 모든 옵션은 <.localized_link href="/references/tuist-toml">tuist.toml 참조</.localized_link>를 확인하세요.
 

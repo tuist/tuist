@@ -8,12 +8,30 @@ on:
     paths:
       - infra/sandbox-image/**
       - infra/sandboxd/**
+      - infra/runner-cache/sparse/**
+      - infra/runner-cache/go.mod
       - infra/amp-orbs/**
       - .github/workflows/sandbox-orbs-validation.yml
   workflow_dispatch:
     inputs:
       live_amp:
         description: Run authenticated Amp validation (requires the temporary provider secret and two manual Amp turns)
+        type: boolean
+        default: false
+      cache_drive:
+        description: Measure a CI-filled cache image attached to a cold-booted sandbox
+        type: boolean
+        default: false
+      cache_snapshot:
+        description: Experiment - swap a cache image into a sandbox restored from the template snapshot
+        type: boolean
+        default: false
+      runner_cache_master:
+        description: Measure a runner-cache master, filled by the Linux runner image, attached to sandboxes
+        type: boolean
+        default: false
+      checkout_cache:
+        description: Bind a cache volume's checkout-relative paths (server/deps) into a checkout in real guests
         type: boolean
         default: false
 
@@ -77,6 +95,217 @@ jobs:
         with:
           name: sandbox-orbs-validation-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/sandbox-orbs-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  cache-drive:
+    name: Real Firecracker CI cache drive
+    if: github.event_name == 'workflow_dispatch' && inputs.cache_drive && !inputs.live_amp
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require hardware virtualization
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo test -r /dev/kvm
+          sudo test -w /dev/kvm
+          df -h /
+      - uses: docker/setup-buildx-action@v3
+      - name: Build guest template
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-template:validation
+          cache-from: |
+            type=gha,scope=sandbox-orbs-validation
+            type=gha,scope=sandbox-image
+      - name: Build sandboxd
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/sandboxd/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-daemon:validation
+          cache-from: type=gha,scope=sandboxd-image
+      - name: CI cache image on a real sandbox
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xfsprogs
+          bash infra/sandboxd/validation/validate-cache-drive.sh
+      - name: Upload cache drive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-drive-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cache-drive-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  cache-snapshot:
+    name: Real Firecracker cache drive in the template snapshot
+    if: github.event_name == 'workflow_dispatch' && inputs.cache_snapshot && !inputs.live_amp
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require hardware virtualization
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo test -r /dev/kvm
+          sudo test -w /dev/kvm
+          df -h /
+      - uses: docker/setup-buildx-action@v3
+      - name: Build guest template
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-template:validation
+          cache-from: |
+            type=gha,scope=sandbox-orbs-validation
+            type=gha,scope=sandbox-image
+      - name: Build sandboxd
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/sandboxd/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-daemon:validation
+          cache-from: type=gha,scope=sandboxd-image
+      - name: Cache image swapped into a restored sandbox
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xfsprogs
+          bash infra/sandboxd/validation/validate-cache-snapshot.sh
+      - name: Upload cache snapshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-snapshot-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cache-snapshot-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  runner-cache-master:
+    name: Real Firecracker runner-cache master
+    if: github.event_name == 'workflow_dispatch' && inputs.runner_cache_master && !inputs.live_amp
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require hardware virtualization
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo test -r /dev/kvm
+          sudo test -w /dev/kvm
+          df -h /
+      - uses: docker/setup-buildx-action@v3
+      - name: Build guest template
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-template:validation
+          cache-from: |
+            type=gha,scope=sandbox-orbs-validation
+            type=gha,scope=sandbox-image
+      - name: Build sandboxd
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/sandboxd/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-daemon:validation
+          cache-from: type=gha,scope=sandboxd-image
+      - name: Runner-cache master on real sandboxes
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xfsprogs
+          bash infra/sandboxd/validation/validate-runner-cache-master.sh
+      - name: Upload runner-cache master evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runner-cache-master-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/runner-master-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  checkout-cache:
+    name: Real Firecracker checkout cache binds
+    if: github.event_name == 'workflow_dispatch' && inputs.checkout_cache && !inputs.live_amp
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require hardware virtualization
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo test -r /dev/kvm
+          sudo test -w /dev/kvm
+      - uses: docker/setup-buildx-action@v3
+      - name: Build guest template
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-template:validation
+          cache-from: |
+            type=gha,scope=sandbox-orbs-validation
+            type=gha,scope=sandbox-image
+      - name: Build sandboxd
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/sandboxd/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-daemon:validation
+          cache-from: type=gha,scope=sandboxd-image
+      - name: Checkout-relative cache binds on real sandboxes
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xfsprogs
+          bash infra/sandboxd/validation/validate-checkout-cache.sh
+      - name: Upload checkout cache evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkout-cache-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/checkout-cache-evidence/
           if-no-files-found: ignore
           retention-days: 7
 

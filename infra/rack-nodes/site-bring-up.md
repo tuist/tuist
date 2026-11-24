@@ -43,10 +43,11 @@ SITE=larch
      `egress.prefix: "95.130.119.32/28"`. `render` then writes larch's
      `bird.conf` and the first edge's static WAN.
    - `contracted_power`: 3000 W from 2026-11-09, 5000 W from 2027-05-09 and
-     6000 W from 2027-08-09, and `power_budget: {chain_amps: 11.5,
+     6000 W from 2027-08-09, and `power_budget: {chain_amps: 8,
      other_watts: 600}`. NTT caps the rack at 6 kW and the dual-PSU gear
      draws about 0.6 kW, so the minis stop taking new runner VMs above 2.4 kW,
-     4.4 kW and 5.4 kW at the three steps, or above 11.5 A on either chain.
+     4.4 kW and 5.4 kW at the three steps, or above 8 A on either chain
+     (NTT's rails at Berlin 1 are C13 only, 10 A, fed with C14-to-C19 cords).
 2. **The range can be served from two sites.** Do this before larch's BGP
    session first comes up, or ber1's replies start landing at larch:
    - Create RIPE route objects and ROAs for AS218377 for 95.130.119.16/28
@@ -83,6 +84,11 @@ SITE=larch
 5. **Goods-in tickets** are open in NTT's portal for every shipment, and
    every box is labelled with rack, U position and device name.
 6. **Print** `cables/larch.md` and the elevation.
+   Before leaving for the DC, `mise run rack:fleet --site <site> ready` lists
+   every gap in item 1 that larch's visits found one at a time: power, the
+   ToRs' and power cards' MACs, the first edge's TPM check code, the boot
+   server and the minis' tailnet SSH grants. Go once it says the site is
+   ready to rack.
 
 ## On the day (hands-on), network first
 

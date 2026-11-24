@@ -1,4 +1,4 @@
-# Runs GitHub Actions jobs on the Mac minis we own, in the BER1 rack, to prove
+# Runs GitHub Actions jobs on the Mac minis we own, in the alder rack, to prove
 # the machines are working CI runners and not merely registered Nodes.
 #
 # `runs-on` targets the `tuist-ber1-smoke` dispatch label. Every env's server
@@ -15,7 +15,7 @@
 # hashes for that long, and each job prints its throughput once a minute. A
 # flush-stacked tray that throttles shows as throughput falling over the run,
 # worst in the middle unit, which the per-job runner name maps to a host.
-name: BER1 Smoke
+name: Alder Smoke
 
 on:
   workflow_dispatch:

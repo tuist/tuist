@@ -37,9 +37,58 @@ ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be
 # The first release that signs in with the sandbox's workload identity (#15541)
 # without `tuist auth login`; SHA-256 of tuist-linux-x86_64.tar.gz from the
 # release's SHASUMS256.txt.
-ARG TUIST_VERSION=4.218.0-canary.44
-ARG TUIST_SHA256=066ef865c6acd252feef5b3842e3586d12d1940d492af6f31dcf886913fa6413
+ARG TUIST_VERSION=4.220.0-canary.14
+ARG TUIST_SHA256=c4ce408ff3ca4bb80baa983f7a2372daf99466641dec0344771b0f568b36b645
+# Struo, which thread agents build and test with first; SHA-256 of
+# struo-<version>-x86_64-unknown-linux-gnu.tar.gz from the release's .sha256.
+ARG STRUO_VERSION=1.0.0
+ARG STRUO_SHA256=e6677aa4e086ea3d1c0b70fc06341f4c978c06fd0b2d0aee586aff46be048a33
 ARG VERSION=dev
+# Ubuntu archive for every apt stage. archive.ubuntu.com and
+# security.ubuntu.com served the runner pool at under 1 MB/s for hours, which
+# pushed the template build past its timeout; this mirror served it at about
+# 74 MB/s. Plain HTTP because the base image has no CA bundle yet; apt
+# verifies the archive signatures either way.
+ARG UBUNTU_MIRROR=http://mirrors.edge.kernel.org/ubuntu
+
+FROM ubuntu:24.04 AS elixir-toolchain
+ARG UBUNTU_MIRROR
+RUN sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${UBUNTU_MIRROR}/#" /etc/apt/sources.list.d/ubuntu.sources
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl unzip libssl3t64 libncurses6 libtinfo6 \
+    && rm -rf /var/lib/apt/lists/*
+ARG ERLANG_VERSION=29.0.3
+ARG ERLANG_SHA256=07c6b118ea17000e85b646418a4eec8c20fc2b04118b4b756695b4568e3d0526
+ARG ELIXIR_VERSION=1.20.2
+ARG ELIXIR_SHA256=a9e88cd41fbbba7da6f6dc237a49dd2ed4e70457121035cc7fc56ad05582f394
+ARG HEX_VERSION=2.7.0
+ARG HEX_SHA256=f248381ceb4bef12c990b223a7f998113b1997cb58d29b9883b7d03a0b990f9e
+ARG REBAR_VERSION=3.28.0
+ARG REBAR_SHA256=4a8bdd1fc845742833988db73012b232a3e9fd048011189ae9e0cecf70bdb7a2
+ENV PATH=/opt/elixir/bin:/opt/erlang/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    MIX_HOME=/opt/mix
+# Compile Hex and Rebar with this OTP; their old prebuilt BEAMs cannot load on 29.
+RUN set -eu; \
+    curl -fsSL --retry 3 "https://builds.hex.pm/builds/otp/amd64/ubuntu-24.04/OTP-${ERLANG_VERSION}.tar.gz" -o /tmp/otp.tar.gz; \
+    echo "${ERLANG_SHA256}  /tmp/otp.tar.gz" | sha256sum -c -; \
+    mkdir -p /opt/erlang /opt/elixir /opt/mix; \
+    tar -xzf /tmp/otp.tar.gz --strip-components=1 -C /opt/erlang; \
+    /opt/erlang/Install -minimal /opt/erlang; \
+    curl -fsSL --retry 3 "https://builds.hex.pm/builds/elixir/v${ELIXIR_VERSION}-otp-${ERLANG_VERSION%%.*}.zip" -o /tmp/elixir.zip; \
+    echo "${ELIXIR_SHA256}  /tmp/elixir.zip" | sha256sum -c -; \
+    unzip -q /tmp/elixir.zip -d /opt/elixir; \
+    curl -fsSL --retry 3 "https://codeload.github.com/hexpm/hex/tar.gz/refs/tags/v${HEX_VERSION}" -o /tmp/hex.tar.gz; \
+    echo "${HEX_SHA256}  /tmp/hex.tar.gz" | sha256sum -c -; \
+    mkdir /tmp/hex; tar -xzf /tmp/hex.tar.gz --strip-components=1 -C /tmp/hex; \
+    (cd /tmp/hex && MIX_ENV=prod mix archive.build -o /tmp/hex.ez); \
+    mix archive.install /tmp/hex.ez --force; \
+    curl -fsSL --retry 3 "https://codeload.github.com/erlang/rebar3/tar.gz/refs/tags/${REBAR_VERSION}" -o /tmp/rebar.tar.gz; \
+    echo "${REBAR_SHA256}  /tmp/rebar.tar.gz" | sha256sum -c -; \
+    mkdir /tmp/rebar; tar -xzf /tmp/rebar.tar.gz --strip-components=1 -C /tmp/rebar; \
+    (cd /tmp/rebar && ./bootstrap); \
+    install -m 0755 /tmp/rebar/rebar3 /opt/mix/rebar3; \
+    elixir --version; HEX_OFFLINE=true mix hex.info; /opt/mix/rebar3 version; \
+    rm -rf /tmp/otp.tar.gz /tmp/elixir.zip /tmp/hex.ez /tmp/hex.tar.gz /tmp/hex /tmp/rebar.tar.gz /tmp/rebar
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 # sbx-worker's checkout tests build and export real repositories.
@@ -72,15 +121,25 @@ RUN set -eu; \
     test -x /out/opt/amp-wayland/bin/waymote-gateway; \
     test -x /out/opt/amp-wayland/libexec/waymote-streamd
 
-FROM ubuntu:24.04 AS guest
+# Same Ubuntu digest as infra/linux-runner-image's default base, so sandbox
+# guests and Linux CI jobs share system libraries and native build caches.
+# Renovate bumps both together (see renovate.json).
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS guest
 ENV DEBIAN_FRONTEND=noninteractive
+ARG UBUNTU_MIRROR
+RUN sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${UBUNTU_MIRROR}/#" /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bash coreutils ca-certificates curl wget git git-lfs openssh-client gnupg sudo tzdata locales \
         iproute2 iputils-ping dnsutils procps psmisc less vim-tiny nano jq ripgrep fd-find unzip zip tar \
         xz-utils zstd bzip2 build-essential clang libclang-dev pkg-config cmake python3 python3-pip python3-venv \
-        e2fsprogs util-linux lsof strace htop tmux rsync sqlite3 libssl-dev zlib1g-dev \
+        e2fsprogs util-linux lsof strace htop tmux rsync sqlite3 libssl-dev zlib1g-dev libncurses6 libtinfo6 \
         ffmpeg imagemagick \
     && rm -rf /var/lib/apt/lists/*
+
+# No-network actions resolve these root-owned tools through the image binding.
+COPY --from=elixir-toolchain /opt/erlang /opt/erlang
+COPY --from=elixir-toolchain /opt/elixir /opt/elixir
+COPY --from=elixir-toolchain /opt/mix /opt/mix
 
 # Amp Desktop: the packages Amp's custom-image contract lists next to
 # /opt/amp-wayland, plus the libraries its labwc links (about 40 MiB). Nothing
@@ -172,6 +231,19 @@ RUN curl -fsSL --retry 3 -o /tmp/tuist.tar.gz \
     && tar -xzf /tmp/tuist.tar.gz -C /usr/local/bin tuist \
     && chown root:root /usr/local/bin/tuist && chmod 0755 /usr/local/bin/tuist && rm /tmp/tuist.tar.gz \
     && test "$(tuist version)" = "${TUIST_VERSION}"
+# Struo for builds and tests (`Tuist.Threads.Agent`). It reports a build's
+# progress to the file `STRUO_PROGRESS` names, which every sandbox command sets
+# (`Tuist.Sandboxes.Commands`). Its binary links libasound for `--sound`.
+ARG STRUO_VERSION
+ARG STRUO_SHA256
+RUN apt-get update && apt-get install -y --no-install-recommends libasound2t64 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL --retry 3 -o /tmp/struo.tar.gz \
+        "https://github.com/tuist/struo/releases/download/${STRUO_VERSION}/struo-${STRUO_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+    && echo "${STRUO_SHA256}  /tmp/struo.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/struo.tar.gz -C /usr/local/bin struo \
+    && chown root:root /usr/local/bin/struo && chmod 0755 /usr/local/bin/struo && rm /tmp/struo.tar.gz \
+    && test "$(struo --version)" = "struo ${STRUO_VERSION}"
 COPY agent-home/skills/ /home/user/.claude/skills/
 RUN chown -R user:user /home/user/.claude
 
@@ -207,7 +279,9 @@ RUN if ! getent passwd 1000 >/dev/null; then useradd --uid 1000 --create-home bu
 
 # The rootfs stage runs natively: mkfs.ext4 -d produces the same image on any
 # host, and this keeps the multi-gigabyte populate step off the emulator.
-FROM --platform=$BUILDPLATFORM ubuntu:24.04 AS rootfs
+FROM --platform=$BUILDPLATFORM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS rootfs
+ARG UBUNTU_MIRROR
+RUN sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${UBUNTU_MIRROR}/#" /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update && apt-get install -y --no-install-recommends e2fsprogs ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 ARG KERNEL_URL

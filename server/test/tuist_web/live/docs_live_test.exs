@@ -87,7 +87,7 @@ defmodule TuistWeb.DocsLiveTest do
     test "overview separates artifact types, publication workflows, and running previews", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews")
 
-      for {system, name} <- [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"once", "Once"}] do
+      for {system, name} <- [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"struo", "Struo"}] do
         assert has_element?(
                  view,
                  ~s(a[data-part="feature-card"][href="/en/docs/guides/features/previews/#{system}"]),
@@ -110,11 +110,11 @@ defmodule TuistWeb.DocsLiveTest do
       end
     end
 
-    test "keeps the Once guide accessible through Bazel", %{conn: conn} do
+    test "keeps the Struo guide accessible through Bazel", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews/bazel")
 
       assert has_element?(view, "#publish-from-once")
-      assert has_element?(view, ~s(main a[href="/en/docs/guides/features/previews/once"]))
+      assert has_element?(view, ~s(main a[href="/en/docs/guides/features/previews/struo"]))
     end
 
     test "publication guides link to common recipient guidance instead of repeating it", %{conn: conn} do
@@ -124,7 +124,7 @@ defmodule TuistWeb.DocsLiveTest do
         assert has_element?(overview, "main ##{anchor}")
       end
 
-      for system <- ["xcode", "gradle", "bazel", "once"] do
+      for system <- ["xcode", "gradle", "bazel", "struo"] do
         {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews/" <> system)
 
         for anchor <- ["run-a-preview", "visibility", "tracks", "readme-badge"] do
@@ -152,7 +152,7 @@ defmodule TuistWeb.DocsLiveTest do
             {"xcode", "Xcode previews", "tuist share App"},
             {"gradle", "Gradle previews", "./gradlew :app:tuistShareDebug"},
             {"bazel", "Bazel previews", "--publish --project acme/app"},
-            {"once", "Once previews", "--allow-on-build"},
+            {"struo", "Struo previews", "--allow-on-build"},
             {"types", "Supported preview types", "--executable bin/my-tool"},
             {"run/cli", "Run previews with the CLI", "tuist run {url} -- --help"},
             {"run/macos", "Run previews with the macOS app", "brew install --cask tuist/tuist/tuist"},
@@ -190,28 +190,28 @@ defmodule TuistWeb.DocsLiveTest do
 
         assert has_element?(
                  view,
-                 ~s(a[href="/en/docs/guides/get-started/rust-project"] svg[fill="currentColor"])
+                 ~s(a[href="/en/docs/guides/get-started/rust-project"] svg path[fill="currentColor"])
                )
       end
     end
   end
 
-  describe "Once documentation" do
-    test "feature overviews link to served Once guides", %{conn: conn} do
+  describe "Struo documentation" do
+    test "feature overviews link to served Struo guides", %{conn: conn} do
       for {path, heading} <- [
-            {"cache", "Once cache"},
-            {"build-insights", "Once build insights"},
-            {"test-insights", "Once test insights"},
-            {"test-insights/flaky-tests", "Once flaky tests"},
-            {"test-sharding", "Once test sharding"}
+            {"cache", "Struo cache"},
+            {"build-insights", "Struo build insights"},
+            {"test-insights", "Struo test insights"},
+            {"test-insights/flaky-tests", "Struo flaky tests"},
+            {"test-sharding", "Struo test sharding"}
           ] do
         {:ok, overview, _html} = live(conn, "/en/docs/guides/features/" <> path)
-        href = "/en/docs/guides/features/#{path}/once"
-        assert has_element?(overview, ~s(a[data-part="feature-card"][href="#{href}"]), "Once")
+        href = "/en/docs/guides/features/#{path}/struo"
+        assert has_element?(overview, ~s(a[data-part="feature-card"][href="#{href}"]), "Struo")
 
         {:ok, view, _html} = live(conn, href)
         assert has_element?(view, "h1", heading)
-        assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/once-project"] svg))
+        assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/struo-project"] svg))
       end
     end
   end
@@ -302,13 +302,13 @@ defmodule TuistWeb.DocsLiveTest do
         end)
 
       assert supported_systems == %{
-               "/en/docs/guides/features/cache" => ~w(apple gradle bazel elixir rust once),
-               "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir rust once),
+               "/en/docs/guides/features/cache" => ~w(apple gradle bazel elixir rust struo),
+               "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir rust struo),
                "/en/docs/guides/features/selective-testing" => ~w(apple),
-               "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir rust once),
-               "/en/docs/guides/features/test-insights" => ~w(apple gradle bazel elixir rust once),
-               "/en/docs/guides/features/previews" => ~w(apple android once),
-               "/en/docs/guides/features/runners" => ~w(apple gradle bazel elixir rust once)
+               "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir rust struo),
+               "/en/docs/guides/features/test-insights" => ~w(apple gradle bazel elixir rust struo),
+               "/en/docs/guides/features/previews" => ~w(apple android struo),
+               "/en/docs/guides/features/runners" => ~w(apple gradle bazel elixir rust struo)
              }
 
       assert length(Floki.find(document, ~s([data-part="supported-icon"][title="elixir"] svg))) ==
@@ -316,11 +316,11 @@ defmodule TuistWeb.DocsLiveTest do
 
       assert length(Floki.find(document, ~s([data-part="supported-icon"][title="rust"] svg))) == 5
 
-      once_logo = Floki.parse_fragment!(render_component(&Noora.Icon.brand_once/1, %{}))
-      once_logos = Floki.find(document, ~s([data-part="supported-icon"][title="once"] svg))
+      struo_logo = Floki.parse_fragment!(render_component(&Noora.Icon.brand_once/1, %{}))
+      struo_logos = Floki.find(document, ~s([data-part="supported-icon"][title="struo"] svg))
 
-      assert Enum.map(once_logos, &Floki.attribute(&1, "path", "d")) ==
-               List.duplicate(Floki.attribute(once_logo, "path", "d"), 6)
+      assert Enum.map(struo_logos, &Floki.attribute(&1, "path", "d")) ==
+               List.duplicate(Floki.attribute(struo_logo, "path", "d"), 6)
 
       assert has_element?(lv, "#docs-cache-card", "Rust caching is experimental.")
       assert document |> Floki.find("#docs-page-markdown") |> Floki.text() =~ "Rust caching is experimental."
@@ -346,14 +346,14 @@ defmodule TuistWeb.DocsLiveTest do
       assert markdown =~ "cache infrastructure colocated next to compute for the best results"
     end
 
-    test "positions Tuist as build infrastructure including Elixir, Rust, and Once", %{conn: conn} do
+    test "positions Tuist as build infrastructure including Elixir, Rust, and Struo", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs")
 
       assert has_element?(lv, "h1", "One platform for faster build toolchains")
       assert has_element?(lv, "#learn-more", "Explore Tuist's capabilities")
-      assert render(lv) =~ "Xcode, Gradle, Bazel, Elixir, Rust, and Once projects"
+      assert render(lv) =~ "Xcode, Gradle, Bazel, Elixir, Rust, and Struo projects"
       {:ok, document} = Floki.parse_document(render(lv))
-      assert document |> Floki.find("#docs-page-markdown") |> Floki.text() =~ "Elixir, Rust, and Once projects"
+      assert document |> Floki.find("#docs-page-markdown") |> Floki.text() =~ "Elixir, Rust, and Struo projects"
     end
 
     test "shows a Log in button with return_to when the user is not authenticated", %{
@@ -398,6 +398,13 @@ defmodule TuistWeb.DocsLiveTest do
   end
 
   describe "redirected docs URLs reached without an HTTP request" do
+    test "a live patch to a renamed Once guide navigates to Struo with its query", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert {:error, {:live_redirect, %{to: "/en/docs/guides/features/cache/struo?tab=setup"}}} =
+               render_patch(lv, "/en/docs/guides/features/cache/once?tab=setup")
+    end
+
     test "navigates to the new page on a live patch to a moved page", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
 
@@ -602,6 +609,19 @@ defmodule TuistWeb.DocsLiveTest do
         {:ok, view, _html} = live(conn)
         assert has_element?(view, "#docs-toc a[href='#builds']", builds)
         assert has_element?(view, "h2#builds", builds)
+      end
+    end
+
+    test "Struo sidebar links retain available Once translations", %{conn: conn} do
+      for locale <- ~w(ja es) do
+        {:ok, view, _html} = live(conn, "/#{locale}/docs")
+        path = "/#{locale}/docs/guides/get-started/once-project"
+
+        assert has_element?(view, "#docs-sidebar a[href='#{path}']")
+        refute has_element?(view, "#docs-sidebar a[href='/#{locale}/docs/guides/get-started/struo-project']")
+
+        {:ok, _view, html} = live(conn, path)
+        assert Floki.attribute(Floki.parse_document!(html), "html", "lang") == [locale]
       end
     end
 

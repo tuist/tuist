@@ -124,6 +124,14 @@ public actor RunMetadataStorage {
         self.testImpactSkip = testImpactSkip
     }
 
+    /// Whether Tuist left tests out of the run: selective testing hits, coverage-based test
+    /// selection or quarantine. The caller's own filters and shards are not included.
+    public var skippedTests: Bool {
+        selectiveTestingCacheItems.values.contains { $0.values.contains { $0.source != .miss } }
+            || !(testImpactSkip ?? []).isEmpty
+            || !skippedQuarantinedTestIdentifiers.isEmpty
+    }
+
     /// The ID of the latest build run.
     public private(set) var buildRunId: String?
     public func update(buildRunId: String?) {

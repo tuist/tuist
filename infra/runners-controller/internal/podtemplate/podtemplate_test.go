@@ -914,6 +914,28 @@ func TestBuild_ExclusiveCPUsFailsClosed(t *testing.T) {
 	}
 }
 
+// An exclusive pool runs under a RuntimeClass sized for its guest
+// (kata-qemu-<size>, same handler, larger podFixed), and is still a Kata pool.
+func TestBuild_ExclusiveCPUsAcceptsASizedKataRuntimeClass(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.ExclusiveCPUs = true
+	pool.Spec.NestedVirtualization = true
+	pool.Spec.RuntimeClass = "kata-qemu-16g"
+	pod := build(t, pool)
+
+	if pod.Spec.RuntimeClassName == nil || *pod.Spec.RuntimeClassName != "kata-qemu-16g" {
+		t.Errorf("runtimeClassName = %v, want kata-qemu-16g", pod.Spec.RuntimeClassName)
+	}
+	if _, ok := pod.Annotations[KVMContainersAnnotation]; !ok {
+		t.Errorf("annotations = %v, want %s for the kvm-nri-plugin", pod.Annotations, KVMContainersAnnotation)
+	}
+
+	pool.Spec.RuntimeClass = "kata-qemux"
+	if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", ""); err == nil {
+		t.Error("Build accepted exclusive CPUs under runtimeClass kata-qemux; want refusal")
+	}
+}
+
 func TestKVMContainersAnnotationMatchesThePlugin(t *testing.T) {
 	if KVMContainersAnnotation != kvmnri.KVMContainersAnnotation {
 		t.Errorf("podtemplate annotates %q, kvm-nri-plugin reads %q", KVMContainersAnnotation, kvmnri.KVMContainersAnnotation)

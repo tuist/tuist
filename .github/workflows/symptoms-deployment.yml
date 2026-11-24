@@ -1,0 +1,304 @@
+name: Symptoms Deployment
+
+# Builds the Symptoms evaluator image (symptoms/Dockerfile) and deploys the
+# infra/helm/symptoms chart as release `symptoms` in each workload cluster's
+# `symptoms-<env>` namespace: staging, then canary, then production, one at a
+# time, each behind its `server-k8s-<env>` GitHub environment like the other
+# deployments. Pull requests run the evaluator's tests, validate the chart and
+# build the image; nothing builds or deploys unless the tests pass.
+#
+# Redeploy or roll back one environment with workflow_dispatch: pick the
+# environment and pass a pre-built `image_tag` (sha-<12 chars>).
+
+on:
+  pull_request:
+    paths:
+      - symptoms/**
+      - infra/helm/symptoms/**
+      - .github/scripts/production-source-guard.sh
+      - .github/scripts/production-source-guard.test.sh
+      - .github/workflows/symptoms-deployment.yml
+  push:
+    branches:
+      - main
+    paths:
+      - symptoms/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
+      - infra/helm/symptoms/**
+      - .github/scripts/production-source-guard.sh
+      - .github/scripts/production-source-guard.test.sh
+      - .github/workflows/symptoms-deployment.yml
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy (all deploys staging, canary, then production)
+        required: true
+        type: choice
+        default: all
+        options: [all, staging, canary, production]
+      commit_sha:
+        description: Commit SHA to deploy (defaults to github.sha)
+        required: false
+      image_tag:
+        description: Pre-built image tag to deploy instead of building
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # Queued pushes wait; a rollout is never cancelled midway.
+  group: symptoms-deployment-${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/symptoms
+  HELM_CHART_PATH: infra/helm/symptoms
+  HELM_RELEASE_NAME: symptoms
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+  KUBECONFORM_VERSION: "0.7.0"
+
+jobs:
+  guard:
+    name: Verify deploy source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Require production sources on main
+        if: >-
+          github.event_name != 'pull_request' &&
+          (inputs.environment == '' || inputs.environment == 'all' || inputs.environment == 'production')
+        env:
+          REF: ${{ github.ref }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: bash .github/scripts/production-source-guard.sh "$REF" "$DEPLOY_SHA" "image_tag=$IMAGE_TAG"
+
+  test:
+    name: Test symptoms
+    needs: guard
+    if: github.repository == 'tuist/tuist'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: symptoms_test
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: symptoms
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - name: Restore Mix cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            symptoms/deps
+            symptoms/_build
+          key: symptoms-mix-${{ hashFiles('symptoms/mix.lock', 'symptoms/mise.toml') }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "erlang elixir"
+          working_directory: symptoms
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Compile without warnings
+        run: mix compile --warnings-as-errors
+      - name: Check formatting
+        run: mix format --check-formatted
+      - name: Credo
+        run: mix credo --strict
+      - name: Migrate the test database
+        run: mix ecto.setup
+      - name: Test, database tests included
+        run: mix test --include db --warnings-as-errors
+
+  validate:
+    name: Validate chart
+    if: github.repository == 'tuist/tuist'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm"
+          cache: "false"
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          archive="kubeconform-linux-amd64.tar.gz"
+          curl -fsSL \
+            "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/${archive}" \
+            -o "$RUNNER_TEMP/$archive"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" kubeconform
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: helm lint, helm template and kubeconform per environment
+        run: |
+          set -euo pipefail
+          for environment in staging canary production; do
+            echo "::group::$environment"
+            args=(-f "$HELM_CHART_PATH/values-$environment.yaml" -f "$HELM_CHART_PATH/values-ci.yaml")
+            helm lint "$HELM_CHART_PATH" --namespace "symptoms-$environment" "${args[@]}"
+            helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" --namespace "symptoms-$environment" "${args[@]}" \
+              > "$RUNNER_TEMP/symptoms-$environment.yaml"
+            kubeconform -strict -ignore-missing-schemas -summary \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              "$RUNNER_TEMP/symptoms-$environment.yaml"
+            echo "::endgroup::"
+          done
+
+  build:
+    name: Build and push symptoms image
+    needs: [test, validate]
+    if: github.repository == 'tuist/tuist' && inputs.image_tag == ''
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - id: tag
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        name: Build and push symptoms image
+        with:
+          context: ./symptoms
+          file: ./symptoms/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
+          platforms: linux/amd64
+          # Pull requests only prove the image builds.
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha,scope=symptoms
+          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=max,scope=symptoms' || '' }}
+
+  deploy:
+    name: Deploy to ${{ matrix.environment }}
+    needs: [test, validate, build]
+    if: >-
+      always() && github.repository == 'tuist/tuist' && github.event_name != 'pull_request' &&
+      needs.test.result == 'success' && needs.validate.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      # One environment at a time, in order; a failed environment cancels the
+      # ones after it.
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        environment: ${{ fromJSON((inputs.environment == '' || inputs.environment == 'all') && '["staging","canary","production"]' || format('["{0}"]', inputs.environment)) }}
+    environment:
+      # Same environments, OP_SERVICE_ACCOUNT_TOKEN scope and approval rules
+      # as server-deployment.yml and pulse-deployment.yml.
+      name: server-k8s-${{ matrix.environment }}
+    concurrency:
+      group: server-deploy-${{ matrix.environment }}-symptoms
+      cancel-in-progress: false
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      DEPLOY_ENV: ${{ matrix.environment }}
+      NAMESPACE: symptoms-${{ matrix.environment }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@1a3160d5e9de1ae0803eaa08a88746f5ae3daa50 # v4.1.0
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-$DEPLOY_ENV" \
+            --vault "tuist-k8s-$DEPLOY_ENV" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Resolve image tag
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+          BUILT_IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          IMAGE_TAG="${INPUT_IMAGE_TAG:-$BUILT_IMAGE_TAG}"
+          if [ -z "$IMAGE_TAG" ]; then
+            echo "No image tag available to deploy."
+            exit 1
+          fi
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          echo "Deploying image tag $IMAGE_TAG to $NAMESPACE"
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            -f "$HELM_CHART_PATH/values-$DEPLOY_ENV.yaml" \
+            --set image.tag="$IMAGE_TAG" \
+            --atomic --timeout 10m --wait
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          echo "::endgroup::"
+          echo "::group::workload resources"
+          kubectl -n "$NAMESPACE" get deploy,svc,externalsecret,pods,cluster.postgresql.cnpg.io \
+            -l app.kubernetes.io/instance="$HELM_RELEASE_NAME" -o wide || true
+          echo "::endgroup::"
+          echo "::group::deployment"
+          kubectl -n "$NAMESPACE" describe deploy/"$HELM_RELEASE_NAME" || true
+          echo "::endgroup::"
+          echo "::group::CNPG cluster"
+          kubectl -n "$NAMESPACE" describe cluster.postgresql.cnpg.io || true
+          echo "::endgroup::"
+          echo "::group::events"
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::endgroup::"

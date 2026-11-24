@@ -77,11 +77,16 @@ type Capacity struct {
 // Elastic describes how far the server may resize the daemon's Pod: from
 // the floor the chart requests up to the ceiling, in place, through the
 // Pod's resize subresource. A zero ceiling, or one not above the floor,
-// keeps the memory limit fixed.
+// keeps the memory limit fixed. The CPU request moves the same way, in
+// millicores, with no CPU limit: the server raises it to what the node's
+// running sandboxes are guaranteed, so guests keep that much of the shared
+// CPU pool and burst into the rest.
 type Elastic struct {
 	PodName            string `json:"pod_name,omitempty"`
 	MemoryFloorBytes   uint64 `json:"memory_floor_bytes,omitempty"`
 	MemoryCeilingBytes uint64 `json:"memory_ceiling_bytes,omitempty"`
+	CPUFloorMilli      uint64 `json:"cpu_floor_milli,omitempty"`
+	CPUCeilingMilli    uint64 `json:"cpu_ceiling_milli,omitempty"`
 }
 
 type ReclaimArgs struct {
@@ -109,6 +114,9 @@ type DiskReport struct {
 	TemplatesBytes uint64 `json:"templates_bytes"`
 	SnapshotsBytes uint64 `json:"snapshots_bytes"`
 	BudgetBytes    uint64 `json:"budget_bytes"`
+	// Jails is SandboxesBytes per sandbox ID; it travels as each
+	// sandbox's SandboxInfo.DiskBytes.
+	Jails map[string]uint64 `json:"-"`
 }
 
 // TemplateInfo advertises a template. Ready means the kernel and rootfs are
@@ -147,8 +155,27 @@ type SandboxInfo struct {
 	// VM while it was running and the disks moved on since the last snapshot.
 	ColdBoot bool `json:"cold_boot,omitempty"`
 	// CPUMs is a running VM's CPU time since its process started, for the
-	// server to tell an active guest from an idle one.
-	CPUMs      int64     `json:"cpu_ms,omitempty"`
+	// server to tell an active guest from an idle one and to meter it. For
+	// a paused VM it is the reading taken at its pause, as in PauseResult,
+	// so the server can bill a pause it learns of from a report.
+	CPUMs int64 `json:"cpu_ms,omitempty"`
+	// MemoryAnonBytes and MemoryFileBytes are what a running VM's process
+	// holds resident (proportional to sharing): anonymous pages the guest
+	// wrote, and pages still backed by the memory file it restored from.
+	// Next to MemoryMB they show how much of the reservation the guest
+	// actually uses.
+	MemoryAnonBytes uint64 `json:"memory_anon_bytes,omitempty"`
+	MemoryFileBytes uint64 `json:"memory_file_bytes,omitempty"`
+	// MemoryCurrentBytes is what the VM's own cgroup is charged
+	// (memory.current): its process's memory plus the host page cache its
+	// disks filled. It is what memory bursting meters against the VM's
+	// request. Omitted without per-VM memory accounting.
+	MemoryCurrentBytes uint64 `json:"memory_current_bytes,omitempty"`
+	// DiskBytes is what the sandbox's jail holds on the node that no
+	// template or other sandbox shares, measured with the disk report, so
+	// the server can reserve a paused sandbox's use instead of its ceiling.
+	// Omitted until the first measurement after the sandbox appears.
+	DiskBytes  uint64    `json:"disk_bytes,omitempty"`
 	Generation int       `json:"generation"`
 	CreatedAt  time.Time `json:"created_at"`
 	Error      string    `json:"error,omitempty"`
@@ -162,6 +189,9 @@ type DiskSnapshotInfo struct {
 	TemplateTag string    `json:"template_tag"`
 	WorkspaceGB int       `json:"workspace_gb"`
 	CreatedAt   time.Time `json:"created_at"`
+	// Bytes is what the snapshot holds on its own, which a macOS host
+	// reserves against its disk budget. Linux nodes leave it out.
+	Bytes int64 `json:"bytes,omitempty"`
 }
 
 type Hello struct {
@@ -193,9 +223,20 @@ type Hello struct {
 	// LazyDisks: the daemon restores archives written with lazy disks
 	// (ArchiveArgs.LazyDisks), serving their disks by range.
 	LazyDisks bool `json:"lazy_disks,omitempty"`
+	// CPUGuarantees: each VM runs in its own cgroup whose CPU weight is
+	// its CreateArgs.CPUGuaranteeMilli, so a sandbox keeps its guaranteed
+	// share against the node's other sandboxes, not only against other Pods.
+	CPUGuarantees bool `json:"cpu_guarantees,omitempty"`
 	// Archives: a macOS host archives its evicted sandboxes' disks (OpArchive)
 	// and creates sandboxes from such archives. Linux daemons always do.
 	Archives bool `json:"archives,omitempty"`
+	// CacheGrants: creates take CreateArgs.CacheGrant (CACHE_IMAGES_GIB is
+	// set). Disk-snapshot creates always cold boot and can take one; a
+	// template create takes one only with CacheDriveInTemplate.
+	CacheGrants bool `json:"cache_grants,omitempty"`
+	// CacheDriveInTemplate: shape snapshots carry the cache placeholder, so
+	// a template create can attach a cache and still restore from memory.
+	CacheDriveInTemplate bool `json:"cache_drive_in_template,omitempty"`
 }
 
 type Result struct {
@@ -245,8 +286,12 @@ type Report struct {
 	DiskSnapshots []DiskSnapshotInfo `json:"disk_snapshots"`
 	Memory        MemoryReport       `json:"memory"`
 	Disk          DiskReport         `json:"disk"`
-	// Templates is sent by macOS hosts, whose warm VMs change between hellos.
-	Templates []TemplateInfo `json:"templates,omitempty"`
+	// Templates is sent by macOS hosts, whose warm VMs change between hellos,
+	// and by Linux daemons that follow their template's current tag, whose
+	// templates and default tag change when the installer adds a tag.
+	Templates          []TemplateInfo `json:"templates,omitempty"`
+	DefaultTemplate    string         `json:"default_template,omitempty"`
+	DefaultTemplateTag string         `json:"default_template_tag,omitempty"`
 }
 
 type Command struct {
@@ -255,6 +300,10 @@ type Command struct {
 	Op   string          `json:"op"`
 	Args json.RawMessage `json:"args"`
 }
+
+// DefaultCPUGuaranteeMilli is the guarantee of a sandbox created without
+// one: a quarter core.
+const DefaultCPUGuaranteeMilli = 250
 
 type CreateArgs struct {
 	// A leased execution request must never create a VM after its owner expired.
@@ -267,12 +316,38 @@ type CreateArgs struct {
 	MemoryMB      int    `json:"memory_mb"`
 	WorkspaceGB   int    `json:"workspace_gb"`
 	Hostname      string `json:"hostname"`
+	// CPUGuaranteeMilli is the CPU, in millicores, the sandbox is guaranteed
+	// while it runs: its VM's cgroup weight against the node's other VMs.
+	// Zero is DefaultCPUGuaranteeMilli. It holds for the sandbox's life.
+	CPUGuaranteeMilli uint64 `json:"cpu_guarantee_milli,omitempty"`
 	// FromDiskSnapshot names a saved disk snapshot to clone instead of the
 	// template's disks. The sandbox cold boots on the clones.
 	FromDiskSnapshot string `json:"from_disk_snapshot,omitempty"`
 	// FromArchive downloads the sandbox's archived disks and kernel from
 	// object storage instead. The sandbox cold boots on them.
 	FromArchive *ArchiveSource `json:"from_archive,omitempty"`
+	// CacheImage names an ext4 image in the daemon's cache image directory.
+	// A private writable clone of it is attached as the guest's third drive
+	// (/dev/vdc) and discarded with the sandbox; disk snapshots and archives
+	// never include it. Only cold-boot creates (FromDiskSnapshot) take it,
+	// because Firecracker cannot add a drive to a restored memory snapshot.
+	CacheImage string `json:"cache_image,omitempty"`
+	// CacheGrant names a runner-cache volume's saved head instead: the
+	// daemon has the node's runner-cache agent copy its master into the cache
+	// image directory once (CACHE_IMAGES_GIB) and attaches it like
+	// CacheImage. Not with CacheImage.
+	CacheGrant *CacheGrant `json:"cache_grant,omitempty"`
+}
+
+// CacheGrant is the saved head of a runner-cache volume a sandbox may read: a
+// one-way copy, nothing the sandbox writes reaches the volume. ID names the
+// use for the agent's logs.
+type CacheGrant struct {
+	ID             string `json:"id"`
+	Scope          string `json:"scope"`
+	BaseGeneration int64  `json:"base_generation"`
+	ImageDigest    string `json:"image_digest"`
+	ContentDigest  string `json:"content_digest"`
 }
 
 type SandboxArgs struct {
@@ -331,6 +406,12 @@ type CopyDisksArgs struct {
 	Template    string         `json:"template"`
 	WorkspaceGB int            `json:"workspace_gb"`
 	FromArchive *ArchiveSource `json:"from_archive"`
+	// TemplateTag is the image a macOS snapshot was saved from, which its
+	// overlay needs; the host pulls it when its template has moved on.
+	TemplateTag string `json:"template_tag,omitempty"`
+	// Bytes is the snapshot's DiskSnapshotInfo.Bytes, which a macOS host
+	// admits against its disk budget before downloading.
+	Bytes int64 `json:"bytes,omitempty"`
 }
 
 // ArchiveSource is an archive to restore: a presigned GET URL and the size
@@ -423,6 +504,10 @@ type CreateResult struct {
 	// MemoryPending: the sandbox still reads its memory image or its disks
 	// from the archive it was restored from, until EventMemoryLoaded.
 	MemoryPending bool `json:"memory_pending,omitempty"`
+	// CacheGeneration is the generation of the cache a CacheGrant attached:
+	// the grant's, or an older one of its lineage when the node's agent kept
+	// only that.
+	CacheGeneration int64 `json:"cache_generation,omitempty"`
 }
 
 type ResumeResult struct {
@@ -433,10 +518,23 @@ type PauseResult struct {
 	SnapshotMs  int64 `json:"snapshot_ms"`
 	MemBytes    int64 `json:"mem_bytes"`
 	DisksSynced bool  `json:"disks_synced"`
+	// CPUMs is the VM's CPU time from its process's start to the pause,
+	// as SandboxInfo.CPUMs reports it while it runs, so the server bills
+	// the time since the last report. Absent when the daemon could not
+	// read it.
+	CPUMs int64 `json:"cpu_ms,omitempty"`
+	// MemoryAnonBytes and MemoryFileBytes are the VM's resident memory at
+	// the pause, as SandboxInfo reports it while it runs, so the server
+	// bills the memory past its request up to the pause. Absent when the
+	// daemon could not read it.
+	MemoryAnonBytes uint64 `json:"memory_anon_bytes,omitempty"`
+	MemoryFileBytes uint64 `json:"memory_file_bytes,omitempty"`
 }
 
 type SaveDisksResult struct {
 	DurationMs int64 `json:"duration_ms"`
+	// Bytes is the saved snapshot's DiskSnapshotInfo.Bytes, from macOS hosts.
+	Bytes int64 `json:"bytes,omitempty"`
 }
 
 type ArchivePart struct {

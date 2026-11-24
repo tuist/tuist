@@ -24,7 +24,12 @@ permissions:
 
 jobs:
   check:
-    if: ${{ github.repository == 'tuist/tuist' && github.event.workflow_run.conclusion == 'success' }}
+    # `branches: [main]` matches the head branch name, so a fork PR from its own
+    # `main` branch would also match; only notify on runs of this repository's code.
+    if: >-
+      github.repository == 'tuist/tuist' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       deployed: ${{ steps.check.outputs.deployed }}
@@ -49,7 +54,7 @@ jobs:
     if: ${{ needs.check.outputs.deployed == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Load secrets from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
@@ -67,7 +72,7 @@ jobs:
           COMMIT_URL="${REPO_URL}/commit/${SHA}"
           TEXT=$(printf ':white_check_mark: New deploy for <%s|tuist%s>: %s\n\nhttps://tuist.dev' "$COMMIT_URL" "$SHORT_SHA" "$COMMIT_MESSAGE")
           jq -n --arg text "$TEXT" '{text: $text}' > "$RUNNER_TEMP/slack-payload.json"
-      - uses: slackapi/slack-github-action@v2
+      - uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
         with:
           webhook: ${{ env.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook

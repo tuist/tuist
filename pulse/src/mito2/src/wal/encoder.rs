@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! A cached-size, single-pass encoder for [`WalEntry`].
 //!
 //! # Why
@@ -93,6 +95,28 @@ impl WalEntryEncoder {
     /// `entry.encode_to_vec()`.
     pub fn encode_to_vec(&mut self, entry: &WalEntry) -> Vec<u8> {
         self.sizes.clear();
+        // Reserve a fresh encoder's cache without visiting individual values.
+        // Reused encoders retain amortized geometric growth: reserving exactly
+        // on every write could repeatedly copy the cache for growing entries.
+        if self.sizes.capacity() == 0 {
+            let slots = entry.bulk_entries.len()
+                + entry
+                    .mutations
+                    .iter()
+                    .map(|mutation| {
+                        1 + usize::from(mutation.write_hint.is_some())
+                            + mutation.rows.as_ref().map_or(0, |rows| {
+                                1 + rows.schema.len()
+                                    + rows
+                                        .rows
+                                        .iter()
+                                        .map(|row| 1 + row.values.len())
+                                        .sum::<usize>()
+                            })
+                    })
+                    .sum::<usize>();
+            self.sizes.reserve_exact(slots);
+        }
         let body_len = self.size_entry(entry);
         let mut buf = Vec::with_capacity(body_len);
         let mut cursor = 0;
@@ -441,7 +465,7 @@ mod tests {
     #[test]
     fn test_reused_encoder_matches() {
         let mut enc = WalEntryEncoder::new();
-        for n in [1usize, 10, 100] {
+        for n in [1usize, 10, 100, 1, 0, 1000, 3] {
             let entry = WalEntry {
                 mutations: vec![Mutation {
                     op_type: OpType::Put as i32,
@@ -453,6 +477,32 @@ mod tests {
             };
             assert_eq!(entry.encode_to_vec(), enc.encode_to_vec(&entry));
         }
+    }
+
+    #[test]
+    fn test_encoding_allocation_budget() {
+        let entry = WalEntry {
+            mutations: vec![Mutation {
+                op_type: OpType::Put as i32,
+                sequence: 1,
+                rows: Some(sample_rows(10_000, true)),
+                write_hint: None,
+            }],
+            bulk_entries: vec![],
+        };
+        let expected = entry.encode_to_vec();
+        let mut encoder = WalEntryEncoder::new();
+        let allocated = allocation_counter::measure(|| {
+            assert_eq!(expected, encoder.encode_to_vec(&entry));
+        });
+        // The size cache for this 30,000-cell batch must fit in 400 KiB,
+        // including allocations made while growing it, not just retained data.
+        // The encoded output is the only other batch-sized allocation.
+        assert!(
+            allocated.bytes_total <= expected.len() as u64 + 400 * 1024,
+            "{allocated:?}"
+        );
+        assert!(allocated.bytes_current <= 400 * 1024, "{allocated:?}");
     }
 
     /// Exercises the `bulk_entries` path (the other branch of `encode_entry`),

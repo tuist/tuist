@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "1a69eb5411d5270008125b8cd41b9be4dd551f54938c107d289a5aafb0fad2b5",
+  "hash": "7d3d57328d941242f2385ee44fca200b81023d25e8458585ce2e2d14fa47078a",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Migrate a Swift Package {#migrate-a-swift-package}": {
-                  "content_hash": "fc934f928a6ede5e3bdbea59a476f5c3e062c63fd6fe3a9518be0a4283e690da"
+                  "content_hash": "192f3fd08871f8981ad6437d12f9881a36d0fbc2d8737c395a34b01dcb7ee32c"
                 },
                 "## Editing the project {#editing-the-project}": {
                   "content_hash": "474d72d4a7993b2c0f4948c87e4337557680045a04f1a30ce4d70a2b69b0aece"
@@ -26,11 +26,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "874197addd8245ef79e855f6568b6c31a7d0a94b6ea51046f8efeedcfeca1585",
+          "hash": "713d9f26899db40117a4b6a49da218a042a7db2e849e350808a1a136645b9caf",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/adoption/migrate/swift-package.md",
           "metadata": {
-            "content_hash": "157f287e926e736c4afda60cfdd803f13d42b8ed89fcec400d77701c0b7ed42f"
+            "content_hash": "9153e8a8c3340f4443e534595e48481f571394fc63da4a3304fca823b96b63af"
           }
         },
         {
@@ -91,7 +91,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -110,7 +110,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -139,11 +139,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -220,21 +220,21 @@
             }
           ],
           "details": {},
-          "hash": "dba52d665e1da4b14116ec8f680c5b59b29a4d223e9174430b3785ea92b51eb0",
+          "hash": "44b600b056f26737d5b610175b1eaefeaeb83d256c45e7534089ce4b1395b289",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "1a69eb5411d5270008125b8cd41b9be4dd551f54938c107d289a5aafb0fad2b5",
+      "hash": "7d3d57328d941242f2385ee44fca200b81023d25e8458585ce2e2d14fa47078a",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/adoption/migrate/swift-package.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a545b269d7dd7e8d9ad8590e19950dfe2eaf704dbef4b867d91031c15417efdf",
+  "output_hash": "38e5b4bff1bebcfe9e75c63be17d345e09a9effebb76d17f30d9f6ea9c709f97",
   "output_path": "server/priv/docs/ka/guides/features/projects/adoption/migrate/swift-package.md",
   "protection_state": "recorded",
   "provider": "",
@@ -254,8 +254,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ba528f094f03e8fddd877e509764e5c7c91f3c05",
+  "source_commit_sha": "c7fad37f906cb188113c63e92f7fab7d708d473f",
   "source_path": "server/priv/docs/en/guides/features/projects/adoption/migrate/swift-package.md",
-  "translated_at": "2026-11-06T18:22:10.084303Z",
-  "translation_session_id": "01a1b214-c56b-7cfd-8a46-24ae6822bd5a"
+  "translated_at": "2026-11-18T21:36:42.497055Z",
+  "translation_session_id": "01a1f088-64a6-7d05-be66-26878314385c"
 }

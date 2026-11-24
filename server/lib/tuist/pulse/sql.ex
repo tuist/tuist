@@ -4,6 +4,7 @@ defmodule Tuist.Pulse.SQL do
   # SQL is authored here, never supplied by a dashboard user. The database
   # credential is independently read-only. OTLP stores dotted resource keys
   # inside JSON, not as promoted service_name columns on the logs table.
+  @distinct_events "count(DISTINCT event_id)"
   @log_service ~s|json_get_string(resource_attributes, '["service.name"]')|
 
   def query(signal, opts, request) do
@@ -25,11 +26,12 @@ defmodule Tuist.Pulse.SQL do
         do: "",
         else: " AND strpos(lower(#{search}), lower(#{literal(opts.query)})) > 0"
 
-    sql =
-      "SELECT #{columns} FROM #{table} WHERE #{bounds(opts.finish - opts.seconds, opts.finish)}#{predicate} " <>
+    query = fn seconds ->
+      "SELECT #{columns} FROM #{table} WHERE #{bounds(opts.finish - seconds, opts.finish)}#{predicate} " <>
         "ORDER BY timestamp DESC, trace_id ASC LIMIT 100"
+    end
 
-    with {:ok, rows} <- sql(request, sql),
+    with {:ok, rows} <- newest(request, query, opts.seconds),
          true <- Enum.all?(rows, &valid_row?(&1, signal)) do
       rows = Enum.map(rows, &Map.update!(&1, "timestamp", fn value -> Integer.to_string(value) end))
       {:ok, %{rows: rows, series: [], warnings: []}}
@@ -37,6 +39,22 @@ defmodule Tuist.Pulse.SQL do
       false -> {:error, :malformed_response}
       error -> error
     end
+  end
+
+  # A top 100 by time reads every row in its window, and Pulse ingests thousands
+  # of spans per second, so the newest minute usually holds the whole page.
+  # Narrower windows ending at the same instant are tried first: once one holds
+  # 100 matches, every row of the full window's top 100 is newer than its start,
+  # so the result is identical, ties included.
+  defp newest(request, query, seconds) do
+    windows = Enum.filter([60, 900], &(&1 < seconds)) ++ [seconds]
+
+    Enum.reduce_while(windows, nil, fn window, _ ->
+      case sql(request, query.(window)) do
+        {:ok, rows} when length(rows) < 100 and window < seconds -> {:cont, nil}
+        result -> {:halt, result}
+      end
+    end)
   end
 
   # One query computes every widget of a signal, so each window is scanned once
@@ -72,6 +90,29 @@ defmodule Tuist.Pulse.SQL do
              Enum.all?(ids, &(Map.has_key?(row, &1) and (is_nil(row[&1]) or is_number(row[&1]))))
            end) do
       aggregate_result(rows, mode, ids, window)
+    else
+      false -> {:error, :malformed_response}
+      error -> error
+    end
+  end
+
+  def counts?(signal, ids),
+    do: Enum.all?(ids, &(elem(aggregate_expression(signal, &1), 1) in ["count(*)", @distinct_events]))
+
+  # The buckets of a range partition its window exactly and a missing bucket is
+  # a zero count, so a count's total is the sum of its buckets. One bucketed scan
+  # of the previous and current periods therefore yields the chart and both
+  # totals, rather than scanning the current period twice and the previous once.
+  def periods(signal, ids, window, previous_window, request) do
+    with {:ok, points, _} <- aggregate(signal, ids, :range, %{window | start: previous_window.start}, request),
+         # A count is never null; a null bucket is a malformed response.
+         true <- Enum.all?(points, fn {_, points} -> Enum.all?(points, &is_integer(List.last(&1))) end) do
+      split = Map.new(points, fn {id, points} -> {id, Enum.split_with(points, &(hd(&1) <= window.start))} end)
+      total = fn points -> points |> Enum.map(&List.last/1) |> Enum.sum() end
+
+      {:ok, Map.new(split, fn {id, {_, current}} -> {id, total.(current)} end),
+       Map.new(split, fn {id, {_, current}} -> {id, current} end),
+       Map.new(split, fn {id, {previous, _}} -> {id, total.(previous)} end)}
     else
       false -> {:error, :malformed_response}
       error -> error
@@ -122,8 +163,10 @@ defmodule Tuist.Pulse.SQL do
   defp aggregate_expression("traces", "duration_p95"),
     do: {"opentelemetry_traces", "approx_percentile_cont(duration_nano, 0.95) / 1000000000.0", nil}
 
-  defp aggregate_expression("errors", "events"), do: {"errors", "count(*)", nil}
-  defp aggregate_expression("errors", "fatal"), do: {"errors", "count(*)", ~s|"level" = 'fatal'|}
+  # `errors` keeps an SDK's resends as rows with the same event ID and
+  # timestamp, so they always share a bucket and these counts still add up.
+  defp aggregate_expression("errors", "events"), do: {"errors", @distinct_events, nil}
+  defp aggregate_expression("errors", "fatal"), do: {"errors", @distinct_events, ~s|"level" = 'fatal'|}
   defp aggregate_expression("errors", "services"), do: {"errors", "count(DISTINCT nullif(service, ''))", nil}
 
   def bounds(start, finish),

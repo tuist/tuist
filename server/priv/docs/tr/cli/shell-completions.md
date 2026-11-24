@@ -7,7 +7,7 @@
 ---
 # Kabuk tamamlamaları {#shell-completions}
 
-Tuist'i **genel olarak kurduysanız** (örneğin Homebrew aracılığıyla), Zsh, Bash ve Fish için kabuk tamamlamalarını yükleyerek komutları ve seçenekleri otomatik tamamlayabilirsiniz.
+Tuist'i **genel olarak kurduysanız** (örneğin Homebrew aracılığıyla), Zsh, Bash ve Fish için komut ve seçenekleri otomatik tamamlayan kabuk tamamlamalarını yükleyebilirsiniz.
 
 > [!NOTE]
 > **Genel kurulum nedir**
@@ -17,13 +17,13 @@ Tuist'i **genel olarak kurduysanız** (örneğin Homebrew aracılığıyla), Zsh
 
 ## Zsh {#zsh}
 
-[oh-my-zsh](https://ohmyz.sh/) yüklüyse, otomatik olarak yüklenen tamamlama betiklerinin bulunduğu bir dizine zaten sahipsiniz — `.oh-my-zsh/completions`. Yeni tamamlama betiğinizi o dizindeki `_tuist` adlı yeni bir dosyaya kopyalayın:
+[oh-my-zsh](https://ohmyz.sh/) yüklüyse, otomatik olarak yüklenen tamamlama betiklerinin bulunduğu bir dizine zaten sahipsiniz — `.oh-my-zsh/completions`. Yeni tamamlama betiğinizi bu dizindeki `_tuist` adlı yeni bir dosyaya kopyalayın:
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-`oh-my-zsh` olmadan, tamamlama betikleri için bir yolu işlev yolunuza eklemeniz ve tamamlama betiği otomatik yüklemeyi etkinleştirmeniz gerekir. İlk olarak, şu satırları `~/.zshrc` dosyasına ekleyin:
+`oh-my-zsh` olmadan, tamamlama betikleri için işlev yoluna bir yol eklemeniz ve tamamlama betiği otomatik yüklemeyi açmanız gerekir. Önce şu satırları `~/.zshrc` dosyasına ekleyin:
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -31,7 +31,7 @@ autoload -U compinit
 compinit
 ```
 
-Ardından, `~/.zsh/completion` konumunda bir dizin oluşturun ve tamamlama betiğini yine `_tuist` adlı bir dosyaya kopyalayarak yeni dizine taşıyın.
+Ardından, `~/.zsh/completion` konumunda bir dizin oluşturun ve tamamlama betiğini yine `_tuist` adlı bir dosyaya bu yeni dizine kopyalayın.
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
@@ -39,13 +39,13 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 
 ## Bash {#bash}
 
-[bash-completion](https://github.com/scop/bash-completion) yüklüyse, yeni tamamlama betiğinizi doğrudan bash-completion'ın dizinine kopyalayabilirsiniz:
+[bash-completion](https://github.com/scop/bash-completion) yüklüyse, yeni tamamlama betiğinizi doğrudan bash-completion dizinine kopyalayabilirsiniz:
 
 ```bash
 tuist --generate-completion-script bash > "$(brew --prefix)/etc/bash_completion.d/_tuist"
 ```
 
-bash-completion olmadan, tamamlama betiğini doğrudan kaynak olarak yüklemeniz gerekir. Betiği `~/.bash_completions/` gibi bir dizine yazın:
+bash-completion olmadan, tamamlama betiğini doğrudan kaynaklamanız gerekir. Betiği `~/.bash_completions/` gibi bir dizine yazın:
 
 ```bash
 mkdir -p ~/.bash_completions

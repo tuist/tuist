@@ -14,6 +14,8 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
   its optional `setup_script` makes a repository's sandboxes repo-ready: a
   builder sandbox runs it on the repository and saves the disks, and new
   sessions boot from that snapshot (`Tuist.Sandboxes.ClaudeCodeSnapshots`).
+  A Linux one's optional `macos_setup_script` does the same for the Macs its
+  sessions create with the `create_sandbox` MCP tool for a repository.
 
   `anthropic_api_key` (also Cloak-encrypted) is the organization API key
   the server uses to start sessions on the environment. Instead of a key, an
@@ -48,6 +50,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     field :agent_model, :string, default: "claude-sonnet-5"
     field :agent_system_prompt, :string
     field :setup_script, :string
+    field :macos_setup_script, :string
     field :name, :string
     field :platform, Ecto.Enum, values: [:linux, :darwin], default: :linux
     field :template, :string, default: "default"
@@ -91,6 +94,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
       :agent_model,
       :agent_system_prompt,
       :setup_script,
+      :macos_setup_script,
       :name,
       :anthropic_organization_id,
       :anthropic_workspace_id,
@@ -126,6 +130,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
       :agent_model,
       :agent_system_prompt,
       :setup_script,
+      :macos_setup_script,
       :xcode_version | @federation_fields
     ])
     |> validate_required([:agent_model])
@@ -179,17 +184,26 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     |> validate_length(:agent_model, min: 1, max: 255)
     |> validate_length(:agent_system_prompt, max: 100_000)
     |> validate_length(:setup_script, max: @setup_script_max_bytes, count: :bytes)
+    |> validate_length(:macos_setup_script, max: @setup_script_max_bytes, count: :bytes)
     |> validate_setup_script()
+    |> validate_macos_setup_script()
     |> validate_federation_fields()
   end
 
-  # Only Claude Code runners start from a repository's snapshot, and only
-  # Linux nodes save one.
+  # Only Claude Code runners start from a repository's snapshot.
   defp validate_setup_script(changeset) do
-    if get_field(changeset, :setup_script) in [nil, ""] or
+    if get_field(changeset, :setup_script) in [nil, ""] or get_field(changeset, :kind) == :claude_code,
+      do: changeset,
+      else: add_error(changeset, :setup_script, "is only supported by Claude Code environments")
+  end
+
+  # A macOS session builds on its own Mac; only a Linux session creates one
+  # through `create_sandbox`.
+  defp validate_macos_setup_script(changeset) do
+    if get_field(changeset, :macos_setup_script) in [nil, ""] or
          (get_field(changeset, :kind) == :claude_code and get_field(changeset, :platform) == :linux),
        do: changeset,
-       else: add_error(changeset, :setup_script, "is only supported by Linux Claude Code environments")
+       else: add_error(changeset, :macos_setup_script, "is only supported by Linux Claude Code environments")
   end
 
   # The token exchange needs every id, so a partial set is rejected rather

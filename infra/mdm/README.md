@@ -1,6 +1,6 @@
 # Fleet MDM runbook
 
-Self-hosted Apple MDM for the Mac runner fleet (BER1 rack program). The
+Self-hosted Apple MDM for the Mac runner fleet (alder rack program). The
 footprint is deliberately tiny: enroll zero-touch through Apple Business
 Manager automated device enrollment, create the service account, install
 the fleet SSH key, enable Remote Login, allow USB accessories — then get

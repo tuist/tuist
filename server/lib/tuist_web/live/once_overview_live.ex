@@ -180,7 +180,9 @@ defmodule TuistWeb.OnceOverviewLive do
               id="once-average-build-time"
               loading={!ready?}
               title={dgettext("dashboard_projects", "Average build time")}
-              description={dgettext("dashboard_projects", "The average duration of Once build runs.")}
+              description={
+                dgettext("dashboard_projects", "The average duration of Struo build runs.")
+              }
               value={
                 if ready?,
                   do:
@@ -197,7 +199,7 @@ defmodule TuistWeb.OnceOverviewLive do
               id="once-average-test-run-time"
               loading={!ready?}
               title={dgettext("dashboard_tests", "Avg. test run duration")}
-              description={dgettext("dashboard_projects", "The average duration of Once test runs.")}
+              description={dgettext("dashboard_projects", "The average duration of Struo test runs.")}
               value={
                 if ready?,
                   do:

@@ -139,7 +139,8 @@ defmodule TuistWeb.UserPasskeyController do
       conn
       |> Authentication.restore_login_return_to(params)
       |> put_flash(:info, "Welcome back!")
-      |> Authentication.log_in_user_session(session, %{auth_method: :passkey})
+      # Like provider sign-ins, a passkey sign-in has no "Keep me logged in" choice.
+      |> Authentication.log_in_user_session(session, %{"remember_me" => "true", auth_method: :passkey})
     else
       _ ->
         conn

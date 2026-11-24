@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	lro "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -59,6 +60,12 @@ type Gateway struct {
 	// Registry holds the gateway's metrics for the process to serve.
 	Registry *prometheus.Registry
 	metrics  *metrics
+	recorder *recorder
+	// LogUploads copies long action logs to object storage. It has its own
+	// connections so copies never queue behind, or ahead of, control-plane
+	// calls; tests replace its transport.
+	LogUploads *http.Client
+	logs       *logCopier
 }
 
 const maxStreams = 128
@@ -75,7 +82,7 @@ func New(serverURL string) *Gateway {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = maxStreams
 	registry := prometheus.NewRegistry()
-	return &Gateway{Registry: registry, metrics: newMetrics(registry), URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, ActionReadBudget: 2 * time.Minute, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}}
+	return &Gateway{Registry: registry, metrics: newMetrics(registry), URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, ActionReadBudget: 2 * time.Minute, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}, recorder: newRecorder(), LogUploads: &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone(), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, logs: newLogCopier()}
 }
 func (g *Gateway) Register(s *grpc.Server) {
 	re.RegisterExecutionServer(s, g)
@@ -98,21 +105,48 @@ func scope(ctx context.Context, instance string) (string, string, error) {
 	return accounts[0], auth[0], nil
 }
 
+// requestMetadata returns the invocation, mnemonic and target Bazel names an
+// action by, which the control plane shows while the action is queued or
+// running. They are descriptive only: absent, malformed or oversized values
+// are left out, never a reason to refuse the action.
+func requestMetadata(ctx context.Context) map[string]string {
+	md, _ := metadata.FromIncomingContext(ctx)
+	values := md.Get("build.bazel.remote.execution.v2.requestmetadata-bin")
+	var m re.RequestMetadata
+	if len(values) != 1 || proto.Unmarshal([]byte(values[0]), &m) != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for key, value := range map[string]string{"invocation_id": m.ToolInvocationId, "mnemonic": m.ActionMnemonic, "target": m.TargetId} {
+		if value != "" && len(value) <= maxMetadataBytes && utf8.ValidString(value) {
+			out[key] = value
+		}
+	}
+	return out
+}
+
+const maxMetadataBytes = 1024
+
 type operation struct {
-	QueuedAtUnixUS int64  `json:"queued_at_unix_us"`
-	ID             string `json:"id"`
-	State          string `json:"state"`
-	Response       string `json:"response"`
-	Code           int32  `json:"code"`
-	Message        string `json:"message"`
-	Image          string `json:"image"`
-	Done           bool   `json:"done"`
+	QueuedAtUnixUS int64 `json:"queued_at_unix_us"`
+	// What the control plane waited on while the action was queued, in ms by
+	// cause. Diagnostics only: logged on the action phases line.
+	QueueWaitsMS map[string]int64 `json:"queue_waits_ms"`
+	ID           string           `json:"id"`
+	State        string           `json:"state"`
+	Response     string           `json:"response"`
+	Code         int32            `json:"code"`
+	Message      string           `json:"message"`
+	Image        string           `json:"image"`
+	Done         bool             `json:"done"`
 	// Set on successful results that the action cache should store.
 	Cacheable   bool   `json:"cacheable"`
 	ActionHash  string `json:"action_hash"`
 	ActionSize  int64  `json:"action_size"`
 	CASEndpoint string `json:"cas_endpoint"`
 	Leases      bool   `json:"leases"`
+	// The VM that ran the action, for its record.
+	SandboxID string `json:"sandbox_id"`
 }
 
 func (g *Gateway) call(ctx context.Context, method, account, project, suffix, auth string, body any) (operation, error) {
@@ -219,27 +253,32 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	if err != nil {
 		return err
 	}
+	record := newRecording(s.Context(), account, r.InstanceName, auth, r.ActionDigest, action, inputs, memory)
 	// Leases hold VMs of the default size.
 	if memory == worker.DefaultMemoryGB {
 		if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs); ok {
-			path = "lease"
-			code, err = g.stream(s, account, r.InstanceName, auth, op, true)
+			path, record.path = "lease", "lease"
+			code, err = g.stream(s, account, r.InstanceName, auth, op, record)
 			return err
 		}
 	}
+	record.path = "scheduled"
 	body := map[string]any{"hash": r.ActionDigest.Hash, "size": r.ActionDigest.SizeBytes, "skip_cache": r.SkipCacheLookup}
 	if inputs != "" {
 		body["inputs"] = inputs
 	}
-	if memory != worker.DefaultMemoryGB {
-		body["memory_gb"] = memory
+	// Always sent, so the size does not depend on the server's default
+	// matching this gateway's while either is rolled out.
+	body["memory_gb"] = memory
+	for key, value := range requestMetadata(s.Context()) {
+		body[key] = value
 	}
 	op, err := g.call(s.Context(), http.MethodPost, account, r.InstanceName, "/operations", auth, body)
 	if err != nil {
 		return err
 	}
 	g.rememberAuthorization(auth, account, r.InstanceName)
-	code, err = g.stream(s, account, r.InstanceName, auth, op, true)
+	code, err = g.stream(s, account, r.InstanceName, auth, op, record)
 	return err
 }
 
@@ -264,13 +303,13 @@ func (g *Gateway) WaitExecution(r *re.WaitExecutionRequest, s grpc.ServerStreami
 	if err != nil {
 		return err
 	}
-	_, err = g.stream(s, account, parts[3], auth, op, false)
+	_, err = g.stream(s, account, parts[3], auth, op, nil)
 	return err
 }
 
-// observe records the executed action's phases; WaitExecution passes false so a
-// reconnecting client does not count the same action twice.
-func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, project, auth string, op operation, observe bool) (codes.Code, error) {
+// record observes the executed action's phases and sends its record; WaitExecution
+// passes nil so a reconnecting client does not count the same action twice.
+func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, project, auth string, op operation, record *recording) (codes.Code, error) {
 	if !uuid.MatchString(op.ID) {
 		return codes.Unknown, status.Error(codes.Internal, "invalid operation id")
 	}
@@ -279,6 +318,7 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 	name := "accounts/" + account + "/projects/" + project + "/operations/" + op.ID
 	last := ""
 	legacyDelay := 100 * time.Millisecond
+	var finished *re.ExecuteResponse
 	for {
 		stage := re.ExecutionStage_QUEUED
 		if op.State == "executing" || op.State == "cleaning" {
@@ -316,13 +356,14 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 						response.Result.ExecutionMetadata.QueuedTimestamp = queued
 					}
 				}
-				if observe && !response.CachedResult && response.Result != nil {
-					g.metrics.observePhases(response.Result.ExecutionMetadata)
+				if record != nil && !response.CachedResult && response.Result != nil {
+					g.metrics.observePhases(response.Result.ExecutionMetadata, op.QueueWaitsMS)
 				}
 				// Diagnostics only: neither the client nor the action cache keeps them.
 				stripCASReads(response.GetResult().GetExecutionMetadata())
 				payload, _ := anypb.New(response)
 				message.Result = &lro.Operation_Response{Response: payload}
+				finished = response
 			}
 			if err := s.Send(message); err != nil {
 				return codes.Unknown, err
@@ -330,6 +371,7 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 			last = op.State
 			if done {
 				g.publish(account, project, auth, op, message)
+				g.record(record, op, finished)
 				return codes.Code(op.Code), nil
 			}
 		}
@@ -418,7 +460,9 @@ func (g *Gateway) conn(endpoint string) (*grpc.ClientConn, error) {
 }
 
 // Wait lets pending publications finish during shutdown, until ctx ends.
+// It then sends the records of finished actions.
 func (g *Gateway) Wait(ctx context.Context) {
+	defer g.waitRecords(ctx)
 	done := make(chan struct{})
 	go func() { g.pending.Wait(); close(done) }()
 	select {

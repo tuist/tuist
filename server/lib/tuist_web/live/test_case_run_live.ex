@@ -185,7 +185,8 @@ defmodule TuistWeb.TestCaseRunLive do
               size="small"
             />
           </div>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             href={
               ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
             }
@@ -193,13 +194,13 @@ defmodule TuistWeb.TestCaseRunLive do
             size="small"
           >
             <.download />
-          </.neutral_button>
-          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+          </.ghost_button>
+          <.ghost_button data-part="closed-collapsible-button" variant="secondary" size="small">
             <.chevron_down />
-          </.neutral_button>
-          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+          </.ghost_button>
+          <.ghost_button data-part="open-collapsible-button" variant="secondary" size="small">
             <.chevron_up />
-          </.neutral_button>
+          </.ghost_button>
         </div>
         <div data-part="content">
           <a
@@ -243,7 +244,8 @@ defmodule TuistWeb.TestCaseRunLive do
               size="small"
             />
           </div>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             href={
               ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
             }
@@ -251,13 +253,13 @@ defmodule TuistWeb.TestCaseRunLive do
             size="small"
           >
             <.download />
-          </.neutral_button>
-          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+          </.ghost_button>
+          <.ghost_button data-part="closed-collapsible-button" variant="secondary" size="small">
             <.chevron_down />
-          </.neutral_button>
-          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+          </.ghost_button>
+          <.ghost_button data-part="open-collapsible-button" variant="secondary" size="small">
             <.chevron_up />
-          </.neutral_button>
+          </.ghost_button>
         </div>
         <div data-part="content">
           <div
@@ -291,7 +293,8 @@ defmodule TuistWeb.TestCaseRunLive do
               size="small"
             />
           </div>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             href={
               ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
             }
@@ -299,7 +302,7 @@ defmodule TuistWeb.TestCaseRunLive do
             size="small"
           >
             <.download />
-          </.neutral_button>
+          </.ghost_button>
         </div>
       </div>
     </div>

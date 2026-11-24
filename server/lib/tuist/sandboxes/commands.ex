@@ -70,6 +70,10 @@ defmodule Tuist.Sandboxes.Commands do
   # The script enters the command's working directory itself: the guest
   # agent refuses to start any process in a missing directory, which would
   # otherwise surface as a node failure instead of the caller's mistake.
+  #
+  # mise's shims come first, so a repository's pinned tools win; the macOS
+  # image's preinstalled Tuist (`/opt/tuist/cli/bin`) comes last and serves a
+  # repository that pins none (infra/runner-image/AGENTS.md).
   @start_script @dir <>
                   """
 
@@ -78,7 +82,7 @@ defmodule Tuist.Sandboxes.Commands do
                   ~S"""
                   set -eu
                   mkdir -p "$d"
-                  printf '%s' "$TUIST_COMMAND" > "$d/command"
+                  printf 'export PATH="$HOME/.local/share/mise/shims:$PATH:/opt/tuist/cli/bin"\n%s' "$TUIST_COMMAND" > "$d/command"
                   : > "$d/stdout"
                   : > "$d/stderr"
                   : > "$d/stdin"
@@ -96,6 +100,10 @@ defmodule Tuist.Sandboxes.Commands do
                   }
                   FEED
                   unset TUIST_COMMAND TUIST_STDIN TUIST_CWD
+                  # Both clients append progress here (`read/3` returns the last line).
+                  : "${STRUO_PROGRESS:=$d/struo-progress.jsonl}"
+                  : "${ONCE_PROGRESS:=$d/struo-progress.jsonl}"
+                  export STRUO_PROGRESS ONCE_PROGRESS
                   perl -MPOSIX -e 'POSIX::setsid() or die "setsid: $!"; exec @ARGV or die "exec: $!"' \
                     /bin/bash -c 'echo $$ > "$1/pid"; perl "$1/feed.pl" "$1" | /bin/bash -l "$1/command" > "$1/stdout" 2> "$1/stderr"; echo $? > "$1/exit_code.tmp"; mv "$1/exit_code.tmp" "$1/exit_code"' _ "$d" \
                     < /dev/null > /dev/null 2>&1 &
@@ -107,8 +115,10 @@ defmodule Tuist.Sandboxes.Commands do
                   done
                   """
 
-  # Prints `<state> <exit code or -> <stdout size> <stderr size> <reason or ->`
-  # on the first line, then the stdout chunk; the stderr chunk goes to stderr.
+  # Prints `<state> <exit code or -> <stdout size> <stderr size> <reason or ->
+  # <progress or ->` on the first line, then the stdout chunk; the stderr chunk
+  # goes to stderr. Progress is the base64 of the last line Struo appended to
+  # the command's `STRUO_PROGRESS` file, its build or test run so far.
   # The exit code is checked before the sizes are taken, so a finished
   # command's last read holds all of its output.
   @read_script @dir <>
@@ -138,7 +148,14 @@ defmodule Tuist.Sandboxes.Commands do
                  [ -e "$d/exit_code" ] && code=$(cat "$d/exit_code")
                  reason=-
                  [ -s "$d/killed" ] && reason=$(cat "$d/killed")
-                 echo "$state $code $so $se $reason"
+                 progress=-
+                 progress_file="$d/struo-progress.jsonl"
+                 [ -s "$progress_file" ] || progress_file="$d/once-progress.jsonl"
+                 if [ -s "$progress_file" ]; then
+                   progress=$(tail -n 1 "$progress_file" | head -c 8192 | base64 | tr -d '\n')
+                   [ -n "$progress" ] || progress=-
+                 fi
+                 echo "$state $code $so $se $reason $progress"
                  n=$(( so - TUIST_STDOUT_OFFSET )); [ "$n" -gt "$TUIST_CHUNK" ] && n=$TUIST_CHUNK
                  [ "$n" -gt 0 ] && tail -c +$((TUIST_STDOUT_OFFSET + 1)) "$d/stdout" | head -c "$n"
                  n=$(( se - TUIST_STDERR_OFFSET )); [ "$n" -gt "$TUIST_CHUNK" ] && n=$TUIST_CHUNK
@@ -182,13 +199,18 @@ defmodule Tuist.Sandboxes.Commands do
                  """ <>
                  ~S"""
                  [ -e "$d/exit_code" ] && exit 0
-                 [ -s "$d/killed" ] || printf '%s' "$TUIST_REASON" > "$d/killed"
+                 mark() { [ -s "$d/killed" ] || printf '%s' "$TUIST_REASON" > "$d/killed"; }
+                 # A note goes to the command's stderr once nothing else writes
+                 # it, and the command reads as ended only after it.
+                 [ -n "${TUIST_NOTE-}" ] || mark
                  : > "$d/stdin_closed"
                  pid=$(cat "$d/pid")
-                 kill -TERM -- -"$pid" 2> /dev/null || exit 0
-                 i=0
-                 while kill -0 -- -"$pid" 2> /dev/null && [ "$i" -lt 50 ]; do i=$((i + 1)); sleep 0.1; done
-                 kill -KILL -- -"$pid" 2> /dev/null || true
+                 if kill -TERM -- -"$pid" 2> /dev/null; then
+                   i=0
+                   while kill -0 -- -"$pid" 2> /dev/null && [ "$i" -lt 50 ]; do i=$((i + 1)); sleep 0.1; done
+                   kill -KILL -- -"$pid" 2> /dev/null || true
+                 fi
+                 if [ -n "${TUIST_NOTE-}" ]; then printf '\n%s\n' "$TUIST_NOTE" >> "$d/stderr"; mark; fi
                  exit 0
                  """
 
@@ -235,6 +257,8 @@ defmodule Tuist.Sandboxes.Commands do
     end
   end
 
+  defp host_poll_ms, do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:host_poll_ms, @host_poll_ms)
+
   defp command_id(nil), do: {:ok, nil}
 
   defp command_id(id) do
@@ -247,8 +271,10 @@ defmodule Tuist.Sandboxes.Commands do
   defp start_admitted(sandbox, id, params, script, env, deadline) do
     case start_new(sandbox, id, params, script, env) do
       {:error, reason} = error ->
-        if host_busy?(reason) and System.monotonic_time(:millisecond) + @host_poll_ms < deadline do
-          Process.sleep(@host_poll_ms)
+        poll_ms = host_poll_ms()
+
+        if host_busy?(reason) and System.monotonic_time(:millisecond) + poll_ms < deadline do
+          Process.sleep(poll_ms)
 
           case Sandboxes.get_sandbox_by_id(sandbox.id) do
             %Sandbox{} = fresh -> start_admitted(fresh, id, params, script, env, deadline)
@@ -442,27 +468,40 @@ defmodule Tuist.Sandboxes.Commands do
     }
 
     with {:ok, command} <- get(sandbox, id) do
-      exec_opts = [env: env, timeout_ms: wait * 1000 + 30_000, raw_output: true]
+      if expired_and_ended?(sandbox, command),
+        do: {:ok, Map.merge(serialize(command), empty_read(stdout_offset, stderr_offset))},
+        else: read_guest(sandbox, command, env, wait, stdout_offset, stderr_offset)
+    end
+  end
 
-      case Sandboxes.exec(sandbox, ["/bin/bash", "-c", @read_script], exec_opts) do
-        {:ok, result} ->
-          case parse(result, stdout_offset, stderr_offset) do
-            {:ok, read} ->
-              command = record(sandbox, command, read.status, read.exit_code)
-              {:ok, Map.merge(serialize(command), Map.drop(read, [:status, :exit_code]))}
+  # Reading a command that ended in a sandbox whose lifetime ended would
+  # resume the sandbox, and with it a new lifetime, only to read output.
+  defp expired_and_ended?(%Sandbox{state: state, expires_at: %DateTime{} = at}, %SandboxCommand{status: status}),
+    do: state != :running and status != :running and not DateTime.after?(at, DateTime.utc_now())
 
-            {:error, :not_found} ->
-              # The guest lost the directory, such as a sandbox created again.
-              command = record(sandbox, command, :lost, nil)
-              {:ok, Map.merge(serialize(command), empty_read(stdout_offset, stderr_offset))}
+  defp expired_and_ended?(_sandbox, _command), do: false
 
-            {:error, reason} ->
-              {:error, reason}
-          end
+  defp read_guest(sandbox, command, env, wait, stdout_offset, stderr_offset) do
+    exec_opts = [env: env, timeout_ms: wait * 1000 + 30_000, raw_output: true]
 
-        {:error, reason} ->
-          {:error, reason}
-      end
+    case Sandboxes.exec(sandbox, ["/bin/bash", "-c", @read_script], exec_opts) do
+      {:ok, result} ->
+        case parse(result, stdout_offset, stderr_offset) do
+          {:ok, read} ->
+            command = record(sandbox, command, read.status, read.exit_code)
+            {:ok, Map.merge(serialize(command), Map.drop(read, [:status, :exit_code]))}
+
+          {:error, :not_found} ->
+            # The guest lost the directory, such as a sandbox created again.
+            command = record(sandbox, command, :lost, nil)
+            {:ok, Map.merge(serialize(command), empty_read(stdout_offset, stderr_offset))}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -550,9 +589,27 @@ defmodule Tuist.Sandboxes.Commands do
     end
   end
 
+  @doc """
+  Cancels every command running in a sandbox whose lifetime ended, without
+  resuming it, leaving `note` at the end of each one's stderr, and records
+  them `cancelled`. Leaves the residency to the pause that follows.
+  """
+  def cancel_expired(%Sandbox{} = sandbox, note) do
+    from(c in SandboxCommand, where: c.sandbox_id == ^sandbox.id and c.status == :running)
+    |> Repo.all()
+    |> Enum.each(fn command ->
+      _ = kill(sandbox, command.id, "cancelled", &Sandboxes.exec_running/3, note)
+
+      command
+      |> Ecto.Changeset.change(status: :cancelled, finished_at: DateTime.utc_now(:second))
+      |> Repo.update!()
+    end)
+  end
+
   @doc false
-  def kill(sandbox, id, reason, exec \\ &Sandboxes.exec_running/3) do
+  def kill(sandbox, id, reason, exec \\ &Sandboxes.exec_running/3, note \\ nil) do
     env = %{"TUIST_COMMAND_ID" => id, "TUIST_REASON" => reason}
+    env = if note, do: Map.put(env, "TUIST_NOTE", note), else: env
 
     case exec.(sandbox, ["/bin/bash", "-c", @kill_script], env: env, timeout_ms: 30_000) do
       {:ok, %{exit_code: 0}} -> :ok
@@ -731,7 +788,8 @@ defmodule Tuist.Sandboxes.Commands do
 
   defp parse(%{exit_code: 0, stdout: stdout, stderr: stderr}, stdout_offset, stderr_offset) do
     with [header, out] <- String.split(stdout, "\n", parts: 2),
-         [state, code, stdout_size, stderr_size, reason] <- String.split(header, " "),
+         [state, code, stdout_size, stderr_size, reason | progress] when length(progress) <= 1 <-
+           String.split(header, " "),
          {stdout_size, ""} <- Integer.parse(stdout_size),
          {stderr_size, ""} <- Integer.parse(stderr_size) do
       {out, out_bytes} = utf8_prefix(out)
@@ -747,6 +805,7 @@ defmodule Tuist.Sandboxes.Commands do
          stderr_offset: stderr_offset + err_bytes,
          stdout_size: stdout_size,
          stderr_size: stderr_size,
+         progress: progress(progress),
          complete:
            state != "running" and stdout_offset + out_bytes >= stdout_size and
              stderr_offset + err_bytes >= stderr_size
@@ -757,6 +816,19 @@ defmodule Tuist.Sandboxes.Commands do
   end
 
   defp parse(%{stderr: stderr}, _so, _se), do: {:error, "could not read the command: " <> String.trim(stderr)}
+
+  # The latest snapshot a Once run in the command reported, or nil. Guest
+  # output: anything that is not a JSON object is ignored.
+  defp progress([encoded]) when encoded != "-" do
+    with {:ok, line} <- Base.decode64(encoded),
+         {:ok, %{} = snapshot} <- JSON.decode(line) do
+      snapshot
+    else
+      _ -> nil
+    end
+  end
+
+  defp progress(_none), do: nil
 
   defp status("running", _reason), do: :running
   defp status("lost", _reason), do: :lost

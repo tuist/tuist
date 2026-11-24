@@ -6,7 +6,8 @@ trap 'echo "::error::Pulse readiness failed at line $LINENO; collectors were not
 case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
 namespace=${OBSERVABILITY_NAMESPACE:-observability}
 # Pulse is the `pulse` release of infra/helm/pulse. Gate on it when it is
-# installed; a cluster without it still gets Grafana Cloud collection.
+# installed. Every environment's collectors write only to Pulse, so without
+# the release the ingest-login check below fails: only that chart creates it.
 if [[ -n "$(kubectl -n "$namespace" get statefulset pulse-datanode --ignore-not-found -o name)" ]]; then
   workloads='statefulset/pulse-etcd:3 statefulset/pulse-kafka:3 deployment/pulse-metasrv:3 statefulset/pulse-datanode:3 deployment/pulse-frontend:2'
   topology=cluster
@@ -36,9 +37,9 @@ done
 if [[ -n "$topology" ]]; then
   backend="Pulse $topology backend ready"
 else
-  backend='no Pulse backend installed (Grafana Cloud only)'
+  backend='no Pulse backend installed (collectors have no destination)'
 fi
-# Alloy fails its whole config load, Grafana Cloud included, when a
+# Alloy fails its whole config load, every other writer included, when a
 # referenced Secret is missing. Collectors that write to Pulse need its
 # ingest login to exist first; check its ExternalSecret, never the Secret.
 values="${OBSERVABILITY_CHART_PATH:-}/values-$DEPLOY_ENV.yaml"

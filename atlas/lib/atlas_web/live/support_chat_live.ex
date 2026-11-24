@@ -128,7 +128,8 @@ defmodule AtlasWeb.SupportChatLive do
           <h1 data-part="title">{gettext("How can we help you?")}</h1>
           <p data-part="response-time">{gettext("Typically replies in one business day")}</p>
         </div>
-        <.neutral_button
+        <.ghost_button
+          variant="secondary"
           id="support-chat-close"
           size="large"
           phx-hook=".CloseSupportChat"
@@ -137,7 +138,7 @@ defmodule AtlasWeb.SupportChatLive do
           aria-label={gettext("Close support chat")}
         >
           <.icon name="close" />
-        </.neutral_button>
+        </.ghost_button>
       </header>
 
       <div

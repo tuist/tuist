@@ -36,6 +36,13 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_recovery, do: [:tuist, :runners, :recovery]
   def event_name_webhook, do: [:tuist, :runners, :webhook]
 
+  # A job or build that arrived and was not queued because its account
+  # may not run it now: the free allowance is spent or runners are off.
+  # Nothing queues, so no queue-age signal sees it while the customer's
+  # job waits on its provider. Pull lanes emit it on every poll that
+  # still finds the work waiting.
+  def event_name_dispatch_refused, do: [:tuist, :runners, :dispatch, :refused]
+
   # The Buildkite lane's counterpart to `event_name_webhook`. Carries both
   # what the queue held and what we reserved: the gap between them is a
   # sibling stack taking our jobs, which no other signal would show.

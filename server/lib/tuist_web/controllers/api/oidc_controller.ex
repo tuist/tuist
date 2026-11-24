@@ -11,6 +11,7 @@ defmodule TuistWeb.API.OIDCController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Authentication
   alias Tuist.Guardian
   alias Tuist.OIDC
   alias Tuist.Projects
@@ -18,6 +19,7 @@ defmodule TuistWeb.API.OIDCController do
   alias Tuist.Sandboxes.CommandCredentials
   alias Tuist.VCS
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.RemoteIp
 
   plug(
     TuistWeb.Plugs.CastAndValidate,
@@ -86,7 +88,7 @@ defmodule TuistWeb.API.OIDCController do
     with {:ok, claims} <- OIDC.claims(token, account_handle),
          {:ok, account, grant} <- authorized_account(claims, token, account_handle),
          ttl_seconds = token_ttl_seconds(claims),
-         {:ok, access_token} <- generate_token(account, grant, ttl_seconds) do
+         {:ok, access_token} <- generate_token(account, grant, ttl_seconds, RemoteIp.origin(conn)) do
       conn
       |> put_status(:ok)
       |> json(%{
@@ -283,9 +285,12 @@ defmodule TuistWeb.API.OIDCController do
 
   defp token_ttl_seconds(_claims), do: @token_ttl_seconds
 
-  defp generate_token(account, grant, ttl_seconds) do
+  defp generate_token(account, grant, ttl_seconds, origin) do
     # `preferred_username` names the account, which `tuist auth whoami` prints.
-    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"], "preferred_username" => account.name}, grant)
+    claims =
+      %{"type" => "account", "scopes" => ["ci"], "preferred_username" => account.name}
+      |> Map.merge(grant)
+      |> Map.merge(Authentication.origin_claims(origin))
 
     case Guardian.encode_and_sign(account, claims, ttl: {ttl_seconds, :second}) do
       {:ok, token, _full_claims} -> {:ok, token}

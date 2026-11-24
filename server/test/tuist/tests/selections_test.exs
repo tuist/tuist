@@ -1,8 +1,6 @@
 defmodule Tuist.Tests.SelectionsTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
-  alias Tuist.IngestRepo
-  alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.Selections
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -13,9 +11,9 @@ defmodule Tuist.Tests.SelectionsTest do
     %{project: ProjectsFixtures.project_fixture()}
   end
 
-  # An impact run that selected `test_load()` (impacted) and the new
-  # `test_gone()` (no evidence) and skipped the baseline's `test_refresh()`
-  # and `test_reset()`. Its test run ran `test_load()` (passed) but never
+  # An impact run whose decision selected `test_load()` (impacted) and the
+  # new `test_gone()` (no evidence) and skipped the baseline's
+  # `test_refresh()` and `test_reset()` (unaffected). Its test run ran `test_load()` (passed) but never
   # reported `test_gone()`. A two-shard plan put each selected test's suite
   # on its own shard.
   defp run(project, attrs \\ []) do
@@ -72,6 +70,10 @@ defmodule Tuist.Tests.SelectionsTest do
                 name: "test_gone()",
                 reason: "no_evidence"
               }
+            ],
+            skipped: [
+              %{test_case_id: refresh, module_name: "AuthTests", suite_name: "SessionTests", name: "test_refresh()"},
+              %{test_case_id: reset, module_name: "AuthTests", suite_name: "SessionTests", name: "test_reset()"}
             ]
           ],
           attrs
@@ -214,7 +216,31 @@ defmodule Tuist.Tests.SelectionsTest do
       assert Enum.map(rows, & &1.duration) == [1000, 500, 300, 200, 0]
     end
 
-    test "lists only the selected tests without a baseline", %{project: project} do
+    test "lists no tests coverage decided while the run's decision is incomplete", %{project: project} do
+      test = %{test_case_id: UUIDv7.generate(), module_name: "AppTests", suite_name: "AppTests", name: "test_a()"}
+      run = TestSelectionFixtures.run_fixture(project_id: project.id, requested_modules: ["AppTests"])
+      snapshot = TestSelectionFixtures.snapshot_fixture(project_id: project.id, tests: [test])
+
+      # Its storing stopped after one bitmap of the two tests it decided.
+      TestSelectionFixtures.decision_fixture(
+        project_id: project.id,
+        run_id: run.id,
+        snapshot: snapshot,
+        tests: [Map.merge(test, %{reason: "impacted", matched_path: "Sources/A.swift"})],
+        decided: 2
+      )
+
+      TestSelectionFixtures.diff_fixture(project_id: project.id, changed_files: [%{path: "Sources/A.swift"}])
+
+      assert {[], %{total_count: 0}} = Selections.run_tests(run, UUIDv7.generate())
+      assert {:error, :not_found} = Selections.get_run_test(run, UUIDv7.generate(), test.test_case_id)
+      assert Selections.run_targets(run) == []
+
+      assert {[%{path: "Sources/A.swift", selected_tests_count: 0}], _meta} =
+               Selections.changed_files(project, run, Selections.get_diff(run))
+    end
+
+    test "lists no tests without a baseline", %{project: project} do
       run =
         TestSelectionFixtures.run_fixture(
           project_id: project.id,
@@ -222,12 +248,18 @@ defmodule Tuist.Tests.SelectionsTest do
           selected: [%{name: "test_a()", reason: "no_evidence"}]
         )
 
-      assert {[%{name: "test_a()", decision: "selected"}], _meta} = Selections.run_tests(run, UUIDv7.generate())
+      assert {[], %{total_count: 0}} = Selections.run_tests(run, UUIDv7.generate())
     end
 
     test "lists only the tests of modules hashing skipped when it left no module to decide", %{project: project} do
       %{run: run, test_run: test_run} =
-        run(project, requested_modules: [], selected: [], skipped_modules: %{"SearchTests" => 4}, rule_trace: [])
+        run(project,
+          requested_modules: [],
+          selected: [],
+          skipped: [],
+          skipped_modules: %{"SearchTests" => 4},
+          rule_trace: []
+        )
 
       {tests, _meta} = Selections.run_tests(run, test_run.id)
       assert tests != []
@@ -307,32 +339,67 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
-  describe "baseline_covered_paths/3" do
-    test "lists the files the test executed in the baseline commit's runs", %{project: project} do
-      baseline = TestSelectionFixtures.baseline_fixture(project_id: project.id, baseline_sha: "b1")
-      other = TestSelectionFixtures.baseline_fixture(project_id: project.id, baseline_sha: "b2")
+  describe "baseline_covered_paths/2" do
+    test "lists the files a test depends on in the checkpoint its run's decision was numbered by", %{
+      project: project
+    } do
+      test = %{
+        test_case_id: UUIDv7.generate(),
+        module_name: "SearchTests",
+        suite_name: "SearchViewModelTests",
+        name: "test_load()"
+      }
 
-      evidence = fn run, path ->
-        %{
-          id: UUIDv7.generate(),
+      run =
+        TestSelectionFixtures.run_fixture(
           project_id: project.id,
-          test_run_id: run.id,
-          scope_kind: "test",
-          scope_id: "AuthTests\x1FSessionTests\x1Ftest_refresh()",
-          path: path,
-          inserted_at: NaiveDateTime.utc_now()
-        }
-      end
+          requested_modules: ["SearchTests"],
+          selected: [
+            Map.merge(test, %{
+              matched_path: "Sources/Search/Search.swift",
+              files: ["Sources/Search/Search.swift", "Sources/Networking/API.swift"]
+            })
+          ]
+        )
 
-      IngestRepo.insert_all(CoverageFile, [
-        evidence.(baseline, "Sources/Session.swift"),
-        evidence.(baseline, "Sources/Auth.swift"),
-        evidence.(other, "Sources/Other.swift")
-      ])
+      # A newer checkpoint at the baseline that the decision didn't use.
+      TestSelectionFixtures.snapshot_fixture(
+        project_id: project.id,
+        tests: [Map.put(test, :files, ["Sources/Other.swift"])]
+      )
 
-      test = %{module_name: "AuthTests", suite_name: "SessionTests", name: "test_refresh()"}
+      assert Selections.baseline_covered_paths(run, test) == [
+               "Sources/Networking/API.swift",
+               "Sources/Search/Search.swift"
+             ]
+    end
 
-      assert Selections.baseline_covered_paths(project.id, "b1", test) == ["Sources/Auth.swift", "Sources/Session.swift"]
+    test "reads the snapshot at the baseline for the run's scope without a decision", %{project: project} do
+      test = %{
+        test_case_id: UUIDv7.generate(),
+        module_name: "AuthTests",
+        suite_name: "SessionTests",
+        name: "test_refresh()"
+      }
+
+      TestSelectionFixtures.snapshot_fixture(
+        project_id: project.id,
+        commit_sha: "b1",
+        tests: [Map.put(test, :files, ["Sources/Session.swift", "Sources/Auth.swift"])]
+      )
+
+      TestSelectionFixtures.snapshot_fixture(
+        project_id: project.id,
+        commit_sha: "b1",
+        scheme: "Other",
+        tests: [Map.put(test, :files, ["Sources/Other.swift"])]
+      )
+
+      run = TestSelectionFixtures.run_fixture(project_id: project.id, outcome: "fallback", baseline_sha: "b1")
+
+      assert Selections.baseline_covered_paths(run, test) == ["Sources/Auth.swift", "Sources/Session.swift"]
+      assert Selections.baseline_covered_paths(%{run | baseline_sha: "b2"}, test) == []
+      assert Selections.baseline_covered_paths(%{run | baseline_sha: nil}, test) == []
     end
   end
 

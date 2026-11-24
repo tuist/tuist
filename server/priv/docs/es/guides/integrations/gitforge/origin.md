@@ -2,24 +2,24 @@
 {
   "title": "Origin",
   "titleTemplate": ":title | Forjas de Git | Integraciones | Guías | Tuist",
-  "description": "Conecta repositorios nativos de Cursor Origin a los informes de pull request de Tuist."
+  "description": "Conecta repositorios nativos de Cursor Origin a los informes de pull requests de Tuist."
 }
 ---
 # Integración con Origin {#origin}
 
-Tuist puede publicar informes de compilación, tests, previews y bundles en las pull requests de repositorios nativos de [Cursor Origin](https://cursor.com/docs/api/origin). Actualiza el Tuist Run Report existente de la app en lugar de publicar un nuevo comentario por cada subida.
+Tuist puede publicar informes de compilación, tests, previsualizaciones y bundles en las pull requests de repositorios nativos de [Cursor Origin](https://cursor.com/docs/api/origin). Actualiza el Tuist Run Report existente de la app en lugar de publicar un nuevo comentario por cada subida.
 
 Instalar la app no ejecuta compilaciones ni tests. Tus flujos de trabajo existentes siguen subiendo resultados a Tuist, y la integración incorpora esos resultados en tus pull requests.
 
 ## Configuración {#setup}
 
-Un administrador de la cuenta de Tuist debe abrir **Settings → Integrations**, elegir **Install Origin App** en la tarjeta de Origin y aprobar el acceso en Cursor. Elige la cuenta o el namespace de Origin y los repositorios a los que Tuist debe acceder; luego vuelve a Tuist. La conexión pertenece a la cuenta de Tuist, no a un proyecto individual.
+Un administrador de la cuenta de Tuist debe abrir **Settings → Integrations**, elegir **Install Origin App** en la tarjeta de Origin y aprobar el acceso en Cursor. Elige la cuenta o el namespace de Origin y los repositorios a los que Tuist debe acceder, luego vuelve a Tuist. La conexión pertenece a la cuenta de Tuist, no a un proyecto individual.
 
-También puedes instalar la app directamente desde Origin. Tras aprobar el acceso, inicia sesión en Tuist si es necesario y elige la organización que deseas conectar. Solo están disponibles las organizaciones que administras y tu cuenta personal. Si solo hay una cuenta disponible, Tuist la conecta automáticamente sin mostrar el selector. Si empiezas desde Tuist, la organización ya está seleccionada y este paso se omite.
+También puedes instalar la app directamente desde Origin. Después de aprobar el acceso, inicia sesión en Tuist si es necesario y elige la organización que deseas conectar. Solo están disponibles las organizaciones que administras y tu cuenta personal. Tuist siempre lo solicita, incluso si tu cuenta personal es la única opción. Si la organización de Tuist de tu equipo no aparece en la lista, elige **Create an organization** o pide a uno de sus administradores que te haga administrador. La lista se actualiza mientras la página está abierta, por lo que la organización aparecerá sin tener que empezar de nuevo, siempre que la elijas dentro de los diez minutos siguientes a volver a Tuist. Si comienzas desde Tuist, la organización ya está seleccionada y este paso se omite.
 
-Elige **Add new project connection** para abrir el modal de selección de repositorio. Selecciona un proyecto de Tuist sin conectar y uno de los repositorios detectados desde la cuenta de Origin conectada; luego elige **Create Connection**. Si hay varias cuentas de Origin conectadas, elige primero la cuenta. Solo los repositorios nativos de Origin están disponibles para la conexión. Tuist verifica de nuevo el acceso a las pull requests antes de conectar el proyecto y adopta la rama predeterminada del repositorio.
+Elige **Add new project connection** para abrir el modal de selección de repositorio. Selecciona un proyecto de Tuist sin conectar y uno de los repositorios detectados desde la cuenta de Origin conectada, luego elige **Create Connection**. Si hay varias cuentas de Origin conectadas, elige primero la cuenta. Solo los repositorios nativos de Origin están disponibles para la conexión. Tuist verifica de nuevo el acceso a las pull requests antes de conectar el proyecto y adopta la rama predeterminada del repositorio.
 
-Usa **Manage integration** para abrir el flujo de consentimiento de Cursor en una nueva pestaña y ajustar el acceso a los repositorios o conectar otra cuenta de Origin. Los fallos al cargar los repositorios muestran **Retry**, independientemente de que la lista de repositorios esté vacía pero se haya cargado correctamente.
+Usa **Manage integration** para abrir el flujo de consentimiento de Cursor en una nueva pestaña y ajustar el acceso al repositorio o conectar otra cuenta de Origin. Los fallos de carga de repositorios muestran **Retry**, independientemente de que la lista de repositorios esté vacía correctamente.
 
 Usa un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> para autenticar las subidas de resultados.
 
@@ -27,7 +27,7 @@ Usa un <.localized_link href="/guides/server/authentication#account-tokens">toke
 
 Al aprobar la app, otorgas los permisos necesarios para conectar repositorios y publicar informes:
 
-| Permiso | Uso |
+| Permiso | Se usa para |
 | --- | --- |
 | Pull requests: lectura | Encontrar la pull request abierta correspondiente al commit informado. |
 | Revisiones de pull requests: lectura y escritura | Leer, publicar y actualizar el comentario del Tuist Run Report. |

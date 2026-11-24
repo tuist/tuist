@@ -1,5 +1,5 @@
 {
-  "originHash" : "4b33b61a5a93ece37ad586c5d713ed0124f88a5869c908c5f8ab81d74a3b0a91",
+  "originHash" : "d7ff114434394babd68a0134eed3d9d45108a7e803fb73454b4e53b5437e62cf",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -540,6 +540,15 @@
       "originalLocation" : "https://github.com/shibapm/PackageConfig.git",
       "state" : {
         "version" : "1.1.3"
+      }
+    },
+    {
+      "identity" : "snapshots",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/snapshots",
+      "state" : {
+        "revision" : "10a89665c735325c78fe7717711ae3228aa29091",
+        "version" : "0.1.0"
       }
     },
     {

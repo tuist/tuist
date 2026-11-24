@@ -7,8 +7,8 @@ own.
 ## Built-in tool sets
 
 ```elixir
-def tools, do: Condukt.Tools.coding_tools()    # Read, Bash, Edit, Write, Glob, Grep
-def tools, do: Condukt.Tools.read_only_tools() # Read, Bash, Glob, Grep
+def tools, do: Condukt.Tools.coding_tools()    # Read, Bash, Edit, Write, Glob, Grep, Ls
+def tools, do: Condukt.Tools.read_only_tools() # Read, Bash, Glob, Grep, Ls
 ```
 
 You can mix the helpers with extras:
@@ -26,10 +26,18 @@ end
 | `Condukt.Tools.Read` | Read file contents. Supports images. |
 | `Condukt.Tools.Bash` | Run a shell command via `bash -c`, streaming its output. |
 | `Condukt.Tools.Command` | Run one trusted executable without shell parsing. |
-| `Condukt.Tools.Edit` | Surgical file edits using find and replace. |
+| `Condukt.Tools.Edit` | One or more exact-text replacements in one file. |
 | `Condukt.Tools.Write` | Create or overwrite files. |
 | `Condukt.Tools.Glob` | Find files by glob pattern. |
-| `Condukt.Tools.Grep` | Search file contents by regex. |
+| `Condukt.Tools.Grep` | Search file contents by regex, with context lines. |
+| `Condukt.Tools.Ls` | List a directory. |
+
+The file tools follow the tools of [pi's coding agent](https://github.com/badlogic/pi-mono)
+in their parameters and output: results are cut at 2000 lines or 50KB, and a
+notice tells the model how to get the rest, such as the `offset` to continue
+reading from or a higher `limit`. Edit tolerates CRLF files, a byte order
+mark, and, when no exact match exists, smart quotes, Unicode dashes and
+trailing whitespace.
 
 ## Sandboxes
 

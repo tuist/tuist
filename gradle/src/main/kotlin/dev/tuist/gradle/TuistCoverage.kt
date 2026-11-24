@@ -810,8 +810,9 @@ internal class CoverageRepository(val root: File, sourceFiles: Collection<String
 }
 
 /**
- * Sends a run's coverage inline when it compresses to no more than the server's threshold, and
- * otherwise uploads it first and names the upload in the run, as the other clients do.
+ * Sends a run's coverage inline when its uncompressed size is within the server's threshold, and
+ * otherwise uploads it DEFLATE-compressed first and names the upload in the run, as the other
+ * clients do.
  */
 internal class CoverageUploader(
     private val httpClient: TuistHttpClient,
@@ -823,8 +824,11 @@ internal class CoverageUploader(
 
     fun attach(coverage: CoveragePayload, testRunId: String, config: CacheConfiguration): CoveragePayload {
         val files = coverage.files ?: return coverage
-        val compressed = deflate(files.joinToString("\n") { gson.toJson(it) }.toByteArray(Charsets.UTF_8))
-        if (compressed.size <= inlineThreshold(config)) return coverage
+        val ndjson = files.joinToString("\n") { gson.toJson(it) }.toByteArray(Charsets.UTF_8)
+        // The server holds an inline run to its body limit after inflating it, and coverage
+        // compresses tenfold or more, so the inline decision reads the uncompressed size.
+        if (ndjson.size <= inlineThreshold(config)) return coverage
+        val compressed = deflate(ndjson)
 
         val upload = request(config, "POST", "uploads", mapOf("test_run_id" to testRunId))
         val storageKey = upload?.get("storage_key")?.asString ?: throw java.io.IOException("the server returned no storage key")
@@ -909,7 +913,7 @@ internal class CoverageUploader(
  *
  *     ./gradlew tuistCoverageComplete [-Ptuist.coverage.commit=SHA]
  *
- * The commit defaults to the one test runs report: `GIT_COMMIT`, or the checkout's `HEAD`.
+ * The commit defaults to the one test runs report: the checkout's `HEAD`.
  */
 abstract class TuistCoverageCompleteTask : org.gradle.api.DefaultTask() {
     @get:org.gradle.api.tasks.Input
@@ -925,6 +929,10 @@ abstract class TuistCoverageCompleteTask : org.gradle.api.DefaultTask() {
     @get:org.gradle.api.tasks.Input
     @get:org.gradle.api.tasks.Optional
     abstract val commitSha: org.gradle.api.provider.Property<String>
+
+    /** Whether [commitSha] is the checkout's `HEAD` rather than `-Ptuist.coverage.commit`. */
+    @get:org.gradle.api.tasks.Input
+    abstract val commitFromCheckout: org.gradle.api.provider.Property<Boolean>
 
     @get:Internal
     abstract val rootDirectory: DirectoryProperty
@@ -946,8 +954,11 @@ abstract class TuistCoverageCompleteTask : org.gradle.api.DefaultTask() {
         )
         val client = TuistHttpClient(provider, httpClients)
         val short = sha.take(7)
+        var commits = ""
         val coverage = try {
             client.execute { config ->
+                commits = provider.resolvedServerUrl
+                    .resolve("/${config.accountHandle}/${config.projectHandle}/tests/coverage/commits").toString()
                 val url = provider.resolvedServerUrl
                     .resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests/coverage/commits/$sha/complete")
                 // Signalling again changes nothing.
@@ -977,9 +988,19 @@ abstract class TuistCoverageCompleteTask : org.gradle.api.DefaultTask() {
             throw org.gradle.api.GradleException("Tuist: Could not mark the coverage of commit $short complete: ${e.message}", e)
         }
         if (coverage != null) {
-            logger.lifecycle("Tuist: Coverage of commit $short is complete: $coverage%.")
+            logger.lifecycle("Tuist: Coverage of commit $short is complete: $coverage%.\n  See the commit's coverage at $commits/$sha")
         } else {
-            logger.lifecycle("Tuist: No run of commit $short has reported coverage yet. Its coverage is marked complete once one does.")
+            // Usually the runs are still being processed, but a signal kept for a commit the runs
+            // didn't report never applies, so name the commit and how to signal another. The
+            // commit's own page is a 404 until one of its runs is processed, so link the list.
+            val resolved = if (commitFromCheckout.get()) ", the checkout's HEAD," else ""
+            logger.lifecycle(
+                """
+                Tuist: No run of commit $short$resolved has reported coverage yet. That's expected while its runs are still being processed: the signal is kept, and the commit's coverage is marked complete once one is.
+                  If your test runs reported another commit, signal that one with ./gradlew tuistCoverageComplete -Ptuist.coverage.commit=<sha>
+                  See the commits your runs reported coverage for at $commits
+                """.trimIndent()
+            )
         }
     }
 }

@@ -78,6 +78,37 @@ defmodule TuistWeb.API.CoverageControllerTest do
 
       assert %{complete: true, completeness: "signal"} = Commits.summary(project.id, "q")
     end
+
+    test "completes a commit only dirty runs measured, whose figure stays a lower bound and says why", %{
+      conn: conn,
+      prefix: prefix,
+      user: user,
+      project: project
+    } do
+      CoverageFixtures.run_with_coverage(project, user.account, [CoverageFixtures.file("Sources/A.swift", [1])], %{
+        git_commit_sha: "d",
+        git_dirty: true,
+        is_ci: false
+      })
+
+      completed = conn |> post("#{prefix}/commits/d/complete") |> json_response(:ok)
+
+      assert_schema(completed, "CommitCoverage", Spec.spec())
+
+      assert {completed["coverage"], completed["complete"], completed["test_run_ids"], completed["reported"]} ==
+               {0.0, true, [], %{completed["reported"] | "kind" => "partial", "gap_reasons" => ["dirty_run_excluded"]}}
+    end
+
+    test "also completes the commit's snapshots", %{conn: conn, prefix: prefix, project: project} do
+      sha = String.duplicate("e", 40)
+      {:ok, _build, _} = Tuist.Snapshots.create_build(project, %{set_name: "phone", git_commit_sha: sha}, [])
+      assert {:ok, %{completed_at: nil}} = Tuist.Snapshots.get_commit(project, sha)
+
+      conn |> post("#{prefix}/commits/#{sha}/complete") |> json_response(:accepted)
+
+      assert {:ok, commit} = Tuist.Snapshots.get_commit(project, sha)
+      assert Tuist.Snapshots.Commit.completeness(commit) == :complete
+    end
   end
 
   describe "reading coverage" do
@@ -140,8 +171,13 @@ defmodule TuistWeb.API.CoverageControllerTest do
 
       assert_schema(coverage, "CommitCoverage", Spec.spec())
 
-      assert %{"git_commit_sha" => "b", "complete" => false, "coverage" => 25.0, "targets" => [%{"name" => "App"}]} =
-               coverage
+      assert %{
+               "git_commit_sha" => "b",
+               "complete" => false,
+               "coverage" => 25.0,
+               "reported" => %{"gap_reasons" => []},
+               "targets" => [%{"name" => "App"}]
+             } = coverage
 
       assert %{"message" => "No run of commit c gathered coverage."} =
                conn |> get(prefix <> "/commits/c") |> json_response(:not_found)
@@ -222,6 +258,87 @@ defmodule TuistWeb.API.CoverageControllerTest do
                conn |> get(prefix <> "/commits/c/file?path=Sources/A.swift") |> json_response(:not_found)
 
       assert conn |> get(prefix <> "/commits/a/file") |> json_response(:bad_request)
+    end
+
+    test "the branches with coverage list the default branch first", %{conn: conn, prefix: prefix} do
+      branches = conn |> get(prefix <> "/branches") |> json_response(:ok)
+
+      assert_schema(branches, "CoverageBranches", Spec.spec())
+      assert %{"default_branch" => "main", "branches" => ["main"]} = branches
+    end
+
+    test "a branch's commits are listed newest first with their status and change", %{conn: conn, prefix: prefix} do
+      page = conn |> get(prefix <> "/commits") |> json_response(:ok)
+
+      assert_schema(page, "CoverageCommits", Spec.spec())
+
+      assert %{
+               "branch" => "main",
+               "commits" => [
+                 %{"git_commit_sha" => "b", "status" => "in_progress", "coverage" => 25.0, "change" => nil},
+                 %{"git_commit_sha" => "a", "status" => "complete", "coverage" => 66.7, "schemes" => ["App"]}
+               ],
+               "pagination" => %{"has_next_page" => false, "has_previous_page" => false}
+             } = page
+
+      assert %{"commits" => [%{"git_commit_sha" => "a"}]} =
+               conn |> get(prefix <> "/commits?status=complete") |> json_response(:ok)
+
+      first = conn |> get(prefix <> "/commits?page_size=1") |> json_response(:ok)
+      assert %{"commits" => [%{"git_commit_sha" => "b"}], "pagination" => %{"has_next_page" => true}} = first
+
+      assert %{"commits" => [%{"git_commit_sha" => "a"}], "pagination" => %{"has_previous_page" => true}} =
+               conn
+               |> get(prefix <> "/commits?page_size=1&after=" <> first["pagination"]["end_cursor"])
+               |> json_response(:ok)
+
+      assert conn |> get(prefix <> "/commits?status=unknown") |> json_response(:bad_request)
+    end
+
+    test "the runs behind a commit or a branch are listed with their status", %{
+      conn: conn,
+      prefix: prefix,
+      user: user,
+      project: project
+    } do
+      CoverageFixtures.run_with_coverage(project, user.account, [CoverageFixtures.file("Sources/A.swift", [1, 1])], %{
+        git_commit_sha: "b",
+        git_dirty: true,
+        scheme: "Other"
+      })
+
+      page = conn |> get(prefix <> "/runs?git_commit_sha=b") |> json_response(:ok)
+
+      assert_schema(page, "CoverageRuns", Spec.spec())
+
+      assert page["runs"] |> Enum.map(&{&1["scheme"], &1["status"]}) |> Enum.sort() == [
+               {"App", "full"},
+               {"Other", "discarded"}
+             ]
+
+      assert %{"runs" => [%{"scheme" => "App", "git_commit_sha" => "b", "coverage" => 25.0}]} =
+               conn |> get(prefix <> "/runs?git_commit_sha=b&scheme=App") |> json_response(:ok)
+
+      assert conn |> get(prefix <> "/runs") |> json_response(:ok) |> Map.fetch!("runs") |> length() == 3
+    end
+
+    test "a commit's targets are listed a page at a time", %{conn: conn, prefix: prefix} do
+      page = conn |> get(prefix <> "/commits/a/targets?page_size=1") |> json_response(:ok)
+
+      assert_schema(page, "CommitCoverageTargets", Spec.spec())
+
+      assert %{
+               "targets" => [%{"name" => "App", "coverage" => 50.0, "measured" => true}],
+               "pagination_metadata" => %{"total_count" => 2, "has_next_page" => true}
+             } = page
+
+      assert %{"targets" => [%{"name" => "Feature"}, %{"name" => "App"}]} =
+               conn |> get(prefix <> "/commits/a/targets?sort_by=name&sort_order=desc") |> json_response(:ok)
+
+      assert %{"targets" => [%{"name" => "Feature"}]} =
+               conn |> get(prefix <> "/commits/a/targets?search=feat") |> json_response(:ok)
+
+      assert conn |> get(prefix <> "/commits/c/targets") |> json_response(:not_found)
     end
 
     test "an account token that reads the project's tests reads its coverage", %{

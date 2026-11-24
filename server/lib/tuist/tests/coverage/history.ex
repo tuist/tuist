@@ -1,7 +1,9 @@
 defmodule Tuist.Tests.Coverage.History do
   @moduledoc """
-  Coverage over the project's history: a branch commit by commit, and every
-  branch's head.
+  Coverage over the project's history: a branch or a pull request commit by
+  commit, and every branch's head. Wherever a branch is taken, a pull request
+  is too, as `{:pull_request, number}`: its ref is `pull/<number>`, and, when
+  that owns nothing, its commits are the ones whose runs named it.
 
   Branch membership comes from the repository's commit graph
   (`Tuist.GitHistory`), not from the branch a run was labelled with: a
@@ -14,6 +16,11 @@ defmodule Tuist.Tests.Coverage.History do
   branch whose ref owns nothing (a run that sent a commit but no history, or
   a branch the default one already contains) falls back to the measured
   commits labelled with it, in time order, and says so (`ordered_by: :time`).
+  A pull request's job on a merge checkout (`refs/pull/N/merge`) measures a
+  merge commit the graph keeps on `pull/<number>`, never on the branch; on
+  the branch's page (its commits, head commit and trend) each such merge
+  commit stands at the commit it merged (its second parent) when no run
+  measured that commit.
 
   A commit **chains** into the trend when it is complete (the client
   signalled its pipeline finished) and so is its figure
@@ -25,6 +32,7 @@ defmodule Tuist.Tests.Coverage.History do
   import Ecto.Query
 
   alias Tuist.GitHistory
+  alias Tuist.GitHistory.CommitParent
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
@@ -48,16 +56,25 @@ defmodule Tuist.Tests.Coverage.History do
     )
   end
 
-  # The branch's ref, when it owns commits.
+  # The branch's ref, when it owns commits. A pull request's
+  # (`{:pull_request, number}`) is `pull/<number>`.
   defp branch_ref(project, branch) do
     with repository_id when not is_nil(repository_id) <- repository_id(project.id),
-         %{} = ref <- GitHistory.ref(repository_id, branch),
+         %{} = ref <- GitHistory.ref(repository_id, ref_name(branch)),
          [_ | _] <- GitHistory.ref_commits(ref.id, limit: 1) do
       ref
     else
       _ -> nil
     end
   end
+
+  defp ref_name({:pull_request, number}), do: GitHistory.pull_request_ref(number)
+  defp ref_name(branch), do: branch
+
+  # The commits labelled with the branch, or, for a pull request, whose runs
+  # named it.
+  defp labelled(query, {:pull_request, number}), do: where(query, [c], c.pull_request_number == ^number)
+  defp labelled(query, branch), do: where(query, [c], c.git_branch == ^branch)
 
   @max_trend_points 40
 
@@ -72,10 +89,12 @@ defmodule Tuist.Tests.Coverage.History do
   grouped, the `period` it stands for: the start of its day, week or month
   in UTC. Returns `%{grouping: :commit | :day | :week | :month, points:}`.
 
-  The branch's commits are its ref's, by when they were made, or, when its
-  ref owns none, the ones its runs were labelled with, by when they ran. Two
-  reads over that range: one counting the commits and the days, weeks and
-  months they fall on, to pick the grouping, and one returning the points.
+  The branch's commits are its ref's, by when they were made, each with its
+  own figure or, when no run measured it, its newest merge checkout's (the
+  commits and figures its commit list shows), or, when its ref owns none,
+  the ones its runs were labelled with, by when they ran. Two reads over
+  that range: one counting the commits and the days, weeks and months they
+  fall on, to pick the grouping, and one returning the points.
   """
   def trend_points(%Project{} = project, branch, opts \\ []) do
     {query, at} = trend_query(project, branch, opts)
@@ -111,31 +130,155 @@ defmodule Tuist.Tests.Coverage.History do
 
   @doc """
   The SHA of the branch's latest complete commit, the newest point its trend
-  over all time ends at (`trend_points/3`), or nil. One read over the same
-  range, newest first and limited to one row, which the indexes on
-  `(project_id, ref_id, committed_at)` and `(project_id, git_branch, ran_at)`
-  serve.
+  over all time ends at (`trend_points/3`), or nil. The newest of each of the
+  trend's reads (`trend_queries/3`), each newest first and limited to one
+  row, which the indexes on `(project_id, ref_id, committed_at)`,
+  `(project_id, git_branch, ran_at)` and its pull request rows' serve.
   """
   def latest_complete_commit(%Project{} = project, branch) do
-    {query, at} = trend_query(project, branch, [])
+    {queries, at} = trend_queries(project, branch, [])
 
-    query
-    |> order_by(^chronological(at, :desc))
-    |> limit(1)
-    |> select([c], c.git_commit_sha)
-    |> Repo.one()
+    queries
+    |> Enum.flat_map(fn query ->
+      query
+      |> order_by(^chronological(at, :desc))
+      |> limit(1)
+      |> select([c], %{git_commit_sha: c.git_commit_sha, at: field(c, ^at), position: c.position})
+      |> Repo.all()
+    end)
+    |> Enum.max_by(&{DateTime.to_unix(&1.at, :microsecond), &1.position, &1.git_commit_sha}, fn -> nil end)
+    |> then(&(&1 && &1.git_commit_sha))
   end
 
+  # The trend's commits as one query: the union of `trend_queries/3`.
   defp trend_query(project, branch, opts) do
+    case trend_queries(project, branch, opts) do
+      {[query], at} -> {query, at}
+      {[own, stand_ins], at} -> {from(c in subquery(union_all(trend_fields(own), ^trend_fields(stand_ins)))), at}
+    end
+  end
+
+  # The reads a branch's trend is drawn from. A branch whose ref owns
+  # commits: the ref's commits that chain, and the merge checkouts standing
+  # at the ref's commits no run measured (`stand_ins/3`). Otherwise the
+  # commits labelled with it.
+  defp trend_queries(project, branch, opts) do
     base = where(CoverageCommit, [c], c.project_id == ^project.id and c.complete)
 
-    {query, at} =
-      case branch_ref(project, branch) do
-        nil -> {base |> where([c], c.git_branch == ^branch) |> ran_in(opts), :ran_at}
-        ref -> {base |> where([c], c.ref_id == ^ref.id) |> in_period(opts), :committed_at}
-      end
+    case branch_ref(project, branch) do
+      nil ->
+        {[base |> labelled(branch) |> ran_in(opts) |> chains()], :ran_at}
 
-    {query |> Commits.comparable() |> Commits.complete_figures(), at}
+      ref ->
+        own = base |> where([c], c.ref_id == ^ref.id) |> in_period(opts) |> chains()
+
+        # A branch no pull request run named, the default one among them,
+        # reads its ref's commits alone.
+        if Repo.exists?(labelled_merges(project, ref, opts)),
+          do: {[own, stand_ins(project, ref, opts)], :committed_at},
+          else: {[own], :committed_at}
+    end
+  end
+
+  defp chains(query), do: query |> Commits.comparable() |> Commits.complete_figures()
+
+  # The merge checkouts that chain, each at the ref's commit it stands at:
+  # the commit's newest listed merge checkout when no run measured the
+  # commit, as the branch's commit list shows it (`measured_on_ref/3`), with
+  # the commit's place. Read from the merge checkouts labelled with the
+  # branch (index-only, on its pull request rows), then, for each, one probe
+  # of its second parent, of that parent on the ref, of the parent's own
+  # figure and of the merge checkout's, each on a unique key: a read the
+  # size of the branch's merge checkouts, none on a branch that has none,
+  # whatever the planner estimates. A merge checkout runs after the commit
+  # it merged, so the period's start bounds them too.
+  defp stand_ins(project, ref, opts) do
+    second_parent =
+      from(p in CommitParent,
+        where:
+          p.repository_id == ^ref.repository_id and p.child_sha == parent_as(:merge_checkout).git_commit_sha and
+            p.position == 1,
+        limit: 1,
+        select: %{sha: p.parent_sha}
+      )
+
+    on_ref =
+      from(b in GitHistory.Commit,
+        where: b.repository_id == ^ref.repository_id and b.sha == parent_as(:second_parent).sha and b.ref_id == ^ref.id,
+        limit: 1,
+        select: %{sha: b.sha, committed_at: b.committed_at, position: b.position}
+      )
+
+    figures =
+      from(m in CoverageCommit,
+        where: m.project_id == ^project.id and m.git_commit_sha == parent_as(:merge_checkout).git_commit_sha,
+        limit: 1
+      )
+      |> Commits.listed()
+      |> trend_fields()
+
+    own =
+      Commits.listed(
+        from(o in CoverageCommit,
+          where: o.project_id == ^project.id and o.git_commit_sha == parent_as(:branch_commit).sha,
+          limit: 1,
+          select: %{git_commit_sha: o.git_commit_sha}
+        )
+      )
+
+    newest =
+      from(l in subquery(labelled_merges(project, ref, opts)),
+        as: :merge_checkout,
+        inner_lateral_join: p in subquery(second_parent),
+        as: :second_parent,
+        on: true,
+        inner_lateral_join: b in subquery(on_ref),
+        as: :branch_commit,
+        on: true,
+        left_lateral_join: o in subquery(own),
+        on: true,
+        inner_lateral_join: m in subquery(figures),
+        on: true,
+        where: is_nil(o.git_commit_sha),
+        distinct: [asc: b.sha],
+        order_by: [desc: l.ran_at, desc: l.git_commit_sha],
+        select: m,
+        select_merge: %{committed_at: b.committed_at, position: b.position}
+      )
+
+    from(s in subquery(newest), where: s.complete) |> in_period(opts) |> chains()
+  end
+
+  # The merge checkouts labelled with the branch: its pull request runs'
+  # commits, read index-only.
+  defp labelled_merges(project, ref, opts) do
+    query =
+      from(l in CoverageCommit,
+        where: l.project_id == ^project.id and l.git_branch == ^ref.name and l.pull_request_number > 0,
+        select: %{git_commit_sha: l.git_commit_sha, ran_at: l.ran_at}
+      )
+
+    case Keyword.get(opts, :since) do
+      nil -> query
+      since -> where(query, [l], l.ran_at >= ^utc(since))
+    end
+  end
+
+  # The fields a trend reads.
+  defp trend_fields(query) do
+    select(query, [c], %{
+      git_commit_sha: c.git_commit_sha,
+      committed_at: c.committed_at,
+      position: c.position,
+      complete: c.complete,
+      covered_lines: c.covered_lines,
+      executable_lines: c.executable_lines,
+      reported_covered_lines: c.reported_covered_lines,
+      reported_executable_lines: c.reported_executable_lines,
+      reported_kind: c.reported_kind,
+      schemes: c.schemes,
+      partial_schemes: c.partial_schemes
+    })
   end
 
   # The order a trend's commits follow. A ref's commits can share a commit
@@ -294,52 +437,80 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   # The branch's graph commits narrowed by `search` and `status`: a commit
-  # is measured when it has a published figure a list shows (`Commits.listed/1`).
-  defp graph_filter(project_id, opts) do
+  # stands with its own published figure a list shows (`Commits.listed/1`),
+  # or, as `measured_on_ref/3` settles it, when it has none, with its newest
+  # merge checkout's. Both are looked up per commit the page reads (the
+  # commit's key, then its child edges), so a page stops at its size.
+  defp graph_filter(project_id, ref, opts) do
     {search, status} = commit_filter(opts)
 
     if search == "" and status == "" do
       nil
     else
-      measured =
-        from(m in CoverageCommit, where: m.project_id == ^project_id)
-        |> Commits.listed()
-        |> select([m], %{sha: m.git_commit_sha, complete: m.complete, reported_kind: m.reported_kind})
-
       fn query ->
         query = if search == "", do: query, else: where(query, [c], like(c.sha, ^sha_prefix(search)))
-        by_status(query, status, measured)
+        if status == "", do: query, else: query |> stand_in(project_id, ref) |> by_status(status)
       end
     end
   end
 
-  defp by_status(query, "", _measured), do: query
-
-  defp by_status(query, "measured", measured), do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha)
-
-  defp by_status(query, "not-measured", measured),
-    do: from(c in query, left_join: m in subquery(measured), on: m.sha == c.sha, where: is_nil(m.sha))
-
-  defp by_status(query, "complete", measured),
-    do:
-      from(c in query,
-        join: m in subquery(measured),
-        on: m.sha == c.sha,
-        where: m.complete and m.reported_kind != "partial"
+  defp stand_in(query, project_id, ref) do
+    own =
+      Commits.listed(
+        from(o in CoverageCommit,
+          where: o.project_id == ^project_id and o.git_commit_sha == parent_as(:ref_commit).sha,
+          select: %{complete: o.complete, reported_kind: o.reported_kind}
+        )
       )
 
-  defp by_status(query, "incomplete", measured),
-    do:
-      from(c in query,
-        join: m in subquery(measured),
-        on: m.sha == c.sha,
-        where: m.complete and m.reported_kind == "partial"
+    merge =
+      Commits.listed(
+        from(m in CoverageCommit,
+          join: p in CommitParent,
+          on: p.repository_id == ^ref.repository_id and p.child_sha == m.git_commit_sha and p.position == 1,
+          where: is_nil(parent_as(:own).reported_kind) and p.parent_sha == parent_as(:ref_commit).sha,
+          where: m.project_id == ^project_id and m.git_branch == ^ref.name and m.pull_request_number > 0,
+          order_by: [desc: m.ran_at],
+          limit: 1,
+          select: %{complete: m.complete, reported_kind: m.reported_kind}
+        )
       )
 
-  defp by_status(query, "in-progress", measured),
-    do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha, where: not m.complete)
+    from(c in query,
+      left_lateral_join: o in subquery(own),
+      as: :own,
+      on: true,
+      left_lateral_join: m in subquery(merge),
+      as: :merge,
+      on: true
+    )
+  end
 
-  defp by_status(query, _unknown, _measured), do: where(query, false)
+  defp by_status(query, "measured"),
+    do: where(query, [own: o, merge: m], not is_nil(o.reported_kind) or not is_nil(m.reported_kind))
+
+  defp by_status(query, "not-measured"),
+    do: where(query, [own: o, merge: m], is_nil(o.reported_kind) and is_nil(m.reported_kind))
+
+  defp by_status(query, "complete"),
+    do:
+      where(
+        query,
+        [own: o, merge: m],
+        coalesce(o.complete, m.complete) and coalesce(o.reported_kind, m.reported_kind) != "partial"
+      )
+
+  defp by_status(query, "incomplete"),
+    do:
+      where(
+        query,
+        [own: o, merge: m],
+        coalesce(o.complete, m.complete) and coalesce(o.reported_kind, m.reported_kind) == "partial"
+      )
+
+  defp by_status(query, "in-progress"), do: where(query, [own: o, merge: m], not coalesce(o.complete, m.complete))
+
+  defp by_status(query, _unknown), do: where(query, false)
 
   # A labelled branch lists measured commits only, so "not measured" matches
   # none of them.
@@ -375,7 +546,7 @@ defmodule Tuist.Tests.Coverage.History do
     period = [
       since: second(Keyword.get(opts, :since)),
       until: second(Keyword.get(opts, :until)),
-      refine: graph_filter(project.id, opts)
+      refine: graph_filter(project.id, ref, opts)
     ]
 
     cursor = cursor_position(cursor)
@@ -401,10 +572,10 @@ defmodule Tuist.Tests.Coverage.History do
 
     {newest, oldest} = bounds(commits, & &1.position)
     lookback = graph_lookback(project, ref, oldest)
+    measured = measured_on_ref(project, ref, Enum.map(commits, & &1.git_commit_sha))
 
     %{
-      commits:
-        settle(commits, Commits.by_shas(project.id, Enum.map(commits, & &1.git_commit_sha), listed: true), lookback),
+      commits: settle(commits, measured, lookback),
       ordered_by: :graph,
       has_next_page?:
         older_page?(cursor, more?, fn ->
@@ -459,7 +630,7 @@ defmodule Tuist.Tests.Coverage.History do
   defp fork_lookback(_project, _ref, _found), do: []
 
   defp labelled_cursor_page(project, branch, opts, size, cursor) do
-    labelled = fn query -> query |> where([c], c.git_branch == ^branch) |> ran_in(opts) |> labelled_filter(opts) end
+    labelled = fn query -> query |> labelled(branch) |> ran_in(opts) |> labelled_filter(opts) end
     cursor = cursor_time(cursor)
     read = fn refine -> Commits.all(project.id, &(&1 |> labelled.() |> refine.()), listed: true) end
 
@@ -489,11 +660,14 @@ defmodule Tuist.Tests.Coverage.History do
     }
   end
 
+  # The `ran_at` bound repeats what the `or` says so PostgreSQL can seek the
+  # `ran_at` indexes to the cursor; with the `or` alone it walks and filters
+  # every row on the near side, so a page got slower the deeper it was.
   defp older_than(query, {at, sha}),
-    do: where(query, [c], c.ran_at < ^at or (c.ran_at == ^at and c.git_commit_sha < ^sha))
+    do: where(query, [c], c.ran_at <= ^at and (c.ran_at < ^at or (c.ran_at == ^at and c.git_commit_sha < ^sha)))
 
   defp newer_than(query, {at, sha}),
-    do: where(query, [c], c.ran_at > ^at or (c.ran_at == ^at and c.git_commit_sha > ^sha))
+    do: where(query, [c], c.ran_at >= ^at and (c.ran_at > ^at or (c.ran_at == ^at and c.git_commit_sha > ^sha)))
 
   defp oldest_first(query), do: order_by(query, [c], asc: c.ran_at, asc: c.git_commit_sha)
 
@@ -580,7 +754,8 @@ defmodule Tuist.Tests.Coverage.History do
   """
   def branch_schemes(%Project{} = project, branch, opts \\ []) do
     CoverageCommit
-    |> where([c], c.project_id == ^project.id and c.git_branch == ^branch)
+    |> where([c], c.project_id == ^project.id)
+    |> labelled(branch)
     |> ran_in(opts)
     |> select([c], fragment("unnest(? || ?)", c.schemes, c.partial_schemes))
     |> distinct(true)
@@ -611,6 +786,37 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   @doc """
+  The project's listed commits (`Commits.listed/1`) on every branch and pull
+  request, complete or not, the most recently run first, a page at a time
+  from a cursor (`after`/`before`, as `commit_cursor_page/3` takes them):
+  where each run's coverage went, whichever branch it named. Read along
+  `(project_id, ran_at)`.
+  """
+  def recent_commits_page(%Project{} = project, opts \\ []) do
+    size = Keyword.get(opts, :page_size, 20)
+    cursor = opts |> cursor() |> cursor_time()
+    read = fn refine -> Commits.all(project.id, refine, listed: true) end
+
+    {rows, more?} =
+      read_page(cursor, size, fn
+        {:older, key}, limit -> read.(&(&1 |> older_than(key) |> newest_first() |> limit(^limit)))
+        {:newer, key}, limit -> read.(&(&1 |> newer_than(key) |> oldest_first() |> limit(^limit)))
+        nil, limit -> read.(&(&1 |> newest_first() |> limit(^limit)))
+      end)
+
+    {newest, oldest} = bounds(rows, &{&1.ran_at, &1.git_commit_sha})
+    beyond? = fn key, side -> not is_nil(key) and read.(&(&1 |> side.(key) |> limit(1))) != [] end
+
+    %{
+      commits: Enum.map(rows, &with_coverage/1),
+      has_next_page?: older_page?(cursor, more?, fn -> beyond?.(oldest, &older_than/2) end),
+      has_previous_page?: newer_page?(cursor, more?, fn -> beyond?.(newest, &newer_than/2) end),
+      start_cursor: newest && time_cursor(newest),
+      end_cursor: oldest && time_cursor(oldest)
+    }
+  end
+
+  @doc """
   The branch's newest listed commit (`Commits.listed/1`), complete or not:
   the commit a branch page describes. Among the newest #{@head_lookback}
   commits its ref owns or, when it owns none, the commits its runs were
@@ -624,7 +830,7 @@ defmodule Tuist.Tests.Coverage.History do
           project.id
           |> Commits.all(
             fn query ->
-              query |> where([c], c.git_branch == ^branch) |> order_by([c], desc: c.ran_at) |> limit(1)
+              query |> labelled(branch) |> order_by([c], desc: c.ran_at) |> limit(1)
             end,
             listed: true
           )
@@ -632,20 +838,59 @@ defmodule Tuist.Tests.Coverage.History do
 
         ref ->
           shas = ref.id |> GitHistory.ref_commits(limit: @head_lookback) |> Enum.map(&elem(&1, 0))
-          measured = Commits.by_shas(project.id, shas, listed: true)
+          measured = measured_on_ref(project, ref, shas)
           Enum.find_value(shas, &Map.get(measured, &1))
       end
 
     row && with_coverage(row)
   end
 
-  # A commit whose runs skipped tests stands with its reported coverage and
-  # lines (`Tuist.Tests.Coverage.Reported`): what a full run would have
-  # measured when every skipped test was carried forward, in which case it
-  # compares as a fully measured commit does, and otherwise the part of it
-  # that is confirmed, the lines known to be covered among those that could
-  # be counted.
-  defp with_coverage(%{reported_kind: kind} = row) when kind in ~w(reported partial) do
+  # The listed commits among the ref's `shas`, keyed by the SHA they stand
+  # at. A commit no run measured stands with its newest merge checkout: the
+  # merge commit a pull request's job checked out (`refs/pull/N/merge`, the
+  # base branch's tip first and the commit second) and measured, labelled
+  # with the branch. The graph keeps that merge commit on `pull/<number>`,
+  # never on the branch, and a job of each push makes a new one, so this is
+  # how a branch whose pull request jobs ran merge checkouts shows what each
+  # push measured. One read of the parent edges by `(repository_id,
+  # parent_sha)` and one of the merge commits' figures.
+  defp measured_on_ref(project, ref, shas) do
+    measured = Commits.by_shas(project.id, shas, listed: true)
+
+    case Enum.reject(shas, &Map.has_key?(measured, &1)) do
+      [] ->
+        measured
+
+      unmeasured ->
+        merges =
+          Repo.all(
+            from(p in CommitParent,
+              where: p.repository_id == ^ref.repository_id and p.parent_sha in ^unmeasured and p.position == 1,
+              select: {p.child_sha, p.parent_sha}
+            )
+          )
+
+        project.id
+        |> Commits.by_shas(Enum.map(merges, &elem(&1, 0)), listed: true)
+        |> Map.values()
+        |> Enum.filter(&(&1.git_branch == ref.name and &1.pull_request_number > 0))
+        |> Enum.sort_by(& &1.ran_at, DateTime)
+        |> Enum.reduce(measured, fn row, acc ->
+          merges |> Enum.filter(&(elem(&1, 0) == row.git_commit_sha)) |> Enum.reduce(acc, &Map.put(&2, elem(&1, 1), row))
+        end)
+    end
+  end
+
+  @doc """
+  The commit's row with the figure it stands with. A commit whose runs
+  skipped tests stands with its reported coverage and lines
+  (`Tuist.Tests.Coverage.Reported`): what a full run would have measured
+  when every skipped test was carried forward, in which case it compares as
+  a fully measured commit does, and otherwise the part of it that is
+  confirmed, the lines known to be covered among those that could be
+  counted.
+  """
+  def with_coverage(%{reported_kind: kind} = row) when kind in ~w(reported partial) do
     Map.merge(row, %{
       coverage: Coverage.percentage(row.reported_covered_lines, row.reported_executable_lines),
       covered_lines: row.reported_covered_lines,
@@ -653,5 +898,5 @@ defmodule Tuist.Tests.Coverage.History do
     })
   end
 
-  defp with_coverage(row), do: Map.put(row, :coverage, Coverage.percentage(row.covered_lines, row.executable_lines))
+  def with_coverage(row), do: Map.put(row, :coverage, Coverage.percentage(row.covered_lines, row.executable_lines))
 end

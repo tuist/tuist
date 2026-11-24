@@ -34,6 +34,18 @@ type createRequest struct {
 	MemoryMB    int    `json:"memory_mb"`
 	WorkspaceGB int    `json:"workspace_gb"`
 	Hostname    string `json:"hostname"`
+	// FromDiskSnapshot and CacheImage are protocol.CreateArgs' fields of
+	// the same names.
+	FromDiskSnapshot string `json:"from_disk_snapshot"`
+	CacheImage       string `json:"cache_image"`
+}
+
+type pauseRequest struct {
+	SyncDisks bool `json:"sync_disks"`
+}
+
+type saveDisksRequest struct {
+	SnapshotID string `json:"snapshot_id"`
 }
 
 type execRequest struct {
@@ -67,6 +79,7 @@ func NewHandler(backend Backend, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /v1/sandboxes/{id}", h.status)
 	mux.HandleFunc("POST /v1/sandboxes/{id}/pause", h.pause)
 	mux.HandleFunc("POST /v1/sandboxes/{id}/resume", h.resume)
+	mux.HandleFunc("POST /v1/sandboxes/{id}/save_disks", h.saveDisks)
 	mux.HandleFunc("POST /v1/sandboxes/{id}/delete", h.delete)
 	mux.HandleFunc("DELETE /v1/sandboxes/{id}", h.delete)
 	mux.HandleFunc("POST /v1/sandboxes/{id}/exec", h.exec)
@@ -96,7 +109,7 @@ func writeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, sandbox.ErrAlreadyExists), errors.Is(err, sandbox.ErrBusy), errors.Is(err, sandbox.ErrNotRunning),
 		errors.Is(err, sandbox.ErrNotPaused), errors.Is(err, sandbox.ErrNoWorker), errors.Is(err, sandbox.ErrWorkerRunning):
 		status = http.StatusConflict
-	case errors.Is(err, errBadRequest):
+	case errors.Is(err, errBadRequest), errors.Is(err, sandbox.ErrCacheImage):
 		status = http.StatusBadRequest
 	}
 	writeJSON(w, status, map[string]string{"error": err.Error()})
@@ -151,7 +164,7 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("id: %v", err)})
 		return
 	}
-	for field, value := range map[string]string{"template": req.Template, "template_tag": req.TemplateTag} {
+	for field, value := range map[string]string{"template": req.Template, "template_tag": req.TemplateTag, "from_disk_snapshot": req.FromDiskSnapshot, "cache_image": req.CacheImage} {
 		if value == "" {
 			continue
 		}
@@ -163,6 +176,7 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 	res, err := h.backend.Create(r.Context(), protocol.CreateArgs{
 		SandboxID: id, Template: req.Template, TemplateTag: req.TemplateTag, VCPUs: req.VCPUs,
 		MemoryMB: req.MemoryMB, WorkspaceGB: req.WorkspaceGB, Hostname: req.Hostname,
+		FromDiskSnapshot: req.FromDiskSnapshot, CacheImage: req.CacheImage,
 	})
 	if err != nil {
 		writeError(w, err)
@@ -189,7 +203,37 @@ func (h *handler) pause(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	res, err := h.backend.PauseWith(r.Context(), protocol.PauseArgs{SandboxID: id})
+	// A bodyless pause stays valid: the lifecycle scripts send none.
+	var req pauseRequest
+	if r.ContentLength != 0 {
+		if err := decode(r, &req); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+	res, err := h.backend.PauseWith(r.Context(), protocol.PauseArgs{SandboxID: id, SyncDisks: req.SyncDisks})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (h *handler) saveDisks(w http.ResponseWriter, r *http.Request) {
+	id, ok := segment(w, r, "id")
+	if !ok {
+		return
+	}
+	var req saveDisksRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+	if _, err := safepath.Segment(req.SnapshotID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("snapshot_id: %v", err)})
+		return
+	}
+	res, err := h.backend.SaveDisks(r.Context(), protocol.SaveDisksArgs{SandboxID: id, SnapshotID: req.SnapshotID})
 	if err != nil {
 		writeError(w, err)
 		return

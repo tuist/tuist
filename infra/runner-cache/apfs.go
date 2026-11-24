@@ -51,6 +51,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	defer func() {
 		observed := slot
 		observed.MountedGeneration = b.MountedGeneration(slot)
+		observed.ColdReason = b.ColdReason(slot)
 		b.Observe.For(observed).Report("attach", source, start, err)
 	}()
 	ctx = WithSubject(ctx, SubjectOf(slot))
@@ -100,7 +101,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 				// A job never waits for a download: it starts empty, the HEAD is fetched
 				// in the background, and this branch is withheld from publication unless
 				// the server lets it replace the saved version.
-				source, cold, err = "cold", true, os.WriteFile(image+".cold", nil, 0600)
+				source, cold, err = "cold", true, os.WriteFile(image+".cold", []byte(b.coldReason(slot)), 0600)
 			}
 			if err != nil {
 				return err

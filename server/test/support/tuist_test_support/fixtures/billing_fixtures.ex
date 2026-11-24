@@ -1,6 +1,7 @@
 defmodule TuistTestSupport.Fixtures.BillingFixtures do
   @moduledoc false
 
+  alias Tuist.Accounts.Account
   alias Tuist.Billing.Subscription
   alias Tuist.Repo
 
@@ -17,7 +18,7 @@ defmodule TuistTestSupport.Fixtures.BillingFixtures do
       Keyword.get_lazy(opts, :account_id, fn ->
         organization_id = TuistTestSupport.Fixtures.AccountsFixtures.organization_fixture().id
 
-        Repo.get_by!(Tuist.Accounts.Account,
+        Repo.get_by!(Account,
           organization_id: organization_id
         ).id
       end)
@@ -35,5 +36,11 @@ defmodule TuistTestSupport.Fixtures.BillingFixtures do
       inserted_at: Keyword.get(opts, :inserted_at, Tuist.Time.utc_now())
     })
     |> Repo.insert!()
+    |> tap(fn subscription ->
+      # As the subscription webhook does in `Tuist.Billing`.
+      if subscription.status in Tuist.Billing.live_subscription_statuses() do
+        Tuist.Runners.Concurrency.raise_to_plan_defaults(%Account{id: account_id}, plan)
+      end
+    end)
   end
 end

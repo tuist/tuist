@@ -8,7 +8,7 @@ defmodule TuistWeb.API.PushDevicesController do
   alias TuistWeb.API.Schemas.Error
 
   # Reject other credentials before validating their requests.
-  plug TuistWeb.Plugs.AppSessionPlug
+  plug TuistWeb.Plugs.AppSessionPlug, apps: ["tuist", "luft"]
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -27,7 +27,7 @@ defmodule TuistWeb.API.PushDevicesController do
   operation(:update,
     summary: "Registers this app installation for push notifications",
     description:
-      "Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.",
+      "Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app or Luft can register. The registration lasts while that sign-in remains active.",
     operation_id: "registerPushDevice",
     parameters: [installation_id: @installation_id],
     request_body:
@@ -35,10 +35,14 @@ defmodule TuistWeb.API.PushDevicesController do
        %Schema{
          type: :object,
          properties: %{
-           platform: %Schema{type: :string, enum: ["ios", "android"], description: "The device platform."},
+           platform: %Schema{
+             type: :string,
+             enum: ["ios", "macos", "android"],
+             description: "The device platform. Only Luft registers macOS devices."
+           },
            token: %Schema{
              type: :string,
-             description: "The APNs device token (hex) on iOS or the FCM registration token on Android."
+             description: "The APNs device token (hex) on iOS and macOS or the FCM registration token on Android."
            },
            environment: %Schema{
              type: :string,
@@ -85,6 +89,7 @@ defmodule TuistWeb.API.PushDevicesController do
 
   operation(:index,
     summary: "Lists the signed-in user's push devices",
+    description: "Lists the devices of the app making the request: the Tuist app's, or Luft's.",
     operation_id: "listPushDevices",
     responses: %{
       ok:
@@ -99,7 +104,7 @@ defmodule TuistWeb.API.PushDevicesController do
                  properties: %{
                    registration_id: %Schema{type: :string},
                    installation_id: %Schema{type: :string},
-                   platform: %Schema{type: :string, description: "ios or android"},
+                   platform: %Schema{type: :string, description: "ios, macos or android"},
                    name: %Schema{type: :string, nullable: true},
                    registered_at: %Schema{type: :string, format: :"date-time"},
                    last_seen_at: %Schema{type: :string, format: :"date-time"}
@@ -118,7 +123,7 @@ defmodule TuistWeb.API.PushDevicesController do
   def index(conn, _params) do
     devices =
       conn.assigns.app_user.id
-      |> Push.live_installations()
+      |> Push.live_installations(conn.assigns.app_session.app)
       |> Enum.map(fn installation ->
         %{
           registration_id: installation.id,
@@ -156,7 +161,7 @@ defmodule TuistWeb.API.PushDevicesController do
   )
 
   def delete(%{path_params: %{"installation_id" => installation_id}} = conn, _params) do
-    case Push.unregister(conn.assigns.app_user, installation_id) do
+    case Push.unregister(conn.assigns.app_user, installation_id, conn.assigns.app_session.app) do
       :ok -> send_resp(conn, :no_content, "")
       {:error, reason} -> error(conn, reason)
     end
@@ -179,7 +184,7 @@ defmodule TuistWeb.API.PushDevicesController do
   )
 
   def remove(%{path_params: %{"registration_id" => registration_id}} = conn, _params) do
-    :ok = Push.remove_device(conn.assigns.app_user, registration_id)
+    :ok = Push.remove_device(conn.assigns.app_user, registration_id, conn.assigns.app_session.app)
     send_resp(conn, :no_content, "")
   end
 

@@ -11,7 +11,6 @@ defmodule Atlas.GTMTest do
   alias Atlas.GTM.SignalQuery
   alias Atlas.GTM.SocialChannelIdea
   alias Atlas.GTM.SocialPostRevision
-  alias Atlas.GTM.Workers.PostBlogPostIdeaAnnouncement
   alias Atlas.Search.Record, as: SearchRecord
   alias Atlas.Slack.API
   alias Atlas.Users.User
@@ -90,21 +89,6 @@ defmodule Atlas.GTMTest do
                GTM.create_blog_post_idea(%{"title" => "Bad status", "status" => "archived"})
 
       assert %{status: ["is invalid"]} = errors_on(changeset)
-    end
-
-    test "does not announce to Slack by default" do
-      {:ok, _idea} = GTM.create_blog_post_idea(%{"title" => "Quiet idea"})
-      refute_enqueued(worker: PostBlogPostIdeaAnnouncement)
-    end
-
-    test "enqueues a Slack announcement when announce: true" do
-      {:ok, idea} = GTM.create_blog_post_idea(%{"title" => "Loud idea"}, nil, announce: true)
-      assert_enqueued(worker: PostBlogPostIdeaAnnouncement, args: %{"blog_post_idea_id" => idea.id})
-    end
-
-    test "does not announce when the idea is invalid" do
-      assert {:error, _changeset} = GTM.create_blog_post_idea(%{"title" => "   "}, nil, announce: true)
-      refute_enqueued(worker: PostBlogPostIdeaAnnouncement)
     end
   end
 

@@ -230,6 +230,13 @@ func (im *Image) fetch(i int) error {
 	if data == nil {
 		return nil
 	}
-	_, err = im.file.WriteAt(data, int64(i)*im.src.ChunkSize())
-	return err
+	off := int64(i) * im.src.ChunkSize()
+	if _, err := im.file.WriteAt(data, off); err != nil {
+		return err
+	}
+	// The page cache of the daemon's cgroup counts against the memory the
+	// guests share with it, and a restore writes gigabytes of disk at
+	// network speed after loading a guest's whole memory: written back and
+	// dropped, the fill holds no more than the chunks in flight.
+	return dropCache(im.file, off, int64(len(data)))
 }

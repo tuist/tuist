@@ -13,6 +13,7 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
   alias Tuist.Runners.WorkflowJobs
 
   @db_task_ready_timeout 5_000
+  @claim_decision_timeout 10_000
   @linux_resources %{platform: :linux, vcpus: 1, memory_gb: 1}
 
   setup do
@@ -324,7 +325,7 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
     |> await_db_tasks(System.monotonic_time(:millisecond) + @db_task_ready_timeout)
 
     Enum.each(tasks, &send(&1.pid, :go))
-    Task.await_many(tasks, 5_000)
+    Task.await_many(tasks, @claim_decision_timeout + 5_000)
   end
 
   defp await_db_tasks(pending_pids, deadline) do
@@ -443,11 +444,25 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
     task
   end
 
-  defp attempt_until_decided(workflow_job_id, account_id, fleet_name, pod_name, resources, retries \\ 500) do
+  # Bounded by time, not attempts: on a loaded CI runner each lock holder can
+  # keep the limit row for hundreds of milliseconds, so a fixed retry count
+  # ran out and surfaced `:account_busy` instead of the admission decision.
+  defp attempt_until_decided(
+         workflow_job_id,
+         account_id,
+         fleet_name,
+         pod_name,
+         resources,
+         deadline \\ System.monotonic_time(:millisecond) + @claim_decision_timeout
+       ) do
     case Claims.attempt(workflow_job_id, account_id, fleet_name, pod_name, resources) do
-      {:error, :account_busy} when retries > 0 ->
-        Process.sleep(2)
-        attempt_until_decided(workflow_job_id, account_id, fleet_name, pod_name, resources, retries - 1)
+      {:error, :account_busy} ->
+        if System.monotonic_time(:millisecond) < deadline do
+          Process.sleep(2)
+          attempt_until_decided(workflow_job_id, account_id, fleet_name, pod_name, resources, deadline)
+        else
+          {:error, :account_busy}
+        end
 
       result ->
         result
@@ -456,6 +471,7 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
 
   defp with_accounts(count, function) do
     users = Enum.map(1..count, fn _index -> user_fixture(preload: [:account]) end)
+    Enum.each(users, &Tuist.Runners.Concurrency.raise_to_plan_defaults(&1.account, :pro))
 
     try do
       function.(Enum.map(users, & &1.account))

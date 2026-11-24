@@ -18,7 +18,9 @@
 -- and the xcresult/test ingestion path (`Tuist.Tests.create_test/1` ->
 -- `create_test_modules`, which reads `automation_alerts` when scheduling
 -- scoped flaky-test evaluations and `webhook_endpoints` when a run
--- introduces a first-run test case). Adding a new Postgres read or write
+-- introduces a first-run test case), and the snapshot comparison
+-- (`server/lib/tuist/snapshots/workers/process_build_worker.ex`), which
+-- writes the snapshot tables and walks the commit graph for a baseline. Adding a new Postgres read or write
 -- in those paths means adding the corresponding GRANT here and in
 -- `do_grant_processor_role` in the same change.
 --
@@ -47,7 +49,7 @@ GRANT USAGE ON SCHEMA :"tuist_schema" TO tuist_processor;
 -- correction table is written while processing xcresult test runs. The Bazel
 -- tables are the bounded durable staging area consumed by the Bazel test
 -- processor.
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers, :"tuist_schema".test_case_run_flaky_corrections, :"tuist_schema".bazel_test_invocations, :"tuist_schema".bazel_test_results, :"tuist_schema".bazel_test_summaries TO tuist_processor;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers, :"tuist_schema".test_case_run_flaky_corrections, :"tuist_schema".bazel_test_invocations, :"tuist_schema".bazel_test_results, :"tuist_schema".bazel_test_summaries, :"tuist_schema".snapshot_builds, :"tuist_schema".snapshot_images, :"tuist_schema".snapshot_commits, :"tuist_schema".clickhouse_inserts TO tuist_processor;
 GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_processor;
 
 -- Read-only lookups the workers perform. These rows are not written by the
@@ -55,8 +57,9 @@ GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_proces
 -- decide whether to collect Xcode build steps, even when the flag is disabled.
 -- Test ingestion reads coverage_commits to refold a commit whose coverage is
 -- already measured, and the git_* graph tables to count a test case run on a
--- commit the default branch has since reached as not new.
-GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags, :"tuist_schema".coverage_commits, :"tuist_schema".git_repositories, :"tuist_schema".git_refs, :"tuist_schema".git_commits TO tuist_processor;
+-- commit the default branch has since reached as not new. The snapshot
+-- comparison walks git_commit_parents to find a pull request's baseline.
+GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags, :"tuist_schema".coverage_commits, :"tuist_schema".git_repositories, :"tuist_schema".git_refs, :"tuist_schema".git_commits, :"tuist_schema".git_commit_parents TO tuist_processor;
 
 -- Profile workers read staged uploads, record their terminal state and clear
 -- the payload. Upload creation and expiration belong to the web runtime.

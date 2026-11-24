@@ -4,7 +4,7 @@ defmodule Tuist.Runners.BitriseTest do
   import Ecto.Query
   import Mimic
 
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Bitrise
@@ -12,6 +12,7 @@ defmodule Tuist.Runners.BitriseTest do
   alias Tuist.Runners.Bitrise.Client
   alias Tuist.Runners.Bitrise.ReportToken
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
@@ -26,7 +27,6 @@ defmodule Tuist.Runners.BitriseTest do
 
   setup do
     stub(Catalog, :default_xcode_version, fn -> nil end)
-    stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
     stub(Allowance, :exhausted?, fn _account -> false end)
 
     %{account: account} =
@@ -105,6 +105,37 @@ defmodule Tuist.Runners.BitriseTest do
       refute lifecycle(elsewhere.build_slug)
     end
 
+    test "queues a build whose shape exceeds the account's whole limit", %{
+      connection: connection,
+      account: account
+    } do
+      # The pool's target is 6 vCPU / 14 GB on macOS.
+      {:ok, _} =
+        Concurrency.update_limits(account, %{
+          runner_linux_vcpus_limit: 16,
+          runner_linux_memory_gb_limit: 64,
+          runner_macos_vcpus_limit: 5,
+          runner_macos_memory_gb_limit: 14
+        })
+
+      waiting = remote_build()
+      stub(Client, :list_unfinished_builds, fn _connection -> {:ok, [waiting]} end)
+
+      assert {:ok, 1} = Bitrise.poll(connection)
+      assert lifecycle(waiting.build_slug).status == "queued"
+    end
+
+    test "reports waiting builds refused while the allowance is exhausted", %{connection: connection} do
+      stub(Allowance, :exhausted?, fn _account -> true end)
+      stub(Client, :list_unfinished_builds, fn _connection -> {:ok, [remote_build(), remote_build()]} end)
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :runners, :dispatch, :refused]])
+
+      assert {:error, :allowance_exhausted} = Bitrise.poll(connection)
+
+      assert_received {[:tuist, :runners, :dispatch, :refused], ^ref, %{count: 2},
+                       %{provider: "bitrise", reason: "allowance_exhausted"}}
+    end
+
     test "does not queue a build twice", %{connection: connection} do
       waiting = remote_build()
       stub(Client, :list_unfinished_builds, fn _connection -> {:ok, [waiting]} end)
@@ -175,7 +206,7 @@ defmodule Tuist.Runners.BitriseTest do
       assert {:ok, 1} = Bitrise.poll(connection)
 
       cancelled_while_queued = remote_build()
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
       stub(Client, :list_unfinished_builds, fn _connection -> {:ok, [cancelled_while_queued]} end)
 
       stub(Client, :get_build, fn _connection, _app, slug ->

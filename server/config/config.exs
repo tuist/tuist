@@ -147,11 +147,6 @@ config :boruta, Boruta.Oauth,
   ],
   token_generator: Tuist.OAuth.TokenGenerator
 
-# Condukt sessions are registered cluster-wide, so a thread run's session is
-# reached by id from any node, as `Tuist.Threads.ExitWatchWorker` does when it
-# runs on another pod than the session.
-config :condukt, session_registry: Condukt.Sessions.Registry.PG
-
 config :ecto_ch,
   default_table_engine: "MergeTree"
 
@@ -441,7 +436,10 @@ config :logger, :console,
     :stored_bytes,
     :disk_snapshot_id,
     :disk_snapshot_copy,
+    :bytes,
     :preferred_node,
+    :cache_offered,
+    :cache_attached,
     :checkout_nodes,
     :placement_path,
     # Why each node holding a disk snapshot refused a sandbox
@@ -530,7 +528,7 @@ config :tuist, Oban,
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
-config :tuist, Tuist.Vault, key: {Tuist.Environment, :secret_key_encryption, []}
+config :tuist, Tuist.Vault, keys: {Tuist.Environment, :encryption_keys, []}
 
 config :tuist, TuistWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
@@ -545,8 +543,11 @@ config :tuist, :blocked_account_handles, blocked_account_handles
 
 # Retained for migrations that read the original account reservation list.
 config :tuist, :blocked_handles, blocked_account_handles
-config :tuist, :blocked_project_handles, blocked_account_handles -- ["app"]
+# Account pages that share the `/:account/:segment` namespace with projects.
+config :tuist, :blocked_project_handles, (blocked_account_handles -- ["app"]) ++ ["pulse"]
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
+# Share of each platform's runner fleet Air accounts may hold together (Tuist.Runners.AirShare).
+config :tuist, :runner_air_fleet_share_percent, 15
 
 # Baseline machine-minutes of each platform every account gets free per
 # billing period. Each must match the first tier of the environment's runner
@@ -595,7 +596,7 @@ config :tuist, :runner_linux_shapes, [
 #
 # A macOS shape is only runnable on a host SKU whose advertised
 # `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
-# the Helm side: the 16 vCPU shape needs a whole BER1 rack host and is not offered in
+# the Helm side: the 16 vCPU shape needs a whole alder rack host and is not offered in
 # environments whose fleet cannot seat it.
 config :tuist, :runner_macos_shapes, [
   %{vcpus: 8, memory_gb: 24, default: true},
@@ -604,13 +605,20 @@ config :tuist, :runner_macos_shapes, [
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the
 # macOS fleet; the profile's `xcode_version` field validates against
-# this list. The list must stay in sync with the
-# `runner-image-build.strategy.matrix.xcode` matrix in `release.yml`
-# (the Helm value the chart renders is the source of truth in managed
-# deploys; this config is the dev/test/CI fallback). Exactly one
-# entry should carry `default: true`.
+# this list. Managed deploys override it at boot from
+# `TUIST_RUNNER_MACOS_XCODE_VERSIONS`, which Helm renders from
+# `runnersFleet.xcodeVersions` in
+# `infra/helm/tuist/values-managed-common.yaml`; this config is the
+# dev/test/CI fallback and the list the docs render locally, so keep it
+# in step with that catalog. Exactly one entry should carry
+# `default: true`.
 config :tuist, :runner_macos_xcode_versions, [
-  %{xcode_version: "26.5", default: true},
+  %{xcode_version: "27.3-beta"},
+  %{xcode_version: "27.2", default: true},
+  %{xcode_version: "27.1"},
+  %{xcode_version: "27.0"},
+  %{xcode_version: "26.6"},
+  %{xcode_version: "26.5"},
   %{xcode_version: "26.4.1"},
   %{xcode_version: "26.3"},
   %{xcode_version: "26.1.1"},
@@ -620,7 +628,6 @@ config :tuist, :runner_macos_xcode_versions, [
 config :tuist, :urls,
   production: "https://tuist.dev",
   contact: "mailto:contact@tuist.dev",
-  grafana_dashboard: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
   slack: "https://slack.tuist.dev",
   bluesky: "https://bsky.app/profile/tuist.dev",
   github: "https://github.com/tuist",

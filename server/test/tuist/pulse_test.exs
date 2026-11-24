@@ -4,6 +4,7 @@ defmodule Tuist.PulseTest do
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.Pulse
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -17,11 +18,14 @@ defmodule Tuist.PulseTest do
     config = [account_id: organization.account.id, base_url: "https://pulse.internal/", token: "secret"]
     stub(Environment, :pulse_config, fn -> config end)
     stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> true end)
+    # Tests read different upstream responses for one window; the reuse of a
+    # computed window has its own test.
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
     %{user: user, account: organization.account, organization: organization, config: config}
   end
 
   test "logs use readonly SQL rows in the configured database", ctx do
-    expect(Req, :request, fn request ->
+    expect(Req, :request, 3, fn request ->
       assert request.url.path == "/v1/sql"
       assert request.options[:auth] == {:basic, "dashboard:secret"}
       assert request.headers["x-pulse-db-name"] == ["public"]
@@ -72,6 +76,23 @@ defmodule Tuist.PulseTest do
     for id <- [nil, 0, -1, "1"] do
       stub(Environment, :pulse_config, fn -> [account_id: id] end)
       refute Pulse.available?(%{id: id})
+    end
+  end
+
+  test "own telemetry follows the configured account's enrollment", %{config: config} do
+    assert Pulse.own_telemetry?()
+
+    stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> false end)
+    refute Pulse.own_telemetry?()
+
+    # An account that no longer exists, or none configured, takes nothing.
+    stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> true end)
+    stub(Environment, :pulse_config, fn -> Keyword.put(config, :account_id, config[:account_id] + 1_000_000) end)
+    refute Pulse.own_telemetry?()
+
+    for id <- [nil, 0, "1"] do
+      stub(Environment, :pulse_config, fn -> [account_id: id] end)
+      refute Pulse.own_telemetry?()
     end
   end
 
@@ -153,10 +174,17 @@ defmodule Tuist.PulseTest do
       now = ~U[2026-11-06 12:00:00Z]
       stub(DateTime, :utc_now, fn -> now end)
       finish = DateTime.to_unix(now)
-      bounds = "timestamp > to_timestamp_seconds(#{finish - 3600}) AND timestamp <= to_timestamp_seconds(#{finish})"
       order = "ORDER BY timestamp DESC, trace_id ASC LIMIT 100"
+      test = self()
 
-      expect(Req, :request, fn request ->
+      # Without 100 matches, the table widens from the newest minute to the
+      # newest 15 minutes and then the whole hour.
+      windows =
+        for seconds <- [60, 900, 3600] do
+          "timestamp > to_timestamp_seconds(#{finish - seconds}) AND timestamp <= to_timestamp_seconds(#{finish})"
+        end
+
+      expect(Req, :request, if(signal == "metrics", do: 1, else: 3), fn request ->
         assert request.method == :get
         assert request.url.host == "pulse.internal"
         assert request.url.path == unquote(path)
@@ -174,34 +202,57 @@ defmodule Tuist.PulseTest do
             assert params == [query: "up", time: finish]
             response(metric_body([]))
 
-          "logs" ->
-            assert params == [
-                     sql:
-                       "SELECT arrow_cast(timestamp, 'Int64') AS timestamp, " <>
-                         ~s|json_get_string(resource_attributes, '["service.name"]') AS service, | <>
-                         "severity_text AS level, body AS message, trace_id FROM opentelemetry_logs WHERE #{bounds} #{order}"
-                   ]
-
-            response(sql_body(@log_columns, []))
-
-          "traces" ->
-            assert params == [
-                     sql:
-                       "SELECT arrow_cast(timestamp, 'Int64') AS timestamp, service_name AS service, span_name AS name, " <>
-                         "duration_nano / 1000000.0 AS duration_ms, trace_id FROM opentelemetry_traces WHERE #{bounds} #{order}"
-                   ]
-
-            response(sql_body(@span_columns, []))
+          _ ->
+            assert [sql: sql] = params
+            send(test, {:sql, sql})
+            response(sql_body(if(signal == "logs", do: @log_columns, else: @span_columns), []))
         end
       end)
 
       assert {:ok, %{rows: [], series: [], warnings: []}} = Pulse.query(ctx.user, ctx.account, signal, %{})
+
+      select =
+        case signal do
+          "metrics" ->
+            nil
+
+          "logs" ->
+            "SELECT arrow_cast(timestamp, 'Int64') AS timestamp, " <>
+              ~s|json_get_string(resource_attributes, '["service.name"]') AS service, | <>
+              "severity_text AS level, body AS message, trace_id FROM opentelemetry_logs"
+
+          "traces" ->
+            "SELECT arrow_cast(timestamp, 'Int64') AS timestamp, service_name AS service, span_name AS name, " <>
+              "duration_nano / 1000000.0 AS duration_ms, trace_id FROM opentelemetry_traces"
+        end
+
+      if select, do: assert(flush_sql() == Enum.map(windows, &"#{select} WHERE #{&1} #{order}"))
     end
+  end
+
+  test "the table stops widening at the first window holding 100 matches", ctx do
+    stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
+    finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
+    rows = fn count -> Enum.map(1..count, &[finish * 1_000_000_000 - &1, "server", "span", 1, "trace"]) end
+
+    expect(Req, :request, 2, fn request ->
+      sql = request.options.params[:sql]
+
+      cond do
+        sql =~ "timestamp > to_timestamp_seconds(#{finish - 60}) AND" -> response(sql_body(@span_columns, rows.(40)))
+        sql =~ "timestamp > to_timestamp_seconds(#{finish - 900}) AND" -> response(sql_body(@span_columns, rows.(100)))
+      end
+    end)
+
+    assert {:ok, %{rows: [newest | _], meta: %{"total_count" => 100}}} =
+             Pulse.query(ctx.user, ctx.account, "traces", %{"range" => "24h"})
+
+    assert newest["timestamp"] == Integer.to_string(finish * 1_000_000_000 - 1)
   end
 
   test "log and span text search is a literal, case-insensitive SQL string", ctx do
     for {signal, column} <- [{"logs", "body"}, {"traces", "span_name"}] do
-      expect(Req, :request, fn request ->
+      expect(Req, :request, 3, fn request ->
         assert request.options.params[:sql] =~ " AND strpos(lower(#{column}), lower('it''s %_')) > 0 ORDER BY"
         response(sql_body(if(signal == "logs", do: @log_columns, else: @span_columns), []))
       end)
@@ -334,8 +385,16 @@ defmodule Tuist.PulseTest do
     assert {:error, :query_result_limit} = Pulse.query(ctx.user, ctx.account, "traces", %{})
   end
 
-  @issue_columns ~w(service fingerprint events accounts first_seen last_seen title culprit level platform latest_event_id)
-  @event_columns ~w(timestamp event_id title level environment release server_name trace_id account_handle)
+  defp flush_sql(statements \\ []) do
+    receive do
+      {:sql, sql} -> flush_sql([sql | statements])
+    after
+      0 -> Enum.reverse(statements)
+    end
+  end
+
+  @issue_columns ~w(service fingerprint events accounts first_seen last_seen title culprit level platform latest_event_id environment environments)
+  @event_columns ~w(timestamp event_id title level environment release server_name trace_id account_handle sdk)
   @fingerprint String.duplicate("a1", 32)
 
   test "errors list issues by service and fingerprint, filtered and sorted before paging", ctx do
@@ -356,7 +415,15 @@ defmodule Tuist.PulseTest do
              })
 
     assert Enum.map(rows, & &1["fingerprint"]) == [@fingerprint, String.duplicate("c3", 32)]
-    assert %{"first_seen" => "1794329254000000001", "last_seen" => "1794329255000000002", "accounts" => 1} = hd(rows)
+
+    assert %{
+             "first_seen" => "1794329254000000001",
+             "last_seen" => "1794329255000000002",
+             "accounts" => 1,
+             "environment" => "production",
+             "environments" => 2
+           } = hd(rows)
+
     assert meta["total_count"] == 2
 
     # The worker's events under the same fingerprint stay out of the server issue's trend.
@@ -372,6 +439,28 @@ defmodule Tuist.PulseTest do
     # Search matches an issue's fields, not its trend's bucket labels.
     label = series |> Enum.at(30) |> hd() |> to_string()
     assert {:ok, %{rows: []}} = Pulse.query(ctx.user, ctx.account, "errors", %{"query" => "can't", "search" => label})
+  end
+
+  test "an error environment filter selects events before they are grouped into issues", ctx do
+    expect(Req, :request, 2, fn request ->
+      sql = request.options.params[:sql]
+
+      assert sql =~ "AND environment = 'production' GROUP BY service, fingerprint ORDER BY" or
+               sql =~
+                 "AND strpos(lower(coalesce(environment, '')), lower('stag')) = 0 GROUP BY service, fingerprint ORDER BY"
+
+      response(sql_body(@issue_columns, []))
+    end)
+
+    assert {:ok, %{rows: []}} = Pulse.query(ctx.user, ctx.account, "errors", %{"environment" => "production"})
+
+    assert {:ok, %{rows: []}} =
+             Pulse.query(ctx.user, ctx.account, "errors", %{
+               "environment" => "stag",
+               "environment_op" => "not_contains"
+             })
+
+    assert {:error, :invalid_params} = Pulse.query(ctx.user, ctx.account, "logs", %{"environment" => "production"})
   end
 
   defp issue_buckets(sql) do
@@ -392,6 +481,8 @@ defmodule Tuist.PulseTest do
     assert sql =~ " FROM errors WHERE timestamp > to_timestamp_seconds("
     assert sql =~ " AND strpos(lower(title), lower('can''t')) > 0 GROUP BY service, fingerprint ORDER BY last_seen DESC"
     assert sql =~ "count(DISTINCT nullif(account_handle, '')) AS accounts"
+    assert sql =~ "last_value(environment ORDER BY timestamp) AS environment, "
+    assert sql =~ "count(DISTINCT nullif(environment, '')) AS environments"
     assert String.ends_with?(sql, " LIMIT 100")
 
     response(
@@ -407,7 +498,9 @@ defmodule Tuist.PulseTest do
           "f/1",
           "error",
           "elixir",
-          "aa"
+          "aa",
+          "production",
+          2
         ],
         [
           "worker",
@@ -420,7 +513,9 @@ defmodule Tuist.PulseTest do
           nil,
           "warning",
           nil,
-          "bb"
+          "bb",
+          "staging",
+          1
         ],
         [
           "server",
@@ -433,7 +528,9 @@ defmodule Tuist.PulseTest do
           nil,
           "fatal",
           nil,
-          "cc"
+          "cc",
+          nil,
+          0
         ]
       ])
     )
@@ -443,7 +540,7 @@ defmodule Tuist.PulseTest do
     finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
     start = finish - 3600
     parent = self()
-    event = ["ee", "RuntimeError: boom", "error", "production", "1.0", "pod", "0af7", "tuist"]
+    event = ["ee", "RuntimeError: boom", "error", "production", "1.0", "pod", "0af7", "tuist", "sentry-elixir/11.0"]
 
     stub(Req, :request, fn request ->
       sql = request.options.params[:sql]
@@ -453,6 +550,7 @@ defmodule Tuist.PulseTest do
                " FROM errors WHERE timestamp > to_timestamp_seconds(#{start}) AND timestamp <= to_timestamp_seconds(#{finish})"
 
       assert sql =~ " AND service = 'server''s' AND fingerprint = '#{@fingerprint}'"
+      assert sql =~ " AND environment = 'prod''uction'"
 
       cond do
         sql =~ "GROUP BY service, fingerprint" ->
@@ -469,7 +567,9 @@ defmodule Tuist.PulseTest do
                 "f/1",
                 "error",
                 "elixir",
-                "ee"
+                "ee",
+                "production",
+                1
               ]
             ])
           )
@@ -492,7 +592,10 @@ defmodule Tuist.PulseTest do
           assert String.ends_with?(sql, "ORDER BY timestamp DESC, event_id ASC LIMIT 2 OFFSET 2")
 
           response(
-            sql_body(@event_columns, [[ns(finish) | event], [ns(start) + 5, "dd", nil, "error", nil, nil, nil, nil, nil]])
+            sql_body(@event_columns, [
+              [ns(finish) | event],
+              [ns(start) + 5, "dd", nil, "error", nil, nil, nil, nil, nil, nil]
+            ])
           )
       end
     end)
@@ -500,6 +603,7 @@ defmodule Tuist.PulseTest do
     assert {:ok, detail} =
              Pulse.error_issue(ctx.user, ctx.account, @fingerprint, %{
                "service" => "server's",
+               "environment" => "prod'uction",
                "end_at" => "2026-11-06T12:00:00Z",
                "page" => "2",
                "page_size" => "2"
@@ -568,7 +672,7 @@ defmodule Tuist.PulseTest do
 
       response(
         sql_body(@event_columns ++ ["event"], [
-          [ns(1_794_329_254), event_id, "KeyError", "error", "production", nil, "pod", nil, nil] ++
+          [ns(1_794_329_254), event_id, "KeyError", "error", "production", nil, "pod", nil, nil, "sentry-elixir/11.0"] ++
             [%{"contexts" => %{"trace.span_id" => "b7ad"}, "request" => %{"url" => "/x"}, "user" => %{}}]
         ])
       )
@@ -578,6 +682,7 @@ defmodule Tuist.PulseTest do
              Pulse.error_event(ctx.user, ctx.account, @fingerprint, event_id, %{"service" => "server"})
 
     assert event["title"] == "KeyError"
+    assert event["sdk"] == "sentry-elixir/11.0"
     assert event["contexts"] == %{"trace.span_id" => "b7ad"}
     refute Map.has_key?(event, "user")
 
@@ -628,6 +733,8 @@ defmodule Tuist.PulseTest do
           {400, :invalid_query},
           {422, :invalid_query},
           {429, :rate_limited},
+          {408, :timeout},
+          {504, :timeout},
           {302, :upstream_error},
           {401, :upstream_error},
           {500, :upstream_error}
@@ -686,6 +793,9 @@ defmodule Tuist.PulseTest do
             %{"range" => nil},
             %{"range" => :hour},
             %{"range" => "7d"},
+            %{"widgets" => []},
+            %{"widgets" => "reporting"},
+            %{"widgets" => ["fatal"]},
             %{"query" => "up"},
             %{"base_url" => "https://evil.test"},
             %{"tenant" => "other"},
@@ -789,7 +899,7 @@ defmodule Tuist.PulseTest do
     end
 
     for signal <- ~w(logs traces errors) do
-      test "#{signal} aggregates through SQL with aligned buckets and independent full-window totals", ctx do
+      test "#{signal} aggregates through SQL with aligned buckets and full-window totals", ctx do
         signal = unquote(signal)
         now = ~U[2026-11-06 12:03:59Z]
         stub(DateTime, :utc_now, fn -> now end)
@@ -809,7 +919,7 @@ defmodule Tuist.PulseTest do
         columns = Enum.reverse(ids)
 
         steps =
-          if signal == "logs",
+          if signal in ~w(logs errors),
             do: [{"15m", 900, 60}, {"1h", 3600, 60}, {"6h", 21_600, 60}, {"24h", 86_400, 240}],
             else: [{"15m", 900, 3}, {"1h", 3600, 10}, {"6h", 21_600, 60}, {"24h", 86_400, 240}]
 
@@ -827,10 +937,10 @@ defmodule Tuist.PulseTest do
               |> Regex.run(sql, capture: :all_but_first)
               |> Enum.map(&String.to_integer/1)
 
-            assert stop - start == seconds
-
             if sql =~ "GROUP BY bucket" do
-              assert {start, stop} == {finish - seconds, finish}
+              # Counts read one bucketed scan of both periods; other widgets
+              # bucket only the current one.
+              assert {start, stop} == {finish - if(signal == "logs", do: 2 * seconds, else: seconds), finish}
 
               assert String.starts_with?(
                        sql,
@@ -839,9 +949,15 @@ defmodule Tuist.PulseTest do
 
               assert String.ends_with?(sql, " GROUP BY bucket ORDER BY bucket")
               send(parent, {:sql, :range})
-              rows = Enum.map((start + step)..stop//step, fn time -> [time | Enum.map(columns, &(7 * weights[&1]))] end)
+
+              rows =
+                Enum.map((start + step)..stop//step, fn time ->
+                  [time | Enum.map(columns, &(if(time > finish - seconds, do: 7, else: 5) * weights[&1]))]
+                end)
+
               response(sql_body(["bucket" | columns], rows))
             else
+              assert stop - start == seconds
               assert stop in [finish, finish - seconds]
               send(parent, {:sql, stop})
               value = if(stop == finish, do: 12_345, else: 23_456)
@@ -856,23 +972,120 @@ defmodule Tuist.PulseTest do
 
           for widget <- widgets do
             factor = weights[widget.id] * if(widget.id == "duration_p95", do: 1000, else: 1)
-            assert widget.value == 12_345 * factor
-            assert widget.previous_value == 23_456 * factor
+
+            if signal == "logs" do
+              # Totals are the sums of each period's buckets.
+              assert widget.value == 7 * factor * div(seconds, step)
+              assert widget.previous_value == 5 * factor * div(seconds, step)
+            else
+              assert widget.value == 12_345 * factor
+              assert widget.previous_value == 23_456 * factor
+            end
+
             assert widget.points == Enum.map((finish - seconds + step)..finish//step, &[&1, 7 * factor])
             assert length(widget.points) <= 360
           end
 
-          # One statement per period computes every widget.
+          # One statement per period computes every widget, and counts share one.
+          expected = if signal == "logs", do: [:range], else: [:range, finish, finish - seconds]
+
           received =
-            for _ <- 1..3 do
+            for _ <- expected do
               assert_receive {:sql, period}
               period
             end
 
-          assert Enum.sort(received) == Enum.sort([:range, finish, finish - seconds])
+          assert Enum.sort(received) == Enum.sort(expected)
           refute_receive {:sql, _}
         end
       end
+    end
+
+    test "a node shares one computation of a window across refreshes, never caching failures", ctx do
+      stub(KeyValueStore, :get_or_update, fn key, opts, func ->
+        Mimic.call_original(KeyValueStore, :get_or_update, [key, opts, func])
+      end)
+
+      test = self()
+
+      # A failure is returned without being kept, so the next load retries.
+      stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:05Z] end)
+      stub(Req, :request, fn _request -> {:ok, %Req.Response{status: 503}} end)
+      assert {:error, :upstream_error} = Pulse.analytics(ctx.user, ctx.account, "logs", %{})
+
+      stub(Req, :request, fn _request ->
+        send(test, :sql)
+        response(sql_body(~w(bucket entries errors warnings), []))
+      end)
+
+      # The hour of logs has 60-second steps.
+      assert {:ok, first} = Pulse.analytics(ctx.user, ctx.account, "logs", %{})
+      assert_received :sql
+      stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:59Z] end)
+      assert {:ok, ^first} = Pulse.analytics(ctx.user, ctx.account, "logs", %{})
+      refute_received :sql
+
+      # Other widgets and ranges are separate windows.
+      assert {:ok, _} = Pulse.analytics(ctx.user, ctx.account, "logs", %{"widgets" => ["errors"]})
+      assert_received :sql
+      assert {:ok, _} = Pulse.analytics(ctx.user, ctx.account, "logs", %{"range" => "15m"})
+      assert_received :sql
+
+      stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:01:00Z] end)
+      assert {:ok, second} = Pulse.analytics(ctx.user, ctx.account, "logs", %{})
+      assert_received :sql
+      assert hd(hd(second.widgets).points) != hd(hd(first.widgets).points)
+    end
+
+    test "trace span and error counts come from one scan of both periods", ctx do
+      now = ~U[2026-11-06 12:03:59Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      test = self()
+
+      for {range, seconds, step} <- [{"15m", 900, 3}, {"1h", 3600, 10}] do
+        finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), step)
+
+        stub(Req, :request, fn request ->
+          sql = request.options.params[:sql]
+          send(test, {:sql, sql})
+          refute sql =~ "approx_percentile_cont"
+
+          # Pulse omits empty buckets; every present one counts 3 spans and 1
+          # error now, 2 spans and no errors in the previous period.
+          rows =
+            for time <- (finish - 2 * seconds + step)..finish//(2 * step) do
+              if time > finish - seconds, do: [time, 3, 1], else: [time, 2, 0]
+            end
+
+          response(sql_body(~w(bucket spans errors), rows))
+        end)
+
+        assert {:ok, %{widgets: [spans, errors]}} =
+                 Pulse.analytics(ctx.user, ctx.account, "traces", %{"range" => range, "widgets" => ~w(spans errors)})
+
+        assert [sql] = flush_sql()
+
+        assert sql =~
+                 "/ #{step * 1_000_000_000} + 1) * #{step} AS bucket, " <>
+                   ~s{count(*) AS "spans", count(*) FILTER (WHERE span_status_code = 'STATUS_CODE_ERROR') AS "errors" } <>
+                   "FROM opentelemetry_traces WHERE timestamp > to_timestamp_seconds(#{finish - 2 * seconds}) " <>
+                   "AND timestamp <= to_timestamp_seconds(#{finish}) GROUP BY bucket"
+
+        # Every other bucket is present, so each period has half its buckets.
+        present = div(seconds, step * 2)
+        assert {spans.value, spans.previous_value} == {3 * present, 2 * present}
+        assert {errors.value, errors.previous_value} == {present, 0}
+        assert length(spans.points) == div(seconds, step)
+        # The newest bucket is one Pulse omitted: a zero count, not a gap.
+        assert Enum.take(spans.points, -2) == [[finish - step, 3], [finish, 0]]
+      end
+
+      # A count is never null, so a null bucket is malformed, not a crash.
+      finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), 3)
+      stub(Req, :request, fn _request -> response(sql_body(~w(bucket spans errors), [[finish, nil, 0]])) end)
+
+      assert {:error, :malformed_response} =
+               Pulse.analytics(ctx.user, ctx.account, "traces", %{"range" => "15m", "widgets" => ~w(spans errors)})
     end
 
     test "log, trace and error widgets share one statement per period with fixed filters and expressions", ctx do
@@ -893,8 +1106,8 @@ defmodule Tuist.PulseTest do
              ]},
             {"errors", "errors", ~w(events fatal services),
              [
-               ~s|count(*) AS "events"|,
-               ~s|count(*) FILTER (WHERE "level" = 'fatal') AS "fatal"|,
+               ~s|count(DISTINCT event_id) AS "events"|,
+               ~s|count(DISTINCT event_id) FILTER (WHERE "level" = 'fatal') AS "fatal"|,
                ~s|count(DISTINCT nullif(service, '')) AS "services"|
              ]}
           ] do
@@ -912,12 +1125,12 @@ defmodule Tuist.PulseTest do
         # With no rows in any bucket, counts are zero and durations are gaps.
         for widget <- widgets do
           empty = if widget.id == "duration_p95", do: nil, else: 0
-          assert length(widget.points) == if(signal == "logs", do: 60, else: 360)
+          assert length(widget.points) == if(signal in ~w(logs errors), do: 60, else: 360)
           assert Enum.all?(widget.points, &match?([_, ^empty], &1))
         end
 
         statements =
-          for _ <- 1..3 do
+          for _ <- 1..if(signal == "logs", do: 1, else: 3) do
             assert_receive {:sql, sql}
             sql
           end
@@ -943,9 +1156,11 @@ defmodule Tuist.PulseTest do
       finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
 
       ids = ~w(spans errors duration_p95)
+      test = self()
 
       stub(Req, :request, fn request ->
         sql = request.options.params[:sql]
+        send(test, {:sql, sql})
         current = sql =~ "to_timestamp_seconds(#{finish})"
 
         cond do
@@ -976,6 +1191,18 @@ defmodule Tuist.PulseTest do
       # Buckets Pulse omits are zero counts, not gaps.
       assert hd(spans.points) == [finish - 3600 + 10, 0]
       assert hd(errors.points) == [finish - 3600 + 10, 0]
+
+      # Loaded on its own, the p95 still takes its gaps from the span counts,
+      # and its statements never compute the error count.
+      flush_sql()
+
+      assert {:ok, %{widgets: [^duration]}} =
+               Pulse.analytics(ctx.user, ctx.account, "traces", %{"widgets" => ["duration_p95"]})
+
+      statements = flush_sql()
+      assert length(statements) == 3
+      assert Enum.all?(statements, &(&1 =~ ~s|count(*) AS "spans"| and &1 =~ ~s|AS "duration_p95"|))
+      refute Enum.any?(statements, &(&1 =~ "STATUS_CODE_ERROR"))
 
       for {current_count, previous_count, expected, previous_expected} <- [
             {0, 2, nil, 125.0},

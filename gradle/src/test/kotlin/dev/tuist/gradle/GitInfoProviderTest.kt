@@ -199,7 +199,7 @@ class GitInfoProviderTest {
         assertEquals(null, provider.remoteUrlOrigin())
     }
 
-    private fun mergeCheckout(ref: String?, githubSha: String? = null, secondParent: () -> String) = ProcessGitInfoProvider(
+    private fun mergeCheckout(ref: String?, githubSha: String? = null) = ProcessGitInfoProvider(
         environmentProvider = { key ->
             when (key) {
                 "GITHUB_REF" -> ref
@@ -209,7 +209,6 @@ class GitInfoProviderTest {
         },
         gitCommandRunner = { args ->
             when (args) {
-                listOf("rev-parse", "HEAD^2") -> secondParent()
                 listOf("rev-parse", "HEAD") -> "merge-commit"
                 else -> throw RuntimeException("unexpected git ${args.joinToString(" ")}")
             }
@@ -217,37 +216,15 @@ class GitInfoProviderTest {
     )
 
     @Test
-    fun `commitSha is the pull request's head on a pull request merge checkout`() {
-        assertEquals("pull-request-head", mergeCheckout("refs/pull/123/merge") { "pull-request-head" }.commitSha())
-    }
-
-    @Test
-    fun `commitSha is the pull request's head when HEAD is GitHub's merge commit`() {
-        assertEquals(
-            "pull-request-head",
-            mergeCheckout("refs/pull/123/merge", githubSha = "merge-commit") { "pull-request-head" }.commitSha()
-        )
-    }
-
-    @Test
-    fun `commitSha is HEAD when the workflow checked out another commit than GitHub's merge commit`() {
-        // A checkout of the pull request's head keeps GITHUB_REF at the merge ref; when that head is
-        // itself a merge commit, its second parent is not the pull request.
-        assertEquals(
-            "merge-commit",
-            mergeCheckout("refs/pull/123/merge", githubSha = "another-commit") { "main" }.commitSha()
-        )
-    }
-
-    @Test
-    fun `commitSha falls back to HEAD when the merge commit's second parent is not in the checkout`() {
-        assertEquals("merge-commit", mergeCheckout("refs/pull/123/merge") { throw RuntimeException("shallow") }.commitSha())
+    fun `commitSha is the merge commit the run measured on a pull request merge checkout`() {
+        assertEquals("merge-commit", mergeCheckout("refs/pull/123/merge").commitSha())
+        assertEquals("merge-commit", mergeCheckout("refs/pull/123/merge", githubSha = "merge-commit").commitSha())
     }
 
     @Test
     fun `commitSha is HEAD outside a pull request ref`() {
         for (ref in listOf("refs/heads/main", null)) {
-            assertEquals("merge-commit", mergeCheckout(ref) { "pull-request-head" }.commitSha())
+            assertEquals("merge-commit", mergeCheckout(ref).commitSha())
         }
     }
 }

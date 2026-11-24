@@ -24,7 +24,7 @@
 #   8. Install Cluster API core for the Mac mini fleet substrate.
 #   9. Create the `onepassword` namespace + service-account-token
 #      Secret + ClusterSecretStore so ESO can pull from 1Password.
-#  10. Install the monitoring chart (Grafana Cloud agent).
+#  10. Install the monitoring chart (Alloy collectors writing to Pulse).
 #  11. App-serving clusters: pre-create the app namespace.
 #  12. Non-pentest app clusters: install the shared Cloudflare origin cert TLS Secret.
 #  13. Smoke ingress + upload the workload kubeconfig to 1Password.

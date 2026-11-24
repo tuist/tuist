@@ -29,6 +29,16 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
         than `resolved_at`; older backfilled events do not regress
       * unresolved stays unresolved
 
+  ## Regrouping
+
+  When `Atlas.Engineering.Errors.Fingerprint` changes its rules, the same
+  events hash to a new fingerprint and so a new issue id. Pass the event's
+  `:legacy_fingerprint` to `observe/5`: an issue created under the current
+  rules then starts from its legacy issue's status, assignee, resolution and
+  first sighting, with the regression rules above applied to it, and alert
+  rules see the legacy issue as its previous state. Counts and impacted
+  accounts start over; the legacy issue keeps its history and stops growing.
+
   ## Shutdown
 
   `terminate/2` runs a final flush so pending observations from the
@@ -58,12 +68,14 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
   `{project.id, domain_id, fingerprint}` inside the coalescer. Pass
   `:domain_id` in `opts` when the event came in through a domain-scoped
   Data Source Name; omit it (or pass nil) for the project-level DSN.
-  Non-blocking.
+  `:legacy_fingerprint` names the issue a new one carries over from (see
+  Regrouping). Non-blocking.
   """
   def observe(server, %Project{} = project, fingerprint, %SentryEvent{} = event, opts \\ [])
       when is_binary(fingerprint) do
     domain_id = Keyword.get(opts, :domain_id)
-    GenServer.cast(server, {:observe, project, domain_id, fingerprint, event})
+    legacy = Keyword.get(opts, :legacy_fingerprint)
+    GenServer.cast(server, {:observe, project, domain_id, fingerprint, legacy, event})
   end
 
   @doc """
@@ -93,10 +105,10 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
   end
 
   @impl true
-  def handle_cast({:observe, project, domain_id, fingerprint, event}, state) do
+  def handle_cast({:observe, project, domain_id, fingerprint, legacy, event}, state) do
     key = {project.id, domain_id, fingerprint}
     entry = Map.get(state.accumulator, key)
-    updated = merge_observation(entry, project, domain_id, fingerprint, event)
+    updated = merge_observation(entry, project, domain_id, fingerprint, legacy, event)
     {:noreply, %{state | accumulator: Map.put(state.accumulator, key, updated)}}
   end
 
@@ -125,11 +137,12 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
   # matching). The most-recently-observed values win for the mutable
   # metadata (title/culprit/level/platform/environment); count is
   # additive; first/last-seen are min/max of every event's timestamp.
-  defp merge_observation(nil, project, domain_id, fingerprint, event) do
+  defp merge_observation(nil, project, domain_id, fingerprint, legacy, event) do
     ts = event_timestamp(event)
 
     %{
       id: Issue.deterministic_id(project.id, domain_id, fingerprint),
+      legacy_ids: legacy_ids(project, domain_id, fingerprint, legacy),
       project_id: project.id,
       project_name: project.name,
       project_slack_alert_channel: Map.get(project, :slack_alert_channel),
@@ -146,12 +159,13 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
     }
   end
 
-  defp merge_observation(entry, _project, _domain_id, _fingerprint, event) do
+  defp merge_observation(entry, project, domain_id, fingerprint, legacy, event) do
     ts = event_timestamp(event)
 
     %{
       entry
-      | title: SentryEvent.title(event) |> truncate(500),
+      | legacy_ids: Enum.uniq(entry.legacy_ids ++ legacy_ids(project, domain_id, fingerprint, legacy)),
+        title: SentryEvent.title(event) |> truncate(500),
         culprit: SentryEvent.culprit(event) |> truncate(500),
         level: String.to_atom(event.level),
         platform: event.platform,
@@ -161,6 +175,11 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
         environment: event.environment || entry.environment
     }
   end
+
+  defp legacy_ids(project, domain_id, fingerprint, legacy) when is_binary(legacy) and legacy != fingerprint,
+    do: [Issue.deterministic_id(project.id, domain_id, legacy)]
+
+  defp legacy_ids(_project, _domain_id, _fingerprint, _legacy), do: []
 
   # Sentry SDKs commonly send timestamps at millisecond precision
   # (e.g. `~U[2026-09-04 09:12:00.000Z]`), but the `errors_issues`
@@ -193,8 +212,9 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
     # repeat. New fingerprints show up here as empty structs so the
     # alert evaluator still gets a `before` argument.
     before_by_id = snapshot_before(ids)
+    legacy_by_id = legacy_issues(entries)
 
-    rows = Enum.map(entries, &row_for_upsert(&1, now))
+    rows = Enum.map(entries, &(&1 |> row_for_upsert(now) |> carry_over(Map.get(legacy_by_id, &1.id))))
 
     try do
       {_inserted, after_issues} =
@@ -206,7 +226,7 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
           returning: true
         )
 
-      evaluate_alerts_for(after_issues, entries, before_by_id)
+      evaluate_alerts_for(after_issues, entries, Map.merge(legacy_by_id, before_by_id))
       length(after_issues)
     rescue
       error ->
@@ -233,6 +253,61 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
     |> Map.new(&{&1.id, &1})
   end
 
+  # Reconcile every observed origin, including origins first seen in later
+  # batches. Suppression requires unanimity; mixed statuses stay unresolved.
+  # A deterministic non-null assignee wins, and the earliest sighting survives.
+  defp legacy_issues(entries) do
+    legacy = snapshot_before(Enum.flat_map(entries, & &1.legacy_ids))
+
+    for entry <- entries,
+        entry.legacy_ids != [],
+        into: %{} do
+      # A newly observed origin has no migrated decision; keep it unresolved
+      # and remember its identity just like an existing legacy issue.
+      issues =
+        Enum.map(entry.legacy_ids, fn id ->
+          Map.get(legacy, id, %Issue{id: id, status: :unresolved, first_seen: entry.first_seen})
+        end)
+
+      [first | rest] = Enum.sort_by(issues, & &1.id)
+      issue = Enum.reduce(rest, first, &merge_legacy/2)
+      {entry.id, %{issue | legacy_ids: Enum.map(issues, & &1.id)}}
+    end
+  end
+
+  defp merge_legacy(a, b) do
+    status = if a.status == b.status, do: a.status, else: :unresolved
+
+    %{
+      b
+      | status: status,
+        resolved_at:
+          if(status == :resolved && a.resolved_at && b.resolved_at, do: min_dt(a.resolved_at, b.resolved_at)),
+        assignee_id: Enum.min(Enum.reject([a.assignee_id, b.assignee_id], &is_nil/1), fn -> nil end),
+        first_seen: min_dt(a.first_seen, b.first_seen)
+    }
+  end
+
+  defp carry_over(row, nil), do: row
+
+  defp carry_over(row, %Issue{} = legacy) do
+    regressed? =
+      legacy.status == :resolved and not is_nil(legacy.resolved_at) and
+        DateTime.after?(row.last_seen, legacy.resolved_at)
+
+    {status, resolved_at} =
+      if regressed?, do: {:unresolved, nil}, else: {legacy.status, legacy.resolved_at}
+
+    %{
+      row
+      | legacy_ids: legacy.legacy_ids,
+        status: status,
+        resolved_at: resolved_at,
+        assignee_id: legacy.assignee_id,
+        first_seen: min_dt(row.first_seen, legacy.first_seen)
+    }
+  end
+
   defp row_for_upsert(entry, now) do
     %{
       id: entry.id,
@@ -244,10 +319,12 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
       level: entry.level,
       platform: entry.platform,
       status: :unresolved,
+      legacy_ids: [],
       first_seen: entry.first_seen,
       last_seen: entry.last_seen,
       event_count: entry.count,
       resolved_at: nil,
+      assignee_id: nil,
       inserted_at: now,
       updated_at: now
     }
@@ -282,6 +359,10 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
   # the mutable metadata is replaced, and the regression rules are
   # applied via SQL CASE — reopen only if this batch's max timestamp
   # is strictly newer than `resolved_at`.
+  # Reconcile only previously unseen origins against the locked current row:
+  # replaying known origins would undo subsequent operator decisions. These
+  # correlated subqueries stay inside the upsert so replicas cannot race a
+  # separate read of the current row's legacy_ids or mutable decisions.
   defp on_conflict_query do
     from(existing in Issue,
       update: [
@@ -293,15 +374,57 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
           culprit: fragment("EXCLUDED.culprit"),
           level: fragment("EXCLUDED.level"),
           platform: fragment("EXCLUDED.platform"),
+          legacy_ids:
+            fragment(
+              "CASE WHEN ? = '{}'::uuid[] THEN ? ELSE ARRAY(SELECT DISTINCT unnest(? || EXCLUDED.legacy_ids)) END",
+              existing.legacy_ids,
+              existing.legacy_ids,
+              existing.legacy_ids
+            ),
+          assignee_id:
+            fragment(
+              """
+              CASE WHEN ? <> '{}'::uuid[] AND NOT EXCLUDED.legacy_ids <@ ? THEN
+                LEAST(?, (SELECT min(origin.assignee_id::text)::uuid FROM errors_issues origin
+                  WHERE origin.id = ANY(EXCLUDED.legacy_ids) AND NOT origin.id = ANY(?)))
+              ELSE ? END
+              """,
+              existing.legacy_ids,
+              existing.legacy_ids,
+              existing.assignee_id,
+              existing.legacy_ids,
+              existing.assignee_id
+            ),
           status:
             fragment(
               """
               CASE
+                WHEN ? <> '{}'::uuid[] AND NOT EXCLUDED.legacy_ids <@ ? THEN
+                  CASE WHEN ? = ALL(
+                    SELECT COALESCE(origin.status, 'unresolved')
+                    FROM unnest(EXCLUDED.legacy_ids) observed(id)
+                    LEFT JOIN errors_issues origin ON origin.id = observed.id
+                    WHERE NOT observed.id = ANY(?)
+                  ) AND (? <> 'resolved' OR
+                    GREATEST(?, EXCLUDED.last_seen) <= LEAST(?, (
+                      SELECT min(origin.resolved_at) FROM errors_issues origin
+                      WHERE origin.id = ANY(EXCLUDED.legacy_ids) AND NOT origin.id = ANY(?)
+                    )))
+                  THEN ? ELSE 'unresolved' END
                 WHEN ? = 'ignored' THEN ?
                 WHEN ? = 'resolved' AND ? IS NOT NULL AND EXCLUDED.last_seen > ? THEN ?
                 ELSE ?
               END
               """,
+              existing.legacy_ids,
+              existing.legacy_ids,
+              existing.status,
+              existing.legacy_ids,
+              existing.status,
+              existing.last_seen,
+              existing.resolved_at,
+              existing.legacy_ids,
+              existing.status,
               existing.status,
               "ignored",
               existing.status,
@@ -314,10 +437,32 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
             fragment(
               """
               CASE
+                WHEN ? <> '{}'::uuid[] AND NOT EXCLUDED.legacy_ids <@ ? THEN
+                  CASE WHEN ? = 'resolved' AND 'resolved' = ALL(
+                    SELECT COALESCE(origin.status, 'unresolved')
+                    FROM unnest(EXCLUDED.legacy_ids) observed(id)
+                    LEFT JOIN errors_issues origin ON origin.id = observed.id
+                    WHERE NOT observed.id = ANY(?)
+                  ) AND GREATEST(?, EXCLUDED.last_seen) <= LEAST(?, (
+                    SELECT min(origin.resolved_at) FROM errors_issues origin
+                    WHERE origin.id = ANY(EXCLUDED.legacy_ids) AND NOT origin.id = ANY(?)
+                  )) THEN LEAST(?, (
+                    SELECT min(origin.resolved_at) FROM errors_issues origin
+                    WHERE origin.id = ANY(EXCLUDED.legacy_ids) AND NOT origin.id = ANY(?)
+                  )) ELSE NULL END
                 WHEN ? = 'resolved' AND ? IS NOT NULL AND EXCLUDED.last_seen > ? THEN NULL
                 ELSE ?
               END
               """,
+              existing.legacy_ids,
+              existing.legacy_ids,
+              existing.status,
+              existing.legacy_ids,
+              existing.last_seen,
+              existing.resolved_at,
+              existing.legacy_ids,
+              existing.resolved_at,
+              existing.legacy_ids,
               existing.status,
               existing.resolved_at,
               existing.resolved_at,

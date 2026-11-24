@@ -64,6 +64,9 @@
 #   GET /oidc/accounts/*  Per-account OpenID Connect issuer discovery and
 #                      JWKS, fetched by Anthropic to verify the tokens
 #                      Tuist signs for workload identity federation.
+#   GET /oidc/claude-linked-billing/*  Tuist's own issuer discovery and
+#                      JWKS for Claude linked billing, fetched by
+#                      Anthropic's workload identity federation.
 #   /mcp (exact)       Model Context Protocol
 #                      (https://modelcontextprotocol.io/) server
 #                      endpoint reached by AI-assistant clients.
@@ -162,7 +165,7 @@ spec:
     starts_with(http.request.uri.path, "/agent/") or
     starts_with(http.request.uri.path, "/_internal/") or
     starts_with(http.request.uri.path, "/.well-known/") or
-    (http.request.method in {"GET" "HEAD"} and starts_with(http.request.uri.path, "/oidc/accounts/")) or
+    (http.request.method in {"GET" "HEAD"} and (starts_with(http.request.uri.path, "/oidc/accounts/") or starts_with(http.request.uri.path, "/oidc/claude-linked-billing/"))) or
     http.request.uri.path eq "/mcp" or
     http.request.uri.path eq "/auth.md" or
     http.request.uri.path eq "/ready" or

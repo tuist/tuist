@@ -64,7 +64,7 @@ defmodule TuistWeb.Docs.MarkdownComponents do
   attr :supported_for, :string,
     default: nil,
     doc:
-      ~s(Comma-separated build-system slugs to render under the card. Accepts "apple", "android", "gradle", "bazel", "elixir", "rust", "once".)
+      ~s(Comma-separated build-system slugs to render under the card. Accepts "apple", "android", "gradle", "bazel", "elixir", "rust", "struo", and legacy "once".)
 
   def home_card(assigns) do
     href =
@@ -78,7 +78,7 @@ defmodule TuistWeb.Docs.MarkdownComponents do
       (assigns.supported_for || "")
       |> String.split(",", trim: true)
       |> Enum.map(&String.trim/1)
-      |> Enum.filter(&(&1 in ~w(apple android gradle bazel elixir rust once)))
+      |> Enum.filter(&(&1 in ~w(apple android gradle bazel elixir rust struo once)))
 
     assigns =
       assigns
@@ -95,7 +95,7 @@ defmodule TuistWeb.Docs.MarkdownComponents do
         <div :if={@supported != []} data-part="supported-for">
           <span data-part="supported-label">Supported for:</span>
           <span :for={system <- @supported} data-part="supported-icon" title={system}>
-            <.icon name={"brand_#{system}"} />
+            <.icon name={if system == "struo", do: "brand_once", else: "brand_#{system}"} />
           </span>
         </div>
       </div>

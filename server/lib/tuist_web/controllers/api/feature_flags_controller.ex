@@ -13,7 +13,7 @@ defmodule TuistWeb.API.FeatureFlagsController do
   operation(:index,
     summary: "Lists the feature flags enabled for the signed-in user",
     description:
-      "Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or the signed-in Tuist app can read them.",
+      "Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.",
     operation_id: "listFeatureFlags",
     responses: %{
       ok:
@@ -25,7 +25,7 @@ defmodule TuistWeb.API.FeatureFlagsController do
              enabled: %Schema{
                type: :array,
                items: %Schema{type: :string},
-               description: "The names of the enabled flags. Known values: `guild`."
+               description: "The names of the enabled flags. Known values: `luft`."
              }
            },
            required: [:enabled]

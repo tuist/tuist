@@ -57,6 +57,9 @@ func TestAPFSStartsEmptyWhenOnlyAnotherLineageIsLocal(t *testing.T) {
 	if len(remote.downloads()) != 0 || b.MountedGeneration(slot) != 0 || !b.Cold(slot) {
 		t.Fatal("did not start empty", remote.downloads(), b.MountedGeneration(slot))
 	}
+	if got := b.ColdReason(slot); got != ColdNotOnHost {
+		t.Fatalf("cold reason = %q, want %q", got, ColdNotOnHost)
+	}
 }
 
 func TestStoreRecordsTheGenerationAJobActuallyMounted(t *testing.T) {
@@ -132,6 +135,60 @@ func TestReplaceKeepsAStaleMasterUntilItsSuccessorIsLocal(t *testing.T) {
 	}
 	if exists(b.master(idle)) || len(asked) != 0 {
 		t.Fatal("fetched a successor for a master no job used in the last day", asked)
+	}
+}
+
+// macOS replaces superseded masters through its prefetch queue. A successor
+// that queue installs must not be followed again until a job clones it, or
+// every host that used a lineage once downloads each generation it publishes.
+func TestReplaceFollowsALineageOnceUntilAJobClonesIt(t *testing.T) {
+	b, remote := newRefreshing(t)
+	b.RefreshWithin = 0
+	b.Replace = func(next Identity) bool {
+		go func() { _ = b.PrefetchSpare(context.Background(), Slot{Identity: next}) }()
+		return true
+	}
+	scope := strings.Repeat("a", 64)
+	usedAt := time.Now().Add(-10 * time.Minute).Truncate(time.Second)
+	stale := installMaster(t, b, first, scope, 1, usedAt)
+	at := func(generation int64) Slot {
+		slot := stale
+		slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = generation, head(generation).ImageDigest, head(generation).ContentDigest
+		return slot
+	}
+
+	remote.heads[scope] = head(2)
+	if err := b.Maintain(); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, func() bool { return exists(b.master(at(2))) })
+	if info, err := os.Stat(b.master(at(2))); err != nil || !info.ModTime().Equal(usedAt) {
+		t.Fatal("successor does not carry the stale master's last use", info.ModTime(), err)
+	}
+	if err := b.Maintain(); err != nil {
+		t.Fatal(err)
+	}
+	if exists(b.master(stale)) {
+		t.Fatal("stale master outlived its local successor")
+	}
+
+	before := len(remote.downloads())
+	remote.heads[scope] = head(3)
+	if err := b.Maintain(); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if len(remote.downloads()) != before || !exists(b.master(at(2))) {
+		t.Fatal("followed a master no job cloned, or removed it", remote.downloads())
+	}
+
+	markUsed(b.master(at(2)))
+	if err := b.Maintain(); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, func() bool { return exists(b.master(at(3))) })
+	if len(remote.downloads()) != before+1 {
+		t.Fatal("downloads", remote.downloads())
 	}
 }
 

@@ -683,7 +683,7 @@ the committed objects are stale. The object names the 1Password item holding the
 login and never carries the login.
 
 **They live in the rack's cluster.** Each site names its namespace
-(`kubernetes.namespace`); BER1 is `tuist`, production's, beside its `RackHost`
+(`kubernetes.namespace`); alder is `tuist`, production's, beside its `RackHost`
 (it was `tuist-staging` while the rack was built at home). The namespace is
 also what names the rack's env, by the tuist chart's convention (`tuist-<env>`,
 or `tuist` for production; `mise run rack:fleet env`): the Rack Switches
@@ -867,7 +867,7 @@ has got.
 ## The rack in the staging cluster
 
 The goal: the switches and the edge node managed from the cluster the rack
-belongs to, which is staging while BER1 is at home and production once it
+belongs to, which is staging while alder is at home and production once it
 is in the data center. Where that stands on 2026-09-23:
 
 - **Built and exercised.** `RackSwitch` objects rendered from the site
@@ -1213,7 +1213,7 @@ addresses and the gateways.
   address of the block across its connections. The upstream routes the
   announced prefix to the WAN address, and the replies are untranslated by
   conntrack before routing, so the edges hold no address of the block.
-  BER1 sets no `egress.nodes`, so every mini moves. The key limits it to the
+  Alder sets no `egress.nodes`, so every mini moves. The key limits it to the
   named minis, for moving a site over one env at a time (staging's lent
   mini, then canary's, then all).
   The storage nodes never move: their cluster addresses are the WAN address,
@@ -1360,7 +1360,7 @@ The provisioning address stays on the port while the pod is away.
 ## The machines segment
 
 The Mac minis sit on a VLAN of their own behind the edges,
-`management.edge.machines`: the VLAN (10 in BER1), its gateway with the
+`management.edge.machines`: the VLAN (10 in alder), its gateway with the
 segment's prefix (`10.10.0.1/24`), each edge's own address on it (`members`,
 `.2` and `.3`), and the resolvers its DHCP hands out (`dns`, public ones, since
 nothing on the edges is open to the machines). The prefix stays clear of the
@@ -1989,7 +1989,7 @@ of its own, and each ToR's own management port goes to an edge
 - **The management VLAN is one the edges carry** (`carried_by: "edges"`), and
   the edges reach it over their uplinks as `mgmt0`, a bond like `machines0`;
   `management.edge.interface` has to be `mgmt0`. Its address, DHCP and the
-  power devices' routes sit on `mgmt0` the way BER1's sit on the edge's port
+  power devices' routes sit on `mgmt0` the way alder's sit on the edge's port
   into its management switch.
 - **Only a port with a management link is untagged on that VLAN.** Every other
   port is untagged on VLAN 1, which reaches nothing, so a mini racked before
@@ -2008,7 +2008,7 @@ of its own, and each ToR's own management port goes to an edge
   the far end of its own link to an edge.
 
 The env's one rack switch controller reconciles every site's switches, so
-`helm-values rack-switch-controller` merges the env's sites: BER1's Omada
+`helm-values rack-switch-controller` merges the env's sites: alder's Omada
 settings and the PicOS sites' 1Password items, which all name the same items.
-Each site with edges gets its own rack-edge release (`rack-edge-<site>`; BER1's
+Each site with edges gets its own rack-edge release (`rack-edge-<site>`; alder's
 is `rack-edge`, from before there was a second).

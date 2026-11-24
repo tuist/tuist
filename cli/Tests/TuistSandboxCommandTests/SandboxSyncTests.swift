@@ -79,9 +79,32 @@ struct SandboxSyncTests {
     }
 
     @Test
+    func repositoryName_isTheRemoteURLsLastPathComponentWithoutGit() {
+        #expect(SandboxSync.repositoryName(fromRemoteURL: "https://github.com/acme/app.git\n") == "app")
+        #expect(SandboxSync.repositoryName(fromRemoteURL: "https://github.com/acme/my.app/") == "my.app")
+        #expect(SandboxSync.repositoryName(fromRemoteURL: "git@github.com:acme/app.git") == "app")
+        #expect(SandboxSync.repositoryName(fromRemoteURL: "git@host:app") == "app")
+        #expect(SandboxSync.repositoryName(fromRemoteURL: "ssh://git@host:22/acme/app") == "app")
+        #expect(SandboxSync.repositoryName(fromRemoteURL: "/srv/git/app.git") == "app")
+        #expect(SandboxSync.repositoryName(fromRemoteURL: "https://example.com/acme/a b") == nil)
+        #expect(SandboxSync.repositoryName(fromRemoteURL: "https://example.com/..") == nil)
+        #expect(SandboxSync.repositoryName(fromRemoteURL: "") == nil)
+    }
+
+    @Test
     func probe_readsTheRootAndTheWorktreeTheSandboxHolds() {
-        #expect(SandboxSync.probe("root /home/u/work/app\nid abc\nprobed\n")! == ("/home/u/work/app", "abc"))
-        #expect(SandboxSync.probe("root /home/u/work/app\nid \nprobed\n")! == ("/home/u/work/app", nil))
+        #expect(
+            SandboxSync.probe("root /home/u/work/app\nid abc\nprobed\n") ==
+                SandboxSync.Probe(root: "/home/u/work/app", id: "abc", commit: nil)
+        )
+        #expect(
+            SandboxSync.probe("root /home/u/work/app\nid \ncommit \nprobed\n") ==
+                SandboxSync.Probe(root: "/home/u/work/app", id: nil, commit: nil)
+        )
+        #expect(
+            SandboxSync.probe("root /home/u/work/app\nid abc\ncommit 7c5f\nprobed\n") ==
+                SandboxSync.Probe(root: "/home/u/work/app", id: "abc", commit: "7c5f")
+        )
         #expect(SandboxSync.probe("mkdir: Permission denied\n") == nil)
     }
 }

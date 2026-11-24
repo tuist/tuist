@@ -36,15 +36,18 @@ struct SandboxRemote {
     /// Told once per wait, such as "waiting for a host".
     var onWait: @Sendable (String) -> Void = { _ in }
 
+    /// Starts `command` detached. While the host is held it keeps trying for up to `hostWait`, or until `deadline`,
+    /// after which it sends no new attempt and throws the last refusal; nothing has started then.
     func start(
         _ command: String,
         cwd: String? = nil,
         environment: [String: String] = [:],
         stdin: Bool = false,
-        timeoutMs: Int? = nil
+        timeoutMs: Int? = nil,
+        until deadline: Date? = nil
     ) async throws -> ServerSandboxCommand {
         let id = UUID().uuidString.lowercased()
-        return try await retrying {
+        return try await retrying(until: deadline) {
             try await sandboxesService.startSandboxCommand(
                 accountHandle: accountHandle,
                 serverURL: serverURL,
@@ -68,27 +71,49 @@ struct SandboxRemote {
         )
     }
 
+    /// How much of a command's stdout and stderr, in bytes, a caller has received.
+    struct Offsets: Equatable {
+        var stdout = 0
+        var stderr = 0
+    }
+
     /// Hands the command's output to `output` as it arrives, until the command ends.
     func follow(
         _ commandID: String,
         output: (_ isStandardError: Bool, _ data: String) throws -> Void
     ) async throws -> Exit {
-        var offsets = (stdout: 0, stderr: 0)
+        var offsets = Offsets()
+        // Without a deadline, following returns only once the command ends.
+        return try await follow(commandID, offsets: &offsets, output: output)!
+    }
+
+    /// Hands the command's output past `offsets` to `output` as it arrives, advancing `offsets` with it, until the
+    /// command ends, or returns nil at `deadline` with the command still running, so the caller can come back to it
+    /// with the offsets it reached.
+    func follow(
+        _ commandID: String,
+        offsets: inout Offsets,
+        until deadline: Date? = nil,
+        output: (_ isStandardError: Bool, _ data: String) throws -> Void
+    ) async throws -> Exit? {
         var failingSince: Date?
         var failures = 0
         while true {
             try Task.checkCancellation()
+            if let deadline, Date() >= deadline { return nil }
             var failure: (any Error)?
             var lostMessage: String?
             do {
-                let lines = try await sandboxesService.streamSandboxCommandLogs(
-                    accountHandle: accountHandle,
-                    serverURL: serverURL,
-                    sandboxID: sandboxID,
-                    commandID: commandID,
-                    stdoutOffset: offsets.stdout,
-                    stderrOffset: offsets.stderr
-                )
+                let lines = Self.lines(until: deadline) { [offsets] in
+                    try await sandboxesService.streamSandboxCommandLogs(
+                        accountHandle: accountHandle,
+                        serverURL: serverURL,
+                        sandboxID: sandboxID,
+                        commandID: commandID,
+                        stdoutOffset: offsets.stdout,
+                        stderrOffset: offsets.stderr
+                    )
+                }
                 for try await line in lines {
                     switch line._type {
                     case .stdout, .stderr:
@@ -124,7 +149,9 @@ struct SandboxRemote {
             }
             if failures == 0 { onWait("Reconnecting to the command's output: \(lostMessage ?? failure!.localizedDescription)") }
             failures += 1
-            try await sleep(min(30, pow(2, Double(failures))))
+            var delay = min(30, pow(2, Double(failures)))
+            if let deadline { delay = min(delay, max(0, deadline.timeIntervalSinceNow)) }
+            try await sleep(delay)
         }
     }
 
@@ -213,10 +240,12 @@ struct SandboxRemote {
     }
 
     /// Sends a request that is safe to send again until it gets an answer: through 503s while the host is held, and
-    /// through gateway and transport errors that may hide an answer, for up to `hostWait`.
-    private func retrying<Value>(_ call: () async throws -> Value) async throws -> Value {
-        let deadline = Date().addingTimeInterval(hostWait)
+    /// through gateway and transport errors that may hide an answer, for up to `hostWait` or until `until`.
+    private func retrying<Value>(until: Date? = nil, _ call: () async throws -> Value) async throws -> Value {
+        let deadline = min(Date().addingTimeInterval(hostWait), until ?? .distantFuture)
         var attempt = 0
+        var waited: TimeInterval = 0
+        var nextNotice: TimeInterval = 0
         while true {
             do {
                 return try await call()
@@ -225,19 +254,38 @@ struct SandboxRemote {
                       (error as? SandboxesServiceError) != SandboxesServiceError.limited,
                       Date() < deadline
                 else { throw error }
-                if attempt == 0 {
+                // Repeated about once a minute, so a long wait doesn't look like a hang.
+                if waited >= nextNotice {
+                    let minutes = Int(waited) / 60
                     if case let SandboxesServiceError.unavailable(message) = error {
-                        onWait("Waiting for a sandbox host: \(message)")
+                        onWait(
+                            waited == 0
+                                ? "Waiting for a sandbox host: \(message)"
+                                : "Still waiting for a sandbox host after \(minutes) min: \(message)"
+                        )
                     } else {
-                        onWait("Retrying: \(error.localizedDescription)")
+                        onWait(
+                            waited == 0
+                                ? "Retrying: \(error.localizedDescription)"
+                                : "Still retrying after \(minutes) min: \(error.localizedDescription)"
+                        )
                     }
+                    nextNotice = waited + 60
                 }
                 attempt += 1
                 // A current server already waited for the host inside the request, so retry soon.
-                try await sleep(min(5, 2 * pow(2, Double(attempt - 1))))
+                let delay = min(5, 2 * pow(2, Double(attempt - 1)), deadline.timeIntervalSinceNow)
+                try await sleep(delay)
+                waited += delay
+                // No attempt starts past the deadline: one in flight can take a minute to answer.
+                if Date() >= deadline { throw error }
             }
         }
     }
+
+    /// 503 codes (`Tuist.Sandboxes.Query.error/1`) that no wait resolves: the sandbox's Mac was replaced, or its archive
+    /// or snapshot can't be reached.
+    static let finalUnavailableCodes: Set<String> = ["host_replaced", "archive_unavailable", "snapshot_not_saved"]
 
     /// A dropped connection, an undecodable chunk or a server-side 5xx. A refusal, such as a 404 for a command that is
     /// gone, is final.
@@ -246,11 +294,45 @@ struct SandboxRemote {
         case is CancellationError: return false
         case let error as SandboxesServiceError:
             switch error {
-            case .unavailable, .limited: return true
+            // A 503 that waiting never clears, such as a replaced Mac, is final.
+            case let .unavailable(answer): return !(answer.code.map(finalUnavailableCodes.contains) ?? false)
+            case .limited: return true
             case let .unknownError(statusCode): return statusCode >= 500
             case .refused, .notFound, .invalidShape: return false
             }
         default: return true
+        }
+    }
+}
+
+extension SandboxRemote {
+    /// The log lines `open` streams, ending without an error at `deadline`, even in the middle of a request: reading
+    /// the log has no effect, so dropping it is safe.
+    fileprivate static func lines(
+        until deadline: Date?,
+        _ open: @escaping @Sendable () async throws -> AsyncThrowingStream<ServerSandboxCommandLogLine, any Error>
+    ) -> AsyncThrowingStream<ServerSandboxCommandLogLine, any Error> {
+        AsyncThrowingStream { continuation in
+            let reader = Task {
+                do {
+                    for try await line in try await open() {
+                        continuation.yield(line)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            let timer = deadline.map { deadline in
+                Task {
+                    try? await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow)))
+                    if !Task.isCancelled { continuation.finish() }
+                }
+            }
+            continuation.onTermination = { _ in
+                reader.cancel()
+                timer?.cancel()
+            }
         }
     }
 }

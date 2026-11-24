@@ -332,6 +332,10 @@ config :atlas, :account_connections, %{
   "google" => %{
     client_id: System.get_env("GOOGLE_CLIENT_ID"),
     client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
+  },
+  "qonto" => %{
+    client_id: System.get_env("ATLAS_QONTO_OAUTH_CLIENT_ID"),
+    client_secret: System.get_env("ATLAS_QONTO_OAUTH_CLIENT_SECRET")
   }
 }
 
@@ -446,11 +450,6 @@ if license_signing_private_key = System.get_env("ATLAS_LICENSE_SIGNING_PRIVATE_K
   config :atlas, :licenses, signing_private_key: license_signing_private_key
 end
 
-config :atlas, :licenses,
-  expiration_slack_channel_id:
-    System.get_env("ATLAS_LICENSES_EXPIRATION_SLACK_CHANNEL_ID") ||
-      System.get_env("ATLAS_FINANCE_SALES_SLACK_CHANNEL_ID")
-
 # Headless-browser pool for the `browse_url` MCP tool. Off by default; set
 # CHROME_PATH (typically baked into the Docker image) to enable.
 if chrome_path = System.get_env("CHROME_PATH") do
@@ -476,28 +475,14 @@ config :atlas, :documents,
   embedding_model: System.get_env("ATLAS_DOCUMENT_EMBEDDING_MODEL") || "text-embedding-3-small",
   embedding_receive_timeout: positive_integer_env.("ATLAS_DOCUMENT_EMBEDDING_RECEIVE_TIMEOUT", :timer.seconds(60))
 
-config :atlas, :feature_usage,
-  alert_slack_channel_id: System.get_env("ATLAS_FEATURE_USAGE_ALERT_SLACK_CHANNEL_ID", "C072A0Z53B7")
-
 config :atlas, :finance,
   report_currency: System.get_env("ATLAS_FINANCE_REPORT_CURRENCY", "EUR"),
   runway_window_days: positive_integer_env.("ATLAS_FINANCE_RUNWAY_WINDOW_DAYS", 180),
   initial_lookback_days: positive_integer_env.("ATLAS_FINANCE_INITIAL_LOOKBACK_DAYS", 365),
   sync_overlap_minutes: positive_integer_env.("ATLAS_FINANCE_SYNC_OVERLAP_MINUTES", 5),
   sales_slack_channel_id: System.get_env("ATLAS_FINANCE_SALES_SLACK_CHANNEL_ID", "C072A0Z53B7"),
-  cost_digest_slack_channel_id:
-    System.get_env("ATLAS_FINANCE_COST_DIGEST_SLACK_CHANNEL_ID") ||
-      System.get_env("ATLAS_FINANCE_WEEKLY_SUMMARY_SLACK_CHANNEL_ID"),
-  weekly_summary_slack_channel_id: System.get_env("ATLAS_FINANCE_WEEKLY_SUMMARY_SLACK_CHANNEL_ID"),
   internal_entity_names: finance_internal_entity_names,
   sources: Enum.reject([qonto_source, mercury_source], &is_nil/1)
-
-# The feature-usage collector reads successful Model Context Protocol requests
-# from Grafana Cloud Loki with a dedicated read-only access-policy token.
-config :atlas, :grafana_loki,
-  base_url: System.get_env("ATLAS_GRAFANA_LOKI_URL"),
-  username: System.get_env("ATLAS_GRAFANA_LOKI_USERNAME"),
-  token: System.get_env("ATLAS_GRAFANA_LOKI_TOKEN")
 
 config :atlas, :granola,
   api_key: System.get_env("GRANOLA_API_KEY"),
@@ -653,7 +638,13 @@ case System.get_env("MCP_PROXY_SERVERS") do
             token_url: "https://mcp.grafana.com/mcp/oauth/token",
             registration_url: "https://mcp.grafana.com/mcp/oauth/register",
             scopes: ["grafana:read", "grafana:write"],
-            headers: grafana_headers
+            headers: grafana_headers,
+            # Pulse log scans through Grafana's SQL data sources often take
+            # 15 to 30 seconds (about 1.5 s per hour of logs), and at the
+            # default 15 s Atlas cut them off as an unreachable upstream. 45 s
+            # outlasts Grafana's own 30 s data source timeout, so a slower
+            # query ends with Grafana's error instead.
+            receive_timeout: 45_000
           },
           # OVHcloud's MCP server serves one API section per URL, and every
           # fleet is on the OVHcloud US account. Each person connects their own
@@ -806,7 +797,28 @@ config :atlas, :slack_agent, mcp_user_email: System.get_env("ATLAS_SLACK_AGENT_M
 # and self-hosted boots don't try to ship events. SENTRY_RELEASE is
 # populated by rel/env.sh.eex from the deploy SHA; falls back to the
 # compiled app version for local boots.
-if sentry_dsn = System.get_env("SENTRY_DSN") do
+#
+# Without SENTRY_DSN, ATLAS_PULSE_SENTRY_URL (a DSN without its key, such as
+# https://tuist.dev/api/accounts/tuist/pulse/sentry/atlas/1) and
+# ATLAS_PULSE_SENTRY_TOKEN (a Tuist account token with account:pulse:write,
+# used as the DSN key) send Atlas' own errors to Tuist's Pulse. That DSN is a
+# copy, not a primary: SelfMonitor keeps recording Atlas' crashes in its
+# "Atlas" project.
+if sentry_dsn =
+     (case {System.get_env("SENTRY_DSN", ""), System.get_env("ATLAS_PULSE_SENTRY_URL", ""),
+            System.get_env("ATLAS_PULSE_SENTRY_TOKEN", "")} do
+        {"", url, token} when url != "" and token != "" ->
+          config :atlas, :sentry_dsn_is_pulse, true
+
+          # The token's base64 `/`, `+` and `=` are not valid in userinfo.
+          URI.to_string(%{URI.parse(url) | userinfo: URI.encode(token, &URI.char_unreserved?/1)})
+
+        {"", _url, _token} ->
+          nil
+
+        {dsn, _url, _token} ->
+          dsn
+      end) do
   config :sentry,
     dsn: sentry_dsn,
     environment_name: System.get_env("SENTRY_ENVIRONMENT", to_string(config_env())),

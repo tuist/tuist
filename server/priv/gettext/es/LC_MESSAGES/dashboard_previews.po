@@ -31,7 +31,7 @@ msgstr "Rama"
 #: lib/tuist_web/live/previews_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "Compilado el"
+msgstr "Compilado en"
 
 #: lib/tuist_web/live/preview_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -134,7 +134,7 @@ msgstr "Ejecución"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "Ejecuta el siguiente comando para compartir la vista previa de la app."
+msgstr "Ejecuta el siguiente comando para compartir la vista previa de la aplicación."
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #: lib/tuist_web/live/preview_live.html.heex:273
@@ -150,7 +150,7 @@ msgstr "Escanea este código QR en tu dispositivo iOS para instalar esta versió
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "Comparte previsualizaciones de la app con un solo clic"
+msgstr "Comparte previsualizaciones de apps con un solo clic"
 
 #: lib/tuist_web/live/preview_live.html.heex:138
 #, elixir-autogen, elixir-format
@@ -207,22 +207,22 @@ msgstr "Escanea este código QR en tu dispositivo Android para descargar e insta
 #: lib/tuist_web/live/preview_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "The APK for this preview is no longer available"
-msgstr "El APK de esta vista previa ya no está disponible"
+msgstr "El APK de esta preview ya no está disponible"
 
 #: lib/tuist_web/live/preview_live.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for download"
-msgstr "Esta vista previa no está disponible para descarga"
+msgstr "Esta preview no está disponible para descarga"
 
 #: lib/tuist_web/live/preview_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "App preview"
-msgstr "Vista previa de la app"
+msgstr "Preview de la app"
 
 #: lib/tuist_web/live/preview_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "Preview"
-msgstr "Vista previa"
+msgstr "Preview"
 
 #: lib/tuist_web/live/preview_live.html.heex:203
 #, elixir-autogen, elixir-format
@@ -242,7 +242,7 @@ msgstr "Vista previa desde la línea de comandos"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "Las vistas previas de escritorio se ejecutan con tu usuario, con acceso a tus archivos y entorno. No están aisladas."
+msgstr "Las vistas previas de escritorio se ejecutan como tu usuario, con acceso a tus archivos y entorno. No están aisladas."
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format

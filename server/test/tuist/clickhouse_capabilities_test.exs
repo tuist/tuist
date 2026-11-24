@@ -107,6 +107,17 @@ defmodule Tuist.ClickHouseCapabilitiesTest do
     end
   end
 
+  describe "skip_indexes_if_final_settings/1" do
+    test "turns exact mode off on a server that has it" do
+      assert ClickHouseCapabilities.skip_indexes_if_final_settings(LegacyRepo) ==
+               [use_skip_indexes_if_final: 1, use_skip_indexes_if_final_exact_mode: 0]
+    end
+
+    test "omits exact mode on a server that predates it" do
+      assert ClickHouseCapabilities.skip_indexes_if_final_settings(RebuiltRepo) == [use_skip_indexes_if_final: 1]
+    end
+  end
+
   describe "assert_supported_version!/1" do
     test "passes on servers within the supported range" do
       assert ClickHouseCapabilities.assert_supported_version!(ModernRepo) == :ok

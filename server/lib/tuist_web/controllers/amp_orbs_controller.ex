@@ -53,6 +53,14 @@ defmodule TuistWeb.AmpOrbsController do
     |> send_resp(:conflict, "Provider operation already in progress")
   end
 
+  # The Mac that holds a paused macOS Orb can't take it yet.
+  defp respond(conn, {:error, {:host_busy, _why}}), do: respond(conn, {:error, :no_capacity})
+
+  # The node holding the Orb is away, usually its daemon restarting during a
+  # deploy. The command never reached it, so the Orb is unchanged and the
+  # spawn is safe to retry. A disconnect or timeout mid-command stays final.
+  defp respond(conn, {:error, :not_connected}), do: respond(conn, {:error, :no_capacity})
+
   defp respond(conn, {:error, :no_capacity}) do
     conn
     |> put_resp_header("x-tuist-orb-retry", "admission")
@@ -64,6 +72,12 @@ defmodule TuistWeb.AmpOrbsController do
     conn
     |> put_resp_header("x-tuist-orb-refusal", "snapshot-not-saved")
     |> send_resp(:service_unavailable, "The Orb paused, but its project snapshot could not be saved")
+  end
+
+  defp respond(conn, {:error, :restoring}) do
+    conn
+    |> put_resp_header("x-tuist-orb-refusal", "restoring")
+    |> send_resp(:service_unavailable, "The Orb is still restoring from its archive")
   end
 
   defp respond(conn, {:error, :orb_type_mismatch}) do

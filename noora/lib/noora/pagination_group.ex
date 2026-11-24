@@ -30,13 +30,14 @@ defmodule Noora.PaginationGroup do
   def pagination_group(assigns) do
     ~H"""
     <div class="noora-pagination-group" {@rest}>
-      <.neutral_button
+      <.ghost_button
+        variant="secondary"
         size="large"
         disabled={@current_page == 1}
         patch={@current_page != 1 and @page_patch.(@current_page - 1)}
       >
         <.chevron_left />
-      </.neutral_button>
+      </.ghost_button>
       <%= for page <- pagination_items(@current_page, @number_of_pages) do %>
         <span :if={page == :ellipsis} size="large" data-part="ellipsis">
           ...
@@ -52,13 +53,14 @@ defmodule Noora.PaginationGroup do
           </span>
         </.link>
       <% end %>
-      <.neutral_button
+      <.ghost_button
+        variant="secondary"
         size="large"
         disabled={@current_page == @number_of_pages}
         patch={@current_page != @number_of_pages and @page_patch.(@current_page + 1)}
       >
         <.chevron_right />
-      </.neutral_button>
+      </.ghost_button>
     </div>
     """
   end

@@ -2,7 +2,7 @@ defmodule TuistWeb.API.RunnerVolumesController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Runners.CacheVolumes.Query
   alias Tuist.Runners.CacheVolumes.Schemas, as: RunnerVolumes
   alias TuistWeb.API.Authorization.AuthorizationPlug
@@ -114,7 +114,7 @@ defmodule TuistWeb.API.RunnerVolumesController do
       params = Map.new(params, fn {key, value} -> {to_string(key), value} end)
       conn = put_resp_header(conn, "cache-control", "private, no-store")
 
-      if FeatureFlags.runners_enabled?(account) do
+      if Environment.runners_available?() do
         respond(conn, Query.run(unquote(action), account.id, params))
       else
         conn |> put_status(:not_found) |> json(%{message: "Runners are not enabled for this account."})

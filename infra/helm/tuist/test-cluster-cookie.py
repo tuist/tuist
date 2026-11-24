@@ -68,7 +68,33 @@ class ClusterCookieTests(unittest.TestCase):
                     if doc != deployment:
                         self.assertFalse("name: tuist-server-cluster-cookie" in doc and "kind: ExternalSecret\n" not in doc,
                                          "Cookie exposed outside web container")
-                self.assertEqual(output.count("name: tuist-server-cluster-cookie"), 3, "Unexpected cookie Secret consumer")
+                self.assertEqual(output.count("name: tuist-server-cluster-cookie"), 3,
+                                 "Unexpected cookie Secret consumer")
+
+    def test_obsolete_thread_workers_cannot_be_reenabled_by_retained_values(self):
+        profiles = [
+            ["values-self-hosted-ci.yaml"],
+            ["values-self-hosted-ci.yaml", "values-cluster-ci.yaml"],
+        ]
+        profiles.extend(
+            ["values-managed-common.yaml", f"values-managed-{environment}.yaml"]
+            for environment in ("staging", "canary", "production")
+        )
+        for profile in profiles:
+            with self.subTest(profile=profile):
+                # Helm may retain the old values across an upgrade. They must
+                # not restore workers, their policy selectors or delegation.
+                output = self.rendered(profile, [
+                    "agents.enabled=true", "agents.autoscaling.enabled=true",
+                    "agents.podDisruptionBudget.enabled=true", "server.networkPolicy.enabled=true",
+                ])
+                for obsolete in (
+                    "agents-deployment.yaml", "agents-hpa.yaml", "agents-pdb.yaml",
+                    "app.kubernetes.io/component: agents", "TUIST_DELEGATE_AGENTS",
+                    "TUIST_AGENTS_", "value: agents",
+                ):
+                    self.assertNotIn(obsolete, output)
+                self.assertTrue(document(output, "server-deployment.yaml"))
 
     def test_disabled_cluster_does_not_sync_or_inject_cookie(self):
         output = self.rendered(

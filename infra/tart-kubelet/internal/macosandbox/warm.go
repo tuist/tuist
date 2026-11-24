@@ -222,9 +222,9 @@ func (m *Manager) warmRecord(pod *corev1.Pod) (*Record, string) {
 }
 
 // warmWorkspaceGB is the workspace a warm VM gets before it is claimed: the
-// size Amp Orbs and agent environments request. A claim for another size
-// replaces the volume.
-const warmWorkspaceGB = 10
+// size the server's macOS defaults and tuist-mac request. A claim for another
+// size replaces the volume.
+const warmWorkspaceGB = 30
 
 // admitWarm charges the warm Pod like a CI launch: under the launch gate,
 // after repairing sandbox reservations, every bound Pod (this one included)

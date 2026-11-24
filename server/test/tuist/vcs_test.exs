@@ -9,6 +9,7 @@ defmodule Tuist.VCSTest do
   alias Tuist.GitHub.Client
   alias Tuist.KeyValueStore
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.GitHubAppInstallation
@@ -17,6 +18,7 @@ defmodule Tuist.VCSTest do
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -314,6 +316,183 @@ defmodule Tuist.VCSTest do
     test "returns nil when there are no results", %{params: params} do
       assert VCS.get_run_report(params) == nil
       assert VCS.get_run_report(Map.delete(params, :git_commit_sha)) == nil
+    end
+  end
+
+  describe "post_vcs_pull_request_comment/1 coverage" do
+    setup do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: account.id,
+          default_branch: "main",
+          vcs_connection: [repository_full_handle: "tuist/app", provider: :github]
+        )
+
+      CoverageFixtures.seed_history(
+        account,
+        [
+          CoverageFixtures.commit("base", [], 0),
+          CoverageFixtures.commit("merge-base", ["base"], 1),
+          CoverageFixtures.commit("first", ["merge-base"], 2),
+          CoverageFixtures.commit("head", ["first"], 3)
+        ],
+        branch_heads: [main: "merge-base"]
+      )
+
+      test_pid = self()
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Client, :get_comments, fn _ -> {:ok, []} end)
+
+      stub(Client, :create_comment, fn %{body: body} ->
+        send(test_pid, {:comment, body})
+        {:ok, %{}}
+      end)
+
+      post = fn git_commit_sha ->
+        VCS.post_vcs_pull_request_comment(%{
+          project: project,
+          git_ref: "refs/pull/7/merge",
+          git_commit_sha: git_commit_sha,
+          git_remote_url_origin: "https://github.com/tuist/app",
+          preview_url: fn _ -> "" end,
+          preview_qr_code_url: fn _ -> "" end,
+          test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test-runs/#{test_run.id}" end,
+          build_url: fn _ -> "" end,
+          bundle_url: fn _ -> "" end,
+          coverage_url: fn
+            %{project: project, pull_request_number: number} when is_integer(number) ->
+              "https://tuist.dev/#{project.account.name}/#{project.name}/tests/coverage/pulls/#{number}"
+
+            %{project: project, sha: sha} ->
+              "https://tuist.dev/#{project.account.name}/#{project.name}/tests/coverage/commits/#{sha}"
+          end
+        })
+
+        assert_receive {:comment, body}
+
+        body
+        |> String.split("#### Coverage ☂️")
+        |> Enum.at(1)
+        |> String.split(["####", "<sub>Reported by"])
+        |> hd()
+        |> String.trim()
+      end
+
+      %{account: account, project: project, post: post}
+    end
+
+    test "reports the pull request's latest commit against the nearest complete ancestor of its base once complete", %{
+      account: account,
+      project: project,
+      post: post
+    } do
+      in_target = &CoverageFixtures.file(&1, &2, targets: [&3])
+
+      pull_request_run = fn sha ->
+        %{
+          git_commit_sha: sha,
+          git_branch: "feature",
+          git_ref: "refs/pull/7/merge",
+          is_pull_request: true,
+          pull_request_number: 7,
+          base_branch: "main",
+          merge_base_sha: "merge-base"
+        }
+      end
+
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [
+          in_target.("Sources/Core.swift", [1, 0, 0, 0], "Core"),
+          in_target.("Sources/UI.swift", [1, 1], "UI"),
+          in_target.("Sources/Kit.swift", [1, 0], "Kit")
+        ],
+        %{git_commit_sha: "base"}
+      )
+
+      Commits.signal_complete(project, "base")
+
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [in_target.("Sources/Core.swift", [0, 0, 0, 0], "Core"), in_target.("Sources/UI.swift", [1, 1], "UI")],
+        pull_request_run.("first")
+      )
+
+      Commits.signal_complete(project, "first")
+
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [
+          in_target.("Sources/Core.swift", [1, 1, 1, 0], "Core"),
+          in_target.("Sources/UI.swift", [1, 1], "UI"),
+          in_target.("Sources/Kit.swift", [1, 0], "Kit"),
+          in_target.("Sources/Search.swift", [1, 0], "Search")
+        ],
+        pull_request_run.("head")
+      )
+
+      commit = &"[#{String.slice(&1, 0, 9)}](https://github.com/tuist/app/commit/#{&1})"
+
+      in_progress = post.("head")
+      assert in_progress =~ "Coverage for #{commit.("head")} is still being collected"
+      assert in_progress =~ "[View coverage](https://tuist.dev/#{account.name}/#{project.name}/tests/coverage/pulls/7)"
+
+      Commits.signal_complete(project, "head")
+
+      # Queued for the earlier commit, whose build finished last: the section
+      # still reports the latest commit, and names it.
+      assert post.("first") ==
+               String.trim("""
+               **70.0%** `Δ +20.0%` (7 of 10 lines) at #{commit.("head")}
+
+               Compared with [base](https://tuist.dev/#{account.name}/#{project.name}/tests/coverage/commits/base), the nearest ancestor of the base commit #{commit.("merge-base")} with complete coverage (1 commit earlier). [View coverage](https://tuist.dev/#{account.name}/#{project.name}/tests/coverage/pulls/7)
+
+               | Module | Coverage | Δ |
+               | - | - | - |
+               | Core | 75.0% | `+50.0%` |
+               | Search | 50.0% | — |
+
+               <sub>2 modules unchanged.</sub>
+
+               <details>
+               <summary>Files whose coverage changed most</summary>
+
+               | File | Coverage | Δ |
+               | - | - | - |
+               | `Sources/Core.swift` | 75.0% | `+50.0%` |
+
+               </details>
+               """)
+    end
+
+    test "says why an incomplete commit's figure is a lower bound", %{account: account, project: project, post: post} do
+      run = %{
+        git_commit_sha: "head",
+        git_ref: "refs/pull/7/merge",
+        is_pull_request: true,
+        pull_request_number: 7,
+        base_branch: "main"
+      }
+
+      CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/Core.swift", [1, 0])], run)
+
+      # The UI scheme only ran on a checkout with uncommitted changes.
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [CoverageFixtures.file("Sources/UI.swift", [1, 1])],
+        Map.merge(run, %{scheme: "UI", git_dirty: true})
+      )
+
+      Commits.signal_complete(project, "head")
+
+      assert post.("head") =~
+               "is incomplete: **50.0%** is a lower bound, since some schemes only ran on a checkout with uncommitted changes, whose coverage doesn't count, so it isn't compared with the base."
     end
   end
 

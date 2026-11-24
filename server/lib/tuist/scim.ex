@@ -247,6 +247,17 @@ defmodule Tuist.SCIM do
     role = attrs |> Map.get(:role) |> normalize_role()
     active = Map.get(attrs, :active, true)
 
+    # A concurrent request, possibly on another server instance, can create the
+    # user between the lookup and the insert. Postgres makes the insert wait for
+    # that request to commit, then fails it, which aborts this transaction. A
+    # new transaction's lookup finds the committed user and attaches it.
+    with {:error, :email_created_concurrently} <- provision_user_transaction(organization, email, role, active),
+         {:error, :email_created_concurrently} <- provision_user_transaction(organization, email, role, active) do
+      {:error, :email_taken}
+    end
+  end
+
+  defp provision_user_transaction(organization, email, role, active) do
     case Repo.transaction(fn -> apply_provision(organization, email, role, active) end) do
       {:ok, user} -> {:ok, Repo.preload(user, :account)}
       {:error, reason} -> {:error, reason}
@@ -309,9 +320,7 @@ defmodule Tuist.SCIM do
     |> Oban.insert!()
   end
 
-  defp provisionable_user(email, %Organization{} = organization, opts \\ []) do
-    retry_after_email_taken = Keyword.get(opts, :retry_after_email_taken, true)
-
+  defp provisionable_user(email, %Organization{} = organization) do
     case Accounts.get_user_by_email(email) do
       {:ok, %User{} = user} ->
         # An account another organization's SCIM created stays that
@@ -326,12 +335,12 @@ defmodule Tuist.SCIM do
         cond do
           operator_email_refused?(organization, email) -> {:error, operator_email_error(%User{}, email)}
           reserved_email?(email, organization) -> {:error, :reserved_email}
-          true -> create_provisioned_user(email, organization, retry_after_email_taken)
+          true -> create_provisioned_user(email, organization)
         end
     end
   end
 
-  defp create_provisioned_user(email, organization, retry_after_email_taken) do
+  defp create_provisioned_user(email, organization) do
     # Recorded so the organization's identity provider can link the
     # account it created without a verified login email domain.
     case Accounts.create_user(email,
@@ -341,14 +350,13 @@ defmodule Tuist.SCIM do
       {:ok, user} ->
         {:ok, user, :created}
 
-      {:error, :email_taken} when retry_after_email_taken ->
-        provisionable_user(email, organization, retry_after_email_taken: false)
-
+      # The failed insert aborted this transaction, so no further query can run
+      # in it; `provision_user/2` retries in a new one.
       {:error, :email_taken} ->
-        {:error, :email_taken}
+        {:error, :email_created_concurrently}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
+        if email_taken?(changeset), do: {:error, :email_created_concurrently}, else: {:error, changeset}
 
       {:error, reason} ->
         {:error, reason}

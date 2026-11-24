@@ -115,7 +115,7 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
         guard let handle = environment["TUIST_PROJECT"] ?? config?.fullHandle else {
             if isSharding {
                 throw CargoReportError(
-                    message: "Configure a project in tuist.toml or TUIST_PROJECT before planning or executing shards."
+                    message: "Configure a project in tuist.toml, Cargo.toml's [workspace.metadata.tuist] or TUIST_PROJECT before planning or executing shards."
                 )
             }
             return nil

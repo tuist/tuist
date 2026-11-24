@@ -5,12 +5,15 @@ defmodule Tuist.Tests.CoverageTest do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
-  alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageRun
+  alias Tuist.Tests.CoverageRunFile
+  alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.Workers.PublishCoverageWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -122,7 +125,7 @@ defmodule Tuist.Tests.CoverageTest do
 
     defp build_systems(test) do
       ClickHouseRepo.all(
-        from(f in CoverageFile, where: f.test_run_id == ^test.id, distinct: true, select: f.build_system)
+        from(f in CoverageRunFile, where: f.test_run_id == ^test.id, distinct: true, select: f.build_system)
       )
     end
 
@@ -171,6 +174,32 @@ defmodule Tuist.Tests.CoverageTest do
 
       assert tool(test) == {"xcode", "xccov", "27.0"}
       assert build_systems(test) == ["xcode"]
+    end
+
+    test "schedules the commit's fold only once the run's test case runs are written", %{
+      project: project,
+      account: account
+    } do
+      {:ok, test} =
+        create_test(project, account, %{
+          xcode_coverage: coverage([add()]),
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 10,
+              test_cases: [%{name: "testA", test_suite_name: "Suite", status: "success", duration: 5}]
+            }
+          ]
+        })
+
+      written_at =
+        ClickHouseRepo.one(from(r in TestCaseRun, where: r.test_run_id == ^test.id, select: max(r.inserted_at)))
+
+      assert [job] = all_enqueued(worker: CommitWorker)
+      delay = div(Environment.clickhouse_flush_interval_ms(), 1000) + 5
+      enqueued_at = job.scheduled_at |> DateTime.add(-delay, :second) |> DateTime.to_naive()
+      assert NaiveDateTime.compare(enqueued_at, written_at) != :lt
     end
 
     test "schedules a Mix run's uploaded coverage with the tool that measured it", %{
@@ -237,6 +266,19 @@ defmodule Tuist.Tests.CoverageTest do
       assert file_detail(project, test, "Missing.swift") == nil
     end
 
+    test "caps a count past UInt32's maximum instead of wrapping it", %{project: project, account: account} do
+      hot =
+        file("Sources/Calculator/Hot.swift", "hot1", ["Calculator"], [{1, 2 ** 32 + 5}, {2, 7}], [
+          %{name: "hot()", line_number: 1, execution_count: 2 ** 33, covered_lines: 2, executable_lines: 2}
+        ])
+
+      {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([hot])})
+
+      detail = file_detail(project, test, "Sources/Calculator/Hot.swift")
+      assert detail.lines == [{1, 4_294_967_295}, {2, 7}]
+      assert [%{execution_count: 4_294_967_295}] = detail.functions
+    end
+
     test "keeps the report's counts for a file without line data", %{project: project, account: account} do
       counts_only = %{
         file("Sources/Calculator/Legacy.swift", "legacy1", ["Calculator"], [])
@@ -260,6 +302,21 @@ defmodule Tuist.Tests.CoverageTest do
       assert published_totals(project, test) == nil
       assert CoverageFixtures.targets_for_run(project.id, test.id) == []
     end
+  end
+
+  # Readers on another replica must see all of a report's rows or none, so a
+  # report larger than the insert chunk still lands as one part.
+  test "stores a report of several chunks as one part", %{project: project, account: account} do
+    files = for i <- 1..4_500, do: file("Sources/File#{i}.swift", "blob#{i}", ["App"], [{1, 1}, {2, 0}])
+
+    {:ok, test} = create_test(project, account, %{xcode_coverage: coverage(files)})
+
+    assert IngestRepo.query!(
+             "SELECT uniqExact(_part), count() FROM coverage_run_files WHERE project_id = {p:Int64} AND test_run_id = {id:UUID}",
+             %{"p" => project.id, "id" => test.id}
+           ).rows == [[1, 4_500]]
+
+    assert published_totals(project, test) == %{covered_lines: 4_500, executable_lines: 9_000, partial: false}
   end
 
   describe "coverage streamed to a file" do
@@ -368,15 +425,15 @@ defmodule Tuist.Tests.CoverageTest do
              }
 
       assert ClickHouseRepo.all(
-               from(f in CoverageFile,
+               from(f in CoverageRunFile,
                  where: f.test_run_id == ^test.id,
                  order_by: f.path,
-                 select: {f.path, f.in_repository, f.build_system, f.scope_kind, f.scope_id, f.evidence_kind}
+                 select: {f.path, f.in_repository, f.build_system}
                )
              ) == [
-               {"/tmp/DerivedSources/Outside.swift", false, "xcode", "run", "", "observed"},
-               {"Sources/Calculator/Add.swift", true, "xcode", "run", "", "observed"},
-               {"Sources/Calculator/Generated.swift", false, "xcode", "run", "", "observed"}
+               {"/tmp/DerivedSources/Outside.swift", false, "xcode"},
+               {"Sources/Calculator/Add.swift", true, "xcode"},
+               {"Sources/Calculator/Generated.swift", false, "xcode"}
              ]
     end
 
@@ -596,6 +653,19 @@ defmodule Tuist.Tests.CoverageTest do
       )
     end
 
+    test "publish a re-run shard's upload in place of the one still pending", %{project: project, account: account} do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      sharded = %{shard_plan_id: shard_plan.id, shard_index: 1, xcode_coverage_partial: true}
+
+      {:ok, test} = create_test(project, account, Map.put(sharded, :xcode_coverage_storage_key, "first"))
+      {:ok, _rerun} = create_test(project, account, Map.put(sharded, :xcode_coverage_storage_key, "rerun"))
+
+      assert [%{args: %{"test_run_id" => test_run_id, "storage_key" => "rerun", "shard_index" => 1}}] =
+               all_enqueued(worker: PublishCoverageWorker)
+
+      assert test_run_id == test.id
+    end
+
     test "keep the most complete totals whatever order the reports land in", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
       {:ok, stored} = Tests.get_test(test.id)
@@ -661,6 +731,6 @@ defmodule Tuist.Tests.CoverageTest do
       |> Enum.sort()
 
     assert tables ==
-             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs coverage_target_sources coverage_test_sources git_commit_files test_impact_diffs test_impact_run_tests test_impact_runs)
+             ~w(coverage_commit_targets coverage_file_deltas coverage_file_layouts coverage_files coverage_run_files coverage_runs git_commit_files test_impact_diffs test_impact_runs)
   end
 end

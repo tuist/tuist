@@ -45,7 +45,7 @@
     </.card_section>
   </.card>
 
-  <.card title="Kubernetes logs" icon="message_circle">
+  <.card :if={@grafana_logs_url} title="Kubernetes logs" icon="message_circle">
     <.card_section>
       <.link_button
         href={@grafana_logs_url}

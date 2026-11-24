@@ -1,0 +1,48 @@
+[
+  {
+    "uid": "runner-vm-host-oom-kill",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "Runner VM memory",
+    "title": "Linux runner VM killed by host memory limit",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "datasourceUid": "pulse-sql",
+        "relativeTimeRange": {"from": 600, "to": 0},
+        "model": {
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "pulse-sql"},
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT json_get_string(resource_attributes, 'instance') AS instance, count(*) AS value\nFROM opentelemetry_logs\nWHERE timestamp > now() - INTERVAL '10 minutes'\n  AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n  AND json_get_string(resource_attributes, 'job') = 'integrations/kubernetes/journal'\n  AND body LIKE '%Memory cgroup out of memory: Killed process%'\n  AND body LIKE '%(qemu-system-%'\nGROUP BY 1",
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "datasourceUid": "__expr__",
+        "relativeTimeRange": {"from": 0, "to": 0},
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [{"evaluator": {"params": [0], "type": "gt"}, "operator": {"type": "and"}, "query": {"params": ["C"]}, "reducer": {"type": "last"}, "type": "query"}]
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "0s",
+    "isPaused": false,
+    "labels": {"severity": "critical"},
+    "annotations": {
+      "summary": "Host OOM killer stopped {{ $values.A.Value }} runner VM(s) on {{ $labels.instance }} in ten minutes",
+      "description": "The host kernel killed a Kata runner VM's QEMU because the Pod's memory cgroup was full. The guest never sees an OOM and the job ends as GitHub's \"runner lost communication\". Zero is normal; any kill means a Pod-level memory limit is smaller than the VM it holds.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#linux-runner-vm-host-oom-kills"
+    }
+  }
+]

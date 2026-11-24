@@ -12,6 +12,10 @@ defmodule Tuist.Environment do
   @runtime_envs ~w(prod can stag preview)
   @default_database_schema "public"
   @postgres_identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/
+  # Id of the single key every ciphertext was written under before the key
+  # ring, so its tag stays `AES.GCM.V1`.
+  @legacy_encryption_key_id "V1"
+  @encryption_key_id_regex ~r/\A[A-Za-z0-9_.-]{1,32}\z/
   @agent_auth_default_trusted_providers [
     %{
       "issuer" => "https://auth0.openai.com/",
@@ -304,6 +308,23 @@ defmodule Tuist.Environment do
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  @doc """
+  Whether this deployment offers Tuist Runners, which every account on it can
+  use. Every deployment does except self-hosted installations, which have no
+  runner fleet.
+
+  This is also the source of truth for co-located private Kura cache
+  infrastructure.
+  """
+  def runners_available?(env \\ env(), hosted \\ tuist_hosted?()) do
+    not self_hosted?(env, hosted)
+  end
+
+  # A self-hosted server runs as production (or canary) without `TUIST_HOSTED`,
+  # which Tuist's managed deployments set. Development, test, staging and
+  # preview never run as production or canary.
+  defp self_hosted?(env, hosted), do: env in [:can, :prod] and not hosted
+
   # Enable only after every web/ingestion and build-processor replica accepts the expanded limit.
   # Before a downgrade, disable and drain in-flight reports before rolling back.
   def expanded_build_metadata_enabled? do
@@ -370,7 +391,7 @@ defmodule Tuist.Environment do
     end
   end
 
-  @coverage_retention_defaults %{files: 90, runs: 365}
+  @coverage_retention_defaults %{files: 31, runs: 365}
   @coverage_retention_environment_variables %{
     files: "TUIST_COVERAGE_FILE_RETENTION_DAYS",
     runs: "TUIST_COVERAGE_RUN_RETENTION_DAYS"
@@ -378,8 +399,10 @@ defmodule Tuist.Environment do
 
   @doc """
   How long coverage rows are kept in ClickHouse, in days: `files` for the
-  per-file detail (`coverage_files`) and `runs` for the run totals the trend
-  reads (`coverage_runs`). The tables' time-to-live is set from these when
+  per-file detail (`coverage_files`, 31 by default) and `runs` for the run
+  totals the trend reads (`coverage_runs`, 365 by default). A commit's totals
+  and per-file figures (`coverage_commits`, `coverage_file_deltas`) outlive
+  the detail. The tables' time-to-live is set from these when
   they are created, or when `mix tuist.coverage.retention` (in a release,
   `Tuist.Release.apply_coverage_retention/0`) re-applies them.
   """
@@ -409,16 +432,20 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  The size, in bytes of the DEFLATE-compressed coverage, above which a client
-  that processed the result bundle itself uploads the coverage to object
-  storage instead of sending it inline with the run. Set with
-  `TUIST_COVERAGE_INLINE_THRESHOLD_BYTES`; 5 MB by default, well under the
-  request body limit the inline form is held to.
+  The size, in bytes, of a run's coverage above which a client that processed
+  the result bundle itself uploads the coverage to object storage instead of
+  sending it inline with the run. Set with
+  `TUIST_COVERAGE_INLINE_THRESHOLD_BYTES`; 500 KB by default. The request body
+  limit the inline form is held to applies after a compressed body is
+  inflated, and coverage compresses tenfold to fiftyfold, so the default stays
+  under it however a client measures the coverage: the Xcode CLI compares the
+  uncompressed size, while older Xcode CLIs, Mix and Gradle compare the
+  compressed size.
   """
   def coverage_inline_threshold_bytes(environment \\ System.get_env()) when is_map(environment) do
     case Map.get(environment, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") do
-      nil -> 5_000_000
-      value -> parse_artifact_retention_days(value, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") || 5_000_000
+      nil -> 500_000
+      value -> parse_artifact_retention_days(value, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") || 500_000
     end
   end
 
@@ -976,11 +1003,16 @@ defmodule Tuist.Environment do
     end
   end
 
-  @doc "Configured immutable shard target IDs; malformed configuration disables enrollment."
+  @doc """
+  Configured immutable shard target IDs. Each store release publishes its own
+  map, so the runner-local and public stores arrive in separate variables. A
+  malformed map contributes no targets.
+  """
   def shard_storage_targets do
-    case JSON.decode(System.get_env("TUIST_SHARD_STORAGE_TARGETS") || "{}") do
-      {:ok, targets} when is_map(targets) -> targets
-      _ -> %{}
+    for name <- ["TUIST_SHARD_STORAGE_TARGETS", "TUIST_PUBLIC_SHARD_STORAGE_TARGETS"],
+        {:ok, targets} when is_map(targets) <- [JSON.decode(System.get_env(name) || "{}")],
+        reduce: %{} do
+      acc -> Map.merge(targets, acc)
     end
   end
 
@@ -1713,6 +1745,10 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BAZEL_TESTS", "0"))
   end
 
+  def delegate_process_snapshots? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_SNAPSHOTS", "0"))
+  end
+
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
   (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
@@ -1728,6 +1764,13 @@ defmodule Tuist.Environment do
     case System.get_env("TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY") do
       value when is_binary(value) and value != "" -> String.to_integer(value)
       _ -> if processor_mode?(), do: 5, else: 2
+    end
+  end
+
+  def process_snapshots_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_SNAPSHOTS_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> 2
     end
   end
 
@@ -2013,12 +2056,17 @@ defmodule Tuist.Environment do
   end
 
   # A second DSN that receives a copy of every error, for comparing Pulse with
-  # the primary backend. See TuistCommon.SentryHTTPClient. Only web instances
-  # copy: the processors and registry sync read the same config Secret, but
-  # Pulse's NetworkPolicy admits only the web pods.
+  # the primary backend. See TuistCommon.SentryHTTPClient. In-cluster
+  # instances (web, processor and registry sync pods, which Pulse's
+  # NetworkPolicy admits) post to Pulse's in-cluster address. The xcresult
+  # processors run in Tart VMs outside the cluster network, so they use
+  # `pulse_public_dsn` instead: the server's public Sentry endpoint, with an
+  # account token as the key.
   def sentry_pulse_dsn(secrets \\ secrets(), mode \\ mode()) do
-    case {mode, get([:sentry, :pulse_dsn], secrets)} do
-      {:web, dsn} when dsn not in [nil, ""] -> dsn
+    key = if mode == :xcresult_processor, do: :pulse_public_dsn, else: :pulse_dsn
+
+    case get([:sentry, key], secrets) do
+      dsn when dsn not in [nil, ""] -> dsn
       _ -> nil
     end
   end
@@ -2059,8 +2107,131 @@ defmodule Tuist.Environment do
     truthy?(get([:cache_token, :signing_enabled], secrets, default_value: "0"))
   end
 
-  def secret_key_encryption(secrets \\ secrets()) do
-    get([:secret_key, :encryption], secrets, default_value: secret_key_base(secrets))
+  @doc """
+  The keys `Tuist.Vault` decrypts stored secrets with, as `{id, 32-byte key}`
+  pairs, the one it encrypts with first. The id is part of every ciphertext's
+  tag (`AES.GCM.<id>`), so it decides which key a value is decrypted with.
+
+  - `TUIST_SECRET_KEY_ENCRYPTION_KEYS`: comma-separated `id:base64` entries,
+    each decoding to exactly 32 bytes.
+  - `TUIST_SECRET_KEY_ENCRYPTION`: the original single key, id `V1`. Its raw
+    value is cut or zero-padded to 32 bytes, the derivation every value
+    written before the key ring used, so it stays readable. Without either
+    variable it falls back to `secret_key_base`, except in hosted production.
+  - `TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY`: the id to encrypt with; the
+    first ring entry by default, or `V1` without a ring.
+  - `TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS`: comma-separated ids the node must
+    hold; it refuses to boot when one is missing.
+
+  Hosted production and canary refuse to start unless the current key is
+  explicit, a full 32 bytes, and not derived from `secret_key_base`.
+  Rotation is in `Tuist.Release.reencrypt_vault/2`.
+  """
+  def encryption_keys(secrets \\ secrets(), hosted_production? \\ tuist_hosted?() and env() in [:prod, :can]) do
+    base = secret_key_base(secrets)
+    explicit_legacy = get([:secret_key, :encryption], secrets)
+    keys = encryption_key_ring(secrets) ++ legacy_encryption_keys(explicit_legacy || if(!hosted_production?, do: base))
+
+    keys = current_encryption_key_first(keys, get([:secret_key, :encryption_current_key], secrets))
+    require_encryption_key_ids!(keys, get([:secret_key, :encryption_key_ids], secrets))
+
+    case keys do
+      _keys when not hosted_production? ->
+        keys
+
+      [] ->
+        raise "Set TUIST_SECRET_KEY_ENCRYPTION_KEYS: production must not encrypt stored secrets with a key derived from TUIST_SECRET_KEY_BASE"
+
+      [current | _retired] ->
+        validate_production_encryption_key!(current, explicit_legacy, base)
+        keys
+    end
+  end
+
+  defp current_encryption_key_first(keys, current_id) when current_id in [nil, ""], do: keys
+
+  defp current_encryption_key_first(keys, current_id) do
+    case Enum.split_with(keys, fn {id, _key} -> id == current_id end) do
+      {[current], retired} ->
+        [current | retired]
+
+      {[], _keys} ->
+        raise "TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY is #{inspect(current_id)}, which is not a configured encryption key id"
+    end
+  end
+
+  # The ids the deployment says every node must hold. A node started before
+  # the synced Secret has a new key refuses to boot, and picks the key up when
+  # it restarts, instead of serving without being able to read what other
+  # nodes will write with it.
+  defp require_encryption_key_ids!(_keys, ids) when ids in [nil, ""], do: :ok
+
+  defp require_encryption_key_ids!(keys, ids) do
+    held = Enum.map(keys, &elem(&1, 0))
+    missing = ids |> String.split(",", trim: true) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 in held))
+
+    if missing != [] do
+      raise "TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS lists #{Enum.join(missing, ", ")}, which this node has no key for; " <>
+              "wait for the configuration Secret to sync and restart"
+    end
+  end
+
+  defp encryption_key_ring(secrets) do
+    case get([:secret_key, :encryption_keys], secrets) do
+      value when value in [nil, ""] -> []
+      value -> parse_encryption_keys!(value)
+    end
+  end
+
+  defp legacy_encryption_keys(nil), do: []
+  defp legacy_encryption_keys(raw), do: [{@legacy_encryption_key_id, legacy_encryption_key(raw)}]
+
+  # The single key's original derivation, kept bit for bit so data already
+  # stored under it decrypts: a longer value is cut to its first 32 bytes, a
+  # shorter one padded with zero bytes. It is not a key decoding, which is why
+  # the key ring takes base64 instead.
+  defp legacy_encryption_key(raw) when byte_size(raw) >= 32, do: binary_part(raw, 0, 32)
+  defp legacy_encryption_key(raw), do: raw <> :binary.copy(<<0>>, 32 - byte_size(raw))
+
+  @doc false
+  def parse_encryption_keys!(value) do
+    entries =
+      value
+      |> String.split(",", trim: true)
+      |> Enum.with_index(1)
+      |> Enum.map(fn {entry, position} ->
+        with [id, encoded] <- entry |> String.trim() |> String.split(":", parts: 2),
+             true <- Regex.match?(@encryption_key_id_regex, id) and id != @legacy_encryption_key_id,
+             {:ok, <<_::binary-size(32)>> = key} <- Base.decode64(String.trim(encoded)) do
+          {id, key}
+        else
+          # Never echo the entry: it holds key material.
+          _ ->
+            raise "TUIST_SECRET_KEY_ENCRYPTION_KEYS entry #{position} must be `id:base64` with an id of " <>
+                    "letters, digits, `_`, `.` or `-` other than #{@legacy_encryption_key_id}, and a key decoding to 32 bytes"
+        end
+      end)
+
+    ids = Enum.map(entries, &elem(&1, 0))
+
+    if entries == [] or length(Enum.uniq(ids)) != length(ids) do
+      raise "TUIST_SECRET_KEY_ENCRYPTION_KEYS must list at least one key and no id twice"
+    end
+
+    entries
+  end
+
+  defp validate_production_encryption_key!({id, key}, explicit_legacy, base) do
+    cond do
+      id == @legacy_encryption_key_id and byte_size(explicit_legacy) < 32 ->
+        raise "TUIST_SECRET_KEY_ENCRYPTION is shorter than 32 bytes and would be zero-padded; encrypt with a TUIST_SECRET_KEY_ENCRYPTION_KEYS entry instead"
+
+      is_binary(base) and key == legacy_encryption_key(base) ->
+        raise "The current encryption key (#{id}) is derived from TUIST_SECRET_KEY_BASE; encrypt with a distinct TUIST_SECRET_KEY_ENCRYPTION_KEYS entry"
+
+      true ->
+        :ok
+    end
   end
 
   def oauth_client_id(secrets \\ secrets()) do
@@ -2081,6 +2252,36 @@ defmodule Tuist.Environment do
 
   def oauth_private_key(secrets \\ secrets()) do
     get([:oauth, :private_key], secrets)
+  end
+
+  @doc """
+  RSA private key (PEM) that signs OpenID Connect ID tokens. Without it the
+  server is no OpenID Provider: discovery answers 404 and no relying party
+  client is registered.
+  """
+  def oidc_signing_key(secrets \\ secrets()) do
+    get([:oidc, :signing_key], secrets)
+  end
+
+  @doc """
+  The Luft server (`luft.work`), a confidential OpenID Connect relying
+  party. Configured on the deployment that Luft signs people in to. The ID
+  must be a UUID: Boruta stores client IDs as `binary_id`.
+  """
+  def luft_server_oauth_client_id(secrets \\ secrets()) do
+    get([:luft_server, :oauth_client_id], secrets)
+  end
+
+  def luft_server_oauth_client_secret(secrets \\ secrets()) do
+    get([:luft_server, :oauth_client_secret], secrets)
+  end
+
+  @doc "Comma-separated exact redirect URIs of the Luft server."
+  def luft_server_oauth_redirect_uris(secrets \\ secrets()) do
+    case get([:luft_server, :oauth_redirect_uris], secrets) do
+      value when is_binary(value) -> value |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+      _ -> []
+    end
   end
 
   def oauth_configured?(secrets \\ secrets()) do
@@ -2122,6 +2323,15 @@ defmodule Tuist.Environment do
   end
 
   def pulse_config, do: Application.get_env(:tuist, :pulse, [])
+
+  @doc """
+  The symptoms evaluator (`symptoms/` at the repository root): `base_url` and
+  `token` for pulling its symptom log, and the `evaluator_namespace` and
+  `evaluator_service_account` whose projected token (audience
+  `tuist-symptoms-state`) may read the human state back. Unset outside the
+  Tuist deployment.
+  """
+  def symptoms_config, do: Application.get_env(:tuist, :symptoms, [])
 
   @doc """
   Path of the projected ServiceAccount token (audience `atlas-support-ingest`)
@@ -2177,6 +2387,19 @@ defmodule Tuist.Environment do
   """
   def sandboxes_namespace do
     System.get_env("TUIST_SANDBOXES_NAMESPACE", "tuist-sandboxes")
+  end
+
+  @doc """
+  The most the server raises a Linux sandbox daemon's CPU request to, in
+  millicores (chart `sandboxes.maxCpu`). It wins over the ceiling the daemon
+  reports, so raising it needs no daemon restart. Unset falls back to the
+  daemon's.
+  """
+  def sandbox_cpu_ceiling_milli do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_CPU_CEILING_MILLI", "")) do
+      {milli, ""} when milli > 0 -> milli
+      _ -> nil
+    end
   end
 
   @doc """
@@ -2241,6 +2464,31 @@ defmodule Tuist.Environment do
 
   def anthropic_api_url do
     anthropic_api_url_override() || "https://api.anthropic.com"
+  end
+
+  @doc """
+  Tuist's Claude Platform OAuth app for linked billing
+  (`Tuist.Accounts.ClaudeLinkedBilling`): its client ID, the client
+  assertion audience its Client authentication tab shows, and the
+  Workload Identity Federation ids of its operator service account.
+  Linked billing stays unavailable until every value is set.
+  """
+  def anthropic_linked_billing_config(secrets \\ secrets()) do
+    Map.new(
+      [
+        :client_id,
+        :client_assertion_audience,
+        :organization_id,
+        :workspace_id,
+        :service_account_id,
+        :federation_rule_id
+      ],
+      &{&1, get([:anthropic, :linked_billing, &1], secrets)}
+    )
+  end
+
+  def anthropic_auth_url do
+    get([:anthropic, :auth_url], secrets(), default_value: "https://auth.claude.com")
   end
 
   @doc """

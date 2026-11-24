@@ -32,7 +32,7 @@ The measurement and the per-setting table are in
 ## Where it runs, and how switches reach it
 
 One controller for the rack fleet, because a switch can be adopted by only one
-at a time: the cluster the rack belongs to, production for BER1 (it was staging
+at a time: the cluster the rack belongs to, production for alder (it was staging
 while the rack was built at home). There is no copy per environment; the
 switch-side equivalent of a canary is the apply order the site definition
 enforces.

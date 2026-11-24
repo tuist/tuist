@@ -18,6 +18,7 @@ defmodule Tuist.Processor.XCResultProcessor do
   """
 
   alias Tuist.Processor.XCResultNIF
+  alias Tuist.Processor.ZipExtractor
   alias Tuist.Storage
 
   require Logger
@@ -170,11 +171,22 @@ defmodule Tuist.Processor.XCResultProcessor do
   # (AppleArchive framework) for everything else.
   @pkzip_magic <<0x50, 0x4B>>
 
+  # Bundles with screenshots and screen recordings reach a few GiB, and a large
+  # suite writes tens of thousands of objects into the bundle's database.
+  # These limits sit well above that, so only an archive built to exhaust the
+  # processor's disk is rejected.
+  @max_extracted_bytes 16 * 1024 * 1024 * 1024
+  @max_extracted_entries 500_000
+
   defp extract_archive(archive_path, temp_dir) do
     case File.open(archive_path, [:read, :binary], fn file -> IO.binread(file, 2) end) do
       {:ok, @pkzip_magic} ->
-        case :zip.unzip(~c"#{archive_path}", [{:cwd, ~c"#{temp_dir}"}]) do
-          {:ok, _} -> :ok
+        case ZipExtractor.extract(archive_path, temp_dir,
+               max_bytes: @max_extracted_bytes,
+               max_entries: @max_extracted_entries
+             ) do
+          :ok -> :ok
+          {:error, :archive_too_large} = error -> error
           {:error, reason} -> {:error, {:zip_unzip_failed, reason}}
         end
 

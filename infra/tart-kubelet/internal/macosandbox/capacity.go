@@ -212,7 +212,14 @@ func (k *KubeCapacity) Release(ctx context.Context, r *Record) error {
 	if err != nil {
 		return err
 	}
-	if pod.Spec.NodeName != k.Node || pod.Annotations[NodeUIDAnnotation] != r.NodeUID || pod.Labels[IDLabel] != r.SandboxID {
+	// The Pod is named after the sandbox, so another Mac holding the same
+	// sandbox (a restore it took after this one refused it) owns it. This Mac
+	// holds nothing to release; refusing would strand its record, whose next
+	// Hold fails the CI launch guard.
+	if pod.Spec.NodeName != k.Node {
+		return nil
+	}
+	if pod.Annotations[NodeUIDAnnotation] != r.NodeUID || pod.Labels[IDLabel] != r.SandboxID {
 		return errors.New("refusing to release another owner's Pod")
 	}
 	// ResourceVersion and UID prevent a stale release from deleting a recreated

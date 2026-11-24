@@ -6,7 +6,7 @@ defmodule Tuist.MCP.WebMCPTest do
   alias Tuist.MCP.Server
   alias Tuist.MCP.WebMCP
 
-  @pages ~w(overview builds tests module-cache bundles previews project-settings connect projects runners webhooks sandboxes account-tokens organization pulse)
+  @pages ~w(overview builds tests remote-execution module-cache bundles previews project-settings connect projects runners webhooks sandboxes account-tokens organization pulse)
   @build_systems ~w(xcode gradle bazel cargo mix once)
 
   setup do
@@ -25,6 +25,7 @@ defmodule Tuist.MCP.WebMCPTest do
     assert WebMCP.dashboard_page("/acme/app/once/test-runs/1", organization, project) == "tests"
     assert WebMCP.dashboard_page("/acme/app/once/runs/1", organization, project) == "builds"
     assert WebMCP.dashboard_page("/acme/app/gradle-cache", organization, project) == "builds"
+    assert WebMCP.dashboard_page("/acme/app/remote-execution", organization, project) == "remote-execution"
     assert WebMCP.dashboard_page("/acme/app/settings/automations", organization, project) == "project-settings"
     # An account page whose name matches a project page is the account's.
     assert WebMCP.dashboard_page("/acme/settings/tokens/1", user, nil) == "account-tokens"
@@ -40,8 +41,8 @@ defmodule Tuist.MCP.WebMCPTest do
     pulse_tools =
       ~w(query_pulse get_pulse_analytics get_pulse_error_issue query_pulse_metrics list_pulse_labels search_pulse_logs search_pulse_traces get_pulse_trace)
 
-    for path <- ~w(metrics logs traces errors errors/issues/abc) do
-      assert WebMCP.dashboard_page("/acme/~/pulse/#{path}", organization, nil) == "pulse"
+    for path <- ["", "metrics", "logs", "traces", "errors", "errors/issues/abc"] do
+      assert WebMCP.dashboard_page("/acme/pulse/#{path}", organization, nil) == "pulse"
     end
 
     assert pulse_tools -- Map.keys(WebMCP.account_server("pulse", nil).tools) == []
@@ -65,9 +66,9 @@ defmodule Tuist.MCP.WebMCPTest do
 
     # Notification rules span every account the user belongs to, so no account page offers them.
     account_spanning = ~w(list_notification_events list_notification_condition_options list_notification_rules)
-    # Amp workspace connections and Claude environments need account `:update`
-    # even to list, so browser agents never get them.
-    admin_only = ~w(list_amp_workspace_connections list_claude_environments)
+    # Amp workspace connections, Claude environments and organization AI
+    # configuration need account `:update` even to read, so browser agents never get them.
+    admin_only = ~w(list_amp_workspace_connections list_claude_environments get_organization_ai_configuration)
     not_offered = account_spanning ++ admin_only
 
     assert read_only -- (not_offered ++ List.flatten(page_tools)) == []

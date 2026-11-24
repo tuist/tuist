@@ -96,7 +96,7 @@ jobs:
   # sources its pull request already checked.
   cli-lint:
     name: Lint
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 30
     if: github.repository == 'tuist/tuist' && github.event_name == 'pull_request'
     permissions:
@@ -152,7 +152,7 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 30
     permissions:
       contents: read

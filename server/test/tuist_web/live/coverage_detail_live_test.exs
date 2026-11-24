@@ -186,10 +186,38 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     status = lv |> element("#coverage-detail [data-part='badges']") |> render()
     assert status =~ "Incomplete"
     assert status =~ "uncommitted changes"
+    assert has_element?(lv, "#coverage-dirty-runs", "commit or discard those changes")
     assert has_element?(lv, "#widget-coverage", "66.7%")
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs")
     assert has_element?(lv, "#coverage-run-kind-#{dirty.id}", "Discarded")
+  end
+
+  test "shows a commit only dirty CI runs measured as incomplete, with the same banner, and its runs", %{
+    conn: conn,
+    base: base,
+    organization: organization,
+    project: project
+  } do
+    dirty =
+      CoverageFixtures.run_with_coverage(project, organization.account, [file("Sources/A.swift", [1, 0])], %{
+        git_commit_sha: "d",
+        git_dirty: true
+      })
+
+    Commits.signal_complete(project, "d")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/d")
+    assert lv |> element("#coverage-detail [data-part='badges']") |> render() =~ "Incomplete"
+    assert has_element?(lv, "#coverage-dirty-runs", "commit or discard those changes")
+    assert has_element?(lv, "#widget-coverage", "0.0%")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/d?tab=runs")
+    assert has_element?(lv, "#coverage-run-kind-#{dirty.id}", "Discarded")
+
+    # A clean commit shows no banner.
+    {:ok, lv, _html} = live(conn, base <> "/commits/b")
+    refute has_element?(lv, "#coverage-dirty-runs")
   end
 
   test "reloads for the commit's own runs only, and keeps the page when its coverage is gone", %{
@@ -542,7 +570,88 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert_raise NotFoundError, fn -> live(conn, base <> "/branches/nothing") end
   end
 
-  test "has no pull request page", %{conn: conn, base: base} do
-    assert conn |> get(base <> "/pull-requests/7") |> Map.fetch!(:status) == 404
+  describe "a pull request" do
+    setup %{organization: organization, project: project} do
+      yesterday = DateTime.add(DateTime.utc_now(), -1, :day)
+
+      CoverageFixtures.seed_history(organization.account, [
+        CoverageFixtures.commit("p1", ["b"], 2, yesterday),
+        CoverageFixtures.commit("p2", ["p1"], 3, yesterday)
+      ])
+
+      pull_request_run = fn sha, number, files, minutes_ago ->
+        CoverageFixtures.run_with_coverage(project, organization.account, files, %{
+          git_commit_sha: sha,
+          git_branch: "feature",
+          git_ref: "refs/pull/#{number}/merge",
+          is_pull_request: true,
+          pull_request_number: number,
+          base_branch: "main",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60 * minutes_ago)
+        })
+      end
+
+      %{pull_request_run: pull_request_run}
+    end
+
+    test "opens on its commits while its head commit is in progress, and on its overview once complete", %{
+      conn: conn,
+      base: base,
+      project: project,
+      run: run,
+      pull_request_run: pull_request_run
+    } do
+      pull_request_run.("p1", 7, [file("Sources/A.swift", [1, 0, 0, 0])], 10)
+      Commits.signal_complete(project, "p1")
+      p2_run = pull_request_run.("p2", 7, [file("Sources/A.swift", [1, 1, 1, 0])], 5)
+
+      {:ok, lv, _html} = live(conn, base <> "/pulls/7")
+      assert has_element?(lv, "h1[aria-label='Pull request #7']", "#7")
+      assert has_element?(lv, "[data-part='kind'][data-kind='pull_request']")
+      refute has_element?(lv, "[data-part='analytics']")
+
+      # Its commits are the pull request's own, not the base branch's.
+      from = URI.encode_www_form("#{base}/pulls/7")
+      assert has_element?(lv, "#coverage-commits-table a[href$='/tests/coverage/commits/p2?from=#{from}']")
+      assert has_element?(lv, "#coverage-commits-table a[href$='/tests/coverage/commits/p1?from=#{from}']")
+      refute has_element?(lv, "#coverage-commits-table a[href*='/tests/coverage/commits/b?']")
+      # Read from its ref, in the repository's order.
+      refute has_element?(lv, "#coverage-commits-time-order")
+
+      # The commit leads back to the pull request.
+      {:ok, commit_lv, _html} = live(conn, base <> "/commits/p2?from=#{from}")
+      assert has_element?(commit_lv, "[data-part='back-button'][href='#{base}/pulls/7']", "Pull request #7")
+
+      Commits.signal_complete(project, "p2")
+      {:ok, lv, _html} = live(conn, base <> "/pulls/7")
+      refute has_element?(lv, "#coverage-commits-table")
+      assert has_element?(lv, "#widget-coverage", "75.0%")
+      chart = lv |> element("#coverage-chart") |> render()
+      assert chart =~ "/tests/coverage/commits/p2?from=#{from}"
+
+      # An explicit tab is kept, and its runs are the pull request's only.
+      {:ok, lv, _html} = live(conn, base <> "/pulls/7?tab=runs")
+      assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{p2_run.id}']")
+      refute has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{run.id}']")
+    end
+
+    test "falls back to the commits whose runs named it when its ref owns none", %{
+      conn: conn,
+      base: base,
+      pull_request_run: pull_request_run
+    } do
+      # A commit outside the recorded history advances no ref.
+      pull_request_run.("unknown", 8, [file("Sources/A.swift", [1, 1])], 5)
+
+      {:ok, lv, _html} = live(conn, base <> "/pulls/8")
+      assert has_element?(lv, "h1[aria-label='Pull request #8']")
+      assert has_element?(lv, "#coverage-commits-table a[href*='/tests/coverage/commits/unknown?']")
+      assert has_element?(lv, "#coverage-commits-time-order")
+    end
+
+    test "is not found without coverage or with a number that isn't one", %{conn: conn, base: base} do
+      assert_raise NotFoundError, fn -> live(conn, base <> "/pulls/7") end
+      assert_raise NotFoundError, fn -> live(conn, base <> "/pulls/seven") end
+    end
   end
 end

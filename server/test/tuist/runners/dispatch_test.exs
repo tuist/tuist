@@ -4,12 +4,14 @@ defmodule Tuist.Runners.DispatchTest do
   import Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
@@ -51,7 +53,9 @@ defmodule Tuist.Runners.DispatchTest do
   end
 
   defp enabled_account do
-    AccountsFixtures.organization_fixture().account
+    account = AccountsFixtures.organization_fixture().account
+    Concurrency.raise_to_plan_defaults(account, :pro)
+    account
   end
 
   defp queued_payload(opts) do
@@ -237,6 +241,30 @@ defmodule Tuist.Runners.DispatchTest do
                Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
     end
 
+    test "queues a job larger than its account's whole limit, to wait until the limit admits it" do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      # One vCPU short of the pool's guest, as Air's limit is of the larger shape.
+      %{vcpus: vcpus, memory_gb: memory_gb} =
+        ["tuist-macos"] |> Dispatch.match_pool() |> elem(1)
+
+      {:ok, _} =
+        Concurrency.update_limits(account, %{
+          runner_linux_vcpus_limit: 32,
+          runner_linux_memory_gb_limit: 64,
+          runner_macos_vcpus_limit: vcpus - 1,
+          runner_macos_memory_gb_limit: memory_gb
+        })
+
+      assert {:ok, :queued} =
+               Dispatch.handle_webhook(queued_payload(owner: account.name, labels: ["tuist-macos"]), 1)
+    end
+
     test "keeps dispatching for an account whose allowance is intact" do
       account = enabled_account()
       stub(Accounts, :get_account_by_handle, fn _ -> account end)
@@ -254,7 +282,7 @@ defmodule Tuist.Runners.DispatchTest do
       account = enabled_account()
 
       stub(Accounts, :get_account_by_handle, fn _ -> account end)
-      stub(FeatureFlags, :runners_enabled?, fn _ -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
 
       assert {:ignored, :runners_disabled} =
                Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
@@ -328,26 +356,6 @@ defmodule Tuist.Runners.DispatchTest do
       payload = queued_payload(owner: account.name)
 
       assert {:ignored, :no_pools} = Dispatch.handle_webhook(payload, 1)
-      assert {:ignored, :no_pools} = Dispatch.handle_webhook(payload, 1)
-    end
-
-    test "a flag flip from disabled to enabled takes effect on the next webhook" do
-      account = enabled_account()
-
-      # The account is fetched once and cached; enablement is
-      # re-evaluated per webhook, so flipping the flag on is reflected
-      # on the very next delivery without waiting out the cache TTL.
-      expect(Accounts, :get_account_by_handle, 1, fn _ -> account end)
-
-      FeatureFlags
-      |> expect(:runners_enabled?, fn _ -> false end)
-      |> expect(:runners_enabled?, fn _ -> true end)
-
-      stub(Client, :list_runner_pools, fn _ns -> {:ok, []} end)
-
-      payload = queued_payload(owner: account.name)
-
-      assert {:ignored, :runners_disabled} = Dispatch.handle_webhook(payload, 1)
       assert {:ignored, :no_pools} = Dispatch.handle_webhook(payload, 1)
     end
   end
@@ -960,7 +968,7 @@ defmodule Tuist.Runners.DispatchTest do
   describe "resolve_dispatch_target/2 — site routing" do
     setup do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
-      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+      prefix = Environment.runners_macos_pool_name_prefix()
 
       Repo.insert!(%Profile{
         account_id: account.id,
@@ -980,7 +988,7 @@ defmodule Tuist.Runners.DispatchTest do
         memory_gb: Catalog.default_shape(:macos).memory_gb
       })
 
-      stub(Tuist.Environment, :runners_site_pools, fn ->
+      stub(Environment, :runners_site_pools, fn ->
         %{"#{prefix}-ber1-26-6" => %{site: "ber1", platform: :macos}}
       end)
 
@@ -1037,7 +1045,7 @@ defmodule Tuist.Runners.DispatchTest do
       prefix: prefix
     } do
       stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
-      stub(Tuist.Environment, :runners_rented_macos_fleet?, fn -> false end)
+      stub(Environment, :runners_rented_macos_fleet?, fn -> false end)
       reject(&Sites.available?/1)
 
       assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])

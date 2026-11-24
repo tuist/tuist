@@ -27,8 +27,8 @@
         {
           "current": {
             "selected": false,
-            "text": "grafanacloud-prom",
-            "value": "grafanacloud-prom"
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": 0,
           "includeAll": false,
@@ -38,7 +38,7 @@
           "options": [],
           "query": "prometheus",
           "refresh": 1,
-          "regex": "",
+          "regex": "/^Tuist Pulse Metrics/",
           "skipUrlSync": false,
           "type": "datasource"
         },
@@ -247,7 +247,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max(tuist_kura_rollout_wave{env=\"$env\"} and on () (max(tuist_kura_rollout_active{env=\"$env\"}) == 1))",
+            "expr": "max((tuist_kura_rollout_wave{env=\"$env\"}) * on () group_left () ((max(tuist_kura_rollout_active{env=\"$env\"}) == 1) * 0 + 1))",
             "instant": true,
             "refId": "A"
           }

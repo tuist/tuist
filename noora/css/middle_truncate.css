@@ -1,0 +1,23 @@
+/* Middle truncation: the head shrinks with an ellipsis and the tail always
+   stays visible, so the start and end of an identifier both show. */
+.noora-middle-truncate {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+
+  & [data-part="head"] {
+    flex: 0 1 auto;
+    overflow: hidden;
+    /* Room above and below for stacked accents, which a tight line box with
+       hidden overflow would clip. */
+    margin-block: -2px;
+    padding-block: 2px;
+    min-width: 0;
+    text-overflow: ellipsis;
+  }
+
+  & [data-part="tail"] {
+    flex: none;
+  }
+}

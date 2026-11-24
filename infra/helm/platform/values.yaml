@@ -63,6 +63,33 @@ cert-manager:
 ingress-nginx:
   enabled: true
   controller:
+    # Every ingress-nginx controller in this file runs our build of the
+    # chainguard-forks/ingress-nginx controller, which backports nginx CVE
+    # fixes upstream no longer ships (.github/workflows/ingress-nginx-image.yml).
+    # Pin by digest: the chart appends its own upstream digest whenever digest
+    # is left unset.
+    image: &ingressNginxControllerImage
+      registry: ghcr.io
+      image: tuist/ingress-nginx-controller
+      tag: v1.15.16-tuist.1
+      digest: sha256:85740990b9ec9a27dfa0f4bd62f522f16cda7d3406d7e6195a63be8ff39a5771
+      digestChroot: ""
+    # The admission webhook certificate jobs use the certgen image from the
+    # same build. Only this controller runs the admission webhook.
+    admissionWebhooks:
+      patch:
+        image:
+          registry: ghcr.io
+          image: tuist/ingress-nginx-kube-webhook-certgen
+          tag: v1.15.16-tuist.1
+          digest: sha256:e2fb85522b193171ffec2fdfe39d620c2014e1e4090fd50f73c5cf32f6e724bb
+    # Annotation validation stays off on every ingress-nginx controller in
+    # this file until it is enabled on purpose. Chart 4.11.8 only passes the
+    # flag when this is true, and controller v1.11.8 defaults it to false;
+    # chart 4.15.1 defaults this to true. Pinning false keeps a chart bump
+    # from turning it on. Each controller reads its own value, and the main
+    # webhook only checks Ingresses of the nginx class, so set it on all.
+    enableAnnotationValidations: false
     replicaCount: 2
     publishService:
       enabled: true
@@ -93,18 +120,32 @@ ingress-nginx:
       upstream-keepalive-timeout: "10"
       # Never replay a POST, PATCH or LOCK nginx already started sending.
       retry-non-idempotent: "false"
+      # Keep the client address nginx sees ($remote_addr, X-Real-IP, the
+      # access log, limit-rps keys) as the address the load balancer declared
+      # in the PROXY header, as it was up to controller v1.12. From v1.13,
+      # with use-proxy-protocol and use-forwarded-headers both on, real_ip
+      # reads this header, which the controller fills with the
+      # client-supplied X-Forwarded-For whenever the PROXY address is in
+      # proxy-real-ip-cidr (0.0.0.0/0 by default), and with the load
+      # balancer's own address when that header is absent. The http-snippet
+      # renders after the controller's own more_set_input_headers, so this
+      # value wins. Earlier controllers read the PROXY header directly and
+      # only forward this header upstream, where nothing reads it.
+      http-snippet: 'more_set_input_headers "X-Forwarded-For-Proxy-Protocol: $proxy_protocol_addr";'
     # The address of the edge that opened this connection, which the
-    # application needs and cannot otherwise see. With PROXY protocol,
-    # $remote_addr is the CDN edge the load balancer declared, but the
-    # forwarded-for chain nginx builds ends in $realip_remote_addr — the
-    # load balancer itself — so the edge address exists here and reaches
-    # nothing downstream. Everything that reads it must treat it as
-    # authoritative only from a private peer: the load balancer holds a
-    # public address, so a client can reach the origin directly, and
+    # application needs and cannot otherwise see: the address the load
+    # balancer declared in the PROXY header. Everything that reads it must
+    # treat it as authoritative only from a private peer: the load balancer
+    # holds a public address, so a client can reach the origin directly, and
     # proxy_set_header overwriting any inbound value is what makes this
     # unforgeable rather than a header anyone can assert.
+    #
+    # Name the PROXY address itself, not $remote_addr. The http-snippet above
+    # keeps them equal, but this header must not become forgeable if that
+    # snippet is dropped: without it, controller v1.13+ sets $remote_addr
+    # from whatever a direct client writes in X-Forwarded-For.
     proxySetHeaders:
-      X-Tuist-Edge-Address: "$remote_addr"
+      X-Tuist-Edge-Address: "$proxy_protocol_addr"
     metrics:
       enabled: true
       service:
@@ -130,6 +171,8 @@ ingress-nginx:
 grpc-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: grpc-ingress-nginx-leader
     ingressClass: nginx-grpc
@@ -169,6 +212,8 @@ grpc-ingress-nginx:
 kura-eu-west-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-eu-west-ingress-nginx-leader
     ingressClass: kura-eu-west
@@ -241,6 +286,8 @@ kura-eu-west-ingress-nginx:
 kura-ca-east-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-ca-east-ingress-nginx-leader
     ingressClass: kura-ca-east
@@ -264,6 +311,8 @@ kura-ca-east-ingress-nginx:
 kura-us-east-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-us-east-ingress-nginx-leader
     ingressClass: kura-us-east
@@ -284,6 +333,8 @@ kura-us-east-ingress-nginx:
 kura-us-west-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-us-west-ingress-nginx-leader
     ingressClass: kura-us-west
@@ -306,6 +357,8 @@ kura-us-west-ingress-nginx:
 kura-ap-southeast-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-ap-southeast-ingress-nginx-leader
     ingressClass: kura-ap-southeast
@@ -329,6 +382,8 @@ kura-ap-southeast-ingress-nginx:
 kura-sa-west-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-sa-west-ingress-nginx-leader
     ingressClass: kura-sa-west
@@ -349,6 +404,8 @@ kura-sa-west-ingress-nginx:
 kura-eu-east-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-eu-east-ingress-nginx-leader
     ingressClass: kura-eu-east
@@ -369,6 +426,8 @@ kura-eu-east-ingress-nginx:
 kura-us-central-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-us-central-ingress-nginx-leader
     ingressClass: kura-us-central
@@ -666,7 +725,7 @@ clusterIssuer:
   name: letsencrypt-cloudflare
   server: https://acme-v02.api.letsencrypt.org/directory
 
-# The BER1 rack's runner-cache gateway, on its storage nodes beside the rack's
+# The alder rack's runner-cache gateway, on its storage nodes beside the rack's
 # minis, which reach it over the machines segment. A rack node runs a pod
 # network of its own and reaches no Service, so the gateway resolves through
 # the node; the node translates the kubernetes Service to the API server, and
@@ -682,6 +741,8 @@ kura-ber1-runners-ingress-nginx:
   enabled: false
   fullnameOverride: kura-ber1-runners-ingress-nginx
   controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
     kind: DaemonSet
     hostNetwork: true
     dnsPolicy: Default
@@ -694,6 +755,47 @@ kura-ber1-runners-ingress-nginx:
       tuist.dev/kura-ingress-class: kura-ber1-runners
     nodeSelector:
       node.cluster.x-k8s.io/pool: rack-storage-ber1
+    tolerations:
+      - key: tuist.dev/rack-storage
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    extraArgs:
+      update-status: "false"
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config:
+      <<: *kuraGatewayNginxConfig
+      use-forwarded-headers: "false"
+      use-proxy-protocol: "false"
+      enable-real-ip: "false"
+      compute-full-forwarded-for: "false"
+    metrics:
+      enabled: true
+
+# Larch's runner-cache gateway, on larch's storage node: the same shape as
+# alder's above, deployed by the same rack-cache-gateways release.
+kura-larch-runners-ingress-nginx:
+  enabled: false
+  fullnameOverride: kura-larch-runners-ingress-nginx
+  controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: Default
+    electionID: kura-larch-runners-ingress-nginx-leader
+    ingressClass: kura-larch-runners
+    ingressClassResource:
+      name: kura-larch-runners
+      controllerValue: k8s.io/kura-larch-runners-ingress-nginx
+    podLabels:
+      tuist.dev/kura-ingress-class: kura-larch-runners
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: rack-storage-larch
     tolerations:
       - key: tuist.dev/rack-storage
         operator: Exists
@@ -730,6 +832,14 @@ cacheDNS:
     storeName: onepassword
     writerItem: ""
     solverItem: ""
+
+# external-dns for the luft.work zone (templates/luft-dns.yaml), kept apart from
+# the tuist.dev instance. Enable only on the cluster that runs infra/helm/luft-server.
+luftDNS:
+  enabled: false
+  ownerId: ""
+  namespace: luft
+  image: registry.k8s.io/external-dns/external-dns:v0.15.1
 
 # Drops incoming IPv4 TCP packets that carry IP options on every Linux node, in
 # a nftables table of its own (CVE-2026-98432). Managed clusters only. See

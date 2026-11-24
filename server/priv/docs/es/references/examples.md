@@ -2,7 +2,7 @@
 {
   "title": "Ejemplos",
   "titleTemplate": ":title · Referencias · Tuist",
-  "description": "Explora proyectos de ejemplo que demuestran funcionalidades y patrones de Tuist."
+  "description": "Explora proyectos de ejemplo que demuestran las funcionalidades y patrones de Tuist."
 }
 ---
 # Ejemplos

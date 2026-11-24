@@ -111,6 +111,38 @@ func TestMacosGrantConflictRecomputesFromTheFreshNodeAndKeepsPublishing(t *testi
 	}
 }
 
+// One pool reports grants for its whole fleet. On 2026-11-23 that was the
+// site-pinned `runner-pool-ber1`, so the larch site's hosts got no grant and
+// the server skipped all ten of them as `grant_mismatch`.
+func TestMacosGrantsReachEverySiteWhenTheReporterIsPinnedToOne(t *testing.T) {
+	var objs []client.Object
+	for name, site := range map[string]string{"ber1-b04": "ber1", "larch-a01": "larch"} {
+		node := linuxNodeWithResources(name, "", 16, 48*1024)
+		node.Labels = map[string]string{macosFleetLabel: "rack", corev1.LabelOSStable: macosNodeOSDarwin, podtemplate.RackSiteNodeLabel: site}
+		node.UID = types.UID(name + "-uid")
+		objs = append(objs, node, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: name + "-control", Namespace: "tuist-sandboxes", UID: types.UID(name + "-control"), Labels: map[string]string{macosSandboxRole: "control"}}, Spec: corev1.PodSpec{NodeName: name}})
+	}
+	r, c := sandboxFixture(t, objs...)
+	pinned := &tuistv1.RunnerPool{ObjectMeta: metav1.ObjectMeta{Name: "a-ber1"}, Spec: tuistv1.RunnerPoolSpec{OS: "darwin", FleetSelector: "rack", Site: "ber1"}}
+	fleet := &fleetAllocation{members: map[string]fleetMember{"a-ber1": {pool: pinned}, "b-larch": {}, "macos-27-1": {}}}
+	if err := r.publishSandboxAllocations(context.Background(), pinned, fleet); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"ber1-b04", "larch-a01"} {
+		var node corev1.Node
+		if err := c.Get(context.Background(), client.ObjectKey{Name: name}, &node); err != nil {
+			t.Fatal(err)
+		}
+		var grant struct {
+			NodeUID string `json:"node_uid"`
+			Allow   bool   `json:"allow"`
+		}
+		if err := json.Unmarshal([]byte(node.Annotations[macosSandboxGrant]), &grant); err != nil || grant.NodeUID != name+"-uid" || !grant.Allow {
+			t.Fatalf("%s grant = %q (%v)", name, node.Annotations[macosSandboxGrant], err)
+		}
+	}
+}
+
 func TestNativePreemptionAccountsForCPUsAndSlotsNotOnlyMemory(t *testing.T) {
 	for _, tc := range []struct {
 		cpus int64

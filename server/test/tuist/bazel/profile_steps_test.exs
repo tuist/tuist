@@ -11,6 +11,76 @@ defmodule Tuist.Bazel.ProfileStepsTest do
   alias Tuist.ClickHouseRepo
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  test "remote action phases survive indexed reads, filtering, pagination and project isolation" do
+    project = ProjectsFixtures.project_fixture(build_system: :bazel)
+    build = %Invocation{project_id: project.id, invocation_id: "remote-phases"}
+
+    events = [
+      %{
+        ph: "X",
+        pid: 1,
+        tid: 10,
+        cat: "action processing",
+        name: "Compile A",
+        ts: 0,
+        dur: 100_000,
+        args: %{mnemonic: "CppCompile", target: "//:a", out: "a.o"}
+      },
+      %{
+        ph: "X",
+        pid: 1,
+        tid: 20,
+        cat: "action processing",
+        name: "Compile B",
+        ts: 0,
+        dur: 80_000,
+        args: %{target: "//:b"}
+      },
+      %{ph: "X", pid: 1, tid: 10, cat: "Remote execution queuing time", name: "queue", ts: 1000, dur: 2000},
+      %{ph: "X", pid: 1, tid: 10, cat: "Remote execution file fetching", name: "fetch", ts: 3000, dur: 5000},
+      %{ph: "X", pid: 1, tid: 10, cat: "Remote execution process wall time", name: "execute", ts: 8000, dur: 31_000},
+      %{ph: "X", pid: 1, tid: 10, cat: "Remote execution process wall time", name: "execute", ts: 40_000, dur: 7000},
+      %{ph: "X", pid: 1, tid: 10, cat: "Remote execution upload time", name: "upload", ts: 47_000, dur: 3000},
+      %{
+        ph: "X",
+        pid: 1,
+        tid: 10,
+        cat: "Remote execution upload time",
+        name: "upload missing inputs",
+        ts: 51_000,
+        dur: 15_000
+      },
+      %{ph: "X", pid: 1, tid: 20, cat: "Remote execution process wall time", name: "execute", ts: 1000, dur: 9000}
+    ]
+
+    compressed = :zlib.gzip(JSON.encode!(%{otherData: %{build_id: build.invocation_id}, traceEvents: events}))
+    assert :ok = Profile.ingest(project, build.invocation_id, compressed)
+    # Replaying a signed delivery must not double the diagnostic measurements.
+    assert :ok = Profile.ingest(project, build.invocation_id, compressed)
+
+    assert {:ok, %{steps: [a], pagination_metadata: %{total_count: 2}}} =
+             RecordedSteps.list(build, %{remote_execution: true, page_size: 1})
+
+    assert %{
+             id: "profile:0",
+             remote_queue_ms: 2.0,
+             remote_input_fetch_ms: 5.0,
+             remote_execution_ms: 38.0,
+             remote_output_upload_ms: 3.0
+           } = a
+
+    assert {:ok, %{steps: [b]}} = RecordedSteps.list(build, %{remote_execution: true, page: 2, page_size: 1})
+    assert %{id: "profile:1", remote_queue_ms: nil, remote_execution_ms: 9.0, remote_output_upload_ms: nil} = b
+    assert {:ok, %{remote_execution_ms: 38.0, log: nil}} = RecordedSteps.get(build, a.id)
+    assert {:ok, %{steps: [^b]}} = RecordedSteps.list(build, %{"remote_execution" => true, "search" => "//:b"})
+
+    assert {:ok, %{steps: [], availability: "unavailable"}} =
+             RecordedSteps.list(%{build | project_id: project.id + 1}, %{remote_execution: true})
+
+    assert {:ok, %{steps: [], availability: "unavailable"}} =
+             RecordedSteps.list(%{build | invocation_id: "legacy"}, %{remote_execution: true})
+  end
+
   test "retained IDs remain readable after the indexed profile is published" do
     project = ProjectsFixtures.project_fixture(build_system: :bazel)
 

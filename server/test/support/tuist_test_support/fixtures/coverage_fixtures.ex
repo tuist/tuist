@@ -89,7 +89,8 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
 
   @doc """
   Creates a test run carrying coverage for `files` and returns it as stored.
-  `attrs` override the run's fields; `:partial` marks the coverage partial.
+  `attrs` override the run's fields; `:partial` marks the coverage partial,
+  and `:platform` names the platform it ran on.
   The run reports the fixture remote unless `git_remote_url_origin` says
   otherwise, and its commit's coverage is republished at once, as the
   `CommitWorker` would (`recompute: false` leaves that out).
@@ -97,6 +98,7 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
   def run_with_coverage(project, account, files, attrs \\ %{}) do
     {partial, attrs} = Map.pop(attrs, :partial, false)
     {recompute, attrs} = Map.pop(attrs, :recompute, true)
+    {platform, attrs} = Map.pop(attrs, :platform)
 
     {:ok, run} =
       Tests.create_test(
@@ -114,7 +116,8 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
             ran_at: NaiveDateTime.utc_now(),
             is_ci: true,
             test_modules: [],
-            xcode_coverage: %{partial: partial, files: files}
+            xcode_coverage:
+              Map.merge(%{partial: partial, files: files}, if(platform, do: %{platform: platform}, else: %{}))
           },
           attrs
         )
@@ -127,7 +130,7 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
 
   @doc "Republishes the run's commit coverage, as the `CommitWorker` does after a run reports."
   def recompute_commit(run) do
-    if run.git_commit_sha not in [nil, ""] and (run.git_dirty != true or run.is_ci) do
+    if run.git_commit_sha not in [nil, ""] do
       Commits.recompute(Projects.get_project_by_id(run.project_id), run.git_commit_sha)
     end
   end

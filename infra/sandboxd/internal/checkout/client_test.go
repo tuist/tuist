@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 )
 
 func TestClientSpeaksTheAgentsEndpoints(t *testing.T) {
@@ -17,7 +19,10 @@ func TestClientSpeaksTheAgentsEndpoints(t *testing.T) {
 	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reader := bufio.NewReader(r.Body)
 		line, _ := reader.ReadBytes('\n')
-		var request agentRequest
+		var request struct {
+			PodName string                 `json:"pod_name"`
+			Grant   protocol.CheckoutGrant `json:"grant"`
+		}
 		if err := json.Unmarshal(line, &request); err != nil || request.PodName != "sandboxd-x" || request.Grant != testGrant {
 			t.Errorf("%s: request %q %v", r.URL.Path, line, err)
 		}

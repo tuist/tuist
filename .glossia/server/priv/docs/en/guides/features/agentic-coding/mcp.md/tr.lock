@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "485768f6e95d54cafa00274e54602bf63cef2ae145c9b38edd89fb79489e2d51",
+  "hash": "18ac084e17b06003fd568d52639e305cb2317cec5219baa0503d2b99a54237c4",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,10 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Model Context Protocol": {
-                  "content_hash": "ec60952f1f70340747e394306a158a274b347fc9d225e870b20075f4d80a8424"
+                  "content_hash": "b7a84877598662d21e14591ccacc60895fdca27d5bd414bf3b409a54deed48c1"
+                },
+                "## Agents in Amp orbs and Claude Code cloud sessions": {
+                  "content_hash": "618cd5023882a5fb52e0ff88ef367aeb00f914dfe869ed24ddbeb79e2083851d"
                 },
                 "## Build-system integrations use two credentials": {
                   "content_hash": "eb027d2d76f919530b579db51cec2c0032bee83c83286e029c25e3000caccfc1"
@@ -26,7 +29,7 @@
                   "content_hash": "96302518cb6aab6e284be7e1c6aaf4f3f04705337f8ed8283a121e57b36a5b5c"
                 },
                 "## WebMCP": {
-                  "content_hash": "4e1e5293ec4f74841f98cbb766b68e413ab8885ee7de70983e1b245eca17e3b5"
+                  "content_hash": "1d187d0a352591dd7488c03b01c16021ed73c094a4bc4f05a908e330da7a13ea"
                 },
                 "### Events": {
                   "content_hash": "c772e92fa6f357d052340fdf7a6cb956a73d6916a74b9a1bb04a4b7c46477068"
@@ -35,22 +38,22 @@
                   "content_hash": "2754eafd8e752cb6dc5adb1feeb5ff92eef864da76417043cb52be4f4536c1b3"
                 },
                 "### Pulse": {
-                  "content_hash": "ec68450370df89f22cca6149cf79f915928864ed89b96b9a480cda7fc2fa246e"
+                  "content_hash": "4e8c0094e243015d24e66c17a5c06fc8ff857a65954446fbc99597672b55c920"
                 },
                 "### Tools": {
-                  "content_hash": "375339b6975176eee068df783423d82cdfaf6465103fb1231e720c2ba17c59e2"
-                },
-                "#### AI subscriptions": {
-                  "content_hash": "07059a7a05eedab86d512f351b7792c74e90b9cb489a2c62029866037982d959"
+                  "content_hash": "567e276366b6da045cf72bd96b8c61d9632bfbe119ec50ca1a4de292f531f06f"
                 },
                 "#### Account tokens": {
                   "content_hash": "5ff48a86344ab02ec828d42b5ebb2c762123c70a74db57e9b5c66bf0fb6398d2"
+                },
+                "#### Amp workspaces": {
+                  "content_hash": "0f01dd173b9590d7ca68004bcf3a1f81d7bfa5fd8c5828b5b49af68f128606d3"
                 },
                 "#### Automations": {
                   "content_hash": "0cf6808fb16ba2ded689a8eb80950c39440f1fbce612d55cde8ecab4fb2f8e26"
                 },
                 "#### Bazel invocations": {
-                  "content_hash": "fb58622a75d287041dfe19613209185a4feea26947166139eb1efe8746d8a50c"
+                  "content_hash": "c93b590416013f7545f8357f5601567630dbcf6192eea1a441c9d24a4f80b938"
                 },
                 "#### Build traces": {
                   "content_hash": "c86c54d7d983d88c2e6a2ab558f52fb1c13c882a6df459982726b9e4e5d9973c"
@@ -64,11 +67,17 @@
                 "#### Cargo builds": {
                   "content_hash": "ed44687f9af41f66d81ee390965cc33edcff710946d610e04f541e2cc6394fb7"
                 },
+                "#### Claude environments": {
+                  "content_hash": "24cc199aad32dbfd8a1b0a72a67bd8762816912b353555e1e01a05a66f0ab1e1"
+                },
                 "#### Continuous-integration runners": {
-                  "content_hash": "ad89c8341c370a98b4890bd8adaa6efddfc61112829e299f26ab13bb30b35e56"
+                  "content_hash": "fa33e009cee799d06cddf47e0c4f027a00792cf3322b53bf5e24023cadb39e54"
                 },
                 "#### Documentation and community search": {
                   "content_hash": "be0281c95f07aa659c0e782cf4b415c0a9b0cdf9f4aba8f926dc8fa8ef8aff0e"
+                },
+                "#### Exploring telemetry": {
+                  "content_hash": "774d2ef5c60584f67149d32149e3855355e0b19f5d90b9590bf039affde0ff4e"
                 },
                 "#### Feedback": {
                   "content_hash": "088338b03ed4046d6e2514540e9eaa39fae2ced88976618c7ffb2251f820d290"
@@ -77,7 +86,7 @@
                   "content_hash": "523df7dff63c17a7ec6882b295d128efc58440b140649c490684c2c4b7693a0e"
                 },
                 "#### Gradle builds": {
-                  "content_hash": "d3ca6fba27b784ec0b8ea19ef64239ea44c49310115b4c42276f8573c0d983e8"
+                  "content_hash": "3ad8159042f5346c465e70de01266eb79651b620d7985636844267ac2d15d20e"
                 },
                 "#### Gradle integration prompt features": {
                   "content_hash": "2780de881b82675f156aeda61362068ce842ad926e6b7999fb5ae1636e96e459"
@@ -91,14 +100,20 @@
                 "#### Once runs": {
                   "content_hash": "bd0da2319b17a7606d7ebc93fa429d869259c82a5e1b02af47eca92cd6e48ad7"
                 },
+                "#### Organization AI": {
+                  "content_hash": "114c2b035c2bb30e3e1b945f45ee29d1c763ed4de6e522184d56b75f0f8457bc"
+                },
                 "#### Previews": {
                   "content_hash": "ca096ffa225935ee190cf75f2d288b6dbb3c7b04ff58219d261e33bedd82cfa7"
                 },
                 "#### Projects": {
                   "content_hash": "68d4d961127f060ae6f8e8c6003a4e7cd673508a405ea4677c4f4a375a1f38eb"
                 },
+                "#### Remote execution": {
+                  "content_hash": "6ba7bb74667b20e2ad055b6a82a6ded2f22156fa772af48be7b530e521b381a7"
+                },
                 "#### Sandboxes": {
-                  "content_hash": "121e32c377964047501188fbb197184aeed2397626a3257183a677e05ebf36be"
+                  "content_hash": "914025b4658dcd91f7d65f14dfeb54ec6a09b4b4ba09e636a69ed1b340e4b418"
                 },
                 "#### Source-backed answers": {
                   "content_hash": "c49cd881ec13ebd3498414893a10faebd03e291e1d58d284520bef22b2f3f722"
@@ -107,7 +122,7 @@
                   "content_hash": "12b42c63e6512d90a62ac9c49bd571de3c7bc4f7fee7c7034fc8d422b28ba1fe"
                 },
                 "#### Tests": {
-                  "content_hash": "ccbaec635d0bb7fb217d650f00d2df12f4f951d1c14e96f3cf2f32697c79f195"
+                  "content_hash": "a750b530769a827a8beeca33c49366d4cc504f326b30d473c77cc24b4364a30d"
                 },
                 "#### Webhooks": {
                   "content_hash": "83d476067a0febb7df544db0cfb6daa591a296bfed799a8bb9d91e9a94b5c3d1"
@@ -125,11 +140,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "185d59c6171189a43a9a051964ba9ee568ce17926007f3415157db085a2ac25a",
+          "hash": "2c437d5de0480f2acd02bf6fc940eb946670f94ac0a8e964daf04021e128db00",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
           "metadata": {
-            "content_hash": "5375ca865f385cb253762573fdc2619077189c665e57e05d622e36f11cd2143a"
+            "content_hash": "1947e831b47f362198a0b1e8d70bf3b0c1dff9383fe7e190177963713aa54066"
           }
         },
         {
@@ -190,7 +205,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -209,7 +224,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -238,11 +253,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -304,6 +319,12 @@
                         "term_hash": "c2af27b2919bbf3d9320486d2b9f21315d59ed40d6666f0eb9efef7db35f8855",
                         "translation_hash": "5c542ac04d0d7cdb6d927a2832d026c4802b029abed3bc6655e275f97d271ae3"
                       },
+                      "entry:4d6732f147755858d10ddfac34b5c1a5bc141561149e435b4882a14d62293f0f": {
+                        "case_sensitive": false,
+                        "definition_hash": "cd65a78317278697eb1157d280c257dce0b376b325ab023a2836645be7e0fe98",
+                        "term_hash": "4037494891a78d3446771726a340742ed3140da6174c837a00621eda15527faa",
+                        "translation_hash": "6c4fcdf8f9a031638ff47e042b68c7c45d38bda4876c2e0171871db9a617f504"
+                      },
                       "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
                         "case_sensitive": false,
                         "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
@@ -330,16 +351,16 @@
                       }
                     }
                   },
-                  "hash": "240f98262f020bdde5de56c7d8e061e36c7ba9f01bb2402b0310dfe49473929c",
+                  "hash": "d65e3868982ceb11963ba4df5be8d4b0f6ff3be1b48a09160c608993c6ed366c",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "bf2289eb98336d803ab1bf6345c608786f5a1b41a6401f515174e4271289c375"
+                    "content_hash": "778e63d53a8102f91db6aebbd4abd90470465195e468d20a179618c0f5909428"
                   }
                 }
               ],
               "details": {},
-              "hash": "f6a616d5359055b79784836b3fbef5b52f1fb7e143a4c175c753fb5e9f6e5297",
+              "hash": "fa8e4ec8f573c2fc969ddb2c4dc39cf1b23c7a87e3184fb24ceaba672c7dc9d6",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -349,21 +370,21 @@
             }
           ],
           "details": {},
-          "hash": "57a31d522a819bfb07a723991898e952980542574c0128bb5a1cebdc8f83a32a",
+          "hash": "b22cd8190000fdd6a99f3ea013c1817a76f270e015ce4d1c321c102cdbeb6984",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "485768f6e95d54cafa00274e54602bf63cef2ae145c9b38edd89fb79489e2d51",
+      "hash": "18ac084e17b06003fd568d52639e305cb2317cec5219baa0503d2b99a54237c4",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "63b7c15ec0c9f4dcbced5a5bbdff9ea36c08d8533f6e2a573198dee6fc10155b",
+  "output_hash": "ff9ca4a8f3a0c830d6abb6b44f7ba18b6f0dba678311c81f62d75c570010aa80",
   "output_path": "server/priv/docs/tr/guides/features/agentic-coding/mcp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -374,11 +395,12 @@
         "repo:cache-hit",
         "repo:features",
         "repo:flaky-tests",
+        "repo:selective-testing",
         "repo:test-case",
         "repo:test-run",
         "repo:tests"
       ],
-      "content_hash": "bf2289eb98336d803ab1bf6345c608786f5a1b41a6401f515174e4271289c375",
+      "content_hash": "778e63d53a8102f91db6aebbd4abd90470465195e468d20a179618c0f5909428",
       "shadowed": [],
       "version": null
     },
@@ -388,8 +410,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8f7933fe8972241f7a6c52eb98e3b72e0fe65dbd",
+  "source_commit_sha": "43b523bdc7ac780541c4d77ba209a93f9062b01f",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
-  "translated_at": "2026-11-07T09:07:26.005064Z",
-  "translation_session_id": "01a1b534-eddc-7391-8ac6-9f3a957602c6"
+  "translated_at": "2026-11-18T20:07:24.618361Z",
+  "translation_session_id": "01a1f03a-4133-7890-9c7b-fd93095f7225"
 }

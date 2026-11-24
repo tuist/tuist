@@ -67,6 +67,27 @@ struct SandboxRemoteTests {
     }
 
     @Test
+    func followReturnsAtTheDeadlineWithTheOffsetsItReachedWhileTheCommandRuns() async throws {
+        // The stream sends one line and then nothing, as while a build runs quietly; following must not hang on it.
+        let open = OpenStreams()
+        given(sandboxesService).streamSandboxCommandLogs(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, commandID: .value(Self.commandID),
+            stdoutOffset: .value(5), stderrOffset: .value(2)
+        ).willReturn(open.stream(try Self.lines(#"{"type":"stdout","data":"abc","offset":8}"#)))
+
+        var offsets = SandboxRemote.Offsets(stdout: 5, stderr: 2)
+        var stdout = ""
+        let started = Date()
+        let deadline = Date().addingTimeInterval(0.5)
+        let exit = try await remote.follow(Self.commandID, offsets: &offsets, until: deadline) { _, data in stdout += data }
+
+        #expect(exit == nil)
+        #expect(offsets == SandboxRemote.Offsets(stdout: 8, stderr: 2))
+        #expect(stdout == "abc")
+        #expect(Date().timeIntervalSince(started) < 5)
+    }
+
+    @Test
     func followStopsAtOnceWhenTheCommandIsGone() async throws {
         given(sandboxesService).streamSandboxCommandLogs(
             accountHandle: .any, serverURL: .any, sandboxID: .any, commandID: .any, stdoutOffset: .any, stderrOffset: .any
@@ -81,7 +102,22 @@ struct SandboxRemoteTests {
     }
 
     @Test
-    func startWaitsForTheHostWhileTheServerHasNoNode() async throws {
+    func startDoesNotWaitForAMacThatWasReplaced() async throws {
+        let replaced = SandboxesServiceError.unavailable(.init(message: "The Mac was replaced.", code: "host_replaced"))
+        given(sandboxesService).startSandboxCommand(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .any, cwd: .any,
+            environment: .any, stdin: .any, timeoutMs: .any
+        ).willThrow(replaced)
+
+        await #expect(throws: replaced) { _ = try await remote.start("make") }
+        verify(sandboxesService).startSandboxCommand(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .any, cwd: .any,
+            environment: .any, stdin: .any, timeoutMs: .any
+        ).called(1)
+    }
+
+    @Test
+    func startWaitsForTheHostWhileTheServerHasNoNodeAndRepeatsTheNoticeEveryMinute() async throws {
         let calls = Counter()
         let command: ServerSandboxCommand = try JSONDecoder.iso8601.decode(
             ServerSandboxCommand.self,
@@ -94,18 +130,22 @@ struct SandboxRemoteTests {
             accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .value("make"), cwd: .any,
             environment: .any, stdin: .any, timeoutMs: .any
         ).willProduce { _, _, _, _, _, _, _, _, _ in
-            if calls.increment() <= 2 { throw SandboxesServiceError.unavailable("No sandbox node") }
+            // Retries back off 2, 4 and then 5 seconds, so the fourteenth refusal comes a minute in.
+            if calls.increment() <= 14 { throw SandboxesServiceError.unavailable("The Mac is busy with CI jobs.") }
             return command
         }
-        let waits = Counter()
+        let notices = Notices()
         var remote = remote
-        remote.onWait = { _ in waits.increment() }
+        remote.onWait = { notices.append($0) }
 
         let started = try await remote.start("make")
 
         #expect(started.id == Self.commandID)
-        #expect(calls.value == 3)
-        #expect(waits.value == 1)
+        #expect(calls.value == 15)
+        #expect(notices.values == [
+            "Waiting for a sandbox host: The Mac is busy with CI jobs.",
+            "Still waiting for a sandbox host after 1 min: The Mac is busy with CI jobs.",
+        ])
     }
 
     @Test
@@ -209,6 +249,25 @@ struct SandboxRemoteTests {
     }
 }
 
+/// Streams that send their lines and then stay open, like a log stream of a command that prints nothing for a while.
+final class OpenStreams: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuations: [AsyncThrowingStream<ServerSandboxCommandLogLine, any Error>.Continuation] = []
+
+    func stream(
+        _ lines: AsyncThrowingStream<ServerSandboxCommandLogLine, any Error>
+    ) -> AsyncThrowingStream<ServerSandboxCommandLogLine, any Error> {
+        AsyncThrowingStream { continuation in
+            lock.withLock { continuations.append(continuation) }
+            Task {
+                for try await line in lines {
+                    continuation.yield(line)
+                }
+            }
+        }
+    }
+}
+
 private final class Counter: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
@@ -220,6 +279,17 @@ private final class Counter: @unchecked Sendable {
             count += 1
             return count
         }
+    }
+}
+
+private final class Notices: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [String] = []
+
+    var values: [String] { lock.withLock { recorded } }
+
+    func append(_ notice: String) {
+        lock.withLock { recorded.append(notice) }
     }
 }
 

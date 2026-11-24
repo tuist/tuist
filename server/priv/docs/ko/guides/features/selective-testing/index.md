@@ -2,12 +2,12 @@
 {
   "title": "선택적 테스팅",
   "titleTemplate": ":title · 기능 · 가이드 · Tuist",
-  "description": "Tuist 선택적 테스팅으로 최신 변경 사항의 영향을 받는 테스트만 실행하여, 지속적 통합에서 몇 초 만에 피드백을 받을 수 있습니다."
+  "description": "Tuist 선택적 테스팅으로 최신 변경 사항에 영향을 받는 테스트만 실행하여, 지속적 통합에서 몇 초 만에 피드백을 받아보세요."
 }
 ---
 # 선택적 테스팅 {#selective-testing}
 
-프로젝트가 커질수록 모든 푸시마다 모든 테스트를 실행하는 것은 더 이상 실현 가능하지 않습니다. Tuist 선택적 테스팅은 마지막 성공적인 실행 이후 변경된 사항에 영향을 받는 테스트만 실행하여 테스트 시간을 크게 단축합니다. 이때 저희의 <.localized_link href="/guides/features/projects/hashing">해싱 알고리즘</.localized_link>을 사용합니다.
+프로젝트가 커질수록 모든 푸시마다 모든 테스트를 실행하는 것은 더 이상 실현 가능하지 않습니다. Tuist 선택적 테스팅은 마지막 성공적인 실행 이후 변경된 내용에 영향을 받은 테스트만 실행하여 테스트 시간을 획기적으로 단축하며, 이를 위해 당사의 <.localized_link href="/guides/features/projects/hashing">해싱 알고리즘</.localized_link>을 사용합니다. 샤딩이나 느린 테스트 수정 등 테스트 시간을 줄이는 다른 방법은 [느린 테스트](https://tuist.dev/solutions/slow-tests)를 참조하세요.
 
 ## 지원되는 빌드 시스템 {#supported-build-systems}
 

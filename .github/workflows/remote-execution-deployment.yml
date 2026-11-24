@@ -7,7 +7,9 @@ name: Remote Execution Deployment
 # while the environment's values file says `enabled: false`. Accounts pin the
 # template tag in their settings (see infra/sandbox-image/remote-execution.md).
 # Workers roll out OnDelete; an upgrade replaces gateways and never kills
-# running VMs.
+# running VMs. `replace_workers` (the canary leg of the cascade) then deletes
+# the workers not on the new spec, so canary runs the new images before
+# production; production workers are replaced by an operator after draining.
 
 on:
   workflow_dispatch:
@@ -29,6 +31,11 @@ on:
         description: Published sandboxd tag; omit to build from the commit
         required: false
         type: string
+      replace_workers:
+        description: Replace workers not on the new spec (fails their running actions; canary only)
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       environment:
@@ -43,6 +50,10 @@ on:
       sandboxd_image_tag:
         required: false
         type: string
+      replace_workers:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -72,7 +83,7 @@ jobs:
         run: |
           echo "::error::Production deploys must run from refs/heads/main. Current ref: ${{ github.ref }}"
           exit 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
@@ -108,8 +119,9 @@ jobs:
     needs: [guard, build-template, build-sandboxd]
     if: always() && needs.guard.result == 'success' && needs.guard.outputs.enabled == 'true' && (needs.build-template.result == 'success' || needs.build-template.result == 'skipped') && (needs.build-sandboxd.result == 'success' || needs.build-sandboxd.result == 'skipped')
     runs-on: ubuntu-latest
-    # Allow time for the gateway rollout, rollback and DNS publication.
-    timeout-minutes: 30
+    # Allow time for the gateway rollout, rollback, replacing workers and DNS
+    # publication.
+    timeout-minutes: 55
     environment:
       name: server-k8s-${{ inputs.environment }}
     env:
@@ -117,7 +129,7 @@ jobs:
       TEMPLATE_IMAGE_TAG: ${{ inputs.template_image_tag || needs.build-template.outputs.image_tag }}
       SANDBOXD_IMAGE_TAG: ${{ inputs.sandboxd_image_tag || needs.build-sandboxd.outputs.image_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
@@ -134,7 +146,7 @@ jobs:
               exit 1
             fi
           done
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -148,9 +160,28 @@ jobs:
       - name: Require the sandbox namespace
         # The server release owns the namespace and its policies.
         run: kubectl get namespace "$NAMESPACE" >/dev/null
+      # The deploy below takes back fields changed outside Helm, such as a
+      # `kubectl set image` on the workers; name them so the run shows what
+      # it reverts.
+      - name: Report fields changed outside Helm
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE" get deploy,ds --show-managed-fields -o json | jq -r --arg release "$HELM_RELEASE_NAME" '
+            .items[]
+            | select(.metadata.annotations["meta.helm.sh/release-name"] == $release)
+            | (.kind + "/" + .metadata.name) as $object
+            | .metadata.managedFields[]?
+            | select(.manager != "helm" and .manager != "kube-controller-manager")
+            | "::warning::\($object) has fields set by \(.manager) at \(.time); this deploy takes back the ones the chart renders"'
       - name: helm upgrade --install
         # Helm 4's watcher waits for updated workers even with OnDelete.
         # Legacy waits for the gateway but leaves worker replacement to a drain.
+        # --force-conflicts: Helm applies server-side, so a field another
+        # manager changed (a manual `kubectl set image` on the workers) fails
+        # the apply with an ownership conflict, the automatic rollback fails
+        # the same way, and every later deploy stays wedged. The chart is the
+        # source of truth for what it renders, so Helm takes those fields
+        # back; rollout and readiness failures still fail the deploy.
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" \
@@ -158,7 +189,59 @@ jobs:
             --set gateway.tag="$TEMPLATE_IMAGE_TAG" \
             --set workers.templateTag="$TEMPLATE_IMAGE_TAG" \
             --set workers.tag="$SANDBOXD_IMAGE_TAG" \
+            --force-conflicts \
             --atomic --timeout 20m --wait=legacy
+      # OnDelete leaves running workers on the old images. Replace them one at
+      # a time and wait for the new sandboxd to build the bazel template, so a
+      # broken image fails here instead of in production. Their in-flight
+      # actions fail and Bazel retries them; production never takes this path.
+      - name: Replace workers not on the new spec
+        if: inputs.replace_workers && inputs.environment != 'production'
+        run: |
+          set -euo pipefail
+          want_image="$(yq '.workers.image // "ghcr.io/tuist/sandboxd"' "$HELM_CHART_PATH/values.yaml"):$SANDBOXD_IMAGE_TAG"
+          stale=$(kubectl -n "$NAMESPACE" get pods -l "app=$HELM_RELEASE_NAME-workers" -o json | jq -r \
+            --arg image "$want_image" --arg tag "$TEMPLATE_IMAGE_TAG" '
+            .items[]
+            | select(.spec.containers[0].image != $image
+                or ([.spec.containers[0].env[] | select(.name == "TEMPLATE_TAG") | .value][0] != $tag))
+            | .metadata.name + " " + .spec.nodeName')
+          [ -n "$stale" ] || { echo "Every worker already runs $want_image with template $TEMPLATE_IMAGE_TAG"; exit 0; }
+          while read -r pod node; do
+            echo "Replacing $pod on $node"
+            kubectl -n "$NAMESPACE" delete pod "$pod" --wait=true --timeout=120s
+            new=""
+            for _ in $(seq 1 60); do
+              new=$(kubectl -n "$NAMESPACE" get pods -l "app=$HELM_RELEASE_NAME-workers" \
+                --field-selector "spec.nodeName=$node" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+              [ -n "$new" ] && [ "$new" != "$pod" ] && break
+              sleep 5
+            done
+            [ -n "$new" ] && [ "$new" != "$pod" ] || { echo "::error::No replacement worker on $node"; exit 1; }
+            kubectl -n "$NAMESPACE" wait --for=condition=Ready "pod/$new" --timeout=10m
+            # Both prebuilt VM shapes (PREBUILD_SHAPES) must be ready: built now
+            # (`template ready`) or already on the host from an earlier run
+            # (`default template` at startup lists them in ready_shapes).
+            for _ in $(seq 1 120); do
+              log=$(kubectl -n "$NAMESPACE" logs "$new" -c sandboxd 2>/dev/null || true)
+              failed=$(jq -Rr --arg tag "$TEMPLATE_IMAGE_TAG" \
+                'fromjson? | select(.tag == $tag and .msg == "template build failed") | "\(.shape): \(.error)"' <<< "$log")
+              if [ -n "$failed" ]; then
+                echo "::error::$new failed to build template $TEMPLATE_IMAGE_TAG: $failed"
+                exit 1
+              fi
+              ready=$(jq -Rr --arg tag "$TEMPLATE_IMAGE_TAG" '
+                fromjson? | select(.tag == $tag)
+                | if .msg == "template ready" then 1
+                  elif .msg == "default template" then (.ready_shapes | length)
+                  else empty end' <<< "$log" | awk '{n += $1} END {print n + 0}')
+              [ "$ready" -ge 2 ] && { echo "$new has its templates ready"; continue 2; }
+              sleep 5
+            done
+            echo "::error::$new did not report its templates ready within ten minutes"
+            kubectl -n "$NAMESPACE" logs "$new" -c sandboxd --tail=80 || true
+            exit 1
+          done <<< "$stale"
       # platform-external-dns publishes the gateway Ingress host to Cloudflare
       # (DNS-only) within about a minute of the Ingress existing.
       - name: Wait for the gateway's DNS record

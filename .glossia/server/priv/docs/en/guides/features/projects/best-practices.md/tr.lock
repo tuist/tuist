@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "a534c36e5d41efca77a0848569e870778b959f54fe03955b0b3115cf59c25bcc",
+  "hash": "915983deedf8c5dc00a70639f1fe7edc52821186465abdb38ed40c1671edc595",
   "hash_tree": {
     "root": {
       "children": [
@@ -15,6 +15,9 @@
                 },
                 "## Generated projects": {
                   "content_hash": "b58fd6634a04c28024bf00fa323b20fdb83abb2406b83b8bb3bb1f0d6760efba"
+                },
+                "## Related {#related}": {
+                  "content_hash": "2b648250c6e26efb817b729adca3d774b731e39ac95814dbb628ba843a5dd657"
                 },
                 "## Xcode {#xcode}": {
                   "content_hash": "a1c90374603c207f57405861749922efe56683543da41ad363f5a2b1ad1165af"
@@ -44,7 +47,7 @@
                   "content_hash": "9c5a8aa94f9f93af0f21e9d72be73ddafa17bc334d89587e6aeaa1b0b798c141"
                 },
                 "#### Give agents access to project insights {#worktrees-mcp}": {
-                  "content_hash": "71338199a4250b02b31944c614102c17bae40aad11ada5dbc53473b695f18a93"
+                  "content_hash": "1ff3346d115df60dddb16b73280cd3c194ff93fec301b1b373d063bcde05cd4e"
                 },
                 "#### Keep SwiftPM scratch per worktree {#worktrees-swiftpm-scratch}": {
                   "content_hash": "e22d8e04c8c18129b53017838f1501d1f4f3fa985dc01289a5f912d3b5d46919"
@@ -65,11 +68,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "9446149b3e3f301b8a9ecd375f4288cb10da46207f645b55bfe9e49c6d8d1a61",
+          "hash": "45281b3f040911059b47ab16adec529d03456c7589ac394801d53c2bef29f8f4",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/best-practices.md",
           "metadata": {
-            "content_hash": "97136b371e88e88cdf94b2263402c591719d91499e374bbedd394e38221806ad"
+            "content_hash": "fad72e168a1be6b0b34520a4b7fea723f22e441ebdf9496799b261c7c3a8e983"
           }
         },
         {
@@ -130,7 +133,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -149,7 +152,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -178,11 +181,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -271,21 +274,21 @@
             }
           ],
           "details": {},
-          "hash": "5753864aba7987e658bd7a310ac7c0230c56eb4950eaf7d37bc8fa4d95fc15a7",
+          "hash": "b92a1d1e17200010f7dc860820c94d37972b04e689db7addbd517a6a50476b15",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "a534c36e5d41efca77a0848569e870778b959f54fe03955b0b3115cf59c25bcc",
+      "hash": "915983deedf8c5dc00a70639f1fe7edc52821186465abdb38ed40c1671edc595",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/best-practices.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "30ab563d29e86d6fafcf52e183d634865a277a3b6e7542e34d31598e9fd77165",
+  "output_hash": "b0d2ce2f78bebcb9aa84e3a76551fe425ab6a027dc929badeca7eff7d93b1f65",
   "output_path": "server/priv/docs/tr/guides/features/projects/best-practices.md",
   "protection_state": "recorded",
   "provider": "",
@@ -307,8 +310,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
+  "source_commit_sha": "c7fad37f906cb188113c63e92f7fab7d708d473f",
   "source_path": "server/priv/docs/en/guides/features/projects/best-practices.md",
-  "translated_at": "2026-11-06T18:38:52.109551Z",
-  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
+  "translated_at": "2026-11-18T21:43:06.724710Z",
+  "translation_session_id": "01a1f088-64a6-7d05-be66-26878314385c"
 }

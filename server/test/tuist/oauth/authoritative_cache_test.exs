@@ -261,8 +261,8 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
         redirect_uri: hd(client.redirect_uris),
         scope: "mcp",
         state: "state",
-        code_challenge: nil,
-        code_challenge_method: nil,
+        code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        code_challenge_method: "S256",
         authorization_details: []
       })
 

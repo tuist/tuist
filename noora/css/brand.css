@@ -1,0 +1,26 @@
+/* Tuist logo and wordmark (Noora.Brand). The colors are the brand assets'
+   own (tuist.dev/brand), resolved per color scheme: the mark is the brand
+   purple, the name the near-black or near-white text. `data-surface` pins the
+   scheme on backgrounds that don't follow the page's. */
+.noora-tuist-brand {
+  --noora-tuist-brand-mark: light-dark(#6f2cff, #8366ff);
+  --noora-tuist-brand-type: light-dark(#191a1b, #fdfdfd);
+  flex-shrink: 0;
+
+  &[data-surface="light"] {
+    color-scheme: light;
+  }
+
+  &[data-surface="dark"] {
+    color-scheme: dark;
+  }
+
+  & [data-part="mark"] {
+    fill: var(--noora-tuist-brand-mark);
+  }
+
+  & [data-part="type"],
+  &[data-variant="mono"] [data-part="mark"] {
+    fill: var(--noora-tuist-brand-type);
+  }
+}

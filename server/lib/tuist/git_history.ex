@@ -107,6 +107,20 @@ defmodule Tuist.GitHistory do
       "**/mise.toml",
       "**/.mise.toml"
     ],
+    # Struo's graph/rules and the Go collector's build inputs. Other adapters
+    # retain graph selection until they supply compatible evidence.
+    once: [
+      "**/struo.toml",
+      "**/once.toml",
+      "**/*.star",
+      "**/go.mod",
+      "**/go.sum",
+      "**/go.work",
+      "**/go.work.sum",
+      "**/.tool-versions",
+      "**/mise.toml",
+      "**/.mise.toml"
+    ],
     # Build scripts and their logic, version catalogs, properties, dependency
     # locks, the wrapper's Gradle version and the JDK pins.
     gradle: [
@@ -214,6 +228,17 @@ defmodule Tuist.GitHistory do
   end
 
   def repository_key(_url), do: nil
+
+  @doc """
+  The id of the account's repository for a remote URL when one exists,
+  without creating it: a repository nothing recorded has no graph to read.
+  """
+  def existing_repository_id(account_id, url) do
+    case repository_key(url) do
+      nil -> nil
+      key -> Repo.one(from(r in Repository, where: r.account_id == ^account_id and r.key == ^key, select: r.id))
+    end
+  end
 
   @doc """
   The id of the account's repository for a remote URL, created on first
@@ -463,6 +488,55 @@ defmodule Tuist.GitHistory do
 
   def record_branch_head(_repository_id, _branch, _sha, _default_branch, _observed_at), do: :ok
 
+  @doc """
+  Records the branch heads one run reported (`record_branch_head/5`), the
+  default branch's first so the commits it reached are owned when the others
+  are placed.
+
+  A pull request's run names its base branch's head beside its own branch's
+  (the only kind that does: a push knows no base branch). On a merge
+  checkout (`refs/pull/N/merge`) the client reports the checkout's merge
+  commit (older clients only when they could not read HEAD^2), which exists
+  only in CI and is on no branch: its first parent is the base branch's tip and its
+  second the branch's head. Such a head moves the branch to its second
+  parent, so the merge commit stays with the pull request's ref (the fold
+  places it on `pull/<number>`) and the branch keeps the commits it has. A
+  branch's own merge commit (the base merged into it) has the branch's
+  previous commit as its first parent and is recorded as it is.
+  """
+  def record_branch_heads(repository_id, heads, default_branch) do
+    {defaults, others} = Enum.split_with(heads, &(&1.branch == default_branch))
+    pull_request? = length(Enum.uniq_by(heads, & &1.branch)) > 1
+
+    for head <- defaults ++ others do
+      sha = if pull_request?, do: branch_tip(repository_id, head, heads), else: head.sha
+      record_branch_head(repository_id, head.branch, sha, default_branch, Map.get(head, :observed_at))
+    end
+
+    :ok
+  end
+
+  # The second parent of a merge commit whose first parent is another
+  # reported branch's head or a commit another branch's ref owns.
+  defp branch_tip(repository_id, %{branch: branch, sha: sha}, heads) when is_binary(sha) and sha != "" do
+    with [first, second | _] <- parents(repository_id, sha),
+         true <- base_commit?(repository_id, first, branch, heads) do
+      second
+    else
+      _ -> sha
+    end
+  end
+
+  defp branch_tip(_repository_id, head, _heads), do: head.sha
+
+  defp base_commit?(repository_id, sha, branch, heads) do
+    Enum.any?(heads, &(&1.branch != branch and &1.sha == sha)) or
+      case position(repository_id, sha) do
+        {ref_id, _position} -> get_ref(ref_id).name != branch
+        nil -> false
+      end
+  end
+
   @doc "The ref of a repository by name (a branch, or `pull/<number>`), or nil."
   def ref(repository_id, name), do: Repo.one(from(r in Ref, where: r.repository_id == ^repository_id and r.name == ^name))
 
@@ -576,7 +650,7 @@ defmodule Tuist.GitHistory do
   defp ref_commits_repo_opts(opts), do: if(is_function(Keyword.get(opts, :refine), 1), do: [prepare: :unnamed], else: [])
 
   defp ref_commits_query(ref_id, opts) do
-    Enum.reduce(opts, from(c in Commit, where: c.ref_id == ^ref_id), fn
+    Enum.reduce(opts, from(c in Commit, as: :ref_commit, where: c.ref_id == ^ref_id), fn
       {:at_or_below, position}, query -> where(query, [c], c.position <= ^position)
       {:below, position}, query -> where(query, [c], c.position < ^position)
       {:above, position}, query -> where(query, [c], c.position > ^position)

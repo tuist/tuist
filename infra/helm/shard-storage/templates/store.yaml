@@ -231,7 +231,9 @@ spec:
               memory: 512Mi
               # Scheduler reservation, matched by the local-path XFS quota.
               # No ephemeral-storage limit: kubelet cannot meter a PV with it.
-              ephemeral-storage: {{ .Values.storage.size }}
+              # storage.reservation follows a quota lowered on the host after
+              # provisioning, since the PVC size itself cannot change.
+              ephemeral-storage: {{ .Values.storage.reservation | default .Values.storage.size }}
             limits:
               memory: 2Gi
           volumeMounts:

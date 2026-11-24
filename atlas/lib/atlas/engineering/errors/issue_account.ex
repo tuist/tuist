@@ -1,9 +1,8 @@
 defmodule Atlas.Engineering.Errors.IssueAccount do
   @moduledoc """
   Per-(issue, account) counter row. Denormalises the impact of an
-  error issue onto Atlas CRM accounts so the impacted-accounts panel,
-  enterprise-first ordering, and Slack summary account context can all
-  be answered from a single indexed table without joining ClickHouse
+  error issue onto Atlas CRM accounts so the impacted-accounts panel
+  and enterprise-first ordering can be answered from a single indexed table without joining ClickHouse
   events against Postgres accounts on every read.
 
   Counters are eventually consistent — bumped by

@@ -42,8 +42,8 @@ type Source interface {
 // Options tunes a Serve.
 type Options struct {
 	// FaultWorkers fetch the chunks the guest is waiting on; FillWorkers
-	// fetch the rest in the background. Zero FillWorkers leaves untouched
-	// chunks unfetched.
+	// fetch the rest in the background, taking a chunk the guest waits on
+	// first. Zero FillWorkers leaves untouched chunks unfetched.
 	FaultWorkers int
 	FillWorkers  int
 	// OnLoaded runs once every chunk is installed.

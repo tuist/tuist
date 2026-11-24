@@ -9,6 +9,7 @@ defmodule Tuist.OnceEventsTest do
   alias Once.Events.V1.ArgvHashKey
   alias Once.Events.V1.BatchAck
   alias Once.Events.V1.CacheDownload
+  alias Once.Events.V1.CacheUpload
   alias Once.Events.V1.ContentRef
   alias Once.Events.V1.GetArgvHashKeyRequest
   alias Once.Events.V1.RunCompleted
@@ -24,6 +25,7 @@ defmodule Tuist.OnceEventsTest do
   alias Tuist.Authorization
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Analytics
+  alias Tuist.OnceEvents.CacheEvent
   alias Tuist.OnceEvents.Projector
   alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.RunEventService
@@ -257,6 +259,58 @@ defmodule Tuist.OnceEventsTest do
     assert OnceEvents.count_cache_events(reloaded, view: "content-objects", search: "", outcome: nil) == 1
     assert reloaded.cache_bytes_downloaded == 4096
     assert reloaded.cache_action_read_count == 1
+  end
+
+  test "a batch's cache events roll up only the transfers not already stored", %{project: project, run: run} do
+    download = fn digest, bytes ->
+      {:cache_download,
+       %CacheDownload{
+         target_execution_id: "mise",
+         content: %ContentRef{digest: digest, size_bytes: bytes},
+         bytes_transferred: bytes,
+         duration_ms: 10
+       }}
+    end
+
+    # Stored by an earlier batch whose ack was lost.
+    project(run, %RunEvent{epoch_ms: 1_789_405_000_000, payload: download.("stored", 1000)})
+
+    payloads = [
+      download.("stored", 1000),
+      download.("first", 200),
+      # The same transfer twice within one batch.
+      download.("first", 200),
+      {:action_completed, %ActionCompleted{target_execution_id: "mise", capability: "build", action_index: 0}},
+      {:cache_upload,
+       %CacheUpload{
+         target_execution_id: "mise",
+         content: %ContentRef{digest: "output", size_bytes: 30},
+         bytes_transferred: 30,
+         duration_ms: 7
+       }},
+      download.("last", 4)
+    ]
+
+    events =
+      payloads
+      |> Enum.with_index(1)
+      |> Enum.map(fn {payload, seq} -> %RunEvent{seq: seq, epoch_ms: 1_789_405_000_000, payload: payload} end)
+
+    batch = %RunEventBatch{run_id: run.run_id, batch_id: "batch-1", seq_from: 1, events: events}
+    RunEventService.publish_run_events([batch], reply_stream(project))
+
+    assert_received {:ack, %BatchAck{} = ack}
+    assert ack.disposition == AckDisposition.value(:ACK_DISPOSITION_ACCEPTED)
+
+    reloaded = OnceEvents.get_run(run.project_id, run.run_id)
+    assert Tuist.Repo.aggregate(where(CacheEvent, once_run_id: ^run.id), :count) == 4
+    assert reloaded.cache_event_count == 4
+    assert reloaded.cache_bytes_downloaded == 1204
+    assert reloaded.cache_action_read_count == 3
+    assert reloaded.cache_action_read_ms_total == 30
+    assert reloaded.cache_bytes_uploaded == 30
+    assert reloaded.cache_action_write_count == 1
+    assert [%{target_execution_id: "mise"}] = OnceEvents.list_actions(reloaded)
   end
 
   test "a content object is listed once however many actions share its target", %{run: run} do

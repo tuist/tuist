@@ -96,7 +96,7 @@ defmodule TuistWeb.BazelInvocationsLive do
       |> assign(:uri, uri)
       |> assign(:invocations, invocations)
       |> assign(:current_page, meta.current_page)
-      |> assign(:total_pages, meta.total_pages)
+      |> assign(:has_next_page, meta.has_next_page?)
       |> assign(:invocations_sort_by, sort_by)
       |> assign(:invocations_sort_order, sort_order)
       |> assign(:analytics_preset, analytics_preset)
@@ -636,10 +636,9 @@ defmodule TuistWeb.BazelInvocationsLive do
                 <.text_cell sublabel={DateFormatter.from_now(invocation.finished_at)} />
               </:col>
             </.table>
-            <.pagination_group
-              :if={@total_pages > 1}
-              current_page={@current_page}
-              number_of_pages={@total_pages}
+            <.page_pagination
+              page={@current_page}
+              has_next_page={@has_next_page}
               page_patch={fn page -> "?#{Query.put(@uri.query, "page", to_string(page))}" end}
             />
           </div>

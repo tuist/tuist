@@ -19,7 +19,7 @@ defmodule TuistWeb.Storybook.Badge do
       },
       %VariationGroup{
         id: "size",
-        description: "Badge sizes: small (default) and large",
+        description: "Badge sizes: small (default), medium, and large",
         variations: size_variations()
       },
       %VariationGroup{
@@ -53,7 +53,7 @@ defmodule TuistWeb.Storybook.Badge do
             attributes: %{
               id: "badge-dot-large",
               dot: true,
-              size: "large",
+              size: "medium",
               label: "Dot"
             }
           }
@@ -81,59 +81,8 @@ defmodule TuistWeb.Storybook.Badge do
             id: :icon_large,
             attributes: %{
               id: "badge-icon-large",
-              size: "large",
+              size: "medium",
               label: "Icon"
-            },
-            slots: [
-              """
-              <:icon>
-                <.alert_circle />
-              </:icon>
-              """
-            ]
-          }
-        ]
-      },
-      %VariationGroup{
-        id: "icon_only",
-        description: "Icon only badges",
-        variations: [
-          %Variation{
-            id: :icon_only_small,
-            attributes: %{
-              id: "badge-icon-only-small",
-              icon_only: true
-            },
-            slots: [
-              """
-              <:icon>
-                <.alert_circle />
-              </:icon>
-              """
-            ]
-          },
-          %Variation{
-            id: :icon_only_large,
-            attributes: %{
-              id: "badge-icon-only-large",
-              size: "large",
-              icon_only: true
-            },
-            slots: [
-              """
-              <:icon>
-                <.alert_circle />
-              </:icon>
-              """
-            ]
-          },
-          %Variation{
-            id: :icon_only_colored,
-            attributes: %{
-              id: "badge-icon-only-colored",
-              icon_only: true,
-              color: "success",
-              style: "light-fill"
             },
             slots: [
               """

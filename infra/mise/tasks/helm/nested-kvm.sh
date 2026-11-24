@@ -12,7 +12,7 @@ for env in staging canary production; do
   }
   render > "$work/on.json"
   render --set runnersFleetLinux.nestedVirtualization.defaultEnabled=false > "$work/off.json"
-  jq -e '[.[]|select(.kind == "RunnerPool" and .spec.os == "linux")] | length > 0 and all(.[]; .spec.nestedVirtualization == true and .spec.runtimeClass == "kata-qemu")' "$work/on.json" >/dev/null
+  jq -e '[.[]|select(.kind == "RunnerPool" and .spec.os == "linux")] | length > 0 and all(.[]; .spec.nestedVirtualization == true and (.spec.runtimeClass | startswith("kata-qemu")))' "$work/on.json" >/dev/null
   jq -e 'all(.[]|select(.kind == "RunnerPool" and .spec.os == "linux"); .spec.nestedVirtualization != true)' "$work/off.json" >/dev/null
   jq -en --slurpfile on "$work/on.json" --slurpfile off "$work/off.json" '
     [$on[0][]|select(.kind == "RunnerPool" and .spec.os == "linux")] as $on |
@@ -33,15 +33,35 @@ for env in staging canary production; do
     grep -q 'exclusiveCPUs cannot be combined with nestedVirtualization' "$work/error"
   done
   render --set runnersFleetLinux.nestedVirtualization.defaultEnabled=false \
-    --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true > "$work/exclusive.json"
+    --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true \
+    --set kataContainers.podFixed.memory=3584Mi > "$work/exclusive.json"
   jq -e '[.[]|select(.kind == "RunnerPool" and .spec.os == "linux" and (.spec.podCPUMilli % 2000 == 0))] |
     length > 0 and all(.[]; .spec.exclusiveCPUs == true and .spec.nestedVirtualization != true)' "$work/exclusive.json" >/dev/null
+  # An exclusive Pod's cgroup is its budget plus podFixed, and the guest's
+  # kernel memory and virtiofsd's page cache grow with it: at 3584Mi a full
+  # 64 GiB guest was OOM-killed. Each exclusive pool runs under its own
+  # RuntimeClass whose podFixed adds 4% of the budget, rounded up to 256 MiB;
+  # shared-CPU Pods keep kata-qemu's.
+  jq -e '([.[]|select(.kind == "RuntimeClass")|{key: .metadata.name, value: .overhead.podFixed.memory}]|from_entries) as $rc |
+    $rc["kata-qemu"] == "3584Mi" and
+    ([.[]|select(.kind == "RunnerPool" and .spec.exclusiveCPUs == true)] | length > 0 and all(.[];
+      .spec.runtimeClass != "kata-qemu" and
+      $rc[.spec.runtimeClass] == "\(3584 + ((((.spec.podMemoryMB * 4 / 100 | floor) + 255) / 256 | floor) * 256))Mi"))' "$work/exclusive.json" >/dev/null
   # With the NRI plugin, exclusive-CPU pools keep KVM without the device plugin.
   render --set runnersFleetLinux.nestedVirtualization.nri.enabled=true \
-    --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true > "$work/nri.json"
+    --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true \
+    --set kataContainers.podFixed.memory=3584Mi > "$work/nri.json"
   jq -e '[.[]|select(.kind == "RunnerPool" and .spec.os == "linux" and (.spec.podCPUMilli % 2000 == 0))] |
     length > 0 and all(.[]; .spec.exclusiveCPUs == true and .spec.nestedVirtualization == true)' "$work/nri.json" >/dev/null
   jq -e '[.[]|select(.kind == "DaemonSet" and .metadata.labels["app.kubernetes.io/component"] == "kvm-nri-plugin")] | length == 1' "$work/nri.json" >/dev/null
+  # An exclusive-CPU Pod's cgroup is its budget plus podFixed, and Kata's guest
+  # alone is its 2 GiB base plus the budget, so 2560Mi left QEMU 512 MiB and
+  # the host OOM killer stopped full 16vcpu-32gb VMs mid-job.
+  if render --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true \
+    --set kataContainers.podFixed.memory=2560Mi > /dev/null 2> "$work/error"; then
+    echo "Exclusive CPUs accepted with a podFixed overhead the Kata guest outgrows: $env" >&2; exit 1
+  fi
+  grep -q 'exclusiveCPUs needs kataContainers.podFixed.memory' "$work/error"
   # An env's own render has the NRI DaemonSet exactly when it enables NRI, and
   # exclusive CPUs only alongside it.
   if yq -e '.runnersFleetLinux.nestedVirtualization.nri.enabled == true' "$chart/values-managed-$env.yaml" >/dev/null 2>&1; then

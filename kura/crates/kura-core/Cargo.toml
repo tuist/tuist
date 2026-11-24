@@ -1,0 +1,64 @@
+# The storage engine and the node plumbing under it (configuration, metrics, memory, I/O,
+# segments). The `kura` crate builds the HTTP/REAPI services, replication and the app on top.
+# Splitting it out lets Bazel and Cargo compile and test the two halves as separate actions.
+[package]
+name = "kura-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+# Exposes the test helpers that the `kura` crate's own unit tests build on.
+test-support = ["dep:tempfile"]
+
+[dependencies]
+arc-swap.workspace = true
+axum.workspace = true
+base64.workspace = true
+bazel-remote-apis.workspace = true
+bytes.workspace = true
+deadpool.workspace = true
+futures-util.workspace = true
+h2.workspace = true
+hex.workspace = true
+http-body.workspace = true
+http-body-util.workspace = true
+httparse.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+libc.workspace = true
+memmap2.workspace = true
+prometheus-client.workspace = true
+prost.workspace = true
+rand.workspace = true
+rcgen.workspace = true
+reqwest.workspace = true
+rocksdb.workspace = true
+rustix.workspace = true
+rustls.workspace = true
+rustls-native-certs.workspace = true
+rustls-pemfile.workspace = true
+sentry.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tokio-rustls.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+tempfile = { workspace = true, optional = true }
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+sha2 = { version = "0.10.9", features = ["asm"] }
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+core-foundation.workspace = true
+security-framework.workspace = true
+security-framework-sys.workspace = true
+
+[dev-dependencies]
+futures-executor.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }

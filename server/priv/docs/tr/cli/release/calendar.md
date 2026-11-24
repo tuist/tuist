@@ -8,10 +8,10 @@
 
 # Sürüm takvimi {#release-calendar}
 
-Mevcut CLI sürümlerini, son sürümleri ve yaklaşan sürüm pencerelerini takip edin. Kanal garantileri, sürüm sabitleme ve geriye uyumlama politikası için <.localized_link href="/cli/release/channels">Sürüm kanalları</.localized_link> sayfasına bakın.
+Mevcut CLI sürümlerini, son sürümleri ve yaklaşan sürüm pencerelerini takip edin. Kanal garantileri, sürüm sabitleme ve geri taşıma politikası için bkz. <.localized_link href="/cli/release/channels">Sürüm kanalları</.localized_link>.
 
-Kararlı sürüme yükseltme Pazartesi günleri saat 06:00 UTC'de planlanır. Başarılı bir planlı yükseltmeden sonra, bir sonraki aday sürüm `main` üzerinden oluşturulur ve sonraki canary sürümleri bir sonraki minor sürüme geçer. Hatalar süreçte gecikmeye neden olabilir ve bakım ekibi program dışında yayınlama yapabilir. Gelecekteki zaman pencereleri birer plandır, taahhüt edilen yayın zamanları değildir.
+Kararlı sürüme geçiş Pazartesi günleri saat 06:00 UTC'de planlanır. Başarılı bir planlanmış geçişten sonra, bir sonraki sürüm aday sürümü `main` dalından oluşturulur ve sonraki canary sürümleri bir sonraki küçük sürüme geçer. Arızalar süreci geciktirebilir ve bakımcılar program dışında yayın yapabilir. Gelecekteki pencereler birer plandır, taahhüt edilen yayın zamanları değildir.
 
-Yama sürümleri ve geriye uyarlamalar haftalık bir programa göre değil, talep üzerine yayınlanır. Aşağıdaki geçmiş, yayınlanan sürümleri notlarına ve gerçek yayın tarihlerine bağlar.
+Yama sürümleri ve geri taşımalar haftalık bir programa göre değil, talep üzerine yayımlanır. Aşağıdaki geçmiş, yayımlanan sürümleri notlarına ve gerçek yayın tarihlerine bağlar.
 
 <.release_status status={@release_status} components="cli" />

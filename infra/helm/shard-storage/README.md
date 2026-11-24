@@ -77,7 +77,11 @@ carries `tuist.dev/region` and Kura capacity admission counts its reservation;
 installing Garage there consumes existing capacity, so check region and node
 headroom first. Canary and production run on dedicated `shard-storage` hosts
 outside every Kura region and leave `region` empty. Do not reduce the PVC or
-change its storage class to work around a full node.
+change its storage class to work around a full node. The quota is set only at
+provisioning; to hand space to another store on the host, lower the project's
+hard limit on the host and set `storage.reservation` to the new limit so the
+pod's `ephemeral-storage` request follows it. Production does this for the
+RustFS pilot (see `../shard-storage-rustfs/README.md`).
 
 Garage uses path-style S3 on a ClusterIP at port 3900. Singleton RPC binds to
 loopback. Replicated stores allow RPC on 3901 only between their own pods and
@@ -171,10 +175,12 @@ those operations to Tigris.
 
 ## Initial single-node deployment
 
-Use `values-staging.yaml`, `values-canary.yaml`, or `values-production.yaml` on a
-fresh store. All select one replica and three-day archive expiration. Staging
-and canary default to 200 GiB for functional validation; production reserves
-3 TiB. Keep usage below about 3 TB decimal to leave room within the quota. There
+Use `values-staging.yaml` or `values-canary.yaml` on a fresh store. Both select
+one replica and three-day archive expiration, with 200 GiB for functional
+validation. Production retired its Garage store on 2026-11-19: its buckets were
+copied into RustFS, which publishes `gra-production-v1` as an alias
+(`infra/helm/shard-storage-rustfs`). Keep usage below about 3 TB decimal on a
+3 TiB quota to leave room within it. There
 is no replication multiplier: the usable dataset is stored once. On 2026-10-28,
 retained Linux shard archives totalled 215.6 GiB and the largest rolling 72-hour
 window was 55.7 GiB. Compare retained bytes and daily upload volume with the

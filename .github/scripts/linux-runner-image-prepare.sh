@@ -31,8 +31,9 @@ jq -c --argjson wait "$wait_seconds" --slurpfile current "$work/current.json" '[
   | select($wait > 0 or ($old != null and $old.spec.image != .spec.image))
   | {namespace: .metadata.namespace, fleet: .spec.fleetSelector, image: .spec.image,
      # Managed Kata shares containerd overlayfs with native pods. Avoid its
-     # 2560 MiB VM overhead; retain unknown handlers and their snapshotters.
-     runtime: (if .spec.runtimeClass == "kata-qemu" then "" else (.spec.runtimeClass // "") end),
+     # VM overhead, including the sized kata-qemu-<size> classes of exclusive pools;
+     # retain unknown handlers and their snapshotters.
+     runtime: (if (.spec.runtimeClass // "") as $rc | $rc == "kata-qemu" or ($rc | startswith("kata-qemu-")) then "" else (.spec.runtimeClass // "") end),
      pool: .metadata.name, current: $old.spec.image}]
   | group_by([.namespace,.fleet,.image,.runtime])[]
   | {target: (.[0] | {namespace,fleet,image,runtime}), pools: map({pool,current})}' "$render" > "$work/targets"

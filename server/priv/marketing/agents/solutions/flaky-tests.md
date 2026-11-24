@@ -11,7 +11,7 @@ A flaky test passes and fails on the same code. Each failure costs more than a r
 - **Eroded trust.** Once a team learns that red often means nothing, real regressions get retried and merged too.
 - **Hidden cost.** Blanket retries turn a flaky test green, so the cost moves into longer jobs and extra machine time instead of disappearing.
 
-Common causes are shared state between tests, timing assumptions and fixed waits, test order dependence, unavailable external services, and resource pressure on the machine. Tuist does not guess which one applies. It records every attempt, so the evidence points to the cause.
+Common causes are shared state between tests, timing assumptions and fixed waits, test order dependence, unavailable external services, and resource pressure on the machine; [What is a flaky test?](/en/docs-markdown/references/concepts/flaky-test) explains each one. Tuist does not guess which one applies. It records every attempt, so the evidence points to the cause.
 
 ## How Tuist addresses it
 
@@ -40,7 +40,7 @@ Use the project's failure history to repair shared state, timing assumptions, an
 
 Quarantine can be manual or automated where supported. Assign an owner, keep a repair issue, and periodically review whether a muted test has become reliable. Prefer retaining execution when that evidence is useful; skipping may be appropriate when a test cannot safely run.
 
-Detection supports Xcode, Gradle, Bazel, and Elixir, with integration-specific requirements. Elixir supports cross-run detection without retries and mute/skip quarantine with recent authenticated `tuist_ex` versions. Muting has restrictions with umbrella-root runs and `--warnings-as-errors`; failed policy lookups run all tests. Xcode quarantine requires the Tuist test wrapper rather than arbitrary `xcodebuild` execution. Check the [support matrix](/marketing-markdown/tests), including Cargo and canary Once support, before enabling a policy.
+Detection supports Xcode, Gradle, Bazel, and Elixir, with integration-specific requirements. Elixir supports cross-run detection without retries and mute/skip quarantine with recent authenticated `tuist_ex` versions. Muting has restrictions with umbrella-root runs and `--warnings-as-errors`; failed policy lookups run all tests. Xcode quarantine requires the Tuist test wrapper rather than arbitrary `xcodebuild` execution. Check the [support matrix](/marketing-markdown/tests), including Cargo and canary Struo support, before enabling a policy.
 
 ## Investigate with an agent
 
@@ -57,6 +57,7 @@ Ask it to group failure signatures, distinguish shared-environment failures from
 
 ## Further reading
 
+- [What is a flaky test?](/en/docs-markdown/references/concepts/flaky-test), a vendor-neutral reference on causes, retries and quarantine in Xcode, Gradle, and Bazel, and how to measure flakiness.
 - [Stop flaky tests from blocking your PRs](/blog/2026/01/27/flaky-tests) on detection, tracking, and quarantine.
 - [Tuist now supports detecting flaky tests](/blog/2024/07/10/detecting-flaky-tests) on how detection started.
 - Related guides: [slow tests](/marketing-markdown/solutions/slow-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and the [Tests feature guide](/marketing-markdown/tests).

@@ -1,87 +1,69 @@
 defmodule Tuist.TestImpactAnalysis.Baselines do
   @moduledoc """
   Resolves the baseline of coverage-based test selection: the nearest
-  ancestor of the checked-out commit with a full run of the requested scope
-  and a complete file listing, within the evidence window.
+  ancestor of the checked-out commit with a checkpoint of the requested
+  scope (`Tuist.TestImpactAnalysis.Snapshot`), which a fold writes for every
+  full run whose results are processed and keeps 31 days.
 
   The walk starts from the checked-out commit, or, when the server's history
   doesn't have it (GitHub's synthetic merge commit), from the parents the
   client sent, one commit further away. It reads the commit graph
-  (`Tuist.GitHistory.ancestors/3`) nearest first and the project's commit
-  coverage (`Tuist.Tests.CoverageCommit`) beside it, the same measured set
-  `Tuist.Tests.Coverage.Commits.nearest_measured_ancestor/5` reads. Commits
-  without coverage are walked but not counted; at most 20 commits with
-  coverage may sit between the checkout and the baseline, the baseline
-  included.
+  (`Tuist.GitHistory.ancestors/3`) nearest first, a little deeper each time,
+  and the checkpoints among the commits it reached in one read per step.
+  Distance isn't capped by commits: the 31-day retention, the history
+  window (`window_commits`) and the diff's 5,000-file limit bound it.
 
-  A full run is a run at the commit that:
-
-  - ran the requested scheme, which the commit's measured set lists in
-    `schemes` and not in `partial_schemes`;
-  - ran it whole: its coverage isn't partial, so no `-only-testing` narrowed
-    it and every shard reported (`Tuist.Tests.CoverageRun`);
-  - ran on the requested platform.
-
-  It needn't have uploaded test-scoped evidence: each test's evidence comes
-  from whichever run recorded it, and tests without any are selected by the
-  `no_evidence` rule, as Swift Testing tests and targets that don't link
+  A checkpoint is of the scope when it's on the requested platform (empty
+  matches runs that recorded none, `:any` every platform) and of the
+  requested scheme (any scheme when absent). A checkpoint holds every full run of its scope at the
+  commit, so tests without evidence are in it and selected as
+  `no_evidence`, as Swift Testing tests and targets that don't link
   TestCoverageAttribution always are.
-
-  The commit also needs a complete file listing
-  (`Tuist.GitHistory.listing_complete?/2`), which the baseline's blobs are
-  read from: a commit with a full run whose files can't be read whole (no
-  file changes written, and a missing, expired or truncated listing) is
-  passed over, and the walk goes on to the next ancestor.
-
-  A commit's measured set is only written once its runs' coverage is folded,
-  so a run still being processed isn't eligible yet.
   """
   import Ecto.Query
 
-  alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
   alias Tuist.GitHistory.Commit
   alias Tuist.Projects.Project
   alias Tuist.Repo
-  alias Tuist.Tests.Coverage
-  alias Tuist.Tests.CoverageCommit
-  alias Tuist.Tests.CoverageRun
+  alias Tuist.TestImpactAnalysis.Snapshot
 
-  @window_measured_commits 20
   @walk_depths [64, 256, 1_024]
   @max_ancestor_shas 200
 
   @doc """
   The baseline for a checkout, as `{:ok, baseline}` with its `sha`, the
-  `repository_id` the walk ran in, the full runs at it (`run_ids`), the
-  evidence window's commits (`window_shas`, the checked-out commit's
-  ancestors down to the baseline's depth) and how many commits with coverage
-  it sits back (`distance`). Otherwise `{:error, reason}`:
+  `repository_id` the walk ran in, its `checkpoint`, the full runs the
+  checkpoint holds (`run_ids`) and how many commits back it sits
+  (`distance`). Otherwise `{:error, reason}`:
 
   - `:history_unknown`: the history has none of the checked-out commit, the
     parents and the ancestors sent, so the walk can't start. The client
     deepens its checkout and repeats the request with `ancestor_shas`;
-  - `:no_baseline`: no full run on the platform at a commit with a complete
-    file listing is an ancestor within the history window, or the project
-    has no coverage to walk from;
-  - `:baseline_too_old`: the nearest such run is more than #{@window_measured_commits}
-    commits with coverage back.
+  - `:no_baseline`: no ancestor within the history window has a live
+    checkpoint of the scope, or the project has no live checkpoint to walk
+    from.
 
   `scope` has the `commit_sha`, and optionally `parent_shas`,
   `ancestor_shas` (the checkout's ancestors the client has, nearest first:
   the first #{@max_ancestor_shas} count, each as far back as its position in
   the list, which is exact for linear history and approximate across
-  merges), `platform`
-  (empty when absent, matching runs that recorded none) and `scheme` (any
-  scheme when absent). With `baseline_sha:` only that commit can be the
-  baseline: what the runs request uses to rebuild the window for the
-  baseline the client diffed against.
+  merges), `platform` and `scheme`. With `baseline_sha:` only that commit
+  can be the baseline: what the runs request uses to find the checkpoint of
+  the baseline the client diffed against. With `ancestors_only: true` the
+  checked-out commit itself can't be: what coverage carry uses, whose fold
+  may already have written the commit's own checkpoint.
   """
   def resolve(%Project{} = project, scope, opts \\ []) do
     commit_sha = Map.fetch!(scope, :commit_sha)
     parent_shas = Map.get(scope, :parent_shas) || []
     ancestor_shas = scope |> Map.get(:ancestor_shas) |> List.wrap() |> Enum.take(@max_ancestor_shas)
-    scope = %{platform: Map.get(scope, :platform) || "", scheme: Map.get(scope, :scheme)}
+
+    scope = %{
+      platform: Map.get(scope, :platform) || "",
+      scheme: Map.get(scope, :scheme),
+      ancestors_only: Keyword.get(opts, :ancestors_only, false)
+    }
 
     case starts(project, commit_sha, parent_shas, ancestor_shas) do
       {:error, reason} ->
@@ -94,17 +76,17 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     end
   end
 
-  # The repository is the one of the project's coverage that has the
+  # The repository is the one of the project's checkpoints that has the
   # checked-out commit, or else most of its parents and ancestors. Ancestors
   # the history lacks carry no coverage, so only the known ones are walked
   # from, each at its distance: 1 for a parent, its position for an ancestor.
   defp starts(project, commit_sha, parent_shas, ancestor_shas) do
     repositories =
       Repo.all(
-        from(c in CoverageCommit,
-          where: c.project_id == ^project.id and not is_nil(c.repository_id),
+        from(s in Snapshot,
+          where: s.project_id == ^project.id and s.kind == :checkpoint and s.expires_at > ^DateTime.utc_now(),
           distinct: true,
-          select: c.repository_id
+          select: s.repository_id
         )
       )
 
@@ -148,11 +130,29 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   defp walk(project, repository_id, starts, scope, fixed, [depth | deeper], max_depth) do
     ancestors = ancestors(repository_id, starts, depth)
     exhausted = deeper == [] or Enum.all?(ancestors, fn {_sha, d} -> d < depth end)
+    candidates = if fixed, do: Enum.filter(ancestors, &(elem(&1, 0) == fixed)), else: ancestors
+    candidates = if scope.ancestors_only, do: Enum.reject(candidates, &(elem(&1, 1) == 0)), else: candidates
+    checkpoints = checkpoints(project.id, repository_id, Enum.map(candidates, &elem(&1, 0)), scope)
 
-    case decide(project, repository_id, ancestors, scope, fixed, exhausted) do
-      :undecided -> walk(project, repository_id, starts, scope, fixed, deeper, max_depth)
-      {:ok, baseline} -> {:ok, Map.put(baseline, :repository_id, repository_id)}
-      {:error, _reason} = error -> error
+    case Enum.find(candidates, &Map.has_key?(checkpoints, elem(&1, 0))) do
+      {sha, distance} ->
+        checkpoint = Map.fetch!(checkpoints, sha)
+
+        {:ok,
+         %{
+           sha: sha,
+           repository_id: repository_id,
+           checkpoint: checkpoint,
+           run_ids: checkpoint.test_run_ids,
+           distance: distance
+         }}
+
+      # A fixed baseline the walk reached without a checkpoint stays without one.
+      nil when exhausted or (fixed != nil and candidates != []) ->
+        {:error, :no_baseline}
+
+      nil ->
+        walk(project, repository_id, starts, scope, fixed, deeper, max_depth)
     end
   end
 
@@ -168,127 +168,20 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     |> Enum.sort_by(fn {sha, d} -> {d, sha} end)
   end
 
-  defp decide(project, repository_id, ancestors, scope, fixed, exhausted) do
-    {ranked, counted} = rank(ancestors, measured(project.id, Enum.map(ancestors, &elem(&1, 0))))
-    candidates = Enum.filter(ranked, &(candidate?(&1.commit, scope) and (is_nil(fixed) or &1.sha == fixed)))
-    runs = project.id |> full_runs(candidates, scope) |> with_complete_listing(repository_id)
-    {within, beyond} = Enum.split_with(candidates, &(&1.rank <= @window_measured_commits))
+  # The newest live checkpoint of the scope at each of `shas` that has one.
+  defp checkpoints(_project_id, _repository_id, [], _scope), do: %{}
 
-    case Enum.find(within, &Map.has_key?(runs, &1.sha)) do
-      nil ->
-        verdict(beyond, runs, exhausted or counted >= @window_measured_commits, exhausted)
-
-      baseline ->
-        {:ok,
-         %{
-           sha: baseline.sha,
-           run_ids: Map.fetch!(runs, baseline.sha),
-           window_shas: for({sha, depth} <- ancestors, depth <= baseline.depth, do: sha),
-           distance: baseline.rank
-         }}
-    end
-  end
-
-  # Why there's no baseline, once the walk saw the whole window. Telling a
-  # baseline too old from none needs the walk to reach a full run past it.
-  defp verdict(_beyond, _runs, false = _window_complete, _exhausted), do: :undecided
-
-  defp verdict(beyond, runs, true = _window_complete, exhausted) do
-    cond do
-      Enum.any?(beyond, &Map.has_key?(runs, &1.sha)) -> {:error, :baseline_too_old}
-      exhausted -> {:error, :no_baseline}
-      true -> :undecided
-    end
-  end
-
-  # A commit's rank is how many commits with coverage sit back to it, itself
-  # included; the checked-out commit's is zero.
-  defp rank(ancestors, measured) do
-    ancestors
-    |> Enum.filter(fn {sha, _depth} -> Map.has_key?(measured, sha) end)
-    |> Enum.map_reduce(0, fn {sha, depth}, count ->
-      count = if depth == 0, do: count, else: count + 1
-      {%{sha: sha, depth: depth, rank: count, commit: Map.fetch!(measured, sha)}, count}
-    end)
-  end
-
-  # The walked commits with coverage: a measured set with runs. A commit whose
-  # every scheme was skipped whole has a row without runs and isn't counted.
-  defp measured(_project_id, []), do: %{}
-
-  defp measured(project_id, shas) do
-    shas
-    |> Coverage.id_chunks(1)
-    |> Enum.flat_map(fn chunk ->
-      Repo.all(
-        from(c in CoverageCommit,
-          where:
-            c.project_id == ^project_id and c.git_commit_sha in ^chunk and fragment("cardinality(?) > 0", c.test_run_ids),
-          select: %{
-            sha: c.git_commit_sha,
-            schemes: c.schemes,
-            partial_schemes: c.partial_schemes,
-            test_run_ids: c.test_run_ids
-          }
-        )
-      )
-    end)
-    |> Map.new(&{&1.sha, &1})
-  end
-
-  defp candidate?(commit, %{scheme: nil}), do: commit.schemes != []
-
-  defp candidate?(commit, %{scheme: scheme}), do: scheme in commit.schemes and scheme not in commit.partial_schemes
-
-  # Per candidate commit, its full runs on the platform, as
-  # `%{sha => run_ids}`: the commit is in the map when it has any.
-  defp full_runs(_project_id, [], _scope), do: %{}
-
-  defp full_runs(project_id, candidates, scope) do
-    sha_by_run =
-      for %{sha: sha, commit: commit} <- candidates, run_id <- commit.test_run_ids, into: %{}, do: {run_id, sha}
-
-    run_ids = Map.keys(sha_by_run)
-    full = run_ids |> chunked(&whole_runs(project_id, &1, scope)) |> MapSet.new()
-
-    for run_id <- run_ids, MapSet.member?(full, run_id), reduce: %{} do
-      acc -> Map.update(acc, Map.fetch!(sha_by_run, run_id), [run_id], &(&1 ++ [run_id]))
-    end
-  end
-
-  defp chunked(ids, fun), do: ids |> Coverage.id_chunks(1) |> Enum.flat_map(fun)
-
-  # Selection reads the baseline's blobs, so a path its files lack would read
-  # as changed and select every test that ran it.
-  defp with_complete_listing(runs, _repository_id) when runs == %{}, do: runs
-
-  defp with_complete_listing(runs, repository_id) do
-    complete =
-      runs
-      |> Map.keys()
-      |> Coverage.id_chunks(2)
-      |> Enum.flat_map(&GitHistory.complete_listings(repository_id, &1))
-
-    Map.take(runs, complete)
-  end
-
-  defp whole_runs(project_id, run_ids, scope) do
+  defp checkpoints(project_id, repository_id, shas, scope) do
     query =
-      from(r in CoverageRun,
-        where: r.project_id == ^project_id and r.test_run_id in ^run_ids,
-        group_by: r.test_run_id,
-        having:
-          fragment("NOT argMax(?, ?)", r.partial, r.version) and
-            fragment("argMax(?, ?) = ?", r.platform, r.version, ^scope.platform),
-        select: fragment("toString(?)", r.test_run_id)
+      from(s in Snapshot,
+        where:
+          s.project_id == ^project_id and s.repository_id == ^repository_id and s.kind == :checkpoint and
+            s.commit_sha in ^shas and s.expires_at > ^DateTime.utc_now(),
+        order_by: [asc: s.ran_at, asc: s.inserted_at]
       )
 
-    query =
-      case scope.scheme do
-        nil -> query
-        scheme -> having(query, [r], fragment("argMax(?, ?) = ?", r.scheme, r.version, ^scheme))
-      end
-
-    ClickHouseRepo.all(query)
+    query = if scope.scheme in [nil, ""], do: query, else: where(query, [s], s.scheme == ^scope.scheme)
+    query = if scope.platform == :any, do: query, else: where(query, [s], s.platform == ^scope.platform)
+    query |> Repo.all() |> Map.new(&{&1.commit_sha, &1})
   end
 end

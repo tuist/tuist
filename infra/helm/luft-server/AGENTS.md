@@ -1,0 +1,5 @@
+# Luft Server Chart
+
+- Keep this release isolated from the Tuist product: its own namespace (`luft`), image, database and secrets. It owns all of `luft.work`: the Ingress, the certificate and the Cloudflare-proxied DNS record that the `luftDNS` external-dns publishes (see `README.md`). Keep one Ingress for the headless API/auth server and conversation runtime; do not bundle or serve a web shell. It reaches Tuist only over public HTTPS, as an OpenID Connect relying party; never mount Tuist server secrets here.
+- The `LUFT_SERVER` 1Password item (production vault) holds `secret_key_base` and the `oauth_client_id` (a UUID) / `oauth_client_secret`. The Tuist chart reads the same two fields when `server.config.luftServerOidc.enabled`, so rotating the secret there updates both sides; restart both releases after a rotation.
+- Validate with `helm lint infra/helm/luft-server -f infra/helm/luft-server/values-ci.yaml` and `helm template luft-server infra/helm/luft-server -f infra/helm/luft-server/values-production.yaml -f infra/helm/luft-server/values-ci.yaml` from the repository root.

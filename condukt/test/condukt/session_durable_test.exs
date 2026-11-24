@@ -8,6 +8,7 @@ defmodule Condukt.SessionDurableTest do
   alias Condukt.Session.Durable
   alias Condukt.Sessions.Inbox
   alias Condukt.SessionStore.Memory
+  alias Condukt.SessionStore.ObjectStore
   alias Condukt.SessionStore.Snapshot
   alias Condukt.Test.LLMProvider
   alias ReqLLM.ToolCall
@@ -51,14 +52,18 @@ defmodule Condukt.SessionDurableTest do
   end
 
   # A Memory store whose journal refuses the record kinds listed in `:fail_on`,
-  # whose saves fail with `fail_save: true`, whose journal cannot be read
+  # whose saves fail with `fail_save: true`, whose snapshot cannot be read
+  # with `fail_load: true`, whose journal cannot be read
   # with `fail_load_journal: true`, and cannot be cleared with
   # `fail_clear_journal: true`.
   defmodule FailingStore do
     @behaviour Condukt.SessionStore
 
     @impl true
-    defdelegate load(opts), to: Memory
+    def load(opts) do
+      if opts[:fail_load], do: {:error, :timeout}, else: Memory.load(opts)
+    end
+
     @impl true
     defdelegate clear(opts), to: Memory
 
@@ -1214,6 +1219,10 @@ defmodule Condukt.SessionDurableTest do
     assert {:error, {:journal_load_failed, :timeout}} =
              start_session(key, model, [], session_store: {FailingStore, fail_load_journal: true})
 
+    # Starting over would let the next save replace the stored history.
+    assert {:error, {:snapshot_load_failed, :timeout}} =
+             start_session(key, model, [], session_store: {FailingStore, fail_load: true})
+
     {:ok, pid} = start_session(key, model, [])
     assert %{run_id: 1} = Condukt.Session.interrupted(pid)
   end
@@ -1480,6 +1489,73 @@ defmodule Condukt.SessionDurableTest do
     assert [_, _, %Message{content: {:error, _}}, _] = Condukt.history(pid)
     settle(pid)
     refute File.exists?(Path.join([tmp_dir, ".condukt", "sessions", "disk-session.store.journal"]))
+  end
+
+  # A new owner takes the session over at a higher epoch, reads what the old
+  # one journaled, and settles the tool call it cannot know the outcome of.
+  # A host runs one session per run, all at its lease epoch, and starts each
+  # through the sessions supervisor, which is where the store's reads run.
+  # Each session has to see what the one before it stored.
+  test "consecutive sessions at one epoch on the object store each see the history before them" do
+    {:ok, bucket} = ObjectStore.Memory.start_link()
+    store = {ObjectStore, bucket: {ObjectStore.Memory, bucket}, key: "one-epoch", epoch: 3}
+
+    for {prompt, answer} <- [{"first", "first answer"}, {"second", "second answer"}] do
+      {model, _} = LLMProvider.model([LLMProvider.text_response(answer)])
+      {:ok, pid} = Condukt.Sessions.start(DurableAgent, model: model, tools: [], session_store: store)
+      assert {:ok, ^answer} = Condukt.run(pid, prompt)
+      settle(pid)
+      GenServer.stop(pid)
+    end
+
+    assert {:ok, %{messages: messages}} = elem(store, 1) |> Keyword.delete(:epoch) |> ObjectStore.load()
+    assert Enum.map(messages, & &1.content) == ["first", [text: "first answer"], "second", [text: "second answer"]]
+  end
+
+  test "does not start on a snapshot from a newer version" do
+    key = {:newer, make_ref()}
+    :ok = Memory.save(%{Snapshot.new(%{messages: [Message.user("kept")]}) | version: 999}, key: key)
+    {model, _} = LLMProvider.model([])
+
+    assert {:error, {:snapshot_load_failed, {:unsupported_snapshot_version, 999}}} =
+             start_session(key, model, [], session_store: Memory)
+  end
+
+  test "resumes from the object store at a new epoch" do
+    test_pid = self()
+    {:ok, bucket} = ObjectStore.Memory.start_link()
+
+    store = fn epoch ->
+      {ObjectStore, bucket: {ObjectStore.Memory, bucket}, key: "object-session", epoch: epoch}
+    end
+
+    tool =
+      Condukt.tool(
+        name: "deploy",
+        description: "deploys",
+        parameters: %{type: "object", properties: %{}},
+        call: fn _args, context ->
+          send(test_pid, :deployed)
+          Process.exit(context.agent, :kill)
+          {:ok, "deployed"}
+        end
+      )
+
+    {model, _} = LLMProvider.model([tool_call_response("call_1", "deploy")])
+    {:ok, pid} = start_session(nil, model, [tool], session_store: store.(1))
+    assert {:error, {:session_exit, :killed}} = Condukt.run(pid, "deploy")
+    assert_received :deployed
+
+    {model, _} = LLMProvider.model([LLMProvider.text_response("Unsure whether it deployed.")])
+    {:ok, pid} = start_session(nil, model, [tool], session_store: store.(2))
+
+    assert {:ok, "Unsure whether it deployed."} = Condukt.Session.resume(pid)
+    refute_received :deployed
+    assert [_, _, %Message{content: {:error, _}}, _] = Condukt.history(pid)
+    settle(pid)
+
+    assert ObjectStore.load_journal(elem(store.(2), 1)) == {:ok, []}
+    assert ObjectStore.append_journal([{:resume, 1, nil}], elem(store.(1), 1)) == {:error, :fenced}
   end
 
   # The outcomes live in the snapshot, so request ids need a store but not a

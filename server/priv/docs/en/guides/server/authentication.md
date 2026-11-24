@@ -247,6 +247,7 @@ The command accepts the following options:
 | `account:cache:write` | Upload account-scoped cached binaries |
 | `account:members:read` | Read account members |
 | `account:members:write` | Manage account members |
+| `account:pulse:write` | Send errors to the account's Pulse from a Sentry SDK, using the token as the DSN key |
 | `account:registry:read` | Read from the Swift package registry |
 | `account:registry:write` | Publish to the Swift package registry |
 | `account:runners:read` | Read runner jobs, workflows, profiles, and volumes |

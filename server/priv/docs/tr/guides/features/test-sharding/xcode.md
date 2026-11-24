@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Xcode Test Sharding",
-  "titleTemplate": ":title · Test Sharding · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Test Sharding ile Xcode testlerini birden fazla CI çalıştırıcısına dağıtın."
+  "title": "Xcode Test Parçalama",
+  "titleTemplate": ":title · Test Parçalama · Özellikler · Kılavuzlar · Tuist",
+  "description": "Xcode testlerini Tuist Test Parçalama ile birden fazla CI çalıştırıcısına dağıtın."
 }
 ---
 # Xcode test sharding {#xcode-test-sharding}
@@ -10,20 +10,20 @@
 > [!IMPORTANT]
 > **Gereksinimler**
 >
-> - <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights</.localized_link> yapılandırılmış olmalıdır. Sharding, shard’ları dengelemek için son 30 günün test zamanlama verilerini kullanır; içgörüler olmadığında her shard, suite bilinmiyormuş gibi çalışır.
+> - <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights</.localized_link> yapılandırılmış olmalıdır. Shard dengesi, son 30 günün test zamanlama verilerini kullanır; bu verilere erişim olmadığında her shard, test paketi bilinmiyormuş gibi çalışır.
 
-Xcode projeleri için test sharding, bir shard planı oluşturmak üzere `tuist xcodebuild build-for-testing` ve her shard’ı yürütmek üzere `tuist xcodebuild test` komutlarını kullanır.
+Xcode projeleri için test shard’lama, shard planı oluşturmak amacıyla `tuist xcodebuild build-for-testing` ve her shard’ı yürütmek için `tuist xcodebuild test` komutlarını kullanır.
 
 ## Nasıl çalışır {#how-it-works}
 
-Test sharding iki aşamalı bir iş akışı izler:
+Test shard’lama iki aşamalı bir iş akışı izler:
 
-1. **Oluşturma aşaması:** Tuist, derlenen `.xctestrun` dosyasından test modüllerini okur ve sunucuda bir **shard planı** oluşturur. Sunucu, her shard’ın yaklaşık olarak aynı sürede tamamlanması için testleri shard’lara dağıtmak amacıyla son 30 güne ait geçmiş test zamanlama verilerini kullanır. Oluşturma aşaması, CI sisteminizin paralel runner’lar başlatmak için kullandığı bir **shard matrisi** çıktısı verir.
-2. **Test aşaması:** Her sürekli entegrasyon runner’ı bir **shard indeksi** ve tam **shard plan tanımlayıcısını** alır, ardından o plana ait test seçimini yürütür.
+1. **Oluşturma aşaması:** Tuist, derlenen `.xctestrun` dosyasından test modüllerini okur ve sunucuda bir **shard planı** oluşturur. Sunucu, son 30 güne ait geçmiş test zamanlama verilerini kullanarak testleri shard’lara dağıtır; böylece her shard yaklaşık olarak aynı sürede tamamlanır. Oluşturma aşaması, CI sisteminizin paralel runner’lar başlatmak için kullandığı bir **shard matrisi** çıktısı verir.
+2. **Test aşaması:** Her sürekli entegrasyon runner’ı bir **shard indeksi** ve tam **shard planı tanımlayıcısını** alır, ardından o plana ait test seçimini yürütür.
 
-Suite granülerliğinde sunucu, mevcut `.xctestrun` içindeki her modül için dalınızdaki son CI çalıştırmalarının bildirdiği suite’leri kullanır; dal geçmişi olmayan modüller için projenin varsayılan dalına geri döner. Birden fazla çalıştırma birleştirildiğinde, parçalı veya seçici bir çalıştırmanın en son raporda dışarıda bıraktığı suite’ler korunur.
+Paket granularity’sında sunucu, mevcut `.xctestrun` içindeki her modül için dalınızda yakın zamanda çalışan CI çalıştırmalarının bildirdiği paketleri kullanır; dal geçmişi olmayan modüller için projenin varsayılan dalına geri döner. Birden fazla çalıştırmanın birleştirilmesi, parçalı veya seçici bir çalıştırmada en son raporda yer almayan paketlerin korunmasını sağlar.
 
-`--shard-granularity suite` kullanıldığında Tuist, bilinen suite’leri istenen shard sayısı arasında dengeler ve son shard’ı yakalayıcı olarak kullanır. Örneğin, `--shard-total 5` shard indekslerini `0` ile `4` arasında üretir; burada `4` shard indeksi yakalayıcıdır. Normal shard’lar atandıkları suite’ler için `-only-testing` ile çalışır. Son shard `-only-testing` olmadan çalışır ve önceki shard’lara atanmış her suite için `-skip-testing` parametresini geçer; böylece planlanan suite’lerin yanı sıra yeni eklenen veya geçmiş envanterde eksik olan suite’leri de çalıştırır. Modül granülerliği yakalayıcıya ihtiyaç duymaz çünkü `.xctestrun` dosyası modül listesini sağlar.
+`--shard-granularity suite` kullanıldığında, Tuist bilinen paketleri istenen shard sayısına göre dengeler ve son shard’ı yakalayıcı (catch-all) olarak kullanır. Örneğin, `--shard-total 5` shard indekslerini `0` ile `4` arasında üretir ve yakalayıcı olarak shard indeksi `4` kullanılır. Normal shard’lar atandıkları paketler için `-only-testing` ile çalışır. Son shard `-only-testing` olmadan çalışır ve önceki shard’lara atanmış her paket için `-skip-testing` parametresini geçer; böylece planlanan paketlerin yanı sıra yeni eklenen veya geçmiş envanterde eksik olan paketleri de çalıştırır. Modül granularity’sı yakalayıcıya ihtiyaç duymaz çünkü modül listesini `.xctestrun` dosyası sağlar.
 
 ## Oluşturma aşaması {#build-phase}
 
@@ -39,7 +39,7 @@ tuist xcodebuild build-for-testing \
 Bu komut:
 1. Testlerinizi `xcodebuild build-for-testing` ile derler
 2. Geçmiş zamanlama verilerini kullanarak Tuist sunucusunda bir shard planı oluşturur
-3. `.xctestproducts` paketini yükler veya shard runner’larının kullanması için bir shard arşivi yazar
+3. `.xctestproducts` paketini yükler veya shard runner’ların kullanımı için bir shard arşivi yazar
 4. CI sisteminiz için bir shard matrisi çıktısı verir
 
 <!-- @snippet: ./_xcode-build-options -->
@@ -62,7 +62,7 @@ tuist xcodebuild test \
 
 ### GitHub Actions {#github-actions}
 
-Shard’ları paralel çalıştırmak için bir matris stratejisi kullanın:
+Shard’ları paralel çalıştırmak için matris stratejisi kullanın:
 
 ```yaml
 name: Tests
@@ -107,7 +107,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist, bir [alt boru hattı](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines) olarak tetikleyebileceğiniz bir `.tuist-shard-child-pipeline.yml` oluşturur. Oluşturulan shard işlerinin genişleteceği bir `.tuist-shard` şablon işi tanımlayın:
+Tuist, bir [alt pipeline](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines) olarak tetikleyebileceğiniz bir `.tuist-shard-child-pipeline.yml` oluşturur. Oluşturulan shard işlerinin genişleteceği bir `.tuist-shard` şablon işi tanımlayın:
 
 ```yaml
 # .gitlab-ci.yml
@@ -153,7 +153,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist, [süreklilik orb’ı](https://circleci.com/developer/orbs/orb/circleci/continuation) için parametreler içeren bir `.tuist-shard-continuation.json` oluşturur. `shard-plan-id` parametresi devam eden yapılandırmanızda bildirilmelidir:
+Tuist, [devam orb’ı](https://circleci.com/developer/orbs/orb/circleci/continuation) için parametreler içeren bir `.tuist-shard-continuation.json` oluşturur. `shard-plan-id` parametresi devam eden konfigürasyonunuzda bildirilmelidir:
 
 ```yaml
 # .circleci/config.yml
@@ -249,7 +249,7 @@ steps:
       queue: macos
 ```
 
-Oluşturulan her adımda ortamında `TUIST_SHARD_INDEX` ve `TUIST_SHARD_PLAN_ID` ayarlanır. Paylaşılan bir betik kullanarak her shard adımına test komutunu ekleyin:
+Oluşturulan her adımda ortam değişkenleri olarak `TUIST_SHARD_INDEX` ve `TUIST_SHARD_PLAN_ID` ayarlanır. Paylaşılan bir betik kullanarak her shard adımına test komutunu ekleyin:
 
 ```bash
 # .buildkite/shard-step.sh
@@ -262,7 +262,7 @@ tuist xcodebuild test \
 
 ### Codemagic {#codemagic}
 
-Codemagic dinamik matris işlerini desteklemez, bu nedenle shard başına ayrı bir iş akışı tanımlayın. Tuist, derleme iş akışı içinde kullanılmak üzere `TUIST_SHARD_MATRIX` ve `TUIST_SHARD_COUNT` değerlerini `CM_ENV` dosyasına yazar. Codemagic’in `CM_ENV` kapsamı iş akışı düzeyindedir, bu nedenle tam shard plan tanımlayıcısı iş akışı sınırlarını aşmaz; test iş akışları referans tabanlı shard aramasına geri döner:
+Codemagic dinamik matris işlerini desteklemez, bu nedenle shard başına ayrı bir iş akışı tanımlayın. Tuist, derleme iş akışı içinde kullanılmak üzere `TUIST_SHARD_MATRIX` ve `TUIST_SHARD_COUNT` değerlerini `CM_ENV` dosyasına yazar. Codemagic’in `CM_ENV` kapsamı iş akışı düzeyindedir; bu nedenle tam shard planı tanımlayıcısı iş akışı sınırlarını aşmaz ve test iş akışları referans tabanlı shard aramasına geri döner:
 
 ```yaml
 # codemagic.yaml
@@ -331,7 +331,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-Bitrise’ta Tuist, `BITRISE_DEPLOY_DIR` konumuna (`shard_plan_id` dahil) `.tuist-shard-matrix.json` yazar ve bunu aşağı akış boru hattı aşamaları için bir derleme artefaktı olarak kullanılabilir hale getirir. Her test iş akışı, indirilen artefaktan plan kimliğini `envman` kullanarak çıkarır ve böylece bu değer test komutunun ortamına ulaşır:
+Bitrise’ta Tuist, `BITRISE_DEPLOY_DIR` konumuna (`shard_plan_id` dahil) `.tuist-shard-matrix.json` yazar ve bunu sonraki pipeline aşamaları için bir derleme artefaktı olarak kullanılabilir hale getirir. Her test iş akışı, indirilen artefaktan plan kimliğini `envman` kullanarak çıkarır ve test komutunun ortamına aktarır:
 
 ```yaml
 # bitrise.yml
@@ -405,11 +405,11 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise çalışma zamanında dinamik paralel iş oluşturmeyi desteklemez. Boru hattı aşamalarınızda sabit sayıda shard iş akışı tanımlayın — bir aşama içindeki iş akışları otomatik olarak paralel çalışır.
+> Bitrise çalışma zamanında dinamik paralel iş oluşturmayı desteklemez. Pipeline aşamalarınızda sabit sayıda shard iş akışı tanımlayın; bir aşama içindeki iş akışları otomatik olarak paralel çalışır.
 
 ## Paylaşılan birimler {#shared-volumes}
 
-Varsayılan olarak oluşturma aşaması `.xctestproducts` paketini uzak depolamaya yükler ve her shard runner’ı bunu indirir. CI sağlayıcınız **paylaşılan birimleri** (işler arasında bağlanan kalıcı depolama) destekliyorsa, test ürünlerini paylaşılan bir dosya sistemi üzerinden geçirerek bu yükleme/indirme işlemini tamamen atlayabilirsiniz.
+Varsayılan olarak, oluşturma aşaması `.xctestproducts` paketini uzak depolamaya yükler ve her shard runner’ı bunu indirir. CI sağlayıcınız **paylaşılan birimleri** (işler arasında monte edilen kalıcı depolama) destekliyorsa, test ürünlerini paylaşılan bir dosya sistemi üzerinden geçirerek bu yükleme/indirme işlemini tamamen atlayabilirsiniz.
 
 Bu, özellikle büyük test paketleri için shard başlangıç süresini önemli ölçüde azaltabilir.
 
@@ -436,7 +436,7 @@ tuist xcodebuild test \
 ```
 
 > [!IMPORTANT]
-> Eşzamanlı çalıştırmalar arasında çakışmaları önlemek için her iş akışı çalıştırması başına benzersiz bir yol kullanın (örneğin, CI çalıştırma kimliğini dahil edin). Birimde eski verilerin birikmesini önlemek için shardlama tamamlandıktan sonra test ürünlerini de temizlemelisiniz.
+> Eşzamanlı çalıştırmalar arasında çakışmaları önlemek için her iş akışı çalıştırmasında benzersiz bir yol kullanın (örneğin, CI çalıştırma kimliğini dahil edin). Birimde eski verilerin birikmesini önlemek için shardlama tamamlandıktan sonra test ürünlerini de temizlemelisiniz.
 
 | Bayrak | Ortam değişkeni | Açıklama |
 |------|---------------------|-------------|
@@ -444,7 +444,7 @@ tuist xcodebuild test \
 
 ## Kendi yönettiğiniz artefaktlar {#self-managed-artifacts}
 
-CI sağlayıcınızda zaten artefakt yükleme ve indirme adımları varsa, aktarımı CI’nız hallederken arşivleme ve çıkarma işlemlerini Tuist’e bırakabilirsiniz.
+CI sağlayıcınızda zaten artefakt yükleme ve indirme adımları varsa, aktarımı CI’nizin halletmesine izin verirken arşivleme ve çıkarma işlemlerini Tuist’in yapmasını sağlayabilirsiniz.
 
 1. **Oluşturma aşamasında**, Tuist’in test ürünlerini yüklemek yerine optimize edilmiş shard arşivini yerel olarak yazması için `--shard-archive-path` parametresini geçin:
 
@@ -456,7 +456,7 @@ tuist xcodebuild build-for-testing \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
 
-2. Bu arşivi CI’nızın yerel artefakt adımıyla yükleyin.
+2. Bu arşivi, CI’nızın yerel artefakt adımını kullanarak yükleyin.
 
 3. Her **test aşaması** işinde arşivi indirin ve aynı yolu tekrar Tuist’e geçirin:
 
@@ -467,11 +467,11 @@ tuist xcodebuild test \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
 
-`--shard-archive-path` ayarlandığında, Tuist uzak test ürünü transferini atlar ve bunun yerine yerel arşivi kullanır. Ayrıca `--shard-skip-upload` geçerseniz, arşiv yolu öncelik kazanır.
+`--shard-archive-path` ayarlandığında, Tuist uzak test ürünü aktarımını atlar ve bunun yerine yerel arşivi kullanır. Ayrıca `--shard-skip-upload` geçerseniz, arşiv yolu öncelik kazanır.
 
 ### Namespace {#namespace}
 
-[Namespace](https://namespace.so) runner’ları GitHub Actions artefaktlarıyla iyi çalışır. Derleme işinin shard arşivini yerel olarak yazması, ardından yüklenmesi ve her shard işinde `tuist xcodebuild test` çalıştırılmadan önce indirilmesi için `TUIST_TEST_SHARD_ARCHIVE_PATH` değerini bir kez ayarlayın:
+[Namespace](https://namespace.so) runner’ları GitHub Actions artefaktlarıyla iyi çalışır. Derleme işinin shard arşivini yerel olarak yazması, yüklenmesi ve `tuist xcodebuild test` çalıştırılmadan önce her shard işinde indirilmesi için `TUIST_TEST_SHARD_ARCHIVE_PATH` değerini bir kez ayarlayın:
 
 ```yaml
 name: Tests

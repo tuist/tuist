@@ -196,6 +196,25 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
   end
 
+  test "refuses a pause while a restore's disks still load and keeps the Orb running", %{account: account} do
+    sandbox =
+      sandbox_fixture(
+        account: account,
+        amp_orb_id: "amp-thread",
+        node_name: "node-a",
+        residency_work_id: "amp:amp-thread"
+      )
+
+    expect_setup_read()
+
+    expect(Nodes, :call, fn "node-a", "pause", _args, _opts ->
+      {:error, "sandbox disks are still loading from its archive: #{sandbox.id}"}
+    end)
+
+    assert {:error, :restoring} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
+    assert %{state: :running, residency_work_id: "amp:amp-thread"} = Repo.reload!(sandbox)
+  end
+
   test "records the setup that ran in the Orb from its log before pausing", %{account: account} do
     sandbox =
       sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a", residency_work_id: "amp:x")
@@ -328,23 +347,224 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert %{state: :running, residency_work_id: "amp:amp-thread"} = Repo.reload!(sandbox)
   end
 
-  test "a macOS Orb's pause refuses a project snapshot and is never archived", %{account: account} do
+  defp mac_node(name),
+    do: %{name: name, platform: "darwin", generation: "uid", disk: %{}, templates: [%{name: "macos", ready: true}]}
+
+  test "a macOS Orb's pause saves a project snapshot on its host and queues its upload", %{account: account} do
     sandbox =
       sandbox_fixture(account: account, amp_orb_id: "amp-thread", platform: :darwin, node_name: "mac-a", node_uid: "uid")
 
+    stub(Nodes, :connected_nodes, fn -> [mac_node("mac-a")] end)
+    stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
     expect(Nodes, :call, fn "mac-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 1}} end)
-    expect(Nodes, :call, fn "mac-a", "pause", _args, _opts -> {:ok, %{"resident" => true}} end)
 
-    # The Orb still pauses, but Amp must not record a snapshot Tuist never saved.
-    assert {:error, :snapshot_not_saved} =
+    expect(Nodes, :call, fn "mac-a", "pause", args, _opts ->
+      assert args == %{sandbox_id: sandbox.id, sync_disks: true, node_uid: "uid"}
+      {:ok, %{"resident" => true, "disks_synced" => true}}
+    end)
+
+    expect(Nodes, :call, fn "mac-a", "save_disks", args, _opts ->
+      assert %{sandbox_id: id, node_uid: "uid"} = args
+      assert id == sandbox.id
+      {:ok, %{"duration_ms" => 900, "bytes" => 4_000_000_000}}
+    end)
+
+    assert {:ok, %{state: :paused}} =
              AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj:snap"})
 
-    paused = Repo.reload!(sandbox)
-    assert paused.state == :paused
-    refute Repo.exists?(DiskSnapshot)
-    refute Tuist.Sandboxes.Archives.archivable?(paused)
+    assert [
+             %DiskSnapshot{
+               state: :ready,
+               platform: :darwin,
+               node_name: "mac-a",
+               amp_snapshot_id: "proj:snap",
+               disk_bytes: 4_000_000_000
+             } = saved
+           ] = Repo.all(DiskSnapshot)
 
-    assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
+    # The save evicted the VM, so its slot is free for placement at once.
+    paused = Repo.reload!(sandbox)
+    assert %{state: :paused, resident: false} = paused
+    # The snapshot is uploaded for other hosts to copy.
+    assert_enqueued(worker: ArchiveDiskSnapshotWorker, args: %{disk_snapshot_id: saved.id})
+  end
+
+  test "a new macOS Orb is cloned on the host holding the snapshot", %{account: account} do
+    snapshot =
+      disk_snapshot_fixture(
+        account: account,
+        amp_snapshot_id: "proj-1",
+        node_name: "mac-a",
+        template: "macos",
+        platform: :darwin
+      )
+
+    expect(Capacity, :place, fn %Sandbox{platform: :darwin}, filter ->
+      assert filter.(%{name: "mac-a"})
+      refute filter.(%{name: "mac-b"})
+      {:ok, "mac-a"}
+    end)
+
+    expect(Nodes, :call, fn "mac-a", "create", args, _opts ->
+      assert args.from_disk_snapshot == snapshot.id
+      {:ok, %{"boot_ms" => 9_000}}
+    end)
+
+    expect(Nodes, :call, fn "mac-a", "hold_residency", _args, _opts -> {:ok, %{}} end)
+    expect(Nodes, :call, fn "mac-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+    params =
+      Map.merge(spawn_params(), %{snapshot_id: "proj-1", platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192})
+
+    assert {:ok, %{state: :running, node_name: "mac-a"}} = AmpOrbs.dispatch(account, "amp-new", params)
+    assert [%{boot_source: "disk_snapshot"}] = sandbox_events(Repo.get_by!(Sandbox, amp_orb_id: "amp-new"), "started")
+  end
+
+  # Waiting for the snapshot's host could take as long as a CI job, so a
+  # full host, or a failed clone, of a snapshot with no archive boots the
+  # template elsewhere at once.
+  test "a new macOS Orb boots the template on another host when the snapshot's host cannot take it", %{
+    account: account
+  } do
+    disk_snapshot_fixture(
+      account: account,
+      amp_snapshot_id: "proj-1",
+      node_name: "mac-a",
+      template: "macos",
+      platform: :darwin
+    )
+
+    params =
+      Map.merge(spawn_params(), %{snapshot_id: "proj-1", platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192})
+
+    expect(Capacity, :place, fn %Sandbox{}, _held -> {:error, :no_capacity} end)
+    expect(Capacity, :place, fn %Sandbox{} -> {:ok, "mac-b"} end)
+
+    expect(Nodes, :call, fn "mac-b", "create", args, _opts ->
+      refute Map.has_key?(args, :from_disk_snapshot)
+      {:ok, %{"boot_ms" => 19_000}}
+    end)
+
+    expect(Nodes, :call, fn "mac-b", "hold_residency", _args, _opts -> {:ok, %{}} end)
+    expect(Nodes, :call, fn "mac-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+    assert {:ok, %{node_name: "mac-b"}} = AmpOrbs.dispatch(account, "amp-new", params)
+    assert [%{boot_source: "template"}] = sandbox_events(Repo.get_by!(Sandbox, amp_orb_id: "amp-new"), "started")
+
+    # A clone the host fails keeps that host out of the template boot.
+    expect(Capacity, :place, fn %Sandbox{}, _held -> {:ok, "mac-a"} end)
+    expect(Nodes, :call, fn "mac-a", "create", %{from_disk_snapshot: _}, _opts -> {:error, "clone failed"} end)
+
+    expect(Capacity, :place, fn %Sandbox{node_name: nil}, filter ->
+      refute filter.(%{name: "mac-a"})
+      {:ok, "mac-b"}
+    end)
+
+    expect(Nodes, :call, fn "mac-b", "create", args, _opts ->
+      refute Map.has_key?(args, :from_disk_snapshot)
+      {:ok, %{"boot_ms" => 19_000}}
+    end)
+
+    expect(Nodes, :call, fn "mac-b", "hold_residency", _args, _opts -> {:ok, %{}} end)
+    expect(Nodes, :call, fn "mac-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+    assert {:ok, %{node_name: "mac-b"}} = AmpOrbs.dispatch(account, "amp-other", params)
+  end
+
+  # As on Linux, an archived snapshot is restored on another host when its
+  # holders are full: a host serving its template and restoring archives,
+  # given the image the snapshot was saved from. A restore that fails boots
+  # the template on yet another host.
+  test "a new macOS Orb is restored from the snapshot's archive when its holders cannot take it", %{
+    account: account
+  } do
+    snapshot =
+      archived_snapshot(account,
+        node_name: "mac-a",
+        template: "macos",
+        template_tag: "img@sha256:a",
+        platform: :darwin,
+        workspace_gb: 30
+      )
+
+    # An earlier spawn from the snapshot makes it popular.
+    sandbox_fixture(account: account, amp_orb_id: "amp-earlier", amp_base_snapshot_id: "proj-1", platform: :darwin)
+
+    params =
+      Map.merge(spawn_params(), %{
+        snapshot_id: "proj-1",
+        platform: :darwin,
+        template: "macos",
+        vcpus: 8,
+        memory_mb: 8192,
+        workspace_gb: 30
+      })
+
+    gib = 1024 * 1024 * 1024
+
+    mac = fn name, opts ->
+      %{
+        name: name,
+        platform: "darwin",
+        archives: Keyword.get(opts, :archives, true),
+        generation: "uid-" <> name,
+        control_uid: "control-" <> name,
+        capacity: %{memory_bytes: 24 * gib, cpus: 8},
+        templates: [%{name: "macos", ready: true, tag: Keyword.get(opts, :tag, "img@sha256:b")}],
+        admission: %{
+          "allow" => Keyword.get(opts, :allow, true),
+          "memory_bytes" => 24 * gib,
+          "cpu_milli" => 8000,
+          "slots" => 2,
+          "node_uid" => "uid-" <> name,
+          "control_uid" => "control-" <> name,
+          "observed_at" => DateTime.to_iso8601(DateTime.utc_now())
+        }
+      }
+    end
+
+    connect = fn nodes ->
+      stub(Nodes, :connected_nodes, fn -> nodes end)
+      stub(Nodes, :lookup, fn name -> {:ok, self(), Enum.find(nodes, &(&1.name == name))} end)
+    end
+
+    stub(Storage, :generate_download_url, fn "snapshot-key", _actor, _opts -> "https://s3/snapshot" end)
+
+    # CI holds the snapshot's host; mac-b runs a newer image but restores
+    # archives, and mac-c does not.
+    connect.([mac.("mac-a", tag: "img@sha256:a", allow: false), mac.("mac-b", []), mac.("mac-c", archives: false)])
+
+    expect(Nodes, :call, fn "mac-b", "create", args, opts ->
+      assert args.from_archive == %{url: "https://s3/snapshot", bytes: 2048, sha256: "cafe"}
+      assert args.template_tag == "img@sha256:a"
+      refute Map.has_key?(args, :from_disk_snapshot)
+      assert opts[:timeout] > to_timeout(minute: 30)
+      {:ok, %{"template_tag" => "img@sha256:a"}}
+    end)
+
+    expect(Nodes, :call, fn "mac-b", "hold_residency", _args, _opts -> {:ok, %{}} end)
+    expect(Nodes, :call, fn "mac-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+    assert {:ok, %{state: :running, node_name: "mac-b"}} = AmpOrbs.dispatch(account, "amp-new", params)
+    sandbox = Repo.get_by!(Sandbox, amp_orb_id: "amp-new")
+    assert [%{boot_source: "disk_snapshot_archive"}] = sandbox_events(sandbox, "started")
+    assert_enqueued(worker: CopyDiskSnapshotWorker, args: %{disk_snapshot_id: snapshot.id})
+
+    # A restore that fails for another reason leaves its record on that
+    # host, so the template boots on another.
+    connect.([mac.("mac-a", tag: "img@sha256:a", allow: false), mac.("mac-c", archives: false), mac.("mac-d", [])])
+    expect(Nodes, :call, fn "mac-d", "create", %{from_archive: _}, _opts -> {:error, "restore failed"} end)
+
+    expect(Nodes, :call, fn "mac-c", "create", args, _opts ->
+      refute Map.has_key?(args, :from_archive)
+      {:ok, %{}}
+    end)
+
+    expect(Nodes, :call, fn "mac-c", "hold_residency", _args, _opts -> {:ok, %{}} end)
+    expect(Nodes, :call, fn "mac-c", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+    assert {:ok, %{node_name: "mac-c"}} = AmpOrbs.dispatch(account, "amp-other", params)
+    assert [%{boot_source: "template"}] = sandbox_events(Repo.get_by!(Sandbox, amp_orb_id: "amp-other"), "started")
   end
 
   test "bootstrap failure drops the residency and never returns guest output", %{account: account} do
@@ -806,6 +1026,33 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       expect(Nodes, :call, fn "node-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
 
       assert {:ok, %{node_name: "node-b"}} =
+               AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+
+      sandbox = Repo.get_by!(Sandbox, amp_orb_id: "amp-new")
+      assert [%{boot_source: "template"}] = sandbox_events(sandbox, "started")
+    end
+
+    test "a create from the archive whose node disconnects boots the template on another node", %{account: account} do
+      archived_snapshot(account, node_name: nil)
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-b"} end)
+      expect(Storage, :generate_download_url, fn _key, _actor, _opts -> "https://s3/snapshot" end)
+      expect(Nodes, :call, fn "node-b", "create", %{from_archive: _}, _opts -> {:error, :node_disconnected} end)
+
+      expect(Capacity, :place, fn %Sandbox{node_name: nil} = sandbox, filter ->
+        refute Repo.reload!(sandbox).node_name
+        refute filter.(%{name: "node-b"})
+        assert filter.(%{name: "node-c"})
+        {:ok, "node-c"}
+      end)
+
+      expect(Nodes, :call, fn "node-c", "create", args, _opts ->
+        refute Map.has_key?(args, :from_archive)
+        {:ok, %{}}
+      end)
+
+      expect(Nodes, :call, fn "node-c", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{node_name: "node-c"}} =
                AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
 
       sandbox = Repo.get_by!(Sandbox, amp_orb_id: "amp-new")

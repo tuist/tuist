@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$DEPLOY_ENV" in staging|canary) ;; *) exit 1 ;; esac
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -46,7 +46,7 @@ jobs:
         with:
           install_args: "--locked helm kubectl jq yq node"
           cache: "false"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: openobserve-chart
           path: ${{ runner.temp }}/openobserve-deploy
@@ -60,7 +60,7 @@ jobs:
           helm template openobserve "$dir/tuist-openobserve-0.1.0.tgz" -n "$NAMESPACE" \
             -f "$dir/tuist-openobserve/values-$DEPLOY_ENV.yaml" > "$dir/rendered.yaml"
           yq ea -o=json -I=0 '.' "$dir/rendered.yaml" | jq -s 'map(select(. != null))' > "$dir/resources.json"
-      - uses: 1password/install-cli-action@v4
+      - uses: 1password/install-cli-action@1a3160d5e9de1ae0803eaa08a88746f5ae3daa50 # v4.1.0
       - name: Load environment deployment identity in CI only
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

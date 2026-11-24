@@ -9,9 +9,9 @@
 
 Источник: [github.com/tuist/tuist/tree/main/handbook](https://github.com/tuist/tuist/tree/main/handbook)
 
-## Для чего оно нужно {#what-it-is-for}
+## Назначение {#what-it-is-for}
 
-В руководстве описано, как работает компания Tuist: ценности, политики и инженерные практики. Это сайт на VitePress.
+В руководстве описано, как устроена работа Tuist как компании: ценности, политики и инженерные практики. Это сайт на VitePress.
 
 ## Как внести вклад {#how-to-contribute}
 

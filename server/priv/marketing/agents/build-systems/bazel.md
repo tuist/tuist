@@ -1,10 +1,10 @@
 # Bazel remote cache and build insights with Tuist
 
-Tuist brings Bazel-native depth to one productivity platform for organizations with diverse build systems. Its remote action cache and build/test insights use protocols Bazel already supports, alongside the platform's supported Gradle, Xcode, Mix, and canary Once workflows. Keep your `BUILD` files, language rules, toolchains, and ordinary build commands; no migration to generated Xcode projects or Tuist Runners is required.
+Tuist brings Bazel-native depth to one productivity platform for organizations with diverse build systems. Its remote action cache and build/test insights use protocols Bazel already supports, alongside the platform's supported Gradle, Xcode, Mix, and canary Struo workflows. Keep your `BUILD` files, language rules, toolchains, and ordinary build commands; no migration to generated Xcode projects or Tuist Runners is required.
 
 ## One productivity platform, native depth
 
-Bazel teams should not have to choose between specialist depth, organizational breadth, and a good developer experience. We believe Tuist is the best choice for organizations seeking one productivity platform across these build systems: Bazel-native evidence and reuse, a workflow the whole team can use, and the same platform for Gradle, Xcode, Mix, and Once.
+Bazel teams should not have to choose between specialist depth, organizational breadth, and a good developer experience. We believe Tuist is the best choice for organizations seeking one productivity platform across these build systems: Bazel-native evidence and reuse, a workflow the whole team can use, and the same platform for Gradle, Xcode, Mix, and Struo.
 
 ## Depth, breadth, and developer experience. No compromise.
 

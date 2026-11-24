@@ -2,24 +2,24 @@
 {
   "title": "清单文件",
   "titleTemplate": ":title · 项目 · 功能 · 指南 · Tuist",
-  "description": "用于定义 Tuist 项目、工作区和生成配置的清单文件。"
+  "description": "定义 Tuist 项目、工作区和生成配置的清单文件。"
 }
 ---
-# 清单文件 {#manifests}
+# 清单 {#manifests}
 
 Tuist 默认使用 Swift 文件作为定义项目和工作区以及配置生成过程的主要方式。这些文件在整个文档中被称为**清单文件**。
 
-选择使用 Swift 的灵感来自[Swift Package Manager](https://www.swift.org/documentation/package-manager/)，它也使用 Swift 文件来定义包。得益于 Swift 的使用，我们可以利用编译器来验证内容的正确性，并在不同的清单文件之间复用代码；同时，Xcode 能够凭借语法高亮、自动补全和验证提供一流的编辑体验。
+选择使用 Swift 的灵感来自[Swift Package Manager](https://www.swift.org/documentation/package-manager/)，它也使用 Swift 文件来定义包。借助 Swift，我们可以利用编译器验证内容的正确性，并在不同的清单文件之间复用代码；同时，Xcode 凭借语法高亮、自动补全和验证功能，提供一流的编辑体验。
 
 > [!NOTE]
 > **缓存**
 >
-> 由于清单文件是需要编译的 Swift 文件，Tuist 会缓存编译结果以加快解析过程。因此，你会注意到首次运行 Tuist 时，生成项目可能需要更长时间。后续运行会更快。
+> 由于清单文件是需要编译的 Swift 文件，Tuist 会缓存编译结果以加速解析过程。因此，你会注意到首次运行 Tuist 时，生成项目可能需要更长时间。后续运行会更快。
 
 
 ## Project.swift {#projectswift}
 
-[`Project.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/project) 清单声明一个 Xcode 项目。项目会在清单文件所在目录中生成，名称由 `name` 属性指定。
+[`Project.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/project) 清单用于声明一个 Xcode 项目。项目会在清单文件所在的目录中生成，名称由 `name` 属性指定。
 
 ```swift
 // Project.swift
@@ -33,14 +33,14 @@ let project = Project(
 
 
 > [!WARNING]
-> **根级变量**
+> **根变量**
 >
-> 清单根级唯一应存在的变量是 `let project = Project(...)`。如果需要在清单的不同部分复用代码，可以使用 Swift 函数。
+> 清单根级别唯一应存在的变量是 `let project = Project(...)`。如果需要在清单的不同部分复用代码，可以使用 Swift 函数。
 
 
 ## Workspace.swift {#workspaceswift}
 
-默认情况下，Tuist 会生成一个包含正在生成的项目及其依赖项目的[Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces)。如果出于任何原因你想自定义工作区以添加其他项目或包含文件和组，可以通过定义 [`Workspace.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/workspace) 清单来实现。
+默认情况下，Tuist 会生成一个包含待生成项目及其依赖项目的[Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces)。如果你出于任何原因希望自定义工作区以添加其他项目或包含文件和组，可以通过定义[`Workspace.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/workspace)清单来实现。
 
 ```swift
 // Workspace.swift
@@ -55,18 +55,18 @@ let workspace = Workspace(
 ```
 
 > [!NOTE]
-> Tuist 将解析依赖关系图，并将依赖的项目包含在工作区中。你无需手动添加它们。这对于构建系统正确解析依赖是必要的。
+> Tuist 会解析依赖图并将依赖的项目包含到工作区中。你无需手动包含它们。这是构建系统正确解析依赖所必需的。
 
 
 ### 多项目或单项目 {#multi-or-monoproject}
 
-一个常见的问题是在工作区中使用单个项目还是多个项目。在没有 Tuist 的世界里，单项目设置会导致频繁的 Git 冲突，因此鼓励使用工作区。然而，由于我们不建议将 Tuist 生成的 Xcode 项目纳入 Git 仓库，Git 冲突不再是问题。因此，选择在工作区中使用单个项目还是多个项目取决于你。
+一个常见的问题是：在工作区中使用单个项目还是多个项目。在没有 Tuist 的环境中，单项目设置往往会导致频繁的 Git 冲突，因此推荐使用工作区。然而，由于我们不建议将 Tuist 生成的 Xcode 项目纳入 Git 仓库，Git 冲突不再是问题。因此，选择在工作区中使用单个项目还是多个项目取决于你。
 
-在 Tuist 项目中，我们倾向于使用单项目，因为冷生成时间更快（需要编译的清单文件更少），并且我们将<.localized_link href="/guides/features/projects/code-sharing">项目描述辅助工具</.localized_link>作为封装单元。不过，你可能希望使用 Xcode 项目作为封装单元来表示应用程序的不同领域，这与 Xcode 推荐的项目结构更为一致。
+在 Tuist 项目中，我们倾向于使用单项目，因为冷生成速度更快（需要编译的清单文件更少），并且我们将<.localized_link href="/guides/features/projects/code-sharing">项目描述辅助工具</.localized_link>作为封装单元。不过，你可能希望使用 Xcode 项目作为封装单元来表示应用的不同领域，这与 Xcode 推荐的项目结构更为一致。
 
 ## Tuist.swift {#tuistswift}
 
-Tuist 提供<.localized_link href="/contributors/principles#default-to-conventions">合理的默认值</.localized_link>以简化项目配置。不过，你可以通过在项目根目录定义 [`Tuist.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) 来自定义配置，Tuist 会使用它来确定项目的根目录。
+Tuist 提供<.localized_link href="/contributors/principles#default-to-conventions">合理的默认值</.localized_link>以简化项目配置。不过，你可以在项目根目录定义[`Tuist.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/tuist)来自定义配置，Tuist 会使用它来确定项目的根目录。
 
 ```swift
 import ProjectDescription

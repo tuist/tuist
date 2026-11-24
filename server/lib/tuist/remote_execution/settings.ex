@@ -5,9 +5,9 @@ defmodule Tuist.RemoteExecution.Settings do
   executor endpoint of the deployment. `max_concurrency` is how many VMs of
   the default shape the limits hold.
 
-  An action asks for a larger VM with the `tuist-memory-gb` execution
-  property, which the gateway passes on as `memory_gb`. Each size has two
-  vCPUs per 4 GB; the workers offer the same shapes
+  An action asks for another VM size with the `tuist-memory-gb` execution
+  property, which the gateway passes on as `memory_gb`. Each size has one
+  vCPU per 2 GB; the workers offer the same shapes
   (`infra/helm/remote-execution`). Every size gets a workspace disk of
   `vm_workspace_gb/0`, which the workers' template snapshots are built with
   (`TEMPLATE_WORKSPACE_GB` in the same chart).
@@ -15,9 +15,9 @@ defmodule Tuist.RemoteExecution.Settings do
   @vm_vcpus 2
   @vm_memory_mb 4096
   @vm_workspace_gb 30
-  @memory_sizes_gb [4, 8, 16]
+  @memory_sizes_gb [2, 4, 8, 16]
 
-  defstruct [:vcpus, :memory_gb, :max_concurrency, :image_tag, :cas_endpoint, :executor_endpoint]
+  defstruct [:vcpus, :memory_gb, :max_concurrency, :image_tag, :cas_endpoint, :client_cas_endpoint, :executor_endpoint]
 
   def vm_vcpus, do: @vm_vcpus
   def vm_memory_mb, do: @vm_memory_mb

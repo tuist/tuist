@@ -210,8 +210,8 @@ struct SwiftPackageHeadersExporterTests {
         #expect(result.references.count == 3)
     }
 
-    @Test(arguments: ["../../Other.h", "/usr/include/zlib.h", "/usr/include/zconf.h"])
-    func rejectsModuleMapReferencesOutsideTarget(header: String) throws {
+    @Test(arguments: ["../../Other.h", "../../../package/other/Other.h"])
+    func rejectsRelativeModuleMapReferencesOutsideTarget(header: String) throws {
         let layout = Headers.SourceLayout(
             root: "/package/target", publicHeaders: "/package/target/include",
             moduleMap: "/package/target/include/module.modulemap", moduleName: "CLib",
@@ -222,6 +222,120 @@ struct SwiftPackageHeadersExporterTests {
                 "module CLib { header \"\(header)\" export * }", layout: layout, framework: true
             )
         }
+    }
+
+    /// GzipSwift's `system-zlib` declares a Linux-only system module. Its absolute headers are not package files, so
+    /// the cached module map keeps them as the source build reads them, alongside relocated package headers.
+    @Test(arguments: [false, true])
+    func keepsAbsoluteSystemHeadersVerbatim(framework: Bool) throws {
+        let layout = Headers.SourceLayout(
+            root: "/package/target", publicHeaders: "/package/target/include",
+            moduleMap: "/package/target/include/module.modulemap", moduleName: "zlibLinux",
+            usesDirectoryModuleMap: false
+        )
+        let source = """
+        module zlibLinux [system] {
+            header "/usr/include/zlib.h"
+            header "/usr/include/zconf.h"
+            header "Shim.h"
+            link "z"
+            export *
+        }
+        """
+        let result = try SwiftPackageModuleMapRelocator.relocate(source, layout: layout, framework: framework)
+        #expect(result.contents.contains("header \"/usr/include/zlib.h\""))
+        #expect(result.contents.contains("header \"/usr/include/zconf.h\""))
+        let shim = framework ? "../PrivateHeaders/TuistHeaders/include/Shim.h" : "TuistHeaders/include/Shim.h"
+        #expect(result.contents.contains("header \"\(shim)\""))
+        #expect(result.references == ["/package/target/include/Shim.h"])
+    }
+}
+
+struct SwiftPackageNestedHeadersExportTests {
+    /// The Adjust SDK keeps its public headers in `include/AdjustSdk/` and its umbrella header imports them as
+    /// `<AdjustSdk/Adjust.h>`. A consumer that finds the cached framework without Tuist's search paths, such as one
+    /// reaching it only through a framework search path, must still resolve those imports, without warnings for the
+    /// consumers that have them. A namespace header that includes a file outside its directory keeps the export as
+    /// it was, since that include only resolves from the tree. Quoted includes, such as SDWebImage's
+    /// `#import "SDWebImageCompat.h"`, are framework-header warnings wherever the export puts them, so Tuist's
+    /// consumers turn that warning off.
+    enum NamespaceInclude: CaseIterable, Sendable { case angled, parentDirectory, quotedSibling }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true], NamespaceInclude.allCases)
+    func nestedNamespaceResolvesThroughFramework(versioned: Bool, include: NamespaceInclude) async throws {
+        let temporary = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let root = temporary.appending(component: "source")
+        let namespace = root.appending(components: "include", "CLib")
+        try await fileSystem.makeDirectory(at: namespace.appending(component: "sub"))
+        try await fileSystem.writeText("#pragma once\nint impl_value(void);\n", at: root.appending(component: "Impl.h"))
+        try await fileSystem.createSymbolicLink(
+            from: namespace.appending(component: "Impl.h"), to: try RelativePath(validating: "../../Impl.h")
+        )
+        try await fileSystem.writeText(
+            "#pragma once\n\(include == .parentDirectory ? "#include \"../../../Impl.h\"\n" : "")int deep_value(void);\n",
+            at: namespace.appending(components: "sub", "Deep.h")
+        )
+        let umbrella = namespace.appending(component: "CLib.h")
+        try await fileSystem.writeText(
+            "\(include == .quotedSibling ? "#import \"Impl.h\"" : "#import <CLib/Impl.h>")\n#import <CLib/sub/Deep.h>\n",
+            at: umbrella
+        )
+        let moduleMap = temporary.appending(component: "CLib.modulemap")
+        try await fileSystem.writeText(
+            "framework module CLib {\n  umbrella header \"\(umbrella.pathString)\"\n  export *\n  module * { export * }\n}",
+            at: moduleMap
+        )
+        let headers = Headers(
+            public: [namespace.appending(component: "Impl.h"), namespace.appending(components: "sub", "Deep.h"), umbrella],
+            private: [], project: [root.appending(component: "Impl.h")],
+            sourceLayout: .init(
+                root: root, publicHeaders: root.appending(component: "include"), moduleMap: moduleMap,
+                moduleName: "CLib", usesDirectoryModuleMap: false
+            )
+        )
+        let frameworks = temporary.appending(component: "Frameworks")
+        let artifact = frameworks.appending(component: "CLib.framework")
+        try await fileSystem.makeDirectory(at: artifact)
+        if versioned {
+            try await fileSystem.makeDirectory(at: artifact.appending(components: "Versions", "A"))
+            try await fileSystem.createSymbolicLink(
+                from: artifact.appending(components: "Versions", "Current"), to: try RelativePath(validating: "A")
+            )
+        }
+        let target = Target.test(name: "CLib", product: .staticFramework, headers: headers)
+        _ = try await SwiftPackageHeadersExporter().export(target: target, artifact: artifact)
+        _ = try await SwiftPackageHeadersExporter().export(target: target, artifact: artifact)
+        try await fileSystem.remove(root)
+
+        let consumer = temporary.appending(component: "consumer.m")
+        try await fileSystem.writeText(
+            "@import CLib;\n#import <CLib/Impl.h>\n#import <CLib/sub/Deep.h>\nint use(void) { return impl_value() + deep_value(); }\n",
+            at: consumer
+        )
+        let publicDirectory = artifact.appending(components: "PrivateHeaders", "TuistHeaders", "include")
+        // The flags SwiftPackageCachedHeadersMapper gives consumers.
+        let tuistFlags = [
+            "-fmodule-map-file=\(artifact.appending(components: "Modules", "module.modulemap").pathString)",
+            "-Wno-quoted-include-in-framework-header",
+        ]
+        // Xcode passes header search paths before framework search paths.
+        #expect(try compiles(consumer, ["-I\(publicDirectory.pathString)", "-F\(frameworks.pathString)"] + tuistFlags))
+        #expect(try compiles(consumer, ["-F\(frameworks.pathString)", "-I\(publicDirectory.pathString)"] + tuistFlags))
+        #expect(try compiles(consumer, ["-F\(frameworks.pathString)"]) == (include == .angled))
+    }
+
+    private func compiles(_ source: AbsolutePath, _ arguments: [String]) throws -> Bool {
+        let cache = source.parentDirectory.appending(component: "module-cache-\(UUID().uuidString)")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = [
+            "clang", "-fmodules", "-fsyntax-only", "-Werror", "-Wquoted-include-in-framework-header", "-x", "objective-c",
+            "-fmodules-cache-path=\(cache.pathString)",
+        ] + arguments + [source.pathString]
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus == 0
     }
 }
 
@@ -334,6 +448,68 @@ struct SwiftPackageCachedHeadersMapperTests {
         #expect(effects.isEmpty)
     }
 
+    /// Xcode sets `PROJECT_DIR` to a project's path with symlinked parent directories resolved, so when `Tuist/.build`
+    /// links to a folder at a different depth, a path relative to the logical project directory that leaves the linked
+    /// tree (to `~/.cache/tuist/Binaries`) misses the artifact.
+    @Test(.inTemporaryDirectory) func unprocessedPathsResolveFromSymlinkedProjectDirectory() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let artifact = root.appending(components: "home", ".cache", "tuist", "Binaries", "S.xcframework")
+        let framework = artifact.appending(components: "ios-arm64", "S.framework")
+        let metadataDirectory = framework.appending(component: "PrivateHeaders")
+        try await fileSystem.makeDirectory(at: metadataDirectory)
+        try await fileSystem.makeDirectory(at: framework.appending(components: "TuistHeaders", "include"))
+        try await fileSystem.makeDirectory(at: framework.appending(component: "Modules"))
+        try await fileSystem.writeText("module S {}", at: framework.appending(components: "Modules", "module.modulemap"))
+        try await fileSystem.writeAsJSON(
+            SwiftPackageHeadersExporter.Metadata(publicDirectory: "TuistHeaders/include", moduleMap: "Modules/module.modulemap"),
+            at: metadataDirectory.appending(component: SwiftPackageHeadersExporter.metadataFileName)
+        )
+        let volume = root.appending(components: "Volumes", "build")
+        let resolvedProjectDirectory = volume.appending(components: "Projects", "Lib")
+        try await fileSystem.makeDirectory(at: resolvedProjectDirectory)
+        let checkout = root.appending(components: "home", "work", "app", "app", "Tuist")
+        try await fileSystem.makeDirectory(at: checkout)
+        try FileManager.default.createSymbolicLink(
+            atPath: checkout.appending(component: ".build").pathString, withDestinationPath: volume.pathString
+        )
+        let projectDirectory = checkout.appending(components: ".build", "Projects", "Lib")
+        let dependency = GraphDependency.testXCFramework(path: artifact, infoPlist: .test(libraries: [
+            .test(identifier: "ios-arm64", path: try RelativePath(validating: "S.framework"), platform: .iOS),
+        ]), linking: .static)
+        let consumer = GraphDependency.target(name: "Consumer", path: projectDirectory)
+        let wrapper = GraphDependency.testXCFramework(path: root.appending(component: "Wrapper.xcframework"))
+        let graph = Graph.test(
+            path: root,
+            projects: [projectDirectory: .test(
+                path: projectDirectory,
+                xcodeProjPath: projectDirectory.appending(component: "Lib.xcodeproj"),
+                targets: [.test(name: "Consumer", destinations: [.iPhone], product: .staticFramework)]
+            )],
+            dependencies: [consumer: [wrapper], wrapper: [dependency]]
+        )
+
+        let (mapped, _, _) = try await SwiftPackageCachedHeadersMapper().map(graph: graph, environment: MapperEnvironment())
+
+        let settings = try #require(mapped.projects[projectDirectory]?.targets["Consumer"]?.settings?.base)
+        guard case let .array(includes) = settings["HEADER_SEARCH_PATHS[sdk=iphoneos*]"],
+              case let .array(flags) = settings["OTHER_CFLAGS[sdk=iphoneos*]"]
+        else {
+            Issue.record("Missing cached header settings")
+            return
+        }
+        let paths = includes.filter { $0 != "$(inherited)" } + flags.filter { $0.hasPrefix("-fmodule-map-file=") }
+            .map { String($0.dropFirst("-fmodule-map-file=".count)) }
+        #expect(paths.count == 2)
+        for path in paths {
+            // Resolve like clang does, through the filesystem rather than by normalizing `..` lexically.
+            let expanded = path
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: resolvedProjectDirectory.pathString)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            #expect(FileManager.default.fileExists(atPath: expanded), "\(path) does not resolve from \(resolvedProjectDirectory)")
+        }
+    }
+
     /// A multiplatform source package target that a macro depends on is built only for the host, so its
     /// `ProcessXCFramework` output never reaches an iOS client of the macro (swift-syntax's `_SwiftSyntaxCShims`).
     @Test(.inTemporaryDirectory) func headersDoNotCrossMacros() async throws {
@@ -368,8 +544,16 @@ struct SwiftPackageCachedHeadersMapperTests {
         ])
         let (mapped, _, _) = try await SwiftPackageCachedHeadersMapper().map(graph: graph, environment: MapperEnvironment())
         #expect(mapped.projects[root]?.targets["Client"] == project.targets["Client"])
-        #expect(mapped.projects[root]?.targets["Macros"]?.settings?.base["OTHER_CFLAGS[sdk=macosx*]"] == .array([
-            "$(inherited)", "-fmodule-map-file=\"$(BUILT_PRODUCTS_DIR)/CShims.framework/Modules/module.modulemap\"",
+        // Clang reports a package header's `#import "Sibling.h"`, such as SDWebImage's, once the header lives in a
+        // framework. Built from source the package's headers are not in one, so cached frameworks keep that build's
+        // diagnostics instead of failing consumers that treat warnings as errors.
+        let macroSettings = try #require(mapped.projects[root]?.targets["Macros"]?.settings?.base)
+        let moduleMapFlag = "-fmodule-map-file=\"$(BUILT_PRODUCTS_DIR)/CShims.framework/Modules/module.modulemap\""
+        #expect(macroSettings["OTHER_CFLAGS[sdk=macosx*]"] == .array([
+            "$(inherited)", moduleMapFlag, "-Wno-quoted-include-in-framework-header",
+        ]))
+        #expect(macroSettings["OTHER_SWIFT_FLAGS[sdk=macosx*]"] == .array([
+            "$(inherited)", "-Xcc", moduleMapFlag, "-Xcc", "-Wno-quoted-include-in-framework-header",
         ]))
     }
 }

@@ -70,6 +70,8 @@ defmodule Tuist.Pulse.Schemas do
       search: string(),
       level: string(),
       level_op: operator(),
+      environment: %{string() | description: "Errors only: an event environment, such as production."},
+      environment_op: operator(),
       sort_by: %Schema{
         type: :string,
         enum:
@@ -130,6 +132,8 @@ defmodule Tuist.Pulse.Schemas do
       title: string(true),
       culprit: string(true),
       platform: string(true),
+      environment: string(true),
+      environments: %Schema{type: :integer, description: "Errors: distinct environments in the window."},
       events: %Schema{type: :integer},
       accounts: %Schema{type: :integer, description: "Distinct impacted account handles."},
       first_seen: string(),

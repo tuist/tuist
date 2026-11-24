@@ -1,4 +1,5 @@
 import { copyTextToClipboard } from "../../shared/js/clipboard.js";
+import { flashCopiedIcon } from "../../shared/js/copied-icon.js";
 
 const COPY_PAGE_FEEDBACK_DURATION_MS = 3000;
 const COPY_PAGE_FLASH_EVENT = "docs:copy-page-button:flash";
@@ -60,6 +61,7 @@ const DocsCopyPageButtonHook = {
 
     this.clearTimeout();
     this.label.textContent = this.el.dataset.copiedLabel || "Copied";
+    flashCopiedIcon(this.el, COPY_PAGE_FEEDBACK_DURATION_MS);
 
     this.timeoutId = window.setTimeout(() => {
       this.restoreDefaultLabel();

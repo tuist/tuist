@@ -14,7 +14,7 @@
   & > [data-part="page-button"] {
     cursor: pointer;
     outline: unset;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
     background: var(--noora-button-secondary-background);
     padding: var(--noora-spacing-3);
@@ -28,7 +28,7 @@
 
     &:active,
     &[data-selected] {
-      box-shadow: var(--noora-border-light-focus);
+      box-shadow: var(--noora-border-small-focus);
       color: var(--noora-surface-label-secondary);
     }
 

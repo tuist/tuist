@@ -16,7 +16,7 @@ const DriverShelly = "shelly"
 
 // Shelly drives a Shelly switch over its local HTTP API.
 //
-// Scope: home and office prototypes only. This is the BER1 prototype's PDU
+// Scope: home and office prototypes only. This is the alder prototype's PDU
 // stand-in, validating the power path on a desk before a rack exists. It is not
 // a rack driver: the rack's switched PDUs are Eaton's, driven by Eaton. It is
 // still implemented properly rather than stubbed, because a stand-in that only

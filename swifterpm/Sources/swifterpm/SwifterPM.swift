@@ -160,7 +160,13 @@ public struct SwifterPM: Sendable {
                         packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
                         sharedCacheDirectory: request.cacheDirectory
                     ) {
-                        let result = try await runResolution(request: request, preferResolvedFile: true)
+                        let result = try await RegistryDownloadLayout.withContext(
+                            packageDirectory: request.packageDirectory,
+                            registryConfigurationPath: request.registryConfigurationPath,
+                            defaultRegistryURL: request.defaultRegistryURL
+                        ) {
+                            try await runResolution(request: request, preferResolvedFile: true)
+                        }
                         try await CachePruner.pruneAfterInstallation(
                             cacheDirectory: request.cacheDirectory, maxBytes: request.cacheMaxBytes
                         )
@@ -185,7 +191,13 @@ public struct SwifterPM: Sendable {
                         packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
                         sharedCacheDirectory: request.cacheDirectory
                     ) {
-                        let result = try await runResolution(request: request, preferResolvedFile: false)
+                        let result = try await RegistryDownloadLayout.withContext(
+                            packageDirectory: request.packageDirectory,
+                            registryConfigurationPath: request.registryConfigurationPath,
+                            defaultRegistryURL: request.defaultRegistryURL
+                        ) {
+                            try await runResolution(request: request, preferResolvedFile: false)
+                        }
                         try await CachePruner.pruneAfterInstallation(
                             cacheDirectory: request.cacheDirectory, maxBytes: request.cacheMaxBytes
                         )
@@ -205,7 +217,13 @@ public struct SwifterPM: Sendable {
                     packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
                     sharedCacheDirectory: request.cacheDirectory
                 ) {
-                    try await runRestore(request)
+                    try await RegistryDownloadLayout.withContext(
+                        packageDirectory: request.packageDirectory,
+                        registryConfigurationPath: request.registryConfigurationPath,
+                        defaultRegistryURL: request.defaultRegistryURL
+                    ) {
+                        try await runRestore(request)
+                    }
                     try await CachePruner.pruneAfterInstallation(
                         cacheDirectory: request.cacheDirectory, maxBytes: request.cacheMaxBytes
                     )

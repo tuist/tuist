@@ -1,4 +1,4 @@
 > [!IMPORTANT]
-> **只限邀請**
+> **僅限邀請**
 >
-> Tuist Runners 目前只限邀請使用。[聯絡我們](mailto:contact@tuist.dev)或於[社群 Slack](https://slack.tuist.dev)留言，為你的帳戶申請存取權。
+> Tuist Runners 目前僅限邀請。[聯絡我們](mailto:contact@tuist.dev)或於 [社區 Slack](https://slack.tuist.dev) 聯絡我哋，以申請你帳戶嘅存取權。

@@ -14,7 +14,6 @@ defmodule Atlas.FeatureUsage.Collector do
   """
 
   alias Atlas.FeatureUsage.Catalog
-  alias Atlas.Grafana.Loki
   alias Atlas.TuistServer
 
   require Logger
@@ -81,21 +80,18 @@ defmodule Atlas.FeatureUsage.Collector do
   def measure(resolution, opts \\ []) when is_map(resolution) do
     ch_query = Keyword.get(opts, :ch_query, &TuistServer.clickhouse_query/2)
     pg_query = Keyword.get(opts, :pg_query, &TuistServer.query/2)
-    loki_query = Keyword.get(opts, :loki_query, &Loki.mcp_usage/1)
 
     # Every (feature, source) pair, grouped so sources that hit the same table
     # with the same attribution and time expression are answered by a single
     # scan with conditional aggregation. This matters most for `command_events`,
     # which backs several features/probes — one scan instead of one per source.
     members = for feature <- Catalog.tracked(), source <- feature.sources, do: {feature.slug, source}
-    {postgres_members, remaining_members} = Enum.split_with(members, &postgres?/1)
-    {loki_members, clickhouse_members} = Enum.split_with(remaining_members, &loki?/1)
+    {postgres_members, clickhouse_members} = Enum.split_with(members, &postgres?/1)
     groups = Enum.group_by(clickhouse_members, fn {_slug, source} -> group_key(source) end)
 
     queries =
       Enum.map(groups, fn {_key, group_members} -> fn -> run_group_query(group_members, resolution, ch_query) end end) ++
-        Enum.map(postgres_members, fn member -> fn -> run_postgres_query(member, resolution, pg_query) end end) ++
-        Enum.map(loki_members, fn member -> fn -> run_loki_query(member, resolution, loki_query) end end)
+        Enum.map(postgres_members, fn member -> fn -> run_postgres_query(member, resolution, pg_query) end end)
 
     queries
     |> Enum.reduce_while({:ok, initial_metrics()}, fn run, {:ok, acc} ->
@@ -111,7 +107,6 @@ defmodule Atlas.FeatureUsage.Collector do
   end
 
   defp postgres?({_slug, source}), do: Map.get(source, :store, :clickhouse) == :postgres
-  defp loki?({_slug, source}), do: Map.get(source, :store, :clickhouse) == :loki
 
   defp group_key(source) do
     {source.table, source.attribution, Map.get(source, :account_column), source.time_expr,
@@ -201,19 +196,6 @@ defmodule Atlas.FeatureUsage.Collector do
         end
     end
   end
-
-  defp run_loki_query({slug, _source}, %{account_handle: account_handle}, loki_query) when is_binary(account_handle) do
-    case loki_query.(account_handle) do
-      {:ok, metrics} ->
-        {:ok, [{slug, metrics}]}
-
-      {:error, reason} ->
-        Logger.warning("Feature usage query failed for Grafana Loki: #{inspect(reason)}")
-        {:error, reason}
-    end
-  end
-
-  defp run_loki_query({slug, _source}, _resolution, _loki_query), do: {:ok, [{slug, empty_metrics(slug)}]}
 
   # The Postgres proxy takes no bound parameters, so ids are inlined; they come
   # from `resolve/2` as integers and are re-checked here so nothing else can

@@ -23,7 +23,7 @@ Selecciona un dispositivo o simulador conectado:
 tuist run --device "My device" {url}
 ```
 
-Los dispositivos y emuladores Android deben estar conectados mediante ADB. También puedes descargar el APK desde la página de la vista previa e instalarlo en un dispositivo Android que permita instalaciones desde esa fuente. Las compilaciones de Apple deben coincidir con la plataforma de destino y cumplir sus requisitos de firma. Para un IPA, abre el enlace de la vista previa en el dispositivo de destino para instalarlo.
+Los dispositivos y emuladores Android deben estar conectados mediante ADB. También puedes descargar el APK desde la página de la vista previa e instalarlo en un dispositivo Android que permita la instalación desde esa fuente. Las compilaciones para Apple deben coincidir con la plataforma de destino y cumplir sus requisitos de firma. Para un IPA, abre el enlace de la vista previa en el dispositivo de destino para instalarlo.
 
 ## Vistas previas desde la línea de comandos {#command-line-previews}
 
@@ -34,15 +34,15 @@ tuist run {url} -- --help
 tuist run {url} -- build --configuration Release
 ```
 
-Todo lo que vaya después de `--` se reenvía literalmente, incluidos `--verbose`, `--quiet` y `--path`. Los argumentos secundarios se excluyen de las analíticas de comandos de Tuist.
+Todo lo que vaya después de `--` se reenvía tal cual, incluidos `--verbose`, `--quiet` y `--path`. Los argumentos secundarios quedan excluidos de las analíticas de comandos de Tuist.
 
-La vista previa se ejecuta con tu directorio de trabajo, entorno y entrada/salida del terminal, y devuelve el estado de salida del ejecutable. No sustituye una CLI instalada ni la añade a `PATH`. Las distribuciones de la CLI permanecen en la caché local `previews` de Tuist tras la ejecución para que los proyectos generados puedan seguir haciendo referencia a ellas; eliminar esa caché también elimina los destinos de esas referencias.
+La vista previa se ejecuta con tu directorio de trabajo, entorno y entrada/salida del terminal, y devuelve el código de salida del ejecutable. No sustituye una CLI instalada ni la añade a `PATH`. Las distribuciones de la CLI permanecen en la caché local `previews` de Tuist tras la ejecución para que los proyectos generados puedan seguir haciendo referencia a ellas; eliminar esa caché también elimina los destinos de esas referencias.
 
-Las vistas previas de escritorio y de CLI se ejecutan como el usuario actual, no en un entorno aislado. Ejecuta únicamente compilaciones de autores y solicitudes de extracción en los que confíes.
+Las vistas previas de escritorio y de CLI se ejecutan como el usuario actual, no en un entorno aislado. Ejecuta únicamente compilaciones procedentes de autores y solicitudes de extracción en los que confíes.
 
 ## Selecciona una versión {#select-a-version}
 
-`tuist run` también acepta un nombre de aplicación con `latest`, un nombre de rama o un hash de confirmación:
+`tuist run` también acepta un nombre de aplicación con `latest`, un nombre de rama o un hash de commit:
 
 ```bash
 tuist run App@latest # Latest App preview associated with the project's default branch
@@ -50,6 +50,6 @@ tuist run App@my-feature-branch # Latest App preview associated with a branch
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Preview associated with a commit
 ```
 
-Estos selectores requieren que los metadatos de Git correspondientes se hayan publicado. Para flujos de trabajo que omitan los metadatos de Git, utiliza la URL específica de la vista previa.
+Estos selectores requieren que los metadatos de Git correspondientes se hayan publicado. Para flujos de trabajo que omiten los metadatos de Git, utiliza la URL específica de la vista previa.
 
-Para el acceso y la organización, consulta <.localized_link href="/guides/features/previews#visibility">visibilidad y seguimientos</.localized_link>.
+Para gestionar el acceso y la organización, consulta <.localized_link href="/guides/features/previews#visibility">visibilidad y pistas</.localized_link>.

@@ -159,7 +159,7 @@ defmodule TuistWeb.SandboxesLive do
         title: dgettext("dashboard_sandboxes", "vCPUs"),
         subtitle:
           dgettext("dashboard_sandboxes", "%{count} of %{limit} in use now",
-            count: usage.vcpus,
+            count: Sandbox.vcpus(round(usage.vcpus * 1000)),
             limit: account.sandbox_vcpus_limit
           ),
         values: concurrency.vcpus,

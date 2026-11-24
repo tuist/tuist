@@ -14,7 +14,7 @@ import (
 	"os"
 
 	"github.com/klauspost/compress/zstd"
-	"golang.org/x/sys/unix"
+	"github.com/tuist/tuist/infra/runner-cache/sparse"
 )
 
 // An archive is a zstd stream holding the image's logical size followed by its
@@ -26,7 +26,6 @@ import (
 const sparseArchiveMagic = "TCVSPRS1"
 
 const (
-	zeroChunk        = 128 * 1024
 	archiveBuffer    = 4 << 20
 	archiveMaxWindow = 64 << 20
 )
@@ -45,38 +44,13 @@ func CompressImage(src, dst string) (string, string, error) {
 		return "", "", err
 	}
 	defer in.Close()
-	info, err := in.Stat()
-	if err != nil {
-		return "", "", err
-	}
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return "", "", err
 	}
 	defer out.Close()
 	inventory, content := sha1.New(), sha256.New()
-	zw, err := zstd.NewWriter(io.MultiWriter(newWritebackWriter(out), inventory, content), zstd.WithEncoderLevel(zstd.SpeedDefault))
-	if err != nil {
-		return "", "", err
-	}
-	defer zw.Close()
-	header := make([]byte, 16)
-	copy(header, sparseArchiveMagic)
-	binary.BigEndian.PutUint64(header[8:], uint64(info.Size()))
-	if _, err = zw.Write(header); err != nil {
-		return "", "", err
-	}
-	buf := make([]byte, archiveBuffer)
-	err = dataExtents(in, info.Size(), func(offset, length int64) error {
-		return writeExtents(zw, in, offset, length, buf)
-	})
-	if err != nil {
-		return "", "", err
-	}
-	if _, err = zw.Write(make([]byte, 16)); err != nil {
-		return "", "", err
-	}
-	if err = zw.Close(); err != nil {
+	if err := WriteImage(io.MultiWriter(newWritebackWriter(out), inventory, content), in); err != nil {
 		return "", "", err
 	}
 	if err = out.Sync(); err != nil {
@@ -85,38 +59,66 @@ func CompressImage(src, dst string) (string, string, error) {
 	return hex.EncodeToString(inventory.Sum(nil)), hex.EncodeToString(content.Sum(nil)), nil
 }
 
-// dataExtents visits the regions the filesystem reports as holding data. A
-// filesystem without hole reporting is visited as one extent.
-func dataExtents(f *os.File, size int64, visit func(int64, int64) error) error {
-	fd := int(f.Fd())
-	for offset := int64(0); offset < size; {
-		start, err := unix.Seek(fd, offset, unix.SEEK_DATA)
-		if errors.Is(err, unix.ENXIO) {
-			return nil
-		}
-		if err != nil {
-			if offset == 0 && (errors.Is(err, unix.EINVAL) || errors.Is(err, unix.ENOTSUP) || errors.Is(err, unix.EOPNOTSUPP)) {
-				return visit(0, size)
-			}
-			return err
-		}
-		if start >= size {
-			return nil
-		}
-		end, err := unix.Seek(fd, start, unix.SEEK_HOLE)
-		if err != nil {
-			return err
-		}
-		end = min(end, size)
-		if end <= start {
-			return errors.New("cache image extent map changed during compression")
-		}
-		if err = visit(start, end-start); err != nil {
-			return err
-		}
-		offset = end
+// WriteImage streams an image as a sparse archive, the format CompressImage
+// stores and RestoreImage and ReceiveImage read.
+func WriteImage(w io.Writer, in *os.File) error {
+	info, err := in.Stat()
+	if err != nil {
+		return err
 	}
-	return nil
+	zw, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.SpeedDefault))
+	if err != nil {
+		return err
+	}
+	defer zw.Close()
+	header := make([]byte, 16)
+	copy(header, sparseArchiveMagic)
+	binary.BigEndian.PutUint64(header[8:], uint64(info.Size()))
+	if _, err = zw.Write(header); err != nil {
+		return err
+	}
+	buf := make([]byte, archiveBuffer)
+	err = sparse.Extents(in, info.Size(), func(offset, length int64) error {
+		return writeExtents(zw, in, offset, length, buf)
+	})
+	if err != nil {
+		return err
+	}
+	if _, err = zw.Write(make([]byte, 16)); err != nil {
+		return err
+	}
+	return zw.Close()
+}
+
+// ReceiveImage writes a sparse archive streamed by WriteImage to dst, which
+// must not exist, and keeps it sparse. There is no published digest to check:
+// the terminator, the zstd frame checksums and the absence of trailing bytes
+// show the stream is complete. A failure removes dst.
+func ReceiveImage(ctx context.Context, src io.Reader, dst string, maxBytes int64) (err error) {
+	bounded := &io.LimitedReader{R: src, N: maxBytes + maxBytes/100 + (1 << 20) + 1}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := out.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			os.Remove(dst)
+		}
+	}()
+	total, err := restoreSparse(ctx, bounded, out, maxBytes)
+	if err != nil {
+		return err
+	}
+	if n, err := io.Copy(io.Discard, bounded); err != nil || n > 0 || bounded.N <= 0 {
+		return errors.Join(errArchive, err)
+	}
+	if err = out.Truncate(total); err != nil {
+		return err
+	}
+	return out.Sync()
 }
 
 // writeExtents records the non-zero runs of one data extent. Allocated zero
@@ -128,35 +130,23 @@ func writeExtents(w io.Writer, in *os.File, offset, length int64, buf []byte) er
 		if _, err := in.ReadAt(buf[:n], offset); err != nil {
 			return err
 		}
-		for start := 0; start < n; {
-			if isZero(buf[start:min(start+zeroChunk, n)]) {
-				start += zeroChunk
-				continue
-			}
-			end := start + zeroChunk
-			for end < n && !isZero(buf[end:min(end+zeroChunk, n)]) {
-				end += zeroChunk
-			}
-			end = min(end, n)
+		err := sparse.NonZeroRuns(buf[:n], func(start, end int) error {
 			binary.BigEndian.PutUint64(record, uint64(offset)+uint64(start))
 			binary.BigEndian.PutUint64(record[8:], uint64(end-start))
 			if _, err := w.Write(record); err != nil {
 				return err
 			}
-			if _, err := w.Write(buf[start:end]); err != nil {
-				return err
-			}
-			start = end
+			_, err := w.Write(buf[start:end])
+			return err
+		})
+		if err != nil {
+			return err
 		}
 		offset += int64(n)
 		length -= int64(n)
 	}
 	return nil
 }
-
-var zeros = make([]byte, zeroChunk)
-
-func isZero(b []byte) bool { return bytes.Equal(b, zeros[:len(b)]) }
 
 // RestoreImage validates the transferred bytes before the caller installs the
 // image as a master. Both compressed and expanded input are bounded.
@@ -281,7 +271,7 @@ func restoreGzip(ctx context.Context, src io.Reader, out *os.File, maxBytes int6
 		return 0, err
 	}
 	defer gz.Close()
-	buf := make([]byte, zeroChunk)
+	buf := make([]byte, sparse.ZeroChunk)
 	var total int64
 	for {
 		if err := ctx.Err(); err != nil {
@@ -293,7 +283,7 @@ func restoreGzip(ctx context.Context, src io.Reader, out *os.File, maxBytes int6
 			return 0, errors.New("cache image exceeds capacity")
 		}
 		if n > 0 {
-			if isZero(buf[:n]) {
+			if sparse.IsZero(buf[:n]) {
 				_, err = out.Seek(int64(n), io.SeekCurrent)
 			} else {
 				_, err = writer.Write(buf[:n])

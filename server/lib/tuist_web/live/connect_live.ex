@@ -374,14 +374,15 @@ defmodule TuistWeb.ConnectLive do
         </div>
         <div :for={tab <- @tab} data-part="content" data-tab data-value={tab.id}>
           <span>{tab.command}</span>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             id={tab.id <> "-button"}
             size="small"
             phx-hook="Clipboard"
             data-clipboard-value={tab.command}
           >
             <.copy />
-          </.neutral_button>
+          </.ghost_button>
         </div>
       </div>
     </div>
@@ -389,14 +390,15 @@ defmodule TuistWeb.ConnectLive do
       <div data-part="root">
         <div data-part="content">
           <span>{@command}</span>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             id={@id <> "-button"}
             size="small"
             phx-hook="Clipboard"
             data-clipboard-value={@command}
           >
             <.copy />
-          </.neutral_button>
+          </.ghost_button>
         </div>
       </div>
     </div>

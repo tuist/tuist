@@ -2,8 +2,8 @@ name: tuist/tuist Coverage Backfill
 
 # Collects Xcode code coverage for an earlier commit on main that has none:
 # full runs of TuistUnitTests and TuistApp at that commit, then
-# `tuist coverage complete`. Every merge is measured by tuist-project-tests.yml as it
-# lands; this is only for commits that missed it. Dispatch one at a time: each
+# `tuist coverage complete`. tuist-project-tests.yml measures main's pushes as they
+# land; this is only for commits that missed it. Dispatch one at a time: each
 # holds two macOS runners for up to two hours.
 #
 # The runs read the binary cache's coverage variant (Tuist.swift's `coverage`
@@ -67,7 +67,7 @@ jobs:
   cli-unit-tests:
     name: CLI Unit Tests
     needs: commit
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 120
     if: github.repository == 'tuist/tuist'
     permissions:
@@ -141,7 +141,7 @@ jobs:
   app-tests:
     name: App Tests
     needs: commit
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     if: github.repository == 'tuist/tuist'
     permissions:
@@ -197,7 +197,7 @@ jobs:
   complete:
     name: Complete Coverage
     needs: [commit, cli-unit-tests, app-tests]
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 15
     if: github.repository == 'tuist/tuist'
     permissions:

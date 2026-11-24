@@ -79,6 +79,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       id: Keyword.get(opts, :id),
       account_id: account.id,
       agent_environment_id: Keyword.get(opts, :agent_environment_id),
+      provider_environment_id: Keyword.get(opts, :provider_environment_id),
       anthropic_session_id: Keyword.get(opts, :anthropic_session_id),
       purpose: Keyword.get(opts, :purpose, :agent),
       platform: Keyword.get(opts, :platform, :linux),
@@ -86,6 +87,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       amp_integration_id: Keyword.get(opts, :amp_integration_id),
       amp_base_snapshot_id: Keyword.get(opts, :amp_base_snapshot_id),
       amp_snapshot_lineage_id: Keyword.get(opts, :amp_snapshot_lineage_id),
+      repository: Keyword.get(opts, :repository),
       template: Keyword.get(opts, :template, "default"),
       template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
       vcpus: Keyword.get(opts, :vcpus, 2),
@@ -100,6 +102,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       residency_epoch: Keyword.get(opts, :residency_epoch, 0),
       last_active_at: opts |> Keyword.get(:last_active_at) |> truncate(),
       guest_cpu_ms: Keyword.get(opts, :guest_cpu_ms),
+      guaranteed_cpu_milli: Keyword.get(opts, :guaranteed_cpu_milli),
       paused_at: opts |> Keyword.get(:paused_at) |> truncate(),
       error_message: Keyword.get(opts, :error_message),
       archive_key: Keyword.get(opts, :archive_key),
@@ -110,6 +113,8 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       archive_memory: Keyword.get(opts, :archive_memory),
       archive_attempted_at: opts |> Keyword.get(:archive_attempted_at) |> truncate(),
       archived_at: opts |> Keyword.get(:archived_at) |> truncate(),
+      lifetime_seconds: Keyword.get(opts, :lifetime_seconds),
+      expires_at: opts |> Keyword.get(:expires_at) |> truncate(),
       inserted_at: opts |> Keyword.get(:inserted_at) |> truncate()
     })
   end
@@ -134,6 +139,8 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       template: Keyword.get(opts, :template, "default"),
       template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
       workspace_gb: Keyword.get(opts, :workspace_gb, 10),
+      platform: Keyword.get(opts, :platform, :linux),
+      disk_bytes: Keyword.get(opts, :disk_bytes),
       state: Keyword.get(opts, :state, :ready),
       last_used_at: opts |> Keyword.get(:last_used_at, DateTime.utc_now()) |> truncate(),
       archive_store: Keyword.get(opts, :archive_store),

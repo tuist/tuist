@@ -136,7 +136,7 @@ jobs:
 
   borrowed-build:
     if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
-    runs-on: ubuntu-24.04
+    runs-on: tuist-linux-large
     timeout-minutes: 60
     permissions:
       contents: read

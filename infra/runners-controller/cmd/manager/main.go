@@ -11,6 +11,7 @@ import (
 	"context"
 	"flag"
 	"os"
+	"strconv"
 	"time"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -59,6 +60,7 @@ func main() {
 		clusterDNSIP        string
 		clusterDomain       string
 		sandboxesNS         string
+		executionFloorSlots int
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -82,6 +84,9 @@ func main() {
 		"Cluster DNS suffix paired with --cluster-dns-ip (TUIST_CLUSTER_DOMAIN in macOS pool Pods; names the /etc/resolver file in the VM).")
 	flag.StringVar(&sandboxesNS, "sandboxes-namespace", envOr("TUIST_SANDBOXES_NAMESPACE", ""),
 		"Namespace of the sandbox daemons sharing the Linux fleet's nodes, whose memory the autoscaler keeps out of the fleet budget. Optional; empty when no sandboxes run.")
+
+	flag.IntVar(&executionFloorSlots, "remote-execution-floor-slots", envInt("TUIST_REMOTE_EXECUTION_FLOOR_SLOTS", 0),
+		"Fleet-wide floor of remote execution VM slots the compute allocator keeps on shared Linux hosts, ahead of runner warm stock. 0 leaves remote execution workers out of the allocator.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -161,6 +166,7 @@ func main() {
 			SignalsClient:         signalsClient,
 			SandboxesNamespace:    sandboxesNS,
 			ReservationsNamespace: reservationsNS,
+			ExecutionFloorSlots:   int32(executionFloorSlots),
 			APIReader:             mgr.GetAPIReader(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup Autoscaler reconciler")
@@ -265,4 +271,11 @@ func cacheOptions(watchedNS, sandboxesNS string) cache.Options {
 		}}}
 	}
 	return options
+}
+
+func envInt(key string, fallback int) int {
+	if v, err := strconv.Atoi(os.Getenv(key)); err == nil {
+		return v
+	}
+	return fallback
 }

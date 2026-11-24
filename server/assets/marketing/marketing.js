@@ -15,6 +15,9 @@ import NooraCollapsible from "noora/hooks/Collapsible.js";
 import NooraDropdown from "noora/hooks/Dropdown.js";
 import NooraIconTransition from "noora/hooks/IconTransition.js";
 import NooraModal from "noora/hooks/Modal.js";
+// Defines the <noora-spinner> and <noora-button-group-indicator> elements.
+import "noora/hooks/Spinner.js";
+import "noora/hooks/ButtonGroup.js";
 import NooraPopover from "noora/hooks/Popover.js";
 import NooraScrollArea from "noora/hooks/ScrollArea.js";
 import NooraSelect from "noora/hooks/Select.js";
@@ -33,6 +36,8 @@ const liveSocketFallbackMs = 10000;
 const NooraHooks = {
   NooraCollapsible,
   NooraDropdown: languageDropdown(NooraDropdown),
+  // Noora.Menu shares the dropdown hook, without the language picker wrapper.
+  NooraMenu: NooraDropdown,
   NooraIconTransition,
   NooraModal,
   NooraPopover,
@@ -68,6 +73,15 @@ const hooks = {
   // Dashboard components embedded in the Bazel announcement post: the chart
   // bundles ECharts and the build timeline imports the full Noora runtime.
   NooraChart: lazyHook(() => import("noora/hooks/Chart.js")),
+  // Rendered only by the Noora documentation at /noora.
+  NooraAvatar: lazyHook(() => import("noora/hooks/Avatar.js")),
+  NooraCheckbox: lazyHook(() => import("noora/hooks/Checkbox.js")),
+  NooraDatePicker: lazyHook(() => import("noora/hooks/DatePicker/index.js")),
+  NooraDigitInput: lazyHook(() => import("noora/hooks/DigitInput.js")),
+  NooraDitherWave: lazyHook(() => import("noora/hooks/DitherWave.js")),
+  PlaceCursorAtEnd: lazyHook(() =>
+    import("noora/hooks/hooks.js").then(({ PlaceCursorAtEnd }) => ({ default: PlaceCursorAtEnd })),
+  ),
   BuildTimeline: lazyHook(() => import("../app/js/BuildTimeline.js")),
   ...colocatedHooks,
 };

@@ -13,7 +13,10 @@ resource reservations survive errors until acknowledged VM deletion. An executor
 on a shared runner host connects as `<node>.remote-execution` with its own
 carve-out: execution placement uses memory its Pod holds without a grant and may
 grow past the grant's bytes, but never past a revoked or expired grant. Agent
-admission keeps requiring the grant.
+admission keeps requiring the grant. Both daemons on a host take the host's
+lock, and each grant loses what the other carve-out was asked to grow by since
+the controller counted it (`allocation_sibling_memory_bytes`), so they cannot
+both grow into the same free memory.
 See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-execution.md).
 
 ## Pieces
@@ -51,15 +54,27 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `admit/1` reserves the paused sandbox's own node by moving the row to
   `resuming`. When nothing fits, idle running sandboxes (no residency)
   are paused, longest idle first. Disk is reserved at each sandbox's
-  ceiling (the template's `rootfs_bytes`, `workspace_gb` and the memory
+  ceiling (the template's `rootfs_bytes`, the largest of its tags on the
+  node, which is also what sandboxd grows an older sandbox's rootfs to;
+  `workspace_gb` and the memory
   image, all fixed-size files, plus 64 MiB): a new sandbox only goes to a
   node whose disk budget holds its ceiling on top of the ceilings of the
-  rows placed there (creating, running, resuming, paused) and of errored
-  rows whose jail the node still reports, checked under the node's lock.
-  Rows decide rather than the report, which lags: a delete frees its
-  reservation at once. A paused sandbox's disk is already
-  reserved, so a resume only needs room for its next pause on the
-  filesystem. `admission/2` is the check the poller runs on a work
+  rows placed there (creating, running, resuming) and of errored rows
+  whose jail the node still reports, checked under the node's lock. A
+  paused row the node reports paused with `disk_bytes` (its jail's
+  exclusive bytes, measured after the pause) reserves that use instead,
+  and the node keeps the largest growth one of its paused rows could make
+  back to its ceiling, so one resume always fits; an unmeasured one
+  reserves its ceiling. A resume takes the ceiling back under the lock and
+  fails with `:no_capacity` (and moves off like a memory refusal) when the
+  budget cannot take it; the disk-pressure sweep restores the reserve by
+  archiving the oldest paused Orb. Production archives (2026-11-18) stored
+  17 GiB at p50 and 21.5 GiB at p90 of rootfs, workspace and memory against a
+  38 GiB ceiling for 4 vCPU / 8 GiB, template blocks a jail shares by reflink
+  included, so the exclusive use a node reserves is lower still.
+  Rows decide the state rather than the report, which lags: a delete frees
+  its reservation at once. A resume also needs room for its next pause on
+  the filesystem. `admission/2` is the check the poller runs on a work
   item: it dispatches an admissible item at once and otherwise
   acknowledges it and enqueues
   `Tuist.Sandboxes.Workers.DispatchWorkItemWorker` (secret Vault-encrypted
@@ -89,16 +104,66 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   reported limit, so a growth is only used once the daemon reports it and a
   shrink stops placements first. A growth the kubelet defers (read from the
   Pod's `PodResizePending` condition) is given back and the next node tried;
-  only the last deferral stays asked for. `admissible?/2` asks for a growth
+  only the last deferral stays asked for. A resume, which runs only on its own node and whose refusal archives the
+  sandbox, instead waits out its node's deferral (up to 60 s) for as long as
+  the grant still offers the memory, since the runners controller retires
+  idle runners on a deferral; a revoked or shrunk grant ends the wait. `admissible?/2` asks for a growth
   and admits the item once the kubelet has applied it, within 2.5 s, which
   keeps the poller inside the queue's 5 s acknowledgement; otherwise the item
   stays queued. The chart's floor is 1 GiB, so every node's first sandbox
   grows its carve-out. `Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker` (every
   minute) shrinks carve-outs back toward what their running sandboxes hold,
-  never below the floor, retaining an in-flight growth for at most 15 seconds,
-  sending the daemon `reclaim` before the resize because the kubelet refuses
+  never below the floor. It keeps a growth, and the room (memory and CPU
+  guarantee) of an agent sandbox paused on the node, for five minutes, since
+  each deferred growth retires an idle warm runner and each shrink lets a new
+  one take the room; CI pressure or reclaim shrinks at once. It sends the daemon `reclaim` before the resize because the kubelet refuses
   to lower a limit below current usage; it also retries a shrink the kubelet
   has not applied and cancels a deferred growth no longer needed.
+- Daemon CPU requests (`Capacity.sync_cpu/1`): a daemon that reports a CPU
+  floor (`elastic.cpu_floor_milli`), under a ceiling above it, has its Pod's
+  CPU request moved, without a limit, to the floor plus
+  `Sandbox.guaranteed_cpu_milli/1` (a quarter vCPU per GiB of memory, or the creator's pick if more) of each
+  creating, resuming or running agent sandbox on it, up to the ceiling
+  (`Environment.sandbox_cpu_ceiling_milli/0`, the chart's `sandboxes.maxCpu`,
+  else the one the daemon reports: the server reads it so that changing it
+  restarts no daemon, since a restart pauses every sandbox on its node),
+  through `Tuist.Kubernetes.Client.resize_sandbox_daemon_cpu/4` under the
+  node lock. A growth goes, from the CPU the kubelet allocated, into the fresh
+  grant's `cpu_free_milli` plus `cpu_reclaimable_milli` (idle warm runners'
+  CPU, which the runners-controller retires when the kubelet defers the
+  growth); a request the grant stops funding is lowered, since a deferred
+  resize holds up memory growths. A shrink always goes, after the five-minute hold above for a paused sandbox's guarantee. Run on every
+  `reconcile_allocation/1` and by `ShrinkCarveOutsWorker`; the last request
+  the kubelet applied is cached per node and Pod for five minutes so an
+  unchanged guarantee reads nothing. Placement holds
+  it: `Capacity.cpu_room?/2`. See `infra/sandboxd/fleet-sharing.md` ("Disk and CPU").
+- Placement packs Linux agent sandboxes (`Capacity.place/3`): after nodes in
+  `prefer:`, the node with room that already runs the most sandbox memory
+  wins, ties going to the most CPU the grant reports free. Sandboxes burst
+  into each other's idle cores, and nodes left whole take runners. Remote
+  execution VMs still go to the node with the most free memory.
+- Bursting and metering: a Linux agent sandbox boots with
+  `Sandbox.burst_vcpus/0` (16) vCPUs whatever shape it asks for; the shape
+  picks its memory. Each node report bills a running one the larger of its
+  guarantee over the time since the previous report (at most 60 s) and the
+  CPU its VM used (`cpu_ms`), as a `Tuist.Sandboxes.UsageEvent` row; the
+  sandbox's `metered_cpu_ms`/`metered_at` hold the last reading and are
+  cleared with `guest_cpu_ms` on pause. A pause bills the time since the
+  last report from the `cpu_ms` the node returns with it, and a pause the
+  server adopts from a report bills it from the `cpu_ms` the paused sandbox
+  reports (once: the row is no longer running afterwards). A pause from an
+  older daemon, a VM the daemon lost, or one `settle_running` adopts from a
+  failed exec leaves it unbilled. `cpu_ms` counts the vCPU threads only. Memory is billed max(request, use): each running session's request
+  from its lifecycle events, plus `excess_memory_mib_ms` on each usage row,
+  what the VM's process held (`memory_anon_bytes` + `memory_file_bytes`,
+  its Pss) past `Capacity.charge_bytes/1` over the interval; a pause bills
+  its last interval from the readings in the pause result. Never meter
+  `memory_current_bytes`: on staging most of it was the clean page cache of
+  the template's or the VM's own memory file. `Analytics.compute/2` sums those rows
+  for bursting sessions and counts other sessions' vCPUs (macOS, and Linux
+  runs from before metering, up to their first metered report).
+  `Concurrency` counts guarantees. The API's analytics report guaranteed
+  vCPUs rounded up, since released CLIs decode them as integers.
 - `Tuist.Sandboxes.Nodes`: cluster-wide view of the connected nodes
   (`connected_nodes/0`) read from
   `Tuist.Sandboxes.NodePresence`, a `Phoenix.Presence` on `Tuist.PubSub`
@@ -273,6 +338,21 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   places on the node are deleted from it, rows whose copy the node no longer
   lists lose it after a two-minute grace (dropped unless archived). A daemon that reports no
   `disk_snapshots` key is left alone.
+  A macOS Orb's snapshot (`platform: :darwin`) is saved by its host as a
+  stopped Tart VM after an eviction, which `save` records by clearing the
+  row's `resident`; it reserves no server-side ceiling (the host reports its
+  `bytes` in `disk.snapshots_bytes`, which `MacosCapacity.disk_room?` counts),
+  records the host-measured `disk_bytes`, and a create from it goes only to
+  hosts holding it (`MacosCapacity.place/2`); else an archived one is
+  restored like an archived macOS session (`place_macos_restore/3`, `from_archive`
+  with the snapshot's `template_tag`), and without an archive, or when that
+  fails, the template boots on any host at once. Misses queue copies. It is
+  archived and copied like a Linux snapshot, sized by `disk_bytes`, onto
+  hosts serving its template that restore archives
+  (`MacosCapacity.snapshot_hosts/1`, which clone the image it was saved
+  from, pulled if their template moved on), admitted by
+  `MacosCapacity.reserve_snapshot_copy/3`. Snapshot commands, which have no
+  sandbox row, carry the host's current `node_uid` (`Nodes.command_args/2`).
   `Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker` (hourly) deletes
   snapshots unused for 72 hours and saves stuck for 15 minutes.
   An archived snapshot of a popular lineage (two Orbs spawned in its
@@ -324,7 +404,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   Linux nodes run at the mark, which would refuse them all. A copy in use
   above the mark makes the disk-pressure sweep archive an idle Orb sooner.
   A Claude Code repository snapshot has no Amp id: it is keyed by
-  `agent_environment_id`, `repository` and `setup_sha256`, saved from a
+  `agent_environment_id`, `repository`, `setup_sha256` and `template`
+  (a Linux environment's Macs keep one per Xcode template, which never
+  supersede its sessions' snapshots), saved from a
   paused builder sandbox (`save_build/2`), and replaces the environment's
   older ready snapshots of the repository. `find_ready_for_repository/3`
   only returns one whose `template_tag` a connected node creates new
@@ -335,8 +417,64 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   one build and a failed script waits an hour. `delete_expired/0` drops
   builds older than 90 minutes with their builder and failed rows after an
   hour.
-- `Tuist.Sandboxes.ClaudeCodeSnapshots`: a Linux `claude_code` environment's
-  optional `setup_script`. `ClaudeCodeRunners` creates a session's sandbox
+- `Tuist.Sandboxes.ClaudeCodeSnapshots`: a `claude_code` environment's
+  optional `setup_script`, on Linux and macOS. A macOS builder runs the
+  script without `runuser` (guest commands already run as `runner`) and is
+  placed only on a host where it leaves a granted slot free
+  (`MacosCapacity`'s `slots/1`): it holds a slot for up to an hour and
+  serves no session, so it waits for an idle host instead of taking one CI
+  could use. A new Mac's idle pause can beat the builder's first command,
+  and CI can take the slot it freed: that resume's `{:host_busy, _}`
+  deletes the builder and a later step places a new one, rather than
+  failing the build for an hour. A Linux environment's `macos_setup_script`
+  prepares the Macs its sessions create through `Query.run(:create)` (the
+  `create_sandbox` tool's `repository`, a github.com `owner/name` one of the
+  account's projects is connected to; `mac_source/3`): the Mac boots from the
+  repository's darwin snapshot of its Xcode template and workspace size, else
+  bare with a build requested (`request_mac_build/1`, the default macOS shape).
+  A Mac that boots from a snapshot older than six hours requests a build too:
+  `tuist generate` takes more targets from the binary cache as it fills in
+  after a push, which changes their dependents' build settings, and a
+  session's first build recompiled 302 files of the Tuist app a few hours
+  after its snapshot (measured, 2026-11).
+  Such a Mac records the repository (`sandboxes.repository`): the Macs
+  created for it on the snapshot's template in 24 hours, except creates that
+  failed (`error`), are the snapshot's spawns, which make it popular and so copied out like an Orb snapshot (the
+  environment's Linux sessions count only for its Linux snapshots).
+  Such a build clones to `$HOME/work/<name>`, `tuist sandbox sync`'s default
+  (the name in the worktree's `origin` URL, so a local directory of another
+  name lands there too):
+  Xcode keys DerivedData by the workspace's path, so another path rebuilds
+  from scratch. After the script it resets tracked files and records the
+  clone as sync does (`$HOME/.tuist-sync/<cksum of path>/{id,paths}`, plus
+  `commit`). The CLI's probe returns that commit, rebuilds its manifest from
+  local Git objects and uses it only when its hash equals the recorded id, so
+  the first sync is a delta and leaves unchanged files' modification times,
+  which Xcode compares, alone (a full sync rewrites every file and rebuilt
+  459 Swift files of the Tuist app in a measurement). A delta drops
+  `commit`. Every boot mounts the Metal toolchain cryptex under a new random
+  path. On Xcode 27.0 it reached the link line of host macro plugins built
+  from source, so they relinked and their dependents rebuilt after any cold
+  boot; with the macros taken from the binary cache (Xcode 27.2, 2026-11) it
+  reaches only `ExtractAppIntentsMetadata` of targets that rebuild anyway. A Mac build's command starts as `:snapshot_build`, so its
+  script gets a `TUIST_OIDC_TOKEN` with read access to the account's cache
+  that exchanges only while the build runs (`CommandCredentials`): an
+  unauthenticated `tuist generate` skips the cache setup and writes other
+  build settings than a session's, and the session's first build then
+  recompiled everything (measured, 2026-11). The script runs without the
+  clone's `GIT_TERMINAL_PROMPT`, since Tuist keys its package-manifest cache
+  on the environment and a session's commands lack it. After the script the build
+  deletes the CLI's stored session (`~/.config/tuist/credentials`) and the
+  simulator devices and stops the simulator services, since runtimes mount
+  at new paths on each boot and a Mac restored with the builder's devices
+  and simulator state lost its iOS runtime. Before that it stops the cache
+  proxy and build service, waits for them to exit, and deletes the records
+  `tuist-spool` still holds, keeping `CompilationCache.noindex`: the build's
+  credential only reads the cache, so the remote refuses every publication
+  and the spool never drains. A store saved while the proxy and build
+  service ran failed session compiles with "not a IncludeFileList node kind". The build ends with `sync`. The snapshot's key hashes the
+  build script with the macOS setup script, so changing either rebuilds it.
+  `ClaudeCodeRunners` creates a session's sandbox
   from the repository's snapshot; a new session without one starts on the
   template and, after its worker started, requests a build. Nothing runs
   in a session's sandbox before its runner, so the spawn lease never limits
@@ -354,8 +492,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   minute until the build expires. Anything else logs the output's tail, deletes the
   builder and fails the build. Never save a sandbox a session used: every
   later session of the environment boots from the snapshot.
-- `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs and
-  Claude Code sessions' sandboxes (other environments' sandboxes are
+- `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs,
+  Claude Code sessions' sandboxes, legacy Tuist threads' sandboxes (provider
+  environment `threads/<id>`, retained for offline conversation export)
+  and, on macOS, every evicted paused
+  sandbox, whose disk the Mac shares with CI (other Linux sandboxes are
   archived only off a node CI takes or that refused their resume; their next
   spawn restores them too, since `Router.find_or_create_sandbox/3` keeps an
   archived row and `prepare_residency/3` restores it). Before Claude Code
@@ -390,7 +531,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `snapshot_compat`: CPU model and flags, host kernel version and
   Firecracker version) is placed only on nodes with the same
   `snapshot_compat`, waiting for room on them, and on the node it was
-  archived from (`archive_memory.node`) only when no other of them can take
+  archived from (`archive_memory.node`), or on a node still loading another
+  warm restore's memory (`Archives.restoring_nodes/0`: restores on one node
+  share its bandwidth to the store, and three at once hit the guest agent's
+  60 s timeout in production), only when no other of them can take
   it (`Capacity.place/3`'s `avoid:`), and resumes warm: the node
   downloads only the disk stream, loads the VM state with a Uffd memory
   backend and serves memory chunks by ranged GETs as the guest touches
@@ -417,7 +561,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   node, so while the runners-controller's allocation for a node asks for a
   reclaim (`Capacity.ci_reclaim?/1`, a host reservation or unhealthy node,
   not an expired grant), `ReclaimCapacityWorker` calls
-  `Archives.move_off_node/1` after pausing the idle ones: it archives the
+  `Archives.move_off_node/1` after pausing the idle ones: two minutes later,
+  if CI still reclaims the node (most Linux host reservations end within
+  that, and a moved session waits for a restore instead of a resume), it
+  archives the
   least recently paused sandbox there of any source (not remote execution),
   whatever its pause age, one upload from the node at a time, each
   allocation observation queuing the next, and rechecks the reclaim before
@@ -438,7 +585,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   memory: its checkpoint is encrypted for that Mac, so a moved session
   always cold boots. A restore goes to a Mac with `archives` and the
   template (`MacosCapacity.restores?/2`), one already running the archived
-  `template_tag` first (`runs_image?/2`); it passes that tag in the create,
+  `template_tag` first (`runs_image?/2`), then Macs without a warm VM (a
+  restore cannot claim one, and it holds one of the host's two slots); a Mac
+  that refuses it passes it to the next, as a new create does. It passes that tag in the create,
   so a host on a newer release pulls the archived digest, and waits up to
   31 minutes (not reverted as stuck before 35). Hosts without `archives` back
   their sessions off like a failed upload. Disk pressure is Linux-only.
@@ -450,9 +599,13 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
 - Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,
-  retryable). Disk is not an account limit: each node's disk budget bounds
+  retryable). The admission locks the account row with `SKIP LOCKED`, so any
+  transaction holding that row answers `:sandbox_account_busy`; outside a
+  transaction `Concurrency.admit/3` tries again for 3 s first. Legacy Tuist threads' sandboxes are hidden from the account and use
+  none of it (`Sandboxes.not_thread/0`). Disk is not an account limit: each node's disk budget bounds
   it, and archiving frees it, so concurrency analytics chart no disk.
-- Idle Orbs: node reports carry each running VM's `cpu_ms`. A reading more
+- Idle Orbs: node reports carry each running VM's `cpu_ms` (on macOS the server reads
+  it only for Orbs). A reading more
   than 20 ms per second above `guest_cpu_ms` since `last_active_at`, or
   below it (a new VM process), records activity. A running Orb quiet for
   ten minutes enqueues `Tuist.Sandboxes.Workers.PauseIdleOrbWorker`, which
@@ -460,9 +613,30 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   only if `last_active_at` is unchanged, the same way Amp's pause does.
   Without `cpu_ms` (an older daemon), `guest_cpu_ms` stays nil and nothing
   is paused.
+- Lifetimes: a sandbox `Query.run(:create)` creates (the account API, MCP
+  `create_sandbox`, `tuist sandbox create`) has `lifetime_seconds` (two hours
+  by default, five minutes to a day) and `expires_at`, set at create and
+  started again by every resume or restore (`running_or_resume/1`) and by
+  `extend/2` (`POST .../extend`, MCP `extend_sandbox`). Every minute
+  `ExpireSandboxesWorker` (`expire_sandboxes/0`) ends an expired running one
+  hard: `Commands.cancel_expired/2` kills its commands without resuming it,
+  appends a note to each one's stderr (written before the kill marker, so a
+  reader sees it with the end) and records them `cancelled`, then it pauses;
+  agents extend first (the `create_sandbox` description says so). It queues
+  the archive of an expired paused one once archivable (a Mac after its host's
+  eviction, about 30 s later). `Commands.read/3` answers an ended command of
+  an expired, paused sandbox from its row: resuming to read output would
+  start a new lifetime. Archive, not delete: the files survive, a
+  resume restores them, and the 14-day retention deletes the rest. Sandboxes
+  of Amp Orbs and agent environments (Claude) have no lifetime and are never
+  expired: their integrations own them.
+  Guest CPU never records activity on a non-Orb Mac: there `last_active_at`
+  is the session lease, and a guest busy on its own (indexing, a simulator)
+  kept a forgotten Mac and its CI slot running for as long as nobody used it.
 - `Tuist.Sandboxes.Workers.RetentionWorker`: daily cron (shared crons in
   `Tuist.Oban.RuntimeConfig`) that deletes sandboxes paused, or errored,
-  for longer than 14 days (both still hold their disk), falling back to
+  for longer than 14 days (both may still hold their disk; a failed macOS
+  create no longer does, see Invariants), falling back to
   the row's last update when the node paused the sandbox without the
   server recording `paused_at`.
 - Idle pauses: a create, a resume or an exec that leaves a sandbox
@@ -566,6 +740,26 @@ socket, the poller and the caller share a replica:
   `failed` for a row that had started running and drops its
   `loading_since`. An error report from a node the row is not on is a
   stale copy: only that node's jail is deleted, never the row changed.
+- A failed macOS create holds nothing. It never ran (`last_active_at` is
+  nil), so `boot/5` deletes it from its host at once and the row keeps
+  `error` and its `error_message` with no node, `node_uid` or `resident`:
+  the form a create refused for room has, which Amp Orbs, Claude Code
+  sessions, Managed Agents sessions (`Router.find_or_create_sandbox/3`,
+  `MacosCapacity.admission/2`) replace with a fresh create, while a placed
+  errored Mac still answers `:sandbox_recovery_required`. A host that
+  cannot delete it then does when it next reports it in `error`. A report
+  that no longer lists an errored macOS row clears its `resident` (only an
+  error report did, and a host lists none for a VM it deleted, so the row
+  held CPU, memory and a slot for the 14-day retention) and releases a
+  failed create's node. In production (2026-11-21) such rows, resident
+  ones and ones on the disk budget of hosts that still listed them,
+  refused every macOS create on a whole rack. We kept
+  the row rather than deleting it: it is the failure's record, the API,
+  the dashboard and `Tuist.Runners.MacosSandboxWarmPools` (refused and
+  failed creates are demand) read it, and the retention removes it like
+  any errored row, counting from the failure. Every `failed` event keeps
+  the error, node and template (`Events.record/3`), so the failure
+  outlives the row when a retry, a delete or the retention removes it.
 - A node that left the cluster never reports again. Every minute
   `ReleaseRemovedNodesWorker` (`Sandboxes.release_removed_nodes/0`) errors
   the Linux agent rows of a node that is not connected and whose Kubernetes
@@ -600,8 +794,13 @@ socket, the poller and the caller share a replica:
   start (`:no_capacity`, `{:host_busy, _}`) is retried inside the request
   every second for 25 s, so a command starts within a second of its host
   freeing.
-  A caller that already holds a residency, such as a thread run
-  (`Tuist.Threads.Sandbox`), passes it as `:residency`: the command joins it
+  Every command gets `STRUO_PROGRESS` (unless its env sets one) naming
+  `struo-progress.jsonl` in that directory, and `read/3` returns the file's last
+  line as `progress`, so callers can show a Struo build's progress without an
+  extra exec; the guest writes it, so validate it before use. Legacy clients get
+  `ONCE_PROGRESS` pointing at the same default file; reads also accept the old
+  `once-progress.jsonl` for commands started before the rename.
+  A caller that already holds a residency passes it as `:residency`: the command joins it
   instead of `commands`, and `release_if_idle/2` leaves it to its holder.
   `pause_idle/2` skips a sandbox with running commands.
   A command the API starts (`:started_by`, the caller) in a member sandbox
@@ -649,16 +848,16 @@ socket, the poller and the caller share a replica:
   ids, model and system prompt; agent environments are serialized with
   `federation_issuer_url` and `federation_subject`; sandboxes, exec,
   commands, pause/resume/delete). Members and account tokens with
-  `account:sandboxes:write` (`:sandboxes_write`) reach sandboxes, exec and
-  commands, but only on
-  sandboxes without an agent environment, Amp integration, provider
-  environment or remote-execution purpose (`Sandboxes.member_sandbox?/1`);
-  everything else is admin-only. The MCP sandbox tools apply the same rule.
+  `account:sandboxes:write` (`:sandboxes_write`) reach every sandbox action
+  (list, show, analytics, create, exec, commands, uploads, pause, resume,
+  archive, delete) on every sandbox in the account, including ones that serve
+  an integration. Agent environments, which hold Anthropic credentials, and
+  Orb dispatch stay admin-only. The MCP sandbox tools apply the same rule.
 - Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
   `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
   (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and
   `:sandboxes_read` allows the user; the sidebar entry uses the same gate.
-  Pause, resume, archive and delete require `:sandboxes_update` (admins), are
+  Pause, resume, archive and delete require `:sandboxes_update` (members), are
   rechecked per event and run in `start_async`, since node commands block.
   Pause goes through `pause_idle/2`, so it never interrupts an agent turn,
   and Amp Orbs are not resumed or restored from the dashboard (Amp does it).
@@ -677,9 +876,9 @@ socket, the poller and the caller share a replica:
   neither resumes nor counts as activity) and records a `setup` event dated
   when setup finished; a log older than the row came with a disk snapshot
   and is ignored. The Setup and Time to start widgets chart those
-  durations; vCPU-hours (`Analytics.compute/2`) are on the Usage page,
-  priced by `Sandboxes.Pricing` at one rate per vCPU-hour, memory and disk
-  included. There is no Stripe meter yet: early access covers the whole
+  durations; vCPU-hours and memory GiB-hours (`Analytics.compute/2`) are
+  on the Usage page, priced by `Sandboxes.Pricing` per vCPU-hour and per
+  GiB-hour of reserved memory, disk included. There is no Stripe meter yet: early access covers the whole
   charge and Billed stays $0 until one exists.
 - `TuistWeb.API.AgentSessionsController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
@@ -690,13 +889,27 @@ socket, the poller and the caller share a replica:
   resume, archive, delete), the MCP sandbox tools and `tuist sandbox` share,
   with contracts in `Sandboxes.Schemas`; keep both exported from `Tuist`.
   It account-scopes every lookup, serializes the dashboard status, and maps
-  errors to one HTTP status and message (`Query.error/1`). The API sends
-  every 503 with a `retry-after` longer than the CLI's retry budget: the
-  server has already waited for the node, so replays only repeat the wait.
+  errors to one HTTP status, a stable `code` and a message (`Query.error/1`);
+  the API sends `{message, code}` and MCP tools lead their error text with
+  `code: <code>`. Codes are a contract: never change one's meaning, add new
+  ones to `Query.error_codes/0`. The API sends every 503 with a
+  `retry-after` (300 s) longer than the CLI's retry budget: the server has
+  already waited for the node, so replays only repeat the wait. A create
+  is limited per account (10 a minute, `rate_limited` with its own
+  `retry-after`) and, when every host refuses it for room, places the same
+  row again every 2 s for 25 s (`create_sandbox/3`'s `capacity_wait_ms:`)
+  before it answers `fleet_busy`, which tells agents not to loop. The account's
+  CPU and memory limit is a separate 429 (`account_limit`). A create refused
+  for room records no `created` or `failed` event (its row stays `error`,
+  which callers replace and the warm-pool signals count as demand). We
+  considered accepting such a create as `queued` and placing it later: it
+  needs a new state every node report, quota and retention path handles,
+  while the wait reuses the commands path's own wait and fits a Mac boot
+  inside MCP clients' 60 s tool timeout.
   Every caller
   requires an account administrator and the sandboxes flag, read-only
   calls included, because sandboxes run arbitrary commands. MCP does not
-  expose `exec` or create.
+  expose `exec`.
 
 ## Related Context
 

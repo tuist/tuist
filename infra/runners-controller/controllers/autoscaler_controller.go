@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -104,7 +107,7 @@ type AutoscalerReconciler struct {
 	Now func() time.Time
 
 	// MemReserveFraction is the share of a Linux node pool's
-	// allocatable memory the fleet allocator may hand to runner Pods.
+	// allocatable memory the compute allocator may hand to runner Pods.
 	// Defaults to defaultMemReserveFraction. 0 (unset) uses the
 	// default; set explicitly in tests.
 	MemReserveFraction float64
@@ -113,6 +116,15 @@ type AutoscalerReconciler struct {
 	// kept out of the Linux fleet's budget (see sandboxes.go). Empty
 	// when the chart runs no sandboxes.
 	SandboxesNamespace string
+
+	// ExecutionFloorSlots is the remote execution pool's fleet-wide floor
+	// in VM slots (see execution_allocation.go). 0 leaves remote execution
+	// workers out of the compute allocator.
+	ExecutionFloorSlots int32
+
+	// ExecutionSlotBytes is one remote execution slot's memory. 0 uses
+	// the chart's 4160 MiB.
+	ExecutionSlotBytes int64
 
 	// ReservationsNamespace, when set, is where the manager caches macOS
 	// sandbox reservation Pods; a new one reconciles the darwin pools at
@@ -271,7 +283,7 @@ func policyKnobs(pool *tuistv1.RunnerPool) scaling.PolicyKnobs {
 // desiredForPool computes the target replica count for `pool`.
 //
 // Pools with autoscaling-disabled `maxReplicas` keep the simple
-// per-pool policy. Everything else runs through the fleet allocator,
+// per-pool policy. Everything else runs through the compute allocator,
 // which apportions a shared capacity budget across sibling pools and
 // squeezes idle pools' speculative warm buffers before another pool's
 // real queued work. The budget unit depends on OS:
@@ -320,6 +332,10 @@ func (r *AutoscalerReconciler) desiredForPool(
 // allocated in. Nil when the allocator was bypassed or fell back.
 type fleetAllocation struct {
 	members map[string]fleetMember
+	// executionWarm is each remote execution worker's warm target in
+	// slots, by grant name. Nil when remote execution is not allocated.
+	executionWarm map[string]int32
+	slotBytes     int64
 }
 
 type fleetMember struct {
@@ -329,7 +345,7 @@ type fleetMember struct {
 	allocated int32
 }
 
-// allocate runs the shared-capacity fleet allocator for `pool`,
+// allocate runs the shared-capacity compute allocator for `pool`,
 // returning the (possibly squeezed) replica target. Fleet-view read
 // failures fall back to the per-pool target, while an unavailable
 // per-Pod scheduling cost leaves replicas unchanged.
@@ -360,10 +376,10 @@ func (r *AutoscalerReconciler) allocate(
 	// capacity <= 0 is treated like an error on purpose. A zero sum is
 	// almost always a transient empty node-list read (informer cache
 	// blip, or no Ready nodes mid-roll), not a genuine "fleet has no
-	// capacity" state. Routing it into AllocateFleet would squeeze every
+	// capacity" state. Routing it into AllocateCompute would squeeze every
 	// pool's floor to zero and reap their warm Pods fleet-wide, the exact
 	// blip-driven mass scale-down this per-pool fallback exists to
-	// prevent. AllocateFleet's own zero-capacity contract (see its unit
+	// prevent. AllocateCompute's own zero-capacity contract (see its unit
 	// test) is therefore never exercised from here.
 	capacity, err := r.fleetCapacity(ctx, pool)
 	if err != nil || capacity <= 0 {
@@ -376,23 +392,49 @@ func (r *AutoscalerReconciler) allocate(
 	// freezing the pool: the budget is never LOWER than the true
 	// placeable count, so the worst case is the over-scheduling this cap
 	// exists to prevent — which is where the fleet already was.
-	shapeCaps, err := r.shapePlacementCaps(ctx, pool, shapes)
+	shapeCaps, hostGroups, err := r.shapePlacementCaps(ctx, pool, shapes)
 	if err != nil {
 		logger.Error(err, "read shape placement caps; allocating on the byte budget alone",
 			"fleetSelector", pool.Spec.FleetSelector)
 	}
+	for i := range demands {
+		if group, ok := hostGroups[demands[i].ShapeKey]; ok {
+			demands[i].ShapeKey = group
+		}
+	}
 
-	alloc := scaling.AllocateFleet(demands, capacity, shapeCaps)
+	var workers []executionWorker
+	if pool.Spec.OS == "linux" && r.ExecutionFloorSlots > 0 && r.SandboxesNamespace != "" {
+		workers, err = r.executionWorkers(ctx, pool)
+		if err != nil {
+			logger.Error(err, "read remote execution workers; falling back to per-pool target",
+				"fleetSelector", pool.Spec.FleetSelector)
+			return perPool, nil
+		}
+		if len(workers) > 0 {
+			demand, held := executionDemand(workers, r.ExecutionFloorSlots, r.executionSlotBytes())
+			demands = append(demands, demand)
+			capacity += held
+		}
+	}
+
+	alloc := scaling.AllocateCompute(demands, capacity, shapeCaps)
 	v, ok := alloc[pool.Name]
 	if !ok {
 		return perPool, nil
+	}
+	fleet := &fleetAllocation{members: members, slotBytes: r.executionSlotBytes()}
+	if granted, ok := alloc[executionPoolName]; ok {
+		delete(alloc, executionPoolName)
+		fleet.executionWarm = executionWarmSlots(workers, min(granted, r.ExecutionFloorSlots))
+		metrics.RecordExecutionAllocation(r.ExecutionFloorSlots, granted)
 	}
 	for name, granted := range alloc {
 		member := members[name]
 		member.allocated = granted
 		members[name] = member
 	}
-	return v, &fleetAllocation{members: members}
+	return v, fleet
 }
 
 // podShape is the placement footprint of one pool's Pod. Two pools with
@@ -476,13 +518,20 @@ func (s podShape) key() string {
 //
 // Both platforms schedule on CPU and memory requests. Linux sandbox daemon
 // allocations come off each node before computing its runner seats.
+//
+// Shapes that take a whole host each (at most one Pod per node, and no node
+// fits two of them side by side, such as 16vcpu-32gb and 16vcpu-64gb on a
+// RISE-L) compete for the same seats, so counting each against every node
+// promises the fleet twice. Those shapes also get one shared cap, the nodes
+// that seat any of them, under a group key; the second map sends each
+// member's shape key to it.
 func (r *AutoscalerReconciler) shapePlacementCaps(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
 	shapes map[string]podShape,
-) (map[string]int32, error) {
+) (map[string]int32, map[string]string, error) {
 	if len(shapes) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// fleetNodeSelector mirrors the nodeSelector podtemplate stamps on
@@ -490,13 +539,13 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 	// consider.
 	var nodes corev1.NodeList
 	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
-		return nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
+		return nil, nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
 	}
 	nativeSlots := map[string]int32{}
 	if pool.Spec.OS == "linux" || pool.Spec.OS == "darwin" {
 		daemons, err := r.sandboxDaemons(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, daemon := range daemons {
 			if daemon.native {
@@ -508,25 +557,101 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 		}
 	}
 
+	var eligible []*corev1.Node
+	for i := range nodes.Items {
+		if nodeFilterReason(&nodes.Items[i]) == "" {
+			eligible = append(eligible, &nodes.Items[i])
+		}
+	}
+	seatsOn := func(node *corev1.Node, shape podShape) int32 {
+		available := nodeSeatsForShape(node, shape)
+		if nativeSlots[node.Name] > 0 {
+			available = min(available, max(2-nativeSlots[node.Name], 0))
+		}
+		return available
+	}
+
 	caps := make(map[string]int32, len(shapes))
+	var wholeHost []string
 	for key, shape := range shapes {
 		if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
 			continue
 		}
-		var seats int32
-		for i := range nodes.Items {
-			if nodeFilterReason(&nodes.Items[i]) != "" {
-				continue
-			}
-			available := nodeSeatsForShape(&nodes.Items[i], shape)
-			if nativeSlots[nodes.Items[i].Name] > 0 {
-				available = min(available, max(2-nativeSlots[nodes.Items[i].Name], 0))
-			}
+		var seats, most int32
+		for _, node := range eligible {
+			available := seatsOn(node, shape)
 			seats += available
+			most = max(most, available)
 		}
 		caps[key] = seats
+		if most == 1 {
+			wholeHost = append(wholeHost, key)
+		}
 	}
-	return caps, nil
+
+	// Group whole-host shapes that exclude every other member on every
+	// node, in key order so each reconcile forms the same groups.
+	sort.Strings(wholeHost)
+	var groups [][]string
+	for _, key := range wholeHost {
+		placed := false
+		for g := range groups {
+			excludes := true
+			for _, member := range groups[g] {
+				if !shapesExcludeOnNodes(eligible, shapes[key], shapes[member]) {
+					excludes = false
+					break
+				}
+			}
+			if excludes {
+				groups[g] = append(groups[g], key)
+				placed = true
+				break
+			}
+		}
+		if !placed {
+			groups = append(groups, []string{key})
+		}
+	}
+
+	aliases := map[string]string{}
+	for _, members := range groups {
+		if len(members) < 2 {
+			continue
+		}
+		group := "whole-host:" + strings.Join(members, "+")
+		var seats int32
+		for _, node := range eligible {
+			for _, member := range members {
+				if seatsOn(node, shapes[member]) > 0 {
+					seats++
+					break
+				}
+			}
+		}
+		caps[group] = seats
+		for _, member := range members {
+			aliases[member] = group
+		}
+	}
+	return caps, aliases, nil
+}
+
+// shapesExcludeOnNodes reports whether no node can hold a Pod of each shape
+// at once.
+func shapesExcludeOnNodes(nodes []*corev1.Node, a, b podShape) bool {
+	for _, node := range nodes {
+		cpu := node.Status.Allocatable.Cpu()
+		memory := node.Status.Allocatable.Memory()
+		if cpu == nil || memory == nil {
+			continue
+		}
+		if int64(a.cpuMilli+b.cpuMilli) <= cpu.MilliValue() &&
+			int64(a.memoryMB+b.memoryMB)*1024*1024 <= memory.Value() {
+			return false
+		}
+	}
+	return true
 }
 
 // nodeSeatsForShape is how many Pods of `shape` one node could hold if
@@ -553,7 +678,7 @@ func nodeSeatsForShape(node *corev1.Node, shape podShape) int32 {
 }
 
 // fleetCapacity returns the shared budget `pool` competes for with
-// its siblings, in the same unit AllocateFleet expects PerPodCost to
+// its siblings, in the same unit AllocateCompute expects PerPodCost to
 // be expressed in — allocatable memory bytes, for both OSes. An
 // unrecognised OS returns (0, nil), which trips the per-pool fallback
 // in desiredForPool without an error log — pools without a known OS
@@ -703,6 +828,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			MinWarmPoolFloor: k.MinWarmPoolFloor,
 			Active:           sig.CurrentOccupancy()+sig.Queued > 0,
 			InUse:            sig.InUse(),
+			ColdJobs:         sig.ColdJobs,
 			HoursWithJobs:    sig.HoursWithJobs,
 			LastDemandAt:     lastDemandAt,
 			Load:             sig.Load(),
@@ -843,13 +969,26 @@ func (r *AutoscalerReconciler) now() time.Time {
 	return time.Now()
 }
 
+// autoscalerWorkers is how many pools reconcile at once. One worker could not
+// keep the 5 s poll: in production 40 pools at ~0.3 s each kept it busy all
+// the time with 28 pools queued, so each pool ran about every 12 s. The macOS
+// sandbox grants, which the fleet's first pool renews and which expire after
+// 15 s, then went stale fleet-wide between renewals, and a sandbox waiting for
+// an idle runner's slot outlived its grant before that runner was retired.
+// The workqueue never runs one pool twice at once, and each reconcile writes
+// only its own pool and Pods, from preemption plans every pool computes the
+// same way. Grant publication keeps its own lock, and host reservations stay
+// in the RunnerPool reconciler's single worker.
+const autoscalerWorkers = 4
+
 func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	b := ctrl.NewControllerManagedBy(mgr).
 		// Different controller name so it doesn't collide with
 		// the RunnerPoolReconciler — both watch the same For()
 		// type but maintain independent workqueues.
 		Named("autoscaler").
-		For(&tuistv1.RunnerPool{})
+		For(&tuistv1.RunnerPool{}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: autoscalerWorkers})
 	if r.ReservationsNamespace != "" {
 		// A new macOS sandbox reservation may be waiting for an idle CI
 		// runner's slot. Reconcile the darwin pools now rather than on the

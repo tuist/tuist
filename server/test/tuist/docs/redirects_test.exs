@@ -5,6 +5,32 @@ defmodule Tuist.Docs.RedirectsTest do
   alias Tuist.Docs.Redirects
 
   describe "resolve/2" do
+    test "renames only English Once pages, keeping HTML and Markdown representations and queries" do
+      for representation <- ~w(docs docs-markdown),
+          path <- [
+            "get-started/once-project",
+            "features/cache/once",
+            "features/build-insights/once",
+            "features/test-insights/once",
+            "features/test-insights/flaky-tests/once",
+            "features/test-sharding/once",
+            "features/previews/once",
+            "features/runners/once"
+          ] do
+        destination = "/en/#{representation}/guides/" <> String.replace(path, "once", "struo")
+
+        assert Redirects.resolve("/en/#{representation}/guides/#{path}", "source=shared&tab=setup") ==
+                 {:ok, destination <> "?source=shared&tab=setup"}
+
+        assert Docs.get_page("/en/guides/" <> String.replace(path, "once", "struo"))
+        assert Redirects.resolve(destination) == :none
+
+        for locale <- ~w(de es ja zh_Hans) do
+          assert Redirects.resolve("/#{locale}/#{representation}/guides/#{path}", "tab=setup") == :none
+        end
+      end
+    end
+
     test "redirects the runners getting-started page to the GitHub Actions guide" do
       assert Redirects.resolve("/en/docs/guides/features/runners/getting-started") ==
                {:ok, "/en/docs/guides/features/runners/ci-providers/github-actions"}

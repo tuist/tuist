@@ -31,6 +31,15 @@ defmodule Atlas.Connections.Provider do
         "https://www.googleapis.com/auth/drive.file",
         "https://www.googleapis.com/auth/calendar.readonly"
       ]
+    },
+    # Business API transfer requests accept only OAuth. Requests still need an
+    # approver's strong customer authentication in Qonto before money moves.
+    "qonto" => %{
+      name: "Qonto",
+      authorize_url: "https://oauth.qonto.com/oauth2/auth",
+      token_url: "https://oauth.qonto.com/oauth2/token",
+      profile_url: "https://thirdparty.qonto.com/v2/membership",
+      scopes: ~w(offline_access membership.read request_transfers.write)
     }
   }
 
@@ -42,7 +51,7 @@ defmodule Atlas.Connections.Provider do
     "compose" => "https://www.googleapis.com/auth/gmail.compose"
   }
 
-  def providers, do: ~w(github slack google)
+  def providers, do: ~w(github slack google qonto)
 
   @doc "Scopes for the requested Gmail consents (`read`, `compose`); unknown names request nothing."
   def gmail_scopes(consents) when is_list(consents) do
@@ -169,6 +178,11 @@ defmodule Atlas.Connections.Provider do
 
   defp profile("google", %{"sub" => id, "email" => email}) do
     {:ok, %{provider_user_id: id, account_name: email, workspace_id: nil}}
+  end
+
+  defp profile("qonto", %{"membership" => %{"id" => id} = membership}) do
+    name = Enum.join(Enum.reject([membership["first_name"], membership["last_name"]], &(&1 in [nil, ""])), " ")
+    {:ok, %{provider_user_id: id, account_name: membership["email"] || name, workspace_id: nil}}
   end
 
   defp profile(_provider, _body), do: {:error, :invalid_profile_response}

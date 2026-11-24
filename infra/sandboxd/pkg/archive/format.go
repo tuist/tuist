@@ -11,14 +11,14 @@
 //	            'E'
 //	'Z'
 //
-// Holes and all-zero blocks are left out, so a sparse workspace image costs
-// only the blocks the guest wrote. Extraction recreates each file at its
-// full size, sparse.
+// Holes and all-zero runs are left out (package sparse, shared with runner
+// cache masters), so a sparse workspace image costs only the blocks the guest
+// wrote. A data record never exceeds blockSize. Extraction recreates each
+// file at its full size, sparse.
 package archive
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/tuist/tuist/infra/runner-cache/sparse"
 )
 
 const (
@@ -58,6 +59,9 @@ type Header struct {
 	// Memory is set when the object holds the VM's memory image ahead of
 	// this stream (see memory.go) and the stream holds its VM state.
 	Memory *MemoryHeader `json:"memory,omitempty"`
+	// CachePlaceholder: the VM state has the template's empty cache drive,
+	// which the archive does not hold; a warm restore recreates it.
+	CachePlaceholder bool `json:"cache_placeholder,omitempty"`
 }
 
 // MemoryHeader describes an archived memory image. Its VM state restores
@@ -131,53 +135,36 @@ func writeFile(out *bufio.Writer, src Source, buf []byte) (int64, error) {
 		return 0, err
 	}
 	var stored int64
-	for offset := int64(0); offset < size; {
-		start, err := nextData(src.File, offset, size)
-		if err != nil {
-			return stored, err
-		}
-		if start >= size {
-			break
-		}
-		end, err := nextHole(src.File, start, size)
-		if err != nil {
-			return stored, err
-		}
-		for pos := start; pos < end; {
+	err = sparse.Extents(src.File, size, func(start, length int64) error {
+		for pos, end := start, start+length; pos < end; {
 			n := min(int64(len(buf)), end-pos)
 			if _, err := src.File.ReadAt(buf[:n], pos); err != nil {
-				return stored, err
+				return err
 			}
-			if !allZero(buf[:n]) {
+			err := sparse.NonZeroRuns(buf[:n], func(from, to int) error {
 				header := []byte{recordData}
-				header = binary.AppendUvarint(header, uint64(pos))
-				header = binary.AppendUvarint(header, uint64(n))
+				header = binary.AppendUvarint(header, uint64(pos)+uint64(from))
+				header = binary.AppendUvarint(header, uint64(to-from))
 				if _, err := out.Write(header); err != nil {
-					return stored, err
+					return err
 				}
-				if _, err := out.Write(buf[:n]); err != nil {
-					return stored, err
+				if _, err := out.Write(buf[from:to]); err != nil {
+					return err
 				}
-				stored += n
+				stored += int64(to - from)
+				return nil
+			})
+			if err != nil {
+				return err
 			}
 			pos += n
 		}
-		offset = end
+		return nil
+	})
+	if err != nil {
+		return stored, err
 	}
 	return stored, out.WriteByte(recordEnd)
-}
-
-var zeroBlock = make([]byte, blockSize)
-
-func allZero(b []byte) bool {
-	for len(b) > 0 {
-		n := min(len(b), blockSize)
-		if !bytes.Equal(b[:n], zeroBlock[:n]) {
-			return false
-		}
-		b = b[n:]
-	}
-	return true
 }
 
 // Extract recreates the archived files in dir, which must not hold them

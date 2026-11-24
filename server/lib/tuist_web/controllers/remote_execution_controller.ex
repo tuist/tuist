@@ -13,6 +13,8 @@ defmodule TuistWeb.RemoteExecutionController do
           image: settings.image_tag,
           endpoint: settings.executor_endpoint,
           cas_endpoint: settings.cas_endpoint,
+          client_cas_endpoint: settings.client_cas_endpoint,
+          execution_root: "/workspace/action",
           max_concurrency: settings.max_concurrency,
           leases: true
         })
@@ -32,6 +34,9 @@ defmodule TuistWeb.RemoteExecutionController do
       {:error, :invalid_request} ->
         conn |> put_status(:bad_request) |> json(%{message: "invalid execution request"})
 
+      {:error, :allowance_exhausted} ->
+        conn |> put_status(:payment_required) |> json(%{message: "The account's free compute minutes are used up."})
+
       {:error, :queue_full} ->
         conn |> put_status(:too_many_requests) |> json(%{message: "execution queue is full"})
 
@@ -47,6 +52,9 @@ defmodule TuistWeb.RemoteExecutionController do
 
       {:ok, lease} ->
         json(conn, lease)
+
+      {:error, :allowance_exhausted} ->
+        conn |> put_status(:payment_required) |> json(%{message: "The account's free compute minutes are used up."})
 
       {:error, :unsupported} ->
         conn |> put_status(:not_found) |> json(%{message: "direct execution is not available"})

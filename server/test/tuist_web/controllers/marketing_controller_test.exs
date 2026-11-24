@@ -3,6 +3,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use Mimic
 
   alias Plug.CSRFProtection.InvalidCSRFTokenError
+  alias Tuist.Accounts
   alias Tuist.AppStore
   alias Tuist.Atlas.Email
   alias Tuist.GitHub.Releases
@@ -12,6 +13,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Tuist.Marketing.Newsletter
   alias Tuist.Marketing.Stats
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Utilities.MarketingMarkdown
@@ -353,7 +355,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
         conn = get(conn, page.path)
         document = conn |> html_response(200) |> Floki.parse_document!()
 
-        assert document |> Floki.find("h1") |> Floki.text() == page.title
+        # Compared as rendered: the runners pages break the title over two lines.
+        assert document |> Floki.find("h1") |> Floki.text() |> String.split() |> Enum.join(" ") == page.title
         content_links = document |> Floki.find("[data-part=content] a") |> Floki.attribute("href")
         refute Enum.any?(content_links, &String.contains?(&1, ["/marketing-markdown", "/docs-markdown/"])), page.path
 
@@ -374,6 +377,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
           acc ->
             document = conn |> get(page.path) |> html_response(200) |> Floki.parse_document!()
 
+            # The runners pages show their FAQ as an accordion; the others as
+            # `###` headings under the prose's FAQ heading.
+            accordion =
+              for question <- Floki.find(document, "main > [data-part=faq] details[data-part=question]") do
+                {question |> Floki.find("[data-part=label]") |> Floki.text(),
+                 question |> Floki.find("[data-part=answer]") |> Floki.text() |> normalize.()}
+              end
+
             visible =
               document
               |> Floki.find("article > [data-part=content]")
@@ -391,6 +402,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
               |> Enum.map(fn {question, answer} ->
                 {question, answer |> Enum.reverse() |> Enum.join(" ") |> normalize.()}
               end)
+              |> Kernel.++(accordion)
 
             faq_page =
               document
@@ -428,7 +440,9 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
             "/solutions/slow-builds",
             "/solutions/slow-tests",
             "/solutions/flaky-tests",
-            "/solutions/ci-costs"
+            "/solutions/ci-costs",
+            "/runners/github-actions",
+            "/runners/buildkite"
           ] do
         assert path in pages_with_faqs
       end
@@ -533,7 +547,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "includes the product pages", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
 
-      for path <- ["/cache", "/tests", "/compute", "/previews", "/download"] do
+      for path <- ["/cache", "/tests", "/runners", "/previews", "/download"] do
         assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end
 
@@ -652,30 +666,137 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
-  describe "GET /compute" do
+  describe "GET /runners" do
     test "renders the page", %{conn: conn} do
-      conn = get(conn, "/compute")
+      conn = get(conn, "/runners")
 
       html = html_response(conn, 200)
       assert html =~ "marketing-compute"
-      # The hero's CI switch and both migration diffs it toggles between.
+      # The hero's CI switch and the migration diffs it toggles between.
       assert html =~ ~s(data-part="ci-switch")
-      assert html =~ "runs-on: tuist-macos"
-      assert html =~ ~s(queue: "tuist-macos")
+      diff = html |> Floki.parse_document!() |> Floki.find("[data-part=diff]") |> Floki.text()
+      assert diff =~ "runs-on: tuist-macos"
+      assert diff =~ ~s(queue: "tuist-macos")
+      assert diff =~ "stack: agent-pool-"
 
-      # The redesign ships a designed social card instead of a rendered one.
-      assert html =~
-               ~s(property="og:image" content="#{Tuist.Environment.app_url(path: "/marketing/images/og/compute.png")}")
+      # Until a designed runners card ships, the page renders a title card
+      # rather than reusing the retired "Compute" one.
+      assert [og_image] =
+               html |> Floki.parse_document!() |> Floki.attribute("meta[property='og:image']", "content")
+
+      assert og_image =~ "/open-graph-images/"
 
       assert html =~ "/marketing/assets/bundle.css"
 
       # Runners are billed per minute, so the feature must not claim a free offer.
-      assert %{"name" => "Tuist Compute"} = feature = software_application(html)
+      assert %{"name" => "Tuist Runners"} = feature = software_application(html)
       refute Map.has_key?(feature, "offers")
+    end
+
+    test "links each CI provider page, which links back to the hub", %{conn: conn} do
+      hub = conn |> get("/runners") |> html_response(200) |> Floki.parse_document!()
+      links = Floki.attribute(hub, "a", "href")
+
+      for provider <- ["github-actions", "gitlab-ci", "buildkite"] do
+        path = "/runners/" <> provider
+        assert path in links
+
+        page = conn |> get(path) |> html_response(200) |> Floki.parse_document!()
+        assert page |> Floki.find("h1") |> length() == 1
+        # The runners page design, with only this provider's migration diff.
+        assert [_] = Floki.find(page, "#marketing-compute [data-part=diff] [data-part=variant]")
+        assert Floki.find(page, "[data-part=ci-switch]") == []
+        assert "/runners" in Floki.attribute(page, "a", "href")
+        # Sources and further reading stay in the Markdown guide only.
+        assert Floki.find(page, "[data-part=content] #sources-and-review") == []
+        assert Floki.find(page, "[data-part=content] #further-reading") == []
+        # The FAQ is the pricing page's accordion, not prose headings.
+        assert [_ | _] = Floki.find(page, "main > [data-part=faq] details[data-part=question]")
+        assert Floki.find(page, "[data-part=content] #frequently-asked-questions") == []
+
+        assert %{"itemListElement" => [_, %{"name" => "Tuist Runners"}, _]} =
+                 page
+                 |> Floki.find("script[type='application/ld+json']")
+                 |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+                 |> Enum.find(&(&1["@type"] == "BreadcrumbList"))
+
+        refute Floki.text(page) =~ "Last updated"
+        assert [description] = Floki.attribute(page, "meta[name=description]", "content")
+        assert String.length(description) <= 160
+
+        assert [og_image] = Floki.attribute(page, "meta[property='og:image']", "content")
+        assert String.starts_with?(og_image, Tuist.Environment.app_url(path: "/open-graph-images/"))
+      end
+    end
+
+    test "permanently redirects the former compute URLs", %{conn: conn} do
+      localized =
+        for locale <- Localization.additional_locales(),
+            do: {"/#{locale}/compute", "/#{locale}/runners"}
+
+      for {from, to} <-
+            [
+              {"/compute", "/runners"},
+              {"/compute?ref=nav", "/runners?ref=nav"},
+              {"/marketing-markdown/compute", "/marketing-markdown/runners"}
+            ] ++ localized do
+        conn = get(conn, from)
+
+        assert conn.status == 301, from
+        assert redirected_to(conn, 301) == to
+      end
     end
   end
 
   describe "GET /pricing" do
+    test "shares compute rates without rollout messaging or separate billing sections", %{conn: conn} do
+      html = conn |> get("/pricing") |> html_response(200) |> Floki.parse_document!()
+      compute = Floki.find(html, "#compute")
+
+      rates = compute |> Floki.find(".sr-only li") |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
+      assert "2 vCPU · 4 GB: $0.002/min" in rates
+      assert "4 vCPU · 8 GB: $0.004/min" in rates
+      assert "8 vCPU · 16 GB: $0.008/min" in rates
+      assert Floki.find(html, "[data-part=re-rate]") == []
+      assert Floki.text(Floki.find(compute, "#pricing-compute-title")) =~ "Compute"
+
+      assert compute |> Floki.find("[data-platform=macos] [data-part=machine]") |> Floki.text() =~
+               "Runners only"
+
+      assert compute |> Floki.find("[data-platform=linux] [data-part=machine]") |> Floki.text() =~
+               "Runners and remote execution"
+
+      assert Floki.find(compute, "#pricing-runners-title, #pricing-re-title") == []
+      assert [_, _] = Floki.find(html, "a[href='#compute']")
+      assert Floki.text(compute) =~ "macOS rates apply to runners only"
+      refute Floki.text(html) =~ "early access"
+      refute Floki.text(html) =~ "Early access"
+      refute Floki.text(html) =~ "not billed yet"
+      refute Floki.text(compute) =~ "require access"
+    end
+
+    test "sends the Pro plan's signed-in upgrade button to the billing page of the user's organization", %{conn: conn} do
+      cta_hrefs = fn document, label ->
+        document
+        |> Floki.find("#marketing-pricing a")
+        |> Enum.filter(&(&1 |> Floki.text() |> String.trim() == label))
+        |> Floki.attribute("href")
+        |> Enum.uniq()
+      end
+
+      signed_out = conn |> get("/pricing") |> html_response(200) |> Floki.parse_document!()
+      assert cta_hrefs.(signed_out, "Upgrade on the go") == ["/users/register"]
+
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      user = Accounts.update_last_visited_project(user, project.id)
+
+      signed_in = conn |> log_in_user(user) |> get("/pricing") |> html_response(200) |> Floki.parse_document!()
+
+      assert cta_hrefs.(signed_in, "Upgrade now") == ["/#{organization.account.name}/billing"]
+    end
+
     test "shows usage-based pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
@@ -689,14 +810,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       refute html =~ "+ $0.5 per additional unit"
     end
 
-    test "shows Tuist Runners pricing", %{conn: conn} do
+    test "shows shared Compute pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
-      assert html =~ ~r/id="pricing-runners-title">\s*Tuist Runners\s*</
+      assert html =~ ~r/id="pricing-compute-title">\s*Compute\s*</
       assert html =~ "2 GB / vCPU"
       assert html =~ "4 GB / vCPU"
       # Every rate, as written, in the screen-reader list.
-      assert html =~ "All Tuist Runners machines and rates"
+      assert html =~ "All compute machines and rates"
       assert html =~ "1 vCPU · 2 GB: $0.001/min"
       assert html =~ "16 vCPU · 48 GB: $0.10/min"
       assert html =~ "8 vCPU · 24 GB"
@@ -712,9 +833,9 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "How are Tuist Runners billed?"
       refute html =~ "How Tuist Runners compare"
 
-      runners = html |> Floki.parse_document!() |> Floki.find("#marketing-pricing #runners")
-      assert [_] = runners
-      pricing = Floki.raw_html(runners)
+      compute = html |> Floki.parse_document!() |> Floki.find("#marketing-pricing #compute")
+      assert [_] = compute
+      pricing = Floki.raw_html(compute)
 
       for provider <- ["Namespace", "Blacksmith", "WarpBuild", "Depot", "Bitrise", ">GitHub<"] do
         refute pricing =~ provider

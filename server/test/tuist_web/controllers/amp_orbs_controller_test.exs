@@ -89,6 +89,20 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     assert get_resp_header(result, "x-tuist-orb-retry") == []
   end
 
+  test "refuses a pause during a restore with its own reason, not as retryable admission", %{
+    conn: conn,
+    integration: integration
+  } do
+    identity(integration)
+    expect(Tuist.Sandboxes, :dispatch_amp_orb, fn _, _, _ -> {:error, :restoring} end)
+
+    result = request(conn, %{"operation" => "pause"})
+
+    assert response(result, 503)
+    assert get_resp_header(result, "x-tuist-orb-refusal") == ["restoring"]
+    assert get_resp_header(result, "x-tuist-orb-retry") == []
+  end
+
   test "requires workload authentication", %{conn: conn} do
     stub(Client, :create_amp_provider_token_review, fn _ -> {:error, :unauthenticated} end)
     assert response(request(conn), 401)
@@ -99,6 +113,8 @@ defmodule TuistWeb.AmpOrbsControllerTest do
 
     for {reason, status, hint} <- [
           {:no_capacity, 503, ["admission"]},
+          {{:host_busy, :ci}, 503, ["admission"]},
+          {:not_connected, 503, ["admission"]},
           {:sandbox_concurrency_limit, 429, ["admission"]},
           {:sandbox_account_busy, 409, ["admission"]},
           {:locked, 409, ["admission"]},

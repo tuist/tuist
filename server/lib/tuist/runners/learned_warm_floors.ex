@@ -22,12 +22,18 @@ defmodule Tuist.Runners.LearnedWarmFloors do
 
   The controller caps it per pool (`maxLearnedWarmPoolFloor`), which is what
   bounds the cost of a pool whose bursts are larger than a floor should hold.
+  `Tuist.Runners.scaling_signals_for_fleet/1` also caps it at the jobs the
+  accounts that ran on the pool in those 14 days can still claim
+  (`account_ids/1`): a warm runner no account can claim only holds a seat
+  another pool's burst needs.
 
-  The same query counts the hours of those 14 days in which the pool had a
-  job (`hours_with_jobs/1`). When the floors of idle pools sum past a full
-  rack's seats, the controller funds the pools used in the most hours first,
-  so an image with jobs every working hour stays warm before one whose only
-  jobs are a nightly run, whichever of the two finished a job last.
+  The same query counts the pool's jobs of those 14 days that arrived with
+  another of its jobs in the 30 seconds before them (`cold_jobs/1`): the jobs
+  one warm runner does not cover, which boot cold unless the floor above it
+  is funded. When the floors sum past a full rack's seats, the controller
+  funds the pools with the most of them first, so the seats go where they
+  save the most cold boots. It also counts the hours of those 14 days in
+  which the pool had a job (`hours_with_jobs/1`), which breaks ties.
 
   One query computes every pool. Each replica caches the result for ten
   minutes, so the autoscaler's polls never reach ClickHouse.
@@ -62,7 +68,24 @@ defmodule Tuist.Runners.LearnedWarmFloors do
   end
 
   @doc """
-  The learned warm floor and hours with jobs of every pool with a job in
+  How many of `fleet_name`'s jobs of the last 14 days arrived with another of
+  its jobs in the 30 seconds before them, or 0 for a pool with no job in the
+  last day.
+  """
+  def cold_jobs(fleet_name) when is_binary(fleet_name) do
+    all() |> Map.get(fleet_name, %{cold_jobs: 0}) |> Map.fetch!(:cold_jobs)
+  end
+
+  @doc """
+  The accounts with a job on `fleet_name` in the last 14 days, or none for a
+  pool with no job in the last day.
+  """
+  def account_ids(fleet_name) when is_binary(fleet_name) do
+    all() |> Map.get(fleet_name, %{account_ids: []}) |> Map.fetch!(:account_ids)
+  end
+
+  @doc """
+  The learned warm floor, hours with jobs, cold jobs and accounts of every pool with a job in
   the last day, keyed by fleet name.
   """
   def all do
@@ -71,7 +94,7 @@ defmodule Tuist.Runners.LearnedWarmFloors do
     else
       # The key names the value's shape: replicas of the previous release
       # share the store during a rollout and cache bare floors.
-      KeyValueStore.get_or_update([:runners, :learned_warm_floors, :v2], [ttl: @cache_ttl], &compute/0)
+      KeyValueStore.get_or_update([:runners, :learned_warm_floors, :v3], [ttl: @cache_ttl], &compute/0)
     end
   end
 
@@ -80,6 +103,7 @@ defmodule Tuist.Runners.LearnedWarmFloors do
     WITH jobs AS (
       SELECT
         argMax(fleet_name, updated_at) AS fleet,
+        argMax(account_id, updated_at) AS account,
         argMax(enqueued_at, updated_at) AS enqueued,
         argMax(conclusion, updated_at) AS final_conclusion
       FROM runner_jobs
@@ -90,6 +114,7 @@ defmodule Tuist.Runners.LearnedWarmFloors do
     bursts AS (
       SELECT
         fleet,
+        account,
         enqueued,
         count() OVER (
           PARTITION BY fleet
@@ -101,7 +126,9 @@ defmodule Tuist.Runners.LearnedWarmFloors do
     SELECT
       fleet,
       toInt32(quantileExact({burst_quantile:Float64})(burst)),
-      toInt32(uniqExact(toStartOfHour(enqueued)))
+      toInt32(uniqExact(toStartOfHour(enqueued))),
+      groupUniqArray(account),
+      toInt32(countIf(burst > 1))
     FROM bursts
     GROUP BY fleet
     HAVING max(enqueued) >= now() - toIntervalHour({active_within_hours:UInt32})
@@ -116,7 +143,9 @@ defmodule Tuist.Runners.LearnedWarmFloors do
 
     case ClickHouseRepo.query(query, params) do
       {:ok, %{rows: rows}} ->
-        Map.new(rows, fn [fleet, floor, hours] -> {fleet, %{floor: floor, hours_with_jobs: hours}} end)
+        Map.new(rows, fn [fleet, floor, hours, account_ids, cold_jobs] ->
+          {fleet, %{floor: floor, hours_with_jobs: hours, account_ids: account_ids, cold_jobs: cold_jobs}}
+        end)
 
       {:error, reason} ->
         Logger.warning("runners: failed to compute learned warm floors", reason: inspect(reason))

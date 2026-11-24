@@ -7,7 +7,7 @@
 ---
 # Gradle 缓存 {#gradle-cache}
 
-Tuist 提供了一个 Gradle 插件，可与 [Gradle 内置的构建缓存](https://docs.gradle.org/current/userguide/build_cache.html) 集成，以远程共享构建产物。当任务的输出已缓存时，Gradle 会跳过执行并从 Tuist 的远程缓存中拉取结果，从而为团队和 CI 环境节省构建时间。
+Tuist 提供了一个 Gradle 插件，可与 [Gradle 内置的构建缓存](https://docs.gradle.org/current/userguide/build_cache.html) 集成，以远程共享构建产物。当任务的输出已被缓存时，Gradle 会跳过执行并从 Tuist 的远程缓存中拉取结果，从而为团队和 CI 环境节省构建时间。要了解 Gradle 的本地和远程构建缓存与最新状态检查及配置缓存的区别，请参阅 <.localized_link href="/references/concepts/build-cache#gradle">什么是构建缓存？</.localized_link>。要找出缓存消除了缓慢构建中的哪些部分，以及应首先修复项目中的哪些问题，请参阅 [缓慢构建](https://tuist.dev/solutions/slow-builds)。
 
 安装 <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle 插件</.localized_link> 后，你还需要在 `gradle.properties` 文件中启用 Gradle 的构建缓存：
 
@@ -15,11 +15,11 @@ Tuist 提供了一个 Gradle 插件，可与 [Gradle 内置的构建缓存](http
 org.gradle.caching=true
 ```
 
-如果不进行此配置，即使配置了远程缓存，Gradle 也不会激活其构建缓存子系统，所有任务都将执行而不会命中或填充缓存。启用后，Gradle 会将 Tuist 用作远程构建缓存，在缓存命中时下载缓存的任务输出，并在任务执行后上传它们。
+如果不进行此设置，即使配置了远程缓存，Gradle 也不会激活其构建缓存子系统，所有任务都将执行而不会命中或填充缓存。启用后，Gradle 会将 Tuist 用作远程构建缓存，在缓存命中时下载已缓存的任务输出，并在任务执行后上传它们。
 
 ## 缓存上传策略 {#cache-upload-policy}
 
-默认情况下，该插件既从远程缓存下载构件，也向其上传构件。你可以通过 `buildCache` 块中的 `push` 选项来控制上传行为：
+默认情况下，该插件既会从远程缓存下载工件，也会向其上传工件。你可以通过 `buildCache` 块中的 `push` 选项来控制上传行为：
 
 ```kotlin
 tuist {
@@ -29,7 +29,7 @@ tuist {
 }
 ```
 
-一种常见模式是仅从 CI 推送构件（因为 CI 中的构建是可重现的），同时保持本地环境为只读：
+一种常见模式是仅从 CI 推送工件（因为那里的构建是可复现的），同时保持本地环境为只读：
 
 ```kotlin
 tuist {
@@ -39,7 +39,7 @@ tuist {
 }
 ```
 
-通过此设置，本地构建可以从缓存的构件中受益而无需上传，而 CI 构建则会为团队其他成员填充缓存。
+通过此设置，本地构建可以从缓存的工件中受益而无需上传，而 CI 构建则会为团队其他成员填充缓存。
 
 ## 持续集成 {#continuous-integration}
 
@@ -47,9 +47,9 @@ tuist {
 
 ### 禁用本地构建缓存 {#disabling-the-local-build-cache}
 
-Gradle 同时维护本地和远程构建缓存。本地构建缓存将任务输出存储在磁盘上的 `~/.gradle/caches/build-cache-1` 目录下。
+Gradle 同时维护本地构建缓存和远程构建缓存。本地构建缓存将任务输出存储在磁盘上的 `~/.gradle/caches/build-cache-1` 目录下。
 
-当 Tuist 配置为远程构建缓存时，建议在 CI 上禁用本地构建缓存。这样可以避免在 CI 运行器上存储冗余构件，并确保构建始终用新条目填充远程缓存，供团队其他成员使用。
+当 Tuist 被配置为远程构建缓存时，建议在 CI 上禁用本地构建缓存。这可以避免在 CI 运行器上存储冗余工件，并确保构建始终用新条目填充远程缓存，供团队其他成员使用。
 
 在你的 `settings.gradle.kts` 中禁用 CI 上的 Gradle 本地构建缓存：
 
@@ -61,7 +61,7 @@ buildCache {
 }
 ```
 
-这使得本地构建缓存在本地开发中可用，同时在 CI 上禁用它，由 Tuist 的远程缓存处理构件共享。
+这使得本地构建缓存在本地开发中可用，同时在 CI 上禁用它，由 Tuist 的远程缓存处理工件共享。
 
 ## 配置参考 {#configuration-reference}
 

@@ -29,6 +29,11 @@ does not expose a second Build Event Service listener.
 ## Data handling
 
 - `bazel_invocations` stores completed commands received from Kura.
+- `bazel_invocation_starts` stores a signed invocation's start (command,
+  target patterns, git and CI context) once Kura has its target patterns.
+  Kura re-sends it every few minutes while the build event stream is open. An
+  invocation is running while its start was reported in the last 10 minutes
+  and it has no `bazel_invocations` row; starts expire after two days.
 - `bazel_invocations` also stores bounded build metrics, retained action spans,
   critical-path summaries, and up to 20 custom build-metadata pairs. Kura keeps
   no more than 32 action spans or 32 critical-path actions for one in-flight
@@ -72,7 +77,7 @@ does not expose a second Build Event Service listener.
 
 - On profile load, valid positive integer `TUIST_CPU_COUNT` invocation metadata converts native core usage to a percentage. Retain native readings and use cores when metadata is absent, invalid, or smaller than recorded usage; do not normalize against an observed peak or job count.
 
-- Profile webhooks stage bounded compressed bytes in PostgreSQL; `ProcessProfileWorker` parses them on the existing bounded `:process_bazel_tests` processor queue. Decoding limits nesting and decoded container memory during parsing. Publish normalized metadata only after all digest-versioned `ProfileSteps` rows exist; step APIs filter, sort, paginate and look up details in ClickHouse. Legacy profile blobs remain readable. Staged bytes are removed on success/rejection; daily ingestion retention cleans up status rows.
+- Profile webhooks stage bounded compressed bytes in PostgreSQL; `ProcessProfileWorker` parses them on the existing bounded `:process_bazel_tests` processor queue. Decoding limits nesting and decoded container memory during parsing. Each ingest writes its `ProfileSteps` rows under a fresh version (a retry never duplicates a published version, so remote-execution analytics read steps without FINAL) and publishes normalized metadata only after all of them exist; step APIs filter, sort, paginate and look up details in ClickHouse. Legacy profile blobs remain readable. Staged bytes are removed on success/rejection; daily ingestion retention cleans up status rows.
 - Action writes use the shared ingestion buffer and support atomically validated batches of up to 32. Resolve repeated primary outputs against the profile epoch and step interval; zero BEP timestamps mean unavailable and permit a match only when the output has one unambiguous result. Leave ambiguous matches unknown. `Invocation.timeline_spans/1` owns the retained column-array decoder, preserving lanes and zero-duration entries.
 
 - `Profile.load(include_steps: false)` provides timeline metric bootstrapping without loading indexed steps or enriching action outcomes. Full HTTP metadata downloads perform step loading and enrichment separately; both paths preserve native bucket intervals and CPU normalization.

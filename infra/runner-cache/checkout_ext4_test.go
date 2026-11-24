@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func exportArchive(t *testing.T, entries ...[2]string) *bytes.Buffer {
@@ -159,7 +160,34 @@ func TestExt4CheckoutBuildsInTheImagesCheckoutDirectory(t *testing.T) {
 	}
 }
 
+func TestExt4CheckoutDetachWaitsForADeferredLoopRelease(t *testing.T) {
+	lists := 0
+	images := &Ext4CheckoutImages{Run: func(_ context.Context, _ string, _ []string, name string, args ...string) ([]byte, error) {
+		if name == "losetup" && args[0] == "--json" {
+			lists++
+			// Attached before the detach, then still held by a brief opener.
+			if lists <= 3 {
+				return []byte(`{"loopdevices":[{"name":"/dev/loop7"}]}`), nil
+			}
+			return nil, nil
+		}
+		return nil, nil
+	}}
+	image := filepath.Join(t.TempDir(), "next.img")
+	if err := os.WriteFile(image, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := images.Detach(context.Background(), image, t.TempDir()); err != nil {
+		t.Fatalf("a loop device released after detach failed it: %v", err)
+	}
+	if lists != 4 {
+		t.Fatalf("listed the image's loop devices %d times, want 4", lists)
+	}
+}
+
 func TestExt4CheckoutDetachFailsWhileTheLoopDeviceLingers(t *testing.T) {
+	defer func(wait time.Duration) { checkoutReleaseWait = wait }(checkoutReleaseWait)
+	checkoutReleaseWait = 300 * time.Millisecond
 	images := &Ext4CheckoutImages{Run: func(_ context.Context, _ string, _ []string, name string, args ...string) ([]byte, error) {
 		if name == "losetup" && args[0] == "--json" {
 			return []byte(`{"loopdevices":[{"name":"/dev/loop7"}]}`), nil

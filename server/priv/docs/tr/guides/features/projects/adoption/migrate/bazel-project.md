@@ -1,23 +1,23 @@
 ---
 {
-  "title": "Bazel projesini geçiş yapma",
-  "titleTemplate": ":title · Geçiş · Benimseme · Projeler · Özellikler · Kılavuzlar · Tuist",
-  "description": "Projelerinizi Bazel'den Tuist'e nasıl geçireceğinizi öğrenin."
+  "title": "Bazel projesini taşıma",
+  "titleTemplate": ":title · Taşıma · Benimseme · Projeler · Özellikler · Kılavuzlar · Tuist",
+  "description": "Projelerinizi Bazel'den Tuist'e nasıl taşıyacağınızı öğrenin."
 }
 ---
-# Bazel projesini taşıma {#migrate-a-bazel-project}
+# Bir Bazel projesini taşıma {#migrate-a-bazel-project}
 
-[Bazel](https://bazel.build), Google tarafından 2015 yılında açık kaynak hale getirilen bir derleme sistemidir. Her ölçekteki yazılımı hızlı ve güvenilir bir şekilde derlemenize ve test etmenize olanak tanıyan güçlü bir araçtır. [Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/), [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae) veya [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel) gibi bazı büyük kuruluşlar bunu kullanmaktadır; ancak, teknolojiyi öğrenmek gibi ilk aşamada ve Xcode güncellemelerini takip etmek gibi sürekli yatırım gerektiren bir süreçtir. Bazı kuruluşlar bunu çapraz bir sorumluluk olarak ele alıp bu yaklaşımı benimserken, ürün geliştirmeye odaklanmak isteyen diğerleri için en uygun çözüm olmayabilir. Örneğin, iOS platform ekibi Bazel'i tanıtan ancak çabayı yürüten mühendisler şirketten ayrıldıktan sonra bunu bırakmak zorunda kalan kuruluşlar gördük. Apple'ın Xcode ile derleme sistemi arasındaki sıkı bağımlılık konusundaki tutumu da zaman içinde Bazel projelerini sürdürmeyi zorlaştıran başka bir faktördür.
+[Bazel](https://bazel.build), Google'ın 2015 yılında açık kaynak hale getirdiği bir derleme sistemidir. Her ölçekteki yazılımı hızlı ve güvenilir bir şekilde derlemenize ve test etmenize olanak tanıyan güçlü bir araçtır. [Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/), [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae) veya [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel) gibi bazı büyük kuruluşlar bunu kullanır; ancak, teknolojiyi öğrenmek gibi başlangıçta ve Xcode güncellemelerini takip etmek gibi sürekli yatırım gerektirir. Bu durum, bunu çapraz bir konu olarak ele alan bazı kuruluşlar için işe yarasa da, ürün geliştirmeye odaklanmak isteyen diğerleri için en uygun çözüm olmayabilir. Örneğin, iOS platform ekibi Bazel'i tanıtan ve ardından bu çabayı yöneten mühendisler şirketten ayrılınca onu bırakmak zorunda kalan kuruluşlar gördük. Apple'ın Xcode ile derleme sistemi arasındaki sıkı bağlantı konusundaki duruşu, Bazel projelerinin zaman içinde bakımını zorlaştıran başka bir faktördür.
 
 > [!TIP]
-> **Tuist'in benzersizliği inceliğinde yatar**
+> **Tuist'in benzersizliği zarafetinde yatar**
 >
-> Tuist, Xcode ve Xcode projeleriyle mücadele etmek yerine onları benimser. Aynı kavramlar (örneğin hedefler, şemalar, derleme ayarları), tanıdık bir dil (yani Swift) ve projelerin bakımını ve ölçeklendirmesini herkesin işi haline getiren, sadece iOS platform ekibinin değil, basit ve keyifli bir deneyim sunar.
+> Xcode ve Xcode projeleriyle savaşmak yerine Tuist onu kucaklar. Aynı kavramlar (örneğin hedefler, şemalar, derleme ayarları), tanıdık bir dil (yani Swift) ve projelerin bakımını ve ölçeklendirilmesini herkesin işi haline getiren, sadece iOS platform ekibinin değil, basit ve keyifli bir deneyim sunar.
 
 
 ## Kurallar {#rules}
 
-Bazel, yazılımın nasıl derleneceğini ve test edileceğini tanımlamak için kuralları kullanır. Kurallar, Python benzeri bir dil olan [Starlark](https://github.com/bazelbuild/starlark) ile yazılır. Tuist, yapılandırma dili olarak Swift'i kullanır ve bu sayede geliştiricilere Xcode'un otomatik tamamlama, tür denetimi ve doğrulama özelliklerini kullanma kolaylığı sağlar. Örneğin, aşağıdaki kural Bazel'de bir Swift kitaplığının nasıl derleneceğini açıklar:
+Bazel, yazılımın nasıl derleneceğini ve test edileceğini tanımlamak için kuralları kullanır. Kurallar, Python benzeri bir dil olan [Starlark](https://github.com/bazelbuild/starlark) ile yazılır. Tuist, yapılandırma dili olarak Swift'i kullanır ve bu, geliştiricilere Xcode'un otomatik tamamlama, tür denetimi ve doğrulama özelliklerini kullanma kolaylığı sağlar. Örneğin, aşağıdaki kural Bazel'de bir Swift kitaplığının nasıl derleneceğini açıklar:
 
 ::: code-group
 ```txt [BUILD (Bazel)]
@@ -81,7 +81,7 @@ let project = Project(
 
 ## Swift Package Manager bağımlılıkları {#swift-package-manager-dependencies}
 
-Bazel'de, Swift Paketlerini bağımlılık olarak kullanmak için [`rules_swift_package_manager`](https://github.com/cgrindel/rules_swift_package_manager) [Gazelle](https://github.com/bazelbuild/bazel-gazelle/blob/master/extend.md) eklentisini kullanabilirsiniz. Eklenti, bağımlılıklar için tek doğruluk kaynağı olarak bir `Package.swift` dosyası gerektirir. Bu açıdan Tuist'in arayüzü Bazel'e benzer. Paketin bağımlılıklarını çözümlemek ve çekmek için `tuist install` komutunu kullanabilirsiniz. Çözümleme tamamlandıktan sonra projeyi `tuist generate` komutuyla oluşturabilirsiniz.
+Bazel'de, Swift Paketlerini bağımlılık olarak kullanmak için [`rules_swift_package_manager`](https://github.com/cgrindel/rules_swift_package_manager) [Gazelle](https://github.com/bazelbuild/bazel-gazelle/blob/master/extend.md) eklentisini kullanabilirsiniz. Eklenti, bağımlılıklar için tek gerçeklik kaynağı olarak bir `Package.swift` dosyası gerektirir. Tuist'in arayüzü bu anlamda Bazel'e benzer. Paketin bağımlılıklarını çözmek ve çekmek için `tuist install` komutunu kullanabilirsiniz. Çözümleme tamamlandıktan sonra, projeyi `tuist generate` komutuyla oluşturabilirsiniz.
 
 ```bash
 tuist install # Fetch dependencies defined in Tuist/Package.swift

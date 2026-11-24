@@ -101,7 +101,7 @@ defmodule TuistWeb.CreateProjectLive do
                   <:item value="bazel" label="Bazel" />
                   <:item value="mix" label="Mix (Elixir)" />
                   <:item value="cargo" label="Cargo (Rust)" />
-                  <:item value="once" label="Once" />
+                  <:item value="once" label="Struo" />
                 </.select>
               </div>
               <.button

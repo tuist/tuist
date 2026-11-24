@@ -7,8 +7,8 @@ defmodule Tuist.Tests.Coverage.Evidence do
   The client's coverage observer records the coverage counters each test
   moved and reduces them to source files; the run reports them as
   `coverage_evidence` (`paths` once, and scopes referring to them by index).
-  They are stored in `coverage_files` beside the run's own coverage, told
-  apart by the scope:
+  They are stored in `coverage_files`, apart from the run's own coverage
+  (`coverage_run_files`), told apart by the scope:
 
   - `test`: what one test executed, `scope_id` the module, the suite (empty
     for a test outside any) and the name: the fields a test case's stable id
@@ -25,13 +25,20 @@ defmodule Tuist.Tests.Coverage.Evidence do
   the scope ran in it (`line_numbers`, with `covered_lines` their count; an
   empty list means only the file is known). They hold no execution counts and
   no blob, which is read off the run's own row for the path or
-  the commit's listing. Every reader of coverage filters on the `run` scope, so these rows
+  the commit's listing. No reader of coverage reads them, so these rows
   never reach a total. Like the run's coverage, a report replaces the shard's
   earlier one: readers use each shard's latest.
+
+  The rows are only what a commit's fold builds its test maps from
+  (`Tuist.TestImpactAnalysis.Snapshots`), seconds after the run reports, so
+  they expire `retention_days/0` after they were inserted, long before the
+  run's own rows.
   """
+  alias Tuist.ClickHouse.Inserts
   alias Tuist.IngestRepo
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CoverageFile
+  alias TuistCommon.Ingestion.Bufferable
 
   # Joins a scope id's parts. A unit separator, because a slash would not
   # survive a Bazel label (`//app/core:tests`) or a test name that holds one.
@@ -42,6 +49,13 @@ defmodule Tuist.Tests.Coverage.Evidence do
   # Ranges cost the client a few bytes whatever they span, so past this a
   # file's evidence keeps only that the scope ran it.
   @line_budget 10_000_000
+  @retention_days 2
+
+  @doc """
+  How many days evidence rows are kept after they were inserted: the
+  `coverage_files` time-to-live for every scope but `run`.
+  """
+  def retention_days, do: @retention_days
 
   @doc """
   Stores a run's evidence. `evidence` is the request's `coverage_evidence`,
@@ -75,10 +89,29 @@ defmodule Tuist.Tests.Coverage.Evidence do
         inserted_at: NaiveDateTime.utc_now()
       }
 
-      scopes
-      |> Stream.transform(Keyword.get(opts, :line_budget, @line_budget), &rows(&1, paths, base, &2))
-      |> Stream.chunk_every(@insert_chunk_size)
-      |> Enum.each(&IngestRepo.insert_all(CoverageFile, &1))
+      # One insert, encoded a chunk at a time as the request streams it: the
+      # rows share one `inserted_at`, so they land as one part and a reader
+      # sees all of the report's evidence or none of it. Columns a row leaves
+      # out take their type's default.
+      %{fields: fields, encoding_types: types, header: header, insert_sql: sql, insert_opts: insert_opts} =
+        Bufferable.compile_time_prepare(CoverageFile)
+
+      encoded = :counters.new(1, [])
+
+      body =
+        scopes
+        |> Stream.transform(Keyword.get(opts, :line_budget, @line_budget), &rows(&1, paths, base, &2))
+        |> Stream.chunk_every(@insert_chunk_size)
+        |> Stream.map(fn chunk ->
+          :counters.add(encoded, 1, length(chunk))
+          chunk |> Enum.map(fn row -> Enum.map(fields, &Map.get(row, &1)) end) |> Ch.RowBinary._encode_rows(types)
+        end)
+
+      IngestRepo.with_retry(fn -> IngestRepo.query!(sql, Stream.concat([header], body), insert_opts) end)
+
+      # The run's coverage totals wait for these rows (`Workers.TotalsWorker`).
+      if :counters.get(encoded, 1) > 0,
+        do: Inserts.record("coverage_files", Coverage.report_key(test_run_id, shard_index), project_id, base.inserted_at)
     end
 
     :ok
@@ -171,6 +204,9 @@ defmodule Tuist.Tests.Coverage.Evidence do
     end)
     |> Enum.reverse()
   end
+
+  @doc "The line numbers of `line_ranges/1`'s runs, ascending."
+  def range_lines(ranges), do: Enum.flat_map(ranges, fn [first, last] -> first..last//1 end)
 
   defp rows(scope, paths, base, budget) do
     kind = value(scope, :kind, "")

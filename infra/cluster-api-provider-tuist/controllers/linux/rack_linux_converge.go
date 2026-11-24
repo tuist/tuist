@@ -47,9 +47,13 @@ type rackConvergeOptions struct {
 	// over uplinks that carry no address of the host's (rackEdgeFiles).
 	Role string
 	// Edge is an edge's spec.edge, the VRRP VLAN its install builds.
-	Edge       *infrav1.RackLinuxHostEdge
-	NodeIP     string
-	ProviderID string
+	Edge *infrav1.RackLinuxHostEdge
+	// FirstEdgeWAN is the site's WAN on an edge with no other edge of its
+	// site to go out through, which keeps it on its first uplink as its
+	// install's netplan put it there (rackinstall.EdgeNetwork).
+	FirstEdgeWAN *infrav1.RackLinuxHostEdgeWAN
+	NodeIP       string
+	ProviderID   string
 	// KubeletVersion is the exact kubelet release to run, without the `v`.
 	KubeletVersion string
 	// K8sMinor is the pkgs.k8s.io channel, e.g. "v1.34".
@@ -483,6 +487,10 @@ net.ipv6.conf.default.accept_ra = 0
 		f := infrav1.RackNodeFile{Path: rackEdgeUplinkNetworkPath(n), Group: "network"}
 		if n <= len(uplinks) {
 			f.Content = fmt.Sprintf("[Match]\nName=%s\n\n%sVLAN=%s\n", uplinks[n-1], rackEdgeUplinkNetwork, rackinstall.EdgeUplinkMember(rackinstall.EdgeVRRPBond, n))
+			if w := o.FirstEdgeWAN; n == 1 && w != nil {
+				f.Content += fmt.Sprintf("Address=%s/32\n\n[Route]\nGateway=%s\nGatewayOnLink=yes\nMetric=%d\n",
+					strings.SplitN(w.Address, "/", 2)[0], w.Gateway, rackinstall.EdgeFirstWANMetric)
+			}
 		}
 		all = append(all, f)
 	}

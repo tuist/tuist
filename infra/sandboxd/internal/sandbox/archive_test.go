@@ -20,8 +20,10 @@ import (
 
 	"github.com/tuist/tuist/infra/sandboxd/pkg/archive"
 	"github.com/tuist/tuist/infra/sandboxd/internal/fakevm"
+	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
+	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 )
 
 // objectStore stands in for presigned multipart uploads and downloads.
@@ -469,6 +471,52 @@ func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
 	}
 }
 
+func TestUnsyncedPauseArchivesOnlyWithItsMemory(t *testing.T) {
+	ctx := context.Background()
+	node := func(compat string) *harness {
+		h := newHarness(t)
+		h.m.cfg.SnapshotCompat = compat
+		h.launcher.SizedMemory = true
+		return h
+	}
+	h := node("zen5")
+	store, server := newObjectStore(t)
+	args := protocol.CreateArgs{SandboxID: "src", Template: "default", VCPUs: 2, MemoryMB: 128, WorkspaceGB: 1}
+	if _, err := h.m.Create(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.Pause(ctx, "src"); err != nil {
+		t.Fatal(err)
+	}
+	archiveArgs := archiveArgs(server, "src")
+	if _, err := h.m.Archive(ctx, archiveArgs); !errors.Is(err, ErrDisksNotSynced) {
+		t.Fatalf("an unsynced pause archived without its memory: %v", err)
+	}
+	archiveArgs.Memory = true
+	res, err := h.m.Archive(ctx, archiveArgs)
+	if err != nil {
+		t.Fatalf("an unsynced pause must archive with its memory: %v", err)
+	}
+	if res.DisksSynced || res.TailOffset <= 0 || res.Compat != "zen5" {
+		t.Fatalf("archive result %+v must carry the memory and say the disks are unsynced", res)
+	}
+	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256}
+
+	// A node that cannot load the memory must not cold boot the disks.
+	other := node("zen4")
+	restore := args
+	restore.SandboxID, restore.FromArchive = "cold", source
+	if _, err := other.m.Create(ctx, restore); !errors.Is(err, ErrArchiveNeedsWarmRestore) {
+		t.Fatalf("an unsynced archive cold booted on an incompatible node: %v", err)
+	}
+	if vm.Exists(vm.JailDir(other.jailBase, "cold")) {
+		t.Fatal("a refused restore must remove its jail")
+	}
+	if len(store.object()) == 0 {
+		t.Fatal("a refused restore must leave the archive")
+	}
+}
+
 func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
 	if !fakevm.UserfaultfdSupported() {
 		t.Skip("this kernel has no unprivileged userfaultfd")
@@ -523,8 +571,20 @@ func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
 	}
 	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256, LazyDisks: true}
 
-	for _, tc := range []struct{ id, compat string }{{"warm", "zen5"}, {"cold", "zen4"}} {
+	// "stuck" is a guest that never answers once its memory loaded: its
+	// synced disks cold boot instead.
+	for _, tc := range []struct{ id, compat string }{{"warm", "zen5"}, {"cold", "zen4"}, {"stuck", "zen5"}} {
 		other := node(tc.compat)
+		if tc.id == "stuck" {
+			other.m.cfg.BootTimeout = 300 * time.Millisecond
+			agent, calls := other.m.agent, 0
+			other.m.agent = func(path string) vsock.Agent {
+				if calls++; calls == 1 {
+					return silentAgent{}
+				}
+				return agent(path)
+			}
+		}
 		restore := args
 		restore.SandboxID, restore.FromArchive = tc.id, source
 		created, err := other.m.Create(ctx, restore)
@@ -536,6 +596,15 @@ func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
 				t.Fatal("a warm restore must report its memory as pending")
 			}
 			other.events.wait(t, protocol.EventMemoryLoaded, 10*time.Second)
+		}
+		if tc.id == "stuck" {
+			booted := false
+			for _, call := range other.launcher.Last().Calls() {
+				booted = booted || call.Path == "/actions"
+			}
+			if !booted {
+				t.Fatal("a guest that never answered must cold boot its disks")
+			}
 		}
 		restored := vm.RootDir(other.jailBase, tc.id)
 		gotWorkspace, _ := os.ReadFile(filepath.Join(restored, "workspace.ext4"))
@@ -564,4 +633,100 @@ func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
 		t.Fatal("an archive with lazy disks must not restore as one without")
 	}
 	_ = store
+}
+
+// silentAgent is a guest agent that never answers.
+type silentAgent struct{ vsock.Agent }
+
+func (silentAgent) Ping(context.Context) (vsock.Pong, error) {
+	return vsock.Pong{}, errors.New("no answer")
+}
+
+// A cache clone never travels in an archive. The template's empty
+// placeholder is recreated by a warm restore; a sandbox with a real cache
+// mounted archives without its memory and cold boots elsewhere.
+func TestArchiveOfTemplateCacheDrives(t *testing.T) {
+	if !fakevm.UserfaultfdSupported() {
+		t.Skip("this kernel has no unprivileged userfaultfd")
+	}
+	ctx := context.Background()
+	node := func() *harness {
+		h := newHarness(t)
+		h.m.cfg.SnapshotCompat = "zen5"
+		h.launcher.SizedMemory = true
+		h.m.builder.CacheDrive = true
+		h.m.cfg.CacheImageDir = filepath.Join(h.dataDir, "cache-images")
+		if err := os.MkdirAll(h.m.cfg.CacheImageDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(h.m.cfg.CacheImageDir, "go-cache"), []byte("warm cache"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+	h := node()
+	_, server := newObjectStore(t)
+	plain := protocol.CreateArgs{SandboxID: "plain", Template: "default", VCPUs: 2, MemoryMB: 128, WorkspaceGB: 1}
+	cached := plain
+	cached.SandboxID, cached.CacheImage = "cached", "go-cache"
+	for _, args := range []protocol.CreateArgs{plain, cached} {
+		if _, err := h.m.Create(ctx, args); err != nil {
+			t.Fatalf("create %s: %v", args.SandboxID, err)
+		}
+	}
+	if size := vm.FileSize(filepath.Join(vm.RootDir(h.jailBase, "plain"), "cache.ext4")); size != template.CachePlaceholderBytes {
+		t.Fatalf("a template create must provide the snapshot's placeholder, got %d bytes", size)
+	}
+	if data, _ := os.ReadFile(filepath.Join(vm.RootDir(h.jailBase, "cached"), "cache.ext4")); string(data) != "warm cache" {
+		t.Fatalf("the cache image must replace the placeholder, got %q", data)
+	}
+	var patched bool
+	for _, call := range h.launcher.Last().Calls() {
+		patched = patched || (call.Method == http.MethodPatch && call.Path == "/drives/cache")
+	}
+	if !patched {
+		t.Fatal("the restore must patch the cache drive so the guest sees the image's size")
+	}
+
+	if _, err := h.m.Pause(ctx, "cached"); err != nil {
+		t.Fatal(err)
+	}
+	withMemory := archiveArgs(server, "cached")
+	withMemory.Memory = true
+	if _, err := h.m.Archive(ctx, withMemory); !errors.Is(err, ErrDisksNotSynced) {
+		t.Fatalf("an unsynced sandbox with a cache mounted has nothing it can archive, got %v", err)
+	}
+	if _, err := h.m.Resume(ctx, "cached"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "cached", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := h.m.Archive(ctx, withMemory); err != nil || res.TailOffset != 0 {
+		t.Fatalf("a sandbox with a cache mounted must archive without its memory: %+v, %v", res, err)
+	}
+
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "plain", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	withMemory.SandboxID = "plain"
+	res, err := h.m.Archive(ctx, withMemory)
+	if err != nil || res.TailOffset <= 0 {
+		t.Fatalf("the placeholder must not keep the memory home: %+v, %v", res, err)
+	}
+	// The restoring node runs without the flag: the archive alone says the
+	// VM state needs a placeholder.
+	other := newHarness(t)
+	other.m.cfg.SnapshotCompat = "zen5"
+	other.launcher.SizedMemory = true
+	restore := plain
+	restore.SandboxID = "dst"
+	restore.FromArchive = &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256}
+	created, err := other.m.Create(ctx, restore)
+	if err != nil || !created.MemoryPending {
+		t.Fatalf("warm restore: %+v, %v", created, err)
+	}
+	if size := vm.FileSize(filepath.Join(vm.RootDir(other.jailBase, "dst"), "cache.ext4")); size != template.CachePlaceholderBytes {
+		t.Fatalf("a warm restore must recreate the placeholder, got %d bytes", size)
+	}
 }

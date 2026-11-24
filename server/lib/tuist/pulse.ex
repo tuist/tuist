@@ -12,7 +12,8 @@ defmodule Tuist.Pulse do
   accept literal, case-insensitive text (`*` selects all). Trace rows represent
   individual spans; error rows are issues (`Tuist.Pulse.Errors`).
 
-  Service filters apply to every signal and level to logs and errors. Each has an optional
+  Service filters apply to every signal, level to logs and errors, and
+  environment to errors, where it selects events before issues are grouped. Each has an optional
   `_op`: eq (default, case-sensitive), contains or not_contains
   (case-insensitive literal). Filters are ANDed and empty values ignored. Search
   is a literal case-insensitive projected-row search. All filtering and sorting
@@ -39,6 +40,7 @@ defmodule Tuist.Pulse do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.KeyValueStore
   alias Tuist.Pulse.Errors
   alias Tuist.Pulse.Explore
   alias Tuist.Pulse.SQL
@@ -68,6 +70,126 @@ defmodule Tuist.Pulse do
   end
 
   def authorized?(_user, _account), do: false
+
+  @doc """
+  Forwards a Sentry envelope, posted to the API by one of the enrolled
+  account's producers (see `available?/1`), to Pulse's Sentry endpoint and
+  returns Pulse's status, body and allowlisted rate-limit response headers.
+
+  Pulse's endpoint is internal to the cluster, so the server writes as the
+  write-only identity in its own `sentry_pulse_dsn` (the one its web
+  instances copy their errors with). `service` names the producer, as the
+  service segment of a Pulse DSN does, and `project_id` is passed through.
+  Only `content-type` and `content-encoding` of `headers` are forwarded.
+  """
+  def forward_sentry_envelope(service, project_id, body, headers) do
+    with {:ok, writer} <- sentry_writer() do
+      request =
+        Req.new(
+          method: :post,
+          url: "#{writer.base_url}/v1/sentry/#{service}/api/#{project_id}/envelope/",
+          headers: [
+            {"x-sentry-auth", "Sentry sentry_version=7, sentry_key=#{writer.key}, sentry_secret=#{writer.secret}"}
+            | Enum.filter(headers, fn {name, _} -> name in ["content-type", "content-encoding"] end)
+          ],
+          body: body,
+          compressed: false,
+          decode_body: false,
+          redirect: false,
+          retry: false,
+          receive_timeout: 10_000,
+          connect_options: [timeout: 5_000]
+        )
+
+      case Req.request(request) do
+        {:ok, %Req.Response{status: status, body: body} = response} ->
+          headers =
+            for name <- ["retry-after", "x-sentry-rate-limits"],
+                values = Req.Response.get_header(response, name),
+                values != [],
+                do: {name, Enum.join(values, ", ")}
+
+          {:ok, status, body, headers}
+
+        {:error, _reason} ->
+          {:error, :unavailable}
+      end
+    end
+  end
+
+  @doc """
+  Whether Pulse takes the telemetry of Tuist's own clients, such as Luft:
+  it belongs to the configured Pulse account and follows that account's
+  enrollment (`available?/1`), read at most once a minute per node.
+  """
+  def own_telemetry? do
+    # Every running client asks once a minute; enrollment changes rarely, so
+    # each node may answer from a minute-old reading.
+    case Keyword.get(Environment.pulse_config(), :account_id) do
+      id when is_integer(id) and id > 0 ->
+        KeyValueStore.get_or_update([__MODULE__, :own_telemetry, id], [ttl: to_timeout(minute: 1)], fn ->
+          case Accounts.get_account_by_id(id) do
+            {:ok, account} -> available?(account)
+            {:error, :not_found} -> false
+          end
+        end)
+
+      _ ->
+        false
+    end
+  end
+
+  @doc """
+  Forwards `body`, a protobuf OTLP export request for `signal` (`traces`,
+  `logs` or `metrics`) that its producer's policy already confined (such as
+  `Tuist.Pulse.LuftTelemetry`), to Pulse's OTLP endpoint, into the tables the
+  environment's collectors write, as the server's write-only writer (see
+  `forward_sentry_envelope/4`). Returns Pulse's status and protobuf body.
+  """
+  def forward_otlp(signal, body) when signal in ~w(traces logs metrics) and is_binary(body) do
+    with {:ok, writer} <- sentry_writer() do
+      tables =
+        case signal do
+          "traces" -> [{"x-pulse-pipeline-name", "pulse_trace_v1"}, {"x-pulse-trace-table-name", "opentelemetry_traces"}]
+          "logs" -> [{"x-pulse-log-table-name", "opentelemetry_logs"}]
+          "metrics" -> []
+        end
+
+      request =
+        Req.new(
+          method: :post,
+          url: "#{writer.base_url}/v1/otlp/v1/#{signal}",
+          headers: [
+            {"authorization", "Basic " <> Base.encode64("#{writer.key}:#{writer.secret}")},
+            {"content-type", "application/x-protobuf"},
+            {"x-pulse-db-name", "public"} | tables
+          ],
+          body: body,
+          compressed: false,
+          decode_body: false,
+          redirect: false,
+          retry: false,
+          receive_timeout: 10_000,
+          connect_options: [timeout: 5_000]
+        )
+
+      case Req.request(request) do
+        {:ok, %Req.Response{status: status, body: body}} -> {:ok, status, body}
+        {:error, _reason} -> {:error, :unavailable}
+      end
+    end
+  end
+
+  defp sentry_writer do
+    with dsn when is_binary(dsn) <- Environment.sentry_pulse_dsn(),
+         %URI{scheme: scheme, host: host, port: port, userinfo: userinfo}
+         when scheme in ["http", "https"] and is_binary(host) and is_binary(userinfo) <- URI.parse(dsn),
+         [key, secret] <- String.split(userinfo, ":", parts: 2) do
+      {:ok, %{base_url: "#{scheme}://#{host}:#{port}", key: key, secret: secret}}
+    else
+      _ -> {:error, :not_configured}
+    end
+  end
 
   def query(user, account, signal, params) do
     with true <- authorized?(user, account),
@@ -126,14 +248,15 @@ defmodule Tuist.Pulse do
   @doc """
   One error issue, `(service, fingerprint)`, over a window. String-keyed params
   are a required `service`, `range`, an ISO8601 `end_at`, `page` and
-  `page_size`. Returns the issue summary, a 60-bucket occurrence series, the
-  latest event with its scrubbed payload and one page of events, newest first,
+  `page_size`, and an optional `environment` filter on events. Returns the
+  issue summary, a 60-bucket occurrence series, the latest event with its
+  scrubbed payload and one page of events, newest first,
   with pagination `meta`; `:not_found` when the issue has no events in the
   window.
   """
   def error_issue(user, account, fingerprint, params) do
     if authorized?(user, account) do
-      with {:ok, service, opts} <- issue_params(fingerprint, params, ~w(service range end_at page page_size)),
+      with {:ok, service, opts} <- issue_params(fingerprint, params, ~w(service range end_at page page_size environment)),
            {:ok, client} <- credentials() do
         Errors.issue(service, fingerprint, opts, &request(client, "/v1/sql", &1))
       end
@@ -176,36 +299,55 @@ defmodule Tuist.Pulse do
   defp issue_params(_fingerprint, _params, _keys), do: {:error, :invalid_params}
 
   @doc """
-  Fixed aggregate widgets, independent of the table query. Only string-keyed
-  `range` is accepted. Values are end-of-window gauges for metrics and full-window
+  Fixed aggregate widgets, independent of the table query. String-keyed `range`
+  and `widgets`, a nonempty subset of the signal's widget ids (default all), are
+  accepted. Values are end-of-window gauges for metrics and full-window
   aggregates for other signals. Points use Unix seconds; duration is milliseconds.
   Each widget's `previous_value` uses the same query over the preceding equal
   window (the gauge at the current window's start for metrics). Missing values
   remain nil, independently in each period; only the current period has points.
 
-  One snapshot is aligned down to the chart step (at most 240 seconds). Log
-  charts use minute-aligned, nonoverlapping buckets, at least 60 seconds wide and
-  at most 360 points. Full-window totals are independent queries, never sums of
-  chart buckets. Trace counts are spans, not traces. Duration quantiles are
+  One snapshot is aligned down to the chart step (at most 240 seconds), and each
+  node reuses it until the window advances by a step. Log and
+  error charts use minute-aligned, nonoverlapping buckets, at least 60 seconds wide and
+  at most 360 points. Count totals are the sums of their period's buckets, which
+  partition the window exactly; other totals, such as quantiles and distinct
+  services, are independent queries. Trace counts are spans, not traces. Duration quantiles are
   approximate.
   """
   def analytics(user, account, signal, params) do
     with true <- authorized?(user, account),
-         {:ok, seconds} <- analytics_range(signal, params),
+         {:ok, seconds, ids} <- analytics_params(signal, params),
          {:ok, client} <- credentials() do
-      step = if signal == "logs", do: ceil(seconds / 360 / 60) * 60, else: ceil(seconds / 360)
+      step = if signal in ~w(logs errors), do: ceil(seconds / 360 / 60) * 60, else: ceil(seconds / 360)
       now = DateTime.to_unix(DateTime.utc_now(), :second)
       finish = now - rem(now, step)
       window = %{start: finish - seconds, finish: finish, seconds: seconds, step: step}
       previous_window = %{window | start: window.start - seconds, finish: window.start}
 
-      widgets = widget_queries(signal)
+      # A duration's gaps come from the span counts of the same buckets.
+      computed = if "duration_p95" in ids, do: ["spans" | ids], else: ids
+      widgets = Enum.filter(widget_queries(signal), &(elem(&1, 0) in computed))
 
-      signal
-      |> analytics_tasks(widgets, client, window, previous_window)
-      |> Tasks.parallel_tasks(max_concurrency: 3)
-      |> widget_results(signal, widgets, window)
-      |> analytics_widgets(signal)
+      # A window advances by its step (up to 240 seconds), and every refresh and
+      # viewer of it on a node shares one computation. Telemetry for the newest
+      # bucket can still be arriving when the window is first computed, so the
+      # result is kept for at most the dashboard's 15-second refresh, which
+      # recomputes it as the old refresh did.
+      KeyValueStore.get_or_update(
+        [__MODULE__, :analytics, account.id, signal, seconds, finish | ids],
+        [ttl: to_timeout(second: min(step, 15)), cache_errors: false],
+        fn ->
+          with {:ok, analytics} <-
+                 signal
+                 |> analytics_tasks(widgets, client, window, previous_window)
+                 |> Tasks.parallel_tasks(max_concurrency: 3)
+                 |> widget_results(signal, widgets, window)
+                 |> analytics_widgets(signal) do
+            {:ok, %{analytics | widgets: Enum.filter(analytics.widgets, &(&1.id in ids))}}
+          end
+        end
+      )
     else
       false -> {:error, :forbidden}
       error -> error
@@ -217,12 +359,20 @@ defmodule Tuist.Pulse do
   end
 
   # One SQL query per period computes every widget, so each window is scanned
-  # once instead of once per widget, and all periods run concurrently.
+  # once instead of once per widget, and all periods run concurrently. Counts
+  # need only one scan of both periods (`SQL.periods/5`).
   defp analytics_tasks(signal, widgets, client, window, previous_window) do
     ids = Enum.map(widgets, &elem(&1, 0))
+    request = &request(client, "/v1/sql", &1)
 
+    if SQL.counts?(signal, ids),
+      do: [fn -> SQL.periods(signal, ids, window, previous_window, request) end],
+      else: aggregate_tasks(signal, ids, window, previous_window, request)
+  end
+
+  defp aggregate_tasks(signal, ids, window, previous_window, request) do
     Enum.map([{:instant, window}, {:range, window}, {:instant, previous_window}], fn {mode, window} ->
-      fn -> SQL.aggregate(signal, ids, mode, window, &request(client, "/v1/sql", &1)) end
+      fn -> SQL.aggregate(signal, ids, mode, window, request) end
     end)
   end
 
@@ -248,6 +398,9 @@ defmodule Tuist.Pulse do
       ]
     end)
   end
+
+  defp widget_results([{:ok, current, points, previous}], signal, widgets, window),
+    do: widget_results([{:ok, current, []}, {:ok, points, []}, {:ok, previous, []}], signal, widgets, window)
 
   defp widget_results(results, _signal, _widgets, _window), do: Enum.filter(results, &match?({:error, _}, &1))
 
@@ -326,15 +479,18 @@ defmodule Tuist.Pulse do
 
   defp value_count(_point, _window), do: :error
 
-  defp analytics_range(signal, params) when signal in @signals and is_map(params) do
+  defp analytics_params(signal, params) when signal in @signals and is_map(params) do
     range = Map.get(params, "range", "1h")
+    available = Enum.map(widget_queries(signal), &elem(&1, 0))
+    ids = Map.get(params, "widgets", available)
 
-    if Enum.all?(Map.keys(params), &(&1 == "range")) and is_binary(range) and Map.has_key?(@ranges, range),
-      do: {:ok, Map.fetch!(@ranges, range)},
-      else: {:error, :invalid_params}
+    if Enum.all?(Map.keys(params), &(&1 in ~w(range widgets))) and is_binary(range) and Map.has_key?(@ranges, range) and
+         is_list(ids) and ids != [] and Enum.all?(ids, &(&1 in available)),
+       do: {:ok, Map.fetch!(@ranges, range), ids},
+       else: {:error, :invalid_params}
   end
 
-  defp analytics_range(_signal, _params), do: {:error, :invalid_params}
+  defp analytics_params(_signal, _params), do: {:error, :invalid_params}
 
   defp widget_queries("metrics"), do: Enum.map(@metric_widgets, &{elem(&1, 0), :count})
 
@@ -379,7 +535,17 @@ defmodule Tuist.Pulse do
   defp scale(nil, _factor), do: nil
   defp scale(number, factor), do: number * factor
 
-  defp trace_duration_gaps([spans, errors, duration]) do
+  defp trace_duration_gaps(widgets) do
+    case {Enum.find(widgets, &(&1.id == "spans")), Enum.find(widgets, &(&1.id == "duration_p95"))} do
+      {%{} = spans, %{} = duration} ->
+        Enum.map(widgets, &if(&1.id == "duration_p95", do: duration_gaps(spans, duration), else: &1))
+
+      _ ->
+        widgets
+    end
+  end
+
+  defp duration_gaps(spans, duration) do
     counts = Map.new(spans.points, fn [timestamp, count] -> {timestamp, count} end)
 
     points =
@@ -389,7 +555,7 @@ defmodule Tuist.Pulse do
 
     value = if is_number(spans.value) and spans.value > 0, do: duration.value
     previous_value = if is_number(spans.previous_value) and spans.previous_value > 0, do: duration.previous_value
-    [spans, errors, %{duration | value: value, previous_value: previous_value, points: points}]
+    %{duration | value: value, previous_value: previous_value, points: points}
   end
 
   defp credentials do
@@ -477,13 +643,17 @@ defmodule Tuist.Pulse do
     case Req.request(request) do
       {:ok, %Req.Response{body: :too_large}} -> {:error, :query_result_limit}
       {:ok, %Req.Response{status: 200, body: body}} -> decode_body(body)
-      {:ok, %Req.Response{status: status}} when status in [400, 422] -> {:error, :invalid_query}
-      {:ok, %Req.Response{status: 429}} -> {:error, :rate_limited}
-      {:ok, %Req.Response{}} -> {:error, :upstream_error}
+      {:ok, %Req.Response{status: status}} -> {:error, status_error(status)}
       {:error, %Req.TransportError{reason: :timeout}} -> {:error, :timeout}
       {:error, _reason} -> {:error, :unavailable}
     end
   end
+
+  defp status_error(status) when status in [400, 422], do: :invalid_query
+  defp status_error(429), do: :rate_limited
+  # Pulse answers 408 when a query outlives its HTTP timeout; a proxy answers 504.
+  defp status_error(status) when status in [408, 504], do: :timeout
+  defp status_error(_status), do: :upstream_error
 
   defp bounded_body({:data, data}, {request, response}) do
     body = response.body || ""

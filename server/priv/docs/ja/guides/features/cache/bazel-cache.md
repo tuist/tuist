@@ -2,48 +2,101 @@
 {
   "title": "Bazel キャッシュ",
   "titleTemplate": ":title · キャッシュ · 機能 · ガイド · Tuist",
-  "description": "Tuist を使って、チームや CI 間で Bazel のリモートキャッシュエントリを共有します。"
+  "description": "Tuist を使用して、チームと CI で Bazel リモートキャッシュのエントリを共有します。"
 }
 ---
-# Bazelキャッシュ {#bazel-cache}
+# Bazel キャッシュ {#bazel-cache}
 
-Tuistは、Bazelがリモートキャッシュとして接続する[Remote Execution API](https://github.com/bazelbuild/remote-apis)キャッシュを公開しています。アクションの出力がすでにキャッシュにある場合、Bazelはそのアクションをスキップし、Tuistのキャッシュから結果を取得します。これにより、チーム全体およびCI環境でのコンパイル時間を短縮できます。
+Tuist は、Bazel がリモートキャッシュとして接続する [Remote Execution API](https://github.com/bazelbuild/remote-apis) キャッシュを公開しています。アクションの出力がすでにキャッシュにある場合、Bazel はそのアクションをスキップし、Tuist のキャッシュから結果を取得するため、チーム全体および CI 環境でのコンパイル時間を短縮できます。GitHub Actions の設定については、[Bazel on GitHub Actions](https://tuist.dev/solutions/bazel-github-actions) を参照してください。リモートキャッシュの仕組みや、セルフホスト型キャッシュとマネージドキャッシュの違いについては、[Bazel remote cache](https://tuist.dev/solutions/bazel-remote-cache) を参照してください。
 
 ## セットアップ {#setup}
 
-Bazelワークスペースのルートから、以下を実行してください：
+Bazel ワークスペースのルートで、次を実行します。
 
 ```bash
 tuist bazel setup
 ```
 
-これにより、`.bazelrc.tuist`ファイルが`.bazelrc`の隣に作成され、最も近いTuistキャッシュリージョンに接続され、ワークスペースごとの認証ヘルパーを通じて認証されます。また、リポジトリの`.bazelrc`に`try-import`行を追加します：
+これにより、`.bazelrc` の隣に `.bazelrc.tuist` ファイルが作成され、最も近い Tuist キャッシュリージョンに接続され、ワークスペースごとの認証情報ヘルパーによって認証されます。また、リポジトリの `.bazelrc` に `try-import` 行も追加されます。
 
 ```text
 try-import %workspace%/.bazelrc.tuist
 ```
 
-インポートを自分で管理したい場合は、`--no-add-bazelrc-import`を指定してください。
+インポートを自分で管理したい場合は、`--no-add-bazelrc-import` を指定してください。
 
-`.bazelrc.tuist`を`.gitignore`に追加し、コミットする代わりに各マシンでセットアップを実行してください。生成されたファイルは、現在のユーザーのTuist設定ディレクトリ下の絶対的な認証ヘルパーパスと、それを生成したマシンに最も近いキャッシュリージョンを指しているため、これらの値はチームメンバーや継続的インテグレーションランナーには引き継がれません。`.bazelrc`内の`try-import`行をコミットしてください。これはすべてのマシンで同じです。
+`.bazelrc.tuist` を `.gitignore` に追加し、コミットする代わりに各マシンでセットアップを実行してください。生成されたファイルは、現在のユーザーの Tuist 設定ディレクトリ下の絶対的な認証情報ヘルパーのパスと、それを生成したマシンに最も近いキャッシュリージョンを指すため、これらの値はチームメンバーや継続的インテグレーションランナーには引き継がれません。すべてのマシンで同じである `.bazelrc` 内の `try-import` 行をコミットしてください。
 
-Bazelワークスペースのマーカーが見つからない場合、ファイルがシンボリックリンクである場合、またはすでにリモートキャッシュやBuild Event Serviceが設定されている場合、セットアップは既存の`.bazelrc`を変更しません。そのため、再度実行しても冪等性が保たれます。
+Bazel ワークスペースのマーカーが見つからない場合、ファイルがシンボリックリンクの場合、またはすでにリモートキャッシュや Build Event Service が構成されている場合、セットアップは既存の `.bazelrc` を変更しません。そのため、再度実行しても冪等性が保たれます。
 
-統合を検証するために、通常のBazelコマンドを実行してください：
+統合を検証するために、通常の Bazel コマンドを実行します。
 
 ```bash
 bazel build //...
 ```
 
-キャッシュアクティビティは、Tuistダッシュボードのプロジェクトの**Bazel Cache**ページに表示されます。ここには、キャッシュ転送、ダウンロードとアップロード、読み書きレイテンシ、スループット、およびアクションキャッシュヒット率が表示されます。プロジェクトの**Overview**には、ビルド時間とともに同じアクションキャッシュヒット率の概要が表示されます。
+その後、キャッシュアクティビティは Tuist ダッシュボードのプロジェクトの **Bazel Cache** ページに表示され、キャッシュ転送、ダウンロードとアップロード、読み書きレイテンシ、スループット、およびアクションキャッシュヒット率を示します。プロジェクトの **Overview** には、ビルド時間とともに同じアクションキャッシュヒット率の概要が表示されます。
 
-特定のコマンドがキャッシュをどのように使用したかを確認するには、**Invocations**から開いてください。呼び出しページでは、アクションキャッシュのルックアップとコンテンツオブジェクトのリクエストが分離されており、コールドなアクションキャッシュと遅いアーティファクトダウンロードを区別できます。
+特定のコマンドがキャッシュをどのように使用したかを確認するには、**Invocations** から開いてください。呼び出しページでは、アクションキャッシュのルックアップとコンテンツオブジェクトのリクエストが区別されるため、コールドなアクションキャッシュと遅いアーティファクトダウンロードを区別できます。
+
+## リモート実行 {#remote-execution}
+
+Tuist は Linux エグゼキューター上で Bazel アクションを実行できるため、キャッシュミスはローカルマシンや CI ランナーではなくリモートで処理されます。リモート実行は有効化されたアカウントで利用可能です。あなたのアカウントで有効にするには、[メールでお問い合わせ](mailto:contact@tuist.dev) か [通話を予約](https://cal.tuist.dev/team/tuist/tuist) してください。その後、セットアップに `--remote-execution` を渡します。
+
+```bash
+tuist bazel setup --remote-execution
+```
+
+セットアップにより、`.bazelrc.tuist` 内で Bazel がリモートキャッシュの隣にある Tuist のエグゼキューターを指すようになります。実行ごとに現在のエグゼキューターとイメージを検索するため、生成された値をコピーするのではなく、セットアップを再実行してください。アクションはマシンにインストールされたツールではなく、エグゼキューターの Linux ツールチェーンで実行されるため、ワークスペースでアクションに必要なツールチェーンを宣言してください。
+
+セットアップは `--jobs` も、アカウントが同時に実行できるリモートアクション数の 2 倍に設定するため、各アクションの次に待機するアクションがあります。これがないと、Bazel はマシンのコア数と同じ数のアクションを並列に実行し、2 コアの CI ランナーは 2 つのリモートアクションしか同時に実行できません。
+
+別の値を使用するには、コマンドラインで `--jobs` を渡すか、`try-import` 行の後の `.bazelrc` で設定してください。Bazel は最後に読み取った値を使用するため、その行より前の `--jobs` は生成された値で置き換えられます。
+
+### エグゼキューターのサイズ {#executor-sizes}
+
+アクションはデフォルトで 4 GB のメモリと 2 vCPU を使用します。より大きな VM を要求するには、`tuist-memory-gb` 実行プロパティを設定します。
+
+| `tuist-memory-gb` | メモリ | vCPU | ワークスペースディスク |
+| --- | --- | --- | --- |
+| `4`（デフォルト） | 4 GB | 2 | 30 GB |
+| `8` | 8 GB | 4 | 30 GB |
+| `16` | 16 GB | 8 | 30 GB |
+
+例えば、デフォルトで 8 GB を要求するには、`.bazelrc` 内の `try-import` 行の**後**にこれを追加します。
+
+```text
+build --remote_default_exec_properties=tuist-memory-gb=8
+```
+
+特定のターゲットの場合は、代わりにその Bazel ルールで `exec_properties = {"tuist-memory-gb": "8"}` を使用してください。サポートされているのは `4`、`8`、および `16` のみです。より大きなアクションは、アカウントに割り当てられた vCPU とメモリの制限を比例して多く消費するため、同時に実行できる数が減少します。シェイプは両方の制限に適合する必要があります。生成された `--jobs` はデフォルトのシェイプを使用するため、より大きなシェイプを要求する必要がある場合はこれをオーバーライドしてください。
+
+エグゼキューターは現在、Tuist の Linux amd64 イメージを使用しています。任意のコンテナイメージ、他の実行オペレーティングシステムとアーキテクチャ、永続的なアクションワーカー、およびBring Your Own Executorは、セットアップを通じて構成できません。現在のイメージとエンドポイントを取得するには、セットアップを再実行してください。
+
+### 実行中のアクションと使用量 {#running-actions-and-usage}
+
+プロジェクトの **Remote execution** ページには、現在実行中のものと過去に実行されたものが表示されます。
+
+- **Invocations** には、実行中の Bazel 呼び出しが最初にリストされ、5 秒ごとに更新され、それぞれの経過時間と、実行中およびキューに入っているリモートアクションの数が表示されます。呼び出しは、Kura がターゲットパターンを取得すると表示され、完了レポートが届くまで残ります。一つを開くと、その **Executions** が表示されます。これは、VM で実行中または待機中のリモートアクションであり、各アクションのニーモニック、ターゲット、マシンサイズ、および現在の状態での時間が示されます。事前に準備された VM で実行ゲートウェイが実行するアクションは、実行中はリストされません。それらのタイミングは、呼び出しが完了すると表示されます。リストを検索またはフィルタリングしている間は、実行中の呼び出しは表示されません。
+- **Analytics** は、選択した期間の **Executions** と **Total execution time** から始まり、前の期間からの変化がマシンサイズごとにグラフ化されています。総実行時間は、各アクションのエグゼキューターが VM で実行された時間であり、入力の取得と出力のアップロードを含みますが、キューイングや VM の準備は含まれません。これは **Usage** ページで課金される時間です。キャッシュから提供された結果は実行ではありません。
+
+同じデータは `GET /api/projects/{account_handle}/{project_handle}/remote-execution/activity` および `GET /api/projects/{account_handle}/{project_handle}/remote-execution/usage`（オプションの `from` と `to`、デフォルトは過去 30 日で最大 366 日）、および `get_remote_execution_activity` と `get_remote_execution_usage` MCP ツールから利用できます。
+
+### リモートアクションのタイミング {#remote-action-timings}
+
+**Analytics** の残りの部分と **Invocations** テーブルは、リモートフェーズが記録されたアクションをカバーします。これには、平均および p50/p90/p99 のキュー時間と実行時間（前の期間からの変化を含む）、トレンドチャート、各呼び出しのフェーズタイミングへのリンクが含まれます。日付でフィルタリングできます（最大 90 日間）。呼び出しテーブルには、各呼び出しの平均、p50、および p90 の実行時間が表示されます。コマンド、ターゲット、または呼び出し ID で検索し、ステータス、コマンド、ターゲット、またはリモートアクションの数でフィルタリングし、呼び出し以外の任意の列で並べ替えることができます。検索およびテーブルフィルタは呼び出しテーブルにのみ適用され、アナリティクスには適用されません。
+
+呼び出しの **Remote execution** タブを開き、その **Executions** を確認します。ここでは、リモートアクションが期間順（最長順）または開始時間順に並べ替えられています。各行は一つのリモートアクションに対応し、プロファイルに対する相対的な開始時間、期間、およびキュー、入力取得、実行、出力アップロードの時間に分割されたバーが表示されます。バーはページ上の最長のアクションに合わせてスケーリングされています。バーにカーソルを合わせると、各フェーズの期間が表示されます。このテーブルはアップロードされた Bazel プロファイルを使用し、サーバーフェーズを同じプロファイルスレッド上の明確なアクションのみに関連付けます。
+
+タイミングが欠落している場合は **Not recorded** を意味し、ゼロではありません。古いプロファイル、欠落したアクション間隔、Bazel によって省略された短いフェーズがある場合、リモートワークが発生していてもテーブルが空になることがあります。記録された再試行は各アクション内で合計されます。サーバーメタデータはキャッシュされた結果を記述できるため、これらのタイミングは新しい実行の証明でも課金対象の使用量でもありません。クライアントの入力アップロードとローカルで実行された出力のアップロードは、出力アップロード時間から除外されます。
+
+同じデータは、`remote_execution=true` を指定したビルドステップ REST エンドポイント、および `list_bazel_build_steps` / `get_bazel_build_step` MCP ツールから利用できます。タイミングはプロファイルステップとともに 90 日間保持されます。
 
 ## ビルドインサイト {#build-insights}
 
-デフォルトでは、`tuist bazel setup`はBazelのBuild Event Serviceも設定するため、完了したコマンドが**Invocations**ダッシュボードに表示されます。ダッシュボードに表示される内容やカスタムメタデータの添付方法については、<.localized_link href="/guides/features/build-insights/bazel">Bazel build insights</.localized_link>を参照してください。
+デフォルトでは、`tuist bazel setup` は Bazel の Build Event Service も構成するため、完了したコマンドが **Invocations** ダッシュボードに表示されます。ダッシュボードに表示される内容とカスタムメタデータを添付する方法については、<.localized_link href="/guides/features/build-insights/bazel">Bazel build insights</.localized_link> を参照してください。
 
-リモートキャッシュのみを使用し、ビルドイベントストリームを送信したくない場合は、以下でオプトアウトしてください：
+リモートキャッシュのみを使用し、ビルドイベントストリームを送信したくない場合は、以下でオプトアウトできます。
 
 ```bash
 tuist bazel setup --no-build-insights
@@ -51,8 +104,8 @@ tuist bazel setup --no-build-insights
 
 ## 継続的インテグレーション {#continuous-integration}
 
-<.localized_link href="/guides/server/authentication#continuous-integration">Authentication guide</.localized_link>に記載されているいずれかの方法でCIを認証し、チェックアウトステップの一部として`tuist bazel setup`を一度実行して、`.bazelrc.tuist`がランナーに適したリージョンを反映するようにしてください。プロバイダー固有の例については、<.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link>を参照してください。
+<.localized_link href="/guides/server/authentication#continuous-integration">Authentication guide</.localized_link> に記載されているいずれかの方法で CI を認証し、チェックアウトステップの一部として `tuist bazel setup` を一度実行して、`.bazelrc.tuist` がランナーに適したリージョンを反映するようにします。プロバイダー固有の例については、<.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> を参照してください。
 
 ## データ保持 {#data-retention}
 
-Tuistはリモートキャッシュの観測データを90日間保持します。完全なポリシーについては、<.localized_link href="/guides/server/data-retention">data retention</.localized_link>を参照してください。
+Tuist はリモートキャッシュの観測データを 90 日間保持します。完全なポリシーについては、<.localized_link href="/guides/server/data-retention">data retention</.localized_link> を参照してください。

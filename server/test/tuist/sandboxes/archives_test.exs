@@ -3,6 +3,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   use Mimic
 
   import Ecto.Query
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
@@ -18,6 +19,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxNode
   alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
@@ -183,7 +185,12 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       sandbox_fixture(account: account, state: :running, node_name: "node-a")
 
       assert :ok = Archives.move_off_node("node-a")
-      assert [%{args: %{"node_names" => ["node-a"], "ci" => true}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      # Most reservations end within two minutes; the job rechecks the reclaim then.
+      assert [%{args: %{"node_names" => ["node-a"], "ci" => true}, scheduled_at: scheduled_at}] =
+               all_enqueued(worker: ArchiveSandboxesWorker)
+
+      assert DateTime.diff(scheduled_at, DateTime.utc_now()) in 100..120
 
       expect_failed_upload(orb.id)
       assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"], ci: true)
@@ -192,6 +199,99 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       expect_failed_upload(plain.id)
       assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"], ci: true)
       assert {:ok, :skipped} = Archives.archive_oldest_on(["node-a"], ci: true)
+    end
+
+    test "an unsynced pause the reclaiming node cannot refresh backs off, says so, and lets the next one move",
+         %{account: account} do
+      # A daemon restart paused it without syncing: the node refuses its archive,
+      # and the refresh needs a resume the reclaiming node does not admit.
+      unsynced = paused(account, amp_orb_id: "orb-1", paused_at: hours_ago(2))
+      next = paused(account, amp_orb_id: "orb-2", paused_at: hours_ago(1))
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
+        assert id == unsynced.id
+        {:error, "disks were not synced by the last pause: #{id}"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      expect(Capacity, :admit, fn _sandbox -> {:error, :no_capacity} end)
+
+      log =
+        capture_log(fn ->
+          assert {:error, _reason} = Archives.archive_oldest_on(["node-a"], ci: true)
+        end)
+
+      assert log =~ "could not move a sandbox off a node CI reclaims"
+      assert log =~ unsynced.id
+      assert %Sandbox{state: :paused, archive_attempted_at: %DateTime{}, archive_upload_id: nil} = Repo.reload!(unsynced)
+
+      expect_failed_upload(next.id)
+      capture_log(fn -> assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"], ci: true) end)
+    end
+
+    test "a turn the reclaiming node refuses pauses its idle VM and queues the archive now", %{account: account} do
+      sandbox = sandbox_fixture(account: account, amp_orb_id: "orb-1", state: :running, node_name: "node-a")
+      stub(Capacity, :admit_turn, fn _sandbox, _apply -> {:error, :no_capacity} end)
+
+      expect(Nodes, :call, fn "node-a", "pause", %{sync_disks: true}, _opts -> {:ok, %{"disks_synced" => true}} end)
+      assert {:error, :no_capacity} = Sandboxes.prepare_residency(sandbox, "amp:orb-1")
+      assert %Sandbox{state: :paused, residency_work_id: nil} = Repo.reload!(sandbox)
+      assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert id == sandbox.id
+
+      # A node merely full keeps the VM running for the retried turn.
+      other = sandbox_fixture(account: account, amp_orb_id: "orb-2", state: :running, node_name: "node-b")
+      reject(&Nodes.call/4)
+      assert {:error, :no_capacity} = Sandboxes.prepare_residency(other, "amp:orb-2")
+      assert Repo.reload!(other).state == :running
+    end
+
+    test "the drain check pauses turns that do not end only when asked, workers stopped first", %{account: account} do
+      orb =
+        sandbox_fixture(
+          account: account,
+          amp_orb_id: "orb-1",
+          state: :running,
+          node_name: "node-a",
+          residency_work_id: "amp:orb-1"
+        )
+
+      environment = agent_environment_fixture(account: account)
+
+      session =
+        sandbox_fixture(
+          account: account,
+          agent_environment_id: environment.id,
+          state: :running,
+          node_name: "node-a",
+          residency_work_id: "session-1"
+        )
+
+      test_pid = self()
+
+      stub(Nodes, :call, fn "node-a", op, %{sandbox_id: id}, _opts ->
+        send(test_pid, {op, id})
+        if op == "pause", do: {:ok, %{"disks_synced" => true}}, else: {:ok, %{}}
+      end)
+
+      assert %{drained: false} = Archives.node_drain("node-a")
+      refute_received {_op, _id}
+      assert Repo.reload!(orb).state == :running
+
+      assert %{drained: false} = Archives.node_drain("node-a", pause_turns: true)
+
+      for sandbox <- [orb, session] do
+        assert %Sandbox{state: :paused, residency_work_id: nil} = Repo.reload!(sandbox)
+      end
+
+      session_id = session.id
+      orb_id = orb.id
+      assert_received {"stop_worker", ^session_id}
+      refute_received {"stop_worker", ^orb_id}
+      queued = for job <- all_enqueued(worker: ArchiveSandboxesWorker), id = job.args["sandbox_id"], do: id
+      assert Enum.sort(queued) == Enum.sort([orb.id, session.id])
     end
 
     test "leaves the sandboxes where they are once the reservation is gone, or with the tier off",
@@ -574,6 +674,49 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       sandbox_id = sandbox.id
       expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
       expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: ^sandbox_id}, _opts -> archive_result() end)
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)
+
+      Archives.run()
+
+      assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(sandbox)
+      assert %Sandbox{state: :paused, node_name: "node-a"} = Repo.reload!(other)
+    end
+
+    test "archives a thread's sandbox paused past the threshold, not another provider environment's",
+         %{account: account} do
+      thread_environment =
+        Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "threads/#{Ecto.UUID.generate()}"})
+
+      provider_environment = Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "orb-provider/1"})
+
+      # Paused longer, so it would go first if other provider environments' sandboxes qualified.
+      other =
+        sandbox_fixture(
+          account: account,
+          provider_environment_id: provider_environment.id,
+          state: :paused,
+          node_name: "node-a",
+          paused_at: hours_ago(48)
+        )
+
+      sandbox =
+        sandbox_fixture(
+          account: account,
+          provider_environment_id: thread_environment.id,
+          state: :paused,
+          node_name: "node-a",
+          paused_at: hours_ago(25)
+        )
+
+      sandbox_id = sandbox.id
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: ^sandbox_id, memory: true}, _opts ->
+        archive_result()
+      end)
+
       expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
       expect(Storage, :object_exists?, fn _key, _account -> true end)
       expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)
@@ -1074,6 +1217,31 @@ defmodule Tuist.Sandboxes.ArchivesTest do
                AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
     end
 
+    test "a warm restore avoids nodes still loading another restore's memory", %{account: account} do
+      memory = %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5", "node" => "node-d"}
+      loading = Map.put(memory, "loading_since", DateTime.to_iso8601(DateTime.utc_now()))
+      restored = [account: account, amp_orb_id: nil, archived_at: hours_ago(1)]
+
+      # Booting from its archive on node-c, its memory still loading on
+      # node-e; node-f's has loaded, and node-g's report went missing long ago.
+      sandbox_fixture(restored ++ [state: :creating, node_name: "node-c", archive_memory: memory])
+      sandbox_fixture(restored ++ [state: :running, node_name: "node-e", archive_memory: loading])
+      sandbox_fixture(restored ++ [state: :running, node_name: "node-f", archive_memory: Map.put(memory, "loaded", true)])
+
+      stale = sandbox_fixture(restored ++ [state: :running, node_name: "node-g", archive_memory: loading])
+      Repo.update_all(from(s in Sandbox, where: s.id == ^stale.id), set: [updated_at: hours_ago(1)])
+
+      archived_orb(account, archive_memory: memory)
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+
+      expect(Capacity, :place, fn _placed, _warm, [avoid: avoid] ->
+        assert Enum.sort(avoid) == ["node-c", "node-d", "node-e"]
+        {:error, :no_capacity}
+      end)
+
+      assert {:error, _reason} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
+    end
+
     test "an archive with memory cold boots elsewhere when no node of its kind is connected", %{account: account} do
       sandbox =
         archived_orb(account, archive_memory: %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"})
@@ -1095,6 +1263,35 @@ defmodule Tuist.Sandboxes.ArchivesTest do
                AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
 
       assert Repo.reload!(sandbox).archive_key == nil
+    end
+
+    test "an unsynced pause archived with its memory never cold boots", %{account: account} do
+      sandbox = paused_orb(account, amp_orb_id: "amp-thread")
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{memory: true}, _opts ->
+        {:ok, result} = archive_result()
+
+        {:ok,
+         Map.merge(result, %{"disks_synced" => false, "tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"})}
+      end)
+
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
+      assert {:ok, %Sandbox{state: :archived, archive_memory: %{"warm_only" => true}}} = Archives.archive(sandbox)
+
+      # No node of its kind is connected: it waits instead of cold booting.
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+      expect(Capacity, :place, fn _placed, _warm, [avoid: ["node-a"]] -> {:error, :no_node} end)
+      reject(&Capacity.place/2)
+      stub(Storage, :delete_object, fn _key, _account -> flunk("the only copy of an unsynced Orb went") end)
+
+      assert {:error, :no_capacity} =
+               AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
+
+      assert %Sandbox{state: :archived, archive_key: key} = Repo.reload!(sandbox)
+      assert is_binary(key)
     end
 
     test "a memory report that beats the create answer still lets the archive go", %{account: account} do
@@ -1217,6 +1414,8 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       expect(Nodes, :call, fn "mac-a", "archive", args, opts ->
         assert args.sandbox_id == session.id
+        # A Mac refuses a command without the incarnation it is for.
+        assert args.node_uid == reserved.generation
         refute Map.has_key?(args, :memory) or Map.has_key?(args, :lazy_disks)
         assert opts[:timeout] >= to_timeout(minute: 30)
         archive_result()
@@ -1224,7 +1423,11 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
       expect(Storage, :object_exists?, fn _key, _account -> true end)
-      expect(Nodes, :call, fn "mac-a", "delete", %{sandbox_id: id}, _opts when id == session.id -> {:ok, %{}} end)
+
+      expect(Nodes, :call, fn "mac-a", "delete", %{sandbox_id: id, node_uid: "uid-mac-a"}, _opts when id == session.id ->
+        {:ok, %{}}
+      end)
+
       assert :ok = perform_job(ArchiveSandboxesWorker, args)
 
       assert %Sandbox{state: :archived, node_name: nil, archive_memory: nil} = archived = Repo.reload!(session)
@@ -1243,6 +1446,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       expect(Nodes, :call, fn "mac-d", "create", args, opts ->
         assert args.sandbox_id == session.id
         assert args.template_tag == "image:26.1"
+        assert args.node_uid == "uid-mac-d"
         assert args.from_archive == %{url: "https://s3/get", bytes: 2 * @gib, sha256: "deadbeef"}
         assert opts[:timeout] >= to_timeout(minute: 30)
         {:ok, %{"template_tag" => "image:26.1"}}
@@ -1271,12 +1475,40 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
       stub(Storage, :delete_object, fn _key, _account -> :ok end)
 
-      expect(Nodes, :call, fn "mac-c", "create", %{template_tag: "image:26.1"}, _opts ->
+      expect(Nodes, :call, fn "mac-c", "create", %{template_tag: "image:26.1", node_uid: "uid-mac-c"}, _opts ->
         {:ok, %{"template_tag" => "image:26.1"}}
       end)
 
       assert {:ok, %Sandbox{state: :running, node_name: "mac-c", template_tag: "image:26.1"}} =
                Sandboxes.resume(session)
+    end
+
+    test "an archived session a Mac refuses restores on the next one, trying Macs without a warm VM first",
+         %{account: account} do
+      warm = mac("mac-w")
+      warm = %{warm | templates: Enum.map(warm.templates, &Map.put(&1, :warm, ["4x8192"]))}
+      connect([warm, mac("mac-x"), mac("mac-y")])
+
+      session =
+        evicted(account, mac("mac-a"),
+          state: :archived,
+          node_name: nil,
+          archive_key: "k",
+          archive_bytes: 1,
+          archive_sha256: "s",
+          archived_at: hours_ago(1)
+        )
+
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+      stub(Storage, :delete_object, fn _key, _account -> :ok end)
+
+      # A restore cannot claim the warm VM, which holds one of its host's slots.
+      expect(Nodes, :call, 2, fn
+        "mac-x", "create", %{node_uid: "uid-mac-x"}, _opts -> {:error, "macOS sandbox capacity unavailable"}
+        "mac-y", "create", %{node_uid: "uid-mac-y"}, _opts -> {:ok, %{"template_tag" => "image:26.1"}}
+      end)
+
+      assert {:ok, %Sandbox{state: :running, node_name: "mac-y", node_uid: "uid-mac-y"}} = Sandboxes.resume(session)
     end
 
     test "an archived session waits while no Mac restores archives", %{account: account} do
@@ -1306,10 +1538,35 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       session = evicted(account, full)
       resident = evicted(account, full, resident: true)
 
-      assert {:error, :no_capacity} = Sandboxes.resume(session)
-      assert {:error, :no_capacity} = Sandboxes.resume(resident)
+      assert {:error, {:host_busy, :full}} = Sandboxes.resume(session)
+      assert {:error, {:host_busy, :full}} = Sandboxes.resume(resident)
       assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
       assert id == session.id
+    end
+
+    test "the pause-age sweep archives an evicted Mac sandbox of any source, but not a resident one",
+         %{account: account} do
+      host = mac("mac-a")
+      connect([host])
+      # Created through the API: neither an Orb nor a Claude Code session.
+      plain = evicted(account, host, paused_at: hours_ago(25))
+      resident = evicted(account, host, resident: true, paused_at: hours_ago(48))
+      plain_id = plain.id
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "mac-a", "archive", %{sandbox_id: ^plain_id, node_uid: "uid-mac-a"}, _ ->
+        archive_result()
+      end)
+
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "mac-a", "delete", %{sandbox_id: ^plain_id}, _opts -> {:ok, %{}} end)
+
+      Archives.run()
+
+      assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(plain)
+      assert %Sandbox{state: :paused, node_name: "mac-a"} = Repo.reload!(resident)
     end
 
     test "a host without archives, or whose grant allows sandboxes, keeps its sessions", %{account: account} do
@@ -1968,6 +2225,59 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       for store <- [Map.delete(@store, "archive_capacity_urls"), Map.put(@store, "archive_capacity_urls", [])] do
         stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => store} end)
         assert {:ok, %{archive_store: nil}} = Archives.archive(paused_orb(account))
+      end
+    end
+
+    test "a RustFS store admits by its signed storage info over the private endpoint", %{account: account} do
+      store =
+        @store
+        |> Map.delete("archive_capacity_urls")
+        |> Map.merge(%{
+          "access" => "public",
+          "endpoint" => "https://s3.tuist.dev",
+          "private_endpoint" => "http://rustfs-s3.rustfs-production.svc.cluster.local:9000",
+          "region" => "us-east-1",
+          "archive_capacity" => "rustfs"
+        })
+
+      stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => store} end)
+      stub(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _actor -> :ok end)
+      stub(Storage, :object_exists?, fn _key, _actor -> true end)
+      stub(Nodes, :call, fn "node-a", op, _args, _opts -> if op == "delete", do: {:ok, %{}}, else: archive_result() end)
+
+      # The same worst case as the Garage boundary test above.
+      uncompressed = 11 * @gib + 576 * 1024 * 1024 + 4 * @gib + 64 * 1024 * 1024
+      required = uncompressed + div(uncompressed, 100) + @gib
+
+      storage_info = fn disks ->
+        fn url, opts ->
+          assert url == "http://rustfs-s3.rustfs-production.svc.cluster.local:9000/rustfs/admin/v3/storageinfo"
+          headers = Map.new(opts[:headers])
+          assert headers["Authorization"] =~ "AWS4-HMAC-SHA256 Credential=GK0123/"
+          assert headers["host"] == "rustfs-s3.rustfs-production.svc.cluster.local:9000"
+          {:ok, %Req.Response{status: 200, body: %{"info" => %{"disks" => disks}}}}
+        end
+      end
+
+      for {disks, expected} <- [
+            {[%{"availspace" => 200 * @gib}, %{"availspace" => required}], "gra-v1"},
+            {[%{"availspace" => 200 * @gib}, %{"availspace" => required - 1}], nil},
+            {[], nil},
+            {[%{"availspace" => "lots"}], nil}
+          ] do
+        stub(Req, :get, storage_info.(disks))
+
+        stub(Storage, :multipart_start, fn _key, actor ->
+          if expected do
+            assert %S3Target{id: "gra-v1", config: %{host: "rustfs-s3.rustfs-production.svc.cluster.local"}} = actor
+          else
+            assert %Account{} = actor
+          end
+
+          {:ok, "upload-1"}
+        end)
+
+        assert {:ok, %{archive_store: ^expected}} = Archives.archive(paused_orb(account, workspace_gb: 7))
       end
     end
 

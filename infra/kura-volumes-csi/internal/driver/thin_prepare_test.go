@@ -246,7 +246,7 @@ func TestThinMetricsFollowObservations(t *testing.T) {
 	e.d.volumeGroup = prepareVG
 	e.d.thin = ThinConfig{Pool: "tenants", DataReserveBytes: 64 << 20, MetadataReserveBytes: 16 << 20, MaxVolumes: 4}
 	e.d.metrics = newThinMetrics()
-	s := &ThinSnapshot{DataTotal: 100, DataUsed: 85, MetadataTotal: 10, MetadataUsed: 2, Healthy: true, ObservedAt: time.Unix(1700000000, 0)}
+	s := &ThinSnapshot{DataTotal: 100, DataUsed: 85, MetadataTotal: 10, MetadataUsed: 2, UsableBytes: 90, CommittedBytes: 70, UnattributedBytes: 5, AvailableCommitment: 20, Healthy: true, ObservedAt: time.Unix(1700000000, 0)}
 	e.d.recordThin(context.Background(), s, nil)
 	got := gauges(t, e.d.metrics.registry)
 	want := map[string]float64{
@@ -254,6 +254,8 @@ func TestThinMetricsFollowObservations(t *testing.T) {
 		"kura_volumes_thin_pool_metadata_size_bytes": 10, "kura_volumes_thin_pool_metadata_used_bytes": 2,
 		"kura_volumes_thin_pool_healthy": 1, "kura_volumes_thin_pool_read_only": 0, "kura_volumes_thin_pool_out_of_data_space": 0,
 		"kura_volumes_thin_pool_last_observation_timestamp_seconds": 1700000000,
+		"kura_volumes_thin_pool_usable_bytes":                       90, "kura_volumes_thin_pool_committed_bytes": 70,
+		"kura_volumes_thin_pool_unattributed_mapped_bytes": 5, "kura_volumes_thin_pool_available_commitment_bytes": 20,
 	}
 	for name, value := range want {
 		if got[name] != value {

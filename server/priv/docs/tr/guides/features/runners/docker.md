@@ -2,12 +2,12 @@
 {
   "title": "Docker",
   "titleTemplate": ":title · Runners · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Runners üzerinde Docker kullanın: konteyner oluşturun ve çalıştırın, konteyner işlerini, hizmet konteynerlerini ve özel kayıt defterlerini yönetin."
+  "description": "Tuist Runners üzerinde Docker kullanın: konteyner oluşturun ve çalıştırın, konteyner işleri, hizmet konteynerleri ve özel kayıt defterlerini yönetin."
 }
 ---
 # Docker {#docker}
 
-Linux çalıştırıcılar, kullanıma hazır Docker ile gelir. Her iş, sanal makinesi içinde kendi Docker daemon'una sahiptir ve `docker` CLI, Buildx ile Compose önceden yüklenmiştir. Bir kurulum eylemine veya `sudo` kullanımına ihtiyacınız yoktur.
+Linux runner'lar, kullanıma hazır Docker ile gelir. Her iş, sanal makinesi içinde kendi Docker daemon'una sahiptir ve `docker` CLI, Buildx ile Compose önceden yüklenmiştir. Bir kurulum eylemine ihtiyacınız yoktur ve `sudo` gerekmez.
 
 ```yaml
 jobs:
@@ -22,9 +22,9 @@ jobs:
 > [!NOTE]
 > **Yalnızca Linux**
 >
-> macOS çalıştırıcılar bir Docker daemon sağlamaz. Buna ihtiyaç duyan işler için bir Linux <.localized_link href="/guides/features/runners/profiles">profilini</.localized_link> kullanın.
+> macOS runner'lar bir Docker daemon sağlamaz. Buna ihtiyaç duyan işler için bir Linux <.localized_link href="/guides/features/runners/profiles">profilini</.localized_link> kullanın.
 
-## Bir kapsayıcıda iş çalıştırma {#running-a-job-in-a-container}
+## Bir işi kapsayıcı içinde çalıştırma {#running-a-job-in-a-container}
 
 İşinizin çalışması gereken imaja `container` yönlendirin. Tuist bu imajı çeker ve her adımı bunun içinde çalıştırır:
 
@@ -44,7 +44,7 @@ jobs:
 
 ## Hizmet kapsayıcıları {#service-containers}
 
-`services`, GitHub tarafından barındırılan çalıştırıcılardaki gibi çalışır. Hizmetlere, eşlenen portlarında `localhost` üzerinden erişilebilir:
+`services`, GitHub tarafından barındırılan runner'lardaki gibi çalışır. Hizmetlere, eşlenen portlarında `localhost` üzerinden erişilebilir:
 
 ```yaml
 jobs:
@@ -79,9 +79,9 @@ jobs:
 
 ## İmaj çekme işlemleri {#image-pulls}
 
-Docker Hub çekme işlemleri, Tuist tarafından işletilen bir geçişli önbellek üzerinden sunulur; böylece işler Docker Hub'ın anonim hız sınırını tüketmez. Diğer kayıt defterlerinden gelen imajlar doğrudan çekilir.
+Docker Hub çekme işlemleri, Tuist tarafından işletilen bir geçişli önbellek üzerinden sunulur; böylece işler Docker Hub'ın anonim hız sınırını tüketmez. Diğer kayıt defterlerindeki imajlar doğrudan çekilir.
 
-Her iş boş bir imaj deposuyla başlar, bu nedenle iş akışınızın kullandığı bir imaj işler arasında yeniden kullanılmak yerine iş başına bir kez çekilir. Bir iş büyük bir özel imaj çekiyorsa, imajı küçük tutun veya önbelleğe alınmış bir Buildx derleyicisiyle iş akışı içinde oluşturun:
+Her iş boş bir imaj deposuyla başlar, bu nedenle iş akışınızın kullandığı bir imaj, işler arasında yeniden kullanılmak yerine iş başına bir kez çekilir. Bir iş büyük bir özel imaj çekiyorsa, imajı küçük tutun veya önbelleğe alınmış bir Buildx oluşturucusuyla iş akışı içinde oluşturun:
 
 ```yaml
       - uses: docker/setup-buildx-action@v3

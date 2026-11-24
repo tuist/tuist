@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, Bound, HashSet};
 use std::fmt::{Debug, Formatter};
@@ -33,7 +35,7 @@ use datatypes::schema::ColumnSchema;
 use datatypes::types::TimestampType;
 use datatypes::value::{Value, ValueRef};
 use datatypes::vectors::{
-    Helper, StringVector, TimestampMicrosecondVector, TimestampMillisecondVector,
+    Helper, NullVector, StringVector, TimestampMicrosecondVector, TimestampMillisecondVector,
     TimestampNanosecondVector, TimestampSecondVector, UInt8Vector, UInt64Vector,
 };
 use mito_codec::key_values::KeyValue;
@@ -930,10 +932,13 @@ impl Series {
         Ok(&self.frozen[0])
     }
 
-    pub fn read_to_values(&self) -> Vec<Values> {
+    /// Snapshots values for `projection`. Unselected active fields use
+    /// zero-buffer null placeholders to retain field positions without copying
+    /// payloads. Pass the same projection to `Values::to_batch`.
+    pub fn read_to_values(&self, projection: &HashSet<ColumnId>) -> Vec<Values> {
         let mut res = Vec::with_capacity(self.frozen.len() + 1);
         res.extend(self.frozen.iter().cloned());
-        res.push(self.active.finish_cloned());
+        res.push(self.active.finish_cloned(&self.region_metadata, projection));
         res
     }
 }
@@ -1156,14 +1161,21 @@ impl ValueBuilder {
         sequence_len
     }
 
-    fn finish_cloned(&self) -> Values {
+    fn finish_cloned(
+        &self,
+        metadata: &RegionMetadataRef,
+        projection: &HashSet<ColumnId>,
+    ) -> Values {
         let num_rows = self.sequence.len();
         let fields = self
             .fields
             .iter()
+            .zip(metadata.field_columns())
             .enumerate()
-            .map(|(i, v)| {
-                if let Some(v) = v {
+            .map(|(i, (v, column))| {
+                if !projection.contains(&column.column_id) {
+                    Arc::new(NullVector::new(num_rows)) as VectorRef
+                } else if let Some(v) = v {
                     MEMTABLE_ACTIVE_FIELD_BUILDER_COUNT.dec();
                     v.finish_cloned()
                 } else {

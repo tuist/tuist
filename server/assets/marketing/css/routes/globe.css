@@ -180,8 +180,8 @@
       }
 
       &:focus-visible {
-        outline: 2px solid var(--noora-purple-400);
-        outline-offset: 4px;
+        outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+        outline-offset: var(--noora-focus-ring-offset);
       }
     }
 
@@ -206,7 +206,7 @@
         }
 
         &[data-state="live"] > [data-part="dot"] {
-          box-shadow: 0 0 0 calc(3 * var(--u)) var(--noora-alpha-purple);
+          box-shadow: 0 0 0 calc(3 * var(--u)) var(--noora-alpha-purple-32);
           background: var(--noora-purple-400);
         }
 
@@ -224,8 +224,8 @@
         }
 
         &:focus-visible {
-          outline: 2px solid var(--noora-purple-400);
-          outline-offset: 4px;
+          outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+          outline-offset: var(--noora-focus-ring-offset);
         }
       }
 
@@ -250,8 +250,8 @@
           }
 
           &:focus-visible {
-            outline: 2px solid var(--noora-purple-400);
-            outline-offset: 4px;
+            outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+            outline-offset: var(--noora-focus-ring-offset);
           }
 
           & > svg {

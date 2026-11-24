@@ -18,7 +18,7 @@ import org.gradle.api.logging.Logging
  * Usage in settings.gradle.kts:
  * ```
  * plugins {
- *     id("dev.tuist") version "0.10.0"
+ *     id("dev.tuist") version "0.22.0"
  * }
  *
  * tuist {
@@ -58,9 +58,22 @@ data class TuistGradleConfig(
     val shardIndex: Int? = null,
     val coverageEnabled: Boolean = false,
     /** Each module, named as test insights names it, and its directory relative to the root project's. */
-    val moduleDirectories: Map<String, String> = emptyMap()
+    val moduleDirectories: Map<String, String> = emptyMap(),
+    val snapshots: Snapshots? = null
 ) {
     data class Network(val proxy: Boolean)
+
+    /** Hosted snapshot testing, when `tuist { snapshots { enabled = true } }`. */
+    data class Snapshots(
+        val set: String?,
+        val directory: String?,
+        val failOnChanges: Boolean,
+        val diffThreshold: Double?,
+        val generatePreviewTests: Boolean,
+        val previewPackageTrees: List<String>,
+        val includePrivatePreviews: Boolean,
+        val previewTheme: String?
+    )
 
     companion object {
         internal const val EXTRA_PROPERTY_KEY = "tuist.config"
@@ -102,6 +115,18 @@ data class TuistGradleConfig(
                 moduleDirectories = projectDescriptors(settings.rootProject).associate { descriptor ->
                     val module = if (descriptor.path == ":") settings.rootProject.name else descriptor.path
                     module to descriptor.projectDir.relativeTo(settings.rootProject.projectDir).invariantSeparatorsPath
+                },
+                snapshots = extension.snapshots.takeIf { it.enabled }?.let {
+                    Snapshots(
+                        set = it.set,
+                        directory = it.directory,
+                        failOnChanges = it.failOnChanges,
+                        diffThreshold = it.diffThreshold,
+                        generatePreviewTests = it.previews.generateTests,
+                        previewPackageTrees = it.previews.packageTrees.toList(),
+                        includePrivatePreviews = it.previews.includePrivatePreviews,
+                        previewTheme = it.previews.theme
+                    )
                 }
             )
 
@@ -213,6 +238,7 @@ private class ConfigureTuistProject(private val config: TuistGradleConfig) : Iso
         project.pluginManager.apply(TuistTestInsightsPlugin::class.java)
         if (config.stressRepetition == null) {
             project.pluginManager.apply(TuistTestShardingPlugin::class.java)
+            if (config.snapshots != null) project.pluginManager.apply(TuistSnapshotsPlugin::class.java)
         }
     }
 }
@@ -303,6 +329,18 @@ open class TuistExtension {
     }
 
     /**
+     * Hosted snapshot testing configuration.
+     */
+    val snapshots: SnapshotsExtension = SnapshotsExtension()
+
+    /**
+     * Configure hosted snapshot testing.
+     */
+    fun snapshots(action: Action<SnapshotsExtension>) {
+        action.execute(snapshots)
+    }
+
+    /**
      * Build insight metadata configuration.
      */
     val buildInsights: BuildInsightsExtension = BuildInsightsExtension()
@@ -372,6 +410,72 @@ open class StressNewTestsExtension {
      * `report` or `enforce`. When null (default), the gate does not run.
      */
     var mode: String? = null
+}
+
+/**
+ * Configuration for hosted snapshot testing. In a project that applies Paparazzi, Tuist generates
+ * a snapshot test for every Compose `@Preview`, and `recordPaparazzi<Variant>` uploads the images
+ * with `tuistUploadSnapshots`. Tuist compares them with the baseline, the latest build on the
+ * default branch the commit descends from, and the task fails on changes nobody approved yet.
+ *
+ * Next to each PNG, an optional JSON file with the same name sets its `display_name`, `group`,
+ * `tags`, and `diff_threshold`, in the format Sentry's snapshot uploads use.
+ */
+open class SnapshotsExtension {
+    /**
+     * Whether snapshots are uploaded. Defaults to false. When on, the record tasks of Roborazzi and
+     * Paparazzi upload after they run. With the generated preview tests, the debug unit test tasks
+     * also upload in CI, so `./gradlew test` is enough there; `-Ptuist.snapshots=false` turns that
+     * off, and `-Ptuist.snapshots=true` turns it on for local runs.
+     */
+    var enabled: Boolean = false
+
+    /**
+     * The snapshot set builds are compared within, such as `android-phone`. Defaults to the
+     * Gradle project's path.
+     */
+    var set: String? = null
+
+    /**
+     * The directory with the PNGs to upload, relative to the Gradle project. Defaults to where the
+     * generated preview tests write, or to Paparazzi's `src/test/snapshots/images` when
+     * [SnapshotPreviewsExtension.generateTests] is off.
+     */
+    var directory: String? = null
+
+    /** Whether the upload task waits for the comparison and fails on unapproved changes. Defaults to true. */
+    var failOnChanges: Boolean = true
+
+    /**
+     * The share of an image's pixels, from 0 to 1, that may differ before it counts as changed,
+     * for images whose JSON file sets no `diff_threshold`. Defaults to 0.
+     */
+    var diffThreshold: Double? = null
+
+    /** Snapshot tests generated from Compose `@Preview`s. */
+    val previews: SnapshotPreviewsExtension = SnapshotPreviewsExtension()
+
+    fun previews(action: Action<SnapshotPreviewsExtension>) {
+        action.execute(previews)
+    }
+}
+
+/**
+ * Generates a Paparazzi test that renders every Compose `@Preview` found with
+ * ComposablePreviewScanner, so no one writes snapshot tests by hand.
+ */
+open class SnapshotPreviewsExtension {
+    /** Whether the test is generated in projects that apply Paparazzi. Defaults to true. */
+    var generateTests: Boolean = true
+
+    /** The packages scanned for previews. Defaults to the Android namespace. */
+    var packageTrees: List<String> = emptyList()
+
+    /** Whether private `@Preview` functions are rendered too. Defaults to false. */
+    var includePrivatePreviews: Boolean = false
+
+    /** The Android theme Paparazzi renders previews in. Defaults to Paparazzi's. */
+    var theme: String? = null
 }
 
 /**

@@ -7,7 +7,7 @@
 ---
 # 使用 iPhone App 运行预览
 
-从 App Store 安装 [Tuist iOS App](https://apps.apple.com/us/app/tuist/id6748460335)，以查找并访问你的 Apple 预览版。发布工作流的签名和设备资格要求仍然适用。
+安装[App Store 中的 Tuist iOS App](https://apps.apple.com/us/app/tuist/id6748460335)，以便查找和访问你的 Apple 预览。发布工作流的签名和设备资格要求仍然适用。
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
@@ -17,17 +17,17 @@
     </a>
 </div>
 
-按应用名称或发行说明搜索，然后选择一个轨道来过滤预览。选择 **全部** 可浏览所有轨道，包括没有分配轨道的预览。打开预览以阅读完整的发行说明。
+按应用名称或发行说明搜索，然后选择一个轨道以过滤预览。选择**全部**可浏览所有轨道，包括没有分配轨道的预览。打开预览以阅读其完整的发行说明。
 
-## 客户端与服务器兼容性 {#client-and-server-compatibility}
+## 客户端与服务器兼容性{#client-and-server-compatibility}
 
-保持 Tuist App 为最新版本。如果你自托管 Tuist，请更新服务器以使用轨道过滤和发行说明功能。在较旧的服务器上，你仍可以不加过滤地浏览预览。
+保持 Tuist App 为最新版本。如果你自托管 Tuist，请更新服务器以使用轨道过滤和发行说明功能。在较旧的服务器上，你仍然可以不加过滤地浏览预览。
 
-## 应用内更新通知 {#in-app-update-notifications}
+## 应用内更新通知{#in-app-update-notifications}
 
-[Tuist SDK](https://github.com/tuist/sdk) 使你的 Apple 应用能够检测到更新的预览版并通知测试人员。它会在同一 **预览轨道** 内检查更新。对于使用 `tuist share --track` 发布的预览，它会使用该显式指定的轨道。如果没有显式指定轨道，则使用 git 分支，因此从 `main` 构建的预览只会通知来自 `main` 的更新预览。
+[Tuist SDK](https://github.com/tuist/sdk)使你的 Apple 应用能够检测到更新的预览并通知测试人员。它会在同一**预览轨道**内检查更新。对于使用`tuist share --track`发布的预览，它会使用该明确指定的轨道。如果没有明确指定轨道，则使用 git 分支，因此从`main`构建的预览只会通知来自`main`的更新预览。
 
-### 安装 {#sdk-installation}
+### 安装{#sdk-installation}
 
 将 Tuist SDK 添加为 Swift Package 依赖项：
 
@@ -35,9 +35,9 @@
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### 监控更新 {#sdk-monitor-updates}
+### 监控更新{#sdk-monitor-updates}
 
-使用 `monitorPreviewUpdates` 定期检查新的预览版本：
+使用`monitorPreviewUpdates`定期检查新的预览版本：
 
 ```swift
 import TuistSDK
@@ -58,7 +58,7 @@ struct MyApp: App {
 }
 ```
 
-### 单次更新检查 {#sdk-single-check}
+### 单次更新检查{#sdk-single-check}
 
 用于手动检查更新：
 
@@ -73,9 +73,9 @@ if let preview = try await sdk.checkForUpdate() {
 }
 ```
 
-### 停止更新监控 {#sdk-stop-monitoring}
+### 停止更新监控{#sdk-stop-monitoring}
 
-`monitorPreviewUpdates` 返回一个可取消的 `Task`：
+`monitorPreviewUpdates`返回一个可取消的`Task`：
 
 ```swift
 let task = sdk.monitorPreviewUpdates { preview in

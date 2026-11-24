@@ -194,7 +194,7 @@ defmodule Condukt.Sandbox.Microsandbox do
   def grep(%State{} = state, pattern, opts) do
     guest_base = opts |> Keyword.get(:path) |> resolve_optional_guest(state.base_cwd)
     case_sensitive? = Keyword.get(opts, :case_sensitive, true)
-    file_glob = Keyword.get(opts, :glob, "**/*")
+    file_glob = opts |> Keyword.get(:glob, "**/*") |> Sandbox.grep_file_glob()
     limit = Keyword.get(opts, :limit, 1_000)
 
     with {:ok, regex} <- compile_regex(pattern, case_sensitive?),

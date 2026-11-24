@@ -1,0 +1,1369 @@
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    fmt,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
+};
+
+use axum::http::HeaderMap;
+use opentelemetry::{
+    KeyValue, global,
+    propagation::{Extractor, Injector},
+    trace::{TraceContextExt, TracerProvider as _},
+};
+use opentelemetry_http::{Bytes, HttpClient, HttpError, Request, Response};
+use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
+use opentelemetry_sdk::{
+    Resource,
+    propagation::TraceContextPropagator,
+    trace::{Sampler, SdkTracerProvider},
+};
+use sentry::{ClientInitGuard, ClientOptions};
+use tracing::{Span, field, info, warn};
+use tracing_opentelemetry::{OpenTelemetrySpanExt, SetParentError};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use crate::{
+    VERSION, config::Config, node_location::NodeLocation, request_observability::FailureLogThrottle,
+};
+
+static TRACE_EXPORT_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+pub struct TelemetryGuards {
+    tracer_provider: Option<SdkTracerProvider>,
+    sentry_guard: Option<ClientInitGuard>,
+}
+
+impl TelemetryGuards {
+    pub fn shutdown(self) {
+        if let Some(provider) = self.tracer_provider
+            && let Err(error) = provider.shutdown()
+        {
+            warn!(
+                event.name = "kura.telemetry.shutdown_failed",
+                error = %error,
+                "failed to shut down trace exporter"
+            );
+        }
+
+        drop(self.sentry_guard);
+    }
+}
+
+pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryGuards {
+    global::set_text_map_propagator(TraceContextPropagator::new());
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "kura=info".into());
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .json()
+        .flatten_event(true)
+        .with_current_span(true)
+        .with_span_list(true)
+        .with_ansi(false);
+    let sentry_guard = init_sentry(config);
+
+    let tracer_result = config
+        .otlp_traces_endpoint
+        .as_deref()
+        .map(|endpoint| build_tracer_provider(config, endpoint, node_location));
+
+    let guards = match tracer_result {
+        Some(Ok(tracer_provider)) => {
+            let tracer = tracer_provider.tracer("kura");
+            if sentry_guard.is_some() {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .with(tracing_opentelemetry::layer().with_tracer(tracer))
+                    .with(sentry::integrations::tracing::layer().event_filter(sentry_event_filter))
+                    .init();
+            } else {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .with(tracing_opentelemetry::layer().with_tracer(tracer))
+                    .init();
+            }
+            TRACE_EXPORT_ACTIVE.store(true, Ordering::Relaxed);
+            info!(
+                event.name = "kura.telemetry.tracing_active",
+                service.name = %config.otel_service_name,
+                service.version = VERSION,
+                "OpenTelemetry tracing active"
+            );
+            TelemetryGuards {
+                tracer_provider: Some(tracer_provider),
+                sentry_guard,
+            }
+        }
+        Some(Err(error)) => {
+            TRACE_EXPORT_ACTIVE.store(false, Ordering::Relaxed);
+            if sentry_guard.is_some() {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .with(sentry::integrations::tracing::layer().event_filter(sentry_event_filter))
+                    .init();
+            } else {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .init();
+            }
+            warn!(
+                event.name = "kura.telemetry.initialization_failed",
+                error = %error,
+                service.name = %config.otel_service_name,
+                service.version = VERSION,
+                "failed to initialize OpenTelemetry tracing"
+            );
+            TelemetryGuards {
+                tracer_provider: None,
+                sentry_guard,
+            }
+        }
+        None => {
+            TRACE_EXPORT_ACTIVE.store(false, Ordering::Relaxed);
+            if sentry_guard.is_some() {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .with(sentry::integrations::tracing::layer().event_filter(sentry_event_filter))
+                    .init();
+            } else {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .init();
+            }
+            info!(
+                event.name = "kura.telemetry.tracing_disabled",
+                service.name = %config.otel_service_name,
+                service.version = VERSION,
+                "OpenTelemetry tracing disabled because no endpoint is configured"
+            );
+            TelemetryGuards {
+                tracer_provider: None,
+                sentry_guard,
+            }
+        }
+    };
+
+    if config.sentry_dsn.is_some()
+        && let Some(Err(error)) = config
+            .sentry_pulse_dsn
+            .as_deref()
+            .map(str::parse::<sentry::types::Dsn>)
+    {
+        warn!(
+            event.name = "kura.telemetry.sentry_pulse_dsn_invalid",
+            error = %error,
+            "KURA_SENTRY_PULSE_DSN is not a valid Sentry DSN; errors are not copied to Pulse"
+        );
+    }
+
+    guards
+}
+
+pub fn trace_export_active() -> bool {
+    TRACE_EXPORT_ACTIVE.load(Ordering::Relaxed)
+}
+
+pub fn log_context_span(config: &Config, node_location: &NodeLocation) -> Span {
+    let span = tracing::info_span!(
+        "kura.runtime",
+        service.name = %config.otel_service_name,
+        service.namespace = "kura",
+        service.version = VERSION,
+        deployment.environment.name = %config.otel_deployment_environment,
+        kura.region = %config.region,
+        kura.tenant_id = %config.tenant_id,
+        geo.country.iso_code = field::Empty,
+        geo.region.iso_code = field::Empty,
+        service.instance.id = %config.node_url,
+        trace_id = field::Empty,
+        span_id = field::Empty,
+    );
+    if let Some(country) = node_location.country.as_deref() {
+        span.record("geo.country.iso_code", country);
+    }
+    if let Some(subdivision) = node_location.subdivision.as_deref() {
+        span.record("geo.region.iso_code", subdivision);
+    }
+    record_trace_context(&span);
+    span
+}
+
+pub fn record_trace_context(span: &Span) {
+    let context = span.context();
+    let span_ref = context.span();
+    let span_context = span_ref.span_context();
+    if span_context.is_valid() {
+        span.record("trace_id", field::display(span_context.trace_id()));
+        span.record("span_id", field::display(span_context.span_id()));
+    }
+}
+
+// The OpenTelemetry SDK logs every failed export at ERROR (for example
+// `BatchSpanProcessor.ExportError`), which the default filter turns into one
+// Sentry event per dropped span batch: collector stalls became Kura's largest
+// error issue. Keep them as breadcrumbs. Export failures stay visible through
+// the throttled `kura.telemetry.http_export_failed` warning.
+fn sentry_event_filter(
+    metadata: &tracing::Metadata<'_>,
+) -> sentry::integrations::tracing::EventFilter {
+    if metadata.target().starts_with("opentelemetry") && *metadata.level() == tracing::Level::ERROR
+    {
+        sentry::integrations::tracing::EventFilter::Breadcrumb
+    } else {
+        sentry::integrations::tracing::default_event_filter(metadata)
+    }
+}
+
+fn init_sentry(config: &Config) -> Option<ClientInitGuard> {
+    let dsn = config.sentry_dsn.as_deref()?;
+    let pulse_dsn = config
+        .sentry_pulse_dsn
+        .as_deref()
+        .and_then(|dsn| dsn.parse::<sentry::types::Dsn>().ok());
+
+    Some(sentry::init(ClientOptions {
+        dsn: Some(
+            dsn.parse()
+                .expect("sentry dsn should be valid when configuration is valid"),
+        ),
+        environment: Some(config.otel_deployment_environment.clone().into()),
+        release: Some(format!("kura@{VERSION}").into()),
+        server_name: Some(config.otel_service_name.clone().into()),
+        transport: Some(Arc::new(move |options: &ClientOptions| {
+            sentry_transport(options, pulse_dsn.as_ref())
+        })),
+        ..Default::default()
+    }))
+}
+
+/// The transport to the configured DSN, and with a Pulse DSN, a fan-out that
+/// also sends every envelope to Pulse.
+fn sentry_transport(
+    options: &ClientOptions,
+    pulse_dsn: Option<&sentry::types::Dsn>,
+) -> Arc<dyn sentry::Transport> {
+    let client = sentry_http_client_builder(options)
+        .expect("failed to configure Sentry TLS trust")
+        .build()
+        .expect("failed to build Sentry HTTP client");
+    let primary = Arc::new(sentry::transports::ReqwestHttpTransport::with_client(
+        options, client,
+    ));
+    let Some(pulse_dsn) = pulse_dsn else {
+        return primary;
+    };
+
+    let pulse_options = ClientOptions {
+        dsn: Some(pulse_dsn.clone()),
+        ..options.clone()
+    };
+    // Bounded, unlike the primary's client, so a stalled Pulse frees the copy
+    // queue's thread instead of holding it.
+    let client = sentry_http_client_builder(&pulse_options)
+        .expect("failed to configure Sentry TLS trust")
+        .connect_timeout(Duration::from_secs(2))
+        .timeout(Duration::from_secs(5))
+        .build()
+        .expect("failed to build Sentry HTTP client");
+    Arc::new(FanOutTransport {
+        primary,
+        copy: Some(Arc::new(
+            sentry::transports::ReqwestHttpTransport::with_client(&pulse_options, client),
+        )),
+    })
+}
+
+/// Sends every envelope to the primary backend (Atlas) and a copy to Pulse.
+/// Each transport hands envelopes to its own background thread through a
+/// bounded queue and drops them when that queue is full, so a slow or failing
+/// Pulse never delays, drops or fails the primary's delivery or the caller.
+struct FanOutTransport {
+    primary: Arc<dyn sentry::Transport>,
+    copy: Option<Arc<dyn sentry::Transport>>,
+}
+
+impl sentry::Transport for FanOutTransport {
+    fn send_envelope(&self, envelope: sentry::Envelope) {
+        self.primary.send_envelope(envelope.clone());
+        if let Some(copy) = &self.copy {
+            copy.send_envelope(envelope);
+        }
+    }
+
+    // Only the primary: sentry-panic flushes on the panicking thread, and the
+    // copy's flush queues with a blocking send that a stalled Pulse would hold.
+    fn flush(&self, timeout: Duration) -> bool {
+        self.primary.flush(timeout)
+    }
+
+    // The primary gets the whole timeout and the copy only what is left, waited
+    // for on another thread: the copy's shutdown queues with the same blocking
+    // send, so Pulse never shortens the primary's shutdown or lengthens it.
+    fn shutdown(&self, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        let shut_down = self.primary.shutdown(timeout);
+        if let Some(copy) = self.copy.clone() {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let (done, finished) = std::sync::mpsc::sync_channel(1);
+            std::thread::spawn(move || {
+                let _ = done.send(copy.shutdown(remaining));
+            });
+            let _ = finished.recv_timeout(remaining);
+        }
+        shut_down
+    }
+}
+
+impl Drop for FanOutTransport {
+    // Dropping the copy joins its thread, which first waits for room in a full
+    // queue; let that happen off the caller's thread.
+    fn drop(&mut self) {
+        if let Some(copy) = self.copy.take() {
+            std::thread::spawn(move || drop(copy));
+        }
+    }
+}
+
+fn sentry_http_client_builder(options: &ClientOptions) -> Result<reqwest::ClientBuilder, String> {
+    if options.accept_invalid_certs {
+        tracing::warn!(
+            "Sentry invalid-certificate override ignored; native TLS verification is required"
+        );
+    }
+    let mut builder = crate::certificate_trust::client_builder()?;
+    // Defaults are applied before the TransportFactory runs. Preserve the SDK's
+    // explicit per-scheme proxies (including its HTTPS-to-HTTP proxy fallback).
+    for (https, url) in [(false, &options.http_proxy), (true, &options.https_proxy)] {
+        if let Some(url) = url {
+            let proxy = if https {
+                reqwest::Proxy::https(url.as_ref())
+            } else {
+                reqwest::Proxy::http(url.as_ref())
+            };
+            match proxy {
+                Ok(proxy) => builder = builder.proxy(proxy),
+                Err(_) => tracing::warn!("invalid Sentry proxy configuration ignored"),
+            }
+        }
+    }
+    Ok(builder)
+}
+
+fn build_tracer_provider(
+    config: &Config,
+    endpoint: &str,
+    node_location: &NodeLocation,
+) -> Result<SdkTracerProvider, String> {
+    let exporter = build_span_exporter(endpoint)?;
+
+    let mut attributes = vec![
+        KeyValue::new("service.name", config.otel_service_name.clone()),
+        KeyValue::new("service.namespace", "kura"),
+        KeyValue::new("service.version", VERSION),
+        KeyValue::new(
+            "deployment.environment.name",
+            config.otel_deployment_environment.clone(),
+        ),
+        KeyValue::new("kura.region", config.region.clone()),
+        KeyValue::new("kura.tenant_id", config.tenant_id.clone()),
+        KeyValue::new("service.instance.id", config.node_url.clone()),
+    ];
+    if let Some(country) = node_location.country.as_deref() {
+        attributes.push(KeyValue::new("geo.country.iso_code", country.to_owned()));
+    }
+    if let Some(subdivision) = node_location.subdivision.as_deref() {
+        attributes.push(KeyValue::new("geo.region.iso_code", subdivision.to_owned()));
+    }
+    let resource = Resource::builder_empty()
+        .with_attributes(attributes)
+        .build();
+
+    Ok(SdkTracerProvider::builder()
+        .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
+            1.0,
+        ))))
+        .with_resource(resource)
+        .with_batch_exporter(exporter)
+        .build())
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OtlpTraceProtocol {
+    Grpc,
+    HttpBinary,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct OtlpTraceExporterConfig {
+    endpoint: String,
+    protocol: OtlpTraceProtocol,
+}
+
+fn build_span_exporter(endpoint: &str) -> Result<opentelemetry_otlp::SpanExporter, String> {
+    let exporter = otlp_trace_exporter_config(endpoint)?;
+
+    match exporter.protocol {
+        OtlpTraceProtocol::Grpc => opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(exporter.endpoint)
+            .with_timeout(export_timeout())
+            .build()
+            .map_err(|error| format!("failed to build OTLP gRPC exporter: {error}")),
+        OtlpTraceProtocol::HttpBinary => opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .with_http_client(build_otlp_http_client()?)
+            .with_endpoint(exporter.endpoint)
+            .with_protocol(Protocol::HttpBinary)
+            .with_timeout(export_timeout())
+            .build()
+            .map_err(|error| format!("failed to build OTLP HTTP exporter: {error}")),
+    }
+}
+
+fn export_timeout() -> Duration {
+    Duration::from_secs(crate::control_plane_http::REQUEST_TIMEOUT_SECS)
+}
+
+// The exporter crate's default client sets only a total timeout, so DNS, TCP,
+// TLS and the batch upload share one budget. A remote region can spend more
+// than a second resolving Kubernetes search domains, which then leaves too
+// little of it for the upload and fails the export. Give connection setup the
+// same dedicated budget the control-plane client gets.
+//
+// The client has to be blocking: the batch processor drives exports with
+// `futures_executor::block_on` on its own thread, which has no Tokio reactor to
+// drive an asynchronous client's I/O. Building it off-runtime is what the
+// exporter crate does internally, and is required because `reqwest::blocking`
+// panics when constructed inside one.
+fn build_otlp_http_client() -> Result<OtlpHttpClient, String> {
+    std::thread::spawn(|| {
+        otlp_http_client_builder()?
+            .build()
+            .map(OtlpHttpClient::new)
+            .map_err(|_| "failed to build OTLP HTTP client".to_string())
+    })
+    .join()
+    .map_err(|_| "OTLP HTTP client builder thread panicked".to_string())?
+}
+
+fn otlp_http_client_builder() -> Result<reqwest::blocking::ClientBuilder, String> {
+    Ok(reqwest::blocking::Client::builder()
+        .tls_backend_preconfigured(crate::certificate_trust::native_config()?)
+        .connect_timeout(Duration::from_secs(
+            crate::control_plane_http::CONNECT_TIMEOUT_SECS,
+        ))
+        .timeout(export_timeout()))
+}
+
+struct OtlpHttpClient {
+    client: reqwest::blocking::Client,
+    diagnostics: Mutex<BTreeMap<&'static str, FailureLogThrottle>>,
+}
+
+impl OtlpHttpClient {
+    fn new(client: reqwest::blocking::Client) -> Self {
+        Self {
+            client,
+            diagnostics: Mutex::new(BTreeMap::new()),
+        }
+    }
+}
+
+impl fmt::Debug for OtlpHttpClient {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("OtlpHttpClient")
+            .finish_non_exhaustive()
+    }
+}
+
+#[async_trait::async_trait]
+impl HttpClient for OtlpHttpClient {
+    async fn send_bytes(&self, request: Request<Bytes>) -> Result<Response<Bytes>, HttpError> {
+        let started = Instant::now();
+        let result = self.client.send_bytes(request).await;
+        if let Err(error) = &result {
+            let category = otlp_http_error_category(error.as_ref());
+            // Only the seven fixed categories below enter this map. Limit the
+            // additional diagnostic, never the SDK's existing export error.
+            let suppressed = self
+                .diagnostics
+                .lock()
+                .expect("OTLP diagnostic lock")
+                .entry(category)
+                .or_insert_with(|| FailureLogThrottle::new(Duration::from_secs(60)))
+                .record_failure();
+            if let Some(suppressed) = suppressed {
+                let reqwest_error = error.downcast_ref::<reqwest::Error>();
+                // URLs, headers and error Display/Debug can contain collector
+                // credentials, proxy credentials or response text. Emit none.
+                warn!(
+                    event.name = "kura.telemetry.http_export_failed",
+                    error.type = category,
+                    error.is_connect = reqwest_error.is_some_and(reqwest::Error::is_connect),
+                    http.response.status_code = reqwest_error
+                        .and_then(reqwest::Error::status)
+                        .map(|status| status.as_u16()),
+                    kura.telemetry.export.duration_ms = started.elapsed().as_secs_f64() * 1_000.0,
+                    kura.log.suppressed_count = suppressed,
+                    "OTLP HTTP export failed"
+                );
+            }
+        }
+        // Preserve the exporter result, including its existing error visibility.
+        result
+    }
+}
+
+fn otlp_http_error_category(error: &(dyn Error + 'static)) -> &'static str {
+    let reqwest_error = error.downcast_ref::<reqwest::Error>();
+    if reqwest_error.is_some_and(reqwest::Error::is_timeout) {
+        return "timeout";
+    }
+    if reqwest_error.is_some_and(reqwest::Error::is_status) {
+        return "http_status";
+    }
+
+    let mut cause = Some(error);
+    for _ in 0..8 {
+        let Some(error) = cause else { break };
+        if error.is::<rustls::Error>() {
+            return "tls";
+        }
+        // hyper-util's DNS ConnectError is private; its Display is this fixed
+        // marker in the pinned stack. Stop formatting at its length instead of
+        // allocating arbitrary error messages, which can also contain secrets.
+        let mut marker = [0; b"dns error".len()];
+        let mut remaining = marker.as_mut_slice();
+        if std::io::Write::write_fmt(&mut remaining, format_args!("{error}")).is_ok()
+            && remaining.is_empty()
+            && marker == *b"dns error"
+        {
+            return "dns";
+        }
+        // io::Error::source can skip its wrapped error's own type. Keep it so
+        // nested hyper-rustls/tokio-rustls wrappers retain the rustls cause.
+        cause = error
+            .downcast_ref::<std::io::Error>()
+            .and_then(std::io::Error::get_ref)
+            .map(|inner| inner as &(dyn Error + 'static))
+            .or_else(|| error.source());
+    }
+    if reqwest_error.is_some_and(reqwest::Error::is_connect) {
+        "connect"
+    } else if reqwest_error.is_some_and(|error| error.is_body() || error.is_decode()) {
+        "body"
+    } else {
+        "other"
+    }
+}
+
+fn otlp_trace_exporter_config(endpoint: &str) -> Result<OtlpTraceExporterConfig, String> {
+    let url = reqwest::Url::parse(endpoint)
+        .map_err(|error| format!("OTLP traces endpoint must be a valid URL: {error}"))?;
+
+    let (protocol, endpoint) = match url.scheme() {
+        "grpc" => (
+            OtlpTraceProtocol::Grpc,
+            endpoint.replacen("grpc://", "http://", 1),
+        ),
+        "grpcs" => (
+            OtlpTraceProtocol::Grpc,
+            endpoint.replacen("grpcs://", "https://", 1),
+        ),
+        _ if url.path().is_empty() || url.path() == "/" => {
+            (OtlpTraceProtocol::Grpc, url.to_string())
+        }
+        _ => (OtlpTraceProtocol::HttpBinary, url.to_string()),
+    };
+
+    Ok(OtlpTraceExporterConfig { endpoint, protocol })
+}
+
+struct RequestHeaderExtractor<'a>(&'a HeaderMap);
+
+impl Extractor for RequestHeaderExtractor<'_> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).and_then(|value| value.to_str().ok())
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(|name| name.as_str()).collect()
+    }
+}
+
+struct ReqwestHeaderInjector<'a>(&'a mut reqwest::header::HeaderMap);
+
+struct MapHeaderExtractor<'a>(&'a BTreeMap<String, String>);
+
+impl Extractor for MapHeaderExtractor<'_> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).map(String::as_str)
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(String::as_str).collect()
+    }
+}
+
+impl Injector for ReqwestHeaderInjector<'_> {
+    fn set(&mut self, key: &str, value: String) {
+        let Ok(name) = reqwest::header::HeaderName::from_bytes(key.as_bytes()) else {
+            return;
+        };
+        let Ok(value) = reqwest::header::HeaderValue::from_str(&value) else {
+            return;
+        };
+        self.0.insert(name, value);
+    }
+}
+
+pub fn extract_parent_context(headers: &HeaderMap) -> opentelemetry::Context {
+    global::get_text_map_propagator(|propagator| {
+        propagator.extract(&RequestHeaderExtractor(headers))
+    })
+}
+
+pub fn inject_current_trace_context(headers: &mut reqwest::header::HeaderMap) {
+    let context = Span::current().context();
+    global::get_text_map_propagator(|propagator| {
+        let mut injector = ReqwestHeaderInjector(headers);
+        propagator.inject_context(&context, &mut injector);
+    });
+}
+
+pub fn attach_parent_context(span: &Span, headers: &HeaderMap) {
+    attach_extracted_parent_context(span, extract_parent_context(headers));
+}
+
+pub fn attach_parent_context_from_map(span: &Span, headers: &BTreeMap<String, String>) {
+    let context = global::get_text_map_propagator(|propagator| {
+        propagator.extract(&MapHeaderExtractor(headers))
+    });
+    attach_extracted_parent_context(span, context);
+}
+
+fn attach_extracted_parent_context(span: &Span, context: opentelemetry::Context) {
+    if let Err(error) = span.set_parent(context)
+        && should_warn_about_parent_context_error(&error)
+    {
+        warn!(
+            error = ?error,
+            event.name = "kura.telemetry.parent_context.attach_failed",
+            "failed to attach propagated trace context"
+        );
+    }
+}
+
+fn should_warn_about_parent_context_error(error: &SetParentError) -> bool {
+    matches!(error, SetParentError::AlreadyStarted)
+}
+
+#[cfg(test)]
+mod tests {
+    use tracing_opentelemetry::SetParentError;
+
+    use std::{
+        io::{self, Read, Write},
+        net::{SocketAddr, TcpListener, TcpStream},
+        sync::{Arc, Mutex},
+        thread,
+        time::{Duration, Instant, SystemTime},
+    };
+
+    use opentelemetry::trace::{SpanContext, SpanId, SpanKind, Status, TraceFlags, TraceId};
+    use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
+    use opentelemetry_sdk::trace::{SpanData, SpanExporter};
+    use reqwest::dns::{Addrs, Name, Resolve, Resolving};
+
+    use super::{
+        OtlpHttpClient, OtlpTraceProtocol, export_timeout, otlp_http_client_builder,
+        otlp_trace_exporter_config, sentry_http_client_builder, sentry_transport,
+        should_warn_about_parent_context_error,
+    };
+
+    #[derive(Clone, Default)]
+    struct CapturedLogs(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for CapturedLogs {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct FailedResolver;
+
+    impl Resolve for FailedResolver {
+        fn resolve(&self, _: Name) -> Resolving {
+            Box::pin(async {
+                Err(io::Error::other(
+                    "diagnostic-user diagnostic-password diagnostic-token diagnostic-path",
+                )
+                .into())
+            })
+        }
+    }
+
+    fn span_batch() -> Vec<SpanData> {
+        vec![SpanData {
+            span_context: SpanContext::new(
+                TraceId::from_bytes([1; 16]),
+                SpanId::from_bytes([2; 8]),
+                TraceFlags::SAMPLED,
+                false,
+                Default::default(),
+            ),
+            parent_span_id: SpanId::INVALID,
+            parent_span_is_remote: false,
+            span_kind: SpanKind::Internal,
+            name: "diagnostic-test-span".into(),
+            start_time: SystemTime::UNIX_EPOCH,
+            end_time: SystemTime::UNIX_EPOCH + Duration::from_millis(1),
+            attributes: Vec::new(),
+            dropped_attributes_count: 0,
+            events: Default::default(),
+            links: Default::default(),
+            status: Status::Unset,
+            instrumentation_scope: Default::default(),
+        }]
+    }
+
+    fn http_exporter(
+        client: reqwest::blocking::Client,
+        endpoint: &str,
+    ) -> opentelemetry_otlp::SpanExporter {
+        opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .with_http_client(OtlpHttpClient::new(client))
+            .with_endpoint(endpoint)
+            .with_protocol(Protocol::HttpBinary)
+            .build()
+            .unwrap()
+    }
+
+    fn read_export_request(stream: &mut TcpStream) -> Vec<u8> {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut bytes = Vec::new();
+        loop {
+            let mut chunk = [0; 4096];
+            let count = stream.read(&mut chunk).unwrap();
+            assert_ne!(count, 0, "collector received an incomplete request");
+            bytes.extend_from_slice(&chunk[..count]);
+            let mut headers = [httparse::EMPTY_HEADER; 32];
+            let mut request = httparse::Request::new(&mut headers);
+            if let httparse::Status::Complete(header_len) = request.parse(&bytes).unwrap() {
+                assert_eq!(request.method, Some("POST"));
+                let body_len: usize = request
+                    .headers
+                    .iter()
+                    .find(|header| header.name.eq_ignore_ascii_case("content-length"))
+                    .map(|header| std::str::from_utf8(header.value).unwrap().parse().unwrap())
+                    .unwrap();
+                if bytes.len() >= header_len + body_len {
+                    return bytes;
+                }
+            }
+        }
+    }
+
+    fn collector(
+        serve: impl FnOnce(TcpStream) -> Vec<u8> + Send + 'static,
+    ) -> (SocketAddr, thread::JoinHandle<Vec<u8>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let handle = thread::spawn(move || {
+            loop {
+                match listener.accept() {
+                    Ok((stream, _)) => {
+                        stream.set_nonblocking(false).unwrap();
+                        return serve(stream);
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        assert!(Instant::now() < deadline, "collector accept timed out");
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("collector accept failed: {error}"),
+                }
+            }
+        });
+        (address, handle)
+    }
+
+    #[test]
+    fn http_export_failures_have_bounded_credential_free_diagnostics() {
+        let logs = CapturedLogs::default();
+        let writer = logs.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .json()
+            .flatten_event(true)
+            .with_ansi(false)
+            .with_max_level(tracing::Level::WARN)
+            .with_writer(move || writer.clone())
+            .finish();
+
+        tracing::subscriber::with_default(subscriber, || {
+            let client = otlp_http_client_builder()
+                .unwrap()
+                .no_proxy()
+                .dns_resolver(Arc::new(FailedResolver))
+                .build()
+                .unwrap();
+            let exporter = http_exporter(
+                client.clone(),
+                "http://diagnostic-user:diagnostic-password@collector.invalid:4318/diagnostic-path?token=diagnostic-token",
+            );
+            for _ in 0..8 {
+                let error = futures_executor::block_on(exporter.export(span_batch())).unwrap_err();
+                assert!(
+                    error
+                        .to_string()
+                        .contains("HTTP export failed: network error")
+                );
+            }
+
+            // Port zero cannot have a listening server (bind assigns a port).
+            let exporter = http_exporter(client.clone(), "http://127.0.0.1:0/v1/traces");
+            assert!(futures_executor::block_on(exporter.export(span_batch())).is_err());
+
+            let (address, server) = collector(|mut stream| {
+                // Exercise certificate rejection, not a TCP reset during TLS.
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let certificate =
+                    rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+                let config = rustls::ServerConfig::builder_with_provider(Arc::new(
+                    rustls::crypto::aws_lc_rs::default_provider(),
+                ))
+                .with_safe_default_protocol_versions()
+                .unwrap()
+                .with_no_client_auth()
+                .with_single_cert(
+                    vec![certificate.cert.der().clone()],
+                    rustls::pki_types::PrivatePkcs8KeyDer::from(
+                        certificate.signing_key.serialize_der(),
+                    )
+                    .into(),
+                )
+                .unwrap();
+                let mut connection = rustls::ServerConnection::new(Arc::new(config)).unwrap();
+                assert!(connection.complete_io(&mut stream).is_err());
+                Vec::new()
+            });
+            let exporter = http_exporter(client.clone(), &format!("https://{address}/v1/traces"));
+            assert!(futures_executor::block_on(exporter.export(span_batch())).is_err());
+            server.join().unwrap();
+
+            let (release, released) = std::sync::mpsc::channel();
+            let (address, server) = collector(move |mut stream| {
+                let request = read_export_request(&mut stream);
+                released.recv_timeout(Duration::from_secs(5)).unwrap();
+                request
+            });
+            let timeout_client = otlp_http_client_builder()
+                .unwrap()
+                .no_proxy()
+                .timeout(Duration::from_millis(100))
+                .build()
+                .unwrap();
+            let exporter = http_exporter(timeout_client, &format!("http://{address}/v1/traces"));
+            let result = futures_executor::block_on(exporter.export(span_batch()));
+            release.send(()).unwrap();
+            assert!(result.is_err());
+            server.join().unwrap();
+
+            let (address, server) = collector(|mut stream| {
+                let request = read_export_request(&mut stream);
+                stream
+                    .write_all(b"HTTP/1.1 401 diagnostic-password\r\ncontent-length: 0\r\n\r\n")
+                    .unwrap();
+                request
+            });
+            let exporter = http_exporter(
+                client.clone(),
+                &format!("http://{address}/diagnostic-path?token=diagnostic-token"),
+            );
+            assert!(futures_executor::block_on(exporter.export(span_batch())).is_err());
+            server.join().unwrap();
+
+            let (address, server) = collector(|mut stream| {
+                let request = read_export_request(&mut stream);
+                stream
+                    .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 16\r\n\r\npartial")
+                    .unwrap();
+                request
+            });
+            let exporter = http_exporter(client, &format!("http://{address}/v1/traces"));
+            let error = futures_executor::block_on(exporter.export(span_batch())).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("HTTP export failed: network error")
+            );
+            server.join().unwrap();
+        });
+
+        let logs = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let events: Vec<serde_json::Value> = logs
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(events.len(), 6, "{logs}");
+        let categories: Vec<_> = events
+            .iter()
+            .map(|event| event["error.type"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            categories,
+            ["dns", "connect", "tls", "timeout", "http_status", "body"]
+        );
+        assert_eq!(events[4]["http.response.status_code"], 401);
+        assert_eq!(events[3]["error.is_connect"], false);
+        for event in &events {
+            assert_eq!(event["event.name"], "kura.telemetry.http_export_failed");
+            assert_eq!(event["kura.log.suppressed_count"], 0);
+            assert!(event["kura.telemetry.export.duration_ms"].as_f64().unwrap() >= 0.0);
+        }
+        for secret in [
+            "diagnostic-user",
+            "diagnostic-password",
+            "diagnostic-token",
+            "diagnostic-path",
+            "collector.invalid",
+        ] {
+            assert!(
+                !logs.contains(secret),
+                "diagnostics leaked {secret}: {logs}"
+            );
+        }
+    }
+
+    #[test]
+    fn http_exporter_delivers_spans_without_failure_diagnostics() {
+        let (address, server) = collector(|mut stream| {
+            let request = read_export_request(&mut stream);
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
+                .unwrap();
+            request
+        });
+        let logs = CapturedLogs::default();
+        let writer = logs.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::WARN)
+            .with_writer(move || writer.clone())
+            .finish();
+        tracing::subscriber::with_default(subscriber, || {
+            let client = otlp_http_client_builder()
+                .unwrap()
+                .no_proxy()
+                .build()
+                .unwrap();
+            let exporter = http_exporter(client, &format!("http://{address}/v1/traces"));
+            futures_executor::block_on(exporter.export(span_batch())).unwrap();
+        });
+        let request = server.join().unwrap();
+        let rendered = String::from_utf8_lossy(&request);
+        assert!(rendered.starts_with("POST /v1/traces HTTP/1.1\r\n"));
+        assert!(rendered.contains("application/x-protobuf"));
+        assert!(rendered.contains("diagnostic-test-span"));
+        assert!(logs.0.lock().unwrap().is_empty());
+    }
+
+    /// A Sentry ingest on a local port that reports each request's path,
+    /// `X-Sentry-Auth` and body. A stalled one accepts connections and never
+    /// answers.
+    fn sentry_stub(stall: bool) -> (String, std::sync::mpsc::Receiver<(String, String, Vec<u8>)>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            let mut held = Vec::new();
+            for stream in listener.incoming() {
+                let mut stream = stream.unwrap();
+                if stall {
+                    held.push(stream);
+                    continue;
+                }
+                let mut request = Vec::new();
+                let mut buffer = [0; 8192];
+                let head_end = loop {
+                    let count = stream.read(&mut buffer).unwrap();
+                    request.extend_from_slice(&buffer[..count]);
+                    if let Some(end) = request.windows(4).position(|w| w == b"\r\n\r\n") {
+                        break end + 4;
+                    }
+                };
+                let head = String::from_utf8_lossy(&request[..head_end]).to_string();
+                let header = |name: &str| {
+                    head.lines()
+                        .find_map(|line| {
+                            let (key, value) = line.split_once(':')?;
+                            key.eq_ignore_ascii_case(name)
+                                .then(|| value.trim().to_owned())
+                        })
+                        .unwrap_or_default()
+                };
+                let length: usize = header("content-length").parse().unwrap_or(0);
+                while request.len() < head_end + length {
+                    let count = stream.read(&mut buffer).unwrap();
+                    request.extend_from_slice(&buffer[..count]);
+                }
+                let path = head.split_whitespace().nth(1).unwrap().to_owned();
+                stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+                    )
+                    .unwrap();
+                let _ = sender.send((path, header("x-sentry-auth"), request[head_end..].to_vec()));
+            }
+        });
+        (format!("127.0.0.1:{}", address.port()), receiver)
+    }
+
+    fn sentry_options(atlas: &str) -> sentry::ClientOptions {
+        sentry::ClientOptions {
+            dsn: Some(format!("http://atlas-key@{atlas}/1").parse().unwrap()),
+            ..Default::default()
+        }
+    }
+
+    fn sentry_envelope() -> sentry::Envelope {
+        sentry::protocol::Event {
+            message: Some("kura failed".into()),
+            ..Default::default()
+        }
+        .into()
+    }
+
+    #[test]
+    fn sentry_transport_copies_envelopes_to_pulse_with_its_credentials() {
+        let (atlas, atlas_requests) = sentry_stub(false);
+        let (pulse, pulse_requests) = sentry_stub(false);
+        let pulse_dsn = format!("http://sentry:pulse-secret@{pulse}/v1/sentry/kura/1")
+            .parse()
+            .unwrap();
+
+        let transport = sentry_transport(&sentry_options(&atlas), Some(&pulse_dsn));
+        transport.send_envelope(sentry_envelope());
+
+        let (path, auth, atlas_body) = atlas_requests.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(path, "/api/1/envelope/");
+        assert!(auth.contains("sentry_key=atlas-key"), "{auth}");
+        assert!(!auth.contains("pulse-secret"), "{auth}");
+
+        let (path, auth, pulse_body) = pulse_requests.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(path, "/v1/sentry/kura/api/1/envelope/");
+        assert!(auth.contains("sentry_key=sentry"), "{auth}");
+        assert!(auth.contains("sentry_secret=pulse-secret"), "{auth}");
+        assert_eq!(pulse_body, atlas_body);
+        assert!(String::from_utf8_lossy(&atlas_body).contains("kura failed"));
+    }
+
+    #[test]
+    fn sentry_keeps_opentelemetry_export_errors_out_of_error_events() {
+        use sentry::integrations::tracing::EventFilter;
+        use tracing_subscriber::layer::SubscriberExt;
+
+        // EventFilter has no PartialEq; compare its bits.
+        struct Record(Arc<Mutex<Vec<(&'static str, u32)>>>);
+        impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for Record {
+            fn on_event(
+                &self,
+                event: &tracing::Event<'_>,
+                _: tracing_subscriber::layer::Context<'_, S>,
+            ) {
+                let metadata = event.metadata();
+                self.0.lock().unwrap().push((
+                    metadata.target(),
+                    super::sentry_event_filter(metadata).bits(),
+                ));
+            }
+        }
+
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let subscriber = tracing_subscriber::registry().with(Record(seen.clone()));
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::error!(target: "opentelemetry_sdk", "BatchSpanProcessor.ExportError");
+            tracing::error!(target: "opentelemetry_otlp", "export failed");
+            tracing::warn!(target: "opentelemetry_sdk", "queue full");
+            tracing::error!(target: "kura::store", "segment write failed");
+        });
+
+        let seen = seen.lock().unwrap();
+        let breadcrumb = EventFilter::Breadcrumb.bits();
+        assert_eq!(seen[0], ("opentelemetry_sdk", breadcrumb));
+        assert_eq!(seen[1], ("opentelemetry_otlp", breadcrumb));
+        assert_eq!(seen[2], ("opentelemetry_sdk", breadcrumb));
+        // Kura's own errors still reach Sentry as events.
+        assert_eq!(seen[3], ("kura::store", EventFilter::Event.bits()));
+    }
+
+    #[test]
+    fn sentry_transport_without_pulse_sends_only_to_its_dsn() {
+        let (atlas, atlas_requests) = sentry_stub(false);
+
+        let transport = sentry_transport(&sentry_options(&atlas), None);
+        transport.send_envelope(sentry_envelope());
+
+        let (path, _auth, _body) = atlas_requests.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(path, "/api/1/envelope/");
+    }
+
+    #[test]
+    fn sentry_transport_delivers_and_flushes_while_pulse_stalls() {
+        let (atlas, atlas_requests) = sentry_stub(false);
+        let (pulse, _pulse_requests) = sentry_stub(true);
+        let pulse_dsn = format!("http://sentry:pulse-secret@{pulse}/v1/sentry/kura/1")
+            .parse()
+            .unwrap();
+        let transport = sentry_transport(&sentry_options(&atlas), Some(&pulse_dsn));
+
+        let started = Instant::now();
+        // More envelopes than Pulse's queue of 30 holds, so it fills and drops,
+        // each one delivered to Atlas before the next is sent.
+        for _ in 0..40 {
+            transport.send_envelope(sentry_envelope());
+            atlas_requests.recv_timeout(Duration::from_secs(5)).unwrap();
+        }
+        // Pulse's queue is full and its requests hang: a flush, as on a panic,
+        // must not wait for Pulse at all, and shutdown and drop only up to
+        // their timeout.
+        let flushing = Instant::now();
+        assert!(transport.flush(Duration::from_secs(2)));
+        assert!(
+            flushing.elapsed() < Duration::from_millis(500),
+            "flush took {:?}",
+            flushing.elapsed()
+        );
+        let shutting_down = Instant::now();
+        assert!(transport.shutdown(Duration::from_secs(1)));
+        drop(transport);
+        assert!(
+            shutting_down.elapsed() < Duration::from_millis(1500),
+            "shutdown took {:?}",
+            shutting_down.elapsed()
+        );
+        assert!(started.elapsed() < Duration::from_secs(4));
+    }
+
+    #[tokio::test]
+    async fn sentry_invalid_certificate_option_cannot_disable_native_verification() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let fixture = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let key =
+            rustls::pki_types::PrivateKeyDer::Pkcs8(fixture.signing_key.serialize_der().into());
+        let server = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(vec![fixture.cert.der().clone()], key)
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            if let Ok(mut tls) = tokio_rustls::TlsAcceptor::from(Arc::new(server))
+                .accept(stream)
+                .await
+            {
+                let mut bytes = [0; 1024];
+                let count = tls.read(&mut bytes).await.unwrap_or(0);
+                if count > 0 {
+                    tls.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                        .await
+                        .unwrap();
+                }
+                return count;
+            }
+            0
+        });
+        let options = sentry::ClientOptions {
+            accept_invalid_certs: true,
+            ..Default::default()
+        };
+        let client = sentry_http_client_builder(&options)
+            .unwrap()
+            .no_proxy()
+            .resolve("localhost", address)
+            .timeout(Duration::from_secs(3))
+            .build()
+            .unwrap();
+        let error = client
+            .get(format!("https://localhost:{}/", address.port()))
+            .send()
+            .await
+            .unwrap_err();
+        assert!(crate::certificate_trust::terminal_transport_failure(&error));
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(3), task)
+                .await
+                .unwrap()
+                .unwrap(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn sentry_retains_defaulted_explicit_http_and_https_proxies() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        for https in [false, true] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let task = tokio::spawn(async move {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = [0; 4096];
+                let count = stream.read(&mut request).await.unwrap();
+                let request = String::from_utf8(request[..count].to_vec()).unwrap();
+                let response = if https {
+                    b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n".as_slice()
+                } else {
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".as_slice()
+                };
+                stream.write_all(response).await.unwrap();
+                request
+            });
+            let proxy = format!("http://{address}");
+            let options = sentry::ClientOptions {
+                http_proxy: (!https).then(|| proxy.clone().into()),
+                https_proxy: https.then(|| proxy.into()),
+                ..Default::default()
+            };
+            let client = sentry_http_client_builder(&options)
+                .unwrap()
+                .timeout(Duration::from_secs(3))
+                .build()
+                .unwrap();
+            let scheme = if https { "https" } else { "http" };
+            let result = client
+                .get(format!("{scheme}://not-resolved.invalid/event"))
+                .send()
+                .await;
+            if https {
+                assert!(result.is_err());
+            } else {
+                assert_eq!(result.unwrap().status(), reqwest::StatusCode::OK);
+            }
+            let request = tokio::time::timeout(Duration::from_secs(3), task)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(request.starts_with(if https {
+                "CONNECT not-resolved.invalid:443 "
+            } else {
+                "GET http://not-resolved.invalid/event "
+            }));
+        }
+    }
+
+    struct StalledResolver;
+
+    impl Resolve for StalledResolver {
+        fn resolve(&self, _: Name) -> Resolving {
+            Box::pin(async move {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                let address: SocketAddr = "127.0.0.1:1".parse().unwrap();
+                Ok(Box::new(std::iter::once(address)) as Addrs)
+            })
+        }
+    }
+
+    // The exporter crate's default client leaves connection setup sharing the
+    // export deadline, so a slow resolve consumes the budget the upload needs.
+    #[test]
+    fn stalled_dns_fails_the_export_on_the_connect_budget() {
+        let client = otlp_http_client_builder()
+            .unwrap()
+            .no_proxy()
+            .dns_resolver(Arc::new(StalledResolver))
+            .build()
+            .expect("expected the OTLP HTTP client to build");
+
+        let started = Instant::now();
+        let error = client
+            .post("http://collector.test:4318/v1/traces")
+            .send()
+            .expect_err("expected the stalled resolve to time out");
+
+        assert!(error.is_timeout());
+        assert!(
+            started.elapsed()
+                >= Duration::from_secs(crate::control_plane_http::CONNECT_TIMEOUT_SECS)
+        );
+        assert!(started.elapsed() < export_timeout());
+    }
+
+    #[test]
+    fn otlp_trace_exporter_config_uses_http_for_signal_paths() {
+        let config = otlp_trace_exporter_config("http://collector:4318/v1/traces")
+            .expect("expected OTLP HTTP endpoint to parse");
+
+        assert_eq!(config.protocol, OtlpTraceProtocol::HttpBinary);
+        assert_eq!(config.endpoint, "http://collector:4318/v1/traces");
+    }
+
+    #[test]
+    fn otlp_trace_exporter_config_uses_grpc_for_root_endpoint() {
+        let config = otlp_trace_exporter_config("http://collector:4317")
+            .expect("expected OTLP gRPC endpoint to parse");
+
+        assert_eq!(config.protocol, OtlpTraceProtocol::Grpc);
+        assert_eq!(config.endpoint, "http://collector:4317/");
+    }
+
+    #[test]
+    fn otlp_trace_exporter_config_supports_grpc_scheme_shorthand() {
+        let config = otlp_trace_exporter_config("grpcs://collector.internal:443")
+            .expect("expected explicit gRPC scheme to parse");
+
+        assert_eq!(config.protocol, OtlpTraceProtocol::Grpc);
+        assert_eq!(config.endpoint, "https://collector.internal:443");
+    }
+
+    #[test]
+    fn otlp_trace_exporter_config_rejects_invalid_urls() {
+        let error =
+            otlp_trace_exporter_config("not-a-url").expect_err("expected invalid endpoint to fail");
+
+        assert!(error.contains("must be a valid URL"));
+    }
+
+    #[test]
+    fn missing_or_filtered_tracing_layers_do_not_emit_warnings() {
+        assert!(!should_warn_about_parent_context_error(
+            &SetParentError::LayerNotFound
+        ));
+        assert!(!should_warn_about_parent_context_error(
+            &SetParentError::SpanDisabled
+        ));
+    }
+
+    #[test]
+    fn an_already_started_span_emits_a_warning() {
+        assert!(should_warn_about_parent_context_error(
+            &SetParentError::AlreadyStarted
+        ));
+    }
+}

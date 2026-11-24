@@ -21,13 +21,13 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
 
   test "internal routes reject unauthenticated callers, including writes", %{conn: conn} do
     assert conn |> get("/api/internal/atlas/flags") |> json_response(401)
-    assert conn |> put("/api/internal/atlas/flags/runners", %{}) |> json_response(401)
+    assert conn |> put("/api/internal/atlas/flags/pulse", %{}) |> json_response(401)
     assert conn |> get("/api/internal/atlas/flags/evaluate", %{"account_id" => 1}) |> json_response(401)
   end
 
   test "catalog includes inactive flags and rejects malformed names", %{conn: conn} do
     assert %{"flags" => flags} = conn |> authed() |> get("/api/internal/atlas/flags") |> json_response(200)
-    assert Enum.any?(flags, &(&1["name"] == "runners" and &1["actor_type"] == "account"))
+    assert Enum.any?(flags, &(&1["name"] == "pulse" and &1["actor_type"] == "account"))
     assert Enum.any?(flags, &(&1["name"] == "build_entities_kill_switch" and &1["actor_type"] == "global"))
 
     assert %{"error" => "invalid_flag_name"} =
@@ -104,19 +104,19 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
     excluded = AccountsFixtures.user_fixture().account
     included = AccountsFixtures.user_fixture().account
 
-    change(conn, "runners", %{"operation" => "disable", "scope" => "account", "account_id" => excluded.id})
-    change(conn, "runners", %{"operation" => "enable", "scope" => "global"})
-    assert {:ok, flag} = Persistence.get(:runners)
+    change(conn, "pulse", %{"operation" => "disable", "scope" => "account", "account_id" => excluded.id})
+    change(conn, "pulse", %{"operation" => "enable", "scope" => "global"})
+    assert {:ok, flag} = Persistence.get(:pulse)
     assert Flag.enabled?(flag, for: included)
     refute Flag.enabled?(flag, for: excluded)
 
-    change(conn, "runners", %{"operation" => "clear", "scope" => "account", "account_id" => excluded.id})
-    assert {:ok, flag} = Persistence.get(:runners)
+    change(conn, "pulse", %{"operation" => "clear", "scope" => "account", "account_id" => excluded.id})
+    assert {:ok, flag} = Persistence.get(:pulse)
     assert Flag.enabled?(flag, for: excluded)
 
-    change(conn, "runners", %{"operation" => "enable", "scope" => "account", "account_id" => included.id})
-    change(conn, "runners", %{"operation" => "disable", "scope" => "global"})
-    assert {:ok, flag} = Persistence.get(:runners)
+    change(conn, "pulse", %{"operation" => "enable", "scope" => "account", "account_id" => included.id})
+    change(conn, "pulse", %{"operation" => "disable", "scope" => "global"})
+    assert {:ok, flag} = Persistence.get(:pulse)
     assert Flag.enabled?(flag, for: included)
     refute Flag.enabled?(flag, for: excluded)
   end
@@ -130,38 +130,38 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
 
     # Asymmetric cohorts distinguish stable actor hashing from a random/time gate.
     actors = Enum.map(1..200, &%Tuist.Accounts.Account{id: &1})
-    change(conn, "runners", %{"operation" => "enable", "scope" => "percentage", "percentage" => 12.5})
-    assert {:ok, small} = Persistence.get(:runners)
+    change(conn, "pulse", %{"operation" => "enable", "scope" => "percentage", "percentage" => 12.5})
+    assert {:ok, small} = Persistence.get(:pulse)
     cohort = Enum.filter(actors, &Flag.enabled?(small, for: &1))
     assert cohort != [] and length(cohort) < 100
 
-    change(conn, "runners", %{"operation" => "enable", "scope" => "percentage", "percentage" => 75})
-    assert {:ok, large} = Persistence.get(:runners)
+    change(conn, "pulse", %{"operation" => "enable", "scope" => "percentage", "percentage" => 75})
+    assert {:ok, large} = Persistence.get(:pulse)
     assert Enum.all?(cohort, &Flag.enabled?(large, for: &1))
     assert Enum.count(actors, &Flag.enabled?(large, for: &1)) > length(cohort)
 
-    change(conn, "runners", %{"operation" => "clear", "scope" => "percentage"})
-    assert {:ok, cleared} = Persistence.get(:runners)
+    change(conn, "pulse", %{"operation" => "clear", "scope" => "percentage"})
+    assert {:ok, cleared} = Persistence.get(:pulse)
     refute Enum.any?(actors, &Flag.enabled?(cleared, for: &1))
   end
 
   test "retries are idempotent and stale revisions or reused change IDs cannot overwrite a later change", %{conn: conn} do
-    request = request(conn, "runners", %{"operation" => "enable", "scope" => "global"})
-    first = conn |> authed() |> put("/api/internal/atlas/flags/runners", request) |> json_response(200)
-    second = change(conn, "runners", %{"operation" => "clear", "scope" => "all"})
+    request = request(conn, "pulse", %{"operation" => "enable", "scope" => "global"})
+    first = conn |> authed() |> put("/api/internal/atlas/flags/pulse", request) |> json_response(200)
+    second = change(conn, "pulse", %{"operation" => "clear", "scope" => "all"})
     refute second["revision"] == request["expected_revision"]
     assert second["gates"] == []
 
-    assert conn |> authed() |> put("/api/internal/atlas/flags/runners", request) |> json_response(200) == first
+    assert conn |> authed() |> put("/api/internal/atlas/flags/pulse", request) |> json_response(200) == first
     stale = Map.put(request, "change_id", Ecto.UUID.generate())
 
     assert %{"error" => "stale_revision"} =
-             conn |> authed() |> put("/api/internal/atlas/flags/runners", stale) |> json_response(409)
+             conn |> authed() |> put("/api/internal/atlas/flags/pulse", stale) |> json_response(409)
 
     reused = Map.put(request, "reason", "Different request")
 
     assert %{"error" => "change_id_conflict"} =
-             conn |> authed() |> put("/api/internal/atlas/flags/runners", reused) |> json_response(409)
+             conn |> authed() |> put("/api/internal/atlas/flags/pulse", reused) |> json_response(409)
 
     assert Repo.aggregate(FeatureFlagChange, :count) == 2
     audit = Repo.get_by!(FeatureFlagChange, change_id: request["change_id"])
@@ -170,7 +170,7 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
     assert audit.request["reason"] == request["reason"]
     assert audit.before["revision"] == request["expected_revision"]
     assert audit.after == first
-    assert {:ok, flag} = Persistence.get(:runners)
+    assert {:ok, flag} = Persistence.get(:pulse)
     assert flag.gates == []
   end
 
@@ -188,8 +188,8 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
           %{"scope" => "global", "unexpected" => true},
           %{"scope" => "global", "interface" => "slack"}
         ] do
-      params = request(conn, "runners", Map.put_new(attrs, "operation", "enable"))
-      assert conn |> authed() |> put("/api/internal/atlas/flags/runners", params) |> json_response(422)
+      params = request(conn, "pulse", Map.put_new(attrs, "operation", "enable"))
+      assert conn |> authed() |> put("/api/internal/atlas/flags/pulse", params) |> json_response(422)
     end
 
     assert Repo.aggregate(FeatureFlagChange, :count) == 0
@@ -197,7 +197,7 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
 
   test "oversized write targets return typed errors without changes", %{conn: conn} do
     for {name, attrs} <- [
-          {"runners", %{"scope" => "account", "account_id" => 9_223_372_036_854_775_808}},
+          {"pulse", %{"scope" => "account", "account_id" => 9_223_372_036_854_775_808}},
           {"build_entities", %{"scope" => "project", "project_id" => 9_223_372_036_854_775_808}}
         ] do
       params = request(conn, name, Map.put(attrs, "operation", "enable"))
@@ -212,17 +212,17 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
   end
 
   test "rollout ratios that underflow return a typed error without changes", %{conn: conn} do
-    params = request(conn, "runners", %{"operation" => "enable", "scope" => "percentage", "percentage" => 5.0e-324})
+    params = request(conn, "pulse", %{"operation" => "enable", "scope" => "percentage", "percentage" => 5.0e-324})
 
     assert %{"error" => "invalid_target"} =
-             conn |> authed() |> put("/api/internal/atlas/flags/runners", params) |> json_response(422)
+             conn |> authed() |> put("/api/internal/atlas/flags/pulse", params) |> json_response(422)
 
-    assert {:ok, %{gates: []}} = Persistence.get(:runners)
+    assert {:ok, %{gates: []}} = Persistence.get(:pulse)
     assert Repo.aggregate(FeatureFlagChange, :count) == 0
   end
 
   test "advisory and table lock timeouts return a retryable error without persisting changes", %{conn: conn} do
-    params = request(conn, "runners", %{"operation" => "enable", "scope" => "global"})
+    params = request(conn, "pulse", %{"operation" => "enable", "scope" => "global"})
 
     for lock <- [:advisory, :table] do
       stub(Repo, :query!, fn sql ->
@@ -242,25 +242,25 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
       end)
 
       assert %{"error" => "persistence_failed"} =
-               conn |> authed() |> put("/api/internal/atlas/flags/runners", params) |> json_response(503)
+               conn |> authed() |> put("/api/internal/atlas/flags/pulse", params) |> json_response(503)
 
-      assert {:ok, %{gates: []}} = Persistence.get(:runners)
+      assert {:ok, %{gates: []}} = Persistence.get(:pulse)
       assert Repo.aggregate(FeatureFlagChange, :count) == 0
     end
   end
 
   test "unexpected database errors are not masked as lock contention", %{conn: conn} do
-    params = request(conn, "runners", %{"operation" => "enable", "scope" => "global"})
+    params = request(conn, "pulse", %{"operation" => "enable", "scope" => "global"})
 
     expect(Repo, :query!, fn _sql, _args ->
       raise Postgrex.Error, postgres: %{code: "XX000", severity: "ERROR", message: "unexpected database failure"}
     end)
 
     assert_raise Postgrex.Error, ~r/unexpected database failure/, fn ->
-      conn |> authed() |> put("/api/internal/atlas/flags/runners", params)
+      conn |> authed() |> put("/api/internal/atlas/flags/pulse", params)
     end
 
-    assert {:ok, %{gates: []}} = Persistence.get(:runners)
+    assert {:ok, %{gates: []}} = Persistence.get(:pulse)
     assert Repo.aggregate(FeatureFlagChange, :count) == 0
   end
 

@@ -5,19 +5,19 @@
   "description": "Bir Xcode projesinin nasıl Tuist projesine taşınacağını öğrenin."
 }
 ---
-# Xcode projesini taşıma {#migrate-an-xcode-project}
+# Bir Xcode projesini taşıma {#migrate-an-xcode-project}
 
 <.localized_link href="/guides/features/projects/adoption/new-project">Tuist kullanarak yeni bir proje oluşturmadığınız</.localized_link> sürece, bu durumda her şey otomatik olarak yapılandırılır, Xcode projelerinizi Tuist'in temel bileşenlerini kullanarak tanımlamanız gerekir. Bu sürecin ne kadar zahmetli olduğu, projelerinizin karmaşıklığına bağlıdır.
 
-Muhtemelen bildiğiniz gibi, Xcode projeleri zamanla dağınık ve karmaşık hale gelebilir: dizin yapısıyla eşleşmeyen gruplar, hedefler arasında paylaşılan dosyalar veya var olmayan dosyalara işaret eden dosya referansları (bazı örnekler). Biriken tüm bu karmaşıklık, projeyi güvenilir bir şekilde taşıyan bir komut sunmamızı zorlaştırıyor.
+Muhtemelen bildiğiniz gibi, Xcode projeleri zamanla dağınık ve karmaşık hale gelebilir: dizin yapısıyla eşleşmeyen gruplar, hedefler arasında paylaşılan dosyalar veya var olmayan dosyalara işaret eden dosya referansları (bazı örnekler). Biriken bu karmaşıklık, projeleri güvenilir bir şekilde taşıyan bir komut sunmamızı zorlaştırıyor.
 
-Ayrıca, manuel taşıma projelerinizi temizlemek ve basitleştirmek için mükemmel bir alıştırmadır. Bunun için yalnızca projenizdeki geliştiriciler değil, onları daha hızlı işleyip indeksleyecek olan Xcode da minnettar olacaktır. Tuist'i tamamen benimsediğinizde, projelerin tutarlı bir şekilde tanımlandığını ve basit kaldığını sağlayacaktır.
+Dahası, manuel taşıma projelerinizi temizlemek ve basitleştirmek için mükemmel bir alıştırmadır. Buna sadece projenizdeki geliştiriciler değil, onları daha hızlı işleyip indeksleyen Xcode da minnettar olacaktır. Tuist'i tamamen benimsediğinizde, projelerin tutarlı bir şekilde tanımlandığını ve basit kaldığını sağlar.
 
 Bu işi kolaylaştırmak amacıyla, kullanıcılardan aldığımız geri bildirimlere dayalı bazı yönergeler sunuyoruz.
 
-## Proje iskeletini oluşturma {#create-project-scaffold}
+## Proje iskeleti oluşturma {#create-project-scaffold}
 
-Her şeyden önce, aşağıdaki Tuist dosyalarını kullanarak projeniz için bir iskelet oluşturun:
+İlk olarak, aşağıdaki Tuist dosyalarını kullanarak projeniz için bir iskelet oluşturun:
 
 ::: code-group
 
@@ -70,12 +70,12 @@ let package = Package(
 > [!TIP]
 > **-Tuist sonekli proje adı**
 >
-> Mevcut Xcode projesiyle çakışmaları önlemek için, proje adına `-Tuist` sonekini eklemenizi öneririz. Projenizi Tuist'e tamamen taşıdığınızda bunu kaldırabilirsiniz.
+> Mevcut Xcode projesiyle çakışmaları önlemek için, proje adına `-Tuist` sonekini eklemenizi öneririz. Projenizi Tuist'e tamamen taşıdığınızda bu soneki kaldırabilirsiniz.
 
 
 ## Tuist projesini CI'da derleme ve test etme {#build-and-test-the-tuist-project-in-ci}
 
-Her değişikliğin taşınmasının geçerli olduğundan emin olmak için, sürekli entegrasyonunuzu manifest dosyanızdan Tuist tarafından oluşturulan projeyi derleyip test edecek şekilde genişletmenizi öneririz:
+Her değişikliğin taşınmasının geçerli olduğundan emin olmak için, sürekli entegrasyonunuzu genişleterek manifest dosyanızdan Tuist tarafından oluşturulan projeyi derlemeyi ve test etmeyi öneririz:
 
 ```bash
 tuist install
@@ -93,7 +93,7 @@ mkdir -p xcconfigs/
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -x xcconfigs/MyApp-Project.xcconfig
 ```
 
-Ardından, az önce oluşturduğunuz `.xcconfig` dosyasına işaret etmesi için `Project.swift` dosyanızı güncelleyin:
+Ardından, `Project.swift` dosyanızı az önce oluşturduğunuz `.xcconfig` dosyasını gösterecek şekilde güncelleyin:
 
 ```swift
 import ProjectDescription
@@ -110,7 +110,7 @@ let project = Project(
 )
 ```
 
-Ardından, derleme ayarlarına yönelik değişikliklerin doğrudan `.xcconfig` dosyalarına yapılmasını sağlamak için sürekli entegrasyon hattınızı aşağıdaki komutu çalıştıracak şekilde genişletin:
+Ardından, derleme ayarlarına yapılan değişikliklerin doğrudan `.xcconfig` dosyalarına yapılmasını sağlamak için sürekli entegrasyon hattınızı aşağıdaki komutu çalıştıracak şekilde genişletin:
 
 ```bash
 tuist migration check-empty-settings -p Project.xcodeproj
@@ -149,23 +149,23 @@ let package = Package(
 > [!TIP]
 > **Ürün türleri**
 >
-> Belirli bir paket için ürün türünü, `PackageSettings` yapısındaki `productTypes` sözlüğüne ekleyerek geçersiz kılabilirsiniz. Varsayılan olarak Tuist, tüm paketlerin statik çerçeveler olduğunu varsayar.
+> Belirli bir paketin ürün türünü, `PackageSettings` yapısındaki `productTypes` sözlüğüne ekleyerek geçersiz kılabilirsiniz. Varsayılan olarak Tuist, tüm paketlerin statik çerçeveler olduğunu varsayar.
 
 
 ## Taşıma sırasını belirleme {#determine-the-migration-order}
 
-Hedefleri, en çok bağımlı olunanlardan en az bağımlı olunanlara doğru taşımanızı öneririz. Bir projenin hedeflerini bağımlılık sayısına göre sıralanmış olarak listelemek için aşağıdaki komutu kullanabilirsiniz:
+Hedefleri, en çok bağımlı olunanlardan en az bağımlı olanlara doğru taşımanızı öneririz. Bir projenin hedeflerini bağımlılık sayısına göre sıralanmış olarak listelemek için aşağıdaki komutu kullanabilirsiniz:
 
 ```bash
 tuist migration list-targets -p Project.xcodeproj
 ```
 
-Listedeki en üstten başlayarak hedefleri taşımaya başlayın, çünkü bunlar en çok bağımlı olunanlardır.
+Listedeki en üstten başlayarak hedefleri taşıyın, çünkü bunlar en çok bağımlı olunanlardır.
 
 
 ## Hedefleri taşıma {#migrate-targets}
 
-Hedefleri tek tek taşıyın. Değişikliklerin birleştirilmeden önce incelenmesini ve test edilmesini sağlamak için her hedef için bir çekme isteği oluşturmanızı öneririz.
+Hedefleri tek tek taşıyın. Değişikliklerin birleştirilmeden önce gözden geçirilip test edilmesini sağlamak için her hedef için bir pull request açmanızı öneririz.
 
 ### Hedef derleme ayarlarını `.xcconfig` dosyalarına çıkarma {#extract-the-target-build-settings-into-xcconfig-files}
 
@@ -212,16 +212,16 @@ let project = Project(
 > [!NOTE]
 > **Test hedefleri**
 >
-> Hedefin ilişkili bir test hedefi varsa, aynı adımları tekrarlayarak onu da `Project.swift` dosyasında tanımlamalısınız.
+> Hedefin ilişkili bir test hedefi varsa, aynı adımları tekrarlayarak bunu `Project.swift` dosyasında da tanımlamalısınız.
 
 
 ### Hedef taşınmasını doğrulama {#validate-the-target-migration}
 
-Projenin derlendiğinden emin olmak için `tuist generate` ve ardından `xcodebuild build` komutunu, testlerin geçtiğinden emin olmak için ise `tuist test` komutunu çalıştırın. Ek olarak, değişikliklerin doğru olduğundan emin olmak için oluşturulan Xcode projesini mevcut olanla karşılaştırmak üzere [xcdiff](https://github.com/bloomberg/xcdiff) kullanabilirsiniz.
+Projenin derlendiğinden emin olmak için `tuist generate`'i ardından `xcodebuild build`'i çalıştırın ve testlerin geçtiğinden emin olmak için `tuist test`'i çalıştırın. Ek olarak, değişikliklerin doğru olduğundan emin olmak için oluşturulan Xcode projesini mevcut olanla karşılaştırmak üzere [xcdiff](https://github.com/bloomberg/xcdiff) kullanabilirsiniz.
 
 ### Tekrarlama {#repeat}
 
-Tüm hedefler tamamen taşınana kadar tekrarlayın. İşiniz bittiğinde, projeyi `tuist generate` ve ardından `xcodebuild build` ile `tuist test` kullanarak derleyip test etmek için CI ve CD hatlarınızı güncellemenizi öneririz.
+Tüm hedefler tamamen taşınana kadar tekrarlayın. İşiniz bittiğinde, projeyi `tuist generate`'i ardından `xcodebuild build` ve `tuist test`'ü kullanarak derlemek ve test etmek için CI ve CD hatlarınızı güncellemenizi öneririz.
 
 ## Sorun giderme {#troubleshooting}
 

@@ -4,10 +4,12 @@ defmodule TuistWeb.API.OrganizationsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
+  alias Tuist.OAuth.Clients
   alias Tuist.Runners.Allowance
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Organization
@@ -105,10 +107,15 @@ defmodule TuistWeb.API.OrganizationsController do
   )
 
   def create(%{body_params: %{name: organization_name}} = conn, _params) do
-    user = Authentication.current_user(conn)
+    user = Authentication.current_user(conn) || oauth_organization_creator(conn)
     existing_account = Accounts.get_account_by_handle(organization_name)
 
     cond do
+      is_nil(user) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "The authenticated subject is not authorized to perform this action"})
+
       String.contains?(organization_name, ".") ->
         conn
         |> put_status(:bad_request)
@@ -126,6 +133,18 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{
           message: "A user or organization with the handle #{organization_name} already exists"
         })
+    end
+  end
+
+  # An OAuth grant with `account:organizations:write`, which only clients
+  # authorized for it can get (the Luft server), creates organizations for the
+  # user who signed in.
+  defp oauth_organization_creator(conn) do
+    with %AuthenticatedAccount{scopes: scopes} <- Authentication.authenticated_subject(conn),
+         true <- Clients.organizations_write_scope() in scopes do
+      Authentication.oauth_user(conn)
+    else
+      _ -> nil
     end
   end
 

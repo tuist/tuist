@@ -1,4 +1,8 @@
-.noora-dropdown {
+/* Noora.Menu's button (a label, or dots) is the dropdown's trigger and
+   shares its styles. A selector list keeps
+   each selector's own specificity, so dropdowns style exactly as before. */
+.noora-dropdown,
+.noora-menu[data-trigger="dropdown"] {
   --noora-dropdown-default-background: light-dark(
     var(--noora-neutral-light-50),
     var(--noora-neutral-dark-1100)
@@ -70,8 +74,8 @@
 
     &:disabled {
       cursor: not-allowed;
-      background: var(--noora-button-background-secondary-disabled);
-      box-shadow: var(--noora-button-border-secondary-disabled);
+      background: var(--noora-button-background-disabled);
+      box-shadow: var(--noora-button-border-disabled);
 
       & [data-part="icon"] {
         color: var(--noora-dropdown-disabled-secondary-text);
@@ -97,7 +101,7 @@
 
     &:focus-visible {
       background: var(--noora-button-background-secondary-hover);
-      box-shadow: var(--noora-button-border-secondary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
   }
 
@@ -168,7 +172,7 @@
     gap: var(--noora-spacing-2);
     cursor: pointer;
     outline: unset;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border: 0;
     border-radius: var(--noora-radius-2);
     background: transparent;
@@ -249,7 +253,7 @@
 
       &:focus-visible {
         background: var(--noora-button-background-secondary-hover);
-        box-shadow: var(--noora-button-border-secondary-focus);
+        box-shadow: var(--noora-button-border-focus);
       }
     }
 
@@ -273,6 +277,12 @@
   background: var(--noora-surface-background-primary);
   width: 100%;
   overflow-y: auto;
+  scrollbar-color: light-dark(
+      var(--noora-neutral-light-600),
+      var(--noora-neutral-dark-600)
+    )
+    transparent;
+  scrollbar-width: thin;
 
   &[data-state="open"] {
     display: block;
@@ -311,6 +321,14 @@
     padding: var(--noora-spacing-2);
     max-height: 15rem;
     overflow-y: auto;
+    /* An item scrolled to keeps the list's own padding from its edge. */
+    scroll-padding-block: var(--noora-spacing-2);
+    scrollbar-color: light-dark(
+        var(--noora-neutral-light-600),
+        var(--noora-neutral-dark-600)
+      )
+      transparent;
+    scrollbar-width: thin;
 
     & [data-part="search-empty"] {
       display: block;
@@ -403,7 +421,7 @@
     padding: var(--noora-spacing-4);
 
     & [data-part="left-icon"] {
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       padding: 10px;
     }

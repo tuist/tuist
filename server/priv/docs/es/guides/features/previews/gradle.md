@@ -2,10 +2,10 @@
 {
   "title": "Previews de Gradle",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "Compila y comparte aplicaciones de Android y herramientas nativas de línea de comandos desde proyectos de Gradle con Tuist Previews."
+  "description": "Compila y comparte aplicaciones Android y herramientas nativas de línea de comandos desde proyectos de Gradle con Tuist Previews."
 }
 ---
-# Vistas previas de Gradle
+# Previews de Gradle
 
 Compila y comparte aplicaciones Android y herramientas nativas de línea de comandos directamente desde Gradle. Comienza con la <.localized_link href="/guides/get-started/gradle-project">guía del proyecto Gradle</.localized_link> para conectar el proyecto y autenticarte.
 
@@ -15,39 +15,39 @@ Compila y comparte aplicaciones Android y herramientas nativas de línea de coma
 ./gradlew :app:tuistShareDebug
 ```
 
-El plugin de configuración `dev.tuist` registra una tarea `tuistShare<Variant>` para cada variante de aplicación del Android Gradle Plugin (8.8.2 o posterior). Sustituye `app` y `Debug` por tu módulo de aplicación y variante, por ejemplo `:app:tuistShareDemoDebug` para un flavor de producto. La tarea compila el APK a través de las dependencias de artefactos declaradas en Gradle antes de publicarlo. También funciona cuando los resultados de compilación están actualizados o se restauran desde la caché de compilación.
+El plugin de configuración `dev.tuist` registra una tarea `tuistShare<Variant>` para cada variante de aplicación del Android Gradle Plugin (8.8.2 o posterior). Sustituye `app` y `Debug` por tu módulo de aplicación y variante, por ejemplo `:app:tuistShareDemoDebug` para un product flavor. La tarea compila el APK a través de las dependencias de artefactos declaradas en Gradle antes de publicarlo. También funciona cuando los resultados de compilación están actualizados o se restauran desde la caché de compilación.
 
-Solo se admite un único APK de aplicación universal firmado. La variante de depuración de Android normalmente usa una clave de firma de depuración; las variantes de release necesitan tu propia configuración de firma. La tarea verifica la firma del APK antes de la autenticación o la subida. Se rechazan los APK sin firmar, inválidos, de instrumentación y divididos. Los módulos de biblioteca, los APK de test y los Android App Bundles (`.aab`) no son objetivos de publicación.
+Solo se admite un único APK de aplicación universal firmado. La variante debug de Android suele usar una clave de firma de depuración; las variantes release necesitan tu propia configuración de firma. La tarea verifica la firma del APK antes de la autenticación o la subida. Se rechazan los APK sin firmar, no válidos, de instrumentación y divididos. Los módulos de biblioteca, los APK de test y los Android App Bundles (`.aab`) no son objetivos de publicación.
 
 ## Herramientas nativas de línea de comandos
 
-Los proyectos que usan el plugin `cpp-application` o `swift-application` de Gradle obtienen una tarea de compartir para cada binario nativo:
+Los proyectos que usan el plugin `cpp-application` o `swift-application` de Gradle obtienen una tarea de compartición para cada binario nativo:
 
 ```bash
 ./gradlew :app:tuistShareMainDebug
 ```
 
-La tarea compila y empaqueta la distribución instalada, incluido su lanzador y las bibliotecas en tiempo de ejecución. Usa `tuistShareMainRelease` para el binario de release. Los proyectos dirigidos a múltiples máquinas tienen una tarea para cada binario; ejecuta `./gradlew :app:tasks --all` para encontrar sus nombres.
+La tarea compila y empaqueta la distribución instalada, incluido su lanzador y las bibliotecas de runtime. Usa `tuistShareMainRelease` para el binario de release. Los proyectos dirigidos a varias máquinas tienen una tarea para cada binario; ejecuta `./gradlew :app:tasks --all` para encontrar sus nombres.
 
-Se admiten ejecutables nativos de macOS y Linux para arm64 o x86_64. Compila en la plataforma objetivo con la cadena de herramientas requerida por tu plugin de Gradle. Las aplicaciones JVM y sus scripts de lanzamiento generados no son compatibles con esta integración.
+Se admiten ejecutables nativos de macOS y Linux para arm64 o x86_64. Compila en la plataforma objetivo con la toolchain requerida por tu plugin de Gradle. Las aplicaciones JVM y sus scripts de lanzador generados no son compatibles con esta integración.
 
 ## Comportamiento de publicación
 
-Las tareas de compartir publican usando las credenciales de Tuist existentes del plugin, sin invocar la CLI de Tuist. Las tareas ordinarias `assemble`, `build` y de test nunca publican vistas previas.
+Las tareas de compartición publican usando las credenciales de Tuist existentes del plugin, sin invocar la CLI de Tuist. Las tareas ordinarias `assemble`, `build` y de test nunca publican previews.
 
-Después de compartir, abre **Vistas previas** en tu proyecto para copiar el enlace. Repetir una compartición de la misma compilación y pista reutiliza su publicación, incluso después de un acierto de caché de compilación. Las subidas fallidas o no confirmadas hacen que falle la tarea de compartir; no se informan como vistas previas exitosas.
+Después de compartir, abre **Previews** en tu proyecto para copiar el enlace. Repetir la compartición de la misma compilación y track reutiliza su publicación, incluso después de un acierto de caché de compilación. Las subidas fallidas o no confirmadas hacen que falle la tarea de compartición; no se informan como previews exitosos.
 
-## CI y pistas
+## CI y tracks
 
-Configura la <.localized_link href="/guides/integrations/continuous-integration">autenticación de CI</.localized_link> con las mismas credenciales que usas para otras funcionalidades autenticadas del plugin y luego solicita la publicación explícitamente:
+Configura la <.localized_link href="/guides/integrations/continuous-integration">autenticación de CI</.localized_link> con las mismas credenciales que usas para otras funcionalidades autenticadas del plugin y solicita la publicación explícitamente:
 
 ```bash
 ./gradlew :app:tuistShareDebug --track nightly
 ```
 
-Añade `--track nightly` a una tarea de compartir nativa de la misma manera. Las tareas usan el proyecto de Tuist configurado, la URL del servidor y la configuración de proxy. La publicación de vistas previas siempre requiere autenticación. Los metadatos de revisión de Git, las notas de release y los comentarios automáticos de pull request no son adjuntados por estas tareas.
+Añade `--track nightly` a una tarea de compartición nativa de la misma manera. Las tareas usan el proyecto de Tuist configurado, la URL del servidor y la configuración de proxy. La publicación de previews siempre requiere autenticación. Estos tasks no adjuntan metadatos de revisión de Git, notas de release ni comentarios automáticos de pull request.
 
-Las publicaciones de artefactos caducan después de 30 días en Tuist alojado. Las instancias autoalojadas usan `TUIST_APP_PREVIEW_RETENTION_DAYS`; dejarlo sin configurar desactiva la caducidad para esta familia. Las publicaciones caducadas no pueden reactivarse repitiendo la misma intención.
+Las publicaciones de artefactos expiran tras 30 días en Tuist alojado. Las instancias autoalojadas usan `TUIST_APP_PREVIEW_RETENTION_DAYS`; dejarlo sin configurar desactiva la caducidad para esta familia. Las publicaciones caducadas no pueden reactivarse repitiendo la misma acción.
 
 ## Compartir un APK existente
 
@@ -58,6 +58,6 @@ tuist share app/build/outputs/apk/debug/app-debug.apk \
   --track nightly --release-notes "Improve checkout"
 ```
 
-Consulta <.localized_link href="/guides/features/previews#run-a-preview">Ejecutar una vista previa</.localized_link> para ejecutar compilaciones publicadas, acceder, gestionar pistas y usar insignias de README.
+Consulta <.localized_link href="/guides/features/previews#run-a-preview">Ejecutar una preview</.localized_link> para ejecutar compilaciones publicadas, gestionar el acceso, los tracks y los badges de README.
 
 <!-- @snippet: ./_tuist-share -->

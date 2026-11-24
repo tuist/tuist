@@ -1,0 +1,81 @@
+/* Scrolling menu and dropdown lists fade out at an edge while there's more
+   to see past it: the top once scrolled down, the bottom until the end.
+   Overlay scrollbars hide while idle, so the fade is often the only sign
+   that a list continues. The fades follow the scroll position in CSS; a
+   list that doesn't scroll has no fade. A mask, not an overlay, so a
+   highlighted row fades with the text rather than under a band. */
+@property --noora-scroll-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --noora-scroll-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes noora-scroll-fade-top {
+  from {
+    --noora-scroll-fade-top: 0px;
+  }
+
+  to {
+    --noora-scroll-fade-top: var(--noora-spacing-8);
+  }
+}
+
+@keyframes noora-scroll-fade-bottom {
+  from {
+    --noora-scroll-fade-bottom: var(--noora-spacing-8);
+  }
+
+  to {
+    --noora-scroll-fade-bottom: 0px;
+  }
+}
+
+/* Without scroll-driven animations, the keyframes would apply at their end
+   values and fade a list that may not scroll; such browsers get no fade. */
+@supports (animation-timeline: scroll()) {
+  .noora-menu-panel > [data-part="items"],
+  .noora-dropdown-content [data-part="items"] {
+    /* The second layer keeps a strip at the end edge unmasked, so the
+       scrollbar drawn there doesn't fade with the list. */
+    mask-image:
+      linear-gradient(
+        to bottom,
+        transparent,
+        #000 var(--noora-scroll-fade-top),
+        #000 calc(100% - var(--noora-scroll-fade-bottom)),
+        transparent
+      ),
+      linear-gradient(#000, #000);
+    mask-position:
+      0 0,
+      100% 0;
+    mask-size:
+      100% 100%,
+      var(--noora-spacing-4) 100%;
+    mask-repeat: no-repeat;
+
+    &:dir(rtl) {
+      mask-position:
+        0 0,
+        0 0;
+    }
+    animation:
+      noora-scroll-fade-top linear both,
+      noora-scroll-fade-bottom linear both;
+    animation-timeline: scroll(self), scroll(self);
+    /* Each fade eases in over the first or last stretch of the scroll, so
+       it's gone right at the edge it guards. */
+    animation-range:
+      0 var(--noora-spacing-8),
+      calc(100% - var(--noora-spacing-8)) 100%;
+    /* An item scrolled to, such as one highlighted from the keyboard, stops
+       clear of the fade instead of under it. */
+    scroll-padding-block: var(--noora-spacing-8);
+  }
+}

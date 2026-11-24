@@ -53,14 +53,14 @@ defmodule AtlasWeb.DomainComponents do
                       label={gettext("No project")}
                       color="neutral"
                       style="light-fill"
-                      size="large"
+                      size="medium"
                     />
                     <.badge
                       :for={project <- domain_projects(domain)}
                       label={project.name}
                       color="neutral"
                       style="light-fill"
-                      size="large"
+                      size="medium"
                     >
                       <:icon><.icon name="apps" /></:icon>
                     </.badge>
@@ -345,14 +345,14 @@ defmodule AtlasWeb.DomainComponents do
               label={gettext("No project")}
               color="neutral"
               style="light-fill"
-              size="large"
+              size="medium"
             />
             <.badge
               :for={project <- domain_projects(@domain)}
               label={project.name}
               color="neutral"
               style="light-fill"
-              size="large"
+              size="medium"
             >
               <:icon><.icon name="apps" /></:icon>
             </.badge>

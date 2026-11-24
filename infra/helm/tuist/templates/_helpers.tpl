@@ -327,24 +327,42 @@ Call with the component's `s3` values:
 {{- $root := .root -}}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" $root -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" $root -}}
+{{- $endpoint := .s3.endpoint | default (include "tuist.objectStorageEndpoint" $root) -}}
 - name: REGISTRY_STORAGE
   value: s3
 - name: REGISTRY_STORAGE_S3_REGION
-  value: {{ include "tuist.objectStorageRegion" $root | quote }}
+  value: {{ .s3.region | default (include "tuist.objectStorageRegion" $root) | quote }}
 - name: REGISTRY_STORAGE_S3_REGIONENDPOINT
-  value: {{ include "tuist.objectStorageEndpoint" $root | quote }}
+  value: {{ $endpoint | quote }}
 - name: REGISTRY_STORAGE_S3_FORCEPATHSTYLE
   value: "true"
 # Embedded MinIO is plain http (:9000); external object stores
 # (Tigris) are https. Drive TLS off the storage mode so the S3
 # driver doesn't try to speak TLS to an http endpoint.
+# An `s3.endpoint` override says its scheme itself.
 - name: REGISTRY_STORAGE_S3_SECURE
+  {{- if .s3.endpoint }}
+  value: {{ ternary "true" "false" (hasPrefix "https://" $endpoint) | quote }}
+  {{- else }}
   value: {{ ternary "false" "true" (eq $root.Values.objectStorage.mode "embedded") | quote }}
+  {{- end }}
 - name: REGISTRY_STORAGE_S3_BUCKET
   value: {{ .s3.bucket | quote }}
 - name: REGISTRY_STORAGE_S3_ROOTDIRECTORY
   value: {{ .s3.rootDirectory | quote }}
-{{- if and (eq $root.Values.objectStorage.mode "external") $root.Values.objectStorage.external.managedSecrets }}
+{{- if .s3.existingSecret }}
+# A store of its own, with its own keys (access-key-id, secret-access-key).
+- name: REGISTRY_STORAGE_S3_ACCESSKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .s3.existingSecret }}
+      key: access-key-id
+- name: REGISTRY_STORAGE_S3_SECRETKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .s3.existingSecret }}
+      key: secret-access-key
+{{- else if and (eq $root.Values.objectStorage.mode "external") $root.Values.objectStorage.external.managedSecrets }}
 # Managed envs: the real S3 creds live in the ESO-synced
 # object-storage-external-secrets Secret. app-secrets carries
 # only the (empty) values-supplied key, so the registry must read
@@ -1189,7 +1207,7 @@ replicas.
         <disks>
           <backups>
             <type>s3_plain</type>
-            <endpoint>{{ printf "%s/%s/%s/%s/" (include "tuist.objectStorageEndpoint" .) (include "tuist.objectStorageBucketDefault" .) $m.backup.prefix .Release.Namespace }}</endpoint>
+            <endpoint>{{ printf "%s/%s/%s/%s/" (include "tuist.objectStorageEndpoint" .) ($m.backup.bucket | default (include "tuist.objectStorageBucketDefault" .)) $m.backup.prefix .Release.Namespace }}</endpoint>
             <access_key_id from_env="BACKUP_S3_ACCESS_KEY_ID" />
             <secret_access_key from_env="BACKUP_S3_SECRET_ACCESS_KEY" />
             <region>{{ include "tuist.objectStorageRegion" . }}</region>
@@ -1610,6 +1628,28 @@ can serve. Empty unless the rack's runners are enabled, which does not need
 (`rackFleet.borrow`) runs the pools without owning the hosts.
 */}}
 {{/*
+The RuntimeClass an exclusive-CPU Kata pool runs under, as JSON
+`{name, memoryMiB}`. Its host cgroup is the budget plus podFixed, and the
+guest's kernel memory and virtiofsd's page cache grow with the budget, so
+podFixed is `kataContainers.podFixed.memory` (in Mi or Gi) plus
+`kataContainers.exclusivePodFixedMemoryPercent` of the budget, rounded up to
+256 MiB. Called with `dict "root" $ "podMemMiB" <budget>`.
+*/}}
+{{- define "tuist.kataExclusiveRuntimeClass" -}}
+{{- $base := toString .root.Values.kataContainers.podFixed.memory -}}
+{{- $baseMiB := 0 -}}
+{{- if hasSuffix "Gi" $base -}}
+{{- $baseMiB = mul (trimSuffix "Gi" $base | int) 1024 -}}
+{{- else if hasSuffix "Mi" $base -}}
+{{- $baseMiB = trimSuffix "Mi" $base | int -}}
+{{- end -}}
+{{- $podMemMiB := int .podMemMiB -}}
+{{- $extraMiB := mul (div (add (div (mul $podMemMiB (int (.root.Values.kataContainers.exclusivePodFixedMemoryPercent | default 0))) 100) 255) 256) 256 -}}
+{{- $name := ternary (printf "kata-qemu-%dg" (div $podMemMiB 1024)) (printf "kata-qemu-%dmi" $podMemMiB) (eq (mod $podMemMiB 1024) 0) -}}
+{{- dict "name" $name "memoryMiB" (add $baseMiB $extraMiB) | toJson -}}
+{{- end -}}
+
+{{/*
 Linux OS versions the shape pools run on, as a JSON array of
 `{osVersion, tag, default, image, autoscaling}`. `runnersFleetLinux.osVersions`
 lists them; exactly one carries `default: true` and runs
@@ -1812,4 +1852,45 @@ key holding the Pulse user's password.
 {{- define "tuist.sentryPulseDsn" -}}
 {{- $p := .root.Values.sentryPulse -}}
 http://{{ $p.user }}:{{ printf "{{ .%s | trim }}" .key }}@{{ $p.host }}/v1/sentry/{{ .service }}/1
+{{- end }}
+
+{{/*
+Which keys Tuist.Vault holds and which one it encrypts new values with. Plain
+env vars on every workload that reads the server config Secret, rather than
+keys in that Secret, so changing either rolls the pods. A pod refuses to boot
+while the synced Secret lacks a listed key, so no pod can be serving without a
+key another pod writes with.
+*/}}
+{{- define "tuist.encryptionCurrentKeyEnv" -}}
+{{- $keys := .Values.server.config.encryptionKeys -}}
+{{- $ids := $keys.keyIds | default list -}}
+{{- with $keys.currentKeyId }}
+{{- if and $ids (not (has . $ids)) }}
+{{- fail (printf "server.config.encryptionKeys.currentKeyId %q must be listed in keyIds, so every pod holds it before any pod writes with it." .) }}
+{{- end }}
+{{- if and (eq . "V1") (not $keys.legacyKey) }}
+{{- fail "server.config.encryptionKeys.currentKeyId is V1, which legacyKey: false stops syncing." }}
+{{- end }}
+- name: TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY
+  value: {{ . | quote }}
+{{- end }}
+{{- if and (has "V1" $ids) (not $keys.legacyKey) }}
+{{- fail "server.config.encryptionKeys.keyIds lists V1, which legacyKey: false stops syncing." }}
+{{- end }}
+{{- with $ids }}
+- name: TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS
+  value: {{ join "," . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+A Kubernetes CPU quantity ("250m", "2", "1.5") in millicores.
+*/}}
+{{- define "tuist.milliCPU" -}}
+{{- $cpu := toString . -}}
+{{- if hasSuffix "m" $cpu -}}
+{{- trimSuffix "m" $cpu | int -}}
+{{- else -}}
+{{- mulf (float64 $cpu) 1000 | int -}}
+{{- end -}}
 {{- end }}

@@ -14,6 +14,7 @@ import (
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -41,8 +42,13 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 	if r.APIReader != nil {
 		reader = r.APIReader
 	}
+	// The reporter speaks for the whole fleet, so its own site pin must not
+	// narrow the hosts: the alphabetically first rack pool is pinned to one
+	// site, and every other site's Macs were left without a grant.
+	selector := fleetNodeSelector(pool)
+	delete(selector, podtemplate.RackSiteNodeLabel)
 	var nodes corev1.NodeList
-	if err := reader.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
+	if err := reader.List(ctx, &nodes, selector); err != nil {
 		return err
 	}
 	// Include every Pod, not just runners: pending resizes and RuntimeClass
@@ -66,6 +72,7 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 			}
 			allocation := planSandboxAllocation(node, daemon, pods.Items, fleet)
 			allocation.ObservedAt = observed
+			allocation.SiblingMemoryBytes = siblingMemory(daemon, daemons)
 			if err := r.SignalsClient.PublishSandboxAllocation(ctx, allocation); err != nil {
 				return fmt.Errorf("publish sandbox allocation for %s: %w", node.Name, err)
 			}
@@ -93,32 +100,78 @@ func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev
 		return allocation
 	}
 	capacity := node.Status.Allocatable.Memory().Value()
-	var used, reclaimable int64
+	var used, reclaimable, cpuUsed, cpuReclaimable int64
 	for i := range pods {
 		pod := &pods[i]
 		if pod.Spec.NodeName != node.Name || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			continue
 		}
 		memory := allocationPodMemory(pod)
+		cpu := allocationPodRequest(pod, corev1.ResourceCPU)
 		// The target daemon is counted separately using max(requested,
 		// allocated, applied). Other daemon Pods remain ordinary occupancy.
 		if pod.Name == daemon.name && isSandboxDaemon(pod) {
 			memory = daemon.memory
+			// Its CPU counts at what the kubelet allocated, which is what a
+			// resize is admitted against: a growth it deferred does not use
+			// up the room the server sizes the next request from.
+			if asked, allocated := daemonCPU(pod); asked > allocated {
+				cpu -= asked - allocated
+			}
 		}
 		used += memory
+		cpuUsed += cpu
 		member, ok := fleet.members[pod.Labels["tuist.dev/runner-pool"]]
 		if ok && pod.DeletionTimestamp.IsZero() && isIdle(pod) && isWarmCapacity(pod, member.pool) && !isStaleRunner(pod, member.pool) {
 			reclaimable += memory
+			cpuReclaimable += cpu
+		}
+		// A runner on its way off the node still holds its CPU until it is
+		// gone. Counting it as reclaimable keeps the server from lowering a
+		// deferred growth it was retired for, which would let a replacement
+		// runner take the CPU and retire again: seen on staging.
+		if ok && !pod.DeletionTimestamp.IsZero() {
+			cpuReclaimable += cpu
 		}
 	}
 	allocation.FreeBytes = max(capacity-used, 0)
 	allocation.MemoryBytes = max(capacity-used+daemon.memory+reclaimable, 0)
+	if slots, ok := fleet.executionWarm[daemon.grantNode()]; ok && daemon.execution && slots > 0 {
+		allocation.WarmBytes = int64(slots)*fleet.slotBytes + executionDaemonReserveBytes
+	}
+	allocation.CPUFreeMilli = max(node.Status.Allocatable.Cpu().MilliValue()-cpuUsed, 0)
+	allocation.CPUReclaimableMilli = cpuReclaimable
 	return allocation
+}
+
+// siblingMemory is what the grant counted the host's other carve-out at:
+// the agent daemon for a remote execution worker and the other way round;
+// nil when the host runs only one.
+func siblingMemory(daemon sandboxDaemon, daemons []sandboxDaemon) *int64 {
+	for _, other := range daemons {
+		if other.node == daemon.node && other.name != daemon.name && other.execution != daemon.execution && !other.native {
+			return &other.memory
+		}
+	}
+	return nil
 }
 
 // A shrink is not free memory until both allocated and applied resources
 // have fallen. Copy before adjusting; never mutate the informer objects.
 func allocationPodMemory(pod *corev1.Pod) int64 {
+	return allocationPodRequest(pod, corev1.ResourceMemory)
+}
+
+// allocationPodRequest is what the Pod holds of a resource on its node, in
+// bytes for memory and millicores for CPU: the larger of each container's
+// requested, allocated and applied requests, as the scheduler counts them.
+func allocationPodRequest(pod *corev1.Pod, name corev1.ResourceName) int64 {
+	value := func(quantity resource.Quantity) int64 {
+		if name == corev1.ResourceCPU {
+			return quantity.MilliValue()
+		}
+		return quantity.Value()
+	}
 	copy := pod.DeepCopy()
 	statuses := append(append([]corev1.ContainerStatus(nil), pod.Status.ContainerStatuses...), pod.Status.InitContainerStatuses...)
 	for _, containers := range [][]corev1.Container{copy.Spec.Containers, copy.Spec.InitContainers} {
@@ -133,11 +186,11 @@ func allocationPodMemory(pod *corev1.Pod) int64 {
 					requests = append(requests, status.Resources.Requests)
 				}
 				for _, resources := range requests {
-					if memory, ok := resources[corev1.ResourceMemory]; ok && memory.Cmp(container.Resources.Requests[corev1.ResourceMemory]) > 0 {
+					if quantity, ok := resources[name]; ok && quantity.Cmp(container.Resources.Requests[name]) > 0 {
 						if container.Resources.Requests == nil {
 							container.Resources.Requests = corev1.ResourceList{}
 						}
-						container.Resources.Requests[corev1.ResourceMemory] = memory.DeepCopy()
+						container.Resources.Requests[name] = quantity.DeepCopy()
 					}
 				}
 			}
@@ -145,25 +198,25 @@ func allocationPodMemory(pod *corev1.Pod) int64 {
 	}
 	var app, sidecars, initPeak int64
 	for _, container := range copy.Spec.Containers {
-		app += container.Resources.Requests.Memory().Value()
+		app += value(container.Resources.Requests[name])
 	}
 	for _, container := range copy.Spec.InitContainers {
-		memory := container.Resources.Requests.Memory().Value()
+		request := value(container.Resources.Requests[name])
 		if container.RestartPolicy != nil && *container.RestartPolicy == corev1.ContainerRestartPolicyAlways {
-			sidecars += memory
+			sidecars += request
 			initPeak = max(initPeak, sidecars)
 		} else {
-			initPeak = max(initPeak, sidecars+memory)
+			initPeak = max(initPeak, sidecars+request)
 		}
 	}
 	total := max(app+sidecars, initPeak)
 	// A Pod-level budget replaces the containers' requests on the node.
 	if pod.Spec.Resources != nil {
-		if memory, ok := pod.Spec.Resources.Requests[corev1.ResourceMemory]; ok {
-			total = memory.Value()
+		if quantity, ok := pod.Spec.Resources.Requests[name]; ok {
+			total = value(quantity)
 		}
 	}
-	return total + copy.Spec.Overhead.Memory().Value()
+	return total + value(copy.Spec.Overhead[name])
 }
 
 // MacosSandboxRoleLabel marks a macOS sandbox host's control Pod and the

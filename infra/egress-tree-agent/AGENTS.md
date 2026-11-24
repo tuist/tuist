@@ -76,6 +76,20 @@ dictate this shape — do not regress them:
   (`redirect_peer`, measured at node-local line rate). The bypass is an
   explicit per-IP allowlist — fail-safe polarity: a stale entry briefly
   shapes sibling traffic, never unshapes tenant traffic.
+- Traffic to the pod CIDRs of the node's private-network peers (same
+  `tuist.dev/private-network` label and `tuist.dev/private-network-members`
+  digest; the node's own CIDR excluded) is stamped with the shared class
+  `1:2` instead of the tenant's (`private_dsts` LPM map). Pod-to-pod traffic
+  is tunnelled to the peer's node address, which the provider's peer routes
+  send over the private link, so `1:2` hangs off the root qdisc beside the
+  public root class at `PRIVATE_NETWORK_MBPS` (`egressTreeAgent.privateNetworkMbps`,
+  0 = off) and skips the tenants' public ceilings. This is what lets remote
+  execution workers fill their node blob caches from Kura at the private
+  link's rate. Destinations that are node addresses (host-network gateways)
+  stay in the tenant class, so customer egress keeps its ceiling. Polarity
+  matches the sibling map: a missing prefix shapes in the tenant class, a
+  stale one in `1:2`, never unshaped. Programs loaded by an older agent lack
+  the map and are replaced once (`kura_egress_tree_link_upgrade_total`).
 
 ## Contracts
 

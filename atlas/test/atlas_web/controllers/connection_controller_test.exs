@@ -32,7 +32,7 @@ defmodule AtlasWeb.ConnectionControllerTest do
   test "provider consent uses personal scopes, PKCE, and offline Google access", %{conn: conn} do
     {conn, _user} = log_in_user(conn)
 
-    for provider <- ~w(github slack google) do
+    for provider <- ~w(github slack google qonto) do
       response = get(conn, "/connections/#{provider}/authorize")
       uri = URI.parse(redirected_to(response))
       params = URI.decode_query(uri.query)
@@ -51,6 +51,7 @@ defmodule AtlasWeb.ConnectionControllerTest do
       end
 
       if provider == "github", do: assert(params["scope"] == "offline_access")
+      if provider == "qonto", do: assert(params["scope"] == "offline_access membership.read request_transfers.write")
 
       if provider == "google" do
         assert params["access_type"] == "offline"
@@ -330,7 +331,7 @@ defmodule AtlasWeb.ConnectionControllerTest do
     {browser, user} = log_in_user(conn)
     {client_id, token} = native_access_token(user)
 
-    for provider <- ~w(github slack google) do
+    for provider <- ~w(github slack google qonto) do
       state = native_nonce()
       {_url, ticket} = prepare(token, provider, state)
 
@@ -366,6 +367,19 @@ defmodule AtlasWeb.ConnectionControllerTest do
 
             "https://www.googleapis.com/oauth2/v3/userinfo" ->
               %{"sub" => "42", "email" => "octocat@example.com"}
+
+            "https://oauth.qonto.com/oauth2/token" ->
+              %{"access_token" => "private-access", "refresh_token" => "private-refresh", "expires_in" => 3600}
+
+            "https://thirdparty.qonto.com/v2/membership" ->
+              %{
+                "membership" => %{
+                  "id" => "m42",
+                  "first_name" => "Octo",
+                  "last_name" => "Cat",
+                  "email" => "octo@example.com"
+                }
+              }
           end
 
         if opts[:method] == :post and provider != "slack", do: assert(opts[:form]["code_verifier"] == pending.verifier)

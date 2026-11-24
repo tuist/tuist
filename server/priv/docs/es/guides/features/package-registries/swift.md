@@ -7,7 +7,7 @@
 ---
 # Registro de paquetes Swift {#swift-package-registry}
 
-A medida que crece el número de dependencias, también aumenta el tiempo necesario para resolverlas. Mientras que otros gestores de paquetes como [CocoaPods](https://cocoapods.org/) o [npm](https://www.npmjs.com/) están centralizados, Swift Package Manager no lo está. Por ello, SwiftPM necesita resolver las dependencias haciendo un clon profundo de cada repositorio, lo cual puede llevar mucho tiempo y consumir más memoria que un enfoque centralizado. Para solucionar esto, Tuist ofrece una implementación del [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md), de modo que puedas descargar solo los commits que _necesitas realmente_. Los paquetes del registro se basan en el [Swift Package Index](https://swiftpackageindex.com/): si encuentras un paquete allí, también estará disponible en el Registro de Tuist. Además, los paquetes se distribuyen por todo el mundo mediante almacenamiento perimetral para minimizar la latencia al resolverlos.
+A medida que crece el número de dependencias, también aumenta el tiempo necesario para resolverlas. Mientras otros gestores de paquetes como [CocoaPods](https://cocoapods.org/) o [npm](https://www.npmjs.com/) son centralizados, Swift Package Manager no lo es. Por ello, SwiftPM necesita resolver las dependencias haciendo un clon profundo de cada repositorio, lo cual puede llevar mucho tiempo y consumir más memoria que un enfoque centralizado. Para abordar esto, Tuist ofrece una implementación del [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md), de modo que puedas descargar solo los commits que _realmente necesitas_. Los paquetes del registro se basan en el [Swift Package Index](https://swiftpackageindex.com/): si encuentras un paquete allí, también estará disponible en el Registro de Tuist. Además, los paquetes se distribuyen por todo el mundo mediante almacenamiento perimetral para minimizar la latencia al resolverlos.
 
 ## Uso {#usage}
 
@@ -15,7 +15,7 @@ Hay dos formas de configurar el registro:
 
 ### Opción 1: Configuración automática durante la generación (recomendada) {#automatic-setup}
 
-Si usas Tuist para generar tu proyecto, puedes habilitar el registro estableciendo la opción `registryEnabled` en tu configuración de `Tuist.swift`:
+Si usas Tuist para generar tu proyecto, puedes habilitar el registro estableciendo la opción `registryEnabled` en tu configuración `Tuist.swift`:
 
 ```swift
 import ProjectDescription
@@ -43,7 +43,7 @@ Para configurar el registro manualmente, ejecuta el siguiente comando en el dire
 tuist registry setup
 ```
 
-Este comando genera un archivo de configuración del registro que habilita el registro para tu proyecto. Asegúrate de confirmar este archivo en el repositorio para que tu equipo también pueda beneficiarse del registro.
+Este comando genera un archivo de configuración del registro que habilita el registro para tu proyecto. Asegúrate de confirmar este archivo para que tu equipo también pueda beneficiarse del registro.
 
 ### Autenticación (opcional) {#authentication}
 
@@ -69,7 +69,7 @@ Para configurar el registro en la CI, sigue esta guía: <.localized_link href="/
 
 ### Identificadores del registro de paquetes {#package-registry-identifiers}
 
-Cuando uses identificadores del registro de paquetes en un archivo `Package.swift` o `Project.swift`, debes convertir la URL del paquete a la convención del registro. El identificador del registro siempre tiene el formato `{organization}.{repository}`. Por ejemplo, para usar el registro del paquete `https://github.com/pointfreeco/swift-composable-architecture`, el identificador del registro de paquetes sería `pointfreeco.swift-composable-architecture`.
+Cuando uses identificadores del registro de paquetes en un archivo `Package.swift` o `Project.swift`, debes convertir la URL del paquete a la convención del registro. El identificador del registro siempre tiene la forma `{organization}.{repository}`. Por ejemplo, para usar el registro del paquete `https://github.com/pointfreeco/swift-composable-architecture`, el identificador del registro sería `pointfreeco.swift-composable-architecture`.
 
 > [!NOTE]
 > El identificador no puede contener más de un punto. Si el nombre del repositorio contiene un punto, se reemplaza por un guion bajo. Por ejemplo, el paquete `https://github.com/groue/GRDB.swift` tendría el identificador de registro `groue.GRDB_swift`.

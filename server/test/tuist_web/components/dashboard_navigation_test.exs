@@ -3,6 +3,7 @@ defmodule TuistWeb.DashboardNavigationTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -32,9 +33,9 @@ defmodule TuistWeb.DashboardNavigationTest do
 
   test "feature-disabled destinations are absent from the same catalog used by the sidebar" do
     user = AccountsFixtures.user_fixture(preload: [:account])
-    stub(FeatureFlags, :runners_enabled?, fn _ -> false end)
+    stub(Environment, :runners_available?, fn -> false end)
     stub(FeatureFlags, :sandboxes_enabled?, fn _ -> false end)
-    stub(FeatureFlags, :guild_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :luft_enabled?, fn _ -> false end)
     paths = user |> DashboardNavigation.pages(user.account, nil) |> Enum.map(& &1.path)
     refute Enum.any?(paths, &String.contains?(&1, ["/runners", "/sandboxes", "/ai"]))
   end
@@ -60,6 +61,7 @@ defmodule TuistWeb.DashboardNavigationTest do
       refute Enum.any?(pages, &(String.downcase(&1.title) == String.downcase(&1.description)))
       assert (root <> "/notifications") in paths == (system == :xcode)
       assert (root <> "/automations") in paths == system in [:xcode, :bazel, :mix, :cargo]
+      assert "/#{user.account.name}/#{project.name}/remote-execution" in paths == system in [:bazel, :once]
     end
   end
 end

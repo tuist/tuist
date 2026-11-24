@@ -375,41 +375,6 @@ defmodule Tuist.Accounts do
     |> Enum.filter(&enrollment_allowed?.(&1.email))
   end
 
-  @doc """
-  Given a token, it returns the user associated with it.
-  """
-  def get_user_by_token(token) do
-    hash = Tuist.Tokens.legacy_token_hash(token)
-
-    Repo.one(
-      from(u in User,
-        where: u.token_hash == ^hash,
-        preload: [:account]
-      )
-    )
-  end
-
-  @doc """
-  Records that a legacy user or project token authenticated a request, at most
-  once a day per row, so `Tuist.Release.legacy_token_usage/1` can tell which
-  ones are still in use before they are retired.
-  """
-  def record_legacy_token_use(%{legacy_token_last_used_at: last_used_at, __struct__: schema, id: id} = subject) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
-    cutoff = DateTime.add(now, -1, :day)
-
-    if is_nil(last_used_at) or DateTime.before?(last_used_at, cutoff) do
-      Repo.update_all(
-        from(s in schema,
-          where: s.id == ^id and (is_nil(s.legacy_token_last_used_at) or s.legacy_token_last_used_at < ^cutoff)
-        ),
-        set: [legacy_token_last_used_at: now]
-      )
-    end
-
-    subject
-  end
-
   def get_device_code(code) do
     Repo.get_by(DeviceCode, code: code)
   end
@@ -791,6 +756,7 @@ defmodule Tuist.Accounts do
     |> case do
       {:ok, %{organization: organization}} ->
         organization = Repo.preload(organization, :account)
+        broadcast_organization_memberships_changed(attrs.creator.id)
 
         {:ok, organization}
 
@@ -1218,10 +1184,11 @@ defmodule Tuist.Accounts do
   @doc """
   Creates a user with the given attributes and its associated account.
   """
+  # New users get no legacy CLI token: CLI sign-ins, account tokens and OIDC
+  # replace it, and it was never shown to anyone. `token:` sets one, for tests
+  # of users that still have one.
   def create_user(email, opts \\ []) do
-    token = Tuist.Tokens.generate_token()
-
-    {handle, opts} = user_handle(email, opts)
+    token = Keyword.get(opts, :token)
 
     password = Keyword.get(opts, :password, "")
     confirmed_at = Keyword.get(opts, :confirmed_at, default_confirmed_at())
@@ -1243,21 +1210,17 @@ defmodule Tuist.Accounts do
         })
       )
       |> Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
-        customer_id =
-          Keyword.get(
-            opts,
-            :customer_id
-          )
-
-        repo.insert(
-          Account.create_changeset(%Account{}, %{
+        insert_user_account(
+          repo,
+          %{
             user_id: user_id,
-            name: handle,
             current_month_remote_cache_hits_count_updated_at:
               Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at),
-            customer_id: customer_id,
+            customer_id: Keyword.get(opts, :customer_id),
             billing_email: email
-          })
+          },
+          email,
+          opts
         )
       end)
       |> Multi.run(:runner_concurrency_limits, fn _repo, %{account: account} ->
@@ -1295,8 +1258,11 @@ defmodule Tuist.Accounts do
 
         {:ok, user}
 
+      {:error, :account, :account_handle_taken, _} ->
+        {:error, :account_handle_taken}
+
       {:error, :account, %Changeset{} = changeset, _} ->
-        parse_account_changeset_error(changeset, email, opts)
+        {:error, Utils.errors_on(changeset)}
 
       {:error, :user, %Changeset{} = changeset, _} ->
         if Utils.unique_error?(changeset, :email) do
@@ -1336,31 +1302,35 @@ defmodule Tuist.Accounts do
     end
   end
 
-  defp parse_account_changeset_error(%Changeset{} = changeset, email, opts) do
-    attempt = Keyword.get(opts, :attempt, 0)
-    suffix = Keyword.get(opts, :suffix, "")
-    explicit_handle = Keyword.has_key?(opts, :handle)
+  # Tries the next numeric suffix when an email-derived handle is taken. Each
+  # attempt runs in a savepoint: a failed insert would otherwise abort the
+  # transaction, including one the caller wraps around `create_user/2`, such as
+  # SCIM provisioning, and every later attempt in it would raise.
+  defp insert_user_account(repo, attrs, email, opts) do
+    {handle, opts} = user_handle(email, opts)
+    changeset = Account.create_changeset(%Account{}, Map.put(attrs, :name, handle))
 
-    cond do
-      # If an explicit handle was provided, don't retry - just return the error
-      Utils.unique_error?(changeset, :name) and explicit_handle ->
-        {:error, :account_handle_taken}
+    with {:error, changeset} <- repo.insert(changeset, mode: :savepoint) do
+      attempt = Keyword.get(opts, :attempt, 0)
 
-      Utils.unique_error?(changeset, :name) and attempt < 20 ->
-        next_suffix = if suffix == "", do: 1, else: String.to_integer(suffix) + 1
+      cond do
+        not Utils.unique_error?(changeset, :name) ->
+          {:error, changeset}
 
-        opts =
-          opts
-          |> Keyword.put(:attempt, attempt + 1)
-          |> Keyword.put(:suffix, "#{next_suffix}")
+        Keyword.has_key?(opts, :handle) or attempt >= 20 ->
+          {:error, :account_handle_taken}
 
-        create_user(email, opts)
+        true ->
+          suffix = Keyword.get(opts, :suffix, "")
+          next_suffix = if suffix == "", do: 1, else: String.to_integer(suffix) + 1
 
-      Utils.unique_error?(changeset, :name) and attempt >= 20 ->
-        {:error, :account_handle_taken}
+          opts =
+            opts
+            |> Keyword.put(:attempt, attempt + 1)
+            |> Keyword.put(:suffix, "#{next_suffix}")
 
-      true ->
-        {:error, Utils.errors_on(changeset)}
+          insert_user_account(repo, attrs, email, opts)
+      end
     end
   end
 
@@ -1670,8 +1640,24 @@ defmodule Tuist.Accounts do
         end)
         |> Repo.transaction()
 
+      broadcast_organization_memberships_changed(user_id)
       :ok
     end
+  end
+
+  @doc """
+  The PubSub topic that receives `{:organization_memberships_changed, %{user_id: user_id}}` after
+  the user joins an organization, creates one, or has their role in one changed. Only those grants
+  are broadcast; removals and demotions are not.
+  """
+  def organization_memberships_topic(user_id) when is_integer(user_id), do: "organization_memberships:#{user_id}"
+
+  defp broadcast_organization_memberships_changed(user_id) do
+    Tuist.PubSub.broadcast(
+      %{user_id: user_id},
+      organization_memberships_topic(user_id),
+      :organization_memberships_changed
+    )
   end
 
   def remove_user_from_organization(%User{id: user_id} = user, %Organization{id: organization_id} = organization) do
@@ -1733,9 +1719,13 @@ defmodule Tuist.Accounts do
         {:error, :not_found}
 
       user_role ->
-        user_role
-        |> Changeset.change(name: Atom.to_string(role))
-        |> Repo.update()
+        with {:ok, _} = result <-
+               user_role
+               |> Changeset.change(name: Atom.to_string(role))
+               |> Repo.update() do
+          broadcast_organization_memberships_changed(user_id)
+          result
+        end
     end
   end
 
@@ -2982,7 +2972,7 @@ defmodule Tuist.Accounts do
 
   @doc """
   Revokes the credentials that act for the user and outlive browser sessions:
-  CLI, app, OAuth and agent tokens, device codes, and the legacy `users.token`.
+  CLI, app, OAuth and agent tokens, and device codes.
 
   `credentials_revoked_at` rejects every user-issued JWT authenticated at or
   before now (see `credentials_revoked?/2`), including access tokens, which are
@@ -2997,11 +2987,8 @@ defmodule Tuist.Accounts do
     sub = to_string(id)
 
     Repo.update_all(from(u in User, where: u.id == ^id),
-      set: [token_hash: nil, credentials_revoked_at: DateTime.truncate(now, :second)]
+      set: [credentials_revoked_at: DateTime.truncate(now, :second)]
     )
-
-    # The plaintext column predates hashing; see `Tuist.Release.clear_plaintext_legacy_tokens/0`.
-    Repo.update_all(from(u in "users", where: u.id == ^id), set: [token: nil])
 
     Repo.delete_all(
       from(t in "guardian_tokens",
@@ -3030,6 +3017,21 @@ defmodule Tuist.Accounts do
   def credentials_revoked?(%User{credentials_revoked_at: revoked_at}, claims) do
     case Map.get(claims, "auth_time") || Map.get(claims, "iat") do
       authenticated_at when is_integer(authenticated_at) -> authenticated_at <= DateTime.to_unix(revoked_at)
+      _ -> true
+    end
+  end
+
+  @doc """
+  Whether account `claims` (OIDC exchanges, agent and OAuth tokens) were issued
+  at or before the account's last bulk credential revocation (see
+  `Tuist.Accounts.CredentialRevocation`). These tokens are not stored, so this
+  is what revokes them.
+  """
+  def account_credentials_revoked?(%Account{credentials_revoked_at: nil}, _claims), do: false
+
+  def account_credentials_revoked?(%Account{credentials_revoked_at: revoked_at}, claims) do
+    case Map.get(claims, "auth_time") || Map.get(claims, "iat") do
+      issued_at when is_integer(issued_at) -> issued_at <= DateTime.to_unix(revoked_at)
       _ -> true
     end
   end

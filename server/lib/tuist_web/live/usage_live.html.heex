@@ -5,7 +5,7 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_usage",
-          "Runner time, cache volume storage, and cache traffic billed to this account."
+          "Compute, cache, and test usage for this account."
         )}
       </span>
     </div>
@@ -188,6 +188,106 @@
       title={dgettext("dashboard_usage", "No runner usage in this period")}
       get_started_href="https://tuist.dev/en/docs/guides/features/runners"
     />
+  </.card>
+
+  <.card
+    :if={@remote_execution_enabled}
+    title={dgettext("dashboard_usage", "Remote execution")}
+    icon="server"
+    data-part="remote-execution-usage-card"
+  >
+    <.async_result :let={usage} assign={@remote_execution_usage}>
+      <:loading>
+        <.card_section data-part="usage-summary-section" data-chart-frame="standard">
+          <.skeleton_chart />
+        </.card_section>
+      </:loading>
+      <.card_section data-part="usage-summary-section">
+        <span data-part="info-label">
+          {dgettext(
+            "dashboard_usage",
+            "Billing period %{from} to %{to}. Minutes include input fetch, execution, and output upload at Linux compute rates. Queueing and VM boot are free.",
+            from: Timex.format!(usage.period_start, "{Mshort} {D}"),
+            to: Timex.format!(usage.period_end, "{Mshort} {D}, {YYYY}")
+          )}
+        </span>
+        <div data-part="widgets">
+          <.widget
+            id="widget-re-execution-minutes"
+            title={dgettext("dashboard_usage", "Execution minutes")}
+            description={
+              dgettext("dashboard_usage", "%{count} actions ran remotely this period",
+                count: CldrHelpers.format_number(usage.actions)
+              )
+            }
+            value={TuistWeb.UsageLive.execution_minutes(usage.minutes)}
+          />
+          <.widget
+            id="widget-re-gross"
+            title={dgettext("dashboard_usage", "Usage value")}
+            description={dgettext("dashboard_usage", "At the Linux compute rates")}
+            value={format_money(usage.gross)}
+          />
+          <.widget
+            id="widget-re-billed"
+            title={dgettext("dashboard_usage", "Billed")}
+            description={dgettext("dashboard_usage", "Amount billed for this period")}
+            value={format_money(usage.billed)}
+          />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={usage.actions > 0}
+        data-part="usage-detail-section"
+        data-chart-frame="standard"
+      >
+        <div data-part="chart">
+          <.chart
+            id="remote-execution-spend-chart"
+            type="bar"
+            extra_options={
+              TuistWeb.UsageLive.usage_chart_options(
+                TuistWeb.UsageLive.usage_chart_dates(usage),
+                :currency
+              )
+            }
+            series={TuistWeb.UsageLive.remote_execution_chart_series(usage)}
+            y_axis_min={0}
+          />
+        </div>
+        <div data-part="receipts">
+          <div data-part="receipt" data-kind="remote-execution">
+            <div data-part="heading">
+              <span data-part="platform">{dgettext("dashboard_usage", "Linux")}</span>
+            </div>
+            <dl data-part="lines">
+              <div :for={shape <- usage.shapes} data-part="line">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} minutes on %{vcpus} vCPU / %{memory} GB",
+                    count: TuistWeb.UsageLive.execution_minutes(shape.minutes),
+                    vcpus: shape.vcpus,
+                    memory: shape.memory_gb
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.money_label(shape.gross)}</dd>
+              </div>
+              <div data-part="line" data-kind="total">
+                <dt>{dgettext("dashboard_usage", "Billed this period")}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(usage.billed)}</dd>
+              </div>
+            </dl>
+            <% re_pace = TuistWeb.UsageLive.pace_label(usage) %>
+            <p :if={re_pace} data-part="footnote">{re_pace}</p>
+          </div>
+        </div>
+      </.card_section>
+      <.usage_empty_state
+        :if={usage.actions == 0}
+        data-part="remote-execution-usage-empty"
+        title={dgettext("dashboard_usage", "No remote execution in this period")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/runners/once"
+      />
+    </.async_result>
   </.card>
 
   <.card
@@ -645,7 +745,7 @@
         <span data-part="info-label">
           {dgettext(
             "dashboard_usage",
-            "Billing period %{from} to %{to}. A running sandbox uses its vCPUs for every hour it runs, memory and disk included; paused and archived sandboxes use none.",
+            "Billing period %{from} to %{to}. Running sandboxes are billed for CPU and memory at Linux runner rates, with a Linux sandbox's CPU counted as at least its guarantee. Paused sandboxes aren't billed.",
             from: Timex.format!(usage.period_start, "{Mshort} {D}"),
             to: Timex.format!(usage.period_end, "{Mshort} {D}, {YYYY}")
           )}
@@ -655,7 +755,7 @@
             id="widget-sandbox-vcpu-hours"
             title={dgettext("dashboard_usage", "vCPU-hours")}
             description={
-              dgettext("dashboard_usage", "vCPUs times the hours sandboxes ran this period.")
+              dgettext("dashboard_usage", "CPU sandboxes were billed for this period.")
             }
             value={TuistWeb.UsageLive.vcpu_hours(usage.vcpu_hours)}
           />
@@ -663,8 +763,9 @@
             id="widget-sandbox-gross"
             title={dgettext("dashboard_usage", "Usage value")}
             description={
-              dgettext("dashboard_usage", "At %{rate}",
-                rate: TuistWeb.UsageLive.vcpu_hour_rate_label()
+              dgettext("dashboard_usage", "At %{rate} and %{memory_rate}",
+                rate: TuistWeb.UsageLive.vcpu_hour_rate_label(),
+                memory_rate: TuistWeb.UsageLive.gib_hour_rate_label()
               )
             }
             value={format_money(usage.gross)}
@@ -707,11 +808,20 @@
             <dl data-part="lines">
               <div data-part="line">
                 <dt>
-                  {dgettext("dashboard_usage", "%{count} vCPU-hours run",
+                  {dgettext("dashboard_usage", "%{count} vCPU-hours",
                     count: TuistWeb.UsageLive.vcpu_hours(usage.vcpu_hours)
                   )}
                 </dt>
-                <dd>{TuistWeb.UsageLive.money_label(usage.gross)}</dd>
+                <dd>{TuistWeb.UsageLive.money_label(usage.cpu)}</dd>
+              </div>
+              <div data-part="line" data-kind="memory">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} GiB-hours of memory at %{rate}",
+                    count: TuistWeb.UsageLive.vcpu_hours(usage.memory_gib_hours),
+                    rate: TuistWeb.UsageLive.gib_hour_rate_label()
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.money_label(usage.memory)}</dd>
               </div>
               <div data-part="line" data-kind="credit">
                 <dt>{dgettext("dashboard_usage", "Covered during early access")}</dt>

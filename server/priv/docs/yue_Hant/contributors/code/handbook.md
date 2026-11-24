@@ -1,7 +1,7 @@
 ---
 {
   "title": "手冊",
-  "titleTemplate": ":title · 代碼 · 貢獻者 · Tuist",
+  "titleTemplate": ":title · Code · Contributors · Tuist",
   "description": "為 Tuist 手冊作出貢獻。"
 }
 ---
@@ -11,9 +11,9 @@
 
 ## 用途 {#what-it-is-for}
 
-本手冊記錄 Tuist 作為公司的運作方式：價值觀、政策同工程實踐。呢個網站使用 VitePress 搭建。
+本手冊記錄 Tuist 作為公司的運作方式：價值觀、政策同工程實踐。呢個網站係用 VitePress 建立。
 
-## 如何貢獻 {#how-to-contribute}
+## 點樣貢獻 {#how-to-contribute}
 
 ### 本地設定 {#set-up-locally}
 

@@ -1,0 +1,260 @@
+[
+  {
+    "uid": "rustfs-drive-free-low",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "RustFS",
+    "title": "RustFS drive free space low",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        },
+        "datasourceUid": "cg3i1jh2k1v5sb",
+        "model": {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cg3i1jh2k1v5sb"
+          },
+          "editorMode": "code",
+          "expr": "min by (cluster, server, drive) (rustfs_cluster_drive_free_bytes) / max by (cluster, server, drive) (rustfs_cluster_drive_total_bytes)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.15
+                ],
+                "type": "lt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "type": "last"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "KeepLast",
+    "for": "15m",
+    "isPaused": false,
+    "labels": {
+      "severity": "warning"
+    },
+    "annotations": {
+      "summary": "RustFS drive {{ $labels.drive }} on {{ $labels.server }} ({{ $labels.cluster }}) has {{ $values.A.Value | humanizePercentage }} free",
+      "description": "A RustFS drive has had under 15% of its capacity free for 15 minutes. RustFS answers 503 to every upload, and to deletes, once a drive is full, so shard uploads fail for every account routed to this store and the server's cleanup cannot free space through the S3 API. Drive total is the volume's XFS project quota, not the host disk. Check that the server's shard cleanup and the bucket's 31-day expiry are running, then follow the runbook to free space or grow the quota.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#rustfs-drive-free-space"
+    }
+  },
+  {
+    "uid": "rustfs-drive-free-critical",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "RustFS",
+    "title": "RustFS drive almost full",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        },
+        "datasourceUid": "cg3i1jh2k1v5sb",
+        "model": {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cg3i1jh2k1v5sb"
+          },
+          "editorMode": "code",
+          "expr": "min by (cluster, server, drive) (rustfs_cluster_drive_free_bytes) / max by (cluster, server, drive) (rustfs_cluster_drive_total_bytes)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.05
+                ],
+                "type": "lt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "type": "last"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "KeepLast",
+    "for": "5m",
+    "isPaused": false,
+    "labels": {
+      "severity": "critical"
+    },
+    "annotations": {
+      "summary": "RustFS drive {{ $labels.drive }} on {{ $labels.server }} ({{ $labels.cluster }}) has {{ $values.A.Value | humanizePercentage }} free",
+      "description": "A RustFS drive has had under 5% of its capacity free for 5 minutes and will start rejecting writes. RustFS answers 503 to every upload, and to deletes, once a drive is full, so shard uploads fail for every account routed to this store and the server's cleanup cannot free space through the S3 API. Drive total is the volume's XFS project quota, not the host disk. Check that the server's shard cleanup and the bucket's 31-day expiry are running, then follow the runbook to free space or grow the quota.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#rustfs-drive-free-space"
+    }
+  },
+  {
+    "uid": "rustfs-drive-metrics-missing",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "RustFS",
+    "title": "RustFS drive metrics missing",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        },
+        "datasourceUid": "cg3i1jh2k1v5sb",
+        "model": {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cg3i1jh2k1v5sb"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, namespace) (kube_statefulset_replicas{statefulset=\"rustfs\", namespace=~\"rustfs-.*\"}) unless on (cluster) max by (cluster) (rustfs_cluster_drive_total_bytes)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "type": "last"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "KeepLast",
+    "for": "15m",
+    "isPaused": false,
+    "labels": {
+      "severity": "warning"
+    },
+    "annotations": {
+      "summary": "RustFS drive metrics are missing for {{ $labels.namespace }} ({{ $labels.cluster }})",
+      "description": "A RustFS StatefulSet is running but no rustfs_cluster_drive_total_bytes has reached Pulse for 15 minutes, so the free-space alerts are blind. RustFS pushes these over OTLP to the alloy receiver (metricsEndpoint in the shard-storage-rustfs chart). Check the store's network policy egress to observability:4318, the receiver's otelcol pipeline, and the pod's RUSTFS_OBS_* environment.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#rustfs-drive-metrics-missing"
+    }
+  }
+]

@@ -59,17 +59,21 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
     :ok
   end
 
+  # Days rolled up before the shed-age counts existed are rolled up again too,
+  # so growth can pool them instead of waiting for them to leave the window.
   defp dates_to_refresh(today) do
     since =
       NaiveDateTime.utc_now()
       |> NaiveDateTime.add(-@ingest_lookback_days * 86_400)
       |> NaiveDateTime.truncate(:second)
 
-    StorageTelemetry.dates_with_telemetry_ingested_since(
-      since,
-      Date.add(today, -refresh_horizon_days()),
-      today
-    )
+    earliest = Date.add(today, -refresh_horizon_days())
+
+    since
+    |> StorageTelemetry.dates_with_telemetry_ingested_since(earliest, today)
+    |> Enum.concat(StorageRollups.dates_missing_shed_age_counts(earliest, today))
+    |> Enum.uniq()
+    |> Enum.sort(Date)
   end
 
   # Only an apply that lands spends the budget, and the pass goes on past one

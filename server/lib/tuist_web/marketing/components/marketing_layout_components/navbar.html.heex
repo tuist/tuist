@@ -13,10 +13,10 @@ features_items = [
   },
   %{
     icon: :dashboard,
-    title: dgettext("marketing", "Compute"),
+    title: dgettext("marketing", "Runners"),
     subtitle:
-      dgettext("marketing", "Spin up runners in seconds and scale with your team and agents"),
-    href: TuistWeb.Marketing.MarketingHTML.localized_href("/compute"),
+      dgettext("marketing", "Managed macOS and Linux runners for your CI, next to your cache"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/runners"),
     illustration: "compute"
   },
   %{
@@ -151,24 +151,25 @@ mobile menu underneath the user. --%>
         <.wordmark data-part="logo" role="img" aria-label="Tuist" />
       </.link>
       <%!-- Right-click (context) menu on the logo: brand asset shortcuts,
-      built from Noora dropdown items inside a statically-open Noora content
-      panel — the wrapper only positions it and drives visibility. Copy
-      actions always serve the light-mode SVGs regardless of theme. --%>
+      built from Noora.Menu items inside the shared Noora menu panel (as the
+      breadcrumb menu does) — the wrapper only positions it and drives
+      visibility. Copy actions always serve the light-mode SVGs regardless of
+      theme. --%>
       <div
         data-part="logo-menu"
         data-open="false"
         aria-label={dgettext("marketing", "Brand assets")}
       >
-        <div class="noora-dropdown-content" data-state="open">
+        <div class="noora-menu-panel" data-part="content">
           <div data-part="items">
-            <%!-- The hook's data-copied flag fades in the check icon as
-            copy feedback; the label itself never changes. --%>
-            <Noora.Dropdown.dropdown_item
+            <%!-- The hook's data-copied flag draws the check as copy
+            feedback; the label itself never changes. --%>
+            <Noora.Menu.menu_item
               value="copy-logo"
               label={dgettext("marketing", "Copy logo as SVG")}
               data-copy-url={~p"/marketing/images/brand/tuist-logo.svg"}
             >
-              <:left_icon>
+              <:icon>
                 <svg viewBox="0 0 27 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path
                     d="M13.3336 29.3336C13.3212 29.328 13.3095 29.3215 13.297 29.3107C12.9978 29.0527 12.7438 26.089 12.6741 25.5423C12.1819 21.4671 11.5533 17.4099 10.7895 13.3775C10.5169 11.9469 10.2363 10.5178 9.94793 9.09033C9.70154 7.86241 9.49273 6.7469 9.3602 5.4996C9.10744 3.1216 10.8454 2.79677 12.8115 2.68128C12.9625 2.67287 13.1392 2.66713 13.3336 2.66641C13.528 2.66713 13.7047 2.67287 13.8557 2.68128C15.8218 2.79677 17.5598 3.1216 17.3071 5.4996C17.1744 6.7469 16.9656 7.86241 16.7192 9.09033C16.431 10.5178 16.1503 11.9469 15.8776 13.3775C15.1138 17.4099 14.4852 21.4671 13.9931 25.5423C13.9234 26.089 13.6694 29.0527 13.3701 29.3107C13.3577 29.3215 13.346 29.328 13.3336 29.3336Z"
@@ -191,30 +192,56 @@ mobile menu underneath the user. --%>
                     fill="currentColor"
                   />
                 </svg>
-              </:left_icon>
-              <:right_icon><Noora.Icon.icon name="check" /></:right_icon>
-            </Noora.Dropdown.dropdown_item>
-            <Noora.Dropdown.dropdown_item
+              </:icon>
+              <:extra>
+                <%!-- Drawn along its length on copy, like the Noora checkbox's
+                check (same 16px path). --%>
+                <svg data-part="copied" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path
+                    d="M3 7.75L6.5 11.25L13 4.75"
+                    pathLength="1"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </:extra>
+            </Noora.Menu.menu_item>
+            <Noora.Menu.menu_item
               value="copy-wordmark"
               label={dgettext("marketing", "Copy wordmark as SVG")}
               data-copy-url={~p"/marketing/images/brand/tuist-wordmark.svg"}
             >
-              <:left_icon><Noora.Icon.icon name="copy" /></:left_icon>
-              <:right_icon><Noora.Icon.icon name="check" /></:right_icon>
-            </Noora.Dropdown.dropdown_item>
-            <Noora.Dropdown.dropdown_item
+              <:icon><Noora.Icon.icon name="copy" /></:icon>
+              <:extra>
+                <%!-- Drawn along its length on copy, like the Noora checkbox's
+                check (same 16px path). --%>
+                <svg data-part="copied" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path
+                    d="M3 7.75L6.5 11.25L13 4.75"
+                    pathLength="1"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </:extra>
+            </Noora.Menu.menu_item>
+            <Noora.Menu.menu_item
               value="download-brand-assets"
               label={dgettext("marketing", "Download brand assets")}
               href={~p"/marketing/images/brand/tuist-brand-assets.zip"}
               {[download: true]}
             >
-              <:left_icon><Noora.Icon.icon name="download" /></:left_icon>
-            </Noora.Dropdown.dropdown_item>
-            <Noora.Dropdown.dropdown_separator />
+              <:icon><Noora.Icon.icon name="download" /></:icon>
+            </Noora.Menu.menu_item>
+            <Noora.Menu.menu_separator />
             <%!-- Points at the upcoming /brand marketing page (not built
             yet); swap in nothing here when it ships — the route just needs
             to exist. --%>
-            <Noora.Dropdown.dropdown_item
+            <Noora.Menu.menu_item
               value="brand-guidelines"
               label={dgettext("marketing", "Brand guidelines")}
               href={TuistWeb.Marketing.MarketingHTML.localized_href("/brand")}
@@ -295,7 +322,8 @@ mobile menu underneath the user. --%>
       </div>
     </nav>
     <nav data-part="actions" aria-label={dgettext("marketing", "Account actions")}>
-      <.neutral_button
+      <.ghost_button
+        variant="secondary"
         href="https://slack.tuist.dev"
         target="_blank"
         rel="noopener noreferrer"
@@ -304,8 +332,9 @@ mobile menu underneath the user. --%>
         data-part="icon"
       >
         <.brand_slack />
-      </.neutral_button>
-      <.neutral_button
+      </.ghost_button>
+      <.ghost_button
+        variant="secondary"
         href="https://github.com/tuist"
         target="_blank"
         rel="noopener noreferrer"
@@ -314,7 +343,7 @@ mobile menu underneath the user. --%>
         data-part="icon"
       >
         <.brand_github />
-      </.neutral_button>
+      </.ghost_button>
       <%!-- Language selector hidden during the redesign. Locale routing and
       Accept-Language detection keep working; restore this block to bring the
       switcher back. --%>
@@ -345,8 +374,9 @@ mobile menu underneath the user. --%>
           </.link>
         </div>
       </div> --%>
-      <.neutral_button
+      <.ghost_button
         :if={is_nil(TuistWeb.Authentication.current_user(assigns))}
+        variant="secondary"
         size="large"
         href={~p"/users/log_in"}
         data-part="log-in"
@@ -377,7 +407,8 @@ mobile menu underneath the user. --%>
         }
       ></.button>
 
-      <.neutral_button
+      <.ghost_button
+        variant="secondary"
         size="large"
         data-part="mobile-menu-button"
         data-static-hook="MobileMenu"
@@ -411,7 +442,7 @@ mobile menu underneath the user. --%>
             fill="currentColor"
           />
         </svg>
-      </.neutral_button>
+      </.ghost_button>
     </nav>
   </div>
   <%!-- Shared dropdown viewport (Radix NavigationMenu pattern): one panel
@@ -637,7 +668,7 @@ mobile menu underneath the user. --%>
       selection from the stored preference at mount. The id must not start
       with "marketing-": pages.css lays out [id^="marketing-"] containers as
       flex columns, which would stack the button group vertically. --%>
-      <.button_group size="small" id="mobile-menu-theme-switcher" data-static-hook="ThemeSwitcher">
+      <.button_group size="large" id="mobile-menu-theme-switcher" data-static-hook="ThemeSwitcher">
         <.button_group_item
           icon_only
           data-theme-option="system"

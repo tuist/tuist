@@ -1,7 +1,7 @@
 ---
 {
   "title": "CLI",
-  "titleTemplate": ":title · Code · Contributors · Tuist",
+  "titleTemplate": ":title · Kod · Katkıda Bulunanlar · Tuist",
   "description": "Tuist CLI'ye katkıda bulunun."
 }
 ---
@@ -23,7 +23,7 @@ CLI, Tuist’in kalbidir. Proje oluşturma, otomasyon iş akışlarını (test, 
 ### Yerel kurulum {#set-up-locally}
 
 - Depoyu klonlayın: `git clone git@github.com:tuist/tuist.git`
-- Mise’yi [resmi kurulum betiği](https://mise.jdx.dev/getting-started.html) ile (Homebrew değil) kurun ve `mise install` komutunu çalıştırın
+- Mise’yi [resmi kurulum betiğini](https://mise.jdx.dev/getting-started.html) kullanarak (Homebrew değil) kurun ve `mise install` komutunu çalıştırın
 - Tuist bağımlılıklarını yükleyin: `tuist install`
 - Çalışma alanını oluşturun: `tuist generate`
 
@@ -39,12 +39,12 @@ Oluşturulan proje otomatik olarak açılır. Daha sonra yeniden açmanız gerek
 
 #### Xcode’dan {#from-xcode}
 
-`tuist` şemasını düzenleyin ve `generate --no-open` gibi argümanlar belirleyin. Çalışma dizinini proje köküne ayarlayın (veya `--path` kullanın).
+`tuist` şemasını düzenleyin ve `generate --no-open` gibi argümanlar ayarlayın. Çalışma dizinini proje köküne ayarlayın (veya `--path` kullanın).
 
 > [!WARNING]
 > **ProjectDescription derlemesi**
 >
-> CLI, `ProjectDescription` öğesinin derlenmesine bağlıdır. Çalıştırma başarısız olursa önce `Tuist-Workspace` şemasını derleyin.
+> CLI, `ProjectDescription` öğesinin derlenmiş olmasına bağlıdır. Çalıştırma başarısız olursa önce `Tuist-Workspace` şemasını derleyin.
 
 
 #### Terminalden {#from-the-terminal}
@@ -63,7 +63,7 @@ tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -config
 "$tuist_build_dir/tuist" generate --path /path/to/project --no-open
 ```
 
-Veya Swift Package Manager üzerinden:
+Veya Swift Package Manager aracılığıyla:
 
 ```bash
 swift build --product ProjectDescription

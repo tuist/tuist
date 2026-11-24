@@ -18,6 +18,13 @@ defmodule Noora.Toggle do
   attr(:description, :string, default: nil, doc: "An optional description.")
   attr(:checked, :boolean, default: false, doc: "Whether the toggle is checked.")
   attr(:disabled, :boolean, default: false, doc: "Whether the toggle is disabled.")
+
+  attr(:size, :string,
+    values: ~w(medium large),
+    default: "medium",
+    doc: "The size of the toggle."
+  )
+
   attr(:id, :string, default: nil, doc: "The id of the toggle.")
   attr(:name, :string, default: nil, doc: "The name of the toggle.")
   attr(:field, FormField, default: nil, doc: "A Phoenix form field.")
@@ -46,12 +53,16 @@ defmodule Noora.Toggle do
       data-disabled={@disabled}
       {@rest}
     >
+      <%!-- Submits false while the toggle is off, as a browser leaves an
+           unchecked input out of the form. --%>
+      <input :if={@name} type="hidden" name={@name} value="false" />
       <label phx-update="ignore" id={"switch:" <> @id} data-part="root">
         <input data-peer data-part="hidden-input" tabindex={@tabindex} />
         <div
           class="noora-toggle-control"
           data-state={if @checked, do: "checked", else: "unchecked"}
           data-disabled={@disabled}
+          data-size={@size}
           data-part="control"
         >
           <div data-part="track">

@@ -627,6 +627,20 @@ Pod's address and NetworkPolicy identity.
   export's intake slots, admission and 5-minute bound, and queues the build. It
   answers 202 `{"ok":true}` once queued, 507 without room, 400 for an invalid
   export, 409 while the same use's export is still being received.
+- `POST /sandbox-cache/image` with `{"pod_name": ..., "grant": {"id",
+  "scope", "base_generation", "image_digest", "content_digest"}, "held":
+  [generations]}` copies a volume's saved master for a sandbox's cache drive:
+  the head's, or the newest older master of the lineage when the node keeps
+  only that (prefetch holds refreshed masters instead of downloading every
+  head). It reflinks the master under the scope lock into
+  `.sandbox-cache/<id>/master.img`, marks it used, names its generation in
+  `Tuist-Cache-Generation`, and answers 200 with the clone in the sparse zstd
+  format the host publishes masters in, deleting the clone afterwards, or 204
+  without a clone when that generation is in `held`. It never fetches a
+  master: without one of the lineage it answers 404 `{"error":"cold"}`, and 400
+  for an invalid grant. It shares the seeds' four slots; clones left by a
+  restarted agent are abandoned at start. No use is recorded and nothing comes
+  back.
 
 ## Docker cache volumes
 

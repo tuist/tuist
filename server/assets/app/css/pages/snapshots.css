@@ -1,0 +1,970 @@
+#snapshots,
+#snapshot-build,
+#snapshot-commit,
+#snapshot-history {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & .noora-card {
+    width: 100%;
+  }
+}
+
+#snapshot-build,
+#snapshot-commit,
+#snapshot-history {
+  & > [data-part="action-buttons"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="review-buttons"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & [data-part="metadata-grid"] {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--noora-spacing-7);
+
+    @media (max-width: 1200px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 768px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    & > [data-part="metadata"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
+      min-width: 0;
+      overflow-wrap: anywhere;
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="label"],
+      & > [data-part="reviewer"] > [data-part="label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > a[data-part="label"] {
+        text-decoration: underline;
+      }
+
+      /* Long values, such as a pull request's title, stay on one line. */
+      & > [data-part="label"][data-truncate] {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      & > [data-part="reviewer"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+      }
+    }
+  }
+
+  & [data-part="images-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+  }
+
+  & [data-part="modes"] .noora-button-group-item[data-selected="true"] {
+    background: var(--noora-surface-background-secondary);
+    color: var(--noora-surface-label-primary);
+  }
+
+  & [data-part="notice"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+  }
+
+  /* Images follow one another with a rule between them; a framed group's
+     first image sits right under the group's header strip instead. */
+  & [data-part="group"] > [data-part="image"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    border-block-start: 1px solid var(--noora-surface-border-primary);
+    padding-block-start: var(--noora-spacing-6);
+  }
+
+  & [data-part="group"]:not([data-framed]) > [data-part="image"]:first-child {
+    border-block-start: 0;
+    padding-block-start: 0;
+  }
+
+  & [data-part="image-header"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="image-name"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      font-family: "Geist Mono", monospace;
+      overflow-wrap: anywhere;
+    }
+
+    & > [data-part="image-ratio"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
+
+  /* The comparison is one framed viewer: one image takes its whole width, and
+     baseline and new split it in two panes divided by a rule, each labelled in
+     its corner with its image centred on a tinted backdrop. */
+  & [data-part="panes"] {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    overflow: hidden;
+
+    @media (max-width: 768px) {
+      grid-auto-flow: row;
+    }
+  }
+
+  & [data-part="pane"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    margin: 0;
+    padding: var(--noora-spacing-5) var(--noora-spacing-6) var(--noora-spacing-6);
+    min-width: 0;
+
+    & + [data-part="pane"] {
+      border-inline-start: 1px solid var(--noora-surface-border-primary);
+
+      @media (max-width: 768px) {
+        border-inline-start: 0;
+        border-block-start: 1px solid var(--noora-surface-border-primary);
+      }
+    }
+
+    & > figcaption {
+      align-self: flex-start;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+
+    & > img {
+      border: 1px solid var(--noora-surface-border-primary);
+      border-radius: var(--noora-radius-3);
+      background: repeating-conic-gradient(#f2f2f2 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
+      max-width: 100%;
+      max-height: 600px;
+      object-fit: contain;
+    }
+  }
+
+  & [data-part="search-row"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & form[data-part="search"] {
+    width: 360px;
+    max-width: 100%;
+  }
+
+  & [data-part="group"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  /* Each group is a block of its own: a header strip naming it, then its images. */
+  & [data-part="group"][data-framed] {
+    gap: 0;
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-4);
+    overflow: hidden;
+
+    & > [data-part="image"] {
+      padding: var(--noora-spacing-6);
+    }
+
+    & > [data-part="group-header"] + [data-part="image"] {
+      border-block-start: 0;
+    }
+  }
+
+  & [data-part="group-header"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    border-block-end: 1px solid var(--noora-surface-border-primary);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-4) var(--noora-spacing-6);
+
+    & > svg {
+      flex: none;
+      width: 16px;
+      height: 16px;
+      color: var(--noora-surface-label-secondary);
+    }
+
+    & > [data-part="group-title"] {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    & > [data-part="group-count"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  /* The card's header icon takes the selected status's colour. */
+  & .noora-card[data-part="images"][data-status] > [data-part="header"] [data-part="icon"] {
+    color: var(--status-color, var(--noora-surface-label-primary));
+  }
+
+  & .noora-card[data-part="images"][data-status="changed"] {
+    --status-color: var(--noora-badge-light-fill-warning-label);
+  }
+
+  & .noora-card[data-part="images"][data-status="added"],
+  & .noora-card[data-part="images"][data-status="renamed"] {
+    --status-color: var(--noora-badge-light-fill-information-label);
+  }
+
+  & .noora-card[data-part="images"][data-status="removed"] {
+    --status-color: var(--noora-badge-light-fill-destructive-label);
+  }
+
+  & [data-part="image-meta"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+
+    & > [data-part="image-file"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-family: "Geist Mono", monospace;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  & [data-part="compare"] {
+    --snapshot-compare-position: 50;
+
+    /* The same framed, tinted viewer as the panes, with the overlay and its
+       controls centred in it, no taller than the panes' images. */
+    --snapshot-compare-width: calc(600px * var(--snapshot-aspect));
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-6);
+
+    & > * {
+      width: 100%;
+      max-width: var(--snapshot-compare-width);
+    }
+
+    & > [data-part="compare-frame"] {
+      position: relative;
+      cursor: ew-resize;
+      border: 1px solid var(--noora-surface-border-primary);
+      border-radius: var(--noora-radius-3);
+      background: repeating-conic-gradient(#f2f2f2 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
+      overflow: hidden;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+
+      & > img {
+        display: block;
+        width: 100%;
+        height: auto;
+        pointer-events: none;
+      }
+
+      & > [data-part="compare-head"] {
+        position: absolute;
+        inset: 0;
+      }
+
+      /* The wipe compares physical left and right, as the legend does. */
+      & > [data-part="compare-handle"] {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: calc(var(--snapshot-compare-position) * 1%);
+        margin-left: -1px;
+        background: var(--noora-surface-label-destructive);
+        width: 2px;
+        pointer-events: none;
+
+        & > span {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+          border: 2px solid var(--noora-surface-label-destructive);
+          border-radius: 50%;
+          background: var(--noora-surface-background-primary);
+          width: 20px;
+          height: 20px;
+        }
+      }
+    }
+
+    &[data-mode="wipe"] [data-part="compare-head"] {
+      clip-path: inset(0 0 0 calc(var(--snapshot-compare-position) * 1%));
+    }
+
+    &[data-mode="onion"] [data-part="compare-head"] {
+      opacity: calc(var(--snapshot-compare-position) / 100);
+    }
+
+    & > input[type="range"] {
+      width: 100%;
+      direction: ltr;
+    }
+
+    & > [data-part="compare-legend"] {
+      display: flex;
+      justify-content: space-between;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      direction: ltr;
+    }
+  }
+}
+
+#snapshots {
+  & > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="analytics-content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="widgets"] {
+    display: flex;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+    }
+  }
+
+  & [data-part="analytics-chart"] {
+    padding: var(--noora-spacing-5);
+  }
+
+  /* Only the analytics card clips: its chart is wider than the card, and
+     clipping the snapshots card would cut off its set dropdown. */
+  & > [data-part="analytics"] {
+    overflow-x: hidden;
+  }
+
+  & .noora-chart {
+    /* Charts stay left-to-right inside, so their trailing gutter stays on the right. */
+    margin-right: -5%;
+    width: 105%;
+    height: 200px;
+  }
+
+  & .noora-dropdown-item:not([data-selected]) svg {
+    visibility: hidden;
+  }
+
+  & .noora-pagination-group {
+    margin-top: var(--noora-spacing-7);
+  }
+}
+
+/* The library: the grid of baselines pull requests are compared with. */
+#snapshots {
+  & [data-part="library-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="notice"],
+  & [data-part="count"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+  }
+
+  & [data-part="library-section"] > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+
+    & form {
+      width: 22rem;
+      max-width: 100%;
+    }
+
+    & > [data-part="count"] {
+      margin-inline-start: auto;
+    }
+  }
+
+  & [data-part="grid"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="tile"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-4);
+    padding: var(--noora-spacing-4) var(--noora-spacing-4) var(--noora-spacing-5);
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+      background: var(--noora-surface-background-secondary);
+    }
+  }
+
+  & [data-part="thumbnail"] {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-block-end: var(--noora-spacing-3);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-secondary);
+    height: 160px;
+    overflow: hidden;
+
+    /* The checkerboard marks transparent pixels, so it sits behind the image,
+       not the space the image leaves in the tile. */
+    & > img {
+      background: repeating-conic-gradient(#f2f2f2 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+  }
+
+  & [data-part="tile-name"] {
+    overflow: hidden;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  & [data-part="tile-tags"] {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    margin-block-start: var(--noora-spacing-3);
+    /* Clips a long row of badges; the padding keeps their box-shadow outlines inside the clip. */
+    padding: 1px;
+    min-width: 0;
+    overflow: hidden;
+
+    & > .noora-badge {
+      flex: 0 1 auto;
+      min-width: 0;
+
+      & > span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  & [data-part="more-tags"] {
+    flex: none;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+  }
+
+  & [data-part="tile-meta"] {
+    min-height: 1lh;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & .noora-pagination-group {
+    margin-top: var(--noora-spacing-4);
+  }
+}
+
+#snapshot-history {
+  & [data-part="details-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+  }
+
+  /* The snapshot at its own size, up to the card's width and a screen's height. */
+  & [data-part="stage"] {
+    display: flex;
+    justify-content: center;
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-7);
+
+    & > img {
+      border: 1px solid var(--noora-surface-border-primary);
+      border-radius: var(--noora-radius-2);
+      background: repeating-conic-gradient(#f2f2f2 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
+      max-width: 100%;
+      max-height: 640px;
+      object-fit: contain;
+    }
+  }
+
+  & [data-part="tags"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="timeline"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  & [data-part="entry"] {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding-inline-start: 40px;
+
+    /* The line through the timeline, from each entry's marker to the next one's. */
+    &::before {
+      position: absolute;
+      inset-block: 28px calc(-1 * var(--noora-spacing-8));
+      inset-inline-start: 13px;
+      border-inline-start: 2px solid var(--noora-surface-border-primary);
+      content: "";
+    }
+
+    &:last-child::before {
+      display: none;
+    }
+  }
+
+  /* What the entry did to the snapshot, as the commits table's icons show it. */
+  & [data-part="marker"] {
+    display: flex;
+    position: absolute;
+    top: 0;
+    justify-content: center;
+    align-items: center;
+    inset-inline-start: 0;
+    border-radius: 50%;
+    background: var(--noora-badge-light-fill-neutral-background);
+    width: 28px;
+    height: 28px;
+    color: var(--noora-badge-light-fill-neutral-label);
+
+    & > svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    &[data-status="changed"] {
+      background: var(--noora-badge-light-fill-warning-background);
+      color: var(--noora-badge-light-fill-warning-label);
+    }
+
+    &[data-status="added"],
+    &[data-status="renamed"] {
+      background: var(--noora-badge-light-fill-information-background);
+      color: var(--noora-badge-light-fill-information-label);
+    }
+
+    &[data-status="removed"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+      color: var(--noora-badge-light-fill-destructive-label);
+    }
+  }
+
+  & [data-part="entry-header"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="entry-title"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    min-width: 0;
+
+    & > a {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  & [data-part="entry-meta"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & [data-part="entry"] > [data-part="modes"] {
+    align-self: flex-start;
+  }
+
+  & [data-part="load-more"] {
+    display: flex;
+    justify-content: center;
+    padding-top: var(--noora-spacing-6);
+  }
+
+  & [data-part="entry-badges"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+}
+
+/* The review of a build's or commit's images, laid out like Sentry's: a
+   sidebar of statuses and their groups beside the images card. */
+#snapshot-build,
+#snapshot-commit {
+  & [data-part="review"] {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    align-items: start;
+    gap: var(--noora-spacing-6);
+
+    /* No sidebar while the images are compared. */
+    &[data-sidebar="none"] {
+      grid-template-columns: minmax(0, 1fr);
+
+      & > [data-part="sidebar"] {
+        display: none;
+      }
+    }
+
+    @media (max-width: 1024px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  & [data-part="sidebar"] {
+    display: flex;
+    position: sticky;
+    top: var(--noora-spacing-7);
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    /* Room for the selected row's accent and the inputs' focus rings. */
+    padding: 2px;
+    max-height: calc(100vh - 2 * var(--noora-spacing-7));
+    overflow-y: auto;
+
+    @media (max-width: 1024px) {
+      position: static;
+      max-height: none;
+    }
+
+    & form[data-part="search"] {
+      width: 100%;
+
+      /* The column is narrower than the input's natural width: the input shrinks, not its icon. */
+      & [data-part="prefix"] {
+        flex-shrink: 0;
+      }
+
+      & input {
+        min-width: 0;
+      }
+    }
+  }
+
+  & [data-part="statuses"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="status-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  /* Noora's vertical tab menu, as the app sidebar uses it, with a count on the right. */
+  & [data-part="statuses"] [data-part="item"] {
+    user-select: none;
+    text-decoration: none;
+
+    &:focus-visible {
+      outline: none;
+
+      & .noora-tab-menu-vertical {
+        outline: 2px solid var(--noora-surface-label-primary);
+        outline-offset: -2px;
+      }
+    }
+
+    & .noora-tab-menu-vertical {
+      & > [data-part="label"] {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      & > [data-part="icon-right"] {
+        width: auto;
+        height: auto;
+      }
+    }
+
+    & [data-part="count"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  /* A status's groups hang off it on a tree line, as Noora nests a sidebar group's items. */
+  & [data-part="groups"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+    margin-inline-start: 14px;
+    border-inline-start: 1.5px solid var(--noora-surface-border-primary);
+    padding-inline-start: var(--noora-spacing-4);
+  }
+
+  & [data-status="changed"] [data-part="icon-left"],
+  & [data-status="changed"] > svg {
+    color: var(--noora-badge-light-fill-warning-label);
+  }
+
+  & [data-status="added"] [data-part="icon-left"],
+  & [data-status="renamed"] [data-part="icon-left"],
+  & [data-status="added"] > svg,
+  & [data-status="renamed"] > svg {
+    color: var(--noora-badge-light-fill-information-label);
+  }
+
+  & [data-status="removed"] [data-part="icon-left"],
+  & [data-status="removed"] > svg {
+    color: var(--noora-badge-light-fill-destructive-label);
+  }
+
+  & [data-status="unchanged"] [data-part="icon-left"],
+  & [data-status="skipped"] [data-part="icon-left"],
+  & [data-status="unchanged"] > svg,
+  & [data-status="skipped"] > svg {
+    color: var(--noora-surface-label-secondary);
+  }
+
+  & [data-part="main"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+    min-width: 0;
+  }
+}
+
+/* The review's full-screen viewer: one image over the whole window. */
+body:has(#snapshot-fullscreen) {
+  overflow: hidden;
+}
+
+#snapshot-build,
+#snapshot-commit {
+  /* The last item of the image's header, at its far end. */
+  & [data-part="image-header"] > [data-part="expand"] {
+    order: 1;
+    margin-inline-start: auto;
+  }
+
+  & [data-part="fullscreen"] {
+    display: flex;
+    position: fixed;
+    flex-direction: column;
+    z-index: 1000;
+    inset: 0;
+    outline: none;
+    background: var(--noora-surface-background-primary);
+  }
+
+  & [data-part="fullscreen-header"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+    border-block-end: 1px solid var(--noora-surface-border-primary);
+    padding: var(--noora-spacing-5) var(--noora-spacing-7);
+
+    & .noora-button-group-item[data-selected="true"] {
+      background: var(--noora-surface-background-secondary);
+      color: var(--noora-surface-label-primary);
+    }
+  }
+
+  & [data-part="fullscreen-title"] {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    min-width: 0;
+
+    & > [data-part="selection-status"] {
+      display: inline-flex;
+      flex: none;
+      align-items: center;
+      gap: var(--noora-spacing-2);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+      & > svg {
+        width: 18px;
+        height: 18px;
+      }
+    }
+
+    & > [data-part="image-name"] {
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      font-family: "Geist Mono", monospace;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    & > [data-part="image-ratio"] {
+      flex: none;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
+
+  & [data-part="fullscreen-nav"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+
+    & > [data-part="position"] {
+      margin-inline-end: var(--noora-spacing-3);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  /* The comparison takes the window's height instead of the list's 600px. */
+  & [data-part="fullscreen-body"] {
+    --snapshot-fullscreen-height: calc(100vh - 140px);
+
+    flex: 1;
+    padding: var(--noora-spacing-7);
+    min-height: 0;
+    overflow: auto;
+
+    & [data-part="panes"] {
+      height: 100%;
+    }
+
+    & [data-part="pane"] {
+      align-items: center;
+
+      & > img {
+        max-height: var(--snapshot-fullscreen-height);
+      }
+    }
+
+    & [data-part="compare"] {
+      --snapshot-compare-width: calc((var(--snapshot-fullscreen-height) - 100px) * var(--snapshot-aspect));
+    }
+  }
+}
+
+#snapshots-empty-state [data-part="hints"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+  margin: 0;
+  padding: 0;
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  list-style: none;
+
+  & code {
+    margin-inline-start: var(--noora-spacing-2);
+    border-radius: var(--noora-radius-2);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-1) var(--noora-spacing-3);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-code-small);
+  }
+}

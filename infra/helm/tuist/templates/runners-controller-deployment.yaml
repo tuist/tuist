@@ -260,6 +260,8 @@ spec:
           env:
             - name: TUIST_SANDBOXES_NAMESPACE
               value: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
+            - name: TUIST_REMOTE_EXECUTION_FLOOR_SLOTS
+              value: {{ .Values.sandboxes.remoteExecutionFloorSlots | default 0 | quote }}
           {{- end }}
           ports:
             - name: metrics

@@ -11,6 +11,7 @@ defmodule Atlas.TuistAccountsTest do
   alias Atlas.MCP.Tools.GetTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.UpdateTuistAccountPlan
   alias Atlas.MCP.Tools.UpdateTuistRunnerConcurrencyLimits
+  alias Atlas.MCP.Tools.UpdateTuistRunnerTrial
   alias Atlas.TuistServer
 
   setup :verify_on_exit!
@@ -587,6 +588,85 @@ defmodule Atlas.TuistAccountsTest do
       assert length(activities) == 4
       assert Enum.all?(activities, &(&1.metadata["status"] == "error"))
       refute Enum.any?(activities, &Map.has_key?(&1.metadata, "revision"))
+    end
+
+    defp trial_change(attrs \\ %{}) do
+      Map.merge(
+        %{
+          "account_id" => 42,
+          "operation" => "cancel",
+          "expected_revision" => "billing-1",
+          "reason" => "Account moved to Pro",
+          "change_id" => Ecto.UUID.generate()
+        },
+        attrs
+      )
+    end
+
+    test "trial changes need single-use approval of the exact call, forward trusted provenance and are audited" do
+      user = insert_user!(%{scopes: ["feature_flags:write"]})
+      conn = mcp_conn(user)
+      args = trial_change(%{"confirm_air_limits" => true})
+      result = put_in(runner_billing(), ["runner_trial", "active"], false)
+
+      expect(TuistServer, :update_runner_trial, fn 42, attrs ->
+        assert attrs ==
+                 args
+                 |> Map.delete("account_id")
+                 |> Map.put("actor", %{"id" => user.id, "email" => user.email})
+                 |> Map.put("interface", "mcp")
+
+        {:ok, result}
+      end)
+
+      assert {:error, message} = execute_tool(UpdateTuistRunnerTrial, conn, args)
+      assert message =~ "/approvals/"
+      [approval] = MCP.list_pending_tool_approvals(user, server_names: ["tuist-server"])
+      assert approval.tool_name == "update-runner-trial"
+      {:ok, _} = MCP.decide_tool_approval(user, approval.id, "approved")
+
+      # Dropping the Air acknowledgment is a different call the approval does not cover.
+      assert {:error, _} = execute_tool(UpdateTuistRunnerTrial, conn, Map.delete(args, "confirm_air_limits"))
+      assert {:ok, ^result} = execute_tool(UpdateTuistRunnerTrial, conn, args)
+      assert {:error, _} = execute_tool(UpdateTuistRunnerTrial, conn, args)
+
+      {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_runner_trial.updated")
+      assert [ok] = Enum.filter(activities, &(&1.metadata["status"] == "ok"))
+      assert ok.target_id == "42"
+
+      assert ok.metadata ==
+               args |> Map.delete("account_id") |> Map.merge(%{"status" => "ok", "revision" => "billing-1"})
+    end
+
+    test "trial changes are refused without write scope, outside MCP, from Slack, or with invalid arguments" do
+      writer = insert_user!(%{scopes: ["feature_flags:write"]})
+      reader = %{scopes: ["feature_flags:read"]} |> insert_user!() |> mcp_conn()
+      reject(TuistServer, :update_runner_trial, 2)
+
+      assert {:error, _} = execute_tool(UpdateTuistRunnerTrial, reader, trial_change())
+
+      for assigns <- [
+            %{audit_interface: "worker"},
+            %{audit_interface: "api"},
+            %{mcp_claims: %{"slack_agent" => "systems_investigator"}}
+          ] do
+        conn = %{assigns: Map.put(assigns, :current_user, writer)}
+        assert {:error, _} = execute_tool(UpdateTuistRunnerTrial, conn, trial_change())
+      end
+
+      for attrs <- [
+            %{"operation" => "restart"},
+            %{"account_id" => "42"},
+            %{"confirm_air_limits" => "yes"},
+            %{"reason" => " "},
+            %{"change_id" => "not-a-uuid"},
+            %{"ended_at" => "2026-11-18T00:00:00Z"},
+            %{"actor" => %{"id" => Ecto.UUID.generate(), "email" => "forged@tuist.dev"}}
+          ] do
+        assert {:error, _} = execute_tool(UpdateTuistRunnerTrial, mcp_conn(writer), trial_change(attrs))
+      end
+
+      assert MCP.list_pending_tool_approvals(writer, server_names: ["tuist-server"]) == []
     end
   end
 

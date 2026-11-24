@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked git-cliff jq"
@@ -75,7 +75,7 @@ jobs:
           cmp "$RUNNER_TEMP/expected-args" "$RUNNER_TEMP/action-test-args"
       - name: Package standalone action
         run: bash .github/actions/cache-volume/scripts/package.sh "$RUNNER_TEMP/cache-volume-action"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cache-volume-action
           path: ${{ runner.temp }}/cache-volume-action/
@@ -84,11 +84,11 @@ jobs:
         run: |
           bash ci/cache-volume/buildkite/package.sh "$RUNNER_TEMP/cache-volume-buildkite"
           bash ci/cache-volume/gitlab/package.sh "$RUNNER_TEMP/cache-volume-gitlab"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cache-volume-buildkite
           path: ${{ runner.temp }}/cache-volume-buildkite/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cache-volume-gitlab
           path: ${{ runner.temp }}/cache-volume-gitlab/
@@ -102,7 +102,7 @@ jobs:
       contents: write
       actions: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -118,7 +118,7 @@ jobs:
           fi
       - id: check
         run: mise run --skip-tools release:check cache-volume
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.check.outputs.cache-volume-should-release == 'true'
         with:
           repository: tuist/cache-volume
@@ -126,7 +126,7 @@ jobs:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
           path: distributions/github
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.check.outputs.cache-volume-should-release == 'true'
         with:
           repository: tuist/cache-volume-buildkite-plugin
@@ -134,7 +134,7 @@ jobs:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
           path: distributions/buildkite
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.check.outputs.cache-volume-should-release == 'true'
         with:
           repository: tuist/cache-volume-gitlab
@@ -159,7 +159,7 @@ jobs:
           bash ci/cache-volume/publish.sh packages/cache-volume-gitlab distributions/gitlab "$VERSION" "$SOURCE_COMMIT"
       - name: Record coordinated release
         if: steps.check.outputs.cache-volume-should-release == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           token: ${{ github.token }}
           target_commitish: ${{ steps.prepare.outputs.source-commit }}

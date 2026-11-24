@@ -1,7 +1,9 @@
 defmodule Tuist.GitHistory.FileChangesTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.GitHistory
   alias Tuist.GitHistory.Commit
   alias Tuist.GitHistory.CommitFile
@@ -47,6 +49,8 @@ defmodule Tuist.GitHistory.FileChangesTest do
     GitHistory.record_listing(repository, sha, files, Keyword.put_new(opts, :files_count, length(files)))
     settle()
   end
+
+  defp retention_days, do: Environment.coverage_retention_days().files
 
   defp settle, do: Oban.drain_queue(queue: :coverage_deltas, with_recursion: true, with_safety: false)
 
@@ -402,6 +406,47 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert files(repository, "a") == with_mode(a)
   end
 
+  # A server whose `compatibility` is older than 25.12 (production runs 24.12)
+  # gives each subquery its own snapshot, so the listing's count could see a
+  # part its files did not, and a partial listing was written as whole. The
+  # local server shares one by default and logs no setting left at its
+  # default, so what is checked is what every statement that reads the
+  # listing asks the server for.
+  test "every statement that writes from a listing reads it from one snapshot", %{repository: repository} do
+    test_pid = self()
+
+    record = fn repo ->
+      stub(repo, :query!, fn sql, params, opts ->
+        if sql =~ "FROM git_commit_files", do: send(test_pid, {:listing_read, opts[:settings]})
+        call_original(repo, :query!, [sql, params, opts])
+      end)
+    end
+
+    record.(IngestRepo)
+    record.(ClickHouseRepo)
+
+    commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}])
+    head(repository, "main", "c")
+
+    list(repository, "c", %{"A.swift" => "a1"})
+    list(repository, "b", %{"A.swift" => "a2", "B.swift" => "b1"})
+    list(repository, "a", %{"A.swift" => "a1", "B.swift" => "b1"})
+    assert files(repository, "b") == with_mode(%{"A.swift" => "a2", "B.swift" => "b1"})
+    assert files(repository, "c") == with_mode(%{"A.swift" => "a1"})
+
+    settings = collect_listing_reads([])
+    assert settings != []
+    assert Enum.all?(settings, &(Keyword.get(&1 || [], :enable_shared_storage_snapshot_in_query) == 1))
+  end
+
+  defp collect_listing_reads(acc) do
+    receive do
+      {:listing_read, settings} -> collect_listing_reads([settings | acc])
+    after
+      0 -> acc
+    end
+  end
+
   test "a commit listed before a ref owns it is written once it is placed", %{repository: repository} do
     commits(repository, [{"a", []}, {"b", ["a"]}])
 
@@ -440,13 +485,13 @@ defmodule Tuist.GitHistory.FileChangesTest do
 
     feature = ref_id(repository, "feature")
     %{changes_ref_id: ^feature, changes_expires_at: first} = listing(repository, "f1")
-    assert_in_delta DateTime.diff(first, DateTime.utc_now(), :day), 90, 1
+    assert_in_delta DateTime.diff(first, DateTime.utc_now(), :day), retention_days(), 1
 
     # A later commit of the branch reads the first one's rows, so it cannot
     # outlive them.
-    Repo.update_all(from(l in CommitListing, where: l.sha == "f1"),
-      set: [changes_expires_at: DateTime.add(first, -30, :day)]
-    )
+    # Its rows have more than half the retention left, so nothing renews them.
+    shortened = DateTime.add(first, -div(retention_days(), 3), :day)
+    Repo.update_all(from(l in CommitListing, where: l.sha == "f1"), set: [changes_expires_at: shortened])
 
     list(repository, "f2", %{"A.swift" => "a2", "B.swift" => "b2", "F.swift" => "f1"})
     assert FileChanges.write(repository, "f2") == :current
@@ -454,7 +499,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
     commits(repository, [{"f3", ["f2"]}])
     head(repository, "feature", "f3")
     list(repository, "f3", %{"A.swift" => "a2", "B.swift" => "b2"})
-    assert listing(repository, "f3").changes_expires_at == DateTime.add(first, -30, :day)
+    assert listing(repository, "f3").changes_expires_at == shortened
     assert listing(repository, "c").changes_expires_at.year == 2100
   end
 
@@ -489,7 +534,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
     list(repository, "b", %{"A.swift" => "a0", "B.swift" => "b1"})
 
     # Each fork written with the one file it added, without a write per fork.
-    expires_at = DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), 90, :day)
+    expires_at = DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), retention_days(), :day)
 
     places =
       Repo.all(
@@ -561,14 +606,16 @@ defmodule Tuist.GitHistory.FileChangesTest do
     list(repository, "f3", %{"A.swift" => "a2", "B.swift" => "b1"})
 
     for sha <- ["f1", "f2", "f3"] do
-      assert_in_delta DateTime.diff(listing(repository, sha).changes_expires_at, DateTime.utc_now(), :day), 90, 1
+      assert_in_delta DateTime.diff(listing(repository, sha).changes_expires_at, DateTime.utc_now(), :day),
+                      retention_days(),
+                      1
     end
 
     feature = ref_id(repository, "feature")
 
     for row <- rows(repository) do
       if row.ref_id == feature,
-        do: assert_in_delta(NaiveDateTime.diff(row.expires_at, NaiveDateTime.utc_now(), :day), 90, 1),
+        do: assert_in_delta(NaiveDateTime.diff(row.expires_at, NaiveDateTime.utc_now(), :day), retention_days(), 1),
         else: assert(row.expires_at.year == 2100)
     end
 
@@ -684,9 +731,11 @@ defmodule Tuist.GitHistory.FileChangesTest do
       )
     end
 
-    development = expires_in.(60)
+    # The development branch has less left than a renewal would give, and
+    # the pull request less than half of the retention, so it renews.
+    development = expires_in.(retention_days() - 10)
     expire.("d1", development)
-    expire.("p1", expires_in.(10))
+    expire.("p1", expires_in.(5))
 
     GitHistory.advance_ref(repository, "pull/1", "development", "p2")
     list(repository, "p2", %{"A.swift" => "a4"})
@@ -907,7 +956,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
 
       # It forks from a ref that is kept, and expires on its own.
       assert %{changes_ref_id: ^ref, changes_position: 3, changes_expires_at: expires_at} = listing(repository, "m")
-      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now(), :day), 90, 1
+      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now(), :day), retention_days(), 1
 
       # The place is the file changes' alone.
       assert GitHistory.position(repository, "m") == nil

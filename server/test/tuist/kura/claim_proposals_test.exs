@@ -107,7 +107,9 @@ defmodule Tuist.Kura.ClaimProposalsTest do
           evicted_artifact_count: 400,
           min_shed_age_seconds: 3_600,
           median_shed_age_seconds: 12 * 3_600,
-          median_ring_span_seconds: div(3 * 86_400, 2),
+          # Half the 1.5-day floor: the projection asks for two and a half
+          # times the claim, past the one-day step bound.
+          median_ring_span_seconds: div(3 * 86_400, 4),
           snapshot_count: 96,
           max_occupancy_percent: 98,
           max_live_segment_bytes: 28 * @gibibyte,
@@ -138,8 +140,8 @@ defmodule Tuist.Kura.ClaimProposalsTest do
     server |> Ecto.Changeset.change(storage_claim_size: claim_size) |> Repo.update!()
   end
 
-  # A full ring that rotates and sheds content ten days after it was written,
-  # every day of the retention shrink window.
+  # A full ring that rotates and sheds content five days after it was written,
+  # every day of the retention shrink window: past its 4.5-day line.
   defp seed_long_retention_rollups(account, region) do
     seed_churn_rollups(account, 30, @today, region)
 
@@ -149,14 +151,14 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       set: [
         eviction_count: 6,
         evicted_bytes: 4 * @gibibyte,
-        median_shed_age_seconds: 10 * 86_400,
-        median_ring_span_seconds: round(10.5 * 86_400)
+        median_shed_age_seconds: 5 * 86_400,
+        median_ring_span_seconds: round(5.25 * 86_400)
       ]
     )
   end
 
   # us-east kept the 50Gi the pin migration grandfathered; eu-west was built
-  # later at 16Gi. Both keep ten days, so eu-west shows the account needs far
+  # later at 16Gi. Both keep five days, so eu-west shows the account needs far
   # less than 50Gi, while us-east's own ring still asks for 18Gi.
   defp mixed_retention_account(account, server) do
     us_east = pin!(server, "50Gi")
@@ -200,8 +202,8 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       proposal = ClaimProposals.open_proposal_for(account)
       assert proposal.direction == :grow
       assert proposal.region == "us-east"
-      assert proposal.current_claim_size == "8Gi"
-      assert proposal.recommended_claim_size == "20Gi"
+      assert proposal.current_claim_size == "6Gi"
+      assert proposal.recommended_claim_size == "15Gi"
       assert proposal.evidence["signal"] == "shed_age_below_retention_floor"
     end
 
@@ -255,7 +257,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
     } do
       # Instances keep the claim they were built at, so lowering a plan
       # constant leaves running instances above it. Baselining on the plan
-      # would read this 50Gi instance as 8Gi and call a move to 16Gi a grow,
+      # would read this 50Gi instance as 6Gi and call a move to 16Gi a grow,
       # which on apply shrinks the volume and throws the cache away.
       server |> Ecto.Changeset.change(%{storage_claim_size: "50Gi"}) |> Repo.update!()
       seed_churn_rollups(account, 14, @today)
@@ -431,7 +433,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert dismissed.status == :dismissed
       assert dismissed.resolved_by == "ops@tuist.dev"
       assert PlacerClaims.claim_for(account) == nil
-      assert PlacerClaims.effective_claim_size(account) == "8Gi"
+      assert PlacerClaims.effective_claim_size(account) == "6Gi"
     end
 
     test "a stale struct cannot dismiss an already applied proposal", %{account: account} do
@@ -482,7 +484,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       end)
 
       stub(Capacity, :resident_gib, fn
-        _region, %Server{storage_claim_size: "20Gi"} -> 40
+        _region, %Server{storage_claim_size: "15Gi"} -> 30
         _region, %Server{} -> 16
       end)
 
@@ -500,12 +502,12 @@ defmodule Tuist.Kura.ClaimProposalsTest do
 
       assert {:ok, result} = Kura.apply_claim_proposal(proposal, "ops@tuist.dev")
 
-      assert result.claim_size == "20Gi"
+      assert result.claim_size == "15Gi"
       assert [raised_server] = result.raised
       assert raised_server.id == server.id
-      assert Repo.get!(Server, server.id).storage_claim_size == "20Gi"
-      assert PlacerClaims.claim_for(account) == "20Gi"
-      assert PlacerClaims.effective_claim_size(account) == "20Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "15Gi"
+      assert PlacerClaims.claim_for(account) == "15Gi"
+      assert PlacerClaims.effective_claim_size(account) == "15Gi"
 
       resolved = Repo.get!(ClaimProposal, proposal.id)
       assert resolved.status == :applied

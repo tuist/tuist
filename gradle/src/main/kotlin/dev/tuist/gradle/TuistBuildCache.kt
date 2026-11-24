@@ -1,6 +1,8 @@
 package dev.tuist.gradle
 
 import com.google.gson.JsonParser
+import dev.tuist.gradle.services.CacheFreeTierExhaustedException
+import dev.tuist.gradle.services.GetCacheTokenService
 import org.gradle.caching.BuildCacheEntryReader
 import org.gradle.caching.BuildCacheEntryWriter
 import org.gradle.caching.BuildCacheException
@@ -138,12 +140,21 @@ class DefaultConfigurationProvider(
     serverUrl: String,
     projectDir: java.io.File,
     private val httpClients: TuistHttpClients = TuistHttpClients(),
-    tokenProviderFactory: ((URI) -> TokenProvider)? = null
+    tokenProviderFactory: ((URI) -> TokenProvider)? = null,
+    private val getCacheTokenService: GetCacheTokenService = GetCacheTokenService(httpClients)
 ) : ConfigurationProvider {
 
     private val server = ServerConfigurationProvider(project, serverUrl, projectDir, httpClients, tokenProviderFactory)
 
     private val cacheEndpointCache: CachedValueStore<String> = CachedValueStore()
+
+    private val cacheTokenCache: CachedValueStore<String?> = CachedValueStore()
+
+    @Volatile
+    private var sentCacheToken = false
+
+    @Volatile
+    private var cacheTokenRejected = false
 
     override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
         val token = server.tokenProvider.getOptionalToken(forceRefresh)
@@ -167,7 +178,46 @@ class DefaultConfigurationProvider(
             resolveCacheEndpoint(serverConfiguration.accountHandle)
         }
 
-        return serverConfiguration.copy(url = cacheEndpoint)
+        val cacheToken = when {
+            cacheTokenRejected -> null
+            // A forced refresh follows a 401. A node that cannot verify cache tokens and asks the
+            // server instead (the legacy cache service, for example) refuses every one, because the
+            // server does not accept a cache token as a credential, so the build goes on with the
+            // credential that node does accept.
+            forceRefresh && sentCacheToken -> {
+                cacheTokenRejected = true
+                logger.info("Tuist: The cache refused the exchanged cache token; using the original credential.")
+                null
+            }
+            else -> cacheTokenCache.getValue(forceRefresh) { exchangeCacheToken(serverConfiguration) }
+        }
+        sentCacheToken = cacheToken != null
+
+        return serverConfiguration.copy(url = cacheEndpoint, token = cacheToken ?: serverConfiguration.token)
+    }
+
+    /**
+     * Exchanges the credential for a cache token, like the CLI's cache clients do. A cache node
+     * verifies it without asking the server, and reads from it where it was issued, which
+     * placement uses to choose the account's regions. Falls back to the credential for a minute
+     * when the server cannot mint one, such as an older self-hosted server.
+     */
+    private fun exchangeCacheToken(configuration: CacheConfiguration): Pair<String?, Long?> {
+        val now = System.currentTimeMillis()
+        return try {
+            val cacheToken = getCacheTokenService.getCacheToken(
+                serverURL = server.resolvedServerUrl,
+                fullHandle = "${configuration.accountHandle}/${configuration.projectHandle}",
+                tokenProvider = server.tokenProvider
+            )
+            Pair(cacheToken.token, now + maxOf(cacheToken.expiresIn - CACHE_TOKEN_EXPIRY_MARGIN_S, 0) * 1_000)
+        } catch (e: CacheFreeTierExhaustedException) {
+            // Not a fallback case: the credential may still carry cache grants a node would honor.
+            throw BuildCacheException(e.message ?: "The account's plan does not include the remote cache.", e)
+        } catch (e: Exception) {
+            logger.debug("Tuist: Using the original credential for cache requests: ${e.message}")
+            Pair(null, now + CACHE_TOKEN_UNAVAILABLE_MS)
+        }
     }
 
     private fun resolveCacheEndpoint(accountHandle: String): Pair<String, Long?> {
@@ -183,6 +233,9 @@ class DefaultConfigurationProvider(
 
     companion object {
         private const val CACHE_ENDPOINT_TTL_MS = 60 * 60 * 1000L // 1 hour
+        private const val CACHE_TOKEN_EXPIRY_MARGIN_S = 60L
+        private const val CACHE_TOKEN_UNAVAILABLE_MS = 60 * 1000L
+        private val logger = LoggerFactory.getLogger(DefaultConfigurationProvider::class.java)
     }
 }
 

@@ -34,6 +34,7 @@ type fakeRuntime struct {
 	// Warm VMs boot in the background.
 	mu          sync.Mutex
 	cpuPermille int64
+	snapshots   map[string]protocol.DiskSnapshotInfo
 }
 
 func (f *fakeRuntime) Create(_ context.Context, r *Record) error {
@@ -137,11 +138,40 @@ func (f *fakeRuntime) Archive(ctx context.Context, r *Record, _ protocol.Archive
 }
 func (f *fakeRuntime) Busy(context.Context, *Record) (bool, error)      { return f.busy, nil }
 func (f *fakeRuntime) GuestCPU(context.Context, *Record) (int64, error) { return f.cpuPermille, nil }
-func (f *fakeRuntime) Exec(_ context.Context, r *Record, _ protocol.ExecArgs, _ func(protocol.Stream)) (protocol.ExecResult, error) {
+func (f *fakeRuntime) Exec(_ context.Context, r *Record, a protocol.ExecArgs, _ func(protocol.Stream)) (protocol.ExecResult, error) {
 	if f.memory[r.SandboxID] != "in-memory-session" {
 		return protocol.ExecResult{}, errors.New("memory lost")
 	}
 	return protocol.ExecResult{}, nil
+}
+
+// Only a fenced VM's disks can be saved.
+func (f *fakeRuntime) SaveDisks(_ context.Context, r *Record, id string) (protocol.DiskSnapshotInfo, error) {
+	if f.states[r.SandboxID] != "evicted" {
+		return protocol.DiskSnapshotInfo{}, errors.New("VM still running")
+	}
+	if f.snapshots == nil {
+		f.snapshots = map[string]protocol.DiskSnapshotInfo{}
+	}
+	f.snapshots[id] = protocol.DiskSnapshotInfo{ID: id, Template: r.Template, WorkspaceGB: r.WorkspaceGB, Bytes: 1}
+	return f.snapshots[id], nil
+}
+func (f *fakeRuntime) DeleteDisks(_ context.Context, id string) error {
+	delete(f.snapshots, id)
+	return nil
+}
+func (f *fakeRuntime) ArchiveDisks(context.Context, protocol.ArchiveDisksArgs) (protocol.ArchiveResult, error) {
+	return protocol.ArchiveResult{}, errors.New("not archived in tests")
+}
+func (f *fakeRuntime) CopyDisks(context.Context, protocol.CopyDisksArgs) (protocol.DiskSnapshotInfo, error) {
+	return protocol.DiskSnapshotInfo{}, errors.New("not copied in tests")
+}
+func (f *fakeRuntime) DiskSnapshots() ([]protocol.DiskSnapshotInfo, error) {
+	out := []protocol.DiskSnapshotInfo{}
+	for _, s := range f.snapshots {
+		out = append(out, s)
+	}
+	return out, nil
 }
 func (f *fakeRuntime) Worker(_ context.Context, r *Record, action string, env map[string]string) (WorkerStatus, error) {
 	if action == "start" {
@@ -651,5 +681,88 @@ func TestEmptyReportIsAnArraySoMissingVMsAreReconciled(t *testing.T) {
 	data, err := json.Marshal(m.Snapshot())
 	if err != nil || string(data) != "[]" {
 		t.Fatalf("missing ownership report: %s %v", data, err)
+	}
+}
+
+// A restore the server stopped waiting for is retried with a newly presigned
+// URL; it is the same archive.
+func TestRetriedRestoreMatchesItsJournalWhateverItsURL(t *testing.T) {
+	m, runtime, _, a := harness(t)
+	ctx := context.Background()
+	a.FromArchive = &protocol.ArchiveSource{URL: "https://store/archive?sig=1", Bytes: 1024, SHA256: "abc"}
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	retry := a
+	retry.FromArchive = &protocol.ArchiveSource{URL: "https://store/archive?sig=2", Bytes: 1024, SHA256: "abc"}
+	if err := m.Create(ctx, retry); err != nil || runtime.creates != 1 {
+		t.Fatalf("retried restore not matched: %v, creates %d", err, runtime.creates)
+	}
+	other := a
+	other.FromArchive = &protocol.ArchiveSource{URL: "https://store/archive?sig=1", Bytes: 1024, SHA256: "def"}
+	if m.Create(ctx, other) == nil {
+		t.Fatal("a different archive matched")
+	}
+}
+
+// A disk snapshot needs a pause that synced the guest's disks and no resume
+// since. Saving evicts a resident VM first, which gives its slot back.
+func TestSaveDisksRequiresSyncedPauseAndEvictsFirst(t *testing.T) {
+	m, r, c, a := harness(t)
+	ctx := t.Context()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := uuid.NewString()
+	r.unflushed = true
+	if err := m.Pause(ctx, a.SandboxID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.SaveDisks(ctx, a.SandboxID, snapshot); err == nil {
+		t.Fatal("saved the disks of a pause that did not sync them")
+	}
+	if err := m.Resume(ctx, a.SandboxID); err != nil {
+		t.Fatal(err)
+	}
+	r.unflushed = false
+	if err := m.Pause(ctx, a.SandboxID); err != nil {
+		t.Fatal(err)
+	}
+	info, err := m.SaveDisks(ctx, a.SandboxID, snapshot)
+	if err != nil || info.ID != snapshot {
+		t.Fatalf("save: %+v %v", info, err)
+	}
+	if rec := m.records[a.SandboxID]; rec.Resident || rec.State != "paused" || c.held[a.SandboxID] {
+		t.Fatalf("saved without giving the slot back: %+v held=%v", rec, c.held)
+	}
+	if got := m.DiskSnapshots(); len(got) != 1 || got[0].ID != snapshot {
+		t.Fatalf("reported snapshots %+v", got)
+	}
+	// A sandbox from the snapshot runs the image it was saved from, and one
+	// from a snapshot the host lacks fails before reserving anything.
+	r.snapshots[snapshot] = protocol.DiskSnapshotInfo{ID: snapshot, Template: "macos", TemplateTag: "image@sha256:old", WorkspaceGB: 10}
+	cloned := a
+	cloned.SandboxID = uuid.NewString()
+	cloned.FromDiskSnapshot = snapshot
+	c.held = map[string]bool{}
+	if err := m.Create(ctx, cloned); err != nil {
+		t.Fatal(err)
+	}
+	if tag := m.records[cloned.SandboxID].TemplateTag; tag != "image@sha256:old" {
+		t.Fatalf("snapshot sandbox reports tag %q", tag)
+	}
+	missing := a
+	missing.SandboxID = uuid.NewString()
+	missing.FromDiskSnapshot = uuid.NewString()
+	if err := m.Create(ctx, missing); !errors.Is(err, errSnapshotNotFound) || m.records[missing.SandboxID] != nil {
+		t.Fatalf("create from a missing snapshot: %v", err)
+	}
+	for range 2 {
+		if err := m.DeleteDisks(ctx, snapshot); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := m.DiskSnapshots(); len(got) != 0 {
+		t.Fatalf("deleted snapshot still reported: %+v", got)
 	}
 }

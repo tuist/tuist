@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! impl `FlowNode` trait for FlowNodeManager so standalone can call them
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -38,6 +40,7 @@ use futures::TryStreamExt;
 use itertools::Itertools;
 use operator::utils::try_to_session_query_context;
 use session::context::QueryContextBuilder;
+use session::hints::FLOW_RECOMPUTE_RETAINED_EXTENSION_KEY;
 use snafu::{OptionExt, ResultExt, ensure};
 use store_api::storage::{RegionId, TableId};
 use tokio::sync::{Mutex, RwLock};
@@ -892,13 +895,43 @@ impl common_meta::node_manager::Flownode for FlowDualEngine {
             Some(flow_request::Body::Flush(FlushFlow {
                 flow_id: Some(flow_id),
             })) => {
-                let row = self
-                    .flush_flow(flow_id.id as u64)
-                    .await
-                    .map_err(to_meta_err(snafu::location!()))?;
+                let recompute =
+                    query_ctx
+                        .as_ref()
+                        .is_some_and(|ctx: &session::context::QueryContext| {
+                            ctx.extension(FLOW_RECOMPUTE_RETAINED_EXTENSION_KEY) == Some("true")
+                        });
+                let row = if recompute {
+                    self.try_sync_with_check_task(u64::from(flow_id.id), false)
+                        .await
+                        .map_err(to_meta_err(snafu::location!()))?;
+                    if self
+                        .src_table2flow
+                        .read()
+                        .await
+                        .get_flow_type(u64::from(flow_id.id))
+                        == Some(FlowType::Batching)
+                    {
+                        self.batching_engine
+                            .recompute_retained(u64::from(flow_id.id))
+                            .await
+                    } else {
+                        crate::error::UnsupportedSnafu {
+                            reason: "Retained recomputation requires a batching flow",
+                        }
+                        .fail()
+                    }
+                } else {
+                    self.flush_flow(u64::from(flow_id.id)).await
+                }
+                .map_err(to_meta_err(snafu::location!()))?;
                 Ok(FlowResponse {
                     affected_flows: vec![flow_id],
                     affected_rows: row as u64,
+                    extensions: std::collections::HashMap::from([(
+                        FLOW_RECOMPUTE_RETAINED_EXTENSION_KEY.to_string(),
+                        recompute.to_string().into_bytes(),
+                    )]),
                     ..Default::default()
                 })
             }

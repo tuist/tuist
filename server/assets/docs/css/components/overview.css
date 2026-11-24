@@ -1,3 +1,5 @@
+@import "../../../shared/css/copy-sweep.css";
+
 #docs-page-layout:has(#docs-overview) #docs-layout {
   grid-template-columns:
     var(--docs-sidebar-width)
@@ -74,11 +76,7 @@
 
     &:focus-visible {
       outline: none;
-      box-shadow:
-        0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
-        0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
-        0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
-        0px 0px 0px 3px oklch(32% 0.005 247.968 / 0.12);
+      box-shadow: var(--noora-border-small-focus);
     }
   }
 
@@ -249,9 +247,15 @@
       0px 1px 1px 0px rgb(14 14 14 / 0.8),
       0px 0px 0px 1px rgb(58 58 58 / 0.7),
       0px 2px 2px 0px rgb(0 0 0 / 0.24);
+    /* Copy confirmation sweep (see copy-sweep.css); the padding gives back
+       the border's 1px. */
+    border: 1px solid transparent;
     border-radius: var(--noora-radius-4);
-    background: var(--noora-neutral-dark-1100);
-    padding: var(--noora-spacing-6) var(--noora-spacing-5);
+    background:
+      linear-gradient(var(--noora-neutral-dark-1100), var(--noora-neutral-dark-1100)) padding-box,
+      var(--copy-sweep),
+      linear-gradient(var(--noora-neutral-dark-1100), var(--noora-neutral-dark-1100)) border-box;
+    padding: calc(var(--noora-spacing-6) - 1px) calc(var(--noora-spacing-5) - 1px);
     /* Commands read left to right in every locale. */
     direction: ltr;
     unicode-bidi: isolate;
@@ -532,7 +536,7 @@
     flex-direction: column;
     gap: var(--noora-spacing-4);
     transition: box-shadow 0.15s ease;
-    box-shadow: var(--noora-light-border-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-primary);
     width: 370px;
@@ -542,7 +546,7 @@
   }
 
   & [data-part="feature-card"]:hover {
-    box-shadow: var(--noora-light-border-focus);
+    box-shadow: var(--noora-border-small-focus);
   }
 
   & [data-part="feature-card"] [data-part="image"] {
@@ -658,7 +662,7 @@
     display: flex;
     flex-direction: column;
     transition: box-shadow 0.15s ease;
-    box-shadow: var(--noora-light-border-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-primary);
     width: 370px;
@@ -668,7 +672,7 @@
   }
 
   & [data-part="video-card"]:hover {
-    box-shadow: var(--noora-light-border-focus);
+    box-shadow: var(--noora-border-small-focus);
   }
 
   & [data-part="video-card-thumbnail"] {
@@ -735,7 +739,7 @@
     gap: var(--noora-spacing-4);
     transition: box-shadow 0.15s ease;
     box-sizing: border-box;
-    box-shadow: var(--noora-light-border-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-6);
@@ -746,7 +750,7 @@
   }
 
   & [data-part="community-card"]:hover {
-    box-shadow: var(--noora-light-border-focus);
+    box-shadow: var(--noora-border-small-focus);
   }
 
   & [data-part="community-card-header"] {
@@ -851,5 +855,11 @@
     & [data-part="community-cards"] {
       grid-template-columns: 1fr;
     }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-part="terminal"]:has([data-part="terminal-copy"][data-copied]) [data-part="terminal-body"] {
+    animation: copy-sweep var(--copy-sweep-duration) var(--ease-out-cubic);
   }
 }

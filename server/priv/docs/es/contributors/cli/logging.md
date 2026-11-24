@@ -1,20 +1,20 @@
 ---
 {
-  "title": "Registro",
+  "title": "Registro de eventos",
   "titleTemplate": ":title · CLI · Colaboradores · Tuist",
-  "description": "Cómo funciona el registro en la CLI de Tuist y directrices para colaboradores."
+  "description": "Cómo funciona el registro de eventos en la CLI de Tuist y directrices para colaboradores."
 }
 ---
 # Registro {#logging}
 
-La CLI adopta la interfaz de registro [swift-log](https://github.com/apple/swift-log). El paquete abstrae los detalles de implementación del registro, lo que permite que la CLI sea independiente del backend de registro. El registrador se inyecta como dependencia mediante locales de tarea y se puede acceder a él en cualquier lugar usando:
+La CLI adopta la interfaz de registro [swift-log](https://github.com/apple/swift-log). El paquete abstrae los detalles de implementación del registro, lo que permite que la CLI sea independiente del backend de registro. El registrador se inyecta como dependencia mediante task locals y puede accederse en cualquier lugar usando:
 
 ```bash
 Logger.current
 ```
 
 > [!NOTE]
-> Los locales de tarea no propagan el valor al usar `Dispatch` o tareas desvinculadas, por lo que si las usas, deberás obtenerlo y pasarlo a la operación asíncrona.
+> Los task locals no propagan el valor al usar `Dispatch` o tareas separadas, por lo que si las usas, deberás obtenerlo y pasarlo a la operación asíncrona.
 
 
 ## Qué registrar {#what-to-log}

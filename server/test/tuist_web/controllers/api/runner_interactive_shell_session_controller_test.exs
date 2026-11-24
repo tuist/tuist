@@ -37,7 +37,7 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
 
     conn =
       conn
-      |> put_req_header("authorization", "Bearer #{user.token}")
+      |> put_req_header("authorization", "Bearer #{AccountsFixtures.user_access_token(user)}")
       |> post(~p"/api/runners/interactive/shell", %{job_ref: "72001"})
 
     response = json_response(conn, 200)
@@ -58,7 +58,7 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
 
     conn =
       conn
-      |> put_req_header("authorization", "Bearer #{user.token}")
+      |> put_req_header("authorization", "Bearer #{AccountsFixtures.user_access_token(user)}")
       |> post(~p"/api/runners/interactive/shell?job_ref=72005")
 
     response = json_response(conn, 200)
@@ -76,7 +76,7 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
 
     conn =
       conn
-      |> put_req_header("authorization", "Bearer #{user.token}")
+      |> put_req_header("authorization", "Bearer #{AccountsFixtures.user_access_token(user)}")
       |> post(~p"/api/runners/interactive/shell", %{job_ref: job_url})
 
     response = json_response(conn, 200)
@@ -94,7 +94,7 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
 
     conn =
       conn
-      |> put_req_header("authorization", "Bearer #{user.token}")
+      |> put_req_header("authorization", "Bearer #{AccountsFixtures.user_access_token(user)}")
       |> post(~p"/api/runners/interactive/shell", %{job_ref: job_url})
 
     response = json_response(conn, 200)
@@ -127,7 +127,7 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
 
     conn =
       conn
-      |> put_req_header("authorization", "Bearer #{user.token}")
+      |> put_req_header("authorization", "Bearer #{AccountsFixtures.user_access_token(user)}")
       |> post(~p"/api/runners/interactive/shell", %{job_ref: "72003"})
 
     assert json_response(conn, 422)["message"] =~ "only available while"

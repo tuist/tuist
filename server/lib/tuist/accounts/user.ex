@@ -18,11 +18,6 @@ defmodule Tuist.Accounts.User do
   @valid_email_regex ~r/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
 
   schema "users" do
-    # The legacy CLI token is only held in memory when it is generated; the
-    # database keeps its SHA-256 digest (see `Tuist.Tokens.legacy_token_hash/1`).
-    field :token, :string, virtual: true
-    field :token_hash, :binary
-    field :legacy_token_last_used_at, :utc_datetime
     field :email, :string
     field :password, :string, virtual: true
     field :encrypted_password, :string, default: ""
@@ -58,7 +53,6 @@ defmodule Tuist.Accounts.User do
   def create_user_changeset(user, attrs) do
     user
     |> cast(attrs, [
-      :token,
       :email,
       :password,
       :encrypted_password,
@@ -68,20 +62,11 @@ defmodule Tuist.Accounts.User do
       :email_verified_at
     ])
     |> update_change(:email, &String.downcase/1)
-    |> validate_required([:token, :email])
+    |> validate_required([:email])
     |> validate_format(:email, @valid_email_regex, message: "must be a valid email address")
     |> validate_password_strength()
     |> encrypt_password()
-    |> put_legacy_token_hash()
-    |> unique_constraint(:token_hash, name: "users_token_hash_index")
     |> unique_constraint(:email, name: "index_users_on_email")
-  end
-
-  defp put_legacy_token_hash(changeset) do
-    case get_change(changeset, :token) do
-      nil -> changeset
-      token -> put_change(changeset, :token_hash, Tuist.Tokens.legacy_token_hash(token))
-    end
   end
 
   defp encrypt_password(changeset) do

@@ -8,7 +8,6 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
@@ -47,7 +46,7 @@ defmodule TuistWeb.RunnerJobLive do
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
     if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
-         not FeatureFlags.runners_enabled?(selected_account) do
+         not Environment.runners_available?() do
       raise NotFoundError,
             dgettext(
               "dashboard_runners",

@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistEnvironment
 import TuistProcess
 import TuistREAPI
 import TuistServer
@@ -79,6 +80,12 @@ struct CargoCompilerObserver { // swiftlint:disable:this type_body_length
                 try? FileManager.default.removeItem(at: marker)
             }
         }
+        // Only on CI, which never edits what it compiled; Cargo 1.99 and later already leave incremental compilation off
+        // there, so this serves older toolchains. Locally, the crates that miss after a fresh target are mostly the
+        // ones with local changes, which are edited next, and an incremental session makes those edits fast.
+        // Decided before the lookup, so a hit remembers the unit too: a later miss then runs incrementally.
+        let compiled = native || !Environment.current.isCI
+            ? arguments : CargoCacheInputs.withoutFirstIncrementalSession(arguments, directory: directory)
         // A build script being recorded runs `cc` through the protected `/bin/sh` shim, which drops the recorder: the
         // compiler starts recorded again, as the script's child, so everything it reads or finds missing joins the
         // script's reads and the run is cached as a whole, not compilation by compilation. `/usr/bin/cc` is a
@@ -276,7 +283,7 @@ struct CargoCompilerObserver { // swiftlint:disable:this type_body_length
                 environment: environment,
                 directory: directory
             )]
-            : ["/usr/bin/env", wrapper ?? compiler]) + (wrapper == nil ? Array(arguments.dropFirst()) : arguments)
+            : ["/usr/bin/env", wrapper ?? compiler]) + (wrapper == nil ? Array(compiled.dropFirst()) : compiled)
             + remap
         return .compile(CargoCompilerRun(
             command: command, environment: compileEnvironment, arguments: arguments, hookEnvironment: environment,

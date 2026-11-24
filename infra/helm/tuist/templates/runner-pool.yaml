@@ -33,8 +33,9 @@ catalog-driven xcodeVersions block below is the steady-state path.
 A pool names its image with `runnerImage`, or with `xcodeVersion`, which
 takes the catalog's image for that Xcode (`tuist.macosRunnerImage`) so the
 pool follows runner image releases with the rest of the fleet. On a rack whose
-catalog pools run stacked images (`rackFleet.runners.stackedImages`), the pool
-runs the Xcode's stacked image too.
+catalog pools run stacked images (`rackFleet.runners.stackedImages`), a pool
+on the rack fleet, or on the fleet of its own rack `site`, runs the Xcode's
+stacked image too.
 */}}
 {{- $rackStacked := and .Values.rackFleet.enabled (dig "stackedImages" false (.Values.rackFleet.runners | default dict)) }}
 {{- range $pool := $pools }}
@@ -42,7 +43,11 @@ runs the Xcode's stacked image too.
 {{- $image := $pool.runnerImage }}
 {{- with $pool.xcodeVersion }}
 {{- $image = include "tuist.macosRunnerImage" (dict "root" $ "xcodeVersion" .) }}
-{{- if and $rackStacked (eq ($pool.fleetSelector | default "") (include "tuist.rackFleetName" $)) }}
+{{- $rackFleets := list (include "tuist.rackFleetName" $) }}
+{{- with $pool.site }}
+{{- $rackFleets = append $rackFleets (include "tuist.rackSiteFleetName" (dict "root" $ "site" .)) }}
+{{- end }}
+{{- if and $rackStacked (has ($pool.fleetSelector | default "") $rackFleets) }}
 {{- with include "tuist.macosRunnerStackedImage" (dict "root" $ "xcodeVersion" .) }}
 {{- $image = . }}
 {{- end }}
@@ -390,7 +395,7 @@ than of the machine, and take their sizing and scaling from the shape
 entry.
 
 A shape only runs on host SKUs whose advertised hostCPU/hostMemoryMB fit
-it, and the fleet allocator's budget is the fleet's TOTAL advertised
+it, and the compute allocator's budget is the fleet's TOTAL advertised
 memory, which counts hosts too small to place this shape at all. So a
 shape larger than the smallest host in the fleet MUST carry an
 `autoscaling.maxReplicas` no greater than the number of hosts that can
@@ -498,6 +503,22 @@ Hash the inputs so the controller can roll Pods admitted under an older
 value without comparing those immutable Pod fields to live cluster state.
 */}}
 {{- $kataRuntimeClassRevision := printf "v1|runtimeClass=kata-qemu|cpu=%v|memory=%v" .Values.kataContainers.podFixed.cpu .Values.kataContainers.podFixed.memory | sha256sum }}
+{{- /*
+An exclusive-CPU Pod's budget becomes a Pod-level memory limit, so its host
+cgroup is the budget plus podFixed. Kata's guest alone is its 2 GiB base plus
+the budget, and QEMU's page tables and slab add about 1 GiB more, so podFixed
+must leave headroom past that base or the host OOM killer stops the whole VM.
+*/}}
+{{- $kataPodFixedMemory := toString .Values.kataContainers.podFixed.memory }}
+{{- $kataPodFixedMiB := 0 }}
+{{- if hasSuffix "Gi" $kataPodFixedMemory }}
+{{- $kataPodFixedMiB = mul (trimSuffix "Gi" $kataPodFixedMemory | int) 1024 }}
+{{- else if hasSuffix "Mi" $kataPodFixedMemory }}
+{{- $kataPodFixedMiB = trimSuffix "Mi" $kataPodFixedMemory | int }}
+{{- end }}
+{{- $kataPodFixedTooSmall := lt (int $kataPodFixedMiB) 3584 }}
+{{- /* kata-qemu-<size> RuntimeClasses for exclusive pools, rendered after the pools: name -> podFixed MiB. */}}
+{{- $kataExclusiveClasses := dict }}
 {{- range $pool := $pools }}
 {{- $name := required "runnersFleetLinux.pools[].name required" $pool.name }}
 {{- $image := required (printf "runnersFleetLinux.pools[%s].runnerImage (or runnersFleetLinux.shapeRunnerImage) required" $name) ($pool.runnerImage | default $.Values.runnersFleetLinux.shapeRunnerImage) }}
@@ -513,6 +534,14 @@ value without comparing those immutable Pod fields to live cluster state.
 {{- $provisioning := mergeOverwrite (deepCopy ($.Values.runnersFleetLinux.provisioning | default dict)) (default dict $pool.provisioning) }}
 {{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-linux")) $name }}
 {{- $image = (get ($.Values.runnersFleetLinux.imageHolds | default dict) $poolName) | default $image }}
+{{- $podRuntimeClass := $runtimeClass }}
+{{- $runtimeClassRevision := $kataRuntimeClassRevision }}
+{{- if and $exclusive (eq $runtimeClass "kata-qemu") }}
+{{- $sized := include "tuist.kataExclusiveRuntimeClass" (dict "root" $ "podMemMiB" $podMem) | fromJson }}
+{{- $podRuntimeClass = $sized.name }}
+{{- $_ := set $kataExclusiveClasses $sized.name $sized.memoryMiB }}
+{{- $runtimeClassRevision = printf "v1|runtimeClass=%s|cpu=%v|memory=%vMi" $sized.name $.Values.kataContainers.podFixed.cpu $sized.memoryMiB | sha256sum }}
+{{- end }}
 ---
 apiVersion: tuist.dev/v1alpha1
 kind: RunnerPool
@@ -521,7 +550,7 @@ metadata:
   namespace: {{ $namespace | quote }}
   {{- if eq $runtimeClass "kata-qemu" }}
   annotations:
-    tuist.dev/runtime-class-revision: {{ ternary (printf "%s|nested-kvm=v2" $kataRuntimeClassRevision | sha256sum) $kataRuntimeClassRevision $nested | quote }}
+    tuist.dev/runtime-class-revision: {{ ternary (printf "%s|nested-kvm=v2" $runtimeClassRevision | sha256sum) $runtimeClassRevision $nested | quote }}
   {{- end }}
   labels:
     {{- $labels | nindent 4 }}
@@ -554,7 +583,7 @@ spec:
   idleTimeoutSeconds: {{ $idleTimeout }}
   {{- end }}
   {{- if $runtimeClass }}
-  runtimeClass: {{ $runtimeClass | quote }}
+  runtimeClass: {{ $podRuntimeClass | quote }}
   {{- end }}
   {{- if $nested }}
   {{- if ne $runtimeClass "kata-qemu" }}
@@ -574,6 +603,9 @@ spec:
   {{- end }}
   {{- if ne (mod (int $podCPU) 2000) 0 }}
   {{- fail (printf "runnersFleetLinux.pools[%s].exclusiveCPUs requires pod.cpuMilli to be a whole, even number of CPUs, got %v" $name $podCPU) }}
+  {{- end }}
+  {{- if $kataPodFixedTooSmall }}
+  {{- fail (printf "runnersFleetLinux.pools[%s].exclusiveCPUs needs kataContainers.podFixed.memory of at least 3584Mi (Kata's 2Gi guest base plus host headroom), got %v" $name $.Values.kataContainers.podFixed.memory) }}
   {{- end }}
   exclusiveCPUs: true
   {{- end }}
@@ -647,6 +679,14 @@ can raise it.
 {{- $autoscaling = mergeOverwrite $autoscaling (dict "minWarmPoolFloor" 0) (deepCopy $os.autoscaling) }}
 {{- end }}
 {{- $provisioning := mergeOverwrite (deepCopy ($.Values.runnersFleetLinux.provisioning | default dict)) (default dict $shape.provisioning) }}
+{{- $podRuntimeClass := $shapeRuntimeClass }}
+{{- $runtimeClassRevision := $kataRuntimeClassRevision }}
+{{- if and $exclusive (eq $shapeRuntimeClass "kata-qemu") }}
+{{- $sized := include "tuist.kataExclusiveRuntimeClass" (dict "root" $ "podMemMiB" $podMem) | fromJson }}
+{{- $podRuntimeClass = $sized.name }}
+{{- $_ := set $kataExclusiveClasses $sized.name $sized.memoryMiB }}
+{{- $runtimeClassRevision = printf "v1|runtimeClass=%s|cpu=%v|memory=%vMi" $sized.name $.Values.kataContainers.podFixed.cpu $sized.memoryMiB | sha256sum }}
+{{- end }}
 ---
 apiVersion: tuist.dev/v1alpha1
 kind: RunnerPool
@@ -655,7 +695,7 @@ metadata:
   namespace: {{ $namespace | quote }}
   {{- if eq $shapeRuntimeClass "kata-qemu" }}
   annotations:
-    tuist.dev/runtime-class-revision: {{ ternary (printf "%s|nested-kvm=v2" $kataRuntimeClassRevision | sha256sum) $kataRuntimeClassRevision $nested | quote }}
+    tuist.dev/runtime-class-revision: {{ ternary (printf "%s|nested-kvm=v2" $runtimeClassRevision | sha256sum) $runtimeClassRevision $nested | quote }}
   {{- end }}
   labels:
     {{- $labels | nindent 4 }}
@@ -698,7 +738,7 @@ spec:
   idleTimeoutSeconds: {{ $idleTimeout }}
   {{- end }}
   {{- if $shapeRuntimeClass }}
-  runtimeClass: {{ $shapeRuntimeClass | quote }}
+  runtimeClass: {{ $podRuntimeClass | quote }}
   {{- end }}
   {{- if $nested }}
   {{- if ne $shapeRuntimeClass "kata-qemu" }}
@@ -719,6 +759,9 @@ spec:
   {{- if ne (mod $vcpus 2) 0 }}
   {{- fail (printf "runnersFleetLinux.shapes[%s].exclusiveCPUs requires an even number of vcpus" $shapeKey) }}
   {{- end }}
+  {{- if $kataPodFixedTooSmall }}
+  {{- fail (printf "runnersFleetLinux.shapes[%s].exclusiveCPUs needs kataContainers.podFixed.memory of at least 3584Mi (Kata's 2Gi guest base plus host headroom), got %v" $shapeKey $.Values.kataContainers.podFixed.memory) }}
+  {{- end }}
   exclusiveCPUs: true
   {{- end }}
   provisioning:
@@ -736,6 +779,28 @@ spec:
   rollout:
     maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
   {{- end }}
+{{- end }}
+{{- end }}
+{{- if $.Values.kataContainers.enabled }}
+{{- range $className, $memoryMiB := $kataExclusiveClasses }}
+---
+# kata-qemu with podFixed sized to the guest for exclusive-CPU pools; see
+# tuist.kataExclusiveRuntimeClass.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: {{ $className }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: kata-containers
+handler: kata-qemu
+scheduling:
+  nodeSelector:
+    katacontainers.io/kata-runtime: "true"
+overhead:
+  podFixed:
+    cpu: {{ $.Values.kataContainers.podFixed.cpu | quote }}
+    memory: {{ printf "%vMi" $memoryMiB | quote }}
 {{- end }}
 {{- end }}
 {{- end }}

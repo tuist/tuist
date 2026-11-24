@@ -47,6 +47,7 @@ defmodule TuistWeb.AppLayoutComponents do
         if once?,
           do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/tests",
           else: ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" %>
+      <% snapshots_path = ~p"/#{@selected_account.name}/#{@selected_project.name}/snapshots" %>
       <% test_runs_path =
         if once?,
           do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/test-runs",
@@ -104,7 +105,10 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="subtask"
         navigate={tests_root}
         selected={@current_path == tests_root}
-        default_open={String.starts_with?(@current_path, tests_root)}
+        default_open={
+          String.starts_with?(@current_path, tests_root) or
+            String.starts_with?(@current_path, snapshots_path)
+        }
         phx-update="ignore"
       >
         <.sidebar_item
@@ -195,6 +199,13 @@ defmodule TuistWeb.AppLayoutComponents do
             )
           }
         />
+        <.sidebar_item
+          :if={Tuist.FeatureFlags.snapshots_enabled?(@selected_account)}
+          label={dgettext("dashboard", "Snapshots")}
+          icon="photo"
+          navigate={snapshots_path}
+          selected={String.starts_with?(@current_path, snapshots_path)}
+        />
       </.sidebar_group>
       <.sidebar_item
         :if={Project.bazel_project?(@selected_project)}
@@ -210,7 +221,7 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={Project.once_project?(@selected_project)}
-        label={dgettext("dashboard", "Once Cache")}
+        label={dgettext("dashboard", "Struo Cache")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"}
         selected={
@@ -218,6 +229,15 @@ defmodule TuistWeb.AppLayoutComponents do
             @current_path,
             ~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"
           )
+        }
+      />
+      <.sidebar_item
+        :if={Project.bazel_project?(@selected_project) or once?}
+        label={dgettext("dashboard", "Remote execution")}
+        icon="cloud_computing"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/remote-execution"}
+        selected={
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/remote-execution"
         }
       />
       <.sidebar_item
@@ -355,7 +375,7 @@ defmodule TuistWeb.AppLayoutComponents do
           String.starts_with?(
             @current_path,
             ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
-          )
+          ) or String.starts_with?(@current_path, snapshots_path)
         }
         phx-update="ignore"
       >
@@ -434,6 +454,13 @@ defmodule TuistWeb.AppLayoutComponents do
             )
           }
         />
+        <.sidebar_item
+          :if={Tuist.FeatureFlags.snapshots_enabled?(@selected_account)}
+          label={dgettext("dashboard", "Snapshots")}
+          icon="photo"
+          navigate={snapshots_path}
+          selected={String.starts_with?(@current_path, snapshots_path)}
+        />
       </.sidebar_group>
       <.sidebar_item
         :if={Project.gradle_project?(@selected_project)}
@@ -502,7 +529,11 @@ defmodule TuistWeb.AppLayoutComponents do
             label={item.title}
             icon={item.icon}
             navigate={item.path}
-            selected={item.path == @current_path}
+            selected={
+              item.path == @current_path or
+                (item.id == "sidebar-pulse" and
+                   String.starts_with?(@current_path, item.path <> "/symptoms/"))
+            }
             default_open={
               Enum.any?(item.children, &String.starts_with?(@current_path, &1.path)) or
                 (not is_nil(item.path) and String.starts_with?(@current_path, item.path))
@@ -587,10 +618,10 @@ defmodule TuistWeb.AppLayoutComponents do
           if organization_ai?,
             do:
               Authorization.authorize(:account_update, @current_user, @selected_account) == :ok and
-                FeatureFlags.organization_guild_enabled?(@selected_account),
+                FeatureFlags.organization_luft_enabled?(@selected_account),
             else:
               @selected_account.user_id == @current_user.id and
-                FeatureFlags.guild_enabled?(@current_user)
+                FeatureFlags.luft_enabled?(@current_user)
         }
         label={dgettext("dashboard", "AI")}
         selected={String.starts_with?(@current_path, ai_path)}
@@ -675,7 +706,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_item
         label={dgettext("dashboard", "Errors")}
         icon="alert_triangle"
-        href="https://hive.tuist.dev/errors"
+        href="https://atlas.tuist.dev/engineering/errors"
         target="_blank"
         rel="noopener noreferrer"
         external
@@ -731,7 +762,7 @@ defmodule TuistWeb.AppLayoutComponents do
           label={Tuist.Environment.server_version_identifier()}
           color="attention"
           style="light-fill"
-          size="large"
+          size="medium"
         >
           <:icon><.git_branch /></:icon>
         </.badge>
@@ -825,13 +856,12 @@ defmodule TuistWeb.AppLayoutComponents do
           }
           show_avatar={Map.get(breadcrumb, :show_avatar, false)}
           avatar_color={Map.get(breadcrumb, :avatar_color)}
-          badge_label={breadcrumb[:badge] && breadcrumb.badge.label}
-          badge_color={breadcrumb[:badge] && breadcrumb.badge.color}
+          image={Map.get(breadcrumb, :image)}
         >
           <:icon :if={Map.get(breadcrumb, :icon)}><.icon name={Map.get(breadcrumb, :icon)} /></:icon>
           <.breadcrumb_item
             :for={breadcrumb_item <- breadcrumb.items}
-            id={"#{@id}-#{breadcrumb_item.value}"}
+            id={"#{@id}-#{index}-item-#{breadcrumb_item.value}"}
             value={breadcrumb_item.value}
             label={breadcrumb_item.label}
             selected={breadcrumb_item.selected}
@@ -839,13 +869,12 @@ defmodule TuistWeb.AppLayoutComponents do
             show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
             avatar_color={Map.get(breadcrumb_item, :avatar_color)}
             icon={Map.get(breadcrumb_item, :icon)}
-            badge_label={breadcrumb_item[:badge] && breadcrumb_item.badge.label}
-            badge_color={breadcrumb_item[:badge] && breadcrumb_item.badge.color}
+            image={Map.get(breadcrumb_item, :image)}
           />
           <:footer :if={Map.get(breadcrumb, :footer_items)}>
             <.breadcrumb_item
               :for={breadcrumb_item <- breadcrumb.footer_items}
-              id={"#{@id}-#{breadcrumb_item.value}"}
+              id={"#{@id}-#{index}-footer-#{breadcrumb_item.value}"}
               value={breadcrumb_item.value}
               label={breadcrumb_item.label}
               selected={breadcrumb_item.selected}
@@ -853,8 +882,7 @@ defmodule TuistWeb.AppLayoutComponents do
               show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
               avatar_color={Map.get(breadcrumb_item, :avatar_color)}
               icon={Map.get(breadcrumb_item, :icon)}
-              badge_label={breadcrumb_item[:badge] && breadcrumb_item.badge.label}
-              badge_color={breadcrumb_item[:badge] && breadcrumb_item.badge.color}
+              image={Map.get(breadcrumb_item, :image)}
             />
           </:footer>
         </.breadcrumb>

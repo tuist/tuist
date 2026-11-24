@@ -1,5 +1,5 @@
 defmodule Tuist.MCP.Components.Tools.ListBazelBuildSteps do
-  @moduledoc "Recorded Bazel profile intervals with action outcomes and separately fetched sanitized logs when published by Bazel. IDs are opaque and scoped to the invocation. Profile times are milliseconds relative to the profile start; time filters select overlaps. Older builds fall back to bounded BEP summaries. Retention is 90 days."
+  @moduledoc "Recorded Bazel profile intervals with action outcomes. Set remote_execution=true for actions with correlated server queue, input-fetch, execution and output-upload timings. Phase milliseconds sum recorded attempts within each action; null or absent means unavailable, not zero. These are profile observations, not billed usage or proof of fresh execution; cached server results can carry execution metadata. Upload-only client spans are excluded. IDs are opaque and invocation-scoped. Profile times are relative to profile start; time filters select overlaps. Older builds fall back to bounded BEP summaries unless remote_execution=true. Retention is 90 days. Sanitized logs are fetched separately with get_bazel_build_step."
   use Tuist.MCP.Tool,
     name: "list_bazel_build_steps",
     title: "List Bazel Build Steps",

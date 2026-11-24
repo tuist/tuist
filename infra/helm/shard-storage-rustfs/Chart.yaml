@@ -1,0 +1,6 @@
+apiVersion: v2
+name: shard-storage-rustfs
+description: Isolated staging qualification of shared shard storage
+type: application
+version: 0.1.0
+appVersion: "1.0.6"

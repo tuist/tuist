@@ -42,7 +42,7 @@ defmodule TuistWeb.Oauth.IntrospectControllerTest do
         post(conn, "/oauth2/introspect", %{
           client_id: client.id,
           client_secret: client.secret,
-          token: user.token
+          token: AccountsFixtures.user_access_token(user)
         })
 
       assert %{

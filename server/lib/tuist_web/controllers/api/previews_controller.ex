@@ -1062,7 +1062,7 @@ defmodule TuistWeb.API.PreviewsController do
       url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}"),
       device_url: device_url,
       qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/qr-code.png"),
-      icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/icon.png"),
+      icon_url: PreviewInstallURLs.icon_url(account_handle, project_handle, preview),
       version: preview.version,
       bundle_identifier: preview.bundle_identifier,
       display_name: preview.display_name,

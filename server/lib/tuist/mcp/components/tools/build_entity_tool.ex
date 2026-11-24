@@ -24,7 +24,7 @@ defmodule Tuist.MCP.Components.Tools.BuildEntityTool do
   Kinds: `cargo_crates` (observed Rust crates identified by exact recorded crate root, name and kind; history lists measured rustc invocations, not per-file timings or cache hits. Paths are not normalized and configuration independence is not established), \
   `bazel_actions` (Bazel actions identified by target label, mnemonic and configured primary output; history lists BEP-reported executions, not cache traffic), `gradle_tasks` (Gradle tasks; history lists task executions), \
   `xcode_modules` (Xcode modules; history lists measured compilations and module cache events), \
-  `once_actions` (Once actions identified by declared target, capability and action index; \
+  `once_actions` (Struo actions identified by declared target, capability and action index; \
   history lists executions), `mix_files` (Mix compiled files; history lists compilations) and \
   `mix_modules` (Mix compiled modules; durations measure the containing file's compilation, \
   not independently measured module work). A kind is only available for projects using its \

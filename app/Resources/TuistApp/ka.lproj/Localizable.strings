@@ -1,14 +1,8 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "%@ simulator" = "%@ სიმულატორი";
 
-/* TuistProfile/ProfileView.swift */
-"AI" = "AI";
-
-/* TuistProfile/AISubscriptionsSection.swift */
-"AI subscriptions" = "AI-ის გამოწერები";
-
 /* TuistAuthentication/AuthenticationService.swift */
-"Access token or refresh token missing from response" = "პასუხში არ არის ხელმისაწვდომობის ან განახლების ტოკენი";
+"Access token or refresh token missing from response" = "პასუხში არ არის წვდომის ან განახლების ტოკენი";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "All" = "ყველა";
@@ -29,19 +23,19 @@
 "App" = "აპლიკაცია";
 
 /* TuistProfile/ProfileView.swift */
-"App version" = "აპლიკაციის ვერსია";
+"App version" = "აპის ვერსია";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Apple Sign In failed" = "Apple-ით შესვლა ვერ მოხერხდა";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Apps in" = "აპლიკაციები";
+"Apps in" = "აპები";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Are you sure you want to delete this preview? This action cannot be undone." = "ნამდვილად გსურთ ამ პრევიუს წაშლა? ამ ქმედების გაუქმება შეუძლებელია.";
+"Are you sure you want to delete this preview? This action cannot be undone." = "ნამდვილად გსურთ ამ პრევიუს წაშლა? ეს ქმედება შეუქცევადია.";
 
 /* TuistProfile/ProfileView.swift */
-"Are you sure you want to delete your account? This action cannot be undone." = "ნამდვილად გსურთ თქვენი ანგარიშის წაშლა? ამ ქმედების გაუქმება შეუძლებელია.";
+"Are you sure you want to delete your account? This action cannot be undone." = "ნამდვილად გსურთ თქვენი ანგარიშის წაშლა? ეს ქმედება შეუქცევადია.";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Authorization code not found" = "ავტორიზაციის კოდი ვერ მოიძებნა";
@@ -50,7 +44,7 @@
 "Branch" = "ბრენჩი";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Bundle identifier" = "Bundle ID";
+"Bundle identifier" = "ბანდლის იდენტიფიკატორი";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
 "Cancel" = "გაუქმება";
@@ -61,23 +55,8 @@
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Commit SHA" = "Commit SHA";
 
-/* TuistProfile/AISubscriptionsSection.swift */
-"Connect" = "კავშირი";
-
-/* TuistProfile/AISubscriptionsSection.swift */
-"Connect ChatGPT" = "ChatGPT-ის მიერთება";
-
-/* TuistProfile/AISubscriptionsSection.swift */
-"Connect Claude" = "Claude-ის მიერთება";
-
-/* TuistProfile/AISubscriptionsSection.swift */
-"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "დააკავშირეთ თქვენი პირადი Claude-ისა და ChatGPT-ის გამოწერები, რათა გამოიყენოთ ისინი Tuist-ის AI ფუნქციებთან ერთად.";
-
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "დაკავშირებულია";
-
-/* TuistProfile/AISubscriptionsSection.swift */
-"Copy code" = "კოდის კოპირება";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Copy identifier" = "იდენტიფიკატორის კოპირება";
@@ -89,19 +68,19 @@
 "Could not find APK file in the downloaded archive" = "ჩამოტვირთულ არქივში APK ფაილი ვერ მოიძებნა";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "ჩამოტვირთულ არქივში აპლიკაციის ბანდლი ვერ მოიძებნა";
+"Could not find app bundle in the downloaded archive" = "ჩამოტვირთულ არქივში აპლიკაციის ბანდი ვერ მოიძებნა";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "%@-ისთვის აპლიკაციის ინსტალაცია შეუძლებელია, რადგან ის არ შეიცავს ვალიდურ აპლიკაციის ბილდებს.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "%@-ისთვის აპის ინსტალაცია ვერ მოხერხდა, რადგან ის არ შეიცავს ვალიდურ აპის ბილდებს.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@-ისთვის აპლიკაციის ინსტალაცია ვერ მოხერხდა. %@-ის პლატფორმა არის %@, ხოლო აპლიკაცია მხოლოდ შემდეგ პლატფორმებს შეიცავს: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@-ისთვის აპის ინსტალაცია ვერ მოხერხდა. %@-ის პლატფორმაა %@, ხოლო აპი მხოლოდ შემდეგ პლატფორმებს შეიცავს: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Created at" = "შექმნის თარიღი";
+"Created at" = "შეიქმნა";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Created by" = "შემქმნელი";
+"Created by" = "შექმნა";
 
 /* TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
 "Delete" = "წაშლა";
@@ -116,7 +95,7 @@
 "Delete account" = "ანგარიშის წაშლა";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Delete preview" = "Preview-ის წაშლა";
+"Delete preview" = "წინასწარი ნახვის წაშლა";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Details" = "დეტალები";
@@ -124,29 +103,20 @@
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Devices" = "მოწყობილობები";
 
-/* TuistProfile/AISubscriptionsSection.swift */
-"Disconnect" = "გათიშვა";
-
-/* TuistProfile/AISubscriptionsSection.swift */
-"Disconnect subscription" = "გამოწერის გაუქმება";
-
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Disconnected" = "გათიშულია";
+"Disconnected" = "გათიშული";
 
 /* TuistProfile/ProfileView.swift */
 "Email" = "ელფოსტა";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "შეიყვანეთ მოქმედი HTTPS სერვერის URL მონაცემების, კითხვის ნიშნის ან ფრაგმენტის გარეშე.";
-
-/* TuistProfile/AISubscriptionsSection.swift */
-"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "შეიყვანეთ კოდი OpenAI-ის შესვლის გვერდზე. ეს ეკრანი დაიხურება მას შემდეგ, რაც დაადასტურებთ.";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "შეიყვანეთ მოქმედი HTTPS სერვერის URL, რწმუნებების, შეკითხვის ან ფრაგმენტის გარეშე.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "შეცდომა";
 
 /* TuistMenuBar/StatusView.swift */
-"Finished" = "დასრულდა";
+"Finished" = "დასრულებული";
 
 /* TuistProfile/ProfileView.swift */
 "Get help" = "დახმარების მიღება";
@@ -185,25 +155,22 @@
 "Logged out" = "გამოსული ხართ";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Missing Apple credentials from authorization" = "ავტორიზაციიდან აკლია Apple-ის მონაცემები";
+"Missing Apple credentials from authorization" = "ავტორიზაციიდან Apple-ის კრედენციალები აკლია";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
 "No Previews" = "პრივიუები არ არის";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No Tuist projects found" = "Tuist-ის პროექტები ვერ მოიძებნა";
+"No Tuist projects found" = "Tuist პროექტები ვერ მოიძებნა";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews found" = "პრევიუები ვერ მოიძებნა";
+"No previews found" = "პრივიუები ვერ მოიძებნა";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews match your filters" = "თქვენს ფილტრებს პრევიუები არ შეესაბამება";
+"No previews match your filters" = "ფილტრებს არ შეესაბამება წინასწარი ნახვები";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "კარგი";
-
-/* TuistProfile/AISubscriptionsSection.swift */
-"Open the OpenAI sign-in page" = "OpenAI-ში შესვლის გვერდის გახსნა";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Other devices" = "სხვა მოწყობილობები";
@@ -212,10 +179,10 @@
 "Pin" = "მიმაგრება";
 
 /* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews" = "პრევიუები";
+"Previews" = "წინასწარი ნახვები";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews: %lld" = "წინასწარი ჩვენებები: %lld";
+"Previews: %lld" = "წინასწარი ნახვები: %lld";
 
 /* TuistProfile/ProfileView.swift */
 "Privacy Policy" = "კონფიდენციალურობის პოლიტიკა";
@@ -224,16 +191,16 @@
 "Profile" = "პროფილი";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "გადაიტანეთ ქვემოთ წინასწარი ჩვენებების განახლებისთვის.";
+"Pull down to refresh your previews." = "გადმოწიეთ ქვემოთ წინასწარ ნახვების განახლებისთვის.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your projects." = "გადაიტანეთ ქვემოთ პროექტების განახლებისთვის.";
+"Pull down to refresh your projects." = "გადმოწიეთ ქვემოთ პროექტების განახლებისთვის.";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Quit Tuist" = "Tuist-ის დახურვა";
 
 /* TuistMenuBar/StatusView.swift */
-"Ready" = "მზად არის";
+"Ready" = "მზადაა";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Release notes" = "გამოშვების შენიშვნები";
@@ -241,17 +208,14 @@
 /* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
 "Run" = "გაშვება";
 
-/* TuistProfile/AISubscriptionsSection.swift */
-"Run claude setup-token in a terminal and paste the token it prints." = "ტერმინალში გაუშვით claude setup-token და ჩასვით მის მიერ გამოტანილი ტოკენი.";
-
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Search" = "ძებნა";
 
 /* TuistOnboarding/SelfHostedServerAlert.swift */
-"Self-hosted" = "თავად განთავსებული";
+"Self-hosted" = "თვითმასპინძელი";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
-"Self-hosted server" = "თავად განთავსებული სერვერი";
+"Self-hosted server" = "საკუთარ სერვერზე განთავსებული";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Share logs" = "ლოგების გაზიარება";
@@ -260,10 +224,10 @@
 "Sign in" = "შესვლა";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "შედით, რათა მიუწვდეთ თქვენს პროექტებს და\nთანამშრომლობდეთ თქვენს გუნდთან";
+"Sign in to access your projects and\ncollaborate with your team" = "შედით, რათა მიიღოთ წვდომა თქვენს პროექტებზე და\nითანამშრომლოთ გუნდთან";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
-"Sign in to run previews" = "შესვლა პრევიუს გასაშვებად";
+"Sign in to run previews" = "შედით პრივიუსების გასაშვებად";
 
 /* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
 "Sign in with Apple" = "Apple-ით შესვლა";
@@ -283,9 +247,6 @@
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Simulators" = "სიმულატორები";
 
-/* TuistProfile/AISubscriptionsSection.swift */
-"Subscription token" = "გამოწერის ტოკენი";
-
 /* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
 "Supported platforms" = "მხარდაჭერილი პლატფორმები";
 
@@ -302,28 +263,25 @@
 "The preview %@ does not have a package name set." = "პრევიუს %@ არ აქვს მითითებული პაკეტის სახელი.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"The preview deeplink %@ is invalid." = "პრევიუს ღრმა ბმული %@ არასწორია.";
+"The preview deeplink %@ is invalid." = "წინასწარი ნახვის ღრმა ბმული %@ არასწორია.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The server returned a preview page that did not advance. Update your server or try again." = "სერვერმა დააბრუნა პრევიუს გვერდი, რომელიც არ განახლდა. განაახლეთ თქვენი სერვერი ან სცადეთ ხელახლა.";
-
-/* TuistProfile/AISubscriptionsSection.swift */
-"The sign-in expired. Close this screen and connect again." = "შესვლის სესია ამოიწურა. დახურეთ ეს ეკრანი და ხელახლა დაუკავშირდით.";
+"The server returned a preview page that did not advance. Update your server or try again." = "სერვერმა დააბრუნა წინასწარი ნახვის გვერდი, რომელიც არ განახლდა. განაახლეთ თქვენი სერვერი ან სცადეთ ხელახლა.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "ამ სერვერს არ აქვს ტრეკის მიხედვით პრივიუების ფილტრაციის მხარდაჭერა. განაახლეთ თქვენი self-hosted Tuist სერვერი ან აირჩიეთ ყველა ტრეკი.";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "ამ სერვერს არ აქვს წინასწარი ნახვების ტრეკის მიხედვით ფილტრაციის მხარდაჭერა. განაახლეთ თქვენი Tuist-ის საკუთარი სერვერი ან აირჩიეთ ყველა ტრეკი.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "ამ სერვერს არ აქვს პრივიუებში ძებნის მხარდაჭერა. განაახლეთ თქვენი self-hosted Tuist სერვერი ან გაასუფთავეთ საძიებო ველი.";
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "ამ სერვერს არ აქვს წინასწარი ნახვების ძებნის მხარდაჭერა. განაახლეთ თქვენი Tuist-ის საკუთარი სერვერი ან გაასუფთავეთ ძებნა.";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "ამ სერვერს არ აქვს Tuist აპლიკაციიდან შესვლის მხარდაჭერა. სთხოვეთ თქვენს ადმინისტრატორს, განაახლოს ის.";
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "ამ სერვერს არ აქვს Tuist აპლიკაციიდან შესვლის მხარდაჭერა. სთხოვეთ თქვენს ადმინისტრატორს განაახლოს ის.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"To run a preview, you must have a simulator selected." = "პრივიუს გაშვებისთვის უნდა იყოს შერჩეული სიმულატორი.";
+"To run a preview, you must have a simulator selected." = "წინასწარი ნახვის გასაშვებად, უნდა იყოს შერჩეული სიმულატორი.";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Token exchange failed with status code: %lld" = "ტოკენის გაცვლა ვერ მოხერხდა, სტატუსის კოდი: %lld";
+"Token exchange failed with status code: %lld" = "ტოკენის გაცვლა ვერ მოხდა სტატუსის კოდით: %lld";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Track" = "ტრეკი";
@@ -337,20 +295,17 @@
 /* TuistProfile/AISubscriptionsSection.swift */
 "Tuist will delete the saved %@ credentials." = "Tuist წაშლის შენახულ %@ მონაცემებს.";
 
-/* TuistProfile/AISubscriptionsSection.swift */
-"Unavailable" = "მიუწვდომელია";
-
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
 "Unknown" = "უცნობი";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
-"Unpin" = "ჩამოხსნა";
+"Unpin" = "გამოყავით პინიდან";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Update your self-hosted Tuist server to select a track." = "აირჩიეთ ტრეკი, თქვენი self-hosted Tuist სერვერის განახლებით.";
+"Update your self-hosted Tuist server to select a track." = "ტრეკის არჩევისთვის განაახლეთ თქვენი self-hosted Tuist სერვერი.";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
-"Use the root address of your Tuist server" = "გამოიყენეთ თქვენი Tuist სერვერის ძირითადი მისამართი";
+"Use the root address of your Tuist server" = "გამოიყენეთ თქვენი Tuist სერვერის ფესვური მისამართი";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "Welcome to Tuist" = "მოგესალმებით Tuist-ში";
@@ -361,158 +316,39 @@
 /* TuistApp/AccountHomeView.swift, TuistApp/ThreadsPreview.swift, TuistApp/ThreadConversationView.swift */
 "Account" = "ანგარიში";
 "Accounts" = "ანგარიშები";
-"Active" = "აქტიური";
-"Archived" = "არქივირებული";
-"Archive thread" = "თემის არქივაცია";
-"Archive this thread?" = "დაარქივოთ ეს თემა?";
-"Base branch" = "საბაზო შტო";
-"Changes" = "ცვლილებები";
 "Close" = "დახურვა";
-"Close new thread" = "ახალი თემის დახურვა";
-"Conversation actions" = "საუბრის ქმედებები";
-"Copy message" = "შეტყობინების კოპირება";
-"Create preview thread" = "preview-ის თემის შექმნა";
-"Design preview · Sample accounts" = "დიზაინის preview · სატესტო ანგარიშები";
-"Design preview · Sample builds" = "დიზაინის preview · სატესტო ბილდები";
-"Design preview · Sample conversation" = "დიზაინის preview · სატესტო საუბარი";
-"Design preview · Sample data" = "დიზაინის გადახედვა · საჩვენებელი მონაცემები";
-"Design preview · Starting creates a sample thread, not a running environment." = "დიზაინის გადახედვა · „დაწყება“ ქმნის საჩვენებელ თრედს და არა სამუშაო გარემოს.";
-"Done" = "დასრულდა";
-"Each repository thread gets its own worktree and branch. The original checkout is not edited." = "თითოეულ რეპოზიტორიის თრედს ენიჭება საკუთარი worktree და განშტოება. თავდაპირველი ჩექაუთი არ იცვლება.";
-"Environment" = "გარემო";
-"Goal" = "მიზანი";
-"Hide keyboard" = "კლავიატურის დამალვა";
-"Illustrative diff · Not a live repository change" = "ილუსტრაციული სხვაობა · არ არის ცოცხალი რეპოზიტორიის ცვლილება";
-"In progress" = "მიმდინარეობს";
-"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "%@-ის მოწვევა აზიარებს ყველა არსებულ შეტყობინებას, ინსტრუმენტების შედეგებს და მომავალ პასუხებს. ეს წინასწარი ჩვენება არ გზავნის მოწვევებს ან შეტყობინებებს.";
-"Latest builds" = "უახლესი აწყობები";
-"Latest message" = "უახლესი შეტყობინება";
-"Layout preview" = "განლაგების წინასწარი ჩვენება";
-"Linux" = "Linux";
-"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "შეტყობინებაში ვინმეს ხსენებით მისი მოწვევა შეგიძლიათ. მოწვევა არსებულ ისტორიას აზიარებს. @Tuist ბოტს მოქმედებისთვის მიმართავს. ნიმუშის სახელები მხოლოდ.";
-"Message…" = "შეტყობინება…";
-"Message Tuist…" = "შეტყობინება Tuist-ს…";
-"Message, or ask @Tuist…" = "შეტყობინება ან @Tuist-ის მონიშვნა…";
-"New thread" = "ახალი თემა";
-"No account is signed in. These screens use sample data." = "არცერთი ანგარიში არ არის შესული. ეს ეკრანები საჩვენებელ მონაცემებს იყენებს.";
-"Only you" = "მხოლოდ თქვენ";
-"Original response" = "ორიგინალური პასუხი";
-"People" = "ადამიანები";
+"Design preview · Sample accounts" = "დიზაინის გადახედვა · საცდელი ანგარიშები";
+"Design preview · Sample builds" = "დიზაინის გადახედვა · საცდელი ბილდები";
+"Design preview · Sample data" = "დიზაინის გადახედვა · საცდელი მონაცემები";
+"Done" = "მზადაა";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "%@-ის მიწვევა იზიარებს ყველა არსებულ შეტყობინებას, ხელსაწყოს შედეგებს და მომავალ პასუხებს. ეს წინასწარი ნახვა არ აგზავნის მიწვევებს ან შეტყობინებებს.";
+"Latest builds" = "უახლესი ბილდები";
+"Layout preview" = "განლაგების წინასწარი ნახვა";
+"No account is signed in. These screens use sample data." = "არცერთი ანგარიში არ არის შესული. ეს ეკრანები იყენებენ სანიმუშო მონაცემებს.";
 "Previous builds" = "წინა ბილდები";
-"Private thread" = "პირადი ნაკადი";
-"Private · Design preview · No work runs" = "პირადი · დიზაინის გადახედვა · სამუშაო გაშვებები არ არის";
-"Private · Saved to your account" = "პირადი · შენახულია თქვენს ანგარიშში";
-"Prompt" = "მოთხოვნა";
-"Prompts" = "მოთხოვნები";
-"Provider" = "მიმწოდებელი";
-"Recent" = "ბოლო ხნის";
-"Reconnect" = "ხელახლა დაკავშირება";
-"Repositories" = "რეპოზიტორიები";
-"Repository" = "რეპოზიტორია";
-"Resources" = "რესურსები";
-"Restore thread" = "ნაკადის აღდგენა";
-"Review changes" = "ცვლილებების გადახედვა";
-"Repositories available to this account." = "ამ ანგარიშზე ხელმისაწვდომი რეპოზიტორიები.";
-"Sample repositories · Design preview" = "სანიმუშო რეპოზიტორიები · დიზაინის პრევიუ";
 "Search projects" = "პროექტების ძებნა";
-"Search repositories" = "რეპოზიტორიების ძებნა";
-"Select project" = "პროექტის არჩევა";
-"Send" = "გაგზავნა";
-"Share preview and send" = "პრივიუს გაზიარება და გაგზავნა";
-"Share the conversation history?" = "გსურთ საუბრის ისტორიის გაზიარება?";
-"Shared conversation" = "გაზიარებული საუბარი";
-"Shared with 2 people" = "გაზიარებულია 2 ადამიანთან";
-"Sign out of Tuist?" = "Tuist-დან გამოსვლა?";
-"Signing out of this app does not stop running threads." = "ამ აპლიკაციიდან გამოსვლა არ აჩერებს მიმდინარე ნაკადებს.";
-"Start privately. Inviting someone would share the existing conversation with them." = "დაიწყეთ კონფიდენციალურად. ვინმეს მოწვევა არსებული საუბრის მათთან გაზიარებას ნიშნავს.";
-"Start thread" = "ნაკადის დაწყება";
+"Select project" = "აირჩიეთ პროექტი";
+"Sign out of Tuist?" = "გამოსვლა Tuist-დან?";
 "Switch account" = "ანგარიშის შეცვლა";
-"Archiving cancels any active work. The conversation stays available in Archived." = "დაარქივება აუქმებს ნებისმიერ აქტიურ სამუშაოს. საუბარი ხელმისაწვდომი რჩება „დაარქივებულში“.";
-"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "სერვერი ფლობს ნაკადს; გარემოში მხოლოდ ინსტრუმენტები მუშაობს. რეპოზიტორიის ნაკადებს საკუთარი სამუშაო ხეები აქვთ.";
-"Thread details" = "ნაკადის დეტალები";
-"Thread settings" = "ნაკადის პარამეტრები";
-"Threads" = "ნაკადები";
-"Tool actions" = "ხელსაწყოს ქმედებები";
-"Tool environment" = "ხელსაწყოს გარემო";
-"Tool outcome unknown. Nothing will be retried automatically." = "ხელსაწყოს შედეგი უცნობია. არაფერი განმეორდება ავტომატურად.";
-"Tool provider" = "ხელსაწყოს პროვაიდერი";
-"Tool result" = "ხელსაწყოს შედეგი";
-"Try again" = "ცადეთ ხელახლა";
-"Tuist is working…" = "Tuist მუშაობს…";
-"Allow microphone access in Settings to record a message." = "მიკროფონზე წვდომის დასაშვებად გადადით პარამეტრებში, რათა ჩაწეროთ შეტყობინება.";
-"Allow speech recognition in Settings to transcribe on this device." = "საუბრის ამოცნობის დასაშვებად გადადით პარამეტრებში, რათა მოხდეს ტრანსკრიფცია ამ მოწყობილობაზე.";
-"Could not start dictation. Your typed draft is unchanged." = "ვერ ხერხდება დიქტაციის დაწყება. თქვენი აკრეფილი ვერსია უცვლელია.";
-"No speech was captured. Your typed draft is unchanged." = "ხმა არ ჩაწერილა. თქვენი აკრეფილი ვერსია უცვლელია.";
-"Recording on this device" = "ჩაწერა ამ მოწყობილობაზე";
-"Stop dictation" = "დიქტაციის შეჩერება";
-"Tap stop to add editable text. Nothing is sent automatically." = "შეეხეთ „შეჩერებას“ რედაქტირებადი ტექსტის დასამატებლად. არაფერი იგზავნება ავტომატურად.";
-"Transcribe a voice message" = "ხმოვანი შეტყობინების ტრანსკრიფცია";
-"Uses on-device speech recognition. Nothing is sent automatically." = "იყენებს მოწყობილობაზე არსებულ მეტყველების ამოცნობას. არაფერი იგზავნება ავტომატურად.";
-"What would you like Tuist to do?" = "რის გაკეთება გსურთ Tuist-ისგან?";
-"Worktree branch" = "Worktree-ის შტო";
-"You" = "თქვენ";
-"macOS" = "macOS";
-"Adds this suggestion to your draft without sending." = "ამ შეთავაზების დრაფტში დამატება გაგზავნის გარეშე.";
-"Connection lost. Reconnecting…" = "კავშირი დაიკარგა. ხდება ხელახლა დაკავშირება…";
-"Needs attention" = "მოითხოვს ყურადღებას";
-"Outcome unknown" = "შედეგი უცნობია";
-"Preview" = "პრევიუ";
-"Queued" = "რიგშია";
-"Ready to review" = "მზად არის განსახილველად";
-"Running" = "მიმდინარეობს";
-"Load earlier messages" = "ადრეული შეტყობინებების ჩატვირთვა";
-"Load more threads" = "მეტის ჩატვირთვა თემებიდან";
-"No repository" = "რეპოზიტორი არ არის";
-"Private threads only" = "მხოლოდ პირადი თრედები";
-"Ship" = "გაშვება";
-"Approve and ship" = "დაამტკიცეთ და გაუშვით";
-"Target branch" = "სამიზნე ტოტი";
-"Mode" = "რეჟიმი";
-"Base" = "ბაზა";
-"Head" = "თავი";
-"Shipping follows repository policy. Approving queues this exact reviewed change." = "გაშვება ემორჩილება რეპოზიტორიის პოლიტიკას. დამტკიცება რიგში აყენებს ზუსტად ამ გადახედულ ცვლილებას.";
-"Shipping requires a separate review and explicit approval. Repository policy determines the target." = "გაგზავნას სჭირდება ცალკე გადახედვა და აშკარა დამტკიცება. საცავის პოლიტიკა განსაზღვრავს სამიზნეს.";
-"Design preview · Ship requires a live account and repository policy." = "დიზაინის პრევიუ · გაგზავნას სჭირდება აქტიური ანგარიში და საცავის პოლიტიკა.";
-"Review again" = "გადახედვა ხელახლა";
+"Tool actions" = "ინსტრუმენტის მოქმედებები";
 "Organization" = "ორგანიზაცია";
-"Model" = "მოდელი";
-"Choose model" = "აირჩიეთ მოდელი";
-"Loading models…" = "მოდელების ჩატვირთვა…";
-"Couldn’t load models" = "მოდელების ჩატვირთვა ვერ მოხერხდა";
-"Check your connection or try again in a moment." = "შეამოწმეთ თქვენი კავშირი ან სცადეთ თავიდან მოგვიანებით.";
-"No models available" = "მოდელები არ არის ხელმისაწვდომი";
-"Connect an AI subscription in your profile, then try again." = "დააკავშირეთ AI-ის გამოწერა თქვენს პროფილში, შემდეგ კი სცადეთ თავიდან.";
-"Models unavailable. Try again later." = "მოდელები მიუწვდომელია. სცადეთ თავიდან მოგვიანებით.";
-"Refresh models" = "მოდელების განახლება";
-"Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "მოდელები ხელმისაწვდომია თქვენი პროფილის AI-ის გამოწერების საშუალებით. შექმნის შემდეგ მოდელის შეცვლა შეუძლებელია.";
-"Sample model catalog · Design preview · No subscription access implied" = "ნიმუშის მოდელების კატალოგი · დიზაინის პრევიუ · გამოწერაზე წვდომა არ იგულისხმება";
-"AI model" = "AI მოდელი";
-"AI provider" = "AI პროვაიდერი";
-"Not recorded" = "არ არის ჩაწერილი";
-"The provider and model are fixed for this thread. Start a new thread to choose another model." = "ამ თრედისთვის პროვაიდერი და მოდელი ფიქსირებულია. სხვა მოდელის არჩევისთვის დაიწყეთ ახალი თრედი.";
-"This subscription is not supported for Threads." = "ეს გამოწერა Threads-ში მხარდაჭერილი არ არის.";
-"ChatGPT" = "ChatGPT";
-"Claude" = "Claude";
 
 /* TuistApp/TuistApp.swift */
 "OK" = "კარგი";
 "Unable to open link" = "ბმულის გახსნა ვერ ხერხდება";
-"This link belongs to a different Tuist server. Sign in to that server and open the link again." = "ეს ბმული ეკუთვნის სხვა Tuist სერვერს. შედით ამ სერვერზე და ხელახლა გახსენით ბმული.";
-"This link belongs to a different organization. Switch organizations and open the link again." = "ეს ბმული ეკუთვნის სხვა ორგანიზაციას. შეცვალეთ ორგანიზაცია და ხელახლა გახსენით ბმული.";
-"This navigation link is invalid or unsupported." = "ეს ნავიგაციის ბმული არასწორია ან მხარდაჭერილი არაა.";
+"This link belongs to a different Tuist server. Sign in to that server and open the link again." = "ეს ბმული ეკუთვნის სხვა Tuist სერვერს. შედით ამ სერვერზე და კიდევ ერთხელ გახსენით ბმული.";
+"This link belongs to a different organization. Switch organizations and open the link again." = "ეს ბმული ეკუთვნის სხვა ორგანიზაციას. შეცვალეთ ორგანიზაცია და კიდევ ერთხელ გახსენით ბმული.";
+"This navigation link is invalid or unsupported." = "ეს ნავიგაციის ბმული არასწორია ან მხარდაუჭერელი.";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Open on web" = "გახსნა ვებზე";
+"Open on web" = "გახსენით ვებზე";
 "Profiles" = "პროფილები";
 "Add profile" = "პროფილის დამატება";
-"Switch profile" = "პროფილის შეცვლა";
-"Switch profile?" = "შეიცვალოს პროფილი?";
-"View profile" = "პროფილის ნახვა";
-"Open screens and unsent drafts will be closed. Running threads will continue." = "გაუგზავნილი დრაფტები და ღია ეკრანები დაიხურება. მიმდინარე თრედები გაგრძელდება.";
-"Your saved profiles could not be updated. Please try again." = "შენახული პროფილების განახლება ვერ მოხერხდა. გთხოვთ, სცადოთ თავიდან.";
+"Switch profile" = "პროფილის გადართვა";
+"Switch profile?" = "გადაირთოთ პროფილი?";
+"Open screens will be closed." = "გახსნილი ეკრანები დაიხურება.";
+"View profile" = "ნახეთ პროფილი";
+"Your saved profiles could not be updated. Please try again." = "შენახული პროფილების განახლება ვერ მოხერხდა. გთხოვთ, სცადოთ ხელახლა.";
 
-/* TuistApp/ThreadEmptyStateView.swift */
-"Big things start here" = "დიდი საქმეები აქ იწყება";
-"Ask a question, explore an idea, or solve a problem with Tuist." = "დაუსვი კითხვა, გამოიკვლიე იდეა ან გადაჭერი პრობლემა Tuist-თან ერთად.";
-"All clear, nothing archived" = "ყველაფერი რიგზეა, არაფერია დაარქივებული";
-"Archived threads will live here. You can come back to them anytime." = "დაარქივებული თრედები აქ შეინახება. მათ ნებისმიერ დროს შეგიძლია დაუბრუნდე.";
+"This Mac" = "ეს Mac";
+"None of this preview's macOS builds can run on this Mac's processor." = "ამ ნაწილობრივი აგების macOS ვერსიები არ შეუძლიათ ამ Mac-ის პროცესორზე გაშვება.";

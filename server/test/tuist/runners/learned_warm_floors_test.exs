@@ -129,4 +129,25 @@ defmodule Tuist.Runners.LearnedWarmFloorsTest do
 
     assert LearnedWarmFloors.hours_with_jobs(fleet) == 1
   end
+
+  test "counts the jobs that arrived with another of the pool's jobs in the 30 s before them" do
+    fleet = unique_fleet()
+
+    # A fan-out of four (three past its first job), and two jobs a minute
+    # apart, each the first of its own burst.
+    burst!(fleet, ago(3600), 4)
+    job!(fleet, ago(600))
+    job!(fleet, ago(540))
+    job!(fleet, ago(500), status: "completed", conclusion: "skipped")
+
+    assert LearnedWarmFloors.cold_jobs(fleet) == 3
+  end
+
+  test "reports no cold jobs for a pool with no job in the last day" do
+    fleet = unique_fleet()
+
+    burst!(fleet, ago(2 * 86_400), 5)
+
+    assert LearnedWarmFloors.cold_jobs(fleet) == 0
+  end
 end

@@ -53,6 +53,12 @@ func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int, 
 	c.rememberCheckout(string(pod.UID), task)
 	c.Checkouts.Track(task)
 	if c.Checkouts.Master(grant.Scope, grant.Generation) == "" {
+		// A lineage this host just refused to start would be refused again: denying
+		// it keeps the job from exporting at all.
+		if task.BaseGeneration == 0 && c.Checkouts.Refusing(grant.Scope) {
+			c.endUse(ctx, grant.ID)
+			return map[string]any{"error": "unavailable", "reason": "denied"}
+		}
 		if task.BaseGeneration > 0 {
 			c.Checkouts.Enqueue(task)
 		}

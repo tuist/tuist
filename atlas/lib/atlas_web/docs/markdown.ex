@@ -133,10 +133,10 @@ defmodule AtlasWeb.Docs.Markdown do
     <div data-part="code-window">
       <div data-part="bar">
         <div data-part="language">{@language}</div>
-        <.neutral_button data-part="copy" size="large" aria-label="Copy code">
+        <.ghost_button variant="secondary" data-part="copy" size="large" aria-label="Copy code">
           <span data-part="copy-icon"><.copy /></span>
           <span data-part="copy-check-icon"><.check /></span>
-        </.neutral_button>
+        </.ghost_button>
       </div>
       <template data-part="copy-source">{@source}</template>
       <div data-part="code">

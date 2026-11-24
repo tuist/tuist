@@ -46,6 +46,9 @@ defmodule Tuist.MCP.WebMCP do
       Tools.GetBazelInvocation,
       Tools.ListBazelBuildSteps,
       Tools.GetBazelBuildStep,
+      Tools.ListBazelRemoteActions,
+      Tools.GetBazelRemoteAction,
+      Tools.GetBazelRemoteActionLog,
       Tools.ListBazelInvocationLogs,
       Tools.GetBazelInvocationLog,
       Tools.ListBazelCacheEvents,
@@ -72,7 +75,13 @@ defmodule Tuist.MCP.WebMCP do
     Tools.ListTestCaseEvents,
     Tools.GetCoverage,
     Tools.ListCoverageFiles,
-    Tools.GetCoverageFile
+    Tools.GetCoverageFile,
+    Tools.ListCoverageBranches,
+    Tools.ListCoverageCommits,
+    Tools.ListCoverageRuns,
+    Tools.ListCoverageTargets,
+    Tools.ListSelectiveTestingTests,
+    Tools.ListSelectiveTestingChangedFiles
   ]
 
   # Selective testing is Xcode's, and Once records its test runs as Once runs.
@@ -146,6 +155,7 @@ defmodule Tuist.MCP.WebMCP do
     do: "builds"
 
   defp project_page([module_cache | _]) when module_cache in ["module-cache", "runs"], do: "module-cache"
+  defp project_page(["remote-execution"]), do: "remote-execution"
   defp project_page(["bundles" | _]), do: "bundles"
   defp project_page(["previews" | _]), do: "previews"
   defp project_page(["settings" | _]), do: "project-settings"
@@ -154,7 +164,7 @@ defmodule Tuist.MCP.WebMCP do
 
   defp account_page([]), do: "projects"
   defp account_page(["projects"]), do: "projects"
-  defp account_page(["~", "pulse", signal | _]) when signal in ~w(metrics logs traces errors), do: "pulse"
+  defp account_page(["pulse" | _]), do: "pulse"
   defp account_page(["runners" | _]), do: "runners"
   defp account_page(["webhooks" | _]), do: "webhooks"
   defp account_page(["sandboxes" | _]), do: "sandboxes"
@@ -185,6 +195,9 @@ defmodule Tuist.MCP.WebMCP do
   defp page_tools("builds", build_system), do: Map.get(@build_tools, build_system, []) ++ @build_entity_tools
 
   defp page_tools("tests", build_system), do: @test_tools ++ Map.get(@build_system_test_tools, build_system, [])
+
+  defp page_tools("remote-execution", _build_system),
+    do: [Tools.GetRemoteExecutionActivity, Tools.GetRemoteExecutionUsage]
 
   defp page_tools("module-cache", _build_system), do: @module_cache_tools
   defp page_tools("bundles", _build_system), do: [Tools.ListBundles, Tools.GetBundle, Tools.GetBundleArtifactTree]
