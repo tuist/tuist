@@ -217,7 +217,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   `admission cancelled a background prefetch` (the cancelled prefetch's `scope`
   plus the `for_*` subject it made room for), and `removed leftovers from the
   runner-cache root` (`removed`, `freed_bytes`). Fields are listed in [`runner-cache`](../runner-cache/AGENTS.md).
-  The `tuist_runner_cache_volume_*` metrics keep only operation/source/result.
+  The `tuist_runner_cache_volume_*` metrics keep only operation/source/result,
+  except `tuist_runner_cache_volume_cold_attaches_total{reason}`, which counts
+  cold attaches by their bounded cold reason (`unknown` when none was recorded).
   Everything that happened to one volume on a host, from production Pulse's
   `opentelemetry_logs` through the **Tuist Pulse SQL** data source (see
   [`macos-log-shipper`](../macos-log-shipper/AGENTS.md#querying)):

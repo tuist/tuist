@@ -37,3 +37,25 @@ func TestCustomCachePhaseLogsItsVolume(t *testing.T) {
 		t.Fatal("phase not counted under its bounded labels", got)
 	}
 }
+
+// Why a job started empty is the only way to tell a cold attach caused by an
+// eviction from one caused by a download still in flight.
+func TestCustomCacheCountsColdAttachesByReason(t *testing.T) {
+	captureLogs(t)
+	count := func(reason string) float64 {
+		return testutil.ToFloat64(customCacheColdAttaches.WithLabelValues(reason))
+	}
+	evicted, unknown := count(cachevolumes.ColdEvicted+cachevolumes.EvictIdle), count("unknown")
+	cold := cachevolumes.Slot{Identity: cachevolumes.Identity{Scope: strings.Repeat("e", 64), BaseGeneration: 4}, ColdReason: cachevolumes.ColdEvicted + cachevolumes.EvictIdle}
+	cachevolumes.Observer(observeCustomCache).For(cold).Start("attach", "cold")(nil)
+	cold.ColdReason = ""
+	cachevolumes.Observer(observeCustomCache).For(cold).Start("attach", "cold")(nil)
+	cachevolumes.Observer(observeCustomCache).For(cold).Start("attach", "local")(nil)
+	cachevolumes.Observer(observeCustomCache).For(cold).Start("attach", "cold")(errors.New("format failed"))
+	if got := count(cachevolumes.ColdEvicted+cachevolumes.EvictIdle) - evicted; got != 1 {
+		t.Fatal("evicted cold attaches", got)
+	}
+	if got := count("unknown") - unknown; got != 1 {
+		t.Fatal("cold attaches without a reason", got)
+	}
+}

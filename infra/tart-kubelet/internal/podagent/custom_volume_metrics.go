@@ -23,8 +23,15 @@ var customCachePrefetchedBytes = prometheus.NewCounterVec(prometheus.CounterOpts
 	Name: "tuist_runner_cache_volume_prefetched_bytes_total", Help: "Used bytes of the saved heads background prefetch installed, by why: job (a job started without it), refresh (a newer head of a master here), prewarm or recent (the server's listing).",
 }, []string{"reason"})
 
+// customCacheColdAttaches counts the attaches of a warm identity that started
+// empty, by the cold reason runner-cache recorded: downloading, not_on_host,
+// evicted_<eviction reason>, or unknown.
+var customCacheColdAttaches = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "tuist_runner_cache_volume_cold_attaches_total", Help: "Attaches of a saved custom cache volume that started empty on this host, by why the host had no copy.",
+}, []string{"reason"})
+
 func init() {
-	metrics.Registry.MustRegister(customCacheOperations, customCacheDuration, customCachePrefetchedBytes)
+	metrics.Registry.MustRegister(customCacheOperations, customCacheDuration, customCachePrefetchedBytes, customCacheColdAttaches)
 }
 
 // The result category bounds the metric. The log line also carries the volume's
@@ -34,6 +41,13 @@ func observeCustomCache(o cachevolumes.Observation) {
 	result := cachevolumes.Result(o.Err)
 	customCacheOperations.WithLabelValues(o.Operation, o.Source, result).Inc()
 	customCacheDuration.WithLabelValues(o.Operation, o.Source).Observe(o.Duration.Seconds())
+	if o.Operation == "attach" && o.Source == "cold" && o.Err == nil {
+		reason := o.Subject.ColdReason
+		if reason == "" {
+			reason = "unknown"
+		}
+		customCacheColdAttaches.WithLabelValues(reason).Inc()
+	}
 	values := append([]any{"operation", o.Operation, "source", o.Source, "result", result, "duration", o.Duration}, o.Subject.Fields()...)
 	if o.Err != nil {
 		values = append(values, "error", o.Err.Error())
