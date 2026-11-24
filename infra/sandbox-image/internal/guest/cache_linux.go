@@ -87,15 +87,20 @@ func BindCheckoutCache(log *slog.Logger, mount, checkout string, uid, gid int) i
 	if mounted, err := IsMountPoint(mount); err != nil || !mounted {
 		return 0
 	}
+	// Without a cache drive there is nothing to say; with one, every outcome
+	// is logged, so a session that got a cache shows why it bound nothing.
 	if info, err := os.Lstat(checkout); err != nil || !info.IsDir() {
+		log.Info("cache not bound into checkout", "checkout", checkout, "reason", "no checkout")
 		return 0
 	}
 	raw, err := os.ReadFile(filepath.Join(mount, cacheManifest))
 	if err != nil {
+		log.Info("cache not bound into checkout", "checkout", checkout, "reason", "no path manifest")
 		return 0
 	}
 	binds := CheckoutCacheBinds(raw, checkout)
 	if len(binds) == 0 {
+		log.Info("cache not bound into checkout", "checkout", checkout, "reason", "no checkout-relative paths")
 		return 0
 	}
 	started := time.Now()

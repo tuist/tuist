@@ -2,6 +2,8 @@ package cachevolumes
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -17,6 +19,7 @@ type testTransfer struct {
 	source             string
 	conflict, fail     bool
 	generation         int64
+	paths              [][]string
 }
 
 func (t *testTransfer) Download(_ context.Context, _ Slot, path string) error {
@@ -27,8 +30,9 @@ func (t *testTransfer) Download(_ context.Context, _ Slot, path string) error {
 	}
 	return os.WriteFile(path, data, 0600)
 }
-func (t *testTransfer) Publish(_ Slot, path, digest, content string) (int64, error) {
+func (t *testTransfer) Publish(slot Slot, path, digest, content string) (int64, error) {
 	t.uploads++
+	t.paths = append(t.paths, slot.Paths)
 	if t.fail {
 		return 0, errors.New("upload failed")
 	}
@@ -744,5 +748,63 @@ func TestLocalCloneMasterForSandboxes(t *testing.T) {
 	info, err := os.Stat(master)
 	if err != nil || time.Since(info.ModTime()) > time.Hour || speculative(master) {
 		t.Fatal("a sandbox's use must mark the master used")
+	}
+}
+
+// A sealed branch reports the spellings its .tuist-paths records under
+// tuist-cache-volume's rules, also from a seal retried once it is unmounted,
+// and reports nothing for a manifest the job pointed outside the volume.
+func TestSealReportsTheBranchPathManifest(t *testing.T) {
+	sum := func(spelling string) string {
+		h := sha256.Sum256([]byte(spelling))
+		return hex.EncodeToString(h[:])
+	}
+	b, remote := newLocal(t)
+	remote.fail = true
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, path)
+	manifest, _ := json.Marshal(map[string]any{"version": 1, "paths": map[string]string{
+		"server/deps":    "data",
+		"~/.cache/mix":   sum("~/.cache/mix"),
+		"/opt/toolchain": sum("/opt/toolchain"),
+		"~/.hex":         "not-its-digest",
+		"../escape":      sum("../escape"),
+	}})
+	writeFile(t, filepath.Join(path, ".tuist-paths"), string(manifest))
+	if err := b.Seal(slot, path); err == nil {
+		t.Fatal("upload failure was not reported")
+	}
+	// The retry finds the branch verified and unmounted: the manifest is gone.
+	os.Remove(filepath.Join(path, ".tuist-paths"))
+	remote.fail = false
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	want := `[["/opt/toolchain","server/deps","~/.cache/mix"],["/opt/toolchain","server/deps","~/.cache/mix"]]`
+	if got, _ := json.Marshal(remote.paths); string(got) != want {
+		t.Fatalf("reported %s, want %s", got, want)
+	}
+
+	b, remote = newLocal(t)
+	other := Slot{Identity: identity(second), PodUID: "q"}
+	otherPath := t.TempDir()
+	if err := b.Attach(context.Background(), other, otherPath); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, otherPath)
+	outside := filepath.Join(t.TempDir(), "manifest")
+	writeFile(t, outside, string(manifest))
+	if err := os.Symlink(outside, filepath.Join(otherPath, ".tuist-paths")); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Seal(other, otherPath); err != nil {
+		t.Fatal(err)
+	}
+	if len(remote.paths) != 1 || remote.paths[0] != nil {
+		t.Fatal("followed a manifest outside the volume:", remote.paths)
 	}
 }

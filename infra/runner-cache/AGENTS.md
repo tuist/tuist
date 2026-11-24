@@ -42,6 +42,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Publish synchronously after verification: compress, preflight, upload,
   fast-forward, then install the accepted master. Bound compressed and expanded
   downloads and verify checksums. Require reflinks without byte-copy fallback.
+- Verification records the mounted branch's `.tuist-paths` spellings (read
+  through `os.Root`, so a job's symlink cannot redirect it) in `<image>.paths`
+  before unmounting, and the fast-forward sends them as `paths`. Omit the field
+  when they are unknown: the server ranks sandbox cache grants by it and treats
+  a missing field as unknown, not empty.
 - Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
   save and restore cost scales with data, not the logical image size. Restore
   must keep accepting legacy full-image gzip masters until they age out.

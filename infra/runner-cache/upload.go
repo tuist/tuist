@@ -108,7 +108,12 @@ func (t *HTTPTransfer) publish(slot Slot, path, digest, content string, state *p
 		}
 		state.stored = true
 	}
-	result, err := t.request(ctx, slot, "publish", digest, content)
+	// Paths are omitted when unknown, so the server keeps treating them as such.
+	var extra map[string]any
+	if slot.Paths != nil {
+		extra = map[string]any{"paths": slot.Paths}
+	}
+	result, err := t.requestWith(ctx, slot, "publish", digest, content, extra)
 	if err == nil && result.Generation <= slot.BaseGeneration {
 		return 0, sent, errors.New("invalid published generation")
 	}
