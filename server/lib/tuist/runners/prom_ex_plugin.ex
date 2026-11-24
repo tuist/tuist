@@ -248,6 +248,19 @@ defmodule Tuist.Runners.PromExPlugin do
         ]
       ),
       Event.build(
+        :tuist_runners_dispatch_refused_event_metrics,
+        [
+          counter(
+            @metric_prefix ++ [:dispatch, :refused, :count],
+            event_name: Telemetry.event_name_dispatch_refused(),
+            description:
+              "Jobs not queued because their account may not run them now (allowance spent, runners off), " <>
+                "by provider and reason. Pull lanes count every poll that still finds them waiting.",
+            tags: [:provider, :reason]
+          )
+        ]
+      ),
+      Event.build(
         :tuist_runners_recovery_event_metrics,
         [
           counter(

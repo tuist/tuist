@@ -628,11 +628,6 @@ defmodule TuistWeb.API.RunnersController do
       {:error, :unknown_profile} ->
         conn |> put_status(:unprocessable_entity) |> json(%{message: "No runner profile matches the profile field."})
 
-      {:error, :shape_exceeds_limit} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{message: "The profile's machine is larger than the account's runner concurrency limit allows."})
-
       {:error, {:invalid, field}} ->
         conn |> put_status(:unprocessable_entity) |> json(%{message: "The #{field} field is invalid."})
 

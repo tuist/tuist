@@ -128,7 +128,7 @@ defmodule Tuist.Runners.BuildkiteTest do
       assert mapping.workflow_job_id >= 1_000_000_000_000_000
     end
 
-    test "leaves a queue whose shape exceeds the account's whole limit unreserved", %{
+    test "reserves a queue whose shape exceeds the account's whole limit, to wait until the limit admits it", %{
       installation: installation,
       account: account,
       queue_key: queue_key
@@ -146,10 +146,10 @@ defmodule Tuist.Runners.BuildkiteTest do
         {:ok, %{jobs: [scheduled_job(%{queue_key: queue_key})], dispatch_paused: false}}
       end)
 
-      reject(&Client.reserve/4)
+      stub(Client, :reserve, fn _installation, _stack, uuids, _expiry -> {:ok, uuids} end)
 
-      assert {:ok, 0} = Buildkite.poll(installation)
-      assert Repo.aggregate(WorkflowJob, :count) == 0
+      assert {:ok, 1} = Buildkite.poll(installation)
+      assert Repo.one!(WorkflowJob).status == "queued"
     end
 
     test "leaves a paused queue alone", %{installation: installation, queue_key: queue_key} do

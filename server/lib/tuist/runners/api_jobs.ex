@@ -67,7 +67,7 @@ defmodule Tuist.Runners.APIJobs do
 
   Returns `{:ok, job, :created}`, `{:ok, job, :existing}` or
   `{:error, reason}`, where reason is `:allowance_exhausted`,
-  `:unknown_profile`, `:shape_exceeds_limit`, `{:invalid, field}` or an `Ecto.Changeset`.
+  `:unknown_profile`, `{:invalid, field}` or an `Ecto.Changeset`.
   """
   def create_job(%Account{} = account, attrs) when is_map(attrs) do
     case existing_job(account.id, attrs[:idempotency_key]) do
@@ -82,7 +82,6 @@ defmodule Tuist.Runners.APIJobs do
   defp insert_job(account, attrs) do
     with :ok <- check_allowance(account),
          {:ok, target} <- resolve_target(account, attrs[:profile]),
-         :ok <- Dispatch.check_shape_fits_limit(account, target),
          {:ok, payload} <- build_payload(attrs) do
       changeset =
         Job.changeset(%Job{}, %{

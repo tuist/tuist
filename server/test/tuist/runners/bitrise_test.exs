@@ -106,7 +106,7 @@ defmodule Tuist.Runners.BitriseTest do
       refute lifecycle(elsewhere.build_slug)
     end
 
-    test "does not queue a build whose shape exceeds the account's whole limit", %{
+    test "queues a build whose shape exceeds the account's whole limit", %{
       connection: connection,
       account: account
     } do
@@ -122,8 +122,19 @@ defmodule Tuist.Runners.BitriseTest do
       waiting = remote_build()
       stub(Client, :list_unfinished_builds, fn _connection -> {:ok, [waiting]} end)
 
-      assert {:ok, 0} = Bitrise.poll(connection)
-      refute lifecycle(waiting.build_slug)
+      assert {:ok, 1} = Bitrise.poll(connection)
+      assert lifecycle(waiting.build_slug).status == "queued"
+    end
+
+    test "reports waiting builds refused while the allowance is exhausted", %{connection: connection} do
+      stub(Allowance, :exhausted?, fn _account -> true end)
+      stub(Client, :list_unfinished_builds, fn _connection -> {:ok, [remote_build(), remote_build()]} end)
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :runners, :dispatch, :refused]])
+
+      assert {:error, :allowance_exhausted} = Bitrise.poll(connection)
+
+      assert_received {[:tuist, :runners, :dispatch, :refused], ^ref, %{count: 2},
+                       %{provider: "bitrise", reason: "allowance_exhausted"}}
     end
 
     test "does not queue a build twice", %{connection: connection} do

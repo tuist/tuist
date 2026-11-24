@@ -240,7 +240,7 @@ defmodule Tuist.Runners.DispatchTest do
                Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
     end
 
-    test "returns {:ignored, :shape_exceeds_limit} for a job its account's limit could never admit" do
+    test "queues a job larger than its account's whole limit, to wait until the limit admits it" do
       account = enabled_account()
       stub(Accounts, :get_account_by_handle, fn _ -> account end)
 
@@ -260,9 +260,7 @@ defmodule Tuist.Runners.DispatchTest do
           runner_macos_memory_gb_limit: memory_gb
         })
 
-      reject(&Jobs.enqueue_if_missing/1)
-
-      assert {:ignored, :shape_exceeds_limit} =
+      assert {:ok, :queued} =
                Dispatch.handle_webhook(queued_payload(owner: account.name, labels: ["tuist-macos"]), 1)
     end
 

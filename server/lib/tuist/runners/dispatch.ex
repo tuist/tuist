@@ -45,7 +45,6 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
-  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Profile
@@ -143,15 +142,16 @@ defmodule Tuist.Runners.Dispatch do
   defp webhook_outcome(_), do: "unknown"
 
   @doc """
-  `:ok` when one job of `target`'s shape fits `account`'s whole platform
-  limit, `{:error, :shape_exceeds_limit}` when admission could never claim it.
-  Every path that queues a job checks it, so such a job is refused where it
-  arrives instead of waiting until its provider times it out.
+  Counts `count` jobs of `provider` that were not queued for `reason`
+  (`:allowance_exhausted` or `:runners_disabled`) on
+  `tuist_runners_dispatch_refused_count`. A job over its account's
+  concurrency limit is queued instead and waits as withheld work.
   """
-  def check_shape_fits_limit(account, %{platform: platform} = target) do
-    if Concurrency.fits?(%{vcpus: 0, memory_gb: 0}, Concurrency.limits_for(account, platform), target),
-      do: :ok,
-      else: {:error, :shape_exceeds_limit}
+  def report_refused(provider, reason, count \\ 1) when is_binary(provider) and is_atom(reason) do
+    :telemetry.execute(Telemetry.event_name_dispatch_refused(), %{count: count}, %{
+      provider: provider,
+      reason: Atom.to_string(reason)
+    })
   end
 
   # Only an account with no paid plan is ever blocked: exceeding the
@@ -178,7 +178,6 @@ defmodule Tuist.Runners.Dispatch do
     with {:ok, account} <- fetch_enabled_account(installation, owner),
          :ok <- check_allowance(account),
          {:ok, target} <- resolve_dispatch_target(account, requested),
-         :ok <- check_shape_fits_limit(account, target),
          :ok <- enqueue_fun.(enqueue_attrs(account, target, full_name, job)) do
       Logger.info("runners: enqueued",
         account: account.name,
@@ -213,19 +212,8 @@ defmodule Tuist.Runners.Dispatch do
           workflow_job_id: Map.get(job, "id")
         )
 
+        report_refused("github", :allowance_exhausted)
         {:ignored, :allowance_exhausted}
-
-      {:error, :shape_exceeds_limit} ->
-        # Admission could never claim it, so queueing it would only hold
-        # it until GitHub times it out. Air's macOS limit fits one baseline
-        # guest, not the larger shape.
-        Logger.info("runners: job shape exceeds the account's concurrency limit; not dispatching",
-          owner: owner,
-          repo: full_name,
-          workflow_job_id: Map.get(job, "id")
-        )
-
-        {:ignored, :shape_exceeds_limit}
 
       {:error, :runners_disabled} ->
         Logger.info("runners: runners not enabled for account; ignoring",
