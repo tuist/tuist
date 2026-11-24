@@ -219,6 +219,7 @@ let project = Project(
             dependencies: [
                 .target(name: "TuistApp"),
                 .external(name: "TuistSnapshotsTesting"),
+                .external(name: "TestCoverageAttribution"),
             ]
         ),
         .target(
