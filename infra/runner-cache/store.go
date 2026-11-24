@@ -138,9 +138,10 @@ type Slot struct {
 	// Discard is set once the branch is being deleted: a pass that finds its loop
 	// device still held by another mount deletes it again instead of sealing it.
 	Discard bool `json:"discard,omitempty"`
-	// Paths are the spellings the branch's .tuist-paths records, set only while
-	// it is published; nil means unknown (no or an invalid manifest).
-	Paths []string `json:"-"`
+	// Paths is the JSON array of spellings the branch's .tuist-paths records,
+	// set only while it is published; "" means unknown (no or an invalid
+	// manifest). A string keeps Slot comparable.
+	Paths string `json:"-"`
 }
 
 // Backend owns storage operations and must make every operation restart-safe.

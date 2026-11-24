@@ -318,7 +318,7 @@ func TestPublishRetriesOnlyTheFastForwardAfterTheUploadLanded(t *testing.T) {
 // The fast-forward reports the paths a branch's manifest records, and omits
 // them when unknown so the server does not take an old agent's silence for none.
 func TestPublishReportsTheBranchPathsOnlyWhenKnown(t *testing.T) {
-	for _, paths := range [][]string{nil, {}, {"server/deps", "~/.cache/mix"}} {
+	for _, paths := range []string{"", `[]`, `["server/deps","~/.cache/mix"]`} {
 		s := newUploadServer(t)
 		slot := Slot{Identity: identity(first), Paths: paths}
 		slot.BaseGeneration = 1
@@ -326,16 +326,15 @@ func TestPublishReportsTheBranchPathsOnlyWhenKnown(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, ok := s.published[0]["paths"]
-		if paths == nil {
+		if paths == "" {
 			if ok {
 				t.Fatal("reported unknown paths as", got)
 			}
 			continue
 		}
 		data, _ := json.Marshal(got)
-		want, _ := json.Marshal(paths)
-		if !ok || string(data) != string(want) {
-			t.Fatalf("paths = %s, want %s", data, want)
+		if !ok || string(data) != paths {
+			t.Fatalf("paths = %s, want %s", data, paths)
 		}
 	}
 }

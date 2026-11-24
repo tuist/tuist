@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -110,8 +111,8 @@ func (t *HTTPTransfer) publish(slot Slot, path, digest, content string, state *p
 	}
 	// Paths are omitted when unknown, so the server keeps treating them as such.
 	var extra map[string]any
-	if slot.Paths != nil {
-		extra = map[string]any{"paths": slot.Paths}
+	if slot.Paths != "" {
+		extra = map[string]any{"paths": json.RawMessage(slot.Paths)}
 	}
 	result, err := t.requestWith(ctx, slot, "publish", digest, content, extra)
 	if err == nil && result.Generation <= slot.BaseGeneration {

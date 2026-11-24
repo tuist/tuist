@@ -19,7 +19,7 @@ type testTransfer struct {
 	source             string
 	conflict, fail     bool
 	generation         int64
-	paths              [][]string
+	paths              []string
 }
 
 func (t *testTransfer) Download(_ context.Context, _ Slot, path string) error {
@@ -784,9 +784,9 @@ func TestSealReportsTheBranchPathManifest(t *testing.T) {
 	if err := b.Seal(slot, path); err != nil {
 		t.Fatal(err)
 	}
-	want := `[["/opt/toolchain","server/deps","~/.cache/mix"],["/opt/toolchain","server/deps","~/.cache/mix"]]`
-	if got, _ := json.Marshal(remote.paths); string(got) != want {
-		t.Fatalf("reported %s, want %s", got, want)
+	want := `["/opt/toolchain","server/deps","~/.cache/mix"]`
+	if len(remote.paths) != 2 || remote.paths[0] != want || remote.paths[1] != want {
+		t.Fatalf("reported %q, want %s twice", remote.paths, want)
 	}
 
 	b, remote = newLocal(t)
@@ -804,7 +804,7 @@ func TestSealReportsTheBranchPathManifest(t *testing.T) {
 	if err := b.Seal(other, otherPath); err != nil {
 		t.Fatal(err)
 	}
-	if len(remote.paths) != 1 || remote.paths[0] != nil {
+	if len(remote.paths) != 1 || remote.paths[0] != "" {
 		t.Fatal("followed a manifest outside the volume:", remote.paths)
 	}
 }

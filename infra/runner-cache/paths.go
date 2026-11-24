@@ -104,15 +104,15 @@ func recordPaths(image, mountpoint string) error {
 	return durableRename(image+".paths.tmp", image+".paths")
 }
 
-// recordedPaths returns the paths recordPaths kept, or nil when unknown.
-func recordedPaths(image string) []string {
+// recordedPaths returns the JSON array recordPaths kept, or "" when unknown.
+func recordedPaths(image string) string {
 	data, err := os.ReadFile(image + ".paths")
 	if err != nil {
-		return nil
+		return ""
 	}
 	var paths []string
 	if json.Unmarshal(data, &paths) != nil || paths == nil {
-		return nil
+		return ""
 	}
-	return paths
+	return string(data)
 }
