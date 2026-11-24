@@ -568,6 +568,10 @@ kuraController:
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
+  # Every OVH Kura box has a 25 Gbps vRack link separate from its public
+  # link, so traffic to private-network peers (remote execution workers,
+  # other Kura boxes) skips the tenants' public ceilings up to this rate.
+  privateNetworkMbps: 20000
 
 # CSI installation and upgrades are separate from tenant enrollment. Routine
 # server deployments preserve its installed image; upgrades require an explicit digest.
