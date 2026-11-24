@@ -240,25 +240,19 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       false
   end
 
-  # Which lines each test ran, with the identity each test is reported by
-  # and each counting module's source, for the owner to turn into the run's
-  # `coverage_evidence` once it knows the repository's root.
+  # The file of what each test ran, with the identity each test is reported
+  # by and each counting module's source, for the owner to turn into the
+  # run's `coverage_evidence` once it knows the repository's root.
   defp put_evidence(payload, %{evidence?: true} = state) do
     case Evidence.collect() do
       nil ->
         payload
 
       collected ->
-        modules =
-          Enum.flat_map(
-            [collected.boot | Map.values(collected.tests) ++ Map.values(collected.targets)],
-            &Map.keys/1
-          )
-
         Map.put(payload, :evidence_snapshot, %{
           collected: collected,
           identities: state.identities,
-          sources: Coverage.sources(modules)
+          sources: Coverage.sources(collected.modules)
         })
     end
   rescue

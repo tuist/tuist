@@ -124,6 +124,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.TestSelection
   alias TuistEx.Auth
   alias TuistEx.Git
+  alias TuistEx.HTTP.JSONFile
 
   @formatter ExUnitFormatter
   @preferred_cli_env :test
@@ -132,6 +133,9 @@ defmodule Mix.Tasks.Tuist.Test do
   @retry_mix_path "TUIST_EX_RETRY_MIX_PATH"
   @retry_selection "TUIST_EX_RETRY_SELECTION"
   @suite_failed "\"mix test\" failed"
+  # The server's limit on a report's (inflated) body, less room for the
+  # request's own framing.
+  @report_limit 50_000_000 - 1_000_000
 
   def run(args) do
     case Args.ensure_env(:test, "tuist.test", args) do
@@ -330,12 +334,42 @@ defmodule Mix.Tasks.Tuist.Test do
               coverage_summary: CoverageSummary.options(options[:shard_index])
             )
 
-          {Keyword.put(options, :coverage_evidence, TestSelection.configured?()),
-           Coverage.without_cover(test_args)}
+          evidence? = TestSelection.configured?() and evidence_supported?()
+          test_args = Coverage.without_cover(test_args)
+
+          {Keyword.put(options, :coverage_evidence, evidence?),
+           if(evidence?, do: one_at_a_time(test_args), else: test_args)}
         else
           {options, test_args}
         end
     end
+  end
+
+  # Before Elixir 1.19 nothing tells a test's process apart, so the run
+  # records no evidence and keeps its concurrency.
+  defp evidence_supported? do
+    supported? = Evidence.supported?()
+
+    if not supported? do
+      Mix.shell().info(
+        "warning: Tuist: recording which lines each test executes needs Elixir 1.19 or later, " <>
+          "so this run records none for coverage-based test selection"
+      )
+    end
+
+    supported?
+  end
+
+  # What a test executed is the change in the line counters while it ran, so
+  # a run that records evidence runs one module at a time: `--max-cases`
+  # given last wins, over the test helper's too. Sharding parallelizes it.
+  defp one_at_a_time(test_args) do
+    Mix.shell().info(
+      "Tuist: running test modules one at a time to record which lines each test executes; " <>
+        "shard the run with mix tuist.test.build to run in parallel"
+    )
+
+    test_args ++ ["--max-cases", "1"]
   end
 
   # Mix's coverage tool writes an HTML report to `:output`; counting natively
@@ -712,6 +746,8 @@ defmodule Mix.Tasks.Tuist.Test do
       payload
       |> with_coverage(options, opts, history, network_publishing?)
       |> ExUnitFormatter.submit(opts)
+
+      if dir = get_in(payload, [:evidence_snapshot, :collected, :dir]), do: File.rm_rf(dir)
     end
 
     upload_history(history, &GitHistory.upload_listing/2, network_publishing?)
@@ -780,7 +816,10 @@ defmodule Mix.Tasks.Tuist.Test do
   end
 
   # Which lines each test ran, by repository-relative path, as the run's
-  # coverage names its files.
+  # coverage names its files, written to a file the request reads as it's
+  # sent. Evidence that would take the report past the server's limit is
+  # written again without lines, which selection doesn't need, and left out
+  # when even that doesn't fit.
   defp with_evidence(payload, nil), do: payload
 
   defp with_evidence(payload, %{collected: collected, identities: identities, sources: sources}) do
@@ -792,11 +831,36 @@ defmodule Mix.Tasks.Tuist.Test do
           if String.starts_with?(path, root <> "/"), do: Path.relative_to(path, root)
         end
 
-        Map.put(
-          payload,
-          :coverage_evidence,
-          Evidence.payload(collected, identities, sources, relative)
-        )
+        out = Path.join(collected.dir, "coverage_evidence.json")
+        write = &Evidence.write(collected, identities, sources, relative, out, lines: &1)
+        budget = @report_limit - IO.iodata_length(JSON.encode_to_iodata!(payload))
+        :ok = write.(true)
+
+        cond do
+          File.stat!(out).size <= budget ->
+            Map.put(payload, :coverage_evidence, %JSONFile{path: out})
+
+          (
+            size = File.stat!(out).size
+            :ok = write.(false)
+            File.stat!(out).size <= budget
+          ) ->
+            Mix.shell().info(
+              "warning: Tuist: the run's coverage evidence (#{megabytes(size)}) is too large " <>
+                "to send with lines, so carried coverage can't use it; " <>
+                "shard the run with mix tuist.test.build to keep them"
+            )
+
+            Map.put(payload, :coverage_evidence, %JSONFile{path: out})
+
+          true ->
+            Mix.shell().info(
+              "warning: Tuist: the run's coverage evidence is too large to send, so it's left out; " <>
+                "shard the run with mix tuist.test.build"
+            )
+
+            payload
+        end
 
       :error ->
         payload
@@ -809,6 +873,8 @@ defmodule Mix.Tasks.Tuist.Test do
 
       payload
   end
+
+  defp megabytes(bytes), do: "#{Float.round(bytes / 1_000_000, 1)} MB"
 
   defp do_with_coverage(payload, snapshot, options, opts, history) do
     payload = if history, do: Map.merge(payload, GitHistory.payload(history)), else: payload

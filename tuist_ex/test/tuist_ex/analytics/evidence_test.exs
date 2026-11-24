@@ -21,10 +21,12 @@ defmodule TuistEx.Analytics.EvidenceTest do
     )
   end
 
-  test "attributes to a test what it ran alone, and nothing to tests that overlapped", %{dir: dir} do
+  # The child's `coverage_evidence`, with scopes keyed by kind, module and
+  # name and their files resolved to `{path, lines}`.
+  defp run_suite(dir, max_cases, lines?) do
     File.write!(Path.join(dir, "m.erl"), """
     -module(m).
-    -export([boot/0, a/0, b/0, setup/0]).
+    -export([boot/0, a/0, b/0, setup/0, teardown/0]).
     boot() ->
       ok.
     a() ->
@@ -33,9 +35,11 @@ defmodule TuistEx.Analytics.EvidenceTest do
       ok.
     setup() ->
       ok.
+    teardown() ->
+      ok.
     """)
 
-    script = ~S"""
+    script = """
     dir = System.fetch_env!("EVIDENCE_DIR")
     :code.set_coverage_mode(:line_counters)
     {:ok, :m, bin} = :compile.file(String.to_charlist(Path.join(dir, "m.erl")), [:binary, :line_coverage])
@@ -43,7 +47,7 @@ defmodule TuistEx.Analytics.EvidenceTest do
     # What runs before any test, as the application and the test helper do.
     :m.boot()
 
-    ExUnit.start(autorun: false, formatters: [])
+    ExUnit.start(autorun: false, formatters: [], max_cases: #{max_cases})
     true = TuistEx.Analytics.Evidence.start([:m])
 
     defmodule SerialTest do
@@ -57,13 +61,14 @@ defmodule TuistEx.Analytics.EvidenceTest do
 
       setup_all do
         :m.setup()
+        on_exit(fn -> :m.teardown() end)
         :ok
       end
 
       test "inside", do: :m.a()
     end
 
-    # Modules ExUnit runs alongside each other.
+    # Modules ExUnit runs alongside each other, unless one at a time.
     defmodule AsyncOneTest do
       use ExUnit.Case, async: true
 
@@ -84,87 +89,87 @@ defmodule TuistEx.Analytics.EvidenceTest do
 
     ExUnit.run()
     collected = TuistEx.Analytics.Evidence.collect()
-    IO.puts("RESULT " <> Base.encode64(:erlang.term_to_binary(collected)))
+
+    identities =
+      for {module, name, suite} <- [
+            {SerialTest, "a", ""}, {SerialTest, "b", ""}, {SetupAllTest, "inside", ""},
+            {AsyncOneTest, "x", ""}, {AsyncTwoTest, "y", ""}
+          ],
+          into: %{},
+          do: {{module, :"test \#{name}"}, {inspect(module), suite, name}}
+
+    out = Path.join(dir, "evidence.json")
+    sources = %{m: Path.join(dir, "m.erl")}
+    :ok = TuistEx.Analytics.Evidence.write(collected, identities, sources, &Path.basename/1, out, lines: #{lines?})
+    File.rm_rf!(collected.dir)
+    IO.puts("RESULT " <> Base.encode64(File.read!(out)))
     """
 
     {output, 0} = run_child(script, dir)
     [_, encoded] = Regex.run(~r/RESULT (\S+)/, output)
-    collected = encoded |> Base.decode64!() |> :erlang.binary_to_term()
+    evidence = encoded |> Base.decode64!() |> JSON.decode!()
 
-    # Line 4 is boot/0's body, 6 a/0's, 8 b/0's and 10 setup/0's.
-    assert collected.boot == %{m: [4]}
-    assert collected.tests[{SerialTest, :"test a"}] == %{m: [6]}
-    assert collected.tests[{SerialTest, :"test b"}] == %{m: [8]}
-    assert collected.tests[{SetupAllTest, :"test inside"}] == %{m: [6]}
+    scopes =
+      Map.new(evidence["scopes"], fn scope ->
+        files = Enum.map(scope["files"], &Enum.at(evidence["paths"], &1))
+        lines = scope["lines"] || Enum.map(files, fn _ -> nil end)
+        {{scope["kind"], scope["module"], scope["name"]}, Enum.zip(files, lines)}
+      end)
 
-    assert collected.overlapped ==
-             MapSet.new([{AsyncOneTest, :"test x"}, {AsyncTwoTest, :"test y"}])
-
-    refute Map.has_key?(collected.tests, {AsyncOneTest, :"test x"})
-    # A module's `setup_all` is part of what every one of its tests depends on.
-    assert collected.targets[SetupAllTest] == %{m: [6, 10]}
-    assert collected.targets[SerialTest] == %{m: [6, 8]}
-    refute collected.failed
+    {evidence, scopes}
   end
 
-  describe "payload/4" do
-    test "names scopes by the identities runs report and paths by the repository" do
-      collected = %{
-        boot: %{App: [1, 2]},
-        tests: %{{CartTest, :"test add/2 adds"} => %{Cart: [3, 4, 5, 9], Outside: [1]}},
-        targets: %{CartTest => %{Cart: [3, 4, 5, 9, 20]}},
-        overlapped: MapSet.new([{AsyncTest, :"test races"}]),
-        failed: false
-      }
+  test "attributes to a test the lines it ran alone, and nothing to tests that overlapped",
+       %{dir: dir} do
+    {evidence, scopes} = run_suite(dir, 4, true)
 
-      identities = %{
-        {CartTest, :"test add/2 adds"} => {"CartTest", "add/2", "adds"},
-        {AsyncTest, :"test races"} => {"AsyncTest", "", "races"}
-      }
+    # Line 4 is boot/0's body, 6 a/0's, 8 b/0's, 10 setup/0's, 12 teardown/0's.
+    assert scopes[{"test", "SerialTest", "a"}] == [{"m.erl", [6, 6]}]
+    assert scopes[{"test", "SerialTest", "b"}] == [{"m.erl", [8, 8]}]
+    assert scopes[{"test", "SetupAllTest", "inside"}] == [{"m.erl", [6, 6]}]
 
-      sources = %{App: "/repo/lib/app.ex", Cart: "/repo/lib/cart.ex", Outside: "/elsewhere/x.ex"}
+    assert Enum.sort(evidence["overlapped_tests"]) == [
+             %{"module" => "AsyncOneTest", "name" => "x", "suite" => ""},
+             %{"module" => "AsyncTwoTest", "name" => "y", "suite" => ""}
+           ]
 
-      relative =
-        &if(String.starts_with?(&1, "/repo/"), do: String.replace_prefix(&1, "/repo/", ""))
+    refute Map.has_key?(scopes, {"test", "AsyncOneTest", "x"})
 
-      assert Evidence.payload(collected, identities, sources, relative) == %{
-               paths: ["lib/app.ex", "lib/cart.ex"],
-               scopes: [
-                 %{
-                   kind: "test",
-                   module: "CartTest",
-                   suite: "add/2",
-                   name: "adds",
-                   files: [1],
-                   lines: [[3, 5, 9, 9]]
-                 },
-                 # What ran before any test is part of every module's.
-                 %{
-                   kind: "target",
-                   module: "AsyncTest",
-                   suite: "",
-                   name: "",
-                   files: [0],
-                   lines: [[1, 2]]
-                 },
-                 %{
-                   kind: "target",
-                   module: "CartTest",
-                   suite: "",
-                   name: "",
-                   files: [0, 1],
-                   lines: [[1, 2], [3, 5, 9, 9, 20, 20]]
-                 }
-               ],
-               overlapped_tests: [%{module: "AsyncTest", suite: "", name: "races"}],
-               status: "collected"
-             }
-    end
+    # A module's `setup_all`, its tests and its `setup_all`'s `on_exit` are
+    # part of what every one of its tests depends on, as is the boot.
+    assert scopes[{"target", "SetupAllTest", ""}] == [{"m.erl", [4, 4, 6, 6, 10, 10, 12, 12]}]
+    assert scopes[{"target", "SerialTest", ""}] == [{"m.erl", [4, 4, 6, 6, 8, 8]}]
+    # Overlapped tests' modules still depend on the boot.
+    assert scopes[{"target", "AsyncOneTest", ""}] == [{"m.erl", [4, 4]}]
+    assert evidence["status"] == "collected"
+  end
 
-    test "a run whose hook failed says so" do
-      collected = %{boot: %{}, tests: %{}, targets: %{}, overlapped: MapSet.new(), failed: true}
-      assert %{status: "failed", scopes: []} = Evidence.payload(collected, %{}, %{}, & &1)
-    end
+  test "one module at a time, async tests get their own lines", %{dir: dir} do
+    {evidence, scopes} = run_suite(dir, 1, true)
+
+    assert evidence["overlapped_tests"] == []
+    assert scopes[{"test", "AsyncOneTest", "x"}] == [{"m.erl", [6, 6]}]
+    assert scopes[{"test", "AsyncTwoTest", "y"}] == [{"m.erl", [8, 8]}]
+    assert scopes[{"target", "AsyncTwoTest", ""}] == [{"m.erl", [4, 4, 8, 8]}]
+    # A test doesn't pick up the previous module's teardown.
+    assert scopes[{"test", "SetupAllTest", "inside"}] == [{"m.erl", [6, 6]}]
+  end
+
+  test "without lines, scopes name their files only", %{dir: dir} do
+    {_evidence, scopes} = run_suite(dir, 1, false)
+
+    assert scopes[{"test", "SerialTest", "a"}] == [{"m.erl", nil}]
+    assert scopes[{"target", "SetupAllTest", ""}] == [{"m.erl", nil}]
+  end
+
+  test "executed/2 compares counters by position, as a line can hold several" do
+    # A `def` with default arguments has a counter per generated clause.
+    before = [{Cart, [{474, 3}, {474, 0}, {476, 3}]}, {Other, [{1, 2}]}]
+    now = [{Cart, [{474, 3}, {474, 0}, {476, 4}]}, {Other, [{1, 2}]}, {Loaded, [{7, 1}, {8, 0}]}]
+
+    assert Evidence.executed(now, before) == %{Cart => [476], Loaded => [7]}
+    # A module whose counters changed shape counts every line that ran.
+    assert Evidence.executed([{Cart, [{474, 3}]}], before) == %{Cart => [474]}
   end
 
   test "ranges/1 flattens consecutive lines into inclusive ranges" do

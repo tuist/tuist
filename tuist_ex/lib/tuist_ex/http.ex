@@ -3,6 +3,13 @@ defmodule TuistEx.HTTP do
 
   alias TuistEx.CertificateTrust
 
+  defmodule JSONFile do
+    @moduledoc false
+    # A JSON value kept in a file, such as a report's coverage evidence,
+    # which a request body reads as it's built rather than holding it.
+    defstruct [:path]
+  end
+
   def request(method, url, body \\ nil, headers \\ [], timeouts \\ []) do
     start()
 
@@ -16,7 +23,8 @@ defmodule TuistEx.HTTP do
 
     request =
       if body do
-        {String.to_charlist(url), headers, ~c"application/json", JSON.encode!(body)}
+        {encoding, encoded} = encode(body)
+        {String.to_charlist(url), encoding ++ headers, ~c"application/json", encoded}
       else
         {String.to_charlist(url), headers}
       end
@@ -40,6 +48,41 @@ defmodule TuistEx.HTTP do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # A map body holding a `JSONFile` at its top level is deflated as it's
+  # built, the file read in chunks, so only the compressed body is held.
+  # The server inflates `Content-Encoding: deflate` (raw DEFLATE) bodies.
+  defp encode(%{} = body) when not is_struct(body) do
+    case Enum.split_with(body, &match?({_key, %JSONFile{}}, &1)) do
+      {[], _rest} -> {[], JSON.encode!(body)}
+      {files, rest} -> {[{~c"content-encoding", ~c"deflate"}], deflate(rest, files)}
+    end
+  end
+
+  defp encode(body), do: {[], JSON.encode!(body)}
+
+  defp deflate(rest, files) do
+    z = :zlib.open()
+
+    try do
+      :ok = :zlib.deflateInit(z, :default, :deflated, -15, 8, :default)
+      encoded = JSON.encode!(Map.new(rest))
+      prefix = binary_part(encoded, 0, byte_size(encoded) - 1)
+      separator = if rest == [], do: "", else: ","
+
+      {chunks, _separator} =
+        Enum.reduce(files, {[:zlib.deflate(z, prefix)], separator}, fn
+          {key, %JSONFile{path: path}}, {chunks, separator} ->
+            head = :zlib.deflate(z, [separator, JSON.encode!(to_string(key)), ":"])
+            value = path |> File.stream!(1_048_576) |> Enum.map(&:zlib.deflate(z, &1))
+            {[value, head | chunks], ","}
+        end)
+
+      IO.iodata_to_binary(Enum.reverse([:zlib.deflate(z, "}", :finish) | chunks]))
+    after
+      :zlib.close(z)
     end
   end
 
