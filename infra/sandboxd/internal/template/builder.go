@@ -314,7 +314,15 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 	if err := inst.Kill(killCtx); err != nil {
 		return err
 	}
-	log.Info("template snapshot taken", "snapshot", time.Since(snapStart), "mem_bytes", vm.FileSize(filepath.Join(root, firecracker.MemPath)))
+	// A freshly booted guest has touched little of its memory, and every
+	// sandbox restored from this shape hard links the memfile, so freeing
+	// its zero blocks once saves them on every jail.
+	memPath := filepath.Join(root, firecracker.MemPath)
+	punched, punchErr := vm.PunchZeros(memPath)
+	if punchErr != nil {
+		log.Warn("punching the template memfile's zero blocks failed", "error", punchErr)
+	}
+	log.Info("template snapshot taken", "snapshot", time.Since(snapStart), "mem_bytes", vm.FileSize(memPath), "punched_bytes", punched)
 
 	final := t.ShapeDir(shape)
 	staging := final + buildSuffix

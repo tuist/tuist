@@ -951,6 +951,17 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		return res, err
 	}
 	m.releaseCgroup(id)
+	// A guest that returns its free memory (the balloon) leaves those pages
+	// zero in the image; free their blocks before it is installed so the
+	// image uses disk for what the guest holds. Readers see the same bytes.
+	if m.builder != nil && m.builder.Balloon {
+		punchStart := time.Now()
+		if punched, err := vm.PunchZeros(memNew); err != nil {
+			m.log.Warn("punching the memory image's zero blocks failed", "sandbox", id, "error", err)
+		} else {
+			m.log.Info("punched the memory image's zero blocks", "sandbox", id, "punched_bytes", punched, "duration", time.Since(punchStart))
+		}
+	}
 	// A restore whose disks still arrive from its archive holds them
 	// whole only once the fill ends.
 	if err := m.settleLazyDisks(context.Background(), sb); err != nil {
