@@ -513,12 +513,23 @@ func TestAllocateCompute_BurstPriority(t *testing.T) {
 			capacity: 5, want: map[string]int32{"active": 4, "unused": 1},
 		},
 		{
+			name: "pool with a learned floor keeps its first warm runner before an active burst",
+			pools: []PoolDemand{
+				macDemand("active", Signals{Queued: 1, LearnedWarmFloor: 4}, knobs),
+				macDemand("learned", Signals{LearnedWarmFloor: 1}, knobs),
+			},
+			capacity: 5, want: map[string]int32{"active": 4, "learned": 1},
+		},
+		{
+			// The withheld pool keeps its Pod for the blocked work and, like
+			// every pool with a learned floor, one warm runner; the rest of
+			// its burst still waits behind the active pool's.
 			name: "withheld-only contender earns no active burst priority",
 			pools: []PoolDemand{
 				macDemand("active", Signals{Queued: 1, LearnedWarmFloor: 3}, knobs),
 				macDemand("withheld", Signals{Withheld: 100, LearnedWarmFloor: 4, HoursWithJobs: 300}, knobs),
 			},
-			capacity: 5, want: map[string]int32{"active": 4, "withheld": 1},
+			capacity: 5, want: map[string]int32{"active": 3, "withheld": 2},
 		},
 		{
 			name: "recent burst precedes more frequently used idle pool",
@@ -575,8 +586,9 @@ func TestAllocateComputeShapeCapPrefersFloorsOfPoolsInUse(t *testing.T) {
 
 // A full rack after a quiet hour: no pool is in use, 27-1 had a fan-out this
 // morning and 26-3 only runs a nightly job. Both hold a learned floor of
-// eight and six seats are left. 27-1 gets them, rather than the two
-// splitting them and neither having its burst warm.
+// eight and six seats are left. Each keeps its first warm runner, and 27-1
+// gets the rest, rather than the two splitting them and neither having its
+// burst warm.
 func TestAllocateCompute_IdleFloorsGoToTheMostRecentlyUsedPool(t *testing.T) {
 	slot := 24 * gib
 	now := time.Date(2026, 11, 13, 11, 16, 0, 0, time.UTC)
@@ -591,13 +603,13 @@ func TestAllocateCompute_IdleFloorsGoToTheMostRecentlyUsedPool(t *testing.T) {
 	if got["27-0"] != 9 {
 		t.Errorf("27-0 = %d, want 9 (in use: its load and its floor)", got["27-0"])
 	}
-	if got["27-1"] != 6 || got["26-3"] != 0 {
-		t.Errorf("the six seats left should all keep 27-1 warm, got 27-1=%d 26-3=%d", got["27-1"], got["26-3"])
+	if got["27-1"] != 5 || got["26-3"] != 1 {
+		t.Errorf("26-3 should keep one warm runner and 27-1 the other five, got 27-1=%d 26-3=%d", got["27-1"], got["26-3"])
 	}
 }
 
-// A pool that has never had work goes after one that has, and the next
-// recently used pool takes what the first leaves.
+// Every pool with a learned floor keeps its first warm runner, then the most
+// recently used pool's burst takes what is left before the next one's.
 func TestAllocateCompute_IdleFloorsByRecencySpendWhatIsLeft(t *testing.T) {
 	slot := 24 * gib
 	now := time.Date(2026, 11, 13, 11, 16, 0, 0, time.UTC)
@@ -609,15 +621,15 @@ func TestAllocateCompute_IdleFloorsByRecencySpendWhatIsLeft(t *testing.T) {
 
 	got := AllocateCompute(pools, 5*slot, nil)
 
-	if got["c-recent"] != 3 || got["b-old"] != 2 || got["a-never"] != 0 {
-		t.Errorf("want c-recent=3 b-old=2 a-never=0, got %v", got)
+	if got["c-recent"] != 3 || got["b-old"] != 1 || got["a-never"] != 1 {
+		t.Errorf("want c-recent=3 b-old=1 a-never=1, got %v", got)
 	}
 }
 
 // The rack at 15:30 on 2026-11-13: 26-3's nightly-only jobs finished four
 // minutes after 27-1's, and 27-0 holds the rest. Recency alone gave 26-3 all
 // seven seats left; 27-1, with jobs in 249 hours of the last two weeks
-// against 26-3's 34, gets them.
+// against 26-3's 34, gets all but 26-3's first warm runner.
 func TestAllocateCompute_IdleFloorsGoToThePoolUsedInMoreHours(t *testing.T) {
 	slot := 24 * gib
 	now := time.Date(2026, 11, 13, 15, 30, 0, 0, time.UTC)
@@ -632,8 +644,8 @@ func TestAllocateCompute_IdleFloorsGoToThePoolUsedInMoreHours(t *testing.T) {
 	if got["27-0"] != 11 {
 		t.Errorf("27-0 = %d, want 11 (in use: its load and its floor)", got["27-0"])
 	}
-	if got["27-1"] != 7 || got["26-3"] != 0 {
-		t.Errorf("the seven seats left should keep 27-1 warm, got 27-1=%d 26-3=%d", got["27-1"], got["26-3"])
+	if got["27-1"] != 6 || got["26-3"] != 1 {
+		t.Errorf("26-3 should keep one warm runner and 27-1 the other six, got 27-1=%d 26-3=%d", got["27-1"], got["26-3"])
 	}
 }
 

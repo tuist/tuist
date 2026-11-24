@@ -106,7 +106,7 @@ cancellable and leaves the reserve intact. See
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
-  - Keep byte allocation and `capByShape` warm priorities aligned: baseline, active burst, recently used quiet burst, then idle burst. A baseline is the explicit `minWarmPoolFloor`, or one above load for pools in use, bounded by target. All warm stock yields to real load.
+  - Keep byte allocation and `capByShape` warm priorities aligned: baseline, learned baseline, active burst, recently used quiet burst, then idle burst. A baseline is the explicit `minWarmPoolFloor`, or one above load for pools in use, bounded by target. The learned baseline is one above load for every pool with a learned floor (a job in the last day), so on a full rack each such pool keeps its first warm runner before any pool's further ones; prefer it to a fixed `minWarmPoolFloor` for a pool that runs jobs every few hours. All warm stock yields to real load.
   - Fund each warm tier whole in `cold_jobs` (the pool's jobs of the last two weeks that arrived within 30 s of another, which one warm runner does not cover), `hours_with_jobs`, `status.lastDemandAt`, then name order. Concentrating bursts deliberately favors the pools whose fan-outs a floor serves over equal warm shares. Withheld-only queues retain one tier-1 contender but do not earn active burst priority or recent-use status on that basis alone.
   - Split only speculative p95 headroom proportionally to cost; grant whole Pods left by rounding to the largest targets, then by name (`grantRemainder`). Do not raise learned caps to hide an unfunded warm budget.
 

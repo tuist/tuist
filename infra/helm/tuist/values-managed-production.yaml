@@ -1880,18 +1880,18 @@ rackFleet:
           minWarmPoolFloor: 0
           maxLearnedWarmPoolFloor: 11
           maxReplicas: 52
-      # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
-      # history, and learns up to three for its fan-outs. Its demand is
-      # starting from no history, and a cold 16 vCPU job has to wait for a
-      # whole host to free up before it boots (p50 41 s, up to 110 s, in the
-      # week to 2026-10-29 on 27.1's pool). The other Xcodes' 16 vCPU pools
+      # 27.0's 16 vCPU pool learns up to three warm guests for its fan-outs.
+      # It kept one, a whole host, whatever its history until 2026-11-24, but
+      # had no job in the 14 days before, while 27.1's customer bursts booted
+      # cold for want of the two seats it held. Like every pool, it keeps a
+      # warm guest for a day after a job. The other Xcodes' 16 vCPU pools
       # keep the shape's scaling below.
       "27.0":
         shapes:
           16vcpu-48gb:
             autoscaling:
               enabled: true
-              minWarmPoolFloor: 1
+              minWarmPoolFloor: 0
               maxLearnedWarmPoolFloor: 3
               maxReplicas: 26
     shapes:
