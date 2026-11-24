@@ -35,6 +35,7 @@ defmodule Tuist.Release do
     snapshot_builds
     snapshot_images
     snapshot_commits
+    clickhouse_inserts
   )
   @processor_read_tables ~w(
     accounts
