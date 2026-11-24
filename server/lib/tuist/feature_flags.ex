@@ -31,6 +31,20 @@ defmodule Tuist.FeatureFlags do
     )
   end
 
+  @doc """
+  Default-off account opt-in to automatic task sizing of remote actions
+  (`Tuist.RemoteExecution.TaskSizes`): VMs burst to 8 vCPUs, and each
+  action's measured use picks its memory and CPU guarantee. Measurements are
+  recorded for every account either way.
+  """
+  def remote_execution_task_sizing_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :remote_execution_task_sizing,
+      account,
+      flag_enabled?(:remote_execution_task_sizing, account, flags)
+    )
+  end
+
   @doc "Default-off account enrollment in runner-local shard artifact storage."
   def runner_shard_storage_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(

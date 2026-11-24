@@ -777,10 +777,12 @@ defmodule Tuist.Sandboxes.Capacity do
       Repo.one(
         from s in Sandbox,
           where: s.node_name == ^node.name and s.state != :deleted,
-          select: coalesce(sum(s.vcpus), 0)
+          # A bursting VM counts its guarantee, not the vCPUs it boots with.
+          select: coalesce(sum(coalesce(s.guaranteed_cpu_milli, s.vcpus * 1000)), 0)
       )
 
-    cpus + sandbox.vcpus <= min(node.capacity.cpus, node.execution_slots * 2) and disk_space?(node, sandbox) and
+    cpus + Sandbox.guaranteed_cpu_milli(sandbox) <= min(node.capacity.cpus, node.execution_slots * 2) * 1000 and
+      disk_space?(node, sandbox) and
       disk_room?(node, sandbox)
   end
 

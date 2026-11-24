@@ -6,8 +6,10 @@ defmodule Tuist.RemoteExecution.Settings do
   the default shape the limits hold.
 
   An action asks for another VM size with the `tuist-memory-gb` execution
-  property, which the gateway passes on as `memory_gb`. Each size has one
-  vCPU per 2 GB; the workers offer the same shapes
+  property, which the gateway passes on as `memory_gb`; with automatic task
+  sizing (`Tuist.RemoteExecution.TaskSizes`) that is a floor and every VM
+  boots with `burst_vcpus/0`. Each size has one vCPU per 2 GB, its guarantee
+  when it bursts; the workers offer the same shapes
   (`infra/helm/remote-execution`). Every size gets a workspace disk of
   `vm_workspace_gb/0`, which the workers' template snapshots are built with
   (`TEMPLATE_WORKSPACE_GB` in the same chart).
@@ -16,8 +18,22 @@ defmodule Tuist.RemoteExecution.Settings do
   @vm_memory_mb 4096
   @vm_workspace_gb 30
   @memory_sizes_gb [2, 4, 8, 16]
+  # An account with automatic task sizing (`Tuist.RemoteExecution.TaskSizes`)
+  # boots every VM with this many vCPUs, whatever its memory. The VM bursts
+  # into idle cores; its cgroup weight is its guarantee, which the account's
+  # vCPU limit counts: the shape's vCPUs until the action has been measured.
+  @burst_vcpus 8
 
-  defstruct [:vcpus, :memory_gb, :max_concurrency, :image_tag, :cas_endpoint, :client_cas_endpoint, :executor_endpoint]
+  defstruct [
+    :vcpus,
+    :memory_gb,
+    :max_concurrency,
+    :image_tag,
+    :cas_endpoint,
+    :client_cas_endpoint,
+    :executor_endpoint,
+    burst: false
+  ]
 
   def vm_vcpus, do: @vm_vcpus
   def vm_memory_mb, do: @vm_memory_mb
@@ -27,6 +43,12 @@ defmodule Tuist.RemoteExecution.Settings do
 
   def shape(memory_gb) when memory_gb in @memory_sizes_gb,
     do: %{vcpus: div(memory_gb * @vm_vcpus * 1024, @vm_memory_mb), memory_mb: memory_gb * 1024}
+
+  @doc "The vCPUs a VM of the size boots with: the shape's, or `@burst_vcpus` when the account bursts."
+  def boot_vcpus(%__MODULE__{burst: true}, _memory_gb), do: @burst_vcpus
+  def boot_vcpus(%__MODULE__{}, memory_gb), do: shape(memory_gb).vcpus
+
+  def burst_vcpus, do: @burst_vcpus
 
   @doc "Whether the account's limits hold one VM of the size at all."
   def fits?(%__MODULE__{} = settings, memory_gb) do

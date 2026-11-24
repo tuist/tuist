@@ -486,6 +486,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
     }
 
     request = if op.inputs, do: Map.put(request, :inputs, op.inputs), else: request
+    guarantee = guarantee(state, op, vm)
+    request = if guarantee, do: Map.put(request, :cpu_guarantee_milli, guarantee), else: request
 
     token = cached_token(state, op.project_id)
 
@@ -493,9 +495,31 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
     state
     |> put_op(%{charge_wait(op, now) | state: :executing, vm: vm.id, inputs: nil, dispatched_mono: now})
-    |> put_vm(%{vm | state: :busy})
+    |> put_vm(vm |> Map.put(:state, :busy) |> Map.put(:guarantee_milli, guarantee))
     |> start_task({:run, op.id, vm.id}, fn -> VMs.execute(vm.sandbox, request, op.project_id, token) end)
     |> notify(op.id)
+  end
+
+  # The CPU guarantee the action runs with on a bursting VM: what its last
+  # runs used (`TaskSizes`), within what the account's vCPU limit leaves
+  # beside its other VMs, which hold their own action's guarantee or the one
+  # they were reserved with. The action never waits for it: it runs with what
+  # is left, at least half a vCPU. Nil keeps the VM's weight.
+  defp guarantee(state, op, vm) do
+    case Map.get(op, :cpu_guarantee_milli) do
+      wanted when is_integer(wanted) and wanted > 0 ->
+        others =
+          state.vms
+          |> Map.values()
+          |> Enum.reject(&(&1.id == vm.id))
+          |> Enum.map(&(Map.get(&1, :guarantee_milli) || Settings.shape(&1.memory_gb).vcpus * 1000))
+          |> Enum.sum()
+
+        wanted |> min(state.settings.vcpus * 1000 - others) |> max(500)
+
+      _ ->
+        nil
+    end
   end
 
   # Queued operations take ready VMs first; leases get the rest of the
@@ -857,17 +881,18 @@ defmodule Tuist.RemoteExecution.Scheduler do
   end
 
   # Every VM the scheduler holds charges the account until its deletion is
-  # acknowledged, the same rule `VMs.reserve/3` enforces.
+  # acknowledged, the same rule `VMs.reserve/3` enforces. A busy bursting VM
+  # charges its action's guarantee (`guarantee/3`), the others their shape's vCPUs.
   defp fits?(state, size) do
-    {vcpus, memory_mb} =
-      Enum.reduce(Map.values(state.vms), {0, 0}, fn vm, {vcpus, memory_mb} ->
+    {cpu_milli, memory_mb} =
+      Enum.reduce(Map.values(state.vms), {0, 0}, fn vm, {cpu_milli, memory_mb} ->
         shape = Settings.shape(vm.memory_gb)
-        {vcpus + shape.vcpus, memory_mb + shape.memory_mb}
+        {cpu_milli + (Map.get(vm, :guarantee_milli) || shape.vcpus * 1000), memory_mb + shape.memory_mb}
       end)
 
     shape = Settings.shape(size)
 
-    vcpus + shape.vcpus <= state.settings.vcpus and
+    cpu_milli + shape.vcpus * 1000 <= state.settings.vcpus * 1000 and
       memory_mb + shape.memory_mb <= state.settings.memory_gb * 1024
   end
 

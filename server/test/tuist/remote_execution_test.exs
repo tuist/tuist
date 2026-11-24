@@ -422,6 +422,38 @@ defmodule Tuist.RemoteExecutionTest do
       end)
     end
 
+    test "with task sizing, a measured action bursts in the size its peak needs and runs with its cores as guarantee",
+         %{project: project} do
+      stub(FeatureFlags, :remote_execution_task_sizing_enabled?, fn _ -> true end)
+      # The limits `configure/2` set, as authorization loads them.
+      project = %{project | account: Repo.reload!(project.account)}
+      key = String.duplicate("b", 64)
+
+      :ok =
+        Tuist.RemoteExecution.TaskSizes.record(project, [
+          %{
+            "size_key" => key,
+            "memory_gb" => 4,
+            "usage" => %{
+              "cpu_ms" => 30_000,
+              "wall_ms" => 10_000,
+              "anon_peak_bytes" => 5 * 1024 * 1024 * 1024,
+              "vcpus" => 8
+            }
+          }
+        ])
+
+      stub_node()
+
+      assert {:ok, %{done: true, code: 0}} = submit(project, %{"size_key" => key})
+      # Every VM boots with 8 vCPUs; its 8 GiB is what the peak needs.
+      assert_received {:node, "create", %{vcpus: 8, memory_mb: 8192, sandbox_id: large}}
+      # 3 cores, capped at half the account's 4 vCPUs.
+      assert_received {:node, "exec", %{sandbox_id: ^large, cpu_guarantee_milli: 2000, env: env}}
+      assert %{"memory_gb" => 8} = request = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
+      refute Map.has_key?(request, "cpu_guarantee_milli")
+    end
+
     test "a size the account just used keeps one VM of it warm beside the default ones", %{project: project} do
       {:ok, _} = configure(project, max_concurrency: 8)
       stub_node()

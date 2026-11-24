@@ -134,13 +134,16 @@ defmodule Tuist.Sandboxes.Sandbox do
   guaranteed, and billed for at least, while it runs. A Linux agent sandbox
   bursts past it up to its vCPUs and is guaranteed a quarter vCPU per GiB of
   memory, or what its creator picked when that is more. A macOS sandbox,
-  which cannot burst, and a remote execution VM, whose scheduler sizes
-  actions against its shape, hold every vCPU. A node whose daemon runs each
+  which cannot burst, holds every vCPU. A remote execution VM holds every
+  vCPU of its shape, or, when it bursts (`RemoteExecution.Settings.boot_vcpus/2`),
+  the shape's vCPUs it was reserved with. A node whose daemon runs each
   VM in its own cgroup holds it per sandbox; otherwise its sandboxes share
   their guarantees.
   """
   def guaranteed_cpu_milli(%{platform: :darwin, vcpus: vcpus}), do: vcpus * 1000
-  def guaranteed_cpu_milli(%{purpose: :remote_execution, vcpus: vcpus}), do: vcpus * 1000
+
+  def guaranteed_cpu_milli(%{purpose: :remote_execution, vcpus: vcpus} = sandbox),
+    do: Map.get(sandbox, :guaranteed_cpu_milli) || vcpus * 1000
 
   def guaranteed_cpu_milli(%{memory_mb: memory_mb} = sandbox),
     do: max(Map.get(sandbox, :guaranteed_cpu_milli) || 0, memory_cpu_milli(memory_mb))

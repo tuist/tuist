@@ -233,6 +233,7 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	metadata.ExecutionCompletedTimestamp = timestamppb.Now()
 	if meter != nil {
 		if usage, ok := meter.Stop(); ok {
+			usage.MemoryGB = w.memoryGB()
 			if a, err := usageMetadata(usage); err == nil {
 				metadata.AuxiliaryMetadata = append(metadata.AuxiliaryMetadata, a)
 			}
@@ -313,6 +314,12 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 	}
 	required := 3
 	if _, ok := properties[MemoryProperty]; ok {
+		required++
+	}
+	if v, ok := properties[SizingProperty]; ok {
+		if v != "off" && v != "auto" {
+			return status.Error(codes.InvalidArgument, SizingProperty+" must be off or auto")
+		}
 		required++
 	}
 	if len(properties) != required || properties["OSFamily"] != "Linux" || properties["Arch"] != "amd64" || properties["tuist-image"] != w.Image || w.Image == "" {
@@ -401,7 +408,7 @@ func (w *Worker) failureNote(state *os.ProcessState, oomKilled int64) string {
 		note := fmt.Sprintf("\ntuist: this action ran out of memory: the kernel's OOM killer ended %d of its processes in a remote execution VM with %d GB.", oomKilled, memory)
 		if i := slices.Index(MemorySizesGB, memory); i >= 0 && i+1 < len(MemorySizesGB) {
 			larger := MemorySizesGB[i+1]
-			note += fmt.Sprintf(" Run it in a larger VM by adding exec_properties = {%q: %q} to its target.", MemoryProperty, strconv.Itoa(larger))
+			note += fmt.Sprintf(" Where automatic task sizing is on, its next run gets a larger VM; otherwise run it in one by adding exec_properties = {%q: %q} to its target.", MemoryProperty, strconv.Itoa(larger))
 		} else {
 			note += " That is the largest VM size."
 		}

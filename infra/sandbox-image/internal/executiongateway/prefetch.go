@@ -53,6 +53,45 @@ func (g *Gateway) remember(account, project, url string, leases bool) {
 	g.endpoints[account+"/"+project] = endpoint{url: url, expires: time.Now().Add(endpointTTL), leases: leases}
 }
 
+// setSized replaces the project's sized keys with the ones its last
+// capability check listed.
+func (g *Gateway) setSized(account, project string, keys []string) {
+	set := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		set[k] = true
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if len(g.sized) >= 4096 {
+		clear(g.sized)
+	}
+	g.sized[account+"/"+project] = set
+}
+
+// markSized adds a key the server will size up once it reads the action's
+// record, such as one an OOM kill ended, until the next capability check.
+func (g *Gateway) markSized(account, project, key string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	set := g.sized[account+"/"+project]
+	if set == nil {
+		set = map[string]bool{}
+		g.sized[account+"/"+project] = set
+	}
+	set[key] = true
+}
+
+// isSized reports whether the action runs in more than a default VM, so it
+// must go through the server rather than on a leased default VM.
+func (g *Gateway) isSized(account, project, key string) bool {
+	if key == "" {
+		return false
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.sized[account+"/"+project][key]
+}
+
 func (g *Gateway) leasable(account, project string) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -82,6 +121,7 @@ func (g *Gateway) learnEndpoint(ctx context.Context, account, project, auth stri
 		return err
 	}
 	g.remember(account, project, op.CASEndpoint, op.Leases)
+	g.setSized(account, project, op.SizedKeys)
 	return nil
 }
 
