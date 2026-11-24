@@ -641,15 +641,17 @@ defmodule TuistEx.Analytics.Coverage do
 
   @doc """
   Puts the block into the run's payload: inline when its uncompressed size is
-  within the server's threshold, and otherwise uploaded first, compressed, the
-  run naming the upload's key. The server holds an inline run to its body
-  limit after inflating it, and coverage compresses tenfold or more, so the
-  decision reads the uncompressed size.
+  within the server's threshold and within `budget`, what the report's body
+  limit leaves it, and otherwise uploaded first, compressed, the run naming
+  the upload's key. The server holds an inline run to its body limit after
+  inflating it, and coverage compresses tenfold or more, so the decision
+  reads the uncompressed size. The run's evidence is decided afterwards, from
+  what's left.
   """
-  def attach(payload, coverage, options) do
+  def attach(payload, coverage, budget, options) do
     ndjson = Enum.map_join(coverage.files, "\n", &JSON.encode!/1)
 
-    if byte_size(ndjson) <= inline_threshold(options) do
+    if byte_size(ndjson) <= min(inline_threshold(options), budget) do
       {:ok, Map.put(payload, :coverage, coverage)}
     else
       compressed = deflate(ndjson)
@@ -671,10 +673,52 @@ defmodule TuistEx.Analytics.Coverage do
     end
   end
 
+  @doc """
+  Uploads the run's per-test evidence, `ndjson` as `Evidence.write/6` wrote
+  it with `format: :ndjson`, when its uncompressed size is past the server's
+  inline threshold or `budget`, what the report's body limit leaves it once
+  the coverage is in (the server holds a deflated body's inflated size to the
+  limit), and puts `rest` (`overlapped_tests`, `status`) with the upload's key
+  into the payload. `:inline` when it's small enough to send
+  inline, or the server predates evidence uploads; `{:error, reason}` when
+  the upload failed.
+  """
+  def attach_evidence(payload, ndjson, rest, budget, options) do
+    with true <- File.stat!(ndjson).size > min(inline_threshold(options), budget),
+         {:ok, %{"evidence_storage_key" => key, "evidence_upload_url" => url}} <-
+           HTTP.project_request(
+             :post,
+             "/tests/coverage/uploads",
+             %{test_run_id: payload.id},
+             options
+           ),
+         compressed = ndjson |> File.stream!(65_536) |> deflate_stream(),
+         {:ok, _etag} <- Client.put_binary(url, compressed) do
+      {:ok, Map.put(payload, :coverage_evidence, Map.put(rest, :storage_key, key))}
+    else
+      false -> :inline
+      {:ok, %{}} -> :inline
+      {:error, reason} -> {:error, reason}
+      other -> {:error, {:unexpected_response, other}}
+    end
+  end
+
   defp inline_threshold(options) do
     case HTTP.project_request(:get, "/tests/coverage/settings", nil, options) do
       {:ok, %{"inline_threshold_bytes" => bytes}} when is_integer(bytes) -> bytes
       _ -> 5_000_000
+    end
+  end
+
+  defp deflate_stream(chunks) do
+    z = :zlib.open()
+    :ok = :zlib.deflateInit(z, :default, :deflated, -15, 8, :default)
+
+    try do
+      compressed = Enum.map(chunks, &:zlib.deflate(z, &1))
+      IO.iodata_to_binary([compressed, :zlib.deflate(z, [], :finish)])
+    after
+      :zlib.close(z)
     end
   end
 

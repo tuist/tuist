@@ -343,9 +343,16 @@ defmodule TuistEx.Analytics.Evidence do
   `sources` maps each counting module to its source file, and `relative`
   turns one into a path in the repository, nil outside it. With `lines:
   false`, scopes name their files without lines.
+
+  With `format: :ndjson`, `out` holds what a run uploads instead (see
+  `TuistEx.Analytics.Coverage.attach_evidence/5`): one scope per line, its `files` the
+  paths themselves. Either way, returns `{:ok, rest}`, `rest` the fields that
+  stay in the run's `coverage_evidence` beside the scopes,
+  `overlapped_tests` and `status`.
   """
   def write(collected, identities, sources, relative, out, options \\ []) do
     lines? = Keyword.get(options, :lines, true)
+    ndjson? = Keyword.get(options, :format, :json) == :ndjson
 
     paths =
       for {module, source} <- sources,
@@ -375,8 +382,8 @@ defmodule TuistEx.Analytics.Evidence do
     {:ok, file} = :file.open(out, [:write, :binary, :raw, {:delayed_write, 1_048_576, 2_000}])
 
     try do
-      :ok = :file.write(file, ~s({"scopes":[))
-      state = %{file: file, lines?: lines?, index: %{}, paths: [], first?: true}
+      if not ndjson?, do: :ok = :file.write(file, ~s({"scopes":[))
+      state = %{file: file, lines?: lines?, ndjson?: ndjson?, index: %{}, paths: [], first?: true}
 
       {state, _acc, overlapped, _i} =
         fold_records(collected.path, {state, %{}, overlapped, 0}, fn record,
@@ -429,16 +436,25 @@ defmodule TuistEx.Analytics.Evidence do
             {module, suite, name} <- [Map.get(identities, key)],
             do: %{module: module, suite: suite, name: name}
 
-      :ok =
-        :file.write(file, [
-          ~s(],"paths":),
-          JSON.encode_to_iodata!(Enum.reverse(state.paths)),
-          ~s(,"overlapped_tests":),
-          JSON.encode_to_iodata!(overlapped_tests),
-          ~s(,"status":),
-          JSON.encode_to_iodata!(if(collected.failed, do: "failed", else: "collected")),
-          "}"
-        ])
+      rest = %{
+        overlapped_tests: overlapped_tests,
+        status: if(collected.failed, do: "failed", else: "collected")
+      }
+
+      if not ndjson? do
+        :ok =
+          :file.write(file, [
+            ~s(],"paths":),
+            JSON.encode_to_iodata!(Enum.reverse(state.paths)),
+            ~s(,"overlapped_tests":),
+            JSON.encode_to_iodata!(rest.overlapped_tests),
+            ~s(,"status":),
+            JSON.encode_to_iodata!(rest.status),
+            "}"
+          ])
+      end
+
+      {:ok, rest}
     after
       :file.close(file)
     end
@@ -476,6 +492,19 @@ defmodule TuistEx.Analytics.Evidence do
 
   # `by_path` maps each path to its sorted lines.
   defp scope(state, _head, by_path) when map_size(by_path) == 0, do: state
+
+  defp scope(%{ndjson?: true} = state, head, by_path) do
+    entries = Enum.sort(by_path)
+
+    lines =
+      if state.lines?,
+        do: [~s(,"lines":), JSON.encode_to_iodata!(Enum.map(entries, &ranges(elem(&1, 1))))],
+        else: []
+
+    files = JSON.encode_to_iodata!(Enum.map(entries, &elem(&1, 0)))
+    :ok = :file.write(state.file, ["{", head, ~s(,"files":), files, lines, "}\n"])
+    state
+  end
 
   defp scope(state, head, by_path) do
     {state, entries} =

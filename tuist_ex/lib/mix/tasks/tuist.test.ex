@@ -811,18 +811,21 @@ defmodule Mix.Tasks.Tuist.Test do
     else
       payload
       |> do_with_coverage(snapshot, options, opts, history)
-      |> with_evidence(evidence)
+      |> with_evidence(evidence, opts)
     end
   end
 
   # Which lines each test ran, by repository-relative path, as the run's
-  # coverage names its files, written to a file the request reads as it's
-  # sent. Evidence that would take the report past the server's limit is
-  # written again without lines, which selection doesn't need, and left out
-  # when even that doesn't fit.
-  defp with_evidence(payload, nil), do: payload
+  # coverage names its files. Evidence whose uncompressed size is past the
+  # server's inline threshold, or past what the report's limit leaves once
+  # the coverage is in, is uploaded, one scope per line, and the run names the
+  # upload; otherwise it's written to a file the request reads as it's sent.
+  # With a server that takes no evidence uploads, evidence that would take the
+  # report past its limit is written again without lines, which selection
+  # doesn't need, and left out when even that doesn't fit.
+  defp with_evidence(payload, nil, _opts), do: payload
 
-  defp with_evidence(payload, %{collected: collected, identities: identities, sources: sources}) do
+  defp with_evidence(payload, %{collected: collected} = evidence, opts) do
     case Git.toplevel(File.cwd!()) do
       {:ok, root} ->
         root = Path.expand(root)
@@ -831,35 +834,26 @@ defmodule Mix.Tasks.Tuist.Test do
           if String.starts_with?(path, root <> "/"), do: Path.relative_to(path, root)
         end
 
-        out = Path.join(collected.dir, "coverage_evidence.json")
-        write = &Evidence.write(collected, identities, sources, relative, out, lines: &1)
+        ndjson = Path.join(collected.dir, "coverage_evidence.ndjson")
+        {:ok, rest} = write_evidence(evidence, relative, ndjson, format: :ndjson)
         budget = @report_limit - IO.iodata_length(JSON.encode_to_iodata!(payload))
-        :ok = write.(true)
 
-        cond do
-          File.stat!(out).size <= budget ->
-            Map.put(payload, :coverage_evidence, %JSONFile{path: out})
-
-          (
-            size = File.stat!(out).size
-            :ok = write.(false)
-            File.stat!(out).size <= budget
-          ) ->
-            Mix.shell().info(
-              "warning: Tuist: the run's coverage evidence (#{megabytes(size)}) is too large " <>
-                "to send with lines, so carried coverage can't use it; " <>
-                "shard the run with mix tuist.test.build to keep them"
-            )
-
-            Map.put(payload, :coverage_evidence, %JSONFile{path: out})
-
-          true ->
-            Mix.shell().info(
-              "warning: Tuist: the run's coverage evidence is too large to send, so it's left out; " <>
-                "shard the run with mix tuist.test.build"
-            )
-
+        case Isolated.run(
+               fn -> Coverage.attach_evidence(payload, ndjson, rest, budget, opts) end,
+               600_000
+             ) do
+          {:ok, payload} ->
             payload
+
+          :inline ->
+            inline_evidence(payload, evidence, relative)
+
+          problem ->
+            Report.debug(
+              "tuist analytics: the run's coverage evidence could not be uploaded: #{inspect(problem)}"
+            )
+
+            inline_evidence(payload, evidence, relative)
         end
 
       :error ->
@@ -874,6 +868,46 @@ defmodule Mix.Tasks.Tuist.Test do
       payload
   end
 
+  defp write_evidence(
+         %{collected: collected, identities: identities, sources: sources},
+         relative,
+         out,
+         options
+       ), do: Evidence.write(collected, identities, sources, relative, out, options)
+
+  defp inline_evidence(payload, %{collected: collected} = evidence, relative) do
+    out = Path.join(collected.dir, "coverage_evidence.json")
+    write = &write_evidence(evidence, relative, out, lines: &1)
+    budget = @report_limit - IO.iodata_length(JSON.encode_to_iodata!(payload))
+    {:ok, _rest} = write.(true)
+
+    cond do
+      File.stat!(out).size <= budget ->
+        Map.put(payload, :coverage_evidence, %JSONFile{path: out})
+
+      (
+        size = File.stat!(out).size
+        {:ok, _rest} = write.(false)
+        File.stat!(out).size <= budget
+      ) ->
+        Mix.shell().info(
+          "warning: Tuist: the run's coverage evidence (#{megabytes(size)}) is too large " <>
+            "to send with lines, so carried coverage can't use it; " <>
+            "shard the run with mix tuist.test.build to keep them"
+        )
+
+        Map.put(payload, :coverage_evidence, %JSONFile{path: out})
+
+      true ->
+        Mix.shell().info(
+          "warning: Tuist: the run's coverage evidence is too large to send, so it's left out; " <>
+            "shard the run with mix tuist.test.build"
+        )
+
+        payload
+    end
+  end
+
   defp megabytes(bytes), do: "#{Float.round(bytes / 1_000_000, 1)} MB"
 
   defp do_with_coverage(payload, snapshot, options, opts, history) do
@@ -886,8 +920,9 @@ defmodule Mix.Tasks.Tuist.Test do
 
     with snapshot when is_list(snapshot) <- snapshot,
          {:ok, coverage} <- Coverage.build(snapshot, File.cwd!(), partial?),
+         budget = @report_limit - IO.iodata_length(JSON.encode_to_iodata!(payload)),
          {:ok, payload} <-
-           Isolated.run(fn -> Coverage.attach(payload, coverage, opts) end, 600_000) do
+           Isolated.run(fn -> Coverage.attach(payload, coverage, budget, opts) end, 600_000) do
       payload
     else
       nil ->

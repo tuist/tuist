@@ -100,7 +100,7 @@ defmodule TuistEx.Analytics.EvidenceTest do
 
     out = Path.join(dir, "evidence.json")
     sources = %{m: Path.join(dir, "m.erl")}
-    :ok = TuistEx.Analytics.Evidence.write(collected, identities, sources, &Path.basename/1, out, lines: #{lines?})
+    {:ok, _} = TuistEx.Analytics.Evidence.write(collected, identities, sources, &Path.basename/1, out, lines: #{lines?})
     File.rm_rf!(collected.dir)
     IO.puts("RESULT " <> Base.encode64(File.read!(out)))
     """
