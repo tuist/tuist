@@ -34,19 +34,45 @@ When the project isn't enabled, the baseline request answers `not_enabled`, the 
 | **Module hashing** | Which modules default selective testing prunes before coverage is asked, and where it reports hits. | [Test target hashes, `xcode_targets`](#rule-inputs-on-xcode) |
 | **Test-scoped evidence** | Which tests record the files they executed. The rest fall to `no_evidence`. | [XCTest and XCUITest with TestCoverageAttribution](#swift-testing) |
 | **Platform key** | What a baseline must match, recorded on every coverage upload (`coverage_runs.platform`) and sent in the baseline request. | [The destination's platform](#schemes-and-destinations) |
-| **Build context** | Its block in the requests, stored for display. The block's scheme also picks which baselines qualify. | [`xcode`: scheme, test plan, destination](#schemes-and-destinations) |
+| **Build context** | The generic `scope` in both selection requests, matching `scheme` on the test reports. It picks which baselines qualify. Legacy clients can still send their build-system block. | [`xcode`: scheme, test plan, destination](#schemes-and-destinations) |
 | **Tracked files** | Files whose change stops coverage from narrowing the run, shared with coverage carry. A list per `build_system` in `Tuist.GitHistory` (`@tracked_file_globs`); one without its own list uses Xcode's. | [Xcode's list](#rule-inputs-on-xcode) |
 
 **Cargo** supplies test-scoped evidence, the platform key and its tracked files so far. `tuist cargo nextest run` records `test` and `target` evidence, since nextest runs each test in its own process. Plain `cargo test` records only `target` evidence and reports its tests as overlapped, since a binary's tests share one process. Every coverage upload records the target triple as `platform` (see [Cargo](code-coverage.md#cargo)). Cargo has no selection configuration, module hashing, build-context block or `affected_modules` yet, so Rust projects get coverage and evidence but never select.
 
 **Not every hook is pluggable yet.** The shared code reads Xcode's names directly:
 
-- **Build context and scope.** The server reads only the `xcode` block. `Runs` stores it as `build_context`, and `Storage` keeps only its `scheme`, `test_plan` and `destination`. `Runs` and the baseline endpoint pass its `scheme` to `Baselines`. The Test Selection page searches runs by that scheme or test plan, and the run tab finds the baseline's runs by that scheme. A request without an `xcode` block has no scheme, so any commit whose measured set lists a scheme can be its baseline.
+- **Build context storage.** Both endpoints accept `scope`, a nonempty string of at most 1,024 characters, without an `xcode` block. It takes precedence over `xcode.scheme` and must match `scheme` on the client's test reports. The server uses it for the baseline and branch overlay and stores it under the existing `build_context.scheme` key, so the run reads, baseline links and coverage carry keep the same scope. The optional legacy `xcode` block still supplies `test_plan` and `destination`. Clients omitting both scope forms retain their existing unscoped baseline lookup; clients needing isolated test groups must send a scope.
 - **Module hashing.** The run tab's module-level hash data is Xcode's `xcode_targets` (see [UI](#ui)).
 
 A second build system needs these turned into hooks first.
 | **`affected_modules`** | Which test modules a changed file can affect, from a build graph. | [The generated graph or XcodeGraphMapper](#rule-inputs-on-xcode) |
 | **Applying a skip list** | How whole modules and single tests are kept from running. | [Pruning, `-skip-testing` and a skip file](#applying-the-selection-on-xcode) |
+
+### Once / Struo
+
+Once, now named Struo, selects affected test targets from its declared graph and package ownership, produces portable test plans and reports hosted partitions to Tuist. **Graph selection remains the strict default.** Coverage exclusion is an explicit, approximate opt-in: executed source lines do not describe every compile-time dependency, resource or dynamically loaded input.
+
+The integration reuses the shared test-report, baseline and impact-run endpoints with `build_system: "once"`. `Coverage.supported?/1` accepts Once; canary and production still require the existing account selection flag. Native collectors normalize coverage before upload; the server neither parses native profiles nor constructs runner filters. The provider contract uses:
+
+- **Identity:** canonical target as `module`, empty `suite`, opaque native unit ID as case `name`, identically in test reports, evidence and skip decisions. Display names cannot replace opaque identities.
+- **Compatibility:** the same versioned `scope` in baseline and runs requests and `scheme` in test reports, bound to collector/configuration and current test inventory, plus the same `platform`. Production-source contents must not define the scope, or an ordinary edit could never use historical evidence.
+- **Observation:** the neutral `coverage` block (tool/version, repository-relative files, Git blobs, executable lines and counts, partial status) and `coverage_evidence` (paths and measured scopes). An isolated exact case can supply test evidence; an aggregate target profile supplies target evidence only and cannot authorize per-test exclusion.
+- **Selection:** resolve an ancestral baseline, diff against that baseline, then request a decision for graph-selected modules. The response is a skip list, never a replacement current inventory. A module-only skip entry means every baseline test in that module was excluded, so trusting it requires a compatible complete current inventory.
+
+The runs request opts into `coverage_policy: "instrumented"`; omitting it (or sending `"strict"`) preserves the existing rules. Only a clean single-target request whose checkpoint contains exactly that target, with no hash-carried targets, can use this policy. Every checkpoint run must have recorded unsharded provenance: runs associated with a shard plan cannot authorize instrumented-zero exclusion, even when their coverage totals appear complete. Empty shard reports have no durable file-row marker, so a sibling report can otherwise make legacy totals look complete without the partial shard recovering. The server reads the latest reports of the checkpoint's runs, not a client assertion: a modified repository product file with executable lines and zero hits in every eligible report does not trigger `owned_without_evidence`. Every checkpoint run must still have complete coverage totals and complete latest reports before filtering to changed paths; a partial replacement vetoes the proof even when it omits the changed file or contains no files. Test code, added/deleted/renamed paths, unknown files, partial reports and multi-target checkpoints retain the strict fallback. Actual coverage hits, failed tests and missing/stale per-test evidence still select tests. Branch overlays keep their strict rules. The selected policy is retained in `build_context.coverage_policy` for audit. This is a historical-coverage heuristic, not a guarantee equivalent to graph selection.
+
+The first client increment collects isolated Go cases and narrows only whole targets, retaining portable plans' complete-inventory validation. It must retain a target unless every current unit is explicitly excluded by compatible evidence. Unknown/new/changed test inputs, partial or failed collection, unsupported collectors, incompatible or stale inventory and provider failures all retain graph-selected work. Once's tracked files are Struo/Once manifests, Starlark graph rules, Go module/workspace manifests and locks, and mise/toolchain pins; a change stops coverage narrowing. Other adapters retain graph selection until they supply compatible observations. Full runs periodically refresh history and detect coverage-selection misses.
+
+For an early-adopter Go project, enable `coverage_per_test = true` on its `go_test` targets and configure its Tuist infrastructure destination and credentials. From a clean repository-root checkout with an `origin` remote, publish a full observation, then plan from the complete diff against the baseline:
+
+```sh
+struo test --all --coverage-report --format json
+struo query test-plan --changed-path shared/source.go --format json
+struo query test-plan --changed-path shared/source.go --coverage-selection --format json > plan.json
+struo test --plan plan.json --format json
+```
+
+Repeat `--changed-path` for every changed path. The command without `--coverage-selection` uses graph selection only. Discovery compiles and lists the current native tests, so fresh workers need no retained test results. Baseline publication uploads bounded Git ancestry and listings through the existing history APIs; history or checkpoint processing may initially be unavailable, in which case selection retains graph work. Schedule full observations periodically rather than treating selected runs as replacement baselines. Struo's `fixtures/test_selection/go_coverage/validate.sh` exercises this flow against a disposable Tuist project, including fresh workers and conservative fallback controls.
 
 ## Naming
 

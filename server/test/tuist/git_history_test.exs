@@ -664,6 +664,30 @@ defmodule Tuist.GitHistoryTest do
   end
 
   describe "commit listings" do
+    test "Once tracks graph rules and Go build inputs rather than Xcode defaults", %{
+      project: project,
+      repository: repository
+    } do
+      {:ok, project} = Projects.update_project(project, %{build_system: :once})
+
+      paths = [
+        "struo.toml",
+        "rules/custom.star",
+        "packages/calc/go.mod",
+        "packages/calc/go.sum",
+        "go.work",
+        "go.work.sum",
+        "mise.toml",
+        "packages/calc/add.go",
+        "Project.swift"
+      ]
+
+      GitHistory.record_listing(repository, "c", Enum.map(paths, &%{path: &1, git_blob_id: "blob"}))
+
+      assert project |> GitHistory.tracked_files(repository, "c") |> Enum.map(& &1.path) ==
+               paths |> Enum.take(7) |> Enum.sort()
+    end
+
     test "store a commit's files once, in parts, and answer what is tracked", %{
       project: project,
       repository: repository

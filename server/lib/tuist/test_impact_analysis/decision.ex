@@ -91,7 +91,10 @@ defmodule Tuist.TestImpactAnalysis.Decision do
       snapshot: checkpoint,
       tests:
         project.id
-        |> Candidate.evaluate(%{checkpoint: checkpoint}, changed_files, request.requested_modules, matched_paths: true)
+        |> Candidate.evaluate(%{checkpoint: checkpoint}, changed_files, request.requested_modules,
+          matched_paths: true,
+          instrumented: Map.get(request, :coverage_policy) == "instrumented"
+        )
         |> by_id()
     }
 

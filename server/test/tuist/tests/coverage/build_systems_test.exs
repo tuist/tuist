@@ -76,8 +76,8 @@ defmodule Tuist.Tests.Coverage.BuildSystemsTest do
     )
   end
 
-  test "only Xcode, Mix, Cargo and Gradle projects have coverage" do
-    for {build_system, supported?} <- [xcode: true, mix: true, cargo: true, gradle: true, bazel: false, once: false] do
+  test "only build systems with normalized coverage producers have coverage" do
+    for {build_system, supported?} <- [xcode: true, mix: true, cargo: true, gradle: true, bazel: false, once: true] do
       assert Coverage.supported?(%Project{build_system: build_system}) == supported?
     end
   end
@@ -93,7 +93,7 @@ defmodule Tuist.Tests.Coverage.BuildSystemsTest do
   test "a run of a build system without coverage leaves nothing of coverage or test selection behind", %{
     account: account
   } do
-    for build_system <- [:bazel, :once] do
+    for build_system <- [:bazel] do
       project = ProjectsFixtures.project_fixture(account_id: account.id, build_system: build_system)
       run = CoverageFixtures.run_with_coverage(project, account, @files, @attrs)
 
@@ -112,6 +112,48 @@ defmodule Tuist.Tests.Coverage.BuildSystemsTest do
     assert run.git_repository_id > 0
     assert %{covered_lines: 1, executable_lines: 2} = CoverageFixtures.run_summary(project.id, run.id)
     assert %{covered_lines: 1} = Commits.summary(project.id, run.git_commit_sha)
+  end
+
+  test "a Once project's normalized coverage preserves opaque case identities and attribution", %{account: account} do
+    project = ProjectsFixtures.project_fixture(account_id: account.id, build_system: :once)
+    unit = "//calc:tests::TestAdds"
+
+    run =
+      CoverageFixtures.run_with_coverage(project, account, [], %{
+        build_system: "once",
+        scheme: "struo.coverage.v1:fixture",
+        xcode_coverage: nil,
+        test_modules: [
+          %{
+            name: "//calc:tests",
+            status: "success",
+            duration: 10,
+            test_cases: [
+              %{name: unit, test_suite_name: "", status: "success", duration: 5},
+              %{name: "//calc:tests::TestOther", test_suite_name: "", status: "success", duration: 5}
+            ]
+          }
+        ],
+        coverage: %{
+          tool: "go-cover",
+          tool_version: "go1.26",
+          platform: "linux-amd64",
+          partial: false,
+          files: [CoverageFixtures.file("calc/add.go", [1, 0], targets: ["//calc:tests"])]
+        },
+        coverage_evidence: %{
+          paths: ["calc/add.go"],
+          scopes: [
+            %{kind: "target", module: "//calc:tests", files: [0]},
+            %{kind: "test", module: "//calc:tests", suite: "", name: unit, files: [0], lines: [[1, 1]]}
+          ]
+        }
+      })
+
+    assert run.git_repository_id > 0
+    assert %{covered_lines: 1, executable_lines: 2} = CoverageFixtures.run_summary(project.id, run.id)
+    assert evidence_flags(run) == [{unit, "own"}, {"//calc:tests::TestOther", "none"}]
+    assert ["target", "test"] = run |> CoverageFixtures.evidence_rows() |> Enum.map(& &1.scope_kind)
   end
 
   test "a Cargo project's coverage and evidence are kept", %{account: account} do

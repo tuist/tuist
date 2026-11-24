@@ -19,7 +19,12 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
      includes affects its module;
   6. `unaffected`: skipped.
   """
+  import Ecto.Query
+
+  alias Tuist.ClickHouseRepo
   alias Tuist.TestImpactAnalysis.Snapshots
+  alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Test
 
   @files_sql """
   WITH files AS (
@@ -82,7 +87,12 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
   """
   def evaluate(project_id, %{checkpoint: checkpoint} = layers, changed_files, modules \\ nil, opts \\ []) do
     overlay = Map.get(layers, :overlay)
-    tests = tests(project_id, checkpoint, overlay, modules)
+    instrumented? = Keyword.get(opts, :instrumented, false) and is_nil(overlay)
+    tests = tests(project_id, checkpoint, overlay, if(instrumented?, do: nil, else: modules))
+
+    instrumented = instrumented_paths(project_id, checkpoint, changed_files, tests, modules, instrumented?)
+
+    tests = if modules, do: Map.filter(tests, fn {_idx, test} -> test.module_name in modules end), else: tests
     overridden = for {idx, %{layer: :overlay}} <- tests, into: MapSet.new(), do: idx
     hits = hits(project_id, checkpoint, overlay, changed_files, Keyword.get(opts, :matched_paths, false))
     checkpoint_hits = Map.get(hits, checkpoint.id, empty_hits())
@@ -100,7 +110,7 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
     # such file in path order.
     owned_modules =
       changed_files
-      |> Enum.reject(&MapSet.member?(evidenced, &1.path))
+      |> Enum.reject(&(MapSet.member?(evidenced, &1.path) or MapSet.member?(instrumented, &1.path)))
       |> Enum.sort_by(& &1.path, :desc)
       |> Enum.flat_map(fn file -> Enum.map(Map.get(file, :affected_modules) || [], &{&1, file.path}) end)
       |> Map.new()
@@ -119,6 +129,85 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
       })
     end)
     |> Enum.sort_by(& &1.idx)
+  end
+
+  defp instrumented_paths(
+         project_id,
+         %{carried_targets: []} = checkpoint,
+         changed_files,
+         tests,
+         [_module] = modules,
+         true
+       ) do
+    if Enum.uniq(Enum.map(Map.values(tests), & &1.module_name)) == modules do
+      instrumented_paths(project_id, checkpoint, changed_files)
+    else
+      MapSet.new()
+    end
+  end
+
+  defp instrumented_paths(_project_id, _checkpoint, _changed_files, _tests, _modules, _instrumented), do: MapSet.new()
+
+  # Only a single-target checkpoint can prove that its zero-hit product
+  # files were instrumented for that target. Aggregate evidence from a
+  # different target, a partial report or test code cannot justify a skip.
+  # Keep the default bitmap-only read unchanged, and bound path parameters
+  # just as hits/5 does. No line layouts are needed for this proof.
+  defp instrumented_paths(project_id, checkpoint, changed_files) do
+    reports = Coverage.report_files_for_runs(project_id, checkpoint.test_run_ids, lines: false)
+
+    # Empty shard reports have no file-row marker. Another shard's report
+    # can therefore make legacy totals look complete again. Until reports
+    # have durable per-shard identity, no sharded run can prove a zero hit.
+    unsharded_runs =
+      from(t in Test,
+        where: t.project_id == ^project_id and t.id in ^checkpoint.test_run_ids,
+        group_by: t.id,
+        having: fragment("countIf(isNotNull(?)) = 0", t.shard_plan_id),
+        select: t.id
+      )
+
+    # Check the whole latest report cohort before narrowing by path: a
+    # partial replacement can omit the changed file, or contain no rows.
+    complete_reports =
+      from(f in reports,
+        group_by: f.test_run_id,
+        having: fragment("countIf(?) = 0", f.partial),
+        select: f.test_run_id
+      )
+
+    complete_runs =
+      from(r in subquery(Coverage.run_totals_query(project_id)),
+        where:
+          r.test_run_id in ^checkpoint.test_run_ids and r.test_run_id in subquery(unsharded_runs) and
+            r.test_run_id in subquery(complete_reports) and not r.partial,
+        select: count()
+      )
+
+    changed_files
+    |> Enum.filter(&(Map.get(&1, :status) == "M"))
+    |> Enum.map(& &1.path)
+    |> Enum.uniq()
+    |> Snapshots.path_chunks()
+    |> Enum.flat_map(fn paths ->
+      ClickHouseRepo.all(
+        from(f in reports,
+          where: subquery(complete_runs) == ^length(checkpoint.test_run_ids) and f.path in ^paths,
+          group_by: f.path,
+          having:
+            fragment(
+              "countIf(? OR NOT ? OR ? OR ? = 0 OR ? > 0) = 0",
+              f.partial,
+              f.in_repository,
+              f.is_test,
+              f.executable_lines,
+              f.covered_lines
+            ),
+          select: f.path
+        )
+      )
+    end)
+    |> MapSet.new()
   end
 
   @doc """

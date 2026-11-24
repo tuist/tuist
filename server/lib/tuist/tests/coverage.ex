@@ -79,7 +79,7 @@ defmodule Tuist.Tests.Coverage do
 
   # The build systems whose clients report coverage (`supported?/1`). Add one
   # here once its client does.
-  @build_systems [:xcode, :mix, :cargo, :gradle]
+  @build_systems [:xcode, :mix, :cargo, :gradle, :once]
 
   # ClickHouse sends every query parameter as an HTTP form field and refuses a
   # request carrying more than `http_max_fields`, which defaults to 1000. A

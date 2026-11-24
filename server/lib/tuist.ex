@@ -195,6 +195,7 @@ defmodule Tuist do
       Tests.Selections.Schemas,
       Tests.RunSelections,
       Tests.TestRunStressCandidate,
+      TestImpactAnalysis,
       TestImpactAnalysis.Baselines,
       TestImpactAnalysis.Runs,
       TestImpactAnalysis.Storage,
