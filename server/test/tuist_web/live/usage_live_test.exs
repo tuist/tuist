@@ -210,7 +210,7 @@ defmodule TuistWeb.UsageLiveTest do
       once_project = ProjectsFixtures.project_fixture(account: account, build_system: :once)
       other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
       stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _account -> true end)
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
       stub(DateTime, :utc_now, fn -> ~U[2026-01-17 12:00:00.000000Z] end)
 
       event = fn account_id, vcpus, memory_mb, minutes, at ->
@@ -305,7 +305,6 @@ defmodule TuistWeb.UsageLiveTest do
     test "does not advertise enabled RE to accounts without access", %{conn: conn, account: account} do
       ProjectsFixtures.project_fixture(account: account, build_system: :once)
       stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _account -> false end)
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
@@ -318,7 +317,6 @@ defmodule TuistWeb.UsageLiveTest do
       test "shows #{@build_system} remote execution below runner usage", %{conn: conn, account: account} do
         ProjectsFixtures.project_fixture(account: account, build_system: @build_system)
         stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _account -> true end)
-        stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
         {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
@@ -383,8 +381,6 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "shows an empty state for a feature the account has not used", %{conn: conn, account: account} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
-
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
       render_async(lv, @render_async_timeout)
 
@@ -462,7 +458,6 @@ defmodule TuistWeb.UsageLiveTest do
       # page is where it looks to see what it has used. Hiding the
       # section until the first minute lands leaves it with nothing to
       # look at during the trial the section exists to support.
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       stub(Trials, :on_trial?, fn _account -> true end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
@@ -473,7 +468,6 @@ defmodule TuistWeb.UsageLiveTest do
     test "shows what the trial covered rather than a receipt that does not add up", %{conn: conn, account: account} do
       # Without this the receipt reads "1,000 minutes run, 75.00$" and
       # then "Billed 0.00$", with nothing saying where the money went.
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       stub(Allowance, :period_breakdown, fn _account -> trial_breakdown() end)
       stub(Allowance, :period_breakdown, fn _account, _period -> trial_breakdown() end)
@@ -491,7 +485,6 @@ defmodule TuistWeb.UsageLiveTest do
     test "shows a Linux receipt billed past its own free minutes", %{conn: conn, account: account} do
       # 2,590 minutes are 90 past the 2,500 free Linux ones: $6.22 of
       # usage, $6.00 of it included and 22 cents billed.
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       breakdown = %{
         trial_breakdown()
@@ -525,7 +518,7 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "is hidden for an account with neither runners nor usage", %{conn: conn, account: account} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
@@ -535,8 +528,6 @@ defmodule TuistWeb.UsageLiveTest do
 
   describe "cache volume storage" do
     test "walks the period's GB-months down to what the allowance leaves", %{conn: conn, account: account} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
-
       volume =
         Repo.insert!(%Volume{
           account_id: account.id,
@@ -563,8 +554,6 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "shows an empty state for an account that saved nothing", %{conn: conn, account: account} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
-
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
       render_async(lv, @render_async_timeout)
 
@@ -572,7 +561,7 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "is hidden for an account with neither runners nor usage", %{conn: conn, account: account} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
@@ -582,7 +571,6 @@ defmodule TuistWeb.UsageLiveTest do
 
   describe "runner usage with prepaid credit" do
     setup do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       stub(Allowance, :period_breakdown, fn _account -> billed_breakdown() end)
       stub(Allowance, :period_breakdown, fn _account, _period -> billed_breakdown() end)
       :ok
@@ -622,7 +610,6 @@ defmodule TuistWeb.UsageLiveTest do
       # the trial's credit and the allowance's added together. A period
       # part-covered by a trial therefore subtracted the trial twice and
       # the receipt stopped adding up.
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       breakdown = %{
         billed_breakdown()
@@ -660,7 +647,6 @@ defmodule TuistWeb.UsageLiveTest do
 
   describe "runner usage across billing periods" do
     setup do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       stub(Allowance, :period_breakdown, fn _account -> billed_breakdown() end)
       stub(Allowance, :period_breakdown, fn _account, _period -> billed_breakdown() end)
       :ok
@@ -707,7 +693,7 @@ defmodule TuistWeb.UsageLiveTest do
       conn: conn,
       account: account
     } do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
 
       {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
 

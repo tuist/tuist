@@ -21,10 +21,10 @@ defmodule Tuist.ObservabilityObanTest do
     stub(Environment, :env, fn -> :prod end)
 
     expect(Projects, :get_project_by_id, fn 99 -> project end)
-    expect(FunWithFlags, :enabled?, fn :runners, [for: ^account] -> true end)
+    expect(FunWithFlags, :enabled?, fn :pulse, [for: ^account] -> true end)
 
     expect(Storage, :download_to_file, fn _key, _path, ^account ->
-      assert FeatureFlags.runners_enabled?(account)
+      assert FeatureFlags.pulse_enabled?(account)
       raise "download failed"
     end)
 
@@ -44,7 +44,7 @@ defmodule Tuist.ObservabilityObanTest do
     assert event.tags.selected_account_id == 42
     assert event.tags.selected_account_handle == "project-owner"
     assert event.tags.selected_project_id == 99
-    assert event.tags["feature_flag.runners"] == "true"
+    assert event.tags["feature_flag.pulse"] == "true"
     refute Map.has_key?(event.tags, :auth_account_id)
 
     # An unrelated job's actor-like arguments must neither establish a target

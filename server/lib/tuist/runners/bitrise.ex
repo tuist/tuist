@@ -25,7 +25,7 @@ defmodule Tuist.Runners.Bitrise do
   import Ecto.Query
 
   alias Tuist.Accounts
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Bitrise.Build
@@ -209,7 +209,7 @@ defmodule Tuist.Runners.Bitrise do
   defp check_enabled(account, waiting) do
     result =
       cond do
-        not FeatureFlags.runners_enabled?(account) -> {:error, :runners_disabled}
+        not Environment.runners_available?() -> {:error, :runners_disabled}
         Allowance.exhausted?(account) -> {:error, :allowance_exhausted}
         true -> :ok
       end

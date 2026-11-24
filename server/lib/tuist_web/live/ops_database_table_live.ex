@@ -33,7 +33,10 @@ defmodule TuistWeb.OpsDatabaseTableLive do
   def mount(%{"schema" => schema, "name" => name}, _session, socket) do
     if Database.table_exists?(schema, name) do
       columns = Database.list_table_columns(schema, name)
-      column_names = Enum.map(columns, & &1["name"])
+      # The sort and filter menus offer only what the preview sorts and
+      # filters on; credential columns are left out.
+      sortable = Enum.reject(columns, &Database.secret_column?(name, &1))
+      column_names = Enum.map(sortable, & &1["name"])
 
       {:ok,
        socket
@@ -42,7 +45,7 @@ defmodule TuistWeb.OpsDatabaseTableLive do
        |> assign(:name, name)
        |> assign(:columns, columns)
        |> assign(:column_names, column_names)
-       |> assign(:available_filters, define_filters(columns))
+       |> assign(:available_filters, define_filters(sortable))
        |> assign(:estimated_rows, Database.estimated_row_count(schema, name))
        |> assign(:size_pretty, Database.table_size_pretty(schema, name))
        |> assign(:page, 1)

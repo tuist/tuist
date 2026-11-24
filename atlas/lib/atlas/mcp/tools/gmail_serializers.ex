@@ -108,6 +108,25 @@ defmodule Atlas.MCP.Tools.GmailSerializers do
         "description" =>
           "Message id from search_my_gmail to reply to. Sets threadId, In-Reply-To and References; keep the " <>
             "original subject (with Re:) so Gmail files it in the same conversation. Needs Gmail read access."
+      },
+      "attachments" => %{
+        "type" => "array",
+        "maxItems" => 10,
+        "description" =>
+          "Files to attach. A request can carry about 6 MB of files; a draft's attachments can total at most 18 MB.",
+        "items" => %{
+          "type" => "object",
+          "required" => ["filename", "content_base64"],
+          "properties" => %{
+            "filename" => %{"type" => "string", "description" => "One line, at most 255 UTF-8 bytes."},
+            "content_type" => %{
+              "type" => "string",
+              "description" => "MIME type such as application/pdf. Omitted means inferred from the filename."
+            },
+            "content_base64" => %{"type" => "string", "description" => "File bytes encoded using Base64."}
+          },
+          "additionalProperties" => false
+        }
       }
     }
   end

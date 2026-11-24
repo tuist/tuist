@@ -277,6 +277,177 @@ enum PinKind {
     }
 }
 
+/// Where the toolchain's SwiftPM keeps registry packages below `registry/downloads`. A restore
+/// lays them out the same way, so a workspace does not depend on whether SwifterPM or native
+/// SwiftPM fetched it: generated projects, and Tuist's binary-cache keys with them, contain
+/// these paths.
+///
+/// SwiftPM 6.4.2 moved each registry's downloads into a `<host>-<hash>` directory
+/// (swiftlang/swift-package-manager#10573), and #10769 lengthened the hash from 8 to 32
+/// hexadecimal characters on the 6.4.x branch after 6.4.3 and on 6.5. Earlier releases use
+/// `<scope>/<name>/<version>`.
+enum RegistryDownloadLayout: Equatable, Sendable {
+    case unscoped
+    case registryScoped(hashLength: Int)
+
+    /// The layout of the SwiftPM that printed `output` (`swift --version`), or `nil` for a
+    /// version it does not name, such as a development snapshot's `6.4-dev`.
+    static func forSwiftVersion(_ output: String) -> RegistryDownloadLayout? {
+        for marker in ["Apple Swift version ", "Swift version "] {
+            guard let range = output.range(of: marker) else { continue }
+            let rest = output[range.upperBound...]
+            let number = rest.prefix(while: { $0.isNumber || $0 == "." })
+            guard !rest.dropFirst(number.count).hasPrefix("-") else { return nil }
+            let components = number.split(separator: ".").compactMap { Int($0) }
+            guard components.count >= 2 else { return nil }
+            let version = (components[0], components[1], components.count > 2 ? components[2] : 0)
+            if version < (6, 4, 2) { return .unscoped }
+            if version < (6, 4, 4) { return .registryScoped(hashLength: 8) }
+            return .registryScoped(hashLength: 32)
+        }
+        return nil
+    }
+
+    /// SwiftPM's `Registry.storageKey`.
+    static func storageKey(registryURL: URL, hashLength: Int) -> String {
+        let canonical = CanonicalPackageURL(registryURL.absoluteString)
+        let hash = String(Hashing.stable("\(canonical.description)_\(canonical.scheme ?? "")").prefix(hashLength))
+        guard let host = registryURL.host?.lowercased(), host.utf8.count <= 32 else { return hash }
+        return "\(host)-\(hash)"
+    }
+
+    func subpath(for pin: ResolvedPin, registryConfig: RegistryConfig) throws -> String {
+        let subpath = try PinKind.registryDownloadSubpath(pin)
+        guard case let .registryScoped(hashLength) = self else { return subpath }
+        let registryURL = try registryConfig.registryURL(for: pin.identity)
+        return "\(Self.storageKey(registryURL: registryURL, hashLength: hashLength))/\(subpath)"
+    }
+
+    /// The toolchain and registry configuration of one invocation, probed once when the first
+    /// registry path is needed.
+    actor Context {
+        private let probe: @Sendable () async throws -> (RegistryDownloadLayout?, RegistryConfig)
+        private var result: Task<(RegistryDownloadLayout, RegistryConfig)?, Never>?
+
+        init(probe: @escaping @Sendable () async throws -> (RegistryDownloadLayout?, RegistryConfig)) {
+            self.probe = probe
+        }
+
+        init(packageDirectory: URL, registryConfigurationPath: URL?, defaultRegistryURL: String?) {
+            self.init {
+                // Native resolution runs the `swift` on PATH with the resolution environment.
+                let version = try await SystemProcess.run(
+                    "swift", ["--version"], customEnvironment: Environment.resolution
+                )
+                let config = try await RegistryConfig.load(
+                    packageDir: packageDirectory, configPath: registryConfigurationPath,
+                    defaultRegistryURL: defaultRegistryURL
+                )
+                return (RegistryDownloadLayout.forSwiftVersion(version.stdoutString), config)
+            }
+        }
+
+        /// `nil` when the toolchain or the configuration cannot be read, or the version is unknown.
+        func value() async -> (RegistryDownloadLayout, RegistryConfig)? {
+            if let result { return await result.value }
+            let probe = probe
+            let result = Task { () -> (RegistryDownloadLayout, RegistryConfig)? in
+                guard let probed = try? await probe(), let layout = probed.0 else { return nil }
+                return (layout, probed.1)
+            }
+            self.result = result
+            return await result.value
+        }
+    }
+
+    @TaskLocal static var context: Context?
+
+    static func withContext<T>(
+        packageDirectory: URL,
+        registryConfigurationPath: URL?,
+        defaultRegistryURL: String?,
+        operation: () async throws -> T
+    ) async throws -> T {
+        try await $context.withValue(
+            Context(
+                packageDirectory: packageDirectory.syntacticallyStandardizedFileURL,
+                registryConfigurationPath: registryConfigurationPath,
+                defaultRegistryURL: defaultRegistryURL
+            ),
+            operation: operation
+        )
+    }
+}
+
+/// SwiftPM's `CanonicalPackageURL`, which `Registry.storageKey` hashes.
+struct CanonicalPackageURL {
+    let description: String
+    let scheme: String?
+
+    init(_ string: String) {
+        var description = string.precomposedStringWithCanonicalMapping.lowercased()
+        let detectedScheme = Self.dropScheme(&description)
+        var scheme = detectedScheme
+
+        if let at = description.firstIndex(of: "@"),
+           let slash = description.firstIndex(of: "/"), at < slash
+        {
+            let user = String(description[..<at].split(separator: ":", omittingEmptySubsequences: false).first ?? "")
+            description.removeSubrange(...at)
+            if let range = description.range(of: "/~/") {
+                description.replaceSubrange(range, with: "/~\(user)/")
+            }
+            if user == "git", scheme == nil { scheme = "ssh" }
+        }
+
+        if let slash = description.firstIndex(of: "/"),
+           let colon = description.firstIndex(of: ":"),
+           let portEnd = description[description.index(after: colon)...].lastIndex(where: \.isASCIIDigit),
+           portEnd <= slash
+        {
+            description.removeSubrange(colon ... portEnd)
+        }
+        if let index = description.firstIndex(of: "#") { description.removeSubrange(index...) }
+        if let index = description.firstIndex(of: "?") { description.removeSubrange(index...) }
+
+        if detectedScheme == nil || detectedScheme == "ssh",
+           let colon = description.firstIndex(of: ":"),
+           description.firstIndex(of: "/").map({ colon < $0 }) ?? true
+        {
+            description.replaceSubrange(colon ... colon, with: "/")
+        }
+
+        var components = description.split(separator: "/").map { $0.removingPercentEncoding ?? String($0) }
+        var last = components.popLast() ?? ""
+        if last.hasSuffix(".git") { last.removeLast(4) }
+        components.append(last)
+        description = components.joined(separator: "/")
+
+        if detectedScheme == "file" || string.first == "/" {
+            scheme = "file"
+            description.insert("/", at: description.startIndex)
+        }
+        self.description = description
+        self.scheme = scheme
+    }
+
+    private static func dropScheme(_ string: inout String) -> String? {
+        guard let delimiter = string.range(of: "://"),
+              string.first?.isLetter == true,
+              string[..<delimiter.lowerBound].allSatisfy({
+                  $0.isLetter || $0.isASCIIDigit || $0 == "+" || $0 == "-" || $0 == "."
+              })
+        else { return nil }
+        let scheme = String(string[..<delimiter.lowerBound])
+        string.removeSubrange(..<delimiter.upperBound)
+        return scheme
+    }
+}
+
+extension Character {
+    fileprivate var isASCIIDigit: Bool { ("0" ... "9").contains(self) }
+}
+
 struct RegistryDownloadPaths: Sendable {
     private var subpaths: [String: String] = [:]
 
@@ -285,6 +456,14 @@ struct RegistryDownloadPaths: Sendable {
             PinKind.isRegistry($0.kind)
         }.map { ($0.identity.lowercased(), $0) })
         guard !registryPins.isEmpty else { return }
+
+        // A known toolchain decides every path, replacing the ones an earlier SwifterPM
+        // recorded in its own layout. Pins it cannot place keep the recorded location.
+        if case let (layout, config)? = await RegistryDownloadLayout.context?.value() {
+            for (identity, pin) in registryPins {
+                subpaths[identity] = try? layout.subpath(for: pin, registryConfig: config)
+            }
+        }
 
         let statePath = scratchDir.appendingPathComponent("workspace-state.json")
         if try await fileSystem.exists(statePath.absolutePath) {
@@ -299,6 +478,7 @@ struct RegistryDownloadPaths: Sendable {
                 guard ref?["kind"] as? String == "registry",
                       let identity = ref?["identity"] as? String,
                       let pin = registryPins[identity.lowercased()],
+                      subpaths[identity.lowercased()] == nil,
                       state?["name"] as? String == "registryDownload",
                       state?["version"] as? String == pin.state.version,
                       let subpath = dependency["subpath"] as? String
@@ -307,8 +487,8 @@ struct RegistryDownloadPaths: Sendable {
                 guard !subpath.isEmpty, !subpath.hasPrefix("/"), !subpath.split(separator: "/").contains("..") else {
                     throw ToolError.message("invalid registry download subpath for \(pin.identity): \(subpath)")
                 }
-                // SwiftPM 6.4 adds a registry-specific prefix. Preserve the recorded location
-                // rather than deriving a path from the identity or reproducing SwiftPM's hash.
+                // Without a known toolchain, the location native SwiftPM recorded is the
+                // only reliable account of its layout.
                 subpaths[pin.identity.lowercased()] = subpath
             }
         }

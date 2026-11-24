@@ -7,6 +7,7 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.BillingFixtures
 
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
@@ -18,7 +19,6 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
   setup :set_mimic_from_context
 
   setup do
-    stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> true end)
     stub(Tuist.FeatureFlags, :runner_concurrency_growth_enabled?, fn _ -> true end)
     account = account_fixture()
     subscription_fixture(account_id: account.id, plan: :pro)
@@ -63,9 +63,8 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
     end
 
     assert {:ok, :unchanged} = ConcurrencySizing.grow(air, :macos, :queue, now)
-    stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> false end)
+    stub(Environment, :runners_available?, fn -> false end)
     assert {:ok, :unchanged} = ConcurrencySizing.grow(paid, :macos, :queue, now)
-    stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> true end)
     stub(Tuist.FeatureFlags, :runner_concurrency_growth_enabled?, fn _ -> false end)
     assert {:ok, :unchanged} = ConcurrencySizing.grow(paid, :macos, :queue, now)
   end

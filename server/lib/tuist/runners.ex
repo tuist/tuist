@@ -16,8 +16,8 @@ defmodule Tuist.Runners do
       each pool's Pods + per-Pod ServiceAccounts directly via
       owner refs — no `RunnerAssignment` CRD. Pod terminates →
       reconciler reaps the Pod + SA, then boots a replacement.
-    * **Runner availability is gated by the `:runners` feature
-      flag** (`Tuist.FeatureFlags.runners_enabled?/1`). Independent
+    * **Every account can use runners** on deployments that offer
+      them (`Tuist.Environment.runners_available?/0`). Independent
       Linux and macOS vCPU/RAM budgets protect shared capacity from
       a single account consuming every runner.
     * **Postgres is the workflow_job lifecycle store.** One

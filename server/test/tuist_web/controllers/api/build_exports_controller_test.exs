@@ -53,7 +53,7 @@ defmodule TuistWeb.API.BuildExportsControllerTest do
     assert explicit_first["pagination_metadata"]["start_cursor"] == nil
     assert explicit_first["pagination_metadata"]["end_cursor"] == nil
 
-    assert {:ok, %{inserted_at: ~N[2026-10-14 09:30:15.123456]}} =
+    assert {:ok, %{inserted_at: "2026-10-14T09:30:15.123456"}} =
              Flop.Cursor.decode(first["pagination_metadata"]["end_cursor"])
 
     RunsFixtures.build_fixture(project_id: project.id, inserted_at: ~N[2026-10-14 09:31:00.000000])
@@ -166,19 +166,12 @@ defmodule TuistWeb.API.BuildExportsControllerTest do
           %{after: "garbage"},
           %{before: "garbage"},
           %{after: Flop.Cursor.encode(%{inserted_at: "wrong-type", id: Ecto.UUID.generate()})},
+          %{after: Flop.Cursor.encode(%{inserted_at: "2026-10-14T25:30:15", id: Ecto.UUID.generate()})},
           %{
             after:
-              Flop.Cursor.encode(%{
-                inserted_at: Map.put(~N[2026-10-14 09:30:15.123456], :year, nil),
-                id: Ecto.UUID.generate()
-              })
-          },
-          %{
-            after:
-              Flop.Cursor.encode(%{
-                inserted_at: Map.put(~N[2026-10-14 09:30:15.123456], :calendar, String),
-                id: Ecto.UUID.generate()
-              })
+              %{inserted_at: ~N[2026-10-14 09:30:15.123456], id: Ecto.UUID.generate()}
+              |> :erlang.term_to_binary()
+              |> Base.url_encode64()
           },
           %{after: Flop.Cursor.encode(%{inserted_at: ~N[2026-10-14 09:30:15], id: "invalid"})},
           %{after: Flop.Cursor.encode(%{inserted_at: ~N[2026-10-14 09:30:15]})},

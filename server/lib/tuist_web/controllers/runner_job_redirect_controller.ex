@@ -11,7 +11,7 @@ defmodule TuistWeb.RunnerJobRedirectController do
 
   alias Tuist.Accounts
   alias Tuist.Authorization
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Runners.Jobs
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
@@ -23,7 +23,7 @@ defmodule TuistWeb.RunnerJobRedirectController do
 
     with false <- is_nil(account),
          :ok <- Authorization.authorize(:runners_read, user, account),
-         true <- FeatureFlags.runners_enabled?(account),
+         true <- Environment.runners_available?(),
          {:ok, job} <- Jobs.get_executed_by_runner_name(account.id, runner_name),
          path when is_binary(path) <- RunnerJobLive.path(account.name, job) do
       redirect(conn, to: path)

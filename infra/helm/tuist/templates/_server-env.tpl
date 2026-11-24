@@ -212,8 +212,8 @@ environment.
             {{- if or .Values.runnersFleet.enabled .Values.runnersFleetLinux.enabled }}
             # Runners namespace. The server reads RunnerPool CRs at
             # dispatch time to discover the fleet name; runner
-            # availability is gated by the `:runners` feature flag and
-            # has no chart-level setting.
+            # availability follows `server.hosted` and has no
+            # chart-level setting.
             - name: TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE
               value: {{ include "tuist.runnerCacheVolumesNamespace" . | quote }}
             - name: TUIST_RUNNER_CACHE_VOLUMES_SA_NAME

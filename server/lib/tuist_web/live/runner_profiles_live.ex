@@ -4,7 +4,7 @@ defmodule TuistWeb.RunnerProfilesLive do
   use Noora
 
   alias Tuist.Authorization
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
@@ -20,7 +20,7 @@ defmodule TuistWeb.RunnerProfilesLive do
     # Read-only sibling views use `:runners_read` because they only
     # surface state.
     if Authorization.authorize(:runners_update, current_user, selected_account) != :ok or
-         not FeatureFlags.runners_enabled?(selected_account) do
+         not Environment.runners_available?() do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end

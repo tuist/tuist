@@ -22,7 +22,6 @@ defmodule Tuist.MCP.SideQuests do
 
   alias Tuist.Automations
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.MCP.Authorization
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -248,19 +247,13 @@ defmodule Tuist.MCP.SideQuests do
          false <- WorkflowJobs.any_for_account?(project.account.id) do
       profile = if project.build_system == :xcode, do: "tuist-macos", else: "tuist-linux"
 
-      access =
-        if FeatureFlags.runners_enabled?(project.account),
-          do: "Runners are enabled for this account; in #{provider}, #{switch_instructions(provider, profile)}.",
-          else:
-            "Runners are not enabled for this account; the user can ask the Tuist team at contact@tuist.dev " <>
-              "or in the community Slack (https://slack.tuist.dev)."
-
       %{
         id: "tuist_runners",
         tip:
           "This CI run used #{provider} machines, and this account has not run jobs on Tuist Runners. Tuist " <>
             "Runners run the same #{provider} jobs on machines next to the Tuist cache, so cache downloads and " <>
-            "uploads stay on a private network instead of crossing the internet. #{access} Moving one " <>
+            "uploads stay on a private network instead of crossing the internet. Every account can use them; " <>
+            "in #{provider}, #{switch_instructions(provider, profile)}. Moving one " <>
             "representative job and comparing its duration with this run shows whether it is faster.",
         docs: "#{@docs_url}/features/runners/ci-providers/#{docs}"
       }

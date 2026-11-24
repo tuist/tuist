@@ -14,8 +14,7 @@ defmodule Tuist.Runners.WorkflowRuns do
   """
   import Ecto.Query
 
-  alias Tuist.Accounts.Account
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.WorkflowRun
   alias Tuist.VCS
@@ -75,7 +74,7 @@ defmodule Tuist.Runners.WorkflowRuns do
         {:ignored, :no_account}
 
       account_id ->
-        if FeatureFlags.runners_enabled?(%Account{id: account_id}) do
+        if Environment.runners_available?() do
           Repo.insert(
             %WorkflowRun{account_id: account_id, workflow_run_id: run_id, run_attempt: attempt, run: run},
             on_conflict: {:replace, [:run, :updated_at]},

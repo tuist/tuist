@@ -3,6 +3,7 @@ defmodule Tuist.Runners.GitLabTest do
 
   import Mimic
 
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
@@ -23,7 +24,6 @@ defmodule Tuist.Runners.GitLabTest do
     %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
     # The stubbed target is a 16 vCPU / 48 GB macOS guest, larger than Air's limit.
     Concurrency.raise_to_plan_defaults(account, :pro)
-    stub(FeatureFlags, :runners_enabled?, fn _ -> true end)
     stub(Allowance, :exhausted?, fn _ -> false end)
 
     stub(Dispatch, :resolve_dispatch_target, fn _, [label] ->
@@ -213,9 +213,8 @@ defmodule Tuist.Runners.GitLabTest do
 
   test "does not acquire jobs when access or allowance is disabled", %{connection: connection} do
     reject(&Client.request_job/1)
-    stub(FeatureFlags, :runners_enabled?, fn _ -> false end)
+    stub(Environment, :runners_available?, fn -> false end)
     assert {:ok, :inactive} = GitLab.poll(connection)
-    stub(FeatureFlags, :runners_enabled?, fn _ -> true end)
     stub(Allowance, :exhausted?, fn _ -> true end)
     assert {:ok, :inactive} = GitLab.poll(connection)
   end

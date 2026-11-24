@@ -95,7 +95,17 @@ struct ResolveTests {
                 as? [String: Any]
             let dependencies = (state?["object"] as? [String: Any])?["dependencies"] as? [[String: Any]]
             #expect((dependencies?.first?["state"] as? [String: Any])?["version"] as? String == newVersion)
-            let restoredSource = package.appendingPathComponent(".build/registry/downloads/\(scope)/dependency/\(newVersion)")
+            // The restore lays the download out where native SwiftPM put the same version in
+            // the fresh workspace, which a cache miss resolved natively.
+            let nativeStatePath = root.appendingPathComponent("fresh-workspace/workspace-state.json")
+            let nativeState = try JSONSerialization.jsonObject(
+                with: await fileSystem.readFile(at: nativeStatePath.absolutePath)
+            ) as? [String: Any]
+            let nativeSubpath = try #require(
+                ((nativeState?["object"] as? [String: Any])?["dependencies"] as? [[String: Any]])?.first?["subpath"] as? String
+            )
+            #expect(dependencies?.first?["subpath"] as? String == nativeSubpath)
+            let restoredSource = package.appendingPathComponent(".build/registry/downloads/\(nativeSubpath)")
             #expect(try await fileSystem.readTextFile(at: restoredSource.appendingPathComponent("version.txt").absolutePath) == newVersion)
 
             // An empty cache and scratch must follow the same locked-install contract.

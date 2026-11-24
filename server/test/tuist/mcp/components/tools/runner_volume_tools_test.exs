@@ -4,6 +4,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeToolsTest do
 
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.MCP.Components.Tools.DeleteRunnerVolume
   alias Tuist.MCP.Components.Tools.GetRunnerVolume
@@ -18,7 +19,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeToolsTest do
   setup do
     account = %{id: 1, name: "acme"}
     stub(Accounts, :get_account_by_handle, fn "acme" -> account end)
-    stub(FeatureFlags, :runners_enabled?, fn ^account -> true end)
     %{account: account, conn: %Plug.Conn{assigns: %{current_subject: :subject}}, id: Ecto.UUID.generate()}
   end
 
@@ -111,7 +111,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeToolsTest do
 
   test "disabled accounts cannot query volumes", %{account: account, conn: conn, id: id} do
     expect(Authorization, :authorize, fn :runners_read, :subject, ^account -> :ok end)
-    stub(FeatureFlags, :runners_enabled?, fn ^account -> false end)
+    stub(Environment, :runners_available?, fn -> false end)
     reject(&Query.run/3)
     assert %{"isError" => true} = GetRunnerVolume.call(conn, %{"account_handle" => "acme", "volume_id" => id})
   end

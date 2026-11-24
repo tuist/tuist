@@ -8,7 +8,7 @@ defmodule Tuist.Kura.RunnerCache do
 
     * an account with at least one Runner Profile whose platform the
       region serves (`Regions.runner_platforms`) AND
-      `Tuist.FeatureFlags.runners_enabled?/1` returning true AND whose jobs run
+      `Tuist.Environment.runners_available?/0` returning true AND whose jobs run
       beside the region should have exactly one non-destroyed Kura server in
       that region, and
     * any other account should have none there.
@@ -27,9 +27,8 @@ defmodule Tuist.Kura.RunnerCache do
   Runner Profiles are auto-created for every account, so profiles identify the
   platform whose cache is needed rather than providing a second entitlement.
   The reconciler evaluates the same runner-availability function as dispatch,
-  making co-located caching an automatic part of the runner product. A global
-  runner rule therefore provisions caches for every eligible account, while an
-  account whose runner access is removed has its cache torn down.
+  making co-located caching an automatic part of the runner product, so every
+  eligible account gets a cache.
 
   Each private region admits new accounts only while fewer than ten servers are
   unsettled. Failed and destroying servers keep admission closed until they
@@ -51,11 +50,6 @@ defmodule Tuist.Kura.RunnerCache do
   that changes who is admitted: while the two server versions disagree, the
   draining row stops the old one from provisioning a second node, and the new
   one has not yet destroyed the first.
-
-  In canary and production, an actor-only runner flag narrows the account query
-  before the final availability check. Broad gates still evaluate every
-  eligible account. Both steps use one flag snapshot so a concurrent flag update
-  cannot produce a mixed cohort within a reconciliation tick.
 
   The platform match keeps the node next to the fleet it serves: a region
   pinned beside the Scaleway Mac mini fleet provisions only for accounts with
@@ -310,86 +304,30 @@ defmodule Tuist.Kura.RunnerCache do
   end
 
   defp runner_enabled_account_ids(regions) do
-    availability = runner_availability()
+    if Environment.runners_available?() do
+      platforms =
+        regions
+        |> Enum.flat_map(&region_platforms/1)
+        |> Enum.uniq()
 
-    platforms =
-      regions
-      |> Enum.flat_map(&region_platforms/1)
-      |> Enum.uniq()
+      profile_exists =
+        from(p in Profile,
+          where: p.account_id == parent_as(:account).id,
+          where: p.platform in ^platforms,
+          select: 1
+        )
 
-    profile_exists =
-      from(p in Profile,
-        where: p.account_id == parent_as(:account).id,
-        where: p.platform in ^platforms,
-        select: 1
-      )
-
-    query =
       from(a in Account,
         as: :account,
         where: exists(profile_exists),
         order_by: [asc: a.id],
-        select: struct(a, [:id])
+        select: a.id
       )
-
-    query
-    |> scope_runner_candidates(availability)
-    |> Repo.all()
-    |> Enum.filter(&runner_enabled?(&1, availability))
-    |> MapSet.new(& &1.id)
-  end
-
-  defp runner_availability do
-    case Environment.env() do
-      env when env in [:can, :prod] -> flagged_runner_availability()
-      _ -> :all
-    end
-  end
-
-  defp flagged_runner_availability do
-    case FunWithFlags.get_flag(:runners) do
-      nil ->
-        %FunWithFlags.Flag{name: :runners, gates: []}
-
-      {:error, reason} ->
-        raise "could not load runner availability: #{inspect(reason)}"
-
-      %FunWithFlags.Flag{} = flag ->
-        flag
-    end
-  end
-
-  defp scope_runner_candidates(query, :all), do: query
-
-  defp scope_runner_candidates(query, %FunWithFlags.Flag{gates: gates}) do
-    if Enum.any?(gates, &broad_runner_gate?/1) do
-      query
+      |> Repo.all()
+      |> MapSet.new()
     else
-      account_ids = enabled_account_actor_ids(gates)
-      where(query, [account: account], account.id in ^MapSet.to_list(account_ids))
+      MapSet.new()
     end
-  end
-
-  defp runner_enabled?(_account, :all), do: true
-  defp runner_enabled?(account, flag), do: FeatureFlags.runners_enabled?(account, flag)
-
-  defp broad_runner_gate?(%FunWithFlags.Gate{type: :boolean, enabled: true}), do: true
-  defp broad_runner_gate?(%FunWithFlags.Gate{type: :group, enabled: true}), do: true
-  defp broad_runner_gate?(%FunWithFlags.Gate{type: :percentage_of_time}), do: true
-  defp broad_runner_gate?(%FunWithFlags.Gate{type: :percentage_of_actors}), do: true
-  defp broad_runner_gate?(_gate), do: false
-
-  defp enabled_account_actor_ids(gates) do
-    Enum.reduce(gates, MapSet.new(), fn
-      %FunWithFlags.Gate{type: :actor, for: "account:" <> account_id, enabled: true}, account_ids ->
-        case Integer.parse(account_id) do
-          {parsed_id, ""} -> MapSet.put(account_ids, parsed_id)
-          _ -> account_ids
-        end
-
-      _gate, account_ids ->
-        account_ids
-    end)
   end
 
   defp accounts_needing_node(%Regions{id: region_id} = region, account_ids, limit) do

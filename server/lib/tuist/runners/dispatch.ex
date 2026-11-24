@@ -23,9 +23,9 @@ defmodule Tuist.Runners.Dispatch do
        handle differs from their GitHub org login (the dominant
        `no_account` webhook outcome); installation resolution has
        no such coupling.
-    2. Reject if runners aren't enabled for the customer
-       (`FeatureFlags.runners_enabled?/1`, gated by the `:runners`
-       flag in canary and production).
+    2. Reject if this deployment doesn't offer runners
+       (`Environment.runners_available?/0`: self-hosted canary and
+       production servers don't).
     3. LIST RunnerPool CRs in the runners namespace and find the
        one whose `spec.dispatchLabel` is in the workflow_job's
        `labels` array. Reject when nothing matches (the
@@ -64,11 +64,8 @@ defmodule Tuist.Runners.Dispatch do
   @pools_cache_ttl_ms 30_000
 
   # Account lookups by org login are cached to keep the webhook path
-  # off Postgres. Enablement isn't part of the cached value — it's
-  # evaluated per call via `FeatureFlags.runners_enabled?/1` (the
-  # `:runners` flag has its own cache + invalidation), so flipping a
-  # customer on takes effect on their next webhook regardless of this
-  # TTL.
+  # off Postgres. Runner availability isn't part of the cached value;
+  # it's evaluated per call via `Environment.runners_available?/0`.
   @account_cache_ttl_ms 60_000
 
   @doc """
@@ -821,7 +818,7 @@ defmodule Tuist.Runners.Dispatch do
         {:error, :no_account}
 
       account ->
-        if FeatureFlags.runners_enabled?(account) do
+        if Environment.runners_available?() do
           {:ok, account}
         else
           {:error, :runners_disabled}

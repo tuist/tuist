@@ -8,6 +8,7 @@ defmodule TuistWeb.BillingLiveTest do
 
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.CacheVolumeBilling
@@ -367,7 +368,7 @@ defmodule TuistWeb.BillingLiveTest do
     end
 
     test "links to the breakdown once for an account with no runner usage", %{conn: conn, account: account} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
       stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(false) end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
@@ -602,7 +603,6 @@ defmodule TuistWeb.BillingLiveTest do
       # runners turned on has an allowance whether or not it has touched
       # it yet, and that is worth seeing before the first run rather
       # than after.
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
@@ -610,7 +610,7 @@ defmodule TuistWeb.BillingLiveTest do
     end
 
     test "is hidden for an account without runners that has run none", %{conn: conn, account: account} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 

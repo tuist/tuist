@@ -150,35 +150,6 @@ defmodule Tuist.Runners.TrialsTest do
       refute Trials.on_trial?(never_used_runners)
     end
 
-    test "puts accounts that can use runners onto a trial before they run anything", %{account: account} do
-      # Access is the `:runners` flag, not past usage. An account holding
-      # the flag that has not run a job yet would otherwise be billed for
-      # its first one the moment a Price is wired up.
-      has_access = AccountsFixtures.user_fixture(preload: [:account]).account
-      no_access = AccountsFixtures.user_fixture(preload: [:account]).account
-
-      stub(FunWithFlags, :get_flag, fn :runners ->
-        %FunWithFlags.Flag{
-          name: :runners,
-          gates: [
-            %FunWithFlags.Gate{type: :actor, for: "account:#{has_access.id}", enabled: true},
-            %FunWithFlags.Gate{type: :actor, for: "account:#{no_access.id}", enabled: false}
-          ]
-        }
-      end)
-
-      Trials.backfill_runner_trials()
-
-      {:ok, has_access} = Accounts.get_account_by_id(has_access.id)
-      {:ok, no_access} = Accounts.get_account_by_id(no_access.id)
-      {:ok, account} = Accounts.get_account_by_id(account.id)
-
-      assert Trials.on_trial?(has_access)
-      # A gate that is explicitly off is not access.
-      refute Trials.on_trial?(no_access)
-      refute Trials.on_trial?(account)
-    end
-
     test "never restarts a trial someone deliberately cancelled", %{account: account} do
       runner_session_fixture(account)
 

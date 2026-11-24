@@ -329,3 +329,85 @@ struct ModelsTests {
         #expect(resolved.pins.filter { PinKind.isSourceControl($0.kind) }.count == 24)
     }
 }
+
+struct RegistryDownloadLayoutTests {
+    @Test(arguments: [
+        ("Apple Swift version 6.4.1 (swiftlang-6.4.1.0.3 clang-2100.3.0.1)", RegistryDownloadLayout?.some(.unscoped)),
+        (
+            "swift-driver version: 1.168.6 Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9 clang-2100.4.1.1)",
+            .registryScoped(hashLength: 8)
+        ),
+        ("Swift version 6.4.3 (swift-6.4.3-RELEASE)", .registryScoped(hashLength: 8)),
+        ("Swift version 6.4.4 (swift-6.4.4-RELEASE)", .registryScoped(hashLength: 32)),
+        ("Apple Swift version 6.5 (swiftlang-6.5.0.0.12 clang-2200.0.0.1)", .registryScoped(hashLength: 32)),
+        ("Swift version 6.4-dev (LLVM 1a2b3c, Swift 4d5e6f)", nil),
+        ("no version here", nil),
+    ])
+    func registryDownloadLayoutFollowsTheSwiftPMRelease(output: String, layout: RegistryDownloadLayout?) {
+        #expect(RegistryDownloadLayout.forSwiftVersion(output) == layout)
+    }
+
+    @Test
+    func registryStorageKeyMatchesSwiftPM() throws {
+        // SwiftPM 6.4.2 (Xcode 27.2) stored registry.tuist.dev downloads in `registry.tuist.dev-c1f509cf`.
+        let registry = try #require(URL(string: "https://registry.tuist.dev/api/registry/swift"))
+        #expect(RegistryDownloadLayout.storageKey(registryURL: registry, hashLength: 8) == "registry.tuist.dev-c1f509cf")
+        #expect(
+            RegistryDownloadLayout.storageKey(registryURL: registry, hashLength: 32)
+                == "registry.tuist.dev-c1f509cf6fa55cf87feb71a41067ae6f"
+        )
+        // SwiftPM canonicalizes case, the port, and a trailing slash before hashing, and labels with the host.
+        let spelledDifferently = try #require(URL(string: "HTTPS://Registry.Tuist.dev:443/api/registry/swift/"))
+        #expect(
+            RegistryDownloadLayout.storageKey(registryURL: spelledDifferently, hashLength: 8)
+                == "registry.tuist.dev-c1f509cf"
+        )
+        // The scheme stays significant, and a host longer than 32 bytes leaves only the hash.
+        let plainHTTP = try #require(URL(string: "http://registry.tuist.dev/api/registry/swift"))
+        #expect(RegistryDownloadLayout.storageKey(registryURL: plainHTTP, hashLength: 8) != "registry.tuist.dev-c1f509cf")
+        let longHost = try #require(URL(string: "https://a-registry-host-name-that-is-long.example.com/swift"))
+        #expect(RegistryDownloadLayout.storageKey(registryURL: longHost, hashLength: 8).count == 8)
+    }
+
+    @Test
+    func registryDownloadPathsFollowTheToolchainOverRecordedSubpaths() async throws {
+        try await withTemporaryDirectory { root in
+            let pin = ResolvedPin(
+                identity: "kolos65.mockable", kind: "registry", location: "",
+                state: ResolvedState(branch: nil, revision: nil, version: "0.6.4")
+            )
+            func writeState(subpath: String) async throws {
+                try await fileSystem.atomicWrite(
+                    JSONFormatter.prettyData([
+                        "version": 7,
+                        "object": [
+                            "artifacts": [],
+                            "dependencies": [[
+                                "packageRef": ["identity": "kolos65.mockable", "kind": "registry"],
+                                "state": ["name": "registryDownload", "version": "0.6.4"],
+                                "subpath": subpath,
+                            ]],
+                        ],
+                    ]),
+                    to: root.appendingPathComponent("workspace-state.json")
+                )
+            }
+            // An earlier SwifterPM recorded its own unscoped layout.
+            try await writeState(subpath: "kolos65/mockable/0.6.4")
+            let config = try await RegistryConfig.load(
+                packageDir: root, configPath: nil, defaultRegistryURL: "https://registry.tuist.dev/api/registry/swift"
+            )
+            func subpath(_ layout: RegistryDownloadLayout?) async throws -> String {
+                try await RegistryDownloadLayout.$context.withValue(.init(probe: { (layout, config) })) {
+                    try await RegistryDownloadPaths(pins: [pin], scratchDir: root).subpath(for: pin)
+                }
+            }
+
+            #expect(try await subpath(.registryScoped(hashLength: 8)) == "registry.tuist.dev-c1f509cf/kolos65/mockable/0.6.4")
+            #expect(try await subpath(.unscoped) == "kolos65/mockable/0.6.4")
+            // An unknown toolchain keeps what native SwiftPM recorded.
+            try await writeState(subpath: "registry.example-1234abcd/kolos65/mockable/0.6.4")
+            #expect(try await subpath(nil) == "registry.example-1234abcd/kolos65/mockable/0.6.4")
+        }
+    }
+}

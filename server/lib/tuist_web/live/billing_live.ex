@@ -6,7 +6,7 @@ defmodule TuistWeb.BillingLive do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.CacheVolumeBilling
@@ -289,7 +289,7 @@ defmodule TuistWeb.BillingLive do
     %{
       # An account with runners turned on has an allowance whether or
       # not it has touched it, and that is the thing the bar answers.
-      enabled: FeatureFlags.runners_enabled?(account),
+      enabled: Environment.runners_available?(),
       total_ms: total_ms,
       minutes: Allowance.allowance_minutes(by_platform),
       free_minutes: free_minutes,

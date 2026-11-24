@@ -3,6 +3,7 @@ defmodule TuistWeb.DashboardNavigationTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -32,7 +33,7 @@ defmodule TuistWeb.DashboardNavigationTest do
 
   test "feature-disabled destinations are absent from the same catalog used by the sidebar" do
     user = AccountsFixtures.user_fixture(preload: [:account])
-    stub(FeatureFlags, :runners_enabled?, fn _ -> false end)
+    stub(Environment, :runners_available?, fn -> false end)
     stub(FeatureFlags, :sandboxes_enabled?, fn _ -> false end)
     stub(FeatureFlags, :luft_enabled?, fn _ -> false end)
     paths = user |> DashboardNavigation.pages(user.account, nil) |> Enum.map(& &1.path)

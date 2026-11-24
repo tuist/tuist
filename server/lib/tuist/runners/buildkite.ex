@@ -50,7 +50,6 @@ defmodule Tuist.Runners.Buildkite do
 
   alias Tuist.Accounts
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Buildkite.Client
@@ -704,7 +703,7 @@ defmodule Tuist.Runners.Buildkite do
   defp fetch_enabled_account(%Installation{account_id: account_id}) do
     case Accounts.get_account_by_id(account_id) do
       {:ok, account} ->
-        if FeatureFlags.runners_enabled?(account) do
+        if Environment.runners_available?() do
           {:ok, account}
         else
           {:error, :runners_disabled}

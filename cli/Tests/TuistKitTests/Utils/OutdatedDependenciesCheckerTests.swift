@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Mockable
+import Path
 import Testing
 import TuistConfig
 import TuistConfigLoader
@@ -147,6 +148,52 @@ struct OutdatedDependenciesCheckerTests {
         #expect(try await subject.packageDependenciesAreOutdated(at: projectDirectory) == false)
 
         try await fileSystem.remove(cachedArtifact)
+
+        #expect(try await subject.packageDependenciesAreOutdated(at: projectDirectory) == true)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func packageDependenciesAreOutdated_whenARegistryScopedDownloadWasPruned() async throws {
+        let projectDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = projectDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.SwiftPackageManager.packageSwiftName
+        )
+        let packageDirectory = packagePath.parentDirectory
+        let scratchDirectory = packageDirectory.appending(component: Constants.SwiftPackageManager.packageBuildDirectoryName)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(packagePath)
+        let savedPackageResolvedPath = scratchDirectory.appending(components: [
+            Constants.DerivedDirectory.name,
+            Constants.SwiftPackageManager.packageResolvedName,
+        ])
+        try await fileSystem.makeDirectory(at: savedPackageResolvedPath.parentDirectory)
+        try await fileSystem.writeText("resolved", at: savedPackageResolvedPath)
+        try await fileSystem.writeText(
+            "resolved", at: packageDirectory.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        )
+        let subpath = "registry.example.com-c1f509cf/kolos65/mockable/0.6.4"
+        try await fileSystem.writeText(
+            """
+            {"object": {"artifacts": [], "dependencies": [
+              {"packageRef": {"identity": "kolos65.mockable", "kind": "registry"},
+               "state": {"name": "registryDownload", "version": "0.6.4"}, "subpath": "\(subpath)"}
+            ]}, "version": 7}
+            """,
+            at: scratchDirectory.appending(component: "workspace-state.json")
+        )
+        let cachedSource = projectDirectory.appending(components: "cache", "sources", "kolos65.mockable", "0.6.4")
+        try await fileSystem.makeDirectory(at: cachedSource)
+        try await fileSystem.writeText("", at: cachedSource.appending(component: Constants.SwiftPackageManager.packageSwiftName))
+        let download = scratchDirectory.appending(components: "registry", "downloads")
+            .appending(try RelativePath(validating: subpath))
+        try await fileSystem.makeDirectory(at: download.parentDirectory)
+        try await fileSystem.createSymbolicLink(from: download, to: cachedSource)
+
+        #expect(try await subject.packageDependenciesAreOutdated(at: projectDirectory) == false)
+
+        try await fileSystem.remove(cachedSource)
 
         #expect(try await subject.packageDependenciesAreOutdated(at: projectDirectory) == true)
     }

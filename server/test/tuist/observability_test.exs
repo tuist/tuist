@@ -27,9 +27,9 @@ defmodule Tuist.ObservabilityTest do
     project = %Project{id: 99, account_id: account.id, name: "app", account: account}
     Observability.set_context(user, %{selected_project: project, ignored: "private input"})
     stub(Environment, :env, fn -> :prod end)
-    expect(FunWithFlags, :enabled?, fn :runners, [for: ^account] -> false end)
+    expect(FunWithFlags, :enabled?, fn :pulse, [for: ^account] -> false end)
 
-    refute FeatureFlags.runners_enabled?(account)
+    refute FeatureFlags.pulse_enabled?(account)
 
     event = Sentry.Event.create_event(exception: %RuntimeError{message: "example"})
     assert event.tags.auth_user_id == 7
@@ -37,9 +37,9 @@ defmodule Tuist.ObservabilityTest do
     assert event.tags.selected_account_id == 42
     assert event.tags.selected_project_id == 99
     assert event.tags.selected_account_handle == "tenant"
-    assert event.tags["feature_flag.runners"] == "false"
+    assert event.tags["feature_flag.pulse"] == "false"
     assert event.extra.selected_account_customer_id == "customer"
-    assert event.extra.feature_flags == [%{flag: "runners", enabled: false, actor_type: "account", actor_id: 42}]
+    assert event.extra.feature_flags == [%{flag: "pulse", enabled: false, actor_type: "account", actor_id: 42}]
     refute inspect(event.extra) =~ "private input"
   end
 
