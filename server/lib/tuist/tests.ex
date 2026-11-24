@@ -749,7 +749,14 @@ defmodule Tuist.Tests do
   defp record_coverage_data(%{submission_auth: "network_trusted"}, _attrs, _coverage, _shard_index, _expected_shards),
     do: :ok
 
+  # The evidence goes first: the run's coverage totals, inline or uploaded,
+  # wait for the evidence the shard stored to reach every replica, and see
+  # only what was recorded by then (`Coverage.Workers.TotalsWorker`).
   defp record_coverage_data(test, attrs, coverage, shard_index, expected_shards) do
+    enrich(test, "coverage evidence", fn ->
+      Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
+    end)
+
     enrich(test, "coverage", fn -> Coverage.publish(test, coverage, shard_index, expected_shards) end)
 
     with %{storage_key: storage_key} = uploaded when is_binary(storage_key) <- Map.get(attrs, :coverage) do
@@ -757,10 +764,6 @@ defmodule Tuist.Tests do
         Coverage.enqueue_publish(test, uploaded, shard_index, expected_shards)
       end)
     end
-
-    enrich(test, "coverage evidence", fn ->
-      Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
-    end)
   end
 
   defp run_test_followups(test, test_case_runs, shard_plan) do

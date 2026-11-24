@@ -304,6 +304,21 @@ defmodule Tuist.Tests.CoverageTest do
     end
   end
 
+  # Readers on another replica must see all of a report's rows or none, so a
+  # report larger than the insert chunk still lands as one part.
+  test "stores a report of several chunks as one part", %{project: project, account: account} do
+    files = for i <- 1..4_500, do: file("Sources/File#{i}.swift", "blob#{i}", ["App"], [{1, 1}, {2, 0}])
+
+    {:ok, test} = create_test(project, account, %{xcode_coverage: coverage(files)})
+
+    assert IngestRepo.query!(
+             "SELECT uniqExact(_part), count() FROM coverage_run_files WHERE project_id = {p:Int64} AND test_run_id = {id:UUID}",
+             %{"p" => project.id, "id" => test.id}
+           ).rows == [[1, 4_500]]
+
+    assert published_totals(project, test) == %{covered_lines: 4_500, executable_lines: 9_000, partial: false}
+  end
+
   describe "coverage streamed to a file" do
     @tag :tmp_dir
     test "publishes the same rows and totals as the inline form, from string-keyed lines", %{

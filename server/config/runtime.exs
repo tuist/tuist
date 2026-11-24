@@ -822,6 +822,11 @@ base_queues = [
   coverage_deltas: 2,
   # Copies coverage rows into a new layout once per release that changes it.
   coverage_backfills: 1,
+  # Coverage totals waiting for every ClickHouse replica, and the pins of the
+  # totals published before them. New queues, so servers still on the release
+  # before them never claim a job they have no worker for.
+  coverage_totals: 10,
+  coverage_pins_backfill: 1,
   sandbox_archives: 2,
   sandbox_snapshot_copies: 1
 ]
