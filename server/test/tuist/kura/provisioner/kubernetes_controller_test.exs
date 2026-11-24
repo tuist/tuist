@@ -17,7 +17,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   setup do
     stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn _account -> false end)
-    stub(Tuist.FeatureFlags, :kura_reapi_batch_read_borrow_enabled?, fn _account -> false end)
     stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> false end)
     stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
@@ -132,27 +131,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert after_manifest["metadata"]["annotations"][revision] ==
                before["metadata"]["annotations"][revision] <> "+positive-fence-v1"
-    end
-
-    test "read borrowing is opt-in and changes the manifest revision" do
-      account = %{name: "tuist"}
-      before = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
-      env_names = &Enum.map(&1["spec"]["extraEnv"], fn var -> var["name"] end)
-      refute "KURA_REAPI_BATCH_READ_BORROW_DEADLINE_MS" in env_names.(before)
-      stub(Tuist.FeatureFlags, :kura_reapi_batch_read_borrow_enabled?, fn ^account -> true end)
-      after_manifest = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
-
-      assert %{"name" => "KURA_REAPI_BATCH_READ_BORROW_DEADLINE_MS", "value" => "10000"} in after_manifest["spec"][
-               "extraEnv"
-             ]
-
-      revision = "tuist.dev/kura-manifest-revision"
-
-      assert after_manifest["metadata"]["annotations"][revision] ==
-               before["metadata"]["annotations"][revision] <> "+read-borrow10000"
-
-      assert KubernetesController.manifest_revision(%Server{account: account}, eu_region()) ==
-               after_manifest["metadata"]["annotations"][revision]
     end
 
     test "renders a KuraInstance without a per-account compute spec" do
