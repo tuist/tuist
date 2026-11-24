@@ -203,7 +203,14 @@ gh workflow run macos-xcode-image.yml -f xcode_version=26.6
 gh workflow run macos-xcode-image.yml -f xcode_version=27.0
 gh workflow run macos-xcode-image.yml -f xcode_version=27.1
 gh workflow run macos-xcode-image.yml -f xcode_version=27.2
+gh workflow run macos-xcode-image.yml -f xcode_version=27.2 -f macos_version=27
 ```
+
+`macos_version` defaults to `26`, which builds over
+`cirruslabs/macos-tahoe-base` and pushes `macos-tahoe-xcode`. `27` builds
+over `cirruslabs/macos-golden-gate-base` and pushes
+`macos-golden-gate-xcode` with the same tag, which the `<xcode>-macos-27`
+runner profiles use.
 
 Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.1.1 → `:26-1-1`, 26.0.1 → `:26-0-1`,
 26.5 → `:26-5`, 26.6 → `:26-6`, 27.0 → `:27-0`, 27.1 → `:27-1`. Each invocation

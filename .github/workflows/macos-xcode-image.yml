@@ -13,6 +13,13 @@ name: macOS + Xcode Image
 #   xcode_version=27.0-beta-6  → <registry>/macos-tahoe-xcode:27-0-beta-6
 #                                 plus the :27-0-beta channel tag
 #
+# `macos_version` picks the guest: 26 (Tahoe, the default) builds on
+# `ghcr.io/cirruslabs/macos-tahoe-base` and publishes
+# `macos-tahoe-xcode`; 27 (Golden Gate) builds on
+# `ghcr.io/cirruslabs/macos-golden-gate-base` and publishes
+# `macos-golden-gate-xcode`, the base of `<xcode>-macos-27` runner
+# profiles (`.github/scripts/runner-image-base.sh`).
+#
 # Prereleases publish both: the exact tag is immutable and records
 # which beta an image holds, the channel tag moves onto each new
 # one. `profiles.json` and the chart catalog both name the channel,
@@ -40,17 +47,23 @@ on:
       xcode_version:
         description: "Xcode version slug as printed by `mise run xcode-mirror:upload` (e.g. 26.4.1, 26.5, 27.0-beta-6). Must already be in the .xip mirror. Drives the push tag (dots → dashes)."
         required: true
-      base_image:
-        description: "Base Tart image to layer Xcode onto"
+      macos_version:
+        description: "Guest macOS major: 26 (Tahoe) or 27 (Golden Gate). Picks the default base image and the repository the image is published to."
         required: false
-        default: "ghcr.io/cirruslabs/macos-tahoe-base:latest"
+        type: choice
+        options: ["26", "27"]
+        default: "26"
+      base_image:
+        description: "Base Tart image to layer Xcode onto. Empty uses the Cirrus Labs base of macos_version."
+        required: false
+        default: ""
 
 concurrency:
   # Different Xcode versions can build in parallel (different push
   # tags, no shared state). Same Xcode re-dispatched cancels the
   # in-flight build — it would publish to the same tag and the
   # second dispatch always represents the more recent intent.
-  group: macos-xcode-image-${{ inputs.xcode_version }}
+  group: macos-xcode-image-${{ inputs.macos_version || '26' }}-${{ inputs.xcode_version }}
   cancel-in-progress: true
 
 permissions:
@@ -67,10 +80,30 @@ jobs:
     # Three hours covers both phases and the upload's retry budget.
     timeout-minutes: 180
     outputs:
+      repository: ${{ steps.guest.outputs.repository }}
       tag: ${{ steps.build.outputs.tag }}
       channel_tag: ${{ steps.build.outputs.channel_tag }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve the guest macOS
+        id: guest
+        env:
+          MACOS_VERSION: ${{ inputs.macos_version || '26' }}
+          BASE_IMAGE: ${{ inputs.base_image }}
+        run: |
+          set -euo pipefail
+          case "$MACOS_VERSION" in
+            26) name=macos-tahoe-xcode; base=ghcr.io/cirruslabs/macos-tahoe-base:latest ;;
+            27) name=macos-golden-gate-xcode; base=ghcr.io/cirruslabs/macos-golden-gate-base:latest ;;
+            *) echo "::error::macos_version must be 26 or 27, not ${MACOS_VERSION}"; exit 1 ;;
+          esac
+          {
+            echo "name=${name}"
+            echo "repository=ghcr.io/tuist/${name}"
+            echo "base=${BASE_IMAGE:-$base}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Guest macOS ${MACOS_VERSION}: ${BASE_IMAGE:-$base} -> ghcr.io/tuist/${name}"
 
       # Tart isn't installed by this workflow. The builder host's
       # bootstrap path (infra/macos-host-bootstrap.installTart, run
@@ -197,8 +230,8 @@ jobs:
           fi
 
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-base:latest' }}" \
-            -var "output_image=macos-tahoe-xcode" \
+            -var "base_image=${{ steps.guest.outputs.base }}" \
+            -var "output_image=${{ steps.guest.outputs.name }}" \
             -var "xcode_xip_path=${{ steps.xcode_xip.outputs.path }}" \
             -var "xcode_version=${XCODE_VERSION}" \
             macos-xcode.pkr.hcl
@@ -236,7 +269,7 @@ jobs:
           fi
 
       # Logging in AFTER the Packer build is intentional: this image's
-      # base is the *public* `ghcr.io/cirruslabs/macos-tahoe-base`, so
+      # base is a *public* `ghcr.io/cirruslabs/macos-*-base`, so
       # Packer's clone is anonymous (see the credential-dropping step
       # above). Auth is needed only for the push that follows.
       - name: Log in to GHCR (crane)
@@ -252,17 +285,17 @@ jobs:
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/tart-push
         with:
-          local-name: macos-tahoe-xcode
+          local-name: ${{ steps.guest.outputs.name }}
           # `tart push` takes several remote names in one call and
           # the blobs are shared, so the channel tag costs a manifest
           # write rather than a second upload of a ~50 GB image.
           remote-names: |
-            ghcr.io/tuist/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
-            ${{ steps.build.outputs.channel_tag && format('ghcr.io/tuist/macos-tahoe-xcode:{0}', steps.build.outputs.channel_tag) || '' }}
+            ${{ steps.guest.outputs.repository }}:${{ steps.build.outputs.tag }}
+            ${{ steps.build.outputs.channel_tag && format('{0}:{1}', steps.guest.outputs.repository, steps.build.outputs.channel_tag) || '' }}
 
       - name: Cleanup
         if: always()
-        run: tart delete macos-tahoe-xcode 2>/dev/null || true
+        run: tart delete "${{ steps.guest.outputs.name }}" 2>/dev/null || true
 
   roll-runner-images:
     name: Roll runner images onto the new base
@@ -277,15 +310,17 @@ jobs:
       - name: Dispatch Runner Image Release for active profiles on this base
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ needs.build.outputs.repository }}
           TAG: ${{ needs.build.outputs.tag }}
           CHANNEL_TAG: ${{ needs.build.outputs.channel_tag }}
         run: |
           set -euo pipefail
-          if jq -e --arg tag "$TAG" --arg channel "$CHANNEL_TAG" \
-            --slurpfile bases infra/runner-image/base-xcode-versions.json \
-            'map($bases[0][.] // .) | map(gsub("\\."; "-")) | any(. == $tag or (. == $channel and $channel != ""))' \
-            infra/runner-image/profiles.json >/dev/null; then
-            gh workflow run runner-image-release.yml --repo "${{ github.repository }}" --ref main
-          else
-            echo "No active runner image profile builds on :${TAG}"
-          fi
+          for profile in $(jq -r '.[]' infra/runner-image/profiles.json); do
+            base="$(.github/scripts/runner-image-base.sh "$profile")"
+            if [ "$base" = "${REPOSITORY}:${TAG}" ] || { [ -n "$CHANNEL_TAG" ] && [ "$base" = "${REPOSITORY}:${CHANNEL_TAG}" ]; }; then
+              echo "Profile ${profile} builds on ${base}"
+              gh workflow run runner-image-release.yml --repo "${{ github.repository }}" --ref main
+              exit 0
+            fi
+          done
+          echo "No active runner image profile builds on ${REPOSITORY}:${TAG}"
