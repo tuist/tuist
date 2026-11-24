@@ -6,6 +6,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -106,5 +109,83 @@ func TestCorruptHostBlobIsReadFromTheCASInstead(t *testing.T) {
 	}
 	if reads, _ := host.state(); len(reads) != 1 {
 		t.Fatalf("host reads %v", reads)
+	}
+}
+
+func TestInputsImageBlobsAreLinkedReadOnlyAndTheRestDownloaded(t *testing.T) {
+	w, m := harness(t)
+	inputs := filepath.Join(filepath.Dir(w.Root), "inputs")
+	if err := os.Mkdir(inputs, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	w.Inputs = inputs
+	shared := m.put(bytes.Repeat([]byte("toolchain"), 30_000))
+	missing := m.put(bytes.Repeat([]byte("missing"), 30_000))
+	wrongSize := m.put(bytes.Repeat([]byte("decoy"), 30_000))
+	name := func(d *re.Digest) string { return filepath.Join(inputs, d.Hash+"-"+strconv.FormatInt(d.SizeBytes, 10)) }
+	if err := os.WriteFile(name(shared), m.blobs[shared.Hash], 0o444); err != nil {
+		t.Fatal(err)
+	}
+	// A file under a digest's name but of another size is never trusted.
+	if err := os.WriteFile(name(wrongSize), []byte("short"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	read := map[string]int{}
+	m.beforeRead = func(_ context.Context, resource string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, d := range []*re.Digest{shared, missing, wrongSize} {
+			if strings.Contains(resource, d.Hash) {
+				read[d.Hash]++
+			}
+		}
+		return nil
+	}
+	tree := &re.Directory{Files: []*re.FileNode{
+		{Name: "decoy", Digest: wrongSize},
+		{Name: "lib.so", Digest: shared},
+		{Name: "missing", Digest: missing},
+		{Name: "other", Digest: shared},
+		{Name: "tool", Digest: shared, IsExecutable: true},
+	}}
+	var linked, copied, other os.FileInfo
+	w.Start = func(cmd *exec.Cmd) error {
+		var err error
+		if linked, err = os.Stat(filepath.Join(w.Root, "lib.so")); err != nil {
+			return err
+		}
+		if other, err = os.Stat(filepath.Join(w.Root, "other")); err != nil {
+			return err
+		}
+		if copied, err = os.Stat(filepath.Join(w.Root, "tool")); err != nil {
+			return err
+		}
+		return cmd.Start()
+	}
+	response, _ := w.Execute(context.Background(), action(t, m, "cat decoy lib.so missing other tool > output", tree, []string{"output"}))
+	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
+		t.Fatalf("execution: %v", response)
+	}
+	var want []byte
+	for _, d := range []*re.Digest{wrongSize, shared, missing, shared, shared} {
+		want = append(want, m.blobs[d.Hash]...)
+	}
+	if got := m.blobs[response.Result.OutputFiles[0].Digest.Hash]; !bytes.Equal(got, want) {
+		t.Fatal("output differs from the inputs")
+	}
+	source, err := os.Stat(name(shared))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(linked, source) || !os.SameFile(other, source) || linked.Mode().Perm() != 0o444 {
+		t.Fatalf("shared input not linked read-only: lib.so %v, other %v", linked.Mode(), other.Mode())
+	}
+	// The executable path of the same digest is a copy with its own mode.
+	if os.SameFile(copied, source) || copied.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("executable path shares the read-only inode: %v", copied.Mode())
+	}
+	if read[shared.Hash] != 0 || read[missing.Hash] != 1 || read[wrongSize.Hash] != 1 {
+		t.Fatalf("CAS reads %v: want only the missing and the wrong-size blob", read)
 	}
 }

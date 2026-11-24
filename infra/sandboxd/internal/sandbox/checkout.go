@@ -115,6 +115,12 @@ func (m *Manager) preparedWorkspace(ctx context.Context, sb *Sandbox, inst vm.In
 	if !ok || inst == nil || agent == nil {
 		return false
 	}
+	return m.swapWorkspace(ctx, sb, inst, agent, image, log.With("scope", key.Scope), "prepared workspace")
+}
+
+// swapWorkspace replaces a running sandbox's workspace disk with a reflink
+// clone of image; see preparedWorkspace. what names the image in logs.
+func (m *Manager) swapWorkspace(ctx context.Context, sb *Sandbox, inst vm.Instance, agent vsock.Agent, image string, log *slog.Logger, what string) bool {
 	start := time.Now()
 	sb.mu.Lock()
 	meta, root := sb.meta, sb.root
@@ -124,16 +130,16 @@ func (m *Manager) preparedWorkspace(ctx context.Context, sb *Sandbox, inst vm.In
 	staged, empty := workspace+".prepared", workspace+".empty"
 	_ = os.Remove(staged)
 	if err := m.cloneFile(image, staged); err != nil {
-		log.Warn("prepared workspace not used", "scope", key.Scope, "error", err)
+		log.Warn(what+" not used", "error", err)
 		return false
 	}
 	defer os.Remove(staged)
 	if err := vm.Chown(staged, uid, uid); err != nil {
-		log.Warn("prepared workspace not used", "scope", key.Scope, "error", err)
+		log.Warn(what+" not used", "error", err)
 		return false
 	}
 	if code, err := vsock.RunProcess(ctx, agent, vsock.ExecRequest{Cmd: []string{"/bin/umount", guestWorkspace}, Cwd: "/", TimeoutMs: 10_000}, nil); err != nil || code != 0 {
-		log.Warn("prepared workspace not used: the guest kept its workspace mounted", "scope", key.Scope, "exit_code", code, "error", err)
+		log.Warn(what+" not used: the guest kept its workspace mounted", "exit_code", code, "error", err)
 		return false
 	}
 	configure := vsock.ConfigureRequest{Hostname: meta.Hostname, DNS: m.cfg.DNS}
@@ -157,10 +163,10 @@ func (m *Manager) preparedWorkspace(ctx context.Context, sb *Sandbox, inst vm.In
 			err = errors.Join(err, restoreErr)
 		}
 		err = errors.Join(err, agent.Configure(ctx, configure))
-		log.Warn("prepared workspace not used", "scope", key.Scope, "error", err)
+		log.Warn(what+" not used", "error", err)
 		return false
 	}
 	_ = os.Remove(empty)
-	log.Info("prepared workspace used", "scope", key.Scope, "duration", time.Since(start))
+	log.Info(what+" used", "duration", time.Since(start))
 	return true
 }
