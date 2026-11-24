@@ -9,7 +9,6 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
   alias Tuist.Accounts.Account
   alias Tuist.Authorization
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Runners.CacheVolumes.Query
   alias TuistWeb.API.RunnerVolumesController, as: Controller
 

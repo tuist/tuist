@@ -3,7 +3,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
   use Mimic
 
   alias Tuist.Accounts
-  alias Tuist.FeatureFlags
   alias Tuist.MCP.Components.Tools.CreateRunnerProfile
   alias Tuist.MCP.Components.Tools.DeleteRunnerProfile
   alias Tuist.MCP.Components.Tools.GetRunnerCatalog

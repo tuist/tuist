@@ -5,7 +5,6 @@ defmodule Tuist.Runners.WorkflowRunsTest do
   import Mimic
 
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
   alias Tuist.Runners.CacheVolumes.Identity

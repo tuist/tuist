@@ -5,7 +5,6 @@ defmodule Tuist.Runners.BitriseTest do
   import Mimic
 
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Bitrise

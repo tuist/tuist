@@ -135,7 +135,6 @@ defmodule Tuist.Runners.GitLab do
         {:ok, 0}
       end
     else
-      nil -> {:ok, 0}
       false -> {:ok, :inactive}
       true -> {:ok, :inactive}
       %Connection{} -> {:ok, 0}

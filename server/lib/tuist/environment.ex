@@ -310,15 +310,20 @@ defmodule Tuist.Environment do
 
   @doc """
   Whether this deployment offers Tuist Runners, which every account on it can
-  use. Production and canary only offer them when Tuist hosts the server, since
-  self-hosted installations have no runner fleet; other environments always do.
+  use. Every deployment does except self-hosted installations, which have no
+  runner fleet.
 
   This is also the source of truth for co-located private Kura cache
   infrastructure.
   """
   def runners_available?(env \\ env(), hosted \\ tuist_hosted?()) do
-    env not in [:can, :prod] or hosted
+    not self_hosted?(env, hosted)
   end
+
+  # A self-hosted server runs as production (or canary) without `TUIST_HOSTED`,
+  # which Tuist's managed deployments set. Development, test, staging and
+  # preview never run as production or canary.
+  defp self_hosted?(env, hosted), do: env in [:can, :prod] and not hosted
 
   # Enable only after every web/ingestion and build-processor replica accepts the expanded limit.
   # Before a downgrade, disable and drain in-flight reports before rolling back.

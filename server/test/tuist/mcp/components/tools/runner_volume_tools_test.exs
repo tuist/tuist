@@ -5,7 +5,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeToolsTest do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.MCP.Components.Tools.DeleteRunnerVolume
   alias Tuist.MCP.Components.Tools.GetRunnerVolume
   alias Tuist.MCP.Components.Tools.ListRunnerJobVolumes

@@ -9,7 +9,6 @@ defmodule TuistWeb.BillingLiveTest do
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Prepaid

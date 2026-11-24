@@ -4,7 +4,6 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
