@@ -1790,8 +1790,16 @@ jobs:
             sandboxd_tag=$(bash .github/scripts/sandbox-live-image-tag.sh "$sandbox_namespace" "$sandbox_name" sandboxd "$sandboxd_image" "$SANDBOXD_IMAGE_TAG")
             add_set "sandboxes.image.tag" "$sandboxd_tag"
             if [ "${#vmm_render_sets[@]}" -gt 0 ]; then
-              vmm_image=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .spec.template.spec.containers[] | select(.name == "vmm") | .image' "$registry_render")
-              vmm_tag=$(bash .github/scripts/sandbox-live-image-tag.sh "$sandbox_namespace" "$sandbox_name" vmm "$vmm_image" "")
+              # The first rollout to in-place upgrades replaces every Pod anyway,
+              # so vmm moves with the daemon then: an older vmm cannot hold VMs
+              # across a daemon restart.
+              live_strategy=$(kubectl -n "$sandbox_namespace" get daemonset "$sandbox_name" -o jsonpath='{.spec.updateStrategy.type}' 2>/dev/null || true)
+              if [ "$live_strategy" = OnDelete ]; then
+                vmm_image=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .spec.template.spec.containers[] | select(.name == "vmm") | .image' "$registry_render")
+                vmm_tag=$(bash .github/scripts/sandbox-live-image-tag.sh "$sandbox_namespace" "$sandbox_name" vmm "$vmm_image" "")
+              else
+                vmm_tag=$sandboxd_tag
+              fi
               add_set "sandboxes.vmm.image.tag" "$vmm_tag"
             fi
             echo "SANDBOXD_NAMESPACE=$sandbox_namespace" >> "$GITHUB_ENV"
