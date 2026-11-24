@@ -149,19 +149,24 @@ defmodule Tuist.Ops.Database do
   Paginated preview of a table's rows. Same read-only enforcement as
   the ad-hoc SQL runner: `BEGIN READ ONLY` + `statement_timeout`.
 
+  Values of secret columns (`secret_column?/2`) come back as
+  `"[REDACTED]"`, and those columns can be neither sorted nor filtered
+  on, so the preview cannot confirm a guessed value.
+
   ## Options
 
     * `:page` — 1-based page number (default `1`)
     * `:page_size` — rows per page (default `20`)
     * `:sort_column` — column to ORDER BY; defaults to the table's
-      first column for stable pagination
+      first non-secret column for stable pagination, or the physical
+      row order when every column is secret
     * `:sort_dir` — `:asc` or `:desc` (default `:asc`)
     * `:filters` — list of `%Noora.Filter.Filter{}` structs from
       `Noora.Filter.Operations.decode_filters_from_query/2`. Each is
       translated to a WHERE clause; multiple filters are joined with
       AND. The column name (via `filter.id`) is whitelisted against
-      the table's actual columns before splicing; the value is always
-      parameterized.
+      the table's non-secret columns before splicing; filters on other
+      columns are dropped. The value is always parameterized.
   """
   def preview_table_rows(schema, name, opts \\ []) do
     page = Keyword.get(opts, :page, 1)
@@ -173,14 +178,88 @@ defmodule Tuist.Ops.Database do
       [] ->
         {:error, :no_columns}
 
-      [%{"name" => first} | _] = columns ->
-        column_names = Enum.map(columns, & &1["name"])
-        sort_column = pick_column(Keyword.get(opts, :sort_column), column_names, first)
+      columns ->
+        {secret, visible} = Enum.split_with(columns, &secret_column?(name, &1))
+        secret_names = MapSet.new(secret, & &1["name"])
+        column_names = Enum.map(visible, & &1["name"])
+        sort_column = pick_column(Keyword.get(opts, :sort_column), column_names, List.first(column_names))
         {where_sql, params} = build_where(filters, column_names)
 
-        run_preview(schema, name, sort_column, sort_dir, where_sql, params, page, page_size)
+        case run_preview(schema, name, sort_column, sort_dir, where_sql, params, page, page_size) do
+          {:ok, result} -> {:ok, %{result | rows: Enum.map(result.rows, &redact(&1, secret_names))}}
+          error -> error
+        end
     end
   end
+
+  @redacted "[REDACTED]"
+
+  # Credentials whose names don't say so: OAuth access tokens and codes, and
+  # device codes, which are bearer secrets while pending.
+  @secret_columns MapSet.new([
+                    {"oauth_tokens", "value"},
+                    {"oauth_tokens", "previous_code"},
+                    {"device_codes", "code"}
+                  ])
+
+  # Named like a credential but public by design: the value an organization
+  # publishes in a DNS TXT record.
+  @public_columns MapSet.new([{"organizations", "sso_login_domain_verification_token"}])
+
+  # Credentials and their digests: refresh JWTs, password, token, one-time and
+  # recovery code hashes, client secrets and private keys.
+  @secret_name ~r/(^|_)(tokens?|secrets?|passwords?|passwd|private_keys?|api_keys?|encrypted|jwts?|credentials?|otp|recovery_codes?)(_|$)/
+
+  # Columns about a credential rather than the credential itself: identifiers,
+  # kinds, algorithms, endpoints, previews and public keys.
+  @descriptive_name ~r/(_last_four|_type|_alg|_url|_endpoint|_fingerprint|_id|_jti|_kid|_methods|public_key)$/
+
+  # Types that cannot hold a credential: timestamps, counts, flags and
+  # UUIDs (foreign keys such as `account_token_id`).
+  @non_secret_types [
+    "bigint",
+    "integer",
+    "smallint",
+    "numeric",
+    "real",
+    "double precision",
+    "boolean",
+    "uuid",
+    "date",
+    "interval",
+    "timestamp with time zone",
+    "timestamp without time zone",
+    "time with time zone",
+    "time without time zone"
+  ]
+
+  @doc """
+  Whether the table preview treats a column, as returned by
+  `list_table_columns/2`, as a credential: its values are redacted and it
+  cannot be sorted or filtered on. Matched by name and type, so a new
+  credential column is covered without listing it here. The ad-hoc SQL runner
+  (`execute/2`) does not redact: it runs the query the operator wrote.
+  """
+  def secret_column?(table, %{"name" => name, "type" => type}) do
+    cond do
+      MapSet.member?(@secret_columns, {table, name}) -> true
+      MapSet.member?(@public_columns, {table, name}) -> false
+      type in @non_secret_types -> false
+      Regex.match?(@descriptive_name, name) -> false
+      true -> Regex.match?(@secret_name, name)
+    end
+  end
+
+  defp redact(row, secret_names) do
+    Map.new(row, fn {column, value} ->
+      if is_nil(value) or not MapSet.member?(secret_names, column), do: {column, value}, else: {column, @redacted}
+    end)
+  end
+
+  # Physical row order when every column is secret, so the order reveals
+  # nothing about their values.
+  defp order_target(nil), do: "ctid"
+  defp order_target(column), do: quote_ident(column)
 
   defp run_preview(schema, name, sort_column, sort_dir, where_sql, params, page, page_size) do
     offset = (max(page, 1) - 1) * page_size
@@ -190,7 +269,7 @@ defmodule Tuist.Ops.Database do
     sql =
       "SELECT * FROM #{quote_ident(schema)}.#{quote_ident(name)} " <>
         where_sql <>
-        " ORDER BY #{quote_ident(sort_column)} #{sql_dir(sort_dir)} " <>
+        " ORDER BY #{order_target(sort_column)} #{sql_dir(sort_dir)} " <>
         " LIMIT $#{limit_index} OFFSET $#{offset_index}"
 
     bindings = params ++ [page_size, offset]

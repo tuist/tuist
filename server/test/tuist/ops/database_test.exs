@@ -5,6 +5,7 @@ defmodule Tuist.Ops.DatabaseTest do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Ops.Database
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "execute/2 grammar gate" do
     test "accepts SELECT" do
@@ -102,6 +103,109 @@ defmodule Tuist.Ops.DatabaseTest do
       # (SELECT) on purpose to cover both gates simultaneously.
       assert {:error, msg} = Database.execute("SELECT pg_sleep(10)")
       assert msg =~ "canceling statement" or msg =~ "statement timeout"
+    end
+  end
+
+  describe "preview_table_rows/3" do
+    test "redacts credentials while timestamps in credential-named columns stay visible" do
+      user = AccountsFixtures.user_fixture()
+      revoked_at = ~U[2026-01-02 03:04:05Z]
+      Tuist.Repo.query!("UPDATE users SET credentials_revoked_at = $1 WHERE id = $2", [revoked_at, user.id])
+      by_id = %{id: "id", operator: :==, value: user.id}
+
+      assert {:ok, %{rows: [row]}} = Database.preview_table_rows("public", "users", filters: [by_id])
+
+      assert row["email"] == user.email
+      assert row["encrypted_password"] == "[REDACTED]"
+      assert %DateTime{} = row["credentials_revoked_at"]
+      assert DateTime.compare(row["credentials_revoked_at"], revoked_at) == :eq
+    end
+
+    test "sorts by visible columns, including credential-named timestamps, but never by a credential" do
+      first = AccountsFixtures.user_fixture()
+      second = AccountsFixtures.user_fixture()
+      # The later user revoked earlier, so the two orders differ.
+      Tuist.Repo.query!("UPDATE users SET credentials_revoked_at = '2026-01-02' WHERE id = $1", [first.id])
+      Tuist.Repo.query!("UPDATE users SET credentials_revoked_at = '2026-01-01' WHERE id = $1", [second.id])
+      # Make the password order the reverse of the ID order.
+      Tuist.Repo.query!("UPDATE users SET encrypted_password = 'b' WHERE id = $1", [first.id])
+      Tuist.Repo.query!("UPDATE users SET encrypted_password = 'a' WHERE id = $1", [second.id])
+      both = %{id: "id", operator: :>=, value: first.id}
+
+      ids = fn sort_column ->
+        {:ok, %{rows: rows}} =
+          Database.preview_table_rows("public", "users", filters: [both], sort_column: sort_column, page_size: 100)
+
+        rows |> Enum.map(& &1["id"]) |> Enum.filter(&(&1 in [first.id, second.id]))
+      end
+
+      assert ids.("credentials_revoked_at") == [second.id, first.id]
+      # An ignored credential sort falls back to the first visible column, `id`.
+      assert ids.("encrypted_password") == [first.id, second.id]
+    end
+
+    test "drops filters on credentials rather than answering whether a guess matches" do
+      user = AccountsFixtures.user_fixture()
+      code = "device-#{user.id}"
+      Tuist.Accounts.create_device_code(code)
+
+      by_guess = %{id: "code", operator: :==, value: code}
+      no_match = %{id: "code", operator: :==, value: "not-#{code}"}
+
+      assert {:ok, %{rows: matched}} = Database.preview_table_rows("public", "device_codes", filters: [by_guess])
+      assert matched != []
+      assert Enum.all?(matched, &(&1["code"] == "[REDACTED]"))
+      assert {:ok, %{rows: ^matched}} = Database.preview_table_rows("public", "device_codes", filters: [no_match])
+    end
+
+    test "redacts arrays of secrets and keeps UUID foreign keys to credentials visible" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      account_token =
+        AccountsFixtures.account_token_fixture(
+          account: user.account,
+          all_projects: false,
+          project_ids: [project.id]
+        )
+
+      Tuist.Repo.query!(
+        """
+        INSERT INTO user_mfa (user_id, secret, enrollment_session_hash, enrollment_expires_at, recovery_code_hashes)
+        VALUES ($1, 'secret', 'hash', now(), ARRAY['\\\\x01'::bytea])
+        """,
+        [user.id]
+      )
+
+      assert {:ok, %{rows: [mfa]}} =
+               Database.preview_table_rows("public", "user_mfa",
+                 filters: [%{id: "user_id", operator: :==, value: user.id}]
+               )
+
+      assert mfa["recovery_code_hashes"] == "[REDACTED]"
+      assert mfa["secret"] == "[REDACTED]"
+
+      assert {:ok, %{rows: [link]}} =
+               Database.preview_table_rows("public", "account_token_projects",
+                 filters: [%{id: "account_token_id", operator: :==, value: account_token.id}]
+               )
+
+      assert Ecto.UUID.cast!(link["account_token_id"]) == account_token.id
+    end
+
+    test "secret_column?/2 leaves out columns that describe a credential" do
+      refute Database.secret_column?("account_tokens", %{"name" => "secret_last_four", "type" => "character varying"})
+      refute Database.secret_column?("organizations", %{"name" => "oauth2_token_url", "type" => "character varying"})
+      refute Database.secret_column?("user_passkeys", %{"name" => "credential_id", "type" => "bytea"})
+      refute Database.secret_column?("token_usages", %{"name" => "input_tokens", "type" => "integer"})
+
+      refute Database.secret_column?("organizations", %{
+               "name" => "sso_login_domain_verification_token",
+               "type" => "character varying"
+             })
+
+      assert Database.secret_column?("oauth_tokens", %{"name" => "value", "type" => "text"})
+      assert Database.secret_column?("users", %{"name" => "encrypted_password", "type" => "character varying"})
     end
   end
 

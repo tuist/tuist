@@ -1798,7 +1798,7 @@ msgstr ""
 msgid "Table"
 msgstr ""
 
-#: lib/tuist_web/live/ops_database_table_live.ex:63
+#: lib/tuist_web/live/ops_database_table_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "Table not found."
 msgstr ""
