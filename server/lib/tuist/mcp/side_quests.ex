@@ -252,8 +252,8 @@ defmodule Tuist.MCP.SideQuests do
         if FeatureFlags.runners_enabled?(project.account),
           do: "Runners are enabled for this account; in #{provider}, #{switch_instructions(provider, profile)}.",
           else:
-            "Runners are invite-only for now, but the Tuist team gives teams access to try them: the user can " <>
-              "ask at contact@tuist.dev or in the community Slack (https://slack.tuist.dev)."
+            "Runners are not enabled for this account; the user can ask the Tuist team at contact@tuist.dev " <>
+              "or in the community Slack (https://slack.tuist.dev)."
 
       %{
         id: "tuist_runners",

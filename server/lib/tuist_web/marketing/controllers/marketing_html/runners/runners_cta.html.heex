@@ -25,8 +25,8 @@ page's closing CTA. --%>
   <h2 id="cta-title">{dgettext("marketing", "Move your next CI job to Tuist")}</h2>
   <div data-part="actions" role="group" aria-labelledby="cta-title">
     <.button
-      href="mailto:contact@tuist.dev?subject=Tuist%20Runners%20access"
-      label={dgettext("marketing", "Request access")}
+      href={~p"/users/register"}
+      label={dgettext("marketing", "Get started")}
     />
     <.button
       href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"

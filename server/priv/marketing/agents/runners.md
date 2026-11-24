@@ -1,6 +1,6 @@
 # Tuist Runners: managed macOS and Linux CI runners
 
-Tuist Runners are managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise. You keep your CI provider and pipelines and change one line to run a job on Tuist's fleet, next to the same build cache your team's machines and coding agents already share. Runners are invite-only while capacity scales. [Request an invitation](mailto:contact@tuist.dev); creating an account does not enable access.
+Tuist Runners are managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise. You keep your CI provider and pipelines and change one line to run a job on Tuist's fleet, next to the same build cache your team's machines and coding agents already share. Runners are available to every Tuist account.
 
 ## Why teams move CI jobs to Tuist Runners
 
@@ -21,7 +21,7 @@ Tuist Runners are managed macOS and Linux CI runners for GitHub Actions, GitLab 
 
 | Approach | Good fit | Tradeoff |
 | --- | --- | --- |
-| Tuist Runners | Managed macOS and Linux CI machines next to a shared cache, without maintaining a fleet. | Invitation required; account concurrency limits apply. |
+| Tuist Runners | Managed macOS and Linux CI machines next to a shared cache, without maintaining a fleet. | Account concurrency limits apply. |
 | CI provider's hosted runners | Simple setup with the runners your provider already offers. | No colocated cache shared with developer machines and agents. |
 | Self-hosted runners | Full control over hardware and network. | You maintain machines, images, toolchains, and capacity. |
 | Optimize the project first | Expensive or repeated work dominates job time. | Fix the project before assuming new machines will solve it. |
@@ -30,7 +30,7 @@ Tuist Runners are managed macOS and Linux CI runners for GitHub Actions, GitLab 
 
 Faster machines do not remove unnecessary work, so improve the project before changing its execution environment. Inspect invalidation, expensive operations, and repeated work with [Build Insights](/en/docs-markdown/guides/features/build-insights), [Cache](/marketing-markdown/cache), and [Tests](/marketing-markdown/tests). These do not require moving jobs to Tuist Runners.
 
-Once invited, connect the provider using the [Runners guide](/en/docs-markdown/guides/features/runners), choose a profile, and move one representative job. Current shapes and versions are listed in the dashboard.
+Connect the provider using the [Runners guide](/en/docs-markdown/guides/features/runners), choose a profile, and move one representative job. Current shapes and versions are listed in the dashboard.
 
 ## Questions before you start
 
@@ -44,11 +44,11 @@ GitHub Actions, GitLab CI, Buildkite, and Bitrise, plus an API for other forges 
 
 ### Can we adopt it incrementally?
 
-Yes, after invitation. Move one job and compare it against the existing runner before expanding. Cache and insights can be adopted independently.
+Yes. Move one job and compare it against the existing runner before expanding. Cache and insights can be adopted independently.
 
 ### Hosted or self-hosted?
 
-Tuist Runners are a managed, invite-only service. [Self-hosting Tuist's server](/en/docs-markdown/guides/server/self-host/server) is a separate deployment choice and does not grant access to the managed fleet.
+Tuist Runners are a managed service. [Self-hosting Tuist's server](/en/docs-markdown/guides/server/self-host/server) is a separate deployment choice and does not grant access to the managed fleet.
 
 ### How do we measure value?
 

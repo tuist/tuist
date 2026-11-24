@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "4b5996a5d4b0f73f272468f5888c991a38ab3b294a77182d4fdede2e5ebab468",
+  "hash": "1afbc421c1c9aa9a1eecd7ca257133c24d86c8710786ea9b5ad640cd248426b5",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Bitrise {#bitrise}": {
-                  "content_hash": "eae829644eb29aa0abe61103e96e47b57149a47838a85d995e72d89e7ceb7335"
+                  "content_hash": "c0c15f91c2aba4d1ee2cf956f33570dc53ee6c69c2fba4a6d87334c3a68829fb"
                 },
                 "## Dedicated pools {#dedicated-pools}": {
                   "content_hash": "a91622ca69d74b390bddd06049b3396178cac1ac78eb8d5bcb6d3900efad58d2"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "95da52d5c026709c7e11dcc85dfbd7763e0a5cc2c474c2fd51f766519f746c7e",
+          "hash": "b31585b3c0021311a7308e6dfb2b5962cbfb6cc933e812e21772db59836df47a",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/ci-providers/bitrise.md",
           "metadata": {
-            "content_hash": "93d734a4ed55ededa7971d1d21609ef675f0bfef3da3527dcbd27fe4bc84aba8"
+            "content_hash": "e6ed13b9b0525372f75ee80b5968ac051606ac130d9910efdb96d1defffa948e"
           }
         },
         {
@@ -224,14 +224,14 @@
         }
       ],
       "details": {},
-      "hash": "4b5996a5d4b0f73f272468f5888c991a38ab3b294a77182d4fdede2e5ebab468",
+      "hash": "1afbc421c1c9aa9a1eecd7ca257133c24d86c8710786ea9b5ad640cd248426b5",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/ci-providers/bitrise.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "01a650020c82bcfdf2559c10d67cca5c5f4f3ecf7934882d34fbcffce5ad514d",
+  "output_hash": "b72978c6d3087fd71e6a0348e671e7f7aff18bbbc3a580c5e19f25457e8ca778",
   "output_path": "server/priv/docs/tr/guides/features/runners/ci-providers/bitrise.md",
   "protection_state": "recorded",
   "provider": "",
@@ -251,8 +251,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1e6d3d407b9ed8b1be711409d6b85b315f19218f",
+  "source_commit_sha": "b62ff4e879e015529ea84f82b4f937c60e8de0c3",
   "source_path": "server/priv/docs/en/guides/features/runners/ci-providers/bitrise.md",
-  "translated_at": "2026-11-19T14:13:27.377329Z",
-  "translation_session_id": "01a1f425-ef20-75ca-a48f-3b41bfd55274"
+  "translated_at": "2026-11-24T17:10:30.526378Z",
+  "translation_session_id": "01a20e88-4520-7012-8b80-cb91209eb3ce"
 }

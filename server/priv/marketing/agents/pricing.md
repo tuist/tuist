@@ -37,7 +37,7 @@ Tuist also meters feature usage, including cache downloads and reported passing 
 
 ## Compute availability
 
-Tuist Runners are invite-only. The shared [Compute section](/pricing#compute) lists Linux rates for runners and remote execution, plus macOS rates for runners only. Runners are billed per minute of CI job time on top of any plan; machine boot and cleanup are not billed. Every plan includes monthly free macOS and Linux runner allowances and a free cache volume storage allowance, with storage beyond it billed per GB-month. [Contact the team](mailto:contact@tuist.dev) for access and for further yearly or volume discounts.
+Tuist Runners are available to every account. The shared [Compute section](/pricing#compute) lists Linux rates for runners and remote execution, plus macOS rates for runners only. Runners are billed per minute of CI job time on top of any plan; machine boot and cleanup are not billed. Every plan includes monthly free macOS and Linux runner allowances and a free cache volume storage allowance, with storage beyond it billed per GB-month. [Contact the team](mailto:contact@tuist.dev) for access and for further yearly or volume discounts.
 
 Remote execution runs individual Bazel and Struo build and test actions in single-use Linux microVMs with CPU and memory allocated per action. Reuse cached outputs before executing the remaining work remotely. [Contact the team](mailto:contact@tuist.dev) for higher concurrency limits. Each action is counted to the millisecond from when it starts in its VM until it finishes, including input fetch and output upload, at the Linux rate for its VM size; queueing and VM boot are not counted. The account Usage page shows remote execution separately from runners.
 

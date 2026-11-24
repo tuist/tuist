@@ -7,7 +7,10 @@
 ---
 # GitHub Actions {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
+> [!IMPORTANT]
+> **Solo para organizaciones de GitHub**
+>
+> Tuist Runners solo ejecuta trabajos de repositorios propiedad de una organización de GitHub, no de una cuenta personal.
 
 Ejecutar un trabajo en la flota requiere tres cambios: conectar GitHub, apuntar `runs-on` a un <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> de Tuist y hacer push.
 
@@ -26,17 +29,17 @@ Ejecutar un trabajo en la flota requiere tres cambios: conectar GitHub, apuntar 
    > [!IMPORTANT]
    > **Selecciona Xcode con el perfil del runner**
    >
-   > Una imagen de runner macOS contiene una única versión de Xcode, que Tuist selecciona antes de que comience el trabajo según el perfil. Si estás migrando desde runners alojados en GitHub, elimina los pasos que usan `xcode-select --switch` (o `xcode-select -s`) u otras herramientas y acciones para cambiar las versiones de Xcode. Esos pasos suelen hacer referencia a instalaciones de Xcode específicas de las imágenes alojadas en GitHub y pueden fallar en los Runners de Tuist.
+   > Una imagen de runner macOS contiene una única versión de Xcode, que Tuist selecciona antes de que comience el trabajo en función del perfil. Si estás migrando desde runners alojados en GitHub, elimina los pasos que usan `xcode-select --switch` (o `xcode-select -s`) u otras herramientas y acciones para cambiar las versiones de Xcode. Esos pasos suelen hacer referencia a instalaciones de Xcode específicas de las imágenes alojadas en GitHub y pueden fallar en Tuist Runners.
    >
    > Para usar otra versión de Xcode, <.localized_link href="/guides/features/runners/profiles#creating-a-profile">crea o elige un perfil</.localized_link> con esa versión y actualiza `runs-on`, por ejemplo `runs-on: tuist-xcode-26-4`. `xcodebuild`, `xcrun` y `swift` usarán entonces la versión de Xcode seleccionada por el perfil sin necesidad de configuración adicional en el flujo de trabajo.
 
-3. **Haz push y observa.** El trabajo se pone en cola, es asignado por un runner y se transmite de vuelta a la sección **Runners** de tu panel de Tuist, donde puedes seguir sus registros, pasos y métricas de la máquina.
+3. **Haz push y observa.** El trabajo se pone en cola, es reclamado por un runner y se transmite de vuelta a la sección **Runners** de tu panel de Tuist, donde puedes seguir sus registros, pasos y métricas de la máquina.
 
 ## Volúmenes de caché {#cache-volumes}
 
-Mantén las cachés de Xcode, de módulos y de Gradle, así como otros directorios, entre trabajos con <.localized_link href="/guides/features/runners/cache-volumes">volúmenes de caché</.localized_link>. Añádelos después del checkout y antes de los comandos que los utilizan.
+Mantén las cachés de Xcode, de módulos y de Gradle, así como otros directorios, entre trabajos con <.localized_link href="/guides/features/runners/cache-volumes">volúmenes de caché</.localized_link>. Añádelos después del checkout y antes de los comandos que los utilicen.
 
-Otorga al trabajo el permiso `id-token: write` para que sus volúmenes de caché y el checkout en caché se adjunten tan pronto como comience. Sin ello, el runner espera a que GitHub informe de qué trabajo está ejecutando, y un trabajo que GitHub informa tarde comienza con cachés vacías. Un flujo de trabajo que inicia sesión en Tuist con OpenID Connect ya lo otorga.
+Otorga al trabajo `id-token: write` para que sus volúmenes de caché y el checkout en caché se adjunten tan pronto como comience. Sin ello, el runner espera a que GitHub informe de qué trabajo está ejecutando, y un trabajo que GitHub informa tarde comenzará con cachés vacías. Un flujo de trabajo que inicia sesión en Tuist con OpenID Connect ya lo otorga.
 
 ```yaml
 permissions:

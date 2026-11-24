@@ -1,8 +1,8 @@
 # Tuist Runners for Buildkite: macOS and Linux agents
 
-Managed macOS and Linux machines for your Buildkite queues. Keep your pipelines, drop the agent fleet, and build next to a shared cache. Invite-only.
+Managed macOS and Linux machines for your Buildkite queues. Keep your pipelines, drop the agent fleet, and build next to a shared cache.
 
-Tuist watches self-hosted queues in your Buildkite cluster and runs their jobs on its fleet, next to the same build cache your developers and coding agents use. Runners are invite-only while capacity scales; [request an invitation](mailto:contact@tuist.dev).
+Tuist watches self-hosted queues in your Buildkite cluster and runs their jobs on its fleet, next to the same build cache your developers and coding agents use.
 
 ## Target a queue named after a profile
 

@@ -8,6 +8,9 @@ these schemas persist volume identities and per-job uses.
   the allocation. Read-only image `retain` and `download` requests may name a use
   from any node: hosts prefetch a custom HEAD (`prefetch_heads/4`, listed by
   `VolumePrefetch`) under the use that published it.
+- `Volume.paths` is what the host reported when publishing the saved head (nil
+  when unknown, as from an older agent); `sandbox_cache/2` ranks volumes by it
+  the way the sandbox guest binds them, so keep the two in step.
 - `prefetch_heads/4` lists, for a macOS host of a class or a Linux host of a
   fleet (Linux job shapes share its nodes), first up to 32
   `prewarm` HEADs (volumes at least two workflow runs used in the last seven

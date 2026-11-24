@@ -14,7 +14,7 @@ Its [Xcode integration](https://depot.dev/docs/cache/integrations/xcode.md) docu
 | --- | --- | --- |
 | Remote build-output caching without changing runners | [Cache](/marketing-markdown/cache) works with supported clients independently of Tuist Runners. | Depot Cache is also available independently and supports local and CI builds for supported tools. Runner independence alone is not a differentiator. |
 | Xcode cache reuse on developer machines | [Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) connects compatible developer, CI, and agent builds; requires Xcode 26+. | The cited Xcode page currently excludes local workstation support. Verify whether that limitation has changed before buying. |
-| Managed execution | Optional [Tuist Runners](/marketing-markdown/runners) have colocated caching and currently require an invitation. | Depot documents managed GitHub Actions runners and integrated caches. Evaluate available machines, images, and commercial terms. |
+| Managed execution | Optional [Tuist Runners](/marketing-markdown/runners) have colocated caching. | Depot documents managed GitHub Actions runners and integrated caches. Evaluate available machines, images, and commercial terms. |
 | Explain build or test work | [Build Insights](/en/docs-markdown/guides/features/build-insights), [Tests](/marketing-markdown/tests), and [MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) expose supported toolchain records. | Depot's Xcode integration includes a cache-summary action with hits, misses, and transfers. Compare the deeper records your investigation requires rather than assuming no cache diagnostics exist. |
 
 ## Choose Tuist when

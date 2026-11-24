@@ -879,6 +879,7 @@ func (b *LocalImages) publish(slot Slot) error {
 	if slot.BaseGeneration > 0 && content == slot.ContentDigest {
 		return ErrIdentical
 	}
+	slot.Paths = recordedPaths(b.image(slot))
 	uploadDone := b.Observe.For(slot).Start("upload", "none")
 	generation, err := b.Transfer.Publish(slot, archive, digest, content)
 	uploadDone(err)
@@ -989,6 +990,9 @@ func (b *LocalImages) verify(slot Slot, path string) error {
 		return errors.Join(ErrPoisoned, err)
 	}
 	b.trim(slot, path)
+	if err := recordPaths(image, path); err != nil {
+		return err
+	}
 	if err := b.detach(slot, path); errors.Is(err, ErrReleasePending) {
 		if err := durableRename(image+".checking", image+".detaching"); err != nil {
 			return err
@@ -1001,7 +1005,7 @@ func (b *LocalImages) verify(slot Slot, path string) error {
 }
 
 func (b *LocalImages) Delete(slot Slot, path string) error {
-	suffixes := []string{"", ".tmp", ".zst", ".gz", ".checking", ".detaching", ".verified", ".entries", ".base", ".cold"}
+	suffixes := []string{"", ".tmp", ".zst", ".gz", ".checking", ".detaching", ".verified", ".entries", ".base", ".cold", ".paths", ".paths.tmp"}
 	if slot.Kind == KindDocker {
 		return b.releaseDocker(slot, path, suffixes)
 	}
@@ -1026,7 +1030,7 @@ func removeMountpoint(path string) error {
 // Keep releases the private branch only after its sealed journal is durable and
 // the server has acknowledged publication. The immutable local master is evictable.
 func (b *LocalImages) Keep(slot Slot, path string) error {
-	suffixes := []string{"", ".verified", ".entries", ".base", ".cold"}
+	suffixes := []string{"", ".verified", ".entries", ".base", ".cold", ".paths"}
 	if slot.Kind == KindDocker {
 		return b.releaseDocker(slot, path, suffixes)
 	}

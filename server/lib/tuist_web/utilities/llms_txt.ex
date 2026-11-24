@@ -30,7 +30,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   @product_pages [
     {"/", "What Tuist solves, which products to adopt, and how to get started."},
     {"/cache", "Reuse compatible build artifacts across machines and CI with Xcode, Gradle, and Bazel."},
-    {"/runners", "Managed macOS and Linux CI runners with a colocated cache; currently invite-only."},
+    {"/runners", "Managed macOS and Linux CI runners with a colocated cache."},
     {"/tests", "Test insights, flaky-test tracking, sharding, and selective testing, with toolchain-specific support."},
     {"/previews", "Share iOS and Android app builds through a URL for feedback before store distribution."}
   ]

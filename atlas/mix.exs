@@ -77,7 +77,7 @@ defmodule Atlas.MixProject do
       {:money, "~> 1.14"},
       {:forex, "~> 1.1"},
       {:flow, "~> 1.2"},
-      {:flop, "~> 0.26.0"},
+      {:flop, "~> 0.26.7"},
       {:ueberauth, "~> 0.10"},
       {:ueberauth_google, "~> 0.12"},
       {:uniq, "~> 0.6"},

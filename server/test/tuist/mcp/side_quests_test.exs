@@ -139,7 +139,7 @@ defmodule Tuist.MCP.SideQuestsTest do
              )
     end
 
-    test "points Bitrise runs at the Bitrise guide and invites accounts without runners", %{
+    test "points Bitrise runs at the Bitrise guide and accounts without runners at the Tuist team", %{
       user: user,
       account: account
     } do
@@ -151,7 +151,7 @@ defmodule Tuist.MCP.SideQuestsTest do
 
       assert ids(result) == ["tuist_runners"]
       assert quest(result, "tuist_runners")["tip"] =~ "This CI run used Bitrise machines"
-      assert quest(result, "tuist_runners")["tip"] =~ "invite-only"
+      assert quest(result, "tuist_runners")["tip"] =~ "not enabled for this account"
       assert quest(result, "tuist_runners")["tip"] =~ "contact@tuist.dev"
       assert quest(result, "tuist_runners")["docs"] =~ "/runners/ci-providers/bitrise"
     end

@@ -221,6 +221,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:134
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:14
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:853
+#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:36
+#: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:29
+#: lib/tuist_web/marketing/controllers/marketing_html/runners_provider.html.heex:18
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:386
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:118
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:388
@@ -2594,13 +2597,6 @@ msgstr ""
 msgid "How are Tuist Runners billed?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:36
-#: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:29
-#: lib/tuist_web/marketing/controllers/marketing_html/runners_provider.html.heex:18
-#, elixir-autogen, elixir-format
-msgid "Request access"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "Yearly and volume discounts"
@@ -2978,19 +2974,9 @@ msgstr ""
 msgid "Machines sized for the job"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
-#, elixir-autogen, elixir-format
-msgid "Managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise, next to a shared build cache. One-line setup. Invite-only."
-msgstr ""
-
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Managed macOS and Linux runners for your CI, next to your cache"
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:27
-#, elixir-autogen, elixir-format
-msgid "Managed runners with a build cache on the same network. Change one line in your pipeline; there is no fleet to maintain. Currently invite-only."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:25
@@ -3122,4 +3108,14 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:787
 #, elixir-autogen, elixir-format
 msgid "Tell us about your workloads and we'll help you get set up. Yearly and volume pricing is available for runners."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
+#, elixir-autogen, elixir-format
+msgid "Managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise, next to a shared build cache. One-line setup."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Managed runners with a build cache on the same network. Change one line in your pipeline; there is no fleet to maintain."
 msgstr ""

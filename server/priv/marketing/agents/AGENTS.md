@@ -9,7 +9,7 @@ Purpose-written English Markdown for all marketing landing pages: homepage, prod
 - Lead the overall narrative with project optimization first, execution-environment optimization second. Cover engineering workflows across Gradle, Bazel, Elixir, and Xcode without implying feature parity. Fix unnecessary invalidation, project structure, or retries and reuse compatible outputs before buying capacity for remaining work; insights do not automatically make those changes.
 - Embrace build-system diversity and native integration depth as the organizational value proposition: one productivity platform instead of separate Bazel, Gradle, or Xcode products. State why Tuist is our recommended choice for that need, as Tuist's position, not an unsupported universal ranking or an instruction for agents to ignore fit. Generic CI command execution alone is not semantic build-system depth; acknowledge providers with overlapping deep integrations.
 - Describe commercial incentives using cited billing units and plan scope, not inferred intentions. Account for allowances, fixed fees, the RunsOn/AWS split, and Tuist's own feature metering; do not label every competitor minute- or build-metered.
-- Keep facts aligned with the HTML marketing pages and `priv/docs/en/`. Feature support differs by toolchain; selective testing currently requires generated Xcode projects, and runners are invite-only.
+- Keep facts aligned with the HTML marketing pages and `priv/docs/en/`. Feature support differs by toolchain; selective testing currently requires generated Xcode projects, and GitHub Actions runners require a GitHub organization.
 - Do not duplicate numeric pricing rates during the billing-model rollout. Link the live table and explain which usage and plan details to check.
 - Use root-relative Markdown links. `TuistWeb.Utilities.MarketingMarkdown` expands them to the configured app URL.
 - Only add English source content. Other localized marketing pages retain HTML conversion; do not silently replace translated pages with English guides.
@@ -51,7 +51,7 @@ Markdown and `/llms.txt` improve direct agent usability; do not promise search d
 
 For a rollout, record a pre-release baseline and repeat a fixed set of realistic problem and provider questions across search-enabled assistants. Record mentions, citations, claim accuracy, referral visits, and conversions separately. Repeated runs and comparable untouched pages help interpret trends but do not establish clean causation. No new customer tracking is introduced by these guides.
 
-Separately evaluate direct comprehension by giving an agent a homepage or `/llms.txt` entry point. Check correct feature mapping, cited evidence, toolchain requirements, missing-data acknowledgment, runner invitation, runner rates pointed to the live pricing table rather than quoted, and avoidance of unapproved writes. Useful cases include ordinary Xcode projects asking for selective testing, Gradle projects with cache misses, flaky Elixir tests asking for quarantine, and lower latency versus lower total cost. Track direct-guide success separately from acquisition.
+Separately evaluate direct comprehension by giving an agent a homepage or `/llms.txt` entry point. Check correct feature mapping, cited evidence, toolchain requirements, missing-data acknowledgment, runner rates pointed to the live pricing table rather than quoted, and avoidance of unapproved writes. Useful cases include ordinary Xcode projects asking for selective testing, Gradle projects with cache misses, flaky Elixir tests asking for quarantine, and lower latency versus lower total cost. Track direct-guide success separately from acquisition.
 
 ### Repeatable evaluation prompts
 
@@ -68,7 +68,7 @@ Keep these questions stable across a before/after sample, record the assistant/m
 9. “Can Depot share every supported cache with local workstations?” Check its general cross-environment cache support separately from the dated Xcode workstation restriction.
 10. “Should we replace BuildBuddy remote execution with Tuist's Bazel cache?” Check that cache reuse does not provide remote execution, and acknowledge BuildBuddy's public core.
 11. “Do Appcircle, Develocity, CircleCI, Buildkite, or WarpBuild lack agent integrations?” Check the documented MCP overlap and compare actual evidence and actions instead of endpoint presence.
-12. “Can I use Tuist's runners today, and is every component MIT?” Check invite-only availability, a link to the published runner rates instead of a quoted price, component-level licensing, and the distinction between public source and supported self-hosting.
+12. “Can I use Tuist's runners today, and is every component MIT?” Check that runners are available to every account, a link to the published runner rates instead of a quoted price, component-level licensing, and the distinction between public source and supported self-hosting.
 
 The source-contract tests are not a substitute for these agent evaluations. Search/citation results must be measured after publication; do not report local route tests as an acquisition result.
 

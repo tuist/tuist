@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "9774d7b52f74234b2efc8009df939d02dd120e25afc9e666c1a212a5566e1ea6",
+  "hash": "9b5d321451b4e557a276ec1b0d15b1583b4ac7b34b5722df6209f68c59545060",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Buildkite {#buildkite}": {
-                  "content_hash": "eaa9447b2a5002e86ec02329ce4b63c44883363811022ab56b4d5c2162e6ec24"
+                  "content_hash": "bd4ca3ea2f7024e308db3726349d814e6ba4814b0cfb93bd34c7c4df732f6dbe"
                 },
                 "## Cache volumes {#cache-volumes}": {
                   "content_hash": "3bda64e9790d1a56a9daf26aed060b8e18ec3308032d51371fd8da8e3c5e04f6"
@@ -26,11 +26,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "67940ebedae61e6ba9d4e5e40eaa1b1f44da9977f81f3ff384eefcf2cee35063",
+          "hash": "a267231cfb71d9465287bdcad8e51844afff522828a534c6f7e808f155718493",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/ci-providers/buildkite.md",
           "metadata": {
-            "content_hash": "8c08e5fc6b6370fc47a4120d8087ff23c1aefe33f1e5647d8e142ba592c64110"
+            "content_hash": "fc701e4c78fda38722fc58eca635d2e7a6d525c9f3a2f494e72d5e12501cbbc5"
           }
         },
         {
@@ -221,14 +221,14 @@
         }
       ],
       "details": {},
-      "hash": "9774d7b52f74234b2efc8009df939d02dd120e25afc9e666c1a212a5566e1ea6",
+      "hash": "9b5d321451b4e557a276ec1b0d15b1583b4ac7b34b5722df6209f68c59545060",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/ci-providers/buildkite.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "2bd662e198489dcf471b4541930d3d1487a02c8a7aa8118dc18812cd20829938",
+  "output_hash": "8f8670c91b96e96bc6049befec319d7f46d69566e9aaef4194068b0f1cac9547",
   "output_path": "server/priv/docs/ru/guides/features/runners/ci-providers/buildkite.md",
   "protection_state": "recorded",
   "provider": "",
@@ -248,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1e6d3d407b9ed8b1be711409d6b85b315f19218f",
+  "source_commit_sha": "b62ff4e879e015529ea84f82b4f937c60e8de0c3",
   "source_path": "server/priv/docs/en/guides/features/runners/ci-providers/buildkite.md",
-  "translated_at": "2026-11-19T14:13:27.548040Z",
-  "translation_session_id": "01a1f425-ef20-75ca-a48f-3b41bfd55274"
+  "translated_at": "2026-11-24T17:10:30.616867Z",
+  "translation_session_id": "01a20e88-4520-7012-8b80-cb91209eb3ce"
 }

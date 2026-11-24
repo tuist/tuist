@@ -14,7 +14,7 @@ It also documents [MCP support](https://www.warpbuild.com/docs/ci/mcp) for inter
 | --- | --- | --- |
 | Explain expensive build operations | [Build Insights](/en/docs-markdown/guides/features/build-insights) exposes supported Xcode, Gradle, Bazel, and Elixir build records. | Runner observability identifies CPU, memory, disk, network, and job-level bottlenecks. Both views can be useful, and neither alone proves the root cause. |
 | Reuse build outputs across development environments | [Cache](/marketing-markdown/cache) serves compatible supported developer, CI, and agent clients independently of Tuist Runners. | Evaluate WarpBuild's documented cache and snapshot mechanisms for the workflow rather than treating all persistent state as the same cache. |
-| Run GitHub Actions on different machines | Optional [Tuist Runners](/marketing-markdown/runners) currently require an invitation. | WarpBuild documents managed Linux, Windows, and macOS runners with selectable shapes and images. Verify current versions and capacity. |
+| Run GitHub Actions on different machines | Optional [Tuist Runners](/marketing-markdown/runners) run GitHub Actions jobs next to the Tuist cache. | WarpBuild documents managed Linux, Windows, and macOS runners with selectable shapes and images. Verify current versions and capacity. |
 | Work with an agent | Authorized [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) exposes supported build/test evidence and integration workflows. | WarpBuild MCP exposes infrastructure API operations. Evaluate supported tools, access controls, and whether the desired investigation data is available. |
 
 ## Choose Tuist when

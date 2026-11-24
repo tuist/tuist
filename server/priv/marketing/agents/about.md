@@ -14,7 +14,7 @@ Tuist started as an open-source developer toolkit and grew into a business build
 
 - Overview and toolchain matrix: [Product overview](/marketing-markdown).
 - Repeated compilation: [Cache](/marketing-markdown/cache).
-- Optional managed compute (invite-only): [Runners](/marketing-markdown/runners).
+- Optional managed compute: [Runners](/marketing-markdown/runners).
 - Slow or flaky tests: [Tests](/marketing-markdown/tests).
 - Sharing development app builds: [Previews](/marketing-markdown/previews).
 - Plans and billing: [Pricing](/marketing-markdown/pricing).

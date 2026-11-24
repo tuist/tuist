@@ -7,12 +7,15 @@
 ---
 # GitHub Actions {#github-actions}
 
-<!-- @snippet: ./_invite-only -->
+> [!IMPORTANT]
+> **Yalnızca GitHub organizasyonları**
+>
+> Tuist Runners yalnızca bir GitHub kişisel hesabı değil, bir GitHub organizasyonuna ait depolardaki işleri çalıştırır.
 
-Bir işi filoda çalıştırmak üç değişiklik gerektirir: GitHub’ı bağlayın, `runs-on` değerini bir Tuist <.localized_link href="/guides/features/runners/profiles">profiline</.localized_link> yönlendirin ve kodu gönderin.
+Fleet üzerinde bir iş çalıştırmak üç değişiklik gerektirir: GitHub’ı bağlayın, `runs-on` değerini bir Tuist <.localized_link href="/guides/features/runners/profiles">profiline</.localized_link> yönlendirin ve kodu gönderin.
 
-1. **GitHub’ı bağlayın.** Projenizin <.localized_link href="/guides/integrations/gitforge/github">GitHub kuruluşunuza bağlı</.localized_link> olduğundan emin olun. Tuist, bu kuruluş için `workflow_job` olaylarını alır ve eşleşen işleri filoya dağıtır. Bu bağlantı olmadan hiçbir iş runner’larınıza ulaşmaz.
-2. **`runs-on` değerini bir Tuist profiline yönlendirin.** Etkinleştirilen her hesap, kullanıma hazır iki <.localized_link href="/guides/features/runners/profiles">profille</.localized_link> başlar: `linux` ve `macos`. Bunlara `tuist-` ön ekiyle başvurun:
+1. **GitHub’ı bağlayın.** Projenizin <.localized_link href="/guides/integrations/gitforge/github">GitHub organizasyonunuza bağlı</.localized_link> olduğundan emin olun. Tuist, bu organizasyon için `workflow_job` olaylarını alır ve eşleşen işleri fleet’e dağıtır. Bu bağlantı olmadan hiçbir iş runner’larınıza ulaşmaz.
+2. **`runs-on` değerini bir Tuist profiline yönlendirin.** Her etkin hesap, kullanıma hazır iki <.localized_link href="/guides/features/runners/profiles">profille</.localized_link> başlar: `linux` ve `macos`. Bunlara `tuist-` ön ekiyle başvurun:
 
    ```yaml
    jobs:
@@ -26,17 +29,17 @@ Bir işi filoda çalıştırmak üç değişiklik gerektirir: GitHub’ı bağla
    > [!IMPORTANT]
    > **Xcode’u runner profiliyle seçin**
    >
-   > Bir macOS runner imajı tek bir Xcode sürümü içerir; Tuist, profile göre iş başlamadan önce bu sürümü seçer. GitHub tarafından barındırılan runner’lardan geçiş yapıyorsanız, Xcode sürümlerini değiştirmek için `xcode-select --switch` (veya `xcode-select -s`) ya da diğer araçları ve eylemleri kullanan adımları kaldırın. Bu adımlar genellikle GitHub tarafından barındırılan imajlara özgü Xcode kurulumlarına başvurur ve Tuist Runners üzerinde başarısız olabilir.
+   > Bir macOS runner imajı tek bir Xcode sürümü içerir; Tuist, iş başlamadan önce profile göre bu sürümü seçer. GitHub tarafından barındırılan runner’lardan geçiş yapıyorsanız, Xcode sürümlerini değiştirmek için `xcode-select --switch` (veya `xcode-select -s`) kullanan adımları ve diğer araçları ile eylemleri kaldırın. Bu adımlar genellikle GitHub tarafından barındırılan imajlara özgü Xcode kurulumlarına başvurur ve Tuist Runners üzerinde başarısız olabilir.
    >
-   > Başka bir Xcode sürümü kullanmak için, o sürüme sahip bir <.localized_link href="/guides/features/runners/profiles#creating-a-profile">profil oluşturun veya seçin</.localized_link> ve `runs-on` değerini güncelleyin; örneğin `runs-on: tuist-xcode-26-4`. `xcodebuild`, `xcrun` ve `swift` ardından iş akışında ek kurulum yapmadan profilin seçtiği Xcode’u kullanır.
+   > Başka bir Xcode sürümü kullanmak için, o sürüme sahip bir <.localized_link href="/guides/features/runners/profiles#creating-a-profile">profil oluşturun veya seçin</.localized_link> ve `runs-on` değerini güncelleyin; örneğin `runs-on: tuist-xcode-26-4`. `xcodebuild`, `xcrun` ve `swift` ardından iş akışında ek kurulum gerekmeden profilin seçtiği Xcode’u kullanır.
 
-3. **Kodu gönderin ve izleyin.** İş sıraya alınır, bir runner tarafından üstlenilir ve Tuist panonuzdaki **Runners** bölümüne aktarılır; burada günlüklerini, adımlarını ve makine metriklerini takip edebilirsiniz.
+3. **Kodu gönderin ve izleyin.** İş kuyruğa alınır, bir runner tarafından üstlenilir ve Tuist panonuzun **Runners** bölümüne geri aktarılır; burada günlüklerini, adımlarını ve makine metriklerini takip edebilirsiniz.
 
 ## Önbellek birimleri {#cache-volumes}
 
-Xcode, modül ve Gradle önbelleklerini ile diğer dizinleri işler arasında <.localized_link href="/guides/features/runners/cache-volumes">önbellek birimleri</.localized_link> ile koruyun. Bunları checkout’tan sonra ve onları kullanan komutlardan önce ekleyin.
+İşler arasında Xcode, modül ve Gradle önbelleklerini ve diğer dizinleri <.localized_link href="/guides/features/runners/cache-volumes">önbellek birimleriyle</.localized_link> koruyun. Bunları checkout’tan sonra ve onları kullanan komutlardan önce ekleyin.
 
-İşe `id-token: write` iznini verin, böylece önbellek birimleri ve önbelleğe alınmış checkout işlem başladığı anda bağlanır. Bu izin olmadan runner, GitHub’ın hangi işi çalıştırdığını bildirmesini bekler ve GitHub’ın geç bildirdiği bir iş boş önbelleklerle başlar. OpenID Connect ile Tuist’te oturum açan bir iş akışı bunu zaten sağlar.
+İşe `id-token: write` iznini verin ki önbellek birimleri ve önbelleğe alınmış checkout işlem başladığında hemen bağlansın. Bu izin olmadan runner, GitHub’ın hangi işi çalıştırdığını bildirmesini bekler ve GitHub’ın geç bildirdiği bir iş boş önbelleklerle başlar. OpenID Connect ile Tuist’e oturum açan bir iş akışı bu izni zaten verir.
 
 ```yaml
 permissions:

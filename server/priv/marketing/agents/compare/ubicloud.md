@@ -13,7 +13,7 @@ The current cache documentation recommends **Transparent Cache**, preserving exi
 | Requirement | Tuist | Ubicloud evidence to evaluate |
 | --- | --- | --- |
 | Inspect implementation | Tuist publishes [source and development](https://github.com/tuist/tuist); licenses vary by component. | Ubicloud also publishes its cloud implementation. Compare the components and operating responsibilities relevant to the purchase, not a binary openness label. |
-| Reuse directories during GitHub Actions jobs | Tuist Runners have separate cache-volume support; availability is invite-only. | Transparent Cache accelerates file/folder, package-manager, and supported Docker layer caching on its runners. |
+| Reuse directories during GitHub Actions jobs | Tuist Runners have separate cache-volume support. | Transparent Cache accelerates file/folder, package-manager, and supported Docker layer caching on its runners. |
 | Reuse toolchain-keyed build outputs | [Cache](/marketing-markdown/cache) serves compatible supported local, CI, and agent clients independently of Tuist Runners. | The cited Ubicloud integration replaces the Actions cache backend. Evaluate any other cache offerings separately; an archive cache and remote action-output cache are different mechanisms. |
 | Explain builds and tests | Tuist [Build Insights](/en/docs-markdown/guides/features/build-insights), [Tests](/marketing-markdown/tests), and [MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) expose supported toolchain evidence. | Evaluate the execution and diagnostic records available for the required workflow. The cache guide is not an audit of all Ubicloud analytics or agent features. |
 

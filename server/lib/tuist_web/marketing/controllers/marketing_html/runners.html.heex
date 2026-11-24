@@ -26,14 +26,14 @@ dithered dividers. --%>
       <p data-part="subtitle">
         {dgettext(
           "marketing",
-          "Managed runners with a build cache on the same network. Change one line in your pipeline; there is no fleet to maintain. Currently invite-only."
+          "Managed runners with a build cache on the same network. Change one line in your pipeline; there is no fleet to maintain."
         )}
       </p>
       <.runners_migration providers={~w(github gitlab buildkite bitrise)} />
       <nav data-part="actions">
         <.button
-          href="mailto:contact@tuist.dev?subject=Tuist%20Runners%20access"
-          label={dgettext("marketing", "Request access")}
+          href={~p"/users/register"}
+          label={dgettext("marketing", "Get started")}
         />
         <.button
           href={

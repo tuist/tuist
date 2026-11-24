@@ -36,6 +36,8 @@ defmodule Tuist.Runners.CacheVolumes do
   @checkout_key "checkout"
   @docker_key "docker"
   @reserved_keys [@checkout_key, @docker_key]
+  @max_volume_paths 16
+  @max_volume_path_bytes 256
   @history_retention_days 90
   # A host uploads a master as one PUT (`upload`) or in parts (`upload` with
   # `multipart`, `upload_parts`, `complete`), then fast-forwards the HEAD to it.
@@ -254,9 +256,12 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @doc """
   The cache a new Linux sandbox of a session on the GitHub repository
-  `repository` (`owner/name`) starts with, or nil: the saved head of the
-  repository's Linux custom cache volume its CI jobs used most recently, the
-  same head the repository's next CI job would mount. The account's github.com
+  `repository` (`owner/name`) starts with, or nil: the saved head of one of
+  the repository's Linux custom cache volumes, the same head the repository's
+  next CI job would mount. A volume whose paths a session binds into its
+  checkout wins, then one with paths under home, then one whose paths are
+  unknown; one with only absolute paths is never chosen. Last use breaks ties.
+  The account's github.com
   installation must read the repository, as for the session's checkout
   (`allocate_sandbox_checkout/3`). The checkout and Docker volumes are never
   chosen: the session gets its checkout separately, and a Docker data root is
@@ -289,22 +294,42 @@ defmodule Tuist.Runners.CacheVolumes do
   def sandbox_cache(_account_id, _repository), do: nil
 
   # A volume unused for the retention period is cleared by the next sweep, so
-  # it is never offered.
+  # it is never offered. Volumes rank by what a session can bind from their
+  # paths (`sandbox_paths_rank/1`), then by last use.
   defp sandbox_cache_volume(account_id, repository_id) do
     active_since = DateTime.add(DateTime.utc_now(), -@retention_seconds)
 
-    Repo.one(
-      from(v in Volume,
-        where:
-          v.account_id == ^account_id and v.provider == "github" and v.provider_instance == "github.com" and
-            v.scope_id == ^to_string(repository_id) and v.platform == "linux" and v.architecture == "amd64",
-        where:
-          v.key not in @reserved_keys and is_nil(v.deleted_at) and not is_nil(v.head_id) and
-            v.last_used_at > ^active_since,
-        order_by: [desc: v.last_used_at, asc: v.id],
-        limit: 1
-      )
+    from(v in Volume,
+      where:
+        v.account_id == ^account_id and v.provider == "github" and v.provider_instance == "github.com" and
+          v.scope_id == ^to_string(repository_id) and v.platform == "linux" and v.architecture == "amd64",
+      where:
+        v.key not in @reserved_keys and is_nil(v.deleted_at) and not is_nil(v.head_id) and
+          v.last_used_at > ^active_since,
+      order_by: [desc: v.last_used_at, asc: v.id],
+      limit: 50
     )
+    |> Repo.all()
+    |> Enum.map(&{sandbox_paths_rank(&1.paths), &1})
+    |> Enum.reject(fn {rank, _volume} -> is_nil(rank) end)
+    |> Enum.min_by(fn {rank, _volume} -> rank end, fn -> {nil, nil} end)
+    |> elem(1)
+  end
+
+  # The sandbox binds relative spellings into the session's checkout, which is
+  # the job's working directory, and `~/` spellings into the agent's home
+  # (`guest.CheckoutCacheBinds` and `guest.CacheBinds` in
+  # infra/sandbox-image). Absolute spellings name the runner's own layout, so a
+  # volume with only those holds nothing a session can use and is never
+  # offered. Unknown paths rank after known usable ones.
+  defp sandbox_paths_rank(nil), do: 2
+
+  defp sandbox_paths_rank(paths) do
+    cond do
+      Enum.any?(paths, &(not String.starts_with?(&1, ["/", "~"]))) -> 0
+      Enum.any?(paths, &String.starts_with?(&1, "~/")) -> 1
+      true -> nil
+    end
   end
 
   # The volume's identity includes the user that owns the tree, so a session
@@ -1796,7 +1821,7 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  defp image_publish(volume, usage, "publish", digest, content, _params) do
+  defp image_publish(volume, usage, "publish", digest, content, params) do
     case Runners.report_volume_head(
            volume.account_id,
            storage_name(volume),
@@ -1816,7 +1841,7 @@ defmodule Tuist.Runners.CacheVolumes do
           )
         )
 
-        update_saved_head(volume, head_id: usage.id)
+        update_saved_head(volume, head_id: usage.id, paths: reported_paths(params["paths"]))
         %{generation: generation}
 
       :conflict ->
@@ -1828,6 +1853,15 @@ defmodule Tuist.Runners.CacheVolumes do
         Repo.rollback(:unavailable)
     end
   end
+
+  # The spellings the published branch's `.tuist-paths` records. A host that
+  # does not report them, or reports more than it may, leaves them unknown.
+  defp reported_paths(paths) when is_list(paths) and length(paths) <= @max_volume_paths do
+    if Enum.all?(paths, &(is_binary(&1) and byte_size(&1) in 1..@max_volume_path_bytes and String.valid?(&1))),
+      do: Enum.uniq(paths)
+  end
+
+  defp reported_paths(_paths), do: nil
 
   defp upload_viable!(volume, usage) do
     name = storage_name(volume)

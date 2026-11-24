@@ -7,17 +7,15 @@
 ---
 # Bitrise {#bitrise}
 
-<!-- @snippet: ./_invite-only -->
-
 > [!WARNING]
 > **Yalnızca özel depolar**
 >
-> Tuist, her Bitrise derlemesine güvenir: derlemeler hesabınızın önbelleğini paylaşır ve ona yazabilir. Genel bir deponun fork'larından gelen pull request'leri oluşturan iş akışlarına sahip bir havuzu eşleştirmeyin.
+> Tuist, her Bitrise derlemesine güvenir: derlemeler hesabınızın önbelleğini paylaşır ve ona yazabilir. Genel bir deponun fork'larından gelen çekme isteklerini derleyen iş akışlarına sahip bir havuzu eşleştirmeyin.
 
-Tuist, Bitrise çalışma alanınızdaki kendi kendine barındırılan runner havuzlarını sunar. Bu havuzlardan birini seçen bir derleme, havuzla eşleştirdiğiniz <.localized_link href="/guides/features/runners/profiles">profil</.localized_link>deki bir Tuist makinesinde çalışır. İş akışlarınız, tetikleyicileriniz ve günlükleriniz Bitrise'te kalır; yalnızca makineler değişir.
+Tuist, Bitrise çalışma alanınızdaki kendi barındırdığınız runner havuzlarını sunar. Bu havuzlardan birini seçen bir derleme, havuzla eşleştirdiğiniz <.localized_link href="/guides/features/runners/profiles">profil</.localized_link>deki bir Tuist makinesinde çalışır. İş akışlarınız, tetikleyicileriniz ve günlükleriniz Bitrise'te kalır; yalnızca makineler değişir.
 
-1. **Çalışma alanınızı bağlayın.** Bitrise'te **Workspace settings → Security → Workspace API tokens** bölümünü açın ve tüm projeler için Bitrise CI'a **Viewer** çalışma alanı rolü ve **Tester/QA** erişimine sahip bir token oluşturun. Tuist panonuzda **Settings → Integrations** bölümüne gidin, Bitrise kartındaki **Connect** seçeneğini belirleyin ve token'ı yapıştırın. Tuist, çalışma alanını token'dan okur, token'ı şifrelenmiş olarak saklar ve bir daha asla göstermez.
-2. **Bir runner havuzu oluşturun.** Bitrise'te **Workspace settings → Infrastructure** bölümünü açın, **Add Runner pool** seçeneğini belirleyin ve temsil ettiği makineye göre adlandırın, örneğin `tuist-macos`. Havuz token'ını kopyalayın: Bitrise bunu yalnızca bir kez gösterir.
+1. **Çalışma alanınızı bağlayın.** Bitrise'te **Workspace settings → Security → Workspace API tokens** yolunu izleyin ve tüm projeler için Bitrise CI'a **Viewer** çalışma alanı rolü ve **Tester/QA** erişimi olan bir token oluşturun. Tuist kontrol panelinizde **Settings → Integrations** bölümüne gidin, Bitrise kartındaki **Connect** seçeneğini belirleyin ve token'ı yapıştırın. Tuist, çalışma alanını token'dan okur, token'ı şifrelenmiş olarak saklar ve bir daha göstermez.
+2. **Bir runner havuzu oluşturun.** Bitrise'te **Workspace settings → Infrastructure** yolunu izleyin, **Add Runner pool** seçeneğini belirleyin ve temsil ettiği makineye göre adlandırın, örneğin `tuist-macos`. Havuz token'ını kopyalayın: Bitrise bunu yalnızca bir kez gösterir.
 3. **Havuzu bir Tuist profiliyle eşleştirin.** Tuist'teki Bitrise kartında, **Runner pools** altında havuzu, derlemelerinin çalışması gereken Tuist profilini seçin, havuz token'ını yapıştırın ve **Add pool** seçeneğini belirleyin. Etkinleştirilen her hesap, `tuist-linux` ve `tuist-macos` olmak üzere iki profille başlar. Kullanmak istediğiniz her profil için bir havuz ekleyin.
 4. **İş akışınızda havuzu seçin.** Bitrise'in Workflow Editor'ünde **Stacks & Machines** bölümünü açın ve **Self-Hosted Runner: tuist-macos** seçeneğini belirleyin. `bitrise.yml` içinde, Tuist'in havuz adının altında gösterdiği havuz yığınını ayarlayın:
 
@@ -27,7 +25,7 @@ Tuist, Bitrise çalışma alanınızdaki kendi kendine barındırılan runner ha
        stack: agent-pool-a0c641c0-142f-427d-a326-07f0f6c2a1be
    ```
 
-5. **Bir derleme çalıştırın.** Birkaç saniye içinde bir Tuist makinesi havuza bağlanır, derlemeyi alır ve tamamlandığında bağlantısı kesilir. Derleme, makine metrikleri ve günlüklerinin bulunduğu Bitrise'e geri dönüş bağlantısıyla birlikte Tuist panonuzun **Runners** bölümünde görünür.
+5. **Bir derleme çalıştırın.** Birkaç saniye içinde bir Tuist makinesi havuza bağlanır, derlemeyi alır ve tamamlandığında bağlantıyı keser. Derleme, Tuist kontrol panelinizin **Runners** bölümünde makine metrikleri ve günlüklerinin bulunduğu Bitrise'e geri dönüş linkiyle birlikte görünür.
 
 ## Özel havuzlar {#dedicated-pools}
 
@@ -35,7 +33,7 @@ Tuist ile eşleştirdiğiniz havuzları yalnızca Tuist için kullanın. Kendi m
 
 ## Runner limiti {#runner-limit}
 
-Her Tuist makinesi, bir derleme çalıştırırken bir Bitrise runner olarak sayılır ve bağlantısı kesildiğinde sayılmayı durdurur. Bu nedenle, Bitrise planınızın runner limiti, Tuist eşzamanlılık limitinizin yanı sıra aynı anda Tuist üzerinde çalışan derleme sayınızı da sınırlar.
+Her Tuist makinesi, bir derleme çalıştırırken bir Bitrise runner olarak sayılır ve bağlantı kesildiğinde sayılmayı durdurur. Bu nedenle Bitrise planınızın runner limiti, Tuist eşzamanlılık limitinizin yanı sıra aynı anda Tuist üzerinde çalışan derleme sayınızı da sınırlar.
 
 ## Bağlantıyı kesme {#disconnecting}
 

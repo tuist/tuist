@@ -22,7 +22,7 @@ Compute-first offerings sell capacity; Tuist leads with needing less execution. 
 
 A build system decides which actions need to run and how their dependencies fit together. Local incremental builds and caches already avoid work. Tuist extends supported reuse across machines and turns recorded toolchain evidence into a shared history. It does not make undeclared inputs correct or automatically fix an inefficient graph.
 
-Improve unnecessary invalidation, task inputs, test setup, and retries first. Share compatible results next. Only then evaluate machine size, concurrency, and locality for the remaining work. Tuist Runners are optional and invite-only; these integrations do not require moving CI to Tuist.
+Improve unnecessary invalidation, task inputs, test setup, and retries first. Share compatible results next. Only then evaluate machine size, concurrency, and locality for the remaining work. Tuist Runners are optional; these integrations do not require moving CI to Tuist.
 
 ## Choose the existing build system
 
