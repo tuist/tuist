@@ -3887,8 +3887,8 @@ IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data poin
 # Seed a few profiles per dev account so the sidebar Profiles tab is
 # non-empty for both the personal account (where the seed login lands)
 # and the `tuist` organization (the context most demo flows switch
-# into). Runners are enabled for every account outside prod via
-# `FeatureFlags.runners_enabled?`, so there's nothing else to flip.
+# into). Every account can use runners outside canary and production
+# (`Environment.runners_available?/0`), so there's nothing else to flip.
 runner_profile_accounts = Enum.uniq_by([user.account, organization.account], & &1.id)
 
 runner_profile_seeds = [

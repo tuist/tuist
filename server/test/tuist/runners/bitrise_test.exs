@@ -4,6 +4,7 @@ defmodule Tuist.Runners.BitriseTest do
   import Ecto.Query
   import Mimic
 
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
@@ -27,7 +28,6 @@ defmodule Tuist.Runners.BitriseTest do
 
   setup do
     stub(Catalog, :default_xcode_version, fn -> nil end)
-    stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
     stub(Allowance, :exhausted?, fn _account -> false end)
 
     %{account: account} =
@@ -207,7 +207,7 @@ defmodule Tuist.Runners.BitriseTest do
       assert {:ok, 1} = Bitrise.poll(connection)
 
       cancelled_while_queued = remote_build()
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
       stub(Client, :list_unfinished_builds, fn _connection -> {:ok, [cancelled_while_queued]} end)
 
       stub(Client, :get_build, fn _connection, _app, slug ->

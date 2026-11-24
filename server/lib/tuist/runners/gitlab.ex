@@ -17,7 +17,7 @@ defmodule Tuist.Runners.GitLab do
   import Ecto.Query
 
   alias Tuist.Accounts
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Claims
@@ -123,7 +123,7 @@ defmodule Tuist.Runners.GitLab do
 
     with %Connection{enabled: true} = current <- connection,
          {:ok, account} <- Accounts.get_account_by_id(current.account_id),
-         true <- FeatureFlags.runners_enabled?(account),
+         true <- Environment.runners_available?(),
          false <- Allowance.exhausted?(account) do
       if length(waiting) < @max_waiting_jobs and headroom_left?(current.account_id, waiting) do
         case Client.request_job(current) do

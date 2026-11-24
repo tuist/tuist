@@ -10,6 +10,7 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.Authorization
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Projects
   alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
@@ -29,7 +30,7 @@ defmodule TuistWeb.UsageLive do
     end
 
     runner_breakdown = Allowance.period_breakdown(account)
-    runners_enabled = FeatureFlags.runners_enabled?(account)
+    runners_enabled = Environment.runners_available?()
 
     # Twelve is enough history to look back a year without listing
     # periods the account did not exist for; empty ones simply report

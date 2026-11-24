@@ -308,6 +308,18 @@ defmodule Tuist.Environment do
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  @doc """
+  Whether this deployment offers Tuist Runners, which every account on it can
+  use. Production and canary only offer them when Tuist hosts the server, since
+  self-hosted installations have no runner fleet; other environments always do.
+
+  This is also the source of truth for co-located private Kura cache
+  infrastructure.
+  """
+  def runners_available?(env \\ env(), hosted \\ tuist_hosted?()) do
+    env not in [:can, :prod] or hosted
+  end
+
   # Enable only after every web/ingestion and build-processor replica accepts the expanded limit.
   # Before a downgrade, disable and drain in-flight reports before rolling back.
   def expanded_build_metadata_enabled? do

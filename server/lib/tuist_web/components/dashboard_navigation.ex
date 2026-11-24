@@ -5,6 +5,7 @@ defmodule TuistWeb.DashboardNavigation do
 
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
   alias Tuist.Tests.Coverage
@@ -20,7 +21,7 @@ defmodule TuistWeb.DashboardNavigation do
       [
         item(dgettext("dashboard", "Projects"), root <> "/projects", "folders"),
         group(
-          FeatureFlags.runners_enabled?(account),
+          Environment.runners_available?(),
           "sidebar-runners",
           dgettext("dashboard", "Runners"),
           root <> "/runners",

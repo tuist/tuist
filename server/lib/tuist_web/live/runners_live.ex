@@ -9,7 +9,7 @@ defmodule TuistWeb.RunnersLive do
   import TuistWeb.Widget
 
   alias Tuist.Authorization
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Jobs
@@ -30,7 +30,7 @@ defmodule TuistWeb.RunnersLive do
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
-         not FeatureFlags.runners_enabled?(selected_account) do
+         not Environment.runners_available?() do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end

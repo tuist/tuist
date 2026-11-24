@@ -1,7 +1,7 @@
 defmodule Tuist.MCP.Components.Tools.RunnerTools do
   @moduledoc false
 
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.MCP.Formatter
   alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Runners.Profile
@@ -9,7 +9,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
 
   def authorize_account(arguments, assigns) do
     with {:ok, account} <- MCPTool.resolve_and_authorize_account(arguments, assigns, :read, :runners),
-         true <- FeatureFlags.runners_enabled?(account) do
+         true <- Environment.runners_available?() do
       {:ok, account}
     else
       false -> {:error, "Runners are not enabled for this account."}
@@ -19,7 +19,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
 
   def authorize_runners_update(arguments, assigns) do
     with {:ok, account} <- MCPTool.resolve_and_authorize_account(arguments, assigns, :update, :runners),
-         true <- FeatureFlags.runners_enabled?(account) do
+         true <- Environment.runners_available?() do
       {:ok, account}
     else
       false -> {:error, "Runners are not enabled for this account."}

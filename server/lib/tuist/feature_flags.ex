@@ -173,26 +173,6 @@ defmodule Tuist.FeatureFlags do
     for {name, true} <- [{"luft", luft_enabled?(user)}], do: name
   end
 
-  @doc """
-  Whether the Runners dashboard (and its sub-pages) should be visible
-  for the given account. Canary and production require an explicit
-  `:runners` FunWithFlags toggle for the actor. Development, test, and
-  staging default to enabled.
-
-  This is also the source of truth for co-located private Kura cache
-  infrastructure, so enabling runners provides the cache without a second
-  operator-managed switch.
-  """
-  def runners_enabled?(account, flags \\ nil) do
-    Observability.feature_flag_evaluated(
-      :runners,
-      account,
-      not runner_flag_required?() or flag_enabled?(:runners, account, flags)
-    )
-  end
-
-  defp runner_flag_required?, do: Environment.env() in [:can, :prod]
-
   @doc "Enabling the pause flag holds current runner limits, globally or for one account."
   def runner_concurrency_growth_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(

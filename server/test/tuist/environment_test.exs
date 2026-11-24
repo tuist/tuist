@@ -139,6 +139,21 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "runners_available?/2" do
+    test "production and canary offer runners only when Tuist hosts them" do
+      assert Environment.runners_available?(:prod, true)
+      assert Environment.runners_available?(:can, true)
+      refute Environment.runners_available?(:prod, false)
+      refute Environment.runners_available?(:can, false)
+    end
+
+    test "other environments always offer runners" do
+      for env <- [:stag, :preview, :dev, :test] do
+        assert Environment.runners_available?(env, false)
+      end
+    end
+  end
+
   describe "network_trusted_report_publishing_enabled?/2" do
     test "self-hosted publishing requires an explicitly enabled runtime boolean" do
       assert Environment.network_trusted_report_publishing_enabled?(false, true)

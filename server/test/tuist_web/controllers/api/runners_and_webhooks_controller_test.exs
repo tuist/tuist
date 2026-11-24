@@ -25,7 +25,6 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
     account: account
   } do
     account_id = account.id
-    stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
     stub(Jobs, :get_for_account, fn ^account_id, job_id -> {:ok, %{runner_job() | workflow_job_id: job_id}} end)
 
     :ok =
@@ -66,7 +65,6 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
     account: account
   } do
     account_id = account.id
-    stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
     stub(Jobs, :count_for_account, fn ^account_id, [] -> 1 end)
     stub(Jobs, :list_for_account, fn ^account_id, [limit: 20, offset: 0] -> [runner_job()] end)
 
@@ -84,7 +82,6 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
 
   test "allows an account token with runner read scope to list its account's jobs", %{conn: conn, account: account} do
     account_id = account.id
-    stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
     stub(Jobs, :count_for_account, fn ^account_id, [] -> 0 end)
     stub(Jobs, :list_for_account, fn ^account_id, [limit: 20, offset: 0] -> [] end)
 
@@ -124,7 +121,6 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
     other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
     account_id = account.id
 
-    stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
     stub(Jobs, :count_for_account, fn ^account_id, [] -> 0 end)
     stub(Jobs, :list_for_account, fn ^account_id, [limit: 20, offset: 0] -> [] end)
 
@@ -166,7 +162,6 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
 
   describe "API jobs" do
     setup %{account: account} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       stub(Allowance, :exhausted?, fn _account -> false end)
       {:ok, _} = Profiles.create(account, %{name: "ci", platform: :linux, vcpus: 4, memory_gb: 16})
       :ok
@@ -253,7 +248,6 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
 
   describe "runner profiles" do
     setup %{user: user, account: account} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       Tuist.Repo.insert!(%Profile{account_id: account.id, name: "ci", platform: :linux, vcpus: 7, memory_gb: 13})
       %{user: user}
     end

@@ -4,6 +4,7 @@ defmodule Tuist.Runners.WorkflowRunsTest do
   import Ecto.Query, only: [from: 2]
   import Mimic
 
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
@@ -115,7 +116,7 @@ defmodule Tuist.Runners.WorkflowRunsTest do
       stub(VCS, :get_github_app_installation_by_installation_id, fn _, _ -> {:error, :not_found} end)
       assert {:ignored, :no_account} = WorkflowRuns.record(run, 42, nil)
 
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
       assert {:ignored, :runners_disabled} = WorkflowRuns.record(run, 42, account.id)
       assert WorkflowRuns.get(account.id, 30_433_642, 2) == nil
     end

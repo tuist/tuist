@@ -3,6 +3,7 @@ defmodule Tuist.MCP.SideQuestsTest do
   use Mimic
 
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Environment
   alias Tuist.MCP.Components.Tools.GetGradleBuild
   alias Tuist.MCP.Components.Tools.GetProject
   alias Tuist.MCP.Components.Tools.GetTestRun
@@ -18,7 +19,7 @@ defmodule Tuist.MCP.SideQuestsTest do
   alias TuistTestSupport.Fixtures.ShardsFixtures
 
   setup do
-    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Environment, :tuist_hosted?, fn -> true end)
     user = AccountsFixtures.user_fixture(preload: [:account])
     %{user: user, account: user.account}
   end
@@ -139,11 +140,10 @@ defmodule Tuist.MCP.SideQuestsTest do
              )
     end
 
-    test "points Bitrise runs at the Bitrise guide and accounts without runners at the Tuist team", %{
+    test "points Bitrise runs at the Bitrise guide and its runner pool setup", %{
       user: user,
       account: account
     } do
-      stub(Tuist.FeatureFlags, :runners_enabled?, fn _account -> false end)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
       build = xcode_build(project, is_ci: true, ci_provider: "bitrise")
 
@@ -151,8 +151,7 @@ defmodule Tuist.MCP.SideQuestsTest do
 
       assert ids(result) == ["tuist_runners"]
       assert quest(result, "tuist_runners")["tip"] =~ "This CI run used Bitrise machines"
-      assert quest(result, "tuist_runners")["tip"] =~ "not enabled for this account"
-      assert quest(result, "tuist_runners")["tip"] =~ "contact@tuist.dev"
+      assert quest(result, "tuist_runners")["tip"] =~ "pair a runner pool with the `tuist-macos` profile"
       assert quest(result, "tuist_runners")["docs"] =~ "/runners/ci-providers/bitrise"
     end
 
@@ -166,7 +165,7 @@ defmodule Tuist.MCP.SideQuestsTest do
 
       refute "tuist_runners" in ids(GetXcodeBuild.call(conn_for(user), %{"build_run_id" => circleci.id}))
 
-      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :tuist_hosted?, fn -> false end)
       refute "tuist_runners" in ids(GetXcodeBuild.call(conn_for(user), %{"build_run_id" => github.id}))
     end
   end
