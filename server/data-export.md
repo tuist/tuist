@@ -1187,11 +1187,12 @@ The archive contains everything needed to understand the account's complete data
   host uses, not customer data.
 
 - **Sandbox copies of Linux cache volumes** (Linux sandbox nodes,
-  `/data/sandboxes/<cache image directory>/rc-<head digest>`, with a transient
+  `/data/sandboxes/<cache image directory>/rc-<scope digest>-<generation>`, with a transient
   `<cache filesystem>/.sandbox-cache/<grant ID>/master.img` clone on the runner-cache side
   while it streams): when a sandbox is created with a grant to a runner cache volume's saved
   head, the node's sandbox daemon receives a byte-for-byte copy of that volume's master
-  image from the node's runner-cache agent, which never fetches a master the node lacks.
+  image (or of an older master of the same volume the node kept) from the node's
+  runner-cache agent, which never fetches a master the node lacks.
   Same content as the master (described above); the copy is one way and nothing a sandbox
   writes reaches the volume. Each sandbox attaches its own reflink clone, deleted with the
   sandbox and never saved in its disk snapshots or archives. Node-local, keyed by the head

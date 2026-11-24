@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,15 +17,18 @@ import (
 )
 
 // copyingAgent stands in for the runner-cache agent: it holds the masters in
-// masters by scope and counts the copies it made.
+// masters by scope, lends the generation in older when it is set (an older
+// master its node kept) and the grant's otherwise, and counts the copies it
+// made.
 type copyingAgent struct {
 	mu      sync.Mutex
 	masters map[string]string
+	older   map[string]int64
 	copies  map[string]int
 	gate    chan struct{}
 }
 
-func (a *copyingAgent) CacheImage(_ context.Context, grant protocol.CacheGrant, dst string, _ int64) error {
+func (a *copyingAgent) CacheImage(_ context.Context, grant protocol.CacheGrant, held []int64, dst string, _ int64) (int64, bool, error) {
 	if a.gate != nil {
 		<-a.gate
 	}
@@ -32,10 +36,17 @@ func (a *copyingAgent) CacheImage(_ context.Context, grant protocol.CacheGrant, 
 	defer a.mu.Unlock()
 	data, ok := a.masters[grant.Scope]
 	if !ok {
-		return checkout.ErrCold
+		return 0, false, checkout.ErrCold
+	}
+	generation := grant.BaseGeneration
+	if g := a.older[grant.Scope]; g > 0 {
+		generation = g
+	}
+	if slices.Contains(held, generation) {
+		return generation, false, nil
 	}
 	a.copies[grant.Scope]++
-	return os.WriteFile(dst, []byte(data), 0o600)
+	return generation, true, os.WriteFile(dst, []byte(data), 0o600)
 }
 
 func grantFor(scope string) *protocol.CacheGrant {
@@ -77,9 +88,11 @@ func TestCacheGrantCopiesTheMasterOncePerNode(t *testing.T) {
 		}()
 	}
 	// Both creates wait on the copy before the agent answers.
-	for pinned := 0; pinned < 2; {
+	for waiting := 0; waiting < 1; {
 		h.m.cacheImages.mu.Lock()
-		pinned = h.m.cacheImages.pins[grantedImageName(*grantFor("a"))]
+		if running := h.m.cacheImages.copying["a"]; running != nil {
+			waiting = running.waiters
+		}
 		h.m.cacheImages.mu.Unlock()
 		time.Sleep(time.Millisecond)
 	}
@@ -104,7 +117,7 @@ func TestCacheGrantCopiesTheMasterOncePerNode(t *testing.T) {
 		t.Fatal(err)
 	}
 	named := func(scope string) string {
-		return filepath.Join(h.m.cfg.CacheImageDir, grantedImageName(*grantFor(scope)))
+		return filepath.Join(h.m.cfg.CacheImageDir, grantedImageName(scope, 2))
 	}
 	if vm.Exists(named("a")) || !vm.Exists(named("b")) || !vm.Exists(operator) {
 		t.Fatal("eviction must drop the unused copy, keep the one in use and leave operator images")
@@ -131,5 +144,56 @@ func TestCacheGrantCopiesTheMasterOncePerNode(t *testing.T) {
 	h.m.ExpireCacheImages()
 	if vm.Exists(named("a")) || !vm.Exists(operator) {
 		t.Fatal("expiry must drop unused copies and leave operator images")
+	}
+}
+
+// A node whose agent kept only an older master of the granted lineage, as its
+// prefetch does between refreshes, gets that cache, named and reported by its
+// generation, and later grants of other heads that the agent answers with the
+// same generation reuse the copy instead of streaming it again.
+func TestCacheGrantAttachesAnOlderMasterOfTheLineage(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	h.m.builder.CacheDrive = true
+	h.m.cfg.CacheImageDir = filepath.Join(h.dataDir, "cache-images")
+	if err := os.MkdirAll(h.m.cfg.CacheImageDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	h.m.cfg.CacheImagesBytes = 1 << 30
+	agent := &copyingAgent{masters: map[string]string{"a": "generation 39"}, older: map[string]int64{"a": 39}, copies: map[string]int{}}
+	h.m.cacheImages.source = agent
+	create := func(id string, generation int64) (protocol.CreateResult, error) {
+		grant := grantFor("a")
+		grant.BaseGeneration = generation
+		return h.m.Create(ctx, protocol.CreateArgs{SandboxID: id, Template: "default", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 10, CacheGrant: grant})
+	}
+
+	res, err := create("first", 41)
+	if err != nil || res.CacheGeneration != 39 {
+		t.Fatalf("a grant of 41 on a node holding 39 attached generation %d: %v", res.CacheGeneration, err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(vm.RootDir(h.jailBase, "first"), "cache.ext4")); string(data) != "generation 39" {
+		t.Fatalf("the cache drive holds %q", data)
+	}
+	if !vm.Exists(filepath.Join(h.m.cfg.CacheImageDir, grantedImageName("a", 39))) || vm.Exists(filepath.Join(h.m.cfg.CacheImageDir, grantedImageName("a", 41))) {
+		t.Fatal("the copy must be named by the generation it holds, not the grant's")
+	}
+	if res, err := create("second", 42); err != nil || res.CacheGeneration != 39 || agent.copies["a"] != 1 {
+		t.Fatalf("a later head answered with the held generation got %d after %d copies: %v", res.CacheGeneration, agent.copies["a"], err)
+	}
+
+	// Once the agent holds the head, the node copies it and reports it.
+	agent.older["a"], agent.masters["a"] = 0, "generation 43"
+	if res, err := create("third", 43); err != nil || res.CacheGeneration != 43 || agent.copies["a"] != 2 {
+		t.Fatalf("the head's own master attached generation %d after %d copies: %v", res.CacheGeneration, agent.copies["a"], err)
+	}
+	if res, err := create("fourth", 43); err != nil || res.CacheGeneration != 43 || agent.copies["a"] != 2 {
+		t.Fatalf("a copy of the granted head must be used without asking: %d after %d copies: %v", res.CacheGeneration, agent.copies["a"], err)
+	}
+
+	// An agent lending a generation newer than the grant is refused.
+	agent.older["a"] = 50
+	if _, err := create("fifth", 44); !errors.Is(err, ErrCacheImage) {
+		t.Fatalf("a lent generation past the grant answered %v", err)
 	}
 }

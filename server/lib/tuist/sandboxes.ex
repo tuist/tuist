@@ -713,7 +713,10 @@ defmodule Tuist.Sandboxes do
               last_active_at: now(),
               error_message: nil,
               cache_volume_id: attached_cache && attached_cache.volume_id,
-              cache_generation: attached_cache && attached_cache.base_generation
+              # The node attaches an older generation of the lineage when its
+              # agent keeps only that; daemons that predate the field attach
+              # the granted one.
+              cache_generation: attached_cache && (data["cache_generation"] || attached_cache.base_generation)
             },
             boot_event
           )

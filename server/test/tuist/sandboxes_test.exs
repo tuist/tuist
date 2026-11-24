@@ -1356,6 +1356,16 @@ defmodule Tuist.SandboxesTest do
       assert sandbox.cache_generation == 7
     end
 
+    test "records the generation the node attached when it lent an older one", %{account: account, cache: cache} do
+      node_info(%{cache_grants: true, cache_drive_in_template: true})
+      stub(VolumeAffinities, :holds_volume?, fn "node-a", _scope -> true end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 170, "cache_generation" => 5}} end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+      assert sandbox.cache_volume_id == cache.volume_id
+      assert sandbox.cache_generation == 5
+    end
+
     test "creates without it where the node cannot attach it", %{account: account, cache: cache} do
       # The node's shape snapshots carry no placeholder, so a template create
       # would have to cold boot.

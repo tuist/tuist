@@ -305,11 +305,16 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		if args.CacheImage != "" {
 			return res, fmt.Errorf("%w: a create takes a cache image or a cache grant, not both", ErrCacheImage)
 		}
-		name, release, err := m.grantedCacheImage(ctx, *args.CacheGrant)
+		name, generation, release, err := m.grantedCacheImage(ctx, *args.CacheGrant)
 		if err != nil {
 			return res, err
 		}
 		defer release()
+		defer func() {
+			if err == nil {
+				res.CacheGeneration = generation
+			}
+		}()
 		args.CacheImage = name
 	}
 	if args.CacheImage != "" {

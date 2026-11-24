@@ -66,7 +66,7 @@ reflink, so rootfs clones are instant copy-on-write):
   disk-snapshot.json  {id, template, tag, workspace_gb, source_sandbox, created_at}
 /data/sandboxes/blobs/<scope>/<sha256>-<size>
                       remote-execution input blobs (BLOB_CACHE_GIB), emptied at startup
-<CACHE_IMAGE_DIR>/rc-<head digest>
+<CACHE_IMAGE_DIR>/rc-<scope digest>-<generation>
                       runner-cache masters copied for cache grants (CACHE_IMAGES_GIB), least
                       recently used first past the budget, removed CACHE_IMAGES_TTL after
                       their last use; unfinished .copy-* files are removed at startup
@@ -440,15 +440,22 @@ relays, which the agent verifies as it does a CI job's.
 
 A `create` may carry `cache_grant {id, scope, base_generation, image_digest,
 content_digest}` instead of `cache_image`: the saved head of a Linux
-runner-cache volume. The daemon names the copy `rc-<sha256 of the head>` in
-`CACHE_IMAGE_DIR`, and when it is not there asks the node's runner-cache agent
-for it with `POST /sandbox-cache/image` (`{"pod_name": POD_NAME, "grant":
-...}`, authorized like the checkout routes). The agent reflinks the master
-under its scope lock, marks it used, streams the clone in runner-cache's
-sparse zstd format and deletes it; it never fetches a master the node lacks
-and answers `404 cold`, which fails the create, so the server must pick a
-node that holds the head. Concurrent creates for one head share one copy
-(15-minute budget, written to `.copy-*` and renamed); the sandbox then gets
+runner-cache volume. The daemon names copies by lineage and generation,
+`rc-<sha256 of the scope>-<generation>` in `CACHE_IMAGE_DIR`. It uses the
+grant's generation when it has it, and otherwise asks the node's runner-cache
+agent with `POST /sandbox-cache/image` (`{"pod_name": POD_NAME, "grant": ...,
+"held": [generations it has of the lineage]}`, authorized like the checkout
+routes). The agent lends the head's master, or the newest older master of the
+lineage when that is all the node keeps (prefetch holds a refreshed master
+rather than download every head, so this is common), and names it in the
+`Tuist-Cache-Generation` header: `204` when that generation is in `held`, else
+`200` with the reflinked clone streamed in runner-cache's sparse zstd format.
+It marks the master used and never fetches one the node lacks: with no master
+of the lineage it answers `404 cold`, which fails the create, so the server
+picks nodes whose labels advertise the lineage. The create answers
+`cache_generation`, which the server records on the sandbox. A generation
+newer than the grant is refused. Concurrent creates for one lineage share one
+copy (15-minute budget, written to `.copy-*` and renamed); the sandbox then gets
 its own reflink of it exactly as with `cache_image`. Copies a sandbox is
 attaching are pinned; eviction and expiry skip them and never touch images
 without the `rc-` prefix. The copy is one way: nothing the sandbox writes

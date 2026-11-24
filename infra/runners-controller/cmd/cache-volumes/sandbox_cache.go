@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"time"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
@@ -19,9 +21,16 @@ import (
 // (cachevolumes.WriteImage); sandboxd writes it into its own directory. The
 // copy is one way: nothing a sandbox writes comes back. The grant names the
 // saved head the server chose, as a checkout grant names its master, and the
-// agent authorizes the caller as it does for checkouts.
+// agent authorizes the caller as it does for checkouts. A node whose prefetch
+// still holds an older master of the head's lineage lends that one, as it
+// would to a job, and the sandboxCacheGeneration header names the generation
+// it lent. sandboxd names its copies by generation and lists the ones it has
+// in held, so the agent answers 204 instead of streaming a copy it already has.
 
-const sandboxCacheDir = ".sandbox-cache"
+const (
+	sandboxCacheDir        = ".sandbox-cache"
+	sandboxCacheGeneration = "Tuist-Cache-Generation"
+)
 
 type sandboxCacheGrant struct {
 	ID             string `json:"id"`
@@ -34,11 +43,13 @@ type sandboxCacheGrant struct {
 type sandboxCacheRequest struct {
 	PodName string            `json:"pod_name"`
 	Grant   sandboxCacheGrant `json:"grant"`
+	Held    []int64           `json:"held,omitempty"`
 }
 
-// serveSandboxCacheImage answers 200 with the master as a sparse archive, 404
-// {"error":"cold"} when this node holds no master of the head, or another
-// status with {"error": reason}. It never fetches a master for the request.
+// serveSandboxCacheImage answers 200 with the master as a sparse archive, 204
+// when the caller holds the generation it would lend, 404 {"error":"cold"}
+// when this node holds no master of the lineage, or another status with
+// {"error": reason}. It never fetches a master for the request.
 func (a *agent) serveSandboxCacheImage(w http.ResponseWriter, r *http.Request) {
 	var input sandboxCacheRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&input); err != nil {
@@ -74,7 +85,7 @@ func (a *agent) serveSandboxCacheImage(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), sandboxSeedBudget)
 	defer cancel()
 	done := a.observe.With(cachevolumes.SubjectOf(cachevolumes.Slot{Identity: identity})).Start("sandbox_cache_image", "local")
-	streaming, err := a.streamSandboxCacheImage(ctx, w, identity)
+	streaming, err := a.streamSandboxCacheImage(ctx, w, identity, input.Held)
 	done(err)
 	switch {
 	case err == nil:
@@ -96,7 +107,7 @@ func (a *agent) serveSandboxCacheImage(w http.ResponseWriter, r *http.Request) {
 // streamSandboxCacheImage clones the master beside the masters, so a later
 // eviction cannot pull it from under the stream, and writes the clone. It
 // reports whether the response had started.
-func (a *agent) streamSandboxCacheImage(ctx context.Context, w http.ResponseWriter, identity cachevolumes.Identity) (bool, error) {
+func (a *agent) streamSandboxCacheImage(ctx context.Context, w http.ResponseWriter, identity cachevolumes.Identity, held []int64) (bool, error) {
 	parent := filepath.Join(a.root, sandboxCacheDir)
 	if err := os.MkdirAll(parent, 0o700); err != nil {
 		return false, err
@@ -108,8 +119,14 @@ func (a *agent) streamSandboxCacheImage(ctx context.Context, w http.ResponseWrit
 	}
 	defer os.RemoveAll(dir)
 	clone := filepath.Join(dir, "master.img")
-	if err := a.cloneMaster(ctx, identity, clone); err != nil {
+	generation, cloned, err := a.cloneMaster(ctx, identity, clone, func(g int64) bool { return slices.Contains(held, g) })
+	if err != nil {
 		return false, err
+	}
+	w.Header().Set(sandboxCacheGeneration, strconv.FormatInt(generation, 10))
+	if !cloned {
+		w.WriteHeader(http.StatusNoContent)
+		return false, nil
 	}
 	image, err := os.Open(clone)
 	if err != nil {

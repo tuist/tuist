@@ -504,6 +504,10 @@ type CreateResult struct {
 	// MemoryPending: the sandbox still reads its memory image or its disks
 	// from the archive it was restored from, until EventMemoryLoaded.
 	MemoryPending bool `json:"memory_pending,omitempty"`
+	// CacheGeneration is the generation of the cache a CacheGrant attached:
+	// the grant's, or an older one of its lineage when the node's agent kept
+	// only that.
+	CacheGeneration int64 `json:"cache_generation,omitempty"`
 }
 
 type ResumeResult struct {

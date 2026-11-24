@@ -1283,28 +1283,38 @@ var (
 )
 
 // CloneMaster reflinks the immutable master of a saved head to dst, under the
-// scope lock that eviction takes too. dst must be on this filesystem and not
-// exist. It never fetches: a host without the master answers ErrNoMaster.
-func (b *LocalImages) CloneMaster(ctx context.Context, identity Identity, dst string) error {
+// scope lock that eviction takes too, or the newest older master of its
+// lineage when the host holds only that, as a job's clone would. It returns
+// the generation it chose. When held reports that the caller already has a
+// copy of that generation, it clones nothing. dst must be on this filesystem
+// and not exist. It never fetches: a host without a master of the lineage
+// answers ErrNoMaster.
+func (b *LocalImages) CloneMaster(ctx context.Context, identity Identity, dst string, held func(int64) bool) (int64, bool, error) {
 	if identity.BaseGeneration <= 0 || !validHead(identity) || !scopePattern.MatchString(identity.Scope) {
-		return ErrInvalidMaster
+		return 0, false, ErrInvalidMaster
 	}
 	unlock, err := b.lockContext(ctx, identity.Scope)
 	if err != nil {
-		return err
+		return 0, false, err
 	}
 	defer unlock()
-	master := b.master(Slot{Identity: identity})
+	master, generation := b.master(Slot{Identity: identity}), identity.BaseGeneration
 	if _, err := os.Stat(master); os.IsNotExist(err) {
-		return ErrNoMaster
+		if master, generation = b.olderMaster(Slot{Identity: identity}); master == "" {
+			return 0, false, ErrNoMaster
+		}
 	} else if err != nil {
-		return err
+		return 0, false, err
+	}
+	if held != nil && held(generation) {
+		markUsed(master)
+		return generation, false, nil
 	}
 	if err := b.cloneContext(ctx, master, dst); err != nil {
-		return err
+		return 0, false, err
 	}
 	markUsed(master)
-	return nil
+	return generation, true, nil
 }
 
 // HasMaster reports whether the immutable master a warm identity clones from is

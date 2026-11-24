@@ -22,7 +22,17 @@ func sandboxCacheGrantJSON() map[string]any {
 
 func requestSandboxCacheImage(t *testing.T, a *agent, ip, pod string, grant map[string]any) *httptest.ResponseRecorder {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{"pod_name": pod, "grant": grant})
+	return postSandboxCacheImage(t, a, ip, map[string]any{"pod_name": pod, "grant": grant})
+}
+
+func requestSandboxCacheImageHolding(t *testing.T, a *agent, grant map[string]any, held []int64) *httptest.ResponseRecorder {
+	t.Helper()
+	return postSandboxCacheImage(t, a, "10.0.0.9", map[string]any{"pod_name": "sandboxd-x", "grant": grant, "held": held})
+}
+
+func postSandboxCacheImage(t *testing.T, a *agent, ip string, request map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,17 +61,20 @@ func TestSandboxCacheImageStreamsTheNamedMaster(t *testing.T) {
 	}
 	f.Close()
 	var asked cachevolumes.Identity
-	present := true
-	a.cloneMaster = func(_ context.Context, identity cachevolumes.Identity, dst string) error {
+	present, lent := true, int64(4)
+	a.cloneMaster = func(_ context.Context, identity cachevolumes.Identity, dst string, held func(int64) bool) (int64, bool, error) {
 		asked = identity
 		if !present {
-			return cachevolumes.ErrNoMaster
+			return 0, false, cachevolumes.ErrNoMaster
+		}
+		if held(lent) {
+			return lent, false, nil
 		}
 		data, err := os.ReadFile(master)
 		if err != nil {
-			return err
+			return 0, false, err
 		}
-		return os.WriteFile(dst, data, 0o600)
+		return lent, true, os.WriteFile(dst, data, 0o600)
 	}
 	grant := sandboxCacheGrantJSON()
 
@@ -75,8 +88,8 @@ func TestSandboxCacheImageStreamsTheNamedMaster(t *testing.T) {
 	}
 
 	w := requestSandboxCacheImage(t, a, "10.0.0.9", "sandboxd-x", grant)
-	if w.Code != 200 {
-		t.Fatalf("copy: %d %s", w.Code, w.Body)
+	if w.Code != 200 || w.Header().Get(sandboxCacheGeneration) != "4" {
+		t.Fatalf("copy: %d %s, generation %q", w.Code, w.Body, w.Header().Get(sandboxCacheGeneration))
 	}
 	if asked.Scope != grant["scope"] || asked.BaseGeneration != 4 || asked.ContentDigest != grant["content_digest"] || asked.ImageDigest != grant["image_digest"] {
 		t.Fatalf("the agent cloned %+v, not the granted head", asked)
@@ -88,6 +101,19 @@ func TestSandboxCacheImageStreamsTheNamedMaster(t *testing.T) {
 	want, _ := os.ReadFile(master)
 	if got, _ := os.ReadFile(received); !bytes.Equal(got, want) {
 		t.Fatal("sandboxd received other bytes than the master's")
+	}
+	if entries, _ := os.ReadDir(filepath.Join(a.root, sandboxCacheDir)); len(entries) != 0 {
+		t.Fatalf("the agent kept %d clones", len(entries))
+	}
+
+	// A node that kept only an older master lends it and names it; a caller
+	// that already holds that generation gets no second copy.
+	lent = 2
+	if w := requestSandboxCacheImage(t, a, "10.0.0.9", "sandboxd-x", grant); w.Code != 200 || w.Header().Get(sandboxCacheGeneration) != "2" {
+		t.Fatalf("an older master answered %d, generation %q", w.Code, w.Header().Get(sandboxCacheGeneration))
+	}
+	if w := requestSandboxCacheImageHolding(t, a, grant, []int64{1, 2}); w.Code != 204 || w.Header().Get(sandboxCacheGeneration) != "2" || w.Body.Len() != 0 {
+		t.Fatalf("a caller holding the lent generation got %d, generation %q, %d bytes", w.Code, w.Header().Get(sandboxCacheGeneration), w.Body.Len())
 	}
 	if entries, _ := os.ReadDir(filepath.Join(a.root, sandboxCacheDir)); len(entries) != 0 {
 		t.Fatalf("the agent kept %d clones", len(entries))
