@@ -175,27 +175,30 @@ public struct CoverageExportService: CoverageExportServicing {
 
     /// The build's targets with the products the run used: for a target built from source, its
     /// product in the products directory the run's test bundles are in (the one under `roots`
-    /// that holds most of them, the newest on a tie); for a target the binary cache replaced, the
-    /// xcframework slice of that directory's platform.
+    /// that holds most of them, then most of the other products, the newest on a tie); for a
+    /// target the binary cache replaced, the xcframework slice of that directory's platform.
     static func targets(_ sources: CoverageBuildSources, productRoots roots: [AbsolutePath]) -> [XcodeCoverageTarget] {
         let candidates = roots.flatMap { root -> [AbsolutePath] in
             let children = (try? FileManager.default.contentsOfDirectory(atPath: root.pathString)) ?? []
             return [root] + children.map { root.appending(component: $0) }
         }
-        let names = sources.targets.map(\.name)
-        var counted: [(directory: AbsolutePath, products: Int)] = []
+        // The test bundles come first: an earlier run of another platform in the same derived data,
+        // such as a macOS app's tests before its iOS app's, can leave more of the scheme's products in
+        // its own directory, but never this run's test bundles.
+        var counted: [(directory: AbsolutePath, found: [CoverageBuildTarget])] = []
         for directory in candidates {
-            let products = names.filter { FileManager.default.fileExists(atPath: directory.appending(component: $0).pathString) }
-                .count
-            if products > 0 { counted.append((directory, products)) }
+            let apps = Self.apps(in: directory)
+            let found = sources.targets.filter { Self.product(named: $0.name, in: directory, apps: apps) != nil }
+            if !found.isEmpty { counted.append((directory, found)) }
         }
         let productsDirectory: AbsolutePath? = counted.max { lhs, rhs in
-            if lhs.products != rhs.products { return lhs.products < rhs.products }
+            let (lhsTests, rhsTests) = (lhs.found.filter(\.isTest).count, rhs.found.filter(\.isTest).count)
+            if lhsTests != rhsTests { return lhsTests < rhsTests }
+            if lhs.found.count != rhs.found.count { return lhs.found.count < rhs.found.count }
             return modificationDate(lhs.directory) < modificationDate(rhs.directory)
         }?.directory
         let platform: (name: String, simulator: Bool)? = productsDirectory.map { Self.platform(ofProductsDirectory: $0.basename) }
-        let apps = productsDirectory.flatMap { try? FileManager.default.contentsOfDirectory(atPath: $0.pathString) }?
-            .filter { $0.hasSuffix(".app") }.sorted() ?? []
+        let apps = productsDirectory.map { Self.apps(in: $0) } ?? []
 
         return sources.targets.map { target in
             var product: String?
@@ -215,6 +218,12 @@ public struct CoverageExportService: CoverageExportServicing {
             }
             return XcodeCoverageTarget(name: target.name, buildProductPath: product, files: files, isTest: target.isTest)
         }
+    }
+
+    /// The apps in a products directory, by bundle name, which can host its test bundles.
+    private static func apps(in directory: AbsolutePath) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: directory.pathString)) ?? []).filter { $0.hasSuffix(".app") }
+            .sorted()
     }
 
     /// A product by name in the products directory, or hosted in one of its apps (`apps`, by

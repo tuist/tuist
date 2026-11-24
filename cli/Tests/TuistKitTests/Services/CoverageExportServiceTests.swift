@@ -403,6 +403,53 @@ struct CoverageExportServiceTests {
         ])
     }
 
+    @Test(.inTemporaryDirectory) func picksTheDirectoryWithTheRunsTestBundlesOverOneWithMoreProducts() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let simulator = directory.appending(components: "Build", "Products", "Debug-iphonesimulator")
+        let mac = directory.appending(components: "Build", "Products", "Debug")
+        let simulatorApp = simulator.appending(component: "App.app")
+        // An earlier macOS run in the same derived data built the app and its frameworks, but not the
+        // iOS-only test bundle, which this run hosted in its own app.
+        for bundle in [
+            simulatorApp,
+            simulatorApp.appending(components: "PlugIns", "AppTests.xctest"),
+            mac.appending(component: "App.app"),
+            mac.appending(component: "Core.framework"),
+            mac.appending(component: "UI.framework"),
+        ] {
+            try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+            let executable = bundle.basenameWithoutExt
+            try Data("<plist version=\"1.0\"><dict><key>CFBundleExecutable</key><string>\(executable)</string></dict></plist>"
+                .utf8)
+                .write(to: URL(fileURLWithPath: bundle.appending(component: "Info.plist").pathString))
+            try Data([0xCF, 0xFA, 0xED, 0xFE]).write(to: URL(fileURLWithPath: bundle.appending(component: executable).pathString))
+        }
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -3600)],
+            ofItemAtPath: simulator.pathString
+        )
+        try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: mac.pathString)
+        let sources = CoverageBuildSources(
+            rootDirectories: ["/repo"],
+            files: [:],
+            targets: [
+                CoverageBuildTarget(name: "App.app", isTest: false, files: []),
+                CoverageBuildTarget(name: "AppTests.xctest", isTest: true, files: []),
+                CoverageBuildTarget(name: "Core.framework", isTest: false, files: []),
+                CoverageBuildTarget(name: "UI.framework", isTest: false, files: []),
+            ]
+        )
+
+        let targets = CoverageExportService.targets(sources, productRoots: [directory.appending(components: "Build", "Products")])
+
+        #expect(targets.map(\.buildProductPath) == [
+            simulatorApp.appending(component: "App").pathString,
+            simulatorApp.appending(components: "PlugIns", "AppTests.xctest", "AppTests").pathString,
+            nil,
+            nil,
+        ])
+    }
+
     @Test func readsThePlatformOffTheProductsDirectoryName() {
         #expect(CoverageExportService.platform(ofProductsDirectory: "Debug") == ("macos", false))
         #expect(CoverageExportService.platform(ofProductsDirectory: "Debug-iphonesimulator") == ("ios", true))
