@@ -803,7 +803,9 @@ in a CI-shaped container and measures it attached to a sandbox.
 `validate-runner-cache-master.sh` (`runner_cache_master` input) instead
 makes a master with runner-cache's `LocalImages` (`validation/cachemaster`),
 fills it with the Linux runner image, and attaches it at the sandbox's own
-paths and at the runner's. `validate-cache-snapshot.sh` (`cache_snapshot` input)
+paths and at the runner's. `validate-checkout-cache.sh` (`checkout_cache`
+input) binds a volume's checkout-relative path (`server/deps`) into a
+checkout inside the guest. `validate-cache-snapshot.sh` (`cache_snapshot` input)
 compares template creates with and without the cache placeholder, with a
 cache swapped in, and today's disk-snapshot cold boot.
 

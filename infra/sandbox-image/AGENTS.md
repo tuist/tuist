@@ -79,6 +79,11 @@ accepts sandbox identity tokens at `/mcp` for anyone who adds it themselves.
   spelling's sha256) is bound at that path under `user`'s home, with the
   missing directories created and the subtree handed to `user`. Absolute and
   home-escaping spellings are skipped, and so is a symlinked path component.
+  Relative spellings (`server/deps`) are relative to the CI job's checkout:
+  `sbx-worker` binds them into the session's checkout after seeding it
+  (`BindCheckoutCache`), only where the checkout has nothing or an empty
+  directory at that path, so a repository snapshot's own deps win.
+  `validate-checkout-cache.sh` in sandboxd proves it on KVM.
   A cache problem is logged and never fails `configure`; a resume finds the
   mount in place and does nothing, and a cold reboot mounts it again.
 - `sbx-agent` listens on vsock port 5000, one request per connection. The
