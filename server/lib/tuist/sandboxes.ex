@@ -523,14 +523,16 @@ defmodule Tuist.Sandboxes do
 
   @doc """
   Whether the sandbox is a plain one that serves no agent environment, Amp
-  integration, provider environment or remote execution. Those bring their
-  own identity, so only plain sandboxes get per-command Tuist credentials
-  (`Tuist.Sandboxes.CommandCredentials`). Every account member may use any
+  Orb, provider environment or remote execution. Those run someone's session
+  with its own identity and credentials, so only account administrators run
+  commands in them through the API (`TuistWeb.API.SandboxesController`), and
+  only plain sandboxes get per-command Tuist credentials
+  (`Tuist.Sandboxes.CommandCredentials`). Every account member manages any
   sandbox either way.
   """
   def member_sandbox?(%Sandbox{} = sandbox),
     do:
-      is_nil(sandbox.agent_environment_id) and is_nil(sandbox.amp_integration_id) and
+      is_nil(sandbox.agent_environment_id) and is_nil(sandbox.amp_integration_id) and is_nil(sandbox.amp_orb_id) and
         is_nil(sandbox.provider_environment_id) and sandbox.purpose == :agent
 
   @doc """

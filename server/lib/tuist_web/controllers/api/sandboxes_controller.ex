@@ -14,6 +14,8 @@ defmodule TuistWeb.API.SandboxesController do
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.SandboxError, as: Error
 
+  require Logger
+
   plug(TuistWeb.Plugs.LoaderPlug)
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -21,9 +23,11 @@ defmodule TuistWeb.API.SandboxesController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  # Members, and account tokens with `account:sandboxes:write`, use every
-  # sandbox in the account (`:sandboxes_write`). Agent environments, which
-  # hold Anthropic credentials, and Orb dispatch stay admin-only.
+  # Members, and account tokens with `account:sandboxes:write`, use and
+  # manage every sandbox in the account (`:sandboxes_write`). Agent
+  # environments, which hold Anthropic credentials, and Orb dispatch stay
+  # admin-only, and so does reaching inside a sandbox that serves an
+  # integration (`require_guest_access/2`).
   @member_actions [
     :index,
     :analytics,
@@ -44,9 +48,22 @@ defmodule TuistWeb.API.SandboxesController do
     :archive
   ]
 
+  # The actions that run code in the guest, read what ran there or hand it files.
+  @guest_actions [
+    :exec,
+    :start_command,
+    :index_commands,
+    :show_command,
+    :stream_command_logs,
+    :write_command_stdin,
+    :cancel_command,
+    :create_upload
+  ]
+
   plug AuthorizationPlug, {:account, :sandboxes, :write} when action in @member_actions
   plug AuthorizationPlug, {:account, :account, :update} when action not in @member_actions
   plug(TuistWeb.Plugs.RequireSandboxesPlug)
+  plug :require_guest_access when action in @guest_actions
 
   tags ["Sandboxes"]
 
@@ -582,6 +599,7 @@ defmodule TuistWeb.API.SandboxesController do
         _params
       ) do
     with_sandbox(conn, account, sandbox_id, fn sandbox ->
+      log_guest_command(conn, sandbox, "exec")
       opts = if timeout_ms = Map.get(body_params, :timeout_ms), do: [timeout_ms: timeout_ms], else: []
 
       case Sandboxes.exec(sandbox, ["/bin/bash", "-lc", body_params.command], opts) do
@@ -694,6 +712,8 @@ defmodule TuistWeb.API.SandboxesController do
         _params
       ) do
     with_sandbox(conn, account, sandbox_id, fn sandbox ->
+      log_guest_command(conn, sandbox, "command")
+
       params =
         body_params
         |> Map.take([:command, :args, :env, :cwd, :stdin, :timeout_ms, :id])
@@ -1080,6 +1100,43 @@ defmodule TuistWeb.API.SandboxesController do
   end
 
   defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message, code: "not_found"})
+
+  # Neither an exec nor a command row stores its caller, so the log records
+  # who ran something in which sandbox (never the command, which may carry
+  # secrets).
+  defp log_guest_command(conn, sandbox, kind) do
+    Logger.info(
+      "sandboxes: #{kind} in #{sandbox.id} of account #{sandbox.account_id} by #{actor(TuistWeb.Authentication.authenticated_subject(conn))}"
+    )
+  end
+
+  defp actor(%Tuist.Accounts.User{id: id}), do: "user #{id}"
+
+  defp actor(%Tuist.Accounts.AuthenticatedAccount{} = subject),
+    do:
+      "account token #{subject.token_id || "(exchanged)"} of account #{subject.account.id}" <>
+        if(subject.issued_by, do: " issued by user #{subject.issued_by.id}", else: "")
+
+  defp actor(subject), do: inspect(subject.__struct__)
+
+  # A sandbox that serves an agent environment, an Amp Orb, a provider
+  # environment or remote execution runs someone's session: its guest holds
+  # their checkout and the integration's credentials, such as a Claude Code
+  # session's work order. Every member manages it, but only account
+  # administrators reach inside it. An account token is never an
+  # administrator, which also keeps the `account:sandboxes:write` grant a
+  # Claude Code session or an Orb exchanges out of everyone else's sessions.
+  defp require_guest_access(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _opts) do
+    subject = TuistWeb.Authentication.authenticated_subject(conn)
+
+    with {:ok, sandbox} <- Sandboxes.get_sandbox(account, sandbox_id),
+         false <- Sandboxes.member_sandbox?(sandbox),
+         false <- Tuist.Authorization.authorize(:account_update, subject, account) == :ok do
+      conn |> sandbox_error(:integration_sandbox) |> halt()
+    else
+      _ -> conn
+    end
+  end
 
   # `Query.error/1` decides the status, the code and the `retry-after`.
   defp sandbox_error(conn, reason) do

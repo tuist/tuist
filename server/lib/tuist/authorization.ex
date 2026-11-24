@@ -606,7 +606,9 @@ defmodule Tuist.Authorization do
     end
 
     action :write do
-      desc("Allows users of an account to create, use and manage its sandboxes through the API and run commands in them.")
+      desc(
+        "Allows users of an account to create, use and manage its sandboxes through the API and run commands in them, except in sandboxes that serve an integration, which only admins reach inside."
+      )
 
       allow([:authenticated_as_user, user_role: :user])
 
@@ -617,7 +619,7 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_user, user_role: :admin])
 
       desc(
-        "Allows an account token with account:sandboxes:write scope to do what a user of the account can: create, use and manage its sandboxes through the API and run commands in them."
+        "Allows an account token with account:sandboxes:write scope to do what a user of the account can: create, use and manage its sandboxes through the API and run commands in them, except in sandboxes that serve an integration."
       )
 
       allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:sandboxes:write"])

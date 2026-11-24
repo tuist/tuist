@@ -2,6 +2,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
   alias Tuist.Accounts.AuthenticatedAccount
@@ -15,7 +16,10 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Sandboxes.Workers.DeleteUploadWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.API.SandboxesController
   alias TuistWeb.Authentication
+
+  require Logger
 
   setup %{conn: conn} do
     stub(Environment, :tuist_hosted?, fn -> true end)
@@ -1041,12 +1045,51 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       |> json_response(:not_found)
     end
 
-    test "a member uses an agent's sandbox, analytics and archiving, but not agent environments", %{conn: conn} do
-      {conn, account} = member_conn(conn, :user)
-      environment = agent_environment_fixture(account: account)
+    # Every request that reaches inside a sandbox: runs a command in it,
+    # reads or drives one, or hands it files.
+    defp guest_requests(sandbox) do
+      command = Ecto.UUID.generate()
 
-      sandbox =
-        sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
+      [
+        {:post, "#{sandbox.id}/exec", %{command: "cat /proc/*/environ"}},
+        {:post, "#{sandbox.id}/commands", %{command: "env"}},
+        {:get, "#{sandbox.id}/commands", %{}},
+        {:get, "#{sandbox.id}/commands/#{command}", %{}},
+        {:get, "#{sandbox.id}/commands/#{command}/logs", %{}},
+        {:post, "#{sandbox.id}/commands/#{command}/stdin", %{data: Base.encode64("x")}},
+        {:post, "#{sandbox.id}/commands/#{command}/cancel", %{}},
+        {:post, "#{sandbox.id}/uploads", %{}}
+      ]
+    end
+
+    defp assert_guest_forbidden(conn, account, sandbox) do
+      for {method, path, body} <- guest_requests(sandbox) do
+        response = dispatch(conn, @endpoint, method, "/api/accounts/#{account.name}/sandboxes/#{path}", body)
+        assert %{"code" => "forbidden"} = json_response(response, :forbidden), "#{method} #{path}"
+      end
+    end
+
+    # Integration sandboxes: a Claude Code session's, whose runner holds the
+    # session's work order, and an Amp Orb's, with someone's checkout.
+    defp integration_sandboxes(account) do
+      environment = agent_environment_fixture(account: account, kind: :claude_code, anthropic_environment_id: "ccpool_01")
+
+      session =
+        sandbox_fixture(
+          account: account,
+          state: :running,
+          node_name: "node-a",
+          agent_environment_id: environment.id,
+          anthropic_session_id: "session-1"
+        )
+
+      orb = sandbox_fixture(account: account, state: :running, node_name: "node-a", amp_orb_id: "orb-1")
+      {environment, [session, orb]}
+    end
+
+    test "a member reaches inside only plain sandboxes, and still manages an agent's or an Orb's", %{conn: conn} do
+      {conn, account} = member_conn(conn, :user)
+      {environment, sandboxes} = integration_sandboxes(account)
 
       paused =
         sandbox_fixture(
@@ -1056,12 +1099,13 @@ defmodule TuistWeb.API.SandboxesControllerTest do
           agent_environment_id: environment.id
         )
 
-      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+      reject(&Nodes.call/4)
 
-      assert %{"status" => "running"} =
-               conn
-               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "env"})
-               |> json_response(:accepted)
+      for sandbox <- sandboxes do
+        assert_guest_forbidden(conn, account, sandbox)
+        id = sandbox.id
+        assert %{"id" => ^id} = conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{id}") |> json_response(:ok)
+      end
 
       assert %{"id" => paused_id} =
                conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{paused.id}/archive") |> json_response(:accepted)
@@ -1069,6 +1113,30 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: paused_id})
       conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:ok)
       conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:forbidden)
+    end
+
+    test "an administrator runs commands in an agent's sandbox, and the log names who did", %{
+      conn: conn,
+      account: account,
+      user: user
+    } do
+      {_environment, [session, _orb]} = integration_sandboxes(account)
+      Logger.put_module_level(SandboxesController, :info)
+      on_exit(fn -> Logger.delete_module_level(SandboxesController) end)
+
+      expect(Nodes, :call, fn "node-a", "exec", %{cmd: ["/bin/bash", "-lc", "echo secret"]}, _opts ->
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      log =
+        capture_log([level: :info], fn ->
+          conn
+          |> post(~p"/api/accounts/#{account.name}/sandboxes/#{session.id}/exec", %{command: "echo secret"})
+          |> json_response(:ok)
+        end)
+
+      assert log =~ "sandboxes: exec in #{session.id} of account #{account.id} by user #{user.id}"
+      refute log =~ "echo secret"
     end
 
     test "a viewer cannot run commands", %{conn: conn} do
@@ -1121,19 +1189,27 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert Repo.get(Sandbox, id) == nil
     end
 
-    test "an account token with the sandboxes write scope uses an agent's sandbox, but not agent environments", %{
-      account: account
-    } do
-      conn = token_conn(account, ["account:sandboxes:write"])
-      environment = agent_environment_fixture(account: account)
+    test "an account token, such as one a Claude Code session or an Orb exchanged, cannot reach inside integration sandboxes",
+         %{account: account} do
+      # The grant `OIDCController` gives a Claude Code session or an Amp Orb.
+      conn =
+        build_conn()
+        |> assign(:current_subject, %AuthenticatedAccount{
+          account: account,
+          scopes: ["ci", "account:sandboxes:write"],
+          all_projects: true
+        })
+        |> put_req_header("content-type", "application/json")
 
-      sandbox =
-        sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
-
-      id = sandbox.id
+      {_environment, sandboxes} = integration_sandboxes(account)
       reject(&Nodes.call/4)
 
-      assert %{"id" => ^id} = conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{id}") |> json_response(:ok)
+      for sandbox <- sandboxes do
+        assert_guest_forbidden(conn, account, sandbox)
+        id = sandbox.id
+        assert %{"id" => ^id} = conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{id}") |> json_response(:ok)
+      end
+
       conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:ok)
       conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:forbidden)
     end
