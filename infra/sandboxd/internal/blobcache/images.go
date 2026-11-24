@@ -202,16 +202,22 @@ func (c *Cache) installImage(st *imageState, img *image) error {
 	img.usedAt = time.Now()
 	c.used += img.allocated
 	for c.imageCount() > maxImages {
-		var oldest *imageState
-		for _, other := range c.images {
-			if other.current != nil && other != st && (oldest == nil || other.current.usedAt.Before(oldest.current.usedAt)) {
-				oldest = other
-			}
-		}
-		c.dropImage(oldest)
+		c.dropImage(c.oldestImage(st))
 	}
 	c.gauge()
 	return nil
+}
+
+// oldestImage returns the scope whose image was used least recently, other
+// than except, or nil without one. c.mu is held.
+func (c *Cache) oldestImage(except *imageState) *imageState {
+	var oldest *imageState
+	for _, st := range c.images {
+		if st.current != nil && st != except && (oldest == nil || st.current.usedAt.Before(oldest.current.usedAt)) {
+			oldest = st
+		}
+	}
+	return oldest
 }
 
 func (c *Cache) imageCount() int {

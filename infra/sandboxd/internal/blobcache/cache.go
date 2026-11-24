@@ -234,6 +234,11 @@ func (c *Cache) reserve(key, path string, size int64) (*entry, error) {
 	for c.used+size > c.budget || c.shortOfDisk(size) {
 		oldest := c.lru.Front()
 		if oldest == nil {
+			// Inputs images count in the budget too; blobs come first.
+			if st := c.oldestImage(nil); st != nil {
+				c.dropImage(st)
+				continue
+			}
 			c.gauge()
 			return nil, ErrFull
 		}

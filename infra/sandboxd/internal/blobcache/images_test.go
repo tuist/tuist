@@ -105,4 +105,36 @@ func TestInputsImageHoldsOnlyTheScopesRepeatedBlobsReadOnly(t *testing.T) {
 	}
 }
 
+func TestBlobFillDropsTheInputsImageWhenNoBlobIsLeftToEvict(t *testing.T) {
+	const budget = 256 << 10
+	c, cas, endpoint := setup(t, budget)
+	// The image takes most of the budget on disk.
+	c.Mkfs = func(_ context.Context, image, _ string) error {
+		return os.WriteFile(image, make([]byte, 192<<10), 0o600)
+	}
+	s := Scope{Endpoint: endpoint, Instance: "a", Token: "token-a"}
+	hot, hotSize := cas.put("toolchain library")
+	for range 2 {
+		if _, err := readAll(t, c, s, hot, hotSize); err != nil {
+			t.Fatal(err)
+		}
+	}
+	image := waitImage(t, c, s, 1<<20)
+	large := string(make([]byte, 128<<10))
+	hash, size := cas.put(large)
+	got, err := readAll(t, c, s, hash, size)
+	if err != nil {
+		t.Fatalf("blob that fits once the image is gone: %v", err)
+	}
+	if got != large {
+		t.Fatal("blob content differs")
+	}
+	if _, ok := c.Image(s, 1<<20); ok {
+		t.Fatal("image still handed out after it was dropped for a blob")
+	}
+	if _, err := os.Stat(image); !os.IsNotExist(err) {
+		t.Fatalf("dropped image still on disk: %v", err)
+	}
+}
+
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
