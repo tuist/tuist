@@ -2620,6 +2620,10 @@ sandboxes:
   # What the daemons were started with, so raising maxCpu (read by the
   # server) restarts none of them.
   daemonMaxCpu: "250m"
+  # Firecracker in its own vmm container (step 2a of seamless daemon
+  # restarts), after qualifying on staging and canary.
+  vmm:
+    enabled: true
   # 220 GiB after checkout workspaces: five 4x8192 Orbs on a 20 GiB rootfs
   # (about 38 GiB each) per node. The nodes have about 830 GiB.
   # Plus 30 GiB for copies of CI cache volumes below.
