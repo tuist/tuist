@@ -76,6 +76,67 @@ func EnsureCache(log *slog.Logger, dev, mount, owner string) {
 	log.Info("cache drive mounted", "paths", bound, "owner", owner, "duration", time.Since(started))
 }
 
+// BindCheckoutCache binds each checkout-relative path of the mounted cache's
+// manifest into checkout, owned by uid and gid, so a session sees a CI job's
+// `server/deps` where the job had it. A path the checkout already holds
+// something at (a repository snapshot's own deps, a file) keeps it, and one
+// already bound is left alone, so a resumed or rebooted sandbox can run it
+// again. The worker calls it before the session's processes start; like
+// EnsureCache it never fails and returns how many paths are bound.
+func BindCheckoutCache(log *slog.Logger, mount, checkout string, uid, gid int) int {
+	if mounted, err := IsMountPoint(mount); err != nil || !mounted {
+		return 0
+	}
+	if info, err := os.Lstat(checkout); err != nil || !info.IsDir() {
+		return 0
+	}
+	raw, err := os.ReadFile(filepath.Join(mount, cacheManifest))
+	if err != nil {
+		return 0
+	}
+	binds := CheckoutCacheBinds(raw, checkout)
+	if len(binds) == 0 {
+		return 0
+	}
+	started := time.Now()
+	bound, kept := 0, 0
+	for _, b := range binds {
+		free, err := emptyTarget(b.Target)
+		switch {
+		case err != nil:
+			log.Warn("cache path not bound", "path", b.Spelling, "error", err)
+			continue
+		case !free:
+			kept++
+			continue
+		}
+		if err := bindCache(filepath.Join(mount, b.Source), b.Target, checkout, uid, gid); err != nil {
+			log.Warn("cache path not bound", "path", b.Spelling, "error", err)
+			continue
+		}
+		bound++
+	}
+	log.Info("cache bound into checkout", "checkout", checkout, "paths", bound, "kept", kept, "duration", time.Since(started))
+	return bound
+}
+
+// emptyTarget reports whether a bind may go at target: nothing there, or an
+// empty directory that is not a mount point yet.
+func emptyTarget(target string) (bool, error) {
+	info, err := os.Lstat(target)
+	if errors.Is(err, fs.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil || !info.IsDir() {
+		return false, err
+	}
+	if mounted, err := IsMountPoint(target); err != nil || mounted {
+		return false, err
+	}
+	entries, err := os.ReadDir(target)
+	return len(entries) == 0, err
+}
+
 // bindCache hands source to uid and gid and binds it at target, creating the
 // missing directories between home and target as theirs too.
 func bindCache(source, target, home string, uid, gid int) error {

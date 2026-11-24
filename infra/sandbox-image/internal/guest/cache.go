@@ -39,6 +39,25 @@ type CacheBind struct {
 // they and anything escaping home are skipped. It returns nil for a missing
 // or invalid manifest.
 func CacheBinds(raw []byte, home string) []CacheBind {
+	return cacheBinds(raw, home, func(spelling string) (string, bool) {
+		return strings.CutPrefix(spelling, "~/")
+	})
+}
+
+// CheckoutCacheBinds keeps the manifest's relative spellings instead, mapped
+// into checkout. tuist-cache-volume resolves them against the job's working
+// directory, which is the repository checkout (GITHUB_WORKSPACE), so
+// `server/deps` belongs at the same place in a session's checkout of that
+// repository. Anything escaping the checkout is skipped.
+func CheckoutCacheBinds(raw []byte, checkout string) []CacheBind {
+	return cacheBinds(raw, checkout, func(spelling string) (string, bool) {
+		return spelling, !strings.HasPrefix(spelling, "~") && !filepath.IsAbs(spelling)
+	})
+}
+
+// cacheBinds maps the manifest's valid entries whose spelling relative takes
+// to a path below root.
+func cacheBinds(raw []byte, root string, relative func(string) (string, bool)) []CacheBind {
 	var manifest struct {
 		Version int               `json:"version"`
 		Paths   map[string]string `json:"paths"`
@@ -57,7 +76,7 @@ func CacheBinds(raw []byte, home string) []CacheBind {
 		if !(name == "data" && claims == 1) && name != cacheDigest(spelling) {
 			continue
 		}
-		rel, ok := strings.CutPrefix(spelling, "~/")
+		rel, ok := relative(spelling)
 		if !ok {
 			continue
 		}
@@ -65,7 +84,7 @@ func CacheBinds(raw []byte, home string) []CacheBind {
 		if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, "../") {
 			continue
 		}
-		binds = append(binds, CacheBind{Spelling: spelling, Source: name, Target: filepath.Join(home, rel)})
+		binds = append(binds, CacheBind{Spelling: spelling, Source: name, Target: filepath.Join(root, rel)})
 	}
 	sort.Slice(binds, func(i, j int) bool { return binds[i].Target < binds[j].Target })
 	return binds
