@@ -131,7 +131,7 @@ defmodule Tuist.RemoteExecution.Actions do
           execution_path: if(record["execution_path"] in ["scheduled", "lease"], do: record["execution_path"], else: ""),
           sandbox_id: field(record["sandbox_id"]),
           worker: field(record["worker"]),
-          memory_gb: min(integer(record["memory_gb"]), 65_535),
+          memory_gb: min(ran_in(record), 65_535),
           timeout_ms: integer(record["timeout_ms"]),
           do_not_cache: record["do_not_cache"] == true,
           cached_result: record["cached_result"] == true,
@@ -264,6 +264,11 @@ defmodule Tuist.RemoteExecution.Actions do
 
   defp int32(value) when is_integer(value) and value in -2_147_483_648..2_147_483_647, do: value
   defp int32(_), do: 0
+
+  # The gateway's memory_gb is the size the action asked for; automatic
+  # sizing can run it in a bigger VM, which the usage reports.
+  defp ran_in(%{"usage" => %{"memory_gb" => gb}}) when is_integer(gb) and gb > 0, do: integer(gb)
+  defp ran_in(record), do: integer(record["memory_gb"])
 
   @doc """
   One page of an invocation's remote actions, without command, environment
