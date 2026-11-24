@@ -420,10 +420,10 @@
       & > dd {
         margin: 0;
         min-width: 0;
-        overflow-wrap: anywhere;
         color: var(--noora-surface-label-primary);
         font-weight: var(--noora-font-weight-medium);
         text-align: end;
+        overflow-wrap: anywhere;
       }
     }
   }
