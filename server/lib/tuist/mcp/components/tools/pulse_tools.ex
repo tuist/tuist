@@ -66,6 +66,13 @@ defmodule Tuist.MCP.Components.Tools.PulseTools do
   defp message(:unknown_label), do: "Unknown Pulse trace label. List trace label names with list_pulse_labels."
 
   defp message(:rate_limited), do: "Pulse is rate limited. Try again later."
+
+  # Every text search reads each entry in its window, so a long window can
+  # outlive the query timeout while shorter ones still succeed.
+  defp message(:timeout),
+    do:
+      "Pulse query timed out. Use a shorter range, cover a long window with several calls that step end_at back, or add filters."
+
   defp message(_), do: "Pulse is temporarily unavailable."
 
   @doc false

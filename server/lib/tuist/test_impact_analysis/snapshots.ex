@@ -84,8 +84,10 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   `carried_targets` are the targets the commit's reported coverage carried
   by hash (`Tuist.Tests.Coverage.Reported`), each with its `module`,
   `hash`, `source` and the snapshot it came from (`snapshot_id`, and
-  `checkpoint_id` for an overlay): a selective run whose every skip is
-  among them writes a checkpoint that copies them (`carried_runs/4`).
+  `checkpoint_id` for an overlay), and the skipped targets that hold no
+  tests, each with its `module`, `hash` and `empty: true`: a selective run
+  whose every skip is among them writes a checkpoint that copies the former
+  and lists the latter without a row (`carried_runs/4`).
   """
   def record(%Project{} = project, runs, carried_targets \\ []) do
     runs = Enum.filter(runs, &(Map.get(&1, :git_repository_id) not in [nil, 0] and fresh?(&1.ran_at)))
@@ -434,7 +436,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   defp carried_runs(project, runs, full, targets) do
     full_scopes = MapSet.new(full, &scope/1)
     by_module = Map.new(targets, &{&1.module, &1})
-    snapshots = live_snapshots(Enum.flat_map(targets, &[&1.snapshot_id, &1.checkpoint_id]))
+    snapshots = live_snapshots(Enum.flat_map(targets, &[Map.get(&1, :snapshot_id), Map.get(&1, :checkpoint_id)]))
 
     runs =
       Enum.filter(runs, fn run ->
@@ -464,6 +466,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   end
 
   defp copyable?(nil, _hit, _run, _snapshots), do: false
+  # A target without tests has nothing to copy.
+  defp copyable?(%{empty: true} = target, hit, _run, _snapshots), do: target.hash == hit.hash
 
   defp copyable?(target, hit, run, snapshots) do
     case snapshots[target.snapshot_id] do
@@ -522,10 +526,14 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # run's own tests: an equal hash means the same tests executed the same
   # files. Copied into the checkpoint's own week, they expire with it like
   # any of its rows, and the targets' sources are recorded again, so a
-  # later fold carries them from the copy (`carried_copies/3`).
+  # later fold carries them from the copy (`carried_copies/3`). A target
+  # without tests is listed with the copied ones and has no row, so the
+  # next commit that skips it under the same hash finds it empty there too.
   defp write_carried_checkpoint(project, run, targets) do
+    copied = Enum.reject(targets, &Map.get(&1, :empty, false))
+
     groups =
-      targets
+      copied
       |> Enum.group_by(&{&1.snapshot_id, &1.checkpoint_id}, & &1.module)
       |> Enum.with_index(fn {{snapshot_id, checkpoint_id}, modules}, i ->
         %{i: i, snapshot_id: snapshot_id, base_id: checkpoint_id || @zero_uuid, modules: Enum.sort(modules)}
@@ -551,14 +559,14 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
           Enum.min([utc(run.ran_at) | Enum.map(Map.values(sources), &(&1.evidence_measured_at || &1.ran_at))], DateTime)
 
         write_checkpoint(project, [run], %{
-          groups: groups,
+          groups: if(groups != [], do: groups),
           params: Map.merge(params, ranges),
           source_ids: Map.keys(sources),
           keys: Enum.map(targets, &(&1.module <> "\u001F" <> &1.hash)),
           measured_at: measured_at
         })
 
-        TargetSources.renew(project.id, run.git_repository_id, targets)
+        TargetSources.renew(project.id, run.git_repository_id, copied)
         true
 
       _ ->
@@ -569,6 +577,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # Each group's tests in its source's numbering, as ranges
   # (`idx_chunks/1`) that narrow its files' bitmaps before they're read, or
   # an error when a target isn't whole there.
+  defp carried_ranges([], _params), do: {:ok, %{}}
+
   defp carried_ranges(groups, params) do
     rows = query!("WITH #{layered_sql(groups)} SELECT g, module_name, toString(status), src_idx FROM layered", params)
     held = MapSet.new(rows, fn [g, module, _status, _idx] -> {g, module} end)

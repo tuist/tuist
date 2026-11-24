@@ -13,7 +13,6 @@ defmodule Atlas.GTM.Audiences do
   alias Atlas.GTM.DynamicAudience
   alias Atlas.GTM.Subscriber
   alias Atlas.GTM.Subscriptions
-  alias Atlas.GTM.Workers.PostAudienceMemberNotification
   alias Atlas.Repo
 
   require Logger
@@ -301,12 +300,6 @@ defmodule Atlas.GTM.Audiences do
     now = timestamp()
     row_timestamp = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
 
-    previous_status =
-      case Repo.get_by(AudienceMembership, audience_id: audience.id, subscriber_id: subscriber.id) do
-        %AudienceMembership{status: previous_status} -> previous_status
-        nil -> nil
-      end
-
     attrs = %{
       status: status,
       unsubscribed_at: if(status == "unsubscribed", do: now),
@@ -336,32 +329,10 @@ defmodule Atlas.GTM.Audiences do
           actor: actor
         )
 
-        maybe_enqueue_member_notification(previous_status, membership)
-
       _result ->
         :ok
     end)
   end
-
-  defp maybe_enqueue_member_notification("subscribed", %AudienceMembership{}), do: :ok
-
-  defp maybe_enqueue_member_notification(_previous_status, %AudienceMembership{status: "subscribed"} = membership) do
-    %{
-      "membership_id" => membership.id,
-      "notification_id" => Ecto.UUID.generate()
-    }
-    |> PostAudienceMemberNotification.new()
-    |> Oban.insert()
-    |> case do
-      {:ok, _job} ->
-        :ok
-
-      {:error, reason} ->
-        Logger.error("Could not enqueue audience member notification for #{membership.id}: #{inspect(reason)}")
-    end
-  end
-
-  defp maybe_enqueue_member_notification(_previous_status, %AudienceMembership{}), do: :ok
 
   def add_subscriber_by_email(%Audience{} = audience, email, actor \\ nil) when is_binary(email) do
     case get_subscriber_by_email(email) do

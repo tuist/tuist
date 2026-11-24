@@ -5,6 +5,8 @@ trap 'rm -rf "$tmp"' EXIT
 chart=infra/helm/k8s-monitoring
 origin=http://pulse.observability.svc.cluster.local:4000
 # Extract one top-level-or-indented Alloy block by its exact opening line.
+# Never pipe it into `grep -q`: grep exits at the first match, and under
+# pipefail awk's next write then fails the script with SIGPIPE (exit 141).
 block() { awk -v start="$1" '$0 ~ "^ *" start " \\{$" { copying=1; indent=match($0, /[^ ]/) } copying { print } copying && $0 ~ "^ {" indent-1 "}}$" { exit }' "$2"; }
 config() { jq -er --arg name "$1" '.[] | select(.kind == "ConfigMap" and (.metadata.name | endswith($name))) | .data["config.alloy"]' "$tmp/rendered.json"; }
 # Metrics: native remote write, public database, write-only user, cost policy.
@@ -18,10 +20,10 @@ check_metrics() {
     grep -Fq '"X-Pulse-DB-Name" = "public",' "$tmp/writer.alloy"
     grep -Fq 'remote.kubernetes.secret.pulse_metrics.data["ingest-username"]' "$tmp/writer.alloy"
     grep -Fq 'remote.kubernetes.secret.pulse_metrics.data["ingest-password"]' "$tmp/writer.alloy"
-    block 'remote.kubernetes.secret "pulse_metrics"' "$tmp/$file.alloy" | grep -Eq 'name += "pulse-dashboard-auth"'
+    block 'remote.kubernetes.secret "pulse_metrics"' "$tmp/$file.alloy" | grep -E 'name += "pulse-dashboard-auth"' > /dev/null
   done
   # The cost-control relabel rules now live on the Pulse writer.
-  block 'prometheus.remote_write "pulse_metrics"' "$tmp/metrics.alloy" | grep -q 'write_relabel_config {'
+  block 'prometheus.remote_write "pulse_metrics"' "$tmp/metrics.alloy" | grep 'write_relabel_config {' > /dev/null
 }
 for environment in staging canary production; do
   helm lint "$chart" -n observability -f "$chart/values-$environment.yaml"
@@ -58,12 +60,12 @@ for environment in staging canary production; do
   # The upstream OTLP and Prometheus destinations always read `tenantId` from an
   # external Secret; pulse-dashboard-auth has none, so Alloy sends an empty
   # X-Scope-OrgID (as for Grafana Cloud), which Pulse ignores.
-  block 'otelcol.auth.basic "pulse_traces"' "$tmp/receiver.alloy" | grep -Fq 'data["ingest-password"]'
-  block 'remote.kubernetes.secret "pulse_traces"' "$tmp/receiver.alloy" | grep -Eq 'name += "pulse-dashboard-auth"'
+  block 'otelcol.auth.basic "pulse_traces"' "$tmp/receiver.alloy" | grep -F 'data["ingest-password"]' > /dev/null
+  block 'remote.kubernetes.secret "pulse_traces"' "$tmp/receiver.alloy" | grep -E 'name += "pulse-dashboard-auth"' > /dev/null
   # Pulse types the status-code column from its first write, so Bandit's "nil"
   # string would otherwise reject the whole span.
   block 'otelcol.processor.transform "pulse_traces"' "$tmp/receiver.alloy" |
-    grep -Fq '"delete_key(attributes, \"http.response.status_code\") where attributes[\"http.response.status_code\"] == \"nil\""'
+    grep -F '"delete_key(attributes, \"http.response.status_code\") where attributes[\"http.response.status_code\"] == \"nil\""' > /dev/null
   jq -e 'all(.[]; .kind != "Alloy" or (.metadata.name | endswith("pulse-traces-sampler") | not))' \
     "$tmp/rendered.json" > /dev/null
 

@@ -82,14 +82,36 @@ defaults:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.resolve.outputs.image }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          fetch-depth: 0
+          filter: tree:0
           persist-credentials: false
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm jq yq node"
           cache: "false"
+      # The newest Pulse canary this commit contains, the way Kura's deploy legs
+      # resolve kura@ canaries (server-deployment.yml). Commits without one keep
+      # the chart's pinned image. Validation runs the image the deploy job
+      # installs, so tests of new Pulse behavior pass once its canary exists.
+      - id: resolve
+        run: |
+          set -euo pipefail
+          version="$(git tag --list 'pulse@*' --merged HEAD \
+            | sed 's|^pulse@||' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
+            | sort -V | tail -n1 || true)"
+          if [[ -z "$version" ]]; then
+            echo "image=$(yq '.image' infra/helm/pulse/values.yaml)" >> "$GITHUB_OUTPUT"
+            echo "No pulse@ canary in ${GITHUB_SHA}; using the chart's pinned image." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "image=ghcr.io/tuist/pulse:${version}" >> "$GITHUB_OUTPUT"
+          echo "Using ghcr.io/tuist/pulse:${version}, the newest canary in ${GITHUB_SHA}." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Validate backend and shared prerequisites
         run: |
           set -euo pipefail
@@ -114,13 +136,13 @@ jobs:
           bash .github/scripts/pulse-collectors.test.sh
           mkdir -p "$RUNNER_TEMP/pulse-chart"
           helm package infra/helm/pulse --destination "$RUNNER_TEMP/pulse-chart"
-      - name: Run the Sentry errors pipeline in the pinned Pulse release
+      - name: Run the Sentry errors pipeline in the Pulse release to deploy
         run: |
           set -euo pipefail
           printf 'pilot=ci\n' > "$RUNNER_TEMP/pulse-users"
           chmod 644 "$RUNNER_TEMP/pulse-users"
           docker run -d --name pulse -p 127.0.0.1:4000:4000 -v "$RUNNER_TEMP/pulse-users:/users:ro" \
-            "$(yq '.image' infra/helm/pulse/values.yaml)" \
+            "${{ steps.resolve.outputs.image }}" \
             standalone start --http-addr 0.0.0.0:4000 --user-provider=static_user_provider:file:/users
           for _ in $(seq 60); do
             curl -fsS -u pilot:ci 'http://127.0.0.1:4000/v1/sql?sql=SELECT%201' > /dev/null 2>&1 && break
@@ -135,39 +157,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # The newest Pulse canary this commit contains, the way Kura's deploy legs
-  # resolve kura@ canaries (server-deployment.yml). Commits without one keep
-  # the chart's pinned image.
-  resolve-image:
-    if: inputs.environment && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      image: ${{ steps.resolve.outputs.image }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          filter: tree:0
-          persist-credentials: false
-      - id: resolve
-        run: |
-          set -euo pipefail
-          version="$(git tag --list 'pulse@*' --merged HEAD \
-            | sed 's|^pulse@||' \
-            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
-            | sort -V | tail -n1 || true)"
-          if [[ -z "$version" ]]; then
-            echo "No pulse@ canary in ${GITHUB_SHA}; deploying the chart's pinned image." | tee -a "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          echo "image=ghcr.io/tuist/pulse:${version}" >> "$GITHUB_OUTPUT"
-          echo "Deploying ghcr.io/tuist/pulse:${version}, the newest canary in ${GITHUB_SHA}." | tee -a "$GITHUB_STEP_SUMMARY"
-
   deploy:
     if: inputs.environment && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
-    needs: [validate, resolve-image]
+    needs: validate
     runs-on: tuist-linux
     timeout-minutes: 60
     environment:
@@ -182,7 +174,7 @@ jobs:
       STORAGE_POD: pulse-storage-${{ github.run_id }}-${{ github.run_attempt }}
       SMOKE_POD: pulse-smoke-${{ github.run_id }}-${{ github.run_attempt }}
       # The chart arguments every render and upgrade below shares.
-      PULSE_CHART_ARGS: ${{ inputs.environment == 'production' && '-f infra/helm/pulse/values-production.yaml ' || '' }}--set environment=${{ inputs.environment }},storage.bucket=tuist-pulso-${{ inputs.environment }},dashboard.enabled=${{ inputs.dashboard }}${{ needs.resolve-image.outputs.image && format(',image={0}', needs.resolve-image.outputs.image) || '' }}
+      PULSE_CHART_ARGS: ${{ inputs.environment == 'production' && '-f infra/helm/pulse/values-production.yaml ' || '' }}--set environment=${{ inputs.environment }},storage.bucket=tuist-pulso-${{ inputs.environment }},dashboard.enabled=${{ inputs.dashboard }}${{ format(',image={0}', needs.validate.outputs.image) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

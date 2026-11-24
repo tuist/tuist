@@ -21,6 +21,7 @@ defmodule TuistWeb.PreviewController do
             ]
 
   plug :authorize_preview_download when action in [:download_preview, :download_archive, :download_apk, :manifest]
+  plug :authorize_preview_icon when action in [:download_icon]
 
   def latest_badge(conn, _params) do
     conn
@@ -304,6 +305,15 @@ defmodule TuistWeb.PreviewController do
 
   defp authorize_preview_download(%{assigns: %{current_preview: preview}} = conn, _opts) do
     if AppBuilds.verify_preview_install_token(preview, conn.query_params["token"]) == :ok or
+         can_read_preview?(conn, preview) do
+      conn
+    else
+      deny_preview_access(conn)
+    end
+  end
+
+  defp authorize_preview_icon(%{assigns: %{current_preview: preview}} = conn, _opts) do
+    if AppBuilds.verify_preview_icon_token(preview, conn.query_params["token"]) == :ok or
          can_read_preview?(conn, preview) do
       conn
     else

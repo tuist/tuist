@@ -56,6 +56,7 @@ defmodule Tuist.Sandboxes.Query do
 
     with :ok <- limit_creates(account),
          {:ok, source} <- ClaudeCodeSnapshots.mac_source(account, params["repository"], attrs),
+         attrs = if(source, do: Map.put(attrs, :repository, source.repository), else: attrs),
          {:ok, created} <-
            Sandboxes.create_sandbox(account, attrs,
              from_disk_snapshot: source && source.snapshot,

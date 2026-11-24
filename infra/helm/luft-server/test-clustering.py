@@ -32,6 +32,7 @@ class ChartTests(unittest.TestCase):
         for absent in ("DNS_CLUSTER_QUERY", "RELEASE_COOKIE", "containerPort: 9100",
                        "clusterIP: None"):
             self.assertNotIn(absent, result.stdout)
+        self.assertNotIn("kind: ExternalSecret", result.stdout)
 
     def test_production_cluster_wiring(self):
         result = render(production=True)
@@ -52,6 +53,27 @@ class ChartTests(unittest.TestCase):
         self.assertNotIn("4369", public)
         self.assertNotIn("9100", public)
         self.assertNotIn("kind: Secret\n", result.stdout)
+        cookie = document(result.stdout, "cluster-externalsecret.yaml")
+        for expected in ("name: luft-server-cluster-cookie", "refreshPolicy: OnChange",
+                         "deletionPolicy: Retain", "name: onepassword",
+                         'key: "LUFT_SERVER_CLUSTER_COOKIE/password"',
+                         '"release-cookie":', 'fail "The Luft cluster cookie must not be empty"'):
+            self.assertIn(expected, cookie)
+        self.assertNotIn("refreshInterval:", cookie)
+
+    def test_cluster_cookie_external_secret_is_optional_and_configurable(self):
+        result = render("cluster.externalSecret.enabled=false", production=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(document(result.stdout, "cluster-externalsecret.yaml"), "")
+        result = render("cluster.cookieExistingSecret=custom-cookie",
+                        "cluster.cookieSecretKey=custom-key",
+                        "cluster.externalSecret.item=CUSTOM_COOKIE",
+                        "cluster.externalSecret.field=value", production=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        cookie = document(result.stdout, "cluster-externalsecret.yaml")
+        self.assertIn("name: custom-cookie", cookie)
+        self.assertIn('"custom-key":', cookie)
+        self.assertIn('key: "CUSTOM_COOKIE/value"', cookie)
 
     def test_private_distribution_rules(self):
         result = render(production=True)

@@ -327,24 +327,42 @@ Call with the component's `s3` values:
 {{- $root := .root -}}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" $root -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" $root -}}
+{{- $endpoint := .s3.endpoint | default (include "tuist.objectStorageEndpoint" $root) -}}
 - name: REGISTRY_STORAGE
   value: s3
 - name: REGISTRY_STORAGE_S3_REGION
-  value: {{ include "tuist.objectStorageRegion" $root | quote }}
+  value: {{ .s3.region | default (include "tuist.objectStorageRegion" $root) | quote }}
 - name: REGISTRY_STORAGE_S3_REGIONENDPOINT
-  value: {{ include "tuist.objectStorageEndpoint" $root | quote }}
+  value: {{ $endpoint | quote }}
 - name: REGISTRY_STORAGE_S3_FORCEPATHSTYLE
   value: "true"
 # Embedded MinIO is plain http (:9000); external object stores
 # (Tigris) are https. Drive TLS off the storage mode so the S3
 # driver doesn't try to speak TLS to an http endpoint.
+# An `s3.endpoint` override says its scheme itself.
 - name: REGISTRY_STORAGE_S3_SECURE
+  {{- if .s3.endpoint }}
+  value: {{ ternary "true" "false" (hasPrefix "https://" $endpoint) | quote }}
+  {{- else }}
   value: {{ ternary "false" "true" (eq $root.Values.objectStorage.mode "embedded") | quote }}
+  {{- end }}
 - name: REGISTRY_STORAGE_S3_BUCKET
   value: {{ .s3.bucket | quote }}
 - name: REGISTRY_STORAGE_S3_ROOTDIRECTORY
   value: {{ .s3.rootDirectory | quote }}
-{{- if and (eq $root.Values.objectStorage.mode "external") $root.Values.objectStorage.external.managedSecrets }}
+{{- if .s3.existingSecret }}
+# A store of its own, with its own keys (access-key-id, secret-access-key).
+- name: REGISTRY_STORAGE_S3_ACCESSKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .s3.existingSecret }}
+      key: access-key-id
+- name: REGISTRY_STORAGE_S3_SECRETKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .s3.existingSecret }}
+      key: secret-access-key
+{{- else if and (eq $root.Values.objectStorage.mode "external") $root.Values.objectStorage.external.managedSecrets }}
 # Managed envs: the real S3 creds live in the ESO-synced
 # object-storage-external-secrets Secret. app-secrets carries
 # only the (empty) values-supplied key, so the registry must read
@@ -1189,7 +1207,7 @@ replicas.
         <disks>
           <backups>
             <type>s3_plain</type>
-            <endpoint>{{ printf "%s/%s/%s/%s/" (include "tuist.objectStorageEndpoint" .) (include "tuist.objectStorageBucketDefault" .) $m.backup.prefix .Release.Namespace }}</endpoint>
+            <endpoint>{{ printf "%s/%s/%s/%s/" (include "tuist.objectStorageEndpoint" .) ($m.backup.bucket | default (include "tuist.objectStorageBucketDefault" .)) $m.backup.prefix .Release.Namespace }}</endpoint>
             <access_key_id from_env="BACKUP_S3_ACCESS_KEY_ID" />
             <secret_access_key from_env="BACKUP_S3_SECRET_ACCESS_KEY" />
             <region>{{ include "tuist.objectStorageRegion" . }}</region>

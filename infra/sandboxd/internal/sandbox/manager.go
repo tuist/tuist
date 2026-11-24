@@ -305,11 +305,16 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		if args.CacheImage != "" {
 			return res, fmt.Errorf("%w: a create takes a cache image or a cache grant, not both", ErrCacheImage)
 		}
-		name, release, err := m.grantedCacheImage(ctx, *args.CacheGrant)
+		name, generation, release, err := m.grantedCacheImage(ctx, *args.CacheGrant)
 		if err != nil {
 			return res, err
 		}
 		defer release()
+		defer func() {
+			if err == nil {
+				res.CacheGeneration = generation
+			}
+		}()
 		args.CacheImage = name
 	}
 	if args.CacheImage != "" {
@@ -659,6 +664,14 @@ func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.I
 		{"vsock", func() error {
 			return api.PutVsock(ctx, firecracker.Vsock{GuestCID: firecracker.GuestCID, UDSPath: inst.GuestPath(firecracker.VsockPath)})
 		}},
+		// A cold boot gets the balloon shape snapshots get, so the sandbox
+		// returns free memory from here on whatever it was created from.
+		{"balloon", func() error {
+			if m.builder == nil || !m.builder.Balloon {
+				return nil
+			}
+			return api.PutBalloon(ctx, firecracker.ReportingBalloon)
+		}},
 		{"instance start", func() error { return api.InstanceStart(ctx) }},
 	}
 	for _, step := range steps {
@@ -672,7 +685,7 @@ func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.I
 
 // releaseCgroup removes the cgroup of a VM whose process is gone. The page
 // cache it is still charged for (the memory image a pause wrote, its disk
-// I/O) moves to the container's cgroup, out of the VM's memory.min, so the
+// I/O) moves to the container's cgroup, out of the VM's memory.low, so the
 // reclaim before a carve-out shrink can drop it. The next spawn opens a
 // fresh cgroup.
 func (m *Manager) releaseCgroup(id string) {
@@ -915,6 +928,8 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	if cpu, ok := inst.CPUTime(); ok {
 		cpuMs = cpu.Milliseconds()
 	}
+	// Its memory too, before writing the snapshot reads every guest page.
+	mem, _ := inst.ResidentMemory()
 	memNew := filepath.Join(sb.root, "mem.new")
 	snapNew := filepath.Join(sb.root, "snapshot.new")
 	if err := api.CreateSnapshot(ctx, firecracker.SnapshotCreateParams{
@@ -941,6 +956,17 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		return res, err
 	}
 	m.releaseCgroup(id)
+	// A guest that returns its free memory (the balloon) leaves those pages
+	// zero in the image; free their blocks before it is installed so the
+	// image uses disk for what the guest holds. Readers see the same bytes.
+	if m.builder != nil && m.builder.Balloon {
+		punchStart := time.Now()
+		if punched, err := vm.PunchZeros(memNew); err != nil {
+			m.log.Warn("punching the memory image's zero blocks failed", "sandbox", id, "error", err)
+		} else {
+			m.log.Info("punched the memory image's zero blocks", "sandbox", id, "punched_bytes", punched, "duration", time.Since(punchStart))
+		}
+	}
 	// A restore whose disks still arrive from its archive holds them
 	// whole only once the fill ends.
 	if err := m.settleLazyDisks(context.Background(), sb); err != nil {
@@ -972,7 +998,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		if saveErr != nil {
 			return res, saveErr
 		}
-		return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), DisksSynced: synced, CPUMs: cpuMs}, nil
+		return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), DisksSynced: synced, CPUMs: cpuMs, MemoryAnonBytes: mem.AnonBytes, MemoryFileBytes: mem.FileBytes}, nil
 	}
 	memBytes := vm.FileSize(filepath.Join(sb.root, firecracker.MemPath))
 	sb.mu.Lock()
@@ -996,7 +1022,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventMemoryLoaded, SandboxID: id})
 	}
 	m.log.Info("sandbox paused", "sandbox", id, "snapshot", time.Since(start), "mem_bytes", memBytes, "generation", meta.Generation+1)
-	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced, CPUMs: cpuMs}, nil
+	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced, CPUMs: cpuMs, MemoryAnonBytes: mem.AnonBytes, MemoryFileBytes: mem.FileBytes}, nil
 }
 
 func (m *Manager) Delete(ctx context.Context, id string) (err error) {

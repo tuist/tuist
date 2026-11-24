@@ -173,8 +173,11 @@ millicores, so under contention the guests split the Pod's share in proportion
 to their guarantees and one busy sandbox cannot take a neighbour's. Memory stays
 limited at the container's cgroup, but each VM's cgroup also accounts its own
 (`memory.current`, reported as `memory_current_bytes`) and protects its guest
-memory with `memory.min`, so the reclaim the container's limit drives takes the
-daemon's page cache before a guest's pages. A creator can pick a larger
+memory with `memory.low`, so the reclaim the container's limit drives takes the
+daemon's page cache before a guest's pages. `memory.low` rather than
+`memory.min`: the carve-out is reserved memory plus 512 MiB, so the kernel must
+still be able to drop a running guest's clean memory-file pages before it
+OOM-kills the container, which `memory.min` forbade. A creator can pick a larger
 guarantee for a Linux sandbox (1, 2, 4 or 8 vCPUs: API and MCP
 `guaranteed_vcpus`, CLI `--guaranteed-vcpus`). A sandbox is only placed on a
 node whose hello offers `cpu_guarantees` if its guarantee fits under the

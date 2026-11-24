@@ -203,19 +203,6 @@ defmodule Atlas.LicensesTest do
     assert "must be today or later" in errors_on(changeset).expires_on
   end
 
-  test "list_licenses_expiring_on/1 returns only licenses whose expires_on matches, with accounts preloaded" do
-    target_date = Date.utc_today() |> Date.add(7)
-    account = insert_account!(%{name: "Renewal Target"})
-    matching = insert_license!(account, expires_on: target_date)
-    _earlier = insert_license!(account, expires_on: Date.add(target_date, -1))
-    _later = insert_license!(account, expires_on: Date.add(target_date, 1))
-
-    assert [returned] = Licenses.list_licenses_expiring_on(target_date)
-    assert returned.id == matching.id
-    assert returned.account.id == account.id
-    assert returned.account.name == "Renewal Target"
-  end
-
   defp insert_account!(attrs) do
     defaults = %{
       account_key: "account:#{System.unique_integer([:positive])}",

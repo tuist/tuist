@@ -3508,17 +3508,28 @@ count(sum by (use) (count_over_time(
 #    result!~`unchanged|withheld|release_pending|cancelled`
 ```
 
-- Condition: `$A > 0.3 * $B && $B >= 20`. `$C = $A / $B` only feeds the
-  annotations: in an hour with no counted saves on a platform (all
-  `unchanged` at night) `$A / $B` is NaN, NaN survives `&&`, and Grafana
-  fires on a NaN condition. That paged at 0 saves on 2026-11-18 at 05:25 UTC.
+- Condition: one Pulse SQL query `A` counts both per platform in a single scan
+  of the hour and returns the failed share when at least 20 saves counted,
+  else 0; `D` is `$A > 0.3`. It replaced two queries (`A` failed and `B`
+  saves, condition `$A > 0.3 * $B && $B >= 20`) that each scanned the same
+  hour. With five Pulse SQL rules in the group evaluating together that doubled this
+  rule's load on Pulse, and from 2026-11-23 18:14 UTC, after a Pulse rollout,
+  every evaluation ran into Grafana's 60-second evaluation deadline (`context
+  deadline exceeded`) and paged as `DatasourceError` while saves were healthy.
+  The floor in SQL also keeps the NaN of an hour with no counted saves out of
+  the condition (that paged at 0 saves on 2026-11-18 at 05:25 UTC). The
+  annotations show the share, not the save count.
+- Error: Normal. An evaluation that fails or runs past the deadline does not
+  page; `pulse-sql-unavailable` pages when Pulse SQL is down. Until 2026-11-23
+  it was Error: Error, which paged as a `DatasourceError` incident on slow
+  scans.
 - Pending period: 10 minutes; keep firing for 30 minutes, so a quiet hour in
   the middle of a breakage (17:30 to 19:00 on 2026-10-21 had 4 and 12 saves)
   does not resolve and re-page
 - Severity: critical. Routed to `Incidents` with `notification_settings`, like
   the other paging rules: a save failure loses the job's cache for every later
   job until it is fixed, and on 2026-10-21 nobody noticed for hours
-- **No Data: Normal**, **Error: Error**
+- **No Data: Normal**, **Error: Normal**
 
 Backtest, one-hour window, hours named by their end (UTC):
 
@@ -3670,8 +3681,10 @@ so repeated lines, restarts and stream-label changes from one pod count once.
 Empty pod metadata is excluded from the distinct-pod count but still raises
 the single-failure warning. Both queries use `or vector(0)` and fixed
 production rule labels: a healthy window returns one zero-valued series,
-not a disappearing alert instance. No Data is OK; evaluation errors remain
-Error and notify Slack rather than on-call. This is not a log-ingestion heartbeat.
+not a disappearing alert instance. No Data is OK, and so is Error since
+2026-11-23: a slow or failed Pulse SQL query evaluates to Normal, and
+`pulse-sql-unavailable` pages when Pulse SQL is down. This is not a
+log-ingestion heartbeat.
 
 There is no pending period. The warning keeps firing for five minutes after
 its condition clears; the incident alert keeps firing for fifteen minutes.
@@ -3684,8 +3697,8 @@ notification policy in `server-vm-notification-route.json` selects `Incidents`
 only for this critical production alert in the Alerts folder. Neither rule
 pins a receiver: Grafana forwards `DatasourceError` to a rule's pinned contact
 point too, which would page through IRM's default route despite no pod failure.
-With exact alert-name matching, query errors retain Slack visibility without
-paging. Merge this policy into the current tree, preserving existing staging
+Exact alert-name matching keeps that route to this alert, not to the
+`DatasourceError` alerts the rules no longer raise. Merge this policy into the current tree, preserving existing staging
 exceptions and other rules; do not replace the tree with this single route.
 The additional IRM route
 `R9CC1Q6J55GXZ`, represented by `server-vm-incident-route.json`, matches only
@@ -5538,17 +5551,20 @@ The transient budget on the remote-execution surface: decoding a write's
 messages, staging a ByteStream upload, decoding a compressed `BatchUpdateBlobs`
 item, or a write whose reply the floor cannot cover, each refused before it
 stores anything. The counter is the only place it shows. ByteStream staging
-refusals (`bytestream_staging_admission_rejected`) and decode refusals
-(`grpc_write_decode_admission_rejected`) both file under this kind; the memory
+refusals (`bytestream_staging_admission_rejected`), decode refusals
+(`grpc_write_decode_admission_rejected`) and reply refusals
+(`grpc_write_reply_admission_rejected`) all file under this kind; the memory
 action separates them.
 
 Write decoding and staging borrow the ceiling headroom above the
 floor-derived budget while pressure is normal, so a shed means the pod spent
 its floor *and* that headroom, or it was above normal pressure and the borrow
-was closed. The one exception is a write's reply, which never borrows: it is
-refused when the floor cannot cover it, which happens only after that write's
-own decode borrowed, so `transient_ceiling_headroom_borrowed` in
-`kura_memory_actions_total_total` rises in the same window. A shed burst with
+was closed. The one exception is a write's reply, which never borrows: it draws
+on a 1 MiB slice of the floor set aside for replies (outside
+`kura_memory_transient_capacity_bytes`), so reads queued on a full floor cannot
+refuse it. Reply refusals mean that slice and the shared floor were both spent;
+older pods without the slice refused every write behind a queued read, filed
+as decode refusals. A shed burst with
 no borrows at normal pressure is a pod predating compressed items borrowing,
 which refused them on a full floor with the headroom idle. Read
 `kura_memory_elastic_transient_reserved_bytes` against

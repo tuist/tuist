@@ -504,6 +504,10 @@ type CreateResult struct {
 	// MemoryPending: the sandbox still reads its memory image or its disks
 	// from the archive it was restored from, until EventMemoryLoaded.
 	MemoryPending bool `json:"memory_pending,omitempty"`
+	// CacheGeneration is the generation of the cache a CacheGrant attached:
+	// the grant's, or an older one of its lineage when the node's agent kept
+	// only that.
+	CacheGeneration int64 `json:"cache_generation,omitempty"`
 }
 
 type ResumeResult struct {
@@ -519,6 +523,12 @@ type PauseResult struct {
 	// the time since the last report. Absent when the daemon could not
 	// read it.
 	CPUMs int64 `json:"cpu_ms,omitempty"`
+	// MemoryAnonBytes and MemoryFileBytes are the VM's resident memory at
+	// the pause, as SandboxInfo reports it while it runs, so the server
+	// bills the memory past its request up to the pause. Absent when the
+	// daemon could not read it.
+	MemoryAnonBytes uint64 `json:"memory_anon_bytes,omitempty"`
+	MemoryFileBytes uint64 `json:"memory_file_bytes,omitempty"`
 }
 
 type SaveDisksResult struct {

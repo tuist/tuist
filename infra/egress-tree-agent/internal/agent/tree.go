@@ -72,7 +72,7 @@ func (t Tree) EnsureDevices(ctx context.Context) error {
 // unshaped and the direct-packet counter feeds an alert, because every packet
 // entering this device was stamped by a pod program — a direct packet means a
 // foreign redirect or a broken stamp.
-func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16]TenantClass) error {
+func (t Tree) EnsureTree(ctx context.Context, nodeMbps, privateMbps int64, classes map[uint16]TenantClass) error {
 	present, err := t.hasRootQdisc(ctx)
 	if err != nil {
 		// Cannot tell whether the root exists. Never rebuild on
@@ -94,10 +94,27 @@ func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16
 		return fmt.Errorf("root class: %w", err)
 	}
 
+	// The private class is a second top-level class rather than a child of
+	// the root class, so it borrows nothing from the public budget. It is
+	// never deleted here: a node whose private budget goes away stops
+	// stamping it (the pod config is cleared), and an idle class costs
+	// nothing.
+	var classErrs []error
+	if privateMbps > 0 {
+		rate := fmt.Sprintf("%dmbit", privateMbps)
+		if _, err := run(ctx, "tc", "class", "replace", "dev", t.TrampolineDev,
+			"parent", "1:", "classid", ClassIDString(privateClassMinor),
+			"htb", "rate", rate, "ceil", rate, "quantum", "60000"); err != nil {
+			classErrs = append(classErrs, fmt.Errorf("private class: %w", err))
+		} else if _, err := run(ctx, "tc", "qdisc", "replace", "dev", t.TrampolineDev,
+			"parent", ClassIDString(privateClassMinor), "fq_codel"); err != nil {
+			classErrs = append(classErrs, fmt.Errorf("leaf qdisc for the private class: %w", err))
+		}
+	}
+
 	// Per-class failures accumulate instead of aborting: one tenant's
 	// failing class must not block the other tenants' updates, and the
 	// caller degrades the joined error to a requeue.
-	var classErrs []error
 	for minor, class := range classes {
 		floor, ceil := classRates(class, nodeMbps)
 		if _, err := run(ctx, "tc", "class", "replace", "dev", t.TrampolineDev,
@@ -127,7 +144,7 @@ func (t Tree) PruneClasses(ctx context.Context, classes map[uint16]TenantClass) 
 	}
 	for _, class := range existing {
 		minor, ok := class.minor()
-		if !ok || minor == rootClassMinor {
+		if !ok || minor == rootClassMinor || minor == privateClassMinor {
 			continue
 		}
 		if _, keep := classes[minor]; !keep {
@@ -221,8 +238,11 @@ func (c tcClass) minor() (uint16, bool) {
 	if err != nil {
 		// The root class handle (1:1) is rejected by parseClassIDMinor by
 		// design; report it explicitly so callers can skip it.
-		if c.Handle == fmt.Sprintf("1:%x", rootClassMinor) {
+		switch c.Handle {
+		case ClassIDString(rootClassMinor):
 			return rootClassMinor, true
+		case ClassIDString(privateClassMinor):
+			return privateClassMinor, true
 		}
 		return 0, false
 	}

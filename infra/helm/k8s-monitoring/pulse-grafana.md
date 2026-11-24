@@ -72,11 +72,17 @@ checks the committed rule files for this layout.
 Pulse data source rules use **Error: Keep last state**. A query that fails
 (a datanode restart, a scan rejected for memory, a tunnel blip) keeps the
 rule's last state instead of raising `DatasourceError`. Rules that already
-treated errors as Normal kept that. Seven rules that page through IRM keep
-**Error: Error**, so a Pulse outage still reaches the on-call: `tuist-production-http-5xx`,
-`runner-cache-volume-saves-failing`, `dfkmt5dtpx43kb`, `cfl2e4b9eg8aoc`,
-`ffxqtj0ye58g0b`, `tuist-production-vm-allocator-burst` and
-`ffz1ualjy8fswd-prod`. The `-prod`, `-stg` and `-can` copies of
+treated errors as Normal kept that. The seven rules that page through IRM
+(`tuist-production-http-5xx`, `runner-cache-volume-saves-failing`,
+`dfkmt5dtpx43kb`, `cfl2e4b9eg8aoc`, `ffxqtj0ye58g0b`,
+`tuist-production-vm-allocator-burst` and `ffz1ualjy8fswd-prod`) use
+**Error: Normal**. They kept **Error: Error** until 2026-11-23, so that a Pulse
+outage would reach the on-call through them, but then slow Pulse scans after a
+rollout paged `runner-cache-volume-saves-failing` as a `DatasourceError`
+incident while saves were healthy. A Pulse outage pages once, through the
+watchdogs below, instead of as an incident on whichever rule failed to
+evaluate. (Grafana's provisioning API accepts Keep last state, but the Atlas
+Grafana tool only sets Normal, Alerting or Error.) The `-prod`, `-stg` and `-can` copies of
 `pulse-scan-memory-rejections` and `pulse-datanode-telemetry-missing` also keep
 **Error: Error**, since they watch Pulse itself.
 

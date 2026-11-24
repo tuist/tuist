@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     pin::Pin,
     sync::Arc,
@@ -206,13 +207,6 @@ pub fn combined_router(state: SharedState) -> Router {
 }
 
 pub async fn guard_response_stream_transport(mut response: Response) -> Response {
-    if let Some(borrowed) = response
-        .extensions_mut()
-        .remove::<crate::memory::BorrowedResponse>()
-    {
-        let body = std::mem::take(response.body_mut());
-        *response.body_mut() = borrowed.into_body(body);
-    }
     let Some(guard) = response.extensions_mut().remove::<ResponseTransportGuard>() else {
         return response;
     };
@@ -1481,17 +1475,21 @@ async fn authorize_request(
     mut req: Request,
     next: Next,
 ) -> Response {
-    let Some(auth) = state.auth.as_ref() else {
-        return serve_endpoint_alias(&state, req, next).await;
-    };
-
     let route = request_route(&req);
     if skips_authorization(&route) {
         return next.run(req).await;
     }
 
+    let query = match AuthorizationQuery::parse(req.uri().query()) {
+        Ok(query) => query,
+        Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
+    };
+    let Some(auth) = state.auth.as_ref() else {
+        drop(query);
+        return serve_endpoint_alias(&state, req, next).await;
+    };
+
     let method = req.method().to_string();
-    let query = AuthorizationQuery::parse(req.uri().query());
     let authorization = req
         .headers()
         .get(axum::http::header::AUTHORIZATION)
@@ -1643,60 +1641,55 @@ struct HttpRequestFacts<'a> {
     authorization: Option<String>,
 }
 
-#[derive(Clone, Copy, Default)]
+/// The tenant, namespace and upload a public request names, decoded exactly as
+/// the handlers' `Query` extractor decodes them (`serde_urlencoded` runs
+/// `form_urlencoded::parse`), so authorization and storage always act on the
+/// same values. A target named more than once, under its canonical key or an
+/// alias, is refused: the handlers' map keeps only the last value.
+#[derive(Default)]
 struct AuthorizationQuery<'a> {
-    tenant: AuthorizationTargetQuery<'a>,
-    namespace: AuthorizationTargetQuery<'a>,
-    upload_id: Option<&'a str>,
-}
-
-#[derive(Clone, Copy, Default)]
-struct AuthorizationTargetQuery<'a> {
-    canonical: Option<&'a str>,
-    alias: Option<&'a str>,
-}
-
-impl<'a> AuthorizationTargetQuery<'a> {
-    fn observe(&mut self, canonical_key: &str, key: &str, value: &'a str) {
-        if key == canonical_key {
-            self.canonical = Some(value);
-        } else if alias_keys(canonical_key).contains(&key) {
-            self.alias = Some(value);
-        }
-    }
-
-    fn value(self) -> Option<&'a str> {
-        self.canonical
-            .or(self.alias)
-            .filter(|value| !value.is_empty())
-    }
+    tenant_id: Option<Cow<'a, str>>,
+    namespace_id: Option<Cow<'a, str>>,
+    upload_id: Option<Cow<'a, str>>,
 }
 
 impl<'a> AuthorizationQuery<'a> {
-    fn parse(query: Option<&'a str>) -> Self {
+    fn parse(query: Option<&'a str>) -> Result<Self, String> {
         let mut parsed = Self::default();
-        for pair in query
-            .unwrap_or_default()
-            .split('&')
-            .filter(|pair| !pair.is_empty())
-        {
-            let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
-            parsed.tenant.observe("tenant_id", key, value);
-            parsed.namespace.observe("namespace_id", key, value);
-            if key == "upload_id" {
-                parsed.upload_id = Some(value);
+        for (key, value) in form_urlencoded::parse(query.unwrap_or_default().as_bytes()) {
+            let (target, slot) = if is_param_key(&key, "tenant_id") {
+                ("tenant_id", &mut parsed.tenant_id)
+            } else if is_param_key(&key, "namespace_id") {
+                ("namespace_id", &mut parsed.namespace_id)
+            } else if key == "upload_id" {
+                ("upload_id", &mut parsed.upload_id)
+            } else {
+                continue;
+            };
+            if slot.replace(value).is_some() {
+                return Err(format!("Duplicate {target} query parameter"));
             }
         }
-        parsed
+        Ok(parsed)
     }
 
-    fn tenant_id(self) -> Option<&'a str> {
-        self.tenant.value()
+    fn tenant_id(&self) -> Option<&str> {
+        self.tenant_id.as_deref().filter(|value| !value.is_empty())
     }
 
-    fn namespace_id(self) -> Option<&'a str> {
-        self.namespace.value()
+    fn namespace_id(&self) -> Option<&str> {
+        self.namespace_id
+            .as_deref()
+            .filter(|value| !value.is_empty())
     }
+
+    fn upload_id(&self) -> Option<&str> {
+        self.upload_id.as_deref()
+    }
+}
+
+fn is_param_key(key: &str, canonical_key: &str) -> bool {
+    key == canonical_key || alias_keys(canonical_key).contains(&key)
 }
 
 struct HttpRequestMetadata {
@@ -1756,11 +1749,17 @@ async fn http_request_metadata(
             tenant_id,
             namespace_id,
         },
-        ROUTE_API_CACHE_MODULE_START
-        | ROUTE_API_CACHE_MODULE_PART
-        | ROUTE_API_CACHE_MODULE_COMPLETE => {
+        // Start creates its upload in the query's namespace and never reads
+        // `upload_id`, so authorize exactly that.
+        ROUTE_API_CACHE_MODULE_START => HttpRequestMetadata {
+            operation: "artifact.write".into(),
+            tenant_id,
+            namespace_id,
+        },
+        // Part and complete act on the stored upload, wherever the query says.
+        ROUTE_API_CACHE_MODULE_PART | ROUTE_API_CACHE_MODULE_COMPLETE => {
             let multipart_upload = query
-                .upload_id
+                .upload_id()
                 .and_then(|upload_id| state.store.multipart_upload(upload_id).ok().flatten());
             let tenant_id = multipart_upload
                 .as_ref()
@@ -7845,6 +7844,319 @@ mod tests {
         );
     }
 
+    // The authorization middleware and the handlers must read the same
+    // tenant, namespace and upload from the query: a credential for app-a
+    // must never reach app-b through an encoded or repeated key.
+    #[tokio::test]
+    async fn query_cannot_authorize_one_namespace_and_act_on_another() {
+        const SECRET: &str = "query-confusion-secret";
+        let auth = Arc::new(
+            crate::auth::AuthEngine::new(
+                crate::auth::config::AuthConfig {
+                    base_url: "http://127.0.0.1:1".into(),
+                    connect_timeout: Duration::from_millis(50),
+                    request_timeout: Duration::from_millis(50),
+                    verifier: Some(crate::auth::tuist::JwtVerifier {
+                        algorithm: jsonwebtoken::Algorithm::HS256,
+                        keys: crate::auth::tuist::JwtVerifier::secret_keys(SECRET),
+                        issuer: None,
+                        audiences: Vec::new(),
+                    }),
+                    introspection: None,
+                    cache_max_entries: 128,
+                },
+                crate::metrics::Metrics::new("test".into(), "tenant".into()),
+            )
+            .expect("build the policy engine"),
+        );
+        let token = jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &serde_json::json!({
+                "sub": "test",
+                "type": "subject",
+                "scopes": ["project_cache_read", "project_cache_write"],
+                "cache_grants": { "project": {
+                    "read": ["test-tenant/app-a"],
+                    "write": ["test-tenant/app-a"],
+                } },
+                "exp": 4_102_444_800_u64,
+            }),
+            &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
+        )
+        .expect("mint a policy token");
+        let context = crate::test_support::test_context_with_auth(|_| {}, Some(auth)).await;
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "app-b",
+                &blob_key("victim"),
+                "application/octet-stream",
+                b"app-b-binary",
+            )
+            .await
+            .expect("seed app-b");
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "app-c",
+                &blob_key("victim"),
+                "application/octet-stream",
+                b"app-c-binary",
+            )
+            .await
+            .expect("seed app-c");
+        let victim_upload = context
+            .state
+            .store
+            .try_start_multipart_upload("test-tenant", "app-b", "builds", "hash-1", "B.framework")
+            .expect("start app-b upload");
+        let encoded_victim_upload = format!(
+            "%{:02X}{}",
+            victim_upload.as_bytes()[0],
+            &victim_upload[1..]
+        );
+        let app = router(context.state.clone());
+        let send = |method: &'static str, uri: String| {
+            let app = app.clone();
+            let token = token.clone();
+            async move {
+                // A valid key-value payload, so that route reaches its store
+                // write instead of failing on the body; other routes store
+                // the bytes as they are.
+                let (content_type, body) = if uri.starts_with("/api/cache/keyvalue?") {
+                    (
+                        "application/json",
+                        r#"{"cas_id":"poisoned","entries":[{"value":"x"}]}"#,
+                    )
+                } else {
+                    ("application/octet-stream", "poison")
+                };
+                let response = app
+                    .oneshot(
+                        Request::builder()
+                            .method(method)
+                            .uri(uri)
+                            .header("authorization", format!("Bearer {token}"))
+                            .header("content-type", content_type)
+                            .body(Body::from(body))
+                            .expect("build request"),
+                    )
+                    .await
+                    .expect("request failed");
+                let status = response.status();
+                (status, response_text(response).await)
+            }
+        };
+        let send_status = |method: &'static str, uri: String| {
+            let send = &send;
+            async move { send(method, uri).await.0 }
+        };
+        let uploads = || {
+            context
+                .state
+                .store
+                .multipart_uploads_older_than_bounded(u64::MAX, None, 1_000)
+                .expect("list uploads")
+                .0
+                .len()
+        };
+
+        let own = "tenant_id=test-tenant&namespace_id=app-a";
+        assert_eq!(uploads(), 1);
+        let rejected = [
+            (
+                "POST",
+                format!("/api/cache/cas/poisoned?{own}&namespace%5Fid=app-b"),
+            ),
+            (
+                "POST",
+                format!("/api/cache/cas/poisoned?{own}&namespace_id=app-b"),
+            ),
+            (
+                "POST",
+                format!("/api/cache/cas/poisoned?{own}&project_handle=app-b"),
+            ),
+            (
+                "POST",
+                format!("/api/cache/cas/poisoned?{own}&tenant%5Fid=other"),
+            ),
+            (
+                "POST",
+                format!("/api/cache/cas/poisoned?{own}&account_handle=other"),
+            ),
+            (
+                "GET",
+                format!("/api/cache/cas/victim?{own}&namespace%5Fid=app-b"),
+            ),
+            (
+                "PUT",
+                format!("/api/cache/gradle/poisoned?{own}&namespace%5Fid=app-b"),
+            ),
+            (
+                "GET",
+                format!("/api/cache/keyvalue/cas-1?{own}&namespace%5Fid=app-b"),
+            ),
+            (
+                "PUT",
+                format!("/api/cache/keyvalue?{own}&namespace%5Fid=app-b"),
+            ),
+            (
+                "GET",
+                format!(
+                    "/api/cache/module/m?{own}&namespace%5Fid=app-b&cache_category=builds&hash=hash-1&name=B.framework"
+                ),
+            ),
+            (
+                "POST",
+                format!(
+                    "/api/cache/module/start?{own}&namespace%5Fid=app-b&cache_category=builds&hash=hash-1&name=B.framework"
+                ),
+            ),
+            (
+                "POST",
+                format!(
+                    "/api/cache/module/part?{own}&upload_id=a&upload%5Fid={victim_upload}&part_number=1"
+                ),
+            ),
+            (
+                "POST",
+                format!("/api/cache/module/complete?{own}&upload_id=a&upload_id={victim_upload}"),
+            ),
+            // Cleans target app-c, so on vulnerable code they cannot wipe or
+            // tombstone app-b and hide the writes above from the checks below.
+            (
+                "DELETE",
+                format!("/api/cache/clean?{own}&namespace%5Fid=app-c"),
+            ),
+        ];
+        for (method, uri) in rejected {
+            assert_eq!(
+                send_status(method, uri.clone()).await,
+                StatusCode::BAD_REQUEST,
+                "{method} {uri}"
+            );
+        }
+
+        // Encoded keys and values are authorized as the handler decodes them.
+        // Run before any denial: a backend failure backs the credential off
+        // for seconds, which would turn this control into a 503.
+        assert_eq!(
+            send_status(
+                "POST",
+                "/api/cache/cas/own?tenant_id=test-tenant&namespace_id=app%2Da".to_owned()
+            )
+            .await,
+            StatusCode::NO_CONTENT
+        );
+        let (status, body) = send(
+            "POST",
+            format!(
+                "/api/cache/module/start?{own}&cache_category=builds&hash=hash-2&name=A.framework"
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let own_upload =
+            serde_json::from_str::<serde_json::Value>(&body).expect("start body")["upload_id"]
+                .as_str()
+                .expect("own upload id")
+                .to_owned();
+        assert_eq!(uploads(), 2);
+
+        let forbidden = [
+            (
+                "POST",
+                "/api/cache/cas/poisoned?tenant_id=test-tenant&namespace%5Fid=app-b".to_owned(),
+            ),
+            (
+                "GET",
+                "/api/cache/cas/victim?tenant_id=test-tenant&namespace%5Fid=app-b".to_owned(),
+            ),
+            (
+                "DELETE",
+                "/api/cache/clean?tenant_id=test-tenant&namespace_id=app%2Dc".to_owned(),
+            ),
+            (
+                "POST",
+                format!(
+                    "/api/cache/module/part?{own}&upload_id={encoded_victim_upload}&part_number=1"
+                ),
+            ),
+            // Start ignores `upload_id`; an app-a upload must not authorize
+            // starting one in app-b.
+            (
+                "POST",
+                format!(
+                    "/api/cache/module/start?tenant_id=test-tenant&namespace_id=app-b&cache_category=builds&hash=hash-1&name=B.framework&upload_id={own_upload}"
+                ),
+            ),
+        ];
+        // The token's grants do not cover app-b, so the engine asks the
+        // (unreachable) control plane and fails closed.
+        for (method, uri) in forbidden {
+            let (status, body) = send(method, uri.clone()).await;
+            assert!(
+                matches!(
+                    status,
+                    StatusCode::FORBIDDEN | StatusCode::SERVICE_UNAVAILABLE
+                ),
+                "{method} {uri}: {status}"
+            );
+            assert!(!body.contains("app-b-binary"), "{method} {uri}: {body}");
+            assert!(!body.contains("upload_id"), "{method} {uri}: {body}");
+        }
+        // No upload was created in app-b, by start or anything else.
+        assert_eq!(uploads(), 2);
+        let store = &context.state.store;
+        for namespace in ["app-b", "app-c"] {
+            assert!(
+                store
+                    .artifact_exists(ArtifactProducer::Xcode, namespace, &blob_key("victim"))
+                    .await
+                    .expect("inspect victim"),
+                "{namespace}"
+            );
+        }
+        assert!(
+            !store
+                .artifact_exists(ArtifactProducer::Xcode, "app-b", &blob_key("poisoned"))
+                .await
+                .expect("inspect app-b")
+        );
+        assert!(
+            !store
+                .artifact_exists(ArtifactProducer::Gradle, "app-b", "poisoned")
+                .await
+                .expect("inspect app-b")
+        );
+        assert!(
+            !store
+                .artifact_exists(
+                    ArtifactProducer::Xcode,
+                    "app-b",
+                    &action_cache_key("poisoned")
+                )
+                .await
+                .expect("inspect app-b")
+        );
+        assert!(
+            store
+                .artifact_exists(ArtifactProducer::Xcode, "app-a", &blob_key("own"))
+                .await
+                .expect("inspect app-a")
+        );
+        assert!(
+            store
+                .multipart_upload(&victim_upload)
+                .expect("inspect app-b upload")
+                .is_some_and(|upload| upload.parts.is_empty())
+        );
+    }
+
     #[tokio::test]
     async fn keyvalue_routes_emit_usage_events() {
         let context = test_context(|config| {
@@ -9239,7 +9551,7 @@ mod tests {
             .try_start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
             .expect("failed to start multipart upload");
         let query_text = format!("upload_id={upload_id}&part_number=1");
-        let query = AuthorizationQuery::parse(Some(&query_text));
+        let query = AuthorizationQuery::parse(Some(&query_text)).expect("valid query");
 
         let request_context = request_context_from_http(
             &context.state,
@@ -9260,7 +9572,8 @@ mod tests {
     async fn request_context_uses_handle_aliases() {
         let context = test_context(|_| {}).await;
         let query =
-            AuthorizationQuery::parse(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
+            AuthorizationQuery::parse(Some("account_handle=acme&project_handle=ios&hash=hash-1"))
+                .expect("valid query");
         let authorization = "Bearer credential".to_owned();
         let authorization_allocation = authorization.as_ptr();
         let request_context = request_context_from_http(
@@ -9293,7 +9606,8 @@ mod tests {
     #[tokio::test]
     async fn request_context_omits_namespace_for_tenant_scoped_requests() {
         let context = test_context(|_| {}).await;
-        let query = AuthorizationQuery::parse(Some("tenant_id=acme&hash=hash-1"));
+        let query =
+            AuthorizationQuery::parse(Some("tenant_id=acme&hash=hash-1")).expect("valid query");
         let request_context = request_context_from_http(
             &context.state,
             HttpRequestFacts {
@@ -9310,25 +9624,30 @@ mod tests {
     }
 
     #[test]
-    fn authorization_query_preserves_alias_precedence_empty_values_and_duplicates() {
+    fn authorization_query_decodes_like_the_handlers_and_refuses_repeated_targets() {
         let query = AuthorizationQuery::parse(Some(
-            "account_handle=alias&tenant_id=first&tenant_id=last&project_handle=project",
-        ));
-        assert_eq!(query.tenant_id(), Some("last"));
-        assert_eq!(query.namespace_id(), Some("project"));
+            "account%5Fhandle=ac%6De&project_handle=i+os&upload%5Fid=up%2D1&upload=x",
+        ))
+        .expect("valid query");
+        assert_eq!(query.tenant_id(), Some("acme"));
+        assert_eq!(query.namespace_id(), Some("i os"));
+        assert_eq!(query.upload_id(), Some("up-1"));
 
-        let empty_canonical = AuthorizationQuery::parse(Some(
-            "account_handle=alias&tenant_id=&project_handle=project&namespace_id=",
-        ));
-        assert_eq!(empty_canonical.tenant_id(), None);
-        assert_eq!(empty_canonical.namespace_id(), None);
+        let empty =
+            AuthorizationQuery::parse(Some("tenant_id=&namespace_id")).expect("valid query");
+        assert_eq!(empty.tenant_id(), None);
+        assert_eq!(empty.namespace_id(), None);
 
-        let aliases = AuthorizationQuery::parse(Some(
-            "account_handle=first&account_handle=last&project_handle=ios&upload_id=upload-1",
-        ));
-        assert_eq!(aliases.tenant_id(), Some("last"));
-        assert_eq!(aliases.namespace_id(), Some("ios"));
-        assert_eq!(aliases.upload_id, Some("upload-1"));
+        for query in [
+            "tenant_id=a&tenant_id=a",
+            "tenant_id=a&tenant%5Fid=b",
+            "account_handle=a&tenant_id=b",
+            "tenant_id=&account_handle=b",
+            "namespace_id=a&project%5Fhandle=b",
+            "upload_id=a&upload%5fid=b",
+        ] {
+            assert!(AuthorizationQuery::parse(Some(query)).is_err(), "{query}");
+        }
     }
 
     #[test]
@@ -9349,11 +9668,12 @@ mod tests {
                         for _ in 0..ITERATIONS_PER_WORKER {
                             let query = std::hint::black_box(QUERY);
                             if selective {
-                                let parsed = AuthorizationQuery::parse(Some(query));
+                                let parsed = AuthorizationQuery::parse(Some(query))
+                                    .expect("valid benchmark query");
                                 std::hint::black_box((
                                     parsed.tenant_id().map(ToOwned::to_owned),
                                     parsed.namespace_id().map(ToOwned::to_owned),
-                                    parsed.upload_id,
+                                    parsed.upload_id().map(ToOwned::to_owned),
                                 ));
                             } else {
                                 let parsed = allocating_authorization_query(Some(query));
@@ -9448,7 +9768,8 @@ mod tests {
                                     method: "PUT",
                                     query: AuthorizationQuery::parse(Some(
                                         "tenant_id=test-tenant&namespace_id=ios",
-                                    )),
+                                    ))
+                                    .expect("valid benchmark query"),
                                     authorization: Some("Bearer credential".to_owned()),
                                 };
                                 std::hint::black_box(

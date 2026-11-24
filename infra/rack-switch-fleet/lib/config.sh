@@ -704,6 +704,11 @@ fleet_check_contracted_power() {
 #    e3b0-c442-98fc-1c14, the hash of empty input that an early
 #    `rack-node check-code` printed when it could not read the TPM's key.
 #  - a boot server for the site, which every other host installs from.
+#  - each planned node whose model arrives preinstalled (`preinstall_product`
+#    in node_models.json) listed in rackLinuxFleet.preinstall.products and
+#    declared without bootMAC, so it announces its product and installs beside
+#    its installer partition. Otherwise the install takes the whole largest
+#    drive for /, a storage node's data drive, as larch-store-a's did.
 #  - each mini's /32 in the env's tailnet SSH grant (infra/tailscale/acls.json),
 #    which the operator dials it through before it joins the tailnet.
 fleet_check_ready() {
@@ -713,10 +718,11 @@ fleet_check_ready() {
   inventory="$(yq -o=json '{
       "linuxSite": (.rackLinuxFleet.site // ""), "linux": (.rackLinuxFleet.hosts // []),
       "boot": (.rackLinuxFleet.boot // {}),
+      "preinstalled": (.rackLinuxFleet.preinstall.products // []),
       "fleetSite": (.rackFleet.site // ""), "minis": (.rackFleet.hosts // [])}' "$values")" || return 1
   # The policy is HuJSON: comments and trailing commas.
   policy="$(sed -E 's#^[[:space:]]*//.*$##' "$acls" | perl -0pe 's/,(\s*[\]}])/$1/g')" || return 1
-  bad="$(jq -r --argjson inv "$inventory" --argjson policy "$policy" --arg env "$env" '
+  bad="$(jq -r --argjson inv "$inventory" --argjson policy "$policy" --arg env "$env" --slurpfile hw "$FLEET_NODE_MODELS" '
     .site as $site |
     ([$policy.grants[]? | select((.ip // []) | index("tcp:22")) |
       select((.src // []) | index("tag:tuist-k8s-\($env)")) | .dst[]]) as $ssh |
@@ -741,6 +747,13 @@ fleet_check_ready() {
     (if (($inv.boot.enabled // false) and (($inv.boot.site // "") | if . == "" then $inv.linuxSite else . end) == $site)
         or any($inv.boot.sites[]?; .site == $site) then empty
      else "no boot server: rackLinuxFleet.boot.sites has no entry for \($site)" end),
+    (.nodes[]? | select(.status == "planned") | . as $n |
+      ($hw[0][.hardware // ""].preinstall_product // "") as $product | select($product != "") |
+      (if ($inv.preinstalled | index($product)) == null then
+         "\($n.name): rackLinuxFleet.preinstall.products does not list \($product), so its install would put / on its largest drive"
+       else empty end),
+      ($linux[] | select(.hostname == $n.name and (.bootMAC // "") != "") |
+         "\($n.name) is declared with bootMAC, so it installs without announcing its product and puts / on its largest drive")),
     ($minis[] | select((.address // "") == "") | "\(.name) has no address"),
     ($minis[] | select((.address // "") != "") | "\(.address)/32" as $route | select($ssh | index($route) | not) |
       "\(.name): \(.address)/32 is not in tag:tuist-k8s-\($env)'\''s tcp:22 grant in acls.json")

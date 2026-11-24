@@ -29,6 +29,10 @@ type Metrics struct {
 	PodRedirected        *prometheus.GaugeVec
 	PodGuardPass         *prometheus.GaugeVec
 	PodSiblingBypass     *prometheus.GaugeVec
+	PodPrivateRedirected *prometheus.GaugeVec
+	LinkUpgrades         prometheus.Counter
+	PrivateOverflow      prometheus.Counter
+	PrivatePeerCIDRs     prometheus.Gauge
 	Returned             prometheus.Gauge
 	ReturnDropped        prometheus.Gauge
 }
@@ -122,6 +126,22 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 			Name: "kura_egress_tree_pod_sibling_bypass_packets",
 			Help: "Packets that took the sibling bypass on a pod device (kernel counter).",
 		}, []string{"namespace", "pod"}),
+		PodPrivateRedirected: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "kura_egress_tree_pod_private_packets",
+			Help: "Packets from a pod device stamped with the private-network class (kernel counter).",
+		}, []string{"namespace", "pod"}),
+		LinkUpgrades: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "kura_egress_tree_link_upgrade_total",
+			Help: "Pod programs from an older agent replaced with this one's; one per pod device per upgrade.",
+		}),
+		PrivateOverflow: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "kura_egress_tree_private_overflow_total",
+			Help: "Private-network destination prefixes not installed because the map was full.",
+		}),
+		PrivatePeerCIDRs: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kura_egress_tree_private_peer_cidrs",
+			Help: "Pod CIDRs of private-network peers stamped with the private-network class.",
+		}),
 		Returned: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "kura_egress_tree_returned_packets",
 			Help: "Shaped packets sent back to a pod device's ingress hook (kernel counter).",
@@ -138,7 +158,8 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		m.ClassBacklogBytes, m.ClassLendedPackets, m.ClassBorrowedPackets,
 		m.ClassRateBytes, m.ClassCeilBytes,
 		m.DirectPackets, m.PodRedirected, m.PodGuardPass,
-		m.PodSiblingBypass, m.Returned, m.ReturnDropped,
+		m.PodSiblingBypass, m.PodPrivateRedirected, m.LinkUpgrades, m.PrivateOverflow, m.PrivatePeerCIDRs,
+		m.Returned, m.ReturnDropped,
 	)
 	return m
 }

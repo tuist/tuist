@@ -56,7 +56,7 @@ type agent struct {
 	dockerHeads      func(cachevolumes.Slot) (cachevolumes.Identity, error)
 	exposeDockerHead func(context.Context, cachevolumes.Slot, string, cachevolumes.Identity) error
 	// cloneMaster reflinks a saved head's master for a sandbox cache image.
-	cloneMaster    func(context.Context, cachevolumes.Identity, string) error
+	cloneMaster    func(context.Context, cachevolumes.Identity, string, func(int64) bool) (int64, bool, error)
 	executionWaits cachevolumes.ExecutionWaits
 	// sandboxNamespace holds the sandboxd Pods that may seed and export
 	// sandbox checkouts; empty refuses them. sandboxSeeds bounds concurrent

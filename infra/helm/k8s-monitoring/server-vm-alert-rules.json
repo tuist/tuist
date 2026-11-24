@@ -92,7 +92,7 @@
     "for": "0s",
     "keep_firing_for": "15m",
     "noDataState": "OK",
-    "execErrState": "Error",
+    "execErrState": "OK",
     "isPaused": false,
     "labels": {
       "cluster": "tuist-production",

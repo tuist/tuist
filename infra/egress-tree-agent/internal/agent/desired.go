@@ -3,9 +3,13 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // EgressClassAnnotation is the pod annotation the kura-controller renders and
@@ -33,6 +37,13 @@ const classMajor = 1
 // rootClassMinor is the single top class every tenant class borrows from; its
 // rate == ceil == the node's egress budget.
 const rootClassMinor = 1
+
+// privateClassMinor is the one class every tenant shares for traffic to pods on
+// the node's private-network peers. It hangs off the root qdisc beside the
+// root class, not under it: that traffic leaves on the private link, so it
+// neither draws on the public budget nor counts against a tenant's public
+// ceiling. Tenant minors start at 0x100 (kura-controller), well clear of it.
+const privateClassMinor = 2
 
 // egressClassValue is the JSON shape of the tuist.dev/egress-class value.
 type egressClassValue struct {
@@ -69,6 +80,10 @@ type PodAttachment struct {
 	IP         string
 	Minor      uint16
 	SiblingIPs []string
+	// PrivateMinor is privateClassMinor when the node has a private class,
+	// 0 otherwise; PrivateCIDRs are the destinations stamped with it.
+	PrivateMinor uint16
+	PrivateCIDRs []string
 }
 
 // ParseEgressClass parses the annotation value. A malformed annotation makes
@@ -99,8 +114,8 @@ func parseClassIDMinor(classID string) (uint16, error) {
 	if err != nil {
 		return 0, fmt.Errorf("classid %q: %w", classID, err)
 	}
-	if minor <= rootClassMinor {
-		return 0, fmt.Errorf("classid %q: minor collides with the tree's root class", classID)
+	if minor <= privateClassMinor {
+		return 0, fmt.Errorf("classid %q: minor collides with the tree's structural classes", classID)
 	}
 	return uint16(minor), nil
 }
@@ -184,4 +199,58 @@ func lowerAccount(current, next string) string {
 		return next
 	}
 	return current
+}
+
+// PrivateNetworkLabel names the provider private network a node is attached
+// to. The CAPI provider sets it only once every member of the network has
+// installed the same peer routes, which send the traffic to a member's node
+// address over the private link (see
+// infra/kura-controller/private-network-provisioning.md).
+const PrivateNetworkLabel = "tuist.dev/private-network"
+
+// PrivateNetworkMembersAnnotation is the digest of the route membership a
+// node installed. Two nodes route to each other privately only when they
+// carry the same one.
+const PrivateNetworkMembersAnnotation = "tuist.dev/private-network-members"
+
+// PrivatePeerCIDRs returns the IPv4 pod CIDRs of the nodes that share self's
+// private network and route membership. Pod-to-pod traffic is tunnelled to
+// the destination node's address, so a destination in one of these CIDRs
+// leaves on the private link. self's own CIDR is left out: node-local pods
+// reach no link, and a local pod relaying to the internet must stay in its
+// tenant's public class.
+func PrivatePeerCIDRs(self *corev1.Node, nodes []*corev1.Node) []string {
+	if self == nil {
+		return nil
+	}
+	network := self.Labels[PrivateNetworkLabel]
+	members := self.Annotations[PrivateNetworkMembersAnnotation]
+	if network == "" || members == "" {
+		return nil
+	}
+	var cidrs []string
+	for _, node := range nodes {
+		if node.Name == self.Name ||
+			node.Labels[PrivateNetworkLabel] != network ||
+			node.Annotations[PrivateNetworkMembersAnnotation] != members {
+			continue
+		}
+		cidrs = append(cidrs, ipv4CIDRs(node)...)
+	}
+	sort.Strings(cidrs)
+	return slices.Compact(cidrs)
+}
+
+func ipv4CIDRs(node *corev1.Node) []string {
+	all := node.Spec.PodCIDRs
+	if len(all) == 0 && node.Spec.PodCIDR != "" {
+		all = []string{node.Spec.PodCIDR}
+	}
+	var out []string
+	for _, cidr := range all {
+		if ip, network, err := net.ParseCIDR(cidr); err == nil && ip.To4() != nil {
+			out = append(out, network.String())
+		}
+	}
+	return out
 }

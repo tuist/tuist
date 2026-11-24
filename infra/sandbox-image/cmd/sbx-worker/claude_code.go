@@ -19,6 +19,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/tuist/tuist/infra/sandbox-image/internal/guest"
 )
 
 // Claude Code mode: sandboxd or the macOS host starts sbx-worker with
@@ -136,6 +138,11 @@ func runClaudeCode(ctx context.Context, logger *slog.Logger, workdir, workOrder 
 			logger.Warn("checkout seed failed", slog.Any("error", err), slog.Duration("duration", time.Since(start)))
 		} else {
 			logger.Info("checkout seeded", slog.String("result", result), slog.Duration("duration", time.Since(start)))
+			// Paths a CI job cached relative to its checkout, such as
+			// server/deps, go to the same place in this one.
+			if credential != nil && result != "cold" {
+				guest.BindCheckoutCache(logger, guest.CacheMount, checkout.path, int(credential.Uid), int(credential.Gid))
+			}
 		}
 		defer func() {
 			start := time.Now()

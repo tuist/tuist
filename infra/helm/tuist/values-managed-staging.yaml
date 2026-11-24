@@ -73,6 +73,9 @@ kuraController:
 egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
+  # Staging first: validates the private-network class on the ca-east box
+  # (vRack peers: the Gravelines cache and runner hosts).
+  privateNetworkMbps: 10000
 
 # CSI installation and upgrades are separate from tenant enrollment. Routine
 # server deployments preserve its installed image; upgrades require an explicit digest.
@@ -955,7 +958,13 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
+  # Qualifying the vmm container (step 2a of seamless daemon restarts) on
+  # KVM before canary and production.
+  vmm:
+    enabled: true
   prebuildShapes: "16x4096,16x8192"
+  # Memory bursting prototype: measure how much memory guests return.
+  balloonFreePageReporting: true
   diskGiB: 100
   archiveAfterHours: 24
   admin:

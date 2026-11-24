@@ -20,6 +20,7 @@ defmodule TuistWeb.PreviewsControllerTest do
     user = %{account: account} = AccountsFixtures.user_fixture(email: "tuist@tuist.dev")
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     stub(AppBuilds, :preview_install_token, fn _preview -> "install-token" end)
+    stub(AppBuilds, :preview_icon_token, fn _preview -> "icon-token" end)
     %{user: user, project: project, account: account}
   end
 
@@ -1020,7 +1021,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                "id" => preview.id,
                "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}"),
                "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png"),
-               "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
+               "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png?token=icon-token"),
                "device_url" =>
                  "itms-services://?action=download-manifest&url=" <>
                    URI.encode_www_form(
@@ -1623,7 +1624,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "id" => preview_two.id,
                  "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}"),
                  "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.png"),
-                 "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),
+                 "icon_url" =>
+                   url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png?token=icon-token"),
                  "device_url" =>
                    "itms-services://?action=download-manifest&url=" <>
                      URI.encode_www_form(

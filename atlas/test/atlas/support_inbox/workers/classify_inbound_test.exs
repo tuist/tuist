@@ -6,7 +6,6 @@ defmodule Atlas.SupportInbox.Workers.ClassifyInboundTest do
   alias Atlas.Inbox
   alias Atlas.Inbox.EmailParser
   alias Atlas.Support
-  alias Atlas.Support.Workers.PostNotification
   alias Atlas.SupportInbox.Agents.ClassifierAgent
   alias Atlas.SupportInbox.Classifier
   alias Atlas.SupportInbox.Workers.ClassifyInbound
@@ -46,36 +45,9 @@ defmodule Atlas.SupportInbox.Workers.ClassifyInboundTest do
 
     assert :ok = perform_job(ClassifyInbound, %{thread_id: thread.id, message_id: message.id})
     assert Support.get_thread(thread.id).status == "resolved"
-    assert_enqueued(worker: PostNotification, args: %{thread_id: thread.id, message_id: message.id})
   end
 
-  test "does not enqueue a notification when persistence fails", %{thread: thread, message: message} do
-    expect(Classifier, :classify_and_persist, fn _, _ -> {:error, :persistence_failed} end)
-
-    assert {:error, :persistence_failed} =
-             perform_job(ClassifyInbound, %{thread_id: thread.id, message_id: message.id})
-
-    refute_enqueued(worker: PostNotification)
-  end
-
-  test "rolls back classification and resolution when notification enqueue fails", %{thread: thread, message: message} do
-    expect(ClassifierAgent, :classify, fn _ ->
-      {:ok, %{category: :publish, action_needed: false, urgency: :none, confidence: 0.99, reason: "Package published."}}
-    end)
-
-    expect(Oban, :insert, fn _ -> {:error, :enqueue_failed} end)
-
-    assert {:error, :enqueue_failed} =
-             perform_job(ClassifyInbound, %{thread_id: thread.id, message_id: message.id})
-
-    reloaded = Support.get_thread(thread.id)
-    assert reloaded.status == "open"
-    refute reloaded.classified_at
-    refute reloaded.resolved_at
-    refute_enqueued(worker: PostNotification)
-  end
-
-  test "retries reuse the persisted decision and a single notification job", %{thread: thread, message: message} do
+  test "retries reuse the persisted decision", %{thread: thread, message: message} do
     expect(ClassifierAgent, :classify, fn _ ->
       {:ok, %{category: :publish, action_needed: false, urgency: :none, confidence: 0.99, reason: "Package published."}}
     end)
@@ -91,6 +63,5 @@ defmodule Atlas.SupportInbox.Workers.ClassifyInboundTest do
     refute reloaded.action_needed
     assert reloaded.classified_at == classified.classified_at
     assert reloaded.resolved_at == classified.resolved_at
-    assert length(all_enqueued(worker: PostNotification)) == 1
   end
 end

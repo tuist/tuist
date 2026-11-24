@@ -31,6 +31,11 @@ archiveBudgetGiB: 500
 actionsCache:
   bucket: actions-cache
   maxGB: 500
+# Docker Hub pull-through cache (the main chart's registryCache), moved off
+# Tigris. Its proxy TTL prunes it; the quota is a backstop.
+dockerMirror:
+  bucket: docker-mirror
+  maxGB: 500
 members: 1
 drivesPerMember: 1
 parity: ""

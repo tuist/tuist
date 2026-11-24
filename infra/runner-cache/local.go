@@ -1128,8 +1128,16 @@ func (b *LocalImages) maintainMaster(path string, heads HeadReader) error {
 	if b.Replace != nil {
 		next := slot.Identity
 		next.BaseGeneration, next.ImageDigest, next.ContentDigest = head.BaseGeneration, head.ImageDigest, head.ContentDigest
-		if head.BaseGeneration > slot.BaseGeneration && validHead(next) && time.Since(info.ModTime()) < 24*time.Hour && !b.HasMaster(next) && b.Replace(next) {
-			return nil
+		if head.BaseGeneration > slot.BaseGeneration && validHead(next) && time.Since(info.ModTime()) < 24*time.Hour && !b.HasMaster(next) {
+			// As in queueRefresh: a master no job here cloned since it was fetched
+			// in the background stays as the lineage's older copy, or every host
+			// that used a lineage once follows each generation it publishes.
+			if slot.Kind != KindDocker && (speculative(path) || refreshed(path)) {
+				return nil
+			}
+			if b.Replace(next) {
+				return nil
+			}
 		}
 		return b.evictMaster(path, EvictSuperseded, "head_generation", head.BaseGeneration)
 	}
@@ -1283,28 +1291,38 @@ var (
 )
 
 // CloneMaster reflinks the immutable master of a saved head to dst, under the
-// scope lock that eviction takes too. dst must be on this filesystem and not
-// exist. It never fetches: a host without the master answers ErrNoMaster.
-func (b *LocalImages) CloneMaster(ctx context.Context, identity Identity, dst string) error {
+// scope lock that eviction takes too, or the newest older master of its
+// lineage when the host holds only that, as a job's clone would. It returns
+// the generation it chose. When held reports that the caller already has a
+// copy of that generation, it clones nothing. dst must be on this filesystem
+// and not exist. It never fetches: a host without a master of the lineage
+// answers ErrNoMaster.
+func (b *LocalImages) CloneMaster(ctx context.Context, identity Identity, dst string, held func(int64) bool) (int64, bool, error) {
 	if identity.BaseGeneration <= 0 || !validHead(identity) || !scopePattern.MatchString(identity.Scope) {
-		return ErrInvalidMaster
+		return 0, false, ErrInvalidMaster
 	}
 	unlock, err := b.lockContext(ctx, identity.Scope)
 	if err != nil {
-		return err
+		return 0, false, err
 	}
 	defer unlock()
-	master := b.master(Slot{Identity: identity})
+	master, generation := b.master(Slot{Identity: identity}), identity.BaseGeneration
 	if _, err := os.Stat(master); os.IsNotExist(err) {
-		return ErrNoMaster
+		if master, generation = b.olderMaster(Slot{Identity: identity}); master == "" {
+			return 0, false, ErrNoMaster
+		}
 	} else if err != nil {
-		return err
+		return 0, false, err
+	}
+	if held != nil && held(generation) {
+		markUsed(master)
+		return generation, false, nil
 	}
 	if err := b.cloneContext(ctx, master, dst); err != nil {
-		return err
+		return 0, false, err
 	}
 	markUsed(master)
-	return nil
+	return generation, true, nil
 }
 
 // HasMaster reports whether the immutable master a warm identity clones from is
@@ -1365,8 +1383,19 @@ func (b *LocalImages) PrefetchSpare(ctx context.Context, slot Slot) error {
 // eviction takes before the masters jobs used.
 func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error {
 	return b.fetchMaster(ctx, slot, false, func(master, older string) error {
-		if spare && (older == "" || speculative(older)) {
+		if !spare {
+			return nil
+		}
+		if older == "" || speculative(older) {
 			_ = os.WriteFile(master+".spare", nil, 0600)
+			return nil
+		}
+		// A background successor of a used master (Replace) is a refresh: it is
+		// not followed again until a job clones it, and it ages out with the
+		// older copy's last use rather than with its download.
+		_ = os.WriteFile(master+refreshedSuffix, nil, 0600)
+		if info, err := os.Stat(older); err == nil {
+			return os.Chtimes(master, info.ModTime(), info.ModTime())
 		}
 		return nil
 	})

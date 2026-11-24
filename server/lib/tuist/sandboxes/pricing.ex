@@ -8,8 +8,11 @@ defmodule Tuist.Sandboxes.Pricing do
   8 GB at $0.0024), disk included (`Tuist.Sandboxes.Analytics.compute/2`).
   The same work costs the same in a sandbox as on a runner of its shape.
 
-  Memory is reserved on the host whether it is used or not, so every running
-  sandbox is billed its shape's memory. A Linux sandbox bursts: it is billed
+  Memory is billed max(request, use): every running sandbox its shape's
+  memory, which the host keeps for it, and a Linux sandbox also what its VM
+  held past that at each report (its process's Pss, less the VMM's 64 MiB).
+  A guest cannot pass its shape yet, so the excess stays near zero until
+  guests boot larger than their request. A Linux sandbox bursts: it is billed
   CPU, every 30 seconds while it runs, for the larger of what it used and its
   guarantee (`Tuist.Sandboxes.Sandbox.guaranteed_cpu_milli/1`), at least a
   quarter vCPU per GiB of memory, which is the hosts' own ratio (32 vCPUs to

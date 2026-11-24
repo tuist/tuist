@@ -10,7 +10,6 @@ use tokio::time::timeout;
 use crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
 use crate::metrics::Metrics;
 
-mod borrowed;
 mod cgroup;
 mod pools;
 mod pressure;
@@ -18,7 +17,6 @@ mod reservation;
 #[cfg(test)]
 mod response_tests;
 
-pub use borrowed::BorrowedResponse;
 pub use cgroup::{
     ContainerMemoryPressureSample, ContainerMemorySnapshot, container_memory_pressure_sample,
     container_memory_protection, container_memory_snapshot,
@@ -428,6 +426,18 @@ impl MemoryController {
         self.inner.pools.elastic_transient_capacity_bytes() as u64
     }
 
+    /// Floor bytes set aside for write replies, outside
+    /// `transient_capacity_bytes`.
+    pub fn write_reply_reserve_bytes(&self) -> u64 {
+        self.inner.pools.write_reply_reserve_bytes() as u64
+    }
+
+    /// Floor bytes held, across the shared floor pool and the slice set aside
+    /// for write replies.
+    pub fn floor_reserved_bytes(&self) -> u64 {
+        self.transient_reserved_bytes() + self.inner.pools.write_reply_reserved_bytes() as u64
+    }
+
     pub fn elastic_transient_reserved_bytes(&self) -> u64 {
         self.inner.pools.elastic_transient_reserved_bytes() as u64
     }
@@ -455,11 +465,13 @@ impl MemoryController {
     /// independent byte permits. Pressure stops elastic borrowing and halves
     /// ceiling-derived capacity. Already-open sessions may drain above this cap.
     pub fn multipart_upload_capacity(&self) -> usize {
+        // Sized from the whole floor, the reply slice included, like the other
+        // floor-derived limits.
+        let floor_bytes = self.transient_capacity_bytes() + self.write_reply_reserve_bytes();
+        let ceiling_bytes = floor_bytes + self.elastic_transient_capacity_bytes();
         let capacity_bytes = match self.pressure() {
-            MemoryPressure::Normal => self.foreground_transient_capacity_bytes(),
-            MemoryPressure::Constrained => self
-                .transient_capacity_bytes()
-                .min(self.foreground_transient_capacity_bytes() / 2),
+            MemoryPressure::Normal => ceiling_bytes,
+            MemoryPressure::Constrained => floor_bytes.min(ceiling_bytes / 2),
             MemoryPressure::Critical => return 0,
         };
         usize::try_from(capacity_bytes / (1024 * 1024))
@@ -629,49 +641,6 @@ impl MemoryController {
         .map_err(|_| ())??;
         Ok(Some(MemoryPermit {
             _transient: transient,
-        }))
-    }
-
-    /// Admission for a batch-read response the floor-derived pool cannot take
-    /// right now, from the ceiling headroom above the floor instead.
-    ///
-    /// Only while pressure is normal, and capped at the whole elastic pool: a
-    /// read burst may take headroom write decoding would otherwise borrow,
-    /// which stress runs showed costs writes nothing, because queued reads on
-    /// a full floor refuse writes sooner than borrowed reads do. Unlike
-    /// `reserve_response_materialization` this never waits. The caller must
-    /// hand the permit to a [`BorrowedResponse`], which bounds how long the
-    /// unprotected memory stays held; holding it in a `ResponseTransportGuard`
-    /// would let a stalled reader keep it indefinitely.
-    pub fn try_borrow_response_materialization(
-        &self,
-        content_bytes: usize,
-    ) -> Result<Option<MemoryPermit>, ()> {
-        let requested_bytes = content_bytes.checked_mul(2).ok_or(())?;
-        if requested_bytes == 0 {
-            return Ok(None);
-        }
-        if requested_bytes > self.reapi_materialization_limit_bytes()
-            || self.pressure() != MemoryPressure::Normal
-        {
-            return Err(());
-        }
-        let permits = u32::try_from(requested_bytes).map_err(|_| ())?;
-        let (cap, elastic) = self.inner.pools.try_acquire_read_borrow(permits)?;
-        // Not `transient_ceiling_headroom_borrowed`: the runbook reads that
-        // one as the write-decode tell.
-        self.inner
-            .metrics
-            .record_memory_action("reapi_read_headroom_borrowed");
-        Ok(Some(MemoryPermit {
-            _transient: TransientMemoryReservation {
-                controller: self.clone(),
-                permit: None,
-                elastic_permit: Some(elastic),
-                _read_borrow_permit: Some(cap),
-                elasticity: TransientElasticity::Fixed,
-                bytes: requested_bytes as u64,
-            },
         }))
     }
 
@@ -1182,7 +1151,6 @@ impl MemoryController {
                     controller: self.clone(),
                     permit: Some(permit),
                     elastic_permit: None,
-                    _read_borrow_permit: None,
                     elasticity: TransientElasticity::Fixed,
                     bytes: requested_bytes,
                 });
@@ -1196,7 +1164,6 @@ impl MemoryController {
             controller: self.clone(),
             permit: None,
             elastic_permit: None,
-            _read_borrow_permit: None,
             elasticity,
             bytes: 0,
         }
@@ -1675,7 +1642,7 @@ mod tests {
             None,
         );
         assert_eq!(
-            unbounded.transient_capacity_bytes(),
+            unbounded.transient_capacity_bytes() + unbounded.write_reply_reserve_bytes(),
             ceiling_headroom as u64
         );
 
@@ -1687,7 +1654,10 @@ mod tests {
             hard_limit,
             Some(anon_budget),
         );
-        assert_eq!(bounded.transient_capacity_bytes(), anon_budget);
+        assert_eq!(
+            bounded.transient_capacity_bytes() + bounded.write_reply_reserve_bytes(),
+            anon_budget
+        );
         assert!(bounded.transient_capacity_bytes() < unbounded.transient_capacity_bytes());
 
         // A floor roomier than the ceiling allows cannot inflate the budget past
@@ -1699,7 +1669,10 @@ mod tests {
             hard_limit,
             Some(runtime_limit * 4),
         );
-        assert_eq!(generous.transient_capacity_bytes(), ceiling_headroom as u64);
+        assert_eq!(
+            generous.transient_capacity_bytes() + generous.write_reply_reserve_bytes(),
+            ceiling_headroom as u64
+        );
     }
 
     /// A controller whose floor-derived budget is a fraction of its ceiling
@@ -1717,22 +1690,28 @@ mod tests {
             forced,
             Some(anon_budget),
         );
-        (controller, anon_budget, hard_limit - soft_limit)
+        // The shared floor pool: the published floor less the reply slice.
+        let floor_pool = controller.transient_capacity_bytes();
+        assert_eq!(
+            floor_pool + controller.write_reply_reserve_bytes(),
+            anon_budget
+        );
+        (controller, floor_pool, hard_limit - soft_limit)
     }
 
     #[test]
     fn the_elastic_pool_is_exactly_the_headroom_the_floor_clamp_discards() {
-        let (controller, anon_budget, ceiling_headroom) = elastic_controller(None);
+        let (controller, floor_pool, ceiling_headroom) = elastic_controller(None);
+        let reply_slice = controller.write_reply_reserve_bytes();
 
-        assert_eq!(controller.transient_capacity_bytes(), anon_budget);
         assert_eq!(
             controller.elastic_transient_capacity_bytes(),
-            ceiling_headroom - anon_budget
+            ceiling_headroom - floor_pool - reply_slice
         );
         // Borrowing can never take anonymous admission past what a node with no
         // published floor would already have granted.
         assert_eq!(
-            controller.foreground_transient_capacity_bytes(),
+            controller.foreground_transient_capacity_bytes() + reply_slice,
             ceiling_headroom
         );
     }
@@ -1813,6 +1792,46 @@ mod tests {
             anon_budget - 2 * mebibyte
         );
         assert!(held.try_resize(0).is_ok());
+    }
+
+    // A read queued on a full floor takes every permit the floor releases, so
+    // a try-only reply there fails however small it is. Replies draw on their
+    // own floor slice instead, or a read burst refuses every write.
+    #[tokio::test]
+    async fn a_write_reply_is_admitted_while_a_read_waits_on_a_full_floor() {
+        let (controller, _, _) = elastic_controller(None);
+        let floor = controller.transient_capacity_bytes();
+        let held = controller.try_reserve_foreground_memory(floor).unwrap();
+        let waiting_read = tokio::spawn({
+            let controller = controller.clone();
+            async move {
+                controller
+                    .reserve_response_materialization(512)
+                    .await
+                    .map(drop)
+            }
+        });
+        while controller.inner.foreground_waiters.load(Ordering::Acquire) == 0 {
+            tokio::task::yield_now().await;
+        }
+
+        let mut write = controller.try_reserve_elastic_foreground_memory(0).unwrap();
+        write.try_resize(64 * 1024).unwrap();
+        let reply = write
+            .try_reserve_reply(4096)
+            .expect("the reply slice admits a write's reply behind a queued read")
+            .expect("a non-empty reply holds a permit");
+        assert_eq!(controller.transient_reserved_bytes(), floor);
+
+        // The slice is floor memory set aside, not more of it, and a reply
+        // larger than the slice still falls back to the shared floor.
+        assert!(
+            write
+                .try_reserve_reply(controller.write_reply_reserve_bytes() + 1)
+                .is_err()
+        );
+        drop((reply, write, held));
+        waiting_read.await.unwrap().unwrap();
     }
 
     #[test]

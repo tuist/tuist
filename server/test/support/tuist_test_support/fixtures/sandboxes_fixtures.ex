@@ -87,6 +87,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       amp_integration_id: Keyword.get(opts, :amp_integration_id),
       amp_base_snapshot_id: Keyword.get(opts, :amp_base_snapshot_id),
       amp_snapshot_lineage_id: Keyword.get(opts, :amp_snapshot_lineage_id),
+      repository: Keyword.get(opts, :repository),
       template: Keyword.get(opts, :template, "default"),
       template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
       vcpus: Keyword.get(opts, :vcpus, 2),

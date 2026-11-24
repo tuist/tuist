@@ -31,17 +31,23 @@ type Agent struct {
 	// those packets drop at the peer — past this threshold, unshaped beats
 	// blackholed.
 	ReturnDetachAfter int
+	// PrivateNetworkMbps is the ceiling of the shared private-network class.
+	// Zero leaves traffic to private-network peers in the tenant classes.
+	PrivateNetworkMbps int64
 
 	// Pods and Nodes are informer-backed listers, field-selected to this
 	// node by main. Reconcile reads only the local cache; the watch events
 	// behind it are what kick a cycle.
-	Pods      listersv1.PodLister
-	Nodes     listersv1.NodeLister
-	Endpoints *EndpointResolver
-	Tree      Tree
-	Attacher  Attacher
-	Metrics   *Metrics
-	Log       *slog.Logger
+	Pods  listersv1.PodLister
+	Nodes listersv1.NodeLister
+	// PrivateNodes lists the nodes attached to any private network (label-
+	// selected by main); nil when PrivateNetworkMbps is zero.
+	PrivateNodes listersv1.NodeLister
+	Endpoints    *EndpointResolver
+	Tree         Tree
+	Attacher     Attacher
+	Metrics      *Metrics
+	Log          *slog.Logger
 
 	// Converged desired state from previous cycles, kept only to log
 	// added/updated/removed transitions at info level without logging the
@@ -50,6 +56,7 @@ type Agent struct {
 	appliedBudget  int64
 	appliedClasses map[uint16]TenantClass
 	appliedPods    map[string]appliedPod
+	appliedPrivate []string
 
 	// Consecutive EnsureReturn failures; reset on success.
 	returnFailures int
@@ -111,12 +118,17 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 	a.Metrics.NodeBudgetMbps.Set(float64(nodeMbps))
 
 	classes, attachments := Desired(pods)
+	privateMinor, privateCIDRs := a.privateDestinations()
+	for i := range attachments {
+		attachments[i].PrivateMinor = privateMinor
+		attachments[i].PrivateCIDRs = privateCIDRs
+	}
 
 	if err := a.Tree.EnsureDevices(ctx); err != nil {
 		return false, err
 	}
 	requeue := false
-	if err := a.Tree.EnsureTree(ctx, nodeMbps, classes); err != nil {
+	if err := a.Tree.EnsureTree(ctx, nodeMbps, a.PrivateNetworkMbps, classes); err != nil {
 		// Degrade to a requeue, not a cycle abort: one tenant's failing
 		// class must not block the other tenants' updates or any pod
 		// attach/detach, and packets to a missing class run unshaped
@@ -182,6 +194,8 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 			a.Metrics.LinkAttaches.Inc()
 		case AttachReattach:
 			a.Metrics.LinkReattaches.Inc()
+		case AttachUpgrade:
+			a.Metrics.LinkUpgrades.Inc()
 		}
 		a.logPodChange(key, device, attachment, outcome)
 		active[device] = true
@@ -275,6 +289,9 @@ func (a *Agent) logPodChange(key, device string, attachment PodAttachment, outco
 		// external interference: warn, and pair with link_reattach_total.
 		a.Log.Warn("reattached pod program", "pod", key, "device", device,
 			"classid", ClassIDString(attachment.Minor), "siblings", attachment.SiblingIPs)
+	case outcome == AttachUpgrade:
+		a.Log.Info("replaced pod program from an older agent", "pod", key, "device", device,
+			"classid", ClassIDString(attachment.Minor), "siblings", attachment.SiblingIPs)
 	case outcome == AttachFirst:
 		a.Log.Info("attached pod program", "pod", key, "device", device,
 			"classid", ClassIDString(attachment.Minor), "siblings", attachment.SiblingIPs)
@@ -356,6 +373,7 @@ func (a *Agent) exportStats(ctx context.Context, classes map[uint16]TenantClass,
 	a.Metrics.PodRedirected.Reset()
 	a.Metrics.PodGuardPass.Reset()
 	a.Metrics.PodSiblingBypass.Reset()
+	a.Metrics.PodPrivateRedirected.Reset()
 	for _, attachment := range attachments {
 		device, ok := deviceOf[attachment.Namespace+"/"+attachment.Name]
 		if !ok {
@@ -368,6 +386,7 @@ func (a *Agent) exportStats(ctx context.Context, classes map[uint16]TenantClass,
 		a.Metrics.PodRedirected.WithLabelValues(attachment.Namespace, attachment.Name).Set(float64(counters[counterRedirected]))
 		a.Metrics.PodGuardPass.WithLabelValues(attachment.Namespace, attachment.Name).Set(float64(counters[counterGuardPass]))
 		a.Metrics.PodSiblingBypass.WithLabelValues(attachment.Namespace, attachment.Name).Set(float64(counters[counterSiblingBypass]))
+		a.Metrics.PodPrivateRedirected.WithLabelValues(attachment.Namespace, attachment.Name).Set(float64(counters[counterPrivate]))
 	}
 	if counters, err := a.Attacher.ReturnCounters(); err == nil {
 		a.Metrics.Returned.Set(float64(counters[counterReturned]))
@@ -427,4 +446,30 @@ func (a *Agent) shapedPods() ([]PodShape, int) {
 		})
 	}
 	return pods, skipped
+}
+
+// privateDestinations returns the private class and the pod CIDRs stamped
+// with it, or nothing when the node has no private class or is on no
+// private network. A failure to read this node leaves every pod in its
+// tenant class, the behaviour without the private class.
+func (a *Agent) privateDestinations() (uint16, []string) {
+	var cidrs []string
+	if a.PrivateNetworkMbps > 0 && a.PrivateNodes != nil {
+		self, err := a.Nodes.Get(a.NodeName)
+		nodes, listErr := a.PrivateNodes.List(labels.Everything())
+		if err == nil && listErr == nil {
+			cidrs = PrivatePeerCIDRs(self, nodes)
+		}
+	}
+	a.Metrics.PrivatePeerCIDRs.Set(float64(len(cidrs)))
+	if !slices.Equal(cidrs, a.appliedPrivate) {
+		added, removed := diffStrings(a.appliedPrivate, cidrs)
+		a.Log.Info("private-network destinations changed",
+			"cidrs", len(cidrs), "added", added, "removed", removed)
+		a.appliedPrivate = cidrs
+	}
+	if len(cidrs) == 0 {
+		return 0, nil
+	}
+	return privateClassMinor, cidrs
 }

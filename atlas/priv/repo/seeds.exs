@@ -42,7 +42,6 @@ alias Atlas.Engineering.Domains.Domain, as: EngineeringDomain
 alias Atlas.Engineering.Errors, as: EngineeringErrors
 alias Atlas.Engineering.Errors.Issue, as: ErrorsIssue
 alias Atlas.Engineering.Errors.IssueAccount, as: ErrorsIssueAccount
-alias Atlas.Engineering.Errors.SummaryRun, as: ErrorsSummaryRun
 alias Atlas.Engineering.Postmortems
 alias Atlas.Engineering.Projects, as: EngineeringProjects
 alias Atlas.Engineering.Projects.Project, as: EngineeringProject
@@ -6023,74 +6022,6 @@ Enum.each(impacted_account_fixtures, fn fixture ->
     })
     |> Repo.insert_or_update!()
   end
-end)
-
-# A couple of completed summary runs so the summaries panel isn't empty.
-summary_run_fixtures = [
-  %{
-    hours_ago: 24,
-    summary:
-      "Postgrex too_many_connections dominated the last 24h, followed by gRPC UNAVAILABLE errors from the kura-scw-fr-par peer. One CLI regression on Xcode 16.4 workspace parsing was silenced.",
-    issue_titles: [
-      "Postgrex.Error: too_many_connections",
-      "gRPC UNAVAILABLE from peer kura-scw-fr-par",
-      "ArgumentError: invalid path"
-    ]
-  },
-  %{
-    hours_ago: 48,
-    summary:
-      "Two new spike patterns emerged: Slack signature verification failures on Atlas webhooks and REAPI FindMissingBlobs sheds under memory pressure in Kura. No new fatal issues.",
-    issue_titles: [
-      "Slack signature verification failed",
-      "REAPI FindMissingBlobs shed under memory pressure",
-      "Jason.DecodeError: unexpected end of input"
-    ]
-  }
-]
-
-issue_id_by_title =
-  from(i in ErrorsIssue, select: {i.title, i.id})
-  |> Repo.all()
-  |> Map.new()
-
-Enum.each(summary_run_fixtures, fn fixture ->
-  scheduled_for =
-    now
-    |> DateTime.add(-fixture.hours_ago * 3600, :second)
-    |> DateTime.truncate(:second)
-
-  issue_ids =
-    fixture.issue_titles
-    |> Enum.map(&Map.get(issue_id_by_title, &1))
-    |> Enum.reject(&is_nil/1)
-
-  fingerprint =
-    :crypto.hash(:sha256, "summary:" <> Integer.to_string(fixture.hours_ago))
-    |> Base.encode16(case: :lower)
-
-  attrs = %{
-    scheduled_for: scheduled_for,
-    window_start: DateTime.add(scheduled_for, -24 * 3600, :second),
-    window_end: scheduled_for,
-    input_fingerprint: fingerprint,
-    issue_ids: issue_ids,
-    issue_count: length(issue_ids),
-    status: :delivered,
-    summary: fixture.summary,
-    attention: [],
-    slack_channel_id: "C0ATLASENG",
-    slack_message_ts: "#{System.system_time(:second)}.000100",
-    generated_at: scheduled_for,
-    delivered_at: scheduled_for
-  }
-
-  case Repo.get_by(ErrorsSummaryRun, scheduled_for: scheduled_for) do
-    nil -> %ErrorsSummaryRun{}
-    existing -> existing
-  end
-  |> ErrorsSummaryRun.changeset(attrs)
-  |> Repo.insert_or_update!()
 end)
 
 # Engineering postmortems: seed a couple of published incidents so the

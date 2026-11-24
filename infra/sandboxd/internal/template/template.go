@@ -100,7 +100,9 @@ type Metadata struct {
 	WorkspacePrepared bool   `json:"workspace_prepared,omitempty"`
 	// CacheDrive: the snapshot has a CachePlaceholderBytes cache drive that
 	// every jail restored from it must provide.
-	CacheDrive         bool      `json:"cache_drive,omitempty"`
+	CacheDrive bool `json:"cache_drive,omitempty"`
+	// Balloon: the snapshot has firecracker.ReportingBalloon.
+	Balloon            bool      `json:"balloon,omitempty"`
 	FirecrackerVersion string    `json:"firecracker_version"`
 	BuiltAt            time.Time `json:"built_at"`
 }
@@ -451,7 +453,7 @@ func (s *Store) PreviousTag(name, current string) (string, error) {
 // whose cache placeholder drive does not match cacheDrive, and shapes
 // holding a file the daemon does not own; the next create rebuilds them.
 // Sandboxes linked to a removed memfile keep their own hard link.
-func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int, cacheDrive bool) error {
+func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int, cacheDrive, balloon bool) error {
 	templates, err := s.List()
 	if err != nil {
 		return err
@@ -468,7 +470,7 @@ func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int, c
 			dir := filepath.Join(t.Dir, shapesDir, e.Name())
 			meta := shapeMetadata(dir)
 			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) ||
-				meta.FirecrackerVersion != firecrackerVersion || meta.WorkspaceGB != workspaceGB || meta.CacheDrive != cacheDrive || !ownedByDaemon(dir) {
+				meta.FirecrackerVersion != firecrackerVersion || meta.WorkspaceGB != workspaceGB || meta.CacheDrive != cacheDrive || meta.Balloon != balloon || !ownedByDaemon(dir) {
 				if err := os.RemoveAll(dir); err != nil {
 					return err
 				}

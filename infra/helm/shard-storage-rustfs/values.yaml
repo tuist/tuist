@@ -51,6 +51,14 @@ archiveBudgetGiB: 100
 actionsCache:
   bucket: ""
   maxGB: 0
+# Bucket for the main chart's Docker Hub pull-through cache (registryCache),
+# capped by a hard RustFS quota of maxGB (decimal). It gets its own user, whose
+# credentials are copied to Secret <release>-docker-mirror in serverNamespace;
+# that user can reach only this bucket. In-cluster only: the gateway never
+# exposes it. Needs privateNetwork.enabled and target.id.
+dockerMirror:
+  bucket: ""
+  maxGB: 0
 serverNamespace: tuist
 storageClass: hcloud-volumes
 volumeSize: 10Gi

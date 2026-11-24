@@ -22,3 +22,6 @@ func (s *System) Uptime() (time.Duration, error) { return time.Since(processStar
 func (s *System) SetTime(time.Time) error { return ErrUnsupported }
 
 func (s *System) Configure(context.Context, agent.ConfigureSpec) error { return ErrUnsupported }
+
+// BindCheckoutCache binds nothing: only Linux guests get a cache drive.
+func BindCheckoutCache(*slog.Logger, string, string, int, int) int { return 0 }

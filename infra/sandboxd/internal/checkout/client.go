@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,12 +39,13 @@ func NewHTTPClient() *http.Client {
 // agentRequest is the JSON the agent reads first on every endpoint; an export
 // follows it, after a newline, with its tar stream.
 type agentRequest struct {
-	PodName string `json:"pod_name"`
-	Grant   any    `json:"grant"`
+	PodName string  `json:"pod_name"`
+	Grant   any     `json:"grant"`
+	Held    []int64 `json:"held,omitempty"`
 }
 
-func (c *Client) request(ctx context.Context, path string, grant any, body io.Reader) (*http.Response, error) {
-	head, err := json.Marshal(agentRequest{PodName: c.PodName, Grant: grant})
+func (c *Client) request(ctx context.Context, path string, grant any, held []int64, body io.Reader) (*http.Response, error) {
+	head, err := json.Marshal(agentRequest{PodName: c.PodName, Grant: grant, Held: held})
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +70,7 @@ func (c *Client) request(ctx context.Context, path string, grant any, body io.Re
 }
 
 func (c *Client) Seed(ctx context.Context, grant protocol.CheckoutGrant) (io.ReadCloser, error) {
-	resp, err := c.request(ctx, "/sandbox-checkout/seed", grant, nil)
+	resp, err := c.request(ctx, "/sandbox-checkout/seed", grant, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +86,7 @@ func (c *Client) Seed(ctx context.Context, grant protocol.CheckoutGrant) (io.Rea
 }
 
 func (c *Client) Export(ctx context.Context, grant protocol.CheckoutGrant, export io.Reader) error {
-	resp, err := c.request(ctx, "/sandbox-checkout/export", grant, export)
+	resp, err := c.request(ctx, "/sandbox-checkout/export", grant, nil, export)
 	if err != nil {
 		return err
 	}
@@ -95,24 +97,41 @@ func (c *Client) Export(ctx context.Context, grant protocol.CheckoutGrant, expor
 	return fmt.Errorf("checkout agent answered %d: %s", resp.StatusCode, agentError(resp.Body))
 }
 
-// CacheImage copies the master of a saved cache volume head the node's agent
-// holds into dst, which must not exist, as a sparse file of at most maxBytes.
-// ErrCold means the node holds no master of that head.
-func (c *Client) CacheImage(ctx context.Context, grant protocol.CacheGrant, dst string, maxBytes int64) error {
-	resp, err := c.request(ctx, "/sandbox-cache/image", grant, nil)
+// CacheImage copies the master the node's agent lends for a saved cache volume
+// head into dst, which must not exist, as a sparse file of at most maxBytes,
+// and returns its generation: the head's, or an older one of its lineage when
+// the node keeps only that. When the agent would lend a generation in held it
+// copies nothing and answers false. ErrCold means the node holds no master of
+// the lineage.
+func (c *Client) CacheImage(ctx context.Context, grant protocol.CacheGrant, held []int64, dst string, maxBytes int64) (int64, bool, error) {
+	resp, err := c.request(ctx, "/sandbox-cache/image", grant, held, nil)
 	if err != nil {
-		return err
+		return 0, false, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		reason := agentError(resp.Body)
-		if resp.StatusCode == http.StatusNotFound && reason == "cold" {
-			return ErrCold
+	// An agent older than the header lends only the head itself.
+	generation := grant.BaseGeneration
+	if header := resp.Header.Get(cacheGenerationHeader); header != "" {
+		if generation, err = strconv.ParseInt(header, 10, 64); err != nil {
+			return 0, false, fmt.Errorf("runner-cache agent named generation %q", header)
 		}
-		return fmt.Errorf("runner-cache agent answered %d: %s", resp.StatusCode, reason)
 	}
-	return cachevolumes.ReceiveImage(ctx, resp.Body, dst, maxBytes)
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return generation, true, cachevolumes.ReceiveImage(ctx, resp.Body, dst, maxBytes)
+	case http.StatusNoContent:
+		return generation, false, nil
+	}
+	reason := agentError(resp.Body)
+	if resp.StatusCode == http.StatusNotFound && reason == "cold" {
+		return 0, false, ErrCold
+	}
+	return 0, false, fmt.Errorf("runner-cache agent answered %d: %s", resp.StatusCode, reason)
 }
+
+// cacheGenerationHeader names the generation the agent lent (the agent's
+// sandboxCacheGeneration).
+const cacheGenerationHeader = "Tuist-Cache-Generation"
 
 func agentError(body io.Reader) string {
 	var answer struct {

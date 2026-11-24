@@ -794,7 +794,10 @@ takes the Kura region with it.
   cannot be used: it starts from the registry's repository listing, which
   ghcr.io refuses. The tags come from the same catalog values as the pools'
   images; the deploy passes `runnersFleet.runnerImageSemver` to this release
-  too. Pools name each image by the digest of that tag, so a host's probe
+  too. With `rackFleet.runners.stackedImages` the tags are the `-stacked`
+  ones the rack pools run: until 2026-11-24 the cache prewarmed the standalone
+  tags, which no rack host pulls, and synced every stacked image on demand
+  while hosts waited (`syncing`). Pools name each image by the digest of that tag, so a host's probe
   asks the cache for the digest and gets the manifest the prewarm synced. An
   Xcode outside `prewarm` is synced on demand by digest, which zot stores
   untagged, so retention frees it at the next garbage collection: list every

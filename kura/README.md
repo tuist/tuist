@@ -462,7 +462,7 @@ The second estimate applies to default 60%/85% watermarks without a limiting mem
 
 Prefer reducing client concurrency or increasing pod memory before overriding `KURA_MEMORY_SOFT_LIMIT_BYTES` / `KURA_MEMORY_HARD_LIMIT_BYTES`. Lowering the soft watermark sheds optional work earlier; raising the hard watermark reduces the safety reserve beneath the container limit. Neither creates physical memory. Use explicit watermarks only after measuring the application's baseline and mixed-load peaks.
 
-Watch `kura_memory_transient_{capacity,reserved}_bytes`, `kura_memory_elastic_transient_{capacity,reserved}_bytes`, pressure state, and `kura_memory_actions_total_total{action="bytestream_staging_admission_rejected"}` / `grpc_write_decode_admission_rejected`, together with `kura_capacity_sheds_total_total`. Short bursts can be absorbed by bounded client retries, including against older Kura versions without RetryInfo. Persistent refusals mean the offered concurrency exceeds capacity or requests exceed an individual budget; longer retries alone do not fix that.
+Watch `kura_memory_transient_{capacity,reserved}_bytes`, `kura_memory_elastic_transient_{capacity,reserved}_bytes`, pressure state, and `kura_memory_actions_total_total{action="bytestream_staging_admission_rejected"}` / `grpc_write_decode_admission_rejected` / `grpc_write_reply_admission_rejected`, together with `kura_capacity_sheds_total_total`. Short bursts can be absorbed by bounded client retries, including against older Kura versions without RetryInfo. Persistent refusals mean the offered concurrency exceeds capacity or requests exceed an individual budget; longer retries alone do not fix that.
 
 ## 📊 Observability
 

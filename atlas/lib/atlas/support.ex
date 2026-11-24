@@ -19,7 +19,6 @@ defmodule Atlas.Support do
   alias Atlas.Support.Thread
   alias Atlas.Support.Workers.DeliverChatEmailVerification
   alias Atlas.Support.Workers.DeliverReply
-  alias Atlas.Support.Workers.PostNotification
   alias Atlas.SupportInbox.Workers.ClassifyInbound
   alias Atlas.Users
   alias AtlasWeb.Endpoint
@@ -272,7 +271,6 @@ defmodule Atlas.Support do
       |> case do
         {:ok, %{thread: thread, message: message}} ->
           audit_agent_feedback(thread, message)
-          enqueue_notification(:agent_feedback_received, thread.id, message_id: message.id)
           broadcast_thread_update(thread.id)
           {:ok, %{thread: thread, message: message}}
 
@@ -457,11 +455,6 @@ defmodule Atlas.Support do
 
     if reply_delivery_channel_for_message(message) == "chat" do
       audit_reply_sent_in_chat(thread, message, actor)
-
-      enqueue_notification(:reply_delivered, thread.id,
-        message_id: message.id,
-        actor_id: actor.id
-      )
     else
       audit_reply_queued(thread, message, actor)
     end
@@ -474,7 +467,6 @@ defmodule Atlas.Support do
     thread = get_thread(updated_thread.id)
     message = Enum.find(thread.messages, &(&1.id == message.id))
     audit_chat(thread, message)
-    enqueue_notification(:chat_received, thread.id, message_id: message.id)
     enqueue_chat_email_verification(thread)
     broadcast_thread_update(thread.id)
     {:ok, %{thread: thread, message: message}}
@@ -499,7 +491,6 @@ defmodule Atlas.Support do
         |> case do
           {:ok, message} ->
             audit_note(thread, message, actor)
-            enqueue_notification(:note_added, thread.id, message_id: message.id, actor_id: actor.id)
             {:ok, Repo.preload(message, :author)}
 
           {:error, reason} ->
@@ -526,11 +517,6 @@ defmodule Atlas.Support do
       {:ok, updated_thread} ->
         audit_status(updated_thread, actor)
 
-        enqueue_notification(:status_changed, updated_thread.id,
-          actor_id: actor && actor.id,
-          status: updated_thread.status
-        )
-
       _result ->
         :ok
     end)
@@ -553,11 +539,6 @@ defmodule Atlas.Support do
       |> tap(fn
         {:ok, updated_thread} ->
           audit_assignment(updated_thread, actor)
-
-          enqueue_notification(:assigned, updated_thread.id,
-            actor_id: actor && actor.id,
-            assignee_id: updated_thread.owner_id
-          )
 
         _result ->
           :ok
@@ -624,11 +605,6 @@ defmodule Atlas.Support do
       |> case do
         {:ok, delivered_message} ->
           audit_reply_delivered(delivered_message.thread, delivered_message)
-
-          enqueue_notification(:reply_delivered, delivered_message.thread_id,
-            message_id: delivered_message.id,
-            actor_id: delivered_message.author_id
-          )
 
           :ok
 
@@ -1058,18 +1034,6 @@ defmodule Atlas.Support do
       target_label: thread.subject,
       metadata: %{"dashboard_path" => "/commercial/support/#{thread.id}", "owner_id" => thread.owner_id}
     })
-  end
-
-  defp enqueue_notification(event, thread_id, opts) do
-    case PostNotification.enqueue(event, thread_id, opts) do
-      {:ok, _job} ->
-        :ok
-
-      {:error, reason} ->
-        Logger.warning(
-          "Could not enqueue #{event} support notification for conversation #{thread_id}: #{inspect(reason)}"
-        )
-    end
   end
 
   defp enqueue_chat_email_verification(thread) do

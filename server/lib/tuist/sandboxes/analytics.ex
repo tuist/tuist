@@ -14,8 +14,9 @@ defmodule Tuist.Sandboxes.Analytics do
   CPU floor and the CPU it used, in `sandbox_usage_events`. Any other
   session counts its vCPUs for as long as it runs, up to its sandbox's first
   metered report, which is where a session that began before metering hands
-  over. Memory (GiB-hours) counts every running session's memory for as
-  long as it runs, bursting or not: it stays reserved on the host.
+  over. Memory (GiB-hours) is max(request, use): every running session's
+  memory for as long as it runs, bursting or not, plus what a metered VM
+  held past its request (`excess_memory_mib_ms` in `sandbox_usage_events`).
 
   Setup and time to start come straight from the durations events carry: a
   `setup` event's is how long an Orb's `.agents/setup` ran, and a
@@ -103,6 +104,7 @@ defmodule Tuist.Sandboxes.Analytics do
       sessions
       |> clip(start_dt, end_dt)
       |> bucket_seconds(buckets, fn session -> session.memory_mb / 1024 end)
+      |> Map.merge(metered.memory_by_bucket.(buckets), fn _index, a, b -> a + b end)
       |> hours(buckets)
 
     %{
@@ -126,7 +128,8 @@ defmodule Tuist.Sandboxes.Analytics do
             sandbox_id: u.sandbox_id,
             hour: fragment("toStartOfHour(?)", u.inserted_at),
             first_at: min(u.inserted_at),
-            billed_cpu_ms: sum(u.billed_cpu_ms)
+            billed_cpu_ms: sum(u.billed_cpu_ms),
+            excess_memory_mib_ms: sum(u.excess_memory_mib_ms)
           }
         )
       )
@@ -136,15 +139,19 @@ defmodule Tuist.Sandboxes.Analytics do
         rows
         |> Enum.group_by(& &1.sandbox_id, &to_utc(&1.first_at))
         |> Map.new(fn {id, ats} -> {id, Enum.min(ats, DateTime)} end),
-      by_bucket: fn buckets ->
-        Enum.reduce(rows, %{}, fn row, acc ->
-          case bucket_index(buckets, to_utc(row.hour)) do
-            nil -> acc
-            index -> Map.update(acc, index, row.billed_cpu_ms / 1000, &(&1 + row.billed_cpu_ms / 1000))
-          end
-        end)
-      end
+      # CPU-seconds and GiB-seconds per bucket, as `bucket_seconds/3` sums.
+      by_bucket: &sum_by_bucket(rows, &1, fn row -> row.billed_cpu_ms / 1000 end),
+      memory_by_bucket: &sum_by_bucket(rows, &1, fn row -> row.excess_memory_mib_ms / (1024 * 1000) end)
     }
+  end
+
+  defp sum_by_bucket(rows, buckets, amount) do
+    Enum.reduce(rows, %{}, fn row, acc ->
+      case bucket_index(buckets, to_utc(row.hour)) do
+        nil -> acc
+        index -> Map.update(acc, index, amount.(row), &(&1 + amount.(row)))
+      end
+    end)
   end
 
   defp until_metered(session, first_metered_at) do

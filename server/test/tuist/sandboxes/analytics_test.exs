@@ -181,6 +181,8 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
         duration_ms: 30_000,
         used_cpu_ms: billed_ms,
         billed_cpu_ms: billed_ms,
+        used_memory_bytes: 0,
+        excess_memory_mib_ms: 0,
         inserted_at: NaiveDateTime.from_iso8601!(at <> ".000000")
       }
     end
@@ -188,7 +190,8 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
     UsageEvent.Buffer.insert_all([
       usage.(legacy, "2026-10-01T12:00:00", 3_600_000),
       usage.(legacy, "2026-10-02T01:00:00", 1_800_000),
-      usage.(bursting, "2026-10-01T15:30:00", 1_440_000),
+      # It also held 4 GiB past its request for an hour.
+      %{usage.(bursting, "2026-10-01T15:30:00", 1_440_000) | excess_memory_mib_ms: 4096 * 3_600_000},
       # Another account's usage is not this one's.
       %{usage.(bursting, "2026-10-01T15:30:00", 3_600_000) | account_id: account.id + 1}
     ])
@@ -197,12 +200,12 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
     # 10:00 to 12:00, and 1 + 0.4 and 0.5 metered CPU-hours.
     # Memory is reserved whether a sandbox bursts or not: the setup's 26
     # GiB-hours, the legacy sandbox's 8 GiB for its 38 hours, and the
-    # bursting one's 8 GiB for 2.
+    # bursting one's 8 GiB for 2 plus the 4 GiB-hours it held past them.
     assert %{
              vcpu_hours: 22.9,
              values: [20.4, 2.5, +0.0],
-             memory_gib_hours: 346.0,
-             memory_values: [150.0, 196.0, +0.0]
+             memory_gib_hours: 350.0,
+             memory_values: [154.0, 196.0, +0.0]
            } =
              Analytics.compute(account.id, start_datetime: @window_start, end_datetime: @window_end)
 

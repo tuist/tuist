@@ -13,9 +13,10 @@
 #    where setup-go installs it, and the source at the job workspace path.
 # 3. The unmodified master is attached to three sandboxes cloned from one
 #    disk snapshot: no cache; the cache at the sandbox user's own paths
-#    (what a sandbox gets today); and at the runner's paths, toolchain and
+#    (mounted and bound by the guest agent's configure, then checked again
+#    after a pause and resume); and at the runner's paths, toolchain and
 #    workspace (what a CI-parity template with the runner's checkout path
-#    would give).
+#    would give, rebound by hand on top of the guest's mount).
 #
 # Scenario outcomes are recorded, not asserted: they are the result.
 # shellcheck disable=SC2016
@@ -177,9 +178,10 @@ build='build() {
   echo "$rc $(( ($(date +%s%N) - start) / 1000000 )) $(grep -c "/compile -o" /tmp/x-$1 || true) $cgo"
 }
 user=$(id -u user)'
-# mount_cache HOME OWNER: mounts /dev/vdc and binds each manifest path under HOME.
+# mount_cache HOME OWNER: binds each manifest path of the guest's cache
+# mount under HOME, for a home other than the sandbox user's.
 mount_cache='mount_cache() {
-  mkdir -p /mnt/tuist-cache && mount -o noatime /dev/vdc /mnt/tuist-cache
+  mountpoint -q /mnt/tuist-cache
   local spelling dir start
   for spelling in "~/go/pkg/mod" "~/.cache/go-build"; do
     dir=$(printf %s "$spelling" | sha256sum | cut -c1-64)
@@ -194,15 +196,28 @@ mount_cache='mount_cache() {
 }'
 
 create '{"id":"cold","template":"default","vcpus":2,"memory_mb":4096,"workspace_gb":1,"from_disk_snapshot":"go-src"}'
-cold=$(guest cold "$build
+cold=$(guest cold "if mountpoint -q /mnt/tuist-cache; then exit 1; fi
+$build
 build \$user /home/user /usr/local/go /home/user/workspace/tuist")
 api POST /v1/sandboxes/cold/delete >/dev/null
 echo "cold: $cold"
 
 create '{"id":"sandboxpaths","template":"default","vcpus":2,"memory_mb":4096,"workspace_gb":1,"from_disk_snapshot":"go-src","cache_image":"runner-master"}'
+# Nothing here mounts: configure did, on create and again on resume.
+guest_mounts='for t in /mnt/tuist-cache /home/user/go/pkg/mod /home/user/.cache/go-build; do findmnt -n -o TARGET,SOURCE,OPTIONS --mountpoint "$t"; done
+stat -c "%n %U:%G" /home/user/go /home/user/go/pkg/mod /home/user/.cache/go-build
+echo "foreign $(find /home/user/go/pkg/mod /home/user/.cache/go-build ! -user user | wc -l)"'
+guest sandboxpaths "$guest_mounts" | tee "$evidence/sandboxpaths-mounts.txt"
+api POST /v1/sandboxes/sandboxpaths/pause --data '{}' > "$evidence/pause-sandboxpaths.json"
+api POST /v1/sandboxes/sandboxpaths/resume --data '{}' > "$evidence/resume-sandboxpaths.json"
+guest sandboxpaths "$guest_mounts" | tee "$evidence/sandboxpaths-resumed.txt"
+for f in sandboxpaths-mounts sandboxpaths-resumed; do
+  grep -q '^/mnt/tuist-cache /dev/vdc .*noatime' "$evidence/$f.txt"
+  [[ $(grep -c '^/home/user/' "$evidence/$f.txt") == 5 ]]
+  grep -qx '/home/user/go user:user' "$evidence/$f.txt"
+  grep -qx 'foreign 0' "$evidence/$f.txt"
+done
 sandbox_paths=$(guest sandboxpaths "$build
-$mount_cache
-mount_cache /home/user user:user
 build \$user /home/user /usr/local/go /home/user/workspace/tuist off")
 api POST /v1/sandboxes/sandboxpaths/delete >/dev/null
 echo "sandbox paths: $sandbox_paths"
@@ -219,16 +234,18 @@ sudo test ! -d "$work/data/jail/firecracker/runnerpaths"
 master_sha_after=$(sudo sha256sum "$master" | cut -d' ' -f1)
 last() { tail -n1 <<< "$1"; }
 chown_of() { awk '$1 == "chown_ms" { print $2 }' <<< "$1"; }
+boot_of() { jq -r .boot_ms "$evidence/create-$1.json"; }
 jq -n \
   --arg job "$(tr '\n' ' ' < "$evidence/job.txt")" --arg master "$(basename "$master")" \
   --arg cold "$(last "$cold")" \
-  --arg sandbox "$(last "$sandbox_paths")" --arg sandbox_chown "$(chown_of "$sandbox_paths")" \
+  --arg cold_boot "$(boot_of cold)" --arg sandbox_boot "$(boot_of sandboxpaths)" \
+  --arg sandbox "$(last "$sandbox_paths")" \
   --arg runner "$(last "$runner_paths")" --arg runner_chown "$(chown_of "$runner_paths")" \
   --arg guest "$(cat "$evidence/guest.txt")" \
   --argjson master_intact "$([[ $master_sha_before == "$master_sha_after" ]] && echo true || echo false)" \
   '{note: "exit ms compiles CGO_ENABLED", runner_image_job: $job, master: $master, guest: $guest,
-    sandbox_without_cache: $cold,
-    sandbox_paths_with_master: {build: $sandbox, chown_ms: $sandbox_chown},
+    sandbox_without_cache: {build: $cold, boot_ms: $cold_boot},
+    sandbox_paths_with_master: {build: $sandbox, boot_ms_including_guest_mount: $sandbox_boot},
     runner_paths_with_master: {build: $runner, chown_ms: $runner_chown},
     master_intact: $master_intact}' | tee "$evidence/runner-master.json"
 jq -e '.master_intact' "$evidence/runner-master.json" >/dev/null

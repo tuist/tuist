@@ -13,6 +13,11 @@ const MIN_REAPI_RESPONSE_BUDGET_BYTES: usize = 8 * 1024 * 1024;
 const MAX_REAPI_RESPONSE_BUDGET_BYTES: usize = 64 * 1024 * 1024;
 const MAX_REAPI_MATERIALIZATION_POOL_BYTES: usize = 128 * 1024 * 1024;
 const MAX_MMAP_SERVING_POOL_BYTES: usize = 512 * 1024 * 1024;
+/// Slice of the floor set aside for write replies. A reply is a few hundred
+/// bytes per item, so this covers thousands of concurrent items. Floors below
+/// `MIN_FLOOR_FOR_WRITE_REPLY_RESERVE_BYTES` keep the whole floor shared.
+const WRITE_REPLY_RESERVE_BYTES: usize = 1024 * 1024;
+const MIN_FLOOR_FOR_WRITE_REPLY_RESERVE_BYTES: usize = 64 * WRITE_REPLY_RESERVE_BYTES;
 const MAX_ENCODED_RESPONSE_STREAM_CHUNK_BYTES: usize =
     RESPONSE_STREAM_CHUNK_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES;
 const MAX_RESPONSE_STREAM_RESERVATION_BYTES: usize = MAX_ENCODED_RESPONSE_STREAM_CHUNK_BYTES * 4;
@@ -29,9 +34,13 @@ pub(super) struct MemoryPools {
     mmap_serving: Arc<Semaphore>,
     transient_capacity_bytes: usize,
     elastic_transient_capacity_bytes: usize,
-    /// Caps how much of the elastic pool borrowed batch-read responses may
-    /// hold at once. The whole elastic pool.
-    read_borrow: Arc<Semaphore>,
+    /// Floor bytes only write replies draw on. A reply is reserved without
+    /// waiting, and a semaphore hands every released permit to its queued
+    /// waiters first, so while a read waits on the shared floor every
+    /// try-only acquisition there fails, however small. Carved out of the
+    /// floor, so it is protected memory like the rest of it.
+    write_reply: Arc<Semaphore>,
+    write_reply_reserve_bytes: usize,
     reapi_materialization_limit_bytes: usize,
     foreground_response_streaming: Arc<Semaphore>,
     elastic_foreground_response_streaming: Arc<Semaphore>,
@@ -68,9 +77,15 @@ impl MemoryPools {
         // it, which keeps the floor-to-ceiling gap for page cache and
         // mmap-served segments instead. Without one, fall back to the
         // ceiling-derived headroom.
-        let transient_capacity_bytes = semaphore_capacity(
+        let floor_bytes = semaphore_capacity(
             anon_budget_bytes.map_or(headroom_bytes, |budget| budget.min(headroom_bytes)),
         );
+        let write_reply_reserve_bytes = if floor_bytes >= MIN_FLOOR_FOR_WRITE_REPLY_RESERVE_BYTES {
+            WRITE_REPLY_RESERVE_BYTES
+        } else {
+            0
+        };
+        let transient_capacity_bytes = floor_bytes - write_reply_reserve_bytes;
         // What the floor clamp above discards, held in its own pool. A caller
         // that opts in may draw on it while pressure is normal, so a burst that
         // outgrows the floor is answered from headroom the ceiling already
@@ -81,9 +96,8 @@ impl MemoryPools {
         // floor is unprotected by `memory.min`, so it must stop being granted
         // before the kernel is left with the OOM killer as its only remedy.
         let elastic_transient_capacity_bytes =
-            semaphore_capacity(headroom_bytes).saturating_sub(transient_capacity_bytes);
-        let reapi_materialization_limit_bytes =
-            reapi_materialization_limit_bytes(transient_capacity_bytes);
+            semaphore_capacity(headroom_bytes).saturating_sub(floor_bytes);
+        let reapi_materialization_limit_bytes = reapi_materialization_limit_bytes(floor_bytes);
         let mmap_serving_bytes = mmap_serving_bytes(headroom_bytes);
         let response_streaming_bytes =
             response_streaming_pool_bytes(runtime_limit_bytes, hard_limit_bytes, headroom_bytes);
@@ -98,7 +112,7 @@ impl MemoryPools {
         // metrics, and enforce it through this exact partition.
         let elastic_foreground_response_streaming_bytes =
             elastic_foreground_response_streaming_bytes(
-                transient_capacity_bytes,
+                floor_bytes,
                 response_streaming_bytes,
                 foreground_response_streaming_bytes,
             );
@@ -133,7 +147,8 @@ impl MemoryPools {
             mmap_serving: Arc::new(Semaphore::new(mmap_serving_bytes)),
             transient_capacity_bytes,
             elastic_transient_capacity_bytes,
-            read_borrow: Arc::new(Semaphore::new(elastic_transient_capacity_bytes)),
+            write_reply: Arc::new(Semaphore::new(write_reply_reserve_bytes)),
+            write_reply_reserve_bytes,
             reapi_materialization_limit_bytes,
             foreground_response_streaming: Arc::new(Semaphore::new(
                 foreground_response_streaming_bytes,
@@ -210,6 +225,22 @@ impl MemoryPools {
             .map_err(|_| ())
     }
 
+    pub(super) fn write_reply_reserve_bytes(&self) -> usize {
+        self.write_reply_reserve_bytes
+    }
+
+    pub(super) fn write_reply_reserved_bytes(&self) -> usize {
+        self.write_reply_reserve_bytes
+            .saturating_sub(self.write_reply.available_permits())
+    }
+
+    pub(super) fn try_acquire_write_reply(&self, permits: u32) -> Result<OwnedSemaphorePermit, ()> {
+        self.write_reply
+            .clone()
+            .try_acquire_many_owned(permits)
+            .map_err(|_| ())
+    }
+
     pub(super) fn elastic_transient_capacity_bytes(&self) -> usize {
         self.elastic_transient_capacity_bytes
     }
@@ -227,19 +258,6 @@ impl MemoryPools {
             .clone()
             .try_acquire_many_owned(permits)
             .map_err(|_| ())
-    }
-
-    pub(super) fn try_acquire_read_borrow(
-        &self,
-        permits: u32,
-    ) -> Result<(OwnedSemaphorePermit, OwnedSemaphorePermit), ()> {
-        let cap = self
-            .read_borrow
-            .clone()
-            .try_acquire_many_owned(permits)
-            .map_err(|_| ())?;
-        let elastic = self.try_acquire_elastic_transient(permits)?;
-        Ok((cap, elastic))
     }
 
     pub(super) fn mmap_serving_bytes(&self) -> usize {

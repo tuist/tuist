@@ -363,6 +363,13 @@ egressTreeAgent:
   # advertise tuist.dev/egress-mbps capacity. 0 = no fallback: such nodes get
   # no tree and their pods stay unshaped on the node-local leg.
   defaultNodeEgressMbps: 0
+  # Ceiling, in Mbit/s, of the one class every tenant shares for traffic to
+  # pods on the node's provider private-network peers (same
+  # tuist.dev/private-network label and route membership). That traffic
+  # leaves on the private link, so it sits beside the public budget rather
+  # than under it and skips the tenants' public ceilings. Size it to the
+  # private link. 0 keeps that traffic in the tenant classes.
+  privateNetworkMbps: 0
   # Kura cache pools to schedule onto, matched as
   # `node.cluster.x-k8s.io/pool In [<nodePools>]` required node affinity —
   # the same pool names the region specs use (server/lib/tuist/kura/regions.ex)
@@ -1267,7 +1274,8 @@ processor:
   # Build archives are unzipped into the pod's /tmp. Scale to match the
   # largest archive plus headroom for CAS metadata. 16 GiB gives ~3 GiB per
   # slot at queueConcurrency = 5, which is enough for any realistic build
-  # archive plus its CAS sidecar files.
+  # archive plus its CAS sidecar files. `Tuist.Processor.BuildProcessor`
+  # rejects archives that extract past that 3 GiB share; raise both together.
   tmpSizeLimit: 16Gi
 
 swiftRegistrySync:
@@ -2820,6 +2828,20 @@ sandboxes:
   # copying the tree into the guest. The images come out of diskGiB. 0 turns
   # them off. See infra/sandboxd/AGENTS.md, "Guest to host: checkout".
   checkoutWorkspacesGiB: 0
+  # With Linux cache volumes on, budget for copies of repositories' CI cache
+  # volumes that new sessions get as their cache drive (`sandbox_runner_cache`
+  # flag), out of diskGiB. 0 turns cache grants off. cacheDriveInTemplate
+  # gives template shapes the drive's placeholder so a fresh session attaches
+  # one without cold booting; enable it only once every node's daemon reads
+  # `cache_placeholder`. See infra/sandboxd/AGENTS.md, "Guest to host: cache
+  # images".
+  cacheImagesGiB: 0
+  cacheDriveInTemplate: false
+  # Experimental: guests boot with a free-page-reporting balloon and return
+  # the memory they free to the host. Changing it rebuilds every shape
+  # snapshot on the node. See infra/sandboxd/AGENTS.md,
+  # BALLOON_FREE_PAGE_REPORTING.
+  balloonFreePageReporting: false
   # Size of the root filesystem every sandbox gets, which holds home (mise
   # toolchains, caches, Amp Desktop's Chrome) beside the separate workspace.
   # The template's init container grows the image to it, sparse, when it
@@ -2855,6 +2877,22 @@ sandboxes:
   admin:
     enabled: false
     port: 9471
+  # Step 2a of seamless daemon restarts: Firecracker runs in a separate vmm
+  # container of the daemon's Pod, the resources above (and the server's
+  # in-place resizes) move to it, and the deploy-varying configuration moves
+  # to a ConfigMap. Behaviour is unchanged: a daemon restart still pauses
+  # every sandbox. Turning it on or off replaces every daemon Pod. See
+  # infra/sandboxd/AGENTS.md, "Process model".
+  vmm:
+    enabled: false
+    # The daemon container's own, fixed resources: the server's 512 MiB
+    # daemon reserve, with room for page cache from archives and restores.
+    daemonResources:
+      requests:
+        cpu: "250m"
+        memory: 512Mi
+      limits:
+        memory: 2Gi
   # Run Firecracker under the jailer (chroot, dedicated uid, seccomp). Only
   # turn off to debug a jailer problem on a staging box.
   jailer: true
@@ -3826,6 +3864,12 @@ registryCache:
     # package registry's content. Region/endpoint come from objectStorage.
     bucket: tuist-registry
     rootDirectory: docker-mirror
+    # Another S3 store instead of objectStorage: its endpoint (the scheme
+    # decides TLS), region, and a Secret holding access-key-id and
+    # secret-access-key. Empty uses objectStorage's.
+    endpoint: ""
+    region: ""
+    existingSecret: ""
   # Empty = registry auto-generates one per pod (fine at replicaCount 1).
   # Set a shared value before scaling past one replica behind the Service.
   httpSecret: ""
@@ -4121,8 +4165,12 @@ clickhouse:
       # Every other day. Sunday is the last day of its ISO week, so it still
       # pairs with Monday's full.
       incrementalSchedule: "0 1 * * 0,2,3,4,5,6"
-      # Under the default object-storage bucket, then the namespace, so
-      # environments sharing a bucket cannot restore over each other.
+      # Bucket the backups go to, reached with the object-storage endpoint and
+      # credentials. Empty uses the default object-storage bucket. A bucket of
+      # their own keeps their retention rules apart from customer artifacts.
+      bucket: ""
+      # Under the bucket, then the namespace, so environments sharing a bucket
+      # cannot restore over each other.
       prefix: clickhouse-backups
       # Twenty hours. Production's weekly full took 9 hours in 2026-W41 and 10
       # in W42, growing with the dataset, and a Job that hits its deadline is

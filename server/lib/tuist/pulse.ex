@@ -74,7 +74,7 @@ defmodule Tuist.Pulse do
   @doc """
   Forwards a Sentry envelope, posted to the API by one of the enrolled
   account's producers (see `available?/1`), to Pulse's Sentry endpoint and
-  returns Pulse's status and body.
+  returns Pulse's status, body and allowlisted rate-limit response headers.
 
   Pulse's endpoint is internal to the cluster, so the server writes as the
   write-only identity in its own `sentry_pulse_dsn` (the one its web
@@ -102,8 +102,17 @@ defmodule Tuist.Pulse do
         )
 
       case Req.request(request) do
-        {:ok, %Req.Response{status: status, body: body}} -> {:ok, status, body}
-        {:error, _reason} -> {:error, :unavailable}
+        {:ok, %Req.Response{status: status, body: body} = response} ->
+          headers =
+            for name <- ["retry-after", "x-sentry-rate-limits"],
+                values = Req.Response.get_header(response, name),
+                values != [],
+                do: {name, Enum.join(values, ", ")}
+
+          {:ok, status, body, headers}
+
+        {:error, _reason} ->
+          {:error, :unavailable}
       end
     end
   end
@@ -633,13 +642,17 @@ defmodule Tuist.Pulse do
     case Req.request(request) do
       {:ok, %Req.Response{body: :too_large}} -> {:error, :query_result_limit}
       {:ok, %Req.Response{status: 200, body: body}} -> decode_body(body)
-      {:ok, %Req.Response{status: status}} when status in [400, 422] -> {:error, :invalid_query}
-      {:ok, %Req.Response{status: 429}} -> {:error, :rate_limited}
-      {:ok, %Req.Response{}} -> {:error, :upstream_error}
+      {:ok, %Req.Response{status: status}} -> {:error, status_error(status)}
       {:error, %Req.TransportError{reason: :timeout}} -> {:error, :timeout}
       {:error, _reason} -> {:error, :unavailable}
     end
   end
+
+  defp status_error(status) when status in [400, 422], do: :invalid_query
+  defp status_error(429), do: :rate_limited
+  # Pulse answers 408 when a query outlives its HTTP timeout; a proxy answers 504.
+  defp status_error(status) when status in [408, 504], do: :timeout
+  defp status_error(_status), do: :upstream_error
 
   defp bounded_body({:data, data}, {request, response}) do
     body = response.body || ""

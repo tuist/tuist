@@ -346,7 +346,7 @@ defmodule Tuist.SandboxesTest do
       assert events(sandbox) == ["paused"]
     end
 
-    test "pause/1 bills the time since the last report from the CPU the node read as it paused" do
+    test "pause/1 bills the time since the last report from the CPU and memory the node read as it paused" do
       # 2 GiB of memory: a guarantee of half a vCPU, 10 s of CPU over 20 s.
       sandbox = sandbox_fixture(state: :running, node_name: "node-a", memory_mb: 2048)
       old_daemon = sandbox_fixture(state: :running, node_name: "node-a")
@@ -357,14 +357,23 @@ defmodule Tuist.SandboxesTest do
 
       stub(Nodes, :call, fn "node-a", "pause", %{sandbox_id: id}, _opts ->
         if id == sandbox.id,
-          do: {:ok, %{"snapshot_ms" => 300, "mem_bytes" => 1024, "cpu_ms" => 30_000}},
+          # 2612 MiB at the pause: 500 MiB past the request and the VMM's 64 MiB.
+          do:
+            {:ok,
+             %{
+               "snapshot_ms" => 300,
+               "mem_bytes" => 1024,
+               "cpu_ms" => 30_000,
+               "memory_anon_bytes" => 2500 * 1024 * 1024,
+               "memory_file_bytes" => 112 * 1024 * 1024
+             }},
           else: {:ok, %{"snapshot_ms" => 300, "mem_bytes" => 1024}}
       end)
 
       assert {:ok, %Sandbox{state: :paused, metered_at: nil}} = Sandboxes.pause(sandbox)
       assert {:ok, %Sandbox{state: :paused}} = Sandboxes.pause(old_daemon)
 
-      assert [%{sandbox_id: sandbox_id, used: 20_000, billed: 20_000, duration_ms: duration_ms}] =
+      assert [%{sandbox_id: sandbox_id, used: 20_000, billed: 20_000, duration_ms: duration_ms, excess: excess}] =
                ClickHouseRepo.all(
                  from(u in UsageEvent,
                    where: u.sandbox_id in ^[sandbox.id, old_daemon.id],
@@ -372,13 +381,15 @@ defmodule Tuist.SandboxesTest do
                      sandbox_id: u.sandbox_id,
                      used: u.used_cpu_ms,
                      billed: u.billed_cpu_ms,
-                     duration_ms: u.duration_ms
+                     duration_ms: u.duration_ms,
+                     excess: u.excess_memory_mib_ms
                    }
                  )
                )
 
       assert sandbox_id == sandbox.id
       assert duration_ms in 20_000..20_500
+      assert excess == 500 * duration_ms
     end
 
     test "pause/1 leaves the sandbox running when the node refuses" do
@@ -794,6 +805,43 @@ defmodule Tuist.SandboxesTest do
         )
 
       assert [%{used: 7_000, billed: 7_000}] = Enum.drop(usage, 5)
+    end
+
+    test "bills a running Linux sandbox the memory its VM held past its request" do
+      # 2 GiB of guest memory and the VMM's 64 MiB: 2112 MiB before any excess.
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", memory_mb: 2048)
+      mib = 1024 * 1024
+
+      report = fn reading, seconds_since_last ->
+        Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id and not is_nil(s.metered_at)),
+          set: [metered_at: DateTime.add(DateTime.utc_now(), -seconds_since_last, :second)]
+        )
+
+        reported = Map.merge(%{"id" => sandbox.id, "state" => "running", "cpu_ms" => 1_000}, reading)
+        assert :ok = Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [reported]})
+      end
+
+      # The first report of a run covers no interval.
+      report.(%{"memory_anon_bytes" => 3000 * mib, "memory_file_bytes" => 112 * mib}, 0)
+      # 3112 MiB held for 30 s: 1000 MiB past the request, anonymous and file pages alike.
+      report.(%{"memory_anon_bytes" => 3000 * mib, "memory_file_bytes" => 112 * mib}, 30)
+      # Under its request it is billed the request alone.
+      report.(%{"memory_anon_bytes" => 1500 * mib, "memory_file_bytes" => 100 * mib}, 30)
+      # A daemon that does not read the VM's memory leaves no excess.
+      report.(%{}, 30)
+
+      rows =
+        ClickHouseRepo.all(
+          from(u in UsageEvent,
+            where: u.sandbox_id == ^sandbox.id,
+            order_by: u.inserted_at,
+            select: %{used: u.used_memory_bytes, excess: u.excess_memory_mib_ms}
+          )
+        )
+
+      assert [3112, 3112, 1600, 0] = Enum.map(rows, &div(&1.used, mib))
+      assert [0, excess, 0, 0] = Enum.map(rows, & &1.excess)
+      assert excess in (1000 * 30_000)..(1000 * 30_100)
     end
 
     test "queues a pause for a running Orb whose guest has been quiet for ten minutes" do
@@ -1306,6 +1354,16 @@ defmodule Tuist.SandboxesTest do
       assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
       assert sandbox.cache_volume_id == cache.volume_id
       assert sandbox.cache_generation == 7
+    end
+
+    test "records the generation the node attached when it lent an older one", %{account: account, cache: cache} do
+      node_info(%{cache_grants: true, cache_drive_in_template: true})
+      stub(VolumeAffinities, :holds_volume?, fn "node-a", _scope -> true end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 170, "cache_generation" => 5}} end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+      assert sandbox.cache_volume_id == cache.volume_id
+      assert sandbox.cache_generation == 5
     end
 
     test "creates without it where the node cannot attach it", %{account: account, cache: cache} do

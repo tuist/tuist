@@ -5,12 +5,15 @@ defmodule Tuist.Tests.CoverageTest do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.CoverageRunFile
+  alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.Workers.PublishCoverageWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -171,6 +174,32 @@ defmodule Tuist.Tests.CoverageTest do
 
       assert tool(test) == {"xcode", "xccov", "27.0"}
       assert build_systems(test) == ["xcode"]
+    end
+
+    test "schedules the commit's fold only once the run's test case runs are written", %{
+      project: project,
+      account: account
+    } do
+      {:ok, test} =
+        create_test(project, account, %{
+          xcode_coverage: coverage([add()]),
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 10,
+              test_cases: [%{name: "testA", test_suite_name: "Suite", status: "success", duration: 5}]
+            }
+          ]
+        })
+
+      written_at =
+        ClickHouseRepo.one(from(r in TestCaseRun, where: r.test_run_id == ^test.id, select: max(r.inserted_at)))
+
+      assert [job] = all_enqueued(worker: CommitWorker)
+      delay = div(Environment.clickhouse_flush_interval_ms(), 1000) + 5
+      enqueued_at = job.scheduled_at |> DateTime.add(-delay, :second) |> DateTime.to_naive()
+      assert NaiveDateTime.compare(enqueued_at, written_at) != :lt
     end
 
     test "schedules a Mix run's uploaded coverage with the tool that measured it", %{

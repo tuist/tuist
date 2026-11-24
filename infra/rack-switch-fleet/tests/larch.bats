@@ -250,6 +250,26 @@ larch_ready() {
     [[ "$output" != *"larch-runner-b01"* ]]
 }
 
+@test "a preinstalled storage node still to come is ready only when it will install beside its installer" {
+    # larch-store-a was declared with bootMAC, never announced its product,
+    # and its install put / on the 12.8 TB data drive instead of the M.2.
+    site="$(larch_with '.nodes += [{name: "larch-store-x", role: "storage", hardware: "rs521a-e12", status: "planned",
+        feeds: ["feed-a", "feed-b"], links: [{switch: "larch-tor-b", port: null, media: "dac", nic: "n225p-1", purpose: "data"}]}]')"
+    run fleet_check_ready "$site"
+    [ "$status" -eq 0 ]
+
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    yq '.rackLinuxFleet.hosts += [{"uuid": "00000000-0000-0000-0000-000000000001", "hostname": "larch-store-x", "role": "storage",
+            "site": "larch", "bootMAC": "34:d8:68:00:00:01"}]
+        | .rackLinuxFleet.preinstall.products = ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U"]' "$FLEET_RACK_VALUES" > "$values"
+    run fleet_check_ready "$site" "$values"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"larch-store-x: rackLinuxFleet.preinstall.products does not list ASUSTeK COMPUTER INC. RS521A-E12-RS24U"* ]]
+    [[ "$output" == *"larch-store-x is declared with bootMAC"* ]]
+    # an installed host is past its install, whatever it was declared with
+    [[ "$output" != *"larch-store-a"* ]]
+}
+
 @test "a site's first edge without its TPM check code is not ready" {
     values="$BATS_TEST_TMPDIR/values.yaml"
     yq 'del(.rackLinuxFleet.hosts[] | select(.hostname == "larch-edge-a") | .tpmCheckCode)' "$FLEET_RACK_VALUES" > "$values"

@@ -266,10 +266,7 @@ defmodule Tuist.Sandboxes.Capacity do
           # resume; move them, the ones just paused included, to storage.
           if ci_reclaim?(node_name), do: Archives.move_off_node(node_name)
 
-          case keep_warm(node, pressure) || shrink(node, pressure) do
-            {:error, reason} -> {:error, reason}
-            _ -> :ok
-          end
+          reconcile_result(keep_warm(node, pressure) || shrink(node, pressure))
         else
           :ok
         end
@@ -278,6 +275,12 @@ defmodule Tuist.Sandboxes.Capacity do
         :ok
     end
   end
+
+  # :superseded means another growth or shrink rewrote the size asked for
+  # while this one reclaimed; that writer resizes the Pod itself.
+  defp reconcile_result({:error, :superseded}), do: :ok
+  defp reconcile_result({:error, reason}), do: {:error, reason}
+  defp reconcile_result(_resized_or_unchanged), do: :ok
 
   # A remote execution worker's share of the compute allocator's floor
   # (`allocation_warm_bytes`): its carve-out grows to it ahead of any
@@ -1358,9 +1361,9 @@ defmodule Tuist.Sandboxes.Capacity do
 
   defp resize_status(pod_name, limit) do
     case KubernetesClient.get_pod(Environment.sandboxes_namespace(), pod_name) do
-      {:ok, %{"status" => status}} when is_map(status) ->
+      {:ok, %{"status" => status} = pod} when is_map(status) ->
         cond do
-          applied_memory(status) >= limit -> :applied
+          applied_memory(status, KubernetesClient.sandbox_vm_container(pod)) >= limit -> :applied
           resize_deferred?(status) -> :deferred
           true -> :waiting
         end
@@ -1370,10 +1373,10 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  defp applied_memory(status) do
+  defp applied_memory(status, container) do
     status
     |> Map.get("containerStatuses", [])
-    |> Enum.find(%{}, &(&1["name"] == "sandboxd"))
+    |> Enum.find(%{}, &(&1["name"] == container))
     |> get_in(["resources", "limits", "memory"])
     |> memory_quantity()
   end

@@ -14,6 +14,7 @@ defmodule Tuist.Processor.BuildProcessor do
   """
 
   alias Tuist.Processor.XCActivityLogParser
+  alias Tuist.Processor.ZipExtractor
 
   require Logger
 
@@ -25,7 +26,16 @@ defmodule Tuist.Processor.BuildProcessor do
   # highly compressed archive could otherwise exhaust the processor's memory.
   @max_machine_metrics_bytes 32 * 1024 * 1024
 
-  # Reasons `:zip.unzip/2` returns when the archive itself is malformed, taken
+  # An archive holds one activity log, the CAS analytics database, a log tail
+  # and the machine metrics, or a legacy `cas_metadata` directory of small
+  # files. Build processors unzip into a 16 GiB /tmp shared by five slots, sized
+  # at about 3 GiB for any realistic archive (`infra/helm/tuist/values.yaml`),
+  # so one slot's share is the limit: concurrent zip bombs cannot fill the disk.
+  # Raise it together with `tmpSizeLimit`.
+  @max_extracted_bytes 3 * 1024 * 1024 * 1024
+  @max_extracted_entries 100_000
+
+  # Reasons the extraction returns when the archive itself is malformed, taken
   # from the atoms `stdlib`'s `zip.erl` actually throws. The download layer
   # guarantees the object was fully written before we open it, so these are
   # customer-side bad uploads (truncated by the client, wrong bytes, or
@@ -53,9 +63,12 @@ defmodule Tuist.Processor.BuildProcessor do
   end
 
   defp process_zip(zip_path, temp_dir, xcode_cache_upload_enabled, consume) do
-    case :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}]) do
-      {:ok, _} ->
+    case ZipExtractor.extract(zip_path, temp_dir, max_bytes: @max_extracted_bytes, max_entries: @max_extracted_entries) do
+      :ok ->
         process_extracted_build(temp_dir, xcode_cache_upload_enabled, consume)
+
+      {:error, :archive_too_large} = error ->
+        error
 
       {:error, reason} when reason in @corrupt_archive_zip_reasons ->
         {:error, :corrupt_archive}
@@ -69,6 +82,9 @@ defmodule Tuist.Processor.BuildProcessor do
         {:error, :corrupt_archive}
 
       {:error, {_file, :bad_crc}} ->
+        {:error, :corrupt_archive}
+
+      {:error, {:unsafe_entry_name, _}} ->
         {:error, :corrupt_archive}
 
       {:error, _} = error ->

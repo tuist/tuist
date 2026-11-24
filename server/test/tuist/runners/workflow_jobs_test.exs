@@ -506,6 +506,27 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert row.conclusion == "success"
     end
 
+    test "stores workflow, job, and branch names longer than 255 characters" do
+      # GitHub sends the run name as `workflow_name`; one built from a pull
+      # request title and commit message can run to hundreds of characters.
+      account = account_fixture()
+      workflow_name = "Merge queue: " <> String.duplicate("Describe the change in detail. ", 15)
+      job_name = String.duplicate("Test Shard ", 30)
+      head_branch = "gh-readonly-queue/main/" <> String.duplicate("a", 300)
+
+      attrs =
+        account
+        |> attrs(910_099)
+        |> Map.merge(%{workflow_name: workflow_name, job_name: job_name, head_branch: head_branch})
+
+      assert :ok = WorkflowJobs.record_completed(attrs, "skipped", DateTime.utc_now())
+
+      row = get_row!(910_099)
+      assert row.workflow_name == workflow_name
+      assert row.job_name == job_name
+      assert row.head_branch == head_branch
+    end
+
     test "maps a cancelled conclusion to the cancelled status" do
       account = account_fixture()
 

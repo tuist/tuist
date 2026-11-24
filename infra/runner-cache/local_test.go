@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -685,18 +686,45 @@ func TestLocalCloneMasterForSandboxes(t *testing.T) {
 	saved.ImageDigest = strings.Repeat("c", 40)
 	saved.ContentDigest = strings.Repeat("b", 64)
 	dst := filepath.Join(b.Root, "sandbox.img")
-	if err := b.CloneMaster(context.Background(), saved, dst); !errors.Is(err, ErrNoMaster) || remote.downloads != 0 {
+	if _, _, err := b.CloneMaster(context.Background(), saved, dst, nil); !errors.Is(err, ErrNoMaster) || remote.downloads != 0 {
 		t.Fatalf("a host without the master answered %v after %d downloads", err, remote.downloads)
 	}
 	unsaved := saved
 	unsaved.ImageDigest = ""
-	if err := b.CloneMaster(context.Background(), unsaved, dst); !errors.Is(err, ErrInvalidMaster) {
+	if _, _, err := b.CloneMaster(context.Background(), unsaved, dst, nil); !errors.Is(err, ErrInvalidMaster) {
 		t.Fatalf("an identity without a saved head answered %v", err)
 	}
-	master := b.master(Slot{Identity: saved})
-	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
-		t.Fatal(err)
+
+	// A host that kept an older master of the lineage, as prefetch does
+	// between refreshes, lends the newest of those and says which.
+	for generation, contents := range map[int64]string{1: "first contents", 2: "second contents", 5: "newer contents"} {
+		older := saved
+		older.BaseGeneration, older.ContentDigest = generation, strings.Repeat(strconv.FormatInt(generation, 10), 64)
+		path := b.master(Slot{Identity: older})
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
+	generation, cloned, err := b.CloneMaster(context.Background(), saved, dst, nil)
+	if err != nil || generation != 2 || !cloned || remote.downloads != 0 {
+		t.Fatalf("a host with older masters lent generation %d (cloned %v, %v)", generation, cloned, err)
+	}
+	if data, _ := os.ReadFile(dst); string(data) != "second contents" {
+		t.Fatalf("the clone of the older master holds %q", data)
+	}
+	_ = os.Remove(dst)
+	generation, cloned, err = b.CloneMaster(context.Background(), saved, dst, func(g int64) bool { return g == 2 })
+	if err != nil || generation != 2 || cloned {
+		t.Fatalf("a caller holding generation 2 got %d (cloned %v, %v)", generation, cloned, err)
+	}
+	if _, err := os.Stat(dst); !os.IsNotExist(err) {
+		t.Fatal("a held generation must not be cloned")
+	}
+
+	master := b.master(Slot{Identity: saved})
 	if err := os.WriteFile(master, []byte("saved contents"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -707,8 +735,8 @@ func TestLocalCloneMasterForSandboxes(t *testing.T) {
 	if err := os.Chtimes(master, old, old); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.CloneMaster(context.Background(), saved, dst); err != nil {
-		t.Fatal(err)
+	if generation, cloned, err := b.CloneMaster(context.Background(), saved, dst, func(g int64) bool { return g == 2 }); err != nil || generation != 3 || !cloned {
+		t.Fatalf("the head's master lent generation %d (cloned %v, %v)", generation, cloned, err)
 	}
 	if data, _ := os.ReadFile(dst); string(data) != "saved contents" {
 		t.Fatalf("the clone holds %q", data)

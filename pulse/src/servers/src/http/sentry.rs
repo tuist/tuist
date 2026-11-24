@@ -972,7 +972,7 @@ impl TransactionSpan<'_> {
 // Release health.
 // <https://develop.sentry.dev/sdk/telemetry/sessions/>
 
-/// A row of the `sessions` table: one session's latest state, or one
+/// A row of the `sessions` table: one session update, or one
 /// pre-aggregated group of sessions. The counts split `sessions` by outcome,
 /// so the healthy ones are `sessions - errored - crashed - abnormal -
 /// unhandled`.
@@ -982,9 +982,12 @@ struct SessionRow {
     started: i64,
     release: String,
     environment: String,
-    /// The session's `sid`, so its updates replace one another. Aggregates
+    /// The session's `sid`, so readers group its updates. Aggregates
     /// get a unique `aggregate-<uuid>`, so they add up.
     session_id: String,
+    /// Logical order, independent of ingestion order or frontend replica.
+    seq: u64,
+    updated: i64,
     /// The SDK's distinct ID (user or device), hashed.
     distinct_id: Option<String>,
     status: Option<String>,
@@ -998,7 +1001,7 @@ struct SessionRow {
     unhandled: i64,
 }
 
-const SESSION_COLUMNS: [(&str, ColumnDataType, SemanticType); 14] = [
+const SESSION_COLUMNS: [(&str, ColumnDataType, SemanticType); 16] = [
     (
         "started",
         ColumnDataType::TimestampMillisecond,
@@ -1017,6 +1020,12 @@ const SESSION_COLUMNS: [(&str, ColumnDataType, SemanticType); 14] = [
     ("crashed", ColumnDataType::Int64, SemanticType::Field),
     ("abnormal", ColumnDataType::Int64, SemanticType::Field),
     ("unhandled", ColumnDataType::Int64, SemanticType::Field),
+    ("seq", ColumnDataType::Uint64, SemanticType::Field),
+    (
+        "updated",
+        ColumnDataType::TimestampNanosecond,
+        SemanticType::Field,
+    ),
 ];
 
 /// The session attributes every row carries. Sentry drops sessions without a
@@ -1038,6 +1047,21 @@ fn distinct_id(payload: &Map<String, JsonValue>) -> Option<String> {
 fn session_row(session: &Map<String, JsonValue>) -> Option<SessionRow> {
     let (release, environment) = session_attributes(session)?;
     let started = timestamp_nanos(session.get("started")?)? / 1_000_000;
+    let received = chrono::Utc::now();
+    let updated = match session.get("timestamp") {
+        Some(timestamp) => timestamp_nanos(timestamp)?,
+        None => received.timestamp_nanos_opt()?,
+    };
+    // Sentry defines init as sequence zero, even if the SDK sends a seq.
+    // An omitted sequence defaults to receipt time in Unix milliseconds.
+    let seq = if session.get("init").and_then(JsonValue::as_bool) == Some(true) {
+        0
+    } else {
+        match session.get("seq") {
+            Some(seq) => seq.as_u64()?,
+            None => received.timestamp_millis() as u64,
+        }
+    };
     let status = str_field(session, "status").unwrap_or("ok");
     let errors = session
         .get("errors")
@@ -1051,6 +1075,8 @@ fn session_row(session: &Map<String, JsonValue>) -> Option<SessionRow> {
     };
     Some(SessionRow {
         started,
+        seq,
+        updated,
         release,
         environment,
         // Only a session whose first update is its last may leave out `sid`.
@@ -1101,6 +1127,8 @@ fn aggregate_rows(payload: &Map<String, JsonValue>) -> Vec<SessionRow> {
                 .saturating_add(unhandled);
             (sessions > 0).then(|| SessionRow {
                 started,
+                seq: 0,
+                updated: started * 1_000_000,
                 release: release.clone(),
                 environment: environment.clone(),
                 session_id: format!("aggregate-{}", uuid::Uuid::new_v4()),
@@ -1147,6 +1175,12 @@ fn sessions_request(service: &str, sessions: Vec<SessionRow>) -> RowInsertReques
                 int(Some(session.crashed)),
                 int(Some(session.abnormal)),
                 int(Some(session.unhandled)),
+                PulseValue {
+                    value_data: Some(ValueData::U64Value(session.seq)),
+                },
+                PulseValue {
+                    value_data: Some(ValueData::TimestampNanosecondValue(session.updated)),
+                },
             ],
         })
         .collect();
@@ -1532,6 +1566,14 @@ mod tests {
         );
         let mut rows = parse_envelope(body.as_bytes()).unwrap().sessions;
         assert_eq!(rows.len(), 4);
+        assert_eq!(rows[0].seq, 0);
+        assert_eq!(rows[0].updated, 1_795_247_462_214_534_000);
+        assert!(rows[1].seq > 0);
+        assert!(rows[1].updated > 0);
+        for row in &mut rows {
+            row.seq = 0;
+            row.updated = 0;
+        }
         for row in &mut rows[2..] {
             assert!(row.session_id.starts_with("aggregate-"), "{row:?}");
             row.session_id = "aggregate".to_string();
@@ -1539,6 +1581,8 @@ mod tests {
         let started = 1_795_247_462_212;
         let session = |status: &str, errors| SessionRow {
             started,
+            seq: 0,
+            updated: 0,
             release: "shop@2.4.1".to_string(),
             environment: "staging".to_string(),
             session_id: "c7f87317-a5a0-4940-8d2c-e011f8c7794e".to_string(),

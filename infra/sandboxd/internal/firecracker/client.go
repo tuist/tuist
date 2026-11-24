@@ -96,7 +96,18 @@ type Balloon struct {
 	AmountMiB             int  `json:"amount_mib"`
 	DeflateOnOOM          bool `json:"deflate_on_oom"`
 	StatsPollingIntervalS int  `json:"stats_polling_interval_s"`
+	// FreePageReporting makes the guest report the free memory its buddy
+	// allocator gathers, which Firecracker drops from the host
+	// (MADV_DONTNEED; a uffd backend gets remove messages). It can only be
+	// set before boot, and a snapshot keeps it.
+	FreePageReporting bool `json:"free_page_reporting,omitempty"`
 }
+
+// ReportingBalloon is the balloon sandboxes boot with when the daemon
+// returns guests' free memory to the host: never inflated, so it only
+// reports free pages, with statistics every second for measuring how much
+// comes back.
+var ReportingBalloon = Balloon{DeflateOnOOM: true, StatsPollingIntervalS: 1, FreePageReporting: true}
 
 type Logger struct {
 	LogPath       string `json:"log_path"`

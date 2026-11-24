@@ -10,13 +10,13 @@ node only covers what is inside the VM and how the template reaches a node.
 | Path | What |
 |---|---|
 | `cmd/sbx-init` | PID 1. Mounts proc, sysfs, devtmpfs, devpts, /dev/shm, /run, /tmp and cgroup2; names the guest from the kernel command line; configures `lo` and `eth0` (`10.0.0.2/30`, default route `10.0.0.1`, MAC left to the VMM) with netlink; writes `/etc/resolv.conf`, `/etc/hostname` and `/etc/hosts`; creates `/workspace` and `/mnt/memory`; supervises `sbx-agent` with 1s to 30s backoff; reaps orphans; powers off on SIGTERM (and on SIGINT, which is what Firecracker's ctrl-alt-del becomes). Logs to the console and `/dev/kmsg`. Linux-only; the non-Linux build is a stub. |
-| `cmd/sbx-agent` | vsock server on port 5000. `-listen tcp://127.0.0.1:5000` runs it on a TCP socket for development. |
+| `cmd/sbx-agent` | vsock server on port 5000. `-listen tcp://127.0.0.1:5000` runs it on a TCP socket for development. When the guest has a virtio balloon (sandboxd's `BALLOON_FREE_PAGE_REPORTING`), it also checks every 30 s and, after two intervals with the guest's CPU under 5% busy, writes the page cache above 64 MiB to the root cgroup's `memory.reclaim` (`internal/guest/reclaim.go`); free page reporting then hands those pages back to the host. Without a balloon it never reclaims. |
 | `cmd/sbx-worker` | Runs one already-claimed Managed Agents work item with the Anthropic Go SDK's `EnvironmentWorker.HandleItem`, or, with `SBX_CLAUDE_CODE_WORK_ORDER`, one Claude Code session's `claude self-hosted-runner` (see `infra/claude-code-runners/README.md`). Started by that runner with `CLAUDE_RUNNER_CLAUDE_BIN`, it is the session wrapper: it adds `TUIST_OIDC_TOKEN` and execs Claude Code, keeping stdin and fd 3. It must stay root-owned in the guest so sessions cannot change it. With `SBX_CHECKOUT_PATH` and `SBX_CHECKOUT_COMMIT` (`checkout.go`), it copies the host's checkout master to the runner's clone before the runner starts (macOS: the image in `SBX_CHECKOUT_SHARE`; Linux: a tar over vsock port `SBX_CHECKOUT_VSOCK`, accepted only with its end-of-archive blocks) and exports that commit's objects in CI's export format after the runner exits. A repository already at the path that holds `.git/sbx-checkout-prepared.json` came from the host's prepared workspace: the worker moves that marker to its export state instead of seeding. A failed checkout only costs the clone; it never stops the session. |
 | `cmd/sbx-macos` | Darwin-only stdin bridge for Tart guest execution and managed workers. Process-group fencing tests must run on macOS; the provider image workflow gates publication on that suite. |
 | `internal/protocol` | Request and response frames, newline-delimited JSON. |
 | `internal/exec` | Command registry: process groups, streamed stdout/stderr, timeouts (exit 124), kill by exec id. |
 | `internal/agent` | Op dispatch behind a `System` interface, tested over `net.Pipe`. |
-| `internal/guest` | The Linux implementation of `System`: `clock_settime`, `sethostname`, neighbour flush, workspace disk. Stubs elsewhere. |
+| `internal/guest` | The Linux implementation of `System`: `clock_settime`, `sethostname`, neighbour flush, workspace disk, cache drive. Stubs elsewhere. |
 | `internal/sysconfig` | Rendering of the hostname, hosts and resolver files and kernel command line parsing. |
 | `Dockerfile`, `install-template.sh` | Template image and its entrypoint. |
 | `agent-home` | The skill installed into `user`'s home. |
@@ -70,6 +70,22 @@ accepts sandbox identity tokens at `/mcp` for anyone who adds it themselves.
   it alone. The flush is there because the block layer may still hold zero
   sectors it cached from the empty template disk before the sandbox's own disk
   file was substituted under the same device.
+- `/dev/vdc`, when sandboxd attaches one, is a private clone of a runner-cache
+  volume (or, in a template snapshot built with `CACHE_DRIVE_IN_TEMPLATE`, a
+  blank 1 MiB placeholder). After the workspace, `configure` runs `BLKFLSBUF`
+  on it and, when it holds ext4 and nothing is mounted at `/mnt/tuist-cache`,
+  mounts it there read-write with `noatime`. Each `~/` spelling of its
+  `.tuist-paths` manifest (tuist-cache-volume's layout: `data` or the
+  spelling's sha256) is bound at that path under `user`'s home, with the
+  missing directories created and the subtree handed to `user`. Absolute and
+  home-escaping spellings are skipped, and so is a symlinked path component.
+  Relative spellings (`server/deps`) are relative to the CI job's checkout:
+  `sbx-worker` binds them into the session's checkout after seeding it
+  (`BindCheckoutCache`), only where the checkout has nothing or an empty
+  directory at that path, so a repository snapshot's own deps win.
+  `validate-checkout-cache.sh` in sandboxd proves it on KVM.
+  A cache problem is logged and never fails `configure`; a resume finds the
+  mount in place and does nothing, and a cold reboot mounts it again.
 - `sbx-agent` listens on vsock port 5000, one request per connection. The
   frames are the ones in `infra/sandboxd/AGENTS.md` plus the optional boolean
   `format_workspace` on `configure`. `exec` runs as root with `/workspace` as the

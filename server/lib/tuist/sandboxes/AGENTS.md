@@ -153,7 +153,13 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   server adopts from a report bills it from the `cpu_ms` the paused sandbox
   reports (once: the row is no longer running afterwards). A pause from an
   older daemon, a VM the daemon lost, or one `settle_running` adopts from a
-  failed exec leaves it unbilled. `cpu_ms` counts the vCPU threads only. `Analytics.compute/2` sums those rows
+  failed exec leaves it unbilled. `cpu_ms` counts the vCPU threads only. Memory is billed max(request, use): each running session's request
+  from its lifecycle events, plus `excess_memory_mib_ms` on each usage row,
+  what the VM's process held (`memory_anon_bytes` + `memory_file_bytes`,
+  its Pss) past `Capacity.charge_bytes/1` over the interval; a pause bills
+  its last interval from the readings in the pause result. Never meter
+  `memory_current_bytes`: on staging most of it was the clean page cache of
+  the template's or the VM's own memory file. `Analytics.compute/2` sums those rows
   for bursting sessions and counts other sessions' vCPUs (macOS, and Linux
   runs from before metering, up to their first metered report).
   `Concurrency` counts guarantees. The API's analytics report guaranteed
@@ -426,6 +432,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   account's projects is connected to; `mac_source/3`): the Mac boots from the
   repository's darwin snapshot of its Xcode template and workspace size, else
   bare with a build requested (`request_mac_build/1`, the default macOS shape).
+  Such a Mac records the repository (`sandboxes.repository`): the Macs
+  created for it on the snapshot's template in 24 hours, except creates that
+  failed (`error`), are the snapshot's spawns, which make it popular and so copied out like an Orb snapshot (the
+  environment's Linux sessions count only for its Linux snapshots).
   Such a build clones to `$HOME/work/<name>`, `tuist sandbox sync`'s default
   (the name in the worktree's `origin` URL, so a local directory of another
   name lands there too):
@@ -442,7 +452,23 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   host macro plugins, so after any cold boot, a snapshot boot included, the
   macro plugins relink and their dependents rebuild (about 55 s of 140 s for
   the Tuist app); the rest stays warm. A stable mount path in the image would
-  remove it. `ClaudeCodeRunners` creates a session's sandbox
+  remove it. A Mac build's command starts as `:snapshot_build`, so its
+  script gets a `TUIST_OIDC_TOKEN` with read access to the account's cache
+  that exchanges only while the build runs (`CommandCredentials`): an
+  unauthenticated `tuist generate` skips the cache setup and writes other
+  build settings than a session's, and the session's first build then
+  recompiled everything (measured, 2026-11). After the script the build
+  deletes the CLI's stored session (`~/.config/tuist/credentials`) and the
+  simulator devices and stops the simulator services, since runtimes mount
+  at new paths on each boot and a Mac restored with the builder's devices
+  and simulator state lost its iOS runtime. Before that it waits up to five
+  minutes for the compilation cache's `tuist-spool` to drain, stops the
+  cache proxy and build service, and deletes `CompilationCache.noindex` if
+  publications are still owed: a copied store whose spool owed some failed
+  session compiles with "not a IncludeFileList node kind" (see
+  `cas-plugin/AGENTS.md`). The build ends with `sync`. The snapshot's key hashes the
+  build script with the macOS setup script, so changing either rebuilds it.
+  `ClaudeCodeRunners` creates a session's sandbox
   from the repository's snapshot; a new session without one starts on the
   template and, after its worker started, requests a build. Nothing runs
   in a session's sandbox before its runner, so the spawn lease never limits

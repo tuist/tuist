@@ -1521,7 +1521,7 @@ fn artifact_kind_for_usage(producer: ArtifactProducer) -> &'static str {
 
 fn artifact_request(target: &str, tenant_id: &str) -> Option<ArtifactRequest> {
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
-    let params = parse_query_map(query);
+    let params = parse_query_map(query)?;
     if let Some(hash) = one_segment_after(path, "/v1/cache/") {
         return Some(ArtifactRequest {
             producer: ArtifactProducer::Nx,
@@ -1656,15 +1656,28 @@ fn param_with_aliases<'a>(
         .filter(|value| !value.is_empty())
 }
 
-fn parse_query_map(query: &str) -> BTreeMap<String, String> {
-    query
-        .split('&')
-        .filter(|pair| !pair.is_empty())
-        .map(|pair| match pair.split_once('=') {
-            Some((key, value)) => (key.to_owned(), value.to_owned()),
-            None => (pair.to_owned(), String::new()),
-        })
-        .collect()
+/// Decodes the query as the router's `Query` extractor and authorization do,
+/// and declines (leaving the request to the router, which refuses it) a query
+/// that names the tenant, namespace or upload more than once, so both paths
+/// answer the same request the same way.
+fn parse_query_map(query: &str) -> Option<BTreeMap<String, String>> {
+    let mut params = BTreeMap::new();
+    let mut seen_targets = [false; 3];
+    for (key, value) in form_urlencoded::parse(query.as_bytes()) {
+        let target = match key.as_ref() {
+            "tenant_id" | "account_handle" => Some(0),
+            "namespace_id" | "project_handle" => Some(1),
+            "upload_id" => Some(2),
+            _ => None,
+        };
+        if let Some(target) = target
+            && std::mem::replace(&mut seen_targets[target], true)
+        {
+            return None;
+        }
+        params.insert(key.into_owned(), value.into_owned());
+    }
+    Some(params)
 }
 
 async fn write_response(
@@ -2861,6 +2874,34 @@ mod tests {
         );
         cache_drop.observe_progress(&file, &memory, size, false);
         assert_eq!(cache_drop.advised_bytes, size - cache_drop.page_bytes);
+    }
+
+    #[test]
+    fn decodes_the_query_like_the_router_and_declines_repeated_targets() {
+        let request = artifact_request(
+            "/api/cache/cas/hash?account%5Fhandle=ac%6De&project_handle=app%2Da",
+            "acme",
+        )
+        .expect("request should parse");
+        assert_eq!(request.tenant_id, "acme");
+        assert_eq!(request.namespace_id, "app-a");
+
+        for query in [
+            "tenant_id=acme&namespace_id=app-a&namespace_id=app-a",
+            "tenant_id=acme&namespace_id=app-a&namespace%5Fid=app-b",
+            "tenant_id=acme&namespace_id=app-a&project_handle=app-b",
+            "tenant_id=acme&account_handle=acme&namespace_id=app-a",
+            "tenant_id=acme&namespace_id=app-a&upload_id=a&upload_id=b",
+        ] {
+            assert!(
+                artifact_request(&format!("/api/cache/cas/hash?{query}"), "acme").is_none(),
+                "{query}"
+            );
+            assert!(
+                artifact_request(&format!("/v1/cache/hash?{query}"), "acme").is_none(),
+                "{query}"
+            );
+        }
     }
 
     #[test]

@@ -73,6 +73,14 @@ main chart reads it with `server.externalSecrets.shardStorage.publicSecret` into
 public ID never replaces a runner-local one. Accounts still need the public
 shard storage flag, and the server skips the target while it does not answer.
 
+`dockerMirror.bucket` adds a bucket for the main chart's Docker Hub
+pull-through cache (`registryCache`), capped by a `maxGB` quota and reachable
+only in-cluster. The setup CronJob creates it with its own user, which can
+reach only that bucket, and `target.yaml` copies that user's keys into Secret
+`<release>-docker-mirror` in `serverNamespace`. Point `registryCache` at it only
+once that Secret exists and the hourly setup has created the user: the main
+release waits on the cache pod and rolls back if its Secret is missing.
+
 Public requests enter through the host-network `kura-eu-west` controller on
 the EU-West Kura nodes and cross the vRack to the gateway, so
 `ingress.hostNetworkController` adds a Cilium rule admitting node identities

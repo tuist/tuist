@@ -1,11 +1,7 @@
 defmodule Atlas.SupportInbox.Workers.ClassifyInbound do
   @moduledoc """
   Runs the inbound-email classifier for a freshly ingested support
-  message, persists the decision onto the thread, and enqueues the
-  Slack notification. This is the first step of the inbound
-  pipeline; `Atlas.Support.Workers.PostNotification` remains
-  responsible for the actual Slack post and reads the persisted
-  classification off the thread.
+  message and persists the decision onto the thread.
   """
 
   use Oban.Worker,

@@ -305,11 +305,13 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   # The figure without its files and carry plan, and the targets it carried
-  # by hash.
+  # by hash, with the skipped targets that hold no tests (`empty: true`).
   defp split_carried_targets(nil), do: {nil, []}
 
   defp split_carried_targets(reported) do
-    {Map.drop(reported, [:files, :carry]), (reported.carry && reported.carry.targets) || []}
+    carried = (reported.carry && reported.carry.targets) || []
+    empty = reported |> Map.get(:empty_targets, []) |> Enum.map(&Map.put(&1, :empty, true))
+    {Map.drop(reported, [:files, :carry, :empty_targets]), carried ++ empty}
   end
 
   # Where a carried commit's clean runs name its repository and build system.

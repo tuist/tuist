@@ -410,6 +410,19 @@ defmodule Tuist.Docs.Sidebar do
               %Item{label: "Rust", slug: "/en/guides/features/test-sharding/rust", icon: "brand_rust"},
               %Item{label: "Struo", slug: "/en/guides/features/test-sharding/struo", icon: "brand_once"}
             ]
+          },
+          %Item{
+            label: "Snapshots",
+            slug: "/en/guides/features/snapshots",
+            items: [
+              %Item{label: "Xcode", slug: "/en/guides/features/snapshots/xcode", icon: "brand_apple"},
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/snapshots/generated-xcode-project",
+                icon: "brand_apple"
+              },
+              %Item{label: "Gradle", slug: "/en/guides/features/snapshots/gradle", icon: "brand_gradle"}
+            ]
           }
         ]
       },

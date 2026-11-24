@@ -25,6 +25,13 @@ defmodule Tuist.Sandboxes.Workers.PauseIdleOrbWorker do
       {:error, :locked} ->
         :ok
 
+      # The node's socket went away (a daemon restart pauses or loses its
+      # VMs); its next report settles the Orb's state and, if it still runs
+      # quiet, enqueues this pause again.
+      {:error, reason} when reason in [:node_disconnected, :not_connected] ->
+        Logger.info("sandboxes: idle Orb pause interrupted by its node", sandbox_id: sandbox_id, reason: reason)
+        :ok
+
       {:error, reason} ->
         Logger.warning("sandboxes: idle Orb pause failed", sandbox_id: sandbox_id, reason: inspect(reason))
         {:error, reason}

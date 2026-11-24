@@ -39,7 +39,13 @@ func (c *CustomVolumes) PrefetchMaster(identity cachevolumes.Identity, reason st
 	if reason != prefetchPrewarm {
 		reason = prefetchRecent
 	}
-	return c.prefetch.Load().queue(identity, false, reason) != nil
+	prefetch := c.prefetch.Load()
+	// An older copy of the lineage is held: a job mounts it and asks for its
+	// HEAD itself, so the listing does not download every generation beside it.
+	if prefetch != nil && c.images != nil && c.images.HoldsLineage(identity) {
+		return true
+	}
+	return prefetch.queue(identity, false, reason) != nil
 }
 
 // Why a master was prefetched, the label of the prefetched-bytes metric.

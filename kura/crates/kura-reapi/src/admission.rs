@@ -245,7 +245,7 @@ impl GrpcWriteAdmission {
             .file_cache
             .try_reserve_reply(bytes)
             .map_err(|_| {
-                self.metrics.record_decode_rejected();
+                self.metrics.record_reply_rejected();
                 write_admission_rejected(
                     "server is limiting concurrent remote-execution writes; retry the write",
                 )

@@ -21,6 +21,7 @@ const (
 	configTrampolineIfindex uint32 = 0
 	configClassID           uint32 = 1
 	configSelfIfindex       uint32 = 2
+	configPrivateClassID    uint32 = 3
 )
 
 // Counter indexes; must match enum counter in bpf/redirect.c.
@@ -30,7 +31,8 @@ const (
 	counterSiblingBypass uint32 = 2
 	counterReturned      uint32 = 3
 	counterReturnDropped uint32 = 4
-	counterIndexes       uint32 = 5
+	counterPrivate       uint32 = 5
+	counterIndexes       uint32 = 6
 )
 
 // Attacher owns the tcx links and their pinned state under PinRoot.
@@ -38,7 +40,7 @@ const (
 // Layout:
 //
 //	<PinRoot>/return/{link,counters}
-//	<PinRoot>/pods/<device>/{link,config,siblings,counters}
+//	<PinRoot>/pods/<device>/{link,config,siblings,private_dsts,counters}
 //
 // Links are pinned so enforcement survives agent restarts; a dead device
 // (pod gone) leaves an orphaned pin that CleanupStale removes.
@@ -120,6 +122,9 @@ const (
 	// replaces its own link in place and leaves foreign links alone, so this
 	// means something else manipulated the chain.
 	AttachReattach
+	// AttachUpgrade: an attached program from an older agent, without the
+	// maps this one needs, was replaced. Once per pod device per upgrade.
+	AttachUpgrade
 )
 
 // EnsurePod converges one pod device: program attached first in the tcx
@@ -143,12 +148,20 @@ func (a Attacher) EnsurePod(dev string, trampolineIfindex int, attachment PodAtt
 	}
 
 	if a.linkAttached(dir, iface.Index) {
-		first, err := a.linkIsFirst(dir, iface.Index)
-		if err != nil {
-			return AttachUnchanged, err
-		}
-		if first {
-			return AttachUnchanged, a.syncPodMaps(dir, trampolineIfindex, attachment)
+		// A program loaded by an agent older than the private-network
+		// class has no private_dsts map. It keeps working, so this is an
+		// upgrade rather than interference: replace it once, briefly
+		// unshaped (fail-open) between the detach and the attach.
+		if !pathExists(filepath.Join(dir, "private_dsts")) {
+			outcome = AttachUpgrade
+		} else {
+			first, err := a.linkIsFirst(dir, iface.Index)
+			if err != nil {
+				return AttachUnchanged, err
+			}
+			if first {
+				return AttachUnchanged, a.syncPodMaps(dir, trampolineIfindex, attachment)
+			}
 		}
 	}
 	a.removePins(dir)
@@ -165,6 +178,9 @@ func (a Attacher) EnsurePod(dev string, trampolineIfindex int, attachment PodAtt
 		return AttachUnchanged, err
 	}
 	if err := objects.Siblings.Pin(filepath.Join(dir, "siblings")); err != nil {
+		return AttachUnchanged, err
+	}
+	if err := objects.PrivateDsts.Pin(filepath.Join(dir, "private_dsts")); err != nil {
 		return AttachUnchanged, err
 	}
 	if err := objects.Counters.Pin(filepath.Join(dir, "counters")); err != nil {
@@ -208,6 +224,18 @@ func (a Attacher) syncPodMaps(dir string, trampolineIfindex int, attachment PodA
 		if err := config.Put(key, value); err != nil {
 			return err
 		}
+	}
+	// Like the tenant class, the private class is built by EnsureTree
+	// before any pod program is synced to stamp it.
+	if err := a.syncPrivateDsts(dir, attachment.PrivateCIDRs); err != nil {
+		return err
+	}
+	privateClassID := uint32(0)
+	if attachment.PrivateMinor != 0 {
+		privateClassID = PriorityForMinor(attachment.PrivateMinor)
+	}
+	if err := config.Put(configPrivateClassID, privateClassID); err != nil {
+		return err
 	}
 
 	siblings, err := ebpf.LoadPinnedMap(filepath.Join(dir, "siblings"), nil)
@@ -256,6 +284,79 @@ func (a Attacher) syncPodMaps(dir string, trampolineIfindex int, attachment PodA
 			continue
 		}
 		if err := siblings.Put(key, uint8(1)); err != nil {
+			return err
+		}
+		present[key] = true
+	}
+	return nil
+}
+
+// lpmV4Key matches struct lpm_v4_key in bpf/redirect.c: the prefix length in
+// host order, the address in network byte order.
+type lpmV4Key struct {
+	PrefixLen uint32
+	Addr      uint32
+}
+
+func parseLPMV4(cidr string) (lpmV4Key, bool) {
+	_, network, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return lpmV4Key{}, false
+	}
+	ip := network.IP.To4()
+	ones, bits := network.Mask.Size()
+	if ip == nil || bits != 32 {
+		return lpmV4Key{}, false
+	}
+	return lpmV4Key{PrefixLen: uint32(ones), Addr: binary.LittleEndian.Uint32(ip)}, true
+}
+
+func (a Attacher) syncPrivateDsts(dir string, cidrs []string) error {
+	m, err := ebpf.LoadPinnedMap(filepath.Join(dir, "private_dsts"), nil)
+	if err != nil {
+		return err
+	}
+	defer m.Close()
+	desired := map[lpmV4Key]bool{}
+	for _, cidr := range cidrs {
+		if key, ok := parseLPMV4(cidr); ok {
+			desired[key] = true
+		}
+	}
+	var stale []lpmV4Key
+	present := map[lpmV4Key]bool{}
+	var key lpmV4Key
+	var value uint8
+	iterator := m.Iterate()
+	for iterator.Next(&key, &value) {
+		if desired[key] {
+			present[key] = true
+		} else {
+			stale = append(stale, key)
+		}
+	}
+	if err := iterator.Err(); err != nil {
+		return err
+	}
+	for _, key := range stale {
+		if err := m.Delete(key); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			return err
+		}
+	}
+	// A prefix left out of a full map is shaped in the tenant class, the
+	// behaviour without the private class, so overflow only costs speed.
+	capacity := int(m.MaxEntries())
+	for key := range desired {
+		if present[key] {
+			continue
+		}
+		if len(present) >= capacity {
+			if a.Metrics != nil {
+				a.Metrics.PrivateOverflow.Inc()
+			}
+			continue
+		}
+		if err := m.Put(key, uint8(1)); err != nil {
 			return err
 		}
 		present[key] = true
@@ -377,7 +478,7 @@ func (a Attacher) removePins(dir string) error {
 			os.Remove(path)
 		}
 	}
-	for _, name := range []string{"config", "siblings", "counters"} {
+	for _, name := range []string{"config", "siblings", "private_dsts", "counters"} {
 		os.Remove(filepath.Join(dir, name))
 	}
 	if pathExists(dir) {

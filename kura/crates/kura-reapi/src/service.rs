@@ -2610,25 +2610,14 @@ impl ContentAddressableStorage for ReapiService {
         // the sizes, so the request can be admitted as a unit; claiming per blob
         // while blobs read concurrently would mean waiting for the pool while
         // already holding part of it.
-        let borrow_deadline = self
-            .state
-            .config
-            .reapi_batch_read_borrow_deadline_ms
-            .map(Duration::from_millis);
-        let mut budget = AtomicMaterializationBudget::reserve_with(
+        let mut budget = AtomicMaterializationBudget::reserve(
             &self.state,
             digests
                 .iter()
                 .map(|digest| u64::try_from(digest.size_bytes).unwrap_or(0))
                 .fold(0_u64, |total, size| total.saturating_add(size)),
-            borrow_deadline.is_some(),
         )
         .await?;
-        // Base deadline plus a second per 4 MiB, so a large response gets the
-        // time an ordinary client needs to read it.
-        let borrow_deadline = borrow_deadline.filter(|_| budget.borrowed).map(|base| {
-            base + Duration::from_secs((budget.reserved_bytes / (4 * 1024 * 1024)) as u64)
-        });
         let reads = batch_read_many_atomic(&self.state, namespace_id, &digests, &budget).await;
         let read_results: Vec<(reapi::batch_read_blobs_response::Response, Duration)> = digests
             .into_iter()
@@ -2767,17 +2756,8 @@ impl ContentAddressableStorage for ReapiService {
 
         let mut response = Response::new(reapi::BatchReadBlobsResponse { responses });
         // The up-front reservations ride with the response, so the bytes stay
-        // admitted for as long as the client is reading them, or until the
-        // deadline when they borrowed ceiling headroom.
-        if let Some(deadline) = borrow_deadline {
-            response
-                .extensions_mut()
-                .insert(crate::memory::BorrowedResponse::new(
-                    self.state.memory.clone(),
-                    permits,
-                    deadline,
-                ));
-        } else if !permits.is_empty() {
+        // admitted for as long as the client is reading them.
+        if !permits.is_empty() {
             response.extensions_mut().insert(
                 crate::memory::ResponseTransportGuard::from_materialization_permits(permits),
             );
@@ -4955,11 +4935,6 @@ struct AtomicMaterializationBudget<'a> {
     /// Covers every claim below. Handed to the response so the bytes stay
     /// reserved for as long as the client is reading them.
     permit: Option<crate::memory::MemoryPermit>,
-    /// Content bytes `permit` covers.
-    reserved_bytes: usize,
-    /// Whether `permit` is ceiling headroom rather than floor-derived memory,
-    /// in which case the response must carry it in a `BorrowedResponse`.
-    borrowed: bool,
 }
 
 struct MaterializedSnapshot {
@@ -5036,59 +5011,26 @@ impl<'a> AtomicMaterializationBudget<'a> {
     /// alternative is to learn each size only after a store lookup, which is
     /// what forced the per-blob claims this replaces.
     async fn reserve(state: &'a SharedState, wanted_bytes: u64) -> Result<Self, Status> {
-        Self::reserve_with(state, wanted_bytes, false).await
-    }
-
-    /// Like `reserve`, but with `may_borrow` a request the floor pool cannot
-    /// admit right now first tries ceiling headroom instead of waiting. Only
-    /// for responses the caller wraps in a `BorrowedResponse`.
-    async fn reserve_with(
-        state: &'a SharedState,
-        wanted_bytes: u64,
-        may_borrow: bool,
-    ) -> Result<Self, Status> {
         let budget_bytes = state.memory.reapi_response_budget_bytes();
         let over_budget_kind = over_budget_shed_kind(state);
         let reserved_bytes = usize::try_from(wanted_bytes)
             .unwrap_or(usize::MAX)
             .min(budget_bytes);
-        let mut borrowed = false;
-        let immediate = if may_borrow {
-            state
-                .memory
-                .try_acquire_response_materialization(reserved_bytes)
-                .ok()
-                .or_else(|| {
-                    let permit = state
-                        .memory
-                        .try_borrow_response_materialization(reserved_bytes)
-                        .ok()?;
-                    borrowed = permit.is_some();
-                    Some(permit)
-                })
-        } else {
-            None
-        };
-        let permit = match immediate {
-            Some(permit) => permit,
-            None => state
-                .memory
-                .reserve_response_materialization(reserved_bytes)
-                .await
-                .map_err(|()| {
-                    record_materialization_rejection(state, shed_kind::REAPI_MATERIALIZATION);
-                    Status::resource_exhausted(
-                        "batch read response was rejected because the REAPI response materialization pool did not free in time",
-                    )
-                })?,
-        };
+        let permit = state
+            .memory
+            .reserve_response_materialization(reserved_bytes)
+            .await
+            .map_err(|()| {
+                record_materialization_rejection(state, shed_kind::REAPI_MATERIALIZATION);
+                Status::resource_exhausted(
+                    "batch read response was rejected because the REAPI response materialization pool did not free in time",
+                )
+            })?;
         Ok(Self {
             state,
             remaining_bytes: AtomicUsize::new(reserved_bytes),
             over_budget_kind,
             permit,
-            reserved_bytes,
-            borrowed,
         })
     }
 
@@ -9800,7 +9742,9 @@ mod tests {
         let second_hog = context
             .state
             .memory
-            .try_acquire_reapi_materialization(limit)
+            .try_acquire_reapi_materialization(
+                context.state.memory.transient_capacity_bytes() as usize - limit,
+            )
             .expect("the remaining transient budget should be acquirable when idle");
         let serve = tokio::spawn({
             let service = service.clone();
@@ -9932,7 +9876,9 @@ mod tests {
         let second_hog = context
             .state
             .memory
-            .try_acquire_reapi_materialization(limit)
+            .try_acquire_reapi_materialization(
+                context.state.memory.transient_capacity_bytes() as usize - limit,
+            )
             .expect("the remaining transient budget should be acquirable when idle");
         let status = service
             .serve_actioncache_snapshot("ios", 0, None)
@@ -10234,7 +10180,9 @@ mod tests {
         let second_permit = context
             .state
             .memory
-            .try_acquire_reapi_materialization(materialization_limit)
+            .try_acquire_reapi_materialization(
+                context.state.memory.transient_capacity_bytes() as usize - materialization_limit,
+            )
             .expect("the response should reserve the rest of the materialization pool")
             .expect("a non-zero reservation should return a permit");
         let mut response = axum::response::Response::new(axum::body::Body::empty());
@@ -14108,6 +14056,21 @@ mod tests {
                     .expect("a non-empty reservation holds a permit"),
             );
         }
+        // And the slice set aside for write replies, so a reply has no floor
+        // left either.
+        // A write in flight may already hold part of it; take the rest.
+        let reply_slice = memory.write_reply_reserve_bytes()
+            - (memory.floor_reserved_bytes() - memory.transient_reserved_bytes());
+        if reply_slice > 0 {
+            held.push(
+                memory
+                    .try_reserve_elastic_foreground_memory(0)
+                    .expect("an empty reservation is admitted")
+                    .try_reserve_reply(reply_slice)
+                    .expect("the reply slice is free")
+                    .expect("a non-empty reservation holds a permit"),
+            );
+        }
         held
     }
 
@@ -14117,10 +14080,15 @@ mod tests {
         free_bytes: usize,
     ) -> Vec<crate::memory::MemoryPermit> {
         let mut held = hold_rest_of_floor_pool(memory);
-        let last = held.last_mut().expect("the floor pool is not empty");
+        let reply_slice = (memory.write_reply_reserve_bytes() > 0).then(|| held.pop());
+        // Every permit but the last holds a full per-request limit; the last
+        // holds what the shared pool had left.
         let limit = memory.reapi_materialization_limit_bytes();
-        last.shrink_to(limit - free_bytes)
+        let last_bytes = memory.transient_capacity_bytes() as usize - limit * (held.len() - 1);
+        let last = held.last_mut().expect("the floor pool is not empty");
+        last.shrink_to(last_bytes - free_bytes)
             .expect("a held permit shrinks");
+        held.extend(reply_slice.flatten());
         held
     }
 
@@ -14302,7 +14270,7 @@ mod tests {
             splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
-        let reserved_before = memory.transient_reserved_bytes();
+        let reserved_before = memory.floor_reserved_bytes();
 
         let mut update = Request::new(reapi::UpdateActionResultRequest {
             instance_name: "ios".into(),
@@ -14324,9 +14292,9 @@ mod tests {
             .expect("a write the floor can answer for is acknowledged");
 
         assert_eq!(memory.elastic_transient_reserved_bytes(), 0);
-        assert!(memory.transient_reserved_bytes() > reserved_before);
+        assert!(memory.floor_reserved_bytes() > reserved_before);
         drop(unread_reply);
-        assert_eq!(memory.transient_reserved_bytes(), reserved_before);
+        assert_eq!(memory.floor_reserved_bytes(), reserved_before);
     }
 
     fn pause_after_metadata_commit(
@@ -14355,7 +14323,7 @@ mod tests {
             splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
-        let reserved_before = memory.transient_reserved_bytes();
+        let reserved_before = memory.floor_reserved_bytes();
         let (reached, _resume) = pause_after_metadata_commit(&context);
 
         let mut request = Request::new(batch_update_request(b"cancelled mid-persist"));
@@ -14366,12 +14334,12 @@ mod tests {
             .expect("the write reaches its metadata commit");
 
         assert!(
-            memory.transient_reserved_bytes() > reserved_before,
+            memory.floor_reserved_bytes() > reserved_before,
             "the reply is reserved before the write persists"
         );
         call.abort();
         let _ = call.await;
-        assert_eq!(memory.transient_reserved_bytes(), reserved_before);
+        assert_eq!(memory.floor_reserved_bytes(), reserved_before);
     }
 
     // Once a write has started persisting, nothing that fills the floor in the
@@ -14623,251 +14591,6 @@ mod tests {
         );
         assert_eq!(read_bytestream(&mut client, &resource, 0, 0).await, blob);
 
-        let _ = shutdown_tx.send(());
-        let _ = server.await;
-    }
-
-    /// Seeds one blob and opens a raw h2c stream for a `BatchReadBlobs` of it
-    /// whose client never reads the body past its initial window: the shape of
-    /// a reader that stalls mid-response. Returns the stream so a test can
-    /// decide when (or whether) to let go of it.
-    async fn stalled_batch_read(
-        context: &TestContext,
-        blob_bytes: usize,
-    ) -> (
-        h2::RecvStream,
-        tokio::sync::oneshot::Sender<()>,
-        tokio::task::JoinHandle<()>,
-    ) {
-        let blob = vec![0x5A; blob_bytes];
-        let hash = hex::encode(Sha256::digest(&blob));
-        context
-            .state
-            .store
-            .persist_artifact_from_bytes(
-                ArtifactProducer::Reapi,
-                DEFAULT_INSTANCE_NAME,
-                &blob_key(&format!("{hash}/{}", blob.len())),
-                "application/octet-stream",
-                &blob,
-            )
-            .await
-            .expect("seed blob");
-
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind test listener");
-        let addr = listener.local_addr().expect("listener addr");
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-        let state = context.state.clone();
-        let server = tokio::spawn(async move {
-            serve_routes(listener, state, async move {
-                let _ = shutdown_rx.await;
-            })
-            .await
-        });
-
-        let tcp = tokio::net::TcpStream::connect(addr)
-            .await
-            .expect("connect to test listener");
-        // The default 64 KiB windows: the server can put that much on the
-        // wire, and the rest of the response waits for a client that never
-        // releases capacity.
-        let (mut client, connection) = h2::client::Builder::new()
-            .handshake::<_, bytes::Bytes>(tcp)
-            .await
-            .expect("h2 handshake");
-        tokio::spawn(async move {
-            let _ = connection.await;
-        });
-        let message = reapi::BatchReadBlobsRequest {
-            instance_name: String::new(),
-            digests: vec![reapi::Digest {
-                hash,
-                size_bytes: blob.len() as i64,
-            }],
-            ..Default::default()
-        }
-        .encode_to_vec();
-        let mut frame = Vec::with_capacity(5 + message.len());
-        frame.push(0);
-        frame.extend_from_slice(&(message.len() as u32).to_be_bytes());
-        frame.extend_from_slice(&message);
-        let request = http::Request::builder()
-            .method("POST")
-            .uri(format!(
-                "http://{addr}/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs"
-            ))
-            .header("content-type", "application/grpc")
-            .header("te", "trailers")
-            .body(())
-            .expect("request");
-        let (response, mut send) = client
-            .send_request(request, false)
-            .expect("send request headers");
-        send.send_data(bytes::Bytes::from(frame), true)
-            .expect("send request body");
-        let response = tokio::time::timeout(Duration::from_secs(10), response)
-            .await
-            .expect("response headers should arrive")
-            .expect("response headers");
-        assert_eq!(response.status(), http::StatusCode::OK);
-        (response.into_body(), shutdown_tx, server)
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn stalled_batch_reader_holds_materialization_until_stream_is_reset() {
-        const BLOB_BYTES: usize = 4 * 1024 * 1024;
-        let context = test_context(|_| {}).await;
-        let (body, shutdown_tx, server) = stalled_batch_read(&context, BLOB_BYTES).await;
-
-        // The response is charged at twice its content, and nothing server-side
-        // ends that charge while the client does not read.
-        tokio::time::sleep(Duration::from_secs(3)).await;
-        assert!(
-            context.state.memory.transient_reserved_bytes() >= 2 * BLOB_BYTES as u64,
-            "a stalled reader keeps its response materialization admitted, got {} bytes",
-            context.state.memory.transient_reserved_bytes()
-        );
-
-        // Resetting the stream is what drops the queued response, and with it
-        // the bytes and their permit.
-        drop(body);
-        let released = tokio::time::timeout(Duration::from_secs(5), async {
-            while context.state.memory.transient_reserved_bytes() > 0 {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
-        })
-        .await;
-        assert!(
-            released.is_ok(),
-            "a reset stream must release its materialization, still {} bytes",
-            context.state.memory.transient_reserved_bytes()
-        );
-
-        let _ = shutdown_tx.send(());
-        let _ = server.await;
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn borrowed_batch_read_is_reclaimed_from_a_stalled_reader_at_its_deadline() {
-        const MIB: u64 = 1024 * 1024;
-        // 32 MiB floor pool and 96 MiB of ceiling headroom (anon caches and
-        // baseline take the first 200 MiB of the floor).
-        let context = test_context(|config| {
-            config.memory_floor_bytes = Some(232 * MIB);
-            config.reapi_batch_read_borrow_deadline_ms = Some(500);
-        })
-        .await;
-        let memory = context.state.memory.clone();
-        assert_eq!(memory.transient_capacity_bytes(), 32 * MIB);
-        // A burst holds the whole floor pool, so this read can only borrow.
-        let limit = memory.reapi_materialization_limit_bytes();
-        let _burst = [
-            memory.try_acquire_reapi_materialization(limit).unwrap(),
-            memory.try_acquire_reapi_materialization(limit).unwrap(),
-        ];
-
-        let (body, shutdown_tx, server) = stalled_batch_read(&context, MIB as usize).await;
-        assert!(
-            memory.elastic_transient_reserved_bytes() >= 2 * MIB,
-            "the read should have been served from borrowed headroom, got {} bytes",
-            memory.elastic_transient_reserved_bytes()
-        );
-
-        // The client still holds the stream open and reads nothing; the
-        // deadline alone has to give the memory back.
-        let reclaimed = tokio::time::timeout(Duration::from_secs(5), async {
-            while memory.elastic_transient_reserved_bytes() > 0 {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
-        })
-        .await;
-        assert!(
-            reclaimed.is_ok(),
-            "a stalled borrowed read must be reclaimed at its deadline, still {} bytes",
-            memory.elastic_transient_reserved_bytes()
-        );
-        let metrics = context.state.metrics.render();
-        assert!(
-            metrics.contains("reapi_read_headroom_borrowed")
-                && metrics.contains("reapi_read_borrow_deadline_cancelled"),
-            "borrow and cancellation must be counted"
-        );
-
-        drop(body);
-        let _ = shutdown_tx.send(());
-        let _ = server.await;
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn borrowed_batch_read_is_served_intact() {
-        use bazel_remote_apis::build::bazel::remote::execution::v2::content_addressable_storage_client::ContentAddressableStorageClient;
-        const MIB: u64 = 1024 * 1024;
-        let context = test_context(|config| {
-            config.memory_floor_bytes = Some(232 * MIB);
-            config.reapi_batch_read_borrow_deadline_ms = Some(10_000);
-        })
-        .await;
-        let memory = context.state.memory.clone();
-        let limit = memory.reapi_materialization_limit_bytes();
-        let burst = [
-            memory.try_acquire_reapi_materialization(limit).unwrap(),
-            memory.try_acquire_reapi_materialization(limit).unwrap(),
-        ];
-        let blob: Vec<u8> = (0..(3 * MIB as usize + 5)).map(|i| (i * 7) as u8).collect();
-        let hash = hex::encode(Sha256::digest(&blob));
-        context
-            .state
-            .store
-            .persist_artifact_from_bytes(
-                ArtifactProducer::Reapi,
-                DEFAULT_INSTANCE_NAME,
-                &blob_key(&format!("{hash}/{}", blob.len())),
-                "application/octet-stream",
-                &blob,
-            )
-            .await
-            .expect("seed blob");
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-        let state = context.state.clone();
-        let server = tokio::spawn(async move {
-            serve_routes(listener, state, async move {
-                let _ = shutdown_rx.await;
-            })
-            .await
-        });
-        let mut client = ContentAddressableStorageClient::connect(format!("http://{addr}"))
-            .await
-            .expect("connect")
-            .max_decoding_message_size(64 * MIB as usize);
-        let response = client
-            .batch_read_blobs(reapi::BatchReadBlobsRequest {
-                digests: vec![reapi::Digest {
-                    hash,
-                    size_bytes: blob.len() as i64,
-                }],
-                ..Default::default()
-            })
-            .await
-            .expect("a borrowed read succeeds while the floor pool is full")
-            .into_inner();
-        assert_eq!(response.responses.len(), 1);
-        assert_eq!(response.responses[0].status.as_ref().unwrap().code, 0);
-        assert_eq!(response.responses[0].data, blob);
-        let released = tokio::time::timeout(Duration::from_secs(5), async {
-            while memory.elastic_transient_reserved_bytes() > 0 {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
-        })
-        .await;
-        assert!(
-            released.is_ok(),
-            "a fully read response releases its borrow"
-        );
-        drop(burst);
         let _ = shutdown_tx.send(());
         let _ = server.await;
     }

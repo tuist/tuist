@@ -450,11 +450,6 @@ if license_signing_private_key = System.get_env("ATLAS_LICENSE_SIGNING_PRIVATE_K
   config :atlas, :licenses, signing_private_key: license_signing_private_key
 end
 
-config :atlas, :licenses,
-  expiration_slack_channel_id:
-    System.get_env("ATLAS_LICENSES_EXPIRATION_SLACK_CHANNEL_ID") ||
-      System.get_env("ATLAS_FINANCE_SALES_SLACK_CHANNEL_ID")
-
 # Headless-browser pool for the `browse_url` MCP tool. Off by default; set
 # CHROME_PATH (typically baked into the Docker image) to enable.
 if chrome_path = System.get_env("CHROME_PATH") do
@@ -480,19 +475,12 @@ config :atlas, :documents,
   embedding_model: System.get_env("ATLAS_DOCUMENT_EMBEDDING_MODEL") || "text-embedding-3-small",
   embedding_receive_timeout: positive_integer_env.("ATLAS_DOCUMENT_EMBEDDING_RECEIVE_TIMEOUT", :timer.seconds(60))
 
-config :atlas, :feature_usage,
-  alert_slack_channel_id: System.get_env("ATLAS_FEATURE_USAGE_ALERT_SLACK_CHANNEL_ID", "C072A0Z53B7")
-
 config :atlas, :finance,
   report_currency: System.get_env("ATLAS_FINANCE_REPORT_CURRENCY", "EUR"),
   runway_window_days: positive_integer_env.("ATLAS_FINANCE_RUNWAY_WINDOW_DAYS", 180),
   initial_lookback_days: positive_integer_env.("ATLAS_FINANCE_INITIAL_LOOKBACK_DAYS", 365),
   sync_overlap_minutes: positive_integer_env.("ATLAS_FINANCE_SYNC_OVERLAP_MINUTES", 5),
   sales_slack_channel_id: System.get_env("ATLAS_FINANCE_SALES_SLACK_CHANNEL_ID", "C072A0Z53B7"),
-  cost_digest_slack_channel_id:
-    System.get_env("ATLAS_FINANCE_COST_DIGEST_SLACK_CHANNEL_ID") ||
-      System.get_env("ATLAS_FINANCE_WEEKLY_SUMMARY_SLACK_CHANNEL_ID"),
-  weekly_summary_slack_channel_id: System.get_env("ATLAS_FINANCE_WEEKLY_SUMMARY_SLACK_CHANNEL_ID"),
   internal_entity_names: finance_internal_entity_names,
   sources: Enum.reject([qonto_source, mercury_source], &is_nil/1)
 

@@ -1346,12 +1346,16 @@ func TestCPUTimeIsReportedWhileRunningAndAtPause(t *testing.T) {
 		t.Fatalf("running cpu_ms = %d, want 1500", got)
 	}
 	h.launcher.Last().SetCPUTime(2500 * time.Millisecond)
+	h.launcher.Last().SetResidentMemory(vm.Memory{AnonBytes: 3 << 30, FileBytes: 1 << 29})
 	res, err := h.m.Pause(ctx, testID)
 	if err != nil {
 		t.Fatalf("pause: %v", err)
 	}
 	if res.CPUMs != 2500 {
 		t.Fatalf("pause cpu_ms = %d, want 2500", res.CPUMs)
+	}
+	if res.MemoryAnonBytes != 3<<30 || res.MemoryFileBytes != 1<<29 {
+		t.Fatalf("pause memory = %d anon, %d file", res.MemoryAnonBytes, res.MemoryFileBytes)
 	}
 	// A paused sandbox keeps reporting the reading of its pause, also
 	// after the daemon restarts, so the server bills a pause it only learns

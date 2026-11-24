@@ -791,6 +791,12 @@ clickhouse:
       proxyGroup: tailnet-ingress
     backup:
       enabled: true
+      # Apart from customer artifacts in tuist-prod-storage. Its lifecycle rules
+      # expire `full/` after 21 days and `incremental/` after 14, which keeps
+      # two weeks of restore points and never deletes a full before the
+      # incrementals based on it. Backups taken before the move stay under the
+      # same prefix in tuist-prod-storage, with the same rules, until they expire.
+      bucket: tuist-prod-clickhouse-backups
       # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on
       # 2026-09-27 and grows with the dataset.
       maxMemoryUsageForUserBytes: "25769803776"
@@ -821,9 +827,10 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache-production
     registryBucket: tuist-registry
 
-# Docker Hub pull-through cache. Reuses the production object-storage
-# bucket under a `docker-mirror` prefix. Runner `docker pull`s route
-# through it (runnersController.features.registryMirror below).
+# Docker Hub pull-through cache, stored in the RustFS store's docker-mirror
+# bucket in-cluster (infra/helm/shard-storage-rustfs, `dockerMirror`), whose
+# release copies its keys into rustfs-docker-mirror. Runner `docker pull`s
+# route through it (runnersController.features.registryMirror below).
 registryCache:
   enabled: true
   proxy:
@@ -833,8 +840,11 @@ registryCache:
       # rate-limit ceiling. The token stays on the cache, never the runners.
       enabled: true
   s3:
-    bucket: tuist-prod-storage
-    rootDirectory: docker-mirror
+    bucket: docker-mirror
+    rootDirectory: ""
+    endpoint: http://rustfs-s3.rustfs-production.svc.cluster.local:9000
+    region: us-east-1
+    existingSecret: rustfs-docker-mirror
 
 processor:
   extraEnv:
@@ -1866,11 +1876,6 @@ rackFleet:
           minWarmPoolFloor: 0
           maxLearnedWarmPoolFloor: 11
           maxReplicas: 52
-      # 27.0's 8 vCPU pool keeps one warm runner whatever its history: Qonto's
-      # `tuist-macos` profile resolves to it, and a learned floor only counts
-      # an account's jobs once they are in the pool's 14 days of history, so
-      # their first job of the day otherwise boots cold.
-      #
       # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
       # history, and learns up to three for its fan-outs. Its demand is
       # starting from no history, and a cold 16 vCPU job has to wait for a
@@ -1878,11 +1883,6 @@ rackFleet:
       # week to 2026-10-29 on 27.1's pool). The other Xcodes' 16 vCPU pools
       # keep the shape's scaling below.
       "27.0":
-        autoscaling:
-          enabled: true
-          minWarmPoolFloor: 1
-          maxLearnedWarmPoolFloor: 8
-          maxReplicas: 52
         shapes:
           16vcpu-48gb:
             autoscaling:
@@ -2061,7 +2061,9 @@ rackLinuxFleet:
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
-    products: ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U"]
+    # The RS521A is alder's storage node (primeLine B 10054287), preinstalled
+    # like larch-store-a.
+    products: ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U", "ASUSTeK COMPUTER INC. RS521A-E12-RS24U"]
   boot:
     enabled: true
     address: 192.168.50.1
@@ -2608,13 +2610,22 @@ sandboxes:
   # toward 24 once runner retirements for sandboxes and runner queue age
   # stay acceptable.
   maxCpu: "16"
+  # Memory bursting: guests return the memory they free (and, once idle,
+  # their page cache) to the host, and pauses punch zeros out of images.
+  balloonFreePageReporting: true
   # What the daemons were started with, so raising maxCpu (read by the
   # server) restarts none of them.
   daemonMaxCpu: "250m"
   # 220 GiB after checkout workspaces: five 4x8192 Orbs on a 20 GiB rootfs
   # (about 38 GiB each) per node. The nodes have about 830 GiB.
-  diskGiB: 240
+  # Plus 30 GiB for copies of CI cache volumes below.
+  diskGiB: 270
   checkoutWorkspacesGiB: 20
+  # Session cache drives, granted only to accounts with the
+  # `sandbox_runner_cache` flag. No template placeholder yet, so only
+  # disk-snapshot creates (which cold boot) attach one.
+  cacheImagesGiB: 30
+  cacheDriveInTemplate: false
   # Paused Orbs otherwise pile up on their nodes over a working day; a resume
   # after four hours cold boots from the archive instead.
   archiveAfterHours: 4

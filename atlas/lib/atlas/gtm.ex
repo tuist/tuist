@@ -28,7 +28,6 @@ defmodule Atlas.GTM do
   alias Atlas.GTM.SocialChannelIdea
   alias Atlas.GTM.SocialPostRevision
   alias Atlas.GTM.Transactional
-  alias Atlas.GTM.Workers.PostBlogPostIdeaAnnouncement
   alias Atlas.Repo
   alias Atlas.Search
 
@@ -127,21 +126,13 @@ defmodule Atlas.GTM do
   @doc """
   Creates a blog post idea. `author` is optional and records who captured it
   (nil for agent or Slack-originated captures).
-
-  Pass `announce: true` to broadcast the new idea to the company Slack
-  #marketing channel (async, via an Oban job). Defaults to not announcing so
-  seeds, backfills, and tests stay silent.
   """
-  def create_blog_post_idea(attrs, author \\ nil, opts \\ []) when is_map(attrs) and is_list(opts) do
+  def create_blog_post_idea(attrs, author \\ nil) when is_map(attrs) do
     changeset =
       %BlogPostIdea{author_id: author && author.id}
       |> BlogPostIdea.changeset(attrs)
 
     result = Repo.insert(changeset)
-
-    with {:ok, idea} <- result, true <- Keyword.get(opts, :announce, false) do
-      enqueue_announcement(idea)
-    end
 
     case result do
       {:ok, idea} ->
@@ -153,12 +144,6 @@ defmodule Atlas.GTM do
     end
 
     result
-  end
-
-  defp enqueue_announcement(%BlogPostIdea{id: id}) do
-    %{"blog_post_idea_id" => id}
-    |> PostBlogPostIdeaAnnouncement.new()
-    |> Oban.insert()
   end
 
   @doc """

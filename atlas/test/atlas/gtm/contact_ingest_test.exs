@@ -8,7 +8,6 @@ defmodule Atlas.GTM.ContactIngestTest do
   alias Atlas.GTM.ContactIngest
   alias Atlas.GTM.Delivery
   alias Atlas.GTM.Workers.DeliverAutomatedEmail
-  alias Atlas.GTM.Workers.PostAudienceMemberNotification
 
   setup do
     signups =
@@ -52,13 +51,8 @@ defmodule Atlas.GTM.ContactIngestTest do
     assert subscriber.metadata["userId"] == "01H8XYZ"
 
     delivery = Repo.get_by!(Delivery, subscriber_id: subscriber.id, kind: "welcome")
-    membership = Repo.get_by!(AudienceMembership, audience_id: delivery.audience_id, subscriber_id: subscriber.id)
+    assert Repo.get_by!(AudienceMembership, audience_id: delivery.audience_id, subscriber_id: subscriber.id)
     assert_enqueued(worker: DeliverAutomatedEmail, args: %{"delivery_id" => delivery.id})
-
-    assert_enqueued(
-      worker: PostAudienceMemberNotification,
-      args: %{"membership_id" => membership.id}
-    )
   end
 
   test "subscribes to the audience matching the Loops mailing list id", %{signups: signups} do
@@ -106,19 +100,6 @@ defmodule Atlas.GTM.ContactIngestTest do
     assert {:ok, _second} = ContactIngest.upsert_contact(posthog_payload(%{"firstName" => "Samuel"}))
 
     assert [_only_one] = Repo.all(from delivery in Delivery, where: delivery.subscriber_id == ^subscriber.id)
-  end
-
-  test "does not announce an audience member twice when a contact is identified again" do
-    assert {:ok, %{subscriber: subscriber}} = ContactIngest.upsert_contact(posthog_payload())
-    membership = Repo.get_by!(AudienceMembership, subscriber_id: subscriber.id)
-
-    assert_enqueued(worker: PostAudienceMemberNotification, args: %{"membership_id" => membership.id})
-
-    assert {:ok, %{created: false}} = ContactIngest.upsert_contact(posthog_payload(%{"firstName" => "Samuel"}))
-
-    assert [job] = all_enqueued(worker: PostAudienceMemberNotification)
-    assert job.args["membership_id"] == membership.id
-    assert is_binary(job.args["notification_id"])
   end
 
   test "an identify event does not resubscribe somebody who unsubscribed" do

@@ -174,7 +174,7 @@ defmodule Tuist.Sandboxes.AllocationTest do
   end
 
   test "a newer allocation between desired-state growth and resize cancels the API write", %{node: node} do
-    assert :ok = Capacity.update_allocation(grant(node))
+    assert :ok = Capacity.update_allocation(grant(node, %{"reclaim" => true, "memory_bytes" => 0}))
     # Reclaim sends a command after lowering desired state but before resizing.
     # Simulate a different replica publishing/reconciling a newer desired size.
     expect(Nodes, :call, fn _, "reclaim", _, _ ->
@@ -183,7 +183,8 @@ defmodule Tuist.Sandboxes.AllocationTest do
     end)
 
     reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
-    assert {:error, :superseded} = Capacity.shrink(node, true)
+    # The newer size's writer resizes the Pod, so the reclaim job succeeds.
+    assert :ok = Capacity.reconcile_allocation(node.name)
     assert Repo.get!(SandboxNode, node.name).memory_limit_bytes == 8 * @gib
   end
 

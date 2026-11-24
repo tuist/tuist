@@ -45,7 +45,6 @@ const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
 const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
 const KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED: &str =
     "KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED";
-const KURA_REAPI_BATCH_READ_BORROW_DEADLINE_MS: &str = "KURA_REAPI_BATCH_READ_BORROW_DEADLINE_MS";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -208,14 +207,6 @@ pub struct Config {
     /// being complete (an incomplete reverse map must not drive deletes). The
     /// serve-side presence gates stay on regardless as the backstop.
     pub action_cache_eviction_cascade_enabled: bool,
-    /// Opt-in, default off. When set, a `BatchReadBlobs` the floor-derived
-    /// materialization pool cannot admit may borrow ceiling headroom (capped at
-    /// half of it, normal pressure only) instead of waiting and shedding. A
-    /// borrowed response is handed to the transport one copied window at a
-    /// time and cancelled, freeing its memory, if it is still unsent this long
-    /// after it started plus one second per 4 MiB, or once pressure leaves
-    /// normal. See `memory::BorrowedResponse`.
-    pub reapi_batch_read_borrow_deadline_ms: Option<u64>,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -884,17 +875,6 @@ impl Config {
             },
         )
         .unwrap_or(true);
-        let reapi_batch_read_borrow_deadline_ms = optional_parsed_value(
-            &mut lookup,
-            KURA_REAPI_BATCH_READ_BORROW_DEADLINE_MS,
-            &mut invalid,
-            |value| {
-                value.parse::<u64>().map_err(|_| {
-                    format!("{KURA_REAPI_BATCH_READ_BORROW_DEADLINE_MS} must be a valid u64")
-                })
-            },
-        )
-        .filter(|deadline| *deadline > 0);
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -2082,7 +2062,6 @@ impl Config {
             accelerated_file_serving: accelerated_file_serving
                 .expect("accelerated_file_serving should be present when configuration is valid"),
             action_cache_eviction_cascade_enabled,
-            reapi_batch_read_borrow_deadline_ms,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,

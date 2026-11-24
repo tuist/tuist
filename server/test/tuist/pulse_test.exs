@@ -731,6 +731,8 @@ defmodule Tuist.PulseTest do
           {400, :invalid_query},
           {422, :invalid_query},
           {429, :rate_limited},
+          {408, :timeout},
+          {504, :timeout},
           {302, :upstream_error},
           {401, :upstream_error},
           {500, :upstream_error}
