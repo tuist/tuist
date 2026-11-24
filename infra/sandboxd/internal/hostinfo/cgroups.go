@@ -57,10 +57,70 @@ func SetupVMCgroups(floorMilli uint64) (*VMCgroups, error) {
 	if err != nil {
 		return nil, err
 	}
-	return setupVMCgroups(cgroupRoot, ParseCgroupPath(string(data)), floorMilli)
+	return setupVMCgroups(cgroupRoot, ParseCgroupPath(string(data)), daemonCgroup, floorMilli)
 }
 
-func setupVMCgroups(root, base string, floorMilli uint64) (*VMCgroups, error) {
+// SetupVMMCgroups is SetupVMCgroups for the vmm container, which spawns the
+// VMs for the daemon: its own process moves into a `vmm` leaf. It returns the
+// container's cgroup, which the daemon adopts (AdoptVMCgroups).
+func SetupVMMCgroups(floorMilli uint64) (string, error) {
+	data, err := os.ReadFile(procSelfCgroup)
+	if err != nil {
+		return "", err
+	}
+	base := ParseCgroupPath(string(data))
+	if _, err := setupVMCgroups(cgroupRoot, base, "vmm", floorMilli); err != nil {
+		return "", err
+	}
+	return base, nil
+}
+
+// AdoptVMCgroups makes base, the vmm container's cgroup that
+// SetupVMMCgroups prepared, where the daemon creates the VMs' cgroups and
+// reads the memory limit the server resizes. It removes the leaves of VMs
+// that no longer run, as SetupVMCgroups does at startup: a VM ends with the
+// daemon's connection for it, so a restarted daemon finds them empty.
+func AdoptVMCgroups(base string) (*VMCgroups, error) {
+	return adoptVMCgroups(cgroupRoot, base)
+}
+
+// UseContainerCgroup reads memory from base without per-VM cgroups, for a
+// vmm container that could not set them up: its cgroup still holds the VMs.
+func UseContainerCgroup(base string) { containerCgroup.Store(&base) }
+
+func adoptVMCgroups(root, base string) (*VMCgroups, error) {
+	dir := filepath.Join(root, base)
+	subtree, err := os.ReadFile(filepath.Join(dir, "cgroup.subtree_control"))
+	if err != nil {
+		return nil, fmt.Errorf("reading the vmm cgroup's controllers: %w", err)
+	}
+	// The kernel lists enabled controllers bare; tolerate the +cpu form
+	// that was written.
+	var enabled []string
+	for _, field := range strings.Fields(string(subtree)) {
+		enabled = append(enabled, strings.TrimPrefix(field, "+"))
+	}
+	if !slices.Contains(enabled, "cpu") {
+		return nil, errors.New("the vmm cgroup does not delegate the cpu controller")
+	}
+	removeVMLeaves(dir)
+	containerCgroup.Store(&base)
+	return &VMCgroups{dir: dir, memory: slices.Contains(enabled, "memory")}, nil
+}
+
+// removeVMLeaves removes the VM leaves under dir; rmdir refuses a cgroup
+// that still holds a process, so a running VM keeps its own.
+func removeVMLeaves(dir string) {
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() && strings.HasPrefix(entry.Name(), vmCgroupPrefix) {
+				_ = os.Remove(filepath.Join(dir, entry.Name()))
+			}
+		}
+	}
+}
+
+func setupVMCgroups(root, base, leaf string, floorMilli uint64) (*VMCgroups, error) {
 	dir := filepath.Join(root, base)
 	controllers, err := os.ReadFile(filepath.Join(dir, "cgroup.controllers"))
 	if err != nil {
@@ -69,7 +129,7 @@ func setupVMCgroups(root, base string, floorMilli uint64) (*VMCgroups, error) {
 	if !slices.Contains(strings.Fields(string(controllers)), "cpu") {
 		return nil, errors.New("the cpu controller is not available to the daemon's cgroup")
 	}
-	daemon := filepath.Join(dir, daemonCgroup)
+	daemon := filepath.Join(dir, leaf)
 	if err := os.Mkdir(daemon, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 		return nil, err
 	}
@@ -91,13 +151,7 @@ func setupVMCgroups(root, base string, floorMilli uint64) (*VMCgroups, error) {
 		return nil, err
 	}
 	// Nothing survives a Pod restart; a leftover leaf is empty.
-	if entries, err := os.ReadDir(dir); err == nil {
-		for _, entry := range entries {
-			if entry.IsDir() && strings.HasPrefix(entry.Name(), vmCgroupPrefix) {
-				_ = os.Remove(filepath.Join(dir, entry.Name()))
-			}
-		}
-	}
+	removeVMLeaves(dir)
 	containerCgroup.Store(&base)
 	return &VMCgroups{dir: dir, memory: memory}, nil
 }

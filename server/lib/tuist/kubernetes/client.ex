@@ -472,7 +472,7 @@ defmodule Tuist.Kubernetes.Client do
     # PATCH in flight after the caller released its database lock; that write
     # must conflict if a newer resize or Pod replacement has already landed.
     case request(:get, path, opts: opts, timeout: 5_000) do
-      {:ok, %{"metadata" => %{"resourceVersion" => version, "uid" => uid}}}
+      {:ok, %{"metadata" => %{"resourceVersion" => version, "uid" => uid}} = pod}
       when is_binary(version) and is_binary(uid) ->
         request(:patch, path <> "/resize",
           opts: opts,
@@ -480,7 +480,7 @@ defmodule Tuist.Kubernetes.Client do
           body:
             JSON.encode!(%{
               metadata: %{resourceVersion: version, uid: uid},
-              spec: %{containers: [%{name: "sandboxd", resources: resources}]}
+              spec: %{containers: [%{name: sandbox_vm_container(pod), resources: resources}]}
             }),
           headers: [{"content-type", "application/strategic-merge-patch+json"}]
         )
@@ -494,8 +494,8 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
-  Resizes the CPU request of a sandbox daemon Pod's `sandboxd` container in
-  place, leaving its memory and its absent CPU limit alone. `target` gets the
+  Resizes the CPU request of a sandbox daemon Pod's VM container
+  (`sandbox_vm_container/1`) in place, leaving its memory and its absent CPU limit alone. `target` gets the
   CPU the kubelet has allocated the container in millicores (its request
   while nothing is pending) and returns the request to ask for; nothing is
   written when the Pod already asks for it. Fenced like
@@ -527,7 +527,7 @@ defmodule Tuist.Kubernetes.Client do
                    body:
                      JSON.encode!(%{
                        metadata: %{resourceVersion: version, uid: uid},
-                       spec: %{containers: [%{name: "sandboxd", resources: resources}]}
+                       spec: %{containers: [%{name: sandbox_vm_container(pod), resources: resources}]}
                      }),
                    headers: [{"content-type", "application/strategic-merge-patch+json"}]
                  ) do
@@ -540,12 +540,26 @@ defmodule Tuist.Kubernetes.Client do
     end
   end
 
+  @doc """
+  The container of a sandbox daemon Pod whose cgroup holds the VMs, and so
+  the one the server resizes: `vmm` once the Pod runs Firecracker in its own
+  container, which outlives a `sandboxd` image upgrade, else `sandboxd`.
+  Takes the Pod (or its spec) as the API returns it.
+  """
+  def sandbox_vm_container(%{"spec" => spec}), do: sandbox_vm_container(spec)
+
+  def sandbox_vm_container(%{"containers" => containers}) when is_list(containers) do
+    if Enum.any?(containers, &(&1["name"] == "vmm")), do: "vmm", else: "sandboxd"
+  end
+
+  def sandbox_vm_container(_pod), do: "sandboxd"
+
   # What the kubelet admitted, which a deferred growth has not reached yet.
   defp sandboxd_cpu_allocated(pod, requested) do
     pod
     |> get_in(["status", "containerStatuses"])
     |> List.wrap()
-    |> Enum.find(&(&1["name"] == "sandboxd"))
+    |> Enum.find(&(&1["name"] == sandbox_vm_container(pod)))
     |> case do
       %{"allocatedResources" => %{"cpu" => quantity}} -> quantity
       %{"resources" => %{"requests" => %{"cpu" => quantity}}} -> quantity
@@ -567,7 +581,7 @@ defmodule Tuist.Kubernetes.Client do
     pod
     |> get_in(["spec", "containers"])
     |> List.wrap()
-    |> Enum.find(&(&1["name"] == "sandboxd"))
+    |> Enum.find(&(&1["name"] == sandbox_vm_container(pod)))
     |> case do
       %{"resources" => %{"requests" => %{"cpu" => quantity}}} -> cpu_milli(quantity)
       _no_request -> {:error, :invalid_pod}

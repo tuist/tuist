@@ -1361,9 +1361,9 @@ defmodule Tuist.Sandboxes.Capacity do
 
   defp resize_status(pod_name, limit) do
     case KubernetesClient.get_pod(Environment.sandboxes_namespace(), pod_name) do
-      {:ok, %{"status" => status}} when is_map(status) ->
+      {:ok, %{"status" => status} = pod} when is_map(status) ->
         cond do
-          applied_memory(status) >= limit -> :applied
+          applied_memory(status, KubernetesClient.sandbox_vm_container(pod)) >= limit -> :applied
           resize_deferred?(status) -> :deferred
           true -> :waiting
         end
@@ -1373,10 +1373,10 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  defp applied_memory(status) do
+  defp applied_memory(status, container) do
     status
     |> Map.get("containerStatuses", [])
-    |> Enum.find(%{}, &(&1["name"] == "sandboxd"))
+    |> Enum.find(%{}, &(&1["name"] == container))
     |> get_in(["resources", "limits", "memory"])
     |> memory_quantity()
   end

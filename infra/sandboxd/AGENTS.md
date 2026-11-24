@@ -786,6 +786,8 @@ agent so the manager runs end to end without KVM).
 | `CACHE_IMAGES_TTL` | `24h` | How long a copied master stays after a sandbox last attached it; checked every 10 minutes. |
 | `GUESTS_REACH_SERVER` | `false` | With `SERVER_URL` set and this false, the daemon resolves `SERVER_URL` at startup (retrying cluster DNS for a minute) and drops guest traffic to those addresses and port. |
 | `LOG_LEVEL` | `info` | slog level. |
+| `SANDBOXD_CONFIG` | | A file of `KEY=VALUE` lines (`internal/envfile`) that fills any variable above the environment leaves unset. With `sandboxes.vmm.enabled` the chart puts the deploy-varying ones in a ConfigMap read this way, so step 2b can restart the daemon in place with new configuration; until then the Pod carries a checksum of it and a change still rolls the Pods. `cmd/vmm` reads the same file. |
+| `VMM_SOCKET` | | The vmm container's socket (see Process model). Set, the daemon spawns every VM through it and places VM cgroups under vmm's cgroup; unset, it spawns them itself as before. |
 
 ### Validation scripts
 
@@ -818,6 +820,26 @@ returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`
 /v1/templates/{name}/{tag}/build {vcpus,memory_mb}`.
 
 ### Process model
+
+With `sandboxes.vmm.enabled` (step 2a of seamless daemon restarts, staging
+only so far), the Pod has a second container, `vmm` (`cmd/vmm`, the same
+image), that spawns the VMs so they sit in its cgroup instead of the
+daemon's container's. The server resizes `vmm`, not `sandboxd`, whose own
+resources are fixed (`Tuist.Kubernetes.Client.sandbox_vm_container/1`; the
+runners-controller sums both). The daemon opens one connection per VM to
+`VMM_SOCKET` (`internal/vm/vmm.go`) carrying the `Spec` and, as SCM_RIGHTS,
+its own mount namespace and the VM's cgroup; vmm runs the jailer under
+`nsenter --mount` into that namespace, so it sees the daemon's network
+namespaces and lazy-disk mounts without any mount propagating to the host,
+and holds Firecracker's output and `firecracker.log`. The Pod shares one PID
+namespace (`shareProcessNamespace`), so the daemon still reads
+`/proc/<pid>`; vmm reports exits over the connection. A VM lives as long as
+its connection: vmm kills it when the daemon goes away, because a restarted
+daemon cold boots what it finds `running`. The daemon also holds its hello
+connection open and restarts when vmm does (vmm's VMs died with it and its
+cgroup moved). Behaviour is otherwise unchanged: SIGTERM still pauses every
+VM, and vmm keeps serving after its own SIGTERM until the daemon released
+its VMs. Step 2b makes the VMs outlive a daemon restart.
 
 The jailer parent exits as soon as it has forked Firecracker into the new
 pid namespace, so the daemon sets itself as child subreaper, reads the pid
