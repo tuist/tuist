@@ -46,7 +46,7 @@
       "release": { "text": "Релиз" },
       "release-calendar": { "text": "Календарь релизов" },
       "release-channels": { "text": "Каналы релизов" },
-      "run-previews": { "text": "Запуск превью" },
+      "run-previews": { "text": "Запуск Previews" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Кэш Rust" },
       "rust-project": { "text": "Проект на Rust" },
@@ -67,7 +67,7 @@
         "text": "Языки 🌍"
       },
       "description": {
-        "text": "Вы можете помочь Tuist добавить поддержку новых языков или улучшить рекомендации по локализации для этой страницы."
+        "text": "Вы можете помочь Tuist добавить поддержку других языков или улучшить перевод этой страницы."
       },
       "cta": {
         "text": "Внести вклад"
@@ -78,8 +78,8 @@
     "placeholder": "Поиск",
     "translations": {
       "button": {
-        "button-text": "Поиск в документации",
-        "button-aria-label": "Поиск в документации"
+        "button-text": "Искать в документации",
+        "button-aria-label": "Искать в документации"
       },
       "modal": {
         "search-box": {
@@ -153,7 +153,7 @@
               "text": "Отладка"
             },
             "directories": {
-              "text": "Каталоги"
+              "text": "Директории"
             },
             "shell-completions": {
               "text": "Автодополнение в оболочке"
@@ -279,7 +279,7 @@
           }
         },
         "on-premise": {
-          "text": "Локальное развёртывание",
+          "text": "On-premise",
           "items": {
             "install": {
               "text": "Установка"
@@ -329,7 +329,7 @@
               "text": "Проект Gradle"
             },
             "elixir-project": {
-              "text": "Проект на Elixir"
+              "text": "Проект Elixir"
             },
             "bazel-project": {
               "text": "Проект Bazel"
@@ -379,7 +379,7 @@
                   "text": "Внедрение",
                   "items": {
                     "new-project": {
-                      "text": "Создание нового проекта"
+                      "text": "Создать новый проект"
                     },
                     "swift-package": {
                       "text": "Попробовать с Swift Package"
@@ -391,7 +391,7 @@
                           "text": "Проект Xcode"
                         },
                         "swift-package": {
-                          "text": "Swift-пакет"
+                          "text": "Пакет Swift"
                         },
                         "xcodegen-project": {
                           "text": "Проект XcodeGen"
@@ -407,7 +407,7 @@
                   "text": "Манифесты"
                 },
                 "directory-structure": {
-                  "text": "Структура каталогов"
+                  "text": "Структура директорий"
                 },
                 "editing": {
                   "text": "Редактирование"
@@ -487,10 +487,10 @@
                   "text": "Генерируемый проект"
                 },
                 "xcodeproj-integration": {
-                  "text": "Интеграция на основе XcodeProj"
+                  "text": "Интеграция на базе XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Swift-пакет"
+                  "text": "Пакет Swift"
                 },
                 "continuous-integration": {
                   "text": "Непрерывная интеграция"
@@ -498,7 +498,7 @@
               }
             },
             "selective-testing": {
-              "text": "Выборочный запуск",
+              "text": "Выборочное тестирование",
               "items": {
                 "generated-xcode-project": {
                   "text": "Генерируемый проект Xcode"
@@ -507,6 +507,14 @@
             },
             "test-sharding": {
               "text": "Шардирование",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Генерируемый проект Xcode"
+                }
+              }
+            },
+            "snapshots": {
+              "text": "Снимки",
               "items": {
                 "generated-xcode-project": {
                   "text": "Генерируемый проект Xcode"
@@ -604,7 +612,7 @@
               "text": "Сеть"
             },
             "self-hosting": {
-              "text": "Самостоятельное хостинг",
+              "text": "Самостоятельный хостинг",
               "items": {
                 "server": {
                   "text": "Сервер"
@@ -623,7 +631,7 @@
           "text": "Обмен",
           "items": {
             "previews": {
-              "text": "Превью"
+              "text": "Previews"
             }
           }
         }

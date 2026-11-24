@@ -105,7 +105,7 @@ msgstr "連線成功"
 msgid "Contact us"
 msgstr "聯絡我們"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:26
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:48
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:119
 #: lib/tuist_web/live/choose_username_live.ex:100
 #, elixir-autogen, elixir-format
@@ -574,7 +574,7 @@ msgstr "已連結"
 #: lib/tuist_web/components/user_security.ex:278
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:38
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:34
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:57
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:58
@@ -620,7 +620,6 @@ msgid "Sign in with single sign-on again to link your account."
 msgstr "請再次透過單一登入來連結你的帳號。"
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:18
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
 #: lib/tuist_web/live/device_authorization_live.ex:37
 #, elixir-autogen, elixir-format
@@ -638,7 +637,7 @@ msgid "This identity provider account is already linked to another Tuist account
 msgstr "此身分提供者帳號已連結至另一個 Tuist 帳號。"
 
 #: lib/tuist_web/controllers/device_code_html.ex:19
-#: lib/tuist_web/controllers/sso_link_html.ex:34
+#: lib/tuist_web/controllers/sso_link_html.ex:35
 #, elixir-autogen, elixir-format
 msgid "Tuist logo"
 msgstr "Tuist 標誌"
@@ -885,7 +884,7 @@ msgstr "無法驗證通行金鑰。請再試一次。"
 msgid "This passkey is already registered."
 msgstr "此通行金鑰已註冊。"
 
-#: lib/tuist_web/authentication.ex:865
+#: lib/tuist_web/authentication.ex:867
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "你的每個組織都需要各自的單一登入，因此此工作階段無法登入 Tuist CLI、應用程式或 MCP 用戶端。請向組織管理員尋求協助。"
@@ -1256,7 +1255,7 @@ msgstr "使用 1Password？"
 msgid "Your old codes will stop working and other sessions will be signed out."
 msgstr "你舊有的驗證碼將失效，其他工作階段也會登出。"
 
-#: lib/tuist_web/controllers/sso_link_html.ex:80
+#: lib/tuist_web/controllers/sso_link_html.ex:82
 #, elixir-autogen, elixir-format
 msgid "Sign in again"
 msgstr "重新登入"
@@ -1271,7 +1270,7 @@ msgstr "請重新登入以繼續變更通行金鑰。"
 msgid "Sign in again to continue changing two-factor authentication."
 msgstr "請重新登入以繼續變更雙重身分驗證。"
 
-#: lib/tuist_web/controllers/sso_link_html.ex:65
+#: lib/tuist_web/controllers/sso_link_html.ex:67
 #, elixir-autogen, elixir-format
 msgid "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."
 msgstr "為保護你的帳號，在變更安全性設定前請先確認身分。登入後會自動返回此處。"
@@ -1345,22 +1344,22 @@ msgstr "重新產生"
 msgid "Manage 2FA"
 msgstr "管理雙重驗證"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "%{client} will be able to use your Tuist account as you, including your threads and AI subscriptions."
 msgstr "%{client} 將能以你的身分使用 Tuist 帳號，包括存取你的對話串與 AI 訂閱。"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:45
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Continue only if you just started signing in to %{client} yourself."
 msgstr "僅在你本人剛開始登入 %{client} 時才繼續。"
 
-#: lib/tuist_web/controllers/oauth/authorize_controller.ex:194
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:248
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client} · Tuist"
 msgstr "登入 %{client} · Tuist"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:2
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client}?"
 msgstr "登入 %{client}？"
@@ -1384,3 +1383,48 @@ msgstr "選取要與 %{github_organization} GitHub 組織連線的 Tuist 組織�
 #, elixir-autogen, elixir-format
 msgid "Only organizations you administer are listed. Create one, or ask an admin to promote you."
 msgstr "僅列出您管理的組織。請建立一個，或要求管理員將您提升為管理員。"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Anyone can register an application with any name, so check where access goes. The application can read your projects and use Tuist's agent tools as you, including tools that change organizations and projects you can change. If you did not start this, cancel."
+msgstr "任何人都可以用任何名稱註冊應用程式，因此請確認存取權的流向。該應用程式可以讀取你的專案，並以你的身分使用 Tuist 的代理工具，包括能變更你可修改之組織與專案的工具。如果你未啟動此程序，請取消。"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Application"
+msgstr "應用程式"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Authorize"
+msgstr "授權"
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:247
+#, elixir-autogen, elixir-format
+msgid "Authorize application · Tuist"
+msgstr "授權應用程式 · Tuist"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Authorize this application?"
+msgstr "要授權此應用程式嗎？"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Continue only if you just connected this application to Tuist yourself."
+msgstr "僅在你剛剛親自將此應用程式連接至 Tuist 時才繼續。"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Sends access to"
+msgstr "傳送存取權至"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Signed in as"
+msgstr "登入身分為"
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:234
+#, elixir-autogen, elixir-format
+msgid "Unnamed application"
+msgstr "未命名應用程式"

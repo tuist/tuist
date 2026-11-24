@@ -1,28 +1,28 @@
 {
   "navigation": {
     "groups": {
-      "builds": { "text": "編譯" },
+      "builds": { "text": "建構" },
       "tests": { "text": "測試" },
-      "compute": { "text": "運算資源" },
+      "compute": { "text": "運算" },
       "bundles": { "text": "套件" },
       "other-features": { "text": "其他功能" }
     },
     "items": {
-      "agentic-coding": { "text": "AI 代理編程" },
+      "agentic-coding": { "text": "AI 代理編碼" },
       "amp": { "text": "Amp" },
       "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel 快取" },
       "bitrise": { "text": "Bitrise" },
-      "build-and-publish": { "text": "編譯與發布" },
+      "build-and-publish": { "text": "建構與發佈" },
       "buildkite": { "text": "Buildkite" },
-      "cache-volumes": { "text": "快取儲存區" },
+      "cache-volumes": { "text": "快取磁碟區" },
       "calendar": { "text": "日曆" },
-      "channels": { "text": "渠道" },
+      "channels": { "text": "頻道" },
       "claude": { "text": "Claude" },
       "compatibility": { "text": "相容性" },
-      "coverage": { "text": "覆蓋率" },
-      "data-retention": { "text": "數據保留" },
+      "coverage": { "text": "涵蓋率" },
+      "data-retention": { "text": "資料保留" },
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir 快取" },
@@ -32,7 +32,7 @@
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
       "images": { "text": "映像檔" },
-      "implicit-dependencies": { "text": "隱式依賴" },
+      "implicit-dependencies": { "text": "隱含相依性" },
       "iphone-app": { "text": "iPhone App" },
       "macos-app": { "text": "macOS App" },
       "new-project": { "text": "新專案" },
@@ -43,15 +43,15 @@
       "origin": { "text": "Origin" },
       "profiles": { "text": "設定檔" },
       "project-description": { "text": "專案描述" },
-      "release": { "text": "版本發布" },
-      "release-calendar": { "text": "發布日曆" },
-      "release-channels": { "text": "發布渠道" },
-      "run-previews": { "text": "運行預覽" },
+      "release": { "text": "版本" },
+      "release-calendar": { "text": "版本日曆" },
+      "release-channels": { "text": "版本頻道" },
+      "run-previews": { "text": "執行預覽" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust 快取" },
       "rust-project": { "text": "Rust 專案" },
       "sandboxes": { "text": "沙盒" },
-      "scim-provisioning": { "text": "SCIM 配置" },
+      "scim-provisioning": { "text": "SCIM 佈建" },
       "server-api": { "text": "伺服器 API" },
       "single-sign-on": { "text": "單一登入" },
       "supported-types": { "text": "支援類型" },
@@ -67,7 +67,7 @@
         "text": "語言 🌍"
       },
       "description": {
-        "text": "你可以協助 Tuist 支援更多語言，或改善本頁的語言指引。"
+        "text": "你可以協助 Tuist 支援更多語言，或改進此頁面的語言指引。"
       },
       "cta": {
         "text": "貢獻"
@@ -93,24 +93,24 @@
           "no-recent-searches-text": "沒有搜尋記錄",
           "save-recent-search-button-title": "儲存至搜尋記錄",
           "remove-recent-search-button-title": "從搜尋記錄中移除",
-          "favorite-searches-title": "收藏",
+          "favorite-searches-title": "我的收藏",
           "remove-favorite-search-button-title": "從收藏中移除"
         },
         "error-screen": {
           "title-text": "無法取得結果",
-          "help-text": "你可能需要檢查網絡連接"
+          "help-text": "你可能需要檢查網路連線"
         },
         "footer": {
           "select-text": "選擇",
-          "navigate-text": "導航",
+          "navigate-text": "導覽",
           "close-text": "關閉",
           "search-by-text": "搜尋提供者"
         },
         "no-results-screen": {
-          "no-results-text": "未找到相關結果",
+          "no-results-text": "找不到相關結果",
           "suggested-query-text": "你可以嘗試查詢",
           "report-missing-results-text": "你認為此查詢應該有結果嗎？",
-          "report-missing-results-link-text": "點擊提供反饋"
+          "report-missing-results-link-text": "點擊提供回饋"
         }
       }
     }
@@ -126,7 +126,7 @@
       "text": "伺服器"
     },
     "tutorials": {
-      "text": "教程"
+      "text": "教學"
     },
     "resources": {
       "text": "資源",
@@ -138,7 +138,7 @@
           "text": "貢獻者"
         },
         "changelog": {
-          "text": "更新日誌"
+          "text": "更新記錄"
         }
       }
     }
@@ -156,7 +156,7 @@
               "text": "目錄"
             },
             "shell-completions": {
-              "text": "Shell 自動補全"
+              "text": "Shell 自動完成"
             }
           }
         },
@@ -172,7 +172,7 @@
           "text": "Xcode",
           "items": {
             "generated-projects": {
-              "text": "生成專案"
+              "text": "產生的專案"
             }
           }
         },
@@ -186,7 +186,7 @@
               "text": "不穩定測試"
             },
             "build-cache": {
-              "text": "編譯快取"
+              "text": "建構快取"
             }
           }
         },
@@ -202,7 +202,7 @@
           }
         },
         "configuration": {
-          "text": "配置",
+          "text": "設定",
           "items": {
             "tuist-toml": {
               "text": "tuist.toml"
@@ -215,7 +215,7 @@
       "text": "貢獻者",
       "items": {
         "code": {
-          "text": "代碼",
+          "text": "程式碼",
           "items": {
             "cli": {
               "text": "CLI"
@@ -235,7 +235,7 @@
           "text": "問題回報"
         },
         "code-reviews": {
-          "text": "代碼審查"
+          "text": "程式碼審查"
         },
         "principles": {
           "text": "原則"
@@ -247,13 +247,13 @@
           "text": "語言"
         },
         "releases": {
-          "text": "版本發布"
+          "text": "版本"
         },
         "cli": {
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "日誌記錄"
+              "text": "記錄"
             }
           }
         }
@@ -265,13 +265,13 @@
           "text": "簡介",
           "items": {
             "why-server": {
-              "text": "為何需要伺服器？"
+              "text": "為什麼需要伺服器？"
             },
             "accounts-and-projects": {
               "text": "帳戶與專案"
             },
             "authentication": {
-              "text": "身份驗證"
+              "text": "驗證"
             },
             "integrations": {
               "text": "整合"
@@ -298,13 +298,13 @@
       }
     },
     "tutorials": {
-      "text": "教程",
+      "text": "教學",
       "items": {
         "xcode": {
           "text": "Xcode",
           "items": {
             "create-a-generated-project": {
-              "text": "建立生成專案"
+              "text": "建立產生的專案"
             }
           }
         }
@@ -323,7 +323,7 @@
               "text": "Xcode 專案"
             },
             "generated-xcode-project": {
-              "text": "生成的 Xcode 專案"
+              "text": "產生的 Xcode 專案"
             },
             "gradle-project": {
               "text": "Gradle 專案"
@@ -365,7 +365,7 @@
           "text": "範例",
           "items": {
             "generated-projects": {
-              "text": "生成專案"
+              "text": "產生的專案"
             }
           }
         },
@@ -373,7 +373,7 @@
           "text": "開發",
           "items": {
             "generated-projects": {
-              "text": "生成專案",
+              "text": "產生的專案",
               "items": {
                 "adoption": {
                   "text": "採用",
@@ -404,7 +404,7 @@
                   }
                 },
                 "manifests": {
-                  "text": "清單檔案"
+                  "text": "Manifests"
                 },
                 "directory-structure": {
                   "text": "目錄結構"
@@ -413,31 +413,31 @@
                   "text": "編輯"
                 },
                 "dependencies": {
-                  "text": "依賴關係"
+                  "text": "相依性"
                 },
                 "code-sharing": {
-                  "text": "代碼共享"
+                  "text": "程式碼共享"
                 },
                 "synthesized-files": {
                   "text": "合成檔案"
                 },
                 "dynamic-configuration": {
-                  "text": "動態配置"
+                  "text": "動態設定"
                 },
                 "templates": {
                   "text": "模板"
                 },
                 "plugins": {
-                  "text": "插件"
+                  "text": "外掛"
                 },
                 "hashing": {
-                  "text": "哈希計算"
+                  "text": "雜湊"
                 },
                 "inspect": {
                   "text": "檢查",
                   "items": {
                     "implicit-imports": {
-                      "text": "隱式導入"
+                      "text": "隱含匯入"
                     }
                   }
                 },
@@ -448,7 +448,7 @@
                   "text": "模組化架構"
                 },
                 "metadata-tags": {
-                  "text": "元數據標籤"
+                  "text": "中繼資料標籤"
                 },
                 "best-practices": {
                   "text": "最佳實踐"
@@ -484,7 +484,7 @@
                   "text": "Xcode 專案"
                 },
                 "generated-project": {
-                  "text": "生成專案"
+                  "text": "產生的專案"
                 },
                 "xcodeproj-integration": {
                   "text": "基於 XcodeProj 的整合"
@@ -501,7 +501,7 @@
               "text": "選擇性測試",
               "items": {
                 "generated-xcode-project": {
-                  "text": "生成的 Xcode 專案"
+                  "text": "產生的 Xcode 專案"
                 }
               }
             },
@@ -509,7 +509,15 @@
               "text": "測試分片",
               "items": {
                 "generated-xcode-project": {
-                  "text": "生成的 Xcode 專案"
+                  "text": "產生的 Xcode 專案"
+                }
+              }
+            },
+            "snapshots": {
+              "text": "快照",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "產生的 Xcode 專案"
                 }
               }
             },
@@ -517,7 +525,7 @@
               "text": "洞察",
               "items": {
                 "generated-xcode-project": {
-                  "text": "生成的 Xcode 專案"
+                  "text": "產生的 Xcode 專案"
                 }
               }
             },
@@ -528,7 +536,7 @@
                   "text": "不穩定性",
                   "items": {
                     "generated-xcode-project": {
-                      "text": "生成的 Xcode 專案"
+                      "text": "產生的 Xcode 專案"
                     }
                   }
                 }
@@ -556,7 +564,7 @@
           }
         },
         "agentic-coding": {
-          "text": "AI 代理編程",
+          "text": "AI 代理編碼",
           "items": {
             "mcp": {
               "text": "MCP"
@@ -582,7 +590,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git 託管平台",
+              "text": "Git 平台",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -598,13 +606,13 @@
               "text": "帳戶與專案"
             },
             "authentication": {
-              "text": "身份驗證"
+              "text": "驗證"
             },
             "network": {
-              "text": "網絡"
+              "text": "網路"
             },
             "self-hosting": {
-              "text": "自託管",
+              "text": "自行託管",
               "items": {
                 "server": {
                   "text": "伺服器"

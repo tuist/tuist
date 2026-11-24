@@ -3,7 +3,7 @@
     "groups": {
       "builds": { "text": "构建" },
       "tests": { "text": "测试" },
-      "compute": { "text": "计算资源" },
+      "compute": { "text": "计算" },
       "bundles": { "text": "应用包" },
       "other-features": { "text": "其他功能" }
     },
@@ -35,13 +35,13 @@
       "implicit-dependencies": { "text": "隐式依赖" },
       "iphone-app": { "text": "iPhone 应用" },
       "macos-app": { "text": "macOS 应用" },
-      "new-project": { "text": "新建项目" },
+      "new-project": { "text": "新项目" },
       "once": { "text": "Struo" },
       "once-cache": { "text": "Struo 缓存" },
       "once-project": { "text": "Struo 项目" },
       "once-remote-execution": { "text": "Struo 远程执行" },
       "origin": { "text": "Origin" },
-      "profiles": { "text": "配置方案" },
+      "profiles": { "text": "配置文件" },
       "project-description": { "text": "项目描述" },
       "release": { "text": "发布" },
       "release-calendar": { "text": "发布日历" },
@@ -67,7 +67,7 @@
         "text": "语言 🌍"
       },
       "description": {
-        "text": "你可以帮助 Tuist 支持更多语言，或改进本页面的语言指南。"
+        "text": "你可以帮助 Tuist 支持更多语言，或改进本页面的语言指引。"
       },
       "cta": {
         "text": "贡献"
@@ -108,8 +108,8 @@
         },
         "no-results-screen": {
           "no-results-text": "未找到相关结果",
-          "suggested-query-text": "你可以尝试搜索",
-          "report-missing-results-text": "认为此查询应有结果？",
+          "suggested-query-text": "你可以尝试查询",
+          "report-missing-results-text": "你认为此查询应该有结果吗？",
           "report-missing-results-link-text": "点击提供反馈"
         }
       }
@@ -156,7 +156,7 @@
               "text": "目录"
             },
             "shell-completions": {
-              "text": "Shell 补全"
+              "text": "Shell 自动补全"
             }
           }
         },
@@ -314,10 +314,10 @@
       "text": "指南",
       "items": {
         "get-started": {
-          "text": "开始使用",
+          "text": "入门",
           "items": {
             "choose-your-path": {
-              "text": "开始使用"
+              "text": "入门"
             },
             "existing-xcode-project": {
               "text": "Xcode 项目"
@@ -348,13 +348,13 @@
           }
         },
         "quick-start": {
-          "text": "快速入门",
+          "text": "快速开始",
           "items": {
             "install-tuist": {
               "text": "安装 Tuist"
             },
             "get-started": {
-              "text": "开始使用"
+              "text": "入门"
             }
           }
         },
@@ -382,7 +382,7 @@
                       "text": "创建新项目"
                     },
                     "swift-package": {
-                      "text": "使用 Swift Package 尝试"
+                      "text": "使用 Swift Package 试用"
                     },
                     "migrate": {
                       "text": "迁移",
@@ -404,7 +404,7 @@
                   }
                 },
                 "manifests": {
-                  "text": "清单文件"
+                  "text": "清单"
                 },
                 "directory-structure": {
                   "text": "目录结构"
@@ -419,7 +419,7 @@
                   "text": "代码共享"
                 },
                 "synthesized-files": {
-                  "text": "生成文件"
+                  "text": "合成文件"
                 },
                 "dynamic-configuration": {
                   "text": "动态配置"
@@ -498,7 +498,7 @@
               }
             },
             "selective-testing": {
-              "text": "选择",
+              "text": "选择性测试",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成的 Xcode 项目"
@@ -507,6 +507,14 @@
             },
             "test-sharding": {
               "text": "分片",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "生成的 Xcode 项目"
+                }
+              }
+            },
+            "snapshots": {
+              "text": "快照",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成的 Xcode 项目"

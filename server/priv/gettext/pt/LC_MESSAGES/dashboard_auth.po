@@ -105,7 +105,7 @@ msgstr "Conexão bem-sucedida"
 msgid "Contact us"
 msgstr "Fale conosco"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:26
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:48
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:119
 #: lib/tuist_web/live/choose_username_live.ex:100
 #, elixir-autogen, elixir-format
@@ -574,7 +574,7 @@ msgstr "Já vinculado"
 #: lib/tuist_web/components/user_security.ex:278
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:38
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:34
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:57
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:58
@@ -620,7 +620,6 @@ msgid "Sign in with single sign-on again to link your account."
 msgstr "Faça login novamente com o single sign-on para vincular sua conta."
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:18
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
 #: lib/tuist_web/live/device_authorization_live.ex:37
 #, elixir-autogen, elixir-format
@@ -638,7 +637,7 @@ msgid "This identity provider account is already linked to another Tuist account
 msgstr "Esta conta do provedor de identidade já está vinculada a outra conta Tuist."
 
 #: lib/tuist_web/controllers/device_code_html.ex:19
-#: lib/tuist_web/controllers/sso_link_html.ex:34
+#: lib/tuist_web/controllers/sso_link_html.ex:35
 #, elixir-autogen, elixir-format
 msgid "Tuist logo"
 msgstr "Logotipo do Tuist"
@@ -885,7 +884,7 @@ msgstr "Não foi possível verificar a chave de acesso. Tente novamente."
 msgid "This passkey is already registered."
 msgstr "Esta chave de acesso já está registrada."
 
-#: lib/tuist_web/authentication.ex:865
+#: lib/tuist_web/authentication.ex:867
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "Cada uma das suas organizações exige seu próprio single sign-on, por isso esta sessão não pode fazer login na CLI do Tuist, no app ou em clientes MCP. Peça ajuda a um administrador da organização."
@@ -1256,7 +1255,7 @@ msgstr "Usando o 1Password?"
 msgid "Your old codes will stop working and other sessions will be signed out."
 msgstr "Seus códigos antigos deixarão de funcionar e outras sessões serão encerradas."
 
-#: lib/tuist_web/controllers/sso_link_html.ex:80
+#: lib/tuist_web/controllers/sso_link_html.ex:82
 #, elixir-autogen, elixir-format
 msgid "Sign in again"
 msgstr "Entrar novamente"
@@ -1271,7 +1270,7 @@ msgstr "Entre novamente para continuar alterando as chaves de acesso."
 msgid "Sign in again to continue changing two-factor authentication."
 msgstr "Entre novamente para continuar alterando a autenticação de dois fatores."
 
-#: lib/tuist_web/controllers/sso_link_html.ex:65
+#: lib/tuist_web/controllers/sso_link_html.ex:67
 #, elixir-autogen, elixir-format
 msgid "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."
 msgstr "Para proteger sua conta, confirme sua identidade antes de alterar as configurações de segurança. Você retornará aqui após fazer login."
@@ -1345,22 +1344,22 @@ msgstr "Regenerar"
 msgid "Manage 2FA"
 msgstr "Gerenciar 2FA"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "%{client} will be able to use your Tuist account as you, including your threads and AI subscriptions."
 msgstr "O %{client} poderá usar sua conta do Tuist como você, incluindo suas conversas e assinaturas de IA."
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:45
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Continue only if you just started signing in to %{client} yourself."
 msgstr "Continue apenas se você mesmo acabou de iniciar o login no %{client}."
 
-#: lib/tuist_web/controllers/oauth/authorize_controller.ex:194
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:248
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client} · Tuist"
 msgstr "Entrar no %{client} · Tuist"
 
-#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:2
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client}?"
 msgstr "Entrar em %{client}?"
@@ -1384,3 +1383,48 @@ msgstr "Selecione a organização Tuist para conectar à organização do GitHub
 #, elixir-autogen, elixir-format
 msgid "Only organizations you administer are listed. Create one, or ask an admin to promote you."
 msgstr "Apenas as organizações que você administra são listadas. Crie uma ou peça a um administrador para promovê-lo."
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Anyone can register an application with any name, so check where access goes. The application can read your projects and use Tuist's agent tools as you, including tools that change organizations and projects you can change. If you did not start this, cancel."
+msgstr "Qualquer pessoa pode registrar um aplicativo com qualquer nome, então verifique para onde o acesso está sendo concedido. O aplicativo pode ler seus projetos e usar as ferramentas de agente do Tuist em seu nome, incluindo ferramentas que alteram organizações e projetos que você tem permissão para modificar. Se você não iniciou este processo, cancele."
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Application"
+msgstr "Aplicativo"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Authorize"
+msgstr "Autorizar"
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:247
+#, elixir-autogen, elixir-format
+msgid "Authorize application · Tuist"
+msgstr "Autorizar aplicativo · Tuist"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Authorize this application?"
+msgstr "Autorizar este aplicativo?"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Continue only if you just connected this application to Tuist yourself."
+msgstr "Continue apenas se você mesmo conectou este aplicativo ao Tuist."
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Sends access to"
+msgstr "Concede acesso a"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Signed in as"
+msgstr "Conectado como"
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:234
+#, elixir-autogen, elixir-format
+msgid "Unnamed application"
+msgstr "Aplicativo sem nome"
