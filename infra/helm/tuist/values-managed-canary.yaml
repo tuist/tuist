@@ -903,6 +903,9 @@ sandboxes:
   # node, attached to template creates without a cold boot.
   cacheImagesGiB: 30
   cacheDriveInTemplate: true
+  # Memory bursting: guests return the memory they free (and, once idle,
+  # their page cache) to the host, and pauses punch zeros out of images.
+  balloonFreePageReporting: true
   # Short so canary exercises archive and restore through the in-rack store
   # within an hour of a pause.
   archiveAfterHours: 1
