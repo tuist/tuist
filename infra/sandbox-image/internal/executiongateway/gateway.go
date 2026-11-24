@@ -361,6 +361,12 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 				}
 				// Diagnostics only: neither the client nor the action cache keeps them.
 				stripCASReads(response.GetResult().GetExecutionMetadata())
+				// The usage sizes the action's next run; it goes to the server
+				// with the action's record, never to the client.
+				if usage, ok := worker.ReadUsage(response.GetResult().GetExecutionMetadata()); ok && record != nil {
+					record.usage = &usage
+				}
+				worker.StripUsage(response.GetResult().GetExecutionMetadata())
 				payload, _ := anypb.New(response)
 				message.Result = &lro.Operation_Response{Response: payload}
 				finished = response

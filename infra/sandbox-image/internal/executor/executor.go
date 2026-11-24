@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"runtime/debug"
 	"syscall"
 	"time"
@@ -68,7 +69,8 @@ func (s *Session) Run(parent context.Context, requestJSON, token string) (string
 	ctx, cancel := context.WithTimeout(parent, 12*time.Minute)
 	defer cancel()
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+token, "x-tuist-account-handle", r.Account))
-	w := worker.Worker{CAS: worker.NewCAS(conn, r.Instance), Root: actionRoot, Image: r.Image, MemoryGB: r.MemoryGB, Credential: &syscall.Credential{Uid: 1000, Gid: 1000}, Start: startWithoutNewPrivileges}
+	w := worker.Worker{CAS: worker.NewCAS(conn, r.Instance), Root: actionRoot, Image: r.Image, MemoryGB: r.MemoryGB, Credential: &syscall.Credential{Uid: 1000, Gid: 1000}, Start: startWithoutNewPrivileges,
+		Meter: &worker.CgroupMeter{Root: "/sys/fs/cgroup", Name: "action", VCPUs: runtime.NumCPU()}}
 	w.CAS.Seed(r.Inputs)
 	w.CAS.Host = hostBlobs{dial: dialHost}
 	response, cacheable := w.Execute(ctx, &re.Digest{Hash: r.Hash, SizeBytes: r.Size})

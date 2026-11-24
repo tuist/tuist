@@ -38,7 +38,10 @@ type Worker struct {
 	// their invoking user, against a temporary directory and an in-memory CAS.
 	Credential *syscall.Credential
 	// Start launches the action's command; nil uses exec.Cmd.Start.
-	Start   func(*exec.Cmd) error
+	Start func(*exec.Cmd) error
+	// Meter measures the command's usage, reported in the result's
+	// auxiliary metadata (UsageKind); nil measures nothing.
+	Meter   Meter
 	entries int
 	// Streamed inputs by digest: the first path downloads a blob, later paths
 	// with the same digest copy that file instead of reading it again.
@@ -191,9 +194,17 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 		Stdout: &limitedLog{file: stdout}, Stderr: errLog,
 		SysProcAttr: &syscall.SysProcAttr{Setpgid: true, Credential: w.Credential}, WaitDelay: time.Second}
 	oomBefore, oomKnown := w.oomKills()
+	// A guest that cannot meter the command still runs it, unmeasured.
+	meter := w.Meter
+	if meter != nil && meter.Prepare(cmd) != nil {
+		meter = nil
+	}
 	started := time.Now()
 	if err = w.start(cmd); err != nil {
 		return nil, false, err
+	}
+	if meter != nil {
+		meter.Start()
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -220,6 +231,13 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	}
 	metadata.ExecutionStartTimestamp = timestamppb.New(started)
 	metadata.ExecutionCompletedTimestamp = timestamppb.Now()
+	if meter != nil {
+		if usage, ok := meter.Stop(); ok {
+			if a, err := usageMetadata(usage); err == nil {
+				metadata.AuxiliaryMetadata = append(metadata.AuxiliaryMetadata, a)
+			}
+		}
+	}
 	metadata.OutputUploadStartTimestamp = timestamppb.Now()
 	result := &re.ActionResult{ExitCode: int32(exitCode), ExecutionMetadata: metadata}
 	if timedOut {

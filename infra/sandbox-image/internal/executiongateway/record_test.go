@@ -19,8 +19,12 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	worker "github.com/tuist/tuist/infra/sandbox-image/internal/reapi"
 )
 
 // byteStore serves the blob store's blobs over ByteStream too, honoring
@@ -61,9 +65,11 @@ func TestExecutedActionIsRecordedAfterTheClientHasItsResult(t *testing.T) {
 	// Larger than a record keeps, so only its start is sent.
 	stderr := store.put([]byte(strings.Repeat("e", maxRecordLog+10)))
 	queued := time.UnixMicro(1793157000000000)
+	usage, _ := structpb.NewStruct(map[string]any{"kind": worker.UsageKind, "cpu_ms": 9000, "wall_ms": 3000, "p90_cores": 3.5, "anon_peak_bytes": 1 << 30, "vcpus": 8})
+	usageAny, _ := anypb.New(usage)
 	b, _ := proto.Marshal(&re.ExecuteResponse{Result: &re.ActionResult{
 		ExitCode: 1, StdoutRaw: []byte("compiled"), StderrDigest: stderr,
-		ExecutionMetadata: &re.ExecutedActionMetadata{Worker: "firecracker-linux-amd64", WorkerStartTimestamp: timestamppb.New(queued.Add(time.Second)), ExecutionStartTimestamp: timestamppb.New(queued.Add(2 * time.Second)), ExecutionCompletedTimestamp: timestamppb.New(queued.Add(5 * time.Second))},
+		ExecutionMetadata: &re.ExecutedActionMetadata{Worker: "firecracker-linux-amd64", WorkerStartTimestamp: timestamppb.New(queued.Add(time.Second)), ExecutionStartTimestamp: timestamppb.New(queued.Add(2 * time.Second)), ExecutionCompletedTimestamp: timestamppb.New(queued.Add(5 * time.Second)), AuxiliaryMetadata: []*anypb.Any{usageAny}},
 	}})
 
 	g := New("https://control.example")
@@ -97,8 +103,14 @@ func TestExecutedActionIsRecordedAfterTheClientHasItsResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if done, err := stream.Recv(); err != nil || !done.Done {
+	done, err := stream.Recv()
+	if err != nil || !done.Done {
 		t.Fatalf("result: %v %v", done, err)
+	}
+	// The usage goes to the server only: the client never sees it.
+	var delivered re.ExecuteResponse
+	if err := done.GetResponse().UnmarshalTo(&delivered); err != nil || len(delivered.Result.ExecutionMetadata.AuxiliaryMetadata) != 0 {
+		t.Fatalf("client got auxiliary metadata: %v %v", delivered.Result.GetExecutionMetadata().GetAuxiliaryMetadata(), err)
 	}
 
 	var r *http.Request
@@ -134,6 +146,9 @@ func TestExecutedActionIsRecordedAfterTheClientHasItsResult(t *testing.T) {
 	}
 	if got.Timestamps["queued"] != queued.UnixMicro() || got.Timestamps["execution_completed"] != queued.Add(5*time.Second).UnixMicro() {
 		t.Fatalf("timestamps: %v", got.Timestamps)
+	}
+	if want := (worker.Usage{CPUMs: 9000, WallMs: 3000, P90Cores: 3.5, AnonPeakBytes: 1 << 30, VCPUs: 8}); got.Usage == nil || *got.Usage != want {
+		t.Fatalf("usage: %+v", got.Usage)
 	}
 	if _, ok := got.Timestamps["output_upload_start"]; ok {
 		t.Fatal("an unreported phase was recorded")
