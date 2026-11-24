@@ -2,7 +2,9 @@ defmodule Atlas.OAuth.TokenGenerator do
   @moduledoc """
   Custom token generator for Boruta that mints Guardian JWT access tokens
   scoped to a single Atlas user. The `sub` claim is the user UUID; the
-  `scopes` claim carries the granted OAuth scopes.
+  `scopes` claim carries the granted OAuth scopes; `client_id` names the OAuth
+  client the user approved, as RFC 9068 defines it, so the audit trail can tell
+  which client acted.
   """
 
   @behaviour Boruta.Oauth.TokenGenerator
@@ -15,7 +17,7 @@ defmodule Atlas.OAuth.TokenGenerator do
   @default_scopes ["mcp"]
 
   @impl TokenGenerator
-  def generate(:access_token = token_type, %Token{sub: sub, scope: scope} = token) do
+  def generate(:access_token = token_type, %Token{sub: sub, scope: scope, client_id: client_id} = token) do
     case Users.get_user(sub) do
       nil ->
         Boruta.TokenGenerator.generate(token_type, token)
@@ -26,7 +28,8 @@ defmodule Atlas.OAuth.TokenGenerator do
 
         claims = %{
           "scopes" => scopes,
-          "email" => user.email
+          "email" => user.email,
+          "client_id" => client_id
         }
 
         {:ok, jwt, _claims} =

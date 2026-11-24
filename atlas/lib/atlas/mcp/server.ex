@@ -409,7 +409,10 @@ defmodule Atlas.MCP.Server do
   pending request in Qonto and pays nothing until someone with review rights
   approves it there with strong customer authentication. It acts with the caller's
   own Qonto connection; if it reports one is missing, send them to Connections in
-  Atlas settings.
+  Atlas settings. It refuses IBANs Tuist has never paid; never work around that
+  by retrying with other details. Tell the user to confirm new or changed bank
+  details with the vendor and make the first payment in Qonto directly. Each
+  transfer is capped at 25,000 EUR; larger payments are made in Qonto directly.
 
   For any request to create, draft, prepare, generate, or fill an order form, enterprise contract, Master Services Agreement, or contract package:
   1. Call `generate_enterprise_contract` with `document_scope` set to `order_form` or `contract_package`. Follow the workflow it returns.

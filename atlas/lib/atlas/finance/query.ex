@@ -19,6 +19,30 @@ defmodule Atlas.Finance.Query do
     |> Repo.all()
   end
 
+  @doc """
+  Returns the subset of `ibans` (normalized: upper case, no spaces) that a
+  completed outgoing Qonto transfer has already paid. Incoming payments do not
+  count: anyone can send us money from an account to make it look known.
+  """
+  def paid_ibans([]), do: MapSet.new()
+
+  def paid_ibans(ibans) when is_list(ibans) do
+    Transaction
+    |> where([transaction], transaction.provider == "qonto")
+    |> where([transaction], transaction.direction == "debit" and transaction.status == "completed")
+    |> select(
+      [transaction],
+      fragment("upper(replace(?->'transfer'->>'counterparty_account_number', ' ', ''))", transaction.metadata)
+    )
+    |> where(
+      [transaction],
+      fragment("upper(replace(?->'transfer'->>'counterparty_account_number', ' ', ''))", transaction.metadata) in ^ibans
+    )
+    |> distinct(true)
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
   def list_accounts(opts \\ []) do
     limit = Keyword.get(opts, :limit)
     provider = Keyword.get(opts, :provider)
