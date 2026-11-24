@@ -1078,6 +1078,21 @@ server:
   # this cluster's JWKS and allowlist the server's namespace:ServiceAccount.
   atlasSupportIngest:
     enabled: false
+  # The Symptoms evaluator (infra/helm/symptoms): the server pulls its symptom
+  # log from `url` with TUIST_SYMPTOMS_TOKEN, and lets the evaluator's
+  # ServiceAccount read the human state back (TokenReview, audience
+  # `tuist-symptoms-state`). The token is the evaluator's `<tokenItem>/<tokenField>`
+  # in the environment's vault, synced through the managed server-config
+  # ExternalSecret, so this needs `server.config.managedSecrets`. Enable only
+  # after that item exists: a missing field fails the sync and the deploy.
+  symptoms:
+    enabled: false
+    # The evaluator's in-cluster Service, http://symptoms.<namespace>.svc.cluster.local
+    url: ""
+    evaluatorNamespace: ""
+    evaluatorServiceAccount: symptoms
+    tokenItem: SYMPTOMS
+    tokenField: api_token
   networkPolicy:
     enabled: false
     # Applies a default-deny policy to every pod in the release. The

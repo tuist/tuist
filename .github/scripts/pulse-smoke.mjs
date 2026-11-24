@@ -203,6 +203,19 @@ try {
     await write('traces', message(1, concat(message(1, resource), message(2, message(2, span)))), {
       'X-Pulse-Pipeline-Name': 'pulse_trace_v1',
     }, '/v1/traces');
+    if (!ingest) {
+      // Symptoms inputs: columns, Flows and tables over the log and trace
+      // tables, which now exist (infra/helm/pulse/symptoms.sql). Idempotent.
+      phase = 'Symptoms inputs';
+      const symptoms = process.env.PULSE_SYMPTOMS_SQL;
+      if (!symptoms) throw new Error();
+      const statements = symptoms.split(/;\s*$/m)
+        .map(statement => statement.replace(/^\s*--.*$/gm, '').trim()).filter(Boolean);
+      for (const statement of statements) await sqlResult(statement);
+      const expected = statements.map(statement => statement.match(/^CREATE FLOW IF NOT EXISTS (\S+)/)?.[1]).filter(Boolean);
+      const created = (await sqlResult('SHOW FLOWS')).output[0]?.records?.rows?.map(row => row[0]) ?? [];
+      if (expected.length === 0 || !expected.every(flow => created.includes(flow))) throw new Error();
+    }
   }
   if (readerAuthorization) headers.Authorization = readerAuthorization;
   enter('authentication boundary');

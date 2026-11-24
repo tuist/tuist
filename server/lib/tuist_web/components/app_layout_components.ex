@@ -529,7 +529,11 @@ defmodule TuistWeb.AppLayoutComponents do
             label={item.title}
             icon={item.icon}
             navigate={item.path}
-            selected={item.path == @current_path}
+            selected={
+              item.path == @current_path or
+                (item.id == "sidebar-pulse" and
+                   String.starts_with?(@current_path, item.path <> "/symptoms/"))
+            }
             default_open={
               Enum.any?(item.children, &String.starts_with?(@current_path, &1.path)) or
                 (not is_nil(item.path) and String.starts_with?(@current_path, item.path))

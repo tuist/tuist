@@ -40,6 +40,7 @@ defmodule Tuist.MCP.Transport.StatelessTest do
     assert Enum.sort(Enum.map(events, & &1["name"])) == [
              "build.failed",
              "ci_job.failed",
+             "pulse_symptom.opened",
              "test_case.marked_flaky",
              "test_run.failed"
            ]

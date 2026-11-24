@@ -1,0 +1,26 @@
+{{- $environment := include "symptoms.environment" . -}}
+# ClusterIP for the Tuist server, plus a tailnet device through the Tailscale
+# operator. There is deliberately no Ingress: the API is tailnet only.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "symptoms.fullname" . }}
+  labels:
+    {{- include "symptoms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: evaluator
+  {{- if .Values.service.tailscale.expose }}
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: {{ required "service.tailscale.hostname is required" .Values.service.tailscale.hostname | quote }}
+    # The operator's OAuth client can only mint the cluster's own tag.
+    tailscale.com/tags: {{ printf "tag:tuist-k8s-%s" $environment | quote }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "symptoms.selectorLabels" . | nindent 4 }}

@@ -8,7 +8,7 @@ defmodule Tuist.EnvironmentTest do
     account_handles = Environment.blocked_account_handles()
 
     assert "app" in account_handles
-    assert Environment.blocked_project_handles() == account_handles -- ["app"]
+    assert Environment.blocked_project_handles() == (account_handles -- ["app"]) ++ ["pulse"]
     assert Application.fetch_env!(:tuist, :blocked_handles) == account_handles
   end
 

@@ -79,6 +79,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},
     {"*/10 * * * *", Tuist.Kura.Workers.ClaimSizingWorker},
+    {"* * * * *", Tuist.Pulse.Workers.SyncSymptomsWorker},
     {"40 * * * *", Tuist.Kura.Workers.PlacementWorker},
     {"* * * * *", Tuist.Runners.Workers.BuildkitePollWorker},
     {"* * * * *", Tuist.Runners.Workers.BitrisePollWorker},

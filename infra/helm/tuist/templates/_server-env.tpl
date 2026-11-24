@@ -70,6 +70,15 @@ environment.
             - name: TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH
               value: /var/run/secrets/atlas-support-ingest/token
             {{- end }}
+            {{- if .Values.server.symptoms.enabled }}
+            # TUIST_SYMPTOMS_TOKEN comes from the server-config ExternalSecret.
+            - name: TUIST_SYMPTOMS_URL
+              value: {{ required "server.symptoms.url is required when server.symptoms.enabled" .Values.server.symptoms.url | quote }}
+            - name: TUIST_SYMPTOMS_EVALUATOR_NAMESPACE
+              value: {{ required "server.symptoms.evaluatorNamespace is required when server.symptoms.enabled" .Values.server.symptoms.evaluatorNamespace | quote }}
+            - name: TUIST_SYMPTOMS_EVALUATOR_SERVICE_ACCOUNT
+              value: {{ .Values.server.symptoms.evaluatorServiceAccount | quote }}
+            {{- end }}
             - name: TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION
               value: {{ .Values.server.ssoRequireLoginDomainVerification | ternary "true" "false" | quote }}
             {{- if .Values.server.turnstile.enabled }}

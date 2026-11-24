@@ -104,6 +104,7 @@
 - Cache services: [kura/AGENTS.md](kura/AGENTS.md), [reapi_cache/AGENTS.md](reapi_cache/AGENTS.md), [registry/AGENTS.md](registry/AGENTS.md).
 - Rate-limit backends and shared-store failure policy: [rate_limit/AGENTS.md](rate_limit/AGENTS.md). Outage counters live in `Tuist.PromEx.RateLimit`; `Tuist.RateLimit` uses `Environment.rate_limit_fallback_replicas/0` for a mockable replica allowance without mutating global test configuration.
 - Sandboxes: [sandboxes/AGENTS.md](sandboxes/AGENTS.md).
+- Pulse symptoms mirror, human state and code-built briefs: [pulse/AGENTS.md](pulse/AGENTS.md).
 
 ## Related Context
 

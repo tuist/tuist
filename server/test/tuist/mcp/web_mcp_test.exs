@@ -41,7 +41,7 @@ defmodule Tuist.MCP.WebMCPTest do
     pulse_tools =
       ~w(query_pulse get_pulse_analytics get_pulse_error_issue query_pulse_metrics list_pulse_labels search_pulse_logs search_pulse_traces get_pulse_trace)
 
-    for path <- ~w(metrics logs traces errors errors/issues/abc) do
+    for path <- ["", "metrics", "logs", "traces", "errors", "errors/issues/abc"] do
       assert WebMCP.dashboard_page("/acme/pulse/#{path}", organization, nil) == "pulse"
     end
 

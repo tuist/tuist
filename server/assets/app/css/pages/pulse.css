@@ -1,13 +1,122 @@
+#pulse-symptom-detail {
+  & [data-part="evidence-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  & #pulse-symptom-revisions [data-part="symptom-history-section"] {
+    padding-inline: 0 var(--noora-spacing-8);
+    padding-block: var(--noora-spacing-8);
+
+    & [data-part="timeline"] {
+      position: relative;
+      gap: var(--noora-spacing-5);
+      padding-inline-start: 48px;
+
+      &::before {
+        position: absolute;
+        inset-block: 0;
+        inset-inline-start: 24px;
+        background: var(--noora-surface-border-primary);
+        width: 1px;
+        content: "";
+      }
+    }
+
+    & [data-part="timeline-item"] {
+      flex-wrap: nowrap;
+      gap: 10px;
+      box-shadow: var(--noora-light-border-default);
+      border-radius: var(--noora-radius-4);
+      background: var(--noora-surface-background-primary);
+      padding: var(--noora-spacing-5);
+    }
+
+    & [data-part="timeline-icon"] {
+      justify-content: center;
+      align-items: center;
+      border-radius: var(--noora-radius-4);
+      padding: var(--noora-spacing-3);
+
+      & svg {
+        width: var(--noora-icon-size-large);
+        height: var(--noora-icon-size-large);
+      }
+
+      &[data-color="warning"] {
+        background: var(--noora-icon-warning-background);
+        color: var(--noora-icon-warning-label);
+      }
+
+      &[data-color="success"] {
+        background: var(--noora-icon-success-background);
+        color: var(--noora-icon-success-label);
+      }
+
+      &[data-color="destructive"] {
+        background: var(--noora-icon-destructive-background);
+        color: var(--noora-icon-destructive-label);
+      }
+    }
+
+    & [data-part="timeline-content"] {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-2);
+    }
+
+    & [data-part="timeline-title"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+
+    & [data-part="timeline-subtitle"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & [data-part="timeline-time"] {
+      flex-shrink: 0;
+    }
+  }
+
+  & [data-part="measurement-plot"] {
+    height: 200px;
+
+    & .noora-chart {
+      height: 100%;
+    }
+  }
+}
+
 #pulse,
-#pulse-error-detail {
+#pulse-error-detail,
+#pulse-symptom-detail {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
-  padding: var(--noora-spacing-7) var(--noora-spacing-5);
   min-width: 0;
 
   & > [data-part="back-button"] {
     align-self: flex-start;
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="actions"] {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & .noora-dropdown-item:not([data-selected]) [data-part="right-icon"] svg {
+    visibility: hidden;
   }
 
   & [data-part="title-group"],
@@ -41,6 +150,38 @@
     & svg {
       width: var(--noora-icon-size-large);
       height: var(--noora-icon-size-large);
+    }
+  }
+
+  & [data-part="state-icon"] {
+    display: flex;
+    flex-shrink: 0;
+    border-radius: var(--noora-radius-4);
+    padding: var(--noora-spacing-3);
+
+    & svg {
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+    }
+
+    &[data-color="destructive"] {
+      background: var(--noora-icon-destructive-background);
+      color: var(--noora-icon-destructive-label);
+    }
+
+    &[data-color="warning"] {
+      background: var(--noora-icon-warning-background);
+      color: var(--noora-icon-warning-label);
+    }
+
+    &[data-color="success"] {
+      background: var(--noora-icon-success-background);
+      color: var(--noora-icon-success-label);
+    }
+
+    &[data-color="neutral"] {
+      background: var(--noora-icon-neutral-background);
+      color: var(--noora-icon-neutral-label);
     }
   }
 
@@ -274,18 +415,6 @@
         white-space: pre-wrap;
       }
 
-      & pre {
-        margin: 0;
-        border-radius: var(--noora-radius-3);
-        background: var(--noora-surface-background-secondary);
-        padding: var(--noora-spacing-4);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-        font-family: var(--noora-font-code);
-        direction: ltr;
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-
       & .lumis code,
       & .lumis .line {
         display: inline;
@@ -332,6 +461,36 @@
         grid-template-columns: minmax(0, 1fr);
       }
     }
+  }
+
+  & [data-part="evidence-content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    min-width: 0;
+  }
+
+  /* Event data and the symptom page's commands, series and excerpts. */
+  & [data-layout="event-data"] pre,
+  & pre[data-part="code"] {
+    margin: 0;
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-4);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    font-family: var(--noora-font-code);
+    direction: ltr;
+    text-align: start;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  & [data-part="context-text"],
+  & [data-part="context-subheading"] {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    overflow-wrap: anywhere;
   }
 
   & [data-part="context-heading"] {
@@ -521,6 +680,69 @@
       font: inherit;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
+    }
+  }
+}
+
+/* Keep symptom titles readable and impact units visible without widening the page. */
+#pulse[data-signal="symptoms"] {
+  & [data-part="issue-cell"] {
+    min-width: 260px;
+    max-width: 340px;
+  }
+
+  & [data-part="issue-label"] {
+    white-space: normal;
+  }
+
+  & [data-part="symptom-sources"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+    padding: var(--noora-spacing-4) var(--noora-spacing-5);
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  & #symptoms-table [data-type="text_and_description"] [data-part="column"] {
+    max-width: 180px;
+  }
+
+  & [data-part="confidence-cell"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    padding: var(--noora-spacing-4) var(--noora-spacing-5);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    font-variant-numeric: tabular-nums;
+  }
+
+  & [data-part="confidence-meter"] {
+    border-radius: var(--noora-radius-99);
+    background: var(--noora-surface-background-tertiary);
+    width: 64px;
+    height: 6px;
+    overflow: hidden;
+    direction: ltr;
+
+    & span {
+      display: block;
+      background: var(--noora-chart-primary);
+      height: 100%;
+    }
+  }
+
+  @media (width <= 1400px) {
+    & [data-part="issue-cell"] {
+      min-width: 180px;
+      max-width: 200px;
+    }
+
+    & [data-part="confidence-meter"] {
+      width: 48px;
     }
   }
 }

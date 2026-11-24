@@ -53,6 +53,9 @@ defmodule Tuist.MCP.Events.Publisher do
 
   defp log_enqueue_result({:error, reason}) do
     Logger.warning("MCP event fan-out could not be queued: #{inspect(reason)}")
+    # Transactional producers must not commit their cursor or domain state
+    # unless the corresponding durable jobs were persisted too.
+    if Repo.in_transaction?(), do: Repo.rollback(reason)
     :ok
   end
 

@@ -286,6 +286,10 @@ defmodule TuistWeb.Router do
     plug TuistWeb.Marketing.Preferences
   end
 
+  pipeline :pulse_project_fallback do
+    plug TuistWeb.Plugs.PulseRoutesPlug, :project_fallback
+  end
+
   pipeline :browser_docs do
     plug :put_request_kind, "docs"
     plug MarkdownNegotiationPlug
@@ -1518,6 +1522,8 @@ defmodule TuistWeb.Router do
     post "/claude-code-runners/spawn", ClaudeCodeRunnersController, :spawn
     get "/sandboxes/nodes/connect", SandboxNodesController, :connect
     post "/sandboxes/allocation", SandboxAllocationsController, :update
+    # The symptoms evaluator reads human state back (projected token, TokenReview).
+    get "/symptoms/state", Internal.SymptomsStateController, :show
   end
 
   scope "/api/environment-providers/atlas/:account_handle/:environment_id", TuistWeb do
@@ -1974,8 +1980,15 @@ defmodule TuistWeb.Router do
     end
   end
 
+  # Pulse pages lived under `/:account/~/pulse` before.
+  scope "/:account_handle/~/pulse", TuistWeb.Plugs do
+    get "/", PulseRoutesPlug, :legacy
+    get "/*path", PulseRoutesPlug, :legacy
+  end
+
   scope "/:account_handle", TuistWeb do
     pipe_through [
+      :pulse_project_fallback,
       :open_api,
       :browser_app,
       :load_operator_grant,
@@ -2006,6 +2019,8 @@ defmodule TuistWeb.Router do
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
+      live "/pulse", PulseSymptomsLive
+      live "/pulse/symptoms/:id", PulseSymptomLive
       live "/pulse/metrics", PulseLive, :metrics
       live "/pulse/logs", PulseLive, :logs
       live "/pulse/traces", PulseLive, :traces

@@ -136,7 +136,7 @@ jobs:
           bash .github/scripts/pulse-collectors.test.sh
           mkdir -p "$RUNNER_TEMP/pulse-chart"
           helm package infra/helm/pulse --destination "$RUNNER_TEMP/pulse-chart"
-      - name: Run the Sentry errors pipeline in the Pulse release to deploy
+      - name: Run the Sentry errors and Symptoms inputs pipelines in the pinned Pulse release
         run: |
           set -euo pipefail
           printf 'pilot=ci\n' > "$RUNNER_TEMP/pulse-users"
@@ -149,6 +149,7 @@ jobs:
             sleep 2
           done
           PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:ci node infra/helm/pulse/test-sentry-errors.mjs
+          PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:ci node infra/helm/pulse/test-symptoms-inputs.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           # One cascade run calls this workflow once per environment.
@@ -456,9 +457,11 @@ jobs:
             --rawfile errors_pipeline infra/helm/pulse/sentry-errors.yaml \
             --rawfile error_issues infra/helm/pulse/error-issues.sql \
             --rawfile sessions_table infra/helm/pulse/sessions.sql \
+            --rawfile symptoms infra/helm/pulse/symptoms.sql \
             '.spec.containers[0].env += [{name:"PULSE_LOKI_PIPELINE",value:$pipeline},
               {name:"PULSE_ERRORS_TABLE",value:$errors_table},{name:"PULSE_ERRORS_PIPELINE",value:$errors_pipeline},
-              {name:"PULSE_ERROR_ISSUES",value:$error_issues},{name:"PULSE_SESSIONS_TABLE",value:$sessions_table}]' \
+              {name:"PULSE_ERROR_ISSUES",value:$error_issues},{name:"PULSE_SESSIONS_TABLE",value:$sessions_table},
+              {name:"PULSE_SYMPTOMS_SQL",value:$symptoms}]' \
             "$dir/native.json" > "$dir/smoke.json"
       - name: Install private backend, retaining state on failure
         run: |
@@ -630,4 +633,3 @@ jobs:
             kubectl -n observability delete pod "pulse-rollout-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --ignore-not-found --wait=true --timeout=30s
             kubectl -n observability delete externalsecret "$STORAGE_POD" "$STORAGE_POD-reset" --ignore-not-found --wait=true --timeout=30s
           fi
-

@@ -23,6 +23,20 @@ defmodule Tuist.MCP.Events.Payload do
     }
   end
 
+  # The entity comes from the symptoms evaluator: untrusted, so it is bounded
+  # and typed `untrusted_json` for clients that hand it to a model.
+  def data("pulse_symptom.opened", %{"symptom_id" => id, "tier" => tier} = args, account) do
+    entity = Map.new(~w(service kind key), &{&1, args |> Map.get(&1) |> to_string() |> String.slice(0, 200)})
+
+    %{
+      "account_handle" => account,
+      "symptom_id" => id,
+      "tier" => tier,
+      "untrusted" => %{"type" => "untrusted_json", "value" => entity},
+      "url" => "#{Tuist.Environment.app_url()}/#{account}/pulse/symptoms/#{id}"
+    }
+  end
+
   defp project_data(account, project, fields, path) do
     Map.merge(fields, %{
       "account_handle" => account,

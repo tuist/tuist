@@ -1,3 +1,16 @@
+# Loki pushes from the collectors -> opentelemetry_logs. Besides the native log
+# columns, every line gets the inputs the Symptoms evaluator reads (see
+# README.md, "Symptoms inputs"):
+#   service       service.name, or "unknown"
+#   level         debug, info, warning, error, critical or unknown
+#   template_key  code:<16 hex> from logger metadata (function, module, file,
+#                 line) when the line carries it, else text:<16 hex> from the
+#                 masked first line of the message (and the tracing target)
+#   template      that masked first line, at most 256 characters
+#   body          the line with credentials (Bearer tokens, JWTs, long
+#                 base64 runs) replaced by <token>
+#   exception_fp  for an Elixir exception with a stack trace, the fingerprint
+#                 sentry-errors.yaml gives the Sentry event of the same crash
 processors:
   - vrl:
       source: |
@@ -15,13 +28,148 @@ processors:
           labels."service.name" = labels.service_name
         }
         .timestamp = to_unix_timestamp(timestamp!(.pulse_timestamp), unit: "nanoseconds")
-        .body = .loki_line
+        line = to_string(.loki_line) ?? ""
+
+        # Credentials never reach a stored line or template: a Bearer token,
+        # a JWT, and a long base64 or base64url run with upper case, lower
+        # case and digits. A run starting with / is an absolute path and
+        # qualifies only with + or =, so /Users/runner/... stays; one with a /
+        # inside (an AWS secret key) does not. Hashes and UUIDs lack upper case.
+        # `exception_fp` still hashes the raw line, as Sentry does.
+        safe = replace(line, r'(?i)\b(bearer)[ \t]+[A-Za-z0-9._~+/=-]+', "$1 <token>")
+        safe = replace(safe, r'\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]*)?', "<token>")
+        safe = replace_with(safe, r'[A-Za-z0-9+/_-]{32,}={0,2}') -> |found| {
+          token = found.string
+          if match(token, r'[0-9]') && match(token, r'[A-Z]') && match(token, r'[a-z]') && (!starts_with(token, "/") || match(token, r'[+=]')) { "<token>" } else { token }
+        }
+        .body = if is_string(.loki_line) { safe } else { .loki_line }
         level = if exists(.loki_label_level) { .loki_label_level } else { .loki_metadata_level }
         trace = if exists(.loki_metadata_trace_id) { .loki_metadata_trace_id } else { .loki_label_trace_id }
         .severity_text = upcase(to_string(level) ?? "")
         .trace_id = to_string(trace) ?? ""
         .resource_attributes = labels
         .log_attributes = metadata
+
+        service = to_string(labels."service.name")
+        .service = if service == "" { "unknown" } else { service }
+
+        # The message and level: a JSON line (Kura's tracing, Pulse's own
+        # logs) carries them as fields; a pod's console line is
+        # "<time> <metadata>[<level>] <message>"; anything else is the message.
+        text = safe
+        target = ""
+        lv = downcase(to_string(level) ?? "")
+        if starts_with(safe, "{") {
+          parsed = object(parse_json(safe) ?? null) ?? {}
+          message = parsed.message
+          if !is_string(message) { message = get(parsed, ["fields", "message"]) ?? null }
+          if is_string(message) { text = string(message) ?? text }
+          target = to_string(parsed.target) ?? ""
+          if lv == "" { lv = downcase(to_string(parsed.level) ?? "") }
+        } else {
+          console = parse_regex(safe, r'^(?:[^\n]*? )?\[(?P<level>debug|info|notice|warning|warn|error|critical|alert|emergency)\] (?P<message>(?s:.*))$') ?? null
+          if is_object(console) {
+            text = string(console.message) ?? text
+            if lv == "" { lv = string(console.level) ?? "" }
+          }
+        }
+        .level = if includes(["trace", "debug"], lv) {
+          "debug"
+        } else if includes(["info", "information", "notice"], lv) {
+          "info"
+        } else if includes(["warn", "warning"], lv) {
+          "warning"
+        } else if includes(["error", "err"], lv) {
+          "error"
+        } else if includes(["critical", "crit", "alert", "emergency", "fatal", "panic"], lv) {
+          "critical"
+        } else {
+          "unknown"
+        }
+
+        # Masked template: the message's first line with variable values
+        # replaced. HTTP statuses and error codes stay, since they tell
+        # templates apart.
+        first = split(text, "\n", 2)[0]
+        masked = truncate(string(first) ?? "", 1024)
+        masked = replace(masked, r'\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?', "<ts>")
+        masked = replace(masked, r'(?:/Users/runner|/home/runner|/private/var/folders|/var/folders|/tmp|/private/tmp|/Users/[^/\s]+/Library/Developer)(?:/[^\s\x22\x27<>,;()\[\]{}]*)?', "<path>")
+        masked = replace(masked, r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', "<email>")
+        masked = replace(masked, r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b', "<uuid>")
+        masked = replace(masked, r'#[A-Z][A-Za-z0-9_.]*<[^<>]*>', "<term>")
+        masked = replace(masked, r'<\d+\.\d+\.\d+>', "<pid>")
+        masked = replace(masked, r'%(?:[A-Z][A-Za-z0-9_.]*)?\{[^{}]*\}', "<map>")
+        masked = replace(masked, r'%(?:[A-Z][A-Za-z0-9_.]*)?\{[^{}]*\}', "<map>")
+        masked = replace(masked, r'%(?:[A-Z][A-Za-z0-9_.]*)?\{[^{}]*\}', "<map>")
+        masked = replace(masked, r'"(?:[^"\\]|\\.)*"', "<str>")
+        masked = replace(masked, r'(^|[^A-Za-z0-9_])\x27[^\x27\n]*\x27', "$1<str>")
+        masked = replace(masked, r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', "<ip>")
+        masked = replace(masked, r'(?i)\b(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}\b', "<ip>")
+        masked = replace(masked, r'(?i)\b(?:[0-9a-f]{1,4}:){2,6}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,4})?', "<ip>")
+        masked = replace(masked, r'(?i)\b[0-9a-f]{1,4}::(?:[0-9a-f]{1,4}:){1,5}[0-9a-f]{1,4}\b', "<ip>")
+        masked = replace(masked, r'\b0x[0-9a-fA-F]+\b', "<hex>")
+        masked = replace_with(masked, r'\b[0-9a-fA-F]{8,}\b') -> |found| {
+          if match(found.string, r'[0-9]') { "<hex>" } else { found.string }
+        }
+        masked = replace_with(masked, r'(?i)(?P<code>\b(?:status|status_code|http|code|errno|sqlstate|error|exit status|exit code)(?:[=:] ?| )|HTTP/[0-9.]+ )?\b[0-9]+(?:\.[0-9]+)*') -> |found| {
+          if found.code != null { found.string } else { "<n>" }
+        }
+        template = truncate(masked, 256)
+        .template = template
+
+        # Template key: the logger call site when the line names it (OTel
+        # code.* attributes or Elixir's mfa/module/function/file/line
+        # metadata), else the masked text.
+        site = {}
+        for_each([
+          ["function", "code.function"], ["function", "code_function"], ["function", "code.function.name"],
+          ["function", "mfa"], ["function", "function"], ["module", "module"], ["module", "code.namespace"],
+          ["file", "code.filepath"], ["file", "code_filepath"], ["file", "code.file.path"], ["file", "file"],
+          ["line", "code.lineno"], ["line", "code_lineno"], ["line", "code.line.number"], ["line", "line"]
+        ]) -> |_index, pair| {
+          name = string(pair[0])
+          value = to_string(get(metadata, [string(pair[1])]) ?? "") ?? ""
+          if value != "" && (get(site, [name]) ?? null) == null { site = set(site, [name], value) ?? site }
+        }
+        code_function = string(site.function) ?? ""
+        code_module = string(site.module) ?? ""
+        code_line = string(site.line) ?? ""
+        if code_function != "" || (code_module != "" && code_line != "") {
+          site_text = join([code_module, code_function, string(site.file) ?? "", code_line], "|") ?? ""
+          .template_key = "code:" + (slice(sha2(site_text, variant: "SHA-256"), 0, 16) ?? "")
+        } else {
+          .template_key = "text:" + (slice(sha2(target + "|" + template, variant: "SHA-256"), 0, 16) ?? "")
+        }
+
+        # exception_fp: Atlas's Fingerprint (sentry-errors.yaml) of the Sentry
+        # event for the same crash: sha256 of type|function|module|message.
+        # Sentry's Elixir SDK marks no frame in-app here, so the top frame is
+        # the innermost one, the first line of Elixir's stack trace.
+        banner = parse_regex(line, r'(?m)^[ \t]*\*\* \((?P<type>[A-Z][A-Za-z0-9_.]*)\) (?P<rest>(?s:.*))$') ?? null
+        if is_object(banner) {
+          rest = string(banner.rest) ?? ""
+          frame = parse_regex(rest, r'(?m)^[ \t]+\([^)\n]*\) (?P<file>[^\n:]+):(?P<line>[0-9]+): (?P<mfa>[^\n]+?)[ \t]*$') ?? null
+          if is_object(frame) {
+            evalue = string(parse_regex(rest, r'(?s)^(?P<value>.*?)(?:\n[ \t]+\([^)\n]*\) [^\n:]+:[0-9]+: .*)?$').value ?? "")
+            mfa = string(frame.mfa) ?? ""
+            owner = string(parse_regex(mfa, r'^anonymous fn/[0-9]+ in (?P<owner>.+)$').owner ?? mfa)
+            module = string(parse_regex(owner, r'^(?P<module>.+)\.[^./]+/[0-9]+$').module ?? "")
+            location = if starts_with(module, ":") {
+              slice(module, 1) ?? module
+            } else if module != "" {
+              "Elixir." + module
+            } else {
+              string(frame.file) ?? ""
+            }
+            normalized_message = replace(evalue, r'0x[0-9a-fA-F]+', "0x*")
+            normalized_message = replace(normalized_message, r'[0-9]+', "N")
+            normalized_message = replace(normalized_message, r'[ \t\n\x0B\x0C\r]+', " ")
+            normalized_message = string(parse_regex(normalized_message, r'(?s)^(?P<prefix>.{0,200})').prefix ?? "")
+            normalized_message = strip_whitespace(normalized_message)
+            key = join([string(banner.type) ?? "", mfa, location, normalized_message], "|") ?? ""
+            .exception_fp = sha2(key, variant: "SHA-256")
+          }
+        }
         .
 transform:
   - field: timestamp
@@ -31,3 +179,5 @@ transform:
     type: string
   - fields: [resource_attributes, log_attributes]
     type: json
+  - fields: [service, level, template_key, template, exception_fp]
+    type: string

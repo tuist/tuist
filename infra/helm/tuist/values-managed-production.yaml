@@ -67,6 +67,13 @@ registry:
       sentryDsn: SENTRY_DSN_REGISTRY_ATLAS
 
 server:
+  # The Symptoms evaluator (infra/helm/symptoms, release `symptoms` in
+  # `symptoms-production`). Enable once SYMPTOMS/api_token exists in this environment's
+  # vault and the evaluator is deployed.
+  symptoms:
+    enabled: false
+    url: http://symptoms.symptoms-production.svc.cluster.local
+    evaluatorNamespace: symptoms-production
   # Production mail goes through Mailgun until sesStartsAt, then through SES
   # without a restart: customers get 30 days' notice of the subprocessor change
   # first. Once the date has passed, delete this block to inherit ses.

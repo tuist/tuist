@@ -4614,6 +4614,93 @@ absent_over_time(
 - Pending period: 0 minutes
 - Summary: `The public endpoint check stopped producing telemetry`
 
+### Symptoms backstops
+
+The [Symptoms](../../../symptoms/README.md) evaluator replaces alert rules,
+but its README ("Backstops and watching the watcher") keeps these outside it
+until its shadow precision covers them. They live in
+[`symptoms-backstop-alert-rules.json`](symptoms-backstop-alert-rules.json),
+group `Production availability`, read Grafana Cloud's own Prometheus
+(`grafanacloud-prom`, never Pulse), page through `Incidents`, and are tested by
+`test-symptoms-alerts.sh`. The remaining backstop, the oldest available job
+age on `process_xcresult`, already exists as **Remote processing queue has no
+consumer**, so it is not repeated here.
+
+Checked against the other rules in this directory and this page: none shares
+a uid, title, selector or probe job with these. Two overlap in signal, not in
+rule: **Ingress server-error response ratio** (warning, every ingress, 1% over
+5 minutes) also sees server and Kura ingress 5xx, and **Kura cache read
+faults** sees Kura pod 5xx. They stay: those warn early on any ingress, these
+page only on a sustained burn of the two availability targets. Retire the
+warnings for these two ingresses only if the pages prove to cover them.
+**Public endpoint unavailable from multiple locations** probes
+`https://tuist.dev`, not the registry or the Kura regions.
+
+#### Server ingress SLO fast burn
+
+```promql
+# A: 1-hour burn rate against a 99.9% availability target
+sum by (cluster) (rate(nginx_ingress_controller_requests{cluster="tuist-production", namespace="tuist", ingress="tuist-tuist-server", status=~"5.."}[1h]))
+/ sum by (cluster) (rate(nginx_ingress_controller_requests{cluster="tuist-production", namespace="tuist", ingress="tuist-tuist-server"}[1h]))
+/ 0.001
+# B: the same over 5m
+# C (math): $A > 14.4 && $B > 14.4
+```
+
+- Pending period: 2 minutes; severity critical; `affected_service: API`
+- 14.4 is the standard fast-burn factor: 2% of a 30-day budget in an hour. The
+  5-minute window makes it resolve as soon as the errors stop.
+- The 99.9% target is an assumption, not a published SLO. Backtest it against
+  the last 28 days before relying on the page.
+
+#### Cache ingress SLO fast burn
+
+The same burn rate per region over the regional Kura ingress controllers
+(`job="kura-ingress-nginx"`, by `kura_gateway`), with A kept only where the
+region served more than one request a second over the hour, so a handful of
+errors in an idle region cannot page. `affected_service: Cache`. 503 and 504
+include capacity shedding and draining; see **Kura shedding cache reads under
+capacity pressure** to tell them apart. Preview the selector's `status`
+values in Grafana when provisioning: the dedicated `kura-ingress-nginx` scrape
+is newer than the access-log rules.
+
+#### Registry unavailable from multiple locations
+
+Create a Grafana Synthetic Monitoring HTTP check for
+`https://registry.tuist.dev/up` with **Job** `tuist-registry-readiness`, every
+minute from at least three public probes. The rule pages when fewer than two
+probes succeeded in the last three minutes, like **Public endpoint unavailable
+from multiple locations**:
+
+```promql
+sum(max by (probe) (max_over_time(probe_success{job="tuist-registry-readiness"}[3m]))) < 2
+```
+
+`affected_service: Registry`: add that option to the IRM label field first if
+it does not exist.
+
+#### Registry probe telemetry missing
+
+`absent_over_time(probe_success{job="tuist-registry-readiness"}[3m])`, warning,
+policy routing.
+
+#### Kura region unavailable from multiple locations
+
+One Synthetic Monitoring HTTP check per Kura region's public endpoint, all with
+**Job** `kura-region-readiness` and the region as the check's instance:
+
+```promql
+sum by (instance) (max by (instance, probe) (max_over_time(probe_success{job="kura-region-readiness"}[3m]))) < 2
+```
+
+`affected_service: Cache`.
+
+#### Kura region probe telemetry missing
+
+`absent_over_time(probe_success{job="kura-region-readiness"}[3m])`, warning,
+policy routing. It only notices every check disappearing; removing one
+region's check silently drops that region.
+
 ### Rack Mac mini under heavy thermal pressure
 
 ```promql
@@ -9442,6 +9529,121 @@ The paired rule for the one above. The `pulse-datanode` job is the dedicated
 scrape in `values.yaml`, and it reaches the datanodes through the Pulse
 chart's `pulse-datanode-metrics` NetworkPolicy. If either breaks, the
 rejection rule goes quiet instead of firing.
+
+### Symptoms evaluator rules
+
+Watching the watcher: the [Symptoms](../../../symptoms/README.md) evaluator
+runs in `symptoms-production` and exports its heartbeat and coverage, which
+alloy-metrics scrapes to Grafana Cloud. These rules read Grafana Cloud's own
+Prometheus (`grafanacloud-prom`), outside the cluster being watched, so they
+keep working when the cluster or Pulse does not. They live in
+[`symptoms-alert-rules.json`](symptoms-alert-rules.json), group `Symptoms`,
+production only, severity warning with policy routing while production paging
+is off. Pin the two heartbeat rules to `Incidents` when
+`decision.pagingEnabled` turns on in `infra/helm/symptoms/values-production.yaml`.
+Provision them after the evaluator's first production deploy, or the missing
+heartbeat fires at once. `test-symptoms-alerts.sh` tests the PromQL rules.
+
+| Rule | uid | Query (A) | Fires when |
+| --- | --- | --- | --- |
+| Symptoms evaluator has no successful window | `symptoms-heartbeat-stale` | `time() - max by (cluster) (symptoms_pipeline_last_success_timestamp_seconds{cluster="tuist-production", window_seconds="60"})` | A > 600 for 1 minute |
+| Symptoms evaluator heartbeat missing | `symptoms-heartbeat-missing` | `absent_over_time(symptoms_pipeline_last_success_timestamp_seconds{cluster="tuist-production", window_seconds="60"}[10m])` | A > 0 |
+| Symptoms evaluator database unreachable | `symptoms-down` | `min by (cluster) (symptoms_up{cluster="tuist-production"})` | A < 1 for 5 minutes |
+| Symptoms evidence coverage low | `symptoms-coverage-low` | `min by (cluster) (symptoms_coverage_ratio{cluster="tuist-production"})` | A < 0.9 for 15 minutes |
+| Symptoms evaluator watches nothing | `symptoms-nothing-watched` | `min by (cluster) (clamp_max(symptoms_sources_configured{cluster="tuist-production"}, 1) * clamp_max(symptoms_entities_expected{cluster="tuist-production"}, 1))` | A < 1 for 15 minutes |
+| Symptoms input stale | `symptoms-source-stale` | `max by (cluster, source) (symptoms_source_freshness_seconds{cluster="tuist-production"})` | A > 900 for 5 minutes |
+| Symptoms streams disabled | `symptoms-streams-disabled` | `max by (cluster) (symptoms_streams_disabled{cluster="tuist-production"})` | A > 0 for 30 minutes |
+| Symptoms sees Pulse lagging | `symptoms-pipeline-lag` | `max by (cluster) (symptoms_pipeline_lag_seconds{cluster="tuist-production", window_seconds="60"})` | A > 300 for 10 minutes |
+
+The thresholds are starting points chosen before the evaluator ran; re-derive
+them from a week of its metrics.
+
+#### Symptoms evaluator has no successful window
+
+The heartbeat is the 1-minute pipeline (`window_seconds="60"`). The process is
+up and exporting, but no window completes: nothing reaches the board or pages. Read the evaluator's logs and Oban jobs, then the coverage and
+freshness rules for which input stopped.
+
+#### Symptoms evaluator heartbeat missing
+
+No heartbeat sample reached Grafana Cloud: the evaluator is down, its database
+is unreachable (the pipeline series need it; see the next rule), its scrape
+broke (the pod's `prometheus.io/*` annotations, or the chart's NetworkPolicy
+ingress from `observability`), or the cluster's collectors are down.
+
+#### Symptoms evaluator database unreachable
+
+`symptoms_up` is 0: the evaluator serves `/metrics` but its CNPG PostgreSQL
+(`symptoms-pg`) does not answer, so no window runs.
+
+#### Symptoms evidence coverage low
+
+Entities with evidence over entities expected. Entities without evidence read
+as unknown, never quiet, so a failure there goes undetected.
+
+#### Symptoms evaluator watches nothing
+
+No source is configured (`symptoms_sources_configured` is 0: `config
+:symptoms, :sources` empty or every source in `disabled_sources`), or no
+entity is expected (`symptoms_entities_expected` is 0: no source reported one
+in 24 hours). Coverage reads 1 when nothing is expected, so the coverage rule
+stays quiet; this rule is what notices. Check the release's source
+configuration and the evaluator's logs for collect errors.
+
+#### Symptoms input stale
+
+The age of the newest input per `source`. Every entity fed only by that source
+reads unknown.
+
+#### Symptoms streams disabled
+
+`symptoms_streams_disabled` counts sources whose `symptoms_source_up` is 0
+(disabled, or their last collect failed); their entities contribute no
+evidence. `symptoms_source_up` says which; its logs and audit log say why.
+
+#### Symptoms sees Pulse lagging
+
+How far the end of the latest finished 1-minute window is behind now. Only the
+1-minute pipeline is checked: a 5-minute window normally ends up to 10 minutes
+back.
+
+#### Pulse log lines behind Grafana Cloud
+
+Uid `symptoms-pulse-log-lines-behind`. The collectors send every log line to
+both Grafana Cloud and Pulse, so their counts for the same stream and window
+should match. The rule compares the server's stream over the 15 minutes ending
+10 minutes ago (the gap absorbs ingestion and Flow lag):
+
+```sql
+-- A: Tuist Pulse SQL (pulse-sql)
+SELECT sum(line_count) AS value FROM symptoms_log_totals_1m
+WHERE service = 'tuist'
+  AND time_window >= now() - INTERVAL '25 minutes'
+  AND time_window < now() - INTERVAL '10 minutes'
+```
+
+```logql
+# B: Grafana Cloud Loki (grafanacloud-logs)
+sum(count_over_time({cluster="tuist-production", service_name="tuist"} [15m] offset 10m))
+# C (math): $A / $B
+# D (math): $C < 0.9 && $B >= 1000
+```
+
+Pending 15 minutes, warning. A query error means Grafana cannot reach Pulse
+through PDC (Error: Error). Before relying on it, preview A and B side by side:
+they assume Pulse's `service` and Loki's `service_name` are both `tuist` for
+the server's lines.
+
+#### Pulse error spans behind Grafana Cloud
+
+Uid `symptoms-pulse-error-spans-behind`, **paused**. Grafana Cloud's tail
+sampler keeps every trace with an error span, so error spans are the one span
+count both pipelines should agree on (all other spans are sampled to 5%). A is
+`sum(error_count)` from `symptoms_trace_counts_1m` over the same window; B is
+`sum(increase(traces_spanmetrics_calls_total{status_code="STATUS_CODE_ERROR", deployment_environment="production"}[15m] offset 10m))`
+from Tempo's metrics generator; D is `$A / $B < 0.9 && $B >= 50`. Unpause only
+after previewing B: the span-metrics series and their environment label were
+not verified, and an empty B reads as healthy.
 
 ## Useful investigation queries
 

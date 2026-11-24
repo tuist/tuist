@@ -2325,6 +2325,15 @@ defmodule Tuist.Environment do
   def pulse_config, do: Application.get_env(:tuist, :pulse, [])
 
   @doc """
+  The symptoms evaluator (`symptoms/` at the repository root): `base_url` and
+  `token` for pulling its symptom log, and the `evaluator_namespace` and
+  `evaluator_service_account` whose projected token (audience
+  `tuist-symptoms-state`) may read the human state back. Unset outside the
+  Tuist deployment.
+  """
+  def symptoms_config, do: Application.get_env(:tuist, :symptoms, [])
+
+  @doc """
   Path of the projected ServiceAccount token (audience `atlas-support-ingest`)
   the server presents to Atlas' support ingest, where agent feedback reported
   through the MCP server is published. Atlas verifies it against this cluster's

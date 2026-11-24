@@ -48,6 +48,9 @@ defmodule TuistWeb.PulseLiveTest do
       assert has_element?(view, "#pulse[data-signal='#{signal}']")
       assert has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/pulse/traces']")
       assert has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/pulse/errors']")
+      # Only the current signal is selected, not the Pulse landing page.
+      assert has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/pulse/#{signal}'] [data-selected]")
+      refute has_element?(view, "#sidebar-pulse [data-part='header'][data-selected]")
       assert has_element?(view, "#pulse-table", "server")
 
       assert has_element?(
@@ -616,9 +619,10 @@ defmodule TuistWeb.PulseLiveTest do
     assert {{%NotFoundError{}, _}, _} = catch_exit(render(view))
   end
 
-  test "Pulse routes preserve the pulse project handle", ctx do
+  test "pulse is an account page, not a project handle", ctx do
     route = Phoenix.Router.route_info(TuistWeb.Router, "GET", "/#{ctx.account.name}/pulse", "localhost")
-    assert route.path_params == %{"account_handle" => ctx.account.name, "project_handle" => "pulse"}
+    assert route.path_params == %{"account_handle" => ctx.account.name}
+    assert "pulse" in Environment.blocked_project_handles()
   end
 
   test "table controls preserve a paged snapshot and reuse analytics", ctx do

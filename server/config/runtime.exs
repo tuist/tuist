@@ -28,6 +28,14 @@ config :tuist, :pulse,
   base_url: System.get_env("TUIST_PULSE_URL"),
   token: System.get_env("TUIST_PULSE_TOKEN")
 
+# The symptoms evaluator, whose symptom log the server mirrors and which reads
+# human state back. Leave unset outside the Tuist deployment.
+config :tuist, :symptoms,
+  base_url: System.get_env("TUIST_SYMPTOMS_URL"),
+  token: System.get_env("TUIST_SYMPTOMS_TOKEN"),
+  evaluator_namespace: System.get_env("TUIST_SYMPTOMS_EVALUATOR_NAMESPACE"),
+  evaluator_service_account: System.get_env("TUIST_SYMPTOMS_EVALUATOR_SERVICE_ACCOUNT")
+
 # Explicit account-to-issuer trust, separate from account CI workload identities.
 if raw = System.get_env("TUIST_ATLAS_ENVIRONMENT_TRUST") do
   trusts = JSON.decode!(raw)
@@ -806,6 +814,9 @@ base_queues = [
   webhooks: 20,
   push: 10,
   mcp_events: 5,
+  # Pulls the symptoms evaluator's log; one at a time per node, and the
+  # mirror's cursor lock serializes them across nodes.
+  pulse_symptoms: 1,
   storage_retention: 1,
   kura_provisioning: 10,
   coverage_deltas: 2,

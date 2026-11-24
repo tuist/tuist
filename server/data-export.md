@@ -1442,6 +1442,58 @@ the subject's verified session IDs or the truncated SHA-256 distinct ID
 (`hex(SHA256(distinct_id)[0:16])`), including sequence and update timestamp so
 the current logical state can be reconstructed. No raw distinct ID is stored.
 
+### Pulse symptoms
+
+Pulse symptoms are detected by the symptoms evaluator (`symptoms/` at the
+repository root, its own database) and mirrored into PostgreSQL for the
+account Pulse is configured for. They describe Tuist's own services, not
+customer resources.
+
+- `pulse_symptoms` (`Tuist.Pulse.Symptom`): the latest revision of each
+  symptom: its key, state, tier, transition, entity (environment, service,
+  kind and key), masked title, phenomena with their evidence, score,
+  P(degraded), impact, decision, root, suspected change, evidence
+  references and masked excerpts, brief reference, outcome, and times.
+- `pulse_symptom_revisions` (`Tuist.Pulse.SymptomRevision`): every revision
+  the mirror received, with its log `seq` and the full snapshot as sent.
+- `pulse_symptom_cursors`: the last log `seq` the mirror processed.
+- `pulse_symptom_acks`, `pulse_symptom_mutes` and `pulse_symptom_outcomes`:
+  human state. An ack records the symptom, revision and acknowledging user; a
+  mute records the entity, phenomenon, expiry, the symptom it was set from and
+  the user; an outcome records `bad` or `fine` and the confirming user. The
+  evaluator reads these back without user IDs through
+  `GET /api/internal/symptoms/state`.
+
+Titles and excerpts are masked by the evaluator; the mirror holds no event
+payloads or customer data. Rows live as long as the account and are deleted
+with it (revisions, acks and outcomes also with their symptom; a deleted user
+leaves their acks, mutes and outcomes without a user). For a legal export,
+select the account's rows in each table by `account_id`, and a user's acks,
+mutes and outcomes by `user_id`.
+
+Investigation requests and existing briefs (`Tuist.Pulse.Investigations`),
+scoped to the same account. New requests do not generate briefs or steps;
+agent dispatch and result ingestion are not wired yet:
+
+- `pulse_investigations` (`Tuist.Pulse.Investigations.Investigation`): each
+  trigger on a symptom at board or page tier: the symptom, the symptoms merged
+  into it, trigger and its log `seq`, `request_id`, the requesting user
+  (if a person requested it) and its `change_seq`.
+- `pulse_briefs` (`Tuist.Pulse.Investigations.Brief`): versioned briefs per
+  symptom, linked to their trigger.
+- `pulse_brief_steps` (`Tuist.Pulse.Investigations.BriefStep`): each brief's
+  historical mitigate-now steps: the previously code-generated command and its undo with
+  the safety check's result, and the status a person set with their user ID
+  and time.
+
+Historical steps were built from the symptom's entity and the server's own
+release and migrations; removing the generator does not delete these records.
+Rows live as long as the account
+and their symptom; a deleted user leaves them without a user. The evaluator
+reads them back as investigations, without user IDs, through
+`GET /api/internal/symptoms/state`. For an export, select each table by
+`account_id`, and a user's rows by `requested_by_id` and `status_by_id`.
+
 ## Bazel remote execution
 
 - **Purpose:** Account-controlled Linux build and test execution.

@@ -17,6 +17,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.OpenGraph.Workers.DeleteExpiredImagesWorker
   alias Tuist.Ops.DailySlackReportWorker
   alias Tuist.Ops.HourlySlackReportWorker
+  alias Tuist.Pulse.Workers.SyncSymptomsWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Runners.Workers.CacheVolumeCleanupWorker
   alias Tuist.Runners.Workers.ConcurrencySizingWorker
@@ -141,6 +142,11 @@ defmodule Tuist.Oban.RuntimeConfigTest do
 
         refute Enum.any?(RuntimeConfig.crontab(:web, env, false), &(cron_worker(&1) == ConcurrencySizingWorker))
       end
+    end
+
+    test "the Pulse symptom mirror pulls every minute on hosted deployments only" do
+      assert {"* * * * *", SyncSymptomsWorker} in RuntimeConfig.crontab(:web, :prod, true)
+      refute {"* * * * *", SyncSymptomsWorker} in RuntimeConfig.crontab(:web, :prod, false)
     end
 
     test "sandbox archiving checks disk pressure every minute" do
