@@ -440,6 +440,8 @@ config :logger, :console,
     :preferred_node,
     :cache_offered,
     :cache_attached,
+    :cache_volume_id,
+    :cache_generation,
     :checkout_nodes,
     :placement_path,
     # Why each node holding a disk snapshot refused a sandbox

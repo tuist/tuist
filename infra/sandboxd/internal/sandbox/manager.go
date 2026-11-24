@@ -313,6 +313,9 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 			return res, err
 		}
 		defer release()
+		// Whether the image was copied now or reused, this names the cache a
+		// sandbox's disks received.
+		m.log.Info("cache image granted to sandbox", "sandbox", args.SandboxID, "image", name, "scope", args.CacheGrant.Scope, "generation", generation, "granted_generation", args.CacheGrant.BaseGeneration)
 		defer func() {
 			if err == nil {
 				res.CacheGeneration = generation

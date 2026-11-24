@@ -689,6 +689,8 @@ defmodule Tuist.Sandboxes do
     case place_and_create_waiting(sandbox, args, source, prefer, deadline) do
       {:ok, node_name, data} ->
         attached_cache = data["cache"]
+        cache_volume_id = attached_cache && attached_cache.volume_id
+        cache_generation = attached_generation(attached_cache, data)
 
         Logger.info("sandboxes: sandbox created",
           sandbox_id: sandbox.id,
@@ -700,10 +702,19 @@ defmodule Tuist.Sandboxes do
           from_archive: match?({:archive, _}, source),
           cache_offered: Map.has_key?(args, :cache),
           cache_attached: not is_nil(attached_cache),
+          cache_volume_id: cache_volume_id,
+          cache_generation: cache_generation,
           boot_ms: data["boot_ms"]
         )
 
         boot_event = Events.boot(boot_source(source, data), System.monotonic_time(:millisecond) - started_at)
+
+        # An archive restore boots the sandbox's own disks with no cache grant,
+        # so it keeps the record of the cache those disks received.
+        cache_attrs =
+          if match?({:archive, _}, source),
+            do: %{},
+            else: %{cache_volume_id: cache_volume_id, cache_generation: cache_generation}
 
         # Placement recorded the node (and, for macOS, its incarnation) on
         # the row behind this struct.
@@ -711,17 +722,18 @@ defmodule Tuist.Sandboxes do
           sandbox
           |> Repo.reload!()
           |> update_sandbox(
-            %{
-              state: :running,
-              node_name: node_name,
-              resident: sandbox.platform == :darwin,
-              hostname: hostname,
-              template_tag: data["template_tag"],
-              last_active_at: now(),
-              error_message: nil,
-              cache_volume_id: attached_cache && attached_cache.volume_id,
-              cache_generation: attached_generation(attached_cache, data)
-            },
+            Map.merge(
+              %{
+                state: :running,
+                node_name: node_name,
+                resident: sandbox.platform == :darwin,
+                hostname: hostname,
+                template_tag: data["template_tag"],
+                last_active_at: now(),
+                error_message: nil
+              },
+              cache_attrs
+            ),
             boot_event
           )
           |> schedule_idle_pause()
