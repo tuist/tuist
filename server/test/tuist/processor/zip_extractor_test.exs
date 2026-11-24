@@ -118,9 +118,10 @@ defmodule Tuist.Processor.ZipExtractorTest do
     content = File.read!(path)
     {central, _} = :binary.match(content, <<0x02014B50::32-little>>)
     eocd = byte_size(content) - 22
+    name_length = length(name)
 
     <<local::binary-size(^central), record::binary-size(^eocd - ^central), _eocd::binary>> = content
-    <<fixed::binary-size(46), original_name::binary-size(length(name)), rest::binary>> = record
+    <<fixed::binary-size(46), original_name::binary-size(^name_length), rest::binary>> = record
     5 = byte_size(original_name)
     records = record <> fixed <> List.to_string(name) <> rest
 
