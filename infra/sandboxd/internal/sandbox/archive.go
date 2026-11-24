@@ -585,6 +585,7 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 		}
 	}()
 	sb.mu.Lock()
+	sb.memoryServed = inst
 	sb.meta.State = protocol.StateRunning
 	sb.meta.Generation = 0
 	sb.meta.FirecrackerVersion = m.cfg.FirecrackerVersion
