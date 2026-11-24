@@ -78,3 +78,36 @@ func TestUsageRoundTripsThroughAuxiliaryMetadataAndStrips(t *testing.T) {
 		t.Errorf("strip left %v", md.AuxiliaryMetadata)
 	}
 }
+
+// The key follows an action across source edits and rollouts, and tells
+// apart the actions of one target and the configurations of one action.
+func TestSizeKeyFollowsOutputsNotInputsOrImage(t *testing.T) {
+	platform := func(image, memory string) *re.Platform {
+		p := &re.Platform{Properties: []*re.Platform_Property{{Name: "OSFamily", Value: "Linux"}, {Name: "Arch", Value: "amd64"}, {Name: "tuist-image", Value: image}}}
+		if memory != "" {
+			p.Properties = append(p.Properties, &re.Platform_Property{Name: MemoryProperty, Value: memory})
+		}
+		return p
+	}
+	compile := &re.Command{Arguments: []string{"rustc", "src/lib.rs"}, OutputPaths: []string{"bazel-out/k8-opt/bin/lib.rlib", "bazel-out/k8-opt/bin/lib.rmeta"}}
+	key := SizeKey(compile, platform("sha-1", ""))
+
+	edited := &re.Command{Arguments: []string{"rustc", "src/lib.rs", "--cfg", "x"}, OutputPaths: []string{"bazel-out/k8-opt/bin/lib.rmeta", "bazel-out/k8-opt/bin/lib.rlib"}}
+	if got := SizeKey(edited, platform("sha-2", "8")); got != key {
+		t.Fatalf("arguments, output order, image or memory changed the key: %s != %s", got, key)
+	}
+	sibling := &re.Command{OutputPaths: []string{"bazel-out/k8-opt/bin/lib.rlib"}}
+	exec := &re.Command{OutputPaths: []string{"bazel-out/k8-opt-exec/bin/lib.rlib", "bazel-out/k8-opt-exec/bin/lib.rmeta"}}
+	legacy := &re.Command{OutputFiles: []string{"bazel-out/k8-opt/bin/lib.rlib", "bazel-out/k8-opt/bin/lib.rmeta"}}
+	other := platform("sha-1", "")
+	other.Properties = append(other.Properties, &re.Platform_Property{Name: "dockerNetwork", Value: "standard"})
+	for name, got := range map[string]string{"sibling action": SizeKey(sibling, platform("sha-1", "")), "exec configuration": SizeKey(exec, platform("sha-1", "")), "other platform": SizeKey(compile, other)} {
+		if got == key {
+			t.Fatalf("%s shares the key", name)
+		}
+	}
+	// REAPI before 2.1 declares files apart; the same outputs are the same action.
+	if SizeKey(legacy, platform("sha-1", "")) != key {
+		t.Fatal("legacy output files changed the key")
+	}
+}

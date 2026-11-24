@@ -30,6 +30,7 @@ defmodule Tuist.RemoteExecution.Actions do
   alias Tuist.Projects.Project
   alias Tuist.RemoteExecution.Action
   alias Tuist.RemoteExecution.Settings
+  alias Tuist.RemoteExecution.TaskSizes
   alias Tuist.Storage
 
   @max_records 100
@@ -94,6 +95,7 @@ defmodule Tuist.RemoteExecution.Actions do
     rows = for record <- records, row = row(project, record, now), do: row
 
     if rows != [], do: Action.Buffer.insert_all(rows)
+    TaskSizes.record(project, records)
     {:ok, length(rows)}
   end
 

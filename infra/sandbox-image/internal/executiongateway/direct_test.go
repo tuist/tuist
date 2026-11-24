@@ -18,6 +18,8 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+
+	worker "github.com/tuist/tuist/infra/sandbox-image/internal/reapi"
 )
 
 func jwt(exp time.Time) string {
@@ -35,6 +37,8 @@ type directLab struct {
 	store      *blobStore
 	// The last operation the control plane received.
 	submitted atomic.Value
+	// The size keys capabilities list.
+	sizedKeys []string
 }
 
 func newDirectLab(t *testing.T, claimCode int) *directLab {
@@ -58,7 +62,8 @@ func newDirectLab(t *testing.T, claimCode int) *directLab {
 	lab.client, _ = gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/capabilities"):
-			return response(200, `{"cas_endpoint":"grpcs://cache.example","leases":true}`), nil
+			keys, _ := json.Marshal(lab.sizedKeys)
+			return response(200, `{"cas_endpoint":"grpcs://cache.example","leases":true,"sized_keys":`+string(keys)+`}`), nil
 		case strings.HasSuffix(r.URL.Path, "/leases"):
 			if leased.Swap(true) {
 				time.Sleep(50 * time.Millisecond)
@@ -233,5 +238,41 @@ func TestUnreadableOrInvalidVMSizesAreRefused(t *testing.T) {
 	}
 	if lab.operations.Load() != 0 {
 		t.Fatalf("operations %d; an action of unknown size must not run", lab.operations.Load())
+	}
+}
+
+// An action the server sizes above a default VM goes to the control plane
+// with its size key, even though it asks for no size; others keep the lease.
+func TestActionsTheServerSizesUpAreNotLeased(t *testing.T) {
+	lab := newDirectLab(t, http.StatusOK)
+	action := func(output string, properties ...*re.Platform_Property) (*re.Digest, string) {
+		command := &re.Command{Arguments: []string{"true"}, OutputPaths: []string{output}}
+		platform := &re.Platform{Properties: append([]*re.Platform_Property{{Name: "OSFamily", Value: "Linux"}}, properties...)}
+		return lab.store.message(&re.Action{CommandDigest: lab.store.message(command), Platform: platform}), worker.SizeKey(command, platform)
+	}
+	big, bigKey := action("bazel-out/k8-opt/bin/big")
+	small, _ := action("bazel-out/k8-opt/bin/small")
+	exact, exactKey := action("bazel-out/k8-opt/bin/exact", &re.Platform_Property{Name: worker.SizingProperty, Value: "off"})
+	lab.sizedKeys = []string{bigKey, exactKey}
+	auth := jwt(time.Now().Add(time.Hour))
+	lab.capabilities(auth)
+	lab.execute(auth)
+	lab.awaitLease()
+	before := lab.operations.Load()
+
+	if code := lab.executeAction(auth, big); code != 3 || lab.operations.Load() != before+1 {
+		t.Fatalf("exit %d, operations %d; want the control plane", code, lab.operations.Load())
+	}
+	if body := lab.submitted.Load().(map[string]any); body["size_key"] != bigKey || body["memory_gb"] != float64(4) || body["task_sizing"] != nil {
+		t.Fatalf("submitted %v", body)
+	}
+	if code := lab.executeAction(auth, exact); code != 3 {
+		t.Fatalf("exit %d; want the control plane", code)
+	}
+	if body := lab.submitted.Load().(map[string]any); body["task_sizing"] != false {
+		t.Fatalf("tuist-task-sizing off was not sent: %v", body)
+	}
+	if code := lab.executeAction(auth, small); code != 7 || lab.operations.Load() != before+2 {
+		t.Fatalf("exit %d, operations %d; want the lease", code, lab.operations.Load())
 	}
 }

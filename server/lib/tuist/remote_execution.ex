@@ -18,6 +18,7 @@ defmodule Tuist.RemoteExecution do
   alias Tuist.Projects.Project
   alias Tuist.RemoteExecution.Scheduler
   alias Tuist.RemoteExecution.Settings
+  alias Tuist.RemoteExecution.TaskSizes
   alias Tuist.RemoteExecution.VMs
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
@@ -82,7 +83,8 @@ defmodule Tuist.RemoteExecution do
          image_tag: image_tag,
          cas_endpoint: cas_endpoint,
          client_cas_endpoint: account |> Kura.public_cache_endpoint_url(cache_url) |> cas_endpoint(),
-         executor_endpoint: Environment.remote_execution_endpoint()
+         executor_endpoint: Environment.remote_execution_endpoint(),
+         burst: FeatureFlags.remote_execution_task_sizing_enabled?(account)
        }}
     else
       _ -> {:error, :unavailable}
@@ -157,6 +159,8 @@ defmodule Tuist.RemoteExecution do
 
     if Regex.match?(~r/^[a-f0-9]{64}$/, hash) and is_boolean(skip_cache) and
          memory_gb in Settings.memory_sizes_gb() and valid_inputs?(inputs) do
+      {memory_gb, cpu_guarantee_milli} = TaskSizes.choose(project, memory_gb, params)
+
       attrs = %{
         project_id: project.id,
         account_name: project.account.name,
@@ -166,6 +170,7 @@ defmodule Tuist.RemoteExecution do
         skip_cache: skip_cache,
         inputs: inputs,
         memory_gb: memory_gb,
+        cpu_guarantee_milli: cpu_guarantee_milli,
         invocation_id: label(params["invocation_id"], 256),
         mnemonic: label(params["mnemonic"], 128),
         target: label(params["target"], 1_024)
@@ -324,7 +329,13 @@ defmodule Tuist.RemoteExecution do
     |> Enum.sort_by(& &1.started_at, {:desc, DateTime})
   end
 
-  def maintain, do: VMs.reap()
+  @doc "The project's size keys the gateway must not run on a leased default VM (`TaskSizes.sized_keys/1`)."
+  defdelegate sized_keys(project), to: TaskSizes
+
+  def maintain do
+    VMs.reap()
+    TaskSizes.purge()
+  end
 
   defp cached_authorization(key) do
     if Environment.test?(), do: nil, else: KeyValueStore.get(key)

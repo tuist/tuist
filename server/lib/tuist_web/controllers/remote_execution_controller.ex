@@ -16,7 +16,9 @@ defmodule TuistWeb.RemoteExecutionController do
           client_cas_endpoint: settings.client_cas_endpoint,
           execution_root: "/workspace/action",
           max_concurrency: settings.max_concurrency,
-          leases: true
+          leases: true,
+          # Actions the gateway sends to the scheduler rather than a leased VM.
+          sized_keys: RemoteExecution.sized_keys(conn.assigns.execution_project)
         })
 
       {:error, _} ->

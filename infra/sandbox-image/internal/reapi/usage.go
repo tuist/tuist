@@ -2,6 +2,8 @@ package reapi
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"math"
 	"os"
@@ -30,6 +32,43 @@ type Usage struct {
 	AnonPeakBytes int64   `json:"anon_peak_bytes"`
 	OOMKills      int64   `json:"oom_kills"`
 	VCPUs         int     `json:"vcpus"`
+	// MemoryGB is the VM's size, which the server may have picked above the
+	// one the action asked for: an OOM kill raises the next run above it.
+	MemoryGB int `json:"memory_gb"`
+}
+
+// SizingProperty set to "off" runs the action in exactly the VM size its
+// tuist-memory-gb names, which automatic sizing otherwise treats as a floor.
+const SizingProperty = "tuist-task-sizing"
+
+// SizeKey identifies an action across runs for automatic sizing: SHA-256 of
+// its working directory, its sorted output paths and its platform properties
+// other than Tuist's own (the image changes with every rollout, and the size
+// properties are what sizing decides). Output paths survive source edits and
+// differ between configurations, and every action of a target has its own.
+func SizeKey(command *re.Command, platform *re.Platform) string {
+	paths := command.GetOutputPaths()
+	if len(paths) == 0 {
+		paths = append(slices.Clone(command.GetOutputFiles()), command.GetOutputDirectories()...)
+	}
+	paths = slices.Clone(paths)
+	slices.Sort(paths)
+	var properties []string
+	for _, p := range platform.GetProperties() {
+		if !strings.HasPrefix(p.Name, "tuist-") {
+			properties = append(properties, p.Name+"="+p.Value)
+		}
+	}
+	slices.Sort(properties)
+	h := sha256.New()
+	for _, part := range [][]string{{command.GetWorkingDirectory()}, paths, properties} {
+		for _, s := range part {
+			h.Write([]byte(s))
+			h.Write([]byte{0})
+		}
+		h.Write([]byte{1})
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // Meter measures one command. Prepare runs before the command starts and
@@ -234,7 +273,7 @@ const UsageKind = "tuist.usage"
 func usageMetadata(u Usage) (*anypb.Any, error) {
 	s, err := structpb.NewStruct(map[string]any{
 		"kind": UsageKind, "cpu_ms": u.CPUMs, "wall_ms": u.WallMs, "p90_cores": u.P90Cores,
-		"anon_peak_bytes": u.AnonPeakBytes, "oom_kills": u.OOMKills, "vcpus": u.VCPUs,
+		"anon_peak_bytes": u.AnonPeakBytes, "oom_kills": u.OOMKills, "vcpus": u.VCPUs, "memory_gb": u.MemoryGB,
 	})
 	if err != nil {
 		return nil, err
@@ -257,6 +296,7 @@ func ReadUsage(md *re.ExecutedActionMetadata) (Usage, bool) {
 		return Usage{
 			CPUMs: int64(n("cpu_ms")), WallMs: int64(n("wall_ms")), P90Cores: n("p90_cores"),
 			AnonPeakBytes: int64(n("anon_peak_bytes")), OOMKills: int64(n("oom_kills")), VCPUs: int(n("vcpus")),
+			MemoryGB: int(n("memory_gb")),
 		}, true
 	}
 	return Usage{}, false

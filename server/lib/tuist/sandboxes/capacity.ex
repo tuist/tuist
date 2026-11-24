@@ -774,7 +774,8 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   defp execution_fits?(node, sandbox) do
-    placed_vcpus(node.name) + sandbox.vcpus <= min(node.capacity.cpus, node.execution_slots * 2) and
+    placed_cpu_milli(node.name) + Sandbox.guaranteed_cpu_milli(sandbox) <=
+      min(node.capacity.cpus, node.execution_slots * 2) * 1000 and
       disk_space?(node, sandbox) and
       disk_room?(node, sandbox)
   end
@@ -1871,14 +1872,15 @@ defmodule Tuist.Sandboxes.Capacity do
         node.capacity.cpus * 1000
       end
 
-    available - placed_vcpus(node_name) * 1000
+    available - placed_cpu_milli(node_name)
   end
 
-  defp placed_vcpus(node_name) do
+  # A bursting VM counts its guarantee, not the vCPUs it boots with.
+  defp placed_cpu_milli(node_name) do
     Repo.one(
       from s in Sandbox,
         where: s.node_name == ^node_name and s.state != :deleted,
-        select: coalesce(sum(s.vcpus), 0)
+        select: coalesce(sum(coalesce(s.guaranteed_cpu_milli, s.vcpus * 1000)), 0)
     )
   end
 
