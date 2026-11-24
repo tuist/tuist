@@ -339,7 +339,7 @@ func TestSandboxShapeCapsUsePerNodeAllocations(t *testing.T) {
 				sandboxDaemonPod("sandboxd", a.Name, tc.asked, tc.allocated, tc.asked > tc.allocated),
 			).Build()
 			shape := podShape{cpuMilli: 8000, memoryMB: 32 * 1024}
-			caps, err := r.shapePlacementCaps(context.Background(), linuxFleetPool("large", 1, 32768, 0, 4), map[string]podShape{shape.key(): shape})
+			caps, _, err := r.shapePlacementCaps(context.Background(), linuxFleetPool("large", 1, 32768, 0, 4), map[string]podShape{shape.key(): shape})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -474,7 +474,7 @@ func TestSandboxShapeCapsIncludeDaemonCPURequest(t *testing.T) {
 	pod.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("250m")
 	r, _ := sandboxFixture(t, node, pod)
 	shape := podShape{cpuMilli: 8000, memoryMB: 8192}
-	caps, err := r.shapePlacementCaps(context.Background(), linuxFleetPool("small", 1, 8192, 0, 4), map[string]podShape{shape.key(): shape})
+	caps, _, err := r.shapePlacementCaps(context.Background(), linuxFleetPool("small", 1, 8192, 0, 4), map[string]podShape{shape.key(): shape})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -488,7 +488,7 @@ func TestSandboxAccountingPropagatesReadFailures(t *testing.T) {
 	r.APIReader = sandboxReadFailure{Reader: r.Client}
 	pool := linuxFleetPool("small", 1, 8192, 0, 4)
 	shape := podShape{cpuMilli: 8000, memoryMB: 8192}
-	if _, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape}); err == nil {
+	if _, _, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape}); err == nil {
 		t.Fatal("want unknown sandbox allocation to fail shape calculation")
 	}
 	if _, err := r.fleetAllocatableMemory(context.Background(), "runners-linux"); err == nil {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -390,10 +392,15 @@ func (r *AutoscalerReconciler) allocate(
 	// freezing the pool: the budget is never LOWER than the true
 	// placeable count, so the worst case is the over-scheduling this cap
 	// exists to prevent — which is where the fleet already was.
-	shapeCaps, err := r.shapePlacementCaps(ctx, pool, shapes)
+	shapeCaps, hostGroups, err := r.shapePlacementCaps(ctx, pool, shapes)
 	if err != nil {
 		logger.Error(err, "read shape placement caps; allocating on the byte budget alone",
 			"fleetSelector", pool.Spec.FleetSelector)
+	}
+	for i := range demands {
+		if group, ok := hostGroups[demands[i].ShapeKey]; ok {
+			demands[i].ShapeKey = group
+		}
 	}
 
 	var workers []executionWorker
@@ -511,13 +518,20 @@ func (s podShape) key() string {
 //
 // Both platforms schedule on CPU and memory requests. Linux sandbox daemon
 // allocations come off each node before computing its runner seats.
+//
+// Shapes that take a whole host each (at most one Pod per node, and no node
+// fits two of them side by side, such as 16vcpu-32gb and 16vcpu-64gb on a
+// RISE-L) compete for the same seats, so counting each against every node
+// promises the fleet twice. Those shapes also get one shared cap, the nodes
+// that seat any of them, under a group key; the second map sends each
+// member's shape key to it.
 func (r *AutoscalerReconciler) shapePlacementCaps(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
 	shapes map[string]podShape,
-) (map[string]int32, error) {
+) (map[string]int32, map[string]string, error) {
 	if len(shapes) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// fleetNodeSelector mirrors the nodeSelector podtemplate stamps on
@@ -525,13 +539,13 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 	// consider.
 	var nodes corev1.NodeList
 	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
-		return nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
+		return nil, nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
 	}
 	nativeSlots := map[string]int32{}
 	if pool.Spec.OS == "linux" || pool.Spec.OS == "darwin" {
 		daemons, err := r.sandboxDaemons(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, daemon := range daemons {
 			if daemon.native {
@@ -543,25 +557,101 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 		}
 	}
 
+	var eligible []*corev1.Node
+	for i := range nodes.Items {
+		if nodeFilterReason(&nodes.Items[i]) == "" {
+			eligible = append(eligible, &nodes.Items[i])
+		}
+	}
+	seatsOn := func(node *corev1.Node, shape podShape) int32 {
+		available := nodeSeatsForShape(node, shape)
+		if nativeSlots[node.Name] > 0 {
+			available = min(available, max(2-nativeSlots[node.Name], 0))
+		}
+		return available
+	}
+
 	caps := make(map[string]int32, len(shapes))
+	var wholeHost []string
 	for key, shape := range shapes {
 		if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
 			continue
 		}
-		var seats int32
-		for i := range nodes.Items {
-			if nodeFilterReason(&nodes.Items[i]) != "" {
-				continue
-			}
-			available := nodeSeatsForShape(&nodes.Items[i], shape)
-			if nativeSlots[nodes.Items[i].Name] > 0 {
-				available = min(available, max(2-nativeSlots[nodes.Items[i].Name], 0))
-			}
+		var seats, most int32
+		for _, node := range eligible {
+			available := seatsOn(node, shape)
 			seats += available
+			most = max(most, available)
 		}
 		caps[key] = seats
+		if most == 1 {
+			wholeHost = append(wholeHost, key)
+		}
 	}
-	return caps, nil
+
+	// Group whole-host shapes that exclude every other member on every
+	// node, in key order so each reconcile forms the same groups.
+	sort.Strings(wholeHost)
+	var groups [][]string
+	for _, key := range wholeHost {
+		placed := false
+		for g := range groups {
+			excludes := true
+			for _, member := range groups[g] {
+				if !shapesExcludeOnNodes(eligible, shapes[key], shapes[member]) {
+					excludes = false
+					break
+				}
+			}
+			if excludes {
+				groups[g] = append(groups[g], key)
+				placed = true
+				break
+			}
+		}
+		if !placed {
+			groups = append(groups, []string{key})
+		}
+	}
+
+	aliases := map[string]string{}
+	for _, members := range groups {
+		if len(members) < 2 {
+			continue
+		}
+		group := "whole-host:" + strings.Join(members, "+")
+		var seats int32
+		for _, node := range eligible {
+			for _, member := range members {
+				if seatsOn(node, shapes[member]) > 0 {
+					seats++
+					break
+				}
+			}
+		}
+		caps[group] = seats
+		for _, member := range members {
+			aliases[member] = group
+		}
+	}
+	return caps, aliases, nil
+}
+
+// shapesExcludeOnNodes reports whether no node can hold a Pod of each shape
+// at once.
+func shapesExcludeOnNodes(nodes []*corev1.Node, a, b podShape) bool {
+	for _, node := range nodes {
+		cpu := node.Status.Allocatable.Cpu()
+		memory := node.Status.Allocatable.Memory()
+		if cpu == nil || memory == nil {
+			continue
+		}
+		if int64(a.cpuMilli+b.cpuMilli) <= cpu.MilliValue() &&
+			int64(a.memoryMB+b.memoryMB)*1024*1024 <= memory.Value() {
+			return false
+		}
+	}
+	return true
 }
 
 // nodeSeatsForShape is how many Pods of `shape` one node could hold if
