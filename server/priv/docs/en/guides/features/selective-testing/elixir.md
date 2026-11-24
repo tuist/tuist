@@ -66,9 +66,10 @@ Tuist: coverage-based test selection: 3 of 5 tests selected, 2 skipped
 Skipped tests are excluded from the run, so ExUnit reports them as excluded. Tuist leaves out exactly the tests it skips, so a test with the same name in another module still runs. A test you pick with `--only`, `--include` or `file:line` runs even when Tuist would skip it. Some tests always run:
 
 - **New tests**, and every test in a test file your change touched.
-- **Tests in `async: true` modules.** ExUnit runs them at the same time as other tests, so Tuist can't tell which code each one executed. A module that tests widely used code selects better when it isn't async.
 - **Tests that failed last time**, and tests without recorded coverage.
 - **Every test, when your change touches a file Tuist can't attribute to tests**, such as a module no test executed at runtime (new modules, modules only used at compile time) or a file under `priv`.
+
+To tell which lines each test executed, a run that records coverage runs one test module at a time, `async: true` modules included, and prints a line saying so. A run that skips most tests is short anyway; to keep full runs fast, [shard them](/guides/features/test-sharding/elixir).
 
 Tests skipped with `@tag :skip`, excluded by your test helper, or quarantined in Tuist stay as they are.
 
