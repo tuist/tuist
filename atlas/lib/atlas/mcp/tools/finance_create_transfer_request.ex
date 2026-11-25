@@ -222,6 +222,8 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
     end
   end
 
+  defp normalize_transfer(_transfer), do: {:error, "amount, iban, name, and reference are required."}
+
   defp amount_error(amount) do
     cond do
       not Regex.match?(~r/\A\d+(\.\d{1,2})?\z/, amount) or Decimal.compare(Decimal.new(amount), 0) != :gt ->
@@ -234,8 +236,6 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
         nil
     end
   end
-
-  defp normalize_transfer(_transfer), do: {:error, "amount, iban, name, and reference are required."}
 
   defp ensure_paid_before(transfers) do
     paid = transfers |> Enum.map(& &1.iban) |> Enum.uniq() |> Finance.paid_ibans()
