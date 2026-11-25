@@ -495,6 +495,101 @@ struct SandboxCommandServiceTests { // swiftlint:disable:this type_body_length
         ).called(0)
     }
 
+    private func givenScreenshotCommand(emitting lines: [String]) throws {
+        let commandID = "7b2d1e3f-4c5a-4b6c-8d7e-9f0a1b2c3d4e"
+        given(sandboxesService).startSandboxCommand(
+            accountHandle: .value("resolved-account"),
+            serverURL: .value(Self.serverURL),
+            sandboxID: .value(Self.id),
+            id: .any,
+            command: .value(SandboxScreenshot.script),
+            cwd: .value(nil),
+            environment: .value(["TUIST_TARGET": "simulator", "TUIST_DEVICE": "booted"]),
+            stdin: .value(false),
+            timeoutMs: .any
+        ).willReturn(try Self.decode("""
+        {"id":"\(commandID)","command":"","stdin":false,"status":"running",
+         "started_at":"2026-11-08T10:00:00Z","deadline_at":"2026-11-08T11:00:00Z"}
+        """) as ServerSandboxCommand)
+        let decoded = try lines.map { try JSONDecoder().decode(ServerSandboxCommandLogLine.self, from: Data($0.utf8)) }
+        given(sandboxesService).streamSandboxCommandLogs(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, commandID: .value(commandID),
+            stdoutOffset: .any, stderrOffset: .any
+        ).willReturn(AsyncThrowingStream { continuation in
+            decoded.forEach { continuation.yield($0) }
+            continuation.finish()
+        })
+    }
+
+    private static func temporaryDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("sandbox-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.resolvingSymlinksInPath()
+    }
+
+    /// A PNG's signature and IHDR chunk, 1179 × 2556 pixels, then the rest of the file.
+    private static let png = Data(
+        [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]
+            + [0, 0, 0x04, 0x9B, 0, 0, 0x09, 0xFC, 8, 6, 0, 0, 0]
+    ) + Data(repeating: 7, count: 300)
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func screenshotWritesThePNGTheSandboxSentAndReportsItsSize() async throws {
+        let directory = try Self.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let png = Self.png
+        let encoded = png.base64EncodedString(options: .lineLength76Characters)
+        // Split mid-line so the header spans two log lines, as a stream can.
+        let split = encoded.index(encoded.startIndex, offsetBy: 17)
+        try givenScreenshotCommand(emitting: [
+            #"{"type":"stdout","data":"\#(encoded[..<split])","offset":17}"#,
+            #"{"type":"stderr","data":"Wrote screenshot to: /tmp/x\n","offset":28}"#,
+            #"{"type":"stdout","data":"\#(encoded[split...].replacingOccurrences(of: "\r\n", with: "\\n"))","offset":500}"#,
+            #"{"type":"exit","status":"exited","exit_code":0}"#,
+        ])
+        let out = directory.appendingPathComponent("shots/home.png")
+
+        try await subject().screenshot(
+            options: Self.values(json: true), sandboxID: Self.id, target: .simulator, device: nil, localPath: out.path
+        )
+
+        #expect(FileManager.default.contents(atPath: out.path) == png)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: out.deletingLastPathComponent().path) == ["home.png"])
+        let output = ui()
+        let json = try #require(output.firstIndex(of: "{").map { output[$0...] })
+        let printed = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        #expect(printed["path"] as? String == out.path)
+        #expect(printed["width"] as? Int == 1179)
+        #expect(printed["height"] as? Int == 2556)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func screenshotWithoutABootedSimulatorSaysToBootOneAndLeavesTheDestinationAlone() async throws {
+        let directory = try Self.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let out = directory.appendingPathComponent("home.png")
+        FileManager.default.createFile(atPath: out.path, contents: Data("old".utf8))
+        try givenScreenshotCommand(emitting: [#"{"type":"exit","status":"exited","exit_code":4}"#])
+
+        await #expect(throws: SandboxCommandError.noBootedSimulator(nil)) {
+            try await subject().screenshot(
+                options: Self.values(), sandboxID: Self.id, target: .simulator, device: nil, localPath: out.path
+            )
+        }
+        #expect(FileManager.default.contents(atPath: out.path) == Data("old".utf8))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["home.png"])
+    }
+
+    @Test
+    func screenshotNeedsADestinationAndTakesADeviceOnlyForTheSimulator() throws {
+        #expect(try SandboxScreenshotCommand.parse([Self.id, "--out", "a.png"]).target == .simulator)
+        #expect(try SandboxScreenshotCommand.parse([Self.id, "--screen", "-o", "a.png"]).target == .screen)
+        #expect(throws: Never.self) { try SandboxScreenshotCommand.parse([Self.id, "--device", "iPhone 18 Pro", "-o", "a.png"]) }
+        #expect(throws: (any Error).self) { try SandboxScreenshotCommand.parse([Self.id]) }
+        #expect(throws: (any Error).self) { try SandboxScreenshotCommand.parse([Self.id, "--screen", "--device", "x", "-o", "a"])
+        }
+    }
+
     @Test
     func deleteRequiresConfirmationAndCreateRequiresAnOfferedShape() throws {
         #expect(throws: (any Error).self) { try SandboxDeleteCommand.parse([Self.id]) }

@@ -35,7 +35,7 @@
 - Show the dashboard `status` and fall back to `state` for servers that do not
   send it. `status` and `bucket` are open strings: never switch on them exhaustively.
 - Test through the generated Xcode workspace and Swift Testing, not SwiftPM.
-- `exec`, `sync` and `cp` go through the commands API (`SandboxRemote`):
+- `exec`, `sync`, `cp` and `screenshot` go through the commands API (`SandboxRemote`):
   a command starts detached and its ND-JSON log stream resumes from the last
   byte offsets after a drop, a 5xx or a mid-stream `error` line, giving up after
   15 minutes without progress; a 404 ends it at once. Starting a command and
@@ -62,6 +62,13 @@
   with a trailing `/` (created), otherwise to that path, replacing it. Both directions move a gzipped tar with
   `COPYFILE_DISABLE=1` and place it with a rename from a scratch directory next
   to the destination.
+- `screenshot` (`SandboxScreenshot`) runs one command that captures with
+  `xcrun simctl io <device> screenshot` (default `booted`) or `screencapture -x`
+  and prints the PNG as base64, so nothing stays in the sandbox. It exits 3 off
+  macOS and 4 when no matching simulator is booted (checked first: simctl only
+  fails after a long wait), which become typed errors. MCP's
+  `get_sandbox_screenshot` (`Tuist.Sandboxes.Devices`) returns a scaled JPEG
+  with the same checks; keep the two scripts' device matching in step.
 - `sync` (`SandboxSync`) mirrors the worktree's non-ignored files one way, file
   by file, like Amp's Mac satellites, to `$HOME/work/<name>` by default, where
   `<name>` comes from the `origin` remote's URL (else the directory's): a
