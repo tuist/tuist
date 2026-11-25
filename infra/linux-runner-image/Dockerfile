@@ -161,6 +161,24 @@ ENV ImageOS=ubuntu24
 FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b AS base-ubuntu-22.04
 ENV ImageOS=ubuntu22
 
+# Trusted sidecar image (`--target sidecar`). The poller, metrics and shell
+# containers hold the pool's dispatch token, so they run this Tuist-owned
+# image rather than the job's image, which a custom image may replace. It
+# carries only what those three containers execute. Keep this stage ahead
+# of `runner` so the default target stays the runner image.
+FROM base-ubuntu-24.04 AS sidecar
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl jq \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/runner-shell-agent
+COPY --chmod=0755 dispatch-poll.sh metrics-sampler.sh /usr/local/bin/
+CMD ["/usr/local/bin/dispatch-poll.sh"]
+
 FROM base-${OS_VERSION} AS runner
 
 # Set runtime defaults so customer workflows see UTF-8 locales out

@@ -1722,7 +1722,7 @@ func TestExclusiveCPURunnerCountsItsPodLevelBudget(t *testing.T) {
 			ExclusiveCPUs: true,
 		},
 	}
-	pod, err := podtemplate.Build(pool, "runner-0", "runner-0", "http://dispatch", "http://internal-dispatch", "docker:28-dind", "", "", "")
+	pod, err := podtemplate.Build(pool, "runner-0", "runner-0", "http://dispatch", "http://internal-dispatch", "docker:28-dind", "", "", "", "")
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}

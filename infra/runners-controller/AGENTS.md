@@ -1184,9 +1184,14 @@ re-adoption; the host key rotates.
 ## Token isolation (credential split, Linux pools)
 
 Linux runner Pods run untrusted workflow code (incl. fork PRs), so
-`podtemplate.Build` splits a Linux Pod into two containers running
-the same runner image so the dispatch token never shares a
-container with customer code:
+`podtemplate.Build` splits a Linux Pod into two containers so the
+dispatch token never shares a container with customer code. The
+token holders (`poller`, `metrics`, `shell`) run `--sidecar-image`
+(`TUIST_RUNNER_SIDECAR_IMAGE`, the linux-runner-image `sidecar`
+target) rather than the pool's image, which a custom image may
+replace; unset falls back to the pool's image. `dind-externals`
+holds no token and stays on the pool's image, since it copies that
+image's own runner externals:
 
 - **`poller` init container** — the only container that mounts the
   audience-scoped projected token (`tuist-runner-token`). Runs

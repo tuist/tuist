@@ -115,11 +115,27 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache-ubuntu-22.04
           cache-to: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache-ubuntu-22.04,mode=max
 
+      # The trusted image the poller, metrics and shell sidecars run in
+      # every Linux runner Pod, whichever image the job runs.
+      - name: Build and push the sidecar image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: infra/linux-runner-image
+          file: infra/linux-runner-image/Dockerfile
+          build-contexts: certificate-trust=infra/certificate-trust
+          target: sidecar
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/tuist/tuist-linux-runner:${{ needs.plan.outputs.version }}-sidecar
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache-sidecar
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache-sidecar,mode=max
+
       # The chart pulls anonymously from GHCR, so only tag what it can read.
       - name: Verify the images are published
         run: |
           .github/scripts/ghcr-image-published.sh tuist/tuist-linux-runner "${{ needs.plan.outputs.version }}"
           .github/scripts/ghcr-image-published.sh tuist/tuist-linux-runner "${{ needs.plan.outputs.version }}-ubuntu-22-04"
+          .github/scripts/ghcr-image-published.sh tuist/tuist-linux-runner "${{ needs.plan.outputs.version }}-sidecar"
 
       - name: Prepare release
         id: notes

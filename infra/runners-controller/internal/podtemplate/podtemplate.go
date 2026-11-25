@@ -173,6 +173,11 @@ const (
 // every Linux runner Pod (k8s 1.29+ native sidecar). Empty skips
 // the sidecar, which is fine for macOS-only installs.
 //
+// `sidecarImage` is the Tuist-owned image the poller, metrics and shell
+// sidecars run. They hold the pool's dispatch token, so they must not run
+// the job's image, which a custom image may replace. Empty keeps them on
+// `pool.Spec.Image`, for installs that publish no separate sidecar image.
+//
 // `clusterDNSIP` + `clusterDomain`, when set, ride to macOS Pods as
 // TUIST_CLUSTER_DNS_IP / TUIST_CLUSTER_DOMAIN: tart-kubelet stages
 // the Pod env into the VM's /etc/tuist.env, and dispatch-poll.sh
@@ -188,8 +193,11 @@ const (
 // class the Pod falls back to runc on the host kernel and the
 // privileged container escapes onto the bare-metal host — so refuse
 // to build it rather than ship an unbounded privileged container.
-func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage, registryMirror, clusterDNSIP, clusterDomain string) (*corev1.Pod, error) {
+func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage, sidecarImage, registryMirror, clusterDNSIP, clusterDomain string) (*corev1.Pod, error) {
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
+	if sidecarImage == "" {
+		sidecarImage = pool.Spec.Image
+	}
 	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
 
 	if pool.Spec.OS == "linux" && dindImage != "" && !IsKataRuntimeClass(pool.Spec.RuntimeClass) {
@@ -596,7 +604,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		)
 		initContainers = append(initContainers, corev1.Container{
 			Name:          "metrics",
-			Image:         pool.Spec.Image,
+			Image:         sidecarImage,
 			Command:       []string{"/usr/local/bin/metrics-sampler.sh"},
 			Env:           metricsEnv,
 			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
@@ -623,7 +631,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		)
 		initContainers = append(initContainers, corev1.Container{
 			Name:    "shell",
-			Image:   pool.Spec.Image,
+			Image:   sidecarImage,
 			Command: []string{"sh", "-c"},
 			Args: []string{
 				"sed -i '/runner ALL=(ALL) NOPASSWD/d' /etc/sudoers || true; exec /usr/local/bin/runner-shell-agent",
@@ -672,7 +680,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		}
 		initContainers = append(initContainers, corev1.Container{
 			Name:         "poller",
-			Image:        pool.Spec.Image,
+			Image:        sidecarImage,
 			Command:      pollerCommand,
 			Env:          pollerEnv,
 			VolumeMounts: pollerMounts,

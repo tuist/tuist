@@ -253,15 +253,23 @@ spec:
             # webhook. In-cluster Service URL — same path used by
             # the autoscaler.
             - --sessions-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners
-          {{- if or .Values.sandboxes.enabled .Values.sandboxes.macos.enabled }}
-          # Sandbox daemons share the Linux fleet's nodes. An env var rather
-          # than a flag, so a controller release that predates it ignores it
-          # instead of failing on an unknown flag.
+          {{- $sandboxes := or .Values.sandboxes.enabled .Values.sandboxes.macos.enabled }}
+          {{- if or $sandboxes .Values.runnersController.sidecarImage }}
+          # Env vars rather than flags, so a controller release that predates
+          # them ignores them instead of failing on an unknown flag.
           env:
+            {{- with .Values.runnersController.sidecarImage }}
+            # Trusted image for the token-holding sidecars of Linux runner Pods.
+            - name: TUIST_RUNNER_SIDECAR_IMAGE
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if $sandboxes }}
+            # Sandbox daemons share the Linux fleet's nodes.
             - name: TUIST_SANDBOXES_NAMESPACE
               value: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
             - name: TUIST_REMOTE_EXECUTION_FLOOR_SLOTS
               value: {{ .Values.sandboxes.remoteExecutionFloorSlots | default 0 | quote }}
+            {{- end }}
           {{- end }}
           ports:
             - name: metrics
