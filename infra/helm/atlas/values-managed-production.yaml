@@ -282,6 +282,12 @@ externalSecrets:
       remoteRef: "atlas-qonto-oauth/username"
     ATLAS_QONTO_OAUTH_CLIENT_SECRET:
       remoteRef: "atlas-qonto-oauth/credential"
+    # OAuth 2.0 client of the X developer app owned by @tuistdev, used to read
+    # connected accounts' post metrics. Create the item before deploying.
+    ATLAS_X_CLIENT_ID:
+      remoteRef: "atlas-x-oauth/username"
+    ATLAS_X_CLIENT_SECRET:
+      remoteRef: "atlas-x-oauth/credential"
     MERCURY_API_TOKEN:
       remoteRef: "atlas-mercury/credential"
     ATLAS_GTM_INGEST_TOKEN:

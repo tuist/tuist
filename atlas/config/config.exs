@@ -20,6 +20,7 @@ alias Atlas.Finance.Workers.CategorizeTransactions
 alias Atlas.Finance.Workers.ScheduleSourceSyncs
 alias Atlas.Granola.Workers.SyncNotes
 alias Atlas.GTM.Workers.ResumeStalledDeliveries
+alias Atlas.GTM.Workers.SyncSocialPosts
 alias Atlas.Letters.Workers.ScheduleDeliveryChecks
 alias Atlas.Licenses.RateLimiter
 alias Atlas.MCP.Workers.RefreshOAuthSessions
@@ -117,6 +118,8 @@ config :atlas, Oban,
        {"30 5 * * *", ScheduleFeatureUsage},
        # Picks email delivery back up when a run was discarded mid-audience.
        {"*/15 * * * *", ResumeStalledDeliveries},
+       # Reads connected X accounts' posts and stores one metrics snapshot a day.
+       {"10 5 * * *", SyncSocialPosts},
        # Deletes document rows and reserved storage objects for uploads the
        # client never finalized.
        {"*/15 * * * *", ExpirePendingUploads},

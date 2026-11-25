@@ -32,7 +32,7 @@ defmodule AtlasWeb.ConnectionControllerTest do
   test "provider consent uses personal scopes, PKCE, and offline Google access", %{conn: conn} do
     {conn, _user} = log_in_user(conn)
 
-    for provider <- ~w(github slack google qonto) do
+    for provider <- ~w(github slack google qonto x) do
       response = get(conn, "/connections/#{provider}/authorize")
       uri = URI.parse(redirected_to(response))
       params = URI.decode_query(uri.query)
@@ -54,6 +54,7 @@ defmodule AtlasWeb.ConnectionControllerTest do
 
       if provider == "github", do: assert(params["scope"] == "offline_access")
       if provider == "qonto", do: assert(params["scope"] == "offline_access membership.read request_transfers.write")
+      if provider == "x", do: assert(params["scope"] == "tweet.read users.read offline.access")
 
       if provider == "google" do
         assert params["access_type"] == "offline"

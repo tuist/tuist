@@ -336,6 +336,10 @@ config :atlas, :account_connections, %{
   "qonto" => %{
     client_id: System.get_env("ATLAS_QONTO_OAUTH_CLIENT_ID"),
     client_secret: System.get_env("ATLAS_QONTO_OAUTH_CLIENT_SECRET")
+  },
+  "x" => %{
+    client_id: System.get_env("ATLAS_X_CLIENT_ID"),
+    client_secret: System.get_env("ATLAS_X_CLIENT_SECRET")
   }
 }
 

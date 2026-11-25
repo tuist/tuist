@@ -15,6 +15,34 @@ defmodule Atlas.ConnectionsTest do
     %{user: insert_user!()}
   end
 
+  test "X authenticates the client with HTTP Basic and refreshes its rotating token the same way", %{user: user} do
+    stub(Req, :request, fn opts ->
+      case opts[:url] do
+        "https://api.x.com/2/oauth2/token" ->
+          assert opts[:auth] == {:basic, "test-client:test-secret"}
+          refute Map.has_key?(opts[:form], "client_secret")
+          token = if opts[:form]["grant_type"] == "refresh_token", do: "x-rotated", else: "x-access"
+
+          response(%{
+            "access_token" => token,
+            "expires_in" => 7200,
+            "refresh_token" => token <> "-refresh",
+            "scope" => "tweet.read users.read offline.access"
+          })
+
+        "https://api.x.com/2/users/me" ->
+          response(%{"data" => %{"id" => "1201413677729173505", "username" => "tuistdev"}})
+      end
+    end)
+
+    assert {:ok, connection} = Connections.connect(user, "x", "code", "https://atlas.test/callback", "verifier")
+    assert connection.account_name == "@tuistdev"
+    assert connection.scopes == ~w(tweet.read users.read offline.access)
+
+    assert {:ok, "x-rotated"} = Connections.refresh_access_token(user, "x", ["tweet.read"], "x-access")
+    assert Repo.reload!(connection).refresh_token == "x-rotated-refresh"
+  end
+
   test "GitHub credentials are encrypted, personal, audited, and never exposed through MCP", %{user: user} do
     stub(Req, :request, fn opts ->
       case opts[:url] do
