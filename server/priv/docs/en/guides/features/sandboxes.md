@@ -67,7 +67,7 @@ The command runs detached from `tuist`, so it survives a dropped connection. To 
 
 Add `--json` for machine-readable output. See the <.localized_link href="/cli/sandbox">CLI reference</.localized_link> for every option. To drive sandboxes from code instead, use the same operations through the [Tuist API](https://tuist.dev/api/docs) under `/api/accounts/{account_handle}/sandboxes`, or let an agent use them through <.localized_link href="/guides/features/agentic-coding/mcp">MCP</.localized_link>.
 
-Tools that can't log in interactively, such as an agent plugin that builds in a macOS sandbox, can authenticate with an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope instead. It can do what a member of the account can: create sandboxes, run commands in them, and pause, resume, archive and delete them. Integration settings stay with account administrators.
+Tools that can't log in interactively, such as an agent plugin that builds in a macOS sandbox, can authenticate with an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope instead. It can do what a member of the account can: create sandboxes, run commands in them, and pause, resume, archive and delete them. Integration settings, and running commands in sandboxes that serve an integration, stay with account administrators.
 
 ### Tuist inside the sandbox {#tuist-in-sandbox}
 
@@ -171,6 +171,6 @@ Choose one with `xcode_version` (`--xcode` in the CLI), using the exact version,
 ## Security {#security}
 
 - Each sandbox is its own virtual machine. Sandboxes don't share a file system, memory or processes with each other or with CI jobs.
-- Sandboxes belong to an account, and any of its members can use and manage them, including sandboxes that serve an integration. Only administrators connect integrations. Sessions from an integration only reach the sandboxes of the account the integration is connected to.
+- Sandboxes belong to an account, and any of its members can use and manage them. Sandboxes that serve an integration, such as an Amp orb or a Claude Code session, hold that session's work and credentials: members can see, pause, resume, archive and delete them, but only administrators can run commands in them or upload files to them. Only administrators connect integrations. Sessions from an integration only reach the sandboxes of the account the integration is connected to.
 - Credentials you give Tuist to connect an integration, such as an Amp provider token or a Claude environment key, are stored encrypted and never shown again.
 - A sandbox can reach the internet. Treat what an agent can access from it the way you would treat a CI job.

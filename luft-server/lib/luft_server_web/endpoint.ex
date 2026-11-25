@@ -23,6 +23,7 @@ defmodule LuftServerWeb.Endpoint do
   ]
 
   plug Plug.RequestId
+  plug LuftServerWeb.Plugs.ClientContext
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
   plug LuftServerWeb.Plugs.SecurityHeaders
 

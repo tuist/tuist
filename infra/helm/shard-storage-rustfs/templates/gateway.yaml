@@ -17,14 +17,45 @@ data:
       server {{ .Release.Name }}-s3:9000;
       keepalive 32;
     }
+    # The ingress appends the client it accepted the connection from as the
+    # last X-Forwarded-For entry; earlier entries are whatever the client sent.
+    map $http_x_forwarded_for $rustfs_client {
+      "~(?:^|,)\s*([0-9A-Fa-f.:]+)\s*$" $1;
+      default $remote_addr;
+    }
+    # Only the access key ID, which is not secret, from SigV4 or SigV2
+    # signatures: a presigned URL's credential or the Authorization header.
+    map $args $rustfs_query_key_id {
+      "~(?:^|&)X-Amz-Credential=([A-Za-z0-9]{1,128})(?:%2[Ff]|/)" $1;
+      "~(?:^|&)AWSAccessKeyId=([A-Za-z0-9]{1,128})(?:&|$)" $1;
+      default "";
+    }
+    map $http_authorization $rustfs_key_id {
+      "~^AWS4-HMAC-SHA256 +Credential=([A-Za-z0-9]{1,128})/" $1;
+      "~^AWS ([A-Za-z0-9]{1,128}):" $1;
+      default $rustfs_query_key_id;
+    }
+    map $http_authorization $rustfs_auth {
+      "~^AWS" header;
+      default $rustfs_query_auth;
+    }
+    map $rustfs_query_key_id $rustfs_query_auth {
+      "" none;
+      default presigned;
+    }
+    # One JSON line per request to stdout, which Alloy ships to Pulse. It must
+    # never name a variable that carries the query string ($request,
+    # $request_uri, $args, $arg_*, $query_string) or a credential header:
+    # presigned queries and Authorization hold signatures. $uri is the path.
+    log_format rustfs_access escape=json '{"time":"$time_iso8601","client":"$rustfs_client","peer":"$remote_addr","method":"$request_method","path":"$uri","status":"$status","bytes_sent":"$bytes_sent","request_length":"$request_length","request_time":"$request_time","auth":"$rustfs_auth","key_id":"$rustfs_key_id","user_agent":"$http_user_agent"}';
     server {
       listen 8080;
-      # Neither access nor error logs may leak presigned query credentials.
-      access_log off;
+      access_log /dev/stdout rustfs_access;
+      # nginx's error log quotes the whole request line, query included.
       error_log /dev/null;
       client_max_body_size 0;
       client_body_timeout 120s;
-      location = /ready { return 200; }
+      location = /ready { access_log off; return 200; }
       # Only the listed buckets. No console, admin, metrics or peer APIs.
       location ~ ^/({{ join "|" .Values.gateway.buckets }})(?:/|$) {
         proxy_http_version 1.1;
@@ -139,6 +170,8 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
     nginx.ingress.kubernetes.io/proxy-next-upstream: "off"
+    # The controller's format logs $request, presigned query included. The
+    # gateway logs these requests without it.
     nginx.ingress.kubernetes.io/enable-access-log: "false"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:

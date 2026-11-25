@@ -7,7 +7,8 @@
   `schemas.ex`; create and exec use the API only (MCP omits them). Change server
   schemas and regenerate OpenAPI; never edit generated files.
 - The server enforces roles (members and `account:sandboxes:write` tokens reach
-  every sandbox; read-only viewers none); the CLI does not check them. `--account` overrides the project
+  every sandbox, but only administrators run commands in or upload to one that
+  serves an integration, answered 403 `forbidden`; read-only viewers none); the CLI does not check them. `--account` overrides the project
   full-handle account.
 - `exec` joins the arguments after `--` with spaces and the server runs them with
   `bash -l`; it streams stdout and stderr and exits with the command's exit status

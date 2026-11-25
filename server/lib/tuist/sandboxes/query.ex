@@ -166,6 +166,11 @@ defmodule Tuist.Sandboxes.Query do
   defp describe({:invalid_state, state}), do: {:conflict, "invalid_state", "The sandbox is #{state}."}
   defp describe(:not_found), do: {:not_found, "not_found", "Sandbox not found."}
 
+  defp describe(:integration_sandbox),
+    do:
+      {:forbidden, "forbidden",
+       "The sandbox serves an agent environment, an Amp Orb or remote execution. Only account administrators can run commands in it or reach its files."}
+
   defp describe({:invalid_cwd, cwd}),
     do: {:bad_request, "invalid_cwd", "The working directory #{cwd} does not exist in the sandbox or is not a directory."}
 
@@ -276,7 +281,7 @@ defmodule Tuist.Sandboxes.Query do
   @doc "Every code `error/1` answers, for the API and MCP schemas."
   def error_codes,
     do:
-      ~w(invalid_state not_found invalid_cwd invalid_parameters no_node account_limit rate_limited account_busy sandbox_busy invalid_command stdin_not_attached stdin_closed stdin_offset_mismatch locked no_lifetime command_id_taken fleet_busy host_busy_ci host_busy_full host_busy_no_grant host_not_connected host_replaced archive_unavailable node_not_connected node_disconnected node_timeout snapshot_not_saved invalid_request node_rejected internal_error)
+      ~w(invalid_state not_found forbidden invalid_cwd invalid_parameters no_node account_limit rate_limited account_busy sandbox_busy invalid_command stdin_not_attached stdin_closed stdin_offset_mismatch locked no_lifetime command_id_taken fleet_busy host_busy_ci host_busy_full host_busy_no_grant host_not_connected host_replaced archive_unavailable node_not_connected node_disconnected node_timeout snapshot_not_saved invalid_request node_rejected internal_error)
 
   defp capacity_wait_ms,
     do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:capacity_wait_ms, @capacity_wait_ms)

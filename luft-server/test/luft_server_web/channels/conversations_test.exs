@@ -125,7 +125,7 @@ defmodule LuftServerWeb.ConversationsTest do
       "code_challenge" => :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false)
     }
 
-    {:ok, callback} =
+    {:ok, callback, _session} =
       NativeAuth.complete(
         %{
           claims: %{"sub" => "1", "preferred_username" => "one"},

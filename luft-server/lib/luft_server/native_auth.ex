@@ -13,6 +13,7 @@ defmodule LuftServer.NativeAuth do
   alias Boruta.Oauth.RefreshTokenRequest
   alias Boruta.Oauth.Request
   alias Boruta.Oauth.ResourceOwner
+  alias LuftServer.AuthEvents
   alias LuftServer.OAuth.Clients
   alias LuftServer.Repo
   alias LuftServer.Sessions
@@ -75,11 +76,15 @@ defmodule LuftServer.NativeAuth do
       with {:ok, _token, session} <- Sessions.create(signin),
            {:ok, url} <-
              Oauth.authorize(authorize_conn(request), %ResourceOwner{sub: session.id}, __MODULE__) do
-        url
+        {url, session}
       else
         _ -> Repo.rollback(:invalid_request)
       end
     end)
+    |> case do
+      {:ok, {url, session}} -> {:ok, url, session}
+      error -> error
+    end
   end
 
   def callback_url(request, query) do
@@ -96,13 +101,19 @@ defmodule LuftServer.NativeAuth do
          true <- Map.get(request, :client_id) == client_id(),
          {:ok, query} <- grant_query(request),
          true <- valid_credential?(query[:value] || query[:refresh_token]) do
+      event = if match?(%RefreshTokenRequest{}, request), do: :refresh, else: :code_exchange
+
       # Upstream adapters remain unmodified. Lock the owning session before
       # Boruta rereads and spends the code/refresh token, and commit its writes
       # together with the retry response. All replicas use this same DB lock.
+      # Failures roll back with their outcome and the session, if known, for
+      # the authentication event.
       Repo.transaction(fn ->
-        token =
-          Repo.get_by(from(t in Token, where: is_nil(t.revoked_at)), query) ||
-            Repo.rollback(:invalid_grant)
+        token = Repo.get_by(Token, query) || Repo.rollback({:invalid_grant, nil})
+
+        # A revoked grant presented again is a replayed code or refresh token.
+        if token.revoked_at,
+          do: Repo.rollback({:reused, Sessions.get_by_id(token.sub) || token.sub})
 
         session =
           Repo.one(
@@ -110,13 +121,27 @@ defmodule LuftServer.NativeAuth do
               where: s.id == ^token.sub and s.expires_at > ^DateTime.utc_now(),
               lock: "FOR UPDATE"
           ) ||
-            Repo.rollback(:invalid_grant)
+            Repo.rollback({:session_expired, token.sub})
 
-        exchange_locked(conn, request, session)
+        exchange_locked(conn, request, token, session)
       end)
+      |> case do
+        {:ok, {response, outcome, session}} ->
+          AuthEvents.log(event, outcome, client: client_id(), session: session)
+          {:ok, response}
+
+        {:error, {outcome, session}} ->
+          AuthEvents.log(event, outcome, client: client_id(), session: session)
+          {:error, :invalid_grant}
+      end
     else
-      true -> {:error, :invalid_request}
-      _ -> {:error, :invalid_grant}
+      true ->
+        AuthEvents.log(:token, :invalid_request)
+        {:error, :invalid_request}
+
+      _ ->
+        AuthEvents.log(:token, :invalid_grant)
+        {:error, :invalid_grant}
     end
   end
 
@@ -132,24 +157,32 @@ defmodule LuftServer.NativeAuth do
 
   defp grant_query(_request), do: {:error, :invalid_grant}
 
-  defp exchange_locked(conn, %RefreshTokenRequest{refresh_token: token}, session) do
-    case Sessions.refresh_replay(session, token) do
+  defp exchange_locked(conn, %RefreshTokenRequest{refresh_token: value}, token, session) do
+    case Sessions.refresh_replay(session, value) do
       {:ok, response} ->
-        response
+        {response, :retried, session}
 
       :error ->
-        response = issue(conn)
-        Sessions.remember_refresh(session, token, response)
-        response
+        response = issue(conn, token, session)
+        Sessions.remember_refresh(session, value, response)
+        {response, :success, session}
     end
   end
 
-  defp exchange_locked(conn, %AuthorizationCodeRequest{}, _session), do: issue(conn)
+  defp exchange_locked(conn, %AuthorizationCodeRequest{}, token, session),
+    do: {issue(conn, token, session), :success, session}
 
-  defp issue(conn) do
+  defp issue(conn, token, session) do
     case Oauth.token(conn, __MODULE__) do
-      {:ok, response} -> response
-      {:error, _error} -> Repo.rollback(:invalid_grant)
+      {:ok, response} ->
+        response
+
+      # A rotated refresh token presented after its retry window.
+      {:error, _error} when not is_nil(token.refresh_token_revoked_at) ->
+        Repo.rollback({:reused, session})
+
+      {:error, _error} ->
+        Repo.rollback({:invalid_grant, session})
     end
   end
 

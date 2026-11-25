@@ -22,6 +22,7 @@ defmodule Tuist.SandboxesTest do
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
+  alias Tuist.Storage
 
   defp events(%Sandbox{id: id}) do
     ClickHouseRepo.all(from(e in SandboxEvent, where: e.sandbox_id == ^id, order_by: e.inserted_at, select: e.event))
@@ -1364,6 +1365,48 @@ defmodule Tuist.SandboxesTest do
       assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
       assert sandbox.cache_volume_id == cache.volume_id
       assert sandbox.cache_generation == 5
+    end
+
+    test "keeps the record of the cache it received through an archive and restore", %{account: account, cache: cache} do
+      node_info(%{cache_grants: true, cache_drive_in_template: true})
+      stub(VolumeAffinities, :holds_volume?, fn _node, _scope -> true end)
+      stub(Nodes, :connected_nodes, fn -> [%{name: "node-a", templates: []}] end)
+      stub(Storage, :supports_signed_upload_headers?, fn _account -> true end)
+      stub(Storage, :multipart_generate_url, fn key, "upload-1", part, _account, _opts -> "https://s3/#{key}?#{part}" end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 170, "cache_generation" => 5}} end)
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+
+      expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
+      assert {:ok, %Sandbox{state: :paused}} = Sandboxes.pause(sandbox)
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", _args, _opts ->
+        {:ok, %{"parts" => [%{"part_number" => 1, "etag" => ~s("e1")}], "bytes" => 1, "sha256" => "abc"}}
+      end)
+
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
+      assert {:ok, %Sandbox{state: :archived}} = Archives.archive(sandbox)
+
+      # The restore cold boots the archived disks, with no cache grant.
+      expect(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        refute Map.has_key?(args, :cache_grant)
+        assert Map.has_key?(args, :from_archive)
+        {:ok, %{"boot_ms" => 900}}
+      end)
+
+      expect(Storage, :delete_object, fn _key, _account -> :ok end)
+
+      assert {:ok, %Sandbox{state: :running} = restored} = Sandboxes.resume(Repo.reload!(sandbox))
+      assert restored.cache_volume_id == cache.volume_id
+      assert restored.cache_generation == 5
+      assert %Sandbox{cache_volume_id: volume_id, cache_generation: 5} = Repo.reload!(sandbox)
+      assert volume_id == cache.volume_id
     end
 
     test "creates without it where the node cannot attach it", %{account: account, cache: cache} do

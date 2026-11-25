@@ -13,6 +13,7 @@ defmodule LuftServer.Sessions do
 
   import Ecto.Query
 
+  alias LuftServer.AuthEvents
   alias LuftServer.Repo
   alias LuftServer.Sessions.Session
   alias LuftServer.Tuist.OIDC
@@ -132,12 +133,12 @@ defmodule LuftServer.Sessions do
          {:ok, access_token} <- decrypt(session.access_token) do
       {:ok, access_token}
     else
-      false -> refresh(session.id)
-      :error -> reauthenticate(session.id)
+      false -> refresh(session)
+      :error -> reauthenticate(session)
     end
   end
 
-  defp refresh(session_id) do
+  defp refresh(%Session{id: session_id} = session) do
     fn ->
       # Refreshes still serialize with each other and logout, but do not need
       # to block execution's key-share locks: only credential columns change.
@@ -184,13 +185,14 @@ defmodule LuftServer.Sessions do
     |> Repo.transaction()
     |> case do
       {:ok, access_token} -> {:ok, access_token}
-      {:error, :reauthenticate} -> reauthenticate(session_id)
+      {:error, :reauthenticate} -> reauthenticate(session)
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp reauthenticate(session_id) do
-    remove(from s in Session, where: s.id == ^session_id)
+  defp reauthenticate(session) do
+    remove(from s in Session, where: s.id == ^session.id)
+    AuthEvents.log(:session_revoked, :reauthenticate, session: session)
     {:error, :reauthenticate}
   end
 

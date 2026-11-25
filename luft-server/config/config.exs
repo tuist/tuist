@@ -2,7 +2,21 @@ import Config
 
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :sandbox_id]
+  metadata: [
+    :request_id,
+    :sandbox_id,
+    # Authentication events (`LuftServer.AuthEvents`). Identifiers only.
+    :auth_event,
+    :auth_outcome,
+    :auth_client,
+    :user_sub,
+    :session_id,
+    # Where the request came from (`LuftServerWeb.Plugs.ClientContext`). The
+    # user agent goes last: it has spaces, which end a logfmt value early.
+    :client_address,
+    :forwarded_for,
+    :user_agent
+  ]
 
 config :luft_server, LuftServer.Repo, migration_timestamps: [type: :utc_datetime]
 

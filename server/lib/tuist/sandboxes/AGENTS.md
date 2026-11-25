@@ -850,9 +850,20 @@ socket, the poller and the caller share a replica:
   commands, pause/resume/delete). Members and account tokens with
   `account:sandboxes:write` (`:sandboxes_write`) reach every sandbox action
   (list, show, analytics, create, exec, commands, uploads, pause, resume,
-  archive, delete) on every sandbox in the account, including ones that serve
-  an integration. Agent environments, which hold Anthropic credentials, and
-  Orb dispatch stay admin-only. The MCP sandbox tools apply the same rule.
+  archive, delete) on every plain sandbox in the account
+  (`Sandboxes.member_sandbox?/1`), and manage (show, pause, resume, extend,
+  archive, delete) the ones that serve an agent environment, an Amp Orb, a
+  provider environment or remote execution. Reaching inside those (exec,
+  commands, uploads) stays admin-only (`require_guest_access/2`): their guest
+  holds someone's checkout and the integration's credentials, such as a
+  Claude Code session's work order, which `exec` (root in the guest) reads,
+  and a Claude Code session or an Orb exchanges its own token for
+  `account:sandboxes:write`, so a prompt-injected session would otherwise
+  read everyone else's. An account token is never an administrator. Agent
+  environments, which hold Anthropic credentials, and Orb dispatch stay
+  admin-only. The MCP sandbox tools expose no guest access and apply the
+  same rule. Exec and command starts log their caller (never the command),
+  which no row stores.
 - Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
   `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
   (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and

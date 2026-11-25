@@ -72,7 +72,7 @@ defmodule LuftServerWeb.ConversationsTransportTest do
       "code_challenge" => :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false)
     }
 
-    {:ok, callback} =
+    {:ok, callback, _session} =
       NativeAuth.complete(
         %{
           claims: %{"sub" => "42", "preferred_username" => "person"},
