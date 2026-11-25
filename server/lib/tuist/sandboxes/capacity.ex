@@ -105,8 +105,6 @@ defmodule Tuist.Sandboxes.Capacity do
   # remote execution worker's warm floor moves between workers, retired a
   # warm runner per cycle (production, November 2026).
   @shrink_hold_seconds 300
-  # `Tuist.RemoteExecution.Scheduler`'s `@warm_hold_ms`.
-  @execution_hold_seconds 60
   @allocation_ttl_seconds 15
   # How long a placement or resume waits for a growth to be reported, and
   # how long the poller's admission check does before it leaves a work item
@@ -1562,16 +1560,18 @@ defmodule Tuist.Sandboxes.Capacity do
   # An execution daemon runs one VM per action, so what its VMs hold dips
   # between actions while a build still has more queued. Shrinking to that
   # dip makes the next VMs wait for a growth, and larger VMs wait longest. Its
-  # carve-out holds while a VM placed within the time a scheduler holds a
-  # build's warm peak is still on it; warm VMs keep that true between actions.
-  # CI pressure (`urgent`) still shrinks it at once.
+  # carve-out holds for the shrink hold after the last VM placed on it, which
+  # also outlasts the gap between a CI job's builds: shrinking within a minute
+  # of a build's end made the next build's first actions wait for the
+  # carve-out to grow back (production, November 2026). CI pressure
+  # (`urgent`) still shrinks it at once.
   defp executing?(%{name: node_name} = node) do
     execution_daemon?(node) and
       Repo.exists?(
         from s in Sandbox,
           where:
             s.node_name == ^node_name and s.purpose == :remote_execution and
-              s.inserted_at > ago(@execution_hold_seconds, "second")
+              s.inserted_at > ago(@shrink_hold_seconds, "second")
       )
   end
 
