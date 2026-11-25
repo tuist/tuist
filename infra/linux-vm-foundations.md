@@ -40,7 +40,7 @@ expected property that has not been tested here.
 
 | Requirement | Today | Kata + QEMU | Firecracker | Cloud Hypervisor |
 |---|---|---|---|---|
-| CI container rootfs from containerd's overlay snapshot | kata-qemu over virtio-fs | verified (production) | no virtio-fs or 9p; `kata-fc` needs a block snapshotter ([substrate](runners-controller/AGENTS.md#linux-runner-substrate-ovh-bare-metal-boxes-kata-qemu)) | virtio-fs supported; `kata-clh` untested here |
+| CI container rootfs from containerd's overlay snapshot | kata-qemu over virtio-fs; devmapper over virtio-blk on staging (`kataBlockRootfs`) | verified (production; devmapper on staging) | no virtio-fs or 9p; `kata-fc` needs a block snapshotter ([substrate](runners-controller/AGENTS.md#linux-runner-substrate-ovh-bare-metal-boxes-kata-qemu)) | virtio-fs supported; `kata-clh` untested here |
 | Host cache volumes and checkouts bind-mounted into the job | mount propagation through Kata | verified (staging and production) | would need one block device per volume, fixed before boot or snapshot | virtio-fs; untested |
 | Docker: privileged DinD sidecar, service and `container:` jobs, Docker cache image loop-mounted in the guest | Kata guest kernel | verified | sandbox guest has no Docker and its Firecracker CI kernel is untested for it | depends on the guest kernel; untested |
 | Nested KVM for Android emulators | kata-kvm-kernel, device plugin | verified 2026-10-27 (`android-smoke`) | not validated; treat as unsupported until proven | expected; untested |
@@ -91,7 +91,9 @@ first have to pass the other column's rows on our hosts.
    directories shared over virtio-fs, so a Firecracker guest would need them
    as drives. Sandbox setup snapshots (Amp disk snapshots, Claude Code
    repository snapshots) cannot serve Kata CI, whose rootfs is an overlay
-   snapshot rather than a disk. Amp and Claude Code snapshots are disk
+   snapshot rather than a disk. Staging's devmapper rootfs (`kataBlockRootfs`
+   in the CAPI provider) makes it a thin block device, but one containerd
+   unpacks from the image, not one of those snapshots. Amp and Claude Code snapshots are disk
    snapshots of the same template, but Amp chooses its snapshot ids and runs
    its own setup, so sharing them is a product decision, not a storage one.
 4. **Guest kernels.** CI boots Kata's kernel with a KVM fragment

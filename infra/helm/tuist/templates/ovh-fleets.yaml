@@ -53,6 +53,9 @@ spec:
       {{- if $fleet.machine.kataRuntime }}
       kataRuntime: true
       {{- end }}
+      {{- if $fleet.machine.kataBlockRootfs }}
+      kataBlockRootfs: true
+      {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment

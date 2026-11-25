@@ -2416,6 +2416,7 @@ infra/cluster-api-provider-tuist/
 │       ├── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
 │       ├── kata_shared_memory.go    # /dev/shm ceiling for Kata guest RAM + the host-config proof
 │       ├── kata_virtiofs.go         # virtiofsd file budget (fs.nr_open + Kata config.d drop-in)
+│       ├── kata_block_rootfs.go     # opt-in devmapper rootfs for kata-qemu (thin pool on /data, virtio-blk)
 │       └── kata_kvm.go              # install + prove the KVM guest kernel, label tuist.dev/kata-kvm
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
@@ -2604,6 +2605,22 @@ Missing proof sets `KataHostConfigUnverified`; a failed repair sets
 label intact. Non-Kata fleets are unaffected. The Hetzner worker template in
 `infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
 (checked by a test); existing Hetzner workers do not use this OVH repair path.
+
+`spec.kataBlockRootfs` (Helm `ovhFleets.<fleet>.machine.kataBlockRootfs`, on
+in staging only) gives kata-qemu containers a devmapper rootfs, which the guest
+mounts as ext4 over virtio-blk, instead of the overlayfs snapshot shared over
+virtio-fs. A Redis `make -j5` in a 4 vCPU staging VM took 24.8 s instead of
+35.4 s. `controllers/linux/kata_block_rootfs.go` keeps the thin pool in
+preallocated loop files under `/data/kata-devmapper`, brought up before
+containerd by `tuist-kata-devmapper.service`, fills in containerd's devmapper
+section, sets `snapshotter = "devmapper"` on the kata-qemu handler only, and
+installs the Kata drop-in `50-tuist-block-rootfs.toml`. runc Pods keep
+overlayfs. It is bootstrap-time only: the Ready-path repair does not apply it
+and `tuist.dev/kata-host-config` does not cover it, so flipping the field reaches
+a box when it is reprovisioned. Without the `io.containerd.cri.runtime-handler`
+Pod annotation the kubelet pulls into overlayfs and containerd unpacks the image
+into devmapper on the first container start, so each runner image is stored
+twice. The Hetzner worker template does not have it.
 
 Nested virtualization (`controllers/linux/kata_kvm.go`) follows the same
 proof shape on every OVH Kata host, after the runtime and host-configuration proofs
