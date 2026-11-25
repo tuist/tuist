@@ -233,7 +233,10 @@
     }
 
     & [data-part="nav-item"] {
+      display: flex;
       position: relative;
+      align-items: center;
+      gap: var(--noora-spacing-3);
       border-radius: var(--noora-radius-3);
       padding: var(--noora-spacing-3) var(--noora-spacing-4);
       color: var(--noora-surface-label-secondary);
@@ -265,6 +268,15 @@
          following its 6px radius. */
       &:focus-visible {
         outline-offset: calc(-1 * var(--noora-focus-ring-width));
+      }
+
+      /* Marks components that match the new designs (`Pages.redesigned?/1`). */
+      & [data-part="redesigned-dot"] {
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: var(--noora-badge-status-success);
+        width: 6px;
+        height: 6px;
       }
     }
 

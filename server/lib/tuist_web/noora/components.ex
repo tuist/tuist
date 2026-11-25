@@ -18,6 +18,9 @@ defmodule TuistWeb.Noora.Components do
   slot :inner_block, required: true
 
   def docs_shell(assigns) do
+    # The redesign markers are for the Tuist team only.
+    assigns = assign(assigns, :team_member, Pages.team_member?(assigns.current_user))
+
     ~H"""
     <div id="noora-docs" class="noora-docs">
       <header data-part="header">
@@ -111,6 +114,15 @@ defmodule TuistWeb.Noora.Components do
                 data-selected={page == @page}
                 aria-current={if page == @page, do: "page"}
               >
+                <%!-- No text inside, so the page search, which matches
+                items' text, ignores it. --%>
+                <span
+                  :if={@team_member and Pages.redesigned?(page)}
+                  data-part="redesigned-dot"
+                  role="img"
+                  aria-label="Redesigned"
+                  title="Redesigned"
+                ></span>
                 {page.nav_title()}
               </.link>
             </div>
