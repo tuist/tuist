@@ -112,6 +112,14 @@ defmodule TuistEx.Analytics.EnvTest do
     assert Env.git_branch(environment) == "main"
     assert Env.git_commit_sha(environment) == "deadbeef"
     assert Env.git_remote_url_origin(environment) == "git@github.com:tuist/tuist.git"
+
+    assert Env.git_branch(
+             &%{
+               "TUIST_GIT_BRANCH" => "main",
+               "GIT_BRANCH" => "origin/main",
+               "CI_COMMIT_REF_NAME" => "v1.0.0"
+             }[&1]
+           ) == "main"
   end
 
   test "reports the merge commit a pull request's merge ref checks out, which the run measured" do
