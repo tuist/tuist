@@ -130,10 +130,17 @@ source "tart-cli" "macos_xcode" {
   cpu_count    = var.cpu_count
   memory_gb    = var.memory_gb
   disk_size_gb = var.disk_size_gb
-  ssh_username = "admin"
-  ssh_password = "admin"
-  ssh_timeout  = "120s"
-  headless     = true
+  # Delete the vendor base's recovery partition, which then lets the plugin
+  # grow the APFS container over the disk. The Tahoe base ships without one;
+  # the macOS 27 (Golden Gate) base keeps one after the container, and a
+  # runner image stacked on this layer cannot remove it (no disk.img to
+  # edit), so its container could never claim the space `disk_size_gb`
+  # adds there.
+  recovery_partition = "delete"
+  ssh_username       = "admin"
+  ssh_password       = "admin"
+  ssh_timeout        = "120s"
+  headless           = true
 }
 
 build {
