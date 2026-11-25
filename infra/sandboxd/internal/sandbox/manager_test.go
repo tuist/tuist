@@ -1759,8 +1759,29 @@ func TestBurstingGuestIsHeldToItsMemoryRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A resume sets the target again: a guest OOM may have deflated it.
-	if got := balloonTargets(h.launcher.Last()); len(got) != 1 || got[0] != 3072 {
+	inst := h.launcher.Last()
+	if got := balloonTargets(inst); len(got) != 1 || got[0] != 3072 {
 		t.Fatalf("balloon targets after resume %v", got)
+	}
+	// An OOM deflated it to 1000 MiB and processes still hold the burst:
+	// with 200 MiB available the balloon must not take it back.
+	meta, _ = LoadMetadata(vm.RootDir(h.jailBase, testID))
+	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 3072, ActualMiB: 1000, AvailableMemory: 200 << 20})
+	h.m.holdBalloon(ctx, inst.API(), meta)
+	if got := balloonTargets(inst); len(got) != 1 {
+		t.Fatalf("re-inflated into memory the guest uses: %v", got)
+	}
+	// Once 1500 MiB is available again it inflates by that, less a margin.
+	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 3072, ActualMiB: 1000, AvailableMemory: 1500 << 20})
+	h.m.holdBalloon(ctx, inst.API(), meta)
+	if got := balloonTargets(inst); len(got) != 2 || got[1] != 1000+1500-balloonMarginMiB {
+		t.Fatalf("balloon targets after the burst ended %v", got)
+	}
+	// And to the whole target when the guest has room for it.
+	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 2244, ActualMiB: 2244, AvailableMemory: 3000 << 20})
+	h.m.holdBalloon(ctx, inst.API(), meta)
+	if got := balloonTargets(inst); len(got) != 3 || got[2] != 3072 {
+		t.Fatalf("balloon targets with room %v", got)
 	}
 	// A request equal to the guest is no burst: no balloon target.
 	if _, err := h.m.Create(ctx, protocol.CreateArgs{SandboxID: "whole", Template: "default", VCPUs: 2, MemoryMB: 4096, MemoryRequestMB: 4096}); err != nil {

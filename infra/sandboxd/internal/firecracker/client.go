@@ -333,6 +333,9 @@ func (c *Client) PatchBalloon(ctx context.Context, amountMiB int) error {
 type BalloonStatistics struct {
 	TargetMiB int `json:"target_mib"`
 	ActualMiB int `json:"actual_mib"`
+	// AvailableMemory is the guest's MemAvailable in bytes, free memory
+	// plus what it can reclaim; zero until the guest reports statistics.
+	AvailableMemory int64 `json:"available_memory"`
 }
 
 func (c *Client) GetBalloonStatistics(ctx context.Context) (BalloonStatistics, error) {

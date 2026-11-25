@@ -756,13 +756,17 @@ func (m *Manager) releaseCgroup(id string) {
 // back to its target.
 const BalloonInterval = 30 * time.Second
 
+// balloonMarginMiB is the guest memory a re-inflation leaves available.
+const balloonMarginMiB = 256
+
 // holdBalloon sets a bursting guest's balloon to MemoryMB − request, which
 // keeps its page cache and idle memory within the request. A guest OOM
 // deflates it (DeflateOnOOM), so processes burst up to MemoryMB instead of
 // being killed; free page reporting then returns the burst to the host.
-// Re-inflating only squeezes the guest's cache: the driver's allocations
-// give up rather than reclaim hard. A failure leaves the guest bursting
-// freely until the next pass, so it is only logged.
+// A deflated balloon re-inflates only as far as the guest has memory
+// available, so it squeezes cache and returns memory the burst freed but
+// never takes back what processes still hold. A failure leaves the guest
+// bursting freely until the next pass, so it is only logged.
 func (m *Manager) holdBalloon(ctx context.Context, api *firecracker.Client, meta Metadata) {
 	target := meta.BalloonTargetMiB()
 	if target <= 0 || api == nil {
@@ -772,14 +776,25 @@ func (m *Manager) holdBalloon(ctx context.Context, api *firecracker.Client, meta
 	if err == nil && stats.TargetMiB == target && stats.ActualMiB >= target {
 		return
 	}
-	if err := api.PatchBalloon(ctx, target); err != nil {
-		m.log.Warn("holding the guest to its memory request failed", "sandbox", meta.ID, "balloon_mib", target, "error", err)
+	// Inflate only into memory the guest has available, so a burst its
+	// processes still use is not taken back: re-inflating it whole makes
+	// the guest deflate again on its next OOM, page by page, and a 6 GiB
+	// burst took 152 s on staging instead of a few.
+	want := target
+	if err == nil && stats.AvailableMemory > 0 {
+		want = min(target, stats.ActualMiB+int(stats.AvailableMemory>>20)-balloonMarginMiB)
+		if want <= stats.ActualMiB {
+			return
+		}
+	}
+	if err := api.PatchBalloon(ctx, want); err != nil {
+		m.log.Warn("holding the guest to its memory request failed", "sandbox", meta.ID, "balloon_mib", want, "error", err)
 		return
 	}
 	// A guest that had reached its target and lost part of it was deflated
 	// by an OOM; a first inflation is not worth a line.
-	if err == nil && stats.TargetMiB == target && stats.ActualMiB < target {
-		m.log.Info("re-inflated the guest's balloon to its memory request", "sandbox", meta.ID, "balloon_mib", target, "was_mib", stats.ActualMiB)
+	if err == nil && stats.TargetMiB > stats.ActualMiB {
+		m.log.Info("re-inflated the guest's balloon toward its memory request", "sandbox", meta.ID, "balloon_mib", want, "target_mib", target, "was_mib", stats.ActualMiB)
 	}
 }
 
