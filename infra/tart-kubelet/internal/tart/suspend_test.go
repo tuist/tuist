@@ -245,3 +245,25 @@ func TestExecPreservesFailedCommandOutput(t *testing.T) {
 		t.Fatalf("lost failed guest command's output: %q, %v", out, err)
 	}
 }
+
+// diskutil and mdutil print their errors on stdout, so a failed guest script
+// whose stderr is empty must still say why in its error (2026-11-25: 15
+// macOS creates failed at the workspace volume with "(stderr: )" alone).
+func TestExecErrorCarriesStdoutTail(t *testing.T) {
+	c := lifecycleClient(t, "printf 'started\\n'; head -c 5000 /dev/zero | tr '\\0' x; printf '\\nError: -69624: Unable to add a new APFS Volume\\n'; exit 1\n")
+	_, err := c.Exec(t.Context(), "vm", "/bin/sh", "-c", "diskutil apfs addVolume")
+	if err == nil || !strings.Contains(err.Error(), "(stdout: ") || !strings.Contains(err.Error(), "Error: -69624: Unable to add a new APFS Volume") {
+		t.Fatalf("error lost the guest's stdout: %v", err)
+	}
+	if strings.Contains(err.Error(), "started") || len(err.Error()) > 3000 {
+		t.Fatalf("error kept more than the stdout tail (%d bytes)", len(err.Error()))
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("error no longer wraps the exit status: %v", err)
+	}
+	c = lifecycleClient(t, "exit 1\n")
+	if _, err := c.Exec(t.Context(), "vm", "/bin/false"); err == nil || strings.Contains(err.Error(), "stdout") {
+		t.Fatalf("empty stdout added to the error: %v", err)
+	}
+}
