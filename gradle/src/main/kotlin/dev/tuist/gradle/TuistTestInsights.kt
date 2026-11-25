@@ -612,7 +612,10 @@ abstract class TuistTestInsightsService :
             configurationProvider = configurationProvider,
             httpClients = httpClients,
             connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000
+            // The CLI's per-request inactivity timeout. The report's body is buffered and sent
+            // whole before the response is read, so this is how long the server may take to answer
+            // a large run.
+            readTimeoutMs = 120_000
         )
     }
 
