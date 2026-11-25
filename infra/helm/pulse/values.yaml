@@ -25,6 +25,15 @@ dashboard:
 # file splits on `=`.
 sentryWriter:
   environments: [staging, canary, production]
+# Environments whose Pulse has the read-only `symptoms` user, from
+# PULSE_SYMPTOMS_READER/password, for the Symptoms evaluator
+# (infra/helm/symptoms). It exists so the evaluator never holds PULSE_TOKEN,
+# which is also the collectors' `tuist:wo` password (a write-only user may run
+# DDL as well as inserts). Same rules as sentryWriter: add an environment only
+# once the item exists in its vault, letters and digits only, and restart the
+# frontends after creating or rotating it.
+symptomsReader:
+  environments: []
 # Pulse, built from pulse/ by pulse-release.yml (pulse/FORK.md). Deploys use
 # the newest canary in the commit; this pin covers commits without one.
 image: ghcr.io/tuist/pulse:1.44.0-canary.4

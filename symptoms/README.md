@@ -122,7 +122,8 @@ and the sustained detector is unchanged.
    score to P(degraded). Each pipeline (1- and 5-minute) has its own fit on
    its own symptoms' labels, centred on its own `h`. Before labels exist,
    use priors that make the score at `h` map to P = 0.5.
-5. Roots: edges come from an hourly Pulse table of span parent edges. Shared
+5. Roots: edges come from an hourly read-only Pulse query of span parent
+   edges (`infra/helm/pulse/span-edges.sql`), kept in the evaluator's database. Shared
    resources are nodes; cycles collapse into one node; jobs link to the
    request that enqueued them where trace context propagates. A degraded
    entity whose callee is degraded in the same direction, starting no more
@@ -430,11 +431,11 @@ chart value or 1Password field.
 | `SYMPTOMS_ENVIRONMENT` | Entity `environment` (default `production`) |
 | `SYMPTOMS_SERVER_NAMESPACE`, `SYMPTOMS_SERVER_SERVICE_ACCOUNT` | Exact server ServiceAccount allowed to read the evaluator API |
 | `KUBERNETES_SERVICE_HOST`, `KUBERNETES_SERVICE_PORT` | In-cluster API server for TokenReview, using the mounted ServiceAccount token and CA |
+| `SYMPTOMS_METRICS_PORT` | Port of the separate `/metrics` listener; unset starts none |
 | `SYMPTOMS_PAGING_ENABLED`, `SYMPTOMS_IRM_WEBHOOK_URL`, `SYMPTOMS_IRM_WEBHOOK_TOKEN`, `SYMPTOMS_LINK_BASE_URL` | Paging |
 | `SYMPTOMS_STATE_URL`, `SYMPTOMS_STATE_TOKEN_PATH` | The Tuist server (state read-back) |
-| `SYMPTOMS_PULSE_URL`, `SYMPTOMS_PULSE_USER`, `SYMPTOMS_PULSE_TOKEN` | Pulse reads (default user `dashboard`) |
-| `SYMPTOMS_PULSE_WRITE_USER`, `SYMPTOMS_PULSE_WRITE_TOKEN` | The hourly span-edge INSERT (default user `tuist`, write-only) |
-| `SYMPTOMS_PROMETHEUS_URL`, `SYMPTOMS_PROMETHEUS_USER`, `SYMPTOMS_PROMETHEUS_TOKEN` | Pulse's Prometheus-compatible API (`/v1/prometheus`, database `public`), using its read-only identity for metrics and probes |
+| `SYMPTOMS_PULSE_URL`, `SYMPTOMS_PULSE_USER`, `SYMPTOMS_PULSE_TOKEN` | Pulse reads (default user `symptoms`, read-only). The evaluator never writes to Pulse |
+| `SYMPTOMS_PROMETHEUS_URL`, `SYMPTOMS_PROMETHEUS_USER`, `SYMPTOMS_PROMETHEUS_TOKEN` | Pulse's Prometheus-compatible API (`/v1/prometheus`, database `public`), using the same read-only identity for metrics and probes |
 
 `KubernetesEvents` uses the in-cluster ServiceAccount. Sources are listed in
 `config :symptoms, :sources` (none in test).
@@ -451,7 +452,10 @@ heartbeat and coverage alert in Grafana Cloud. The evaluator exports coverage
 (entities with evidence over entities expected, input freshness, disabled
 streams) to Grafana Cloud, outside the cluster it watches.
 
-`GET /metrics` (no auth, tailnet-only) exports, in Prometheus text:
+`GET /metrics` exports, in Prometheus text, on its own listener
+(`SYMPTOMS_METRICS_PORT`), not the API port: the Service and its tailnet device
+expose only the API, and the NetworkPolicy admits only the observability
+namespace (the scraper) to the metrics port. It has no auth:
 
 | Metric | Meaning |
 | --- | --- |

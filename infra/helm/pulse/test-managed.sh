@@ -94,6 +94,22 @@ for environment in staging canary; do
         (.spec.data | length) == 1 and (.spec.target.template.data.passwd | contains("sentry") | not)
       end' > /dev/null || { echo "FAIL: Sentry writer opt-in for $environment" >&2; exit 1; }
 done
+# The evaluator's read-only identity exists only where listed, with its own
+# item, and never as a writer.
+helm template pulse "$chart" -n observability --set-json 'symptomsReader.environments=["staging"]' \
+  --set "environment=staging,storage.bucket=tuist-pulso-staging,dashboard.enabled=true" |
+  yq ea -o=json -I=0 'select(.kind == "ExternalSecret" and .metadata.name == "pulse-dashboard-auth")' |
+  jq -e '
+    (.spec.target.template.data.passwd | contains("\nsymptoms:ro={{ .symptomsReader | trim }}\n")) and
+    (.spec.target.template.data.passwd | contains("symptoms:wo") | not) and
+    any(.spec.data[]; . == {secretKey:"symptomsReader",remoteRef:{key:"PULSE_SYMPTOMS_READER/password"}})' > /dev/null ||
+  { echo "FAIL: Symptoms reader opt-in" >&2; exit 1; }
+helm template pulse "$chart" -n observability \
+  --set "environment=canary,storage.bucket=tuist-pulso-canary,dashboard.enabled=true" |
+  yq ea -o=json -I=0 'select(.kind == "ExternalSecret" and .metadata.name == "pulse-dashboard-auth")' |
+  jq -e '(.spec.target.template.data.passwd | contains("symptoms") | not) and
+    all(.spec.data[]; .remoteRef.key != "PULSE_SYMPTOMS_READER/password")' > /dev/null ||
+  { echo "FAIL: Symptoms reader rendered without opt-in" >&2; exit 1; }
 # Moving an installed standalone backend: both run side by side, the standalone
 # pod keeps serving Service `pulse` until it moves to the frontends, and no
 # cluster workload changes between phases.

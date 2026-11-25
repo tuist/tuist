@@ -38,14 +38,15 @@ spec:
         - protocol: TCP
           port: http
     {{- if .Values.metrics.enabled }}
-    # alloy-metrics scrapes the heartbeat and coverage metrics.
+    # alloy-metrics scrapes the heartbeat and coverage metrics, on their own
+    # port; nothing else reaches it, and nothing from here reaches the API.
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ .Values.networkPolicy.observabilityNamespace | quote }}
       ports:
         - protocol: TCP
-          port: http
+          port: metrics
     {{- end }}
   egress:
     - to:

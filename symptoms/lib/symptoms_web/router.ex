@@ -17,8 +17,6 @@ defmodule SymptomsWeb.Router do
     get "/healthz", HealthController, :show
   end
 
-  get "/metrics", SymptomsWeb.MetricsController, :show
-
   scope "/api/v1/symptoms", SymptomsWeb do
     pipe_through :api
 

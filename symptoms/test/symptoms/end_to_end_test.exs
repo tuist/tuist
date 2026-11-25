@@ -83,7 +83,7 @@ defmodule Symptoms.EndToEndTest do
        }}
     end)
 
-    Application.put_env(:symptoms, Sources.Pulse, base_url: "http://pulse.test", token: "read", write_token: "write")
+    Application.put_env(:symptoms, Sources.Pulse, base_url: "http://pulse.test", token: "read")
     Application.put_env(:symptoms, Sources.Prometheus, base_url: "http://mimir.test/api/prom")
     Application.put_env(:symptoms, :source_opts, [{Sources.PromMetrics, definitions: @definitions}])
 
@@ -127,9 +127,12 @@ defmodule Symptoms.EndToEndTest do
     assert length(Store.edges()) == 3
     assert metric_records?()
 
-    # The span-edge insert runs as the write-only user, every read as the read-only one.
-    assert_received {:pulse_auth, "INSERT" <> _, {:basic, "tuist:write"}}
-    assert_received {:pulse_auth, "SELECT" <> _, {:basic, "dashboard:read"}}
+    # Every Pulse request is a read as the evaluator's read-only user; it
+    # never writes to Pulse.
+    {:messages, messages} = Process.info(self(), :messages)
+    pulse_requests = for {:pulse_auth, sql, auth} <- messages, do: {sql, auth}
+    assert pulse_requests != []
+    assert Enum.all?(pulse_requests, fn {sql, auth} -> sql =~ ~r/^\s*SELECT/ and auth == {:basic, "symptoms:read"} end)
 
     # Failure: the route and its Postgres client span return 120 errors in 600
     # (baseline p = 0.0025). Each window is above all 180 quiet windows:
@@ -302,8 +305,7 @@ defmodule Symptoms.EndToEndTest do
 
   defp pulse(sql, auth) do
     send(self(), {:pulse_auth, sql, auth})
-    rows = pulse_rows(sql, Process.get(:failing, false))
-    if rows == :insert, do: %{"output" => [%{"affectedrows" => 3}]}, else: sql_reply(rows)
+    sql |> pulse_rows(Process.get(:failing, false)) |> sql_reply()
   end
 
   # Most specific patterns first: several queries name the same table.
@@ -311,12 +313,11 @@ defmodule Symptoms.EndToEndTest do
     {_pattern, reply} =
       Enum.find(
         [
-          {"INSERT INTO", fn -> :insert end},
           {"AS latest FROM", fn -> [%{"latest" => Process.get(:latest)}] end},
           {"AS minutes", fn -> Enum.map([@route, @client, @cache], &error_baseline/1) end},
           {"latency_bucket", &latency_rows/0},
           {"first_seen", fn -> [version_row()] end},
-          {"FROM symptoms_span_edges_1h", &span_edges/0},
+          {"JOIN opentelemetry_traces AS parent", &span_edges/0},
           {"SELECT DISTINCT service_name, span_name, span_kind", &span_kinds/0},
           {"span_attributes.db.system", &db_clients/0},
           {"AS items", fn -> [%{"service" => @server, "items" => if(sql =~ "trace", do: 2_400, else: 5_000)}] end},

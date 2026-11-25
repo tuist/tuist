@@ -3,12 +3,12 @@ defmodule Symptoms.Sources.PulseSpanEdges do
   Hourly caller → callee edges for root finding (README "Combining", step 5).
 
   Each `collect/2` picks the hour that ended at least 10 minutes before
-  `:now` (default: the end of the window), runs `span-edges.sql` with
-  `{{hour_start}}` set to that hour (an INSERT, so it needs Pulse's
-  `:write_token`; rerunning an hour overwrites it), reads the hour back from
-  `symptoms_span_edges_1h` and passes the edges to the injected `:put_edges`
-  function, `(hour_start :: DateTime.t(), [edge]) -> :ok | {:error, term()}`
-  (`Symptoms.Store.put_edges/2`). It produces no evidence: `{:ok, []}`, or
+  `:now` (default: the end of the window), reads that hour's edges with
+  `span-edges.sql` (a read-only `SELECT`, `{{hour_start}}` set to the hour)
+  and passes them to the injected `:put_edges` function,
+  `(hour_start :: DateTime.t(), [edge]) -> :ok | {:error, term()}`
+  (`Symptoms.Store.put_edges/2`, the evaluator's own database). Nothing is
+  written to Pulse, so the evaluator needs no Pulse write credential. It produces no evidence: `{:ok, []}`, or
   `{:unknown, entities}` when the hour could not be built or stored.
 
   An edge is `%{caller: entity, callee: entity, count: n, caller_seconds:
@@ -45,15 +45,12 @@ defmodule Symptoms.Sources.PulseSpanEdges do
   @max_edges 50_000
 
   @span_edges_sql """
-  INSERT INTO symptoms_span_edges_1h
-    ("time_window", "caller_service", "caller_span_name", "callee_service", "callee_span_name", "edge_count")
   SELECT
-    CAST('{{hour_start}}' AS TIMESTAMP(9)) AS "time_window",
-    parent.service_name,
-    parent.span_name,
-    child.service_name,
-    child.span_name,
-    count(*)
+    parent.service_name AS caller_service,
+    parent.span_name AS caller_span_name,
+    child.service_name AS callee_service,
+    child.span_name AS callee_span_name,
+    count(*) AS edge_count
   FROM opentelemetry_traces AS child
   JOIN opentelemetry_traces AS parent
     ON parent.trace_id = child.trace_id AND parent.span_id = child.parent_span_id
@@ -84,8 +81,7 @@ defmodule Symptoms.Sources.PulseSpanEdges do
     hour = hour_start(Keyword.get(opts, :now, Support.finish(window)))
     put_edges = Keyword.fetch!(opts, :put_edges)
 
-    with {:ok, _count} <- Pulse.execute(span_edges_sql(hour), opts),
-         {:ok, edges} <- Pulse.query(edges_sql(hour), Keyword.put(opts, :max_rows, @max_edges)),
+    with {:ok, edges} <- Pulse.query(span_edges_sql(hour), Keyword.put(opts, :max_rows, @max_edges)),
          {:ok, kinds} <- Pulse.query(kinds_sql(hour), Keyword.put(opts, :max_rows, @max_edges)),
          {:ok, resources} <- Pulse.query(resources_sql(hour), Keyword.put(opts, :max_rows, @max_edges)),
          :ok <- put_edges.(DateTime.from_unix!(hour), build_edges(edges, kinds, resources, opts)) do
@@ -107,14 +103,6 @@ defmodule Symptoms.Sources.PulseSpanEdges do
 
   @doc false
   def span_edges_template, do: @span_edges_sql
-
-  @doc "Reads one hour of `symptoms_span_edges_1h`."
-  @spec edges_sql(integer()) :: String.t()
-  def edges_sql(hour) do
-    "SELECT caller_service, caller_span_name, callee_service, callee_span_name, edge_count " <>
-      "FROM symptoms_span_edges_1h WHERE time_window = #{Pulse.timestamp(hour)} " <>
-      "ORDER BY caller_service, caller_span_name, callee_service, callee_span_name"
-  end
 
   @doc "The span kinds of each `(service, span name)` in the hour."
   @spec kinds_sql(integer()) :: String.t()

@@ -52,8 +52,10 @@ concurrency:
   group: symptoms-deployment-${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# TUIST_DEPLOY_GITHUB_TOKEN is set only in the deploy job, never here: the
+# test job runs pull request code (mix deps.get, compile, test), which must not
+# see it. Other jobs' mise falls back to the job token.
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/symptoms
   HELM_CHART_PATH: infra/helm/symptoms
@@ -235,6 +237,7 @@ jobs:
       group: server-deploy-${{ matrix.environment }}-symptoms
       cancel-in-progress: false
     env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       DEPLOY_ENV: ${{ matrix.environment }}
       NAMESPACE: symptoms-${{ matrix.environment }}

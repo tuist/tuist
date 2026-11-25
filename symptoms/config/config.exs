@@ -4,7 +4,7 @@ config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [:request_id, :caller]
 
 config :phoenix, :json_library, Jason
 
@@ -61,6 +61,8 @@ config :symptoms,
   # Paging stays off until an IRM webhook is configured and enabled.
   paging: [enabled: false],
   api_auth: [],
+  # The metrics listener's port; nil starts none.
+  metrics_port: nil,
   state: [token_path: "/var/run/secrets/tuist-symptoms-state/token"]
 
 import_config "#{config_env()}.exs"

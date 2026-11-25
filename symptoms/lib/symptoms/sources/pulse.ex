@@ -3,7 +3,9 @@ defmodule Symptoms.Sources.Pulse do
   HTTP SQL client for Pulse, shaped like the server's (`Tuist.Pulse.request/3`
   and `Tuist.Pulse.SQL.sql/2`): `GET /v1/sql?sql=...` against the `public`
   database (`x-pulse-db-name: public`), basic auth with a read-only token, no
-  retries, an 8 MiB response bound and a row bound.
+  retries, an 8 MiB response bound and a row bound. The evaluator only reads
+  Pulse: it holds no write credential, because a Pulse write-only identity may
+  also run DDL (`DROP`, `ALTER`, `TRUNCATE`) and forge telemetry.
 
   SQL is authored in the source modules, never taken from input. Values are
   interpolated only through `literal/1` (quotes doubled; Pulse treats
@@ -13,12 +15,8 @@ defmodule Symptoms.Sources.Pulse do
   environment in `config/runtime.exs`), then the `:pulse` option of a call:
 
   - `:base_url` (`SYMPTOMS_PULSE_URL`)
-  - `:user` (`SYMPTOMS_PULSE_USER`, default `dashboard`) and `:token`
-    (`SYMPTOMS_PULSE_TOKEN`): the read-only identity
-  - `:write_user` (`SYMPTOMS_PULSE_WRITE_USER`, default `tuist`) and
-    `:write_token` (`SYMPTOMS_PULSE_WRITE_TOKEN`): a write-only identity, only
-    for the hourly `span-edges.sql` insert (`execute/2`). Pulse checks only
-    the write privilege for `INSERT ... SELECT`.
+  - `:user` (`SYMPTOMS_PULSE_USER`, default `symptoms`) and `:token`
+    (`SYMPTOMS_PULSE_TOKEN`): the evaluator's own read-only identity
   - `:max_rows` (default 20 000; a call can pass its own `:max_rows`),
     `:receive_timeout` (default 30 s)
   """
@@ -49,22 +47,10 @@ defmodule Symptoms.Sources.Pulse do
     max_rows = Keyword.get(opts, :max_rows) || Keyword.get(config, :max_rows, @default_max_rows)
     limit = Keyword.get(opts, :limit)
 
-    with {:ok, client} <- client(config, :user, :token),
+    with {:ok, client} <- client(config),
          {:ok, body} <- request(client, "#{sql} LIMIT #{limit || max_rows + 1}"),
          {:ok, rows} <- rows(body) do
       if is_nil(limit) and length(rows) > max_rows, do: {:error, :query_result_limit}, else: {:ok, rows}
-    end
-  end
-
-  @doc "Runs a write statement with the write token. Returns the affected rows."
-  @spec execute(String.t(), keyword()) :: {:ok, non_neg_integer()} | {:error, error()}
-  def execute(sql, opts \\ []) do
-    with {:ok, client} <- client(config(opts), :write_user, :write_token),
-         {:ok, body} <- request(client, sql) do
-      case body do
-        %{"output" => [%{"affectedrows" => count}]} when is_integer(count) -> {:ok, count}
-        _ -> {:error, :malformed_response}
-      end
     end
   end
 
@@ -111,20 +97,20 @@ defmodule Symptoms.Sources.Pulse do
   end
 
   defp config(opts) do
-    [user: "dashboard", write_user: "tuist"]
+    [user: "symptoms"]
     |> Keyword.merge(Application.get_env(:symptoms, __MODULE__, []))
     |> Keyword.merge(Keyword.get(opts, :pulse, []))
   end
 
-  defp client(config, user_key, token_key) do
+  defp client(config) do
     url = config[:base_url]
-    token = config[token_key]
+    token = config[:token]
 
     if is_binary(url) and url != "" and is_binary(token) and token != "" do
       {:ok,
        %{
          base_url: String.trim_trailing(url, "/"),
-         user: config[user_key],
+         user: config[:user],
          token: token,
          timeout: Keyword.get(config, :receive_timeout, 30_000)
        }}

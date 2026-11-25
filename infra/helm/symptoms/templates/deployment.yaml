@@ -24,7 +24,7 @@ spec:
       annotations:
         {{- if .Values.metrics.enabled }}
         prometheus.io/scrape: "true"
-        prometheus.io/port: {{ .Values.port | quote }}
+        prometheus.io/port: {{ .Values.metrics.port | quote }}
         prometheus.io/path: {{ .Values.metrics.path | quote }}
         {{- end }}
         {{- with .Values.podAnnotations }}
@@ -47,6 +47,10 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.port }}
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+            {{- end }}
           env:
             - name: PHX_HOST
               value: {{ required "host is required" .Values.host | quote }}
@@ -62,6 +66,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "symptoms.pgClusterName" . }}-app
                   key: uri
+            {{- if .Values.metrics.enabled }}
+            - name: SYMPTOMS_METRICS_PORT
+              value: {{ .Values.metrics.port | quote }}
+            {{- end }}
             - name: SYMPTOMS_ENVIRONMENT
               value: {{ $environment | quote }}
             - name: SYMPTOMS_SERVER_NAMESPACE
@@ -78,8 +86,6 @@ spec:
               value: {{ .Values.pulse.url | quote }}
             - name: SYMPTOMS_PULSE_USER
               value: {{ .Values.pulse.username | quote }}
-            - name: SYMPTOMS_PULSE_WRITE_USER
-              value: {{ .Values.pulse.writeUsername | quote }}
             - name: SYMPTOMS_STATE_URL
               value: {{ required "tuist.url is required" .Values.tuist.url | quote }}
             - name: SYMPTOMS_STATE_TOKEN_PATH

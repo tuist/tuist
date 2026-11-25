@@ -106,8 +106,9 @@ postgresql:
       memory: 1Gi
   backup:
     enabled: true
-    # Production CNPG backup bucket; tuist-ops gets its own prefix
-    # while reusing the production S3_BACKUP_CREDENTIALS item.
+    # Production CNPG backup bucket; tuist-ops gets its own prefix but reuses
+    # the production S3_BACKUP_CREDENTIALS item, which covers the whole bucket
+    # (see templates/backup-credentials.yaml).
     destinationPath: s3://tuist-prod-pg-backups/tuist-ops
     endpointURL: https://t3.storage.dev
     retentionPolicy: "30d"

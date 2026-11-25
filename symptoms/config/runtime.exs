@@ -36,6 +36,8 @@ if config_env() != :test do
   kubernetes_host = System.get_env("KUBERNETES_SERVICE_HOST")
   kubernetes_port = System.get_env("KUBERNETES_SERVICE_PORT", "443")
 
+  if port = System.get_env("SYMPTOMS_METRICS_PORT"), do: config(:symptoms, metrics_port: String.to_integer(port))
+
   config :symptoms,
          Symptoms.Sources.Prometheus,
          present.(
@@ -49,9 +51,7 @@ if config_env() != :test do
          present.(
            base_url: System.get_env("SYMPTOMS_PULSE_URL"),
            user: System.get_env("SYMPTOMS_PULSE_USER"),
-           token: System.get_env("SYMPTOMS_PULSE_TOKEN"),
-           write_user: System.get_env("SYMPTOMS_PULSE_WRITE_USER"),
-           write_token: System.get_env("SYMPTOMS_PULSE_WRITE_TOKEN")
+           token: System.get_env("SYMPTOMS_PULSE_TOKEN")
          )
 
   config :symptoms, :api_auth,

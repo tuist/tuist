@@ -35,8 +35,9 @@ concurrency:
   group: luft-server-${{ github.event_name == 'pull_request' && github.ref || 'deploy-production' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# TUIST_DEPLOY_GITHUB_TOKEN is set only in the deploy job: the build job runs
+# pull request code and must not see it.
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/luft-server
   HELM_CHART_PATH: infra/helm/luft-server
@@ -106,6 +107,7 @@ jobs:
     environment:
       name: server-k8s-production
     env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

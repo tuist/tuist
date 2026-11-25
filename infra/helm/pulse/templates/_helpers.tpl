@@ -216,7 +216,8 @@ affinity:
   ports:
     - {port: 4000, protocol: TCP}
 # The symptoms evaluator (infra/helm/symptoms) reads evidence from the HTTP
-# API as the read-only dashboard user, from its own namespace.
+# API as its own read-only `symptoms` user (symptomsReader), from its own
+# namespace.
 - from:
     - namespaceSelector:
         matchLabels:

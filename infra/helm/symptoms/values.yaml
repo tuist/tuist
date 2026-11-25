@@ -28,18 +28,16 @@ decision:
   pagingEnabled: false
   linkBaseUrl: ""
 
-# Pulse (infra/helm/pulse dashboard-auth). Reads use the read-only
-# `dashboard` identity; the hourly span-edge INSERT uses the write-only
-# `tuist` identity. Both passwords are PULSE_TOKEN/password today; point
-# writeTokenItem at another item if Pulse gets a dedicated writer.
+# Pulse (infra/helm/pulse dashboard-auth). The evaluator only reads Pulse,
+# as its own read-only `symptoms` identity (the pulse chart's
+# symptomsReader), whose password is PULSE_SYMPTOMS_READER/password. It never
+# holds PULSE_TOKEN: that is also the collectors' `tuist:wo` password, and a
+# write-only Pulse user may run DDL as well as inserts.
 pulse:
   url: http://pulse.observability.svc.cluster.local:4000
-  username: dashboard
-  tokenItem: PULSE_TOKEN
+  username: symptoms
+  tokenItem: PULSE_SYMPTOMS_READER
   tokenField: password
-  writeUsername: tuist
-  writeTokenItem: PULSE_TOKEN
-  writeTokenField: password
   namespace: observability
   podLabels:
     app.kubernetes.io/instance: pulse
@@ -65,10 +63,13 @@ stateToken:
   expirationSeconds: 3600
 
 # Exported for Pulse (heartbeat, coverage, freshness) through the
-# cluster's annotation autodiscovery scrape (k8s-monitoring).
+# cluster's annotation autodiscovery scrape (k8s-monitoring). Served on its own
+# container port, which the Service (and so the tailnet) does not expose and
+# the NetworkPolicy opens only to the observability namespace.
 metrics:
   enabled: true
   path: /metrics
+  port: 9568
 
 # Cluster-wide read of Kubernetes events (get, list, watch only).
 eventsReader:
@@ -124,9 +125,12 @@ postgresql:
     destinationPath: ""
     endpointURL: https://t3.storage.dev
     retentionPolicy: "30d"
-    # ESO-synced from the environment's S3_BACKUP_CREDENTIALS item, the one
-    # the server's CNPG cluster uses.
-    credentialsItem: S3_BACKUP_CREDENTIALS
+    # ESO-synced from the evaluator's own Tigris key (fields access_key_id,
+    # secret_access_key), scoped by an IAM policy to the `symptoms/` prefix of
+    # the environment's backup bucket (README "Backup key"). Never the shared
+    # S3_BACKUP_CREDENTIALS: that key reads and deletes the server's customer
+    # Postgres backups at the bucket root, and the chart refuses it.
+    credentialsItem: SYMPTOMS_PG_BACKUP
     credentialsSecretName: symptoms-backup-credentials
     plugin:
       name: barman-cloud.cloudnative-pg.io

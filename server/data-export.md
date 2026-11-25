@@ -1464,13 +1464,21 @@ customer resources.
   the user; an outcome records `bad` or `fine` and the confirming user. The
   evaluator reads these back without user IDs through
   `GET /api/internal/symptoms/state`.
+- `pulse_symptom_state_events` (`Tuist.Pulse.SymptomStateEvent`): the
+  append-only trail of every ack, mute and outcome change (`kind`), with the
+  user who made it, the `change_seq` of the state row it produced and
+  `details` (the acked revision; a mute's phenomenon, entity, expiry and
+  previous expiry; an outcome and the previous one). A database trigger
+  refuses updates and deletes; rows go only with the account. `symptom_id`
+  and `user_id` carry no foreign key, so a deleted user's or pruned symptom's
+  events keep their IDs.
 
 Titles and excerpts are masked by the evaluator; the mirror holds no event
 payloads or customer data. Rows live as long as the account and are deleted
 with it (revisions, acks and outcomes also with their symptom; a deleted user
 leaves their acks, mutes and outcomes without a user). For a legal export,
 select the account's rows in each table by `account_id`, and a user's acks,
-mutes and outcomes by `user_id`.
+mutes, outcomes and state events by `user_id`.
 
 Investigation requests and existing briefs (`Tuist.Pulse.Investigations`),
 scoped to the same account. New requests do not generate briefs or steps;
