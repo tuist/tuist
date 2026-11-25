@@ -129,9 +129,8 @@ the AWS CLI pointed at `iam.storage.dev`:
 5. After the first deploy, confirm the cluster's `ContinuousArchiving`
    condition is true and a base backup appears under `symptoms/`.
 
-`infra/helm/tuist-ops` and `infra/helm/mdm` still use `S3_BACKUP_CREDENTIALS`
-for their own prefixes; that key is bucket-wide, not prefix-scoped, and they
-should move to keys made the same way.
+`infra/helm/tuist-ops` (`TUIST_OPS_PG_BACKUP`, `tuist-ops/`) and
+`infra/helm/mdm` (`MDM_PG_BACKUP`, `mdm/`) use keys made the same way.
 
 ## Image and deploy
 

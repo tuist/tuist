@@ -142,6 +142,18 @@ files. Leave `push-topic`, `svc-account-password-hash-b64`, and
 below. After any 1Password change, re-run the deploy workflow (ESO
 refreshes hourly but pods only pick up new values on restart).
 
+### Backup key
+
+The CNPG cluster archives to `s3://tuist-prod-pg-backups/mdm` with a Tigris
+key of its own, the `MDM_PG_BACKUP` item (fields `access_key_id`,
+`secret_access_key`) in `tuist-k8s-production`. The chart refuses the shared
+`S3_BACKUP_CREDENTIALS`, which covers the whole bucket, the server's customer
+backups included. Create the key exactly as in
+[`infra/helm/symptoms/README.md`](../helm/symptoms/README.md#backup-key)
+("Backup key"), with `mdm` in place of `symptoms` and `prod` as the
+environment, before the next MDM deploy: until the item exists the backup
+ExternalSecret fails and WAL archiving stops.
+
 ### 1. APNs MDM push certificate (yearly!)
 
 Apple Business Manager cannot issue MDM push certificates; the flow

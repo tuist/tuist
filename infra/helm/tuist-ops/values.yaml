@@ -106,9 +106,7 @@ postgresql:
       memory: 1Gi
   backup:
     enabled: true
-    # Production CNPG backup bucket; tuist-ops gets its own prefix but reuses
-    # the production S3_BACKUP_CREDENTIALS item, which covers the whole bucket
-    # (see templates/backup-credentials.yaml).
+    # Production CNPG backup bucket, under tuist-ops's own prefix.
     destinationPath: s3://tuist-prod-pg-backups/tuist-ops
     endpointURL: https://t3.storage.dev
     retentionPolicy: "30d"
@@ -116,6 +114,10 @@ postgresql:
     # `S3_BACKUP_CREDENTIALS` 1P item — same one the main Tuist
     # server uses. See `infra/helm/tuist/templates/postgresql-cnpg.yaml`
     # for the established pattern.
+    # tuist-ops's own Tigris key (fields access_key_id, secret_access_key),
+    # scoped to the tuist-ops/ prefix (README "Backup key"). The chart refuses
+    # the shared S3_BACKUP_CREDENTIALS.
+    credentialsItem: TUIST_OPS_PG_BACKUP
     credentialsSecretName: tuist-ops-backup-credentials
     # Barman Cloud Plugin (CNPG-I): this cluster archives via the plugin + an
     # ObjectStore CR. Requires the plugin installed in the operator namespace

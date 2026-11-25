@@ -158,6 +158,10 @@ postgresql:
     destinationPath: ""
     endpointURL: https://t3.storage.dev
     retentionPolicy: "30d"
+    # MDM's own Tigris key (fields access_key_id, secret_access_key), scoped
+    # to the mdm/ prefix (infra/mdm/README.md "Backup key"). The chart
+    # refuses the shared S3_BACKUP_CREDENTIALS.
+    credentialsItem: MDM_PG_BACKUP
     credentialsSecretName: mdm-backup-credentials
     # Barman Cloud Plugin (CNPG-I); requires the plugin installed in the
     # operator namespace. See infra/cnpg/README.md.

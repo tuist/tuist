@@ -35,7 +35,8 @@ runtimeSecrets:
 #                       OAuth client is scoped to. A foreign tag means the
 #                       device is never created and the operator APIs
 #                       quietly have no tailnet address.
-#   backup destination  the Tigris credentials are bucket-scoped. Pointing
+#   backup destination  the Tigris key is scoped to this bucket's mdm/
+#                       prefix. Pointing
 #                       at another cluster's bucket fails every WAL archive
 #                       with AccessDenied, which raises no alert but does
 #                       grow pg_wal until the volume fills.
