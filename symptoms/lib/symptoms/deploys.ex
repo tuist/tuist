@@ -177,9 +177,9 @@ defmodule Symptoms.Deploys do
 
   @doc """
   Version-test evidence for the window: rows with `entity_id`, `phenomenon`
-  (`:request_errors` or `:latency`), `source`, `statistic` (ln of the
-  window's e-value) and `e` (capped), ready for
-  `Symptoms.Evidence.Combine.score/3`.
+  (`"request_errors"` or `"latency"`), `source`, `statistic` (ln of the
+  window's e-value) and `e` (capped), in the same storage format as the
+  pipeline's calibrated source rows.
   """
   @spec version_records(pos_integer(), DateTime.t()) :: [map()]
   def version_records(window_seconds, window_start) do
@@ -271,7 +271,7 @@ defmodule Symptoms.Deploys do
       [
         %{
           entity_id: entity_id,
-          phenomenon: attrs[:phenomenon],
+          phenomenon: Atom.to_string(attrs[:phenomenon]),
           source: attrs[:source],
           window_seconds: window_seconds,
           window_start: window_start,
