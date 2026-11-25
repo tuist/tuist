@@ -270,10 +270,18 @@ public enum XCResultToolError: Error, LocalizedError {
 extension XCResultToolOutput {
     func requireSuccess(for command: [String]) throws {
         guard succeeded else {
-            // xcresulttool only exposes this diagnostic on stderr. Interpret it here,
+            // xcresulttool only exposes these diagnostics on stderr. Interpret them here,
             // before callers turn typed failures into human-readable descriptions.
+            // Both mean the bundle's object database cannot serve what the bundle
+            // references, and neither changes on replay: an object is missing, or an
+            // object's file is corrupted. Xcode reports the latter as
+            // `XCResultKit_CASDB.FileBackedCASDatabase.Error error 1`, which a truncated
+            // or garbled `Data/refs.0~*` file reproduces. Other codes of that error,
+            // such as a file system failure, may be environmental and stay retryable.
             if command == ["xcresulttool", "get", "test-results", "tests"],
-               standardError.split(whereSeparator: \.isNewline).contains(where: { $0.hasPrefix("Error: item missing for id ") })
+               standardError.split(whereSeparator: \.isNewline).contains(where: {
+                   $0.hasPrefix("Error: item missing for id ") || $0.contains("FileBackedCASDatabase.Error error 1.)")
+               })
             {
                 throw XCResultToolError.missingObject(command: command, standardError: standardError)
             }
