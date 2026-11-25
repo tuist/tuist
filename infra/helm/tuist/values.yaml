@@ -923,6 +923,17 @@ server:
     cacheTokenKey:
       enabled: false
       signing: false
+    # Sync TUIST_SECRET_KEY_TOKENS_PREVIOUS from 1Password item SECRET_KEYS,
+    # field `tokens_previous`: the verify-only key Tuist.Guardian accepts while
+    # tokens signed before a rotation of `tokens` are still live (30 days).
+    # Rotate: copy `tokens` into `tokens_previous`, enable this, deploy (a
+    # no-op); then give `tokens` a new value right before the next deploy.
+    # Never change `tokens` before this is synced: the Secret refreshes hourly
+    # and a pod starting in between rejects every live token. Clear the field
+    # and disable this a month later. Off until the field exists: a missing
+    # field fails the whole sync.
+    previousTokensKey:
+      enabled: false
     # Keys that encrypt stored customer secrets (Tuist.Vault). The rotation
     # steps are in the Tuist.Vault moduledoc (server/lib/tuist/vault.ex).
     encryptionKeys:
