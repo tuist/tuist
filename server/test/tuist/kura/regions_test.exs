@@ -195,6 +195,13 @@ defmodule Tuist.Kura.RegionsTest do
       end
 
       assert Regions.memory_governed?(Regions.get("scw-fr-par-runners"))
+
+      # The rack sites hold a replica of every rack account on each storage
+      # node, and larch-store-a fits only five flat 2Gi floors.
+      for id <- ["ber1-runners", "larch-runners"] do
+        assert Regions.memory_governed?(Regions.get(id))
+        refute Regions.memory_ceiling_bin_packed?(Regions.get(id))
+      end
     end
 
     test "bin-packs memory ceilings only where a node budget is advertised" do
@@ -223,7 +230,7 @@ defmodule Tuist.Kura.RegionsTest do
 
     test "descends the storage ladder and floors it at air" do
       claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
-      assert claims == ["16Gi", "6Gi", "6Gi"]
+      assert claims == ["16Gi", "16Gi", "6Gi"]
 
       # Air is the floor, and unknown plans land on it.
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)

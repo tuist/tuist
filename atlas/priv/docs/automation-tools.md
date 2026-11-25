@@ -102,6 +102,34 @@ Google Drive are refused. These tools use the `channels:history`,
 Slack connections made before they were added must reconnect in Settings →
 Connections.
 
+`post_my_slack_message` posts as you to a channel, DM or Slack Connect
+conversation you are in, by `channel_id`, optionally as a reply in a thread
+(`thread_timestamp`, with `reply_broadcast` to also send it to the channel).
+It can attach up to 10 files, 50 MB in total, each given as a public HTTPS
+`url` (such as an Amp temporary file link) or `content_base64` with a
+`filename` and optional `title`; base64 content counts against the 8 MB limit
+of one MCP request, so pass larger files by URL. Files are uploaded through
+Slack's external upload flow and shared with the text as one message. Slack
+cannot broadcast a thread reply that carries files.
+
+Because the message goes out under your name, every post waits for your
+approval. The first call files a request and returns a link to
+`/approvals/<id>`, where you see the exact target, text and each file's name,
+size and SHA-256; approving lets the identical call post once, within an hour.
+Files are downloaded or decoded before the request is filed, so content behind
+a URL that changes afterwards no longer matches the approval. Only you can
+approve it, and only calls over your own MCP connection can post: the Slack
+agent, workflows and Pip threads cannot post as you. A post that fails after Slack accepted part of it
+needs a new approval, so check the conversation before retrying. The audit
+trail records the channel, thread, whether it was broadcast, the resulting
+message timestamp and Slack file IDs, never the text or file contents.
+
+Posting with files needs the `files:write` user scope. The Atlas Slack app must
+list it among its user token scopes (OAuth & Permissions in the Slack app
+settings), and connections made before it was added must reconnect in Settings
+→ Connections; text-only posts use the `chat:write` scope every connection
+already has.
+
 When Gmail refuses a request, the error says why. An expired or revoked grant
 asks you to reconnect; Atlas first refreshes a rejected token once. A Google
 403, such as the Gmail API being disabled for Atlas's Google Cloud project or a

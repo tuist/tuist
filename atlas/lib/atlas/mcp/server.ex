@@ -269,6 +269,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.NotifyGTMOpportunity
   alias Atlas.MCP.Tools.PlaceAssetInService
   alias Atlas.MCP.Tools.PollChatGPTProviderLogin
+  alias Atlas.MCP.Tools.PostMySlackMessage
   alias Atlas.MCP.Tools.PrepareGTMOpportunityOutreach
   alias Atlas.MCP.Tools.PreviewErrorAlertRule
   alias Atlas.MCP.Tools.PublishPOC
@@ -650,6 +651,7 @@ defmodule Atlas.MCP.Server do
     SearchMySlack,
     ReadMySlackConversation,
     DownloadMySlackFile,
+    PostMySlackMessage,
     SetOVHServerDisplayName,
     ListOVHInvoices,
     SaveOVHInvoice,
@@ -1128,7 +1130,8 @@ defmodule Atlas.MCP.Server do
               SendMyGmailDraft,
               SearchMySlack,
               ReadMySlackConversation,
-              DownloadMySlackFile
+              DownloadMySlackFile,
+              PostMySlackMessage
             ], do: ManageAccountConnections.allowed_context?(conn)
 
   defp personal_connection_tool_allowed?(conn, module)
@@ -1251,6 +1254,13 @@ defmodule Atlas.MCP.Server do
 
   defp audit_arguments("create_mcp_server", arguments) when is_map(arguments) do
     Map.drop(arguments, ["bearer_token", :bearer_token])
+  end
+
+  # The target is evidence of where a post went; its text and files are not kept.
+  defp audit_arguments("post_my_slack_message", arguments) when is_map(arguments) do
+    arguments
+    |> Map.take(~w(channel_id thread_timestamp reply_broadcast))
+    |> Map.put("file_count", length(List.wrap(arguments["files"])))
   end
 
   defp audit_arguments(name, _arguments)

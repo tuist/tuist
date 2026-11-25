@@ -246,7 +246,7 @@ func TestLifecycle(t *testing.T) {
 		t.Fatalf("exec should default cwd to /workspace: %v", execs[0])
 	}
 
-	worker, err := h.m.StartWorker(ctx, protocol.StartWorkerArgs{SandboxID: testID, Env: map[string]string{"ANTHROPIC_WORK_SECRET": "s3cret", "SBX_MAX_IDLE": "30s"}})
+	worker, err := h.m.StartWorker(ctx, protocol.StartWorkerArgs{SandboxID: testID, WorkID: "work_1", Env: map[string]string{"ANTHROPIC_WORK_SECRET": "s3cret", "SBX_MAX_IDLE": "30s"}})
 	if err != nil || worker.ExecID == "" {
 		t.Fatalf("start worker %+v %v", worker, err)
 	}
@@ -271,7 +271,7 @@ func TestLifecycle(t *testing.T) {
 		t.Fatalf("stop worker: %v", err)
 	}
 	exited := h.events.wait(t, protocol.EventWorkerExited, 5*time.Second)
-	if exited.SandboxID != testID || exited.ExitCode == nil || *exited.ExitCode != 143 || exited.DurationMs < 0 {
+	if exited.SandboxID != testID || exited.WorkID != "work_1" || exited.ExitCode == nil || *exited.ExitCode != 143 || exited.DurationMs < 0 {
 		t.Fatalf("worker_exited %+v", exited)
 	}
 	if err := h.m.StopWorker(ctx, testID); !errors.Is(err, ErrNoWorker) {

@@ -484,7 +484,12 @@ defmodule Tuist.GitHistory do
     parent = if branch == default_branch or default_branch in [nil, ""], do: nil, else: default_branch
     now = DateTime.utc_now()
     observed_at = if observed_at && DateTime.before?(observed_at, now), do: observed_at, else: now
-    advance_ref(repository_id, branch, parent, sha, only_forward: true, observed_at: observed_at)
+
+    advance_ref(repository_id, branch, parent, sha,
+      only_forward: true,
+      observed_at: observed_at,
+      root: branch == default_branch
+    )
   end
 
   def record_branch_head(_repository_id, _branch, _sha, _default_branch, _observed_at), do: :ok
@@ -686,7 +691,11 @@ defmodule Tuist.GitHistory do
   Every ref takes over the commits a detached ref holds (`detach/3`), and a
   detached ref that lost commits, or whose fork was released, is dropped.
 
-  `parent` names the ref this one forks from (nil for the default branch).
+  `parent` names the ref this one forks from (nil for the default branch,
+  with `root: true`; nil without it leaves the parent as it is). A ref
+  whose parent changes, a branch that became the default one included, is
+  released and placed again at its current head under the new parent before
+  it moves, so it no longer forks from a ref it does not belong to.
   With `only_forward: true` a head the ref already owns, or an ancestor of
   its current head, leaves it as it is: a late report of an older commit
   does not move the ref back, even once another ref took that commit over.
@@ -712,25 +721,31 @@ defmodule Tuist.GitHistory do
       Repo.transaction(
         fn ->
           lock_refs(repository_id)
-          parent_ref = parent && upsert_ref(repository_id, parent, nil)
-          ref = upsert_ref(repository_id, name, parent_ref && parent_ref.id)
+          parent_id = parent && upsert_ref(repository_id, parent).id
+          ref = upsert_ref(repository_id, name, parent_id)
 
-          cond do
-            stale?(ref, observed_at) ->
-              :ok
+          if not stale?(ref, observed_at) do
+            {ref, replaced} = reparent(repository_id, ref, parent_id, head_sha, opts)
 
-            not known?(repository_id, head_sha) ->
-              Repo.update_all(from(r in Ref, where: r.id == ^ref.id), set: [head_sha: head_sha, updated_at: now()])
-              observe(ref, observed_at)
+            touched =
+              cond do
+                not known?(repository_id, head_sha) ->
+                  Repo.update_all(from(r in Ref, where: r.id == ^ref.id), set: [head_sha: head_sha, updated_at: now()])
+                  observe(ref, observed_at)
+                  []
 
-            Keyword.get(opts, :only_forward, false) and behind?(repository_id, ref, head_sha) ->
-              :ok
+                Keyword.get(opts, :only_forward, false) and behind?(repository_id, ref, head_sha) ->
+                  []
 
-            true ->
-              touched = advance(repository_id, ref, head_sha, is_nil(ref.parent_ref_id), opts)
-              observe(ref, observed_at)
-              sync_coverage(repository_id, touched)
-              FileChanges.enqueue_moved(repository_id, touched)
+                true ->
+                  touched = advance(repository_id, ref, head_sha, is_nil(ref.parent_ref_id), opts)
+                  observe(ref, observed_at)
+                  touched
+              end
+
+            moved = replaced ++ touched
+            sync_coverage(repository_id, moved)
+            FileChanges.enqueue_moved(repository_id, moved)
           end
 
           :ok
@@ -890,9 +905,10 @@ defmodule Tuist.GitHistory do
     end
   end
 
-  # The parent keeps the parent it has: a ref named as someone's parent is
-  # created as a root until it is advanced with a parent of its own.
-  defp upsert_ref(repository_id, name, parent_ref_id) do
+  # A new ref is created with the parent; an existing one keeps its own
+  # (`reparent/5` moves it). A ref named as someone's parent is created as a
+  # root until it is advanced with a parent of its own.
+  defp upsert_ref(repository_id, name, parent_ref_id \\ nil) do
     now = now()
 
     Repo.insert_all(
@@ -911,14 +927,71 @@ defmodule Tuist.GitHistory do
       conflict_target: [:repository_id, :name]
     )
 
-    ref = ref(repository_id, name)
+    ref(repository_id, name)
+  end
 
-    if not is_nil(parent_ref_id) and ref.parent_ref_id != parent_ref_id and parent_ref_id != ref.id do
-      Repo.update_all(from(r in Ref, where: r.id == ^ref.id), set: [parent_ref_id: parent_ref_id])
-      %{ref | parent_ref_id: parent_ref_id}
-    else
-      ref
-    end
+  # Moves the ref under the parent (none with `root: true`) when it forks
+  # from another: its commits were placed against the old parent, so they are
+  # released and the ref is placed again at its current head, taking over its
+  # history as the default branch does when it becomes the root.
+  defp reparent(repository_id, ref, parent_id, head_sha, opts) do
+    if move?(repository_id, ref, parent_id, head_sha, Keyword.get(opts, :root, false)),
+      do: move(repository_id, ref, parent_id, opts),
+      else: {ref, []}
+  end
+
+  defp move?(_repository_id, %Ref{parent_ref_id: parent_id}, parent_id, _head_sha, _root?), do: false
+  defp move?(_repository_id, %Ref{id: id}, id, _head_sha, _root?), do: false
+  defp move?(_repository_id, _ref, nil, _head_sha, false), do: false
+  defp move?(repository_id, ref, nil, head_sha, true), do: rootable?(repository_id, ref, head_sha)
+  defp move?(_repository_id, ref, parent_id, _head_sha, _root?), do: not forks_from?(parent_id, ref.id, MapSet.new())
+
+  # A ref becomes the root only when the history of every other root it
+  # replaces is part of its own: the root's head is an ancestor of the new
+  # head (the newer ref wins at the same head, as after a rename). Two
+  # projects naming different default branches for one repository then
+  # settle on one root instead of handing it back and forth.
+  defp rootable?(repository_id, ref, head_sha) do
+    from(r in Ref,
+      where:
+        r.repository_id == ^repository_id and is_nil(r.parent_ref_id) and not r.detached and
+          not is_nil(r.head_sha) and r.id != ^ref.id,
+      select: {r.id, r.head_sha}
+    )
+    |> Repo.all()
+    |> Enum.all?(fn
+      {id, ^head_sha} -> id < ref.id
+      {_id, root_head} -> not is_nil(nearest_ancestor(repository_id, head_sha, [root_head]))
+    end)
+  end
+
+  # Whether the ref forks, directly or not, from the other: moving that one
+  # under this one would make a cycle.
+  defp forks_from?(nil, _ancestor_id, _seen), do: false
+  defp forks_from?(ancestor_id, ancestor_id, _seen), do: true
+
+  defp forks_from?(ref_id, ancestor_id, seen) do
+    if MapSet.member?(seen, ref_id),
+      do: false,
+      else:
+        forks_from?(
+          Repo.one(from(r in Ref, where: r.id == ^ref_id, select: r.parent_ref_id)),
+          ancestor_id,
+          MapSet.put(seen, ref_id)
+        )
+  end
+
+  defp move(repository_id, ref, parent_id, opts) do
+    Repo.update_all(from(r in Ref, where: r.id == ^ref.id), set: [parent_ref_id: parent_id])
+    ref = %{ref | parent_ref_id: parent_id}
+    released = release(ref.id)
+
+    placed =
+      if is_binary(ref.head_sha) and known?(repository_id, ref.head_sha),
+        do: advance(repository_id, ref, ref.head_sha, is_nil(parent_id), opts),
+        else: []
+
+    {get_ref(ref.id), released ++ placed}
   end
 
   # The SHAs whose place changed: the ones it numbered and the ones it
@@ -929,7 +1002,9 @@ defmodule Tuist.GitHistory do
     anchor = Enum.find(walk, &anchored?(&1, ref, takeover?))
     anchor_depth = if anchor, do: anchor.depth, else: length(walk)
 
-    {base, fork, released} = settle(ref, anchor)
+    {base, fork, held, released} = settle(ref, anchor)
+
+    orphans = orphans(ref, held, released)
 
     new = Enum.filter(walk, &(&1.depth < anchor_depth))
 
@@ -940,6 +1015,8 @@ defmodule Tuist.GitHistory do
       |> Enum.split_with(& &1.detached)
 
     losers = Enum.map(losers, & &1.ref_id)
+    adopted = if takeover?, do: adopt(ref, losers), else: []
+    losers = Enum.uniq(losers ++ adopted ++ orphans)
     lost = Enum.flat_map(losers, &release/1) ++ drop_detached(Enum.map(detached, & &1.ref_id))
     number(repository_id, ref.id, new, base + anchor_depth)
 
@@ -947,8 +1024,9 @@ defmodule Tuist.GitHistory do
       set: [head_sha: head_sha, fork_position: fork, updated_at: now()]
     )
 
-    # A ref that lost commits to a fast-forward forks again above them. It
-    # never takes commits back, so the re-forks end.
+    # A ref that lost commits to a fast-forward forks again above them, and
+    # one whose fork was released forks again below. A re-fork never takes
+    # commits over, so the re-forks end.
     reforked =
       for %Ref{head_sha: loser_head} = loser <- Enum.map(losers, &get_ref/1), loser_head do
         advance(repository_id, loser, loser_head, false, opts)
@@ -957,21 +1035,59 @@ defmodule Tuist.GitHistory do
     Enum.concat([released, lost, Enum.map(new, & &1.sha) | reforked])
   end
 
-  # Where the ref's new commits start, and where it forks, from the commit
-  # the walk stopped at, releasing what the ref no longer holds.
+  # The refs forking above what the ref still holds (a force-push released
+  # the commits they fork from), which fork again like the losers, in the
+  # order they were created. Only a release can leave a fork above it.
+  defp orphans(_ref, _held, []), do: []
+
+  defp orphans(ref, held, _released) do
+    Repo.all(
+      from(r in Ref,
+        where: r.parent_ref_id == ^ref.id and not r.detached and r.fork_position > ^held and not is_nil(r.head_sha),
+        order_by: r.id,
+        select: r.id
+      )
+    )
+  end
+
+  # A root whose commits the root took over (the default branch changed) is
+  # no root any more: it forks from the root, and so do the refs that forked
+  # from it, which fork again with it rather than from a ref that now holds
+  # nothing. Returns those refs.
+  defp adopt(_ref, []), do: []
+
+  defp adopt(ref, loser_ids) do
+    roots = Repo.all(from(r in Ref, where: r.id in ^loser_ids and is_nil(r.parent_ref_id), select: r.id))
+
+    if roots == [] do
+      []
+    else
+      {_count, children} =
+        Repo.update_all(from(r in Ref, where: r.parent_ref_id in ^roots and not r.detached, select: r.id),
+          set: [parent_ref_id: ref.id]
+        )
+
+      Repo.update_all(from(r in Ref, where: r.id in ^roots), set: [parent_ref_id: ref.id])
+      Enum.sort(children)
+    end
+  end
+
+  # Where the ref's new commits start, where it forks, and the position it
+  # still holds up to, from the commit the walk stopped at, releasing what the
+  # ref no longer holds.
   defp settle(ref, nil) do
     case Repo.one(from(c in Commit, where: c.ref_id == ^ref.id, select: max(c.position))) do
-      nil -> {0, 0, []}
-      top -> {top, ref.fork_position, []}
+      nil -> {0, 0, 0, []}
+      top -> {top, ref.fork_position, top, []}
     end
   end
 
   defp settle(%{id: ref_id} = ref, %{ref_id: ref_id, position: position}) do
-    {position, ref.fork_position, release(ref_id, position)}
+    {position, ref.fork_position, position, release(ref_id, position)}
   end
 
   defp settle(%{parent_ref_id: parent_id} = ref, %{ref_id: parent_id, position: position}) do
-    {position, position, release(ref.id)}
+    {position, position, 0, release(ref.id)}
   end
 
   # A sibling's commit: fork where the sibling forked.
@@ -979,7 +1095,7 @@ defmodule Tuist.GitHistory do
     released = release(ref.id)
     sibling = get_ref(anchor.ref_id)
     fork = if sibling.parent_ref_id == ref.parent_ref_id, do: sibling.fork_position, else: 0
-    {fork, fork, released}
+    {fork, fork, 0, released}
   end
 
   # The default branch walks through other refs' commits, taking them over,

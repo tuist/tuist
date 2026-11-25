@@ -13,6 +13,7 @@ defmodule Atlas.MCP.Tools.SearchMyGmailTest do
   alias Atlas.MCP.Tools.DownloadMySlackFile
   alias Atlas.MCP.Tools.GetMyGmailDraft
   alias Atlas.MCP.Tools.GetMyGmailMessage
+  alias Atlas.MCP.Tools.PostMySlackMessage
   alias Atlas.MCP.Tools.ReadMySlackConversation
   alias Atlas.MCP.Tools.SaveMyGmailAttachment
   alias Atlas.MCP.Tools.SearchMyGmail
@@ -32,7 +33,8 @@ defmodule Atlas.MCP.Tools.SearchMyGmailTest do
           {SendMyGmailDraft, "send_my_gmail_draft"},
           {SearchMySlack, "search_my_slack"},
           {ReadMySlackConversation, "read_my_slack_conversation"},
-          {DownloadMySlackFile, "download_my_slack_file"}
+          {DownloadMySlackFile, "download_my_slack_file"},
+          {PostMySlackMessage, "post_my_slack_message"}
         ] do
       assert module in Server.tool_modules()
       assert name in ToolPolicy.never()
@@ -52,6 +54,7 @@ defmodule Atlas.MCP.Tools.SearchMyGmailTest do
     refute "search_my_slack" in names
     refute "read_my_slack_conversation" in names
     refute "download_my_slack_file" in names
+    refute "post_my_slack_message" in names
     assert {:error, _} = SearchMyGmail.execute(conn, %{"query" => "in:inbox"})
   end
 

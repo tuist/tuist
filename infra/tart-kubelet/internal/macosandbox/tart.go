@@ -244,7 +244,14 @@ func (t *TartRuntime) Claim(ctx context.Context, r *Record) error {
 // addWorkspace mounts a volume with the sandbox's quota at the workspace.
 // APFS cannot change an existing volume's quota, so a VM that already has a
 // volume of another size replaces it. Spotlight is off on the volume, as on
-// the image's root, so it does not index the sandbox's work.
+// the image's root, so it does not index the sandbox's work. `mdutil` fails
+// with -407 ("unable to perform operation") while `mds` is not yet serving,
+// as on a VM booted moments before, and that failed sandbox creates
+// (2026-11). On a guest whose `mds` was restarted, the failed call took
+// about 5 s and disabled indexing anyway: every later `-i off` failed with
+// -403 and reported "Indexing and searching disabled". So a failed call
+// counts once the volume reports indexing disabled, and is retried for up
+// to about a minute until then.
 func (t *TartRuntime) addWorkspace(ctx context.Context, r *Record) error {
 	replace := ""
 	if r.WorkspaceVolumeGB != 0 {
@@ -260,7 +267,11 @@ exec 1>&2
 %scontainer=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSContainerReference raw -o - -)
 /usr/bin/sudo -n /usr/sbin/diskutil apfs addVolume "$container" APFS TuistSandboxWorkspace -quota %dg -mountpoint /Users/runner/work
 /usr/bin/sudo -n /usr/bin/touch /Users/runner/work/.metadata_never_index
-/usr/bin/sudo -n /usr/bin/mdutil -i off /Users/runner/work
+i=0
+until /usr/bin/sudo -n /usr/bin/mdutil -i off /Users/runner/work; do
+  /usr/bin/sudo -n /usr/bin/mdutil -s /Users/runner/work | /usr/bin/grep -q disabled && break
+  i=$((i + 1)); [ "$i" -lt 10 ]; sleep 1
+done
 /usr/bin/sudo -n /usr/sbin/chown runner:staff /Users/runner/work`, replace, r.WorkspaceGB)); err != nil {
 		return err
 	}

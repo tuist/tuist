@@ -12918,5 +12918,5 @@ msgstr ""
 
 #: lib/atlas_web/live/connections_live.ex:177
 #, elixir-autogen, elixir-format
-msgid "Search and read the messages, channels, DMs and files you can see in Slack from Atlas tools (search_my_slack, read_my_slack_conversation, download_my_slack_file). This is separate from the Atlas bot."
+msgid "Search and read the messages, channels, DMs and files you can see in Slack, and post as you once you approve each message, from Atlas tools (search_my_slack, read_my_slack_conversation, download_my_slack_file, post_my_slack_message). This is separate from the Atlas bot."
 msgstr ""

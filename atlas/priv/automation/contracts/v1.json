@@ -133,6 +133,7 @@
     "search_my_slack": "Reads the caller's personal mailbox or Slack through their own OAuth grant; workflows must not act on one person's private messages.",
     "read_my_slack_conversation": "Reads the caller's personal mailbox or Slack through their own OAuth grant; workflows must not act on one person's private messages.",
     "download_my_slack_file": "Reads the caller's personal mailbox or Slack through their own OAuth grant; workflows must not act on one person's private messages.",
+    "post_my_slack_message": "Posts to Slack under the caller's own name through their OAuth grant, on their approval of each exact call; workflows must not speak for one person.",
     "ingest_signal": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "get_signal_candidates": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "search_apollo_outreach": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",

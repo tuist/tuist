@@ -8,7 +8,20 @@ defmodule Atlas.Moodboard.SafeHTTP do
   @max_bytes 2_000_000
   @timeout 12_000
 
-  def fetch(url), do: fetch(url, 3, System.monotonic_time(:millisecond) + @timeout)
+  @doc """
+  GETs a public HTTPS URL, following up to three redirects. Options:
+  `:max_bytes` (default 2 MB), `:timeout` in milliseconds (default 12 s), and
+  `:media_bodies`, which reads image and video bodies instead of stopping at
+  their headers as previews do.
+  """
+  def fetch(url, opts \\ []) do
+    limits = %{
+      max_bytes: Keyword.get(opts, :max_bytes, @max_bytes),
+      media_bodies: Keyword.get(opts, :media_bodies, false)
+    }
+
+    fetch(url, 3, System.monotonic_time(:millisecond) + Keyword.get(opts, :timeout, @timeout), limits)
+  end
 
   # Reuse the address-pinned transport for signed webhooks rather than checking
   # DNS and then letting a hostname-based client resolve it again.
@@ -16,7 +29,8 @@ defmodule Atlas.Moodboard.SafeHTTP do
     deadline = System.monotonic_time(:millisecond) + @timeout
 
     with {:ok, uri, address} <- destination(url, deadline),
-         {:ok, response} <- request(uri, address, deadline, "POST", [{"accept-encoding", "identity"} | headers], body) do
+         {:ok, response} <-
+           request(uri, address, deadline, "POST", [{"accept-encoding", "identity"} | headers], body, default_limits()) do
       {:ok, response}
     else
       {:error, :unsafe_url} -> {:error, :unsafe_url}
@@ -53,14 +67,16 @@ defmodule Atlas.Moodboard.SafeHTTP do
 
   def public_address?(_address), do: false
 
-  defp fetch(url, redirects_left, deadline) do
+  defp default_limits, do: %{max_bytes: @max_bytes, media_bodies: false}
+
+  defp fetch(url, redirects_left, deadline, limits) do
     with {:ok, uri, address} <- destination(url, deadline),
-         {:ok, response} <- request(uri, address, deadline) do
+         {:ok, response} <- request(uri, address, deadline, limits) do
       if response.status in [301, 302, 303, 307, 308] do
         with true <- redirects_left > 0,
              {_, location} <- List.keyfind(response.headers, "location", 0) do
           next_url = uri |> URI.merge(location) |> URI.to_string()
-          fetch(next_url, redirects_left - 1, deadline)
+          fetch(next_url, redirects_left - 1, deadline, limits)
         else
           _ -> {:error, :redirect_rejected}
         end
@@ -92,17 +108,17 @@ defmodule Atlas.Moodboard.SafeHTTP do
     end
   end
 
-  defp request(uri, address, deadline) do
+  defp request(uri, address, deadline, limits) do
     headers = [
       {"accept", "text/html, application/json, text/plain;q=0.8"},
       {"accept-encoding", "identity"},
       {"user-agent", "Atlas-Moodboard/1.0"}
     ]
 
-    request(uri, address, deadline, "GET", headers, nil)
+    request(uri, address, deadline, "GET", headers, nil, limits)
   end
 
-  defp request(uri, address, deadline, method, headers, body) do
+  defp request(uri, address, deadline, method, headers, body, limits) do
     opts = [
       hostname: uri.host,
       protocols: [:http1],
@@ -116,7 +132,7 @@ defmodule Atlas.Moodboard.SafeHTTP do
         path = URI.to_string(%URI{path: uri.path || "/", query: uri.query})
 
         with {:ok, conn, _ref} <- HTTP.request(conn, method, path, headers, body) do
-          receive_response(conn, %{status: nil, headers: [], body: "", done: false}, deadline)
+          receive_response(conn, %{status: nil, headers: [], body: [], size: 0, done: false}, deadline, limits)
         end
       after
         HTTP.close(conn)
@@ -124,24 +140,29 @@ defmodule Atlas.Moodboard.SafeHTTP do
     end
   end
 
-  defp receive_response(conn, response, deadline) do
+  defp receive_response(conn, response, deadline, limits) do
     with {:ok, conn, events} <- HTTP.recv(conn, 0, remaining(deadline)),
-         {:ok, response} <- consume(events, response) do
+         {:ok, response} <- consume(events, response, limits) do
       cond do
-        response.done -> {:ok, Map.delete(response, :done)}
-        System.monotonic_time(:millisecond) >= deadline -> {:error, :timeout}
-        true -> receive_response(conn, response, deadline)
+        response.done ->
+          {:ok, response |> Map.drop([:done, :size]) |> Map.update!(:body, &IO.iodata_to_binary(Enum.reverse(&1)))}
+
+        System.monotonic_time(:millisecond) >= deadline ->
+          {:error, :timeout}
+
+        true ->
+          receive_response(conn, response, deadline, limits)
       end
     else
       _ -> {:error, :fetch_failed}
     end
   end
 
-  defp consume(events, response), do: Enum.reduce_while(events, {:ok, response}, &consume_event/2)
+  defp consume(events, response, limits), do: Enum.reduce_while(events, {:ok, response}, &consume_event(&1, &2, limits))
 
-  defp consume_event({:status, _ref, status}, {:ok, acc}), do: {:cont, {:ok, %{acc | status: status}}}
+  defp consume_event({:status, _ref, status}, {:ok, acc}, _limits), do: {:cont, {:ok, %{acc | status: status}}}
 
-  defp consume_event({:headers, _ref, headers}, {:ok, acc}) do
+  defp consume_event({:headers, _ref, headers}, {:ok, acc}, limits) do
     encoding = List.keyfind(headers, "content-encoding", 0)
 
     type =
@@ -151,22 +172,29 @@ defmodule Atlas.Moodboard.SafeHTTP do
       end
 
     cond do
-      encoding not in [nil, {"content-encoding", "identity"}] -> {:halt, {:error, :compressed_response}}
-      String.starts_with?(type, ["image/", "video/"]) -> {:halt, {:ok, %{acc | headers: headers, done: true}}}
-      true -> {:cont, {:ok, %{acc | headers: acc.headers ++ headers}}}
+      encoding not in [nil, {"content-encoding", "identity"}] ->
+        {:halt, {:error, :compressed_response}}
+
+      not limits.media_bodies and String.starts_with?(type, ["image/", "video/"]) ->
+        {:halt, {:ok, %{acc | headers: headers, done: true}}}
+
+      true ->
+        {:cont, {:ok, %{acc | headers: acc.headers ++ headers}}}
     end
   end
 
-  defp consume_event({:data, _ref, data}, {:ok, acc}) do
-    if byte_size(acc.body) + byte_size(data) <= @max_bytes do
-      {:cont, {:ok, %{acc | body: acc.body <> data}}}
+  defp consume_event({:data, _ref, data}, {:ok, acc}, limits) do
+    size = acc.size + byte_size(data)
+
+    if size <= limits.max_bytes do
+      {:cont, {:ok, %{acc | body: [data | acc.body], size: size}}}
     else
       {:halt, {:error, :response_too_large}}
     end
   end
 
-  defp consume_event({:done, _ref}, {:ok, acc}), do: {:halt, {:ok, %{acc | done: true}}}
-  defp consume_event(_event, _acc), do: {:halt, {:error, :fetch_failed}}
+  defp consume_event({:done, _ref}, {:ok, acc}, _limits), do: {:halt, {:ok, %{acc | done: true}}}
+  defp consume_event(_event, _acc, _limits), do: {:halt, {:error, :fetch_failed}}
 
   defp remaining(deadline), do: max(deadline - System.monotonic_time(:millisecond), 1)
 end

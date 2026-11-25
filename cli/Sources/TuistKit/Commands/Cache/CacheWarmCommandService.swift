@@ -87,6 +87,9 @@ import XcodeGraph
         /// Link debug information while the producer's objects and CAS are still available. XCFramework slices
         /// carry the resulting dSYMs alongside source identities used to relocate breakpoints in the consumer.
         private static let debugInformationFormat = XcodeBuildArgument.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym")
+        /// A configuration may turn debug symbols off, commonly for dependencies. A static archive has no dSYM, so it
+        /// would carry nothing to record and admission would skip it; the cached product keeps them regardless.
+        private static let debugSymbols = XcodeBuildArgument.xcarg("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES")
 
         private let configLoader: ConfigLoading
         private let manifestLoader: ManifestLoading
@@ -1173,6 +1176,7 @@ import XcodeGraph
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
                         .xcarg("SKIP_INSTALL", "NO"),
                         Self.debugInformationFormat,
+                        Self.debugSymbols,
                         .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                         .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                         .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -1227,6 +1231,7 @@ import XcodeGraph
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
                 Self.debugInformationFormat,
+                Self.debugSymbols,
                 .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                 .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                 .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -1312,6 +1317,7 @@ import XcodeGraph
                     .destination("generic/platform=macOS,variant=Mac Catalyst"),
                     .xcarg("SKIP_INSTALL", "NO"),
                     Self.debugInformationFormat,
+                    Self.debugSymbols,
                     .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                     .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),

@@ -109,6 +109,59 @@ defmodule Tuist.Slack.ClientTest do
     end
   end
 
+  describe "refresh_token/1 and exchange_token/1" do
+    setup do
+      stub(Environment, :slack_client_id, fn -> "client-id" end)
+      stub(Environment, :slack_client_secret, fn -> "client-secret" end)
+      :ok
+    end
+
+    test "redeems the refresh token once with the app credentials" do
+      expect(Req, :post, fn "https://slack.com/api/oauth.v2.access", opts ->
+        assert opts[:form] == %{
+                 client_id: "client-id",
+                 client_secret: "client-secret",
+                 grant_type: "refresh_token",
+                 refresh_token: "xoxe-1-old"
+               }
+
+        assert opts[:retry] == false
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{
+             "ok" => true,
+             "access_token" => "xoxe.xoxb-new",
+             "refresh_token" => "xoxe-1-new",
+             "expires_in" => 43_200,
+             "token_type" => "bot"
+           }
+         }}
+      end)
+
+      assert {:ok, %{access_token: "xoxe.xoxb-new", refresh_token: "xoxe-1-new", expires_in: 43_200}} =
+               Client.refresh_token("xoxe-1-old")
+    end
+
+    test "reports transport failures and 5xx responses as unavailable" do
+      expect(Req, :post, fn _url, _opts -> {:error, %Req.TransportError{reason: :timeout}} end)
+      expect(Req, :post, fn _url, _opts -> {:ok, %Req.Response{status: 503, body: ""}} end)
+
+      assert {:error, :unavailable} = Client.refresh_token("xoxe-1-old")
+      assert {:error, :unavailable} = Client.refresh_token("xoxe-1-old")
+    end
+
+    test "exchanges a long-lived token and returns Slack's error codes" do
+      expect(Req, :post, fn "https://slack.com/api/oauth.v2.exchange", opts ->
+        assert opts[:form].token == "xoxb-legacy"
+        {:ok, %Req.Response{status: 200, body: %{"ok" => false, "error" => "token_rotation_not_enabled"}}}
+      end)
+
+      assert {:error, "token_rotation_not_enabled"} = Client.exchange_token("xoxb-legacy")
+    end
+  end
+
   describe "post_to_webhook/2" do
     test "returns :ok on successful post" do
       stub(Req, :post, fn _url, _opts ->

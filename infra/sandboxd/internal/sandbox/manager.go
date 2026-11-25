@@ -1366,7 +1366,7 @@ func (m *Manager) StartWorker(ctx context.Context, args protocol.StartWorkerArgs
 		if m.metrics != nil {
 			m.metrics.Workers.Dec()
 		}
-		event := protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventWorkerExited, SandboxID: args.SandboxID, ExitCode: &code, DurationMs: duration.Milliseconds()}
+		event := protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventWorkerExited, SandboxID: args.SandboxID, WorkID: args.WorkID, ExitCode: &code, DurationMs: duration.Milliseconds()}
 		if waitErr != nil {
 			event.Reason = waitErr.Error()
 			log.Warn("worker ended abnormally", "error", waitErr, "duration", duration)

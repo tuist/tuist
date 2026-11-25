@@ -247,6 +247,30 @@ defmodule Tuist.Kura.RolloutsTest do
       assert second.image_tag == "0.7.0"
     end
 
+    test "a supersede leaves a rollout an operator aborted after the tick read it as aborted" do
+      create_active_server()
+
+      assert :ok = Rollouts.sync()
+      first = Rollouts.active_rollout()
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.7.0" end)
+
+      # The supersede check reads the deploy's expedite tag between the tick's
+      # unlocked read of the active rollout and its write: abort there.
+      stub(Tuist.Environment, :kura_rollout_expedite_tag, fn ->
+        if Repo.get!(Rollout, first.id).status == :running,
+          do: {:ok, _aborted} = Rollouts.abort(first, "operator", "bad image")
+
+        nil
+      end)
+
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, first.id).status == :aborted
+      refute Repo.exists?(where(Tuist.Kura.RolloutEvent, kura_rollout_id: ^first.id, action: "superseded"))
+      assert Rollouts.active_rollout().image_tag == "0.7.0"
+    end
+
     test "an older tag does not supersede a newer rollout while the deploy is still settling" do
       # A rolling deploy runs two server cohorts at once, each reading its own
       # desired tag from the environment, and every replica mints rollouts.

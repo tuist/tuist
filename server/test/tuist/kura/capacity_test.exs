@@ -875,7 +875,7 @@ defmodule Tuist.Kura.CapacityTest do
 
     test "counts the claim once per replica, as the disk will" do
       # 30 GiB left takes one Enterprise replica, and there is no other node
-      # for the second. Pro's two 8Gi claims fit.
+      # for the second. Air's two 6Gi claims fit.
       stub_pool([
         pool_box("box-1",
           allocatable: %{"ephemeral-storage" => "100Gi"},
@@ -884,7 +884,7 @@ defmodule Tuist.Kura.CapacityTest do
       ])
 
       assert Capacity.room_for?(@region, :enterprise) == false
-      assert Capacity.room_for?(@region, :pro) == true
+      assert Capacity.room_for?(@region, :air) == true
     end
 
     test "places replicas split across nodes, since the affinity only prefers co-location" do

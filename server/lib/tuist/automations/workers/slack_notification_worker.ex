@@ -10,6 +10,9 @@ defmodule Tuist.Automations.Workers.SlackNotificationWorker do
   alias Tuist.Slack.Client
   alias Tuist.Slack.Installation
 
+  # Slack errors from a token refresh that mean the installation itself is gone.
+  @revoked_installation_errors ~w(invalid_refresh_token invalid_auth token_revoked account_inactive)
+
   @impl Oban.Worker
   def timeout(_job), do: to_timeout(minute: 1)
 
@@ -56,8 +59,15 @@ defmodule Tuist.Automations.Workers.SlackNotificationWorker do
     project = alert.project_id |> Projects.get_project_by_id() |> Repo.preload(account: :slack_installation)
 
     case project.account.slack_installation do
-      %Installation{access_token: token} -> Client.deliver_once({:channel, token, channel}, blocks)
-      _ -> {:discard, :missing_credentials}
+      %Installation{} = installation ->
+        case Slack.installation_access_token(installation) do
+          {:ok, token} -> Client.deliver_once({:channel, token, channel}, blocks)
+          {:error, error} when error in @revoked_installation_errors -> {:discard, :slack_rejected}
+          {:error, _reason} -> {:error, :slack_token_refresh_failed}
+        end
+
+      _ ->
+        {:discard, :missing_credentials}
     end
   end
 end

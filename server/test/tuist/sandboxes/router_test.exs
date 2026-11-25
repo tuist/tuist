@@ -51,7 +51,7 @@ defmodule Tuist.Sandboxes.RouterTest do
     expect(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
     expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 100}} end)
 
-    expect(Nodes, :call, fn "node-a", "start_worker", %{sandbox_id: sandbox_id, env: env}, _opts ->
+    expect(Nodes, :call, fn "node-a", "start_worker", %{sandbox_id: sandbox_id, env: env, work_id: "work_1"}, _opts ->
       assert %Sandbox{residency_work_id: "work_1", residency_epoch: 1, state: :running} = Repo.get(Sandbox, sandbox_id)
 
       assert env == %{

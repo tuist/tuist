@@ -213,7 +213,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
         :ok = SlackClient.post_to_webhook(selected_project.slack_webhook_url, blocks)
 
       installation = legacy_installation(selected_account) ->
-        :ok = SlackClient.post_message(installation.access_token, selected_project.slack_channel_id, blocks)
+        {:ok, token} = Slack.installation_access_token(installation)
+        :ok = SlackClient.post_message(token, selected_project.slack_channel_id, blocks)
 
       true ->
         :ok

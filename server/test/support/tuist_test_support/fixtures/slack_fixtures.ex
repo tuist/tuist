@@ -21,7 +21,9 @@ defmodule TuistTestSupport.Fixtures.SlackFixtures do
       team_id: Keyword.get(opts, :team_id, "T#{unique_id}"),
       team_name: Keyword.get(opts, :team_name, "Test Workspace #{unique_id}"),
       access_token: Keyword.get(opts, :access_token, "xoxb-test-token-#{unique_id}"),
-      bot_user_id: Keyword.get(opts, :bot_user_id, "U#{unique_id}")
+      bot_user_id: Keyword.get(opts, :bot_user_id, "U#{unique_id}"),
+      refresh_token: Keyword.get(opts, :refresh_token),
+      access_token_expires_at: Keyword.get(opts, :access_token_expires_at)
     })
     |> Repo.insert!()
     |> Repo.preload(Keyword.get(opts, :preload, []))

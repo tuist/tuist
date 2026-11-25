@@ -516,19 +516,27 @@ defmodule Tuist.Kura.Rollouts do
     end
   end
 
-  defp supersede(%Rollout{status: status} = rollout, tag) when status in [:running, :paused] do
-    rollout
-    |> Rollout.update_changeset(%{status: :superseded})
-    |> Repo.update!()
+  # `active` was read without the row lock, so an operator verb can have
+  # ended it since: re-read it under the lock the verbs take, and leave a
+  # rollout an operator aborted with the status its record and Slack carry.
+  # The new rollout is created either way, as it would be for no active one.
+  defp supersede(%Rollout{id: id}, tag) do
+    with_locked_rollout(id, fn
+      %Rollout{status: status} = rollout when status in [:running, :paused] ->
+        rollout
+        |> Rollout.update_changeset(%{status: :superseded})
+        |> Repo.update!()
 
-    cancel_open_rollout_deployments(rollout, "superseded by rollout of #{tag}")
+        cancel_open_rollout_deployments(rollout, "superseded by rollout of #{tag}")
 
-    record_event(rollout, "superseded", "system", nil, %{superseded_by: tag})
-    Notifier.notify(:superseded, rollout, %{superseded_by: tag})
-    :ok
+        record_event(rollout, "superseded", "system", nil, %{superseded_by: tag})
+        Notifier.notify(:superseded, rollout, %{superseded_by: tag})
+        :ok
+
+      %Rollout{} ->
+        :ok
+    end)
   end
-
-  defp supersede(%Rollout{}, _tag), do: :ok
 
   defp create_rollout(tag, previous) do
     mode = initial_mode(tag)

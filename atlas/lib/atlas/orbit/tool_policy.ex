@@ -182,6 +182,7 @@ defmodule Atlas.Orbit.ToolPolicy do
     "download_my_slack_file",
     # External side effects.
     "send_my_gmail_draft",
+    "post_my_slack_message",
     "finance_create_transfer_request",
     "send_account_email",
     "send_email_broadcast",

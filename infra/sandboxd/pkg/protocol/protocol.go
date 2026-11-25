@@ -458,6 +458,10 @@ type StartWorkerArgs struct {
 	// granted one: the worker starts from the host's master of it and exports
 	// the default branch's commit back when it exits.
 	Checkout *CheckoutGrant `json:"checkout,omitempty"`
+	// WorkID is the residency the server recorded for this worker. The
+	// daemon echoes it in the worker's worker_exited, so a late exit of an
+	// earlier worker never ends the residency of the one that followed it.
+	WorkID string `json:"work_id,omitempty"`
 }
 
 // CheckoutGrant is the server's allocation of a repository's checkout volume

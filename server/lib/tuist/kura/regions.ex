@@ -145,7 +145,7 @@ defmodule Tuist.Kura.Regions do
   # shares it with the upload staging directory and the RocksDB index, and the
   # provisioner reserves those before deriving the ring budget it hands the pod
   # (see `cas_capacity_bytes/1` in the Kubernetes controller provisioner). The
-  # rings these leave are 13.1 GiB for enterprise and 3.4 GiB for the rest.
+  # rings these leave are 13.1 GiB for enterprise and pro and 3.4 GiB for air.
   #
   # These are where an account starts, not what it ends up with:
   # `Tuist.Kura.ClaimSizing` grows the claim from measured shedding, and it
@@ -155,18 +155,20 @@ defmodule Tuist.Kura.Regions do
   # `ephemeral-storage`, so an oversized quota does not waste disk, it refuses
   # to place instances that would have fitted.
   #
-  # Air and Pro therefore start in the same place: what a paid plan buys is not
-  # a bigger cache on day one, it is room to grow. An account that needs more
-  # disk gets it by proving so, and `Tuist.Kura.ClaimSizing` lets a paid account
-  # that proves it grow four times past where Air stops. Enterprise starts a step higher only because it is
-  # the plan whose accounts predictably arrive with a working set already.
+  # Pro starts with Enterprise rather than Air because a paid account's first
+  # module cache warm is the working set it arrives with: a Pro account's switch
+  # off the legacy module cache on 2026-11-25 overran a 3.4 GiB ring in one
+  # warm, and every resize that followed rebuilt the cache it was growing. A paid
+  # plan still buys room to grow past that: `Tuist.Kura.ClaimSizing` lets a
+  # paid account that proves it grow four times past where Air stops.
   #
-  # Enterprise's is a power of two so that growth lands squarely. Sizing clamps
-  # a step at twice the current claim, so a ladder of doubles reaches each
-  # plan's ceiling exactly, where an off-ladder constant spends most of a step
-  # being clamped short of it. Air's is not (6, 12, 24, 48, then clamped to its
-  # 64Gi ceiling): it is the smallest claim that keeps the full reserve below,
-  # and three quarters of the volumes at the floor never evict off it.
+  # Enterprise's and Pro's are a power of two so that growth lands squarely.
+  # Past `fast_growth_until` sizing clamps a step at twice the current claim,
+  # so a ladder of doubles reaches each plan's ceiling exactly, where an
+  # off-ladder constant spends most of a step being clamped short of it. Air's
+  # is not (6, then straight to its projection up to the 64Gi ceiling): it is the smallest
+  # claim that keeps the full reserve below, and three quarters of the volumes
+  # at the floor never evict off it.
   #
   # Measured on 2026-08-20 rather than projected, and the measurement is why
   # they came down. Every provisioned Kura instance was enterprise then, and
@@ -195,6 +197,7 @@ defmodule Tuist.Kura.Regions do
   # claim pinned on them; only new and returning instances start here, and
   # sizing shrinks the rest on its usual occupancy evidence.
   @enterprise_storage_claim "16Gi"
+  @pro_storage_claim "16Gi"
   @air_storage_claim "6Gi"
 
   # Which countries `accounts.region == :europe` accepts a datacenter in. The
@@ -560,6 +563,12 @@ defmodule Tuist.Kura.Regions do
         # the account's other regions.
         storage_size: "50Gi",
         storage_governed: true,
+        # Sized per plan like the public bare-metal regions: the merged region
+        # puts a replica of every rack account on each site's storage node, so
+        # a flat 2Gi floor fills 16 GB larch-store-a with five accounts. The
+        # nodes advertise no tuist.dev/memory-ceiling-mib budget, so ceilings
+        # are not bin-packed.
+        memory_governed: true,
         runner_platforms: [:macos],
         data_plane: :private_gateway,
         client_cidrs: [rack.client_cidr],
@@ -793,12 +802,14 @@ defmodule Tuist.Kura.Regions do
   The `%{claim_size:}` storage profile for a billing plan: the filesystem quota
   each replica of that plan's cache instance reserves.
 
-  Every plan gets a profile, the same way memory does. `:enterprise` has its own;
-  every other plan, `:pro` included, takes air's, which is also the floor no
+  Every plan gets a profile, the same way memory does. `:enterprise` and `:pro`
+  have their own; every other plan takes air's, which is also the floor no
   instance is sized below. Unknown plans land there too, which is the side that
   admits rather than the side that refuses.
   """
   def storage_profile(:enterprise), do: %{claim_size: @enterprise_storage_claim}
+
+  def storage_profile(:pro), do: %{claim_size: @pro_storage_claim}
 
   def storage_profile(_plan), do: %{claim_size: @air_storage_claim}
 

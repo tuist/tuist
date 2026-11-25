@@ -33,6 +33,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   @shared_crons [
     {"* * * * *", Tuist.RemoteExecution.MaintenanceWorker},
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
+    {"15 * * * *", Tuist.Slack.Workers.TokenRotationWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
     {"@hourly", Tuist.OnceEvents.Workers.ExpireStaleRunsWorker},

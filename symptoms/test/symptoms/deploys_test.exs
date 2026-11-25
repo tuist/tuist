@@ -109,12 +109,21 @@ defmodule Symptoms.DeploysTest do
 
   test "version-against-version evidence uses concurrent per-version counts" do
     deploy()
-    Store.put_version_counts("traces", counts("v2", 10, 100, [1]) ++ counts("v1", 1, 100, [1]))
+    Store.put_version_counts("traces", counts("v2", 10, 100, 1..4) ++ counts("v1", 1, 100, 1..4))
 
     assert [row] = Deploys.version_records(60, DateTime.shift(@t0, minute: 1))
     assert row.source == "deploy.version_error_share"
     assert_in_delta row.e, min(VersionTest.window_e(10, 100, 1, 100), 20.0), 1.0e-12
     assert row.e > 1
+
+    for minute <- 1..4 do
+      Symptoms.Pipeline.run_window(60, DateTime.shift(@t0, minute: minute), sources: [])
+    end
+
+    assert Repo.aggregate(Store.PipelineRun, :count) == 4
+    assert Repo.all(from(w in Store.StreamWindow, select: w.phenomenon)) == List.duplicate("request_errors", 4)
+    assert [%Symptom{id: id, phenomenon: "request_errors", state: "open"}] = Repo.all(Symptom)
+    assert Repo.exists?(from(r in Store.Revision, where: r.symptom_id == ^id))
   end
 
   test "version-against-version evidence on latency exceedance above the old version's p95 bucket" do
@@ -137,18 +146,17 @@ defmodule Symptoms.DeploysTest do
     # above bucket 10, v1 5.
     Store.put_version_counts(
       "traces",
-      [
-        five.("v1", -10, %{10 => 95, 30 => 5}),
-        five.("v1", 5, %{10 => 95, 30 => 5}),
-        five.("v2", 5, %{10 => 50, 30 => 50})
-      ]
+      [five.("v1", -10, %{10 => 95, 30 => 5})] ++
+        Enum.flat_map([5, 10, 15], fn minute ->
+          [five.("v1", minute, %{10 => 95, 30 => 5}), five.("v2", minute, %{10 => 50, 30 => 50})]
+        end)
     )
 
     rows = Map.new(Deploys.version_records(300, DateTime.shift(@t0, minute: 5)), &{&1.source, &1})
     # No errors on either version: the error-share window is uninformative.
     assert rows["deploy.version_error_share"].e == 1.0
     row = rows["deploy.version_latency_exceedance"]
-    assert row.phenomenon == :latency
+    assert row.phenomenon == "latency"
     assert row.observed == 0.5
     assert row.expected == 0.05
 
@@ -159,6 +167,18 @@ defmodule Symptoms.DeploysTest do
 
     assert_in_delta row.statistic, :math.log(e), 1.0e-9
     assert row.e == 20.0
+
+    for minute <- [5, 10, 15] do
+      Symptoms.Pipeline.run_window(300, DateTime.shift(@t0, minute: minute), sources: [])
+    end
+
+    assert Repo.aggregate(Store.PipelineRun, :count) == 3
+
+    assert Repo.all(from(w in Store.StreamWindow, distinct: true, order_by: w.phenomenon, select: w.phenomenon)) ==
+             ["latency", "request_errors"]
+
+    assert [%Symptom{id: id, phenomenon: "latency", state: "open"}] = Repo.all(Symptom)
+    assert Repo.exists?(from(r in Store.Revision, where: r.symptom_id == ^id))
   end
 
   test "a shift above the error cap is an intended? board symptom, not a re-anchor" do

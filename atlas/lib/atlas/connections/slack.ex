@@ -1,10 +1,12 @@
 defmodule Atlas.Connections.Slack do
   @moduledoc """
-  On-demand Slack reads through the caller's own personal Slack user token:
-  message search (`search:read`), channel and thread history (`*:history`) and
-  file downloads (`files:read`). This is separate from Atlas's workspace bot:
-  results are limited to what the connected person can see in Slack, including
-  their private channels, DMs and Slack Connect channels.
+  On-demand Slack access through the caller's own personal Slack user token:
+  message search (`search:read`), channel and thread history (`*:history`),
+  file downloads (`files:read`) and, once the caller approves each call, posting
+  messages (`chat:write`) with uploaded files (`files:write`). This is separate
+  from Atlas's workspace bot: it reaches only what the connected person can see
+  and post to in Slack, including their private channels, DMs and Slack Connect
+  channels.
   """
 
   alias Atlas.Audit
@@ -19,8 +21,11 @@ defmodule Atlas.Connections.Slack do
   @max_file_bytes 50 * 1024 * 1024
   @download_salt "slack-file-download"
   @download_max_age 300
+  @max_upload_bytes 50 * 1024 * 1024
 
   def max_file_bytes, do: @max_file_bytes
+  @doc "Total bytes of all files attached to one message."
+  def max_upload_bytes, do: @max_upload_bytes
 
   @doc "Output schema of a message's file in the Slack MCP tools."
   def file_schema do
@@ -108,6 +113,148 @@ defmodule Atlas.Connections.Slack do
       {:ok, file |> Map.delete(:download_from) |> Map.put(:body, body)}
     end
   end
+
+  @doc "Checks the caller's connection can post, and upload when `files?`, before anyone is asked to approve a post."
+  def ensure_can_post(%User{} = user, files?) do
+    with {:ok, _token} <- Connections.access_token(user, "slack", post_scopes(files?)), do: :ok
+  end
+
+  @doc """
+  Posts a message as the caller to `channel_id`. `message` has `:text`,
+  `:thread_timestamp`, `:reply_broadcast` and `:files`, each file a map with
+  `:filename`, `:title` and `:body`. Files are uploaded through Slack's external
+  upload flow and shared with the text as one message; Slack does not broadcast
+  file shares, so callers must not combine files with `:reply_broadcast`.
+
+  The post is not retried: an error after Slack accepted part of it does not
+  prove nothing was posted.
+  """
+  def post_message(%User{} = user, channel_id, message) when is_binary(channel_id) do
+    files = message[:files] || []
+
+    with {:ok, token} <- Connections.access_token(user, "slack", post_scopes(files != [])),
+         {:ok, result} <- deliver(token, channel_id, message, files) do
+      audit(user, "connection.slack_message_posted", %{
+        "channel_id" => channel_id,
+        "thread_timestamp" => message[:thread_timestamp],
+        "reply_broadcast" => message[:reply_broadcast] == true,
+        "message_timestamp" => result.message_timestamp,
+        "file_ids" => Enum.map(result.files, & &1.id)
+      })
+
+      {:ok, result}
+    end
+  end
+
+  # `Connections.access_token/3` accepts any one of the listed scopes; every
+  # Slack connection has had chat:write, so a file post checks files:write.
+  defp post_scopes(true), do: ["files:write"]
+  defp post_scopes(_files?), do: ["chat:write"]
+
+  defp deliver(token, channel_id, message, []) do
+    payload =
+      Enum.reject(
+        [
+          channel: channel_id,
+          text: message[:text],
+          thread_ts: message[:thread_timestamp],
+          reply_broadcast: message[:reply_broadcast]
+        ],
+        fn {_key, value} -> is_nil(value) end
+      )
+
+    case call(token, "chat.postMessage", method: :post, json: Map.new(payload)) do
+      {:ok, %{"ts" => ts} = body} ->
+        {:ok,
+         %{
+           channel_id: body["channel"] || channel_id,
+           message_timestamp: ts,
+           thread_timestamp: message[:thread_timestamp],
+           files: []
+         }}
+
+      {:ok, _body} ->
+        {:error, :invalid_response}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp deliver(token, channel_id, message, files) do
+    with {:ok, uploaded} <- upload_all(token, files),
+         form =
+           [
+             files: Jason.encode!(Enum.map(uploaded, &Map.take(&1, [:id, :title]))),
+             channel_id: channel_id,
+             thread_ts: message[:thread_timestamp],
+             initial_comment: message[:text]
+           ]
+           |> Enum.reject(fn {_key, value} -> value in [nil, ""] end),
+         {:ok, %{"files" => [_ | _] = shared}} <- call(token, "files.completeUploadExternal", method: :post, form: form) do
+      {:ok,
+       %{
+         channel_id: channel_id,
+         # Slack fills in where a file was shared asynchronously, so the
+         # message timestamp is not always known yet.
+         message_timestamp: Enum.find_value(shared, &share_timestamp(&1, channel_id)),
+         thread_timestamp: message[:thread_timestamp],
+         files: Enum.map(shared, &%{id: &1["id"], title: &1["title"], permalink: &1["permalink"]})
+       }}
+    else
+      {:ok, _body} -> {:error, :invalid_response}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp upload_all(token, files) do
+    Enum.reduce_while(files, {:ok, []}, fn file, {:ok, uploaded} ->
+      case upload(token, file) do
+        {:ok, id} -> {:cont, {:ok, [%{id: id, title: file[:title] || file.filename} | uploaded]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, uploaded} -> {:ok, Enum.reverse(uploaded)}
+      error -> error
+    end
+  end
+
+  defp upload(token, %{filename: filename, body: body}) do
+    with {:ok, %{"upload_url" => url, "file_id" => id}} when is_binary(url) and is_binary(id) <-
+           call(token, "files.getUploadURLExternal",
+             method: :post,
+             form: [filename: filename, length: byte_size(body)]
+           ),
+         :ok <- slack_file_host(url),
+         {:ok, %{status: 200}} <-
+           Req.request(
+             method: :post,
+             url: url,
+             body: body,
+             headers: [{"content-type", "application/octet-stream"}],
+             retry: false,
+             redirect: false,
+             receive_timeout: 120_000
+           ) do
+      {:ok, id}
+    else
+      {:error, reason} when is_atom(reason) or is_tuple(reason) -> {:error, reason}
+      {:ok, %Req.Response{status: 429}} -> {:error, :rate_limited}
+      _ -> {:error, :provider_unavailable}
+    end
+  end
+
+  defp share_timestamp(%{"shares" => shares}, channel_id) when is_map(shares) do
+    Enum.find_value(["private", "public"], fn kind ->
+      case get_in(shares, [kind, channel_id]) do
+        [%{"ts" => ts} | _] -> ts
+        _ -> nil
+      end
+    end)
+  end
+
+  defp share_timestamp(_file, _channel_id), do: nil
 
   @doc """
   A link that serves the file to whoever presents it for `download_max_age/0`
@@ -239,32 +386,18 @@ defmodule Atlas.Connections.Slack do
     }
   end
 
-  defp request(token, method, params) do
-    case Req.request(
-           method: :get,
-           url: @api <> method,
-           auth: {:bearer, token},
-           params: params,
-           retry: false,
-           redirect: false,
-           receive_timeout: 15_000
-         ) do
+  defp request(token, method, params), do: call(token, method, method: :get, params: params)
+
+  defp call(token, method, opts) do
+    [url: @api <> method, auth: {:bearer, token}, retry: false, redirect: false, receive_timeout: 15_000]
+    |> Keyword.merge(opts)
+    |> Req.request()
+    |> case do
       {:ok, %{status: 200, body: %{"ok" => true} = body}} ->
         {:ok, body}
 
-      {:ok, %{status: 200, body: %{"error" => "ratelimited"}}} ->
-        {:error, :rate_limited}
-
-      {:ok, %{status: 200, body: %{"error" => error}}}
-      when error in ~w(invalid_auth token_revoked token_expired missing_scope account_inactive not_authed) ->
-        {:error, :needs_authorization}
-
-      {:ok, %{status: 200, body: %{"error" => error}}}
-      when error in ~w(channel_not_found not_in_channel thread_not_found file_not_found file_deleted) ->
-        {:error, :not_found}
-
-      {:ok, %{status: 200, body: %{"error" => "invalid_cursor"}}} ->
-        {:error, {:invalid, "The cursor is invalid or expired; read from the start again."}}
+      {:ok, %{status: 200, body: %{"error" => error}}} when is_binary(error) ->
+        {:error, api_error(error)}
 
       {:ok, %{status: 429}} ->
         {:error, :rate_limited}
@@ -274,7 +407,27 @@ defmodule Atlas.Connections.Slack do
     end
   end
 
-  # Never record queries, channel names or message text.
+  defp api_error("ratelimited"), do: :rate_limited
+
+  defp api_error(error)
+       when error in ~w(invalid_auth token_revoked token_expired missing_scope account_inactive not_authed),
+       do: :needs_authorization
+
+  defp api_error(error) when error in ~w(channel_not_found not_in_channel thread_not_found file_not_found file_deleted),
+    do: :not_found
+
+  defp api_error("invalid_cursor"), do: {:invalid, "The cursor is invalid or expired; read from the start again."}
+
+  # Slack's error codes are fixed identifiers such as `is_archived` or
+  # `restricted_action`, never message content.
+  defp api_error(error) do
+    if String.match?(error, ~r/^[a-z_]{1,64}$/),
+      do: {:invalid, "Slack refused the request (#{error})."},
+      else: :provider_unavailable
+  end
+
+  # Never record queries, channel names or message text. Reads omit channel
+  # ids; a post records where it went.
   defp audit(user, action, metadata) do
     Audit.record(
       action,
