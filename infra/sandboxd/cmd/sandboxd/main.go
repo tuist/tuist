@@ -624,6 +624,7 @@ func main() {
 		logger.Info("SERVER_URL not set; running admin-only")
 	}
 
+	go manager.HoldBalloons(ctx)
 	if followCurrent {
 		go followTemplate(ctx, logger, store, builder, manager, templateName, prebuild, keepTag != "", pruneTemplateTags, func() {
 			if serverClient != nil {

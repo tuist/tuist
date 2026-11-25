@@ -304,6 +304,18 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	if !m.shapeAllowed(shape) {
 		return res, fmt.Errorf("%w: %s", ErrShape, shape)
 	}
+	if args.MemoryRequestMB == shape.MemoryMB {
+		args.MemoryRequestMB = 0
+	}
+	if args.MemoryRequestMB != 0 {
+		if args.MemoryRequestMB < 128 || args.MemoryRequestMB > shape.MemoryMB {
+			return res, fmt.Errorf("%w: memory request %d MiB is not within 128 MiB and the guest's %d MiB", ErrShape, args.MemoryRequestMB, shape.MemoryMB)
+		}
+		// Only a guest with a balloon can be held to its request.
+		if m.builder == nil || !m.builder.Balloon {
+			return res, fmt.Errorf("%w: this node's guests have no balloon, so they cannot burst above a memory request", ErrShape)
+		}
+	}
 	if args.WorkspaceGB <= 0 {
 		args.WorkspaceGB = DefaultWorkspaceGB
 	}
@@ -376,7 +388,8 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	root := vm.RootDir(m.cfg.JailBase, args.SandboxID)
 	sb := &Sandbox{root: root, meta: Metadata{
 		ID: args.SandboxID, Template: tmpl.Name, Tag: tmpl.Tag, VCPUs: shape.VCPUs, MemoryMB: shape.MemoryMB,
-		WorkspaceGB: args.WorkspaceGB, Hostname: args.Hostname, CPUGuaranteeMilli: args.CPUGuaranteeMilli,
+		MemoryRequestMB: args.MemoryRequestMB,
+		WorkspaceGB:     args.WorkspaceGB, Hostname: args.Hostname, CPUGuaranteeMilli: args.CPUGuaranteeMilli,
 		State: "creating", Slot: -1, CreatedAt: time.Now().UTC(),
 	}}
 	m.mu.Lock()
@@ -546,9 +559,9 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 		}
 		// Without its own cgroup the VM still runs, in the daemon's, as
 		// before guarantees: it then shares the daemon's weight.
-		// The shape's guest memory is the VM's request: the container's
-		// limit reclaims from the daemon's page cache before it.
-		if cgroup, err := m.cgroups.Open(meta.ID, guarantee, uint64(meta.MemoryMB)<<20); err != nil { //nolint:gosec // Shapes are positive.
+		// The VM's request is protected: the container's limit reclaims
+		// from the daemon's page cache, and from bursts, before it.
+		if cgroup, err := m.cgroups.Open(meta.ID, guarantee, uint64(meta.RequestMB())<<20); err != nil { //nolint:gosec // Shapes are positive.
 			m.log.Warn("opening the sandbox's cgroup failed; it runs in the daemon's", "sandbox", meta.ID, "error", err)
 		} else {
 			defer cgroup.Close()
@@ -604,6 +617,7 @@ func (m *Manager) attach(ctx context.Context, sb *Sandbox, inst vm.Instance, met
 	if _, err := agent.Ping(ctx); err != nil {
 		return fail(fmt.Errorf("ping: %w", err))
 	}
+	m.holdBalloon(ctx, inst.API(), meta)
 	sb.mu.Lock()
 	sb.epoch++
 	epoch := sb.epoch
@@ -735,6 +749,66 @@ func (m *Manager) releaseCgroup(id string) {
 	}
 	if err := m.cgroups.Remove(id); err != nil {
 		m.log.Warn("removing the sandbox's cgroup failed", "sandbox", id, "error", err)
+	}
+}
+
+// BalloonInterval is how often HoldBalloons sets a bursting guest's balloon
+// back to its target.
+const BalloonInterval = 30 * time.Second
+
+// holdBalloon sets a bursting guest's balloon to MemoryMB − request, which
+// keeps its page cache and idle memory within the request. A guest OOM
+// deflates it (DeflateOnOOM), so processes burst up to MemoryMB instead of
+// being killed; free page reporting then returns the burst to the host.
+// Re-inflating only squeezes the guest's cache: the driver's allocations
+// give up rather than reclaim hard. A failure leaves the guest bursting
+// freely until the next pass, so it is only logged.
+func (m *Manager) holdBalloon(ctx context.Context, api *firecracker.Client, meta Metadata) {
+	target := meta.BalloonTargetMiB()
+	if target <= 0 || api == nil {
+		return
+	}
+	stats, err := api.GetBalloonStatistics(ctx)
+	if err == nil && stats.TargetMiB == target && stats.ActualMiB >= target {
+		return
+	}
+	if err := api.PatchBalloon(ctx, target); err != nil {
+		m.log.Warn("holding the guest to its memory request failed", "sandbox", meta.ID, "balloon_mib", target, "error", err)
+		return
+	}
+	if err == nil && stats.ActualMiB < target {
+		m.log.Info("re-inflated the guest's balloon to its memory request", "sandbox", meta.ID, "balloon_mib", target, "was_mib", stats.ActualMiB)
+	}
+}
+
+// HoldBalloons sets every running bursting guest's balloon back to its
+// target each BalloonInterval, after a guest OOM deflated it.
+func (m *Manager) HoldBalloons(ctx context.Context) {
+	ticker := time.NewTicker(BalloonInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		m.mu.Lock()
+		all := make([]*Sandbox, 0, len(m.sandboxes))
+		for _, sb := range m.sandboxes {
+			all = append(all, sb)
+		}
+		m.mu.Unlock()
+		for _, sb := range all {
+			sb.mu.Lock()
+			meta, inst := sb.meta, sb.inst
+			sb.mu.Unlock()
+			if inst == nil || meta.State != protocol.StateRunning || meta.BalloonTargetMiB() <= 0 {
+				continue
+			}
+			callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			m.holdBalloon(callCtx, inst.API(), meta)
+			cancel()
+		}
 	}
 }
 
@@ -1787,6 +1861,7 @@ func (m *Manager) adopt(ctx context.Context, sb *Sandbox, attacher vm.Attacher) 
 	if _, err := agent.Ping(checkCtx); err != nil {
 		return fail(fmt.Errorf("guest agent: %w", err))
 	}
+	m.holdBalloon(checkCtx, inst.API(), meta)
 	sb.mu.Lock()
 	sb.epoch++
 	epoch := sb.epoch

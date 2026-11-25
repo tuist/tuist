@@ -139,17 +139,19 @@ type TemplateInfo struct {
 type SandboxInfo struct {
 	// Resident is true while a paused macOS VM still owns a host slot and RAM.
 	// False must be sent too: omission leaves the server's old charge intact.
-	Resident       bool   `json:"resident"`
-	ID             string `json:"id"`
-	State          string `json:"state"`
-	Template       string `json:"template"`
-	TemplateTag    string `json:"template_tag"`
-	VCPUs          int    `json:"vcpus"`
-	MemoryMB       int    `json:"memory_mb"`
-	WorkspaceGB    int    `json:"workspace_gb"`
-	Hostname       string `json:"hostname"`
-	WorkerRunning  bool   `json:"worker_running"`
-	FinishedWorkID string `json:"finished_work_id,omitempty"`
+	Resident    bool   `json:"resident"`
+	ID          string `json:"id"`
+	State       string `json:"state"`
+	Template    string `json:"template"`
+	TemplateTag string `json:"template_tag"`
+	VCPUs       int    `json:"vcpus"`
+	MemoryMB    int    `json:"memory_mb"`
+	// MemoryRequestMB is CreateArgs.MemoryRequestMB, omitted without a burst.
+	MemoryRequestMB int    `json:"memory_request_mb,omitempty"`
+	WorkspaceGB     int    `json:"workspace_gb"`
+	Hostname        string `json:"hostname"`
+	WorkerRunning   bool   `json:"worker_running"`
+	FinishedWorkID  string `json:"finished_work_id,omitempty"`
 	// ColdBoot marks a paused sandbox whose next resume boots the kernel on
 	// its own disks instead of restoring memory, because the daemon lost the
 	// VM while it was running and the disks moved on since the last snapshot.
@@ -318,8 +320,15 @@ type CreateArgs struct {
 	TemplateTag   string `json:"template_tag,omitempty"`
 	VCPUs         int    `json:"vcpus"`
 	MemoryMB      int    `json:"memory_mb"`
-	WorkspaceGB   int    `json:"workspace_gb"`
-	Hostname      string `json:"hostname"`
+	// MemoryRequestMB is the memory the sandbox is guaranteed; MemoryMB is
+	// its limit, the size the guest boots at. Between the two the guest
+	// bursts into the node's free memory: its balloon holds MemoryMB −
+	// MemoryRequestMB, which deflates when processes need it, and its VM's
+	// cgroup protects only the request. Zero, or MemoryMB, means no burst.
+	// It holds for the sandbox's life.
+	MemoryRequestMB int    `json:"memory_request_mb,omitempty"`
+	WorkspaceGB     int    `json:"workspace_gb"`
+	Hostname        string `json:"hostname"`
 	// CPUGuaranteeMilli is the CPU, in millicores, the sandbox is guaranteed
 	// while it runs: its VM's cgroup weight against the node's other VMs.
 	// Zero is DefaultCPUGuaranteeMilli. It holds for the sandbox's life.

@@ -32,8 +32,10 @@ type createRequest struct {
 	TemplateTag string `json:"template_tag"`
 	VCPUs       int    `json:"vcpus"`
 	MemoryMB    int    `json:"memory_mb"`
-	WorkspaceGB int    `json:"workspace_gb"`
-	Hostname    string `json:"hostname"`
+	// MemoryRequestMB is protocol.CreateArgs.MemoryRequestMB.
+	MemoryRequestMB int    `json:"memory_request_mb"`
+	WorkspaceGB     int    `json:"workspace_gb"`
+	Hostname        string `json:"hostname"`
 	// FromDiskSnapshot and CacheImage are protocol.CreateArgs' fields of
 	// the same names.
 	FromDiskSnapshot string `json:"from_disk_snapshot"`
@@ -183,7 +185,7 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := h.backend.Create(r.Context(), protocol.CreateArgs{
 		SandboxID: id, Template: req.Template, TemplateTag: req.TemplateTag, VCPUs: req.VCPUs,
-		MemoryMB: req.MemoryMB, WorkspaceGB: req.WorkspaceGB, Hostname: req.Hostname,
+		MemoryMB: req.MemoryMB, MemoryRequestMB: req.MemoryRequestMB, WorkspaceGB: req.WorkspaceGB, Hostname: req.Hostname,
 		FromDiskSnapshot: req.FromDiskSnapshot, CacheImage: req.CacheImage, FromArchive: req.FromArchive,
 	})
 	if err != nil {
