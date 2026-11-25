@@ -108,6 +108,16 @@ spec:
                             a pre-ordered box (or a box re-adopted after a previous Machine released
                             it), so the bootstrap SSH would fail.
                           type: string
+                        kataBlockRootfs:
+                          description: |-
+                            KataBlockRootfs gives kata-qemu containers a devmapper thin device as
+                            their rootfs, which the guest mounts as ext4 over virtio-blk, instead of
+                            an overlayfs snapshot shared over virtiofs. Compiles that read many small
+                            files from the image (toolchains, headers) run about 30% faster. The thin
+                            pool lives in preallocated files under /data. Only read when KataRuntime is
+                            set, and only at bootstrap: flipping it reaches a box when it is
+                            reprovisioned.
+                          type: boolean
                         kataRuntime:
                           description: |-
                             KataRuntime provisions the box to run microVM-isolated Pods: it installs

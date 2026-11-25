@@ -146,7 +146,7 @@ apt_retry %[4]sapt-get update
 %[1]stee /etc/systemd/system/kubelet.service > /dev/null <<'TUIST_EOF'
 %[2]sTUIST_EOF
 %[1]ssystemctl daemon-reload
-`, sudo, ensureTrailingNewline(kubeletUnit), kataSetup(sudo, sudoE, true, podLevel), sudoE, aptRetry)
+`, sudo, ensureTrailingNewline(kubeletUnit), kataSetup(sudo, sudoE, true, podLevel, opts.KataBlockRootfs), sudoE, aptRetry)
 }
 
 // labelKataRuntimeNode patches the kata labels onto the live Node, which is the

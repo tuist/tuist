@@ -295,7 +295,7 @@ func TestRenderKataRuntimeRepairScript(t *testing.T) {
 // install block must not re-pull the ~250 MiB kata tarball on each attempt —
 // while a kataVersion bump must still reinstall.
 func TestKataInstallIsGuardedByAVersionStamp(t *testing.T) {
-	setup := kataSetup("sudo ", "sudo -E ", true, false)
+	setup := kataSetup("sudo ", "sudo -E ", true, false, false)
 	if !strings.Contains(setup, `if [ "$(cat `+kataVersionStampPath+` 2>/dev/null)" != "`+kataVersion+`" ]; then`) {
 		t.Fatalf("expected the kata download to be guarded by a version stamp, got:\n%s", setup)
 	}

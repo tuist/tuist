@@ -68,6 +68,11 @@ type linuxCloudInitOptions struct {
 	// containerd's config rather than replacing the runtime.
 	KataRuntime bool
 
+	// KataBlockRootfs gives kata-qemu containers a devmapper rootfs over
+	// virtio-blk instead of virtiofs. Bootstrap-time only; see
+	// kataBlockRootfsSetup.
+	KataBlockRootfs bool
+
 	// BootstrapUser is the OS login user the install lands on. Empty (the
 	// Instance default) means the bootstrap runs directly as root with no
 	// privilege-escalation prefix. A non-root value (OVH's "ubuntu")
@@ -679,7 +684,7 @@ func renderLinuxCloudInitWithOptions(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
 	podLevel := podLevelResourceManagers(opts.K8sMinor, opts.KataRuntime)
-	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, kataSetup(sudo, sudoE, opts.KataRuntime, podLevel), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts)), "      ")
+	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, kataSetup(sudo, sudoE, opts.KataRuntime, podLevel, opts.KataBlockRootfs), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts)), "      ")
 
 	// Optional cluster-CA write_files entry: written so the kubelet's
 	// clientCAFile can verify the apiserver's client cert (see
@@ -744,7 +749,7 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
 	podLevel := podLevelResourceManagers(opts.K8sMinor, opts.KataRuntime)
-	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, kataSetup(sudo, sudoE, opts.KataRuntime, podLevel), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts))
+	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, kataSetup(sudo, sudoE, opts.KataRuntime, podLevel, opts.KataBlockRootfs), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts))
 
 	heredoc := func(path, content string) string {
 		// `<<'EOF'` keeps the body literal (no shell expansion of $ or `).
@@ -1125,13 +1130,19 @@ const kataVersionStampPath = "/opt/kata/.tuist-kata-version"
 //
 // staticSandboxSizing adds the static-sizing drop-in that hosts running the
 // pod-level resource managers need (kataStaticSandboxSetup).
-func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing bool) string {
+//
+// blockRootfs moves the handler's container rootfs from virtiofs to a
+// devmapper thin device (kataBlockRootfsSetup).
+func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing, blockRootfs bool) string {
 	if !enabled {
 		return ""
 	}
 	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo) + kataGuestEmptyDirSetup(sudo) + kataNeedrestartSetup(sudo)
 	if staticSandboxSizing {
 		dropIns += kataStaticSandboxSetup(sudo)
+	}
+	if blockRootfs {
+		dropIns += "apt_retry " + sudoE + "apt-get install -y thin-provisioning-tools\n" + kataBlockRootfsSetup(sudo)
 	}
 	return fmt.Sprintf(`# ---- Kata Containers %[3]s (runner fleets only) ----
 # Fail loud if containerd predates the v3 config syntax the handler below is
@@ -1160,7 +1171,7 @@ runtime_type = "io.containerd.kata-qemu.v2"
 runtime_path = "/opt/kata/bin/containerd-shim-kata-v2"
 privileged_without_host_devices = true
 pod_annotations = ["io.katacontainers.*"]
-[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
+%[6]s[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
 ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
 # SystemdCgroup is set on the handler itself to match kubelet's
 # cgroupDriver: systemd, since the SystemdCgroup rewrite above only touches
@@ -1168,7 +1179,7 @@ ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
 # cgroups at the root; sandbox_cgroup_only does (kataSandboxCgroupSetup).
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath, dropIns)
+`, sudo, sudoE, kataVersion, kataVersionStampPath, dropIns, kataHandlerSnapshotter(blockRootfs))
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs
