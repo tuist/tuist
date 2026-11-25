@@ -16,7 +16,7 @@ Tuist can detect inconsistent Cargo test results and help you investigate them i
 
 ## How flaky detection works {#how-it-works}
 
-Tuist compares CI runs on the same commit. A test that passes in one run and fails in another can be marked as flaky.
+Tuist compares CI runs on the same commit. A test that passes in one run and fails in another can be marked as flaky. On a CI system Tuist doesn't recognize, set `CI=true` so its runs count as CI runs: see <.localized_link href="/guides/features/test-insights/rust#continuous-integration">continuous integration</.localized_link>.
 
 Report each run through the usual command:
 
