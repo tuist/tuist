@@ -27,13 +27,32 @@ defmodule Atlas.MCP.Tools.SaveMyGmailAttachment do
     },
     output_schema: %{
       "type" => "object",
-      "required" => ["document_id", "title", "filename", "content_type", "byte_size"],
+      "required" => [
+        "document_id",
+        "title",
+        "filename",
+        "content_type",
+        "byte_size",
+        "already_saved",
+        "download_url",
+        "download_url_expires_at"
+      ],
       "properties" => %{
         "document_id" => %{"type" => "string"},
         "title" => %{"type" => "string"},
         "filename" => %{"type" => "string"},
         "content_type" => %{"type" => "string"},
-        "byte_size" => %{"type" => "integer"}
+        "byte_size" => %{"type" => "integer"},
+        "already_saved" => %{
+          "type" => "boolean",
+          "description" => "True when the library already held this file, which is returned instead of a copy."
+        },
+        "download_url" => %{
+          "type" => "string",
+          "description" =>
+            "Signed link that returns the file's bytes without an Atlas session, until download_url_expires_at."
+        },
+        "download_url_expires_at" => %{"type" => "string"}
       },
       "additionalProperties" => false
     }
@@ -42,11 +61,13 @@ defmodule Atlas.MCP.Tools.SaveMyGmailAttachment do
   alias Atlas.Documents
   alias Atlas.MCP.Tool
   alias Atlas.MCP.Tools.ManageAccountConnections
+  alias AtlasWeb.DocumentLinks
 
   @impl EMCP.Tool
   def description do
     "Save one attachment from the caller's own Gmail mailbox to the Atlas document library and return its document_id, " <>
       "for example to attach a receipt with finance_add_transaction_attachment. Find the part_id with get_my_gmail_message. " <>
+      "Returns a short-lived download_url for the file's bytes, and the existing document when the library already holds the same file. " <>
       "The saved document is visible to everyone with document access."
   end
 
@@ -56,14 +77,17 @@ defmodule Atlas.MCP.Tools.SaveMyGmailAttachment do
          :ok <- Tool.authorize_scope(conn, "documents:write", "Saving Gmail attachments"),
          user = Tool.current_user(conn),
          {:ok, attachment} <- Gmail.get_attachment(user, message_id, part_id),
-         {:ok, document} <- save(attachment, user, args) do
+         {:ok, document, outcome} <- save(attachment, user, args) do
       {:ok,
        %{
          document_id: document.id,
          title: document.title,
          filename: document.original_filename,
          content_type: document.content_type,
-         byte_size: document.byte_size
+         byte_size: document.byte_size,
+         already_saved: outcome == :existing,
+         download_url: DocumentLinks.signed_download_url(document, user),
+         download_url_expires_at: DateTime.to_iso8601(DocumentLinks.signed_download_expires_at())
        }}
     else
       {:error, :shared_identity} -> {:error, "Personal Gmail is unavailable to shared Slack identities."}
@@ -76,8 +100,8 @@ defmodule Atlas.MCP.Tools.SaveMyGmailAttachment do
   def execute(_conn, _args), do: {:error, "message_id and part_id are required."}
 
   defp save(attachment, user, args) do
-    case Documents.create_from_binary(attachment.body, attrs(attachment, user, args), audit_actor: user) do
-      {:ok, document} -> {:ok, document}
+    case Documents.find_or_create_from_binary(attachment.body, attrs(attachment, user, args), audit_actor: user) do
+      {:ok, document, outcome} -> {:ok, document, outcome}
       {:error, %Ecto.Changeset{}} = error -> error
       {:error, _reason} -> {:error, "Could not save the attachment to the document library. Try again shortly."}
     end

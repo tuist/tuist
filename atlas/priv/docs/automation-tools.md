@@ -113,7 +113,22 @@ reconnecting cannot fix it.
 library and returns its `document_id`, for example to attach a receipt to a
 finance transaction with `finance_add_transaction_attachment`. The saved
 document is visible to everyone with document access, so this tool also needs
-the `documents:write` scope, and it is processed like any other upload.
+the `documents:write` scope, and it is processed like any other upload. Saving
+a file the library already holds, such as one saved earlier or ingested from
+the inbox, returns that document with `already_saved: true` instead of a copy.
+The result also includes a `download_url` for the file's bytes.
+
+## Download document files
+
+`get_document` returns a document's extracted text. `get_document_download_url`
+returns a `download_url` for the original file, such as a `.docx` to redline or
+a `.zip` to unpack, that works without an Atlas session. The link is valid for 15 minutes, names the person it was issued
+to, and only works while that person has the `documents:read` scope. Call
+`get_document_download_url` again for a fresh link. Shared Slack identities
+cannot get one.
+
+Zip files are stored as uploaded and indexed by the text of the PDF, Word,
+Excel, text and Markdown files they contain, up to 20 files and 50 MB.
 
 ## Prepare vendor payments in Qonto
 
@@ -151,10 +166,14 @@ when you reconnect. MCP clients then get four caller-only tools:
   drafts with HTML and a plain-text alternative. Recipients are plain email addresses. An optional
   `reply_to_message_id` (from `search_my_gmail`) files the draft in that thread
   and sets `In-Reply-To` and `References`; it also needs Gmail access.
-  `attachments` adds up to 10 files, each with `filename`, `content_base64` and
-  an optional `content_type` (inferred from the filename when omitted). One
-  call can carry about 6 MB of files, and a draft's attachments can total at
-  most 18 MB, so the message stays under Gmail's 25 MB sending limit.
+  `attachments` adds up to 10 files. Each is either an Atlas `document_id`,
+  such as a redline uploaded with `create_document_upload` and
+  `finalize_document_upload` (this needs the `documents:read` scope), or a
+  `filename` with `content_base64`. `filename` and `content_type` are optional
+  for documents, which default to the stored name and type; otherwise the type
+  is inferred from the filename. One call can carry about 6 MB of Base64
+  files, and a draft's attachments can total at most 18 MB, so the message
+  stays under Gmail's 25 MB sending limit.
 - `get_my_gmail_draft` reads a draft by `draft_id`: recipients, subject, reply
   headers, attachment names, a plain-text body and `body_html` source, each body
   bounded to 20,000 characters.

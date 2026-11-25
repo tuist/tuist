@@ -5,6 +5,7 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
   alias Atlas.Audit.Activity
   alias Atlas.Connections.Connection
   alias Atlas.Connections.Gmail
+  alias Atlas.Documents
   alias Atlas.MCP
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Server
@@ -232,6 +233,62 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
     assert pdf_body == pdf
     assert txt_headers["content-type"] == "text/plain"
     assert txt_headers["content-disposition"] == ~s(attachment; filename="notes.txt")
+  end
+
+  test "attachments can be Atlas documents, which need document access" do
+    reader = insert_google!([Gmail.compose_scope()], %{scopes: ["documents:read"]})
+    outsider = insert_google!([Gmail.compose_scope()])
+    docx = <<"PK", :crypto.strong_rand_bytes(300)::binary>>
+    docx_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    {:ok, document} =
+      Documents.create_from_binary(docx, %{"original_filename" => "Annex – redline.docx", "content_type" => docx_type},
+        enqueue?: false
+      )
+
+    gmail(fn "POST", "/upload/gmail/v1/users/me/drafts", conn ->
+      send(self(), {:created, uploaded(conn)})
+      Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-1"}})
+    end)
+
+    args = %{
+      "to" => ["legal@example.com"],
+      "subject" => "Redlines",
+      "body" => "Attached.",
+      "attachments" => [
+        %{"document_id" => document.id},
+        %{"document_id" => document.id, "filename" => "renamed.docx"},
+        %{"filename" => "notes.txt", "content_base64" => Base.encode64("ok")}
+      ]
+    }
+
+    assert {:ok, %{draft: draft}} = execute_tool(CreateMyGmailDraft, agent_conn(reader), args)
+
+    assert Enum.map(draft.attachments, &{&1["filename"], &1["mime_type"], &1["size"]}) == [
+             {"Annex – redline.docx", docx_type, byte_size(docx)},
+             {"renamed.docx", docx_type, byte_size(docx)},
+             {"notes.txt", "text/plain", 2}
+           ]
+
+    assert_received {:created, %{"message" => message}}
+    {_headers, [_body, {docx_headers, ^docx}, {_renamed, ^docx}, {_txt, "ok"}]} = parse(message["raw"])
+    assert docx_headers["content-type"] == docx_type
+
+    assert {:error, message} = CreateMyGmailDraft.execute(agent_conn(outsider), args)
+    assert message =~ "documents:read"
+
+    missing = %{args | "attachments" => [%{"document_id" => Ecto.UUID.generate()}]}
+    assert {:error, message} = CreateMyGmailDraft.execute(agent_conn(reader), missing)
+    assert message =~ "not found"
+
+    both = %{
+      args
+      | "attachments" => [%{"document_id" => document.id, "filename" => "x.txt", "content_base64" => "b2s="}]
+    }
+
+    assert {:error, message} = CreateMyGmailDraft.execute(agent_conn(reader), both)
+    assert message =~ "not both"
+    refute_received {:created, _}
   end
 
   test "an update keeps the draft's attachments with only the drafts consent, unless told to drop them" do
@@ -686,8 +743,8 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
 
   defp agent_conn(user), do: %{assigns: %{current_user: user, audit_interface: "mcp"}}
 
-  defp insert_google!(scopes) do
-    user = insert_user!()
+  defp insert_google!(scopes, user_attrs \\ %{}) do
+    user = insert_user!(user_attrs)
 
     %Connection{user_id: user.id, provider: "google"}
     |> Connection.changeset(%{

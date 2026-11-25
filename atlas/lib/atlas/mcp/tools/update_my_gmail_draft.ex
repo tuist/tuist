@@ -33,7 +33,7 @@ defmodule Atlas.MCP.Tools.UpdateMyGmailDraft do
   @impl EMCP.Tool
   def description do
     "Replace the recipients, subject and body of a draft in the caller's own Gmail mailbox. Set body_format to markdown or html for rich text; default plain. Without " <>
-      "reply_to_message_id the draft keeps its thread and reply headers. The draft keeps its attachments, and attachments adds files; " <>
+      "reply_to_message_id the draft keeps its thread and reply headers. The draft keeps its attachments, and attachments adds files by Atlas document_id or Base64; " <>
       "set keep_attachments to false to replace or remove them. Nothing is sent. " <>
       "Requires Allow Gmail drafts in Atlas settings."
   end
@@ -42,6 +42,7 @@ defmodule Atlas.MCP.Tools.UpdateMyGmailDraft do
     with true <- ManageAccountConnections.allowed_context?(conn) || {:error, :shared_identity},
          :ok <- Tool.authorize_authenticated(conn, "Gmail tools"),
          :ok <- GmailSerializers.validate(__MODULE__, args),
+         {:ok, args} <- GmailSerializers.resolve_document_attachments(conn, args),
          {:ok, draft} <- Gmail.update_draft(Tool.current_user(conn), args["draft_id"], args) do
       {:ok, %{draft: GmailSerializers.draft(draft)}}
     else

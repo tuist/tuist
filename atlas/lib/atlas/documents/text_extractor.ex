@@ -3,6 +3,10 @@ defmodule Atlas.Documents.TextExtractor do
 
   @max_page_chars 12_000
   @xlsx_sample_rows 20
+  # Bounds for archives: entries are extracted in memory, so cap how many and
+  # how many declared bytes are read (the document library's upload cap).
+  @max_zip_entries 20
+  @max_zip_bytes 50 * 1024 * 1024
 
   def extract_pages(path, content_type, filename, opts \\ []) do
     cond do
@@ -17,6 +21,9 @@ defmodule Atlas.Documents.TextExtractor do
 
       text?(content_type, filename) ->
         path |> File.read() |> split_text()
+
+      zip?(content_type, filename) and Keyword.get(opts, :archives?, true) ->
+        extract_zip(path, opts)
 
       true ->
         {:error, :unsupported_document_type}
@@ -134,10 +141,82 @@ defmodule Atlas.Documents.TextExtractor do
     end
   end
 
+  # A zip (for example a contract package sent by email) is indexed by the
+  # text of the supported files it contains, one after another. Each page
+  # records the entry it came from. Unsupported or unreadable entries are
+  # skipped, and an archive with none still completes with zero pages so the
+  # stored zip stays available for download instead of failing.
+  defp extract_zip(path, opts) do
+    with {:ok, entries} <- :zip.list_dir(String.to_charlist(path)),
+         names = zip_entry_names(entries),
+         {:ok, files} <- zip_entries(path, names) do
+      pages =
+        files
+        |> Enum.sort_by(fn {name, _body} -> name end)
+        |> Enum.flat_map(&zip_entry_pages(&1, opts))
+        |> Enum.with_index(1)
+        |> Enum.map(fn {page, page_number} -> %{page | page_number: page_number} end)
+
+      {:ok, pages}
+    else
+      {:error, {:invalid, _reason}} = error -> error
+      {:error, _reason} -> {:error, :zip_extraction_failed}
+    end
+  end
+
+  defp zip_entry_names(entries) do
+    entries
+    |> Enum.flat_map(fn
+      {:zip_file, name, info, _comment, _offset, _compressed} ->
+        name = List.to_string(name)
+        if supported_zip_entry?(name), do: [{name, elem(info, 1)}], else: []
+
+      _other ->
+        []
+    end)
+    |> Enum.take(@max_zip_entries)
+  end
+
+  defp zip_entries(_path, []), do: {:ok, []}
+
+  defp zip_entries(path, entries) do
+    if Enum.sum_by(entries, fn {_name, size} -> size end) > @max_zip_bytes do
+      {:error, {:invalid, :zip_too_large}}
+    else
+      file_list = Enum.map(entries, fn {name, _size} -> String.to_charlist(name) end)
+
+      case :zip.extract(String.to_charlist(path), [:memory, {:file_list, file_list}]) do
+        {:ok, files} -> {:ok, Enum.map(files, fn {name, body} -> {List.to_string(name), body} end)}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  defp supported_zip_entry?(name) do
+    basename = Path.basename(name)
+
+    not String.ends_with?(name, "/") and not String.starts_with?(name, "__MACOSX/") and
+      not String.starts_with?(basename, ".") and
+      String.downcase(Path.extname(name)) in ~w(.pdf .docx .xlsx .txt .md)
+  end
+
+  defp zip_entry_pages({name, body}, opts) do
+    with {:ok, entry_path} <- Briefly.create(extname: Path.extname(name)),
+         :ok <- File.write(entry_path, body),
+         {:ok, pages} <- extract_pages(entry_path, nil, name, Keyword.put(opts, :archives?, false)) do
+      Enum.map(pages, fn page -> %{page | metadata: Map.put(page.metadata, "archive_entry", name)} end)
+    else
+      _error -> []
+    end
+  end
+
   defp cell_to_string(nil), do: ""
   defp cell_to_string(value) when is_binary(value), do: value
   defp cell_to_string(value), do: to_string(value)
 
+  # Every chunk is stored as its own page row, and page numbers are unique per
+  # document, so chunks are numbered in order and keep the page they came from
+  # in `source_page`. DOCX text has no page breaks and is one long page.
   defp split_text({:ok, text}) do
     pages =
       text
@@ -145,18 +224,16 @@ defmodule Atlas.Documents.TextExtractor do
       |> Enum.map(&String.trim/1)
       |> Enum.reject(&(&1 == ""))
       |> Enum.with_index(1)
-      |> Enum.flat_map(fn {page, page_number} ->
+      |> Enum.flat_map(fn {page, source_page} ->
         page
         |> chunk_page()
         |> Enum.with_index(1)
         |> Enum.map(fn {content, chunk_index} ->
-          %{
-            page_number: page_number,
-            content: content,
-            metadata: %{"chunk_index" => chunk_index}
-          }
+          %{content: content, metadata: %{"source_page" => source_page, "chunk_index" => chunk_index}}
         end)
       end)
+      |> Enum.with_index(1)
+      |> Enum.map(fn {page, page_number} -> Map.put(page, :page_number, page_number) end)
 
     # Scanned-image PDFs (phone-camera receipts saved as PDF) carry no text
     # layer, so pdftotext succeeds with empty output. Surface that as zero
@@ -201,6 +278,11 @@ defmodule Atlas.Documents.TextExtractor do
     String.starts_with?(content_type || "", "text/") or
       String.ends_with?(downcase(filename), ".txt") or
       String.ends_with?(downcase(filename), ".md")
+  end
+
+  defp zip?(content_type, filename) do
+    content_type in ~w(application/zip application/x-zip-compressed application/x-zip) or
+      String.ends_with?(downcase(filename), ".zip")
   end
 
   defp downcase(nil), do: ""

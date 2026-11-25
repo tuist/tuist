@@ -234,6 +234,46 @@ defmodule Atlas.Documents do
     end
   end
 
+  @doc """
+  Like `create_from_binary/3`, but returns the document that already stores
+  the same bytes under the same file extension instead of failing on the
+  storage key's uniqueness. Returns `{:ok, document, :created | :existing}`.
+  The library stores each file once, so saving the same attachment again
+  (or one the email inbox already ingested) is a no-op.
+  """
+  def find_or_create_from_binary(body, attrs, opts \\ []) when is_binary(body) and is_map(attrs) do
+    key = object_key(sha256(body), attrs["original_filename"] || attrs[:original_filename] || "document")
+
+    case get_by_storage_key(key) do
+      %Document{} = document ->
+        {:ok, document, :existing}
+
+      nil ->
+        case create_from_binary(body, attrs, opts) do
+          {:ok, document} ->
+            {:ok, document, :created}
+
+          {:error, %Ecto.Changeset{} = changeset} = error ->
+            # Another caller stored the same file between the lookup and insert.
+            with true <- Keyword.has_key?(changeset.errors, :storage_bucket),
+                 %Document{} = document <- get_by_storage_key(key) do
+              {:ok, document, :existing}
+            else
+              _other -> error
+            end
+
+          error ->
+            error
+        end
+    end
+  end
+
+  defp get_by_storage_key(key) do
+    Repo.get_by(Document, storage_bucket: Storage.bucket(), storage_key: key)
+  end
+
+  defp sha256(body), do: :crypto.hash(:sha256, body) |> Base.encode16(case: :lower)
+
   @default_upload_ttl 3_600
   # Matches the interactive upload cap in `AtlasWeb.DocumentsLive`. Presigned
   # PUT URLs cannot bind Content-Length, so this is enforced server-side when
@@ -943,7 +983,7 @@ defmodule Atlas.Documents do
 
   defp store_file(body, attrs) do
     filename = attrs["original_filename"] || attrs[:original_filename] || "document"
-    checksum = :crypto.hash(:sha256, body) |> Base.encode16(case: :lower)
+    checksum = sha256(body)
     key = object_key(checksum, filename)
 
     with {:ok, _response} <- Storage.put_object(key, body, content_type: attrs["content_type"] || attrs[:content_type]) do

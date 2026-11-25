@@ -137,6 +137,16 @@ defmodule Atlas.MCP.Tools.GetMyGmailMessageTest do
       assert document.uploaded_by_id == user.id
       assert {:ok, %{body: @pdf}} = Storage.get_object(document.storage_key)
 
+      refute result.already_saved
+      assert result.download_url =~ "/documents/#{document.id}/file/"
+
+      # Saving the same file again returns it instead of failing on the storage key.
+      assert {:ok, again} =
+               execute_tool(SaveMyGmailAttachment, conn, %{"message_id" => "receipt", "part_id" => "2"})
+
+      assert again.document_id == document.id
+      assert again.already_saved
+
       assert {:ok, inline} = execute_tool(SaveMyGmailAttachment, conn, %{"message_id" => "receipt", "part_id" => "1"})
       assert {:ok, %{body: "PNG"}} = Storage.get_object(Documents.get_document(inline.document_id).storage_key)
     end

@@ -22,6 +22,47 @@ defmodule Atlas.DocumentsTest do
   alias Atlas.TestSupport.Documents.SignedOrderFormClassifier
   alias Atlas.Vector
 
+  # Regression: a page longer than one chunk (every long DOCX) produced
+  # several rows with the same page number, the insert raised, and the
+  # document stayed in processing through every retry.
+  test "processes a document whose single page spans several chunks" do
+    text = Enum.map_join(1..5, "\n\n", fn n -> "Clause #{n}. " <> String.duplicate("The supplier shall. ", 400) end)
+
+    {:ok, document} =
+      Documents.create_from_binary(
+        text,
+        %{"original_filename" => "annex-#{System.unique_integer([:positive])}.txt", "content_type" => "text/plain"},
+        enqueue?: false
+      )
+
+    assert {:ok, %Document{status: "ready"}} = Documents.process_document(document.id, classifier: Classifier)
+
+    page_numbers =
+      Repo.all(from page in DocumentPage, where: page.document_id == ^document.id, select: page.page_number)
+
+    assert length(page_numbers) > 1
+    assert Enum.sort(page_numbers) == Enum.to_list(1..length(page_numbers))
+  end
+
+  test "find_or_create_from_binary returns the stored document for the same file" do
+    body = "Signed order form #{System.unique_integer([:positive])}"
+    attrs = %{"original_filename" => "order-form.txt", "content_type" => "text/plain", "source" => "email"}
+
+    assert {:ok, first, :created} = Documents.find_or_create_from_binary(body, attrs, enqueue?: false)
+
+    assert {:ok, second, :existing} =
+             Documents.find_or_create_from_binary(body, %{attrs | "original_filename" => "copy.TXT"}, enqueue?: false)
+
+    assert second.id == first.id
+
+    assert {:ok, other, :created} =
+             Documents.find_or_create_from_binary(body, %{attrs | "original_filename" => "order-form.md"},
+               enqueue?: false
+             )
+
+    refute other.id == first.id
+  end
+
   @tag :tmp_dir
   test "creates a document, stores the object, and processes page embeddings", %{tmp_dir: tmp_dir} do
     path = Path.join(tmp_dir, "service-agreement.txt")
