@@ -168,6 +168,7 @@ type Instance struct {
 	once     sync.Once
 	// FailSnapshotCreate makes PUT /snapshot/create answer 400.
 	FailSnapshotCreate bool
+	balloonStats       firecracker.BalloonStatistics
 
 	launcher  *Launcher
 	startedAt uint64
@@ -247,6 +248,11 @@ func (i *Instance) handle(w http.ResponseWriter, r *http.Request) {
 		state := i.state
 		i.mu.Unlock()
 		fmt.Fprintf(w, `{"app_name":"Firecracker","id":%q,"state":%q,"vmm_version":"1.16.1"}`, i.spec.ID, state)
+	case r.Method == http.MethodGet && r.URL.Path == "/balloon/statistics":
+		i.mu.Lock()
+		stats := i.balloonStats
+		i.mu.Unlock()
+		_ = json.NewEncoder(w).Encode(stats)
 	case r.Method == http.MethodGet && r.URL.Path == "/version":
 		_, _ = w.Write([]byte(`{"firecracker_version":"v1.16.1"}`))
 	case r.Method == http.MethodPut && r.URL.Path == "/machine-config":
@@ -388,6 +394,13 @@ func (i *Instance) ResidentMemory() (vm.Memory, bool) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.resident, true
+}
+
+// SetBalloonStatistics sets what GET /balloon/statistics answers.
+func (i *Instance) SetBalloonStatistics(stats firecracker.BalloonStatistics) {
+	i.mu.Lock()
+	i.balloonStats = stats
+	i.mu.Unlock()
 }
 
 func (i *Instance) SetResidentMemory(mem vm.Memory) {
