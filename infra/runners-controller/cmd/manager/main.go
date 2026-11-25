@@ -56,6 +56,7 @@ func main() {
 		sessionsURL         string
 		watchedNS           string
 		dindImage           string
+		sidecarImage        string
 		registryMirror      string
 		clusterDNSIP        string
 		clusterDomain       string
@@ -76,6 +77,10 @@ func main() {
 		"Namespace the controller watches. Defaults to tuist-runners.")
 	flag.StringVar(&dindImage, "dind-image", envOr("TUIST_RUNNER_DIND_IMAGE", ""),
 		"OCI ref for the dockerd sidecar image stamped on Linux runner Pods (e.g. docker:28-dind@sha256:...). Required when any RunnerPool has spec.os=linux.")
+	// Env, not a chart-passed flag, so a chart that sets it never crashes an
+	// older controller binary whose flag.Parse would reject the flag.
+	flag.StringVar(&sidecarImage, "sidecar-image", envOr("TUIST_RUNNER_SIDECAR_IMAGE", ""),
+		"OCI ref of the Tuist-owned image the poller, metrics and shell sidecars of Linux runner Pods run. They hold the dispatch token, so they never run the job's image. Empty runs them on the pool's image.")
 	flag.StringVar(&registryMirror, "registry-mirror-url", envOr("TUIST_RUNNER_REGISTRY_MIRROR_URL", ""),
 		"In-cluster Docker Hub pull-through cache URL stamped into the dind dockerd's --registry-mirror (with a matching --insecure-registry, since it's http in-cluster). Optional; empty leaves dockerd pulling docker.io directly.")
 	flag.StringVar(&clusterDNSIP, "cluster-dns-ip", envOr("TUIST_RUNNER_CLUSTER_DNS_IP", ""),
@@ -145,6 +150,7 @@ func main() {
 		DispatchURL:         dispatchURL,
 		DispatchInternalURL: dispatchInternalURL,
 		DindImage:           dindImage,
+		SidecarImage:        sidecarImage,
 		RegistryMirror:      registryMirror,
 		ClusterDNSIP:        clusterDNSIP,
 		ClusterDomain:       clusterDomain,

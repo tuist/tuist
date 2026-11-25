@@ -121,6 +121,11 @@ type RunnerPoolReconciler struct {
 	// macOS-only installs.
 	DindImage string
 
+	// SidecarImage is the Tuist-owned image for the poller, metrics and
+	// shell sidecars, which hold the dispatch token. Empty runs them on
+	// the pool's image.
+	SidecarImage string
+
 	// RegistryMirror is the in-cluster Docker Hub pull-through cache
 	// URL stamped into the dind sidecar's dockerd as --registry-mirror
 	// (with a matching --insecure-registry, since it's http in-cluster).
@@ -758,7 +763,7 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 		return "", fmt.Errorf("create sa: %w", err)
 	}
 
-	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.RegistryMirror, r.ClusterDNSIP, r.ClusterDomain)
+	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.SidecarImage, r.RegistryMirror, r.ClusterDNSIP, r.ClusterDomain)
 	if err != nil {
 		return "", fmt.Errorf("build pod: %w", err)
 	}
