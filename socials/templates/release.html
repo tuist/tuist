@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<!-- Release: a version of a Tuist product (CLI, Gradle plugin, app, ...), laid out
+     like a changelog entry: date and product on the left, the version as the title,
+     three highlights and how to install it. Same structure as Struo's release card. -->
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Rectangles only: the changelog layout does not fill a square. -->
+    <meta name="card-sizes" content="x,linkedin" />
+    <link rel="stylesheet" href="../templates/base.css" />
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+
+      [data-theme="light"] .brand.dark,
+      [data-theme="dark"] .brand.light {
+        display: none;
+      }
+
+      header {
+        display: flex;
+        flex: none;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid oklch(from var(--noora-surface-label-primary) l c h / 0.08);
+        padding: 22px 72px;
+        color: var(--noora-surface-label-tertiary);
+        font-size: 22px;
+      }
+
+      main {
+        display: grid;
+        flex: 1;
+        grid-template-columns: 220px 1fr;
+        margin: 0 72px;
+      }
+
+      aside {
+        display: flex;
+        position: relative;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 12px;
+        border-inline-end: 1px solid oklch(from var(--noora-surface-label-primary) l c h / 0.08);
+        padding: 52px 32px 0 0;
+        color: var(--noora-surface-label-tertiary);
+        font-size: 20px;
+
+        /* The entry's marker on the timeline. */
+        &::after {
+          position: absolute;
+          top: 58px;
+          right: -6px;
+          border-radius: 50%;
+          background: var(--noora-chart-primary);
+          width: 11px;
+          height: 11px;
+          content: "";
+        }
+      }
+
+      section {
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+        padding: 36px 0 0 40px;
+      }
+
+      h1 {
+        font-weight: var(--noora-font-weight-medium);
+        font-size: 84px;
+        line-height: 1;
+        letter-spacing: -0.045em;
+
+        & span {
+          color: var(--noora-surface-label-tertiary);
+          font-weight: var(--noora-font-weight-regular);
+        }
+      }
+
+      dl {
+        display: grid;
+        grid-template-columns: 1fr 1.35fr;
+        border-top: 1px solid oklch(from var(--noora-surface-label-primary) l c h / 0.08);
+
+        & dt,
+        & dd {
+          border-bottom: 1px solid oklch(from var(--noora-surface-label-primary) l c h / 0.08);
+          padding: 14px 0;
+        }
+
+        & dt {
+          font-size: 26px;
+          letter-spacing: -0.01em;
+        }
+
+        & dd {
+          align-self: stretch;
+          color: var(--noora-surface-label-secondary);
+          font-size: 23px;
+          line-height: 36px;
+        }
+      }
+
+      .code {
+        box-shadow: var(--noora-border-section);
+        border-radius: 16px;
+        overflow: hidden;
+
+        & .title {
+          border-bottom: 1px solid oklch(from var(--noora-surface-label-primary) l c h / 0.08);
+          padding: 12px 20px;
+          color: var(--noora-surface-label-secondary);
+          font-size: 19px;
+        }
+
+        & pre {
+          background: var(--noora-surface-background-tertiary);
+          padding: 18px 20px;
+          color: var(--noora-surface-label-primary);
+          font: 22px/1.3 var(--noora-font-code);
+        }
+
+        & .muted {
+          color: var(--noora-surface-label-tertiary);
+        }
+
+        & .accent {
+          color: var(--noora-surface-label-brand);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img class="brand light" src="../../server/priv/static/marketing/images/brand/tuist-wordmark.svg" alt="Tuist" />
+      <img class="brand dark" src="../../server/priv/static/marketing/images/brand/tuist-wordmark-dark.svg" alt="Tuist" />
+      <span>Changelog</span>
+    </header>
+    <main>
+      <aside>
+        <span>November 16, 2026</span>
+        <span class="scaled"><span class="noora-tag"><span data-part="label">Gradle</span></span></span>
+      </aside>
+      <section>
+        <h1>tuist gradle <span>0.20.1</span></h1>
+        <dl>
+          <dt>Failure reasons</dt>
+          <dd>why a build failed, via MCP, REST or CLI</dd>
+          <dt>Outage-proof cache</dt>
+          <dd>builds keep caching if the server blips</dd>
+          <dt>Smoother sign-in</dt>
+          <dd>no token refresh fights across builds</dd>
+        </dl>
+        <div class="code">
+          <div class="title">settings.gradle.kts</div>
+          <pre>plugins { id(<span class="muted">"dev.tuist"</span>) version <span class="accent">"0.20.1"</span> }</pre>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

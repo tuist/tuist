@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<!-- Metrics: a before/after comparison of numbers, such as a customer's build times.
+     Each row's bars take --value as a share of the longest bar (0 to 1).
+     Change data-theme to "light" for a light card. -->
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Rectangles only: the chart does not fill a square. -->
+    <meta name="card-sizes" content="x,linkedin" />
+    <link rel="stylesheet" href="../templates/base.css" />
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 32px;
+        padding: 56px 72px;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      [data-theme="light"] .brand.dark,
+      [data-theme="dark"] .brand.light {
+        display: none;
+      }
+
+      h1 {
+        font-weight: var(--noora-font-weight-medium);
+        font-size: 60px;
+        line-height: 1.05;
+        letter-spacing: -0.035em;
+
+        & span {
+          display: block;
+          color: var(--noora-surface-label-tertiary);
+          font-weight: var(--noora-font-weight-regular);
+        }
+      }
+
+      .intro {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      .legend {
+        display: flex;
+        gap: 28px;
+        color: var(--noora-surface-label-secondary);
+        font-size: 22px;
+
+        & span::before {
+          display: inline-block;
+          margin-inline-end: 10px;
+          border-radius: 3px;
+          background: var(--color);
+          width: 14px;
+          height: 14px;
+          content: "";
+        }
+      }
+
+      .panel {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        align-content: center;
+        gap: 28px 24px;
+      }
+
+      .label {
+        align-self: center;
+        font-size: 26px;
+      }
+
+      .bars {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        color: var(--noora-surface-label-primary);
+        font: 22px/1 var(--noora-font-code);
+
+        &::before {
+          border-radius: 6px;
+          background: var(--color);
+          width: calc(var(--value) * 78%);
+          height: 30px;
+          content: "";
+        }
+      }
+
+      .before {
+        --color: var(--noora-surface-label-tertiary);
+      }
+
+      .after {
+        --color: var(--noora-chart-primary);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img class="brand light" src="../../server/priv/static/marketing/images/brand/tuist-wordmark.svg" alt="Tuist" />
+      <img class="brand dark" src="../../server/priv/static/marketing/images/brand/tuist-wordmark-dark.svg" alt="Tuist" />
+      <div class="scaled">
+        <span class="noora-badge" data-style="light-fill" data-color="success" data-size="large"><span>2–4× faster</span></span>
+      </div>
+    </header>
+    <div class="intro">
+      <h1>Moving CI to Tuist Runners <span>A customer's build times</span></h1>
+      <div class="legend">
+        <span class="before">Jenkins (EC2, c6i.4xlarge)</span>
+        <span class="after">Tuist Runner (16 vCPU)</span>
+      </div>
+    </div>
+    <section class="panel">
+      <div class="label">Pull request</div>
+      <div class="bars">
+        <div class="bar before" style="--value: 0.34">21.6 min</div>
+        <div class="bar after" style="--value: 0.15">9.6 min</div>
+      </div>
+      <div class="label">Release AABs</div>
+      <div class="bars">
+        <div class="bar before" style="--value: 1">64 min</div>
+        <div class="bar after" style="--value: 0.3">15–20 min</div>
+      </div>
+    </section>
+  </body>
+</html>

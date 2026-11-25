@@ -1,0 +1,62 @@
+/* Shared base for every social card. It loads Noora's own sources from this
+   repository, so the cards follow the design system as it changes: the
+   tokens (colors, type scale, radii, borders) and the component styles the
+   templates reuse (badge, tag, card). Fonts are the copies the server ships. */
+@import "../../noora/css/tokens.css";
+@import "../../noora/css/badge.css";
+@import "../../noora/css/tag.css";
+@import "../../noora/css/card.css";
+
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  src: url("../../server/priv/static/fonts/InterVariable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  src: url("../../server/priv/static/fonts/GeistMono-latin.woff2") format("woff2");
+}
+
+/* The canvas is the CSS viewport the renderer opens (see render.mjs), so a
+   template lays itself out with flexbox and fills whichever size it gets. */
+html {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html,
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+body {
+  background: var(--noora-surface-background-primary);
+  color: var(--noora-surface-label-primary);
+  font-family: var(--noora-font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Noora components are sized for a dashboard. Inside a card they are shown
+   at the same proportions, enlarged as a whole. */
+.scaled {
+  zoom: 2;
+}
+
+.brand {
+  display: block;
+  height: 40px;
+}
