@@ -197,17 +197,20 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       end
     end
 
-    test "shows a Mix project's runs, named by their application", %{
+    test "shows a Mix project's runs, named by their command as the Test Runs page names them", %{
       conn: conn,
       organization: organization,
       project: project
     } do
       project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
-      %{test_run: test_run} = selection(project, build_system: "mix", build_context: %{"app" => "my_app"})
+
+      %{test_run: test_run} =
+        selection(project, build_system: "mix", build_context: %{"app" => "my_app", "scheme" => "postgres"})
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
 
-      assert has_element?(lv, "#test-selection-runs-table", "my_app")
+      assert has_element?(lv, "#test-selection-runs-table", "mix test · postgres")
+      refute has_element?(lv, "#test-selection-runs-table", "my_app")
 
       assert has_element?(
                lv,

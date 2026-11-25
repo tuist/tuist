@@ -311,8 +311,7 @@ defmodule Tuist.Docs.Sidebar do
                 label: "Generated Xcode project",
                 slug: "/en/guides/features/selective-testing/generated-xcode-project",
                 icon: "brand_apple"
-              },
-              %Item{label: "Elixir", slug: "/en/guides/features/selective-testing/elixir", icon: "brand_elixir"}
+              }
             ]
           },
           %Item{

@@ -123,10 +123,16 @@ defmodule TuistWeb.TestSelectionsLive do
   defp path_from_assigns(%{selected_account: account, selected_project: project}),
     do: "/#{account.name}/#{project.name}/tests/test-selection"
 
-  @doc "What an impact run ran: its test plan, or else its scheme, or else its application (Mix)."
-  def run_scope(%{build_context: context}) do
-    Enum.find_value(~w(test_plan scheme app), "", &if(Map.get(context, &1, "") != "", do: Map.get(context, &1)))
+  @doc """
+  What an impact run ran: for Xcode its test plan, or else its scheme; for
+  other build systems the command the Test Runs page names its run by
+  (`TestLabels.test_run_label/2`).
+  """
+  def run_scope(%{build_system: :xcode}, %{build_context: context}) do
+    Enum.find_value(~w(test_plan scheme), "", &if(Map.get(context, &1, "") != "", do: Map.get(context, &1)))
   end
+
+  def run_scope(project, %{build_context: context}), do: test_run_label(project, Map.get(context, "scheme"))
 
   @doc false
   def chart_series("runs", analytics) do

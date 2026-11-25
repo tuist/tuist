@@ -77,7 +77,7 @@ defmodule TuistWeb.TestSelection.Components do
     do:
       dgettext(
         "dashboard_tests",
-        "No run in the evidence window recorded coverage evidence of its own for it (it is new, it is a Swift Testing test, or its target doesn't link TestCoverageAttribution), so Tuist can't tell what it depends on."
+        "No run in the evidence window recorded coverage evidence of its own for it, so Tuist can't tell what it depends on. That happens for a new test, a test that ran at the same time as others, or one whose runs don't record per-test coverage."
       )
 
   def reason_description("impacted", path),
@@ -138,7 +138,7 @@ defmodule TuistWeb.TestSelection.Components do
     do:
       dgettext(
         "dashboard_tests",
-        "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage. Only XCTest tests in targets that link TestCoverageAttribution record it."
+        "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage, so Tuist can't tell what any of them depends on."
       )
 
   def fallback_description("history_unavailable"),

@@ -12,6 +12,5 @@ As projects grow, running every test on every push stops being viable. Tuist Sel
 ## Supported build systems {#supported-build-systems}
 
 - <.localized_link href="/guides/features/selective-testing/generated-xcode-project">Generated Xcode project</.localized_link>
-- <.localized_link href="/guides/features/selective-testing/elixir">Elixir</.localized_link>, which selects single ExUnit tests by the code coverage of earlier runs
 
 Support for other build systems is planned.

@@ -250,7 +250,7 @@
           </:col>
           <:col :let={run} label={scheme_label(@selected_project)}>
             <.text_and_description_cell
-              label={run_scope(run)}
+              label={run_scope(@selected_project, run)}
               description={Map.get(run.build_context, "destination", "")}
             />
           </:col>
