@@ -1,4 +1,5 @@
 import ArgumentParser
+import Foundation
 import TuistNooraExtension
 import TuistServer
 
@@ -81,6 +82,32 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var lifetimeMinutes: Int?
 
+    @Option(
+        name: .customLong("wait-timeout"),
+        help: """
+        How long to wait for a host when every one is busy, such as 5m or 90s, up to 60m. Without it, the create fails \
+        with fleet_busy after the server's 25-second wait. With it, it tries again every 30 seconds or so until then, \
+        and fails with fleet_busy when no host freed up.
+        """
+    )
+    var waitTimeout: String?
+
+    /// `--wait-timeout` in seconds: a whole number followed by `s`, `m` or `h`, or by nothing for seconds.
+    var waitTimeoutSeconds: TimeInterval? {
+        get throws {
+            guard let waitTimeout else { return nil }
+            let units: [Character: Int] = ["s": 1, "m": 60, "h": 3600]
+            let text = waitTimeout.trimmingCharacters(in: .whitespaces).lowercased()
+            let unit = text.last.flatMap { units[$0] }
+            guard let count = Int(unit == nil ? text : String(text.dropLast())), (1 ... 3600).contains(count),
+                  case let seconds = count * (unit ?? 1), seconds <= 3600
+            else {
+                throw ValidationError("--wait-timeout must be a duration from 1s to 60m, such as 5m or 90s.")
+            }
+            return TimeInterval(seconds)
+        }
+    }
+
     public var jsonThroughNoora: Bool { true }
 
     /// The platform the sandbox boots: --platform, else macOS when an Xcode is named, else Linux.
@@ -106,6 +133,7 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
             throw ValidationError("Workspace size must be 1–100 GB.")
         }
         try SandboxExtendCommand.validate(lifetimeMinutes: lifetimeMinutes)
+        _ = try waitTimeoutSeconds
         if let guaranteedVCPUs {
             if platform != .linux {
                 throw ValidationError("--guaranteed-vcpus is for Linux sandboxes; a macOS sandbox holds every vCPU.")
@@ -126,7 +154,8 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
             memoryGB: memoryGB,
             workspaceGB: workspaceGb,
             guaranteedVCPUs: guaranteedVCPUs,
-            lifetimeMinutes: lifetimeMinutes
+            lifetimeMinutes: lifetimeMinutes,
+            waitTimeout: try waitTimeoutSeconds
         )
     }
 }

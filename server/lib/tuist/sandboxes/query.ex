@@ -228,7 +228,7 @@ defmodule Tuist.Sandboxes.Query do
   defp describe(:no_capacity),
     do:
       {:service_unavailable, "fleet_busy",
-       "Every sandbox host is busy right now; the server already waited #{div(capacity_wait_ms(), 1000)} seconds for one to free up. Macs are shared with CI jobs, which take priority and usually free up within minutes. Do not retry in a loop: tell the user the hosts are busy and try once more in about #{div(@unavailable_retry_after_seconds, 60)} minutes. The default shape fits more hosts."}
+       "Every sandbox host is busy right now; the server already waited #{div(capacity_wait_ms(), 1000)} seconds for one to free up. Macs are shared with CI jobs, which take priority and usually free up within minutes. Do not retry in a loop: tell the user the hosts are busy and try once more in about #{div(@unavailable_retry_after_seconds, 60)} minutes. The default shape fits more hosts. `tuist sandbox create --wait-timeout 5m` waits for a host for up to 5 minutes instead."}
 
   # A paused macOS sandbox resumes warm only on the Mac that holds it, which
   # it shares with CI. A refused resume also moves it to storage, so a later
