@@ -274,6 +274,14 @@ func (i *Instance) handle(w http.ResponseWriter, r *http.Request) {
 			if key == "snapshot_path" {
 				content += " mem_bytes=" + strconv.FormatInt(memBytes, 10)
 			}
+			// A Diff merges into a memory file that already exists, as
+			// Firecracker does when its size matches: the base stays and
+			// the diff's line follows it.
+			if key == "mem_file_path" && call.Body["snapshot_type"] == "Diff" {
+				if base, err := os.ReadFile(i.HostPath(p)); err == nil {
+					content = strings.TrimRight(string(base), "\x00") + "\ndiff " + content
+				}
+			}
 			if err := os.WriteFile(i.HostPath(p), []byte(content), 0o644); err != nil {
 				fault(500, err.Error())
 				return

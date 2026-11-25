@@ -14,6 +14,8 @@ on:
       - infra/runner-cache/**
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
       - infra/helm/tuist/templates/rack-linux-fleet.yaml
+      - infra/helm/tuist/templates/tart-kubelet-rbac.yaml
+      - infra/helm/tuist/templates/capi-scaleway-applesilicon.yaml
       - infra/helm/tuist/rack-sites/**
       - infra/rack-switch-fleet/k8s/**
       - mise/tasks/capi-scaleway-applesilicon/**
@@ -30,6 +32,8 @@ on:
       - infra/runner-cache/**
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
       - infra/helm/tuist/templates/rack-linux-fleet.yaml
+      - infra/helm/tuist/templates/tart-kubelet-rbac.yaml
+      - infra/helm/tuist/templates/capi-scaleway-applesilicon.yaml
       - infra/helm/tuist/rack-sites/**
       - infra/rack-switch-fleet/k8s/**
       - mise/tasks/capi-scaleway-applesilicon/**
@@ -62,6 +66,17 @@ jobs:
             echo "$files"
             exit 1
           fi
+      # helm and the envtest binaries for controllers/macos/node_scope_envtest_test.go,
+      # which runs the chart's tart-kubelet admission policy on a real API server
+      # and skips without them.
+      - uses: azure/setup-helm@v4.3.0
+        with:
+          version: v4.2.0
+      - name: Install envtest binaries
+        working-directory: infra/cluster-api-provider-tuist
+        run: |
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.22
+          echo "KUBEBUILDER_ASSETS=$(setup-envtest use 1.34.1 --bin-dir /tmp/envtest -p path)" >> "$GITHUB_ENV"
       - name: Test (provider)
         working-directory: infra/cluster-api-provider-tuist
         run: go test ./...

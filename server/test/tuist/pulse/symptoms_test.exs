@@ -48,6 +48,33 @@ defmodule Tuist.Pulse.SymptomsTest do
   end
 
   describe "sync/1" do
+    @tag :tmp_dir
+    test "rereads the projected token after rotation and fails closed when it disappears", %{
+      account: account,
+      tmp_dir: dir
+    } do
+      path = Path.join(dir, "token")
+      stub(Environment, :symptoms_config, fn -> [base_url: "https://symptoms.internal", token_path: path] end)
+
+      for token <- ["first-bound-token", "rotated-bound-token"] do
+        File.write!(path, token <> "\n")
+
+        expect(Req, :get, fn "https://symptoms.internal/api/v1/symptoms/log", opts ->
+          assert opts[:auth] == {:bearer, token}
+          assert opts[:redirect] == false
+          {:ok, %Req.Response{status: 200, body: %{"revisions" => []}}}
+        end)
+
+        assert {:ok, %{applied: 0}} = Symptoms.sync(account)
+      end
+
+      reject(&Req.get/2)
+      File.write!(path, "\n")
+      assert {:error, :unavailable} = Symptoms.sync(account)
+      File.rm!(path)
+      assert {:error, :unavailable} = Symptoms.sync(account)
+    end
+
     test "applies a revision only when it is newer, and keeps every revision in history", %{account: account} do
       revisions = [
         # Keys the mirror does not know are ignored.
@@ -106,7 +133,7 @@ defmodule Tuist.Pulse.SymptomsTest do
       assert requested_after(account) == 9
     end
 
-    test "is not configured without a URL and token", %{account: account} do
+    test "is not configured without a URL and token path", %{account: account} do
       stub(Environment, :symptoms_config, fn -> [] end)
       reject(&Req.get/2)
       assert {:error, :not_configured} = Symptoms.sync(account)

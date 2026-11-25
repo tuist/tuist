@@ -69,7 +69,10 @@ defmodule Tuist.MCP.WebMCPTest do
     # Amp workspace connections, Claude environments and organization AI
     # configuration need account `:update` even to read, so browser agents never get them.
     admin_only = ~w(list_amp_workspace_connections list_claude_environments get_organization_ai_configuration)
-    not_offered = account_spanning ++ admin_only
+    # The device tools run commands in the guest and resume a paused sandbox,
+    # so browser agents, which get these tools without asking, never get them.
+    guest_commands = ~w(list_sandbox_devices get_sandbox_screenshot)
+    not_offered = account_spanning ++ admin_only ++ guest_commands
 
     assert read_only -- (not_offered ++ List.flatten(page_tools)) == []
     assert not_offered -- List.flatten(page_tools) == not_offered

@@ -43,6 +43,9 @@ defmodule TuistWeb.API.CacheController do
 
   plug :sign
 
+  plug :validate_object_key_components
+       when action in [:download, :exists, :multipart_start, :multipart_generate_url, :multipart_complete]
+
   tags(["Cache"])
 
   operation(:endpoint,
@@ -1063,6 +1066,18 @@ defmodule TuistWeb.API.CacheController do
     |> Oban.insert!()
 
     send_resp(conn, :no_content, "")
+  end
+
+  # `hash` and `name` become segments of the object key.
+  defp validate_object_key_components(conn, _opts) do
+    if Enum.all?(["hash", "name"], &Storage.valid_key_segment?(conn.query_params[&1])) do
+      conn
+    else
+      conn
+      |> put_status(400)
+      |> json(%{message: "The request has missing or invalid parameters"})
+      |> halt()
+    end
   end
 
   defp get_object_key(%{hash: hash, cache_category: cache_category, name: name, project_slug: project_slug}) do

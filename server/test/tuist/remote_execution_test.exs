@@ -299,14 +299,14 @@ defmodule Tuist.RemoteExecutionTest do
 
     # The first placement finds no room; the next one takes 300 ms to find it,
     # the way a carve-out growth does.
-    stub(Capacity, :place_execution, fn sandbox, tag ->
+    stub(Capacity, :place_execution, fn sandbox, tag, on_grow ->
       case Agent.get_and_update(attempts, &{&1, &1 + 1}) do
         0 ->
           {:error, :no_capacity}
 
         _ ->
           Process.sleep(300)
-          Mimic.call_original(Capacity, :place_execution, [sandbox, tag])
+          Mimic.call_original(Capacity, :place_execution, [sandbox, tag, on_grow])
       end
     end)
 
@@ -318,6 +318,21 @@ defmodule Tuist.RemoteExecutionTest do
     assert {:ok, %{id: ^id, done: true, queue_waits_ms: waits}} =
              RemoteExecution.await(project, id, "executing", wait: 3_000)
 
+    assert waits["node_capacity"] >= 300
+    assert Map.get(waits, "vm_preparing", 0) < 100
+  end
+
+  test "a placement that waits for a carve-out to grow is charged to node capacity", %{project: project} do
+    # The placement finds no room until a carve-out grows, which takes 300 ms.
+    stub(Capacity, :place_execution, fn sandbox, tag, on_grow ->
+      on_grow.()
+      Process.sleep(300)
+      Mimic.call_original(Capacity, :place_execution, [sandbox, tag, on_grow])
+    end)
+
+    stub_node()
+
+    assert {:ok, %{done: true, queue_waits_ms: waits}} = submit(project, %{}, wait: 3_000)
     assert waits["node_capacity"] >= 300
     assert Map.get(waits, "vm_preparing", 0) < 100
   end

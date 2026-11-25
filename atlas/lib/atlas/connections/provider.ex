@@ -17,7 +17,9 @@ defmodule Atlas.Connections.Provider do
       authorize_url: "https://slack.com/oauth/v2/authorize",
       token_url: "https://slack.com/api/oauth.v2.access",
       profile_url: "https://slack.com/api/auth.test",
-      scopes: ~w(search:read chat:write)
+      # History and file scopes back the read-only conversation and file tools;
+      # connections made before they were added must reconnect to use them.
+      scopes: ~w(search:read chat:write channels:history groups:history im:history mpim:history files:read)
     },
     "google" => %{
       name: "Google",

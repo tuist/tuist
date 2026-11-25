@@ -1,5 +1,6 @@
 defmodule SymptomsWeb.SymptomsControllerTest do
   use Symptoms.DataCase
+  use Mimic
 
   import Phoenix.ConnTest
   import Plug.Conn
@@ -9,12 +10,36 @@ defmodule SymptomsWeb.SymptomsControllerTest do
 
   @endpoint SymptomsWeb.Endpoint
   @at ~U[2026-11-16 10:00:00.000000Z]
+  @moduletag :tmp_dir
 
-  defp authed, do: put_req_header(build_conn(), "authorization", "Bearer test-api-token")
+  defp authed, do: put_req_header(build_conn(), "authorization", "Bearer test-projected-token")
 
   # Three symptoms with one revision each and a second revision of the first:
   # four revisions, seq strictly increasing.
-  setup do
+  setup %{tmp_dir: tmp_dir} do
+    token_path = Path.join(tmp_dir, "reviewer-token")
+    File.write!(token_path, "reviewer-token")
+    previous = Application.get_env(:symptoms, :api_auth, [])
+    on_exit(fn -> Application.put_env(:symptoms, :api_auth, previous) end)
+
+    Application.put_env(:symptoms, :api_auth,
+      base_url: "https://kube.test",
+      server_namespace: "tuist",
+      server_service_account: "server",
+      token_path: token_path,
+      ca_file: Path.join(tmp_dir, "ca.crt")
+    )
+
+    stub(Req, :post, fn _url, opts ->
+      status = %{
+        "authenticated" => opts[:json].spec.token == "test-projected-token",
+        "user" => %{"username" => "system:serviceaccount:tuist:server"},
+        "audiences" => ["tuist-symptoms-api"]
+      }
+
+      {:ok, %Req.Response{status: 201, body: %{"status" => status}}}
+    end)
+
     ids =
       for {key, tier, cost} <- [{"a", "board", 10.0}, {"b", "page", 30.0}, {"c", "board", 20.0}] do
         id = Log.uuid7(@at)
@@ -90,10 +115,8 @@ defmodule SymptomsWeb.SymptomsControllerTest do
     assert %{"error" => "invalid_limit"} = authed() |> get("/api/v1/symptoms/log?limit=0") |> json_response(400)
   end
 
-  test "is unavailable without a configured token" do
-    previous = Application.get_env(:symptoms, :api_token)
-    Application.put_env(:symptoms, :api_token, nil)
-    on_exit(fn -> Application.put_env(:symptoms, :api_token, previous) end)
+  test "is unavailable without configured workload identity" do
+    Application.put_env(:symptoms, :api_auth, [])
 
     assert authed() |> get("/api/v1/symptoms/log") |> json_response(503)
   end

@@ -1077,25 +1077,18 @@ func TestDeleteLeavesTheHostServiceOfItsCurrentMachine(t *testing.T) {
 // host.Spec.Address passed it. The host would then be dialled at an address
 // the operator has no route to, and every bootstrap would time out.
 //
-// The credential machinery is real here rather than stubbed; the token Secret
-// is pre-seeded so EnsureNodeIdentity returns without waiting for a controller
-// that does not exist in a fake client.
+// The credential machinery is real here rather than stubbed; the fake client
+// answers the token request.
 func TestPerHostConfigDialsTheEgressServiceNotTheAddress(t *testing.T) {
 	machine := rackMachine("ber1-0")
 	host := rackHost("mini-01")
-	tokenSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tart-kubelet-ber1-0-token",
-			Namespace: testNamespace,
-		},
-		Data: map[string][]byte{"token": []byte("tok"), "ca.crt": []byte("ca")},
-	}
 	tailscaleSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "ts", Namespace: testNamespace},
 		Data:       map[string][]byte{"auth-key": []byte("tskey-abc")},
 	}
-	r := withEgress(newRackReconciler(t, host, machine, tokenSecret, tailscaleSecret))
+	r := withEgress(newRackReconciler(t, host, machine, tailscaleSecret))
 	r.CredentialsManager.NodeIdentityClusterRole = "tart-kubelet"
+	r.CredentialsManager.ClusterCA = []byte("ca")
 	r.CredentialsManager.TailscaleAuthKeySecretName = "ts"
 	r.Kubeconfig = &kubeconfig.Builder{APIServerURL: "https://api.staging.example:6443"}
 

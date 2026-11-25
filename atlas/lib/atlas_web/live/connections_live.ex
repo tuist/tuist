@@ -175,7 +175,7 @@ defmodule AtlasWeb.ConnectionsLive do
   defp description("slack"),
     do:
       gettext(
-        "Search the messages, channels and DMs you can see in Slack from Atlas tools (search_my_slack). This is separate from the Atlas bot."
+        "Search and read the messages, channels, DMs and files you can see in Slack from Atlas tools (search_my_slack, read_my_slack_conversation, download_my_slack_file). This is separate from the Atlas bot."
       )
 
   defp description("google"),

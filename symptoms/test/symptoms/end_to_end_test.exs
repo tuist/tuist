@@ -19,6 +19,7 @@ defmodule Symptoms.EndToEndTest do
   alias Symptoms.Store.Symptom
 
   @endpoint SymptomsWeb.Endpoint
+  @moduletag :tmp_dir
 
   # Monday 10:10 UTC (11:10 Berlin, day prices).
   @t0 ~U[2026-11-16 10:10:00.000000Z]
@@ -50,9 +51,37 @@ defmodule Symptoms.EndToEndTest do
                     title phenomena score p_degraded impact budget_price decision root suspected_change evidence
                     board brief_ref outcome opened_at updated_at resolved_at)
 
-  setup do
+  setup %{tmp_dir: dir} do
     previous =
-      for key <- [Sources.Pulse, Sources.Prometheus, :source_opts], do: {key, Application.get_env(:symptoms, key)}
+      for key <- [Sources.Pulse, Sources.Prometheus, :source_opts, :api_auth],
+          do: {key, Application.get_env(:symptoms, key)}
+
+    token_path = Path.join(dir, "reviewer-token")
+    File.write!(token_path, "reviewer-token")
+
+    Application.put_env(:symptoms, :api_auth,
+      base_url: "https://kube.test",
+      server_namespace: "tuist",
+      server_service_account: "server",
+      token_path: token_path,
+      ca_file: Path.join(dir, "ca.crt")
+    )
+
+    stub(Req, :post, fn _url, opts ->
+      assert opts[:json].spec.token == "test-projected-token"
+
+      {:ok,
+       %Req.Response{
+         status: 201,
+         body: %{
+           "status" => %{
+             "authenticated" => true,
+             "user" => %{"username" => "system:serviceaccount:tuist:server"},
+             "audiences" => ["tuist-symptoms-api"]
+           }
+         }
+       }}
+    end)
 
     Application.put_env(:symptoms, Sources.Pulse, base_url: "http://pulse.test", token: "read", write_token: "write")
     Application.put_env(:symptoms, Sources.Prometheus, base_url: "http://mimir.test/api/prom")
@@ -122,7 +151,7 @@ defmodule Symptoms.EndToEndTest do
     # The log API serves the root's revisions in the README contract.
     %{"revisions" => revisions, "next" => next} =
       build_conn()
-      |> put_req_header("authorization", "Bearer test-api-token")
+      |> put_req_header("authorization", "Bearer test-projected-token")
       |> get("/api/v1/symptoms/log?after=0")
       |> json_response(200)
 

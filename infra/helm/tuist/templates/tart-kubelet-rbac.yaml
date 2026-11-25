@@ -1,15 +1,26 @@
 {{- if .Values.macosFleet.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+{{- $runnerNamespace := .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $sandboxNamespace := .Values.sandboxes.namespace | default "tuist-sandboxes" }}
+{{- $cacheServiceAccount := include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") }}
 {{- /*
-ClusterRole every per-machine tart-kubelet ServiceAccount binds to.
+What a Mac mini's tart-kubelet may do. Each host authenticates as its own
+ServiceAccount, tart-kubelet-<node>, with a TokenRequest token the CAPI
+provider mints and the host rotates (credentials.EnsureTartKubeletIdentity,
+tart-kubelet's internal/nodecred). A host is internet-facing, so nothing here
+may let one host read what other hosts' Pods use:
 
-The chart owns the role definition only; the per-machine
-ServiceAccount + service-account-token Secret + ClusterRoleBinding
-that authenticate each Mac mini are created by the CAPI provider's
-credentials.Manager.EnsureNodeIdentity, one set per Machine. Splitting
-identity from role definition lets us tighten the role uniformly later
-(e.g. Node-graph-restricted access via NodeAuthorizer) without
-touching the operator's lifecycle code.
+- this ClusterRole holds no Secret, ConfigMap or token access;
+- the Role below, in the runner namespace, holds that namespace's ConfigMaps
+  and the cache-volume agent's token;
+- the provider's node access controller grants each host, by name, the
+  Secrets, ConfigMaps and ServiceAccount tokens the Pods bound to its Node
+  use, as the Node authorizer does for a real kubelet;
+- the ValidatingAdmissionPolicy below keeps a host from creating a Pod, or
+  relabelling or untainting its Node, to widen those grants, and holds the
+  tokens it mints for others to Pods bound to its Node.
+
+The provider binds this ClusterRole and the Role per host.
 */}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -38,23 +49,24 @@ rules:
   - apiGroups: [""]
     resources: [pods/finalizers]
     verbs: [update, patch]
-  # Resolve `valueFrom` / `envFrom` references in Pod env, exactly the
-  # way a real kubelet does.
-  - apiGroups: [""]
-    resources: [secrets, configmaps]
-    verbs: [get, list, watch]
+  # Secrets and ConfigMaps a Pod's env names, and tokens for its
+  # ServiceAccount, are granted per node by the provider's node access
+  # controller, not here.
   # Read ServiceAccounts to look up the SA tart-kubelet projects
   # into the VM when AutomountServiceAccountToken=true.
   - apiGroups: [""]
     resources: [serviceaccounts]
     verbs: [get, list, watch]
-  # Mint short-lived projected ServiceAccount tokens for Pods
-  # whose Spec sets AutomountServiceAccountToken=true. tart-kubelet
-  # stages the token alongside tuist.env so the VM can use it as
-  # the dispatch-endpoint Bearer credential.
-  - apiGroups: [""]
-    resources: [serviceaccounts/token]
+  # Who the host is, to mint its own tokens (nodecred, cache prefetch).
+  - apiGroups: ["authentication.k8s.io"]
+    resources: [selfsubjectreviews]
     verbs: [create]
+  # No API serves this: it marks a macOS host's identity for the admission
+  # policy below, which Linux kubelets sharing the tart-kubelet- prefix
+  # (bound to system:node) don't hold.
+  - apiGroups: ["tuist.dev"]
+    resources: [nodeidentities]
+    verbs: [tuist-macos-host]
   # A joining host reads the RunnerPools its fleet serves to pull their
   # images before it takes Pods (tart-kubelet's podagent.Prewarmer).
   - apiGroups: ["tuist.dev"]
@@ -102,4 +114,173 @@ rules:
   - apiGroups: ["storage.k8s.io"]
     resources: [volumeattachments, csidrivers]
     verbs: [get, list, watch]
+---
+# The runner namespace's ConfigMaps (golden budgets, upcoming runner images,
+# Pods' env) and the cache-volume agent's token.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $runnerNamespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tart-kubelet
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    resourceNames: [{{ $cacheServiceAccount | quote }}]
+    verbs: [create]
+---
+# What a host's own writes may not do, as NodeRestriction holds a real
+# kubelet. A host's grants follow the Pods bound to its Node, so it must not
+# be able to bind a Pod it shouldn't see:
+#
+# - Pods: the only ones tart-kubelet creates are the macOS sandbox service's
+#   reservations, in the sandbox namespace, on its own Node, referencing
+#   nothing.
+# - Nodes: it writes only its own. It may set the labels tart-kubelet owns
+#   (`kubernetes.io/os` must stay darwin, `kubernetes.io/hostname` its own
+#   name, and `tuist.dev/*`, with `tuist.dev/fleet` only a fleet the
+#   operator registered it in), and add or remove only the `tuist.dev/macos`
+#   and `tuist.dev/prewarming` taints; `tuist.dev/macos` must stay. Every
+#   other label, every other taint and the cordon are left as they were, so
+#   a host cannot take a scheduling label such as
+#   `node.cluster.x-k8s.io/pool=general`, or shed the taint that keeps
+#   other workloads off it.
+# - Tokens: for another account, only bound to a Pod bound to its Node (the
+#   node access controller grants `tuist-bind-token` on those Pods by name),
+#   so one host cannot speak as another's sandbox control Pod. Only its own
+#   and the cache-volume agent's tokens are not Pod-bound.
+#
+# The policy applies to identities bound to the ClusterRole above (the
+# `tuist-macos-host` marker), not to the Linux kubelets that share the
+# ServiceAccount prefix.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $name }}-node-scope
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tart-kubelet
+spec:
+  failurePolicy: Fail
+  # A serviceaccounts request here is a token request. A request for a
+  # resource itself has no subResource key, so match on the resource.
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods", "serviceaccounts/token"]
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["nodes", "nodes/status"]
+  matchConditions:
+    - name: tart-kubelet-host
+      expression: >-
+        request.userInfo.username.startsWith({{ printf "system:serviceaccount:%s:tart-kubelet-" .Release.Namespace | quote }}) &&
+        authorizer.group("tuist.dev").resource("nodeidentities").check("tuist-macos-host").allowed()
+  variables:
+    - name: node
+      expression: >-
+        request.userInfo.username.substring({{ len (printf "system:serviceaccount:%s:tart-kubelet-" .Release.Namespace) }})
+    - name: isNode
+      expression: request.resource.resource == "nodes"
+    - name: containers
+      expression: >-
+        request.resource.resource == "pods" ?
+        object.spec.containers
+          + (has(object.spec.initContainers) ? object.spec.initContainers : [])
+          + (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers : []) : []
+    - name: labels
+      expression: >-
+        variables.isNode && has(object.metadata.labels) ? object.metadata.labels : {}
+    - name: oldLabels
+      expression: >-
+        variables.isNode && oldObject != null && has(oldObject.metadata.labels) ? oldObject.metadata.labels : {}
+    - name: hostLabels
+      expression: '["kubernetes.io/os", "kubernetes.io/arch", "kubernetes.io/hostname"]'
+    - name: taints
+      expression: >-
+        variables.isNode && has(object.spec.taints) ? object.spec.taints : []
+    - name: oldTaints
+      expression: >-
+        variables.isNode && oldObject != null && has(oldObject.spec.taints) ? oldObject.spec.taints : []
+    # On create, the TaintNodesByCondition admission plugin adds not-ready.
+    - name: hostTaints
+      expression: >-
+        oldObject == null ?
+        ["tuist.dev/macos", "tuist.dev/prewarming", "node.kubernetes.io/not-ready"] :
+        ["tuist.dev/macos", "tuist.dev/prewarming"]
+  validations:
+    - expression: >-
+        request.resource.resource != "pods" ||
+        (request.namespace == {{ $sandboxNamespace | quote }} &&
+         has(object.spec.nodeName) && object.spec.nodeName == variables.node)
+      message: A macOS host may create Pods only in the sandbox namespace, on its own Node.
+    - expression: >-
+        request.resource.resource != "pods" ||
+        (!has(object.spec.volumes) || size(object.spec.volumes) == 0) &&
+        (!has(object.spec.imagePullSecrets) || size(object.spec.imagePullSecrets) == 0) &&
+        (has(object.spec.automountServiceAccountToken) && object.spec.automountServiceAccountToken == false) &&
+        (!has(object.spec.serviceAccountName) || object.spec.serviceAccountName == "" || object.spec.serviceAccountName == "default") &&
+        variables.containers.all(c,
+          (!has(c.envFrom) || size(c.envFrom) == 0) &&
+          (!has(c.env) || c.env.all(e, !has(e.valueFrom))))
+      message: A Pod a macOS host creates may reference no Secret, ConfigMap, volume or ServiceAccount token.
+    - expression: >-
+        request.resource.resource != "serviceaccounts" ||
+        (request.namespace == {{ .Release.Namespace | quote }} && request.name == "tart-kubelet-" + variables.node) ||
+        (request.namespace == {{ $runnerNamespace | quote }} && request.name == {{ $cacheServiceAccount | quote }}) ||
+        (has(object.spec.boundObjectRef) && has(object.spec.boundObjectRef.kind) && object.spec.boundObjectRef.kind == "Pod" &&
+         has(object.spec.boundObjectRef.name) &&
+         authorizer.group("").resource("pods").namespace(request.namespace).name(object.spec.boundObjectRef.name).check("tuist-bind-token").allowed())
+      message: A macOS host may mint only its own tokens, the cache-volume agent's, and ones bound to a Pod on its own Node.
+    - expression: >-
+        !variables.isNode || object.metadata.name == variables.node
+      message: A macOS host may write only its own Node.
+    - expression: >-
+        !variables.isNode || (
+          variables.labels.all(k, k.startsWith("tuist.dev/") || k in variables.hostLabels ||
+            (k in variables.oldLabels && variables.oldLabels[k] == variables.labels[k])) &&
+          variables.oldLabels.all(k, k.startsWith("tuist.dev/") || k in variables.hostLabels ||
+            (k in variables.labels && variables.labels[k] == variables.oldLabels[k])) &&
+          "kubernetes.io/os" in variables.labels && variables.labels["kubernetes.io/os"] == "darwin" &&
+          (!("kubernetes.io/hostname" in variables.labels) || variables.labels["kubernetes.io/hostname"] == variables.node))
+      message: A macOS host may set only the darwin, hostname and tuist.dev/* labels of its Node.
+    - expression: >-
+        !variables.isNode || !("tuist.dev/fleet" in variables.labels) ||
+        ("tuist.dev/fleet" in variables.oldLabels && variables.oldLabels["tuist.dev/fleet"] == variables.labels["tuist.dev/fleet"]) ||
+        authorizer.group("tuist.dev").resource("nodefleets").namespace({{ .Release.Namespace | quote }}).name(variables.labels["tuist.dev/fleet"]).check("tuist-register").allowed()
+      message: A macOS host may put its Node only in the fleet the operator registered it in.
+    - expression: >-
+        !variables.isNode || (
+          variables.taints.exists(t, t.key == "tuist.dev/macos" && t.effect == "NoSchedule") &&
+          variables.taints.all(t, t.key in variables.hostTaints ||
+            variables.oldTaints.exists(o, o.key == t.key && o.effect == t.effect &&
+              (has(o.value) ? o.value : "") == (has(t.value) ? t.value : ""))) &&
+          variables.oldTaints.all(o, o.key in variables.hostTaints ||
+            variables.taints.exists(t, o.key == t.key && o.effect == t.effect &&
+              (has(o.value) ? o.value : "") == (has(t.value) ? t.value : ""))))
+      message: A macOS host must keep the tuist.dev/macos taint and may not change its Node's other taints.
+    - expression: >-
+        !variables.isNode ||
+        (has(object.spec.unschedulable) && object.spec.unschedulable) ==
+        (oldObject != null && has(oldObject.spec.unschedulable) && oldObject.spec.unschedulable)
+      message: A macOS host may not cordon or uncordon its Node.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $name }}-node-scope
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tart-kubelet
+spec:
+  policyName: {{ $name }}-node-scope
+  validationActions: [Deny]
 {{- end }}

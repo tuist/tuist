@@ -464,6 +464,21 @@ defmodule Tuist.Kubernetes.Client do
   """
   def resize_sandbox_daemon_memory(namespace, name, bytes, opts \\ [])
       when is_binary(namespace) and is_binary(name) and is_integer(bytes) and bytes > 0 do
+    case patch_sandbox_daemon_memory(namespace, name, bytes, opts) do
+      # The kubelet rewrites the Pod's status while a resize is in progress,
+      # which moves its resourceVersion between the read and the write. The
+      # caller holds the node's lock, so a fresh read is still the latest.
+      {:error, "Kubernetes API patch " <> _ = reason} = conflict ->
+        if String.contains?(reason, " returned 409:"),
+          do: patch_sandbox_daemon_memory(namespace, name, bytes, opts),
+          else: conflict
+
+      result ->
+        result
+    end
+  end
+
+  defp patch_sandbox_daemon_memory(namespace, name, bytes, opts) do
     quantity = Integer.to_string(bytes)
     resources = %{requests: %{memory: quantity}, limits: %{memory: quantity}}
     path = "/api/v1/namespaces/#{namespace}/pods/#{name}"
@@ -474,16 +489,22 @@ defmodule Tuist.Kubernetes.Client do
     case request(:get, path, opts: opts, timeout: 5_000) do
       {:ok, %{"metadata" => %{"resourceVersion" => version, "uid" => uid}} = pod}
       when is_binary(version) and is_binary(uid) ->
-        request(:patch, path <> "/resize",
-          opts: opts,
-          timeout: 5_000,
-          body:
-            JSON.encode!(%{
-              metadata: %{resourceVersion: version, uid: uid},
-              spec: %{containers: [%{name: sandbox_vm_container(pod), resources: resources}]}
-            }),
-          headers: [{"content-type", "application/strategic-merge-patch+json"}]
-        )
+        # Placements waiting on one growth each ask for it again; a Pod that
+        # already asks for the size needs no write.
+        if memory_resources(pod) == %{"requests" => quantity, "limits" => quantity} do
+          {:ok, pod}
+        else
+          request(:patch, path <> "/resize",
+            opts: opts,
+            timeout: 5_000,
+            body:
+              JSON.encode!(%{
+                metadata: %{resourceVersion: version, uid: uid},
+                spec: %{containers: [%{name: sandbox_vm_container(pod), resources: resources}]}
+              }),
+            headers: [{"content-type", "application/strategic-merge-patch+json"}]
+          )
+        end
 
       {:error, reason} ->
         {:error, reason}
@@ -491,6 +512,15 @@ defmodule Tuist.Kubernetes.Client do
       {:ok, _invalid_pod} ->
         {:error, :invalid_pod}
     end
+  end
+
+  defp memory_resources(pod) do
+    pod
+    |> get_in(["spec", "containers"])
+    |> List.wrap()
+    |> Enum.find(%{}, &(&1["name"] == sandbox_vm_container(pod)))
+    |> Map.get("resources", %{})
+    |> Map.new(fn {kind, values} -> {kind, values["memory"]} end)
   end
 
   @doc """

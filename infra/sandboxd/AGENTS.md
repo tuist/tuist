@@ -252,9 +252,17 @@ memory image until they cold boot.
   emits `worker_exited` when it ends; `stop_worker` sends SIGTERM and waits.
 
 Firecracker loads a snapshot only into a fresh process, so every resume spawns
-a new jailer. `track_dirty_pages` is off (full snapshots). The memory file the
-VM is mapped from must not change while it runs, which is why a pause writes
-`mem.new` and renames after the process is dead.
+a new jailer. The memory file the VM is mapped from must not change while it
+runs, which is why a pause writes `mem.new` and renames after the process is
+dead. Pauses take full snapshots unless `DIFF_SNAPSHOTS` is on: then a VM
+restored from its jail's `mem` loads with `track_dirty_pages`
+(`memory_tracked` in its metadata), and its pause reflinks `mem` to `mem.new`
+and takes a `Diff` snapshot into it, which Firecracker merges into an
+existing memory file of the guest's size. The pause then writes only the
+pages KVM or Firecracker's devices dirtied since the restore, and the result
+is the same image a full snapshot writes. Cold boots, warm restores served
+through userfaultfd, and VMs restored before the flag was on keep taking
+full snapshots.
 
 ## Network
 
@@ -462,7 +470,9 @@ without the `rc-` prefix. The copy is one way: nothing the sandbox writes
 reaches the runner-cache volume. Hello's `cache_grants` says the daemon takes
 grants, and `cache_drive_in_template` that its template creates can attach
 one; the server sends a grant only to such nodes (a disk-snapshot create cold
-boots and needs only `cache_grants`) and retries a create without its grant
+boots and needs only `cache_grants`; a create from an archive without memory,
+a disk snapshot's archive, cold boots too and needs `cache_grants_from_archive`;
+an archive with memory never takes one) and retries a create without its grant
 when the daemon answers an `invalid cache image` error. Every grant error
 names the cache image (`copying the granted cache image: ...` when the agent
 has no route), so the server's retry covers them all.
@@ -774,8 +784,9 @@ agent so the manager runs end to end without KVM).
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
-| `CACHE_IMAGE_DIR` | | ext4 cache images a `create {..., from_disk_snapshot, cache_image}` may attach as a writable `cache` drive (`/dev/vdc`). Each sandbox gets a reflink clone in its jail, deleted with it and never saved by `save_disks` or archives; the master is never written. The guest's `configure` mounts it at `/mnt/tuist-cache` and binds the `~/` paths of its `.tuist-paths` manifest under `user`'s home (`infra/sandbox-image/AGENTS.md`). Must be on the `DATA_DIR` filesystem. Empty refuses `cache_image`. Template creates refuse it too unless the shape snapshot has a cache placeholder (`CACHE_DRIVE_IN_TEMPLATE`): Firecracker cannot add a drive to a restored memory snapshot. A cold reboot keeps the drive. A sandbox with a cache attached archives without its memory, since the clone does not travel and its guest has it mounted. `validation/validate-cache-drive.sh` measures it on a KVM runner. |
+| `CACHE_IMAGE_DIR` | | ext4 cache images a `create {..., from_disk_snapshot, cache_image}` (or `from_archive` of an archive without memory) may attach as a writable `cache` drive (`/dev/vdc`). Each sandbox gets a reflink clone in its jail, deleted with it and never saved by `save_disks` or archives; the master is never written. The guest's `configure` mounts it at `/mnt/tuist-cache` and binds the `~/` paths of its `.tuist-paths` manifest under `user`'s home (`infra/sandbox-image/AGENTS.md`). Must be on the `DATA_DIR` filesystem. Empty refuses `cache_image`. Template creates refuse it too unless the shape snapshot has a cache placeholder (`CACHE_DRIVE_IN_TEMPLATE`): Firecracker cannot add a drive to a restored memory snapshot. A cold reboot keeps the drive. A sandbox with a cache attached archives without its memory, since the clone does not travel and its guest has it mounted. `validation/validate-cache-drive.sh` measures it on a KVM runner. |
 | `BALLOON_FREE_PAGE_REPORTING` | `false` | Experimental. Shape snapshots and cold boots get a virtio-balloon that is never inflated, with `free_page_reporting`, `deflate_on_oom` and 1 s statistics (`firecracker.ReportingBalloon`, `balloon` in shape metadata). The guest reports the pages it frees and Firecracker drops them from the host, so a VM's Pss and `memory.current` fall back as its processes free memory. Page cache is not free memory: the guest only returns it after dropping or reclaiming it, so a pause first runs `sync`, `drop_caches` and `compact_memory` (the guest reports only free 2 MiB blocks) in a guest that has the balloon and, when it held more than 64 MiB of cache, waits up to 5 s for its resident memory to settle before the snapshot. The drop gets 20 s, and is skipped when the pause's guest sync failed. Startup removes shapes built the other way; a sandbox restored from an older memory image gets the balloon on its next cold boot. Free page reporting is stable in Firecracker 1.16.2 (only hinting is a developer preview) and needs the guest's `PAGE_REPORTING`, which the 6.1.155 kernel has. |
+| `DIFF_SNAPSHOTS` | `false` | Experimental (Firecracker's diff snapshots are a developer preview). VMs restored from their jail's memory image load with KVM dirty-page tracking, and their pauses merge a `Diff` snapshot into a reflink of that image instead of writing all guest memory (see "Sandbox lifecycle on the node"), so pause time and the disk a pause needs follow what the guest changed, not its memory size. The zero-block punch after a pause reads only the image's data (`SEEK_DATA`). Takes effect at a VM's next restore. |
 | `CACHE_DRIVE_IN_TEMPLATE` | `false` | Experimental, needs `CACHE_IMAGE_DIR`. Shape snapshots carry an empty 1 MiB `cache` drive (`cache_drive` in their metadata), and every template create puts one in its jail. A template create with `cache_image` clones the image there instead and `PATCH /drives/cache` makes the guest see its size, so it restores from memory (about 166 ms) instead of cold booting (about 1.2 s). The guest's `configure` drops its `/dev/vdc` buffers before mounting, since the guest may hold the placeholder's blocks, and leaves the blank placeholder unmounted. Startup removes shapes built the other way. Archives with memory record `cache_placeholder`, and a warm restore recreates the placeholder; daemons older than that field cannot warm restore such archives, so enable it only after every node runs a daemon that reads it. `validation/validate-cache-snapshot.sh` measures it. |
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
 | `DAEMON_ONLY_TCP_PORTS` | | Comma-separated TCP ports the daemon reaches through the pod and the guests may not, on any address: forwarded guest traffic to them is dropped. The chart lists the server Pods' target port (unless `guestServerAccess`) and the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `DAEMON_ONLY_TCP_PORT`, the single port an older chart sets, is still read. |
@@ -807,16 +818,18 @@ makes a master with runner-cache's `LocalImages` (`validation/cachemaster`),
 fills it with the Linux runner image, and attaches it at the sandbox's own
 paths and at the runner's. `validate-checkout-cache.sh` (`checkout_cache`
 input) binds a volume's checkout-relative path (`server/deps`) into a
-checkout inside the guest. `validate-cache-snapshot.sh` (`cache_snapshot` input)
+checkout inside the guest, in a clone of a disk snapshot and in a create from
+that snapshot's archive. `validate-cache-snapshot.sh` (`cache_snapshot` input)
 compares template creates with and without the cache placeholder, with a
 cache swapped in, and today's disk-snapshot cold boot.
 
 ### Admin API
 
-`POST /v1/sandboxes {id?,template,template_tag?,vcpus,memory_mb,workspace_gb,hostname,from_disk_snapshot?,cache_image?}`
+`POST /v1/sandboxes {id?,template,template_tag?,vcpus,memory_mb,workspace_gb,hostname,from_disk_snapshot?,cache_image?,from_archive?}`
 returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`
 (`pause` takes an optional `{sync_disks}`); `POST
-/v1/sandboxes/{id}/save_disks {snapshot_id}`;
+/v1/sandboxes/{id}/save_disks {snapshot_id}`; `POST
+/v1/disk_snapshots/{id}/archive {part_size,part_urls}` (`archive_disks`);
 `POST /v1/sandboxes/{id}/exec {cmd,env,cwd,timeout_ms}` returns
 `{stdout,stderr,exit_code,duration_ms}`; `POST
 /v1/sandboxes/{id}/worker/{start,stop}`; `GET /v1/sandboxes`, `GET

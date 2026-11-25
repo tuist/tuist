@@ -26,6 +26,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [luft/](luft/AGENTS.md) | Luft, the Rust-core client built alongside the companion apps |
 | [luft-server/](luft-server/AGENTS.md) | Luft's API at `luft.work/api`, an OpenID Connect relying party of Tuist |
 | [noora/](noora/AGENTS.md) | Phoenix component library and Storybook, documented at `tuist.dev/noora` |
+| [socials/](socials/AGENTS.md) | Noora-designed image cards for posts on X and LinkedIn |
 | [slack/](slack/AGENTS.md) | Public Slack invitation app |
 | [tuist-ops/](tuist-ops/AGENTS.md) | Internal operations and access approvals |
 | [kube-impersonator/](kube-impersonator/AGENTS.md) | Kubernetes access policy sidecar |

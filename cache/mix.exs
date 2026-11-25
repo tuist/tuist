@@ -28,7 +28,6 @@ defmodule Cache.MixProject do
     [
       {:certifi, "~> 2.18", override: true},
       {:sentry, "~> 11.0.4"},
-      {:hackney, "~> 1.8"},
       # Using fork with client disconnect detection during body read timeouts
       # PR: https://github.com/mtrudel/bandit/pull/564
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
@@ -40,8 +39,8 @@ defmodule Cache.MixProject do
       {:ecto_sql, "~> 3.10"},
       {:ecto_sqlite3, "~> 0.17"},
       {:configparser_ex, "~> 5.0"},
-      {:ex_aws, "~> 2.0"},
-      {:ex_aws_s3, "~> 2.0"},
+      {:ex_aws, "~> 2.8"},
+      {:ex_aws_s3, "~> 2.6"},
       {:ex_aws_sts, "~> 2.2"},
       {:guardian, "~> 2.3"},
       {:jose, "~> 1.11"},

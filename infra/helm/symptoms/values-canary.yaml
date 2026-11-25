@@ -4,6 +4,7 @@ host: symptoms-canary.taild6d7bb.ts.net
 tuist:
   url: http://tuist-tuist-server.tuist-canary.svc.cluster.local
   namespace: tuist-canary
+  serviceAccount: tuist-server
 
 service:
   tailscale:

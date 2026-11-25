@@ -187,6 +187,17 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
   )
 
   def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
+    # `file_name` becomes the last segment of the attachment's object key.
+    if Storage.valid_key_segment?(body_params.file_name) do
+      create_for_test_case_run(conn, project, body_params)
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%{message: "The file name must be a single path segment."})
+    end
+  end
+
+  defp create_for_test_case_run(conn, project, body_params) do
     with {:ok, test_case_run} <-
            Tests.get_test_case_run_by_id(body_params.test_case_run_id,
              project_id: project.id,

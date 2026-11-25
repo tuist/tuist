@@ -670,16 +670,6 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 			continue
 		}
 		seats := nodeSeatsForShape(available, shape)
-		// Seats this reservation could actually end up with. A host
-		// already holding one of this pool's own Pods cannot be cleared
-		// for a second one, and ranking on occupancy alone would make it
-		// look like the BEST candidate — its own idle Pod counts as zero
-		// occupancy — so the reservation would settle on a host it can
-		// never clear and burn the fleet's one slot until the timeout.
-		seats -= ownPool[node.Name]
-		if seats < 1 {
-			continue
-		}
 		// Reserve only where a reservation can actually achieve
 		// something: this shape must occupy more of the host than the
 		// fleet's most granular shape does, which is precisely the case
@@ -692,7 +682,24 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		// the reservation clears. Waiting for the seat is the correct
 		// behaviour there, and it is what the allocator's cross-pool
 		// reclaim already arranges.
+		//
+		// Compared before this pool's own Pods come off: with them taken
+		// off first, an ordinary 8 vCPU rack pool holding one guest on a
+		// two-guest host read as a one-seat shape and reserved the host,
+		// retiring other pools' warm runners for a Pod that any freed seat
+		// would have taken (2026-11-24/25: 26.5, 26.0.1 and 26.1.1 lost
+		// their only warm runner to 27.1 and 27.2 reservations every hour).
 		if seats >= maxSeatsOnNode(available, siblings) {
+			continue
+		}
+		// Seats this reservation could actually end up with. A host
+		// already holding one of this pool's own Pods cannot be cleared
+		// for a second one, and ranking on occupancy alone would make it
+		// look like the BEST candidate — its own idle Pod counts as zero
+		// occupancy — so the reservation would settle on a host it can
+		// never clear and burn the fleet's one slot until the timeout.
+		seats -= ownPool[node.Name]
+		if seats < 1 {
 			continue
 		}
 		candidates = append(candidates, node)
@@ -934,8 +941,9 @@ func macOSSeatInFlight(pod *corev1.Pod, now time.Time) bool {
 }
 
 // macOSProvisioningStartedAt is when a bound macOS Pod began provisioning.
-// tart-kubelet replaces the Pod's conditions once its VM starts, which drops
-// PodScheduled, so the VM start time stands in from then on.
+// tart-kubelet releases before the one that keeps PodScheduled in every
+// status it publishes drop it while the golden pulls, so the VM start time,
+// then the creation time, stand in.
 func macOSProvisioningStartedAt(pod *corev1.Pod) time.Time {
 	if boundAt, ok := linuxProvisioningStartedAt(pod); ok {
 		return boundAt

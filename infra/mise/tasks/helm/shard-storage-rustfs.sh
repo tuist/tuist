@@ -55,7 +55,7 @@ jq -e '
   any(.[]; .kind == "StatefulSet" and .spec.replicas == 1 and
     (.spec.volumeClaimTemplates | length) == 8 and
     all(.spec.volumeClaimTemplates[]; .spec.storageClassName == "scw-local-nvme") and
-    (.spec.template.spec.containers[0].volumeMounts | map(.mountPath)) == ["/data0","/data1","/data2","/data3","/data4","/data5","/data6","/data7"] and
+    (.spec.template.spec.containers[0].volumeMounts | map(.mountPath) | map(select(startswith("/data")))) == ["/data0","/data1","/data2","/data3","/data4","/data5","/data6","/data7"] and
     any(.spec.template.spec.containers[0].env[]; .name == "RUSTFS_VOLUMES" and .value == "/data{0...7}") and
     any(.spec.template.spec.containers[0].env[]; .name == "RUSTFS_STORAGE_CLASS_STANDARD" and .value == "EC:4") and
     any(.spec.template.spec.containers[0].env[]; .name == "RUSTFS_UNSAFE_BYPASS_DISK_CHECK" and .value == "true")) and
@@ -138,6 +138,53 @@ if [ "$(grep -c 'log_format' <<<"$conf")" != 1 ] ||
 fi
 jq -e 'any(.[]; .kind == "Ingress" and .metadata.annotations["nginx.ingress.kubernetes.io/enable-access-log"] == "false")' \
   "$work/production.json" >/dev/null
+# The key ID maps capture exactly the access key ID, hyphenated like the
+# chart's own, and nothing from a crafted credential. Like nginx's map, the
+# first regex that matches wins and its $1 is the value.
+key_id() { # map variable, input
+  sed -n "/^ *map [^ ]* \\\$$1 {/,/^ *}\$/p" <<<"$conf" | sed -n 's/^ *"~\(.*\)" \$1;$/\1/p' |
+    perl -e 'my $in = shift; while (my $re = <STDIN>) { chomp $re; if ($in =~ /$re/) { print $1; exit } }' "$2"
+}
+sig=5ec7e75191a7e1b2c0ffee0123456789abcdef0123456789abcdef0123456789
+for check in \
+  "rustfs_query_key_id|X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=rustfs-shards%2F20261125%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=$sig|rustfs-shards" \
+  "rustfs_query_key_id|AWSAccessKeyId=rustfs-shards&Expires=1&Signature=$sig|rustfs-shards" \
+  "rustfs_query_key_id|X-Amz-Credential=rustfs-shards=X-Amz-Signature=$sig%2F|" \
+  "rustfs_key_id|AWS4-HMAC-SHA256 Credential=rustfs-shards/20261125/us-east-1/s3/aws4_request, SignedHeaders=host, Signature=$sig|rustfs-shards" \
+  "rustfs_key_id|AWS rustfs-shards:c2lnbmF0dXJl=|rustfs-shards" \
+  "rustfs_key_id|AWS4-HMAC-SHA256 Credential=rustfs-shards,Signature=$sig/x|"; do
+  IFS='|' read -r map input want <<<"$check"
+  got=$(key_id "$map" "$input")
+  if [ "$got" != "$want" ]; then
+    echo "FAIL: \$$map for '$input' is '$got', expected '$want'" >&2; exit 1
+  fi
+done
+# Every S3 request, in-cluster ones included, reaches a loopback audit sidecar
+# that ships the receiver in files/. The sidecar has no probes and restarts the
+# receiver in place, so a crash does not make the store pod NotReady.
+jq -e --rawfile receiver "$chart/files/audit_receiver.py" '
+  any(.[]; .kind == "ConfigMap" and .metadata.name == "rustfs-audit-receiver" and
+    (.data["audit_receiver.py"] | rtrimstr("\n")) == ($receiver | rtrimstr("\n"))) and
+  any(.[]; .kind == "StatefulSet" and
+    ([.spec.template.spec.containers[0].env[] | select(.name | test("^RUSTFS_(AUDIT|OUTBOUND)_")) | {(.name): .value}] | add) == {
+      RUSTFS_AUDIT_ENABLE: "true",
+      RUSTFS_AUDIT_WEBHOOK_ENABLE_PULSE: "on",
+      RUSTFS_AUDIT_WEBHOOK_ENDPOINT_PULSE: "http://127.0.0.1:9900/audit",
+      RUSTFS_AUDIT_WEBHOOK_QUEUE_DIR_PULSE: "/audit-queue",
+      RUSTFS_AUDIT_WEBHOOK_QUEUE_LIMIT_PULSE: "10000",
+      RUSTFS_OUTBOUND_ALLOW_ORIGINS: "http://127.0.0.1:9900"} and
+    any(.spec.template.spec.volumes[]; .name == "audit-queue" and .emptyDir.sizeLimit == "2Gi") and
+    any(.spec.template.spec.containers[0].volumeMounts[]; .name == "audit-queue" and .mountPath == "/audit-queue") and
+    (.spec.template.spec.containers[1] | .name == "audit" and
+      (.command | join(" ") | contains("while :; do python3 -I -B /app/audit_receiver.py 9900 &")) and
+      .securityContext.readOnlyRootFilesystem == true and
+      (has("readinessProbe") or has("livenessProbe") or has("startupProbe") | not)))
+' "$work/production.json" >/dev/null
+helm template rustfs "$chart" -n rustfs-staging --set enabled=true --set audit.enabled=false |
+  yq -o json -I0 'select(.kind != null)' | jq -s . >"$work/no-audit.json"
+jq -e 'all(.[] | select(.kind == "StatefulSet"); (.spec.template.spec.containers | length) == 1 and
+    all(.spec.template.spec.containers[0].env[]; .name | test("^RUSTFS_(AUDIT|OUTBOUND)_") | not)) and
+  all(.[]; .metadata.name != "rustfs-audit-receiver")' "$work/no-audit.json" >/dev/null
 if helm template rustfs "$chart" -n rustfs-production -f "$chart/values-production-gra.yaml" \
   --set privateNetwork.enabled=false --set target.privateNetworkReady=true >/dev/null 2>&1; then
   echo 'FAIL: private placement accepted without a private network' >&2; exit 1
@@ -155,6 +202,6 @@ fi
 if helm template rustfs "$chart" -n rustfs-staging --set enabled=true --set target.id=x >/dev/null 2>&1; then
   echo 'FAIL: target published without generated credentials and a public host' >&2; exit 1
 fi
-echo 'PASS: production GRA store: one 1000G drive, generated credentials, in-cluster setup, public target, OTLP drive metrics, query-free gateway access log, private endpoint with archive and Actions cache buckets'
+echo 'PASS: production GRA store: one 1000G drive, generated credentials, in-cluster setup, public target, OTLP drive metrics, query-free gateway access log, scrubbed audit sidecar, private endpoint with archive and Actions cache buckets'
 echo 'PASS: single-member OVH performance variant: one member, eight drives, EC:4, kura-eu-west ingress'
 echo 'PASS: disabled defaults, isolation, eight volumes, four hosts, EC:4, retained PVCs, streaming gateway and restricted services'

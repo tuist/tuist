@@ -66,8 +66,13 @@ spec:
         - name: server
           image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
-          {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.atlasSupportIngest.enabled }}
+          {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.atlasSupportIngest.enabled .Values.server.symptoms.enabled }}
           volumeMounts:
+            {{- if .Values.server.symptoms.enabled }}
+            - name: tuist-symptoms-api
+              mountPath: /var/run/secrets/tuist-symptoms-api
+              readOnly: true
+            {{- end }}
             {{- if .Values.server.seedAccountCredentials.secretName }}
             - name: seed-account-credentials
               mountPath: /var/run/tuist/seed-account
@@ -140,8 +145,17 @@ spec:
                 command: ["sh", "-c", "touch /tmp/tuist-server-draining; sleep 15"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
-      {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.atlasSupportIngest.enabled }}
+      {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.atlasSupportIngest.enabled .Values.server.symptoms.enabled }}
       volumes:
+        {{- if .Values.server.symptoms.enabled }}
+        - name: tuist-symptoms-api
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: tuist-symptoms-api
+                  expirationSeconds: 3600
+        {{- end }}
         {{- with .Values.server.seedAccountCredentials.secretName }}
         - name: seed-account-credentials
           secret:

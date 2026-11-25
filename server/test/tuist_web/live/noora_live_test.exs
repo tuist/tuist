@@ -145,6 +145,28 @@ defmodule TuistWeb.Noora.NooraLiveTest do
     end
   end
 
+  describe "redesign markers" do
+    test "are hidden from visitors and people outside the Tuist team", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/noora")
+      refute has_element?(view, ~s(#noora-docs-nav [data-part="redesigned-dot"]))
+
+      stub(Accounts, :tuist_operator?, fn _user -> false end)
+      conn = log_in_user(conn, AccountsFixtures.user_fixture(preload: [:account]))
+      {:ok, view, _html} = live(conn, ~p"/noora")
+      refute has_element?(view, ~s(#noora-docs-nav [data-part="redesigned-dot"]))
+    end
+
+    test "mark the redesigned components for the Tuist team", %{conn: conn} do
+      stub(Accounts, :tuist_operator?, fn _user -> true end)
+      conn = log_in_user(conn, AccountsFixtures.user_fixture(preload: [:account]))
+
+      {:ok, view, _html} = live(conn, ~p"/noora")
+
+      assert has_element?(view, ~s(#noora-docs-nav a[href="/noora/button"] [data-part="redesigned-dot"]))
+      refute has_element?(view, ~s(#noora-docs-nav a[href="/noora/card"] [data-part="redesigned-dot"]))
+    end
+  end
+
   describe "tokens" do
     test "reads top-level declarations grouped by their section comment" do
       assert %{name: "--noora-spacing-6", value: "1rem"} =

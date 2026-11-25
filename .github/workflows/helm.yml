@@ -315,10 +315,12 @@ jobs:
         run: infra/mise/tasks/helm/rack-independence.sh
       - name: Server pods drain and the edge retries only unsent requests
         run: infra/mise/tasks/helm/server-rollout.sh
-      # Includes the gateway access log check: no query string or credential
+      # Includes the gateway access log and audit receiver checks: no query string or credential
       # header may reach the logs.
-      - name: RustFS store topology, isolation and gateway access log
-        run: bash infra/mise/tasks/helm/shard-storage-rustfs.sh
+      - name: RustFS store topology, isolation, gateway access log and audit scrubbing
+        run: |
+          bash infra/mise/tasks/helm/shard-storage-rustfs.sh
+          python3 infra/helm/shard-storage-rustfs/test-audit-receiver.py
       - name: Linux vRack rollout keeps runner cohorts isolated
         run: infra/mise/tasks/helm/linux-vrack.sh
       - name: KVM defaults and preparation gate

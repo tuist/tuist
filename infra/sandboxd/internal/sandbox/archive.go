@@ -397,6 +397,19 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 	sb.meta.Tag = header.Tag
 	sb.mu.Unlock()
 	log = log.With("slot", slot, "from_archive", true)
+	// Create took a cache image only for an archive without memory, which
+	// the archive's header confirms; it cold boots below.
+	if args.CacheImage != "" {
+		if header.Memory != nil {
+			return res, fmt.Errorf("%w: the archive holds a memory image", ErrCacheImage)
+		}
+		if err := m.attachCacheImage(args.CacheImage, sb.root, uid); err != nil {
+			return res, err
+		}
+		sb.mu.Lock()
+		sb.meta.CacheImage = args.CacheImage
+		sb.mu.Unlock()
+	}
 	if header.Memory != nil {
 		if header.Memory.Compat == m.cfg.SnapshotCompat && header.Memory.Size == int64(args.MemoryMB)<<20 {
 			if header.CachePlaceholder {

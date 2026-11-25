@@ -389,6 +389,47 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test -run CheckoutMasterEndToEnd .` in
   `infra/runner-cache`; the podagent tests cover the mailbox and collection.
 
+## Node access
+
+A host is internet-facing, so its identity reaches only what its own Pods use
+(see the header of `infra/helm/tuist/templates/tart-kubelet-rbac.yaml`). It
+authenticates as `tart-kubelet-<node>` with a TokenRequest token, not a
+long-lived Secret: the operator pushes a fresh one inline in the kubeconfig,
+whose `tokenFile` (`/etc/tart-kubelet/token`) `internal/nodecred` seeds at start
+and replaces once a day (or at half its life, if sooner) with a token of the
+same lifetime the operator chose (`--node-credential-ttl`, 7 days by default).
+A pushed token whose issuer or subject differs from the file's (a rack host
+taken over from another cluster) always replaces it. client-go re-reads the
+file every minute, so rotation needs no restart. The Node's
+`tuist.dev/kubelet-credential=token-request` label tells the operator it can
+delete the host's legacy token Secret.
+
+- Secrets and ConfigMaps are readable only by name, and only those the env of
+  macOS Pods (`nodeSelector` `kubernetes.io/os=darwin`) bound to this Node
+  names; ServiceAccount tokens only for those Pods' accounts and bound to one of
+  those Pods (the `tuist-bind-token` verb the controller grants per Pod, which
+  the chart's policy checks). The CAPI provider's node access controller
+  grants them when a Pod binds, so the first reconcile can see a 403: the Pod
+  stays Pending `WaitingForNodeAccess` and is retried after 2 s, doubling up to
+  30 s while the 403 lasts. Never list or
+  watch Secrets, and never read a Secret or ConfigMap a Pod does not name.
+- ConfigMaps tart-kubelet lists itself (golden budgets, upcoming runner
+  images) must live in the runner namespace (`--custom-cache-namespace`), the
+  only namespace whose ConfigMaps a host may list.
+- The only Pods a host may create are the sandbox service's reservations: in
+  the sandbox namespace, on its own Node, naming no Secret, ConfigMap, volume
+  or token. A new Pod a host creates must fit that, or the admission policy in
+  the chart has to change with it.
+- A host writes only its own Node, as NodeRestriction holds a real kubelet. It
+  may set `kubernetes.io/os=darwin`, `kubernetes.io/arch`, its own
+  `kubernetes.io/hostname` and `tuist.dev/*` labels, with `tuist.dev/fleet` only
+  the fleet the operator registered it in (`nodefleets`/`tuist-register` in its
+  self Role), and add or remove only the `tuist.dev/macos` and
+  `tuist.dev/prewarming` taints; `tuist.dev/macos` must stay. Every other
+  label and taint, and the cordon, belong to other controllers and must be
+  written back unchanged. A new Node label or taint tart-kubelet manages must
+  fit that, or the policy has to change with it.
+
 ## macOS sandboxes
 
 For flag-controlled native sandbox placement, capacity, recovery and rollout,

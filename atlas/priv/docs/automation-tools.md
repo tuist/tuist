@@ -87,6 +87,21 @@ hidden from shared Slack identities, are never mounted in Pip threads or
 workflows, and their queries are not stored in the audit trail. Gmail tools need
 **Allow Gmail access**; Slack search uses the `search:read` user scope.
 
+Two more caller-only Slack tools read what you can see in Slack, including
+private channels, DMs and Slack Connect channels you belong to.
+`read_my_slack_conversation` returns a channel's history or a thread's replies,
+by `channel_id` (plus `thread_timestamp`) or a message `permalink`, up to 200
+messages per page with a `next_cursor`. Messages from both it and
+`search_my_slack` list their files (id, name, type and size).
+`download_my_slack_file` returns a `download_url` for one file, valid for five
+minutes, that serves the file (up to 50 MB) fetched from Slack with your token
+when it is opened; Atlas does not store it. Anyone holding the link can
+download the file until it expires. Files linked from external storage such as
+Google Drive are refused. These tools use the `channels:history`,
+`groups:history`, `im:history`, `mpim:history` and `files:read` user scopes:
+Slack connections made before they were added must reconnect in Settings →
+Connections.
+
 When Gmail refuses a request, the error says why. An expired or revoked grant
 asks you to reconnect; Atlas first refreshes a rejected token once. A Google
 403, such as the Gmail API being disabled for Atlas's Google Cloud project or a

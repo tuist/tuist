@@ -15,6 +15,7 @@ public struct SandboxCommand: AsyncParsableCommand {
                 SandboxExecCommand.self,
                 SandboxSyncCommand.self,
                 SandboxCopyCommand.self,
+                SandboxScreenshotCommand.self,
                 SandboxPauseCommand.self,
                 SandboxResumeCommand.self,
                 SandboxExtendCommand.self,

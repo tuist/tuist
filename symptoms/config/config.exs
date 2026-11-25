@@ -60,7 +60,7 @@ config :symptoms,
   policy: [],
   # Paging stays off until an IRM webhook is configured and enabled.
   paging: [enabled: false],
-  api_token: nil,
+  api_auth: [],
   state: [token_path: "/var/run/secrets/tuist-symptoms-state/token"]
 
 import_config "#{config_env()}.exs"

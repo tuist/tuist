@@ -65,7 +65,18 @@ machine kinds:
 All bootstrap with an operator-minted kubelet identity + SSH self-join,
 then wait for `Node.Ready`. The Linux kinds share the
 `controllers/linux` package and bind that identity to `system:node`;
-Apple Silicon uses the `tart-kubelet` role. The sections below detail the
+Apple Silicon uses the `tart-kubelet` role, with a short-lived token the host
+rotates (`credentials.EnsureTartKubeletIdentity`) and node-scoped grants the
+node access controller (`controllers/macos/node_access_controller.go`) keeps:
+see "Node access" in [`infra/tart-kubelet`](../tart-kubelet/AGENTS.md). A
+macOS host's token lives `--node-credential-ttl` (7 days). A host whose Node
+has been NotReady or Unknown with no heartbeat for half that gets a fresh
+kubeconfig through the drift push, at most once per half lifetime
+(`controllers/macos/credential_repush.go`), so one cut off longer than its
+token rejoins once it is reachable again. The chart's admission
+policy holds a host to its own Node's labels, taints and Pods; the real-API
+test is `controllers/macos/node_scope_envtest_test.go` (needs helm and
+`KUBEBUILDER_ASSETS`, skips without). The sections below detail the
 Apple Silicon kind.
 
 Scaleway Elastic Metal support (`ScalewayElasticMetalMachine`, its template
@@ -687,7 +698,7 @@ mode behind it:
   drops the TOFU fingerprint, so bootstrap starts over from nothing when the
   quarantine expires. Bootstrap starts tart-kubelet before its last fatal step
   (`installLogShipper`), so a host can exhaust its attempts while already
-  registering a Node and holding a working long-lived token, and a host that
+  registering a Node and holding a working token, and a host that
   was re-imaged presents a host key its old pin rejects on every dial.
 
 ### The first dial

@@ -16,6 +16,8 @@ enum SandboxCommandError: LocalizedError, Equatable {
     case commandEnded(String)
     case stepFailed(String, String)
     case notAGitRepository(String)
+    case notMacOS
+    case noBootedSimulator(String?)
 
     var errorDescription: String? {
         switch self {
@@ -32,6 +34,13 @@ enum SandboxCommandError: LocalizedError, Equatable {
             return output.isEmpty ? "\(step) failed." : "\(step) failed:\n\(output.suffix(4000))"
         case let .notAGitRepository(path):
             return "\(path) is not in a Git repository. Sync mirrors a Git worktree."
+        case .notMacOS:
+            return "Screenshots need a macOS sandbox. Create one with `tuist sandbox create --platform macos`."
+        case let .noBootedSimulator(device):
+            let boot = device.map { "xcrun simctl boot \"\($0)\"" } ?? "xcrun simctl boot \"<name>\""
+            return "\(device.map { "The simulator \($0) is not booted" } ?? "No simulator is booted") in the sandbox. "
+                + "Boot it with `tuist sandbox exec <id> -- \(boot)` (`xcrun simctl list devices available` lists them), "
+                + "or pass --screen to capture the whole screen."
         }
     }
 }
@@ -370,6 +379,22 @@ struct SandboxCommandService { // swiftlint:disable:this type_body_length
         let copy = SandboxCopy(remote: try await remote(options, sandboxID: sandboxID), commandRunner: commandRunner)
         let path = try await copy.upload(source, to: remotePath)
         try copied(source.pathString, to: path, options: options)
+    }
+
+    /// Captures the sandbox's booted simulator, or its screen, as a PNG at `localPath`.
+    func screenshot(
+        options: SandboxOptions.Values,
+        sandboxID: String,
+        target: SandboxScreenshotCommand.Target,
+        device: String?,
+        localPath: String
+    ) async throws {
+        let local = try await Environment.current.pathRelativeToWorkingDirectory(localPath)
+        let screenshot = SandboxScreenshot(remote: try await remote(options, sandboxID: sandboxID))
+        let result = try await screenshot.capture(target, device: device, to: local)
+        try output(result, options: options) {
+            "Saved the \(target.rawValue) screenshot (\($0.width)×\($0.height)) to \($0.path)."
+        }
     }
 
     private func copied(_ source: String, to path: String, options: SandboxOptions.Values) throws {

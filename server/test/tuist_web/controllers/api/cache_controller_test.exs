@@ -1237,6 +1237,87 @@ defmodule TuistWeb.API.CacheControllerTest do
     end
   end
 
+  describe "legacy cache object keys" do
+    # `hash` and `name` become key segments under the caller's project prefix,
+    # so a `/` or a dot segment would address another project's or bucket's keys.
+    for {field, value} <- [
+          {"hash", "../../../victim/app/builds/victimhash"},
+          {"hash", ".."},
+          {"hash", "."},
+          {"name", "../../other/Victim.zip"},
+          {"name", "nested/name"},
+          {"name", "back\\slash"},
+          {"name", "nul\0byte"},
+          {"name", "trailing\n"},
+          {"name", ""}
+        ] do
+      test "rejects #{field} #{inspect(value)} before reaching storage", %{conn: conn, cache: cache} do
+        project = ProjectsFixtures.project_fixture()
+        {:ok, account} = Accounts.get_account_by_id(project.account_id)
+
+        params =
+          Map.put(
+            %{
+              "hash" => "hash",
+              "name" => "name",
+              "project_id" => "#{account.name}/#{project.name}",
+              "cache_category" => "builds"
+            },
+            unquote(field),
+            unquote(value)
+          )
+
+        query = fn extra -> params |> Map.merge(extra) |> URI.encode_query() end
+
+        reject(&Storage.object_exists?/2)
+        reject(&Storage.generate_download_url/3)
+        reject(&Storage.multipart_start/2)
+        reject(&Storage.multipart_generate_url/5)
+        reject(&Storage.multipart_complete_upload/4)
+
+        conn = conn |> Authentication.put_current_project(project) |> assign(:cache, cache)
+
+        for request <- [
+              &get(&1, "/api/cache?#{query.(%{})}"),
+              &get(&1, "/api/cache/exists?#{query.(%{})}"),
+              &post(&1, "/api/cache/multipart/start?#{query.(%{})}"),
+              &post(&1, "/api/cache/multipart/generate-url?#{query.(%{"upload_id" => "1234", "part_number" => "1"})}"),
+              &(&1
+                |> put_req_header("content-type", "application/json")
+                |> post("/api/cache/multipart/complete?#{query.(%{"upload_id" => "1234"})}",
+                  parts: [%{part_number: 1, etag: "etag"}]
+                ))
+            ] do
+          response = request.(conn)
+          assert json_response(response, 400) == %{"message" => "The request has missing or invalid parameters"}
+          assert get_resp_header(response, "x-tuist-signature") == ["tuist"]
+        end
+      end
+    end
+
+    test "accepts dots inside a segment", %{conn: conn, cache: cache} do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+      project_slug = "#{account.name}/#{project.name}"
+      object_key = "#{project_slug}/builds/a..b/Framework.xcframework.zip"
+
+      expect(Storage, :object_exists?, fn ^object_key, _ -> true end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+        |> assign(:cache, cache)
+        |> get(~p"/api/cache/exists",
+          hash: "a..b",
+          name: "Framework.xcframework.zip",
+          project_id: project_slug,
+          cache_category: "builds"
+        )
+
+      assert json_response(conn, 200)["status"] == "success"
+    end
+  end
+
   describe "GET /api/projects/:account_handle/:project_handle/cache/ac/:hash" do
     test "returns cache action item", %{conn: conn, cache: cache} do
       # Given

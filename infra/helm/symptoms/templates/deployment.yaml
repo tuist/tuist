@@ -64,6 +64,10 @@ spec:
                   key: uri
             - name: SYMPTOMS_ENVIRONMENT
               value: {{ $environment | quote }}
+            - name: SYMPTOMS_SERVER_NAMESPACE
+              value: {{ required "tuist.namespace is required" .Values.tuist.namespace | quote }}
+            - name: SYMPTOMS_SERVER_SERVICE_ACCOUNT
+              value: {{ required "tuist.serviceAccount is required" .Values.tuist.serviceAccount | quote }}
             - name: SYMPTOMS_PAGING_ENABLED
               value: {{ .Values.decision.pagingEnabled | ternary "true" "false" | quote }}
             {{- with .Values.decision.linkBaseUrl }}

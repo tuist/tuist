@@ -17,5 +17,4 @@ config :symptoms, SymptomsWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4200],
   check_origin: false,
   code_reloader: true,
-  debug_errors: true,
-  secret_key_base: "dev_secret_key_base_only_for_local_development_do_not_use_in_prod_____"
+  debug_errors: true

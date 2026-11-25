@@ -1079,20 +1079,17 @@ server:
   atlasSupportIngest:
     enabled: false
   # The Symptoms evaluator (infra/helm/symptoms): the server pulls its symptom
-  # log from `url` with TUIST_SYMPTOMS_TOKEN, and lets the evaluator's
+  # log from `url` with a pod-bound ServiceAccount token for audience
+  # `tuist-symptoms-api`, and lets the evaluator's
   # ServiceAccount read the human state back (TokenReview, audience
-  # `tuist-symptoms-state`). The token is the evaluator's `<tokenItem>/<tokenField>`
-  # in the environment's vault, synced through the managed server-config
-  # ExternalSecret, so this needs `server.config.managedSecrets`. Enable only
-  # after that item exists: a missing field fails the sync and the deploy.
+  # `tuist-symptoms-state`). Configure the evaluator's tuist.namespace and
+  # tuist.serviceAccount to allow exactly this server's principal.
   symptoms:
     enabled: false
     # The evaluator's in-cluster Service, http://symptoms.<namespace>.svc.cluster.local
     url: ""
     evaluatorNamespace: ""
     evaluatorServiceAccount: symptoms
-    tokenItem: SYMPTOMS
-    tokenField: api_token
   networkPolicy:
     enabled: false
     # Applies a default-deny policy to every pod in the release. The
@@ -2400,6 +2397,11 @@ macosFleet:
   tart:
     version: ""
   tartKubelet:
+    # Lifetime of the API token each Mac mini's kubeconfig carries (a Go
+    # duration). The host replaces it daily, so this is how long a host can be
+    # cut off from the API server and still rejoin without a push from the
+    # operator. Empty keeps the operator's default, 168h.
+    credentialTTL: ""
     # Capacity advertised by each Mac mini when it registers its Node.
     # Matches the default `macosFleet.machine.type = M2-L` on Scaleway
     # — M2 Pro chip, 12 vCPU, 16 GB RAM. 14336 leaves ~2 GB for the
@@ -2856,6 +2858,12 @@ sandboxes:
   # snapshot on the node. See infra/sandboxd/AGENTS.md,
   # BALLOON_FREE_PAGE_REPORTING.
   balloonFreePageReporting: false
+  # Experimental: pauses write a Diff snapshot of the pages a guest changed
+  # since its restore, merged into a reflink of its last memory image, so a
+  # pause costs what the guest touched rather than its whole memory. Takes
+  # effect for VMs restored after it is on. See infra/sandboxd/AGENTS.md,
+  # DIFF_SNAPSHOTS.
+  diffSnapshots: false
   # Size of the root filesystem every sandbox gets, which holds home (mise
   # toolchains, caches, Amp Desktop's Chrome) beside the separate workspace.
   # The template's init container grows the image to it, sparse, when it

@@ -53,8 +53,12 @@ defmodule TuistTestSupport.Fixtures.PulseFixtures do
   production does. Returns the sync result.
   """
   def mirror_symptoms(account, revisions) do
+    token_path = Path.join(System.tmp_dir!(), "symptoms-token-#{System.unique_integer([:positive])}")
+    File.write!(token_path, "test-bound-token")
+    ExUnit.Callbacks.on_exit(fn -> File.rm(token_path) end)
+
     Mimic.stub(Tuist.Environment, :symptoms_config, fn ->
-      [base_url: "https://symptoms.internal", token: "log-token"]
+      [base_url: "https://symptoms.internal", token_path: token_path]
     end)
 
     Mimic.stub(Req, :get, fn

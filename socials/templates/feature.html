@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<!-- Feature: a new feature, with up to four rows of
+     "what it is / what it does". Change data-theme to "dark" for a dark card. -->
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../templates/base.css" />
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        gap: 36px;
+        background: var(--noora-surface-background-tertiary);
+        padding: 56px 72px;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      [data-theme="light"] .brand.dark,
+      [data-theme="dark"] .brand.light {
+        display: none;
+      }
+
+      .breadcrumb {
+        display: flex;
+        gap: 12px;
+        color: var(--noora-surface-label-tertiary);
+        font-size: 22px;
+
+        & strong {
+          color: var(--noora-surface-label-primary);
+          font-weight: var(--noora-font-weight-regular);
+        }
+      }
+
+      main {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        justify-content: center;
+        gap: 28px;
+      }
+
+      h1 {
+        font-weight: var(--noora-font-weight-medium);
+        font-size: 84px;
+        line-height: 1;
+        letter-spacing: -0.04em;
+
+        & span {
+          color: var(--noora-surface-label-tertiary);
+          font-weight: var(--noora-font-weight-regular);
+        }
+      }
+
+      .chips {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      dl {
+        display: grid;
+        grid-template-columns: 1fr 1.3fr;
+        border-top: 1px solid oklch(from var(--noora-surface-label-primary) l c h / 0.1);
+        font-size: 28px;
+
+        & dt,
+        & dd {
+          border-bottom: 1px solid oklch(from var(--noora-surface-label-primary) l c h / 0.1);
+          padding: 16px 0;
+        }
+
+        & dt {
+          letter-spacing: -0.01em;
+        }
+
+        & dd {
+          color: var(--noora-surface-label-secondary);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img class="brand light" src="../../server/priv/static/marketing/images/brand/tuist-wordmark.svg" alt="Tuist" />
+      <img class="brand dark" src="../../server/priv/static/marketing/images/brand/tuist-wordmark-dark.svg" alt="Tuist" />
+      <nav class="breadcrumb">Changelog <span>›</span> <strong>Gradle</strong></nav>
+    </header>
+    <main>
+      <h1>Code coverage <span>for Gradle</span></h1>
+      <div class="chips scaled">
+        <span class="noora-tag"><span data-part="label">tuist gradle plugin</span></span>
+        <span class="noora-badge" data-style="light-fill" data-color="primary" data-size="large"><span>New</span></span>
+      </div>
+      <dl>
+        <dt>Per commit</dt>
+        <dd>figures by module, file and branch</dd>
+        <dt>Carried forward</dt>
+        <dd>skipped tests keep their coverage</dd>
+        <dt>Shards merged</dt>
+        <dd>one figure across every test job</dd>
+      </dl>
+    </main>
+  </body>
+</html>

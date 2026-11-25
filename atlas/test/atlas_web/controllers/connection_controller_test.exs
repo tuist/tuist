@@ -42,7 +42,9 @@ defmodule AtlasWeb.ConnectionControllerTest do
       refute Map.has_key?(params, "client_secret")
 
       if provider == "slack" do
-        assert params["user_scope"] == "search:read,chat:write"
+        assert params["user_scope"] ==
+                 "search:read,chat:write,channels:history,groups:history,im:history,mpim:history,files:read"
+
         refute Map.has_key?(params, "scope")
       else
         pending = get_session(response, :account_connection)

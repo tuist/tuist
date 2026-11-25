@@ -71,6 +71,9 @@ type Prewarmer struct {
 	StageInterval time.Duration
 	// NodeName is this host's Node, whose runner Pods staging waits for.
 	NodeName string
+	// RunnerNamespace holds the golden budget and upcoming runner image
+	// ConfigMaps. Empty reads every namespace.
+	RunnerNamespace string
 	// Now is the staging clock. Nil uses time.Now.
 	Now func() time.Time
 

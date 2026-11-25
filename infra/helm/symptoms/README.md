@@ -16,8 +16,9 @@ each workload cluster's `symptoms-<env>` namespace. Modelled on
   `TUIST_SYMPTOMS_EVALUATOR_NAMESPACE`/`_SERVICE_ACCOUNT`, so the namespace and
   ServiceAccount names are a contract with `server.symptoms` in the tuist
   chart.
-- **ClusterRole** with `get`, `list` and `watch` on `events` (core and
-  `events.k8s.io`) in every namespace, and nothing else.
+- **ClusterRoles**: optional `get`, `list` and `watch` on `events` (core and
+  `events.k8s.io`), and a separate `create tokenreviews` permission in
+  `authentication.k8s.io`, independent of `eventsReader.enabled`.
 - **Service**: ClusterIP for the server
   (`http://symptoms.symptoms-<env>.svc.cluster.local`), exposed on the tailnet
   as `symptoms-<env>` by the Tailscale operator. There is no Ingress.
@@ -37,10 +38,9 @@ each workload cluster's `symptoms-<env>` namespace. Modelled on
 | Variable | Source |
 | --- | --- |
 | `DATABASE_URL` | CNPG `symptoms-pg-app` Secret, `uri` |
-| `SECRET_KEY_BASE` | `SYMPTOMS/secret_key_base` |
 | `PHX_HOST`, `PORT`, `POOL_SIZE`, `SKIP_MIGRATIONS` | values |
 | `SYMPTOMS_ENVIRONMENT` | `environment` |
-| `SYMPTOMS_API_TOKEN` | `SYMPTOMS/api_token`, the bearer token of the evaluator API; the server reads the same field |
+| `SYMPTOMS_SERVER_NAMESPACE`, `SYMPTOMS_SERVER_SERVICE_ACCOUNT` | Required `tuist.namespace`, `tuist.serviceAccount`: the exact server principal allowed to call the evaluator API |
 | `SYMPTOMS_PAGING_ENABLED`, `SYMPTOMS_LINK_BASE_URL` | `decision.pagingEnabled`, `decision.linkBaseUrl` (omitted when empty) |
 | `SYMPTOMS_STATE_URL`, `SYMPTOMS_STATE_TOKEN_PATH` | `tuist.url`, the projected token |
 | `SYMPTOMS_PULSE_URL`, `SYMPTOMS_PULSE_USER` | `pulse.url`, `pulse.username` (read-only `dashboard`) |
@@ -54,12 +54,20 @@ IRM integration is deferred. The chart mounts no IRM credentials and paging stay
 
 Keep this table in sync with `symptoms/config/runtime.exs`.
 
+The evaluator uses its normal mounted Kubernetes API token and CA to submit
+TokenReview requests with the fixed audience `tuist-symptoms-api`. The server
+presents a pod-bound projected token with a 3600-second lifetime. Managed values
+allow `tuist-server` in `tuist-staging`, `tuist-canary`, or `tuist`, depending
+on the environment. A custom server release or `server.serviceAccount.name`
+requires matching `tuist.serviceAccount` here; changing namespaces requires
+matching `tuist.namespace`. Do not allow a namespace-wide group. The separate
+`tuist-symptoms-state` projection and server-side evaluator allowlist remain in use.
+
 ## Before the first deploy
 
-1. Create the `SYMPTOMS` item in each `tuist-k8s-<env>` vault with the fields
-   `api_token` and `secret_key_base` (`mix phx.gen.secret`). All telemetry reads,
-   including metrics and probes, use Pulse with the existing `PULSE_TOKEN/password`.
-   No Grafana Cloud credentials or IRM webhook are needed.
+1. Set `tuist.namespace` and `tuist.serviceAccount` to the server Pod's exact
+   principal. The API-only evaluator uses no shared API token, sessions or signing
+   key. Keep the existing `PULSE_TOKEN/password` for telemetry reads and writes.
 2. Let the evaluator reach Pulse: Pulse's `pulse-private` NetworkPolicy
    (`infra/helm/pulse`) admits only the observability namespace and the Tuist
    server today, so add an ingress rule for `symptoms-<env>` pods

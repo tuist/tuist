@@ -177,6 +177,8 @@ defmodule Atlas.Orbit.ToolPolicy do
     "create_my_gmail_draft",
     "update_my_gmail_draft",
     "search_my_slack",
+    "read_my_slack_conversation",
+    "download_my_slack_file",
     # External side effects.
     "send_my_gmail_draft",
     "finance_create_transfer_request",

@@ -229,6 +229,26 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       assert response["expires_at"]
     end
 
+    for file_name <- ["../../../../victim/app/tests/runs/run/attachments/id/x.png", "nested/name.png", "..", "trailing\n"] do
+      test "rejects the file name #{inspect(file_name)} before storing or signing anything", %{
+        conn: conn,
+        user: user,
+        project: project
+      } do
+        test_case_run = RunsFixtures.test_case_run_fixture(project_id: project.id)
+        reject(&Tests.create_test_case_run_attachment/1)
+        reject(&Storage.generate_upload_url/3)
+
+        conn =
+          post(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/attachments", %{
+            test_case_run_id: test_case_run.id,
+            file_name: unquote(file_name)
+          })
+
+        assert json_response(conn, :bad_request) == %{"message" => "The file name must be a single path segment."}
+      end
+    end
+
     test "creates attachment with repetition_number", %{
       conn: conn,
       user: user,

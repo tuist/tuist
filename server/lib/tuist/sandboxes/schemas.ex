@@ -138,6 +138,24 @@ defmodule Tuist.Sandboxes.Schemas do
   end
 
   def response(:list), do: object("Sandboxes", %{sandboxes: array(sandbox()), pagination_metadata: pagination()})
+  def response(:devices), do: object("SandboxDevices", %{devices: array(device())})
+  def response(:boot_device), do: device()
+
+  def response(:launch_app),
+    do: object("SandboxAppLaunch", %{app_id: %Schema{type: :string}, device: %Schema{type: :string}})
+
+  def response(:open_url), do: object("SandboxURLOpened", %{url: %Schema{type: :string}, device: %Schema{type: :string}})
+
+  def response(:screenshot),
+    do:
+      object("SandboxScreenshot", %{
+        target: %Schema{type: :string, enum: ["device", "screen"]},
+        device: %Schema{type: :string, nullable: true, description: "The device captured; null for the screen."},
+        mime_type: %Schema{type: :string},
+        width: integer(),
+        height: integer()
+      })
+
   def response(:delete), do: object("SandboxDeleted", %{id: %Schema{type: :string, format: "uuid"}, deleted: boolean()})
 
   def response(:analytics) do
@@ -185,55 +203,119 @@ defmodule Tuist.Sandboxes.Schemas do
     })
   end
 
+  def device,
+    do:
+      object("SandboxDevice", %{
+        id: %Schema{type: :string, description: "An iOS simulator's UDID."},
+        name: %Schema{type: :string},
+        platform: %Schema{
+          type: :string,
+          nullable: true,
+          description: "`ios`, `watchos`, `tvos`, `xros` and, later, `android`; an open string."
+        },
+        runtime: %Schema{type: :string, description: "Such as `iOS 27.2`."},
+        state: %Schema{type: :string, description: "`Booted`, `Shutdown` or `Booting`; an open string."}
+      })
+
   def inputs(action) do
     base = %{account_handle: %Schema{type: :string, minLength: 1}}
-
-    fields =
-      case action do
-        :list ->
-          %{
-            page: %Schema{type: :integer, minimum: 1, maximum: 100_000},
-            page_size: %Schema{type: :integer, minimum: 1, maximum: 100},
-            search: %Schema{
-              type: :string,
-              minLength: 1,
-              maxLength: 200,
-              description: "Text the sandbox ID, Amp Orb ID or Anthropic session ID contains."
-            },
-            status: %Schema{type: :string, enum: @statuses},
-            vcpus: %Schema{type: :integer, minimum: 1},
-            sort_by: %Schema{type: :string, enum: @sorts},
-            sort_order: %Schema{type: :string, enum: ["asc", "desc"]}
-          }
-
-        :analytics ->
-          %{start: timestamp(), end: timestamp()}
-
-        :create ->
-          Map.put(create(), :repository, %Schema{
-            type: :string,
-            pattern: "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$",
-            description:
-              "macOS only: the github.com repository (`owner/name`) the sandbox is for, connected to one of the account's projects. When a Linux Claude Code environment of the account has a macOS setup script, the sandbox boots from that repository's snapshot for its Xcode, with the default branch cloned to `$HOME/work/<name>`, the script run and the project built there, so the first `tuist sandbox sync` sends only what changed. Without a snapshot it boots bare and one is built for the next sandbox."
-          })
-
-        :extend ->
-          %{
-            sandbox_id: %Schema{type: :string, format: "uuid"},
-            lifetime_seconds: %{
-              lifetime()
-              | description:
-                  "The new lifetime, in seconds from now, at most #{div(Sandbox.max_lifetime_seconds(), 3600)} hours. Omitted, the sandbox's current lifetime starts again."
-            }
-          }
-
-        _ ->
-          %{sandbox_id: %Schema{type: :string, format: "uuid"}}
-      end
-
-    required = if action in [:list, :analytics, :create], do: [:account_handle], else: [:account_handle, :sandbox_id]
-    %{object(nil, Map.merge(base, fields)) | required: required}
+    %{object(nil, Map.merge(base, fields(action))) | required: required(action)}
   end
+
+  defp fields(:list) do
+    %{
+      page: %Schema{type: :integer, minimum: 1, maximum: 100_000},
+      page_size: %Schema{type: :integer, minimum: 1, maximum: 100},
+      search: %Schema{
+        type: :string,
+        minLength: 1,
+        maxLength: 200,
+        description: "Text the sandbox ID, Amp Orb ID or Anthropic session ID contains."
+      },
+      status: %Schema{type: :string, enum: @statuses},
+      vcpus: %Schema{type: :integer, minimum: 1},
+      sort_by: %Schema{type: :string, enum: @sorts},
+      sort_order: %Schema{type: :string, enum: ["asc", "desc"]}
+    }
+  end
+
+  defp fields(:analytics) do
+    %{start: timestamp(), end: timestamp()}
+  end
+
+  defp fields(:create) do
+    Map.put(create(), :repository, %Schema{
+      type: :string,
+      pattern: "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$",
+      description:
+        "macOS only: the github.com repository (`owner/name`) the sandbox is for, connected to one of the account's projects. When a Linux Claude Code environment of the account has a macOS setup script, the sandbox boots from that repository's snapshot for its Xcode, with the default branch cloned to `$HOME/work/<name>`, the script run and the project built there, so the first `tuist sandbox sync` sends only what changed. Without a snapshot it boots bare and one is built for the next sandbox."
+    })
+  end
+
+  defp fields(:extend) do
+    %{
+      sandbox_id: %Schema{type: :string, format: "uuid"},
+      lifetime_seconds: %{
+        lifetime()
+        | description:
+            "The new lifetime, in seconds from now, at most #{div(Sandbox.max_lifetime_seconds(), 3600)} hours. Omitted, the sandbox's current lifetime starts again."
+      }
+    }
+  end
+
+  defp fields(:boot_device) do
+    %{sandbox_id: uuid(), device: device_input("The device to boot, by name (such as `iPhone 18 Pro`) or ID.")}
+  end
+
+  defp fields(:launch_app) do
+    %{
+      sandbox_id: uuid(),
+      device: device_input("The device, by name or ID. Defaults to the booted one."),
+      app_id: %Schema{
+        type: :string,
+        minLength: 1,
+        maxLength: 255,
+        description:
+          "The app's identifier: on iOS its bundle identifier. Optional with `app_path`, which names the .app it is read from."
+      },
+      app_path: %Schema{
+        type: :string,
+        minLength: 1,
+        maxLength: 1024,
+        description:
+          "An .app built in the sandbox, such as `build/dd/Build/Products/Debug-iphonesimulator/App.app` under the synced `root`, to install before launching. Absolute, or relative to the sandbox's workspace."
+      }
+    }
+  end
+
+  defp fields(:open_url) do
+    %{
+      sandbox_id: uuid(),
+      url: %Schema{type: :string, minLength: 1, maxLength: 2048, description: "A web URL or the app's deep link."},
+      device: device_input("The device, by name or ID. Defaults to the booted one.")
+    }
+  end
+
+  defp fields(:screenshot) do
+    %{
+      sandbox_id: uuid(),
+      target: %Schema{
+        type: :string,
+        enum: ["device", "screen"],
+        description: "`device` (default) captures a booted device; `screen` the sandbox's whole screen."
+      },
+      device: device_input("With `target: device`, the device by name or ID. Defaults to the booted one.")
+    }
+  end
+
+  defp fields(_action) do
+    %{sandbox_id: uuid()}
+  end
+
+  defp required(action) when action in [:list, :analytics, :create], do: [:account_handle]
+  defp required(:boot_device), do: [:account_handle, :sandbox_id, :device]
+  defp required(:open_url), do: [:account_handle, :sandbox_id, :url]
+  defp required(_action), do: [:account_handle, :sandbox_id]
 
   def parameters(action) do
     schema = inputs(action)
@@ -283,6 +365,8 @@ defmodule Tuist.Sandboxes.Schemas do
       additionalProperties: false
     }
 
+  defp uuid, do: %Schema{type: :string, format: "uuid"}
+  defp device_input(description), do: %Schema{type: :string, minLength: 1, maxLength: 200, description: description}
   defp array(items), do: %Schema{type: :array, items: items}
   defp integer, do: %Schema{type: :integer}
   defp number, do: %Schema{type: :number}

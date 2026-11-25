@@ -257,6 +257,33 @@ defmodule Tuist.StorageTest do
       assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
     end
 
+    test "presigns with the configured addressing style" do
+      object_key = "account/project/builds/hash/name"
+      expect(Environment, :s3_bucket_name, 2, fn -> "tuist" end)
+      expect(Environment, :s3_bucket_name, fn -> "cdn.example.com" end)
+
+      base = %{
+        access_key_id: "key",
+        secret_access_key: "secret",
+        region: "auto",
+        scheme: "https://",
+        host: "storage.example.com",
+        port: 443
+      }
+
+      expect(ExAws.Config, :new, fn :s3 -> Map.put(base, :virtual_host, true) end)
+      expect(ExAws.Config, :new, fn :s3 -> Map.put(base, :virtual_host, false) end)
+      expect(ExAws.Config, :new, fn :s3 -> Map.merge(base, %{virtual_host: true, bucket_as_host: true}) end)
+
+      virtual = URI.parse(Storage.generate_download_url(object_key, :test))
+      path = URI.parse(Storage.generate_download_url(object_key, :test))
+      bucket_host = URI.parse(Storage.generate_download_url(object_key, :test))
+
+      assert {virtual.host, virtual.path} == {"tuist.storage.example.com", "/#{object_key}"}
+      assert {path.host, path.path} == {"storage.example.com", "/tuist/#{object_key}"}
+      assert {bucket_host.host, bucket_host.path} == {"cdn.example.com", "/#{object_key}"}
+    end
+
     test "overrides the download filename" do
       url = "https://tuist.io/download-url"
       object_key = UUIDv7.generate()

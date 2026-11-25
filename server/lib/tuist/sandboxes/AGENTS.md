@@ -468,11 +468,14 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   simulator devices and stops the simulator services, since runtimes mount
   at new paths on each boot and a Mac restored with the builder's devices
   and simulator state lost its iOS runtime. Before that it stops the cache
-  proxy and build service, waits for them to exit, and deletes
-  `CompilationCache.noindex`. A kept store, even a quiesced one, failed
-  session compiles with "not a IncludeFileList node kind", and the plugin
-  logged action-cache entries whose values the store lacked. DerivedData's
-  build products stay, and the remote cache serves the tasks that rerun.
+  proxy and build service, waits for them to exit, and flushes every file
+  in DerivedData, including `CompilationCache.noindex`, with `F_FULLFSYNC`.
+  The cache store writes through shared mappings that `sync` does not wait
+  for: restored without the flush,
+  `data.v1` came back with a zeroed header or missing objects, and session
+  compiles failed with "not a IncludeFileList node kind" or "specified
+  header offset (16) does not match existing config (0)"; with it, a
+  restored Mac built from the kept store without a miss (measured, 2026-11).
   The build ends with `sync`. The snapshot's key hashes the build script with the macOS setup script, so changing either rebuilds it.
   `ClaudeCodeRunners` creates a session's sandbox
   from the repository's snapshot; a new session without one starts on the
@@ -920,7 +923,13 @@ socket, the poller and the caller share a replica:
   Every caller
   requires an account administrator and the sandboxes flag, read-only
   calls included, because sandboxes run arbitrary commands. MCP does not
-  expose `exec`.
+  expose `exec`. Its device tools (`Tuist.Sandboxes.Devices`) run fixed
+  scripts through `exec` with user values only in environment variables; keep
+  it that way. Script exit codes 3–6 map to `devices_unsupported`,
+  `device_not_booted`, `device_not_found` and `app_not_found`. They are named
+  for devices, not simulators, so Android emulators can join as another
+  `platform`; a Linux sandbox answers `devices_unsupported` before any exec. The
+  screenshot is a scaled JPEG because synchronous exec caps stdout at 1 MiB.
 
 ## Related Context
 

@@ -324,6 +324,15 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   def handle_info({:remote_execution_room, _node}, state), do: {:noreply, state}
 
+  # A placement found no room until a carve-out grows: the operations that
+  # wait for its VM wait for node room from now on.
+  def handle_info({:growing, placeholder}, state) do
+    case Map.get(state.vms, placeholder) do
+      %{state: :reserving} = vm -> {:noreply, state |> put_vm(Map.put(vm, :growing, true)) |> mark_waits()}
+      _ -> {:noreply, state}
+    end
+  end
+
   def handle_info({:destroy, vm_id}, state) do
     case Map.get(state.vms, vm_id) do
       %{state: :retiring} = vm -> {:noreply, start_destroy(state, vm, nil)}
@@ -780,8 +789,9 @@ defmodule Tuist.RemoteExecution.Scheduler do
   # prepared (`vm_preparing`), the account's limits (`account_limit`), node
   # room (`node_capacity`) or the backoff after unavailable nodes
   # (`prepare_backoff`). Time before the first mark is `scheduling`. Oldest operations claim the VMs on the way first.
-  # While placements find no node with room, a VM on the way is waiting for
-  # room, not for its preparation, so it is charged to `node_capacity`.
+  # While placements find no node with room, or one waits for a carve-out
+  # to grow, a VM on the way is waiting for room, not for its preparation,
+  # so it is charged to `node_capacity`.
   # Diagnostics only; nothing schedules by it.
   defp mark_waits(state) do
     now = now_ms()
@@ -797,14 +807,14 @@ defmodule Tuist.RemoteExecution.Scheduler do
     {ops, _coming} =
       state.queue
       |> :queue.to_list()
-      |> Enum.reduce({state.ops, coming_sizes(state)}, fn id, {ops, coming} ->
+      |> Enum.reduce({state.ops, coming_causes(state)}, fn id, {ops, coming} ->
         case Map.get(ops, id) do
           %{state: :queued, memory_gb: size} = op ->
             {cause, coming} =
-              if Map.get(coming, size, 0) > 0,
-                do:
-                  {if(state.short_of_room, do: :node_capacity, else: :vm_preparing), Map.update!(coming, size, &(&1 - 1))},
-                else: {blocked, coming}
+              case Map.get(coming, size, []) do
+                [cause | rest] -> {cause, Map.put(coming, size, rest)}
+                [] -> {blocked, coming}
+              end
 
             {Map.put(ops, id, %{charge_wait(op, now) | wait_cause: cause}), coming}
 
@@ -853,6 +863,19 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   defp queued_sizes(state) do
     for id <- :queue.to_list(state.queue), %{state: :queued, memory_gb: size} <- [Map.get(state.ops, id)], do: size
+  end
+
+  # Size => what each VM of that size on the way waits on, those only being
+  # prepared first so the oldest operations claim them.
+  defp coming_causes(state) do
+    state.vms
+    |> Map.values()
+    |> Enum.filter(&(&1.state in [:reserving, :ready]))
+    |> Enum.map(fn vm ->
+      {vm.memory_gb, if(state.short_of_room or Map.get(vm, :growing, false), do: :node_capacity, else: :vm_preparing)}
+    end)
+    |> Enum.sort_by(fn {_size, cause} -> cause == :node_capacity end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
 
   defp coming_sizes(state) do
@@ -918,12 +941,13 @@ defmodule Tuist.RemoteExecution.Scheduler do
     placeholder = make_ref()
     settings = state.settings
     account_id = state.account_id
+    scheduler = self()
 
     state
     |> put_vm(%{id: placeholder, sandbox: nil, state: :reserving, renewed_at: now_ms(), memory_gb: memory_gb})
     |> start_task({:prepare, placeholder}, fn ->
       case VMs.reserve(account_id, settings, memory_gb) do
-        {:ok, sandbox} -> VMs.prepare(sandbox, settings)
+        {:ok, sandbox} -> VMs.prepare(sandbox, settings, fn -> send(scheduler, {:growing, placeholder}) end)
         {:error, :busy} -> :busy
       end
     end)

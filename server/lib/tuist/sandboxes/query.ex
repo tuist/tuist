@@ -11,6 +11,7 @@ defmodule Tuist.Sandboxes.Query do
   alias Tuist.Sandboxes.ClaudeCodeSnapshots
   alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.Devices
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Schemas
 
@@ -92,6 +93,41 @@ defmodule Tuist.Sandboxes.Query do
     with {:ok, found} <- find(account, params),
          {:ok, _deleted} <- Sandboxes.delete(found) do
       {:ok, %{id: found.id, deleted: true}}
+    end
+  end
+
+  # The device actions run fixed scripts in the sandbox (`Devices`); the
+  # caller's values only reach them as environment variables.
+  def run(:devices, account, params) do
+    with {:ok, found} <- find(account, params),
+         {:ok, devices} <- Devices.list(found),
+         do: {:ok, %{devices: devices}}
+  end
+
+  def run(:boot_device, account, params) do
+    with {:ok, found} <- find(account, params), do: Devices.boot(found, params["device"])
+  end
+
+  def run(:launch_app, account, params) do
+    with {:ok, found} <- find(account, params) do
+      Devices.launch(found, device: params["device"], app_id: params["app_id"], app_path: params["app_path"])
+    end
+  end
+
+  def run(:open_url, account, params) do
+    with {:ok, found} <- find(account, params), do: Devices.open_url(found, params["url"], params["device"])
+  end
+
+  def run(:screenshot, account, params) do
+    target = if params["target"] == "screen", do: :screen, else: :device
+
+    with {:ok, found} <- find(account, params),
+         {:ok, shot} <- Devices.screenshot(found, target: target, device: params["device"]) do
+      {:ok,
+       Map.merge(shot, %{
+         target: Atom.to_string(target),
+         device: if(target == :device, do: params["device"] || "booted")
+       })}
     end
   end
 
@@ -271,6 +307,36 @@ defmodule Tuist.Sandboxes.Query do
   defp describe(:snapshot_not_saved),
     do: {:service_unavailable, "snapshot_not_saved", "The Orb paused, but its project snapshot could not be saved."}
 
+  defp describe(:devices_unsupported),
+    do:
+      {:bad_request, "devices_unsupported",
+       "This sandbox runs no devices: today only macOS sandboxes run iOS simulators, and Android emulators are not supported yet. Create a macOS sandbox with `create_sandbox` and `platform: darwin`."}
+
+  defp describe({:device_not_booted, nil}),
+    do:
+      {:conflict, "device_not_booted",
+       "No device is booted in the sandbox. Boot one with `boot_sandbox_device` (`list_sandbox_devices` lists them), or capture the whole screen with `target: screen`."}
+
+  defp describe({:device_not_booted, device}),
+    do:
+      {:conflict, "device_not_booted",
+       "The device #{device} is not booted in the sandbox. Boot it with `boot_sandbox_device`; `list_sandbox_devices` lists the devices and their states."}
+
+  defp describe({:device_not_found, device}),
+    do:
+      {:not_found, "device_not_found",
+       "The sandbox has no available device named #{device}. Pass a name or ID that `list_sandbox_devices` returns."}
+
+  defp describe(:app_not_found),
+    do:
+      {:not_found, "app_not_found",
+       "The app is not installed on the device, or `app_path` is not an .app in the sandbox. Build it there, for example with `tuist sandbox exec`, and pass the built .app's path as `app_path`."}
+
+  defp describe({:simulator_failed, output}) do
+    output = output |> String.trim() |> String.slice(-4000, 4000)
+    {:bad_gateway, "simulator_failed", if(output == "", do: "simctl failed.", else: "simctl failed: #{output}")}
+  end
+
   defp describe(%Ecto.Changeset{} = changeset), do: {:bad_request, "invalid_request", changeset_message(changeset)}
 
   defp describe(reason) when is_binary(reason),
@@ -281,7 +347,7 @@ defmodule Tuist.Sandboxes.Query do
   @doc "Every code `error/1` answers, for the API and MCP schemas."
   def error_codes,
     do:
-      ~w(invalid_state not_found forbidden invalid_cwd invalid_parameters no_node account_limit rate_limited account_busy sandbox_busy invalid_command stdin_not_attached stdin_closed stdin_offset_mismatch locked no_lifetime command_id_taken fleet_busy host_busy_ci host_busy_full host_busy_no_grant host_not_connected host_replaced archive_unavailable node_not_connected node_disconnected node_timeout snapshot_not_saved invalid_request node_rejected internal_error)
+      ~w(invalid_state not_found forbidden invalid_cwd invalid_parameters no_node account_limit rate_limited account_busy sandbox_busy invalid_command stdin_not_attached stdin_closed stdin_offset_mismatch locked no_lifetime command_id_taken fleet_busy host_busy_ci host_busy_full host_busy_no_grant host_not_connected host_replaced archive_unavailable node_not_connected node_disconnected node_timeout snapshot_not_saved devices_unsupported device_not_booted device_not_found app_not_found simulator_failed invalid_request node_rejected internal_error)
 
   defp capacity_wait_ms,
     do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:capacity_wait_ms, @capacity_wait_ms)

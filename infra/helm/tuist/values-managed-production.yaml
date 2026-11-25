@@ -68,10 +68,9 @@ registry:
 
 server:
   # The Symptoms evaluator (infra/helm/symptoms, release `symptoms` in
-  # `symptoms-production`). Enable once SYMPTOMS/api_token exists in this environment's
-  # vault and the evaluator is deployed.
+  # `symptoms-production`) trusts this server's exact ServiceAccount principal.
   symptoms:
-    enabled: false
+    enabled: true
     url: http://symptoms.symptoms-production.svc.cluster.local
     evaluatorNamespace: symptoms-production
   # Production mail goes through Mailgun until sesStartsAt, then through SES
@@ -2631,6 +2630,12 @@ sandboxes:
   # restarts), after qualifying on staging and canary.
   vmm:
     enabled: true
+    # In-place daemon upgrades (step 2b), qualified on staging and canary.
+    inPlaceUpgrades: true
+    # vmm holds Firecracker under the running VMs; moving it replaces the
+    # daemon Pod and pauses its sandboxes, so it moves only on purpose.
+    image:
+      tag: sha-11e697e85802
   # 220 GiB after checkout workspaces: five 4x8192 Orbs on a 20 GiB rootfs
   # (about 38 GiB each) per node. The nodes have about 830 GiB.
   # Plus 30 GiB for copies of CI cache volumes below.

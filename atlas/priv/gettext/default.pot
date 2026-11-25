@@ -12851,11 +12851,6 @@ msgstr ""
 msgid "Saving…"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:177
-#, elixir-autogen, elixir-format
-msgid "Search the messages, channels and DMs you can see in Slack from Atlas tools (search_my_slack). This is separate from the Atlas bot."
-msgstr ""
-
 #: lib/atlas_web/controllers/oauth/authorize_html/consent.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Signed in as"
@@ -12919,4 +12914,9 @@ msgstr ""
 #: lib/atlas_web/live/connections_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "Prepare vendor payments as transfer requests in Qonto from Atlas tools (finance_create_transfer_request). Nothing is paid until someone with review rights approves the request in Qonto."
+msgstr ""
+
+#: lib/atlas_web/live/connections_live.ex:177
+#, elixir-autogen, elixir-format
+msgid "Search and read the messages, channels, DMs and files you can see in Slack from Atlas tools (search_my_slack, read_my_slack_conversation, download_my_slack_file). This is separate from the Atlas bot."
 msgstr ""

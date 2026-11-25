@@ -663,6 +663,16 @@ defmodule Tuist.Sandboxes do
         do: name
   end
 
+  # The nodes that would attach `cache` to a sandbox created from a disk
+  # snapshot's archive.
+  defp archive_cache_nodes(nil), do: []
+
+  defp archive_cache_nodes(%{scope: scope}) do
+    for %{name: name, cache_grants: true, cache_grants_from_archive: true} <- Nodes.connected_nodes(),
+        VolumeAffinities.holds_volume?(name, scope),
+        do: name
+  end
+
   # The node attaches an older generation of the lineage when its agent keeps
   # only that; daemons that predate `cache_generation` attach the granted one.
   defp attached_generation(nil, _data), do: nil
@@ -1150,7 +1160,7 @@ defmodule Tuist.Sandboxes do
 
   defp create_from_disk_snapshot_archive(sandbox, args, %DiskSnapshot{archived_at: %DateTime{}} = disk_snapshot) do
     with {:ok, source} <- Archives.restore_source(disk_snapshot),
-         {:ok, node_name} <- place_restore(sandbox, disk_snapshot) do
+         {:ok, node_name} <- place_restore(sandbox, disk_snapshot, archive_cache_nodes(args[:cache])) do
       # The node gives up on the restore when the server stops waiting for
       # it, instead of finishing it in the background (up to 15 minutes).
       expires_at = DateTime.add(DateTime.utc_now(), @restore_timeout, :millisecond)
@@ -1205,19 +1215,27 @@ defmodule Tuist.Sandboxes do
   # node it was archived from only when no other can; only when none is
   # connected does it cold boot its disks on another, unless its disks were
   # not synced (`Archives.warm_only?/1`), which waits for one.
-  defp place_restore(sandbox, archive \\ nil)
+  # `prefer` names nodes tried first when they have room, such as the nodes
+  # that would attach the new sandbox's cache.
+  defp place_restore(sandbox, archive \\ nil, prefer \\ [])
 
-  defp place_restore(sandbox, archive) do
+  defp place_restore(sandbox, archive, prefer) do
     subject = archive || sandbox
     site = Archives.restore_site(subject)
     on_site = restore_nodes(site, Archives.lazy_disks?(subject))
 
     case Archives.memory_compat(subject) do
-      nil when is_nil(site) ->
+      nil when is_nil(site) and prefer == [] ->
         Capacity.place(sandbox)
 
-      nil ->
+      nil when is_nil(site) ->
+        Capacity.place(sandbox, fn _node -> true end, prefer: prefer)
+
+      nil when prefer == [] ->
         Capacity.place(sandbox, on_site)
+
+      nil ->
+        Capacity.place(sandbox, on_site, prefer: prefer)
 
       compat ->
         avoid = Enum.uniq(Archives.origin_nodes(subject) ++ Archives.restoring_nodes())
@@ -2832,13 +2850,16 @@ defmodule Tuist.Sandboxes do
 
   # A cache drive cannot join a restored memory snapshot, so a template
   # create takes one only where shape snapshots carry its placeholder; a
-  # disk snapshot clone cold boots and always can. Archives never take one.
+  # disk snapshot clone cold boots and always can, and so does a new
+  # sandbox restored from a disk snapshot's archive (no memory image) on a
+  # daemon that takes grants with archives. Only those creates carry a
+  # cache with `from_archive`: an archived session's restore never does
+  # (`with_cache/4`).
   defp cache_grant(_node_name, _args, nil), do: nil
-  defp cache_grant(_node_name, %{from_archive: _source}, _cache), do: nil
 
   defp cache_grant(node_name, args, cache) do
     with {:ok, _pid, %{cache_grants: true} = node} <- Nodes.lookup(node_name),
-         true <- Map.has_key?(args, :from_disk_snapshot) or Map.get(node, :cache_drive_in_template) == true,
+         true <- cache_drive_attachable?(node, args),
          true <- VolumeAffinities.holds_volume?(node_name, cache.scope) do
       %{
         id: args.sandbox_id,
@@ -2851,6 +2872,12 @@ defmodule Tuist.Sandboxes do
       _ -> nil
     end
   end
+
+  defp cache_drive_attachable?(node, %{from_archive: source}),
+    do: Map.get(node, :cache_grants_from_archive) == true and not Map.has_key?(source, :tail_offset)
+
+  defp cache_drive_attachable?(node, args),
+    do: Map.has_key?(args, :from_disk_snapshot) or Map.get(node, :cache_drive_in_template) == true
 
   defp orphan_args(node_name, sandbox_id) do
     case Nodes.lookup(node_name) do

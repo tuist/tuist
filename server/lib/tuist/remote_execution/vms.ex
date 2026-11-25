@@ -72,10 +72,11 @@ defmodule Tuist.RemoteExecution.VMs do
 
   @doc """
   Places and boots a pristine VM for a reserved row. On failure, returns the
-  time before which an unconfirmed create may still arrive.
+  time before which an unconfirmed create may still arrive. `on_grow` runs
+  when no node has room until a carve-out grows (`Capacity.place_execution/3`).
   """
-  def prepare(%Sandbox{} = sandbox, %Settings{} = settings) do
-    case Capacity.place_execution(sandbox, sandbox.template_tag) do
+  def prepare(%Sandbox{} = sandbox, %Settings{} = settings, on_grow \\ fn -> :ok end) do
+    case Capacity.place_execution(sandbox, sandbox.template_tag, on_grow) do
       {:ok, node} ->
         sandbox = %{sandbox | node_name: node}
         deadline = DateTime.add(now(), @create_deadline_seconds, :second)

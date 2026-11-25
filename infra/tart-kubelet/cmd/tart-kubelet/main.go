@@ -43,6 +43,7 @@ import (
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/macosandbox"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodecred"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/podagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
@@ -264,6 +265,17 @@ func main() {
 	//   2. KUBECONFIG env
 	//   3. in-cluster service-account mount (won't apply on Mac mini)
 	//   4. ~/.kube/config
+	// The kubeconfig names a token file the host rotates (nodecred). Seed
+	// it from the inline token first: client-go prefers the file once it
+	// exists, and an operator push carries a newer token than the file.
+	var tokenFile string
+	if f := flag.Lookup("kubeconfig"); f != nil && f.Value.String() != "" {
+		var err error
+		if tokenFile, err = nodecred.Seed(f.Value.String()); err != nil {
+			setupLog.Error(err, "seed the rotated token file; using the kubeconfig's token")
+			tokenFile = ""
+		}
+	}
 	cfg := ctrl.GetConfigOrDie()
 
 	// Every API client dials through one rotating dialer so the lease
@@ -342,6 +354,8 @@ func main() {
 			MinGoldensKept: minGoldensKept,
 			Images:         images,
 			Fleet:          nodeLabels["tuist.dev/fleet"],
+			// The runner namespace is the only one whose ConfigMaps a host may list.
+			RunnerNamespace: customCacheNamespace,
 		}
 		if err := mgr.Add(gcCollector); err != nil {
 			setupLog.Error(err, "add gc collector")
@@ -388,6 +402,14 @@ func main() {
 		nodeLabels = map[string]string{}
 	}
 	nodeLabels["tuist.dev/macos-sandbox-host"] = "v1"
+	if tokenFile != "" {
+		if err := mgr.Add(&nodecred.Rotator{Client: typedClient, File: tokenFile}); err != nil {
+			setupLog.Error(err, "add node credential rotator")
+			os.Exit(1)
+		}
+		// Tells the operator the host's long-lived token Secret can go.
+		nodeLabels[nodecred.CredentialLabel] = nodecred.CredentialToken
+	}
 	// The CI client inherits Tart's default store, as the CLI resolves it.
 	ciStore := os.Getenv("TART_HOME")
 	if ciStore == "" {
@@ -493,12 +515,13 @@ func main() {
 	prewarmGate := nodeagent.NewPrewarmGate()
 	prewarmGate.FreshDisk = hostDisk.Fresh
 	if err := mgr.Add(&podagent.Prewarmer{
-		K8s:           mgr.GetAPIReader(),
-		Goldens:       reconciler,
-		Gate:          prewarmGate,
-		Fleet:         nodeLabels["tuist.dev/fleet"],
-		NodeName:      nodeName,
-		StageInterval: time.Minute,
+		K8s:             mgr.GetAPIReader(),
+		Goldens:         reconciler,
+		Gate:            prewarmGate,
+		Fleet:           nodeLabels["tuist.dev/fleet"],
+		NodeName:        nodeName,
+		RunnerNamespace: customCacheNamespace,
+		StageInterval:   time.Minute,
 		DiskFree: func() (float64, error) {
 			st, err := hostdisk.Root("/")
 			if err != nil {

@@ -423,6 +423,7 @@ func main() {
 		// Cache images must share the data filesystem so attaching one is a reflink.
 		CacheImageDir: os.Getenv("CACHE_IMAGE_DIR"), CacheImagesBytes: int64(cacheImagesGiB) << 30,
 		CacheImagesTTL: durationEnv(logger, "CACHE_IMAGES_TTL", 24*time.Hour),
+		DiffSnapshots:  os.Getenv("DIFF_SNAPSHOTS") == "true",
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,
@@ -572,17 +573,18 @@ func main() {
 				sandboxes := manager.List()
 				disk := diskReport()
 				return protocol.Hello{
-					ExecutionDeadlines:   true,
-					ExecutionSlots:       executionSlots,
-					DirectExecEndpoint:   directExecEndpoint,
-					SnapshotCompat:       snapshotCompat,
-					LazyDisks:            true,
-					CPUGuarantees:        vmCgroups != nil,
-					CacheGrants:          cacheImages != nil,
-					CacheDriveInTemplate: cacheDriveInTemplate,
-					DefaultTemplate:      templateName,
-					DefaultTemplateTag:   manager.DefaultTemplateTag(),
-					DaemonVersion:        version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: disk,
+					ExecutionDeadlines:     true,
+					ExecutionSlots:         executionSlots,
+					DirectExecEndpoint:     directExecEndpoint,
+					SnapshotCompat:         snapshotCompat,
+					LazyDisks:              true,
+					CPUGuarantees:          vmCgroups != nil,
+					CacheGrants:            cacheImages != nil,
+					CacheDriveInTemplate:   cacheDriveInTemplate,
+					CacheGrantsFromArchive: cacheImages != nil,
+					DefaultTemplate:        templateName,
+					DefaultTemplateTag:     manager.DefaultTemplateTag(),
+					DaemonVersion:          version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: disk,
 					Templates: manager.Templates(), Sandboxes: withDisk(sandboxes, disk), DiskSnapshots: manager.DiskSnapshots(),
 				}
 			},

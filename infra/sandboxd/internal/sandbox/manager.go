@@ -75,6 +75,11 @@ type Config struct {
 	// SnapshotCompat is the node's hostinfo.SnapshotCompat. Archives carry
 	// memory only when it is set, and restore it warm only where it matches.
 	SnapshotCompat string
+	// DiffSnapshots restores VMs from their local memory image with KVM
+	// dirty-page tracking, and pauses such a VM with a Diff snapshot merged
+	// into a reflink of that image, so a pause writes what the guest changed
+	// since its restore rather than all of its memory.
+	DiffSnapshots bool
 }
 
 type Deps struct {
@@ -312,7 +317,11 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		if args.CacheImage != "" {
 			return res, fmt.Errorf("%w: a create takes a cache image or a cache grant, not both", ErrCacheImage)
 		}
-		name, generation, release, err := m.grantedCacheImage(ctx, *args.CacheGrant)
+		// Assigns the named err, which the deferred report below reads.
+		var name string
+		var generation int64
+		var release func()
+		name, generation, release, err = m.grantedCacheImage(ctx, *args.CacheGrant)
 		if err != nil {
 			return res, err
 		}
@@ -331,8 +340,11 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		if m.cfg.CacheImageDir == "" {
 			return res, fmt.Errorf("%w: this daemon has no cache image directory", ErrCacheImage)
 		}
-		if fromArchive {
-			return res, fmt.Errorf("%w: a create from an archive cannot attach one", ErrCacheImage)
+		// An archive without a memory image always cold boots, like a disk
+		// snapshot, so it can take a cache drive; one with memory restores
+		// a guest that never had it.
+		if fromArchive && args.FromArchive.TailOffset > 0 {
+			return res, fmt.Errorf("%w: a create from an archive with memory cannot attach one", ErrCacheImage)
 		}
 		if err := vm.ValidateID(args.CacheImage); err != nil {
 			return res, fmt.Errorf("%w: %v", ErrCacheImage, err)
@@ -619,13 +631,20 @@ func (m *Manager) restoreWith(ctx context.Context, sb *Sandbox, log *slog.Logger
 	if memSocket != "" {
 		backend = firecracker.MemoryBackend{BackendType: "Uffd", BackendPath: inst.GuestPath(memSocket)}
 	}
+	// Only a VM mapped from the jail's own memory file has a base a Diff
+	// can be merged onto; one served through userfaultfd has none on disk.
+	tracked := m.cfg.DiffSnapshots && memSocket == ""
 	if err := api.LoadSnapshot(ctx, firecracker.SnapshotLoadParams{
-		SnapshotPath: inst.GuestPath(firecracker.SnapshotPath),
-		MemBackend:   backend,
-		ResumeVM:     true,
+		SnapshotPath:    inst.GuestPath(firecracker.SnapshotPath),
+		MemBackend:      backend,
+		ResumeVM:        true,
+		TrackDirtyPages: tracked,
 	}); err != nil {
 		return fail(err)
 	}
+	sb.mu.Lock()
+	sb.meta.MemoryTracked = tracked
+	sb.mu.Unlock()
 	m.observePhase("load_snapshot", loadStarted)
 	if beforeAgent != nil {
 		if err := beforeAgent(api, inst); err != nil {
@@ -642,6 +661,8 @@ func (m *Manager) restoreWith(ctx context.Context, sb *Sandbox, log *slog.Logger
 // still in its page cache are lost.
 func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.Instance, vsock.Agent, error) {
 	sb.mu.Lock()
+	// A booted guest has no memory image under it to merge a Diff onto.
+	sb.meta.MemoryTracked = false
 	meta := sb.meta
 	sb.mu.Unlock()
 	inst, fail, err := m.spawn(ctx, sb, meta)
@@ -960,8 +981,10 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	mem, _ := inst.ResidentMemory()
 	memNew := filepath.Join(sb.root, "mem.new")
 	snapNew := filepath.Join(sb.root, "snapshot.new")
+	snapshotType := m.snapshotBase(sb, memNew)
+	writeStart := time.Now()
 	if err := api.CreateSnapshot(ctx, firecracker.SnapshotCreateParams{
-		SnapshotType: firecracker.SnapshotFull,
+		SnapshotType: snapshotType,
 		SnapshotPath: inst.GuestPath("/snapshot.new"),
 		MemFilePath:  inst.GuestPath("/mem.new"),
 	}); err != nil {
@@ -974,6 +997,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		}
 		return res, fmt.Errorf("snapshot: %w", err)
 	}
+	written := time.Since(writeStart)
 	sb.detach()
 	killCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -1035,6 +1059,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	memoryLoaded := sb.memoryPending || sb.disksPending
 	sb.memoryPending, sb.disksPending = false, false
 	sb.meta.State = protocol.StatePaused
+	sb.meta.MemoryTracked = false
 	sb.meta.Generation++
 	sb.meta.FirecrackerVersion = m.cfg.FirecrackerVersion
 	sb.meta.DisksSynced = synced
@@ -1049,8 +1074,40 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	if memoryLoaded {
 		m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventMemoryLoaded, SandboxID: id})
 	}
-	m.log.Info("sandbox paused", "sandbox", id, "snapshot", time.Since(start), "mem_bytes", memBytes, "generation", meta.Generation+1)
+	m.log.Info("sandbox paused", "sandbox", id, "snapshot", time.Since(start), "mem_bytes", memBytes, "generation", meta.Generation+1, "snapshot_type", string(snapshotType), "snapshot_write", written)
 	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced, CPUMs: cpuMs, MemoryAnonBytes: mem.AnonBytes, MemoryFileBytes: mem.FileBytes}, nil
+}
+
+// snapshotBase prepares memNew for the pause's snapshot and says which kind
+// to take. A VM restored with dirty-page tracking from the jail's mem gets a
+// reflink of that file, which Firecracker merges its Diff into (it merges
+// into an existing memory file of the guest's size), so only the pages the
+// guest changed since its restore are written. Anything else, or a clone
+// that fails, takes a Full snapshot over a fresh file.
+func (m *Manager) snapshotBase(sb *Sandbox, memNew string) firecracker.SnapshotType {
+	sb.mu.Lock()
+	tracked, slot, id := sb.meta.MemoryTracked, sb.meta.Slot, sb.meta.ID
+	sb.mu.Unlock()
+	_ = os.Remove(memNew)
+	if !tracked {
+		return firecracker.SnapshotFull
+	}
+	uid := m.cfg.UIDBase + slot
+	err := m.cloneFile(filepath.Join(sb.root, firecracker.MemPath), memNew)
+	if err == nil {
+		// The base may be the template's root-owned memfile; the jailed
+		// Firecracker writes the clone.
+		err = os.Chmod(memNew, 0o600)
+	}
+	if err == nil {
+		err = vm.Chown(memNew, uid, uid)
+	}
+	if err != nil {
+		_ = os.Remove(memNew)
+		m.log.Warn("cloning the memory image for a diff snapshot failed; taking a full one", "sandbox", id, "error", err)
+		return firecracker.SnapshotFull
+	}
+	return firecracker.SnapshotDiff
 }
 
 func (m *Manager) Delete(ctx context.Context, id string) (err error) {

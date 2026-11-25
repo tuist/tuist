@@ -23,9 +23,12 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
@@ -83,6 +86,8 @@ func main() {
 
 		apiServerURL                 string
 		nodeIdentityClusterRole      string
+		nodeIdentityRolesRaw         string
+		nodeCredentialTTL            time.Duration
 		tartKubeletBinaryPath        string
 		tartReleasesDir              string
 		tartVersion                  string
@@ -153,6 +158,12 @@ func main() {
 		envOrDefault("CAPI_NODE_IDENTITY_CLUSTER_ROLE", "tart-kubelet"),
 		"Name of the chart-managed ClusterRole each per-machine ServiceAccount binds to. "+
 			"Chart's deployment template injects the rendered name.")
+	flag.StringVar(&nodeIdentityRolesRaw, "node-identity-roles", "",
+		"Comma-separated <namespace>/<role> Roles each macOS host's ServiceAccount is bound to "+
+			"(the runner namespace's ConfigMaps and cache-volume token).")
+	flag.DurationVar(&nodeCredentialTTL, "node-credential-ttl", credentials.DefaultNodeCredentialTTL,
+		"Lifetime of the token in a macOS host's kubeconfig. The host replaces it daily, so this "+
+			"is how long a host can be cut off from the API server and still rejoin on its own.")
 	flag.StringVar(&tartKubeletBinaryPath, "tartkubelet-binary-path",
 		envOrDefault("CAPI_TARTKUBELET_BINARY_PATH", "/opt/tart-kubelet/tart-kubelet-darwin-arm64"),
 		"Local path of the darwin/arm64 tart-kubelet binary baked into this image.")
@@ -681,8 +692,14 @@ func main() {
 		// controller reads them.
 		Cache: cache.Options{
 			DefaultTransform: cache.TransformStripManagedFields(),
+			ByObject:         map[client.Object]cache.ByObject{},
 		},
 	}
+	// The node access controller and the identity code read only the Roles
+	// and RoleBindings they keep for hosts, so the cache watches only those.
+	nodeAccessObjects := cache.ByObject{Label: nodeAccessSelector()}
+	mgrOptions.Cache.ByObject[&rbacv1.Role{}] = nodeAccessObjects
+	mgrOptions.Cache.ByObject[&rbacv1.RoleBinding{}] = nodeAccessObjects
 	// When the egress reconciler is wired, scope the Services
 	// informer to the egress namespace. The cache's default is a
 	// cluster-wide LIST/WATCH on every Get'd GVK; without this
@@ -692,13 +709,16 @@ func main() {
 	// touches Services there, so narrowing the cache matches both
 	// the RBAC shape and the actual access pattern.
 	if egressProxyGroup != "" && egressNamespace != "" {
-		mgrOptions.Cache.ByObject = map[client.Object]cache.ByObject{
-			&corev1.Service{}: {
-				Namespaces: map[string]cache.Config{
-					egressNamespace: {},
-				},
+		mgrOptions.Cache.ByObject[&corev1.Service{}] = cache.ByObject{
+			Namespaces: map[string]cache.Config{
+				egressNamespace: {},
 			},
 		}
+	}
+	nodeIdentityRoles, err := parseNamespacedNames(nodeIdentityRolesRaw)
+	if err != nil {
+		setupLog.Error(err, "parse --node-identity-roles")
+		os.Exit(1)
 	}
 	mgr, err := ctrl.NewManager(restConfig, mgrOptions)
 	if err != nil {
@@ -719,7 +739,17 @@ func main() {
 		Scaleway:                   scwClient,
 		Namespace:                  secretsNamespace,
 		NodeIdentityClusterRole:    nodeIdentityClusterRole,
+		NodeIdentityRoles:          nodeIdentityRoles,
+		NodeCredentialTTL:          nodeCredentialTTL,
 		TailscaleAuthKeySecretName: tailscaleAuthKeySecretName,
+	}
+
+	if err := (&macos.NodeAccessReconciler{
+		Client:      mgr.GetClient(),
+		Credentials: credsManager,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup NodeAccessReconciler")
+		os.Exit(1)
 	}
 
 	kubeconfigBuilder := &kubeconfig.Builder{
@@ -1189,6 +1219,29 @@ func parseCommaList(raw string) []string {
 		out = append(out, p)
 	}
 	return out
+}
+
+// parseNamespacedNames parses a comma-separated list of <namespace>/<name>.
+func parseNamespacedNames(raw string) ([]types.NamespacedName, error) {
+	var out []types.NamespacedName
+	for _, entry := range parseCommaList(raw) {
+		namespace, name, ok := strings.Cut(entry, "/")
+		if !ok || namespace == "" || name == "" {
+			return nil, fmt.Errorf("%q is not <namespace>/<name>", entry)
+		}
+		out = append(out, types.NamespacedName{Namespace: namespace, Name: name})
+	}
+	return out, nil
+}
+
+// nodeAccessSelector selects the Roles and RoleBindings the operator keeps
+// for macOS hosts' identities.
+func nodeAccessSelector() labels.Selector {
+	req, err := labels.NewRequirement(credentials.NodeAccessForLabel, selection.Exists, nil)
+	if err != nil {
+		panic(err)
+	}
+	return labels.NewSelector().Add(*req)
 }
 
 func sha256Hex(b []byte) string {

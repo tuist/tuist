@@ -106,6 +106,29 @@ helm:shard-storage-rustfs` fails if the log format names any other variable.
 In-cluster callers reach `<release>-s3:9000` directly, so their requests are
 not in this log.
 
+RustFS's audit records cover every S3 request, in-cluster ones included
+(`audit.enabled`, on by default). RustFS posts them to an `audit` sidecar on
+`127.0.0.1:9900`, which prints one JSON line per request with
+`"log":"rustfs_audit"` to stdout, the same path to Pulse as the gateway log:
+time, client (source IP), API, bucket, object, path, status, request bytes,
+duration, how it was signed, signing access key ID, request ID and user agent,
+plus the deleted keys (up to 4096 characters) and their count for a bulk
+delete.
+RustFS puts the request headers in the record, so the receiver
+(`files/audit_receiver.py`) builds each line from an allowlist and never logs
+them; any path still shaped like a signature is dropped.
+`test-audit-receiver.py` runs it against unredacted presigned and
+header-signed records. Limits: RustFS sends no record for a request that fails
+signature verification (the gateway log still has public ones) and reports no
+response size, so only request bytes are logged. Delivery never blocks S3:
+RustFS queues up to `audit.queueLimit` records on a 2Gi emptyDir while the
+receiver is down and drops beyond that with an `audit_dispatch_failed` error
+log. A sidecar that is not running still makes the pod NotReady and removes
+the store from its Service, so the sidecar has no probes and its shell restarts
+the receiver in place; what remains is an image pull from Docker Hub failing
+when the pod is recreated. The StatefulSet is `OnDelete`, so the sidecar
+starts only when the store pod is recreated.
+
 The shard Ingress uses a 1 MiB client-body buffer while keeping request
 buffering **off**. NGINX uses this buffer to size unbuffered HTTP/2 stream
 receive windows; the default 8 KiB body buffer leaves roughly a 64 KiB window

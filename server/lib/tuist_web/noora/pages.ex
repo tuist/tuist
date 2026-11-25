@@ -63,6 +63,31 @@ defmodule TuistWeb.Noora.Pages do
      ]}
   ]
 
+  # Components brought in line with the new Figma designs, marked with a
+  # green dot in the sidebar for the Tuist team (`team_member?/1`). Add a page
+  # here once its component is redesigned.
+  @redesigned_pages [
+    # https://github.com/tuist/tuist/pull/15768
+    Pages.Alert,
+    Pages.Avatar,
+    Pages.Badge,
+    Pages.Banner,
+    Pages.Breadcrumbs,
+    Pages.Button,
+    Pages.ButtonGroup,
+    Pages.Checkbox,
+    Pages.Menu,
+    Pages.MiddleTruncate,
+    Pages.Radio,
+    Pages.Spinner,
+    Pages.Toggle
+  ]
+
+  @doc """
+  Whether the page's component matches the new designs, shown in the sidebar.
+  """
+  def redesigned?(page), do: page in @redesigned_pages
+
   @doc """
   The sidebar groups the user can see: the public ones, plus the team's own
   when the user is on the Tuist team.

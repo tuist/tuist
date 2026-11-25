@@ -107,6 +107,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DismissNudge
   alias Atlas.MCP.Tools.DismissOutreachNextStep
   alias Atlas.MCP.Tools.DisposeAsset
+  alias Atlas.MCP.Tools.DownloadMySlackFile
   alias Atlas.MCP.Tools.EditAssetMetadata
   alias Atlas.MCP.Tools.EditDataCenter
   alias Atlas.MCP.Tools.EditFinancingMetadata
@@ -272,6 +273,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.PublishPOC
   alias Atlas.MCP.Tools.QueryTuistClickhouse
   alias Atlas.MCP.Tools.QueryTuistPostgres
+  alias Atlas.MCP.Tools.ReadMySlackConversation
   alias Atlas.MCP.Tools.RecallMemory
   alias Atlas.MCP.Tools.RecordAssetIncident
   alias Atlas.MCP.Tools.RecordAssetNote
@@ -644,6 +646,8 @@ defmodule Atlas.MCP.Server do
     UpdateMyGmailDraft,
     SendMyGmailDraft,
     SearchMySlack,
+    ReadMySlackConversation,
+    DownloadMySlackFile,
     SetOVHServerDisplayName,
     ListOVHInvoices,
     SaveOVHInvoice,
@@ -1119,7 +1123,9 @@ defmodule Atlas.MCP.Server do
               CreateMyGmailDraft,
               UpdateMyGmailDraft,
               SendMyGmailDraft,
-              SearchMySlack
+              SearchMySlack,
+              ReadMySlackConversation,
+              DownloadMySlackFile
             ], do: ManageAccountConnections.allowed_context?(conn)
 
   defp personal_connection_tool_allowed?(conn, module)
@@ -1245,7 +1251,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(manage_label_session create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message save_my_gmail_attachment get_my_gmail_draft create_my_gmail_draft update_my_gmail_draft send_my_gmail_draft search_my_slack),
+       when name in ~w(manage_label_session create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message save_my_gmail_attachment get_my_gmail_draft create_my_gmail_draft update_my_gmail_draft send_my_gmail_draft search_my_slack read_my_slack_conversation download_my_slack_file),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

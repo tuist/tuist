@@ -52,6 +52,8 @@ pulse:
 tuist:
   url: ""
   namespace: ""
+  # Exact server principal authorized for the evaluator API (not a namespace grant).
+  serviceAccount: ""
   podLabels:
     app.kubernetes.io/instance: tuist
     app.kubernetes.io/component: server
@@ -89,13 +91,9 @@ networkPolicy:
   # alloy-metrics scrapes the metrics endpoint from here.
   observabilityNamespace: observability
 
-# One 1Password item per environment vault (tuist-k8s-<env>), fields:
-#   api_token                         bearer token of the evaluator API; the
-#                                     server reads the same field
-#   secret_key_base                   `mix phx.gen.secret`
+# Pulse credentials from the environment vault (tuist-k8s-<env>).
 externalSecret:
   refreshInterval: "1h"
-  item: SYMPTOMS
   storeRef:
     name: onepassword
     kind: ClusterSecretStore

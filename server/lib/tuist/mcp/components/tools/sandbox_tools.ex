@@ -2,13 +2,19 @@ defmodule Tuist.MCP.Components.Tools.SandboxTools do
   @moduledoc false
   alias Tuist.FeatureFlags
   alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Query
 
+  # The device actions run fixed commands in the guest.
+  @guest_actions [:devices, :boot_device, :launch_app, :open_url, :screenshot]
+
   # The same rule as the HTTP API (`TuistWeb.API.SandboxesController`):
-  # members (`:sandboxes_write`) use every sandbox in the account.
+  # members (`:sandboxes_write`) use every sandbox in the account, and only
+  # admins reach inside one that serves an integration.
   def execute(action, conn, args) do
     with {:ok, account} <- MCPTool.resolve_and_authorize_account(args, conn.assigns, :write, :sandboxes),
-         {:enabled, true} <- {:enabled, FeatureFlags.sandboxes_enabled?(account)} do
+         {:enabled, true} <- {:enabled, FeatureFlags.sandboxes_enabled?(account)},
+         :ok <- guest_access(action, conn, account, args) do
       case Query.run(action, account, args) do
         {:ok, data} -> {:ok, data}
         {:error, reason} -> {:error, error_text(Query.error(reason))}
@@ -18,6 +24,19 @@ defmodule Tuist.MCP.Components.Tools.SandboxTools do
       {:error, _message} = error -> error
     end
   end
+
+  defp guest_access(action, conn, account, %{"sandbox_id" => id}) when action in @guest_actions do
+    with {:ok, id} <- Ecto.UUID.cast(id),
+         {:ok, sandbox} <- Sandboxes.get_sandbox(account, id),
+         false <- Sandboxes.member_sandbox?(sandbox),
+         {:error, _} <- MCPTool.authorize_account(conn.assigns, account, :update, :account) do
+      {:error, error_text(Query.error(:integration_sandbox))}
+    else
+      _ -> :ok
+    end
+  end
+
+  defp guest_access(_action, _conn, _account, _args), do: :ok
 
   # The code leads the text, so an agent branches on it as it would on the
   # API's `code`; the message after it says what to do.
@@ -101,6 +120,7 @@ defmodule Tuist.MCP.Components.Tools.CreateSandbox do
     - Before every command, run `tuist sandbox sync <id> --json`. It mirrors the files Git does not ignore, committed or not, one way, and returns the repository's `root` on the Mac.
     - Run commands with `tuist sandbox exec <id> --cwd <root> --wait <seconds> -- '<command>'`, with `--wait` a minute under your tool-call time limit. It streams output, waits while the Mac's host is busy, and exits with the command's status; stopping it cancels the command. When `--wait` passes first, the command keeps running: it exits with 75 and prints the `tuist sandbox exec ... --attach` command that continues where the output stopped and ends with the command's status. Run builds and tests this way in the foreground; don't background them and poll a log.
     - The Mac has `tuist`, the repository's own version when it pins one through mise, signed in to the account's cache in every command. Once, read the Mac's guide with `tuist sandbox exec <id> -- cat /opt/tuist/agent-guide.md`: its Xcode and simulators, what a ready snapshot holds, and copying results back. A Mac without the guide predates it: run `mise install` in `root` there for Tuist.
+    - To show the user an app running in the iOS Simulator, build it on the Mac with `tuist sandbox exec`, then use `list_sandbox_devices`, `boot_sandbox_device`, `launch_sandbox_app` (with `app_path`, the built .app) and `get_sandbox_screenshot`, which returns the image; `open_sandbox_url` opens a deep link. Where you have the CLI, `tuist sandbox screenshot <id> --out <file>.png` saves the full-size PNG instead (`--screen` for the whole screen, `--device` for one of several booted simulators).
     - Keep the default shape unless a build runs out of memory, and run only the builds and tests the user asked for: every larger shape and every extra scheme makes the user wait longer.
     - The sandbox runs until `expires_at`, two hours from creation unless you pass `lifetime_seconds` (at most a day). The limit is hard: then any running command is cancelled and the sandbox is paused and archived, keeping its files; a later command resumes it with a new lifetime. Before a long build or test run, check `expires_at` and call `extend_sandbox` so it outlasts the command's timeout. Delete the sandbox when the task is done.
     """
@@ -206,4 +226,107 @@ defmodule Tuist.MCP.Components.Tools.DeleteSandbox do
     do: "Delete a sandbox and its disks after user confirmation. This cannot be undone. Requires an account member."
 
   def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:delete, conn, args)
+end
+
+defmodule Tuist.MCP.Components.Tools.ListSandboxDevices do
+  @moduledoc false
+  use Tuist.MCP.Tool,
+    name: "list_sandbox_devices",
+    title: "List Sandbox Devices",
+    read_only_hint: true,
+    destructive_hint: false,
+    schema: Tuist.Sandboxes.Schemas.json_schema(Tuist.Sandboxes.Schemas.inputs(:devices)),
+    output_schema: Tuist.Sandboxes.Schemas.json_schema(Tuist.Sandboxes.Schemas.response(:devices))
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List a sandbox's available devices with their `id`, `name`, `platform` (such as `ios`), `runtime` (such as `iOS 27.2`) and `state` (`Booted`, `Shutdown`). Today these are the iOS and other Apple simulators of a macOS sandbox; Android emulators are not supported yet, and a Linux sandbox answers `devices_unsupported`. Resumes a paused sandbox. Requires an account member, or an administrator for a sandbox that serves an integration (an agent environment or Amp Orb)."
+
+  def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:devices, conn, args)
+end
+
+defmodule Tuist.MCP.Components.Tools.BootSandboxDevice do
+  @moduledoc false
+  use Tuist.MCP.Tool,
+    name: "boot_sandbox_device",
+    title: "Boot Sandbox Device",
+    read_only_hint: false,
+    destructive_hint: false,
+    schema: Tuist.Sandboxes.Schemas.json_schema(Tuist.Sandboxes.Schemas.inputs(:boot_device)),
+    output_schema: Tuist.Sandboxes.Schemas.json_schema(Tuist.Sandboxes.Schemas.response(:boot_device))
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Boot a device in a sandbox, by name or ID from `list_sandbox_devices`, and wait up to 40 seconds for it to finish booting. Today this is an iOS simulator on a macOS sandbox, shown in the Simulator app; Android emulators are not supported yet. Booting a booted device succeeds. Returns the device; its `state` is still `Booting` when it took longer. Requires an account member, or an administrator for a sandbox that serves an integration (an agent environment or Amp Orb)."
+
+  def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:boot_device, conn, args)
+end
+
+defmodule Tuist.MCP.Components.Tools.LaunchSandboxApp do
+  @moduledoc false
+  use Tuist.MCP.Tool,
+    name: "launch_sandbox_app",
+    title: "Launch Sandbox App",
+    read_only_hint: false,
+    destructive_hint: false,
+    schema: Tuist.Sandboxes.Schemas.json_schema(Tuist.Sandboxes.Schemas.inputs(:launch_app)),
+    output_schema: Tuist.Sandboxes.Schemas.json_schema(Tuist.Sandboxes.Schemas.response(:launch_app))
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Launch an app on a booted device of a sandbox, restarting it when it already runs. Today the device is an iOS simulator on a macOS sandbox. Pass `app_path`, an .app built in the sandbox, to install it first (its `app_id`, the bundle ID, is read from it), or `app_id` for an installed app. Build the app in the sandbox first, such as with `tuist sandbox exec <id> -- xcodebuild ... -derivedDataPath build/dd`. Requires an account member, or an administrator for a sandbox that serves an integration (an agent environment or Amp Orb)."
+
+  def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:launch_app, conn, args)
+end
+
+defmodule Tuist.MCP.Components.Tools.OpenSandboxURL do
+  @moduledoc false
+  use Tuist.MCP.Tool,
+    name: "open_sandbox_url",
+    title: "Open URL on Sandbox Device",
+    read_only_hint: false,
+    destructive_hint: false,
+    schema: Tuist.Sandboxes.Schemas.json_schema(Tuist.Sandboxes.Schemas.inputs(:open_url)),
+    output_schema: Tuist.Sandboxes.Schemas.json_schema(Tuist.Sandboxes.Schemas.response(:open_url))
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Open a URL on a booted device of a sandbox: a web page in the browser (Safari on an iOS simulator), or an app's deep link to go to one of its screens. Today the device is an iOS simulator on a macOS sandbox. Requires an account member, or an administrator for a sandbox that serves an integration (an agent environment or Amp Orb)."
+
+  def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:open_url, conn, args)
+end
+
+defmodule Tuist.MCP.Components.Tools.GetSandboxScreenshot do
+  @moduledoc false
+  use Tuist.MCP.Tool,
+    name: "get_sandbox_screenshot",
+    title: "Get Sandbox Screenshot",
+    read_only_hint: true,
+    destructive_hint: false,
+    schema: Tuist.Sandboxes.Schemas.json_schema(Tuist.Sandboxes.Schemas.inputs(:screenshot)),
+    output_schema: Tuist.Sandboxes.Schemas.json_schema(Tuist.Sandboxes.Schemas.response(:screenshot))
+
+  alias Tuist.MCP.Components.Tools.SandboxTools
+  alias Tuist.MCP.Tool
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Capture a booted device of a sandbox (default), or with `target: screen` the sandbox's whole screen, and return it as an image, a JPEG at most 1600 pixels on its longer side. Today this works on macOS sandboxes, whose devices are iOS simulators. Use it to show the user the app running and to check what a change did. Fails with `device_not_booted` until a device is booted (`boot_sandbox_device`). Where the Tuist CLI runs, `tuist sandbox screenshot <id> --out shot.png` saves the full-size PNG instead. Requires an account member, or an administrator for a sandbox that serves an integration (an agent environment or Amp Orb)."
+
+  @impl EMCP.Tool
+  def call(conn, args) do
+    with :ok <- Tool.validate_input(__MODULE__, args),
+         {:ok, shot} <- SandboxTools.execute(:screenshot, conn, args) do
+      {data, metadata} = Map.pop(shot, :data)
+      result = Tool.json_response(metadata, __MODULE__)
+      Map.update!(result, "content", &[%{"type" => "image", "data" => data, "mimeType" => shot.mime_type} | &1])
+    else
+      {:error, message} -> EMCP.Tool.error(message)
+    end
+  end
 end

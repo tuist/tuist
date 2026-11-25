@@ -71,7 +71,8 @@ environment.
               value: /var/run/secrets/atlas-support-ingest/token
             {{- end }}
             {{- if .Values.server.symptoms.enabled }}
-            # TUIST_SYMPTOMS_TOKEN comes from the server-config ExternalSecret.
+            - name: TUIST_SYMPTOMS_TOKEN_PATH
+              value: /var/run/secrets/tuist-symptoms-api/token
             - name: TUIST_SYMPTOMS_URL
               value: {{ required "server.symptoms.url is required when server.symptoms.enabled" .Values.server.symptoms.url | quote }}
             - name: TUIST_SYMPTOMS_EVALUATOR_NAMESPACE

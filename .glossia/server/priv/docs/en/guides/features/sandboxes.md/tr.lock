@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "747b78305eea6b49a44c8e689c8faf71f1665d1d52feb97edc692be904af9b84",
+  "hash": "06e441095d1d17f93e23f9c377a1319f267e2e4b3f06c38880f21321040c406d",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "39179a1bb11e9db0e8d52183984ce3e7fcb6333ef0371e5443ede691fd6363b1"
                 },
                 "## Build on a Mac from a coding agent {#coding-agents}": {
-                  "content_hash": "1ad0d15808a752ad7cadce262b31ccb6088e64f9ed165cdfa670d67086432514"
+                  "content_hash": "5a72fd248a692ce8adbe8b1b5ff61e5b3776fbf8d6fff5f311dd45b077c0b265"
                 },
                 "## Get started with the CLI {#cli}": {
                   "content_hash": "e8a3dcf97cd2cb530d95db160bf4fc514c74dfa8db7660d532ad29b514b346db"
@@ -38,7 +38,7 @@
                   "content_hash": "5c4a27696b86ba479a94f34d1759f392996153607cb3da5d5e4fb980f22cfe89"
                 },
                 "### Common tasks {#cli-tasks}": {
-                  "content_hash": "e73bdb82781fb875dd5a0d68281f79f93e0625f339917ba10a2f7368bd96d957"
+                  "content_hash": "d3d52b99b23ffb10a991d41e29268c59de30aca4999afd3474523c85a315969d"
                 },
                 "### Guaranteed CPU {#guaranteed-cpu}": {
                   "content_hash": "e9019160a96dd427e2af2323170771c8590963fb39e34da6d012920039adf8a7"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "ee725b1f4b1dc275d2c9c14e2db8cd0839115a753f173fb2654a1f3f87b635a8",
+          "hash": "6c7842a420bec3c0904e0da57c3a5797fde444c19c059af3dc59aa30e1d25d40",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes.md",
           "metadata": {
-            "content_hash": "9087f85ca3509e208a4a64f1f78fb0820b75de6ad8e10f4543951e76637ef9c8"
+            "content_hash": "ed91f5f2eb70dadce8d34c4a25842132d4f96c2b379ff7a915618a3057827b01"
           }
         },
         {
@@ -248,14 +248,14 @@
         }
       ],
       "details": {},
-      "hash": "747b78305eea6b49a44c8e689c8faf71f1665d1d52feb97edc692be904af9b84",
+      "hash": "06e441095d1d17f93e23f9c377a1319f267e2e4b3f06c38880f21321040c406d",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "aa0c1da9a282a78dc69d79b216f1abab14017a69066336d2e13c38824f9c81e8",
+  "output_hash": "7c8b6d0714192d32cbccdc694c3bac22fc94727b2c514aeca317e0578c66947e",
   "output_path": "server/priv/docs/tr/guides/features/sandboxes.md",
   "protection_state": "recorded",
   "provider": "",
@@ -275,8 +275,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "aa60ad86626ee1b9361e4f1679c87b185baef5cd",
+  "source_commit_sha": "403fe83a4834cc47cd7ddbcc960bdb1556a2c2ed",
   "source_path": "server/priv/docs/en/guides/features/sandboxes.md",
-  "translated_at": "2026-11-25T08:40:06.247003Z",
-  "translation_session_id": "01a211d8-39cc-715c-99fb-11b172dbb399"
+  "translated_at": "2026-11-25T11:18:14.674554Z",
+  "translation_session_id": "01a21263-c834-794a-ac82-2f18ed503d60"
 }

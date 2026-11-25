@@ -740,9 +740,11 @@ defmodule Tuist.Kura.RegionsTest do
              } = ber1.provisioner_config
 
       # Apart from what the site names, the two are the same region.
-      site_fields = [:cluster_id, :ingress_class_name, :node_selector, :client_cidrs]
+      site_fields = [:cluster_id, :ingress_class_name, :node_selector, :client_cidrs, :draining]
 
       assert Map.drop(ber1.provisioner_config, site_fields) == Map.drop(larch.provisioner_config, site_fields)
+      refute Regions.draining?(ber1)
+      assert Regions.draining?(larch)
     end
   end
 

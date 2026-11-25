@@ -2326,7 +2326,8 @@ defmodule Tuist.Environment do
 
   @doc """
   The symptoms evaluator (`symptoms/` at the repository root): `base_url` and
-  `token` for pulling its symptom log, and the `evaluator_namespace` and
+  `token_path` for pulling its symptom log with a rotating projected token
+  (audience `tuist-symptoms-api`), and the `evaluator_namespace` and
   `evaluator_service_account` whose projected token (audience
   `tuist-symptoms-state`) may read the human state back. Unset outside the
   Tuist deployment.

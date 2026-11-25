@@ -1450,6 +1450,88 @@ defmodule Tuist.SandboxesTest do
     end
   end
 
+  describe "create_sandbox/3 with a cache from a disk snapshot archive" do
+    setup do
+      account = account_fixture()
+
+      cache = %{
+        volume_id: Ecto.UUID.generate(),
+        scope: String.duplicate("a", 64),
+        generation: 3,
+        base_generation: 7,
+        image_digest: String.duplicate("b", 40),
+        content_digest: String.duplicate("c", 64)
+      }
+
+      # No node holds the snapshot any more, so the new sandbox restores
+      # its archive (no memory image) and cold boots.
+      snapshot =
+        disk_snapshot_fixture(
+          account: account,
+          node_name: nil,
+          archived_at: DateTime.utc_now(),
+          archive_key: "snapshot.sbxa",
+          archive_bytes: 100,
+          archive_sha256: "deadbeef"
+        )
+
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+      stub(VolumeAffinities, :holds_volume?, fn node, scope -> node == "node-a" and scope == cache.scope end)
+      %{account: account, cache: cache, snapshot: snapshot}
+    end
+
+    defp archive_nodes(info) do
+      nodes = [Map.merge(%{name: "node-a", cache_grants: true}, info), %{name: "node-b", cache_grants: true}]
+      stub(Nodes, :connected_nodes, fn -> nodes end)
+      stub(Nodes, :lookup, fn name -> {:ok, self(), Enum.find(nodes, &(&1.name == name))} end)
+    end
+
+    test "grants it on the node holding the master when the daemon takes grants with archives", %{
+      account: account,
+      cache: cache,
+      snapshot: snapshot
+    } do
+      archive_nodes(%{cache_grants_from_archive: true})
+
+      expect(Capacity, :place, fn _sandbox, _filter, opts ->
+        assert opts[:prefer] == ["node-a"]
+        {:ok, "node-a"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        assert args.from_archive.url == "https://s3/get"
+        assert args.cache_grant.scope == cache.scope
+        assert args.cache_grant.base_generation == 7
+        {:ok, %{"boot_ms" => 900}}
+      end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, from_disk_snapshot: snapshot, cache: cache)
+      assert sandbox.cache_volume_id == cache.volume_id
+      assert sandbox.cache_generation == 7
+    end
+
+    test "restores without it on a daemon that refuses grants with archives", %{
+      account: account,
+      cache: cache,
+      snapshot: snapshot
+    } do
+      # A daemon without `cache_grants_from_archive` would refuse the grant,
+      # so placement prefers no node and the create carries none.
+      archive_nodes(%{cache_drive_in_template: true})
+
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        assert Map.has_key?(args, :from_archive)
+        refute Map.has_key?(args, :cache_grant)
+        {:ok, %{"boot_ms" => 900}}
+      end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, from_disk_snapshot: snapshot, cache: cache)
+      assert is_nil(sandbox.cache_volume_id)
+    end
+  end
+
   describe "lifetimes" do
     defp ago(seconds), do: DateTime.add(DateTime.utc_now(), -seconds, :second)
 

@@ -26,7 +26,18 @@ defmodule Atlas.MCP.Tools.SearchMySlackTest do
               "username" => "marek",
               "ts" => "1762230000.000100",
               "channel" => %{"id" => "C1", "name" => "eng"},
-              "permalink" => "https://tuist.slack.com/archives/C1/p1762230000000100"
+              "permalink" => "https://tuist.slack.com/archives/C1/p1762230000000100",
+              "files" => [
+                %{
+                  "id" => "F1",
+                  "name" => "dpa.pdf",
+                  "title" => "DPA",
+                  "mimetype" => "application/pdf",
+                  "filetype" => "pdf",
+                  "size" => 1234,
+                  "url_private" => "https://files.slack.com/files-pri/T1-F1/dpa.pdf"
+                }
+              ]
             }
           ]
         }
@@ -41,6 +52,10 @@ defmodule Atlas.MCP.Tools.SearchMySlackTest do
     assert message.channel_name == "eng"
     assert message.user == "marek"
     assert message.thread_timestamp == nil
+
+    assert message.files == [
+             %{id: "F1", name: "dpa.pdf", title: "DPA", mimetype: "application/pdf", filetype: "pdf", size: 1234}
+           ]
   end
 
   test "a revoked Slack token asks the caller to reconnect" do

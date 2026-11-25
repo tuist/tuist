@@ -291,6 +291,37 @@ func TestArchiveDisksRestoresOnAnotherNode(t *testing.T) {
 		t.Fatalf("a sandbox created from the archive must hold the snapshot's disks, not the source's later writes; got %q", got)
 	}
 
+	// The archive holds no memory, so it cold boots and can take a cache
+	// drive like a disk-snapshot clone; one with a memory image cannot.
+	other.m.cfg.CacheImageDir = filepath.Join(other.dataDir, "cache-images")
+	if err := os.MkdirAll(other.m.cfg.CacheImageDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(other.m.cfg.CacheImageDir, "go-cache"), []byte("warm cache"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withMemory := *source
+	withMemory.TailOffset, withMemory.TailSHA256 = 1, "00"
+	if _, err := other.m.Create(ctx, protocol.CreateArgs{SandboxID: "warm-cached", Template: "default", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 1, FromArchive: &withMemory, CacheImage: "go-cache"}); !errors.Is(err, ErrCacheImage) {
+		t.Fatalf("an archive with memory must refuse a cache drive, got %v", err)
+	}
+	if _, err := other.m.Create(ctx, protocol.CreateArgs{SandboxID: "cached", Template: "default", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 1, FromArchive: source, CacheImage: "go-cache"}); err != nil {
+		t.Fatalf("create from the disk snapshot archive with a cache drive: %v", err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(vm.RootDir(other.jailBase, "cached"), "cache.ext4")); string(data) != "warm cache" {
+		t.Fatalf("the restored sandbox must get a clone of the cache image, got %q", data)
+	}
+	cacheDrive := false
+	for _, call := range other.launcher.Last().Calls() {
+		cacheDrive = cacheDrive || call.Path == "/drives/cache"
+	}
+	if !cacheDrive {
+		t.Fatal("the cold boot from the archive must attach the cache drive")
+	}
+	if err := other.m.Delete(ctx, "cached"); err != nil {
+		t.Fatal(err)
+	}
+
 	// A copy on the other node: an archive of another workspace size is
 	// refused and leaves nothing behind, a matching one becomes a disk
 	// snapshot the node clones like one it saved itself.

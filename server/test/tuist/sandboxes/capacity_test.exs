@@ -834,6 +834,34 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert limit == 8 * @gib
     end
 
+    test "a later placement waits on the deferred growth an earlier one left instead of asking every node again", %{
+      template: template
+    } do
+      full = connect_elastic(template, %{elastic: %{memory_floor_bytes: 8 * @gib, memory_ceiling_bytes: 20 * @gib}})
+      last = connect_elastic(template)
+      resident(template, full)
+      resident(template, last)
+      test_pid = self()
+      stub(KubernetesClient, :get_pod, fn "tuist-sandboxes", _pod -> {:ok, %{"status" => deferred_status()}} end)
+
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", pod, bytes ->
+        send(test_pid, {:resized, pod, bytes})
+        {:ok, %{}}
+      end)
+
+      # Both nodes defer: the first growth is given back, the last one kept.
+      assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
+      full_pod = "sandboxd-" <> full
+      last_pod = "sandboxd-" <> last
+      assert_received {:resized, ^full_pod, _grown}
+      assert_received {:resized, ^full_pod, _released}
+      assert_received {:resized, ^last_pod, _kept}
+
+      assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
+      refute_received {:resized, ^full_pod, _bytes}
+      assert Repo.get!(SandboxNode, last).memory_limit_bytes == 9 * @gib
+    end
+
     test "admits a work item once the kubelet applies its growth, before the daemon reports it", %{
       template: template
     } do
