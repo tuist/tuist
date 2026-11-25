@@ -423,6 +423,7 @@ func main() {
 		// Cache images must share the data filesystem so attaching one is a reflink.
 		CacheImageDir: os.Getenv("CACHE_IMAGE_DIR"), CacheImagesBytes: int64(cacheImagesGiB) << 30,
 		CacheImagesTTL: durationEnv(logger, "CACHE_IMAGES_TTL", 24*time.Hour),
+		DiffSnapshots:  os.Getenv("DIFF_SNAPSHOTS") == "true",
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,

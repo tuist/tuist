@@ -2858,6 +2858,12 @@ sandboxes:
   # snapshot on the node. See infra/sandboxd/AGENTS.md,
   # BALLOON_FREE_PAGE_REPORTING.
   balloonFreePageReporting: false
+  # Experimental: pauses write a Diff snapshot of the pages a guest changed
+  # since its restore, merged into a reflink of its last memory image, so a
+  # pause costs what the guest touched rather than its whole memory. Takes
+  # effect for VMs restored after it is on. See infra/sandboxd/AGENTS.md,
+  # DIFF_SNAPSHOTS.
+  diffSnapshots: false
   # Size of the root filesystem every sandbox gets, which holds home (mise
   # toolchains, caches, Amp Desktop's Chrome) beside the separate workspace.
   # The template's init container grows the image to it, sparse, when it

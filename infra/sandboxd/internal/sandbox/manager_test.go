@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -1531,5 +1532,63 @@ func TestListReportsMemoryOfRunningSandboxesOnly(t *testing.T) {
 	}
 	if got := h.m.List()[0]; got.MemoryAnonBytes != 0 || got.MemoryFileBytes != 0 {
 		t.Fatalf("paused memory = %d anon, %d file, want none", got.MemoryAnonBytes, got.MemoryFileBytes)
+	}
+}
+
+// With DiffSnapshots, a VM restored from its memory image is tracked, and its
+// pause merges a Diff into a clone of that image: the base survives under
+// the diff, and the template memfile the first pause starts from is never
+// written through its hard link.
+func TestDiffSnapshotsMergeIntoACloneOfTheBase(t *testing.T) {
+	h := newHarness(t)
+	h.m.cfg.DiffSnapshots = true
+	ctx := context.Background()
+	h.create(t, testID, 1)
+	root := vm.RootDir(h.jailBase, testID)
+	templateMem, err := os.ReadFile(filepath.Join(root, firecracker.MemPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lastCall := func(inst *fakevm.Instance, path string) map[string]any {
+		var body map[string]any
+		for _, c := range inst.Calls() {
+			if c.Method == http.MethodPut && c.Path == path {
+				body = c.Body
+			}
+		}
+		return body
+	}
+	for gen := 1; gen <= 2; gen++ {
+		inst := h.launcher.Last()
+		if tracked, _ := lastCall(inst, "/snapshot/load")["track_dirty_pages"].(bool); !tracked {
+			t.Fatalf("generation %d: load without dirty-page tracking", gen)
+		}
+		before, err := os.ReadFile(filepath.Join(root, firecracker.MemPath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.m.Pause(ctx, testID); err != nil {
+			t.Fatalf("pause: %v", err)
+		}
+		if got := lastCall(inst, "/snapshot/create")["snapshot_type"]; got != "Diff" {
+			t.Fatalf("generation %d: snapshot_type %v, want Diff", gen, got)
+		}
+		after, err := os.ReadFile(filepath.Join(root, firecracker.MemPath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(string(after), strings.TrimRight(string(before), "\x00")+"\ndiff ") {
+			t.Fatalf("generation %d: the diff was not merged onto its base:\n%q\nafter\n%q", gen, before, after)
+		}
+		if _, err := h.m.Resume(ctx, testID); err != nil {
+			t.Fatalf("resume: %v", err)
+		}
+	}
+	shapes, _ := filepath.Glob(filepath.Join(h.dataDir, "templates", "default", "t1", "shapes", "*", template.MemFile))
+	if len(shapes) != 1 {
+		t.Fatalf("template memfiles %v", shapes)
+	}
+	if got, _ := os.ReadFile(shapes[0]); !bytes.Equal(got, templateMem) {
+		t.Fatal("a pause wrote into the template memfile")
 	}
 }

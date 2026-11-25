@@ -54,6 +54,11 @@ type Metadata struct {
 	// not travel either. Empty for no cache or the template's placeholder.
 	CacheImage string `json:"cache_image,omitempty"`
 
+	// MemoryTracked records that the running VM was restored from this
+	// jail's mem with KVM dirty-page tracking, so a pause writes only the
+	// pages it changed on top of a clone of that file (Config.DiffSnapshots).
+	MemoryTracked bool `json:"memory_tracked,omitempty"`
+
 	// Handover names the Firecracker process a daemon left running in the
 	// vmm container for the next daemon to attach (step 2b), with State
 	// still running. Without it, or when vmm no longer holds exactly that

@@ -190,6 +190,7 @@ with new configuration (a Pod's environment cannot change).
 {{- end }}
 {{- end }}
 {{- $_ := set $config "BALLOON_FREE_PAGE_REPORTING" (.Values.sandboxes.balloonFreePageReporting | default false | toString) }}
+{{- $_ := set $config "DIFF_SNAPSHOTS" (.Values.sandboxes.diffSnapshots | default false | toString) }}
 {{- $configData := "" }}
 {{- range $key, $value := $config }}
 {{- $configData = printf "%s%s=%s\n" $configData $key $value }}
@@ -417,6 +418,8 @@ spec:
             {{- end }}
             - name: BALLOON_FREE_PAGE_REPORTING
               value: {{ $config.BALLOON_FREE_PAGE_REPORTING | quote }}
+            - name: DIFF_SNAPSHOTS
+              value: {{ $config.DIFF_SNAPSHOTS | quote }}
             - name: METRICS_ADDR
               value: "$(POD_IP):{{ .Values.sandboxes.metricsPort }}"
             {{- if .Values.sandboxes.admin.enabled }}
