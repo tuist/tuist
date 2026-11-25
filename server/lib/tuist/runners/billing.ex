@@ -244,6 +244,46 @@ defmodule Tuist.Runners.Billing do
     |> Enum.sort_by(& &1.platform)
   end
 
+  @doc """
+  Compute-unit milliseconds `account_id`'s jobs still running have spent
+  since `from`, by platform, measured from each open session's claim to
+  `now`.
+
+  Billing counts a job only once its window is recorded, so these are not
+  billed here; they exist so a spend cap can see work in flight. Without
+  them a free account could start as many jobs as its concurrency allows
+  and run past its allowance before any of them counted. A session is in
+  flight while it is open and its job window is not recorded yet.
+  """
+  def in_flight_units_by_platform(account_id, %DateTime{} = from, %DateTime{} = now) when is_integer(account_id) do
+    from(s in RunnerSession,
+      where: s.account_id == ^account_id and is_nil(s.ended_at) and is_nil(s.job_ended_at),
+      select: %{
+        fleet_name: s.fleet_name,
+        platform: s.platform,
+        vcpus: s.vcpus,
+        memory_gb: s.memory_gb,
+        billing_multiplier: s.billing_multiplier,
+        started_at: s.started_at
+      }
+    )
+    |> Repo.all()
+    |> Enum.reduce(%{}, fn session, acc ->
+      started_at = if DateTime.before?(session.started_at, from), do: from, else: session.started_at
+      total_ms = max(DateTime.diff(now, started_at, :millisecond), 0)
+
+      case resources_for_session(session) do
+        {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}} ->
+          multiplier = multiplier_for_session(session, platform, vcpus, memory_gb)
+          units = compute_units(%{total_ms: total_ms, billing_multiplier: multiplier})
+          Map.update(acc, platform, units, &(&1 + units))
+
+        {:error, :invalid_resources} ->
+          acc
+      end
+    end)
+  end
+
   defp compute_units(%{total_ms: total_ms, billing_multiplier: multiplier}) do
     div(total_ms * multiplier, Catalog.compute_unit_basis_points())
   end

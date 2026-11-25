@@ -101,6 +101,9 @@ defmodule Tuist.Runners.Allowance do
   @doc """
   True when `account` must not be given another runner job.
 
+  Checked when a job is queued and again when a runner claims it, since a
+  free account can queue far more than its allowance while it is unspent.
+
   Only ever true for an account with no paid plan. A paid account is
   never blocked: going past the allowance is exactly what it is billed
   for.
@@ -143,10 +146,16 @@ defmodule Tuist.Runners.Allowance do
         month_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
 
         # Remote execution is metered on the Linux runner Price, so it
-        # spends the same free minutes.
+        # spends the same free minutes. Jobs still running spend them too,
+        # or a free account could run far past the allowance before its
+        # first job finished and was counted.
         account_id
         |> RemoteExecutionUsage.metered_units_by_platform(month_start, now)
         |> Map.new(&{&1.platform, &1.total_units})
+        |> Map.merge(
+          RunnerBilling.in_flight_units_by_platform(account_id, month_start, now),
+          fn _platform, finished, running -> finished + running end
+        )
         |> allowance_minutes()
       end
     )

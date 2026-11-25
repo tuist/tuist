@@ -3,7 +3,6 @@ defmodule Tuist.Runners.DispatchTest do
 
   import Mimic
 
-  alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
@@ -17,6 +16,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
+  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Sites
   alias Tuist.Runners.Workers.FetchLogsWorker
@@ -34,9 +34,8 @@ defmodule Tuist.Runners.DispatchTest do
     stub(Dispatch, :cache_name, fn -> cache end)
 
     # Default: no installation row for the webhook's installation_id, so
-    # resolution falls back to the legacy `owner == account.name`
-    # convention the bulk of these cases exercise. The installation-first
-    # path has its own case that overrides this stub.
+    # deliveries resolve to no account. Cases that need one call
+    # `installed_for/1`.
     stub(VCS, :get_github_app_installation_by_installation_id, fn _, _ -> {:error, :not_found} end)
 
     # Disable the macOS protected-profile auto-bootstrap globally for
@@ -167,13 +166,17 @@ defmodule Tuist.Runners.DispatchTest do
       })
   end
 
+  # The App installation every delivery in these cases comes from belongs
+  # to `account`, the only way a github.com delivery resolves an account.
+  defp installed_for(account) do
+    stub(VCS, :get_github_app_installation_by_installation_id, fn _, _ -> {:ok, %{account_id: account.id}} end)
+  end
+
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   describe "handle_webhook/2" do
-    test "returns {:ignored, :no_account} when neither the installation nor the org login match a Tuist account" do
-      stub(Accounts, :get_account_by_handle, fn _ -> nil end)
-
+    test "returns {:ignored, :no_account} when the installation has no row" do
       assert {:ignored, :no_account} =
                Dispatch.handle_webhook(queued_payload(owner: "ghost"), 1)
     end
@@ -182,9 +185,7 @@ defmodule Tuist.Runners.DispatchTest do
       account = enabled_account()
 
       # The customer's GitHub org login differs from their Tuist handle,
-      # so the legacy name convention can't find them — but the App
-      # installation maps straight to the account.
-      stub(Accounts, :get_account_by_handle, fn _ -> nil end)
+      # but the App installation maps straight to the account.
 
       stub(VCS, :get_github_app_installation_by_installation_id, fn 123_975_483, [client_url: "https://github.com"] ->
         {:ok, %{account_id: account.id}}
@@ -203,33 +204,9 @@ defmodule Tuist.Runners.DispatchTest do
       assert Map.get(counts, "queued", 0) == 1
     end
 
-    test "prefers the installation-resolved account over the handle match" do
-      installation_account = enabled_account()
-
-      # A different account happens to share the org login; the
-      # installation link is authoritative, so we must dispatch against
-      # the account that actually connected the App.
-      stub(Accounts, :get_account_by_handle, fn _ -> enabled_account() end)
-
-      stub(VCS, :get_github_app_installation_by_installation_id, fn _, _ ->
-        {:ok, %{account_id: installation_account.id}}
-      end)
-
-      stub(Client, :list_runner_pools, fn _ns ->
-        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
-      end)
-
-      payload = queued_payload(owner: "shared-login", labels: ["tuist-macos"])
-
-      assert {:ok, :queued} = Dispatch.handle_webhook(payload, 555)
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
-
-      assert Map.get(Jobs.status_counts(installation_account.id), "queued", 0) == 1
-    end
-
     test "returns {:ignored, :allowance_exhausted} when a free account has spent its runner allowance" do
       account = enabled_account()
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
       stub(Allowance, :exhausted?, fn a -> a.id == account.id end)
 
       # Nothing is enqueued and nothing tells GitHub, so the job stays
@@ -243,7 +220,7 @@ defmodule Tuist.Runners.DispatchTest do
 
     test "queues a job larger than its account's whole limit, to wait until the limit admits it" do
       account = enabled_account()
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
 
       stub(Client, :list_runner_pools, fn _ns ->
         {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
@@ -267,7 +244,7 @@ defmodule Tuist.Runners.DispatchTest do
 
     test "keeps dispatching for an account whose allowance is intact" do
       account = enabled_account()
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
       stub(Allowance, :exhausted?, fn _account -> false end)
 
       stub(Client, :list_runner_pools, fn _ns ->
@@ -281,7 +258,7 @@ defmodule Tuist.Runners.DispatchTest do
     test "returns {:ignored, :runners_disabled} when runners aren't enabled for the account" do
       account = enabled_account()
 
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
       stub(Environment, :runners_available?, fn -> false end)
 
       assert {:ignored, :runners_disabled} =
@@ -291,7 +268,7 @@ defmodule Tuist.Runners.DispatchTest do
     test "returns {:ignored, :no_matching_pool} when none of the pools' dispatchLabels match" do
       account = enabled_account()
 
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
 
       stub(Client, :list_runner_pools, fn _ns ->
         {:ok, [pool_cr(name: "default", label: "tuist-linux")]}
@@ -304,7 +281,7 @@ defmodule Tuist.Runners.DispatchTest do
     test "enqueues waiting self-hosted jobs as queued work" do
       account = enabled_account()
 
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
 
       stub(Client, :list_runner_pools, fn _ns ->
         {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
@@ -325,7 +302,7 @@ defmodule Tuist.Runners.DispatchTest do
     test "returns an enqueue failure so the webhook worker retries it" do
       account = enabled_account()
 
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
 
       stub(Client, :list_runner_pools, fn _ns ->
         {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
@@ -340,7 +317,7 @@ defmodule Tuist.Runners.DispatchTest do
     test "returns {:ignored, :no_pools} when the cluster has no RunnerPool CRs" do
       account = enabled_account()
 
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
       stub(Client, :list_runner_pools, fn _ns -> {:ok, []} end)
 
       assert {:ignored, :no_pools} =
@@ -350,7 +327,7 @@ defmodule Tuist.Runners.DispatchTest do
     test "caches the account lookup across two webhook calls within the TTL" do
       account = enabled_account()
 
-      expect(Accounts, :get_account_by_handle, 1, fn _ -> account end)
+      expect(VCS, :get_github_app_installation_by_installation_id, 1, fn _, _ -> {:ok, %{account_id: account.id}} end)
       stub(Client, :list_runner_pools, fn _ns -> {:ok, []} end)
 
       payload = queued_payload(owner: account.name)
@@ -477,7 +454,7 @@ defmodule Tuist.Runners.DispatchTest do
     test "propagates an unexpected error from the completed-before-queued write" do
       account = enabled_account()
 
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
 
       stub(Client, :list_runner_pools, fn _ns ->
         {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
@@ -501,7 +478,7 @@ defmodule Tuist.Runners.DispatchTest do
       account = enabled_account()
       workflow_job_id = System.unique_integer([:positive])
 
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
       stub(Claims, :complete, fn ^workflow_job_id -> :ok end)
 
       stub(Client, :list_runner_pools, fn _ns ->
@@ -535,10 +512,86 @@ defmodule Tuist.Runners.DispatchTest do
     end
   end
 
+  describe "handle_webhook/2 github.com delivery from an installation with no row" do
+    # Anyone can install the public Tuist App on a GitHub organization and
+    # skip the setup callback, which leaves no installation row. When that
+    # organization's login equals a Tuist handle, its deliveries must not
+    # speak for that account: GitHub verified the installation, not who
+    # owns the handle.
+    setup do
+      victim = enabled_account()
+      now = DateTime.utc_now()
+
+      session =
+        Repo.insert!(%RunnerSession{
+          account_id: victim.id,
+          workflow_job_id: 7_100,
+          fleet_name: "macos-pool",
+          pod_name: "victim-pod",
+          runner_name: "victim-runner",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          billing_multiplier: 10_000,
+          started_at: DateTime.add(now, -60, :second),
+          inserted_at: DateTime.truncate(now, :second),
+          updated_at: DateTime.truncate(now, :second)
+        })
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      # Handles are citext, so any casing of the organization login used to match.
+      %{victim: victim, session: session, owner: String.upcase(victim.name)}
+    end
+
+    test "does not enqueue work for the account whose handle matches the owner", %{victim: victim, owner: owner} do
+      assert {:ignored, :no_account} = Dispatch.handle_webhook(queued_payload(owner: owner), 9_999)
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
+
+      assert Map.get(Jobs.status_counts(victim.id), "queued", 0) == 0
+    end
+
+    test "does not bind or bill a job window on that account's runner", %{session: session, owner: owner} do
+      now = DateTime.utc_now()
+
+      payload =
+        completed_payload(
+          owner: owner,
+          id: 7_101,
+          runner_name: "victim-runner",
+          job_started_at: now |> DateTime.add(-5 * 3600, :second) |> DateTime.to_iso8601(),
+          job_completed_at: DateTime.to_iso8601(now)
+        )
+
+      Dispatch.handle_webhook(payload, 9_999)
+
+      stored = Repo.get!(RunnerSession, session.id)
+      assert is_nil(stored.executed_workflow_job_id)
+      assert is_nil(stored.job_started_at)
+      assert is_nil(stored.job_ended_at)
+    end
+
+    test "does not re-attribute a running claim of that account", %{victim: victim} do
+      claim_running!(victim, 7_200, "victim-claim-pod", "victim-claim-runner")
+
+      payload =
+        put_in(
+          in_progress_payload(id: 7_201, runner_name: "victim-claim-runner"),
+          ["repository", "full_name"],
+          "#{String.upcase(victim.name)}/repo"
+        )
+
+      assert :ignored = Dispatch.handle_webhook(payload, 9_999)
+      assert Repo.get!(WorkflowJob, 7_200).status == "running"
+    end
+  end
+
   describe "handle_webhook/2 in_progress" do
     setup do
       account = enabled_account()
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
       %{account: account}
     end
 
@@ -675,7 +728,7 @@ defmodule Tuist.Runners.DispatchTest do
       # A runner_name is only ours to act on within the account that
       # minted it. With no account resolved from the installation we
       # must not match the name against anyone's runners.
-      stub(Accounts, :get_account_by_handle, fn _ -> nil end)
+      stub(VCS, :get_github_app_installation_by_installation_id, fn _, _ -> {:error, :not_found} end)
       reject(&Claims.record_execution/3)
       reject(&RunnerSessions.record_execution/3)
 
@@ -687,7 +740,7 @@ defmodule Tuist.Runners.DispatchTest do
   describe "handle_webhook/2 completed — attribution backstop" do
     setup do
       account = enabled_account()
-      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      installed_for(account)
       %{account: account}
     end
 

@@ -5,6 +5,18 @@ own node: [`cache_volumes/AGENTS.md`](cache_volumes/AGENTS.md). GitLab
 acquisition: [`gitlab/AGENTS.md`](gitlab/AGENTS.md). Bitrise pools:
 [`bitrise/AGENTS.md`](bitrise/AGENTS.md).
 
+## Webhook account and spend boundaries
+
+- A github.com `workflow_job` delivery resolves its account only through the
+  installation row for its `installation.id` (`Dispatch.resolve_account/1`).
+  Never fall back to the repository owner's login: the App is public, so an
+  organization named like a Tuist handle (handles are citext) could otherwise
+  queue work, bind runners and record billable windows for that account.
+- A session binds one executed job and one job window. `RunnerSessions`
+  ignores a later report naming another job or a second window.
+- `Allowance.exhausted?/1` is checked at enqueue and again at claim, and
+  `minutes_used/1` counts open sessions whose window is not recorded yet.
+
 ## Air fleet share
 
 `AirShare` caps what Air accounts (no live paid or open source subscription, no

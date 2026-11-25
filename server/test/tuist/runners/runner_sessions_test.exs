@@ -514,6 +514,68 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       assert Repo.get!(RunnerSession, session.id).executed_workflow_job_id == 8099
     end
 
+    test "keeps a session bound to the job its runner ran when another job is reported" do
+      account = account_fixture()
+      session = session_fixture(account, runner_name: "runner-bound", workflow_job_id: 8020)
+
+      assert :matched =
+               RunnerSessions.record_execution("runner-bound", 8020, account.id, %{
+                 started_at: ~U[2026-08-18 13:50:02.000000Z],
+                 ended_at: ~U[2026-08-18 13:50:08.000000Z]
+               })
+
+      # A JIT runner runs one job, so a later report naming another job is
+      # wrong, and must neither rebind the session nor move what it bills.
+      assert :mismatch =
+               RunnerSessions.record_execution("runner-bound", 8021, account.id, %{
+                 started_at: ~U[2026-08-18 08:00:00.000000Z],
+                 ended_at: ~U[2026-08-18 18:00:00.000000Z]
+               })
+
+      stored = Repo.get!(RunnerSession, session.id)
+      assert stored.executed_workflow_job_id == 8020
+      assert stored.job_started_at == ~U[2026-08-18 13:50:02.000000Z]
+      assert stored.job_ended_at == ~U[2026-08-18 13:50:08.000000Z]
+    end
+
+    test "keeps the first recorded job window when the same job is reported again" do
+      account = account_fixture()
+      session = session_fixture(account, runner_name: "runner-closed", workflow_job_id: 8022)
+
+      assert :matched =
+               RunnerSessions.record_execution("runner-closed", 8022, account.id, %{
+                 started_at: ~U[2026-08-18 13:50:02.000000Z],
+                 ended_at: ~U[2026-08-18 13:50:08.000000Z]
+               })
+
+      assert :matched =
+               RunnerSessions.record_execution("runner-closed", 8022, account.id, %{
+                 started_at: ~U[2026-08-18 08:00:00.000000Z],
+                 ended_at: ~U[2026-08-18 18:00:00.000000Z]
+               })
+
+      stored = Repo.get!(RunnerSession, session.id)
+      assert stored.job_started_at == ~U[2026-08-18 13:50:02.000000Z]
+      assert stored.job_ended_at == ~U[2026-08-18 13:50:08.000000Z]
+    end
+
+    test "records the window on a session the in_progress report already bound" do
+      account = account_fixture()
+      session = session_fixture(account, runner_name: "runner-progress", workflow_job_id: 8023)
+
+      assert :mismatch = RunnerSessions.record_execution("runner-progress", 8024, account.id)
+
+      assert :mismatch =
+               RunnerSessions.record_execution("runner-progress", 8024, account.id, %{
+                 started_at: ~U[2026-08-18 13:50:02.000000Z],
+                 ended_at: ~U[2026-08-18 13:50:08.000000Z]
+               })
+
+      stored = Repo.get!(RunnerSession, session.id)
+      assert stored.executed_workflow_job_id == 8024
+      assert stored.job_ended_at == ~U[2026-08-18 13:50:08.000000Z]
+    end
+
     test "prefers the open session over a closed one for the same runner_name" do
       account = account_fixture()
       # A closed prior session and a fresh open one can share a runner_name

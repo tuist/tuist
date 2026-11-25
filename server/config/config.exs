@@ -327,6 +327,7 @@ config :logger, :console,
     :labels,
     :installation_id,
     :requested_labels,
+    :sender,
     # Tuist.Runners.Buildkite structured fields
     :queue,
     :job_uuid,

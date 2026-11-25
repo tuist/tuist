@@ -16,13 +16,10 @@ defmodule Tuist.Runners.Dispatch do
 
     1. Resolve the Tuist account. The authoritative link is the
        webhook's `installation.id` → `github_app_installations`
-       row → `account_id`, so we resolve by installation first and
-       only fall back to the legacy `repository.owner.login ==
-       account.name` convention when no installation row is found.
-       The convention silently strands any customer whose Tuist
-       handle differs from their GitHub org login (the dominant
-       `no_account` webhook outcome); installation resolution has
-       no such coupling.
+       row → `account_id`. A delivery from an installation with no
+       row resolves to no account, never to the account whose handle
+       matches the repository owner: the App is public, so an
+       organization login says nothing about who owns a handle.
     2. Reject if this deployment doesn't offer runners
        (`Environment.runners_available?/0`: self-hosted canary and
        production servers don't).
@@ -63,7 +60,7 @@ defmodule Tuist.Runners.Dispatch do
   # to ~2/min while keeping post-deploy propagation under a minute.
   @pools_cache_ttl_ms 30_000
 
-  # Account lookups by org login are cached to keep the webhook path
+  # Account lookups by installation are cached to keep the webhook path
   # off Postgres. Runner availability isn't part of the cached value;
   # it's evaluated per call via `Environment.runners_available?/0`.
   @account_cache_ttl_ms 60_000
@@ -76,7 +73,7 @@ defmodule Tuist.Runners.Dispatch do
   writes the payload itself, so the account comes from that row and never
   from the payload. Without it the delivery was verified with the github.com
   App's secret, and the account is resolved from the github.com installation
-  row for `installation_id`, falling back to the repository owner's handle.
+  row for `installation_id`, and to none when that installation has no row.
   """
   def handle_webhook(payload, installation_id, account_id \\ nil)
 
@@ -172,13 +169,15 @@ defmodule Tuist.Runners.Dispatch do
     {owner, _repo_name} = parse_full_name(full_name)
     requested = Map.get(job, "labels", [])
 
-    with {:ok, account} <- fetch_enabled_account(installation, owner),
+    with {:ok, account} <- fetch_enabled_account(installation),
          :ok <- check_allowance(account),
          {:ok, target} <- resolve_dispatch_target(account, requested),
          :ok <- enqueue_fun.(enqueue_attrs(account, target, full_name, job)) do
       Logger.info("runners: enqueued",
         account: account.name,
         repo: full_name,
+        installation_id: installation.id,
+        sender: sender_login(payload),
         fleet: target.pool_name,
         dispatch_label: target.requested_dispatch_label,
         workflow_job_id: Map.get(job, "id")
@@ -187,8 +186,12 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, :queued}
     else
       {:error, :no_account} ->
-        Logger.info("runners: no account match for webhook installation or owner; ignoring",
+        # The sender is who triggered the job on GitHub. With no account
+        # behind the installation it is the one name that says who is
+        # sending work at us.
+        Logger.info("runners: no account for webhook installation; ignoring",
           installation_id: installation.id,
+          sender: sender_login(payload),
           owner: owner,
           repo: full_name,
           requested_labels: requested
@@ -270,7 +273,7 @@ defmodule Tuist.Runners.Dispatch do
     runner_name = Map.get(job, "runner_name", "") || ""
 
     with true <- is_integer(workflow_job_id) and runner_name != "",
-         {:ok, account} <- webhook_account(payload, installation) do
+         {:ok, account} <- webhook_account(installation) do
       record_execution(runner_name, workflow_job_id, account.id)
     else
       _ -> :ignored
@@ -282,15 +285,8 @@ defmodule Tuist.Runners.Dispatch do
   # every other account controls the names of its own self-hosted
   # runners — so attribution and release must be scoped to the account
   # the delivery authenticates as, never matched globally by name.
-  defp webhook_account(payload, installation) do
-    owner =
-      payload
-      |> Map.get("repository", %{})
-      |> Map.get("full_name", "")
-      |> parse_full_name()
-      |> elem(0)
-
-    case resolve_account(installation, owner) do
+  defp webhook_account(installation) do
+    case resolve_account(installation) do
       nil -> {:error, :no_account}
       account -> {:ok, account}
     end
@@ -412,7 +408,7 @@ defmodule Tuist.Runners.Dispatch do
       # still transition the customer-facing job row, but must touch no
       # runner state.
       account_id =
-        case webhook_account(payload, installation) do
+        case webhook_account(installation) do
           {:ok, account} -> account.id
           {:error, _} -> nil
         end
@@ -567,10 +563,9 @@ defmodule Tuist.Runners.Dispatch do
     job = Map.get(payload, "workflow_job", %{})
     repo = Map.get(payload, "repository", %{})
     full_name = Map.get(repo, "full_name", "")
-    {owner, _repo_name} = parse_full_name(full_name)
     requested = Map.get(job, "labels", [])
 
-    with {:ok, account} <- fetch_enabled_account(installation, owner),
+    with {:ok, account} <- fetch_enabled_account(installation),
          {:ok, target} <- resolve_dispatch_target(account, requested),
          :ok <- Jobs.record_completed(enqueue_attrs(account, target, full_name, job), conclusion) do
       {:ok, account.id}
@@ -808,12 +803,11 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  # Resolve by installation first (the authoritative link the customer
-  # established at connect time), then fall back to the legacy
-  # `owner == account.name` convention. Enablement is checked once the
-  # account resolves, regardless of which path found it.
-  defp fetch_enabled_account(installation, owner) do
-    case resolve_account(installation, owner) do
+  # Resolve by installation, the authoritative link the customer
+  # established at connect time. Enablement is checked once the account
+  # resolves.
+  defp fetch_enabled_account(installation) do
+    case resolve_account(installation) do
       nil ->
         {:error, :no_account}
 
@@ -829,7 +823,7 @@ defmodule Tuist.Runners.Dispatch do
   # A delivery verified by an installation row's own secret is bound to that
   # row's account. Its sender controls every payload field, including the
   # installation id and the repository owner, so neither may pick the account.
-  defp resolve_account(%{account_id: account_id}, _owner) when is_integer(account_id) do
+  defp resolve_account(%{account_id: account_id}) when is_integer(account_id) do
     cached_account([__MODULE__, :account_by_id, account_id], fn ->
       case Accounts.get_account_by_id(account_id) do
         {:ok, account} -> account
@@ -838,12 +832,17 @@ defmodule Tuist.Runners.Dispatch do
     end)
   end
 
-  defp resolve_account(%{id: installation_id}, owner) do
-    account_by_installation_cached(installation_id) || account_by_handle(owner)
-  end
-
-  defp account_by_handle(owner) when is_binary(owner) and owner != "", do: get_account_by_handle_cached(owner)
-  defp account_by_handle(_), do: nil
+  # A github.com delivery is signed with the Tuist App's secret, so its
+  # installation id is GitHub's word, and only the installation row says
+  # which account that installation belongs to. The repository owner's
+  # login used to stand in when no row existed, but the App is public:
+  # anyone can install it on an organization whose login equals another
+  # account's handle and skip the setup callback, and its deliveries then
+  # queued work, bound runners and recorded billable windows for that
+  # account. An installation without a row could never mint a runner
+  # either (`Tuist.Runners` mints through the account's installation row),
+  # so the fallback served no legitimate delivery.
+  defp resolve_account(%{id: installation_id}), do: account_by_installation_cached(installation_id)
 
   # We deliberately do NOT cache `{:error, _}` returns from the K8s
   # client. A transient apiserver hiccup should retry on the next
@@ -874,10 +873,9 @@ defmodule Tuist.Runners.Dispatch do
   # to, keyed by `installation_id`. This is the authoritative link
   # (`github_app_installations.account_id`), so it works even when the
   # customer's Tuist handle differs from their GitHub org login. Same
-  # caching contract as the handle cache: only successful resolutions
+  # caching contract as every account cache here: only successful resolutions
   # are memoised, and enablement is re-evaluated per webhook by the
-  # caller. A nil/absent installation row falls through to the handle
-  # convention.
+  # caller.
   defp account_by_installation_cached(installation_id) when is_integer(installation_id) do
     cached_account([__MODULE__, :account_by_installation, installation_id], fn ->
       account_for_installation(installation_id)
@@ -915,32 +913,6 @@ defmodule Tuist.Runners.Dispatch do
       account
     else
       _ -> nil
-    end
-  end
-
-  # Caches any account resolved for an org login. Enablement is a
-  # feature-flag decision the caller makes per webhook, not a property
-  # of the cached row, so caching every account is safe and a flag
-  # flip still takes effect immediately. Unknown handles aren't cached
-  # — `KeyValueStore.get/1` can't distinguish "cached nil" from "no
-  # entry" anyway.
-  defp get_account_by_handle_cached(owner) do
-    cache_key = [__MODULE__, :account, owner]
-    cache_opts = [cache: __MODULE__.cache_name()]
-
-    case KeyValueStore.get(cache_key, cache_opts) do
-      nil ->
-        case Accounts.get_account_by_handle(owner) do
-          nil ->
-            nil
-
-          account ->
-            KeyValueStore.put(cache_key, account, Keyword.put(cache_opts, :ttl, @account_cache_ttl_ms))
-            account
-        end
-
-      cached ->
-        cached
     end
   end
 
@@ -1008,6 +980,13 @@ defmodule Tuist.Runners.Dispatch do
   defp extract_pool_memory_gb(_spec, default), do: default
 
   defp namespace, do: Environment.runners_namespace()
+
+  defp sender_login(payload) do
+    case Map.get(payload, "sender") do
+      %{"login" => login} when is_binary(login) -> login
+      _ -> nil
+    end
+  end
 
   defp parse_full_name(full_name) when is_binary(full_name) do
     case String.split(full_name, "/", parts: 2) do
