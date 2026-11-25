@@ -2124,6 +2124,35 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert hd(response["preview"]["builds"])["id"] == app_build_two.id
     end
 
+    test "skips a newer preview whose upload never completed", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      binary_id = "550E8400-E29B-41D4-A716-446655440000"
+
+      preview_attrs = [project: project, display_name: "App", bundle_identifier: "com.example.app", git_branch: "main"]
+      installed = AppBuildsFixtures.preview_fixture([inserted_at: ~U[2021-01-01 00:00:00Z]] ++ preview_attrs)
+      AppBuildsFixtures.app_build_fixture(preview: installed, binary_id: binary_id, build_version: "1")
+      completed = AppBuildsFixtures.preview_fixture([inserted_at: ~U[2021-01-02 00:00:00Z]] ++ preview_attrs)
+      AppBuildsFixtures.app_build_fixture(preview: completed)
+      unfinished = AppBuildsFixtures.preview_fixture([inserted_at: ~U[2021-01-03 00:00:00Z]] ++ preview_attrs)
+      AppBuildsFixtures.app_build_fixture(preview: unfinished, upload_completed: false)
+
+      stub(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=#{binary_id}&build_version=1")
+
+      # Then
+      assert json_response(conn, :ok)["preview"]["id"] == completed.id
+    end
+
     test "returns nil when binary_id is not found", %{
       conn: conn,
       user: user,

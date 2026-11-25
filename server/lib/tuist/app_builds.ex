@@ -137,7 +137,7 @@ defmodule Tuist.AppBuilds do
             where: p.bundle_identifier == ^bundle_identifier,
             where: ^git_branch_filter,
             where: p.track == ^normalized_track,
-            where: ab.type in ^supported_types,
+            where: ab.type in ^supported_types and ab.upload_completed,
             where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
             order_by: [desc: p.inserted_at],
             limit: 1,
@@ -172,6 +172,12 @@ defmodule Tuist.AppBuilds do
     %AppBuild{}
     |> AppBuild.create_changeset(attrs)
     |> Repo.insert()
+  end
+
+  def mark_upload_completed(%AppBuild{upload_completed: true} = app_build), do: {:ok, app_build}
+
+  def mark_upload_completed(%AppBuild{} = app_build) do
+    app_build |> Ecto.Changeset.change(upload_completed: true) |> Repo.update()
   end
 
   def update_preview_with_app_build(preview_id, app_build) do
@@ -544,7 +550,7 @@ defmodule Tuist.AppBuilds do
     app_build_query =
       from ab in AppBuild,
         where:
-          ab.preview_id == parent_as(:p).id and
+          ab.preview_id == parent_as(:p).id and ab.upload_completed and
             (is_nil(type(^supported_platform, ^enum_el_type)) or
                fragment(
                  "? = ANY(?)",
