@@ -10,21 +10,26 @@ gateway:
     enabled: true
     host: execution.tuist.dev
 workers:
-  # Four slots' rootfs clones, 30 GiB workspaces and memory images (185 GiB of
+  # Six slots' rootfs clones, 30 GiB workspaces and memory images (277 GiB of
   # ceilings) plus the 20 GiB input blob cache, which comes out of this budget.
-  # Ceilings, not use: the images are sparse files that fill as VMs write.
-  # Runner hosts had 222-325 GiB free on /data in November 2026.
-  diskGiB: 205
-  # Every runners-linux host: 1 VM each always (5 GiB, 2 CPUs), up to 4 each
-  # (17 GiB) ahead of queued CI. Ten hosts give 40 slots (167 GiB). In the
+  # Ceilings, not use: the images are sparse files that fill as VMs write, and
+  # placement also checks the free space a worker reports. Runner hosts had
+  # 316-363 GiB free on /data, and a worker's VMs held at most 16 GiB, in the
+  # week to 2026-11-25.
+  diskGiB: 300
+  # Every runners-linux host: 1 VM each always (5 GiB, 2 CPUs), up to 6 each
+  # (25 GiB) ahead of queued CI. Ten hosts give 60 slots (250 GiB). In the
   # week to 2026-11-13, busy runners peaked at 608 GiB, which left about
-  # 224 GiB of the autoscaler's budget with one host down; 4 slots also leave
-  # each host room for the largest runner shape (16 vCPU / 64 GiB).
+  # 224 GiB of the autoscaler's budget with one host down, about what the
+  # other nine hosts' 225 GiB of ceilings take; a growth that does not fit is
+  # deferred, never evicting a running job. 6 slots (12 vCPUs) still leave each
+  # host room for the largest runner shape (16 vCPU / 64 GiB). Builds grew
+  # every host to a 4-slot ceiling within their first minute (November 2026).
   sharedHosts:
     enabled: true
     nodeSelector:
       node.cluster.x-k8s.io/pool: runners-linux
     floorSlots: 1
-    ceilingSlots: 4
+    ceilingSlots: 6
     tolerations:
       - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}
