@@ -1226,6 +1226,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     params = Map.merge(params, %{epoch: epoch, sets_expire_at: sets_expire_at(epoch)})
 
     execute!(refs, params)
+    new_sets? = new_sets?(params)
 
     # Path and pattern numbers are allocated one writer at a time per
     # project, so the sets written after read every pattern they name.
@@ -1234,12 +1235,32 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
         fn ->
           Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["test_impact_line_paths:#{project_id}"])
           execute!(paths, params)
-          execute!(patterns, params)
+          if new_sets?, do: execute!(patterns, params)
         end,
         timeout: 2 * @write_timeout
       )
 
-    execute!(sets, params)
+    if new_sets?, do: execute!(sets, params)
+  end
+
+  # Whether the snapshot points to a set its week doesn't hold yet: the
+  # patterns and the sets are written only for those. A commit's runs mostly
+  # repeat the week's lines, and either insert, a join of every scope's lines,
+  # costs a hundred milliseconds or more even when it writes nothing, while
+  # this costs a few. A set stored meanwhile only leaves less to write.
+  defp new_sets?(params) do
+    [] !=
+      query!(
+        """
+        SELECT 1 FROM test_impact_snapshot_lines
+        WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
+          AND line_set NOT IN (
+            SELECT line_set FROM test_impact_line_sets WHERE project_id = {project_id:Int64} AND epoch = {epoch:Date}
+          )
+        LIMIT 1
+        """,
+        Map.take(params, [:project_id, :snapshot_id, :epoch])
+      )
   end
 
   # The run's repository files the week hasn't numbered yet, numbered after
