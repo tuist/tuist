@@ -20,7 +20,12 @@ defmodule Tuist.MixProject do
         project: "tuist/server",
         # The lumis and mdex_native NIFs exceed the 64 MiB snapshot limit. Their
         # builders still let the dependents (mdex) be cached.
-        cache: [portable: true, builders: cache_builders(), exclude: [:lumis, :mdex_native]]
+        cache: [portable: true, builders: cache_builders(), exclude: [:lumis, :mdex_native]],
+        # --cover runs on main and pull requests skip the tests their changes
+        # can't reach; server.yml's nightly run plans with
+        # --no-selective-testing and gives them their baseline (see
+        # docs/coverage-test-selection.md).
+        selective_testing: [strategy: :coverage]
       ],
       deps: deps(),
       compilers: compilers(Mix.env()),
