@@ -2118,6 +2118,9 @@ macosFleet:
   tailscaleEgress:
     proxyTags: tag:tuist-k8s-production
   replicas: 2
+  # Revoke tart-kubelet identities whose machine, lease and Node are gone.
+  nodeIdentitySweep:
+    revoke: true
   # The minis drop inbound :22 from everything except the tailnet, loopback
   # and this list, so internet SSH scan traffic can't exhaust launchd's ssh
   # listen backlog. That socket binds *:22, so an exhausted backlog takes the

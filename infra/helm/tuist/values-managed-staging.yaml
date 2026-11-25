@@ -799,7 +799,6 @@ macosFleet:
   enabled: true
   replicas: 1
   # Revoke tart-kubelet identities whose machine, lease and Node are gone.
-  # Staging first; production follows once this has run cleanly here.
   nodeIdentitySweep:
     revoke: true
   # The minis drop inbound :22 from everything except the tailnet, loopback
