@@ -1915,6 +1915,8 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.cas.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.process.targetName),
                     .target(name: Module.reapi.targetName),
                     .target(name: Module.server.targetName),

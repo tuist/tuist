@@ -2,7 +2,10 @@ import ArgumentParser
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Path
 import Testing
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistProcess
 @testable import TuistCargoCommand
 
@@ -110,6 +113,35 @@ struct CargoTests {
 }
 
 struct CargoReportingTests {
+    /// A CI system Tuist doesn't detect that checks out a bare commit: `CI` makes the run a CI run, as `tuist test`
+    /// reports it, without naming a provider an older server would refuse, and git's `HEAD` is not a branch.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func reportsUndetectedCIWithoutAProviderAndADetachedCheckoutWithoutABranch() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        func metadata(_ environment: [String: String], branch: String) async -> [String: Any] {
+            mockEnvironment.variables = environment
+            return await CargoReporting(
+                process: CargoProcess(runner: GitRevisionRunner(branch: branch)), directory: directory,
+                environment: environment, handle: "example/project", serverURL: URL(string: "https://example.com")!
+            ).metadata()
+        }
+        let machine = ["FLY_APP_NAME": "runner", "FLY_MACHINE_ID": "3d8d9e1c", "FLY_REGION": "iad"]
+
+        let detached = await metadata(machine.merging(["CI": "true"]) { $1 }, branch: "HEAD")
+        #expect(detached["is_ci"] as? Bool == true)
+        #expect(detached["ci_provider"] == nil)
+        #expect(detached["git_commit_sha"] as? String == "0123abcd")
+        #expect(detached["git_branch"] == nil)
+
+        let named = await metadata(machine.merging(["CI": "1", "TUIST_GIT_BRANCH": "main"]) { $1 }, branch: "HEAD")
+        #expect(named["git_branch"] as? String == "main")
+
+        let local = await metadata(machine, branch: "feature/widgets")
+        #expect(local["is_ci"] as? Bool == false)
+        #expect(local["git_branch"] as? String == "feature/widgets")
+    }
+
     @Test(.inTemporaryDirectory) func omitsNewMetadataUntilClusterWideSupportIsAdvertised() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let reporting = CargoReporting(
@@ -475,5 +507,22 @@ struct CargoNextestReportTests {
         let inventory = try JSONDecoder().decode(NextestInventory.self, from: data)
         #expect(inventory.modules == ["parser::integration"])
         #expect(inventory.enumeration.count == 2)
+    }
+}
+
+/// Answers the reporting's `git rev-parse HEAD --abbrev-ref HEAD` with a commit and the given branch, `HEAD` when detached.
+private struct GitRevisionRunner: CommandRunning {
+    let branch: String
+    func run(
+        arguments: [String],
+        environment _: [String: String],
+        workingDirectory _: AbsolutePath?
+    ) -> AsyncThrowingStream<ProcessEvent, any Error> {
+        AsyncThrowingStream { continuation in
+            if arguments.contains("rev-parse") {
+                continuation.yield(.standardOutput(Array("0123abcd\n\(branch)\n".utf8)))
+            }
+            continuation.finish()
+        }
     }
 }
