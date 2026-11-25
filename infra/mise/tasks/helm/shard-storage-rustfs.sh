@@ -220,15 +220,15 @@ jq -e '
   any(.[]; .kind == "ExternalSecret" and .metadata.namespace == "tuist" and .spec.target.name == "rustfs-larch-targets" and
     (.spec.target.template.data["targets.json"] | fromjson | keys == ["rustfs-larch-production-v1"] and
       (.["rustfs-larch-production-v1"] | .access == "private" and .site == "larch" and .private_network_ready == false and
-        .endpoint == "http://rustfs-larch-s3.rustfs-larch.svc.cluster.local:9000" and (has("runner_endpoints") | not)))) and
+        .endpoint == "http://rustfs-larch-s3.rustfs-larch.svc.cluster.local:9000" and
+        .runner_endpoints == {larch: "https://s3-larch.tuist.dev", ber1: "https://s3-larch-via-ber1.tuist.dev"}))) and
   any(.[]; .kind == "CiliumNetworkPolicy" and .spec.ingress[0].fromEntities == ["host", "remote-node"]) and
   any(.[]; .kind == "NetworkPolicy" and .metadata.name == "rustfs-larch-store" and
     ([.spec.ingress[].from[] | .namespaceSelector.matchLabels["kubernetes.io/metadata.name"] // empty]) == ["tuist"])
 ' "$work/larch.json" >/dev/null
-helm template rustfs-larch "$chart" -n rustfs-larch -f "$chart/values-production-larch.yaml" --set target.runnerEntrancesReady=true |
+helm template rustfs-larch "$chart" -n rustfs-larch -f "$chart/values-production-larch.yaml" --set target.runnerEntrancesReady=false |
   yq -o json -I0 'select(.kind == "ExternalSecret" and .metadata.name == "rustfs-larch-targets")' |
-  jq -e '.spec.target.template.data["targets.json"] | fromjson | .["rustfs-larch-production-v1"].runner_endpoints ==
-    {larch: "https://s3-larch.tuist.dev", ber1: "https://s3-larch-via-ber1.tuist.dev"}' >/dev/null
+  jq -e '.spec.target.template.data["targets.json"] | fromjson | .["rustfs-larch-production-v1"] | has("runner_endpoints") | not' >/dev/null
 if helm template rustfs-larch "$chart" -n rustfs-larch -f "$chart/values-production-larch.yaml" \
   --set privateNetwork.enabled=false >/dev/null 2>&1; then
   echo 'FAIL: runner entrances accepted without the in-cluster endpoint' >&2; exit 1
