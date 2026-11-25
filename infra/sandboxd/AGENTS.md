@@ -129,7 +129,13 @@ memory image until they cold boot.
   sandbox's own `mem` (`File` backend, `resume_vm: true`), then `set_time`,
   `configure` (flushes ARP) and `ping`. Reports `restore_ms`. Resuming a
   sandbox that is already running succeeds without doing anything, so a
-  retried resume whose first answer was lost is harmless.
+  retried resume whose first answer was lost is harmless. A restore that
+  fails after the load resumed the guest (an image of a hung guest whose
+  agent never answers) sets `cold_boot` and cold boots the disks in the
+  same command: the killed guest may have written them, so the image is
+  never loaded again. When that Firecracker does not die, the sandbox moves
+  to `error` (`sandbox_died`) instead, as a pause does: a second VM on the
+  disks it may still write would corrupt them.
 - Rootfs growth (`internal/sandbox/rootfs.go`): a sandbox keeps the rootfs
   it was created with, so after every `resume` and every create that cold
   boots its own disks (disk snapshot, archive), a rootfs smaller than the
@@ -226,7 +232,9 @@ memory image until they cold boot.
   fetched kills the VM. Elsewhere it cold boots the disks, and so does a
   warm restore of synced disks whose guest agent never answers (`agent not
   ready`): the memory image is dropped, processes are lost, and lazy disks
-  keep arriving through their mounts. With
+  keep arriving through their mounts. When that guest's Firecracker does not
+  die, the create fails instead (`firecracker did not die`), leaving the
+  archive for a later restore. With
   `lazy_disks` (`internal/lazydisk`, `internal/sandbox/lazydisks.go`) each
   disk is a FUSE mount over its path in the jail, which the jailer's
   recursive bind carries into the chroot: a chunk the guest reads or

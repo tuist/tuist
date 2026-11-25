@@ -420,8 +420,10 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 			res, err = m.warmCreate(ctx, sb, src, args.WorkspaceGB, uid, log)
 			// A guest that never answers after its memory loaded would
 			// fail every restore the same way; synced disks hold its files
-			// without the memory, so they cold boot instead.
-			if err == nil || !header.DisksSynced || !errors.Is(err, vsock.ErrAgentNotReady) || ctx.Err() != nil {
+			// without the memory, so they cold boot instead, unless that
+			// guest's Firecracker did not die and may still write them: the
+			// create then fails and leaves the archive to a later restore.
+			if err == nil || !header.DisksSynced || !errors.Is(err, vsock.ErrAgentNotReady) || errors.Is(err, ErrVMNotKilled) || ctx.Err() != nil {
 				return res, err
 			}
 			log.Warn("archived memory did not resume; cold booting the disks", "error", err)

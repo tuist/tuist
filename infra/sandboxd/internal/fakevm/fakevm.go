@@ -40,6 +40,13 @@ type Launcher struct {
 	// SizedMemory makes snapshots write a mem file as long as the guest's
 	// memory (sparse) rather than a short marker, as Uffd loads need.
 	SizedMemory bool
+	// HungRestores makes the guest of every snapshot load that resumes it
+	// never answer, as one snapshotted while it hung does. Cold boots
+	// answer as usual.
+	HungRestores bool
+	// FailKill makes Kill on instances launched after it is set return an
+	// error and leave them running, as a Firecracker that does not die.
+	FailKill bool
 	// ExecHook becomes the Agent.ExecHook of every instance launched after
 	// it is set.
 	ExecHook func(req map[string]any, out func(stream string, data []byte)) (exitCode int, handled bool)
@@ -74,6 +81,8 @@ func (l *Launcher) Launch(ctx context.Context, spec vm.Spec) (vm.Instance, error
 		sizedMem:  l.SizedMemory,
 		launcher:  l,
 		startedAt: l.starts.Add(1),
+		hung:      l.HungRestores,
+		failKill:  l.FailKill,
 	}
 	if err := inst.start(); err != nil {
 		return nil, err
@@ -170,6 +179,8 @@ type Instance struct {
 	// snapshot it loaded. A snapshot's mem file is that long (sparse).
 	memBytes int64
 	sizedMem bool
+	hung     bool
+	failKill bool
 	// memory is the guest memory a Uffd load mapped and registered with a
 	// userfaultfd, as Firecracker does; release unmaps it.
 	memory  []byte
@@ -320,7 +331,9 @@ func (i *Instance) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		if resume, _ := call.Body["resume_vm"].(bool); resume {
 			i.setState("Running")
-			i.Agent.boot()
+			if !i.hung {
+				i.Agent.boot()
+			}
 		} else {
 			i.setState("Paused")
 		}
@@ -404,6 +417,9 @@ func (i *Instance) ExitError() error {
 
 func (i *Instance) Kill(ctx context.Context) error {
 	i.killed.Store(true)
+	if i.failKill {
+		return errors.New("firecracker did not die (test)")
+	}
 	i.stop()
 	return nil
 }

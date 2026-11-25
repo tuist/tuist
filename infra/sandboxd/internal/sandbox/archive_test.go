@@ -505,6 +505,36 @@ func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
 			t.Fatal("an incompatible node must not load the VM state")
 		}
 	}
+
+	// A guest that never answers is not cold booted while its Firecracker,
+	// which did not die, may still write the disks.
+	hung := node("zen5")
+	hung.m.cfg.BootTimeout = 300 * time.Millisecond
+	hung.launcher.HungRestores = true
+	hung.launcher.FailKill = true
+	t.Cleanup(func() {
+		for _, inst := range hung.launcher.Instances() {
+			inst.Crash()
+		}
+	})
+	restore.SandboxID = "hung"
+	if _, err := hung.m.Create(ctx, restore); !errors.Is(err, ErrVMNotKilled) {
+		t.Fatalf("restore of a hung guest that did not die: %v, want %v", err, ErrVMNotKilled)
+	}
+	if launched := hung.launcher.Instances(); len(launched) != 1 {
+		t.Fatalf("want only the warm restore, launched %d instances", len(launched))
+	}
+	for _, call := range hung.launcher.Last().Calls() {
+		if call.Path == "/actions" {
+			t.Fatal("the disks of a VM that did not die were cold booted")
+		}
+	}
+	if vm.Exists(vm.JailDir(hung.jailBase, "hung")) {
+		t.Fatal("a failed restore must remove its jail")
+	}
+	if len(store.object()) == 0 {
+		t.Fatal("a failed restore must leave the archive")
+	}
 }
 
 func TestUnsyncedPauseArchivesOnlyWithItsMemory(t *testing.T) {
