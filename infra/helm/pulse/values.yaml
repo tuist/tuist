@@ -33,7 +33,7 @@ sentryWriter:
 # once the item exists in its vault, letters and digits only, and restart the
 # frontends after creating or rotating it.
 symptomsReader:
-  environments: []
+  environments: [staging, canary, production]
 # Pulse, built from pulse/ by pulse-release.yml (pulse/FORK.md). Deploys use
 # the newest canary in the commit; this pin covers commits without one.
 image: ghcr.io/tuist/pulse:1.44.0-canary.4

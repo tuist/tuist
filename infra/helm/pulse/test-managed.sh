@@ -49,9 +49,11 @@ for environment in staging canary; do
     (one("ExternalSecret"; "pulse-dashboard-auth") |
       .spec.data[0].remoteRef.key == "PULSE_TOKEN/password" and
       (.spec.target.template.data.passwd | contains("dashboard:ro=", "tuist:wo=")) and
-      # values.yaml opts every managed environment into the Sentry writer.
-      (.spec.data | length) == 2 and
+      # values.yaml opts every managed environment into the Sentry writer and
+      # the Symptoms reader.
+      (.spec.data | length) == 3 and
       (.spec.target.template.data.passwd | contains("sentry")) and
+      (.spec.target.template.data.passwd | contains("\nsymptoms:ro=")) and
       .spec.target.template.data["ingest-username"] == "tuist" and
       (.spec.target.template.data["ingest-password"] | contains(".token"))) and
     # Grafana reads every workload Pulse over PostgreSQL through the PDC agent,
@@ -83,6 +85,7 @@ done
 # PULSE_SENTRY_WRITER never blocks a deploy.
 for environment in staging canary; do
   helm template pulse "$chart" -n observability --set-json 'sentryWriter.environments=["staging"]' \
+    --set-json 'symptomsReader.environments=[]' \
     --set "environment=$environment,storage.bucket=tuist-pulso-$environment,dashboard.enabled=true" |
     yq ea -o=json -I=0 'select(.kind == "ExternalSecret" and .metadata.name == "pulse-dashboard-auth")' |
     jq -e --arg environment "$environment" '
@@ -104,7 +107,7 @@ helm template pulse "$chart" -n observability --set-json 'symptomsReader.environ
     (.spec.target.template.data.passwd | contains("symptoms:wo") | not) and
     any(.spec.data[]; . == {secretKey:"symptomsReader",remoteRef:{key:"PULSE_SYMPTOMS_READER/password"}})' > /dev/null ||
   { echo "FAIL: Symptoms reader opt-in" >&2; exit 1; }
-helm template pulse "$chart" -n observability \
+helm template pulse "$chart" -n observability --set-json 'symptomsReader.environments=[]' \
   --set "environment=canary,storage.bucket=tuist-pulso-canary,dashboard.enabled=true" |
   yq ea -o=json -I=0 'select(.kind == "ExternalSecret" and .metadata.name == "pulse-dashboard-auth")' |
   jq -e '(.spec.target.template.data.passwd | contains("symptoms") | not) and

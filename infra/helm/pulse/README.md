@@ -253,7 +253,7 @@ ESO reads existing `PULSE_TOKEN/password` into a separate provider file containi
 `sentryWriter.environments` (none by default) it also holds `sentry:wo=<writer>`
 from `PULSE_SENTRY_WRITER/password`, the identity in Sentry producers' DSNs, so a
 DSN never carries the dashboard's token. In the environments listed in
-`symptomsReader.environments` (none by default) it also holds
+`symptomsReader.environments` (staging, canary and production) it also holds
 `symptoms:ro=<reader>` from `PULSE_SYMPTOMS_READER/password`, the Symptoms
 evaluator's own read-only identity, so the evaluator never holds
 `PULSE_TOKEN`, which is also the collectors' write password. Pulse's
