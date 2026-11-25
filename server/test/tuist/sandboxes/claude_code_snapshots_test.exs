@@ -246,7 +246,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert account_id == account.id
     assert grant == %{"all_projects" => true, "scopes" => ["account:cache:read", "project:cache:read"]}
     assert command =~ ~S|rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"|
-    assert command =~ ~S|rm -rf "$cache"|
+    # It deletes the compilation cache once its writers have exited.
+    assert command =~ ~r/pgrep -x XCBBuildService.*rm -rf "\$cache"/s
     assert command =~ "unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_TERMINAL_PROMPT\n"
 
     finish_command(build, 0)
@@ -267,6 +268,26 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
 
     assert {:ok, %{snapshot: nil, template: "macos-xcode-1-2"}} =
              ClaudeCodeSnapshots.mac_source(account, "acme/app", %{platform: "darwin", template: "macos-xcode-1-2"})
+
+    # A Mac that boots from it builds nothing new while it is recent, and has
+    # it built again once it is older than six hours.
+    building = fn ->
+      Repo.aggregate(from(d in DiskSnapshot, where: d.state == :building and d.platform == :darwin), :count)
+    end
+
+    assert {:ok, source} = ClaudeCodeSnapshots.mac_source(account, "acme/app", %{platform: "darwin"})
+    assert :ok = ClaudeCodeSnapshots.request_mac_build(source)
+    assert building.() == 0
+
+    snapshot
+    |> Ecto.Changeset.change(inserted_at: DateTime.add(DateTime.utc_now(:second), -7, :hour))
+    |> Repo.update!()
+
+    assert {:ok, %{snapshot: %DiskSnapshot{}} = source} =
+             ClaudeCodeSnapshots.mac_source(account, "acme/app", %{platform: "darwin"})
+
+    assert :ok = ClaudeCodeSnapshots.request_mac_build(source)
+    assert building.() == 1
   end
 
   test "only a Mac for a repository connected to the account's projects has a snapshot source", %{

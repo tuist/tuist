@@ -11,7 +11,7 @@ import TuistNooraTesting
 import TuistServer
 import TuistTesting
 
-@testable import TuistKit
+@testable import TuistCoverageCommand
 
 struct CoverageCompleteCommandServiceTests {
     private let completeCommitCoverageService = MockCompleteCommitCoverageServicing()
@@ -50,10 +50,34 @@ struct CoverageCompleteCommandServiceTests {
     @Test(.withMockedEnvironment())
     func requiresAFullHandle() async throws {
         try await givenProject(fullHandle: nil)
+        given(configLoader).loadCargoConfig(path: .any).willReturn(Tuist.test(fullHandle: nil))
 
-        await #expect(throws: CoverageCompleteCommandServiceError.missingFullHandle) {
+        await #expect(throws: CoverageReadCommandServiceError.missingFullHandle) {
             try await subject.run(path: nil, fullHandle: nil, commit: "abcdef1", json: false)
         }
+    }
+
+    @Test(.withMockedEnvironment())
+    func readsACargoWorkspacesProjectAndServerFromItsManifest() async throws {
+        try await givenProject(fullHandle: nil)
+        let cargoURL = try #require(URL(string: "https://tuist.example.com"))
+        let cargoConfig = Tuist.test(fullHandle: "acme/rust", url: cargoURL)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadCargoConfig(path: .value(directoryPath)).willReturn(cargoConfig)
+        given(serverEnvironmentService).url(configServerURL: .value(cargoURL)).willReturn(cargoURL)
+        given(completeCommitCoverageService)
+            .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .any)
+            .willReturn(.pending)
+
+        try await subject.run(path: nil, fullHandle: nil, commit: "abcdef1234567", json: false)
+
+        verify(completeCommitCoverageService)
+            .completeCommitCoverage(
+                fullHandle: .value("acme/rust"),
+                serverURL: .value(cargoURL),
+                gitCommitSHA: .value("abcdef1234567")
+            )
+            .called(1)
     }
 
     @Test(.withMockedEnvironment())

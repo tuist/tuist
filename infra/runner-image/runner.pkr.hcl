@@ -292,7 +292,10 @@ build {
   # undoes its changes, and a build has passed this step with the container
   # still at the base's size, so each attempt is judged by the sizes
   # afterwards rather than by its exit status: the container claimed the
-  # disk once at most 5 GB (the 524 MB ISC partition) is left outside it.
+  # disk once at most 5 GB of it is in no partition. The space other
+  # partitions hold does not count: on Tahoe that is the 524 MB ISC
+  # partition, but the macOS 27 base keeps about 5.9 GB outside the
+  # container, which resizeContainer cannot claim (-69519).
   # A failed claim would leave the 60 GB `disk_size_gb` added outside it and
   # fail the disk budget check at the end of the build.
   provisioner "shell" {
@@ -302,7 +305,8 @@ build {
       "disk=$${store%s*}",
       "size() { diskutil info -plist \"$1\" | plutil -extract TotalSize raw -; }",
       "printf 'y\\n' | sudo diskutil repairDisk \"$disk\"",
-      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 2>&1 || true; unclaimed=$(( $(size \"$disk\") - $(size \"$store\") )); echo \"resizeContainer attempt $attempt: $(size \"$store\") of $(size \"$disk\") bytes in the container\"; [ \"$unclaimed\" -gt 5000000000 ] || break; [ \"$attempt\" -lt 5 ] || { echo \"the APFS container still leaves $unclaimed bytes of $disk unclaimed\" >&2; exit 1; }; echo \"retrying in 15 s\" >&2; sleep 15; done"
+      "partitioned() { local i=0 sum=0 s; while s=$(diskutil list -plist \"$disk\" | plutil -extract \"AllDisksAndPartitions.0.Partitions.$i.Size\" raw - 2>/dev/null); do sum=$((sum + s)); i=$((i + 1)); done; echo \"$sum\"; }",
+      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 2>&1 || true; unclaimed=$(( $(size \"$disk\") - $(partitioned) )); echo \"resizeContainer attempt $attempt: $(size \"$store\") of $(size \"$disk\") bytes in the container\"; [ \"$unclaimed\" -gt 5000000000 ] || break; [ \"$attempt\" -lt 5 ] || { echo \"$unclaimed bytes of $disk are still in no partition\" >&2; exit 1; }; echo \"retrying in 15 s\" >&2; sleep 15; done"
     ]
   }
 

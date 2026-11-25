@@ -48,10 +48,6 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
             )
             return
         }
-        if invocation.command == "coverage-complete" {
-            try await CargoCoverage.complete(arguments: invocation.arguments, environment: environment, directory: directory)
-            return
-        }
         let process = CargoProcess(runner: runner)
         let resolved = try await process.executable(invocation: invocation, environment: environment, directory: directory)
         let executable = resolved.path

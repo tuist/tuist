@@ -9,7 +9,7 @@ import TuistNooraTesting
 import TuistServer
 import TuistTesting
 
-@testable import TuistKit
+@testable import TuistCoverageCommand
 
 struct CoverageReadCommandServiceTests {
     private let coverageService = MockCoverageServicing()

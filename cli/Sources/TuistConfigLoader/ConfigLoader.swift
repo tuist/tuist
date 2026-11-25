@@ -10,6 +10,7 @@ import TuistHTTP
 @Mockable
 public protocol ConfigLoading: Sendable {
     func loadConfig(path: AbsolutePath) async throws -> TuistConfig.Tuist
+    func loadCargoConfig(path: AbsolutePath) async throws -> TuistConfig.Tuist
 }
 
 public struct ConfigLoader: ConfigLoading {

@@ -6,9 +6,11 @@
 # (`:macos-<xcode>-<semver>`), which only hosts older than macOS 27 can boot.
 #
 # A profile's stacked image is rebuilt when the image's sources changed in a
-# releasable commit, when its macos-tahoe-xcode base digest moved, or when the
-# previous release published none for it. Its standalone image is rebuilt only
-# when BUILD_STANDALONE is true or the previous release published none for it.
+# releasable commit, when its Layer 1 base digest moved, or when the previous
+# release published none for it. runner-image-base.sh names the base: a
+# macos-tahoe-xcode tag, or another macOS release's for a `-macos-<major>`
+# profile. Its standalone image is rebuilt only when BUILD_STANDALONE is true
+# or the previous release published none for it.
 # Every other image keeps its previous release's image under the new version.
 #
 # Each stacked build runs on the macOS 27 builder whose runner label
@@ -28,7 +30,6 @@ set -euo pipefail
 profiles_file="infra/runner-image/profiles.json"
 base_versions_file="infra/runner-image/base-xcode-versions.json"
 builders_file="infra/runner-image/stacked-builders.json"
-base_repository="ghcr.io/tuist/macos-tahoe-xcode"
 runner_repository="ghcr.io/tuist/tuist-runner"
 
 latest_tag="$(git tag -l | grep -E '^runner-image@[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
@@ -53,8 +54,9 @@ fi
 manifest='[]'
 while IFS= read -r xcode; do
   profile="macos-${xcode//./-}"
-  base_xcode="$(jq -r --arg xcode "$xcode" '.[$xcode] // $xcode' "$base_versions_file")"
-  digest="$(oras resolve "${base_repository}:${base_xcode//./-}")"
+  base_ref="$("$(dirname "$0")/runner-image-base.sh" "$xcode" "$base_versions_file")"
+  base_repository="${base_ref%:*}"
+  digest="$(oras resolve "$base_ref")"
   previous_entry="$(jq -c --arg xcode "$xcode" 'map(select(.xcode == $xcode))[0] // {}' <<< "$previous_manifest")"
   previous_digest="$(jq -r '.base_digest // ""' <<< "$previous_entry")"
   previous_stacked="$(jq -r '.stacked // false' <<< "$previous_entry")"
@@ -71,9 +73,9 @@ while IFS= read -r xcode; do
     action=carry
     standalone_digest="$(jq -r --arg digest "$previous_digest" '.standalone_base_digest // $digest' <<< "$previous_entry")"
   fi
-  manifest="$(jq -c --arg xcode "$xcode" --arg digest "$digest" --arg standalone_digest "$standalone_digest" \
+  manifest="$(jq -c --arg xcode "$xcode" --arg repository "$base_repository" --arg digest "$digest" --arg standalone_digest "$standalone_digest" \
     --arg action "$action" --arg stacked_action "$stacked_action" \
-    '. + [{xcode: $xcode, base_digest: $digest, standalone_base_digest: $standalone_digest, action: $action, stacked_action: $stacked_action}]' <<< "$manifest")"
+    '. + [{xcode: $xcode, base_repository: $repository, base_digest: $digest, standalone_base_digest: $standalone_digest, action: $action, stacked_action: $stacked_action}]' <<< "$manifest")"
 done < <(jq -r '.[]' "$profiles_file")
 
 build_count="$(jq '[.[] | select(.action == "build")] | length' <<< "$manifest")"
@@ -90,8 +92,8 @@ else
   version="$previous"
 fi
 
-matrix="$(jq -c --arg repository "$base_repository" \
-  '{include: [.[] | select(.action == "build") | {xcode, base: "\($repository)@\(.base_digest)"}]}' <<< "$manifest")"
+matrix="$(jq -c \
+  '{include: [.[] | select(.action == "build") | {xcode, base: "\(.base_repository)@\(.base_digest)"}]}' <<< "$manifest")"
 carry="$(jq -c '[.[] | select(.action == "carry") | .xcode]' <<< "$manifest")"
 # The macOS 27 builder label of every profile: the one stacked-builders.json
 # names it under, or else the label with the fewest profiles so far.
@@ -108,8 +110,8 @@ builders="$(jq -c --slurpfile named "$builders_file" '
 # `keep` lists the build's base, then the bases of the builder's other
 # profiles, rebuilt or carried, which its disk reclaim keeps cached for this
 # and later releases.
-stacked_matrix="$(jq -c --arg repository "$base_repository" --argjson builders "$builders" '
-  map(.base = "\($repository)@\(.base_digest)" | .builder = $builders[.xcode]) as $profiles
+stacked_matrix="$(jq -c --argjson builders "$builders" '
+  map(.base = "\(.base_repository)@\(.base_digest)" | .builder = $builders[.xcode]) as $profiles
   | {include: [$profiles[] | select(.stacked_action == "build") | . as $build | {
       xcode,
       base,

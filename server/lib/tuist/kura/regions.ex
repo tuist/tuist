@@ -549,10 +549,11 @@ defmodule Tuist.Kura.Regions do
         # The other sites' gateways publish this site's nodes as a fallback
         # for jobs there (`Tuist.Kura.runner_cache_endpoint_url/3`). Until the
         # sites have a private link that traffic crosses both sites' internet
-        # ports, so each response is capped (~52 Mbit/s) and each runner
-        # address may hold at most 16 connections through an entrance.
+        # ports, so each response is capped (~52 Mbit/s). There is no
+        # connection limit: ingress-nginx counts each concurrent HTTP/2
+        # request as a connection, so 16 refused a build's parallel cache
+        # lookups with HTML 503s past the sixteenth (measured, 2026-11).
         entrance_rate_limit_kbps: 6400,
-        entrance_connection_limit: 16,
         tolerations: [
           %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
         ],

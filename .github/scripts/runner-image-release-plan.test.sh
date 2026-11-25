@@ -35,6 +35,7 @@ cat > "$scratch/bin/oras" <<BASH
 ref="\$2"
 case "\$ref" in
   ghcr.io/tuist/macos-tahoe-xcode:*) cat "$scratch/base-\${ref##*:}" ;;
+  ghcr.io/tuist/macos-golden-gate-xcode:*) cat "$scratch/golden-gate-base-\${ref##*:}" ;;
   ghcr.io/tuist/tuist-runner:*) grep -qx "\${ref##*:}" "$scratch/published" && echo "$old" ;;
   *) exit 1 ;;
 esac
@@ -142,5 +143,17 @@ plan false false
 expect stacked-matrix "{\"include\":[{\"xcode\":\"27.2\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$old\",\"builder\":\"builder-b\",\"keep\":\"ghcr.io/tuist/macos-tahoe-xcode@$old\"}]}" \
   "the final base without changing the profile"
 expect stacked-carry '["26.6","27.1"]' "the final base without changing the profile"
+
+# A macOS 27 guest of an Xcode builds on that Xcode's macos-golden-gate-xcode
+# base, never on its Tahoe base, which keeps its own profile.
+output manifest > "$scratch/previous-manifest.json"
+echo '["26.6", "27.1", "27.2", "27.2-macos-27"]' > "$scratch/repo/infra/runner-image/profiles.json"
+echo '{"builder-a": ["26.6", "27.1"], "builder-b": ["27.2-macos-27"]}' > "$scratch/repo/infra/runner-image/stacked-builders.json"
+echo "$new" > "$scratch/golden-gate-base-27-2"
+plan false false
+expect matrix "{\"include\":[{\"xcode\":\"27.2-macos-27\",\"base\":\"ghcr.io/tuist/macos-golden-gate-xcode@$new\"}]}" "a new macOS 27 profile"
+expect stacked-matrix "{\"include\":[{\"xcode\":\"27.2-macos-27\",\"base\":\"ghcr.io/tuist/macos-golden-gate-xcode@$new\",\"builder\":\"builder-b\",\"keep\":\"ghcr.io/tuist/macos-golden-gate-xcode@$new\\nghcr.io/tuist/macos-tahoe-xcode@$old\"}]}" \
+  "a new macOS 27 profile, keeping its builder's Tahoe base"
+expect stacked-carry '["26.6","27.1","27.2"]' "a new macOS 27 profile"
 
 echo "The runner image release plan rebuilds what it should."

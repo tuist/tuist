@@ -48,7 +48,7 @@ When you <.localized_link href="/guides/features/test-sharding/rust">shard your 
 A commit's coverage often comes from several jobs: one per shard or per feature set. Tuist can't tell when the last of them has reported, so tell it. Once every test job for a commit has finished, run this in a job that depends on all of them:
 
 ```sh
-tuist cargo coverage-complete
+tuist coverage complete
 ```
 
 The command reads the commit from the checkout's `HEAD`, the commit your tests ran on; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
@@ -76,7 +76,7 @@ Some tests are left out on purpose and don't make a commit incomplete:
 
 ### Uncommitted changes {#uncommitted-changes}
 
-A run from a checkout whose tracked files have uncommitted changes measured code that isn't the commit's, so its coverage doesn't count toward the commit. The run warns and lists the changed files. Files your CI job writes next to the sources, such as build outputs or coverage reports, don't count as changes as long as Git doesn't track them. When only such runs measured a commit, its coverage is **Incomplete**, and `tuist cargo coverage-complete` says why.
+A run from a checkout whose tracked files have uncommitted changes measured code that isn't the commit's, so its coverage doesn't count toward the commit. The run warns and lists the changed files. Files your CI job writes next to the sources, such as build outputs or coverage reports, don't count as changes as long as Git doesn't track them. When only such runs measured a commit, its coverage is **Incomplete**, and `tuist coverage complete` says why.
 
 ### Complete and incomplete commits {#commit-status}
 
@@ -84,7 +84,7 @@ Each commit on the dashboard has a status:
 
 | Status | Meaning |
 | --- | --- |
-| In progress | Runs have reported coverage, but `tuist cargo coverage-complete` hasn't run for the commit yet. |
+| In progress | Runs have reported coverage, but `tuist coverage complete` hasn't run for the commit yet. |
 | Complete | Every test of the commit's runs ran, or was left out on purpose. |
 | Incomplete | Some coverage couldn't be determined, so the figure is a lower bound. |
 | Not measured | No run reported coverage for the commit. |

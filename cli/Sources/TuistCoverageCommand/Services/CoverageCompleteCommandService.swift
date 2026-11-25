@@ -6,7 +6,6 @@ import TuistAlert
 import TuistConfigLoader
 import TuistEnvironment
 import TuistGit
-import TuistLoader
 import TuistServer
 import TuistSupport
 
@@ -16,13 +15,10 @@ protocol CoverageCompleteCommandServicing {
 }
 
 enum CoverageCompleteCommandServiceError: Equatable, LocalizedError {
-    case missingFullHandle
     case missingCommit
 
     var errorDescription: String? {
         switch self {
-        case .missingFullHandle:
-            return "We couldn't signal the coverage completion because the project's full handle is missing. Pass --full-handle or run it from a Tuist project."
         case .missingCommit:
             return "We couldn't tell which commit's coverage pipeline finished. Pass --commit, or run it from a Git checkout."
         }
@@ -49,13 +45,14 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
 
     func run(path: String?, fullHandle: String?, commit: String?, json: Bool) async throws {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
-        let config = try await configLoader.loadConfig(path: directoryPath)
-
-        guard let fullHandle = fullHandle ?? config.fullHandle else {
-            throw CoverageCompleteCommandServiceError.missingFullHandle
-        }
-
-        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        let context = try await CoverageReadContext.resolve(
+            path: path,
+            fullHandle: fullHandle,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService
+        )
+        let fullHandle = context.fullHandle
+        let serverURL = context.serverURL
 
         var sha = commit
         if sha == nil {

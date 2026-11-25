@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "bf7f8d7b9dd43608057f77072957a68974f439a805d607c0c9db042de4451109",
+  "hash": "d7c388f8a9a791aab9b2e9e93373f22d1cdb5f05485d3b5f56f056c565eeac97",
   "hash_tree": {
     "root": {
       "children": [
@@ -29,10 +29,10 @@
                   "content_hash": "06eef71c229bc0a5e527b6e4c89db2a8c40b9368eb37c1652f1e9f629e3ec257"
                 },
                 "### Complete and incomplete commits {#commit-status}": {
-                  "content_hash": "1581a981a9af47e8a192ed278b176d849a2766ce2224920f80b09f8d9b96c169"
+                  "content_hash": "15c5177269783a1f0cd5379373d3d7dd777505010168e990387f053aa76e3327"
                 },
                 "### Complete each commit on CI {#complete-each-commit}": {
-                  "content_hash": "ba3eccefcc4af72e22a4274cfbfce8f9fe828283bdbeafcc54dcf5bdbe433a11"
+                  "content_hash": "be52fb5c90c21477c921df48922abc354a1b244ac7f7a7615a6514202f0505ad"
                 },
                 "### Sharded runs {#sharded-runs}": {
                   "content_hash": "38c4595c1d62d81cf28054c66d2b26fb6b7a6628887a8d7a968ea095d489bda9"
@@ -44,7 +44,7 @@
                   "content_hash": "fb344ab8efe9207351f2e402e2e8c74e9ac2fb818ccbf69637c9b7ab37b8e6e5"
                 },
                 "### Uncommitted changes {#uncommitted-changes}": {
-                  "content_hash": "d6f32d9dee338abfa57b361943a55d1044deffd88ed59b40884e741a68165a86"
+                  "content_hash": "6974d1b0078e0f643d79d57eeeb4e85fbe54d17df59e49f1f2cf5857a528ecd4"
                 },
                 "### What Tuist measures {#what-tuist-measures}": {
                   "content_hash": "047e2e6a85ee332f4fd74c3f36f3c9c6faafa2bdd194e385edbb80f6f62df213"
@@ -56,11 +56,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "204cb7b006faf89c612ae4d12e29d85ea56272de1be54756b6b079e82fb80681",
+          "hash": "40ce18b97a83aa536f0d33b7e8a83f2a6b8a931c1e7c63f81e6736f128f22477",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage/rust.md",
           "metadata": {
-            "content_hash": "0995257ff108a5ddd60cb0a5f1040a013e2fd294569fe46eb4b43e40dc8662fb"
+            "content_hash": "363c9e98612cdff8b95bb83115a4b66cba06e1d98abac69a21fe48f11d11d94e"
           }
         },
         {
@@ -257,14 +257,14 @@
         }
       ],
       "details": {},
-      "hash": "bf7f8d7b9dd43608057f77072957a68974f439a805d607c0c9db042de4451109",
+      "hash": "d7c388f8a9a791aab9b2e9e93373f22d1cdb5f05485d3b5f56f056c565eeac97",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "31620c16181f1ae847eab8d7039ed00ee17508f0d1044554b7c9e2ad19cad1b4",
+  "output_hash": "29f952632cf9ee01f8d760068eb2873989b6fee62d6162a6d27ce2d68b9171aa",
   "output_path": "server/priv/docs/zh_Hans/guides/features/test-code-coverage/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -285,8 +285,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "2f0cb00c3883e28e1a1a1ed39d5fe71baed506fd",
+  "source_commit_sha": "f0972ab39507ec448ba6102d581c380f615e166c",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage/rust.md",
-  "translated_at": "2026-11-23T03:47:53.352580Z",
-  "translation_session_id": "01a20681-2e1e-74e0-a3a1-421d36b1d2fb"
+  "translated_at": "2026-11-25T06:45:03.291553Z",
+  "translation_session_id": "01a21170-8566-7721-af50-24b0bbf4cc8b"
 }

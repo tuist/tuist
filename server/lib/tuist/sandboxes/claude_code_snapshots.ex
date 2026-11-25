@@ -106,12 +106,13 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # (`SandboxSync` in the CLI): the manifest of the commit's files, named by
   # its Git hash, and their paths, under the clone's resolved path. The
   # tracked files the script changed go back to the commit first, so the
-  # record describes the copy. Before that it waits for the compilation
-  # cache's publications (`tuist-spool`) to reach the remote, stops the
-  # cache proxy and the build service that write the cache, and drops the
-  # cache when publications are still owed: a copied store whose spool owes
-  # some holds associations no Mac can satisfy, and the sessions' compiles
-  # failed on it (`cas-plugin/AGENTS.md`, measured 2026-11). It also drops
+  # record describes the copy. Before that it stops the cache proxy and the
+  # build service that write the compilation cache, waits for them to exit,
+  # and deletes the cache. A kept store, quiesced or not, failed the
+  # sessions' compiles with "not a IncludeFileList node kind", and the plugin
+  # logged action-cache entries whose values the store lacked (measured
+  # 2026-11). The build products in DerivedData stay, and the remote cache
+  # serves what reruns. It also drops
   # the session the CLI stored from the build's identity token, and the
   # script's simulators, and stops the simulator services: a Mac booted
   # from the disks mounts the simulator runtimes at new paths, and the
@@ -131,15 +132,13 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   cd "$path"
   /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
   cache="$HOME/Library/Developer/Xcode/DerivedData/CompilationCache.noindex"
-  owed() { find "$cache" -path '*/tuist-spool/*' -type f ! -name '*.tags' 2>/dev/null | wc -l | tr -d ' '; }
-  deadline=$(( $(date +%s) + 300 ))
-  while [ "$(owed)" != 0 ] && [ "$(date +%s)" -lt "$deadline" ]; do sleep 5; done
   launchctl bootout "gui/$(id -u)/tuist.cas-proxy" >/dev/null 2>&1 || true
   killall -TERM SWBBuildService XCBBuildService >/dev/null 2>&1 || true
-  if [ "$(owed)" != 0 ]; then
-    echo "snapshot: dropping the compilation cache, $(owed) publications owed" >> "$HOME/.claude-code-setup.log"
-    rm -rf "$cache"
-  fi
+  i=0
+  while pgrep -x SWBBuildService >/dev/null || pgrep -x XCBBuildService >/dev/null; do
+    i=$((i + 1)); [ "$i" -gt 30 ] && break; sleep 1
+  done
+  rm -rf "$cache"
   rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"
   xcrun simctl shutdown all >/dev/null 2>&1 || true
   xcrun simctl delete all >/dev/null 2>&1 || true
@@ -266,10 +265,31 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   def mac_source(_account, _repository, _attrs), do: {:error, :invalid_parameters}
 
   @doc """
-  Starts building the macOS snapshot of a `mac_source/3` that had none,
-  unless a build of it runs or recently failed. Always `:ok`.
+  Starts building the macOS snapshot of a `mac_source/3` that had none, or
+  whose snapshot is older than six hours, unless a build of it runs or
+  recently failed. Always `:ok`.
+
+  A snapshot fixes which targets `tuist generate` took from the binary cache
+  when it was built. The cache fills in after a push and moves with the
+  default branch, so a later generate replaces other targets with binaries,
+  which changes the build settings of every target that depends on them, and
+  the session's first build compiled those again: 302 files of the Tuist app
+  a few hours after its snapshot (measured, 2026-11). The Macs keep booting
+  from the old snapshot until the new one is saved and replaces it.
   """
-  def request_mac_build(%{snapshot: nil, agent_environment: environment, repository: repository} = source) do
+  def request_mac_build(%{snapshot: snapshot, agent_environment: %AgentEnvironment{}} = source) do
+    if is_nil(snapshot) or stale?(snapshot), do: start_mac_build(source)
+    :ok
+  end
+
+  def request_mac_build(_source), do: :ok
+
+  @mac_snapshot_max_age_seconds 6 * 3600
+
+  defp stale?(%DiskSnapshot{inserted_at: inserted_at}),
+    do: DateTime.diff(DateTime.utc_now(), inserted_at) > @mac_snapshot_max_age_seconds
+
+  defp start_mac_build(%{agent_environment: environment, repository: repository} = source) do
     case DiskSnapshots.start_build(environment, repository, mac_setup_sha256(environment.macos_setup_script),
            platform: :darwin,
            template: source.template,
@@ -293,11 +313,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
           reason: inspect(reason)
         )
     end
-
-    :ok
   end
-
-  def request_mac_build(_source), do: :ok
 
   # The account's enabled Linux Claude Code environments with a macOS setup
   # script, oldest first.

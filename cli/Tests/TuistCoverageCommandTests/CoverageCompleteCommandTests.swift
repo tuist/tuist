@@ -1,7 +1,7 @@
 import ArgumentParser
 import Testing
 import TuistNooraExtension
-@testable import TuistKit
+@testable import TuistCoverageCommand
 
 struct CoverageCompleteCommandTests {
     @Test func jsonOutputGoesThroughNoora() throws {
