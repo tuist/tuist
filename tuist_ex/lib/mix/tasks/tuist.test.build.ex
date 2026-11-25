@@ -34,7 +34,8 @@ defmodule Mix.Tasks.Tuist.Test.Build do
       project selects tests by coverage; see "Coverage-based test selection"
       in `mix tuist.test`
     * `--cover` - instrument the build for native coverage once, so shards
-      running `mix tuist.test --cover` don't each do it; see "Coverage" below
+      running `mix tuist.test --cover` don't each do it; see "Coverage" below.
+      Only a `--cover` plan selects tests, as only a `--cover` run does
     * `--scheme LABEL` - the execution variant the shards run as, which
       `mix tuist.test --scheme` also names: selection then decides from
       runs of the same variant
@@ -127,7 +128,13 @@ defmodule Mix.Tasks.Tuist.Test.Build do
       )
     end
 
-    {modules, options} = select(units, options, select? and TestSelection.configured?())
+    {modules, options} =
+      select(
+        units,
+        options,
+        Mix.Tasks.Tuist.Test.selects?(coverage: cover?, no_selective_testing: not select?)
+      )
+
     plan = unwrap(Shards.create_plan(reference, modules, concurrent, options))
     shards = plan["shards"] || []
 

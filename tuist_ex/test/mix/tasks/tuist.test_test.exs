@@ -548,6 +548,16 @@ defmodule Mix.Tasks.Tuist.TestTest do
     assert output =~ "selection verified"
   end
 
+  test "selects only in an opted-in --cover run that doesn't pass --no-selective-testing" do
+    config = [tuist: [selective_testing: [strategy: :coverage]]]
+
+    assert Task.selects?([coverage: true], config)
+    refute Task.selects?([coverage: false], config)
+    refute Task.selects?([], config)
+    refute Task.selects?([coverage: true, no_selective_testing: true], config)
+    refute Task.selects?([coverage: true], tuist: [])
+  end
+
   test "keeps --no-selective-testing to itself" do
     assert {[no_selective_testing: true], ["--trace"]} =
              Task.split_args(["--no-selective-testing", "--trace"])
