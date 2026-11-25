@@ -914,7 +914,7 @@
                     context={%{project: @selected_project, git_commit_sha: run.git_commit_sha}}
                   />
                 </div>
-                <.line_divider :if={index < length(@flaky_run_group.runs) - 1} />
+                <.content_divider :if={index < length(@flaky_run_group.runs) - 1} />
               </div>
             </div>
           </div>

@@ -64,7 +64,7 @@ defmodule TuistWeb.ConnectLive do
             selected_account={@selected_account}
             selected_project={@selected_project}
           />
-          <.line_divider text={dgettext("dashboard_auth", "OR")} />
+          <.content_divider text={dgettext("dashboard_auth", "OR")} />
           <div data-part="step">
             <span data-part="title">
               {dgettext("dashboard_auth", "Project Ready? Proceed to dashboard")}

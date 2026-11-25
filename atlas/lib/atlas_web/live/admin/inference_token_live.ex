@@ -180,7 +180,7 @@ defmodule AtlasWeb.Admin.InferenceTokenLive do
                 {attrs}
               />
             </:trigger>
-            <.line_divider />
+            <.content_divider />
             <.alert
               status="warning"
               type="secondary"
@@ -192,7 +192,7 @@ defmodule AtlasWeb.Admin.InferenceTokenLive do
                 )
               }
             />
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>

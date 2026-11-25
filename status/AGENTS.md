@@ -38,7 +38,7 @@ Run from `status/`:
 - Render incident-update bodies as safe Markdown.
 - Plain HTML must match Noora class names and `data-*` attributes. Keep
   `src/views/noora-css.ts` a verbatim concatenation of Noora's `tokens`, `alert`,
-  `badge`, `button`, `button_group`, and `line_divider` CSS, in that order.
+  `badge`, `button`, `button_group`, and `content_divider` CSS, in that order.
 - `src/views/marketing-tokens.ts` copies `server/assets/marketing/css/shared/tokens.css`
   verbatim except backticks become straight quotes for its template literal.
   Brand/favicons come from marketing assets; logo fills use petal/wordmark theme

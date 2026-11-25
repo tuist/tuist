@@ -317,7 +317,7 @@
     </:trigger>
 
     <div data-part="modal-content-wrapper">
-      <.line_divider />
+      <.content_divider />
       <div data-part="modal-body">
         <.webhook_endpoint_form
           id_prefix="webhook-edit"
@@ -333,7 +333,7 @@
           on_toggle_event_group="toggle_edit_form_event_group"
         />
       </div>
-      <.line_divider />
+      <.content_divider />
     </div>
 
     <:footer>
@@ -367,7 +367,7 @@
     </:trigger>
 
     <div :if={@disclosure} data-part="modal-content-wrapper">
-      <.line_divider />
+      <.content_divider />
       <div data-part="modal-body">
         <div data-part="modal-message">
           <span data-part="title">{dgettext("dashboard_account", "Signing secret rotated")}</span>
@@ -394,7 +394,7 @@
           </.button>
         </div>
       </div>
-      <.line_divider />
+      <.content_divider />
     </div>
 
     <:footer>

@@ -104,7 +104,7 @@
                 {attrs}
               />
             </:trigger>
-            <.line_divider />
+            <.content_divider />
             <p data-part="alert-description">
               {threshold_description(
                 @create_form_metric,
@@ -233,7 +233,7 @@
                 />
               </div>
             </div>
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>
@@ -313,7 +313,7 @@
                       <.icon name="pencil" />
                     </.button>
                   </:trigger>
-                  <.line_divider />
+                  <.content_divider />
                   <p data-part="alert-description">
                     {threshold_description(
                       form[:metric] || threshold.metric,
@@ -446,7 +446,7 @@
                       />
                     </div>
                   </div>
-                  <.line_divider />
+                  <.content_divider />
                   <:footer>
                     <.modal_footer>
                       <:action>
@@ -580,7 +580,7 @@
               {attrs}
             />
           </:trigger>
-          <.line_divider />
+          <.content_divider />
           <div data-part="alert-form">
             <div data-part="schedule-row">
               <label data-part="schedule-label">
@@ -598,7 +598,7 @@
             </div>
             <.hint_text :if={@approver_error} label={@approver_error} variant="destructive" />
           </div>
-          <.line_divider />
+          <.content_divider />
           <:footer>
             <.modal_footer>
               <:action>

@@ -288,7 +288,7 @@ defmodule TuistWeb.CacheLive do
               </:trigger>
 
               <div data-part="modal-content-wrapper">
-                <.line_divider />
+                <.content_divider />
 
                 <%= if @new_self_hosted_client_secret do %>
                   <div data-part="modal-body">
@@ -357,7 +357,7 @@ defmodule TuistWeb.CacheLive do
                   </div>
                 <% end %>
 
-                <.line_divider />
+                <.content_divider />
               </div>
 
               <:footer>
@@ -426,7 +426,7 @@ defmodule TuistWeb.CacheLive do
                 <:header_icon>
                   <.trash />
                 </:header_icon>
-                <.line_divider />
+                <.content_divider />
                 <p data-part="revoke-credential-message">
                   {dgettext(
                     "dashboard_account",

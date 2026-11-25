@@ -35,14 +35,14 @@
     }
   }
 
-  /* Section group (line divider + content divider + items) */
+  /* Section group (Noora content divider + section label + items) */
   & [data-part="nav-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-7);
   }
 
-  & [data-part="sidebar-scroll"] > [data-part="nav-section"]:first-child .noora-line-divider {
+  & [data-part="sidebar-scroll"] > [data-part="nav-section"]:first-child .noora-content-divider {
     display: none;
   }
 

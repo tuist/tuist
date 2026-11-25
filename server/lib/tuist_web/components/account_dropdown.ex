@@ -57,7 +57,7 @@ defmodule TuistWeb.AccountDropdown do
             </div>
           </div>
           <div data-part="account_content">
-            <.line_divider />
+            <.content_divider />
             <div data-part="actions">
               <.button
                 :if={@primary_action == "account_settings"}

@@ -360,7 +360,7 @@ defmodule TuistWeb.AccountSettingsLive do
                 {attrs}
               />
             </:trigger>
-            <.line_divider />
+            <.content_divider />
             <div data-part="modal-content">
               <.text_input
                 field={@add_cache_endpoint_form[:url]}
@@ -369,7 +369,7 @@ defmodule TuistWeb.AccountSettingsLive do
                 placeholder="https://cache.example.com"
               />
             </div>
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>
@@ -442,7 +442,7 @@ defmodule TuistWeb.AccountSettingsLive do
                     {attrs}
                   />
                 </:trigger>
-                <.line_divider />
+                <.content_divider />
                 <div data-part="content">
                   <.alert
                     status="warning"
@@ -456,7 +456,7 @@ defmodule TuistWeb.AccountSettingsLive do
                     }
                   />
                 </div>
-                <.line_divider />
+                <.content_divider />
                 <:footer>
                   <.modal_footer>
                     <:action>

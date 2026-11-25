@@ -75,7 +75,7 @@ defmodule AtlasWeb.AccountMenu do
                   <p data-part="subtitle">{@current_user.email}</p>
                 </div>
               </div>
-              <.line_divider />
+              <.content_divider />
               <div data-part="actions">
                 <.button
                   :if={!Atlas.Demo.enabled?() and !@account_settings?}

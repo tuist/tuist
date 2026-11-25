@@ -96,7 +96,7 @@
                 {attrs}
               />
             </:trigger>
-            <.line_divider />
+            <.content_divider />
             <.form
               for={@report_bundle_form}
               id="report-bundle-filter-form"
@@ -160,7 +160,7 @@
                 variant="destructive"
               />
             </.form>
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>
@@ -251,7 +251,7 @@
                 {attrs}
               />
             </:trigger>
-            <.line_divider />
+            <.content_divider />
             <div data-part="schedule-form">
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
@@ -332,7 +332,7 @@
                 </.dropdown>
               </div>
             </div>
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>
@@ -391,7 +391,7 @@
                 {attrs}
               />
             </:trigger>
-            <.line_divider />
+            <.content_divider />
             <p data-part="alert-description">
               {alert_rule_description(
                 @create_alert_form_category,
@@ -618,7 +618,7 @@
                 </div>
               </div>
             </div>
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>
@@ -700,7 +700,7 @@
                       <.icon name="pencil" />
                     </.button>
                   </:trigger>
-                  <.line_divider />
+                  <.content_divider />
                   <p data-part="alert-description">
                     {alert_rule_description(
                       form[:category] || rule.category,
@@ -963,7 +963,7 @@
                       </div>
                     </div>
                   </div>
-                  <.line_divider />
+                  <.content_divider />
                   <:footer>
                     <.modal_footer>
                       <:action>

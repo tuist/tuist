@@ -136,14 +136,14 @@
               <.icon name="pencil" />
             </.button>
           </:trigger>
-          <.line_divider />
+          <.content_divider />
           <.text_input
             label={dgettext("dashboard_projects", "Branch name")}
             field={@default_branch_form[:default_branch]}
             type="basic"
             placeholder="main"
           />
-          <.line_divider />
+          <.content_divider />
           <:footer>
             <.modal_footer>
               <:action>
@@ -282,7 +282,7 @@
               {attrs}
             />
           </:trigger>
-          <.line_divider />
+          <.content_divider />
           <.alert
             status="error"
             type="secondary"
@@ -294,7 +294,7 @@
             type="basic"
             placeholder={dgettext("dashboard_projects", "Project name")}
           />
-          <.line_divider />
+          <.content_divider />
           <:footer>
             <.modal_footer>
               <:action>
@@ -348,7 +348,7 @@
               {attrs}
             />
           </:trigger>
-          <.line_divider />
+          <.content_divider />
           <.alert
             status="warning"
             type="secondary"
@@ -366,7 +366,7 @@
             type="basic"
             placeholder={dgettext("dashboard_projects", "Project name")}
           />
-          <.line_divider />
+          <.content_divider />
           <:footer>
             <.modal_footer>
               <:action>

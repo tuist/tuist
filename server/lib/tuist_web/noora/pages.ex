@@ -31,6 +31,7 @@ defmodule TuistWeb.Noora.Pages do
        Pages.Button,
        Pages.ButtonGroup,
        Pages.Checkbox,
+       Pages.ContentDivider,
        Pages.DatePicker,
        Pages.DigitInput,
        Pages.DismissIcon,
@@ -38,7 +39,6 @@ defmodule TuistWeb.Noora.Pages do
        Pages.Filter,
        Pages.HintText,
        Pages.Label,
-       Pages.LineDivider,
        Pages.LinkButton,
        Pages.Menu,
        Pages.MiddleTruncate,
@@ -55,7 +55,6 @@ defmodule TuistWeb.Noora.Pages do
        Pages.Table,
        Pages.Tag,
        Pages.TextArea,
-       Pages.TextDivider,
        Pages.TextInput,
        Pages.Time,
        Pages.Toggle,
@@ -80,7 +79,9 @@ defmodule TuistWeb.Noora.Pages do
     Pages.MiddleTruncate,
     Pages.Radio,
     Pages.Spinner,
-    Pages.Toggle
+    Pages.Toggle,
+    # Line divider and text divider merged into one component
+    Pages.ContentDivider
   ]
 
   @doc """

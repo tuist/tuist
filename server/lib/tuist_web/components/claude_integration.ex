@@ -380,7 +380,7 @@ defmodule TuistWeb.Components.ClaudeIntegration do
         <:trigger :let={attrs}>
           <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
         </:trigger>
-        <.line_divider />
+        <.content_divider />
         <div data-part="claude-connect">
           <.button_group id="claude-auth-selector" size="medium">
             <.button_group_item

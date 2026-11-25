@@ -376,7 +376,7 @@
       <:trigger :let={attrs}>
         <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
       </:trigger>
-      <.line_divider />
+      <.content_divider />
       <%!-- Replace browser-owned input state, including submitted secrets. --%>
       <div id={"ai-connection-fields-#{@connection_form_version}"} data-part="ai-modal-content">
         <input
@@ -457,7 +457,7 @@
           }
         />
       </div>
-      <.line_divider />
+      <.content_divider />
       <:footer>
         <.modal_footer>
           <:action>
@@ -503,7 +503,7 @@
       <:trigger :let={attrs}>
         <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
       </:trigger>
-      <.line_divider />
+      <.content_divider />
       <div id={"ai-model-fields-#{@model_form_version}"} data-part="ai-modal-content">
         <input type="hidden" name={@model_form[:_id].name} value={@model_form[:_id].value} />
         <.alert
@@ -555,7 +555,7 @@
           show_required
         />
       </div>
-      <.line_divider />
+      <.content_divider />
       <:footer>
         <.modal_footer>
           <:action>
@@ -602,7 +602,7 @@
       <:trigger :let={attrs}>
         <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
       </:trigger>
-      <.line_divider />
+      <.content_divider />
       <div id={"ai-route-fields-#{@route_form_version}"} data-part="ai-modal-content">
         <input type="hidden" name={@route_form[:_id].name} value={@route_form[:_id].value} />
         <.alert
@@ -669,7 +669,7 @@
           </.select>
         </div>
       </div>
-      <.line_divider />
+      <.content_divider />
       <:footer>
         <.modal_footer>
           <:action>
@@ -721,7 +721,7 @@
     <:trigger :let={attrs}>
       <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
     </:trigger>
-    <.line_divider />
+    <.content_divider />
     <div :if={@pending_removal} data-part="ai-modal-content">
       <.alert
         :if={@removal_error}
@@ -774,7 +774,7 @@
         {dgettext("dashboard_account", "Requests already sent may finish.")}
       </p>
     </div>
-    <.line_divider />
+    <.content_divider />
     <:footer>
       <.modal_footer>
         <:action>

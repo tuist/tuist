@@ -1581,7 +1581,7 @@ defmodule AtlasWeb.AccountLive do
                       </div>
                     </div>
 
-                    <.line_divider />
+                    <.content_divider />
 
                     <div data-part="account-settings-section">
                       <div data-part="account-settings-section-header">
@@ -1695,7 +1695,7 @@ defmodule AtlasWeb.AccountLive do
                   </div>
                 </.form>
 
-                <.line_divider />
+                <.content_divider />
 
                 <div data-part="account-settings-section">
                   <div data-part="account-settings-section-header">
@@ -2373,7 +2373,7 @@ defmodule AtlasWeb.AccountLive do
                     </.inputs_for>
                   </div>
 
-                  <.line_divider />
+                  <.content_divider />
 
                   <div data-part="account-settings-section">
                     <div data-part="account-settings-section-header">
@@ -2431,7 +2431,7 @@ defmodule AtlasWeb.AccountLive do
                     </.inputs_for>
                   </div>
 
-                  <.line_divider />
+                  <.content_divider />
 
                   <div data-part="account-settings-section">
                     <div data-part="account-settings-section-header">

@@ -316,10 +316,10 @@
       </div>
       <nav data-part="items" aria-label={dgettext("docs", "Documentation sections")}>
         <%= for {section, index} <- Enum.with_index(mobile_nav_sections(@locale)) do %>
-          <.line_divider :if={index > 0} />
+          <.content_divider :if={index > 0} />
           <.link href={section.href} data-part="item">{section.label}</.link>
         <% end %>
-        <.line_divider />
+        <.content_divider />
         <.inline_dropdown
           id="docs-mobile-nav-language-selector"
           size="large"
@@ -334,7 +334,7 @@
           />
         </.inline_dropdown>
         <%= for social <- mobile_nav_socials() do %>
-          <.line_divider />
+          <.content_divider />
           <.link
             href={social.href}
             target="_blank"

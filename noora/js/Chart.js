@@ -626,7 +626,7 @@ export function rangeBarTooltipFormatter(params) {
     : "";
   const divider =
     description && rows.length > 0
-      ? '<div class="noora-line-divider"><div data-part="line"></div></div>'
+      ? '<div class="noora-content-divider"><div data-part="line"></div></div>'
       : "";
 
   if (!title && rows.length === 0) return "";
@@ -774,7 +774,7 @@ function tooltipFormatter(options = {}) {
 
     return `<div class="noora-chart-tooltip">
       <span data-part="title">${titleExtra}${escapeHtml(title)}</span>
-      <div class="noora-line-divider">
+      <div class="noora-content-divider">
         <div data-part="line"></div>
       </div>
       ${content}

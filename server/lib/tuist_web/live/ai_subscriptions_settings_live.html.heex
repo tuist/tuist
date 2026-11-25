@@ -208,7 +208,7 @@
       <:trigger :let={attrs}>
         <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
       </:trigger>
-      <.line_divider />
+      <.content_divider />
       <div data-part="subscription-form">
         <.alert
           :if={@mcp_error && @mcp_modal_open?}
@@ -275,7 +275,7 @@
     <:trigger :let={attrs}>
       <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
     </:trigger>
-    <.line_divider />
+    <.content_divider />
     <div data-part="subscription-form">
       <div data-part="actions">
         <.button
@@ -310,7 +310,7 @@
       <:trigger :let={attrs}>
         <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
       </:trigger>
-      <.line_divider />
+      <.content_divider />
       <div data-part="subscription-form">
         <.alert
           :if={@claude_error}
@@ -368,7 +368,7 @@
     <:trigger :let={attrs}>
       <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
     </:trigger>
-    <.line_divider />
+    <.content_divider />
     <div data-part="subscription-form">
       <.alert
         :if={@chatgpt_error}
@@ -433,7 +433,7 @@
     <:trigger :let={attrs}>
       <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
     </:trigger>
-    <.line_divider />
+    <.content_divider />
     <div data-part="subscription-form">
       <div data-part="actions">
         <.button

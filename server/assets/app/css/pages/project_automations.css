@@ -470,7 +470,7 @@
     max-height: calc(85vh - 160px);
     overflow: hidden;
 
-    & > .noora-line-divider {
+    & > .noora-content-divider {
       flex-shrink: 0;
     }
 

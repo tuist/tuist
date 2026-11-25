@@ -176,7 +176,7 @@ defmodule TuistWeb.Components.AmpIntegration do
         <:trigger :let={attrs}>
           <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
         </:trigger>
-        <.line_divider />
+        <.content_divider />
         <form
           id={"amp-token-form-#{@form_version}"}
           phx-submit="save"
@@ -261,7 +261,7 @@ defmodule TuistWeb.Components.AmpIntegration do
             title={@disconnect_error}
           />
         </div>
-        <.line_divider />
+        <.content_divider />
         <div data-part="amp-form">
           <div data-part="actions">
             <.button

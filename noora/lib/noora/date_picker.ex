@@ -51,7 +51,7 @@ defmodule Noora.DatePicker do
   use Phoenix.Component
 
   import Noora.Icon
-  import Noora.LineDivider
+  import Noora.ContentDivider
 
   attr :id, :string, required: true, doc: "Unique identifier for the date picker component"
 
@@ -258,7 +258,7 @@ defmodule Noora.DatePicker do
               </div>
             </div>
 
-            <.line_divider />
+            <.content_divider />
             <!-- Footer -->
             <div data-part="footer">
               <div data-part="range-display">
