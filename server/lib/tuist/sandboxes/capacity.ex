@@ -774,14 +774,8 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   defp execution_fits?(node, sandbox) do
-    cpus =
-      Repo.one(
-        from s in Sandbox,
-          where: s.node_name == ^node.name and s.state != :deleted,
-          select: coalesce(sum(s.vcpus), 0)
-      )
-
-    cpus + sandbox.vcpus <= min(node.capacity.cpus, node.execution_slots * 2) and disk_space?(node, sandbox) and
+    placed_vcpus(node.name) + sandbox.vcpus <= min(node.capacity.cpus, node.execution_slots * 2) and
+      disk_space?(node, sandbox) and
       disk_room?(node, sandbox)
   end
 
@@ -1837,11 +1831,55 @@ defmodule Tuist.Sandboxes.Capacity do
   defp rank([]), do: []
   defp rank([node]), do: [node]
 
+  # Execution VMs go where the most CPU is free, then the most memory. On a
+  # shared host, exclusive-CPU runners keep their cores to themselves and
+  # the guests share the rest, so a host whose runners took most of its
+  # cores runs an action two to three times slower than an idle one
+  # (production, November 2026).
   defp rank(nodes) do
     nodes
-    |> Enum.map(&{&1, free_bytes(&1)})
-    |> Enum.sort_by(fn {_node, free} -> if free == :unbounded, do: :infinity, else: free end, :desc)
-    |> Enum.map(fn {node, _free} -> node end)
+    |> Enum.map(fn node ->
+      free = free_bytes(node)
+      {node, {execution_cpu_room(node), if(free == :unbounded, do: :infinity, else: free)}}
+    end)
+    |> Enum.sort_by(fn {_node, room} -> room end, :desc)
+    |> Enum.map(fn {node, _room} -> node end)
+  end
+
+  # Millicores no Pod requests and no execution VM on the daemon uses. The
+  # grant counts what Pods request, and the worker's request does not grow
+  # with its guests, so their vCPUs come off it. An idle warm runner's CPU
+  # is not counted: its cores stay exclusive until it is retired. A shared
+  # host without a fresh grant counts as having none; a dedicated host has
+  # its own cores.
+  defp execution_cpu_room(%{name: node_name} = node) do
+    available =
+      if elastic?(node) do
+        case Repo.get(SandboxNode, node_name) do
+          %SandboxNode{
+            allocation_reclaim: false,
+            allocation_observed_at: %DateTime{} = at,
+            allocation_cpu_free_milli: free
+          }
+          when is_integer(free) ->
+            if fresh_allocation?(at), do: free, else: 0
+
+          _no_fresh_grant ->
+            0
+        end
+      else
+        node.capacity.cpus * 1000
+      end
+
+    available - placed_vcpus(node_name) * 1000
+  end
+
+  defp placed_vcpus(node_name) do
+    Repo.one(
+      from s in Sandbox,
+        where: s.node_name == ^node_name and s.state != :deleted,
+        select: coalesce(sum(s.vcpus), 0)
+    )
   end
 
   # Agent sandboxes are packed onto the nodes that already run the most of

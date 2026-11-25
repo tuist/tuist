@@ -932,6 +932,26 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert Repo.get!(SandboxNode, node).memory_limit_bytes == 9 * @gib
     end
 
+    test "execution VMs go to the host with the most free CPU before the most free memory" do
+      # Exclusive-CPU runners hold most of the roomier host's cores.
+      {busy, image} =
+        connect_execution(%{
+          capacity: %{memory_bytes: 13 * @gib, cpus: 16},
+          elastic: %{memory_floor_bytes: 13 * @gib, memory_ceiling_bytes: 17 * @gib}
+        })
+
+      {quiet, ^image} = connect_execution(%{})
+      set_grant(busy, allocation_cpu_free_milli: 3_000)
+      set_grant(quiet, allocation_cpu_free_milli: 4_000)
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      assert {:ok, ^quiet} = Capacity.place_execution(execution_vm(), image)
+
+      # The grant does not count the guests: with one 2-vCPU VM, 2 cores
+      # are left on the quiet host against 3 on the busy one.
+      assert {:ok, ^busy} = Capacity.place_execution(execution_vm(), image)
+    end
+
     test "execution VMs grow a shared host's carve-out past the grant, up to its ceiling" do
       {node, image} = connect_execution(%{})
       # The grant has no memory to offer beyond what the daemon holds: every runner is busy.
