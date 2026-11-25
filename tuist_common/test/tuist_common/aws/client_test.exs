@@ -175,7 +175,8 @@ defmodule TuistCommon.AWS.ClientTest do
 
       Process.sleep(100)
 
-      assert {:error, %{reason: :pool_timeout}} = Client.request(:get, url, "", [], pool_timeout: 50)
+      assert {:error, %{reason: :pool_timeout}} =
+               Client.request(:get, url, "", [], pool_timeout: 50)
     after
       Application.delete_env(:tuist_common, :finch_name)
       Application.delete_env(:ex_aws, :req_opts)
@@ -191,6 +192,30 @@ defmodule TuistCommon.AWS.ClientTest do
     after
       Application.delete_env(:tuist_common, :finch_name)
       Application.delete_env(:ex_aws, :req_opts)
+    end
+  end
+
+  describe "request/5 redirects" do
+    test "does not follow redirects when ExAws asks it not to" do
+      expect(Req, :request, fn opts ->
+        assert Keyword.get(opts, :redirect) == false
+        refute Keyword.has_key?(opts, :follow_redirect)
+        {:ok, %Req.Response{status: 302, headers: %{}, body: ""}}
+      end)
+
+      assert {:ok, %{status_code: 302}} =
+               Client.request(:put, "http://169.254.169.254/latest/api/token", "", [],
+                 follow_redirect: false
+               )
+    end
+
+    test "keeps Req's redirect default otherwise" do
+      expect(Req, :request, fn opts ->
+        refute Keyword.has_key?(opts, :redirect)
+        {:ok, %Req.Response{status: 200, headers: %{}, body: "ok"}}
+      end)
+
+      assert {:ok, %{status_code: 200}} = Client.request(:get, "https://example.com")
     end
   end
 end

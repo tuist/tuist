@@ -82,13 +82,20 @@ defmodule Tuist.Storage do
           [
             query_params: query_params,
             expires_in: Keyword.get(opts, :expires_in, 3600)
-          ] ++ signed_headers_opt(opts)
+          ] ++ addressing_opts(config) ++ signed_headers_opt(opts)
 
         {:ok, url} =
           ExAws.S3.presigned_url(config, method, bucket_name, object_key, presigned_url_opts)
 
         url
     end
+  end
+
+  # `ExAws.S3.presigned_url/5` reads the addressing style only from its options,
+  # not from the config that requests use. Passed only when enabled, so
+  # path-style URLs are generated exactly as before.
+  defp addressing_opts(config) do
+    for key <- [:virtual_host, :bucket_as_host], Map.get(config, key), do: {key, true}
   end
 
   # Passed only when there is something to sign, so a URL that signs no headers

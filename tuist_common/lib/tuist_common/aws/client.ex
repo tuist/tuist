@@ -34,6 +34,7 @@ defmodule TuistCommon.AWS.Client do
       ]
       |> Keyword.merge(req_opts)
       |> Keyword.merge(http_opts_list)
+      |> no_redirect_when_asked()
       |> Keyword.delete(:follow_redirect)
 
     opts =
@@ -63,5 +64,14 @@ defmodule TuistCommon.AWS.Client do
       else
         reraise error, __STACKTRACE__
       end
+  end
+
+  # ExAws passes `follow_redirect: false` (hackney's name) where a redirect
+  # must not be followed, such as the IMDSv2 token request (GHSA-mww9-g5mj-j664).
+  # Req follows redirects unless told otherwise.
+  defp no_redirect_when_asked(opts) do
+    if Keyword.get(opts, :follow_redirect) == false,
+      do: Keyword.put(opts, :redirect, false),
+      else: opts
   end
 end

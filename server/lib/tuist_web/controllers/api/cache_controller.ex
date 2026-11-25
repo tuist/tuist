@@ -43,6 +43,9 @@ defmodule TuistWeb.API.CacheController do
 
   plug :sign
 
+  plug :validate_object_key_components
+       when action in [:download, :exists, :multipart_start, :multipart_generate_url, :multipart_complete]
+
   tags(["Cache"])
 
   operation(:endpoint,
@@ -1064,6 +1067,25 @@ defmodule TuistWeb.API.CacheController do
 
     send_resp(conn, :no_content, "")
   end
+
+  # `hash` and `name` become segments of the object key. A `/` or a `.`/`..`
+  # segment would let a caller address keys outside its project's prefix, as
+  # path-style S3 clients may resolve dot segments (CVE-2026-59698). Same rule
+  # as the cache service's `SafePathComponent`, plus control characters such as
+  # a trailing newline, which that pattern's `$` lets through.
+  defp validate_object_key_components(conn, _opts) do
+    if Enum.all?(["hash", "name"], &safe_path_component?(conn.query_params[&1])) do
+      conn
+    else
+      conn
+      |> put_status(400)
+      |> json(%{message: "The request has missing or invalid parameters"})
+      |> halt()
+    end
+  end
+
+  defp safe_path_component?(value) when is_binary(value), do: value =~ ~r/^(?!\.{1,2}\z)[^\/\\\x{0}-\x{1f}\x{7f}]+\z/u
+  defp safe_path_component?(_value), do: false
 
   defp get_object_key(%{hash: hash, cache_category: cache_category, name: name, project_slug: project_slug}) do
     if cache_category == nil do

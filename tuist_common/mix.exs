@@ -37,7 +37,7 @@ defmodule TuistCommon.MixProject do
       {:ecto, "~> 3.13"},
       {:ecto_ch,
        git: "https://github.com/tuist/ecto_ch.git", branch: "codex/experimental-transactions"},
-      {:ex_aws, "~> 2.0"},
+      {:ex_aws, "~> 2.8"},
       {:finch, "~> 0.21.0"},
       {:phoenix, "~> 1.7"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
