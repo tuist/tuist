@@ -51,6 +51,7 @@ On continuous integration, the package also uploads the commit history of the ch
 | --- | --- |
 | `TUIST_GIT_UPLOAD_ENABLED=false` | Doesn't read or upload any Git history. |
 | `TUIST_GIT_UNSHALLOW_ENABLED=false` | Reads only the checkout, without contacting the remote. |
+| `TUIST_GIT_BRANCH=<branch>` | Names the run's branch, ahead of the CI provider's and the checkout's. Set it on CI systems Tuist doesn't recognize that check out a commit rather than a branch, whose runs otherwise have no branch. |
 
 ## Troubleshooting {#troubleshooting}
 

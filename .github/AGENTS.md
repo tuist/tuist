@@ -463,7 +463,10 @@ they cannot flip the CLI's own unit tests. The coverage runs pass no
 `--derived-data-path`: the CLI locates Xcode's derived data itself
 (`DerivedDataLocator`). If a run's export can't find it, it falls back to the
 result bundle's xccov report, which never covers cached code; the server shows
-that run's `coverage_tool` as `xccov`.
+that run's `coverage_tool` as `xccov`. Jobs that install Rust unlocked for the
+Cargo fixtures (unit tests, acceptance shards, the backfill) mark `mise.lock`
+`assume-unchanged` before testing, like `server.yml`: the install rewrites it,
+and a dirty checkout's coverage never counts toward the commit.
 
 Keep persistent cache mounts outside `RUNNER_TEMP`: GitHub's end-of-job temp
 cleanup deletes their contents before the cache-volume backend publishes them.

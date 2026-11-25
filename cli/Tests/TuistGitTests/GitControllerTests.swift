@@ -306,6 +306,29 @@ struct GitControllerTests {
         #expect(gitInfo.branch == "main")
     }
 
+    /// A CI system Tuist doesn't detect that checks out a bare commit names its branch with `TUIST_GIT_BRANCH`,
+    /// which wins over the provider variables too.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_the_branch_is_overridden_on_a_detached_head() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["CI": "true", "TUIST_GIT_BRANCH": "refs/heads/main", "CI_COMMIT_REF_NAME": "v1.0.0"]
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "some-sha\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "")
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.branch == "main")
+        #expect(gitInfo.sha == "some-sha")
+        #expect(await GitController.ciBranch(environment: mockEnvironment.variables) == "main")
+    }
+
     /// A tag push sets `GITHUB_REF_NAME` to the tag. Reporting it as the branch
     /// would attribute the build to a ref no branch ever matches.
     @Test(.inTemporaryDirectory, .withMockedEnvironment())

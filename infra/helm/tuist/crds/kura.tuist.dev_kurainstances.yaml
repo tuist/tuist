@@ -345,6 +345,8 @@ spec:
                   type: object
                   additionalProperties:
                     type: string
+                replicaSpreadTopologyKey:
+                  type: string
                 tolerations:
                   type: array
                   items:

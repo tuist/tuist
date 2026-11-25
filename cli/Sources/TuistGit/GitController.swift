@@ -328,6 +328,9 @@ public struct GitController: GitControlling {
     ]
 
     private static let branchEnvironmentVariables = [
+        // Set by the user on CI systems Tuist doesn't detect, where a checkout of a bare commit leaves
+        // git without a branch to name.
+        "TUIST_GIT_BRANCH",
         // GitHub Actions
         "GITHUB_HEAD_REF",
         // GitLab CI
@@ -403,14 +406,8 @@ public struct GitController: GitControlling {
         let pullRequestNumber = Self.pullRequestNumber(ref: gitRef, environment: environment)
 
         // Branch
-        let ciBranch = Self.branchEnvironmentVariables
-            .compactMap { environment[$0] }
-            .first { !$0.isEmpty }
-            .map(Self.branchName)
-            ?? Self.githubBranch(environment: environment)
-
         let branchName: String?
-        if let ciBranch {
+        if let ciBranch = Self.ciBranch(mergedEnvironment: environment) {
             branchName = ciBranch
         } else if await isInGitRepository(workingDirectory: workingDirectory) {
             if let currentBranch = try? await capture(
@@ -467,6 +464,22 @@ public struct GitController: GitControlling {
             baseBranch: baseBranch,
             pullRequestNumber: pullRequestNumber
         )
+    }
+
+    /// The branch the environment names (`TUIST_GIT_BRANCH`, then the CI provider's variables), which
+    /// `gitInfo` prefers over the checkout's. For reporters that ask git for the branch themselves.
+    public static func ciBranch(environment: [String: String]) async -> String? {
+        let environment = await CIBuildParameters.read(environment: environment)
+            .merging(environment) { _, variable in variable }
+        return ciBranch(mergedEnvironment: environment)
+    }
+
+    private static func ciBranch(mergedEnvironment environment: [String: String]) -> String? {
+        branchEnvironmentVariables
+            .compactMap { environment[$0] }
+            .first { !$0.isEmpty }
+            .map(branchName)
+            ?? githubBranch(environment: environment)
     }
 
     /// Some providers name a branch by its full ref, `refs/heads/main`.

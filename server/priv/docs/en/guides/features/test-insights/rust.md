@@ -38,6 +38,16 @@ tuist cargo test authentication
 
 Filtered tests and tests not executed after a failure are never reported as passing. Results appear under **Tests** in the dashboard.
 
+## Continuous integration {#continuous-integration}
+
+Tuist recognizes GitHub Actions, GitLab CI, Bitrise, CircleCI, Buildkite, and Codemagic, and links each run to its CI job. On any other CI system, a run counts as a CI run when the `CI` environment variable is set. Most CI systems set it; set it yourself where they don't, such as on Fly.io Machines. Flaky test detection only compares CI runs.
+
+A job that checks out a commit rather than a branch leaves Git without a branch to name, so its runs have no branch. On the CI systems Tuist recognizes, the branch comes from the provider. Elsewhere, name it with `TUIST_GIT_BRANCH`:
+
+```sh
+CI=true TUIST_GIT_BRANCH=main tuist cargo test --workspace
+```
+
 ## Packages, modules, and test cases {#test-hierarchy}
 
 Tuist groups results by Cargo package and target. Rust module paths group individual tests within a target:

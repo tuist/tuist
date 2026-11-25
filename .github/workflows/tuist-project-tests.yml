@@ -275,6 +275,12 @@ jobs:
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
       - name: Install loopback TLS test dependency
         run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+      # Installing Rust unlocked rewrites mise.lock, which doesn't change the
+      # measured code but would make the CLI report the run from a dirty
+      # checkout and the server leave its coverage out of the commit. Git is
+      # told to ignore it, as server.yml does for its coverage shards.
+      - name: Ignore lockfile changes for coverage
+        run: git update-index --assume-unchanged mise.lock
       # The scheme leaves its test action's coverage unset, so it follows
       # Tuist.swift's `coverage` option. The CLI makes the coverage counters atomic itself
       # (`AtomicCoverageCounters`): tests run in parallel in one process, and plain
@@ -486,6 +492,9 @@ jobs:
       # xcodebuild, so parallel runners also multiplied compiler processes: uncapped on a 6-core
       # runner that reached 78 concurrent swift-frontend processes
       # (https://github.com/tuist/tuist/issues/12512).
+      # Like the unit tests: the unlocked Rust install above rewrites mise.lock.
+      - name: Ignore lockfile changes for coverage
+        run: git update-index --assume-unchanged mise.lock
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -parallel-testing-enabled NO
         env:

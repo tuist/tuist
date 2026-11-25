@@ -37,7 +37,7 @@ tuist cargo test --workspace
 
 Tuist builds your repository's crates with `-C instrument-coverage`, runs the tests, and uploads their coverage along with the run's test results. Your tests' output and exit code don't change. To override the setting for a single run, set `TUIST_COVERAGE_UPLOAD=1` or `TUIST_COVERAGE_UPLOAD=0`.
 
-Coverage relies on the Git history Tuist uploads with each run that collects it, which places the commit on its branch. A run outside a Git repository uploads its test results but no coverage.
+Coverage relies on the Git history Tuist uploads with each run that collects it, which places the commit on its branch. A run outside a Git repository uploads its test results but no coverage. A run from a checkout of a commit rather than a branch has no branch and doesn't place its commit on one; on a CI system Tuist doesn't recognize, name the branch with `TUIST_GIT_BRANCH`, as <.localized_link href="/guides/features/test-insights/rust#continuous-integration">continuous integration</.localized_link> describes.
 
 ### Sharded runs {#sharded-runs}
 

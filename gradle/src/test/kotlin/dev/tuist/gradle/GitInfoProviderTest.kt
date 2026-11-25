@@ -21,6 +21,22 @@ class GitInfoProviderTest {
     }
 
     @Test
+    fun `branch prefers TUIST_GIT_BRANCH over git and CI environment variables`() {
+        val provider = ProcessGitInfoProvider(
+            environmentProvider = { key ->
+                when (key) {
+                    "TUIST_GIT_BRANCH" -> "main"
+                    "CI_COMMIT_REF_NAME" -> "gitlab-branch"
+                    else -> null
+                }
+            },
+            gitCommandRunner = { "feature/checked-out" }
+        )
+
+        assertEquals("main", provider.branch())
+    }
+
+    @Test
     fun `branch returns git command result when not HEAD`() {
         val provider = ProcessGitInfoProvider(
             environmentProvider = { null },

@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCI
+import TuistEnvironment
 import TuistGit
 import TuistServer
 
@@ -40,7 +41,8 @@ struct CargoReporting {
 
     func metadata() async -> [String: Any] {
         let ci = CIController().ciInfo()
-        var result: [String: Any] = ["is_ci": ci != nil]
+        // As `tuist test` reports it: `CI` marks a run on a CI system Tuist doesn't detect, whose provider stays unset.
+        var result: [String: Any] = ["is_ci": ci != nil || Environment.current.isCI]
         // Concurrently: the build waits for none of them, but each costs a process start.
         func capture(_ executable: String, _ arguments: [String]) async -> String? {
             try? await process.capture(executable, arguments: arguments, environment: environment, directory: directory)
@@ -49,8 +51,10 @@ struct CargoReporting {
         // One `rev-parse` answers both: the commit, then the branch.
         async let revisions = capture("git", ["rev-parse", "HEAD", "--abbrev-ref", "HEAD"])
         async let origin = capture("git", ["remote", "get-url", "origin"])
+        async let ciBranch = GitController.ciBranch(environment: environment)
         let lines = await revisions?.split(separator: "\n").map(String.init) ?? []
-        result["git_branch"] = lines.count == 2 ? lines[1] : nil
+        // Like `gitInfo`: the environment's branch first, and a detached checkout, which git names `HEAD`, has none.
+        result["git_branch"] = await ciBranch ?? (lines.count == 2 && lines[1] != "HEAD" ? lines[1] : nil)
         result["git_commit_sha"] = lines.count == 2 ? lines[0] : nil
         result["git_remote_url_origin"] = await origin
         result["ci_provider"] = ci.map { String(describing: $0.provider) }

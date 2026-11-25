@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "bb6a60ca6a07e0c1db4ab264f18a672f4bc5fd50230cd7a4c00b501f16ecde69",
+  "hash": "e5de14c112d10ea16fa0e68721d6339b0c82b633a713bd30f17085cfe87b2e58",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "5b1cb327491d208cae90a7efc3c5b82a34c74f9a4261e09c7213e962afbe5262"
                 },
                 "## How flaky detection works {#how-it-works}": {
-                  "content_hash": "370569107ca3c14eb51cd31a39407b55ff7fc814014d353387849f27ea0bd8df"
+                  "content_hash": "ec35c9726de87e1f3d8e23287f920d1b789ba52f2e5919853f77680672e1aeaf"
                 },
                 "## Quarantining flaky tests {#quarantining}": {
                   "content_hash": "7176173e6fbf0a6e149af0af9bf7e7d5e8a9ce1f01ada44ea1f148b718dcd294"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "58d5ea43437f2c1e8aeada54c70137a1517ea786f5590eaf255f2e24b562ce71",
+          "hash": "f18576cc60af8a6e4c849a0535b4af5b04aa70471015ed78157351c9e86b5545",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/rust.md",
           "metadata": {
-            "content_hash": "cbc1f09e3842273c6ebf2ee510132de23448c446c318888da77c0593dc6d5bae"
+            "content_hash": "fc074e715f388b3cba19b54ec447a9d4a2dd4a22ac4e45951b5fff3f2e8f3618"
           }
         },
         {
@@ -239,14 +239,14 @@
         }
       ],
       "details": {},
-      "hash": "bb6a60ca6a07e0c1db4ab264f18a672f4bc5fd50230cd7a4c00b501f16ecde69",
+      "hash": "e5de14c112d10ea16fa0e68721d6339b0c82b633a713bd30f17085cfe87b2e58",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "cdc67bf0946de1bcda8f272102b89af934601126a95ee910f3e1decda5247cf0",
+  "output_hash": "f12f1ba7f523f6eb18e2804bef983ca9e4b5010ac0f18b6dc9ce13a4b4dc06c5",
   "output_path": "server/priv/docs/zh_Hans/guides/features/test-insights/flaky-tests/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -268,8 +268,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "c9e1eaf8662dc0f607ae7b3740ca2febc82c3390",
+  "source_commit_sha": "f7a130066e7c84375b6beeb8b41a06499daeecdb",
   "source_path": "server/priv/docs/en/guides/features/test-insights/flaky-tests/rust.md",
-  "translated_at": "2026-11-19T15:50:28.700219Z",
-  "translation_session_id": "01a1f47a-9aac-761d-ac08-a01759a29a69"
+  "translated_at": "2026-11-25T13:20:49.122283Z",
+  "translation_session_id": "01a212d7-ff3d-7bca-9928-be88c2589034"
 }

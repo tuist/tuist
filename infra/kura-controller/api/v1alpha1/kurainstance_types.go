@@ -55,6 +55,13 @@ type KuraInstanceSpec struct {
 	// +kubebuilder:validation:Enum="";tuist.dev/kura-disk
 	DiskResource string            `json:"diskResource,omitempty"`
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	// ReplicaSpreadTopologyKey is a node label whose values the instance's
+	// replicas must not share: at most one replica per value, required rather
+	// than preferred. Set for a region whose node selector spans sites (the
+	// rack sites' runner cache, one storage node per site), so each site holds
+	// one replica and a rollout or a dark site leaves the other serving. Empty
+	// keeps the default co-location preference.
+	ReplicaSpreadTopologyKey string `json:"replicaSpreadTopologyKey,omitempty"`
 	// Tolerations let the runtime pod schedule onto tainted nodes. Preview
 	// environments use this to colocate Kura on the generic preview pool
 	// (which carries role=preview:NoSchedule) instead of pinning to a

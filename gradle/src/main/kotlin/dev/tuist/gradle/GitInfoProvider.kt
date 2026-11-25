@@ -72,6 +72,10 @@ class ProcessGitInfoProvider(
 ) : GitInfoProvider {
 
     override fun branch(): String? {
+        // Set by the user on CI systems the plugin doesn't detect, where a checkout of a bare commit
+        // leaves git without a branch to name. It wins, as it does in the CLI and tuist_ex.
+        environmentProvider("TUIST_GIT_BRANCH")?.takeIf(String::isNotEmpty)?.let { return it }
+        // A detached checkout, which git names `HEAD`, has no branch of its own.
         val gitBranch =
             runCatching { gitCommandRunner(listOf("rev-parse", "--abbrev-ref", "HEAD")) }
                 .getOrNull()

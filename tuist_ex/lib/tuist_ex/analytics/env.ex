@@ -104,10 +104,11 @@ defmodule TuistEx.Analytics.Env do
     end
   end
 
-  # The variables CI providers name the branch in, in the CLI's order. A pull
-  # request on GitHub Actions is a detached checkout of its merge commit, where
-  # git can only answer "HEAD".
-  @branch_variables ~w(GIT_BRANCH GITHUB_HEAD_REF CI_COMMIT_REF_NAME BITRISE_GIT_BRANCH
+  # The variables CI providers name the branch in, in the CLI's order, after
+  # `TUIST_GIT_BRANCH`, which the user sets on CI systems Tuist doesn't detect.
+  # A pull request on GitHub Actions, or any checkout of a bare commit, is
+  # detached, where git can only answer "HEAD", which is no branch.
+  @branch_variables ~w(TUIST_GIT_BRANCH GIT_BRANCH GITHUB_HEAD_REF CI_COMMIT_REF_NAME BITRISE_GIT_BRANCH
                        CIRCLE_BRANCH BUILDKITE_BRANCH CM_BRANCH AC_GIT_BRANCH CI_BRANCH
                        teamcity.build.branch BUILD_SOURCEBRANCHNAME)
 
