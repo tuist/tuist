@@ -16,7 +16,7 @@
 # tag and a digest is pulled by the digest alone, so each image is written
 # out as one literal and its tag and digest change in the same edit.
 ARG BUILDER_IMAGE=hexpm/elixir:1.20.5-erlang-29.1.3-debian-bookworm-20261123-slim@sha256:feeeefac76e848dd8cc8b003ebfadf00225db2a4bbe195a3f6442b8a807b308a
-ARG RUNNER_IMAGE=debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
+ARG RUNNER_IMAGE=debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0
 
 # Keep Aube 1.6.2's esbuild behavior, but rebuild its embedded TLS verifier/roots.
 FROM rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55 AS aube-builder
