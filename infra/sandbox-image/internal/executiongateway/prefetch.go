@@ -19,8 +19,13 @@ import (
 )
 
 const (
-	endpointTTL     = 5 * time.Minute
-	prefetchTimeout = 50 * time.Millisecond
+	endpointTTL = 5 * time.Minute
+	// The gateway reads from a cache in another datacenter, about 18 ms away,
+	// and Kura walks the input tree level by level before it answers. A
+	// prefetch that runs out of time costs the action this wait, a second read
+	// of the action for its VM size and the VM's own reads of its inputs, so
+	// the deadline covers the cache's slow reads instead of only its median.
+	prefetchTimeout = 200 * time.Millisecond
 	// Reading the action when the prefetch did not, for its VM size: the
 	// delays between attempts (Gateway.ActionReadBudget bounds them all).
 	actionReadBackoff    = 100 * time.Millisecond
@@ -137,12 +142,16 @@ func (g *Gateway) memory(parent context.Context, account, project, auth string, 
 // failure leaves the VM to read from the cache itself. It also returns the
 // action when it read it.
 func (g *Gateway) prefetch(parent context.Context, account, project, auth string, action *re.Digest) (encoded string, parsed *re.Action) {
-	result := "skipped"
+	started := time.Now()
+	// failure is what a prefetch that seeded nothing is counted as: the
+	// deadline, a missing action, or any other failure.
+	result, failure := "skipped", "failed"
 	defer func() {
 		if encoded == "" && result != "skipped" {
-			result = "failed"
+			result = failure
 		}
 		g.metrics.prefetches.WithLabelValues(result).Inc()
+		g.metrics.prefetchDuration.WithLabelValues(result).Observe(time.Since(started).Seconds())
 	}()
 	url := g.endpoint(account, project)
 	if url == "" {
@@ -208,6 +217,12 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 	response, err := cas.BatchReadBlobs(metadata.AppendToOutgoingContext(ctx, actionInputsHeader, actionInputsLimits), &re.BatchReadBlobsRequest{InstanceName: project, Digests: first, DigestFunction: re.DigestFunction_SHA256})
 	var a re.Action
 	if err != nil || len(response.Responses) == 0 || !matches(response.Responses[0], action) || proto.Unmarshal(response.Responses[0].Data, &a) != nil {
+		switch {
+		case status.Code(err) == codes.DeadlineExceeded:
+			failure = "timeout"
+		case err == nil && len(response.Responses) > 0 && response.Responses[0].GetStatus().GetCode() == int32(codes.NotFound):
+			failure = "missing"
+		}
 		return "", nil
 	}
 	seed.Requests = append(seed.Requests, &re.BatchUpdateBlobsRequest_Request{Digest: action, Data: response.Responses[0].Data})

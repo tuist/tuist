@@ -17,15 +17,17 @@ import (
 
 // Labels are fixed sets: never accounts, projects or digests.
 type metrics struct {
-	executions   *prometheus.CounterVec
-	duration     *prometheus.HistogramVec
-	streams      prometheus.Gauge
-	prefetches   *prometheus.CounterVec
-	publications *prometheus.CounterVec
-	phases       *prometheus.HistogramVec
-	records      *prometheus.CounterVec
-	logCopies    *prometheus.CounterVec
-	logBytes     prometheus.Counter
+	executions *prometheus.CounterVec
+	duration   *prometheus.HistogramVec
+	streams    prometheus.Gauge
+	prefetches *prometheus.CounterVec
+	// prefetchDuration shows how close prefetches come to their deadline.
+	prefetchDuration *prometheus.HistogramVec
+	publications     *prometheus.CounterVec
+	phases           *prometheus.HistogramVec
+	records          *prometheus.CounterVec
+	logCopies        *prometheus.CounterVec
+	logBytes         prometheus.Counter
 }
 
 func newMetrics(registry prometheus.Registerer) *metrics {
@@ -45,7 +47,12 @@ func newMetrics(registry prometheus.Registerer) *metrics {
 		}),
 		prefetches: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "reapi_gateway_prefetches_total",
-			Help: "Input prefetches by how the inputs were read (inputs, tree, walk), or why none were (skipped, failed).",
+			Help: "Input prefetches by how the inputs were read (inputs, tree, walk), or why none were: skipped (no known cache), timeout (the cache did not answer the first read in time), missing (the cache does not have the action) or failed.",
+		}, []string{"result"}),
+		prefetchDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "reapi_gateway_prefetch_seconds",
+			Help:    "Input prefetches from start to their seed, by the same result as reapi_gateway_prefetches_total.",
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 12),
 		}, []string{"result"}),
 		publications: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "reapi_gateway_publications_total",
@@ -69,7 +76,7 @@ func newMetrics(registry prometheus.Registerer) *metrics {
 			Help: "Bytes of action logs copied to the server's object storage.",
 		}),
 	}
-	registry.MustRegister(m.executions, m.duration, m.streams, m.prefetches, m.publications, m.phases, m.records, m.logCopies, m.logBytes)
+	registry.MustRegister(m.executions, m.duration, m.streams, m.prefetches, m.prefetchDuration, m.publications, m.phases, m.records, m.logCopies, m.logBytes)
 	return m
 }
 
