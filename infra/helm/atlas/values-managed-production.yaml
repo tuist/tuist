@@ -202,10 +202,9 @@ externalSecrets:
     SECRET_KEY_BASE:
       remoteRef: "atlas-secret-key-base/password"
     GUARDIAN_SECRET_KEY:
-      remoteRef: "atlas-secret-key-base/password"
-    # The value GUARDIAN_SECRET_KEY reads today, kept verifying while
-    # GUARDIAN_SECRET_KEY moves to atlas-guardian-secret-key. Remove a day
-    # after that move.
+      remoteRef: "atlas-guardian-secret-key/password"
+    # The key GUARDIAN_SECRET_KEY read before it moved to its own item, kept
+    # verifying tokens issued before the move. Remove a day after it.
     GUARDIAN_SECRET_KEY_PREVIOUS:
       remoteRef: "atlas-secret-key-base/password"
     # Starts as a copy of atlas-secret-key-base so switching changes nothing;

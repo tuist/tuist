@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "7c5aa9a8752c4f41da3baa75ab9a4dcdf760526ca4d363a8de6ca09833ecb209",
+  "hash": "53760305803c56d6ba87cf29b4a381f7fadb2d969bbd004224270b934a4de041",
   "hash_tree": {
     "root": {
       "children": [
@@ -10,8 +10,8 @@
             "content_hash": {
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
-                "# Gradle cache {#gradle-cache}": {
-                  "content_hash": "3a1d518905d311e2ae2ddc52cb826a7905d46138dc66c2ccc176b9eb4aa3747f"
+                "# Gradle build cache {#gradle-cache}": {
+                  "content_hash": "751ab762a1883ba8639e933603a753d46276ff13d44dfb7c516e9706a5ccbfeb"
                 },
                 "## Cache upload policy {#cache-upload-policy}": {
                   "content_hash": "7de3351f124a5dfb5e3b269247204fa7169a70d84e1265ec1766ee15c45f264d"
@@ -26,17 +26,17 @@
                   "content_hash": "6e5bb7abc32698a69d058ed12f81d705be0d45cbe8c40f0ea5e239976cb2a652"
                 },
                 "Preamble": {
-                  "content_hash": "d85a9f229183484ba66d777bb51b857e3e9c194a1d1fd3f0c530702ce1af8adc"
+                  "content_hash": "e6522249202f838bab2b393a6b6da85717a8548289091abef14d828da73cd7e8"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "3b081b9663f9a210e41c78539b06d8231482493485a87b49d7f983699875befe",
+          "hash": "d07cc20aad0b47cfb56b1c418ccb739dd8c5d8d4abe17ade8bb83e9e7a9e5ea0",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/gradle-cache.md",
           "metadata": {
-            "content_hash": "6c10672d48b7af9743dca24456b16e73171335e32dd020c09c746eef6d015db6"
+            "content_hash": "be03296c95d53b36fae9a9c3697bf324dc1afdc352938cce8d04da9f2a4ccb77"
           }
         },
         {
@@ -192,25 +192,18 @@
                 {
                   "children": [],
                   "details": {
-                    "content_hash": {
-                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
-                        "case_sensitive": false,
-                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
-                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
-                        "translation_hash": "ed0c85f2d26a853a8f22f93e2f7919cac0533dba8b5db598ce2479cb1a05b2d5"
-                      }
-                    }
+                    "content_hash": {}
                   },
-                  "hash": "9c6d6ddd0422c94914f6957b50515b10db1b42b86ee5e7bb5ca00760311f2e45",
+                  "hash": "aaaa323144d0aa263b3c3b320f63fa40d6f277ca8e12bac4001fb8a508c0d17f",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "d46c92b7d564713401964ede61f190122408edc613618fdbd777c0965195befa"
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
                   }
                 }
               ],
               "details": {},
-              "hash": "4766dd64cfc38d5019cd944de2326d06f63293c35c5c9ef90e5a7581930586bc",
+              "hash": "c18f36f445e3f1b1119032b90a7907097b5bb97f568b020c7a5a8333447a8658",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -220,31 +213,29 @@
             }
           ],
           "details": {},
-          "hash": "3ba81c160073a9ec7ddd98c9a14feb7d76c0de522978579d188d98dd4eca0d6b",
+          "hash": "a275dcceb01f3c7c2883c9d088fcec40a8b478f51944147d5a6b5d04f43cbc0f",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "7c5aa9a8752c4f41da3baa75ab9a4dcdf760526ca4d363a8de6ca09833ecb209",
+      "hash": "53760305803c56d6ba87cf29b4a381f7fadb2d969bbd004224270b934a4de041",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/gradle-cache.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "051db5edb52d99ecb8dc4a224a18652fc6741ca9234cba814537659561d21631",
+  "output_hash": "98c7b33a922d4264697c9236910de9fff7ecfa060ae50a9cb5a75b65abd4c49a",
   "output_path": "server/priv/docs/tr/guides/features/cache/gradle-cache.md",
   "protection_state": "recorded",
   "provider": "",
   "server_context": {
     "compiler_version": 3,
     "glossary": {
-      "applied": [
-        "repo:features"
-      ],
-      "content_hash": "d46c92b7d564713401964ede61f190122408edc613618fdbd777c0965195befa",
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "shadowed": [],
       "version": null
     },
@@ -254,8 +245,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "d354203dbbefc594466f81806166d61abf81ccc9",
+  "source_commit_sha": "f900326b4b68e4b4f82e0c76ae0adbabf862bdd9",
   "source_path": "server/priv/docs/en/guides/features/cache/gradle-cache.md",
-  "translated_at": "2026-11-19T12:12:18.195531Z",
-  "translation_session_id": "01a1f3b5-b8f7-78b3-8d41-483096287e2e"
+  "translated_at": "2026-11-25T16:32:53.488836Z",
+  "translation_session_id": "01a2138c-3ce0-72d0-8703-da5c7f643108"
 }

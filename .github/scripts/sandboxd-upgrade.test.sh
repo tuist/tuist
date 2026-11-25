@@ -13,6 +13,7 @@ repo=ghcr.io/tuist/sandboxd
 old_id=containerd://$(printf 'a%.0s' $(seq 64))
 config=$'SERVER_URL=http://server\nLOG_LEVEL=info\n'
 config_sum=$(printf '%s' "$config" | sha256sum | cut -d' ' -f1)
+digest=sha256:$(printf 'd%.0s' $(seq 64))
 
 # template <daemon tag> <vmm tag>
 template() {
@@ -25,7 +26,10 @@ template() {
 
 # scenario <pod's daemon tag> <pod's vmm tag> <arms: yes|no> [loaded config
 # sum, default the ConfigMap's]; the
-# DaemonSet always wants daemon sha-new and vmm sha-vmm.
+# DaemonSet always wants daemon sha-new and vmm sha-vmm. POD_IMAGE overrides
+# the Pod's daemon image, IMAGE_ID the image it runs (default
+# $repo@$digest), LAZY how many restores the daemon reports streaming disks
+# (one fewer on each read).
 scenario() {
   state="$scratch/state"
   rm -rf "$state"
@@ -39,9 +43,11 @@ scenario() {
     {metadata: {labels: {"controller-revision-hash": "new"}, ownerReferences: [{uid: "ds-uid"}]}, revision: 2, data: {spec: {template: ($new + {"$patch": "replace"})}}}]}' > "$state/revisions.json"
   local hash=old
   [ "$1" = sha-new ] && [ "$2" = sha-vmm ] && hash=new
-  jq -n --argjson t "$have" --arg id "$old_id" --arg h "$hash" '{items: [
+  [ -n "${POD_IMAGE:-}" ] && have=$(jq -c --arg i "$POD_IMAGE" '.spec.containers[0].image = $i' <<< "$have")
+  jq -n --argjson t "$have" --arg id "$old_id" --arg h "$hash" --arg iid "${IMAGE_ID-$repo@$digest}" '{items: [
     {metadata: {name: "sandboxd-x", labels: {"controller-revision-hash": $h}}, spec: ($t.spec + {nodeName: "node-1"}),
-     status: {containerStatuses: [{name: "sandboxd", containerID: $id, ready: true, image: $t.spec.containers[0].image}]}}]}' > "$state/pods.json"
+     status: {containerStatuses: [{name: "sandboxd", containerID: $id, ready: true, image: $t.spec.containers[0].image, imageID: $iid}]}}]}' > "$state/pods.json"
+  echo "${LAZY:-0}" > "$state/lazy"
   jq -n --arg c "$config" '{data: {"config.env": $c}}' > "$state/cm.json"
   [ "$3" = yes ] && touch "$state/arms"
   echo "${4:-$config_sum}" > "$state/loaded"
@@ -77,12 +83,15 @@ case "$1 $2" in
       echo '{"msg":"sandbox re-attached","sandbox":"sbx-1"}'
     fi ;;
   "patch pod") echo "${!#}" > "$state/patch"; touch "$state/patched" ;;
+  "delete pod") echo "$*" >> "$state/order" ;;
   "exec sandboxd-x")
     if [[ "$*" == *kill* ]]; then
       touch "$state/patched" "$state/killed"
       echo "$config_sum" > "$state/loaded"
     else
-      echo 'sandboxd_handover_blocked{reason="lazy_disks"} 0'
+      lazy=$(cat "$state/lazy")
+      echo "sandboxd_handover_blocked{reason=\"lazy_disks\"} $lazy"
+      [ "$lazy" -gt 0 ] && echo $((lazy - 1)) > "$state/lazy"
       echo "sandboxd_config_info{sha256=\"$(cat "$state/loaded")\"} 1"
     fi ;;
   *) ;;
@@ -129,10 +138,29 @@ check "a current Pod is left alone" \
 stale=$(printf old | sha256sum | cut -d' ' -f1)
 scenario sha-new sha-vmm yes "$stale"
 check "a config-only change restarts the daemon in place after it armed" \
-  '[ -e "$state/killed" ] && grep -q "^annotate pod sandboxd-x --overwrite" "$state/calls" && [ ! -e "$state/patch" ] && ! grep -q "^delete" "$state/calls"'
+  'grep -q "^annotate pod sandboxd-x --overwrite" "$state/calls" && [ -e "$state/patched" ] && ! grep -q "^delete" "$state/calls"'
+check "a config-only restart patches in the image it runs by digest, not a SIGTERM" \
+  '[ ! -e "$state/killed" ] && jq -e --arg i "$repo:sha-new@$digest" ".spec.containers[0].image == \$i" "$state/patch" >/dev/null'
+
+POD_IMAGE=$repo:sha-new@$digest scenario sha-new sha-vmm yes "$stale"
+check "the next config-only restart patches the digest away again" \
+  '[ ! -e "$state/killed" ] && jq -e --arg i "$repo:sha-new" ".spec.containers[0].image == \$i" "$state/patch" >/dev/null'
+
+POD_IMAGE=$repo:sha-new@$digest scenario sha-new sha-vmm yes
+check "a Pod running its image by digest is current" \
+  '! grep -qE "^(delete|patch|annotate)" "$state/calls"'
+
+IMAGE_ID="" scenario sha-new sha-vmm yes "$stale"
+check "without the running digest, a config-only change falls back to a SIGTERM" \
+  '[ -e "$state/killed" ] && [ ! -e "$state/patch" ]'
 
 scenario sha-new sha-vmm no "$stale"
 check "a config-only change replaces a daemon that never arms" \
   '[ ! -e "$state/killed" ] && grep -q "^delete pod sandboxd-x" "$state/calls"'
+
+LAZY=2 scenario sha-old sha-oldvmm yes
+check "a replacement waits until no restore streams its disks" \
+  'grep -q "2 sandboxes still receive their disks" "$state/out" && [ "$(cat "$state/lazy")" = 0 ] &&
+   [ "$(grep -n "still receive" "$state/out" | tail -1 | cut -d: -f1)" -lt "$(grep -n "^Replacing" "$state/out" | cut -d: -f1)" ]'
 
 [ "$failures" -eq 0 ] || { echo "$failures failures"; exit 1; }

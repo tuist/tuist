@@ -874,8 +874,13 @@ daemon's `handover armed` log with that nonce and the new ConfigMap's hash,
 and patches the container's image; the kubelet restarts only that
 container. A Pod already on the current revision whose
 `sandboxd_config_info` differs from the ConfigMap's hash restarts the same
-way, with a SIGTERM to the daemon (`pidof`: PID 1 is the pause container)
-instead of the patch. Any other difference replaces the Pod. An armed daemon stops its
+way, with a patch that toggles its image between `<tag>` and
+`<tag>@<digest it runs>`. Keep it a spec change: a daemon that exits on its
+own (a SIGTERM) is restarted under the kubelet's crash back-off, and on
+staging the second such restart in a minute left the node without a daemon
+for 48 s. Any other difference replaces the Pod, after the same wait for
+lazy disks: a restore still streaming its disks cannot pause, and a Pod
+deleted under it leaves the sandbox in error. An armed daemon stops its
 workers and detaches each running VM, recording `handover {pid, start}` in
 its metadata; VMs whose memory it serves through userfaultfd, whose disks
 still arrive through its mounts, or that vmm refuses are paused instead.
