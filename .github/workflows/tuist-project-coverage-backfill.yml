@@ -130,6 +130,10 @@ jobs:
           cache: "false"
       - name: Install loopback TLS test dependency
         run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+      # The unlocked Rust install above rewrites mise.lock; ignore it so the
+      # run isn't reported from a dirty checkout (as tuist-project-tests.yml does).
+      - name: Ignore lockfile changes for coverage
+        run: git update-index --assume-unchanged mise.lock
       # Every test runs: selective testing would skip tests. The scheme leaves
       # its test action's coverage unset and follows Tuist.swift's `coverage`
       # option; the CLI makes the coverage counters atomic itself
