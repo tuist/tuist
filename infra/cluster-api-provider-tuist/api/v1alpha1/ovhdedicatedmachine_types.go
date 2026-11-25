@@ -90,6 +90,16 @@ type OVHDedicatedMachineSpec struct {
 	// +optional
 	KataRuntime bool `json:"kataRuntime,omitempty"`
 
+	// KataBlockRootfs gives kata-qemu containers a devmapper thin device as
+	// their rootfs, which the guest mounts as ext4 over virtio-blk, instead of
+	// an overlayfs snapshot shared over virtiofs. Compiles that read many small
+	// files from the image (toolchains, headers) run about 30% faster. The thin
+	// pool lives in preallocated files under /data. Only read when KataRuntime is
+	// set, and only at bootstrap: flipping it reaches a box when it is
+	// reprovisioned.
+	// +optional
+	KataBlockRootfs bool `json:"kataBlockRootfs,omitempty"`
+
 	// EgressBudgetMbps is the throughput, in Mbps, this box may assign across
 	// the Kura pods it hosts — its NIC ceiling minus headroom. When set, the
 	// controller advertises it as the Node's `tuist.dev/egress-mbps` extended

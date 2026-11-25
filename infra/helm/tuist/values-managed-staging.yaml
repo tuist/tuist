@@ -780,6 +780,10 @@ ovhFleets:
       # install kata and apply that label. Without it the box joins Ready and
       # every runner Pod stays unschedulable.
       kataRuntime: true
+      # Kata containers get a devmapper rootfs over virtio-blk instead of
+      # virtiofs (staging trial; see kata_block_rootfs.go in the CAPI provider).
+      # Bootstrap-time only: a box picks it up when it is reprovisioned.
+      kataBlockRootfs: true
       # Runner Pods tolerate this taint; nothing else does.
       nodeTaints:
         - key: tuist.dev/runner-tier

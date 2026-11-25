@@ -1864,6 +1864,10 @@ ovhFleet:
 # runner Pod carries `runtimeClassName: kata-qemu`, and the RuntimeClass selects
 # on that label); leave it off for cache fleets so they skip the download.
 #
+# `machine.kataBlockRootfs` (with `kataRuntime`) moves kata-qemu container
+# rootfs from virtiofs to a devmapper thin pool on /data, mounted in the guest
+# over virtio-blk. Read at bootstrap only.
+#
 # `kubernetesVersion` is the fleet Machines' version, and a fresh join installs
 # that kubelet minor. Kata fleets on v1.36 or later also run the pod-level
 # resource managers. The MachineDeployment is OnDelete, so a change only reaches

@@ -421,13 +421,14 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 // a kubelet the box does not run. Without one it is the provider's default.
 func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicatedMachine, kubeletVersion string) linuxCloudInitOptions {
 	return linuxCloudInitOptions{
-		NodeName:      machine.Name,
-		KuraLVM:       kuraLVMRequested(machine.Annotations),
-		K8sMinor:      kubeletMinor(kubeletVersion, firstNonEmpty(r.KubernetesMinor, "v1.34")),
-		Taints:        machine.Spec.NodeTaints,
-		KataRuntime:   machine.Spec.KataRuntime,
-		BootstrapUser: ovhBootstrapUser,
-		InstanceType:  ovhInstanceType,
+		NodeName:        machine.Name,
+		KuraLVM:         kuraLVMRequested(machine.Annotations),
+		K8sMinor:        kubeletMinor(kubeletVersion, firstNonEmpty(r.KubernetesMinor, "v1.34")),
+		Taints:          machine.Spec.NodeTaints,
+		KataRuntime:     machine.Spec.KataRuntime,
+		KataBlockRootfs: machine.Spec.KataBlockRootfs,
+		BootstrapUser:   ovhBootstrapUser,
+		InstanceType:    ovhInstanceType,
 	}
 }
 
