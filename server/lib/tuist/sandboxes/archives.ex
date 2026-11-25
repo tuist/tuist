@@ -469,12 +469,16 @@ defmodule Tuist.Sandboxes.Archives do
   defp idle_paused_sessions do
     claude_code = from(e in AgentEnvironment, where: e.kind == :claude_code, select: e.id)
     threads = from(e in ProviderEnvironment, where: like(e.external_key, "threads/%"), select: e.id)
+    # A repository snapshot's builder (its row shares the build's ID) pauses
+    # once its script ends and then waits on its node for room to save the
+    # snapshot; archiving it fails the build (`ClaudeCodeSnapshots`).
+    builders = from(d in DiskSnapshot, where: d.state == :building, select: d.id)
 
     where(
       idle_paused(),
       [s],
-      s.platform == :darwin or not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code) or
-        s.provider_environment_id in subquery(threads)
+      (s.platform == :darwin or not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code) or
+         s.provider_environment_id in subquery(threads)) and s.id not in subquery(builders)
     )
   end
 

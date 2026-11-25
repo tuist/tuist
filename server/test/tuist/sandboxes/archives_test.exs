@@ -135,6 +135,35 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"])
     end
 
+    test "room for a repository snapshot never archives the paused builder waiting for it", %{account: account} do
+      agent_environment =
+        agent_environment_fixture(account: account, kind: :claude_code, anthropic_environment_id: "ccpool_01linux")
+
+      {:ok, build} = DiskSnapshots.start_build(agent_environment, "acme/app", "sha")
+
+      sandbox_fixture(
+        account: account,
+        id: build.id,
+        agent_environment_id: agent_environment.id,
+        state: :paused,
+        node_name: "node-a",
+        paused_at: hours_ago(5)
+      )
+
+      orb = paused_orb(account, paused_at: hours_ago(1))
+
+      assert Archives.make_node_room(["node-a"])
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
+        assert id == orb.id
+        {:error, "upload failed"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"])
+    end
+
     test "a held Managed Agents work item makes room too, unless an archive already uploads there",
          %{account: account} do
       uploading = paused_orb(account, archive_upload_id: "upload-in-flight")
