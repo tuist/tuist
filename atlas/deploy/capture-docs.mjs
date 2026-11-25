@@ -17,13 +17,28 @@ function killGroup(pid) {
   }
 }
 
-export async function captureOne({ output, chrome, temporary, name, size, extra = [],
-  url = 'https://localhost:18443/docs/self-hosting', timeout = 30_000 }) {
+// Headless Chrome occasionally stalls without writing a screenshot (about one
+// release validation in 40), so a failed capture gets one more bounded try.
+export async function captureOne({ attempts = 2, ...options }) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await captureAttempt(options, attempt);
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      console.error(`${error.message}; retrying`);
+    }
+  }
+}
+
+async function captureAttempt({ output, chrome, temporary, name, size, extra = [],
+  url = 'https://localhost:18443/docs/self-hosting', timeout = 30_000 }, attempt) {
   await mkdir(output, { recursive: true });
   const screenshot = join(output, `${name}.png`);
   const log = join(output, `${name}.log`);
   await unlink(screenshot).catch(error => { if (error.code !== 'ENOENT') throw error; });
-  const diagnostics = openSync(log, 'w', 0o600);
+  const diagnostics = openSync(log, attempt === 1 ? 'w' : 'a', 0o600);
+  // A reaped Chrome can leave its profile locked, so a retry starts a new one.
+  const profile = attempt === 1 ? `profile-${name}` : `profile-${name}-${attempt}`;
   let child;
   let timedOut = false;
   try {
@@ -34,7 +49,7 @@ export async function captureOne({ output, chrome, temporary, name, size, extra 
       '--no-first-run', '--no-default-browser-check',
       // Virtual time pauses on pending fetches; use the wall-clock page timeout.
       '--timeout=15000',
-      `--user-data-dir=${join(temporary, `profile-${name}`)}`,
+      `--user-data-dir=${join(temporary, profile)}`,
       `--window-size=${size}`, `--screenshot=${screenshot}`, ...extra, url,
     ], { stdio: ['ignore', diagnostics, diagnostics], detached: true });
     const status = await new Promise((accept, reject) => {
