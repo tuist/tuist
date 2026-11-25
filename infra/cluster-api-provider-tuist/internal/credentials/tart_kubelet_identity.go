@@ -175,6 +175,15 @@ func (m *Manager) EnsureNodeIdentityRoles(ctx context.Context, node, fleet strin
 	if err := m.EnsureNodeRole(ctx, m.Namespace, selfRoleName(node), node, NodeAccessIdentity, self, nil); err != nil {
 		return fmt.Errorf("ensure self role: %w", err)
 	}
+	return m.EnsureNodeIdentityBindings(ctx, node)
+}
+
+// EnsureNodeIdentityBindings binds node's ServiceAccount to the chart's
+// NodeIdentityRoles, leaving its self Role alone. An operator started
+// without --node-identity-roles (an older Deployment spec running a newer
+// image mid-rollout) writes the self Role and no bindings, so the node
+// access controller calls this on every pass.
+func (m *Manager) EnsureNodeIdentityBindings(ctx context.Context, node string) error {
 	saName := NodeIdentityServiceAccount(node)
 	for _, role := range m.NodeIdentityRoles {
 		ref := rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "Role", Name: role.Name}

@@ -112,6 +112,8 @@ func (r *NodeAccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err := r.Credentials.EnsureNodeIdentityRoles(ctx, nodeName, node.Labels["tuist.dev/fleet"]); err != nil {
 			return ctrl.Result{}, fmt.Errorf("grant %s its identity roles: %w", nodeName, err)
 		}
+	} else if err := r.Credentials.EnsureNodeIdentityBindings(ctx, nodeName); err != nil {
+		return ctrl.Result{}, fmt.Errorf("bind %s to its identity roles: %w", nodeName, err)
 	}
 
 	pods := &corev1.PodList{}

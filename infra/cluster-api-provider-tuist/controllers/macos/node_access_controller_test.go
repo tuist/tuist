@@ -277,6 +277,11 @@ func TestNodeAccessGrantsAnUnpushedHostItsIdentityRoles(t *testing.T) {
 	if got, _ := getRole(t, r, testNamespace, pinned.Name); !reflect.DeepEqual(got.Rules, pinned.Rules) {
 		t.Fatalf("rewrote the operator's identity Role: %+v", got.Rules)
 	}
+	// b02's self Role came from an operator started without
+	// --node-identity-roles (canary, Nov 2026): it still gets its binding.
+	if err := r.Get(context.Background(), types.NamespacedName{Namespace: "tuist-runners", Name: "tart-kubelet-ber1-runner-b02"}, &rbacv1.RoleBinding{}); err != nil {
+		t.Fatalf("runner namespace Role not bound for a host whose self Role already existed: %v", err)
+	}
 }
 
 // A namespace whose grant cannot be written does not hold up the others.
