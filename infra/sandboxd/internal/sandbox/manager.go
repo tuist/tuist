@@ -312,7 +312,11 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		if args.CacheImage != "" {
 			return res, fmt.Errorf("%w: a create takes a cache image or a cache grant, not both", ErrCacheImage)
 		}
-		name, generation, release, err := m.grantedCacheImage(ctx, *args.CacheGrant)
+		// Assigns the named err, which the deferred report below reads.
+		var name string
+		var generation int64
+		var release func()
+		name, generation, release, err = m.grantedCacheImage(ctx, *args.CacheGrant)
 		if err != nil {
 			return res, err
 		}

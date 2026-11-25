@@ -196,4 +196,13 @@ func TestCacheGrantAttachesAnOlderMasterOfTheLineage(t *testing.T) {
 	if _, err := create("fifth", 44); !errors.Is(err, ErrCacheImage) {
 		t.Fatalf("a lent generation past the grant answered %v", err)
 	}
+
+	// A create that fails after the grant reports no cache it attached.
+	agent.older["a"] = 0
+	grant := grantFor("a")
+	grant.BaseGeneration = 43
+	res, err = h.m.Create(ctx, protocol.CreateArgs{SandboxID: "sixth", Template: "missing", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 10, CacheGrant: grant})
+	if err == nil || res.CacheGeneration != 0 {
+		t.Fatalf("a failed create reported generation %d: %v", res.CacheGeneration, err)
+	}
 }
