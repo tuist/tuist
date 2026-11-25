@@ -50,8 +50,8 @@ registry:
 
 server:
   # The Symptoms evaluator (infra/helm/symptoms, release `symptoms` in
-  # `symptoms-canary`). Enable only after the evaluator is deployed and its
-  # tuist.namespace/serviceAccount allow this server's exact principal.
+  # `symptoms-canary`) trusts this server's exact ServiceAccount principal.
+  # Sync stays disabled until this environment enrolls a Pulse account.
   symptoms:
     enabled: false
     url: http://symptoms.symptoms-canary.svc.cluster.local

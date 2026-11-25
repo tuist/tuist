@@ -25,8 +25,9 @@ for the fixed API audience, using only `create tokenreviews` RBAC.
 
 The reverse direction still uses audience `tuist-symptoms-state`: configure
 `server.symptoms.evaluatorNamespace` and `evaluatorServiceAccount` for the exact
-evaluator principal. Managed values keep server sync and evaluator paging disabled
-until rollout approval.
+evaluator principal. Managed staging and production enable server sync for their
+configured Pulse accounts. Canary keeps sync disabled until a Pulse account is
+enrolled there. Evaluator paging remains disabled in every managed environment.
 
 ## Conversation runtime cutover
 

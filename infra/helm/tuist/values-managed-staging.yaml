@@ -111,10 +111,9 @@ registry:
 
 server:
   # The Symptoms evaluator (infra/helm/symptoms, release `symptoms` in
-  # `symptoms-staging`). Enable only after the evaluator is deployed and its
-  # tuist.namespace/serviceAccount allow this server's exact principal.
+  # `symptoms-staging`) trusts this server's exact ServiceAccount principal.
   symptoms:
-    enabled: false
+    enabled: true
     url: http://symptoms.symptoms-staging.svc.cluster.local
     evaluatorNamespace: symptoms-staging
   kuraCapacityAdmission:

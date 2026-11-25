@@ -97,8 +97,14 @@ for environment in staging canary production; do
       ' "$work/server.json" > /dev/null
     fi
   done
-  # Assert the managed overlay itself leaves sync disabled.
-  yq -e '.server.symptoms.enabled == false' "$tuist/values-managed-$environment.yaml" > /dev/null
+  # Only environments with an enrolled Pulse account may enable the mirror.
+  if [[ "$environment" == canary ]]; then
+    yq -e '.server.symptoms.enabled == false' "$tuist/values-managed-$environment.yaml" > /dev/null
+  else
+    yq -e '.server.symptoms.enabled == true and
+      ([.server.extraEnv[] | select(.name == "TUIST_PULSE_ACCOUNT_ID") | .value | tonumber | select(. > 0)] | length == 1)' \
+      "$tuist/values-managed-$environment.yaml" > /dev/null
+  fi
 done
 
 # Self-hosted/custom releases need neither vault wiring nor default SA names.
@@ -117,4 +123,4 @@ jq -e '
     .TUIST_SYMPTOMS_EVALUATOR_SERVICE_ACCOUNT == "custom-evaluator" and
     .TUIST_SYMPTOMS_TOKEN_PATH == "/var/run/secrets/tuist-symptoms-api/token")
 ' "$work/server-custom.json" > /dev/null
-echo 'PASS: Pulse credentials, exact principal trust, TokenReview RBAC, projections and disabled sync'
+echo 'PASS: Pulse credentials, exact principal trust, TokenReview RBAC, projections and enrolled-account sync'
