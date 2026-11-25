@@ -465,9 +465,14 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   clone's `GIT_TERMINAL_PROMPT`, since Tuist keys its package-manifest cache
   on the environment and a session's commands lack it. After the script the build
   deletes the CLI's stored session (`~/.config/tuist/credentials`) and the
-  simulator devices and stops the simulator services, since runtimes mount
-  at new paths on each boot and a Mac restored with the builder's devices
-  and simulator state lost its iOS runtime. Before that it stops the cache
+  simulator devices the script created, shuts the image's down and stops the
+  simulator services, since runtimes mount at new paths on each boot and a
+  Mac restored with the builder's devices and simulator state lost its iOS
+  runtime; one restored with the image's devices kept them and its runtimes
+  (measured, 2026-11). `Query.run(:create)` starts booting the image's newest
+  Pro iPhone on a prepared Mac as a sandbox command
+  (`Devices.boot_in_background/1`), so it is ready by the time the session's
+  first build ends instead of booting cold after it. Before that it stops the cache
   proxy and build service, waits for them to exit, and flushes every file
   in DerivedData, including `CompilationCache.noindex`, with `F_FULLFSYNC`.
   The cache store writes through shared mappings that `sync` does not wait

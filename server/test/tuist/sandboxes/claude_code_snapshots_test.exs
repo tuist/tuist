@@ -251,6 +251,10 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert command =~ ~r/pgrep -x XCBBuildService.*find "\$derived_data" -type f -exec perl .*fcntl\(\$f, 51, 0\)/s
     refute command =~ "rm -rf \"$derived_data\""
     assert command =~ "unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_TERMINAL_PROMPT\n"
+    # It deletes the simulators the script created and keeps the image's,
+    # which a session's Mac boots.
+    assert command =~ ~r/image_devices=\$\(devices\)\n.* sh "\$script".*grep -qxF "\$device" \|\| xcrun simctl delete/s
+    refute command =~ "simctl delete all"
 
     finish_command(build, 0)
     assert :ok = advance(build)
