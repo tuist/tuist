@@ -1,8 +1,10 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistOIDC
 
+@Suite(.coverageAttribution)
 struct OIDCTokenFetcherTests {
     @Test
     func fetchToken_throws_invalidTokenRequestURL_when_url_cannot_be_parsed() async throws {

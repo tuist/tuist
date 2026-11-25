@@ -1203,6 +1203,7 @@ var targets: [Target] = [
             "TuistEnvironment",
             "TuistEnvironmentTesting",
             mockableDependency,
+            .product(name: "TestCoverageAttribution", package: "tuist.TestCoverageAttribution"),
         ],
         path: "cli/Tests/TuistOIDCTests"
     ),
@@ -1223,6 +1224,7 @@ var targets: [Target] = [
             "TuistEnvironmentTesting",
             .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
+            .product(name: "TestCoverageAttribution", package: "tuist.TestCoverageAttribution"),
         ],
         path: "cli/Tests/TuistREAPITests"
     ),
