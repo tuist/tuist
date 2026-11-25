@@ -250,6 +250,11 @@ kura-eu-west-ingress-nginx:
       use-proxy-protocol: "true"
       compute-full-forwarded-for: "true"
       upstream-keepalive-timeout: "10"
+      # Requests one client connection may carry, HTTP/2 included, before nginx
+      # closes it. Its default of 1000 made the us-west gateway close a Bazel
+      # build's connection every few seconds, and every in-flight cache call on
+      # it failed and retried in a burst (production, November 2026).
+      keep-alive-requests: "100000"
       # Refuse the handshake for a name this gateway does not serve, rather
       # than answering it from the default backend.
       #
