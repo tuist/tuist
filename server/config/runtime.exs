@@ -1125,6 +1125,8 @@ config :tuist, Tuist.CacheGuardian,
   allowed_algos: ["ES256"],
   secret_key: cache_token_signing_jwk
 
+Tuist.Environment.validate_secret_keys!(secrets)
+
 # Guardian
 config :tuist, Tuist.Guardian,
   issuer: "tuist",

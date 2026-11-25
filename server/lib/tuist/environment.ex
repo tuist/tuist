@@ -2120,6 +2120,43 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Refuses to start hosted production and canary unless
+  `TUIST_SECRET_KEY_PASSWORD` and `TUIST_SECRET_KEY_TOKENS` are set and differ
+  from `TUIST_SECRET_KEY_BASE` and from each other. Each guards something
+  different: the base signs sessions, the password key peppers every stored
+  password and token hash, and the tokens key signs API credentials. Unset,
+  either falls back to the base, and then a leak of any one is a leak of the
+  others. Runs from `config/runtime.exs`, so a failing check also fails the
+  pre-upgrade migration job and stops the rollout before any pod restarts.
+  """
+  def validate_secret_keys!(secrets \\ secrets(), hosted_production? \\ secret_keys_guarded?(tuist_hosted?(), env()))
+
+  def validate_secret_keys!(_secrets, false), do: :ok
+
+  def validate_secret_keys!(secrets, true) do
+    keys = [
+      {"TUIST_SECRET_KEY_BASE", get([:secret_key, :base], secrets)},
+      {"TUIST_SECRET_KEY_PASSWORD", get([:secret_key, :password], secrets)},
+      {"TUIST_SECRET_KEY_TOKENS", get([:secret_key, :tokens], secrets)}
+    ]
+
+    for {name, value} <- keys, value in [nil, ""] do
+      raise "#{name} is not set; hosted production must not fall back to TUIST_SECRET_KEY_BASE"
+    end
+
+    for {{name, value}, index} <- Enum.with_index(keys),
+        {other, other_value} <- Enum.drop(keys, index + 1),
+        value == other_value do
+      raise "#{name} and #{other} hold the same value; each must be its own secret"
+    end
+
+    :ok
+  end
+
+  @doc "Whether `validate_secret_keys!/2` applies: hosted production and canary."
+  def secret_keys_guarded?(hosted?, env), do: hosted? and env in [:prod, :can]
+
+  @doc """
   The key `Tuist.Guardian` verified tokens with before the current
   `secret_key_tokens/1`, kept while tokens signed with it are still live. See
   `Tuist.Guardian.SecretFetcher`.
