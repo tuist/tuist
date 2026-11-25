@@ -14,6 +14,7 @@ defmodule Tuist.RemoteExecutionTest do
   alias Tuist.RemoteExecution.UsageEvent
   alias Tuist.RemoteExecution.VMs
   alias Tuist.Runners.Allowance
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
 
@@ -291,6 +292,34 @@ defmodule Tuist.RemoteExecutionTest do
     # The wait for room is charged to the node, not to the account.
     assert waits["node_capacity"] >= 250
     assert Map.keys(waits) -- ["node_capacity", "vm_preparing", "scheduling"] == []
+  end
+
+  test "a placement after one that found no room is charged to node capacity", %{project: project} do
+    {:ok, attempts} = Agent.start_link(fn -> 0 end)
+
+    # The first placement finds no room; the next one takes 300 ms to find it,
+    # the way a carve-out growth does.
+    stub(Capacity, :place_execution, fn sandbox, tag ->
+      case Agent.get_and_update(attempts, &{&1, &1 + 1}) do
+        0 ->
+          {:error, :no_capacity}
+
+        _ ->
+          Process.sleep(300)
+          Mimic.call_original(Capacity, :place_execution, [sandbox, tag])
+      end
+    end)
+
+    stub_node()
+    assert {:ok, %{done: false, state: "queued", id: id}} = submit(project, %{}, wait: 100)
+    send(Scheduler.whereis(project.account_id), {:remote_execution_room, "reserved-linux"})
+    assert {:ok, %{id: ^id}} = RemoteExecution.await(project, id, "queued", wait: 3_000)
+
+    assert {:ok, %{id: ^id, done: true, queue_waits_ms: waits}} =
+             RemoteExecution.await(project, id, "executing", wait: 3_000)
+
+    assert waits["node_capacity"] >= 300
+    assert Map.get(waits, "vm_preparing", 0) < 100
   end
 
   test "an action no node has room for runs as soon as another account frees one", %{project: project} do

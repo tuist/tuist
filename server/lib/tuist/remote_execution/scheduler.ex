@@ -156,6 +156,9 @@ defmodule Tuist.RemoteExecution.Scheduler do
              tasks: %{},
              tokens: %{},
              blocked_on: nil,
+             # Whether the last placement found no node with room. Until one
+             # succeeds, the placements on the way wait on node room too.
+             short_of_room: false,
              prepare_after: now_ms(),
              active_at: now_ms(),
              arrivals: :queue.new(),
@@ -606,7 +609,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
         prepare_ms = round(0.8 * state.prepare_ms + 0.2 * (now_ms() - started_at))
 
         dispatch(
-          put_vm(%{state | prepare_ms: prepare_ms}, %{
+          put_vm(%{state | prepare_ms: prepare_ms, short_of_room: false}, %{
             id: sandbox.id,
             sandbox: sandbox,
             state: :ready,
@@ -618,7 +621,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
       # No node had room. Nothing was created, so this waits for one of the
       # account's placed VMs to free a node, or for the next tick.
       {:error, sandbox, nil} ->
-        %{state | blocked_on: :node}
+        %{state | blocked_on: :node, short_of_room: true}
         |> put_vm(%{id: sandbox.id, sandbox: sandbox, state: :retiring, renewed_at: now_ms(), memory_gb: memory_gb})
         |> retire(sandbox.id, nil)
 
@@ -777,6 +780,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
   # prepared (`vm_preparing`), the account's limits (`account_limit`), node
   # room (`node_capacity`) or the backoff after unavailable nodes
   # (`prepare_backoff`). Time before the first mark is `scheduling`. Oldest operations claim the VMs on the way first.
+  # While placements find no node with room, a VM on the way is waiting for
+  # room, not for its preparation, so it is charged to `node_capacity`.
   # Diagnostics only; nothing schedules by it.
   defp mark_waits(state) do
     now = now_ms()
@@ -797,7 +802,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
           %{state: :queued, memory_gb: size} = op ->
             {cause, coming} =
               if Map.get(coming, size, 0) > 0,
-                do: {:vm_preparing, Map.update!(coming, size, &(&1 - 1))},
+                do:
+                  {if(state.short_of_room, do: :node_capacity, else: :vm_preparing), Map.update!(coming, size, &(&1 - 1))},
                 else: {blocked, coming}
 
             {Map.put(ops, id, %{charge_wait(op, now) | wait_cause: cause}), coming}
