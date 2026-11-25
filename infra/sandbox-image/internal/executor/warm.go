@@ -41,7 +41,7 @@ func warm(ctx context.Context) {
 		return
 	}
 	scratch := filepath.Join(actionRoot, "warm")
-	_, _ = warmAction(ctx, scratch, &syscall.Credential{Uid: 1000, Gid: 1000}, startWithoutNewPrivileges)
+	_, _ = warmAction(ctx, scratch, &syscall.Credential{Uid: actionUID, Gid: actionUID}, startWithoutNewPrivileges)
 	_ = os.RemoveAll(scratch)
 }
 
