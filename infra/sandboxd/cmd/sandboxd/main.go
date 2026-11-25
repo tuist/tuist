@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -49,7 +50,7 @@ func main() {
 	// Deploy-varying configuration, LOG_LEVEL included, comes from a mounted
 	// ConfigMap, so a change to it does not change the Pod's spec; the Pod's
 	// own variables win.
-	configErr := envfile.Load(os.Getenv("SANDBOXD_CONFIG"))
+	configSum, configErr := envfile.Load(os.Getenv("SANDBOXD_CONFIG"))
 	level, levelErr := levelEnv("LOG_LEVEL", slog.LevelInfo)
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 	if configErr != nil {
@@ -104,16 +105,17 @@ func main() {
 	// which the server resizes, instead of this container's.
 	vmmSocket := os.Getenv("VMM_SOCKET")
 	var vmmGone <-chan struct{}
+	var vmmInfo vm.VMMInfo
 	if vmmSocket != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		var base string
 		var err error
-		base, vmmGone, err = vm.VMMCgroup(ctx, vmmSocket)
+		vmmInfo, vmmGone, err = vm.VMMHello(ctx, vmmSocket)
 		cancel()
 		if err != nil {
 			logger.Error("reaching the vmm container", "error", err)
 			os.Exit(1)
 		}
+		base := vmmInfo.Cgroup
 		if vmCgroups, err = hostinfo.AdoptVMCgroups(base); err != nil {
 			logger.Warn("per-VM cgroups are off; every VM shares the vmm container's", "error", err)
 			vmCgroups = nil
@@ -204,28 +206,48 @@ func main() {
 	// Startup discards template shapes and memory images another version
 	// wrote, so a daemon that cannot tell its own version must not start:
 	// guessing would throw away every snapshot on the node.
-	fcVersion, err := firecracker.BinaryVersion(context.Background(), firecrackerBin)
-	if err != nil {
-		logger.Error("reading the firecracker version", "bin", firecrackerBin, "error", err)
-		os.Exit(1)
+	// The VMs run vmm's Firecracker when it names one, not this image's.
+	fcVersion := vmmInfo.FirecrackerVersion
+	if fcVersion == "" {
+		fcVersion, err = firecracker.BinaryVersion(context.Background(), firecrackerBin)
+		if err != nil {
+			logger.Error("reading the firecracker version", "bin", firecrackerBin, "error", err)
+			os.Exit(1)
+		}
 	}
 	snapshotCompat := hostinfo.SnapshotCompat(fcVersion)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	// A vmm that stopped took its VMs along, and a restarted one has another
 	// cgroup: stop as on SIGTERM and let the kubelet restart the daemon.
+	var vmmStopped atomic.Bool
 	go func() {
 		select {
 		case <-vmmGone:
 			logger.Error("the vmm container stopped; restarting the daemon")
+			vmmStopped.Store(true)
 			stop()
 		case <-ctx.Done():
 		}
 	}()
+	// Only VMs the vmm container holds can outlive this process.
+	var handover *handoverArm
+	if vmmSocket != "" {
+		handover = newHandoverArm(logger, os.Getenv("HANDOVER_FILE"), os.Getenv("SANDBOXD_CONFIG"))
+	}
+	if handover != nil {
+		go handover.watch(ctx)
+	}
 	defer stop()
 
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
+	// The configuration this process runs with: the in-place updater
+	// restarts the daemon when the ConfigMap moved on (step 2b).
+	registry.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "sandboxd_config_info", Help: "SHA-256 of the configuration file the daemon loaded at startup.",
+		ConstLabels: prometheus.Labels{"sha256": configSum},
+	}, func() float64 { return 1 }))
 	metrics := sandbox.NewMetrics(registry)
 	var blobs *blobcache.Cache
 	if blobCacheGiB > 0 {
@@ -406,6 +428,17 @@ func main() {
 		Metrics: metrics, Events: events, Log: logger,
 		Blobs: blobs, Checkouts: checkouts, Workspaces: workspaces, CacheImages: cacheImages, Cgroups: vmCgroups,
 	})
+	// The in-place updater waits for lazy_disks to reach zero before it
+	// restarts the daemon; memory_served sandboxes pause regardless.
+	for reason, count := range map[string]func(lazy, served int) int{
+		"lazy_disks":    func(lazy, _ int) int { return lazy },
+		"memory_served": func(_, served int) int { return served },
+	} {
+		registry.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "sandboxd_handover_blocked", Help: "Running sandboxes an in-place daemon upgrade would pause, by reason.",
+			ConstLabels: prometheus.Labels{"reason": reason},
+		}, func() float64 { return float64(count(manager.HandoverBlocked())) }))
+	}
 	if err := manager.Recover(ctx); err != nil {
 		logger.Error("recovering sandboxes", "error", err)
 		os.Exit(1)
@@ -598,7 +631,16 @@ func main() {
 	logger.Info("sandboxd started", "version", version, "node", nodeName, "firecracker", fcVersion, "jailer", jailerEnabled, "data_dir", dataDir, "dns", dns)
 	<-ctx.Done()
 	stop()
-	logger.Info("shutting down: pausing idle sandboxes", "timeout", shutdownTimeout)
+	var marker handoverMarker
+	handingOver := false
+	if handover != nil && !vmmStopped.Load() {
+		marker, handingOver = handover.armed()
+	}
+	if handingOver {
+		logger.Info("shutting down: handing the running sandboxes over to the next daemon", "nonce", marker.Nonce, "timeout", shutdownTimeout)
+	} else {
+		logger.Info("shutting down: pausing idle sandboxes", "timeout", shutdownTimeout)
+	}
 	// Stop taking commands first: the server connection closes and its
 	// in-flight lifecycle ops finish on their own detached contexts.
 	<-serverDone
@@ -610,7 +652,11 @@ func main() {
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-	manager.Shutdown(shutdownCtx)
+	if handingOver {
+		manager.Handover(shutdownCtx)
+	} else {
+		manager.Shutdown(shutdownCtx)
+	}
 	_ = metricsServer.Close()
 	logger.Info("sandboxd stopped")
 }

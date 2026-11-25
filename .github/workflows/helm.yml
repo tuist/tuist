@@ -41,6 +41,7 @@ on:
       - .github/scripts/helm-move-release-objects*
       - .github/scripts/tart-kubelet-rollout-gate*
       - .github/scripts/production-source-guard*
+      - .github/scripts/sandboxd-upgrade*
       - .github/workflows/tuist-ops-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
@@ -63,6 +64,7 @@ on:
       - .github/scripts/helm-move-release-objects*
       - .github/scripts/tart-kubelet-rollout-gate*
       - .github/scripts/production-source-guard*
+      - .github/scripts/sandboxd-upgrade*
       - .github/workflows/tuist-ops-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
@@ -334,6 +336,8 @@ jobs:
         run: bash .github/scripts/tart-kubelet-rollout-gate.test.sh
       - name: Production deploys only ship commits main contains
         run: bash .github/scripts/production-source-guard.test.sh
+      - name: In-place sandboxd upgrades hand over only to an armed daemon
+        run: bash .github/scripts/sandboxd-upgrade.test.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

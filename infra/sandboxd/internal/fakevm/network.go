@@ -34,6 +34,13 @@ func (n *Network) Teardown(ctx context.Context, ns string, slot int) error {
 	return nil
 }
 
+func (n *Network) Adopt(ctx context.Context, ns string, pid int) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.Calls = append(n.Calls, fmt.Sprintf("adopt %s %d", ns, pid))
+	return nil
+}
+
 func (n *Network) Namespaces(ctx context.Context) ([]string, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()

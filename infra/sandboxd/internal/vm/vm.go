@@ -655,3 +655,33 @@ func parseStatCPUTime(stat string) (time.Duration, bool) {
 	}
 	return time.Duration(utime+stime) * time.Second / userHZ, true
 }
+
+// ProcessStart is a process's start time in clock ticks since boot (field
+// 22 of /proc/<pid>/stat), 0 where it cannot be read. With the pid it names
+// one process: a pid the kernel reuses starts later.
+func ProcessStart(pid int) uint64 {
+	if pid <= 0 {
+		return 0
+	}
+	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return 0
+	}
+	return parseStatStart(string(data))
+}
+
+func parseStatStart(stat string) uint64 {
+	end := strings.LastIndexByte(stat, ')')
+	if end < 0 {
+		return 0
+	}
+	fields := strings.Fields(stat[end+1:])
+	if len(fields) < 20 {
+		return 0
+	}
+	start, err := strconv.ParseUint(fields[19], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return start
+}

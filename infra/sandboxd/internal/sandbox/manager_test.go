@@ -106,9 +106,19 @@ func seedTemplate(t *testing.T, dataDir string) string {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	dataDir := t.TempDir()
-	tmplDir := seedTemplate(t, dataDir)
+	return newHarnessOn(t, dataDir, seedTemplate(t, dataDir), &fakevm.Launcher{})
+}
+
+// restart is the next daemon on the same node: the same data directory and
+// vmm container (launcher), nothing else from this process.
+func (h *harness) restart(t *testing.T) *harness {
+	t.Helper()
+	return newHarnessOn(t, h.dataDir, h.tmplDir, h.launcher)
+}
+
+func newHarnessOn(t *testing.T, dataDir, tmplDir string, launcher *fakevm.Launcher) *harness {
+	t.Helper()
 	jailBase := filepath.Join(dataDir, "jail")
-	launcher := &fakevm.Launcher{}
 	net := &fakevm.Network{}
 	slots := network.NewSlots(8)
 	events := newEventSink()
@@ -796,6 +806,140 @@ func TestShutdownStopsWorkersAndPausesEverything(t *testing.T) {
 	}
 	if busy.State != protocol.StatePaused || busy.WorkerRunning {
 		t.Fatalf("busy sandbox should have its worker stopped and be paused: %+v", busy)
+	}
+}
+
+// Step 2b: an in-place upgrade of the daemon leaves its VMs running, and
+// the next daemon attaches them where they are instead of cold booting.
+func TestHandoverLeavesVMsRunningForTheNextDaemon(t *testing.T) {
+	h := newHarness(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	h.create(t, "idle", 0)
+	h.create(t, "busy", 0)
+	h.create(t, "restored", 0)
+	if _, err := h.m.StartWorker(ctx, protocol.StartWorkerArgs{SandboxID: "busy"}); err != nil {
+		t.Fatal(err)
+	}
+	// A warm restore's memory is served by this process for as long as its
+	// VM runs, so that VM cannot outlive it.
+	restored, _ := h.m.get("restored")
+	restored.mu.Lock()
+	restored.memoryServed = restored.inst
+	restored.mu.Unlock()
+	instances := map[string]*fakevm.Instance{}
+	for _, inst := range h.launcher.Instances() {
+		instances[inst.ID()] = inst
+	}
+
+	h.m.Handover(ctx)
+
+	for _, id := range []string{"idle", "busy"} {
+		meta, _ := LoadMetadata(vm.RootDir(h.jailBase, id))
+		if meta.State != protocol.StateRunning || meta.Handover == nil || meta.Handover.PID != 4242 || meta.Handover.Start != instances[id].Start() {
+			t.Fatalf("%s after the handover: %+v", id, meta)
+		}
+		if instances[id].Killed() || !instances[id].Detached() {
+			t.Fatalf("%s's VM must keep running, detached", id)
+		}
+	}
+	if busy, _ := h.m.Status(ctx, "busy"); busy.WorkerRunning {
+		t.Fatal("the worker's exec stream ends with the daemon; it must be stopped first")
+	}
+	if meta, _ := LoadMetadata(vm.RootDir(h.jailBase, "restored")); meta.State != protocol.StatePaused || meta.Handover != nil {
+		t.Fatalf("a sandbox whose memory the daemon serves must be paused: %+v", meta)
+	}
+
+	next := h.restart(t)
+	// The namespaces live on with their VMs.
+	next.net.Existing = []string{"sbx-idle", "sbx-busy", "sbx-restored"}
+	if err := next.m.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"idle", "busy"} {
+		info, err := next.m.Status(ctx, id)
+		if err != nil || info.State != protocol.StateRunning || info.ColdBoot {
+			t.Fatalf("%s after the next daemon's recovery: %+v, %v", id, info, err)
+		}
+		if instances[id].Attaches.Load() != 1 {
+			t.Fatalf("%s was attached %d times", id, instances[id].Attaches.Load())
+		}
+		if meta, _ := LoadMetadata(vm.RootDir(h.jailBase, id)); meta.Handover != nil {
+			t.Fatalf("%s still records a handover: %+v", id, meta)
+		}
+	}
+	res, err := next.m.Exec(ctx, protocol.ExecArgs{SandboxID: "idle", Cmd: []string{"echo", "hi"}}, nil)
+	if err != nil || res.ExitCode != 0 {
+		t.Fatalf("exec on a re-attached sandbox: %+v, %v", res, err)
+	}
+	calls := strings.Join(next.net.Snapshot(), "\n")
+	for _, want := range []string{"adopt sbx-idle 4242", "adopt sbx-busy 4242"} {
+		if !strings.Contains(calls, want) {
+			t.Fatalf("missing %q in network calls:\n%s", want, calls)
+		}
+	}
+	if strings.Contains(calls, "teardown sbx-idle") || !strings.Contains(calls, "teardown sbx-restored") {
+		t.Fatalf("recovery must tear down only the networks of sandboxes it did not re-attach:\n%s", calls)
+	}
+	// The re-attached VM is the new daemon's: its death is noticed.
+	instances["idle"].Crash()
+	next.events.wait(t, protocol.EventSandboxDied, 5*time.Second)
+}
+
+// Whatever goes wrong between the two daemons ends in today's cold boot,
+// never in a VM running beside the sandbox's next spawn.
+func TestRecoverColdBootsAHandoverItCannotAttach(t *testing.T) {
+	h := newHarness(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	h.create(t, "died", 0)
+	h.create(t, "unrecorded", 0)
+	instances := map[string]*fakevm.Instance{}
+	for _, inst := range h.launcher.Instances() {
+		instances[inst.ID()] = inst
+	}
+	h.m.Handover(ctx)
+	// One VM died while no daemon held it; the other's record was lost.
+	instances["died"].Crash()
+	root := vm.RootDir(h.jailBase, "unrecorded")
+	meta, _ := LoadMetadata(root)
+	meta.Handover = nil
+	if err := meta.Save(root); err != nil {
+		t.Fatal(err)
+	}
+
+	next := h.restart(t)
+	if err := next.m.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"died", "unrecorded"} {
+		info, _ := next.m.Status(ctx, id)
+		if info.State != protocol.StatePaused || !info.ColdBoot {
+			t.Fatalf("%s must cold boot: %+v", id, info)
+		}
+	}
+	if !instances["unrecorded"].Killed() {
+		t.Fatal("a VM vmm holds that no sandbox claims must be killed")
+	}
+	if _, err := next.m.Resume(ctx, "unrecorded"); err != nil {
+		t.Fatalf("resume after the lost handover: %v", err)
+	}
+}
+
+// A vmm that is stopping keeps nothing: the daemon pauses as on Shutdown.
+func TestHandoverPausesWhatVMMWillNotKeep(t *testing.T) {
+	h := newHarness(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	h.create(t, "idle", 0)
+	h.launcher.RefuseDetach = true
+	h.m.Handover(ctx)
+	meta, _ := LoadMetadata(vm.RootDir(h.jailBase, "idle"))
+	if meta.State != protocol.StatePaused || meta.Handover != nil || !meta.DisksSynced {
+		t.Fatalf("after a refused detach: %+v", meta)
+	}
+	if info, _ := h.m.Status(ctx, "idle"); info.State != protocol.StatePaused {
+		t.Fatalf("status after a refused detach: %+v", info)
 	}
 }
 
