@@ -44,19 +44,28 @@ struct SandboxCommandService { // swiftlint:disable:this type_body_length
     private let fullHandleService: FullHandleServicing
     private let sandboxesService: SandboxesServicing
     private let commandRunner: CommandRunning
+    private let now: @Sendable () -> Date
+    private let sleep: @Sendable (TimeInterval) async throws -> Void
+    private let onWait: @Sendable (String) -> Void
 
     init(
         configLoader: ConfigLoading = ConfigLoader(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         sandboxesService: SandboxesServicing = SandboxesService(),
-        commandRunner: CommandRunning = CommandRunner()
+        commandRunner: CommandRunning = CommandRunner(),
+        now: @escaping @Sendable () -> Date = { Date() },
+        sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { try await Task.sleep(for: .seconds($0)) },
+        onWait: @escaping @Sendable (String) -> Void = { SandboxCommandService.note($0) }
     ) {
         self.configLoader = configLoader
         self.serverEnvironmentService = serverEnvironmentService
         self.fullHandleService = fullHandleService
         self.sandboxesService = sandboxesService
         self.commandRunner = commandRunner
+        self.now = now
+        self.sleep = sleep
+        self.onWait = onWait
     }
 
     func list(
@@ -134,17 +143,11 @@ struct SandboxCommandService { // swiftlint:disable:this type_body_length
         memoryGB: Int?,
         workspaceGB: Int?,
         guaranteedVCPUs: Double? = nil,
-        lifetimeMinutes: Int? = nil
+        lifetimeMinutes: Int? = nil,
+        waitTimeout: TimeInterval? = nil
     ) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
-        // The server waits up to 25 seconds for a host when every one is busy. When they stay busy it answers
-        // `fleet_busy` with a `retry-after` of several minutes and a message saying not to retry in a loop, which the
-        // error shows as is: the CLI does not retry it either.
-        let sandbox = try await step(
-            "Booting sandbox (waiting up to 25 seconds if every host is busy)...",
-            done: "Sandbox booted",
-            options: options
-        ) {
+        let create = {
             try await sandboxesService.createSandbox(
                 accountHandle: accountHandle,
                 serverURL: serverURL,
@@ -158,7 +161,62 @@ struct SandboxCommandService { // swiftlint:disable:this type_body_length
                 lifetimeSeconds: lifetimeMinutes.map { $0 * 60 }
             )
         }
+        // The server waits up to 25 seconds for a host when every one is busy. When they stay busy it answers
+        // `fleet_busy` with a `retry-after` of several minutes and a message saying not to retry in a loop, which the
+        // error shows as is. Only `--wait-timeout` retries it, until its deadline.
+        let sandbox = try await step(
+            "Booting sandbox (waiting up to \(waitTimeout.map(Self.spoken) ?? "25 seconds") if every host is busy)...",
+            done: "Sandbox booted",
+            options: options
+        ) {
+            guard let waitTimeout else { return try await create() }
+            return try await waitingForHost(until: now().addingTimeInterval(waitTimeout), create)
+        }
         try output(sandbox, options: options) { SandboxOutput.details($0) }
+    }
+
+    /// The least time between two create attempts while waiting for a host. Each attempt already waits up to 25
+    /// seconds on the server, so this keeps a wait at about two creates a minute, well under the account's 10.
+    static let hostWaitInterval: TimeInterval = 30
+
+    /// Sends `create` again after each `fleet_busy`, with attempts at least `hostWaitInterval` apart, until
+    /// `deadline`; no attempt starts past it, and the last `fleet_busy` is thrown as is. Any other error is final:
+    /// a create is not idempotent, and the account's limits say themselves when to try again.
+    private func waitingForHost(
+        until deadline: Date,
+        _ create: () async throws -> ServerSandbox
+    ) async throws -> ServerSandbox {
+        let started = now()
+        var nextNotice = started
+        while true {
+            let attempted = now()
+            do {
+                return try await create()
+            } catch let error as SandboxesServiceError where error.code == "fleet_busy" {
+                if now() >= nextNotice {
+                    let minutes = Int(now().timeIntervalSince(started)) / 60
+                    let reason = error.localizedDescription
+                    onWait(
+                        minutes == 0
+                            ? "Waiting up to \(Self.spoken(deadline.timeIntervalSince(started))) for a sandbox host: \(reason)"
+                            : "Still waiting for a sandbox host after \(minutes) min: \(reason)"
+                    )
+                    nextNotice = now().addingTimeInterval(60)
+                }
+                let delay = min(
+                    max(5, Self.hostWaitInterval - now().timeIntervalSince(attempted)),
+                    deadline.timeIntervalSince(now())
+                )
+                if delay > 0 { try await sleep(delay) }
+                if now() >= deadline { throw error }
+            }
+        }
+    }
+
+    /// "5 minutes" or "90 seconds".
+    private static func spoken(_ seconds: TimeInterval) -> String {
+        let seconds = Int(seconds)
+        return seconds % 60 == 0 ? "\(seconds / 60) minute\(seconds == 60 ? "" : "s")" : "\(seconds) seconds"
     }
 
     /// Starts the sandbox's lifetime again from now, so it keeps running past its current `expires_at`.
@@ -339,7 +397,7 @@ struct SandboxCommandService { // swiftlint:disable:this type_body_length
     }
 
     /// Progress notes go to stderr, so they never mix with a command's output on stdout.
-    private static func note(_ message: String) {
+    static func note(_ message: String) {
         FileHandle.standardError.write(Data("tuist: \(message)\n".utf8))
     }
 

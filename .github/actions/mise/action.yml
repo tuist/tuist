@@ -62,6 +62,15 @@ runs:
         version: "2026.5.15"
       run: |
         echo "version=$version" >> "$GITHUB_OUTPUT"
+        # mise's default cache key names only OS and architecture, but its
+        # precompiled tools (Erlang among them) link against the host's glibc.
+        # GitHub's ubuntu-24.04 (glibc 2.39) and the tuist-linux runners share
+        # the key, and an Erlang cached by a newer glibc then fails to start.
+        prefix=mise-v1
+        if glibc="$(getconf GNU_LIBC_VERSION 2>/dev/null)"; then
+          prefix="$prefix-${glibc// /}"
+        fi
+        echo "cache_key_prefix=$prefix" >> "$GITHUB_OUTPUT"
         # The directory mise-action installs into and checks for an existing mise.
         bin="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/bin/mise"
         if [ -x "$bin" ]; then
@@ -104,6 +113,7 @@ runs:
         install_args: ${{ inputs.install_args }}
         cache: ${{ inputs.cache }}
         cache_key: ${{ inputs.cache_key }}
+        cache_key_prefix: ${{ steps.download.outputs.cache_key_prefix }}
         working_directory: ${{ inputs.working_directory }}
         github_token: ${{ inputs.github_token || env.MISE_GITHUB_TOKEN || github.token }}
         env: ${{ inputs.env }}
@@ -120,6 +130,7 @@ runs:
         install_args: ${{ inputs.install_args }}
         cache: ${{ inputs.cache }}
         cache_key: ${{ inputs.cache_key }}
+        cache_key_prefix: ${{ steps.download.outputs.cache_key_prefix }}
         working_directory: ${{ inputs.working_directory }}
         github_token: ${{ inputs.github_token || env.MISE_GITHUB_TOKEN || github.token }}
         env: ${{ inputs.env }}

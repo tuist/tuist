@@ -2,9 +2,12 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequestTest do
   use Atlas.MCP.ToolCase
   use Mimic
 
+  import Atlas.FinanceFixtures
+
   alias Atlas.Audit.Activity
   alias Atlas.Connections.Connection
   alias Atlas.Finance.Config
+  alias Atlas.Finance.Providers.Qonto
   alias Atlas.MCP.Tools.FinanceCreateTransferRequest
 
   @source %{key: "qonto-main", provider: :qonto, name: "Qonto", sign_in: "tuist-gmbh-5271", secret_key: "secret"}
@@ -44,12 +47,16 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequestTest do
     stub(Req, :post, fn %Req.Request{} = request, options ->
       request
       |> Req.merge(options)
-      |> Req.merge(plug: &qonto(&1, test_pid), retry: false)
+      |> Req.merge(plug: {Req.Test, Qonto}, retry: false)
       |> Req.request()
     end)
 
+    Req.Test.stub(Qonto, &qonto(&1, test_pid))
+
     user = insert_user!(%{role: :executive})
     insert_qonto_connection!(user)
+    paid_before!("FR7617789000011055062300111", "debit")
+    paid_before!("DE95300107002978231228", "debit")
     %{conn: mcp_conn(user), user: user}
   end
 
@@ -134,6 +141,43 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequestTest do
     refute_received {:qonto, _path, _auth, _key, _body}
   end
 
+  test "refuses an IBAN we have never paid, even under a real vendor name", %{conn: conn} do
+    # A "our bank details changed" email names a real vendor with the attacker's IBAN.
+    # Money the attacker sent us from that account does not make it a known payee.
+    attacker_iban = "LT12 1000 0111 0100 1000"
+    paid_before!("LT121000011101001000", "credit")
+
+    args = %{
+      @args
+      | "transfers" => [
+          %{
+            "amount" => "1713.60",
+            "iban" => attacker_iban,
+            "name" => "NTT Germany AG & Co. KG",
+            "reference" => "95135757"
+          }
+        ]
+    }
+
+    result = FinanceCreateTransferRequest.execute(conn, args)
+
+    refute_received {:qonto, _path, _auth, _key, %{"request_multi_transfer" => %{"transfers" => [_ | _]}}}
+    assert {:error, message} = result
+    assert message =~ "transfers[0] LT121000011101001000 (NTT Germany AG & Co. KG)"
+    assert message =~ "directly in Qonto"
+  end
+
+  test "caps each transfer at 25000.00 EUR, even to a known IBAN", %{conn: conn} do
+    at_cap = put_in(@args, ["transfers", Access.at(1), "amount"], "25000.00")
+    assert {:ok, _result} = execute_tool(FinanceCreateTransferRequest, conn, at_cap)
+    assert_received {:qonto, _path, _auth, _key, _body}
+
+    over_cap = put_in(@args, ["transfers", Access.at(1), "amount"], "25000.01")
+    assert {:error, message} = execute_tool(FinanceCreateTransferRequest, conn, over_cap)
+    assert message =~ "transfers[1]: amount 25000.01 is above the 25000.00 EUR limit"
+    refute_received {:qonto, _path, _auth, _key, _body}
+  end
+
   test "names the configured Qonto sources when the key is unknown", %{conn: conn} do
     assert {:error, message} = execute_tool(FinanceCreateTransferRequest, conn, %{@args | "source_key" => "qonto"})
 
@@ -167,6 +211,17 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequestTest do
     conn
     |> Plug.Conn.put_resp_content_type("application/json")
     |> Plug.Conn.send_resp(status, JSON.encode!(response))
+  end
+
+  defp paid_before!(iban, direction) do
+    source = insert_finance_source!()
+
+    source
+    |> insert_finance_account!()
+    |> insert_finance_transaction!(%{
+      direction: direction,
+      metadata: %{"transfer" => %{"counterparty_account_number" => iban}}
+    })
   end
 
   defp insert_qonto_connection!(user) do

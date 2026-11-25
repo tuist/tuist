@@ -19,8 +19,6 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   alias TuistWeb.API.SandboxesController
   alias TuistWeb.Authentication
 
-  require Logger
-
   setup %{conn: conn} do
     stub(Environment, :tuist_hosted?, fn -> true end)
     user = AccountsFixtures.user_fixture(preload: [:account])

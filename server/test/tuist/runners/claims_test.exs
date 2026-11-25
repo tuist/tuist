@@ -1091,16 +1091,40 @@ defmodule Tuist.Runners.ClaimsTest do
     # in `running`, which the time-based sweep must never touch, and its
     # ClickHouse row has already left `status = 'running'`, so the orphan
     # worker's scan cannot see it either.
-    test "releases a running claim whose job has a recorded completion" do
+    test "releases a running claim whose runner's job has a recorded completion" do
       account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(7001, account.id, "fleet-a", "pod-1", @linux_resources)
       assert :ok = mark_running!(7001, "runner-1")
+      assert :matched = Claims.record_execution("runner-1", 7001, account.id)
       completion_fixture(7001, account)
       backdate_claim(7001, 600)
 
       assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 1
       refute Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7001))
+    end
+
+    # The runner shuffle from the other side. Pod B was minted for J1, but
+    # GitHub ran J1 on pod A's runner. J1's completion says nothing about B's
+    # runner: it registered after its VM booted, so it is still idle inside
+    # its 300 s timeout when the claim passes the sweep's 300 s threshold,
+    # and GitHub then hands it J2. Releasing B's claim here left B running J2
+    # with nothing charging its slot.
+    test "leaves a claim whose claimed job completed on another runner" do
+      account = pro_account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7012, account.id, "fleet-a", "pod-a", @linux_resources)
+      assert :ok = mark_running!(7012, "runner-a")
+      assert {:ok, _} = Claims.attempt(7011, account.id, "fleet-a", "pod-b", @linux_resources)
+      assert :ok = mark_running!(7011, "runner-b")
+
+      assert %{released: 1} = Claims.complete_by_runner_name("runner-a", account.id, 7011)
+      completion_fixture(7011, account)
+      backdate_claim_by_pod("pod-b", 330)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 0
+      assert {:mismatch, _displaced} = Claims.record_execution("runner-b", 7012, account.id)
+      assert Map.get(Claims.counts_per_account(), account.id) == 1
     end
 
     # The discriminator has to be the completion row, not age. A long build
@@ -1123,6 +1147,8 @@ defmodule Tuist.Runners.ClaimsTest do
       account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(7003, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert :ok = mark_running!(7003, "runner-1")
+      assert :matched = Claims.record_execution("runner-1", 7003, account.id)
       completion_fixture(7003, account)
 
       assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 0
@@ -1135,6 +1161,7 @@ defmodule Tuist.Runners.ClaimsTest do
       for id <- [7101, 7102, 7103] do
         assert {:ok, _} = Claims.attempt(id, account.id, "fleet-a", "pod-#{id}", @linux_resources)
         assert :ok = mark_running!(id, "runner-#{id}")
+        assert :matched = Claims.record_execution("runner-#{id}", id, account.id)
         completion_fixture(id, account)
         backdate_claim(id, 600)
       end

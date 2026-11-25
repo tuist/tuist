@@ -37,6 +37,8 @@ const CLI = process.env.TUIST_MAC_CLI ?? 'tuist'
 const PATH_PREFIX =
 	'export PATH="$HOME/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH:/opt/tuist/cli/bin" PAGER=cat GIT_PAGER=cat\n'
 const MAX_OUTPUT = 30_000
+// How long tuist_mac_start waits for a Mac when every one is busy, well inside a tool call.
+const HOST_WAIT_MINUTES = 5
 
 const SKILL = `---
 name: remote-mac
@@ -165,6 +167,7 @@ export default async function (amp: PluginAPI) {
 			'Use it when the task needs macOS: Xcode builds, Apple-platform tests, or the iOS Simulator. ' +
 			'It mirrors the worktree onto the Mac, including unpushed commits, uncommitted and untracked (non-ignored) changes, and tuist_mac_shell mirrors it again before each command. ' +
 			'Tuist pauses an idle Mac and resumes it on the next command; tuist_mac_stop deletes it. ' +
+			`When every Mac is busy, it waits up to ${HOST_WAIT_MINUTES} minutes for one; if it then fails with fleet_busy, tell the user rather than calling it again right away. ` +
 			'Pass `xcode` with the exact Xcode version the project pins (.xcode-version, mise.toml, CI config) so the Mac boots it; without it the Mac boots the default Xcode.',
 		inputSchema: {
 			type: 'object',
@@ -211,21 +214,28 @@ export default async function (amp: PluginAPI) {
 			const workspaceGB = typeof input.workspace_gb === 'number' ? Math.min(100, Math.max(1, Math.round(input.workspace_gb))) : 30
 			return withKeepAlive(async () => {
 				const started = Date.now()
-				const created = await sandboxJSON<Sandbox>(
-					[
-						'create',
-						'--platform',
-						'macos',
-						...(xcode ? ['--xcode', xcode] : []),
-						'--vcpus',
-						'8',
-						'--memory-gb',
-						String(memoryGB),
-						'--workspace-gb',
-						String(workspaceGB),
-					],
-					{ cwd, account, signal: ctx.signal },
-				)
+				const create = [
+					'create',
+					'--platform',
+					'macos',
+					...(xcode ? ['--xcode', xcode] : []),
+					'--vcpus',
+					'8',
+					'--memory-gb',
+					String(memoryGB),
+					'--workspace-gb',
+					String(workspaceGB),
+				]
+				// When every Mac is busy (they are shared with CI), wait a few minutes for one instead of
+				// failing after the server's 25 seconds. CLIs before --wait-timeout create without it.
+				const created = await sandboxJSON<Sandbox>([...create, '--wait-timeout', `${HOST_WAIT_MINUTES}m`], {
+					cwd,
+					account,
+					signal: ctx.signal,
+				}).catch((error: Error) => {
+					if (!/Unknown option '--wait-timeout'/.test(error.message)) throw error
+					return sandboxJSON<Sandbox>(create, { cwd, account, signal: ctx.signal })
+				})
 				const record: SessionRecord = { sandboxId: created.id, account, xcode }
 				sessions.set(thread, record)
 				await persist()

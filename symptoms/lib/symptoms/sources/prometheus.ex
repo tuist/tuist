@@ -1,15 +1,15 @@
 defmodule Symptoms.Sources.Prometheus do
   @moduledoc """
-  A small Prometheus HTTP API client for Grafana Cloud Mimir, used by
+  A small Prometheus HTTP API client for Pulse, used by
   `Symptoms.Sources.PromMetrics` and `Symptoms.Sources.Probes`.
 
   Configuration, from `config :symptoms, #{inspect(__MODULE__)}` (set from the
   environment in `config/runtime.exs`), then the `:prometheus` option of a call:
 
   - `:base_url` (`SYMPTOMS_PROMETHEUS_URL`), the Prometheus API root, for
-    example `https://prometheus-prod-01-eu-west-0.grafana.net/api/prom`
-  - `:user` (`SYMPTOMS_PROMETHEUS_USER`), the Grafana Cloud instance ID
-  - `:token` (`SYMPTOMS_PROMETHEUS_TOKEN`), a read-only access policy token
+    example `http://pulse.observability.svc.cluster.local:4000/v1/prometheus`
+  - `:user` (`SYMPTOMS_PROMETHEUS_USER`), Pulse's read-only `dashboard` identity
+  - `:token` (`SYMPTOMS_PROMETHEUS_TOKEN`), that identity's password
   - `:receive_timeout` (default 30 s)
 
   Responses are bounded to 8 MiB and 10 000 series.
@@ -99,7 +99,7 @@ defmodule Symptoms.Sources.Prometheus do
         Req.new(
           method: :get,
           url: url <> path,
-          headers: [{"accept", "application/json"}],
+          headers: [{"accept", "application/json"}, {"x-pulse-db-name", "public"}],
           params: params,
           compressed: false,
           into: &bounded_body/2,

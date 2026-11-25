@@ -44,10 +44,16 @@ defmodule Tuist.Gradle do
       * `:custom_values` - Build metadata key-value pairs (optional)
       * `:tasks` - List of task attributes (optional)
 
+  ## Options
+    * `:on_written` - called with the build id once the build row is accepted,
+      before its tasks and other rows are written. Idempotent requests record
+      their response there, so a retry after a later write failed doesn't
+      write the build again.
+
   ## Returns
     * `{:ok, build_id}` on success
   """
-  def create_build(attrs) do
+  def create_build(attrs, opts \\ []) do
     with :ok <- BuildRun.validate_custom_metadata(Map.get(attrs, :custom_tags, []), Map.get(attrs, :custom_values, %{})) do
       now = Map.get(attrs, :inserted_at) || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
       build_id = attrs.id
@@ -57,6 +63,7 @@ defmodule Tuist.Gradle do
       build_entry = build_entry(attrs, build_id, task_counts, now)
 
       Build.Buffer.insert(build_entry)
+      Keyword.get(opts, :on_written, fn _build_id -> :ok end).(build_id)
 
       # Configuration fails before any task runs, so its failures take the first slots.
       failure_count =
@@ -80,22 +87,32 @@ defmodule Tuist.Gradle do
       create_machine_metrics(build_id, attrs.project_id, machine_metrics, now)
       create_artifact_transforms(build_id, attrs.project_id, Map.get(attrs, :artifact_transforms, []), now)
 
-      if attrs.status == "failure" and Map.get(attrs, :submission_auth) != "network_trusted",
-        do:
-          Publisher.publish(
-            "build.failed",
-            %{
-              "project_id" => attrs.project_id,
-              "build_system" => "gradle",
-              "build_id" => build_id,
-              "is_ci" => Map.get(attrs, :is_ci, false),
-              "git_branch" => Map.get(attrs, :git_branch) || ""
-            },
-            "gradle:#{build_id}"
-          )
+      publish_build_failed(attrs, build_id)
 
       {:ok, build_id}
     end
+  end
+
+  @doc """
+  Publishes `build.failed` for a failed build reported with a credential. The
+  publisher deduplicates on the build id, so a replayed report can call it again.
+  """
+  def publish_build_failed(attrs, build_id) do
+    if attrs.status == "failure" and Map.get(attrs, :submission_auth) != "network_trusted" do
+      Publisher.publish(
+        "build.failed",
+        %{
+          "project_id" => attrs.project_id,
+          "build_system" => "gradle",
+          "build_id" => build_id,
+          "is_ci" => Map.get(attrs, :is_ci, false),
+          "git_branch" => Map.get(attrs, :git_branch) || ""
+        },
+        "gradle:#{build_id}"
+      )
+    end
+
+    :ok
   end
 
   defp build_entry(attrs, build_id, task_counts, now) do

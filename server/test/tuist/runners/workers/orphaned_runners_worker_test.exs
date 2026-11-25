@@ -7,6 +7,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
@@ -39,6 +40,16 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       fleet_name: Keyword.get(opts, :fleet_name, "tuist-tuist-runner-pool-macos-26-6"),
       provider: Keyword.get(opts, :provider, "github")
     }
+  end
+
+  defp running_claim!(account, workflow_job_id, pod_name, runner_name) do
+    Tuist.Runners.Concurrency.raise_to_plan_defaults(account, :pro)
+
+    {:ok, claim} =
+      Claims.attempt(workflow_job_id, account.id, "fleet-a", pod_name, %{platform: :linux, vcpus: 1, memory_gb: 1})
+
+    :ok = Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
+    claim
   end
 
   defp pod_items(names), do: Enum.map(names, &%{"metadata" => %{"name" => &1}})
@@ -74,11 +85,10 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       end)
 
       reject(&Claims.release/2)
-
-      expect(Claims, :complete, fn wfid ->
-        assert wfid == orphan.workflow_job_id
-        :ok
-      end)
+      # Nothing ran the job, so the claim naming it is left for its Pod's stop.
+      # Asserted on the row: the worker rescues errors from the release, which
+      # would swallow a Mimic rejection.
+      running_claim!(account, orphan.workflow_job_id, "pod-1", "runner-1")
 
       expect(Jobs, :complete, fn wfid, conclusion ->
         assert wfid == orphan.workflow_job_id
@@ -87,6 +97,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       end)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+      assert Repo.get(Claim, "pod-1")
     end
 
     test "still re-queues when the parent workflow run is not terminal" do
@@ -320,9 +331,12 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "completed", conclusion: "success", runner_name: "runner-x"}}
       end)
 
-      expect(Claims, :complete, fn wfid ->
+      reject(&Claims.complete/1)
+
+      expect(Claims, :complete_by_runner_name, fn "runner-x", account_id, wfid ->
+        assert account_id == account.id
         assert wfid == orphan.workflow_job_id
-        :ok
+        %{released: 1, requeued: []}
       end)
 
       expect(Jobs, :complete, fn wfid, conclusion ->
@@ -334,6 +348,34 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    # The runner shuffle. Pod B was minted for J1 but GitHub ran J1 on pod A's
+    # runner and handed B's runner J2, whose `in_progress` webhook has not
+    # landed. Releasing by the job deleted B's claim while B ran J2, so the
+    # account stopped counting a working runner.
+    test "frees the runner GitHub says ran a completed job, not the Pod minted for it" do
+      account = account_fixture()
+      running_claim!(account, 8802, "pod-a", "runner-a")
+      b = running_claim!(account, 8801, "pod-b", "runner-b")
+
+      orphan = candidate(account_id: account.id, workflow_job_id: 8801, pod_name: "pod-b", claimed_at: b.claimed_at)
+      expect(Jobs, :list_orphaned_running, fn _ -> [orphan] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _i, _r, 8801 ->
+        {:ok, %{status: "completed", conclusion: "success", runner_name: "runner-a"}}
+      end)
+
+      expect(Jobs, :complete, fn 8801, "success" -> {:ok, %{}} end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+
+      assert Repo.get(Claim, "pod-b")
+      refute Repo.get(Claim, "pod-a")
     end
 
     test "frees the claim when GitHub returns 404 (workflow_job pruned past retention)" do
@@ -354,16 +396,16 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:error, :not_found}
       end)
 
-      expect(Claims, :complete, fn wfid ->
-        assert wfid == orphan.workflow_job_id
-        :ok
-      end)
+      # GitHub names no runner, so no claim is released here; the Pod's stop or
+      # PodClaimReconciliationWorker frees the one naming the job.
+      running_claim!(account, orphan.workflow_job_id, "pod-1", "runner-1")
 
       expect(Jobs, :complete, fn _wfid, "" -> {:ok, %{}} end)
 
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+      assert Repo.get(Claim, "pod-1")
     end
 
     test "skips on transient GitHub lookup failure" do
@@ -865,7 +907,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       end)
 
       reject(&Claims.release/2)
-      expect(Claims, :complete, fn _wfid -> :ok end)
+      reject(&Claims.complete/1)
+      expect(Claims, :complete_by_runner_name, fn "runner-x", _account_id, _wfid -> %{released: 1, requeued: []} end)
       expect(Jobs, :complete, fn _wfid, "success" -> {:ok, %{}} end)
 
       assert :ok = perform_job(OrphanedRunnersWorker, confirmation_args(orphan, "pod_stopped"))
@@ -1070,7 +1113,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   # these tests only need "promote the claim that exists", so they read it
   # back. The guard itself is covered in the `mark_running/3` describe.
   defp mark_running!(workflow_job_id, runner_name) do
-    claim = Repo.one!(from(c in Tuist.Runners.Claim, where: c.workflow_job_id == ^workflow_job_id))
+    claim = Repo.one!(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id))
     Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

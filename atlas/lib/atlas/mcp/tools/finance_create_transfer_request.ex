@@ -1,8 +1,22 @@
+max_transfer_amount = "25000.00"
+
 defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
   @moduledoc """
   Prepares outgoing SEPA payments as one pending transfer request in Qonto.
   Nothing is paid until a member with review rights approves the request in
   Qonto with strong customer authentication.
+
+  It only pays IBANs that a completed outgoing Qonto transfer already paid.
+  The amount, IBAN, and name usually come from an email or invoice the agent
+  read, so a fake "our bank details changed" email could otherwise slip the
+  sender's IBAN under a real vendor's name. Qonto lets Owners and Admins
+  approve their own requests unless a 4-eye policy is configured, so that
+  approval is not a second person by default. A new beneficiary is paid the
+  first time in Qonto itself, after its details are checked with the vendor.
+
+  Each transfer is also capped at #{max_transfer_amount} EUR, which bounds
+  what one wrong amount from a forged or misread invoice can cost even when
+  the beneficiary is known. Larger payments are made in Qonto directly.
   """
 
   use Atlas.MCP.Tool,
@@ -71,21 +85,25 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
 
   alias Atlas.Audit
   alias Atlas.Connections
+  alias Atlas.Finance
   alias Atlas.Finance.Config
   alias Atlas.Finance.Providers.Qonto
   alias Atlas.MCP.Tool
+
+  @max_transfer_amount max_transfer_amount
 
   @scopes ["request_transfers.write"]
 
   @impl EMCP.Tool
   def description do
-    "Prepare outgoing EUR SEPA payments as one pending transfer request in Qonto, for example to pay vendor invoices. Nothing is paid until someone with review rights approves the request in Qonto with strong customer authentication. Retrying the same request does not create a duplicate. Requires the finance:write scope and the caller's own Qonto connection in Atlas settings (Connections)."
+    "Prepare outgoing EUR SEPA payments as one pending transfer request in Qonto, for example to pay vendor invoices. Each transfer is at most #{@max_transfer_amount} EUR. Only IBANs Tuist has already paid from Qonto are accepted; a new beneficiary or changed bank details must be checked with the vendor and paid once in Qonto directly. Nothing is paid until someone with review rights approves the request in Qonto with strong customer authentication. Retrying the same request does not create a duplicate. Requires the finance:write scope and the caller's own Qonto connection in Atlas settings (Connections)."
   end
 
   def execute(conn, %{"source_key" => source_key, "note" => note, "transfers" => transfers} = args) do
     with :ok <- Tool.authorize_scope(conn, "finance:write", "Finance tools"),
          {:ok, source} <- fetch_qonto_source(source_key),
          {:ok, transfers} <- normalize_transfers(transfers),
+         :ok <- ensure_paid_before(transfers),
          {:ok, scheduled_date} <- normalize_date(args["scheduled_date"]) do
       request = %{
         note: note,
@@ -103,7 +121,7 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
             metadata: %{
               "source_key" => source_key,
               "total_amount" => created["total_transfers_amount"],
-              "transfers" => Enum.map(transfers, &Map.take(&1, [:name, :amount, :reference]))
+              "transfers" => Enum.map(transfers, &Map.take(&1, [:name, :iban, :amount, :reference]))
             }
           })
 
@@ -187,9 +205,8 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
     iban = normalize_iban(iban)
 
     cond do
-      not Regex.match?(~r/\A\d+(\.\d{1,2})?\z/, String.trim(amount)) or
-          Decimal.compare(Decimal.new(String.trim(amount)), 0) != :gt ->
-        {:error, "amount must be a positive EUR amount with at most two decimals, for example 1713.60."}
+      (amount_error = amount_error(String.trim(amount))) != nil ->
+        {:error, amount_error}
 
       not valid_iban?(iban) ->
         {:error, "IBAN #{iban} fails the IBAN checksum. Check it against the invoice."}
@@ -206,6 +223,43 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
   end
 
   defp normalize_transfer(_transfer), do: {:error, "amount, iban, name, and reference are required."}
+
+  defp amount_error(amount) do
+    cond do
+      not Regex.match?(~r/\A\d+(\.\d{1,2})?\z/, amount) or Decimal.compare(Decimal.new(amount), 0) != :gt ->
+        "amount must be a positive EUR amount with at most two decimals, for example 1713.60."
+
+      Decimal.compare(Decimal.new(amount), Decimal.new(@max_transfer_amount)) == :gt ->
+        "amount #{amount} is above the #{@max_transfer_amount} EUR limit per transfer. Make payments this large directly in Qonto."
+
+      true ->
+        nil
+    end
+  end
+
+  defp ensure_paid_before(transfers) do
+    paid = transfers |> Enum.map(& &1.iban) |> Enum.uniq() |> Finance.paid_ibans()
+
+    transfers
+    |> Enum.with_index()
+    |> Enum.reject(fn {transfer, _index} -> transfer.iban in paid end)
+    |> case do
+      [] ->
+        :ok
+
+      unpaid ->
+        list =
+          Enum.map_join(unpaid, ", ", fn {transfer, index} ->
+            "transfers[#{index}] #{transfer.iban} (#{transfer.name})"
+          end)
+
+        {:error,
+         "Tuist has never paid these IBANs from Qonto, so Atlas will not request payment to them: #{list}. " <>
+           "Bank details in an email or invoice can be forged. Ask the person you're working for to confirm the details " <>
+           "with the vendor through a channel they already trust, not the message that contained them, and make this " <>
+           "first payment directly in Qonto. Once it has settled and synced, Atlas can request later payments to that IBAN."}
+    end
+  end
 
   defp normalize_date(nil), do: {:ok, nil}
 

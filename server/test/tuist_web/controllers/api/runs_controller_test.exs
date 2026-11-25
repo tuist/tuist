@@ -292,6 +292,23 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert before_response["message"] == "`after` and `before` must be cursors returned by a previous response."
     end
 
+    test "returns a bad request for a cursor that aborts a vulnerable VM", %{conn: conn, user: user, project: project} do
+      # Given: a NEWER_REFERENCE_EXT with zero ID words (CVE-2026-116293). Flop
+      # decodes cursors with :erlang.binary_to_term/2, which aborts the whole
+      # node on OTP older than 29.1.3, 28.5.0.9 and 27.3.4.20.
+      ref = <<90, 0::16, 119, 13, "nonode@nohost", 1::32>>
+      term = <<131, 104, 2, ref::binary, 97, 0, 97, 0, 108, 10::32, :binary.copy(<<97, 1>>, 10)::binary, 106>>
+
+      # When
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?after=#{Base.url_encode64(term)}")
+        |> json_response(:bad_request)
+
+      # Then
+      assert response["message"] == "`after` and `before` must be cursors returned by a previous response."
+    end
+
     test "ignores the deprecated page parameter", %{conn: conn, user: user, project: project} do
       # Given
       date = ~U[2026-09-01 10:00:00.000000Z]

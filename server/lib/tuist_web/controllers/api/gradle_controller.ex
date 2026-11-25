@@ -263,22 +263,36 @@ defmodule TuistWeb.API.GradleController do
   # tables that don't deduplicate, so a request carrying an id claims it first and
   # a retry gets the first request's response back without writing anything or
   # publishing `build.failed` again. Only authenticated requests keep their id.
+  # The response is recorded as soon as the build row is written, with
+  # `followed_up: false`, so a retry after one of the writes that follow it
+  # failed replays it instead of writing the build again. Such a replay publishes
+  # `build.failed` and queues the pull request comment, which both deduplicate,
+  # then marks the claim followed up; the build's other rows stay as written.
   def create_build(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
     authenticated? = TuistWeb.Authentication.authenticated?(conn)
     request_id = if authenticated?, do: body[:id]
+    response = fn build_id -> %{id: build_id, actor: ReportActorPlug.actor(conn)} end
 
-    create = fn ->
-      with {:ok, build_id} <- Gradle.create_build(build_attributes(conn, project, body)) do
+    create = fn record ->
+      with {:ok, build_id} <-
+             Gradle.create_build(build_attributes(conn, project, body),
+               on_written: &record.(%{body: response.(&1), followed_up: false})
+             ) do
         if authenticated?, do: enqueue_vcs_pull_request_comment(body, project)
-        {:ok, %{id: build_id, actor: ReportActorPlug.actor(conn)}}
+        {:ok, %{body: response.(build_id), followed_up: true}}
       end
     end
 
     case IdempotentRequests.run("gradle_build", project.id, request_id, create) do
-      {result, response} when result in [:ok, :replayed] ->
+      {:ok, %{body: response}} ->
         conn
         |> put_status(:created)
         |> json(response)
+
+      {:replayed, creation} ->
+        conn
+        |> put_status(:created)
+        |> json(replay_build(conn, project, body, request_id, creation))
 
       {:error, :in_progress} ->
         conn
@@ -292,6 +306,28 @@ defmodule TuistWeb.API.GradleController do
         |> json(%{message: "The custom metadata is invalid."})
     end
   end
+
+  defp replay_build(conn, project, body, request_id, %{body: response, followed_up: false} = creation) do
+    Gradle.publish_build_failed(
+      %{
+        project_id: project.id,
+        status: body.status,
+        submission_auth: conn.assigns.report_actor.submission_auth,
+        is_ci: body[:is_ci] || false,
+        git_branch: body[:git_branch]
+      },
+      response.id
+    )
+
+    enqueue_vcs_pull_request_comment(body, project)
+    IdempotentRequests.update_result("gradle_build", project.id, request_id, %{creation | followed_up: true})
+    response
+  end
+
+  defp replay_build(_conn, _project, _body, _request_id, %{body: response}), do: response
+
+  # Claims recorded before `followed_up` was tracked hold the response itself.
+  defp replay_build(_conn, _project, _body, _request_id, response), do: response
 
   defp build_attributes(conn, project, body) do
     metadata = body[:custom_metadata] || %{}

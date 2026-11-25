@@ -425,10 +425,13 @@ chart value or 1Password field.
 | `SYMPTOMS_STATE_URL`, `SYMPTOMS_STATE_TOKEN_PATH` | The Tuist server (state read-back) |
 | `SYMPTOMS_PULSE_URL`, `SYMPTOMS_PULSE_USER`, `SYMPTOMS_PULSE_TOKEN` | Pulse reads (default user `dashboard`) |
 | `SYMPTOMS_PULSE_WRITE_USER`, `SYMPTOMS_PULSE_WRITE_TOKEN` | The hourly span-edge INSERT (default user `tuist`, write-only) |
-| `SYMPTOMS_PROMETHEUS_URL`, `SYMPTOMS_PROMETHEUS_USER`, `SYMPTOMS_PROMETHEUS_TOKEN` | Grafana Cloud metrics and probes |
+| `SYMPTOMS_PROMETHEUS_URL`, `SYMPTOMS_PROMETHEUS_USER`, `SYMPTOMS_PROMETHEUS_TOKEN` | Pulse's Prometheus-compatible API (`/v1/prometheus`, database `public`), using its read-only identity for metrics and probes |
 
 `KubernetesEvents` uses the in-cluster ServiceAccount. Sources are listed in
 `config :symptoms, :sources` (none in test).
+
+The managed deployment reads no telemetry from Grafana Cloud. IRM integration
+is deferred: the chart supplies no webhook credentials and paging remains off.
 
 ## Backstops and watching the watcher
 

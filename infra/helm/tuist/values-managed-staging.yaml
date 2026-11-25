@@ -969,6 +969,13 @@ sandboxes:
   # KVM before canary and production.
   vmm:
     enabled: true
+    # Qualifying in-place daemon upgrades (step 2b) on KVM before canary and
+    # production.
+    inPlaceUpgrades: true
+    # vmm holds Firecracker under the running VMs; moving it replaces the
+    # daemon Pod and pauses its sandboxes, so it moves only on purpose.
+    image:
+      tag: sha-b5987f8dd760
   prebuildShapes: "16x4096,16x8192"
   # Memory bursting prototype: measure how much memory guests return.
   balloonFreePageReporting: true

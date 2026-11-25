@@ -41,6 +41,7 @@ on:
       - .github/scripts/helm-move-release-objects*
       - .github/scripts/tart-kubelet-rollout-gate*
       - .github/scripts/production-source-guard*
+      - .github/scripts/sandboxd-upgrade*
       - .github/workflows/tuist-ops-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
@@ -63,6 +64,7 @@ on:
       - .github/scripts/helm-move-release-objects*
       - .github/scripts/tart-kubelet-rollout-gate*
       - .github/scripts/production-source-guard*
+      - .github/scripts/sandboxd-upgrade*
       - .github/workflows/tuist-ops-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
@@ -161,6 +163,8 @@ jobs:
       # Uses the promtool installed by the step above.
       - name: Test Symptoms watcher and backstop alerts
         run: bash infra/helm/k8s-monitoring/test-symptoms-alerts.sh
+      - name: Test Symptoms runtime telemetry dependencies
+        run: bash infra/helm/symptoms/test-runtime-config.sh
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
       - name: Test kubelet Lease telemetry and host alerts
@@ -332,6 +336,8 @@ jobs:
         run: bash .github/scripts/tart-kubelet-rollout-gate.test.sh
       - name: Production deploys only ship commits main contains
         run: bash .github/scripts/production-source-guard.test.sh
+      - name: In-place sandboxd upgrades hand over only to an armed daemon
+        run: bash .github/scripts/sandboxd-upgrade.test.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

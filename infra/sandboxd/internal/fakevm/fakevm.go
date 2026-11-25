@@ -43,6 +43,10 @@ type Launcher struct {
 	// ExecHook becomes the Agent.ExecHook of every instance launched after
 	// it is set.
 	ExecHook func(req map[string]any, out func(stream string, data []byte)) (exitCode int, handled bool)
+	// RefuseDetach makes Detach fail, as vmm does while its Pod stops.
+	RefuseDetach bool
+
+	starts atomic.Uint64
 }
 
 func (l *Launcher) Launch(ctx context.Context, spec vm.Spec) (vm.Instance, error) {
@@ -68,12 +72,47 @@ func (l *Launcher) Launch(ctx context.Context, spec vm.Spec) (vm.Instance, error
 		jailed:    spec.JailerEnabled,
 		bootedNow: time.Now(),
 		sizedMem:  l.SizedMemory,
+		launcher:  l,
+		startedAt: l.starts.Add(1),
 	}
 	if err := inst.start(); err != nil {
 		return nil, err
 	}
 	l.instances = append(l.instances, inst)
 	return inst, nil
+}
+
+// List is vm.Attacher's: the detached instances, as vmm lists them.
+func (l *Launcher) List(context.Context) ([]vm.VMMVM, error) {
+	var vms []vm.VMMVM
+	for _, inst := range l.Instances() {
+		if !inst.detached.Load() {
+			continue
+		}
+		vms = append(vms, vm.VMMVM{ID: inst.spec.ID, PID: inst.PID(), Start: inst.startedAt, Exited: inst.exited(), Detached: true})
+	}
+	return vms, nil
+}
+
+// Attach is vm.Attacher's: the next daemon takes a detached instance back.
+func (l *Launcher) Attach(_ context.Context, spec vm.Spec, pid int) (vm.Instance, error) {
+	all := l.Instances()
+	for j := len(all) - 1; j >= 0; j-- {
+		inst := all[j]
+		if inst.spec.ID != spec.ID || !inst.detached.Load() {
+			continue
+		}
+		if pid != inst.PID() {
+			return nil, fmt.Errorf("vm %s is pid %d, not %d", spec.ID, inst.PID(), pid)
+		}
+		inst.detached.Store(false)
+		if inst.exited() {
+			return nil, vm.ErrExited
+		}
+		inst.Attaches.Add(1)
+		return inst, nil
+	}
+	return nil, fmt.Errorf("vmm holds no vm %s", spec.ID)
 }
 
 func (l *Launcher) Instances() []*Instance {
@@ -120,6 +159,12 @@ type Instance struct {
 	once     sync.Once
 	// FailSnapshotCreate makes PUT /snapshot/create answer 400.
 	FailSnapshotCreate bool
+
+	launcher  *Launcher
+	startedAt uint64
+	detached  atomic.Bool
+	// Attaches counts the daemons that attached it after a detach.
+	Attaches atomic.Int64
 
 	// memBytes is the guest's memory size, from its machine config or the
 	// snapshot it loaded. A snapshot's mem file is that long (sparse).
@@ -353,6 +398,33 @@ func (i *Instance) Kill(ctx context.Context) error {
 	i.killed.Store(true)
 	i.stop()
 	return nil
+}
+
+// Detach is vm.Handoff's: the instance keeps running for the next daemon.
+func (i *Instance) Detach(context.Context) error {
+	if i.exited() {
+		return errors.New("the vm already exited (test)")
+	}
+	if i.launcher != nil && i.launcher.RefuseDetach {
+		return errors.New("vmm refuses the detach (test)")
+	}
+	i.detached.Store(true)
+	return nil
+}
+
+// Start is vm.Handoff's process start time, unique per instance.
+func (i *Instance) Start() uint64 { return i.startedAt }
+
+// Detached reports whether the last daemon handed the instance over.
+func (i *Instance) Detached() bool { return i.detached.Load() }
+
+func (i *Instance) exited() bool {
+	select {
+	case <-i.done:
+		return true
+	default:
+		return false
+	}
 }
 
 // Crash simulates Firecracker dying on its own.

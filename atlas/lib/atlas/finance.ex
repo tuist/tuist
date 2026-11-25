@@ -20,6 +20,7 @@ defmodule Atlas.Finance do
   defdelegate list_accounts(opts \\ []), to: Query
   defdelegate list_categories(opts \\ []), to: Query
   defdelegate list_transactions(opts \\ []), to: Query
+  defdelegate paid_ibans(ibans), to: Query
   defdelegate list_transactions_page(opts \\ []), to: Query
   defdelegate expense_reconciliation(opts), to: ExpenseReconciliation, as: :build
   defdelegate expense_history(opts \\ []), to: ExpenseHistory, as: :build

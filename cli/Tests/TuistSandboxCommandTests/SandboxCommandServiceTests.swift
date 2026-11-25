@@ -19,16 +19,29 @@ struct SandboxCommandServiceTests { // swiftlint:disable:this type_body_length
 
     private let sandboxesService = MockSandboxesServicing()
 
-    private func subject(fullHandle: String? = "resolved-account/project") async throws -> SandboxCommandService {
+    private func subject(
+        fullHandle: String? = "resolved-account/project",
+        clock: FakeClock? = nil
+    ) async throws -> SandboxCommandService {
         let configLoader = MockConfigLoading()
         let directory = try await Environment.current.pathRelativeToWorkingDirectory("/project")
         given(configLoader).loadConfig(path: .value(directory)).willReturn(.test(fullHandle: fullHandle))
         let serverEnvironmentService = MockServerEnvironmentServicing()
         given(serverEnvironmentService).url(configServerURL: .value(Tuist.test().url)).willReturn(Self.serverURL)
+        guard let clock else {
+            return SandboxCommandService(
+                configLoader: configLoader,
+                serverEnvironmentService: serverEnvironmentService,
+                sandboxesService: sandboxesService
+            )
+        }
         return SandboxCommandService(
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
-            sandboxesService: sandboxesService
+            sandboxesService: sandboxesService,
+            now: { clock.now },
+            sleep: { clock.advance($0) },
+            onWait: { clock.notice($0) }
         )
     }
 
@@ -180,6 +193,122 @@ struct SandboxCommandServiceTests { // swiftlint:disable:this type_body_length
         // A macOS sandbox holds every vCPU, and only the offered guarantees go.
         #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--platform", "macos", "--guaranteed-vcpus", "2"]) }
         #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--guaranteed-vcpus", "3"]) }
+    }
+
+    private static let fleetBusy = SandboxesServiceError.unavailable(
+        SandboxServerError(message: "Every sandbox host is busy right now.", code: "fleet_busy")
+    )
+
+    /// Every create takes 25 seconds on the clock, as the server's wait for a host does, and answers `answers` in
+    /// turn (the last one repeats). Past 100 attempts it fails differently, so a loop that ignores its deadline
+    /// fails the test instead of hanging it.
+    private func givenCreates(_ answers: [Result<String, SandboxesServiceError>], clock: FakeClock) {
+        given(sandboxesService).createSandbox(
+            accountHandle: .any, serverURL: .any, platform: .any, template: .any, xcodeVersion: .any, vcpus: .any,
+            memoryMB: .any, workspaceGB: .any, guaranteedVCPUs: .any, lifetimeSeconds: .any
+        ).willProduce { _, _, _, _, _, _, _, _, _, _ in
+            let attempt = clock.attempt()
+            guard attempt < 100 else { throw SandboxesServiceError.unknownError(599) }
+            clock.advance(25)
+            switch answers[min(attempt, answers.count - 1)] {
+            case let .success(json): return try Self.decode(json)
+            case let .failure(error): throw error
+            }
+        }
+    }
+
+    private func create(clock: FakeClock, waitTimeout: String?) async throws {
+        let command = try SandboxCreateCommand.parse(
+            ["--platform", "macos"] + (waitTimeout.map { ["--wait-timeout", $0] } ?? [])
+        )
+        try await subject(clock: clock).create(
+            options: Self.values(),
+            platform: command.resolvedPlatform.server,
+            template: nil,
+            vcpus: nil,
+            memoryGB: nil,
+            workspaceGB: nil,
+            waitTimeout: try command.waitTimeoutSeconds
+        )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func waitTimeoutRetriesFleetBusyUntilAHostFreesUp() async throws {
+        let clock = FakeClock()
+        givenCreates(
+            [
+                .failure(Self.fleetBusy),
+                .failure(Self.fleetBusy),
+                .failure(Self.fleetBusy),
+                .success(Self.sandbox(status: "active")),
+            ],
+            clock: clock
+        )
+
+        try await create(clock: clock, waitTimeout: "5m")
+
+        #expect(clock.attemptTimes == [0, 30, 60, 90])
+        #expect(ui().contains("Sandbox booted"))
+        // The server's reason, once at the start and then about once a minute.
+        #expect(clock.notices.count == 2)
+        #expect(clock.notices.allSatisfy { $0.contains("Every sandbox host is busy right now. (fleet_busy)") })
+        #expect(clock.notices.first?.contains("Waiting up to 5 minutes") == true)
+        #expect(clock.notices.last?.contains("after 1 min") == true)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func waitTimeoutFailsWithFleetBusyAtItsDeadline() async throws {
+        let clock = FakeClock()
+        givenCreates([.failure(Self.fleetBusy)], clock: clock)
+
+        await #expect(throws: Self.fleetBusy) { try await create(clock: clock, waitTimeout: "5m") }
+
+        // About two creates a minute, well under the account's 10, and none started at or past the deadline.
+        #expect(clock.attemptTimes == stride(from: 0, to: 300, by: 30).map { TimeInterval($0) })
+        #expect(clock.elapsed <= 300)
+        #expect(clock.notices.count == 5)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [
+        SandboxesServiceError.refused(SandboxServerError(message: "The account's limit.", code: "account_limit")),
+        SandboxesServiceError.refused(SandboxServerError(message: "Too many creates.", code: "rate_limited")),
+        SandboxesServiceError.unavailable(SandboxServerError(message: "The node went away.", code: "node_disconnected")),
+        SandboxesServiceError.unavailable(SandboxServerError(message: "Busy, says an older server.")),
+        SandboxesServiceError.unknownError(502),
+    ])
+    func waitTimeoutRetriesNothingButFleetBusy(error: SandboxesServiceError) async throws {
+        let clock = FakeClock()
+        givenCreates([.failure(error), .success(Self.sandbox(status: "active"))], clock: clock)
+
+        await #expect(throws: error) { try await create(clock: clock, waitTimeout: "5m") }
+
+        #expect(clock.attemptTimes == [0])
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func createWithoutAWaitTimeoutLeavesFleetBusyToTheCaller() async throws {
+        let clock = FakeClock()
+        givenCreates([.failure(Self.fleetBusy), .success(Self.sandbox(status: "active"))], clock: clock)
+
+        await #expect(throws: Self.fleetBusy) { try await create(clock: clock, waitTimeout: nil) }
+
+        #expect(clock.attemptTimes == [0])
+        #expect(clock.notices.isEmpty)
+    }
+
+    @Test
+    func waitTimeoutTakesADurationUpToAnHour() throws {
+        func seconds(_ value: String) throws -> TimeInterval? {
+            try SandboxCreateCommand.parse(["--wait-timeout", value]).waitTimeoutSeconds
+        }
+        #expect(try seconds("5m") == 300)
+        #expect(try seconds("90s") == 90)
+        #expect(try seconds("90") == 90)
+        #expect(try seconds("1h") == 3600)
+        #expect(try SandboxCreateCommand.parse([]).waitTimeoutSeconds == nil)
+        for invalid in ["0", "61m", "2h", "5x", "m", "-5m", "1.5m"] {
+            #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--wait-timeout", invalid]) }
+        }
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
@@ -416,5 +545,35 @@ struct SandboxCommandServiceTests { // swiftlint:disable:this type_body_length
         #expect(throws: (any Error).self) { try SandboxCopyCommand.parse(["a", "b"]) }
         #expect(throws: (any Error).self) { try SandboxCopyCommand.parse(["\(Self.id):a", "\(Self.id):b"]) }
         #expect(throws: (any Error).self) { try SandboxCopyCommand.parse(["\(Self.id):", "."]) }
+    }
+}
+
+/// A clock that create attempts and the waits between them move forward, recording when each attempt started.
+final class FakeClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private let start = Date(timeIntervalSince1970: 1_800_000_000)
+    private var current = Date(timeIntervalSince1970: 1_800_000_000)
+    private var attempts: [TimeInterval] = []
+    private var recorded: [String] = []
+
+    var now: Date { lock.withLock { current } }
+    var elapsed: TimeInterval { lock.withLock { current.timeIntervalSince(start) } }
+    var attemptTimes: [TimeInterval] { lock.withLock { attempts } }
+    var notices: [String] { lock.withLock { recorded } }
+
+    func advance(_ seconds: TimeInterval) {
+        lock.withLock { current = current.addingTimeInterval(seconds) }
+    }
+
+    /// Records an attempt now and returns how many came before it.
+    func attempt() -> Int {
+        lock.withLock {
+            attempts.append(current.timeIntervalSince(start))
+            return attempts.count - 1
+        }
+    }
+
+    func notice(_ message: String) {
+        lock.withLock { recorded.append(message) }
     }
 }

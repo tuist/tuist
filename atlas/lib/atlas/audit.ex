@@ -367,6 +367,7 @@ defmodule Atlas.Audit do
     |> put_claim(claims, "mcp_tool_groups")
     |> put_claim(claims, "thread_id")
     |> put_claim(claims, "orbit_run_id")
+    |> put_claim(claims, "client_id", "oauth_client_id")
   end
 
   def claim_metadata(_claims), do: %{}
@@ -381,10 +382,10 @@ defmodule Atlas.Audit do
     |> normalize_interface()
   end
 
-  defp put_claim(metadata, claims, key) do
+  defp put_claim(metadata, claims, key, metadata_key \\ nil) do
     case Map.get(claims, key) do
       nil -> metadata
-      value -> Map.put(metadata, key, value)
+      value -> Map.put(metadata, metadata_key || key, value)
     end
   end
 

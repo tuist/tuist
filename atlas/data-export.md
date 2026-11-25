@@ -127,6 +127,13 @@ contains codes, tokens, state, PKCE values or full redirect URLs. It follows
 existing audit retention and is exported with the user's `audit_activities` by
 actor. The issued codes and tokens remain in the existing `oauth_tokens` table.
 
+Access tokens carry that client ID as their `client_id` claim. Audit events
+recorded during a call made with one, such as `mcp.tool_called`, store it as
+`oauth_client_id` metadata, so each action can be traced to the client that made
+it. `finance_transfer_request.created` events store each transfer's beneficiary
+name, IBAN, amount and reference, the same values `mcp.tool_called` already
+keeps as arguments. Both follow existing audit retention and export by actor.
+
 ## OVH invoices
 
 `ovh_list_invoices` reads invoice IDs on demand through the caller's own `ovh-orders` OAuth session and requires `finance:read`. `ovh_save_invoice` also requires `documents:write` and copies a selected PDF into the shared document library: an ordinary `documents` row with `source = "upload"`, the caller as `uploaded_by_id`, and `attributes.provider = "ovh"` plus `attributes.invoice_id`. The PDF uses the existing documents object-storage bucket, processing pipeline, deletion and backup retention. No signed download link, invoice password or OVH credential is stored in the document. Shared Slack, Orbit and Automation identities cannot use these personal tools.

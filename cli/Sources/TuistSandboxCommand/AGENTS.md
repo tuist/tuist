@@ -19,9 +19,14 @@
   proxy's error page, reports the status, not the generated client's decoding error.
 - The server's error bodies carry a stable `code` (`Query.error/1`), which
   `SandboxServerError` keeps beside the message; branch on it, never on the
-  message, and keep working with servers that send none. `create` does not
-  retry `fleet_busy`: the server already waited 25 seconds for a host and says
-  when to try again.
+  message, and keep working with servers that send none. `create` retries
+  `fleet_busy` only with `--wait-timeout` (up to an hour), starting attempts
+  at least 30 seconds apart (each already waits 25 seconds on the server, so
+  about two a minute against the account's 10), none past the deadline, and
+  then fails with the last `fleet_busy`. Every other error is final: a create
+  is not idempotent. The reason goes to stderr about once a minute.
+  `tuist_mac_start` (`.amp/plugins/tuist-mac.ts`) waits 5 minutes this way;
+  MCP `create_sandbox` keeps the server's 25 seconds for tool-call limits.
 - `create --lifetime-minutes` and `extend` take whole minutes (5–1440) and send
   `lifetime_seconds`; the server ends an expired sandbox hard (cancels its
   commands, pauses and archives it). Sandboxes without a lifetime (Amp Orbs,

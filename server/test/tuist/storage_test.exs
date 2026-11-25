@@ -1141,6 +1141,38 @@ defmodule Tuist.StorageTest do
       assert error.message == "Access denied"
     end
 
+    test "returns an error when a successful S3 delete reply declares entities" do
+      # Given
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> %{} end)
+
+      delete_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, fn ^bucket_name, [^object_key] ->
+        delete_operation
+      end)
+
+      expect(ExAws, :request, fn ^delete_operation, _opts ->
+        {:ok,
+         %{
+           status_code: 200,
+           body: """
+           <?xml version="1.0" encoding="UTF-8"?>
+           <!DOCTYPE DeleteResult [<!ENTITY key "#{object_key}">]>
+           <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+             <Error><Key>&key;</Key><Code>AccessDenied</Code></Error>
+           </DeleteResult>
+           """
+         }}
+      end)
+
+      # When/Then
+      assert {:error, {:unexpected_response, %{status_code: 200}}} = Storage.delete_object(object_key, :test)
+    end
+
     test "deletes object chunks concurrently" do
       # Given
       bucket_name = UUIDv7.generate()

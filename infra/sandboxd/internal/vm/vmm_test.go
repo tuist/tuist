@@ -80,7 +80,7 @@ func (i *sleepInstance) Kill(context.Context) error {
 	return nil
 }
 
-func startVMM(t *testing.T) (*VMMServer, *sleepLauncher, string) {
+func startVMM(t *testing.T, configure ...func(*VMMServer)) (*VMMServer, *sleepLauncher, string) {
 	t.Helper()
 	socket := filepath.Join(t.TempDir(), "vmm.sock")
 	ln, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
@@ -88,7 +88,10 @@ func startVMM(t *testing.T) (*VMMServer, *sleepLauncher, string) {
 		t.Fatal(err)
 	}
 	launcher := &sleepLauncher{}
-	server := &VMMServer{Launcher: launcher, Cgroup: "/kubepods/pod1/vmm", Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	server := &VMMServer{Launcher: launcher, Cgroup: "/kubepods/pod1/vmm", FirecrackerVersion: "v1.16.2", Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	for _, f := range configure {
+		f(server)
+	}
 	go func() { _ = server.Serve(ln) }()
 	t.Cleanup(func() { _ = ln.Close() })
 	return server, launcher, socket
@@ -105,13 +108,13 @@ func waitFor(t *testing.T, what string, ok func() bool) {
 	}
 }
 
-func TestVMMCgroup(t *testing.T) {
+func TestVMMHello(t *testing.T) {
 	_, _, socket := startVMM(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	got, gone, err := VMMCgroup(ctx, socket)
-	if err != nil || got != "/kubepods/pod1/vmm" {
-		t.Fatalf("VMMCgroup = %q, %v", got, err)
+	got, gone, err := VMMHello(ctx, socket)
+	if err != nil || got != (VMMInfo{Cgroup: "/kubepods/pod1/vmm", FirecrackerVersion: "v1.16.2"}) {
+		t.Fatalf("VMMHello = %+v, %v", got, err)
 	}
 	select {
 	case <-gone:
@@ -121,7 +124,7 @@ func TestVMMCgroup(t *testing.T) {
 }
 
 // The daemon learns that vmm stopped: its VMs went with it.
-func TestVMMCgroupGoneWhenVMMStops(t *testing.T) {
+func TestVMMHelloGoneWhenVMMStops(t *testing.T) {
 	socket := filepath.Join(t.TempDir(), "vmm.sock")
 	ln, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
 	if err != nil {
@@ -135,7 +138,7 @@ func TestVMMCgroupGoneWhenVMMStops(t *testing.T) {
 	}
 	got := make(chan result, 1)
 	go func() {
-		_, gone, err := VMMCgroup(ctx, socket)
+		_, gone, err := VMMHello(ctx, socket)
 		got <- result{gone, err}
 	}()
 	conn, err := ln.AcceptUnix()
@@ -252,4 +255,193 @@ func TestVMMLaunchError(t *testing.T) {
 	if err == nil {
 		t.Fatal("an invalid id launched")
 	}
+}
+
+func launchSleeper(t *testing.T, socket string, launcher *sleepLauncher, id string) (Instance, *sleepInstance) {
+	t.Helper()
+	inst, err := (&VMMLauncher{Socket: socket}).Launch(context.Background(), Spec{ID: id, JailBase: "/j"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	launcher.mu.Lock()
+	defer launcher.mu.Unlock()
+	return inst, launcher.last
+}
+
+func alive(s *sleepInstance) bool {
+	select {
+	case <-s.done:
+		return false
+	default:
+		return true
+	}
+}
+
+// Step 2b: a detached VM outlives the daemon's connection, and the next
+// daemon attaches it by id and pid and owns it from then on.
+func TestVMMDetachedVMOutlivesTheDaemonAndAttaches(t *testing.T) {
+	server, launcher, socket := startVMM(t)
+	inst, sleeper := launchSleeper(t, socket, launcher, "sbx-4")
+	start := inst.(Handoff).Start()
+	if start == 0 || start != ProcessStart(sleeper.PID()) {
+		t.Fatalf("Start = %d, want the process's start %d", start, ProcessStart(sleeper.PID()))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := inst.(Handoff).Detach(ctx); err != nil {
+		t.Fatal(err)
+	}
+	<-inst.Done()
+	time.Sleep(100 * time.Millisecond)
+	if !alive(sleeper) {
+		t.Fatal("vmm killed the VM the daemon detached")
+	}
+
+	next := &VMMLauncher{Socket: socket}
+	vms, err := next.List(ctx)
+	if err != nil || len(vms) != 1 || vms[0] != (VMMVM{ID: "sbx-4", PID: sleeper.PID(), Start: start, Detached: true}) {
+		t.Fatalf("List = %+v, %v", vms, err)
+	}
+	if _, err := next.Attach(ctx, Spec{ID: "sbx-4", JailBase: "/j"}, sleeper.PID()+1); err == nil {
+		t.Fatal("attached with another pid")
+	}
+	attached, err := next.Attach(ctx, Spec{ID: "sbx-4", JailBase: "/j"}, sleeper.PID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attached.PID() != sleeper.PID() || attached.(Handoff).Start() != start || attached.Root() != RootDir("/j", "sbx-4") {
+		t.Fatalf("attached pid %d start %d root %s", attached.PID(), attached.(Handoff).Start(), attached.Root())
+	}
+	if _, err := next.Attach(ctx, Spec{ID: "sbx-4", JailBase: "/j"}, sleeper.PID()); err == nil {
+		t.Fatal("a second daemon connection attached a VM another holds")
+	}
+	// The new connection now decides: closing it kills the VM again.
+	_ = attached.(*remoteMachine).conn.Close()
+	select {
+	case <-sleeper.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("vmm kept the attached VM after its new connection closed")
+	}
+	waitFor(t, "Active to reach 0", func() bool { return server.Active() == 0 })
+}
+
+// The next daemon learns of a VM that exited while nobody held it.
+func TestVMMReportsAnExitWhileDetached(t *testing.T) {
+	_, launcher, socket := startVMM(t)
+	inst, sleeper := launchSleeper(t, socket, launcher, "sbx-5")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := inst.(Handoff).Detach(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_ = sleeper.cmd.Process.Kill()
+	<-sleeper.done
+	next := &VMMLauncher{Socket: socket}
+	waitFor(t, "the exit to be listed", func() bool {
+		vms, err := next.List(ctx)
+		return err == nil && len(vms) == 1 && vms[0].Exited
+	})
+	if _, err := next.Attach(ctx, Spec{ID: "sbx-5", JailBase: "/j"}, sleeper.PID()); !errors.Is(err, ErrExited) {
+		t.Fatalf("Attach = %v, want ErrExited", err)
+	}
+	if vms, err := next.List(ctx); err != nil || len(vms) != 0 {
+		t.Fatalf("List after the exit was collected = %+v, %v", vms, err)
+	}
+}
+
+// A VM no daemon comes back for must not run on: that daemon's successor
+// cold boots it.
+func TestVMMKillsADetachedVMNobodyAttaches(t *testing.T) {
+	server, launcher, socket := startVMM(t, func(s *VMMServer) { s.DetachTTL = 200 * time.Millisecond })
+	inst, sleeper := launchSleeper(t, socket, launcher, "sbx-6")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := inst.(Handoff).Detach(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-sleeper.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the detached VM outlived its TTL")
+	}
+	waitFor(t, "Active to reach 0", func() bool { return server.Active() == 0 })
+}
+
+// While the Pod stops, vmm refuses detaches (the daemon then pauses its
+// VMs) and kills detached VMs nobody attaches within the grace.
+func TestVMMDrainRefusesDetachesAndExpiresDetachedVMs(t *testing.T) {
+	server, launcher, socket := startVMM(t)
+	detached, detachedSleeper := launchSleeper(t, socket, launcher, "sbx-7")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := detached.(Handoff).Detach(ctx); err != nil {
+		t.Fatal(err)
+	}
+	held, heldSleeper := launchSleeper(t, socket, launcher, "sbx-8")
+	server.Drain(200 * time.Millisecond)
+	if err := held.(Handoff).Detach(ctx); err == nil {
+		t.Fatal("vmm detached a VM while draining")
+	}
+	select {
+	case <-held.Done():
+		t.Fatal("a refused detach ended the instance")
+	default:
+	}
+	select {
+	case <-detachedSleeper.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the detached VM outlived the drain grace")
+	}
+	if !alive(heldSleeper) {
+		t.Fatal("the drain killed a VM a daemon still holds")
+	}
+	if err := held.Kill(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "Active to reach 0", func() bool { return server.Active() == 0 })
+}
+
+// vmm spawns its own binaries, whatever the daemon's spec names.
+func TestVMMPinsItsBinaries(t *testing.T) {
+	server, launcher, socket := startVMM(t, func(s *VMMServer) {
+		s.FirecrackerBin, s.JailerBin = "/proc/7/root/usr/local/bin/firecracker", "/proc/7/root/usr/local/bin/jailer"
+	})
+	inst, err := (&VMMLauncher{Socket: socket}).Launch(context.Background(), Spec{ID: "sbx-9", JailBase: "/j", FirecrackerBin: "/usr/local/bin/firecracker", JailerBin: "/usr/local/bin/jailer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = inst.Kill(context.Background()) }()
+	launcher.mu.Lock()
+	spec := launcher.specs[0]
+	launcher.mu.Unlock()
+	if spec.FirecrackerBin != server.FirecrackerBin || spec.JailerBin != server.JailerBin {
+		t.Fatalf("vmm spawned %s and %s", spec.FirecrackerBin, spec.JailerBin)
+	}
+}
+
+// A detached VM keeps its id: another launch of it is refused until the
+// daemon attached and killed it.
+func TestVMMRefusesALaunchOverADetachedVM(t *testing.T) {
+	_, launcher, socket := startVMM(t)
+	inst, sleeper := launchSleeper(t, socket, launcher, "sbx-10")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := inst.(Handoff).Detach(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (&VMMLauncher{Socket: socket}).Launch(ctx, Spec{ID: "sbx-10", JailBase: "/j"}); err == nil || !strings.Contains(err.Error(), "still running") {
+		t.Fatalf("Launch over a detached VM = %v", err)
+	}
+	attached, err := (&VMMLauncher{Socket: socket}).Attach(ctx, Spec{ID: "sbx-10", JailBase: "/j"}, sleeper.PID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := attached.Kill(ctx); err != nil {
+		t.Fatal(err)
+	}
+	again, err := (&VMMLauncher{Socket: socket}).Launch(ctx, Spec{ID: "sbx-10", JailBase: "/j"})
+	if err != nil {
+		t.Fatalf("Launch after the kill = %v", err)
+	}
+	_ = again.Kill(ctx)
 }

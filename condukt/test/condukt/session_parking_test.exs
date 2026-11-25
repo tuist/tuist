@@ -387,7 +387,11 @@ defmodule Condukt.SessionParkingTest do
         wake: fn {:signal, _key, text}, nil, _ctx -> {:ok, text} end
       )
 
-    check = tool("check", fn _args, _ctx -> send(test_pid, :check_started) && {:ok, "checked"} end)
+    check =
+      tool("check", fn _args, _ctx ->
+        send(test_pid, :check_started)
+        {:ok, "checked"}
+      end)
 
     pid =
       start_session(

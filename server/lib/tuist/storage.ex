@@ -641,6 +641,9 @@ defmodule Tuist.Storage do
 
   defp handle_delete_objects_response({:ok, response}) do
     case delete_object_errors(response) do
+      :unreadable ->
+        {:error, {:unexpected_response, response}}
+
       [] ->
         if successful_delete_objects_response?(response) do
           :ok
@@ -669,15 +672,24 @@ defmodule Tuist.Storage do
   defp delete_object_errors(%{"errors" => errors}), do: normalize_delete_errors(errors)
   defp delete_object_errors(%{"error" => error}), do: normalize_delete_errors(error)
 
+  defp delete_object_errors(""), do: []
+
+  # The body is an object store's reply; never fetch or expand a DTD it names.
+  # A reply SweetXml refuses (an entity declaration raises, a DTD fetch or
+  # malformed XML exits) is unreadable, so the deletion can't be confirmed.
   defp delete_object_errors(body) when is_binary(body) do
-    SweetXml.xpath(body, ~x"//Error"l,
+    body
+    |> SweetXml.parse(dtd: :none, quiet: true)
+    |> SweetXml.xpath(~x"//Error"l,
       key: ~x"./Key/text()"s,
       version_id: ~x"./VersionId/text()"s,
       code: ~x"./Code/text()"s,
       message: ~x"./Message/text()"s
     )
   rescue
-    _error -> []
+    _error -> :unreadable
+  catch
+    :exit, _reason -> :unreadable
   end
 
   defp delete_object_errors(_body), do: []

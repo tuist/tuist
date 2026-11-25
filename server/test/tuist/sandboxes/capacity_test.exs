@@ -934,15 +934,16 @@ defmodule Tuist.Sandboxes.CapacityTest do
       node
     end
 
-    test "an execution carve-out holds between actions" do
-      node = grown_execution_daemon(DateTime.utc_now())
+    test "an execution carve-out holds between a CI job's builds" do
+      # Two minutes after the last placement, as between a job's builds.
+      node = grown_execution_daemon(DateTime.add(DateTime.utc_now(), -120, :second))
       reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
 
       assert :unchanged = Capacity.shrink(node_info(node))
     end
 
-    test "an execution carve-out shrinks once the daemon has placed nothing for a minute" do
-      node = grown_execution_daemon(DateTime.add(DateTime.utc_now(), -61, :second))
+    test "an execution carve-out shrinks once the daemon has placed nothing for five minutes" do
+      node = grown_execution_daemon(DateTime.add(DateTime.utc_now(), -301, :second))
       stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
       stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
 

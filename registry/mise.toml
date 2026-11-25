@@ -4,5 +4,5 @@ SECRET_KEY_BASE = "3QgyMMP1pcg9+d5Gn3n1/TMciiogjysBmPg1Dm+pT+Hfag38TUm0Q7pHfC7Np
 
 [tools]
 elixir = "1.20.5"
-erlang = "29.0.6"
+erlang = "29.1.3"
 ruby = "3.3.10"

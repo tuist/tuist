@@ -786,7 +786,9 @@ agent so the manager runs end to end without KVM).
 | `CACHE_IMAGES_TTL` | `24h` | How long a copied master stays after a sandbox last attached it; checked every 10 minutes. |
 | `GUESTS_REACH_SERVER` | `false` | With `SERVER_URL` set and this false, the daemon resolves `SERVER_URL` at startup (retrying cluster DNS for a minute) and drops guest traffic to those addresses and port. |
 | `LOG_LEVEL` | `info` | slog level. |
-| `SANDBOXD_CONFIG` | | A file of `KEY=VALUE` lines (`internal/envfile`) that fills any variable above the environment leaves unset. With `sandboxes.vmm.enabled` the chart puts the deploy-varying ones in a ConfigMap read this way, so step 2b can restart the daemon in place with new configuration; until then the Pod carries a checksum of it and a change still rolls the Pods. `cmd/vmm` reads the same file. |
+| `SANDBOXD_CONFIG` | | A file of `KEY=VALUE` lines (`internal/envfile`) that fills any variable above the environment leaves unset. With `sandboxes.vmm.enabled` the chart puts the deploy-varying ones in a ConfigMap read this way. Without `vmm.inPlaceUpgrades` the Pod carries a checksum of it, so a change rolls the Pods; with it, the kubelet refreshes the file, the daemon reports the hash of what it loaded at startup (`sandboxd_config_info{sha256}`), and the deploy's updater restarts a daemon whose hash is stale in place, with a handover. `cmd/vmm` reads the same file. |
+| `HANDOVER_FILE` | | A downward API file of the Pod's annotations (`sandboxes.vmm.inPlaceUpgrades`). An unexpired `sandboxes.tuist.dev/handover` marker naming this container turns the next SIGTERM into a handover (see Process model). |
+| `FIRECRACKER_BIN`, `JAILER_BIN` (vmm) | `/proc/<vmm pid>/root/usr/local/bin/…` | The binaries vmm spawns, overriding the daemon's spec, so a daemon upgrade never changes the Firecracker under running VMs. |
 | `VMM_SOCKET` | | The vmm container's socket (see Process model). Set, the daemon spawns every VM through it and places VM cgroups under vmm's cgroup; unset, it spawns them itself as before. |
 
 ### Validation scripts
@@ -823,8 +825,8 @@ returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`
 
 ### Process model
 
-With `sandboxes.vmm.enabled` (step 2a of seamless daemon restarts, staging
-only so far), the Pod has a second container, `vmm` (`cmd/vmm`, the same
+With `sandboxes.vmm.enabled` (step 2a of seamless daemon restarts; in-place
+upgrades, step 2b, on staging only so far), the Pod has a second container, `vmm` (`cmd/vmm`, the same
 image), that spawns the VMs so they sit in its cgroup instead of the
 daemon's container's. The server resizes `vmm`, not `sandboxd`, whose own
 resources are fixed (`Tuist.Kubernetes.Client.sandbox_vm_container/1`; the
@@ -836,12 +838,32 @@ namespaces and lazy-disk mounts without any mount propagating to the host,
 and holds Firecracker's output and `firecracker.log`. The Pod shares one PID
 namespace (`shareProcessNamespace`), so the daemon still reads
 `/proc/<pid>`; vmm reports exits over the connection. A VM lives as long as
-its connection: vmm kills it when the daemon goes away, because a restarted
-daemon cold boots what it finds `running`. The daemon also holds its hello
-connection open and restarts when vmm does (vmm's VMs died with it and its
-cgroup moved). Behaviour is otherwise unchanged: SIGTERM still pauses every
-VM, and vmm keeps serving after its own SIGTERM until the daemon released
-its VMs. Step 2b makes the VMs outlive a daemon restart.
+its connection, unless the daemon detached it: vmm then keeps it for the
+next daemon, which `list`s and `attach`es it by pid and process start time,
+and kills it if nobody attaches within ten minutes or after its own SIGTERM
+(a 15 s grace). vmm spawns its own Firecracker and jailer
+(`FIRECRACKER_BIN`, `JAILER_BIN`) and reports its Firecracker version in
+hello, which the daemon adopts. The daemon also holds its hello connection
+open and restarts when vmm does (vmm's VMs died with it and its cgroup
+moved).
+
+SIGTERM pauses every VM, except a handover (step 2b,
+`sandboxes.vmm.inPlaceUpgrades`). The chart makes the DaemonSet `OnDelete`
+and the deploy runs `.github/scripts/sandboxd-upgrade.sh`: for a Pod that
+differs from the DaemonSet only in the `sandboxd` image, it waits for
+`sandboxd_handover_blocked{reason="lazy_disks"}` to reach zero (up to ten
+minutes), annotates the Pod with `{container, until, nonce}`, waits for the
+daemon's `handover armed` log with that nonce and the new ConfigMap's hash,
+and patches the container's image; the kubelet restarts only that
+container. A Pod already on the current revision whose
+`sandboxd_config_info` differs from the ConfigMap's hash restarts the same
+way, with a SIGTERM to the daemon (`pidof`: PID 1 is the pause container)
+instead of the patch. Any other difference replaces the Pod. An armed daemon stops its
+workers and detaches each running VM, recording `handover {pid, start}` in
+its metadata; VMs whose memory it serves through userfaultfd, whose disks
+still arrive through its mounts, or that vmm refuses are paused instead.
+`vmm.image.tag` pins vmm (and Firecracker) separately; the deploy keeps the
+live one unless the values set it.
 
 The jailer parent exits as soon as it has forked Firecracker into the new
 pid namespace, so the daemon sets itself as child subreaper, reads the pid
@@ -864,8 +886,14 @@ sandbox's own memory file.
 
 ### Startup and recovery
 
-Every jail directory is read back on startup. Since nothing survives a pod
-restart, a sandbox recorded as `running` lost its VM. Its disks have moved
+Every jail directory is read back on startup. A sandbox with a `handover`
+record is re-attached when vmm still holds a live VM with that pid and start
+time and its disks are there: the daemon checks Firecracker's API (id,
+state Running), re-attaches the netns under `/var/run/netns` (`ip netns
+attach`, the restarted container's own mount namespace has none), pings the
+agent and keeps it `running` (`sandbox re-attached`). Any failure kills the
+VM and takes the cold-boot path below, as do VMs no sandbox claims.
+Otherwise a sandbox recorded as `running` lost its VM. Its disks have moved
 on since whatever memory image sits beside them (its last pause, or the
 template memfile for generation 0), and Firecracker treats the disks as
 part of a snapshot, so that image is never restored: the sandbox becomes
@@ -885,8 +913,8 @@ cannot load it. The daemon exits at startup when it cannot read its own
 Firecracker version. Jail directories without
 `metadata.json` (an interrupted create or template build), `*.building`
 shape directories, shapes another Firecracker version took or built with a
-workspace other than `TEMPLATE_WORKSPACE_GB`, and every `sbx-*` netns are
-removed.
+workspace other than `TEMPLATE_WORKSPACE_GB`, and every `sbx-*` netns of a
+sandbox not re-attached are removed.
 
 On SIGTERM the daemon stops every running worker (SIGTERM, then SIGKILL
 after `STOP_WORKER_GRACE`; the SDK worker force-stops its work item and
@@ -929,6 +957,8 @@ and `sandboxd_vm_file_bytes` (the running VMs' guest memory and what their
 processes hold, summed over the node) and observes every running VM's
 resident share of its guest memory in `sandboxd_vm_resident_share`.
 `sandboxd_lifecycle_phase_seconds{phase}` breaks down fixed lifecycle phases;
+`sandboxd_config_info{sha256}` names the configuration file the daemon loaded;
+`sandboxd_handover_blocked{reason}` counts running sandboxes a handover would pause (`lazy_disks`, `memory_served`).
 `sandboxd_blob_cache_requests_total{result}`, `sandboxd_blob_cache_fetched_bytes_total` and `sandboxd_blob_cache_bytes` cover the blob cache. sandbox IDs are never labels. Delete overlaps process exit and network teardown,
 but retains files, the instance reference and slot until both succeed.
 

@@ -108,6 +108,15 @@ transfer request in Qonto. Each transfer takes an amount, the beneficiary's IBAN
 and name, and a reference, usually the invoice number. Atlas checks the IBAN
 checksum and amount format first, so a typo fails before anything reaches Qonto.
 
+It only pays IBANs that Tuist has already paid with a completed outgoing Qonto
+transfer. Bank details in an email or invoice can be forged, and an agent reading
+a fake "our bank details changed" email cannot tell. For a new beneficiary or
+changed bank details, confirm them with the vendor through a channel you already
+trust and make the first payment directly in Qonto. Once it settles and syncs,
+the tool accepts that IBAN.
+
+Each transfer is capped at 25,000 EUR. Make larger payments directly in Qonto.
+
 Nothing is paid until someone with review rights approves the request in Qonto
 with strong customer authentication. The request is made with your own Qonto
 connection, so Qonto shows you as its initiator. Calling the tool again with the

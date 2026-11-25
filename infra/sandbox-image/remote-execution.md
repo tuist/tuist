@@ -351,8 +351,9 @@ therefore always have capacity CI cannot take back, in one of two modes:
     reservations, unhealthy nodes and a stopped controller keep their
     protection, and a reservation shrinks the carve-out back to what its VMs
     hold, never below the floor.
-  - Grown carve-outs shrink back toward what their VMs hold 15 seconds after
-    the last growth.
+  - Grown carve-outs shrink back toward what their VMs hold five minutes after
+    the last growth and the last VM placed on the worker, so they last across
+    the gap between a CI job's builds. CI pressure shrinks them at once.
   - A fleet-wide floor (`sandboxes.remoteExecutionFloorSlots` in the tuist
     chart, 0 to disable) makes the workers one pool of the runners-controller's
     compute allocator, counted in slots, beside the runner pools. Its load is

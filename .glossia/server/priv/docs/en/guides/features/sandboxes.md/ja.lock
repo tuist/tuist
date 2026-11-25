@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "0c696e694f93e0eabaea833a9aa77339667bbf51d2a0c00e000ffea928a8e257",
+  "hash": "f9af580d597e41b37fe236fd372eef7a2e6c6996e9ae39102c2c8bb857d08e08",
   "hash_tree": {
     "root": {
       "children": [
@@ -29,7 +29,7 @@
                   "content_hash": "1b6fb91c84728a7041d2676a78f868c2c72bd8806cc09580781ab4c6f5acf95a"
                 },
                 "### 2. Create a sandbox {#cli-create}": {
-                  "content_hash": "d73ab87d87dd172026f0f78d9ef3693b28f8adc3fbc70c9e401a06a6dfbcb03b"
+                  "content_hash": "d10c614f9602a8d8645cd951184286b590c62503bca33c44f6393bb4686143d8"
                 },
                 "### 3. Run commands {#cli-exec}": {
                   "content_hash": "c74b09783d227ceb2771bc04fbd451263ffa81d1694c920fa73b692b6a605d5c"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "abbffc6d5a75a5305ca5758489844d1759400a003eaa85e6b942d7a62c01128b",
+          "hash": "ee725b1f4b1dc275d2c9c14e2db8cd0839115a753f173fb2654a1f3f87b635a8",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes.md",
           "metadata": {
-            "content_hash": "58d17292596da5bc9051bd2e655a1f2c4905f7d1ed57da0052e4d135a7a1c2eb"
+            "content_hash": "9087f85ca3509e208a4a64f1f78fb0820b75de6ad8e10f4543951e76637ef9c8"
           }
         },
         {
@@ -248,14 +248,14 @@
         }
       ],
       "details": {},
-      "hash": "0c696e694f93e0eabaea833a9aa77339667bbf51d2a0c00e000ffea928a8e257",
+      "hash": "f9af580d597e41b37fe236fd372eef7a2e6c6996e9ae39102c2c8bb857d08e08",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "fb527dac701c5f62d2b0e2331cc3a8c84aaf4222c8e564dd5c4ac7c759ceb08f",
+  "output_hash": "e380a7124bb140a14baa20bc9d967869390cc9bf7b5ebd314a339a66d239f5b1",
   "output_path": "server/priv/docs/ja/guides/features/sandboxes.md",
   "protection_state": "recorded",
   "provider": "",
@@ -275,8 +275,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "faf9a462214f325694a955f3228851232edfc126",
+  "source_commit_sha": "aa60ad86626ee1b9361e4f1679c87b185baef5cd",
   "source_path": "server/priv/docs/en/guides/features/sandboxes.md",
-  "translated_at": "2026-11-25T07:02:28.326834Z",
-  "translation_session_id": "01a21180-8761-7b51-a5b4-8f8eddc0165c"
+  "translated_at": "2026-11-25T08:37:57.420807Z",
+  "translation_session_id": "01a211d8-39cc-715c-99fb-11b172dbb399"
 }

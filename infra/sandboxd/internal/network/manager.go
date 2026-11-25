@@ -22,6 +22,10 @@ type Interface interface {
 	// Teardown deletes the netns and the pod-side veth. Absence is not an
 	// error.
 	Teardown(ctx context.Context, ns string, slot int) error
+	// Adopt names the network namespace process pid runs in ns again: a
+	// restarted daemon container starts with an empty /var/run/netns while
+	// the VMs it attaches still run in theirs (step 2b).
+	Adopt(ctx context.Context, ns string, pid int) error
 	// Namespaces lists the sandbox netns names present in the pod.
 	Namespaces(ctx context.Context) ([]string, error)
 }
@@ -252,6 +256,16 @@ func (m *Manager) Teardown(ctx context.Context, ns string, slot int) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// Adopt drops whatever the name pointed at (removing the name never ends a
+// namespace a process still runs in) and points it at pid's.
+func (m *Manager) Adopt(ctx context.Context, ns string, pid int) error {
+	absent := []string{"No such file", "does not exist", "Cannot remove namespace"}
+	if err := m.runTolerant(ctx, absent, "ip", "netns", "del", ns); err != nil {
+		return err
+	}
+	return m.run(ctx, "ip", "netns", "attach", ns, strconv.Itoa(pid))
 }
 
 func (m *Manager) Namespaces(ctx context.Context) ([]string, error) {
