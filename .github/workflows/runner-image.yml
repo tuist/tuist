@@ -12,8 +12,9 @@ name: Runner Image
 # until its first release exists. Do not rebuild the same Xcode/SHA
 # while that bootstrap tag is pinned; record its digest in the PR.
 #
-# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
-# (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`,
+# or for a `<xcode>-macos-27` profile `ghcr.io/tuist/macos-golden-gate-xcode`
+# (`.github/scripts/runner-image-base.sh`; built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs
 # live in the base; this build just adds the GitHub Actions runner
 # agent and dispatch loop on top, so a rebuild is ~2 min instead of
 # the ~30 min an all-in-one rebuild used to cost.
@@ -26,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       xcode_version:
-        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1, 27.0-beta-6). Use this to refresh a profile that's not in profiles.json without cutting a release."
+        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1, 27.0-beta-6, or 27.2-macos-27 for a macOS 27 guest). Use this to refresh a profile that's not in profiles.json without cutting a release."
         required: true
       runner_version:
         description: "Override the actions/runner version baked into the image. Leave empty to use `runner_version`'s default in runner.pkr.hcl, which is the Renovate-tracked pin."
@@ -81,9 +82,7 @@ jobs:
           STACKED: ${{ inputs.stacked }}
         run: |
           set -euo pipefail
-          BASE_XCODE="$(jq -r --arg xcode "$XCODE" '.[$xcode] // $xcode' base-xcode-versions.json)"
-          BASE_TAG="${BASE_XCODE//./-}"
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+          BASE_IMAGE="$(../../.github/scripts/runner-image-base.sh "$XCODE" base-xcode-versions.json)"
           PROFILE="macos-${XCODE//./-}"
           echo "Xcode:      ${XCODE}"
           echo "Base image: ${BASE_IMAGE}"

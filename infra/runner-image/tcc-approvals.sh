@@ -11,21 +11,44 @@
 
 set -uo pipefail
 
-DB="${TUIST_TCC_DB:-/Users/runner/Library/Application Support/com.apple.TCC/TCC.db}"
+# Tahoe keeps runner's database in its Library. macOS 27 moves it to
+# /private/var/containers/Data/ProtectedSystem/<id>/Data/Library/Application
+# Support/com.apple.TCC/TCC.db, so the database is the one runner's tccd has
+# open, and the Library path while that cannot be read (no tccd yet, or
+# lsof denied).
+TAHOE_DB="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
 FINDER_REQUIREMENT="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
 FINDER_CLIENTS="/Users/runner/actions-runner/bin/Runner.Listener /bin/bash"
 SIMULATOR_CLIENT=com.apple.CoreSimulator.SimulatorTrampoline
 
+resolve_database() {
+  local pid path
+  if [ -n "${TUIST_TCC_DB:-}" ]; then
+    DB="${TUIST_TCC_DB}"
+    return
+  fi
+  for pid in $(/usr/bin/pgrep -u runner -x tccd 2>/dev/null); do
+    path="$(/usr/sbin/lsof -Fn -p "${pid}" 2>/dev/null | /usr/bin/sed -n 's/^n//p' | /usr/bin/grep '/com\.apple\.TCC/TCC\.db$' | /usr/bin/head -n1)"
+    if [ -n "${path}" ]; then
+      DB="${path}"
+      return
+    fi
+  done
+  DB="${TAHOE_DB}"
+}
+
 wait_for_database() {
   local waited=0
   while [ "${waited}" -lt 300 ]; do
+    resolve_database
     if [ "$(stat -f %Su /dev/console)" = runner ] && [ -f "${DB}" ]; then
+      echo "tcc-approvals: runner's database is ${DB}"
       return 0
     fi
     sleep 2
     waited=$((waited + 2))
   done
-  echo "tcc-approvals: ${DB} did not appear within ${waited}s of runner's login; macOS may have moved the user TCC database" >&2
+  echo "tcc-approvals: ${DB} did not appear within ${waited}s of runner's login, and runner's tccd has no TCC.db open; macOS may have moved the user TCC database" >&2
   return 1
 }
 
@@ -65,8 +88,8 @@ check() {
 
 case "${1:-}" in
   wait) wait_for_database ;;
-  seed) seed ;;
-  check) check ;;
+  seed) resolve_database && seed ;;
+  check) resolve_database && check ;;
   *)
     echo "usage: $0 wait|seed|check" >&2
     exit 64
