@@ -321,6 +321,26 @@ func (c *Client) PutBalloon(ctx context.Context, balloon Balloon) error {
 	return c.do(ctx, http.MethodPut, "/balloon", balloon, nil)
 }
 
+// PatchBalloon sets a running guest's balloon target. The driver inflates
+// towards it with allocations that give up rather than reclaim hard, and
+// deflates by itself only on a guest OOM (DeflateOnOOM), after which the
+// target has to be set again.
+func (c *Client) PatchBalloon(ctx context.Context, amountMiB int) error {
+	return c.do(ctx, http.MethodPatch, "/balloon", map[string]int{"amount_mib": amountMiB}, nil)
+}
+
+// BalloonStatistics is the part of GET /balloon/statistics the daemon reads.
+type BalloonStatistics struct {
+	TargetMiB int `json:"target_mib"`
+	ActualMiB int `json:"actual_mib"`
+}
+
+func (c *Client) GetBalloonStatistics(ctx context.Context) (BalloonStatistics, error) {
+	var out BalloonStatistics
+	err := c.do(ctx, http.MethodGet, "/balloon/statistics", nil, &out)
+	return out, err
+}
+
 func (c *Client) PutLogger(ctx context.Context, logger Logger) error {
 	return c.do(ctx, http.MethodPut, "/logger", logger, nil)
 }

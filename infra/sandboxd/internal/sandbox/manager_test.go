@@ -1718,3 +1718,55 @@ func TestDiffSnapshotsMergeIntoACloneOfTheBase(t *testing.T) {
 		t.Fatal("a pause wrote into the template memfile")
 	}
 }
+
+func balloonTargets(inst *fakevm.Instance) []float64 {
+	var out []float64
+	for _, c := range inst.Calls() {
+		if c.Method == "PATCH" && c.Path == "/balloon" {
+			amount, _ := c.Body["amount_mib"].(float64)
+			out = append(out, amount)
+		}
+	}
+	return out
+}
+
+func TestBurstingGuestIsHeldToItsMemoryRequest(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	args := protocol.CreateArgs{SandboxID: testID, Template: "default", VCPUs: 2, MemoryMB: 4096, MemoryRequestMB: 1024}
+	if _, err := h.m.Create(ctx, args); !errors.Is(err, ErrShape) {
+		t.Fatalf("a request without a balloon should be refused, got %v", err)
+	}
+	h.m.builder.Balloon = true
+	if _, err := h.m.Create(ctx, protocol.CreateArgs{SandboxID: "tiny", Template: "default", VCPUs: 2, MemoryMB: 4096, MemoryRequestMB: 64}); !errors.Is(err, ErrShape) {
+		t.Fatalf("a request under 128 MiB should be refused, got %v", err)
+	}
+	if _, err := h.m.Create(ctx, args); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	// The balloon holds the guest above its request, 4096 − 1024 MiB.
+	if got := balloonTargets(h.launcher.Last()); len(got) != 1 || got[0] != 3072 {
+		t.Fatalf("balloon targets after create %v", got)
+	}
+	meta, _ := LoadMetadata(vm.RootDir(h.jailBase, testID))
+	if meta.MemoryRequestMB != 1024 || meta.RequestMB() != 1024 || meta.Info(false).MemoryRequestMB != 1024 {
+		t.Fatalf("metadata %+v", meta)
+	}
+	if _, err := h.m.Pause(ctx, testID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.Resume(ctx, testID); err != nil {
+		t.Fatal(err)
+	}
+	// A resume sets the target again: a guest OOM may have deflated it.
+	if got := balloonTargets(h.launcher.Last()); len(got) != 1 || got[0] != 3072 {
+		t.Fatalf("balloon targets after resume %v", got)
+	}
+	// A request equal to the guest is no burst: no balloon target.
+	if _, err := h.m.Create(ctx, protocol.CreateArgs{SandboxID: "whole", Template: "default", VCPUs: 2, MemoryMB: 4096, MemoryRequestMB: 4096}); err != nil {
+		t.Fatal(err)
+	}
+	if got := balloonTargets(h.launcher.Last()); len(got) != 0 {
+		t.Fatalf("balloon targets without a burst %v", got)
+	}
+}

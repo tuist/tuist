@@ -10,25 +10,28 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 )
 
 const MetadataFile = "metadata.json"
 
 // Metadata is the on-disk record of one sandbox, kept in its jail root.
 type Metadata struct {
-	ID          string `json:"id"`
-	Template    string `json:"template"`
-	Tag         string `json:"tag"`
-	VCPUs       int    `json:"vcpus"`
-	MemoryMB    int    `json:"memory_mb"`
-	WorkspaceGB int    `json:"workspace_gb"`
-	Hostname    string `json:"hostname"`
-	State       string `json:"state"`
-	Slot        int    `json:"slot"`
-	Generation  int    `json:"generation"`
-	ColdBoot    bool   `json:"cold_boot,omitempty"`
+	ID       string `json:"id"`
+	Template string `json:"template"`
+	Tag      string `json:"tag"`
+	VCPUs    int    `json:"vcpus"`
+	MemoryMB int    `json:"memory_mb"`
+	// MemoryRequestMB is protocol.CreateArgs.MemoryRequestMB; zero, as in
+	// metadata from before bursting, means MemoryMB.
+	MemoryRequestMB int    `json:"memory_request_mb,omitempty"`
+	WorkspaceGB     int    `json:"workspace_gb"`
+	Hostname        string `json:"hostname"`
+	State           string `json:"state"`
+	Slot            int    `json:"slot"`
+	Generation      int    `json:"generation"`
+	ColdBoot        bool   `json:"cold_boot,omitempty"`
 	// CPUGuaranteeMilli weighs the VM's cgroup; zero, as in metadata from
 	// before guarantees, is protocol.DefaultCPUGuaranteeMilli.
 	CPUGuaranteeMilli uint64 `json:"cpu_guarantee_milli,omitempty"`
@@ -77,11 +80,26 @@ func (m Metadata) Shape() template.Shape {
 	return template.Shape{VCPUs: m.VCPUs, MemoryMB: m.MemoryMB}
 }
 
+// RequestMB is the memory the sandbox is guaranteed: its request when it
+// bursts, otherwise its whole guest.
+func (m Metadata) RequestMB() int {
+	if m.MemoryRequestMB > 0 && m.MemoryRequestMB < m.MemoryMB {
+		return m.MemoryRequestMB
+	}
+	return m.MemoryMB
+}
+
+// BalloonTargetMiB is what the guest's balloon holds so its page cache and
+// idle memory stay within the request: the guest above it, zero without a
+// burst.
+func (m Metadata) BalloonTargetMiB() int { return m.MemoryMB - m.RequestMB() }
+
 func (m Metadata) Info(workerRunning bool) protocol.SandboxInfo {
 	info := protocol.SandboxInfo{
 		ID: m.ID, State: m.State, Template: m.Template, TemplateTag: m.Tag,
 		VCPUs: m.VCPUs, MemoryMB: m.MemoryMB, WorkspaceGB: m.WorkspaceGB, Hostname: m.Hostname,
-		WorkerRunning: workerRunning, ColdBoot: m.ColdBoot, Generation: m.Generation, CreatedAt: m.CreatedAt, Error: m.Error,
+		MemoryRequestMB: m.MemoryRequestMB,
+		WorkerRunning:   workerRunning, ColdBoot: m.ColdBoot, Generation: m.Generation, CreatedAt: m.CreatedAt, Error: m.Error,
 	}
 	if m.State == protocol.StatePaused {
 		info.CPUMs = m.PausedCPUMs
