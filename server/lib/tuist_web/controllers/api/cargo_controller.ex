@@ -128,10 +128,15 @@ defmodule TuistWeb.API.CargoController do
       |> Map.put(:tuist_version, TuistWeb.Headers.get_build_integration_version(conn, :cargo))
       |> Map.merge(Tuist.ReportActor.attributes(conn))
 
-    create = fn ->
-      with {:ok, id} <- Cargo.create_build(attrs) do
+    response = fn id -> %{id: id, actor: ReportActorPlug.actor(conn)} end
+
+    # The response is recorded as soon as the build row is written, so a retry
+    # after its compilations failed to write replays it instead of writing the
+    # build again.
+    create = fn record ->
+      with {:ok, id} <- Cargo.create_build(attrs, on_written: &record.(response.(&1))) do
         Projects.notify_connected(project, Authentication.current_user(conn))
-        {:ok, %{id: id, actor: ReportActorPlug.actor(conn)}}
+        {:ok, response.(id)}
       end
     end
 

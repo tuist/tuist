@@ -15,9 +15,12 @@ defmodule Tuist.IdempotentRequests do
     * A request finding a claim still being processed waits for it, up to the
       `:wait_timeout` option, and otherwise returns `{:error, :in_progress}`.
     * A creation that fails or raises releases its claim, so a retry can create
-      the report. A claim whose holder disappeared (for example, a replica that
-      was killed mid-request) is taken over once its lease expires. Only the
-      current lease holder can complete or release a claim.
+      the report. A creation whose first write can't be undone records its
+      result as soon as that write is accepted (see `run/5`), so a later step
+      that raises keeps the claim and a retry replays instead of writing the
+      report again. A claim whose holder disappeared (for example, a replica
+      that was killed mid-request) is taken over once its lease expires. Only
+      the current lease holder can complete or release a claim.
 
   Requests without an id, or whose id isn't a UUID, run the creation without a
   claim. Claims are deleted
@@ -43,6 +46,15 @@ defmodule Tuist.IdempotentRequests do
   as is. Results must be plain terms (maps, lists, strings, numbers, atoms and
   date/time structs), since they're serialized with `:erlang.term_to_binary/2`.
 
+  A `create` of arity 1 receives a `record` function. Calling `record.(result)`
+  completes the claim with `result` right away: call it once the report's first
+  non-deduplicating write was accepted, before the writes that follow it. A
+  retry then replays `result` even when a later step raises or fails, rather
+  than writing the report a second time. The steps after `record` are not run
+  again: a failure there leaves the report partial unless the caller redoes
+  them on replay (Gradle builds and command events record `followed_up: false`
+  and redo their deduplicated follow-ups, see `update_result/4`).
+
   Returns `{:ok, result}` for a new creation, `{:replayed, result}` for a
   request that was already processed, `{:error, :in_progress}` when another
   request with the same id is still being processed after the wait, or the
@@ -50,7 +62,7 @@ defmodule Tuist.IdempotentRequests do
   """
   def run(kind, project_id, request_id, create, opts \\ [])
 
-  def run(_kind, _project_id, nil, create, _opts), do: create.()
+  def run(_kind, _project_id, nil, create, _opts), do: call(create, fn _result -> :ok end)
 
   def run(kind, project_id, request_id, create, opts) when is_binary(kind) do
     case Ecto.UUID.cast(request_id) do
@@ -60,7 +72,7 @@ defmodule Tuist.IdempotentRequests do
         claim(key, create, deadline)
 
       :error ->
-        create.()
+        call(create, fn _result -> :ok end)
     end
   end
 
@@ -165,13 +177,11 @@ defmodule Tuist.IdempotentRequests do
   end
 
   defp execute(key, lease_id, create) do
-    case create_releasing_on_failure(key, lease_id, create) do
-      {:ok, result} = created ->
-        Repo.update_all(
-          from(claim in key_query(key), where: claim.lease_id == ^lease_id),
-          set: [completed_at: now(), result: encode(result), updated_at: now()]
-        )
+    record = fn result -> complete(key, lease_id, result) end
 
+    case create_releasing_on_failure(key, lease_id, create, record) do
+      {:ok, result} = created ->
+        complete(key, lease_id, result)
         created
 
       other ->
@@ -179,8 +189,22 @@ defmodule Tuist.IdempotentRequests do
     end
   end
 
-  defp create_releasing_on_failure(key, lease_id, create) do
-    case create.() do
+  defp complete(key, lease_id, result) do
+    Repo.update_all(
+      from(claim in key_query(key), where: claim.lease_id == ^lease_id),
+      set: [completed_at: now(), result: encode(result), updated_at: now()]
+    )
+
+    :ok
+  end
+
+  defp call(create, _record) when is_function(create, 0), do: create.()
+  defp call(create, record) when is_function(create, 1), do: create.(record)
+
+  # `release/2` only deletes a claim that isn't completed, so a failure after
+  # `record` was called keeps the recorded result.
+  defp create_releasing_on_failure(key, lease_id, create, record) do
+    case call(create, record) do
       {:ok, _result} = created ->
         created
 

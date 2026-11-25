@@ -80,6 +80,32 @@ defmodule Tuist.IdempotentRequestsTest do
     assert {:ok, :created} = IdempotentRequests.run("test_run", 1, request_id, fn -> {:ok, :created} end)
   end
 
+  test "keeps the claim when the creation raises or fails after recording its result" do
+    raising_id = UUIDv7.generate()
+    failing_id = UUIDv7.generate()
+
+    assert_raise RuntimeError, fn ->
+      IdempotentRequests.run("command_event", 1, raising_id, fn record ->
+        record.(%{id: 1})
+        raise "boom"
+      end)
+    end
+
+    assert {:error, :unavailable} =
+             IdempotentRequests.run("command_event", 1, failing_id, fn record ->
+               record.(%{id: 2})
+               {:error, :unavailable}
+             end)
+
+    assert {:replayed, %{id: 1}} =
+             IdempotentRequests.run("command_event", 1, raising_id, counting_create({:ok, %{id: 3}}))
+
+    assert {:replayed, %{id: 2}} =
+             IdempotentRequests.run("command_event", 1, failing_id, counting_create({:ok, %{id: 4}}))
+
+    refute_received :created
+  end
+
   test "reports a claim still being processed once the wait runs out" do
     request_id = UUIDv7.generate()
     insert_claim(%{project_id: 1, request_id: request_id})

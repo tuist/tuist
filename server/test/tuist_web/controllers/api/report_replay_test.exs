@@ -202,6 +202,32 @@ defmodule TuistWeb.API.ReportReplayTest do
              ) == 1
     end
 
+    test "a retry after a write following the command event failed replays without writing it again", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      test_pid = self()
+      path = "/api/analytics?project_id=#{user.account.name}/#{project.name}"
+      body = command_event_body(%{id: UUIDv7.generate(), name: "bundle", git_ref: "refs/pull/1/merge"})
+      expect(Tuist.Xcode, :create_xcode_graph, fn _ -> raise "ClickHouse unavailable" end)
+      stub(Tuist.Xcode, :create_xcode_graph, fn _ -> :ok end)
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn args -> send(test_pid, {:vcs_comment, args}) end)
+
+      assert_raise RuntimeError, fn -> post_json(conn, path, body) end
+      retry = build_conn() |> Authentication.put_current_user(user) |> post_json(path, body) |> json_response(:ok)
+      again = build_conn() |> Authentication.put_current_user(user) |> post_json(path, body) |> json_response(:ok)
+
+      assert retry["id"] == body.id
+      assert again == retry
+      assert_received {:vcs_comment, %{git_ref: "refs/pull/1/merge", project_id: project_id}}
+      assert project_id == project.id
+      refute_received {:vcs_comment, _}
+
+      flush_buffers()
+      assert count(Event, project) == 1
+    end
+
     test "requests without an id create distinct command events", %{conn: conn, user: user, project: project} do
       path = "/api/analytics?project_id=#{user.account.name}/#{project.name}"
 
@@ -244,6 +270,35 @@ defmodule TuistWeb.API.ReportReplayTest do
       refute_received {:published, "build.failed"}
     end
 
+    test "a retry after a write following the build failed replays without writing it again", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      test_pid = self()
+      path = "/api/projects/#{user.account.name}/#{project.name}/gradle/builds"
+      body = gradle_build_body(%{id: UUIDv7.generate()})
+      expect(Publisher, :publish, fn _event, _payload, _key -> raise "PostgreSQL unavailable" end)
+      stub(Publisher, :publish, fn event, _payload, key -> send(test_pid, {:published, event, key}) end)
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> send(test_pid, :vcs_comment) end)
+
+      assert_raise RuntimeError, fn -> post_json(conn, path, body) end
+      retry = build_conn() |> Authentication.put_current_user(user) |> post_json(path, body) |> json_response(:created)
+      again = build_conn() |> Authentication.put_current_user(user) |> post_json(path, body) |> json_response(:created)
+
+      assert retry["id"] == body.id
+      assert again == retry
+      assert_received {:published, "build.failed", key}
+      assert key == "gradle:#{body.id}"
+      assert_received :vcs_comment
+      refute_received {:published, _, _}
+      refute_received :vcs_comment
+
+      flush_buffers()
+      assert count(Build, project) == 1
+      assert count(Tuist.Gradle.Task, project) == 1
+    end
+
     test "requests without an id create distinct builds", %{conn: conn, user: user, project: project} do
       path = "/api/projects/#{user.account.name}/#{project.name}/gradle/builds"
 
@@ -258,6 +313,44 @@ defmodule TuistWeb.API.ReportReplayTest do
       refute first["id"] == second["id"]
       flush_buffers()
       assert count(Build, project) == 2
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/cargo/builds" do
+    test "a retry after a write following the build failed replays without writing it again", %{user: user} do
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :cargo)
+      path = "/api/projects/#{user.account.name}/#{project.name}/cargo/builds"
+
+      body = %{
+        id: UUIDv7.generate(),
+        duration_ms: 123,
+        status: "success",
+        command: "build",
+        compilations: [
+          %{
+            name: "widgets",
+            source: "src/lib.rs",
+            kind: "lib",
+            start_offset_ms: 0,
+            duration_ms: 90,
+            status: "success",
+            dependencies: []
+          }
+        ]
+      }
+
+      expect(Tuist.BuildEntities, :enabled?, fn _project_id -> raise "PostgreSQL unavailable" end)
+      stub(Tuist.BuildEntities, :enabled?, fn _project_id -> false end)
+
+      assert_raise RuntimeError, fn ->
+        build_conn() |> Authentication.put_current_user(user) |> post_json(path, body)
+      end
+
+      retry = build_conn() |> Authentication.put_current_user(user) |> post_json(path, body) |> json_response(:created)
+
+      assert retry["id"] == body.id
+      Tuist.Cargo.Build.Buffer.flush()
+      assert count(Tuist.Cargo.Build, project) == 1
     end
   end
 end

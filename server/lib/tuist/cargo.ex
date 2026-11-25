@@ -26,7 +26,15 @@ defmodule Tuist.Cargo do
 
   def test_run_label(scheme), do: dgettext("dashboard_tests", "Cargo tests") <> " · #{scheme}"
 
-  def create_build(attrs) do
+  @doc """
+  Validates and writes a Cargo build report and its compilations.
+
+  `:on_written` is called with the build id once the build row is accepted,
+  before its compilations are written. Idempotent requests record their
+  response there, so a retry after a later write failed doesn't write the
+  build again.
+  """
+  def create_build(attrs, opts \\ []) do
     with {:ok, id} <- Ecto.UUID.cast(attrs[:id]),
          {:ok, cache_metrics} <- CacheMetrics.encode(attrs[:cache]),
          :ok <-
@@ -62,6 +70,7 @@ defmodule Tuist.Cargo do
         })
 
       Build.Buffer.insert(build_entry)
+      Keyword.get(opts, :on_written, fn _id -> :ok end).(id)
 
       rows =
         Enum.map(compilations, fn compilation ->

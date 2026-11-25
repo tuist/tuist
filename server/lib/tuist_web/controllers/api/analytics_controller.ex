@@ -532,15 +532,28 @@ defmodule TuistWeb.API.AnalyticsController do
   # A client retries a run whose response it lost. Command events and their graph,
   # module cache outputs and cache-origin counts go to tables that don't
   # deduplicate, so a request carrying an id claims it first and a retry gets the
-  # first request's response back without writing anything.
+  # first request's response back without writing anything. The response is
+  # recorded as soon as the command event is written, with `followed_up: false`,
+  # so a retry after a later write failed replays it instead of writing the
+  # command event again. Such a replay queues the pull request comment, which
+  # deduplicates, then marks the claim followed up; the event's other rows stay
+  # as written.
   def create(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
-    case IdempotentRequests.run("command_event", selected_project.id, Map.get(body_params, :id), fn ->
-           {:ok, create_command_event(conn, body_params, selected_project)}
+    request_id = Map.get(body_params, :id)
+
+    case IdempotentRequests.run("command_event", selected_project.id, request_id, fn record ->
+           response = create_command_event(conn, body_params, selected_project, record)
+           {:ok, %{body: response, followed_up: true}}
          end) do
-      {result, response} when result in [:ok, :replayed] ->
+      {:ok, %{body: response}} ->
         conn
         |> put_status(:ok)
         |> json(response)
+
+      {:replayed, creation} ->
+        conn
+        |> put_status(:ok)
+        |> json(replay_command_event(body_params, selected_project, request_id, creation))
 
       {:error, :in_progress} ->
         conn
@@ -550,8 +563,35 @@ defmodule TuistWeb.API.AnalyticsController do
     end
   end
 
+  defp replay_command_event(body_params, selected_project, request_id, %{body: response, followed_up: false} = creation) do
+    enqueue_vcs_comment(body_params, selected_project)
+
+    IdempotentRequests.update_result("command_event", selected_project.id, request_id, %{
+      creation
+      | followed_up: true
+    })
+
+    response
+  end
+
+  defp replay_command_event(_body_params, _selected_project, _request_id, %{body: response}), do: response
+
+  # Claims recorded before `followed_up` was tracked hold the response itself.
+  defp replay_command_event(_body_params, _selected_project, _request_id, response), do: response
+
+  defp enqueue_vcs_comment(body_params, selected_project) do
+    if Enum.member?(["test", "share", "bundle"], body_params.name) do
+      VCS.enqueue_vcs_pull_request_comment(%{
+        git_commit_sha: Map.get(body_params, :git_commit_sha),
+        git_ref: Map.get(body_params, :git_ref),
+        git_remote_url_origin: body_params |> Map.get(:git_remote_url_origin) |> RemoteURL.strip_credentials(),
+        project_id: selected_project.id
+      })
+    end
+  end
+
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  defp create_command_event(conn, body_params, selected_project) do
+  defp create_command_event(conn, body_params, selected_project, record) do
     user_id =
       case Authentication.attributed_user(conn) do
         nil -> nil
@@ -630,6 +670,32 @@ defmodule TuistWeb.API.AnalyticsController do
                 })
       end
 
+    # Always the run page, never the build run's. A `build_run_id` on a command
+    # event says the run relates to that build, not that it produced it: every
+    # `test --without-building` shard reuses the build phase's id to link its
+    # report back. Resolving to the build run therefore sent sharded test
+    # executions to the build's page as their own run report. The build run and
+    # test run have their own URLs, carried separately.
+    url = url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
+
+    test_run_url =
+      if is_nil(test_run_id) do
+        nil
+      else
+        url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run_id}")
+      end
+
+    response = %{
+      id: command_event.id,
+      actor: command_event |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
+      project_id: command_event.project_id,
+      name: command_event.name,
+      url: url,
+      test_run_url: test_run_url
+    }
+
+    :ok = record.(%{body: response, followed_up: false})
+
     # Where the account's cache traffic comes from, counted once per run that
     # used the cache. This is the unit placement thresholds are expressed in:
     # endpoint resolutions are cached by the client for an hour and refreshed
@@ -662,38 +728,9 @@ defmodule TuistWeb.API.AnalyticsController do
       CommandEvents.create_module_cache_outputs(command_event, module_cache_outputs)
     end
 
-    if Enum.member?(["test", "share", "bundle"], body_params.name) do
-      VCS.enqueue_vcs_pull_request_comment(%{
-        git_commit_sha: git_commit_sha,
-        git_ref: git_ref,
-        git_remote_url_origin: git_remote_url_origin,
-        project_id: selected_project.id
-      })
-    end
+    enqueue_vcs_comment(body_params, selected_project)
 
-    # Always the run page, never the build run's. A `build_run_id` on a command
-    # event says the run relates to that build, not that it produced it: every
-    # `test --without-building` shard reuses the build phase's id to link its
-    # report back. Resolving to the build run therefore sent sharded test
-    # executions to the build's page as their own run report. The build run and
-    # test run have their own URLs, carried separately.
-    url = url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
-
-    test_run_url =
-      if is_nil(test_run_id) do
-        nil
-      else
-        url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run_id}")
-      end
-
-    %{
-      id: command_event.id,
-      actor: command_event |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
-      project_id: command_event.project_id,
-      name: command_event.name,
-      url: url,
-      test_run_url: test_run_url
-    }
+    response
   end
 
   # Cacheable targets or a resolved endpoint both put the cache in the run's
