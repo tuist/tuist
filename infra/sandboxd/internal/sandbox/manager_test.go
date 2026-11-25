@@ -1763,24 +1763,36 @@ func TestBurstingGuestIsHeldToItsMemoryRequest(t *testing.T) {
 	if got := balloonTargets(inst); len(got) != 1 || got[0] != 3072 {
 		t.Fatalf("balloon targets after resume %v", got)
 	}
-	// An OOM deflated it to 1000 MiB and processes still hold the burst:
-	// with 200 MiB available the balloon must not take it back.
+	// An OOM deflated it to 2500 MiB and processes still hold the burst:
+	// the guest has nothing available, so the balloon must not take it back.
 	meta, _ = LoadMetadata(vm.RootDir(h.jailBase, testID))
-	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 3072, ActualMiB: 1000, AvailableMemory: 200 << 20})
+	mib := func(n int64) *int64 { n <<= 20; return &n }
+	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 3072, ActualMiB: 2500, AvailableMemory: mib(0)})
 	h.m.holdBalloon(ctx, inst.API(), meta)
 	if got := balloonTargets(inst); len(got) != 1 {
 		t.Fatalf("re-inflated into memory the guest uses: %v", got)
 	}
+	// Short of memory, the guest gets a step of its balloon back at once
+	// rather than through its own OOM deflation.
+	h.m.deflateBalloon(ctx, inst.API(), meta)
+	if got := balloonTargets(inst); len(got) != 2 || got[1] != 2500-balloonStepMiB {
+		t.Fatalf("balloon targets for a guest short of memory %v", got)
+	}
+	// With room, a guest is left alone.
+	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 3072, ActualMiB: 1000, AvailableMemory: mib(1500)})
+	h.m.deflateBalloon(ctx, inst.API(), meta)
+	if got := balloonTargets(inst); len(got) != 2 {
+		t.Fatalf("deflated a guest with room: %v", got)
+	}
 	// Once 1500 MiB is available again it inflates by that, less a margin.
-	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 3072, ActualMiB: 1000, AvailableMemory: 1500 << 20})
 	h.m.holdBalloon(ctx, inst.API(), meta)
-	if got := balloonTargets(inst); len(got) != 2 || got[1] != 1000+1500-balloonMarginMiB {
+	if got := balloonTargets(inst); len(got) != 3 || got[2] != 1000+1500-balloonMarginMiB {
 		t.Fatalf("balloon targets after the burst ended %v", got)
 	}
 	// And to the whole target when the guest has room for it.
-	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 2244, ActualMiB: 2244, AvailableMemory: 3000 << 20})
+	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 1476, ActualMiB: 1476, AvailableMemory: mib(3000)})
 	h.m.holdBalloon(ctx, inst.API(), meta)
-	if got := balloonTargets(inst); len(got) != 3 || got[2] != 3072 {
+	if got := balloonTargets(inst); len(got) != 4 || got[3] != 3072 {
 		t.Fatalf("balloon targets with room %v", got)
 	}
 	// A request equal to the guest is no burst: no balloon target.

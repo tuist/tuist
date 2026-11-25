@@ -752,21 +752,31 @@ func (m *Manager) releaseCgroup(id string) {
 	}
 }
 
-// BalloonInterval is how often HoldBalloons sets a bursting guest's balloon
-// back to its target.
-const BalloonInterval = 30 * time.Second
+// BalloonInterval is how often HoldBalloons re-inflates a bursting
+// guest's balloon toward its target; BalloonPollInterval is how often it
+// checks whether a guest needs memory back.
+const (
+	BalloonInterval     = 30 * time.Second
+	BalloonPollInterval = time.Second
+)
 
-// balloonMarginMiB is the guest memory a re-inflation leaves available.
-const balloonMarginMiB = 256
+// A guest whose available memory falls under balloonLowMiB gets up to
+// balloonStepMiB of its balloon back each poll. A re-inflation leaves
+// balloonMarginMiB available, above the low mark, so the two never chase
+// each other.
+const (
+	balloonLowMiB    = 512
+	balloonStepMiB   = 1024
+	balloonMarginMiB = 1024
+)
 
 // holdBalloon sets a bursting guest's balloon to MemoryMB − request, which
-// keeps its page cache and idle memory within the request. A guest OOM
-// deflates it (DeflateOnOOM), so processes burst up to MemoryMB instead of
-// being killed; free page reporting then returns the burst to the host.
-// A deflated balloon re-inflates only as far as the guest has memory
-// available, so it squeezes cache and returns memory the burst freed but
-// never takes back what processes still hold. A failure leaves the guest
-// bursting freely until the next pass, so it is only logged.
+// keeps its page cache and idle memory within the request; deflateBalloon
+// gives a burst memory back. A deflated balloon re-inflates only as far as
+// the guest has memory available, so it squeezes cache and returns memory
+// the burst freed but never takes back what processes still hold. A
+// failure leaves the guest bursting freely until the next pass, so it is
+// only logged.
 func (m *Manager) holdBalloon(ctx context.Context, api *firecracker.Client, meta Metadata) {
 	target := meta.BalloonTargetMiB()
 	if target <= 0 || api == nil {
@@ -776,13 +786,11 @@ func (m *Manager) holdBalloon(ctx context.Context, api *firecracker.Client, meta
 	if err == nil && stats.TargetMiB == target && stats.ActualMiB >= target {
 		return
 	}
-	// Inflate only into memory the guest has available, so a burst its
-	// processes still use is not taken back: re-inflating it whole makes
-	// the guest deflate again on its next OOM, page by page, and a 6 GiB
-	// burst took 152 s on staging instead of a few.
+	// Re-inflating into memory processes hold makes the guest deflate it
+	// again on OOM: a 6 GiB burst took 152 s on staging instead of 0.5 s.
 	want := target
-	if err == nil && stats.AvailableMemory > 0 {
-		want = min(target, stats.ActualMiB+int(stats.AvailableMemory>>20)-balloonMarginMiB)
+	if err == nil && stats.AvailableMemory != nil {
+		want = min(target, stats.ActualMiB+int(*stats.AvailableMemory>>20)-balloonMarginMiB)
 		if want <= stats.ActualMiB {
 			return
 		}
@@ -791,23 +799,46 @@ func (m *Manager) holdBalloon(ctx context.Context, api *firecracker.Client, meta
 		m.log.Warn("holding the guest to its memory request failed", "sandbox", meta.ID, "balloon_mib", want, "error", err)
 		return
 	}
-	// A guest that had reached its target and lost part of it was deflated
-	// by an OOM; a first inflation is not worth a line.
-	if err == nil && stats.TargetMiB > stats.ActualMiB {
+	// A first inflation is not worth a line.
+	if err == nil && stats.TargetMiB > 0 {
 		m.log.Info("re-inflated the guest's balloon toward its memory request", "sandbox", meta.ID, "balloon_mib", want, "target_mib", target, "was_mib", stats.ActualMiB)
 	}
 }
 
-// HoldBalloons sets every running bursting guest's balloon back to its
-// target each BalloonInterval, after a guest OOM deflated it.
+// deflateBalloon lowers a bursting guest's balloon when the guest is short
+// of memory. The guest's own deflate on OOM frees about 1 MiB per OOM
+// notification, which held a 6 GiB burst to about 33 MiB/s on staging;
+// the host lowering the target takes effect at once.
+func (m *Manager) deflateBalloon(ctx context.Context, api *firecracker.Client, meta Metadata) {
+	if meta.BalloonTargetMiB() <= 0 || api == nil {
+		return
+	}
+	stats, err := api.GetBalloonStatistics(ctx)
+	if err != nil || stats.AvailableMemory == nil || *stats.AvailableMemory>>20 >= balloonLowMiB || stats.ActualMiB == 0 {
+		return
+	}
+	want := max(0, min(stats.ActualMiB, stats.TargetMiB)-balloonStepMiB)
+	if err := api.PatchBalloon(ctx, want); err != nil {
+		m.log.Warn("giving a bursting guest memory back failed", "sandbox", meta.ID, "balloon_mib", want, "error", err)
+	}
+}
+
+// HoldBalloons deflates every running bursting guest's balloon when the
+// guest runs short each BalloonPollInterval, and re-inflates it toward its
+// target each BalloonInterval.
 func (m *Manager) HoldBalloons(ctx context.Context) {
-	ticker := time.NewTicker(BalloonInterval)
+	ticker := time.NewTicker(BalloonPollInterval)
 	defer ticker.Stop()
+	lastHold := time.Now()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		}
+		hold := time.Since(lastHold) >= BalloonInterval
+		if hold {
+			lastHold = time.Now()
 		}
 		m.mu.Lock()
 		all := make([]*Sandbox, 0, len(m.sandboxes))
@@ -823,7 +854,10 @@ func (m *Manager) HoldBalloons(ctx context.Context) {
 				continue
 			}
 			callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			m.holdBalloon(callCtx, inst.API(), meta)
+			m.deflateBalloon(callCtx, inst.API(), meta)
+			if hold {
+				m.holdBalloon(callCtx, inst.API(), meta)
+			}
 			cancel()
 		}
 	}
