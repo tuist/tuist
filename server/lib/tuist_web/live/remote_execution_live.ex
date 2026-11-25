@@ -13,6 +13,7 @@ defmodule TuistWeb.RemoteExecutionLive do
   alias Tuist.Projects.Project
   alias Tuist.RemoteExecution
   alias Tuist.RemoteExecution.Analytics
+  alias Tuist.RemoteExecution.RunAnalytics
   alias Tuist.RemoteExecution.Usage
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Components.ErrorCardSection
@@ -31,7 +32,7 @@ defmodule TuistWeb.RemoteExecutionLive do
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     if !(Project.bazel_project?(project) or Project.once_project?(project)), do: raise(NotFoundError)
     once? = Project.once_project?(project)
-    if connected?(socket) and !once?, do: Process.send_after(self(), :refresh_running, @running_refresh_ms)
+    if connected?(socket), do: Process.send_after(self(), :refresh_running, @running_refresh_ms)
 
     {:ok,
      socket
@@ -40,7 +41,7 @@ defmodule TuistWeb.RemoteExecutionLive do
      |> assign(:available_filters, available_filters())
      |> assign(:sort_fields, @sort_fields)
      |> assign_async(:running, fn ->
-       {:ok, %{running: if(once?, do: [], else: RemoteExecution.running_invocations(project))}}
+       {:ok, %{running: RemoteExecution.running_invocations(project)}}
      end)
      |> assign(OpenGraph.og_image_assigns("overview"))}
   end
@@ -90,18 +91,15 @@ defmodule TuistWeb.RemoteExecutionLive do
         {:ok,
          %{
            activity:
-             if(!once?,
-               do:
-                 Analytics.activity(
-                   project.id,
-                   Keyword.merge(opts,
-                     page: page,
-                     search: search,
-                     filters: filters,
-                     sort_by: sort_by,
-                     sort_order: sort_order
-                   )
-                 )
+             analytics(once?).activity(
+               project.id,
+               Keyword.merge(opts,
+                 page: page,
+                 search: search,
+                 filters: filters,
+                 sort_by: sort_by,
+                 sort_order: sort_order
+               )
              )
          }}
       end)
@@ -122,15 +120,11 @@ defmodule TuistWeb.RemoteExecutionLive do
         socket
       else
         assign_async(socket, [:summary, :series], fn ->
-          if once? do
-            {:ok, %{summary: nil, series: nil}}
-          else
-            {:ok,
-             %{
-               summary: summary_with_trends(project.id, period),
-               series: Analytics.time_series(project.id, opts)
-             }}
-          end
+          {:ok,
+           %{
+             summary: summary_with_trends(analytics(once?), project.id, period),
+             series: analytics(once?).time_series(project.id, opts)
+           }}
         end)
       end
 
@@ -283,7 +277,6 @@ defmodule TuistWeb.RemoteExecutionLive do
             selected={@selected_widget == "execution-time"}
           />
           <.percentile_dropdown_widget
-            :if={!@once?}
             id="remote-execution-queue"
             loading={!ready? or @timings == :loading}
             title={phase_title(:queue, @queue_type)}
@@ -308,7 +301,6 @@ defmodule TuistWeb.RemoteExecutionLive do
             empty_label={if @timings == :failed, do: dgettext("dashboard_builds", "Couldn't load")}
           />
           <.percentile_dropdown_widget
-            :if={!@once?}
             id="remote-execution-duration"
             loading={!ready? or @timings == :loading}
             title={phase_title(:execution, @execution_type)}
@@ -414,43 +406,11 @@ defmodule TuistWeb.RemoteExecutionLive do
       </.async_card>
 
       <.card
-        :if={@once?}
-        title={dgettext("dashboard_builds", "Execution diagnostics")}
-        icon="chart_arcs"
-        data-part="bazel-invocations-card"
-      >
-        <.empty_card_section
-          title={
-            dgettext("dashboard_builds", "Per-action remote timings are not available for Struo yet")
-          }
-          data-part="empty-bazel-invocations-card-section"
-          data-once-telemetry-gap
-        >
-          <:image>
-            <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" loading="lazy" />
-            <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" loading="lazy" />
-          </:image>
-        </.empty_card_section>
-        <.card_section data-part="once-telemetry-note">
-          <p>
-            {dgettext(
-              "dashboard_builds",
-              "Struo run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
-            )}
-          </p>
-          <.link_button
-            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/build-runs"}
-            label={dgettext("dashboard_builds", "Open build runs")}
-            variant="secondary"
-            size="medium"
-            underline
-          />
-        </.card_section>
-      </.card>
-
-      <.card
-        :if={!@once?}
-        title={dgettext("dashboard_builds", "Invocations")}
+        title={
+          if @once?,
+            do: dgettext("dashboard_builds", "Runs"),
+            else: dgettext("dashboard_builds", "Invocations")
+        }
         icon="subtask"
         data-part="bazel-invocations-card"
       >
@@ -513,15 +473,18 @@ defmodule TuistWeb.RemoteExecutionLive do
                 row_key={
                   &if(&1[:running?], do: "running-" <> &1.invocation_id, else: &1.invocation_id)
                 }
-                row_navigate={
-                  fn row ->
-                    ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/invocations/#{row.invocation_id}?tab=remote-execution"
-                  end
-                }
+                row_navigate={&invocation_path(assigns, &1)}
               >
-                <:col :let={row} label={dgettext("dashboard_projects", "Invocation")}>
+                <:col
+                  :let={row}
+                  label={
+                    if @once?,
+                      do: dgettext("dashboard_builds", "Run"),
+                      else: dgettext("dashboard_projects", "Invocation")
+                  }
+                >
                   <.text_cell label={
-                    if row[:running?], do: running_command(row), else: requested_command(row)
+                    if row[:running?], do: running_command(row), else: invocation_label(row, @once?)
                   } />
                 </:col>
                 <:col
@@ -625,7 +588,12 @@ defmodule TuistWeb.RemoteExecutionLive do
                   else: dgettext("dashboard_builds", "No invocations match your search")
               }
               get_started_href={
-                if @search == "", do: "/en/docs/guides/features/cache/bazel-cache#remote-execution"
+                if @search == "",
+                  do:
+                    if(@once?,
+                      do: "/en/docs/guides/features/runners/struo",
+                      else: "/en/docs/guides/features/cache/bazel-cache#remote-execution"
+                    )
               }
               data-part="empty-bazel-invocations-card-section"
             >
@@ -641,14 +609,14 @@ defmodule TuistWeb.RemoteExecutionLive do
     """
   end
 
-  defp summary_with_trends(project_id, {start_datetime, end_datetime} = period) do
-    summary = Analytics.summary(project_id, DatePicker.period_opts(period))
+  defp summary_with_trends(analytics, project_id, {start_datetime, end_datetime} = period) do
+    summary = analytics.summary(project_id, DatePicker.period_opts(period))
 
     previous =
       start_datetime
       |> previous_period(end_datetime)
       |> DatePicker.period_opts()
-      |> then(&Analytics.summary(project_id, &1))
+      |> then(&analytics.summary(project_id, &1))
 
     trends =
       for phase <- Analytics.phases(), into: %{} do
@@ -804,9 +772,28 @@ defmodule TuistWeb.RemoteExecutionLive do
     end
   end
 
-  # Once has no profile timings.
-  defp widgets(true = _once?), do: @usage_widgets
-  defp widgets(false), do: @usage_widgets ++ @profile_widgets
+  defp widgets(_once?), do: @usage_widgets ++ @profile_widgets
+
+  # Bazel reads remote phases from published profiles; Struo from the
+  # gateway's action records, which name the Struo run.
+  defp analytics(true = _once?), do: RunAnalytics
+  defp analytics(false), do: Analytics
+
+  defp invocation_path(%{once?: true} = assigns, row) do
+    if row[:run],
+      do: ~p"/#{assigns.selected_account.name}/#{assigns.selected_project.name}/once/runs/#{row.invocation_id}"
+  end
+
+  defp invocation_path(assigns, row),
+    do:
+      ~p"/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/invocations/#{row.invocation_id}?tab=remote-execution"
+
+  defp invocation_label(row, false = _once?), do: requested_command(row)
+  defp invocation_label(%{command: command}, true) when is_binary(command) and command != "", do: command
+
+  # A run whose events never arrived has no command; name it by its ID and target.
+  defp invocation_label(%{invocation_id: id, target_patterns: targets}, true),
+    do: Enum.join([dgettext("dashboard_builds", "Run %{id}", id: String.slice(id, 0, 16)) | Enum.take(targets, 1)], " · ")
 
   # Running invocations lead the first page of the unfiltered table. The
   # table's search and filters match finished invocations' fields, so they

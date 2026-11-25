@@ -197,17 +197,24 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
     end)
   end
 
-  test "Once local actions never become remote execution statistics", %{conn: conn, project: project, path: path} do
+  test "Struo runs show their remote actions, while local actions never count", %{
+    conn: conn,
+    project: project,
+    path: path
+  } do
     project = project |> Ecto.Changeset.change(build_system: :once) |> Repo.update!()
+    run_id = "run-" <> UUIDv7.generate()
 
     {:ok, run} =
       OnceEvents.upsert_run(%{
         project_id: project.id,
-        run_id: UUIDv7.generate(),
+        run_id: run_id,
         kind: "build",
+        command_display: "struo build atlas/mix_application_test",
         started_at: DateTime.utc_now()
       })
 
+    # A local action of the run: never a remote execution.
     OnceEvents.ingest_action(run, %{
       target_execution_id: "local",
       capability: "build",
@@ -220,13 +227,34 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
       finished_at: DateTime.utc_now()
     })
 
+    queued = System.os_time(:microsecond) - 60_000_000
+
+    {:ok, 1} =
+      Tuist.RemoteExecution.Actions.ingest(project, [
+        %{
+          "operation_id" => Ecto.UUID.generate(),
+          "action_hash" => String.duplicate("c", 64),
+          "invocation_id" => run_id,
+          "tool_name" => "struo",
+          "mnemonic" => "elixir-compile",
+          "target" => "atlas/mix_application_test",
+          "exit_code" => 0,
+          "timestamps" => %{
+            "queued" => queued,
+            "worker_start" => queued + 2_000_000,
+            "execution_start" => queued + 2_100_000,
+            "execution_completed" => queued + 5_100_000,
+            "worker_completed" => queued + 5_200_000
+          }
+        }
+      ])
+
     {:ok, view, _} = live(conn, path)
     render_async(view, 5000)
-    assert has_element?(view, "[data-once-telemetry-gap]", "Per-action remote timings are not available for Struo yet")
-    assert has_element?(view, "a[href$='/once/build-runs']", "Open build runs")
-    refute has_element?(view, "#remote-execution-queue")
-    refute has_element?(view, "#remote-execution-chart")
-    assert has_element?(view, "#remote-execution", "No remote executions in this period")
+    refute has_element?(view, "[data-once-telemetry-gap]")
+    assert has_element?(view, "#remote-execution-queue", "2.0s")
+    assert has_element?(view, "#remote-execution-activity", "struo build atlas/mix_application_test")
+    assert has_element?(view, "#remote-execution-activity a[href$='/once/runs/#{run_id}']")
   end
 
   test "empty projects stay discoverable while unsupported and private projects stay protected", %{
