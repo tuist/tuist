@@ -61,6 +61,7 @@ The command runs detached from `tuist`, so it survives a dropped connection. To 
 | Pause or resume | `tuist sandbox pause <id>`, `tuist sandbox resume <id>` |
 | Keep it running past its expiry | `tuist sandbox extend <id> --lifetime-minutes 240` |
 | Mirror the local Git worktree's files into it | `tuist sandbox sync <id>` |
+| Screenshot the booted iOS Simulator or the whole screen of a macOS sandbox | `tuist sandbox screenshot <id> --out shot.png`, `tuist sandbox screenshot <id> --screen --out screen.png` |
 | Copy files out or in | `tuist sandbox cp <id>:<path> <local-path>`, `tuist sandbox cp <local-path> <id>:<path>` |
 | Delete | `tuist sandbox delete <id> --yes` |
 | See usage | `tuist sandbox analytics` |
@@ -110,7 +111,7 @@ You're done when you have created a Mac with create_sandbox, synced this reposit
 Ask me before anything that needs my login or approval, such as tuist auth login. If a step fails or is blocked, stop and tell me which step you reached and the exact error, without secrets.
 ```
 
-The agent creates one Mac per task, with the [Xcode](#xcode) the project pins: `create_sandbox` lists the Xcodes it can pick and tells the agent to read the project's pin, such as `.xcode-version`. Before each command, it runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. The Mac already has [Tuist](#tuist-in-sandbox), the project's pinned version when it pins one, signed in to your account's cache, and the agent reads the Mac's guide once. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses, is archived when its two-hour lifetime ends, and is deleted after 14 days; the agent extends the lifetime before a long build.
+The agent creates one Mac per task, with the [Xcode](#xcode) the project pins: `create_sandbox` lists the Xcodes it can pick and tells the agent to read the project's pin, such as `.xcode-version`. Before each command, it runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. The Mac already has [Tuist](#tuist-in-sandbox), the project's pinned version when it pins one, signed in to your account's cache, and the agent reads the Mac's guide once. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, launches the app in the Simulator and shows it to you with the MCP server's `get_sandbox_screenshot` or `tuist sandbox screenshot`, copies results such as a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses, is archived when its two-hour lifetime ends, and is deleted after 14 days; the agent extends the lifetime before a long build.
 
 ## Linux and macOS {#platforms}
 

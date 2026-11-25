@@ -102,9 +102,14 @@ An agent that runs elsewhere, such as on Linux, uses the Tuist CLI there with
 - \`tuist sandbox exec <id> --cwd <root> -- '<command>'\` streams output and
   exits with the command's status. Start long builds in the background with
   output in a log file, then read the log.
-- \`tuist sandbox cp <id>:<path> <local-path>\` copies results back, such as a
-  screenshot (\`xcrun simctl io booted screenshot /tmp/shot.png\`), an
-  \`.xcresult\` bundle or a built app.
+- \`tuist sandbox screenshot <id> --out shot.png\` captures the booted
+  simulator as a PNG on that machine (\`--screen\` for the whole screen,
+  \`--device <name>\` when several simulators are booted). Boot one, install
+  and launch the app first. Over the Tuist MCP server, \`list_sandbox_devices\`,
+  \`boot_sandbox_device\`, \`launch_sandbox_app\`, \`open_sandbox_url\` and
+  \`get_sandbox_screenshot\` (which returns the image) do the same.
+- \`tuist sandbox cp <id>:<path> <local-path>\` copies other results back, such
+  as an \`.xcresult\` bundle or a built app.
 - Run only the builds and tests the user asked for, and delete the sandbox
   (\`tuist sandbox delete <id> --yes\`) when the task is done. An idle sandbox
   pauses, and the next command resumes it.

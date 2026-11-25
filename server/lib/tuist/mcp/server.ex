@@ -69,6 +69,11 @@ defmodule Tuist.MCP.Server do
     Tools.ResumeSandbox,
     Tools.ArchiveSandbox,
     Tools.ExtendSandbox,
+    Tools.ListSandboxDevices,
+    Tools.BootSandboxDevice,
+    Tools.LaunchSandboxApp,
+    Tools.OpenSandboxURL,
+    Tools.GetSandboxScreenshot,
     Tools.DeleteSandbox,
     Tools.ListAmpWorkspaceConnections,
     Tools.ConnectAmpWorkspace,
@@ -197,7 +202,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.84.0",
+      version: "1.85.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

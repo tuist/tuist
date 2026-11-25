@@ -923,7 +923,13 @@ socket, the poller and the caller share a replica:
   Every caller
   requires an account administrator and the sandboxes flag, read-only
   calls included, because sandboxes run arbitrary commands. MCP does not
-  expose `exec`.
+  expose `exec`. Its device tools (`Tuist.Sandboxes.Devices`) run fixed
+  scripts through `exec` with user values only in environment variables; keep
+  it that way. Script exit codes 3–6 map to `devices_unsupported`,
+  `device_not_booted`, `device_not_found` and `app_not_found`. They are named
+  for devices, not simulators, so Android emulators can join as another
+  `platform`; a Linux sandbox answers `devices_unsupported` before any exec. The
+  screenshot is a scaled JPEG because synchronous exec caps stdout at 1 MiB.
 
 ## Related Context
 
