@@ -1060,6 +1060,24 @@ func TestBuild_MacOSPodHasNoKataKernelParamsAnnotation(t *testing.T) {
 	}
 }
 
+func TestBuild_GuestDiskGBOnlyOnMacOSPoolsThatSetIt(t *testing.T) {
+	// tart-kubelet grows the VM's disk from this annotation; a pool
+	// without podDiskGB must keep the image's disk.
+	if _, ok := build(t, basePool("")).Annotations[GuestDiskGBAnnotation]; ok {
+		t.Errorf("macOS pod without podDiskGB carries %s", GuestDiskGBAnnotation)
+	}
+	pool := basePool("")
+	pool.Spec.PodDiskGB = 400
+	if got := build(t, pool).Annotations[GuestDiskGBAnnotation]; got != "400" {
+		t.Errorf("%s = %q, want \"400\"", GuestDiskGBAnnotation, got)
+	}
+	linux := basePool("linux")
+	linux.Spec.PodDiskGB = 400
+	if _, ok := build(t, linux).Annotations[GuestDiskGBAnnotation]; ok {
+		t.Errorf("Linux pod carries %s; only tart-kubelet reads it", GuestDiskGBAnnotation)
+	}
+}
+
 func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
 	// Empty dindImage (macOS-only install) must not produce a
 	// sidecar or DOCKER_HOST env even on a Linux pool.

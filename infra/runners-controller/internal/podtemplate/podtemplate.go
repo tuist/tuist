@@ -51,6 +51,10 @@ const (
 	// accounting without inspecting mutable cluster state.
 	RuntimeClassRevisionAnnotation = "tuist.dev/runtime-class-revision"
 
+	// GuestDiskGBAnnotation carries RunnerPoolSpec.PodDiskGB to
+	// tart-kubelet, which grows the macOS VM's disk to it before boot.
+	GuestDiskGBAnnotation = "tuist.dev/guest-disk-gb"
+
 	// ReservationTaintKey is the taint the controller puts on a node it
 	// is draining to make room for a pool whose Pods no node can seat
 	// right now. Its value is the pool the node is being held for, and
@@ -726,6 +730,11 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	annotations := map[string]string{}
 	if linuxPod {
 		annotations["tuist.dev/cache-volume-revision"] = CacheVolumeRevision(pool)
+	}
+	if !linuxPod && pool.Spec.PodDiskGB > 0 {
+		// tart-kubelet grows the VM's disk to this before it boots
+		// (guestDiskGBAnnotation in its podagent).
+		annotations[GuestDiskGBAnnotation] = strconv.Itoa(int(pool.Spec.PodDiskGB))
 	}
 	if linuxPod && IsKataRuntimeClass(pool.Spec.RuntimeClass) {
 		// Enable PSI (/proc/pressure/*) in the kata guest so the runner

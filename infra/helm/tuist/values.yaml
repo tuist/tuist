@@ -2113,9 +2113,12 @@ rackFleet:
     # against concurrency limits at the shape; only its Pods grow. Size the
     # hosts' `machine` for the guests, and keep memory per vCPU the same across
     # this fleet's guests so memory binds guest count where CPU does. A guest
-    # smaller than its shape fails the render.
+    # smaller than its shape fails the render. `diskGb` (non-default shapes
+    # only) grows the guest's disk past the image's `disk_size_gb` before it
+    # boots; count it in the hosts' disk plan.
     guestShapes: {}
     #   8vcpu-24gb: { vcpus: 10, memoryGb: 30 }
+    #   16vcpu-48gb: { vcpus: 16, memoryGb: 48, diskGb: 400 }
     # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
     # each with its `autoscaling` (and optional `rollout`). A shape not named
     # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit

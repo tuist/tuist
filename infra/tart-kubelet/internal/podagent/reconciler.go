@@ -617,6 +617,18 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			return fmt.Errorf("tart set: %w", err)
 		}
 	}
+	// A pool can give its guests a bigger disk than the image's
+	// (RunnerPoolSpec.PodDiskGB, rendered as this annotation). The guest
+	// grows its APFS container into the space at boot, before it polls.
+	// Best-effort: on error the VM boots on the image's disk, which is what
+	// every guest had before, rather than leaving the Pod stuck.
+	diskGB, err := guestDiskGBFromPod(pod)
+	if err == nil && diskGB > 0 {
+		err = r.Tart.ResizeDisk(ctx, vmName, diskGB)
+	}
+	if err != nil && r.Recorder != nil {
+		r.Recorder.Event(pod, corev1.EventTypeWarning, "DiskResizeSkipped", fmt.Sprintf("grow VM disk: %v", err))
+	}
 
 	// Record provisioning duration once, on the path that actually starts
 	// the VM: Pod creation → here (after pull + clone + set). Recording
@@ -1980,6 +1992,27 @@ func vmResourcesFromPod(c corev1.Container) (cpu int, memoryMB int) {
 	cpu = pickIntCPU(c.Resources.Limits, c.Resources.Requests)
 	memoryMB = pickIntMemoryMB(c.Resources.Limits, c.Resources.Requests)
 	return cpu, memoryMB
+}
+
+// guestDiskGBAnnotation sizes the VM's disk in decimal GB (Tart's
+// `--disk-size` unit). The runners-controller renders it from
+// RunnerPoolSpec.PodDiskGB; keep the name in step with
+// internal/podtemplate there.
+const guestDiskGBAnnotation = "tuist.dev/guest-disk-gb"
+
+// guestDiskGBFromPod returns the disk size the Pod asks for, 0 when it
+// asks for none. A malformed value is an error rather than a silent
+// default: the Pod's jobs were sized for the bigger disk.
+func guestDiskGBFromPod(pod *corev1.Pod) (int, error) {
+	value, ok := pod.Annotations[guestDiskGBAnnotation]
+	if !ok {
+		return 0, nil
+	}
+	gb, err := strconv.Atoi(value)
+	if err != nil || gb <= 0 {
+		return 0, fmt.Errorf("annotation %s=%q is not a positive whole number of GB", guestDiskGBAnnotation, value)
+	}
+	return gb, nil
 }
 
 func pickIntCPU(lists ...corev1.ResourceList) int {

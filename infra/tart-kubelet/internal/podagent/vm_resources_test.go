@@ -5,6 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestVMResourcesFromPod_PrefersLimitsOverRequests(t *testing.T) {
@@ -66,5 +67,24 @@ func TestVMResourcesFromPod_NoSpecMeansZeroes(t *testing.T) {
 	cpu, mem := vmResourcesFromPod(c)
 	if cpu != 0 || mem != 0 {
 		t.Fatalf("expected (0, 0) for unspecified resources; got (%d, %d)", cpu, mem)
+	}
+}
+
+func TestGuestDiskGBFromPod(t *testing.T) {
+	for _, tc := range []struct {
+		annotations map[string]string
+		want        int
+		wantErr     bool
+	}{
+		{annotations: nil, want: 0},
+		{annotations: map[string]string{guestDiskGBAnnotation: "400"}, want: 400},
+		{annotations: map[string]string{guestDiskGBAnnotation: "400Gi"}, wantErr: true},
+		{annotations: map[string]string{guestDiskGBAnnotation: "0"}, wantErr: true},
+	} {
+		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: tc.annotations}}
+		got, err := guestDiskGBFromPod(pod)
+		if (err != nil) != tc.wantErr || got != tc.want {
+			t.Fatalf("guestDiskGBFromPod(%v) = %d, %v; want %d, error %v", tc.annotations, got, err, tc.want, tc.wantErr)
+		}
 	}
 }
