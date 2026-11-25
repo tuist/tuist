@@ -716,6 +716,14 @@ func main() {
 	// namespace can't satisfy that). The reconciler only ever
 	// touches Services there, so narrowing the cache matches both
 	// the RBAC shape and the actual access pattern.
+	//
+	// Secrets and ServiceAccounts are scoped to the operator's own namespace
+	// for the same reason: its RBAC grants them there only (a cluster-wide
+	// Secret watch reads every credential in the cluster). The kube-system
+	// bootstrap tokens are created and deleted, never read through the cache.
+	ownNamespace := map[string]cache.Config{secretsNamespace: {}}
+	mgrOptions.Cache.ByObject[&corev1.Secret{}] = cache.ByObject{Namespaces: ownNamespace}
+	mgrOptions.Cache.ByObject[&corev1.ServiceAccount{}] = cache.ByObject{Namespaces: ownNamespace}
 	if egressProxyGroup != "" && egressNamespace != "" {
 		mgrOptions.Cache.ByObject[&corev1.Service{}] = cache.ByObject{
 			Namespaces: map[string]cache.Config{
