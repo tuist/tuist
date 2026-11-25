@@ -22,8 +22,8 @@ defmodule Noora.Menu do
   use Phoenix.Component
 
   import Noora.CheckboxControl
-  import Noora.Icon, except: [menu: 1]
   import Noora.ContentDivider
+  import Noora.Icon, except: [menu: 1]
   import Noora.MiddleTruncate
   import Noora.Utils
 

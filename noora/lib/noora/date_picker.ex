@@ -50,8 +50,8 @@ defmodule Noora.DatePicker do
   """
   use Phoenix.Component
 
-  import Noora.Icon
   import Noora.ContentDivider
+  import Noora.Icon
 
   attr :id, :string, required: true, doc: "Unique identifier for the date picker component"
 

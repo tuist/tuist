@@ -14,8 +14,8 @@ defmodule Noora.Dropdown do
   use Phoenix.Component
 
   import Noora.CheckboxControl
-  import Noora.Icon
   import Noora.ContentDivider
+  import Noora.Icon
   import Noora.Utils
 
   attr(:id, :string, required: true, doc: "Unique identifier for the dropdown component")
