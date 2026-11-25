@@ -447,6 +447,55 @@ defmodule Tuist.Kubernetes.ClientTest do
       assert {:ok, %{"metadata" => %{"name" => "sandboxd-abc"}}} =
                Client.resize_sandbox_daemon_memory("tuist-sandboxes", "sandboxd-abc", 12_884_901_888, opts)
     end
+
+    @tag :tmp_dir
+    test "rereads the Pod and patches again when its status moved its version in between", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+      {:ok, versions} = Agent.start_link(fn -> ["41", "42"] end)
+
+      expect(Req, :request, 4, fn request_opts ->
+        case request_opts[:method] do
+          :get ->
+            version = Agent.get_and_update(versions, fn [version | rest] -> {version, rest} end)
+            {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"resourceVersion" => version, "uid" => "pod-uid"}}}}
+
+          :patch ->
+            case JSON.decode!(request_opts[:body]) do
+              %{"metadata" => %{"resourceVersion" => "41"}} -> {:ok, %Req.Response{status: 409, body: %{"code" => 409}}}
+              %{"metadata" => %{"resourceVersion" => "42"}} -> {:ok, %Req.Response{status: 200, body: %{}}}
+            end
+        end
+      end)
+
+      assert {:ok, %{}} = Client.resize_sandbox_daemon_memory("tuist-sandboxes", "sandboxd-abc", 2_147_483_648, opts)
+    end
+
+    @tag :tmp_dir
+    test "writes nothing when the Pod already asks for the size", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      pod = %{
+        "metadata" => %{"resourceVersion" => "7", "uid" => "pod-uid"},
+        "spec" => %{
+          "containers" => [
+            %{
+              "name" => "sandboxd",
+              "resources" => %{
+                "requests" => %{"cpu" => "2", "memory" => "2147483648"},
+                "limits" => %{"memory" => "2147483648"}
+              }
+            }
+          ]
+        }
+      }
+
+      expect(Req, :request, fn request_opts ->
+        assert request_opts[:method] == :get
+        {:ok, %Req.Response{status: 200, body: pod}}
+      end)
+
+      assert {:ok, ^pod} = Client.resize_sandbox_daemon_memory("tuist-sandboxes", "sandboxd-abc", 2_147_483_648, opts)
+    end
   end
 
   describe "resize_sandbox_daemon_memory/4 with a vmm container" do

@@ -712,9 +712,10 @@ defmodule Tuist.Sandboxes.Capacity do
   VMs. When nothing fits, a shared host's carve-out grows toward its
   ceiling ahead of queued CI (see `allocation_allows?/2`): a growth the
   kubelet defers stays asked for, which keeps new runner Pods off the room
-  that running jobs free.
+  that running jobs free. `on_grow` runs before it waits for a growth, so
+  callers can tell that wait for room from the VM's preparation.
   """
-  def place_execution(%Sandbox{} = sandbox, image_tag) do
+  def place_execution(%Sandbox{} = sandbox, image_tag, on_grow \\ fn -> :ok end) do
     candidates =
       Enum.filter(Nodes.connected_nodes(), fn node ->
         execution_node?(node, image_tag, sandbox)
@@ -731,6 +732,8 @@ defmodule Tuist.Sandboxes.Capacity do
         {:ok, node_name}
 
       nil ->
+        on_grow.()
+
         with {:ok, grown} <-
                candidates
                |> Enum.filter(&execution_fits?(&1, sandbox))
@@ -1198,11 +1201,30 @@ defmodule Tuist.Sandboxes.Capacity do
   # one whose growth the kubelet defers (the node has no memory no Pod
   # requests), releasing that growth. The
   # last node's deferred growth stays asked for, so the runners controller
-  # frees room there and the next attempt fits.
+  # frees room there and the next attempt fits. A node whose growth an
+  # earlier attempt left asked for comes first and keeps it, deferred or
+  # not: otherwise every attempt during a CI burst would release it and ask
+  # every node again.
   defp grow_somewhere(nodes, charge, wait_ms, until, prefer \\ []) do
     deadline = System.monotonic_time(:millisecond) + wait_ms
-    {preferred, others} = nodes |> growable(charge) |> Enum.split_with(&(&1.name in prefer))
-    try_growing(preferred ++ others, charge, deadline, until)
+    {growing, others} = nodes |> growable(charge) |> Enum.split_with(&growth_asked?/1)
+    {preferred, others} = Enum.split_with(others, &(&1.name in prefer))
+
+    case keep_growing(growing, charge, deadline, until) do
+      {:error, _reason} -> try_growing(preferred ++ others, charge, deadline, until)
+      result -> result
+    end
+  end
+
+  defp growth_asked?(node), do: (asked_limit(node) || 0) > (reported_limit(node) || 0)
+
+  defp keep_growing(nodes, charge, deadline, until) do
+    Enum.reduce_while(nodes, {:error, :no_capacity}, fn node, _result ->
+      case grow(node, charge, max(deadline - System.monotonic_time(:millisecond), 0), until) do
+        {:error, _reason} = error -> {:cont, error}
+        result -> {:halt, result}
+      end
+    end)
   end
 
   defp try_growing([], _charge, _deadline, _until), do: {:error, :no_capacity}
