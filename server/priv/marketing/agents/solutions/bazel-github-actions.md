@@ -1,12 +1,21 @@
-# Bazel cache for GitHub Actions: a shared remote cache across runners
+# Bazel cache on GitHub Actions: remote cache vs disk cache
 
-Tuist makes Bazel on GitHub Actions fast by giving every ephemeral runner a shared remote cache and recording each invocation, so jobs reuse actions that developers and earlier jobs already ran. Improve the project first, then its execution environment: connect the workspace with `tuist bazel setup`, authenticate with GitHub's OIDC token instead of a stored secret, and use the recorded invocations to find what still runs on every job.
+Tuist gives every GitHub Actions runner a shared Bazel remote cache. Compare it with Bazel's disk and repository caches, then set it up without stored secrets.
+
+Every GitHub Actions job starts on an empty machine, so Bazel's local caches start cold. Tuist records each invocation and serves action results that developers and earlier jobs already produced. Improve the project first, then its execution environment: connect the workspace with `tuist bazel setup`, authenticate with GitHub's OIDC token instead of a stored secret, and use the recorded invocations to find what still runs on every job.
 
 Tuist is build infrastructure for engineering teams and coding agents. It works with the GitHub-hosted or self-hosted runners you already use and does not replace GitHub Actions.
 
 ## Why Bazel is slow on GitHub Actions
 
 Bazel avoids work by remembering it: an in-memory server keeps the analyzed build graph, the output base and disk cache keep action results, and the repository cache keeps downloaded dependencies. A [GitHub-hosted runner is a new virtual machine](https://docs.github.com/en/actions/reference/runners/github-hosted-runners) for every job, so all of that starts empty. Bazel's own [remote caching guide](https://bazel.build/remote/caching) notes that in CI the server's in-memory state is lost and must be rebuilt every time.
+
+| Cache | What it stores | Shared with | On a GitHub-hosted runner |
+| --- | --- | --- | --- |
+| Action cache (output base) | Metadata about outputs already built in this workspace | The same output base | Empty on every job |
+| [Disk cache](https://bazel.build/remote/caching#disk-cache) | Action results and output files in the remote-cache format, in a local directory set by `--disk_cache` | Workspaces and branches on one machine | Empty unless saved and restored with the Actions cache |
+| [Repository cache](https://bazel.build/run/build#repository-cache) | Downloaded external dependency files, keyed by SHA-256, in the directory set by `--repository_cache` | All workspaces and Bazel versions on one machine | Empty unless saved and restored with the Actions cache |
+| [Remote cache](https://bazel.build/remote/caching) | An action cache and a content-addressable store of outputs on the server that `--remote_cache` points to | Every machine that connects: CI runners, developers, and agents | Keeps results from earlier jobs and developers, because it lives outside the runner |
 
 Teams usually try one of three fixes:
 
@@ -89,6 +98,10 @@ The MCP credential does not authenticate Bazel's remote services; the agent shou
 
 ## Frequently asked questions
 
+### What is the difference between Bazel's disk cache and a remote cache?
+
+Both store action results in the same format. The disk cache is a directory on one machine, so it helps when you switch branches or keep several checkouts there. A remote cache is a server that every runner and developer machine reads from, so a GitHub-hosted runner that starts empty still gets the results that other jobs already produced.
+
 ### How do I cache Bazel on GitHub Actions?
 
 There are two options. setup-bazel saves Bazel's disk and repository caches with the GitHub Actions cache, which is limited to 10 GB per repository by default and scoped by branch. A remote cache, such as Tuist's, lets Bazel fetch individual action results from a shared service that every branch, runner, and developer machine uses. Many teams keep the repository cache in the Actions cache and use a remote cache for action results.
@@ -111,4 +124,4 @@ Not to start. Measure cache hits and the critical path first: avoided actions he
 
 ## Sources and review
 
-Sources checked on **2026-11-13**: [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [larger runners](https://docs.github.com/en/actions/reference/runners/larger-runners), [dependency caching](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching), [Ubuntu 24.04 image](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md), [setup-bazel](https://github.com/bazel-contrib/setup-bazel), [Bazel remote caching](https://bazel.build/remote/caching), and the [Bazel 7 release notes](https://blog.bazel.build/2023/12/11/bazel-7-release.html). Written by Tuist.
+Sources checked on **2026-11-25**: [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [larger runners](https://docs.github.com/en/actions/reference/runners/larger-runners), [dependency caching](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching), [Ubuntu 24.04 image](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md), [setup-bazel](https://github.com/bazel-contrib/setup-bazel), [Bazel remote caching](https://bazel.build/remote/caching), [Bazel's repository cache](https://bazel.build/run/build#repository-cache), and the [Bazel 7 release notes](https://blog.bazel.build/2023/12/11/bazel-7-release.html). Written by Tuist.
