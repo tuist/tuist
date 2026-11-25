@@ -35,7 +35,14 @@ defmodule Mix.Tasks.Tuist.Coverage.Complete do
     if sha in [nil, ""],
       do: Mix.raise("The commit is unknown: pass --commit or run inside a Git checkout.")
 
-    case HTTP.project_request(:post, "/tests/coverage/commits/#{sha}/complete", %{}, options) do
+    # The server waits up to 15 s for the commit's runs to be stored before
+    # it answers, past the default request timeout.
+    case HTTP.project_request(
+           :post,
+           "/tests/coverage/commits/#{sha}/complete",
+           %{},
+           Keyword.put(options, :timeout, 60_000)
+         ) do
       {:ok, %{"coverage" => coverage}} ->
         Mix.shell().info(
           "Coverage of commit #{String.slice(sha, 0, 7)} is complete: #{coverage}%.\n" <>

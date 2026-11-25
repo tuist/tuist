@@ -65,7 +65,8 @@ defmodule TuistEx.Analytics.HTTP do
 
   @doc """
   Calls a project endpoint, `/api/projects/:account/:project` followed by
-  `suffix`, and returns `{:ok, decoded_body}` on 2xx.
+  `suffix`, and returns `{:ok, decoded_body}` on 2xx. A `:timeout` option
+  (milliseconds) replaces the request's default.
   """
   def project_request(method, suffix, body, options) do
     report? = method == :post and suffix in ["/tests", "/mix/builds"]
@@ -84,13 +85,17 @@ defmodule TuistEx.Analytics.HTTP do
           do: [{"x-tuist-ex-version", @version} | Actor.headers(options)],
           else: []
 
-      case HTTP.request(
-             method,
-             url,
-             body,
-             if(token, do: [{"authorization", "Bearer " <> token}], else: []) ++
-               report_headers ++ runner_headers(suffix, options)
-           ) do
+      headers =
+        if(token, do: [{"authorization", "Bearer " <> token}], else: []) ++
+          report_headers ++ runner_headers(suffix, options)
+
+      response =
+        case Keyword.take(options, [:timeout]) do
+          [] -> HTTP.request(method, url, body, headers)
+          timeouts -> HTTP.request(method, url, body, headers, timeouts)
+        end
+
+      case response do
         {:ok, status, decoded} when status in 200..299 -> {:ok, decoded}
         {:ok, status, decoded} -> {:error, {:http, status, decoded}}
         {:error, reason} -> {:error, reason}

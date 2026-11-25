@@ -35,6 +35,8 @@ defmodule Mix.Tasks.Tuist.Coverage.CompleteTest do
                                       %{},
                                       options ->
       assert options[:project] == "acme/app"
+      # Outlasts the server's 15 s wait for the commit's runs.
+      assert options[:timeout] > 15_000
       {:ok, %{"coverage" => 81.5}}
     end)
 
