@@ -7,7 +7,6 @@ alias Atlas.LLMs.ChatGPT
 alias Atlas.MCP.Proxy.StripeCallPolicy
 alias Atlas.Push.Config
 alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
-alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.AmazonSES
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
@@ -877,12 +876,13 @@ cond do
 end
 
 if config_env() == :prod do
-  encryption_key =
-    System.get_env("ENCRYPTION_KEY") ||
-      raise """
-      environment variable ENCRYPTION_KEY is missing.
-      Generate one with: elixir -e "IO.puts(Base.encode64(:crypto.strong_rand_bytes(32)))"
-      """
+  # ENCRYPTION_KEYS can replace ENCRYPTION_KEY once a rotation retires it;
+  # Atlas.Vault validates both when it starts.
+  System.get_env("ENCRYPTION_KEY") || System.get_env("ENCRYPTION_KEYS") ||
+    raise """
+    environment variable ENCRYPTION_KEY is missing.
+    Generate one with: elixir -e "IO.puts(Base.encode64(:crypto.strong_rand_bytes(32)))"
+    """
 
   database_url =
     System.get_env("DATABASE_URL") ||
@@ -928,13 +928,12 @@ if config_env() == :prod do
            socket_options: maybe_ipv6
          ] ++ database_ssl_opts
 
+  # Parsed and checked by Atlas.Vault.keys!/1; its moduledoc has the rotation steps.
   config :atlas, Atlas.Vault,
-    ciphers: [
-      default: {
-        GCM,
-        tag: "AES.GCM.V1", key: Base.decode64!(encryption_key)
-      }
-    ]
+    key: System.get_env("ENCRYPTION_KEY"),
+    keys: System.get_env("ENCRYPTION_KEYS"),
+    current_key: System.get_env("ENCRYPTION_CURRENT_KEY"),
+    key_ids: System.get_env("ENCRYPTION_KEY_IDS")
 
   config :atlas, AtlasWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
