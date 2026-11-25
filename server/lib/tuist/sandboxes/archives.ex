@@ -1273,20 +1273,21 @@ defmodule Tuist.Sandboxes.Archives do
   defp loading_memory?(%Sandbox{}), do: false
 
   @doc """
-  Marks a sandbox resumed from its archive's memory image as still reading
-  it, which keeps the archive until `memory_loaded/1`. A node may report
-  the memory loaded before its create answer arrives; then the archive
-  goes now.
+  The attributes that mark a sandbox resumed from its archive's memory image
+  as still reading it, which keeps the archive until `memory_loaded/1`.
+  Write them in the same update that makes the row running: `run/0` deletes
+  the archive of a running row that is not marked, and in production
+  (2026-11-25) one ran between two separate updates and deleted a lazy-disk
+  restore's only copy under it. A node may report the memory loaded before
+  its create answer arrives; then nothing is marked and `delete_restored/1`
+  deletes the archive.
   """
-  def memory_loading(%Sandbox{archive_memory: %{"loaded" => true}} = sandbox), do: delete_restored(sandbox)
+  def memory_loading_attrs(%Sandbox{archive_memory: %{"loaded" => true}}), do: %{}
 
-  def memory_loading(%Sandbox{archive_memory: %{} = memory} = sandbox) do
-    sandbox
-    |> Sandbox.update_changeset(%{archive_memory: Map.put(memory, "loading_since", DateTime.to_iso8601(now()))})
-    |> Repo.update()
-  end
+  def memory_loading_attrs(%Sandbox{archive_memory: %{} = memory}),
+    do: %{archive_memory: Map.put(memory, "loading_since", DateTime.to_iso8601(now()))}
 
-  def memory_loading(%Sandbox{}), do: :ok
+  def memory_loading_attrs(%Sandbox{}), do: %{}
 
   @doc """
   A node reports that a warm restore holds all of its memory: the archive

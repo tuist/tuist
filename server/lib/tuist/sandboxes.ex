@@ -726,6 +726,8 @@ defmodule Tuist.Sandboxes do
             do: %{},
             else: %{cache_volume_id: cache_volume_id, cache_generation: cache_generation}
 
+        restored = match?({:archive, _}, source)
+
         result =
           mark_created(
             sandbox,
@@ -741,14 +743,13 @@ defmodule Tuist.Sandboxes do
               },
               cache_attrs
             ),
-            boot_event
+            boot_event,
+            restored and data["memory_pending"] == true
           )
 
-        # A sandbox resumed from its archived memory still reads it until its
-        # node reports `memory_loaded`.
-        with {:ok, running} <- result, {:archive, _source} <- source do
-          if data["memory_pending"], do: Archives.memory_loading(running), else: Archives.delete_restored(running)
-        end
+        # A sandbox resumed from its archived memory keeps the archive until
+        # its node reports `memory_loaded`; any other restore deletes it now.
+        with {:ok, running} <- result, true <- restored, do: Archives.delete_restored(running)
 
         result
 
@@ -1715,11 +1716,15 @@ defmodule Tuist.Sandboxes do
   # down rather than marked running; a failed delete is retried, which removes
   # the row once the node answers. Other `error` writers (the stuck-create
   # reaper, `sandbox_died`) leave no request, so a finishing create heals them.
-  defp mark_created(%Sandbox{} = sandbox, %{node_name: node_name} = attrs, boot_event) do
+  # With `memory_pending`, the same update marks the archive as still being
+  # read, computed from the locked row: a `memory_loaded` that beat the create
+  # answer may have recorded it loaded.
+  defp mark_created(%Sandbox{} = sandbox, %{node_name: node_name} = attrs, boot_event, memory_pending) do
     {:ok, outcome} =
       Repo.transaction(fn ->
         case Repo.one(from(s in Sandbox, where: s.id == ^sandbox.id, lock: "FOR UPDATE")) do
           %Sandbox{state: state, delete_requested_at: nil} = current when state != :deleted ->
+            attrs = if memory_pending, do: Map.merge(attrs, Archives.memory_loading_attrs(current)), else: attrs
             update_sandbox(current, attrs, boot_event)
 
           current ->

@@ -558,7 +558,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   is placed, warm or cold, only on nodes that set `lazy_disks`. The
   object is deleted once the restored sandbox runs (`delete_restored/1`),
   after a warm restore only once its node reports `memory_loaded` (or two
-  hours later), with the sandbox, or with the account. `archived` rows are outside every
+  hours later), with the sandbox, or with the account. A warm restore's row
+  becomes `running` and `loading_since` in one transaction: `run/0` deletes
+  the archive of any running row without it, and in production
+  (2026-11-25) one between two separate updates deleted a lazy-disk
+  restore's only copy. `archived` rows are outside every
   node reservation and the CPU and memory quota. Each store's archive budget counts Orb
   and disk snapshot archives across all accounts, including restored objects
   awaiting deletion, leaving room for shard artifacts; uploads can cross it.
