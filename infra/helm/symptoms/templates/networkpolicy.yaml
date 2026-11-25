@@ -1,9 +1,9 @@
 {{- if .Values.networkPolicy.enabled }}
 {{- $tuistNamespace := required "tuist.namespace is required" .Values.tuist.namespace }}
 # The evaluator pods only; the CNPG instances keep the operator's own traffic.
-# In-cluster peers are here. DNS, the Kubernetes API and the public HTTPS
-# hosts are in the CiliumNetworkPolicy below, because a Kubernetes
-# NetworkPolicy can name neither the API server nor a host name. Cilium allows
+# In-cluster peers are here. DNS and the Kubernetes API are in the
+# CiliumNetworkPolicy below, because a Kubernetes NetworkPolicy cannot name
+# the API server. Cilium allows
 # the union of both, and denies everything else in each direction.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -88,8 +88,7 @@ spec:
     matchLabels:
       {{- include "symptoms.selectorLabels" . | nindent 6 }}
   egress:
-    # DNS through Cilium's proxy, which is what lets toFQDNs below learn the
-    # addresses of the allowed hosts.
+    # DNS through Cilium's proxy.
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: {{ .Values.networkPolicy.dnsNamespace }}
@@ -103,11 +102,4 @@ spec:
     # Cluster-wide event watch.
     - toEntities:
         - kube-apiserver
-    # Grafana Cloud (Prometheus reads).
-    - toFQDNs:
-        {{- toYaml .Values.networkPolicy.egressFQDNs | nindent 8 }}
-      toPorts:
-        - ports:
-            - port: "443"
-              protocol: TCP
 {{- end }}

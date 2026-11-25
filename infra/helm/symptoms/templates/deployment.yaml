@@ -81,7 +81,9 @@ spec:
             - name: SYMPTOMS_STATE_TOKEN_PATH
               value: /var/run/secrets/tuist-symptoms-state/token
             - name: SYMPTOMS_PROMETHEUS_URL
-              value: {{ .Values.prometheus.url | quote }}
+              value: {{ printf "%s/v1/prometheus" (trimSuffix "/" .Values.pulse.url) | quote }}
+            - name: SYMPTOMS_PROMETHEUS_USER
+              value: {{ .Values.pulse.username | quote }}
           envFrom:
             - secretRef:
                 name: {{ include "symptoms.runtimeSecretName" . }}

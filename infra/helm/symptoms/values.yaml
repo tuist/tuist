@@ -22,8 +22,8 @@ skipMigrations: false
 
 # Paging (README "Decision"). It stays off until shadow precision has been
 # reviewed; until then `decision.would_page` in the log is the only trace. The
-# IRM webhook URL is SYMPTOMS/irm_webhook_url. `linkBaseUrl`, when set, is
-# prepended to the symptom id as the page's link.
+# IRM integration is deferred; no notification credentials are mounted.
+# `linkBaseUrl`, when set, is prepended to the symptom id as the page's link.
 decision:
   pagingEnabled: false
   linkBaseUrl: ""
@@ -62,13 +62,7 @@ stateToken:
   audience: tuist-symptoms-state
   expirationSeconds: 3600
 
-# Grafana Cloud Prometheus, read for the metrics source (PromQL at 1 min).
-# Credentials: SYMPTOMS/grafana_cloud_metrics_user and
-# SYMPTOMS/grafana_cloud_metrics_read_token.
-prometheus:
-  url: https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom
-
-# Exported for Grafana Cloud (heartbeat, coverage, freshness) through the
+# Exported for Pulse (heartbeat, coverage, freshness) through the
 # cluster's annotation autodiscovery scrape (k8s-monitoring).
 metrics:
   enabled: true
@@ -94,18 +88,11 @@ networkPolicy:
   tailscaleNamespace: tailscale-operator
   # alloy-metrics scrapes the metrics endpoint from here.
   observabilityNamespace: observability
-  # Public HTTPS hosts (Cilium toFQDNs): Grafana Cloud.
-  egressFQDNs:
-    - matchPattern: "*.grafana.net"
 
 # One 1Password item per environment vault (tuist-k8s-<env>), fields:
 #   api_token                         bearer token of the evaluator API; the
 #                                     server reads the same field
 #   secret_key_base                   `mix phx.gen.secret`
-#   irm_webhook_url                   Grafana IRM formatted-webhook URL; may
-#                                     be empty while paging is off
-#   grafana_cloud_metrics_user        Grafana Cloud Prometheus instance ID
-#   grafana_cloud_metrics_read_token  Grafana Cloud access policy token, metrics:read
 externalSecret:
   refreshInterval: "1h"
   item: SYMPTOMS

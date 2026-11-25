@@ -21,11 +21,10 @@ each workload cluster's `symptoms-<env>` namespace. Modelled on
 - **Service**: ClusterIP for the server
   (`http://symptoms.symptoms-<env>.svc.cluster.local`), exposed on the tailnet
   as `symptoms-<env>` by the Tailscale operator. There is no Ingress.
-- **NetworkPolicy** (in-cluster peers) and **CiliumNetworkPolicy** (DNS, the
-  Kubernetes API, and `*.grafana.net` by host name, which
-  a Kubernetes NetworkPolicy cannot express). Ingress: the Tuist server, the
+- **NetworkPolicy** (in-cluster peers) and **CiliumNetworkPolicy** (DNS and the
+  Kubernetes API, which a Kubernetes NetworkPolicy cannot name). Ingress: the Tuist server, the
   Tailscale proxy, and alloy-metrics for the metrics scrape. Egress: Pulse, the
-  Tuist server, its own database, DNS, the Kubernetes API and Grafana Cloud.
+  Tuist server, its own database, DNS and the Kubernetes API. No public HTTPS egress is allowed.
   The CNPG pods are not selected.
 - **CNPG Cluster** `symptoms-pg`: two instances, daily backups to the
   environment's `tuist-<env>-pg-backups` bucket under `symptoms/`.
@@ -43,27 +42,24 @@ each workload cluster's `symptoms-<env>` namespace. Modelled on
 | `SYMPTOMS_ENVIRONMENT` | `environment` |
 | `SYMPTOMS_API_TOKEN` | `SYMPTOMS/api_token`, the bearer token of the evaluator API; the server reads the same field |
 | `SYMPTOMS_PAGING_ENABLED`, `SYMPTOMS_LINK_BASE_URL` | `decision.pagingEnabled`, `decision.linkBaseUrl` (omitted when empty) |
-| `SYMPTOMS_IRM_WEBHOOK_URL` | `SYMPTOMS/irm_webhook_url` (may be empty while paging is off) |
 | `SYMPTOMS_STATE_URL`, `SYMPTOMS_STATE_TOKEN_PATH` | `tuist.url`, the projected token |
 | `SYMPTOMS_PULSE_URL`, `SYMPTOMS_PULSE_USER` | `pulse.url`, `pulse.username` (read-only `dashboard`) |
 | `SYMPTOMS_PULSE_TOKEN` | `PULSE_TOKEN/password` (`pulse.tokenItem`/`tokenField`) |
 | `SYMPTOMS_PULSE_WRITE_USER` | `pulse.writeUsername` (write-only `tuist`), for the hourly span-edge INSERT |
 | `SYMPTOMS_PULSE_WRITE_TOKEN` | `PULSE_TOKEN/password` (`pulse.writeTokenItem`/`writeTokenField`): Pulse's `tuist:wo` identity shares the dashboard password |
-| `SYMPTOMS_PROMETHEUS_URL` | `prometheus.url` (Grafana Cloud) |
-| `SYMPTOMS_PROMETHEUS_USER`, `SYMPTOMS_PROMETHEUS_TOKEN` | `SYMPTOMS/grafana_cloud_metrics_user`, `SYMPTOMS/grafana_cloud_metrics_read_token` |
+| `SYMPTOMS_PROMETHEUS_URL` | `pulse.url` + `/v1/prometheus` (Pulse's Prometheus-compatible API, database `public`) |
+| `SYMPTOMS_PROMETHEUS_USER`, `SYMPTOMS_PROMETHEUS_TOKEN` | `pulse.username`, the existing read-only `PULSE_TOKEN/password` |
 
-The optional `SYMPTOMS_IRM_WEBHOOK_TOKEN` is not set by the chart.
+IRM integration is deferred. The chart mounts no IRM credentials and paging stays disabled.
 
 Keep this table in sync with `symptoms/config/runtime.exs`.
 
 ## Before the first deploy
 
 1. Create the `SYMPTOMS` item in each `tuist-k8s-<env>` vault with the fields
-   `api_token`, `secret_key_base` (`mix phx.gen.secret`), `irm_webhook_url`
-   (may be empty), `grafana_cloud_metrics_user` (the Prometheus instance ID) and
-   `grafana_cloud_metrics_read_token` (an access policy token with
-   `metrics:read`). The Pulse passwords come from the existing
-   `PULSE_TOKEN/password`.
+   `api_token` and `secret_key_base` (`mix phx.gen.secret`). All telemetry reads,
+   including metrics and probes, use Pulse with the existing `PULSE_TOKEN/password`.
+   No Grafana Cloud credentials or IRM webhook are needed.
 2. Let the evaluator reach Pulse: Pulse's `pulse-private` NetworkPolicy
    (`infra/helm/pulse`) admits only the observability namespace and the Tuist
    server today, so add an ingress rule for `symptoms-<env>` pods

@@ -161,6 +161,8 @@ jobs:
       # Uses the promtool installed by the step above.
       - name: Test Symptoms watcher and backstop alerts
         run: bash infra/helm/k8s-monitoring/test-symptoms-alerts.sh
+      - name: Test Symptoms runtime telemetry dependencies
+        run: bash infra/helm/symptoms/test-runtime-config.sh
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
       - name: Test kubelet Lease telemetry and host alerts
