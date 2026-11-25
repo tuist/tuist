@@ -24,7 +24,16 @@ defmodule Atlas.MCP.Tools.SearchMySlack do
           "type" => "array",
           "items" => %{
             "type" => "object",
-            "required" => ["text", "user", "channel_id", "channel_name", "timestamp", "thread_timestamp", "permalink"],
+            "required" => [
+              "text",
+              "user",
+              "channel_id",
+              "channel_name",
+              "timestamp",
+              "thread_timestamp",
+              "permalink",
+              "files"
+            ],
             "properties" => %{
               "text" => %{"type" => "string"},
               "user" => %{"type" => ["string", "null"]},
@@ -32,7 +41,8 @@ defmodule Atlas.MCP.Tools.SearchMySlack do
               "channel_name" => %{"type" => ["string", "null"]},
               "timestamp" => %{"type" => ["string", "null"]},
               "thread_timestamp" => %{"type" => ["string", "null"]},
-              "permalink" => %{"type" => ["string", "null"]}
+              "permalink" => %{"type" => ["string", "null"]},
+              "files" => %{"type" => "array", "items" => Atlas.Connections.Slack.file_schema()}
             },
             "additionalProperties" => false
           }
@@ -48,7 +58,8 @@ defmodule Atlas.MCP.Tools.SearchMySlack do
   @impl EMCP.Tool
   def description do
     "Search Slack messages visible to the caller, newest first, through their personal Slack connection " <>
-      "(not the Atlas bot). Includes private channels and DMs the caller belongs to."
+      "(not the Atlas bot). Includes private channels and DMs the caller belongs to. Each match lists its files; " <>
+      "read the whole conversation with read_my_slack_conversation and fetch a file with download_my_slack_file."
   end
 
   def execute(conn, %{"query" => query} = args) do

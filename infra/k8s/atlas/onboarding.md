@@ -320,7 +320,8 @@ Register these additional redirect URLs on the corresponding existing OAuth apps
 preserving their sign-in, installation and webhook settings:
 
 - Slack: `https://atlas.tuist.dev/connections/slack/callback`. Enable the user scopes
-  `search:read` and `chat:write`; the personal flow stores a user token, not a bot token.
+  `search:read`, `chat:write`, `channels:history`, `groups:history`, `im:history`,
+  `mpim:history` and `files:read`; the personal flow stores a user token, not a bot token.
 - GitHub App: `https://atlas.tuist.dev/connections/github/callback`. User authorization
   uses the App's registered permissions, not a new OAuth scope grant.
 - Google web OAuth client: `https://atlas.tuist.dev/connections/google/callback`.
