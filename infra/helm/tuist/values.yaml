@@ -812,9 +812,6 @@ server:
       tokenUpdatePackageReleases:
         item: GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES
         field: password
-      tokenUpdatePackages:
-        item: GITHUB_TOKEN_UPDATE_PACKAGES
-        field: password
   # Google OAuth client credentials. When `google.managedSecrets: true`, ESO
   # syncs them from 1Password into a dedicated Secret and the Server
   # Deployment mounts them as TUIST_GOOGLE_OAUTH_CLIENT_ID /

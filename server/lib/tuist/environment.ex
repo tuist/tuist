@@ -1417,11 +1417,6 @@ defmodule Tuist.Environment do
       get([:github, :token, :update_package_releases], secrets)
   end
 
-  def github_token_update_packages(secrets \\ secrets()) do
-    System.get_env("TUIST_GITHUB_TOKEN_UPDATE_PACKAGES") ||
-      get([:github, :token, :update_packages], secrets)
-  end
-
   def github_app_name(secrets \\ secrets()) do
     System.get_env("TUIST_GITHUB_APP_NAME") || get([:github, :app_name], secrets)
   end
