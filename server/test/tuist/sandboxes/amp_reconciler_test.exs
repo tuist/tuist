@@ -156,6 +156,31 @@ defmodule Tuist.Sandboxes.AmpReconcilerTest do
     assert Repo.reload!(integration).status == :disconnected
   end
 
+  test "disconnect settles when an Orb is archived or failed, which there is nothing to pause", %{
+    integration: integration,
+    user: user,
+    config: config
+  } do
+    # Retention counts an errored row's age from `updated_at`, so settling,
+    # which runs every minute, must leave it alone.
+    weeks_ago = DateTime.add(DateTime.utc_now(:second), -30, :day)
+
+    orbs =
+      for {state, orb} <- [archived: "archived-orb", error: "failed-orb"] do
+        [account: user.account, amp_orb_id: orb, amp_integration_id: integration.id, state: state, node_name: nil]
+        |> SandboxesFixtures.sandbox_fixture()
+        |> Ecto.Changeset.change(updated_at: weeks_ago)
+        |> Repo.update!()
+      end
+
+    {:ok, _} = AmpIntegrations.disconnect(user.account.id, user)
+    stub(Client, :get, fn _, _ -> {:ok, %{"items" => []}} end)
+    reject(&Nodes.call/4)
+    assert :ok = AmpReconciler.reconcile(user.account.id, config)
+    assert Repo.reload!(integration).status == :disconnected
+    assert Enum.map(orbs, &Repo.reload!(&1).updated_at) == [weeks_ago, weeks_ago]
+  end
+
   test "rotation waits for old pods to terminate before starting a new consumer", %{
     integration: integration,
     user: user,

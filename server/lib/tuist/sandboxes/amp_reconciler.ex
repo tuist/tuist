@@ -76,14 +76,23 @@ defmodule Tuist.Sandboxes.AmpReconciler do
     from(s in Sandbox, where: s.amp_integration_id == ^integration.id and s.state != :deleted)
     |> Repo.all()
     |> Enum.reduce_while(:ok, fn sandbox, :ok ->
-      result = if sandbox.state == :paused, do: {:ok, sandbox}, else: Sandboxes.pause(sandbox)
-
-      with {:ok, paused} <- result, {:ok, _} <- Sandboxes.end_residency(paused) do
-        {:cont, :ok}
-      else
+      case settle_orb(sandbox) do
+        :ok -> {:cont, :ok}
         _ -> {:halt, {:error, :pause_failed}}
       end
     end)
+  end
+
+  # Archived and failed Orbs have no VM to pause; only running ones do, and
+  # creating or resuming ones fail the pass until they settle. Ending a
+  # residency they don't hold would only move `updated_at`, which retention
+  # counts an errored row's age from, on every pass.
+  defp settle_orb(%Sandbox{state: state, residency_work_id: nil}) when state in [:archived, :error], do: :ok
+
+  defp settle_orb(%Sandbox{} = sandbox) do
+    result = if sandbox.state in [:paused, :archived, :error], do: {:ok, sandbox}, else: Sandboxes.pause(sandbox)
+
+    with {:ok, paused} <- result, {:ok, _} <- Sandboxes.end_residency(paused), do: :ok
   end
 
   defp remove_stale(integration, config, enabled) do
