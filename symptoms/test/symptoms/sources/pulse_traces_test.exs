@@ -162,7 +162,7 @@ defmodule Symptoms.Sources.PulseTracesTest do
 
     assert_received {:sql, _latest, request}
     assert request.headers["x-pulse-db-name"] == ["public"]
-    assert request.options.auth == {:basic, "dashboard:read-only"}
+    assert request.options.auth == {:basic, "symptoms:read-only"}
     assert_received {:sql, sql, _}
 
     assert sql =~

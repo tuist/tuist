@@ -121,6 +121,12 @@ server:
     # Static key authenticating sealed volume-key responses (KURA_VOLUME_TRANSPORT_KEYS).
     kuraVolumeTransportKeys:
       enabled: true
+    # Cloak key rotation off V1, step 1 of the Tuist.Vault moduledoc: every pod
+    # holds k2026-11 (SECRET_KEYS/encryption_keys) but still encrypts with V1.
+    encryptionKeys:
+      enabled: true
+      keyIds: [V1, k2026-11]
+      currentKeyId: V1
     originAppKey:
       enabled: true
     # Only production: the Claude Console's federation trusts the
@@ -156,8 +162,10 @@ server:
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
     # RustFS publishes every production store, including Garage's retired
-    # ID as an alias of its buckets (infra/helm/shard-storage-rustfs).
+    # ID as an alias of its buckets (infra/helm/shard-storage-rustfs), and
+    # the rack Macs' store on larch-store-a (values-production-larch.yaml).
     shardStorage:
+      secret: rustfs-larch-targets
       publicSecret: rustfs-targets
 
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
@@ -289,14 +297,13 @@ server:
     # Exposes the managed Kura regions in account settings. Regions now
     # reconcile inside this workload cluster; per-region Kura node pools
     # decide placement.
-    # ber1-runners is the BER1 rack's cache on ber1-store-a, beside the
-    # rack's minis, and larch-runners larch's on larch-store-a; only the
-    # accounts the runner_site_cache flag enables, and whose jobs run at the
-    # site, get a node there. scw-fr-par-runners, the cache beside the rented Scaleway Mac
-    # fleet, is retired (Tuist.Kura.Regions) and never offered, listed here
-    # or not.
+    # ber1-runners is the rack sites' cache, one replica on ber1-store-a and
+    # one on larch-store-a; only the accounts the runner_site_cache flag
+    # enables, and whose jobs run at a rack site, get a node there.
+    # larch-runners and scw-fr-par-runners are retired (Tuist.Kura.Regions)
+    # and never offered, listed here or not.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners,larch-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners
     # The remote-execution chart's gateway Ingress host, which accounts'
     # Bazel workspaces use as --remote_executor (capabilities API).
     - name: TUIST_REMOTE_EXECUTION_ENDPOINT
@@ -2063,17 +2070,19 @@ rackLinuxFleet:
       bootMAC: "34:d8:68:5a:10:5a"
       address: 10.20.0.11
       # On the cluster's Cilium network at larch's WAN address, like
-      # ber1-store-a at alder's, so the larch-runners Kura region replicates
-      # pod to pod with the accounts' other regions. larch's edges forward the
+      # ber1-store-a at alder's, so ber1-runners' replica here replicates
+      # pod to pod with the one there and the accounts' other regions. larch's edges forward the
       # cluster ports on it to this host.
       publicAddress: 149.6.170.1
       # Its next install is lvm-v1, for the larch-runners thin cutover: the
-      # 1.5 TiB data LV holds the 1 TiB VM image cache, containerd's 64 GiB and
-      # the kubelet below the 85% eviction line, and the rest of the drive
-      # becomes the Kura thin pool. Nothing happens until reinstallGeneration
-      # is raised, which is the cutover's first step.
+      # data LV holds the 1 TiB VM image cache, the rack Macs' 3000G shard
+      # store (rustfs-larch), containerd's 64 GiB and the kubelet below the 85%
+      # eviction line, and the rest of the drive (~7.5 TB) becomes the Kura
+      # thin pool. Nothing happens until reinstallGeneration is raised, which
+      # is the cutover's first step; the reinstall empties the shard store, so
+      # plans stored there before it fail and new ones fall back meanwhile.
       kuraStorageLayout: lvm-v1
-      kuraDataLVSize: 1536G
+      kuraDataLVSize: 5120G
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
@@ -2112,6 +2121,9 @@ macosFleet:
   tailscaleEgress:
     proxyTags: tag:tuist-k8s-production
   replicas: 2
+  # Revoke tart-kubelet identities whose machine, lease and Node are gone.
+  nodeIdentitySweep:
+    revoke: true
   # The minis drop inbound :22 from everything except the tailnet, loopback
   # and this list, so internet SSH scan traffic can't exhaust launchd's ssh
   # listen backlog. That socket binds *:22, so an exhausted backlog takes the

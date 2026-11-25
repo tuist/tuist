@@ -4278,11 +4278,7 @@ components:
           x-struct:
           x-validate:
         monitor_type:
-          description: The monitor type that evaluates the condition.
-          enum:
-            - flakiness_rate
-            - flaky_run_count
-            - reliability_rate
+          description: 'The monitor type that evaluates the condition. Known values: flakiness_rate, flaky_run_count, reliability_rate, test_duration, test_updated.'
           type: string
           x-struct:
           x-validate:
@@ -5017,7 +5013,7 @@ components:
           x-struct:
           x-validate:
         test_impact_run_id:
-          description: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+          description: "The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. For a build system whose plans distribute a selection by module (Mix), the plan balances the modules sent, which should leave out those with nothing selected, and each shard read carries the run's whole `skipped_tests` list and its `test_impact_run_id`. Omit it on fallbacks and default selective testing."
           format: uuid
           type: string
           x-struct:
@@ -5092,7 +5088,7 @@ components:
           x-struct:
           x-validate:
         skipped_tests:
-          description: "For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans."
+          description: "For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. A plan that distributes the selection by module (Mix) gives every shard the run's whole list. Absent for other plans."
           items:
             $ref: '#/components/schemas/SkippedTest'
           type: array
@@ -5109,6 +5105,12 @@ components:
             x-validate:
           description: The test suites assigned to this shard, grouped by module name.
           type: object
+          x-struct:
+          x-validate:
+        test_impact_run_id:
+          description: 'For a plan that distributes a selection by module (Mix): the impact run, which the shard reports with its tests. Absent for other plans.'
+          format: uuid
+          type: string
           x-struct:
           x-validate:
       required:
@@ -14069,6 +14071,22 @@ components:
           type: string
           x-struct:
           x-validate:
+        mix:
+          description: 'Mix only: the scope the invocation tests.'
+          properties:
+            app:
+              description: The OTP application whose suite runs, for display.
+              type: string
+              x-struct:
+              x-validate:
+            scheme:
+              description: The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+              type: string
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
         parent_shas:
           description: "The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both."
           items:
@@ -14084,7 +14102,7 @@ components:
           x-struct:
           x-validate:
         scope:
-          description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+          description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
           maxLength: 1024
           minLength: 1
           type: string
@@ -22143,6 +22161,22 @@ components:
           type: string
           x-struct:
           x-validate:
+        mix:
+          description: 'Mix only: the scope the invocation tests.'
+          properties:
+            app:
+              description: The OTP application whose suite runs, for display.
+              type: string
+              x-struct:
+              x-validate:
+            scheme:
+              description: The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+              type: string
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
         modules:
           description: "Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules."
           items:
@@ -22180,7 +22214,7 @@ components:
           x-struct:
           x-validate:
         scope:
-          description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+          description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
           maxLength: 1024
           minLength: 1
           type: string
@@ -52079,6 +52113,22 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                mix:
+                  description: 'Mix only: the scope the invocation tests.'
+                  properties:
+                    app:
+                      description: The OTP application whose suite runs, for display.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    scheme:
+                      description: The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  type: object
+                  x-struct:
+                  x-validate:
                 parent_shas:
                   description: "The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both."
                   items:
@@ -52094,7 +52144,7 @@ paths:
                   x-struct:
                   x-validate:
                 scope:
-                  description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+                  description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
                   maxLength: 1024
                   minLength: 1
                   type: string
@@ -58631,7 +58681,7 @@ paths:
                   x-struct:
                   x-validate:
                 test_impact_run_id:
-                  description: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+                  description: "The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. For a build system whose plans distribute a selection by module (Mix), the plan balances the modules sent, which should leave out those with nothing selected, and each shard read carries the run's whole `skipped_tests` list and its `test_impact_run_id`. Omit it on fallbacks and default selective testing."
                   format: uuid
                   type: string
                   x-struct:
@@ -61540,6 +61590,22 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                mix:
+                  description: 'Mix only: the scope the invocation tests.'
+                  properties:
+                    app:
+                      description: The OTP application whose suite runs, for display.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    scheme:
+                      description: The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  type: object
+                  x-struct:
+                  x-validate:
                 modules:
                   description: "Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules."
                   items:
@@ -61577,7 +61643,7 @@ paths:
                   x-struct:
                   x-validate:
                 scope:
-                  description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+                  description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
                   maxLength: 1024
                   minLength: 1
                   type: string
@@ -76600,6 +76666,7 @@ paths:
                     - flakiness_rate
                     - flaky_run_count
                     - reliability_rate
+                    - test_duration
                   type: string
                   x-struct:
                   x-validate:
@@ -76628,6 +76695,7 @@ paths:
                   x-struct:
                   x-validate:
                 trigger_config:
+                  description: Monitor-specific parameters. test_duration takes statistic (average, p50, p90 or p99), threshold in milliseconds, comparison, window_type last_days and window (e.g. "30d").
                   type: object
                   x-struct:
                   x-validate:

@@ -90,6 +90,9 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :metered_at, :utc_datetime_usec
     field :paused_at, :utc_datetime
     field :error_message, :string
+    # When a delete was asked for; kept on a row whose delete failed so a
+    # create still in flight does not bring the sandbox back.
+    field :delete_requested_at, :utc_datetime
     field :archive_key, :string
     field :archive_store, :string
     field :archive_upload_id, :string
@@ -288,6 +291,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :guest_cpu_ms,
       :paused_at,
       :error_message,
+      :delete_requested_at,
       :archive_key,
       :archive_store,
       :archive_upload_id,

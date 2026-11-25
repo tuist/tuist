@@ -1,5 +1,6 @@
 {{- if .Values.dashboard.enabled }}
 {{- $sentryWriter := has .Values.environment .Values.sentryWriter.environments }}
+{{- $symptomsReader := has .Values.environment .Values.symptomsReader.environments }}
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -21,6 +22,9 @@ spec:
           {{- if $sentryWriter }}
           sentry:wo={{ "{{ .sentryWriter | trim }}" }}
           {{- end }}
+          {{- if $symptomsReader }}
+          symptoms:ro={{ "{{ .symptomsReader | trim }}" }}
+          {{- end }}
         # Collectors write as the write-only identity above. This Secret
         # outlives the old pulse release, whose Secret they used before.
         ingest-username: tuist
@@ -35,5 +39,12 @@ spec:
     - secretKey: sentryWriter
       remoteRef:
         key: PULSE_SENTRY_WRITER/password
+    {{- end }}
+    {{- if $symptomsReader }}
+    # The Symptoms evaluator's read-only identity (infra/helm/symptoms), with
+    # its own password: PULSE_TOKEN is also the collectors' write password.
+    - secretKey: symptomsReader
+      remoteRef:
+        key: PULSE_SYMPTOMS_READER/password
     {{- end }}
 {{- end }}

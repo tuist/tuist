@@ -2589,8 +2589,24 @@ defmodule Tuist.Kura do
     })
   end
 
-  defp update_deployment_status(deployment, attrs) do
-    deployment |> Deployment.status_changeset(attrs) |> Repo.update()
+  # Validates the transition against the row as it is now, not the caller's
+  # copy: the reconciler holds a deployment across Kubernetes calls, and a
+  # drain or a newer image may have closed it in between. A closed row stays
+  # closed: closing it again keeps the first outcome, and reopening it fails.
+  defp update_deployment_status(deployment, %{status: status} = attrs) do
+    Repo.transaction(fn ->
+      current = Repo.one!(from(d in Deployment, where: d.id == ^deployment.id, lock: "FOR UPDATE"))
+
+      if current.status == status or
+           (current.status not in @open_deployment_statuses and status not in @open_deployment_statuses) do
+        current
+      else
+        case current |> Deployment.status_changeset(attrs) |> Repo.update() do
+          {:ok, updated} -> updated
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+      end
+    end)
   end
 
   defp now_truncated, do: DateTime.truncate(DateTime.utc_now(), :second)

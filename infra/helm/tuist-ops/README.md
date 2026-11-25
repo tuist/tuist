@@ -25,7 +25,7 @@ cross-call this deployment via the tailnet for the policy lookup.
 - **ExternalSecrets** — three of them:
   - `tuist-ops-runtime` — Slack, Tailscale, and GitHub credentials from `TUIST_OPS_BOT`
   - `tuist-ops-app`     — `SECRET_KEY_BASE` from the same 1P item
-  - `tuist-ops-backup-credentials` — Tigris keys from the shared `S3_BACKUP_CREDENTIALS`
+  - `tuist-ops-backup-credentials` — tuist-ops's own Tigris key from `TUIST_OPS_PG_BACKUP`, scoped to the `tuist-ops/` prefix (see "Backup key")
 
 ## Manual prereqs (do these before first deploy)
 
@@ -52,6 +52,18 @@ cross-call this deployment via the tailnet for the policy lookup.
    the cluster egress feature enabled (it is — same operator as the
    workload clusters).
 6. **CloudNativePG operator** is already present (deployed by `infra/helm/platform/`; same operator the main Tuist server's CNPG cluster uses). No bootstrap needed.
+
+## Backup key
+
+The CNPG cluster archives to `s3://tuist-prod-pg-backups/tuist-ops` with a
+Tigris key of its own, the `TUIST_OPS_PG_BACKUP` item (fields `access_key_id`,
+`secret_access_key`) in `tuist-k8s-production`. The chart refuses the shared
+`S3_BACKUP_CREDENTIALS`, which covers the whole bucket, the server's customer
+backups included. Create the key exactly as in
+[`../symptoms/README.md`](../symptoms/README.md#backup-key) ("Backup key"),
+with `tuist-ops` in place of `symptoms` and `prod` as the environment, before
+the next tuist-ops deploy: until the item exists the backup ExternalSecret
+fails and WAL archiving stops.
 
 ## Image + deploy
 

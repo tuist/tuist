@@ -9,6 +9,7 @@ defmodule Tuist.Pulse.SymptomsTest do
   alias Tuist.Pulse.SymptomOutcome
   alias Tuist.Pulse.SymptomRevision
   alias Tuist.Pulse.Symptoms
+  alias Tuist.Pulse.SymptomStateEvent
   alias Tuist.Pulse.Workers.SyncSymptomsWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -268,6 +269,77 @@ defmodule Tuist.Pulse.SymptomsTest do
       })
 
       assert %{"outcomes" => [%{"symptom_id" => @a, "outcome" => "bad"}], "next" => 5} = Symptoms.state_changes(0)
+    end
+  end
+
+  describe "history/2" do
+    setup %{account: account} do
+      {:ok, _} = PulseFixtures.mirror_symptoms(account, [revision(@a, 1, 1, %{"tier" => "audit"})])
+      :ok
+    end
+
+    test "keeps every ack, mute and outcome with the person who made it, though the state rows are overwritten", %{
+      user: user,
+      account: account
+    } do
+      other = AccountsFixtures.user_fixture()
+
+      :ok =
+        Tuist.Accounts.add_user_to_organization(other, Repo.get!(Tuist.Accounts.Organization, account.organization_id))
+
+      now = DateTime.utc_now()
+      day = DateTime.add(now, 86_400)
+      month = DateTime.add(now, 30 * 86_400)
+
+      assert :ok = Symptoms.mute(user, account, @a, "latency", day, now)
+      assert :ok = Symptoms.confirm_outcome(user, account, @a, "bad")
+      # The second member silences paging for 30 days and flips the outcome;
+      # the state rows now name only them.
+      assert :ok = Symptoms.mute(other, account, @a, "latency", month, now)
+      assert :ok = Symptoms.confirm_outcome(other, account, @a, "fine")
+      assert :ok = Symptoms.ack(other, account, @a)
+
+      assert Repo.one!(from(m in Tuist.Pulse.SymptomMute, select: m.user_id)) == other.id
+
+      assert [
+               %{kind: :mute, user_id: first_muter, details: first_mute},
+               %{kind: :outcome, user_id: first_judge, details: %{"outcome" => "bad", "previous" => nil}},
+               %{kind: :mute, user_id: second_muter, details: second_mute},
+               %{kind: :outcome, user_id: second_judge, details: %{"outcome" => "fine", "previous" => "bad"}},
+               %{kind: :ack, user_id: acker, details: %{"revision" => 1}}
+             ] = events = Symptoms.history(account, @a)
+
+      assert {first_muter, first_judge} == {user.id, user.id}
+      assert {second_muter, second_judge, acker} == {other.id, other.id, other.id}
+      assert first_mute["phenomenon"] == "latency" and first_mute["previous_expires_at"] == nil
+      assert first_mute["expires_at"] == day |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+      assert second_mute["expires_at"] == month |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+      assert second_mute["previous_expires_at"] == first_mute["expires_at"]
+      # Each event carries the change_seq of the state row it produced.
+      seqs = Enum.map(events, & &1.change_seq)
+      assert seqs == Enum.sort(seqs) and length(Enum.uniq(seqs)) == 5
+    end
+
+    test "is append-only in the database", %{user: user, account: account} do
+      assert :ok = Symptoms.ack(user, account, @a)
+
+      assert_raise Postgrex.Error, ~r/append-only/, fn ->
+        Repo.update_all(SymptomStateEvent, set: [user_id: nil])
+      end
+
+      assert_raise Postgrex.Error, ~r/append-only/, fn ->
+        Repo.delete_all(SymptomStateEvent)
+      end
+
+      # Deleting the account still removes its trail.
+      Repo.delete!(account)
+      assert Repo.aggregate(SymptomStateEvent, :count) == 0
+    end
+
+    test "a refused change records nothing", %{account: account} do
+      outsider = AccountsFixtures.user_fixture()
+      assert {:error, :forbidden} = Symptoms.ack(outsider, account, @a)
+      assert Symptoms.history(account, @a) == []
     end
   end
 

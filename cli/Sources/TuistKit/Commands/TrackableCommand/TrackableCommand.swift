@@ -154,9 +154,12 @@ public class TrackableCommand {
     ) async {
         do {
             if ServerAuthenticationConfig.current.optionalAuthentication {
+                // Refresh as every other request does: an access token that expired
+                // during a long build is still renewable, and treating it as absent
+                // would drop the run's results.
                 let token = try? await serverAuthenticationController.authenticationToken(
                     serverURL: serverURL,
-                    refreshIfNeeded: false
+                    refreshIfNeeded: true
                 )
                 if token == nil {
                     Logger.current.debug("Skipping run metadata upload: no authentication credentials available.")

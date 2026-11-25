@@ -27,6 +27,8 @@ defmodule Symptoms.Sources.PulseSpanEdgesTest do
     normalize = &(&1 |> String.split() |> Enum.join(" "))
 
     assert normalize.(statement) == normalize.(PulseSpanEdges.span_edges_template())
+    # A read: the evaluator holds no Pulse write credential.
+    assert statement |> String.trim_leading() |> String.starts_with?("SELECT")
     assert PulseSpanEdges.span_edges_sql(@hour) =~ "CAST('2025-11-16T13:00:00Z' AS TIMESTAMP(9))"
     refute PulseSpanEdges.span_edges_sql(@hour) =~ "{{hour_start}}"
   end
@@ -47,15 +49,12 @@ defmodule Symptoms.Sources.PulseSpanEdgesTest do
     assert PulseSpanEdges.resource_name("kura.tuist.dev", aliases) == nil
   end
 
-  test "runs the hourly insert, groups database client spans by resource and charges checkout to the caller" do
+  test "reads the hour's edges read-only, groups database client spans by resource and charges checkout to the caller" do
     db_span = "SELECT projects"
 
     stub_pulse(fn sql ->
       cond do
-        sql =~ "INSERT INTO symptoms_span_edges_1h" ->
-          :insert
-
-        sql =~ "FROM symptoms_span_edges_1h" ->
+        sql =~ "JOIN opentelemetry_traces AS parent" ->
           [
             %{
               "caller_service" => "tuist-server",
@@ -120,9 +119,13 @@ defmodule Symptoms.Sources.PulseSpanEdgesTest do
     assert {:ok, []} =
              PulseSpanEdges.collect(%{start: @now - 3600, seconds: 3600}, pulse_opts(now: @now, put_edges: put_edges))
 
-    assert_received {:sql, insert, request}
-    assert insert =~ "INSERT INTO"
-    assert request.options.auth == {:basic, "tuist:writer"}
+    # Every request is a read as the evaluator's read-only identity.
+    requests = collect_sql()
+    assert length(requests) == 3
+
+    assert Enum.all?(requests, fn {sql, request} ->
+             sql =~ ~r/^\s*SELECT/ and request.options.auth == {:basic, "symptoms:read-only"}
+           end)
 
     assert_received {:edges, hour, edges}
     assert hour == DateTime.from_unix!(@hour)
@@ -147,11 +150,19 @@ defmodule Symptoms.Sources.PulseSpanEdgesTest do
     assert by_callee[node("kura", "span_server", "GET /cas")].count == 40
   end
 
-  test "a failed insert is unknown and stores nothing" do
+  test "a failed read is unknown and stores nothing" do
     stub_pulse(fn _sql -> {:error, 500} end)
     put_edges = fn _hour, _edges -> flunk("stored edges") end
 
     assert {:unknown, []} =
              PulseSpanEdges.collect(%{start: 0, seconds: 3600}, pulse_opts(now: @now, put_edges: put_edges))
+  end
+
+  defp collect_sql(acc \\ []) do
+    receive do
+      {:sql, sql, request} -> collect_sql([{sql, request} | acc])
+    after
+      0 -> Enum.reverse(acc)
+    end
   end
 end

@@ -366,6 +366,7 @@ msgstr ""
 #: lib/atlas_web/live/sales_live.ex:95
 #: lib/atlas_web/live/sales_live.ex:200
 #: lib/atlas_web/live/sales_live.ex:268
+#: lib/atlas_web/live/social_performance_live.ex:59
 #: lib/atlas_web/live/support_live.ex:827
 #: lib/atlas_web/live/tasks_live.ex:203
 #: lib/atlas_web/live/tasks_live.ex:279
@@ -706,7 +707,7 @@ msgid "Edit the account to add address, billing identifiers, and the contract si
 msgstr ""
 
 #: lib/atlas_web/components/email_header.ex:20
-#: lib/atlas_web/components/layouts/dashboard.html.heex:147
+#: lib/atlas_web/components/layouts/dashboard.html.heex:156
 #: lib/atlas_web/live/account_live.ex:2168
 #: lib/atlas_web/live/account_live.ex:2420
 #: lib/atlas_web/live/account_live.ex:2520
@@ -926,7 +927,7 @@ msgstr ""
 msgid "Note"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:312
+#: lib/atlas_web/components/layouts/dashboard.html.heex:321
 #: lib/atlas_web/components/layouts/demo_dashboard.html.heex:76
 #: lib/atlas_web/components/layouts/demo_dashboard.html.heex:92
 #: lib/atlas_web/live/account_live.ex:2183
@@ -1392,7 +1393,7 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:219
+#: lib/atlas_web/live/connections_live.ex:225
 #: lib/atlas_web/live/mcp_live.ex:503
 #: lib/atlas_web/live/outreach_contacts_live.ex:1405
 #, elixir-autogen, elixir-format
@@ -1418,7 +1419,7 @@ msgstr ""
 msgid "Expires %{datetime}"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:350
+#: lib/atlas_web/components/layouts/dashboard.html.heex:359
 #: lib/atlas_web/live/mcp_live.ex:15
 #: lib/atlas_web/live/mcp_live.ex:243
 #, elixir-autogen, elixir-format
@@ -1442,7 +1443,7 @@ msgstr ""
 msgid "None"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:221
+#: lib/atlas_web/live/connections_live.ex:227
 #: lib/atlas_web/live/mcp_live.ex:505
 #: lib/atlas_web/live/overview_live.ex:355
 #, elixir-autogen, elixir-format
@@ -2080,7 +2081,7 @@ msgstr ""
 msgid "Thu"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:213
+#: lib/atlas_web/components/layouts/dashboard.html.heex:222
 #: lib/atlas_web/live/time_off_live.ex:18
 #: lib/atlas_web/live/time_off_live.ex:202
 #, elixir-autogen, elixir-format
@@ -2296,12 +2297,12 @@ msgid "Choose holiday dates"
 msgstr ""
 
 #: lib/atlas_web/components/layouts/account.html.heex:51
-#: lib/atlas_web/components/layouts/dashboard.html.heex:384
+#: lib/atlas_web/components/layouts/dashboard.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Also here"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:206
+#: lib/atlas_web/components/layouts/dashboard.html.heex:215
 #: lib/atlas_web/live/admin/users_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Directory"
@@ -2317,7 +2318,7 @@ msgstr ""
 msgid "Online"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:199
+#: lib/atlas_web/components/layouts/dashboard.html.heex:208
 #: lib/atlas_web/live/people_live.ex:7
 #: lib/atlas_web/live/people_live.ex:14
 #, elixir-autogen, elixir-format
@@ -3120,7 +3121,7 @@ msgstr ""
 msgid "Adjusted burn"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:327
+#: lib/atlas_web/components/layouts/dashboard.html.heex:336
 #, elixir-autogen, elixir-format
 msgid "Admin"
 msgstr ""
@@ -3239,7 +3240,7 @@ msgstr ""
 msgid "Approval wait"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:292
+#: lib/atlas_web/components/layouts/dashboard.html.heex:301
 #: lib/atlas_web/live/automation_live.ex:724
 #, elixir-autogen, elixir-format
 msgid "Approvals"
@@ -3523,7 +3524,7 @@ msgstr ""
 msgid "Audiences with broadcast history cannot be deleted."
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:332
+#: lib/atlas_web/components/layouts/dashboard.html.heex:341
 #: lib/atlas_web/live/admin/audit_live.ex:19
 #: lib/atlas_web/live/admin/audit_live.ex:102
 #, elixir-autogen, elixir-format
@@ -3545,7 +3546,7 @@ msgstr ""
 msgid "Authentication"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:257
+#: lib/atlas_web/components/layouts/dashboard.html.heex:266
 #, elixir-autogen, elixir-format
 msgid "Automation"
 msgstr ""
@@ -3644,7 +3645,7 @@ msgstr ""
 msgid "Behavior types"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:268
+#: lib/atlas_web/components/layouts/dashboard.html.heex:277
 #: lib/atlas_web/live/automation_live.ex:720
 #, elixir-autogen, elixir-format
 msgid "Behaviors"
@@ -4863,7 +4864,7 @@ msgstr ""
 msgid "Data center updated."
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:235
+#: lib/atlas_web/components/layouts/dashboard.html.heex:244
 #: lib/atlas_web/live/data_center_show_live.ex:86
 #: lib/atlas_web/live/data_centers_live.ex:16
 #: lib/atlas_web/live/data_centers_live.ex:129
@@ -5215,7 +5216,7 @@ msgstr ""
 msgid "Document uploaded. Atlas is processing its pages."
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:306
+#: lib/atlas_web/components/layouts/dashboard.html.heex:315
 #: lib/atlas_web/live/account_live.ex:2093
 #: lib/atlas_web/live/document_live.ex:35
 #: lib/atlas_web/live/documents_live.ex:21
@@ -5270,7 +5271,7 @@ msgstr ""
 
 #: lib/atlas_web/components/domain_components.ex:23
 #: lib/atlas_web/components/domain_components.ex:28
-#: lib/atlas_web/components/layouts/dashboard.html.heex:173
+#: lib/atlas_web/components/layouts/dashboard.html.heex:182
 #: lib/atlas_web/live/domain_live/index.ex:16
 #: lib/atlas_web/live/project_live/show.ex:349
 #, elixir-autogen, elixir-format
@@ -5516,7 +5517,7 @@ msgstr ""
 msgid "Ends on"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:162
+#: lib/atlas_web/components/layouts/dashboard.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Engineering"
 msgstr ""
@@ -5582,7 +5583,7 @@ msgstr ""
 msgid "Error tracking"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:179
+#: lib/atlas_web/components/layouts/dashboard.html.heex:188
 #: lib/atlas_web/live/errors_live/event.ex:66
 #: lib/atlas_web/live/errors_live/index.ex:29
 #: lib/atlas_web/live/errors_live/index.ex:150
@@ -5733,7 +5734,7 @@ msgstr ""
 
 #: lib/atlas_web/components/automation_analytics.ex:171
 #: lib/atlas_web/components/automation_analytics.ex:236
-#: lib/atlas_web/components/layouts/dashboard.html.heex:274
+#: lib/atlas_web/components/layouts/dashboard.html.heex:283
 #: lib/atlas_web/live/automation_live.ex:721
 #, elixir-autogen, elixir-format
 msgid "Executions"
@@ -5964,7 +5965,7 @@ msgstr ""
 msgid "Financing not found."
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:247
+#: lib/atlas_web/components/layouts/dashboard.html.heex:256
 #: lib/atlas_web/live/financing_show_live.ex:145
 #: lib/atlas_web/live/financings_live.ex:16
 #: lib/atlas_web/live/financings_live.ex:140
@@ -6140,7 +6141,7 @@ msgstr ""
 msgid "Group subscribers manually, or keep account contacts in sync with rules."
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:228
+#: lib/atlas_web/components/layouts/dashboard.html.heex:237
 #: lib/atlas_web/live/hardware_live.ex:19
 #: lib/atlas_web/live/hardware_live.ex:116
 #: lib/atlas_web/live/hardware_show_live.ex:92
@@ -6329,7 +6330,7 @@ msgstr ""
 msgid "Incorporation date"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:368
+#: lib/atlas_web/components/layouts/dashboard.html.heex:377
 #: lib/atlas_web/live/admin/inference_helpers.ex:169
 #, elixir-autogen, elixir-format
 msgid "Inference"
@@ -6403,7 +6404,7 @@ msgstr ""
 msgid "Install a server or switch here to see it listed."
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:241
+#: lib/atlas_web/components/layouts/dashboard.html.heex:250
 #: lib/atlas_web/live/insurance_live.ex:16
 #: lib/atlas_web/live/insurance_live.ex:135
 #: lib/atlas_web/live/insurance_show_live.ex:42
@@ -6719,7 +6720,7 @@ msgstr ""
 msgid "Level"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:300
+#: lib/atlas_web/components/layouts/dashboard.html.heex:309
 #: lib/atlas_web/live/documents_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Library"
@@ -6985,7 +6986,7 @@ msgstr ""
 msgid "Membership"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:362
+#: lib/atlas_web/components/layouts/dashboard.html.heex:371
 #: lib/atlas_web/live/admin/memory_live.ex:21
 #: lib/atlas_web/live/admin/memory_live.ex:72
 #: lib/atlas_web/live/admin/memory_live.ex:162
@@ -7441,6 +7442,7 @@ msgstr ""
 
 #: lib/atlas_web/components/automation_analytics.ex:106
 #: lib/atlas_web/components/automation_analytics.ex:141
+#: lib/atlas_web/live/social_performance_live.ex:141
 #, elixir-autogen, elixir-format
 msgid "No data yet"
 msgstr ""
@@ -8239,7 +8241,7 @@ msgstr ""
 msgid "Operation"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:222
+#: lib/atlas_web/components/layouts/dashboard.html.heex:231
 #, elixir-autogen, elixir-format
 msgid "Operations"
 msgstr ""
@@ -8286,7 +8288,7 @@ msgstr ""
 msgid "Other"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:142
+#: lib/atlas_web/components/layouts/dashboard.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Outbound"
 msgstr ""
@@ -8604,7 +8606,7 @@ msgstr ""
 msgid "Post text"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:154
+#: lib/atlas_web/components/layouts/dashboard.html.heex:163
 #: lib/atlas_web/live/postal_live.ex:23
 #: lib/atlas_web/live/postal_live.ex:220
 #, elixir-autogen, elixir-format
@@ -8627,7 +8629,7 @@ msgstr ""
 msgid "Posting to Slack…"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:185
+#: lib/atlas_web/components/layouts/dashboard.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Postmortems"
 msgstr ""
@@ -8809,7 +8811,7 @@ msgstr ""
 
 #: lib/atlas_web/components/domain_components.ex:48
 #: lib/atlas_web/components/domain_components.ex:340
-#: lib/atlas_web/components/layouts/dashboard.html.heex:167
+#: lib/atlas_web/components/layouts/dashboard.html.heex:176
 #: lib/atlas_web/live/overview_live.ex:206
 #: lib/atlas_web/live/project_live/index.ex:18
 #: lib/atlas_web/live/project_live/index.ex:51
@@ -9611,7 +9613,7 @@ msgstr ""
 msgid "Role updated."
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:344
+#: lib/atlas_web/components/layouts/dashboard.html.heex:353
 #: lib/atlas_web/live/admin/roles_live.ex:18
 #: lib/atlas_web/live/admin/roles_live.ex:166
 #: lib/atlas_web/live/admin/users_live.ex:119
@@ -9790,7 +9792,7 @@ msgstr ""
 msgid "Scheduled inputs (JSON object)"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:280
+#: lib/atlas_web/components/layouts/dashboard.html.heex:289
 #: lib/atlas_web/live/automation_live.ex:722
 #, elixir-autogen, elixir-format
 msgid "Schedules"
@@ -10176,7 +10178,7 @@ msgstr ""
 msgid "Service Levels"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:356
+#: lib/atlas_web/components/layouts/dashboard.html.heex:365
 #: lib/atlas_web/live/sessions_live.ex:14
 #: lib/atlas_web/live/sessions_live.ex:37
 #, elixir-autogen, elixir-format
@@ -10362,7 +10364,7 @@ msgstr ""
 msgid "Span ID"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:191
+#: lib/atlas_web/components/layouts/dashboard.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Specs"
 msgstr ""
@@ -10651,7 +10653,7 @@ msgstr ""
 msgid "Supplier"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:134
+#: lib/atlas_web/components/layouts/dashboard.html.heex:143
 #: lib/atlas_web/live/support_chat_live.ex:22
 #: lib/atlas_web/live/support_live.ex:24
 #: lib/atlas_web/live/support_live.ex:274
@@ -11504,7 +11506,7 @@ msgstr ""
 msgid "User roles updated."
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:338
+#: lib/atlas_web/components/layouts/dashboard.html.heex:347
 #: lib/atlas_web/live/admin/users_live.ex:18
 #: lib/atlas_web/live/admin/users_live.ex:85
 #: lib/atlas_web/live/overview_live.ex:175
@@ -11667,7 +11669,7 @@ msgstr ""
 msgid "Webhook deleted."
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:286
+#: lib/atlas_web/components/layouts/dashboard.html.heex:295
 #: lib/atlas_web/live/automation_live.ex:723
 #: lib/atlas_web/live/project_live/show.ex:596
 #, elixir-autogen, elixir-format
@@ -11783,7 +11785,7 @@ msgstr ""
 msgid "Workflow definition"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:262
+#: lib/atlas_web/components/layouts/dashboard.html.heex:271
 #: lib/atlas_web/live/automation_live.ex:719
 #, elixir-autogen, elixir-format
 msgid "Workflows"
@@ -12159,7 +12161,7 @@ msgstr ""
 msgid "Make room for inspiration"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/dashboard.html.heex:318
+#: lib/atlas_web/components/layouts/dashboard.html.heex:327
 #: lib/atlas_web/live/moodboard_live.ex:21
 #: lib/atlas_web/live/moodboard_live.ex:158
 #: lib/atlas_web/live/moodboard_show_live.ex:179
@@ -12620,11 +12622,6 @@ msgstr ""
 msgid "Create a disabled rule, then enable it when you are ready to send alerts."
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:164
-#, elixir-autogen, elixir-format
-msgid "Credentials are encrypted and never shown to agents. Your connections are only used for your own requests: other people and shared Pip threads cannot use them. Disconnecting removes stored credentials; revoke app access in your provider settings to invalidate the grant there too. Gmail monitoring starts only after you configure and enable a signal source."
-msgstr ""
-
 #: lib/atlas_web/live/project_live/alerts.ex:211
 #, elixir-autogen, elixir-format
 msgid "Cumulative events since last notification"
@@ -12790,7 +12787,7 @@ msgstr ""
 msgid "Read access granted"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:220
+#: lib/atlas_web/live/connections_live.ex:226
 #, elixir-autogen, elixir-format
 msgid "Reconnect needed"
 msgstr ""
@@ -12919,4 +12916,118 @@ msgstr ""
 #: lib/atlas_web/live/connections_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Search and read the messages, channels, DMs and files you can see in Slack, and post as you once you approve each message, from Atlas tools (search_my_slack, read_my_slack_conversation, download_my_slack_file, post_my_slack_message). This is separate from the Atlas bot."
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:42
+#, elixir-autogen, elixir-format
+msgid "30 days"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:42
+#, elixir-autogen, elixir-format
+msgid "90 days"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:54
+#, elixir-autogen, elixir-format
+msgid "By account"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:64
+#, elixir-autogen, elixir-format
+msgid "By format"
+msgstr ""
+
+#: lib/atlas_web/live/connections_live.ex:195
+#, elixir-autogen, elixir-format
+msgid "Connect a brand or personal X account to track its posts. Atlas reads the account's posts and their impressions, engagements and clicks once a day and shows them to the team in Social. It never posts."
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:108
+#, elixir-autogen, elixir-format
+msgid "Connect an X account in Settings → Connections. Posts appear after the next daily sync."
+msgstr ""
+
+#: lib/atlas_web/live/connections_live.ex:164
+#, elixir-autogen, elixir-format
+msgid "Credentials are encrypted and never shown to agents. Your connections are only used for your own requests: other people and shared Pip threads cannot use them. The exception is X, whose post metrics are shared with the team in Social. Disconnecting removes stored credentials; revoke app access in your provider settings to invalidate the grant there too. Gmail monitoring starts only after you configure and enable a signal source."
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:94
+#, elixir-autogen, elixir-format
+msgid "Engagements"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:66
+#: lib/atlas_web/live/social_performance_live.ex:81
+#, elixir-autogen, elixir-format
+msgid "Format"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:91
+#, elixir-autogen, elixir-format
+msgid "Impressions"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:100
+#, elixir-autogen, elixir-format
+msgid "Link clicks"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:134
+#, elixir-autogen, elixir-format
+msgid "Median engagements"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:131
+#, elixir-autogen, elixir-format
+msgid "Median impressions"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:137
+#, elixir-autogen, elixir-format
+msgid "Median rate"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:106
+#, elixir-autogen, elixir-format
+msgid "No posts yet"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:40
+#, elixir-autogen, elixir-format
+msgid "Period"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:73
+#, elixir-autogen, elixir-format
+msgid "Post"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:136
+#: lib/atlas_web/live/social_performance_live.ex:13
+#: lib/atlas_web/live/social_performance_live.ex:32
+#, elixir-autogen, elixir-format
+msgid "Post performance"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:88
+#, elixir-autogen, elixir-format
+msgid "Posted"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:70
+#: lib/atlas_web/live/social_performance_live.ex:130
+#, elixir-autogen, elixir-format
+msgid "Posts"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:34
+#, elixir-autogen, elixir-format
+msgid "Posts from connected X accounts, refreshed daily. Engagements are likes, reposts, quotes, replies and bookmarks. Connect an account in Settings → Connections."
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:97
+#, elixir-autogen, elixir-format
+msgid "Rate"
 msgstr ""

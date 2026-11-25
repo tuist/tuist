@@ -81,6 +81,19 @@ When a test becomes flaky and meets your threshold, you'll receive a notificatio
 
 <img src="/images/guides/integrations/slack/flaky-test-alert.png" alt="An image that shows a Slack flaky test alert message" style="max-width: 500px;" />
 
+### Slow test alerts {#slow-test-alerts}
+
+Slow test alerts notify you when an individual test case gets slower than a duration you set, so you don't have to check the Test Cases table for slow tests.
+
+To create one, go to your project's **Settings → Automations**, click **Add automation**, and under **When** pick **Test duration**. You can configure:
+
+- **Statistic**: Average, p50, p90, or p99 of the test case's run durations.
+- **Comparison** and **Seconds**: For example, greater or equal to 10 seconds.
+- **Window**: The calendar window the statistic is computed over, such as `30d`.
+- **Actions**: A **Send Slack notification** action is added by default. You can also mute or skip the test.
+
+Durations are computed the same way as in the Test Cases table, over CI and local runs on every branch. A test case needs at least five runs in the window before it's measured. Each test case triggers once when it crosses the threshold; with **Recovery** enabled, the automation re-arms (and runs its recovery actions) once the test is back under the threshold for the recovery window.
+
 ## Disconnecting the integration {#disconnect}
 
 To stop a notification, remove the configured Slack channel from the report, alert rule, or automation action in your Tuist dashboard. To revoke Tuist's access entirely, remove the webhook integration from inside Slack via **Settings & administration → Manage apps**.

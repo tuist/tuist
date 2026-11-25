@@ -16,7 +16,15 @@ defmodule Symptoms.Application do
         do: [Symptoms.Repo, {Oban, Application.fetch_env!(:symptoms, Oban)}],
         else: []
 
-    children = repo ++ [SymptomsWeb.Endpoint]
+    # Metrics have their own listener, which only the scraper may reach
+    # (SymptomsWeb.MetricsPlug).
+    metrics =
+      case Application.get_env(:symptoms, :metrics_port) do
+        port when is_integer(port) -> [{Bandit, plug: SymptomsWeb.MetricsPlug, port: port, scheme: :http}]
+        _ -> []
+      end
+
+    children = repo ++ [SymptomsWeb.Endpoint] ++ metrics
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Symptoms.Supervisor)
   end

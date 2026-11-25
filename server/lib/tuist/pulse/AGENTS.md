@@ -23,6 +23,10 @@ before changing anything here.
   skips a late commit.
 - A new kind of human state must join `Symptoms.state_changes/1` in
   `change_seq` order, and its fields need `server/data-export.md`.
+- State rows keep only the latest change. Every change also appends a
+  `SymptomStateEvent` with its user in the same transaction (`record_change`);
+  a new kind of human state writes one too. Never update or delete those rows:
+  a trigger refuses it, and they are the forensic trail for mutes and acks.
 
 ## Investigation requests (`Investigations`)
 

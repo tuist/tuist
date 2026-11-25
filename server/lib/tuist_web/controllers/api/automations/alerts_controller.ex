@@ -200,8 +200,15 @@ defmodule TuistWeb.API.Automations.AlertsController do
          type: :object,
          properties: %{
            name: %Schema{type: :string},
-           monitor_type: %Schema{type: :string, enum: ["flakiness_rate", "flaky_run_count", "reliability_rate"]},
-           trigger_config: %Schema{type: :object},
+           monitor_type: %Schema{
+             type: :string,
+             enum: ["flakiness_rate", "flaky_run_count", "reliability_rate", "test_duration"]
+           },
+           trigger_config: %Schema{
+             type: :object,
+             description:
+               "Monitor-specific parameters. test_duration takes statistic (average, p50, p90 or p99), threshold in milliseconds, comparison, window_type last_days and window (e.g. \"30d\")."
+           },
            cadence: %Schema{type: :string},
            trigger_actions: %Schema{type: :array, items: AutomationAlertAction},
            recovery_enabled: %Schema{type: :boolean},

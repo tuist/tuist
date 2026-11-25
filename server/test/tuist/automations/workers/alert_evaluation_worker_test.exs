@@ -49,6 +49,61 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     })
   end
 
+  test "a test duration automation triggers on a slow test case and recovers once it is fast again" do
+    project = ProjectsFixtures.project_fixture()
+
+    report = fn duration ->
+      {:ok, _run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "M",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "slow", status: "success", duration: duration},
+                %{name: "fast", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+    end
+
+    for _ <- 1..5, do: report.(20_000)
+    {test_cases, _meta} = Tests.list_test_cases(project.id, %{})
+    ids = Map.new(test_cases, &{&1.name, &1.id})
+
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "test_duration",
+        trigger_config: %{
+          "statistic" => "p50",
+          "threshold" => 10_000,
+          "comparison" => "gte",
+          "window_type" => "last_days",
+          "window" => "30d"
+        },
+        trigger_actions: [%{"type" => "change_state", "state" => "muted"}],
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 1},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    assert :ok = run(automation.id)
+    assert [%{test_case_id: triggered_id}] = Automations.list_active_alert_events(automation)
+    assert triggered_id == ids["slow"]
+    assert {:ok, %{state: "muted"}} = Tests.get_test_case_by_id(ids["slow"])
+
+    # Six fast runs move the median under the threshold.
+    for _ <- 1..6, do: report.(100)
+
+    assert :ok = run(automation.id)
+    assert Automations.list_active_alert_events(automation) == []
+    assert {:ok, %{state: "enabled"}} = Tests.get_test_case_by_id(ids["slow"])
+  end
+
   test "no-op when automation is missing" do
     reject(&FlakyTestsMonitor.evaluate/1)
     assert :ok = run(UUIDv7.generate())

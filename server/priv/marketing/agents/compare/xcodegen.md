@@ -1,10 +1,33 @@
-# XcodeGen vs Tuist: keep XcodeGen, add build infrastructure
+# XcodeGen vs Tuist: install, project.yml, and faster Xcode builds
 
-XcodeGen generates your Xcode project. Tuist is build infrastructure that makes that project's builds and tests faster and easier to investigate for developers, CI, and coding agents, without migrating off XcodeGen.
+XcodeGen is an open-source CLI that generates Xcode projects from a project.yml spec. See how to install it and how Tuist speeds up builds without migrating.
 
 ## What is XcodeGen?
 
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) is an open-source, MIT-licensed command-line tool that generates an Xcode project from your folder structure and a project spec. The spec is a YAML or JSON file, `project.yml` by default, that declares targets, configurations, schemes, build settings, and dependencies on other targets, Swift packages, Carthage frameworks, and SDKs. Teams commonly adopt it to stop committing `.xcodeproj` files and the merge conflicts that come with them. Its [project spec](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md) offers `include` for splitting a spec across files, setting groups, and target and scheme templates for reuse.
+
+Install it with Homebrew or Mint, then run it next to `project.yml`:
+
+```bash
+brew install xcodegen   # or: mint install yonaskolb/xcodegen
+xcodegen generate       # reads project.yml and writes the .xcodeproj
+```
+
+A minimal spec names the project and its targets:
+
+```yaml
+name: MyApp
+targets:
+  MyApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [MyApp]
+```
+
+The [README](https://github.com/yonaskolb/XcodeGen#installing) also documents building from source with `make install` or Swift Package Manager, and options such as `--spec` and `--use-cache`.
+
+XcodeGen describes the project; it doesn't change how long that project takes to build and test. That's the part Tuist works on, and it works with the project XcodeGen generates.
 
 ## What is Tuist?
 
@@ -69,6 +92,6 @@ Yes. XcodeGen and the Tuist CLI are both MIT-licensed. Tuist's server features, 
 
 ## Sources and review
 
-Sources checked on **2026-11-12**. Written by Tuist, not an independent benchmark. XcodeGen facts come from its [README](https://github.com/yonaskolb/XcodeGen), [project spec](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md), and [releases](https://github.com/yonaskolb/XcodeGen/releases) (2.46.0 at review time). Tuist facts come from the linked documentation. No benchmarks, customer results, or prices are implied.
+Sources checked on **2026-11-25**. Written by Tuist, not an independent benchmark. XcodeGen facts come from its [README](https://github.com/yonaskolb/XcodeGen), [project spec](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md), and [releases](https://github.com/yonaskolb/XcodeGen/releases) (2.48.0 at review time). Tuist facts come from the linked documentation. No benchmarks, customer results, or prices are implied.
 
 Explore [Cache](/marketing-markdown/cache), [Tests](/marketing-markdown/tests), [Previews](/marketing-markdown/previews), [documentation](/en/docs-markdown/guides/get-started), [pricing](/marketing-markdown/pricing), and [all comparisons](/marketing-markdown/compare).

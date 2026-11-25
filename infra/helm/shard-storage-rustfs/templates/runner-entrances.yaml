@@ -1,0 +1,41 @@
+{{- if .Values.enabled }}
+{{- range .Values.runnerEntrances }}
+{{- if not (and .site .host .ingressClassName .address .clientCIDRs) }}
+{{- fail "each runnerEntrances entry needs site, host, ingressClassName, address and clientCIDRs" }}
+{{- end }}
+---
+# A rack site's gateway (a host-network ingress-nginx on its storage node)
+# publishing the store to that site's runners on their machines segment, where
+# the VMs' firewall admits only that address on 443. The record points there,
+# so the name resolves publicly but answers only on the segment.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $.Release.Name }}-via-{{ .site }}
+  annotations:
+    external-dns.alpha.kubernetes.io/target: {{ .address | quote }}
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+    {{- with $.Values.runnerEntranceTLS.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ . | quote }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," .clientCIDRs | quote }}
+    {{- include "rustfs.streamingIngressAnnotations" $ | nindent 4 }}
+spec:
+  ingressClassName: {{ .ingressClassName }}
+  tls:
+    - hosts: [{{ .host | quote }}]
+      secretName: {{ $.Release.Name }}-via-{{ .site }}-tls
+  rules:
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range $.Values.gateway.buckets }}
+          - path: /{{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}-gateway
+                port: {number: 8080}
+          {{- end }}
+{{- end }}
+{{- end }}

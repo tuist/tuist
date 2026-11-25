@@ -37,8 +37,8 @@ ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be
 # The first release that signs in with the sandbox's workload identity (#15541)
 # without `tuist auth login`; SHA-256 of tuist-linux-x86_64.tar.gz from the
 # release's SHASUMS256.txt.
-ARG TUIST_VERSION=4.220.0-canary.14
-ARG TUIST_SHA256=c4ce408ff3ca4bb80baa983f7a2372daf99466641dec0344771b0f568b36b645
+ARG TUIST_VERSION=4.220.0-canary.22
+ARG TUIST_SHA256=57e240cf0cfba34b5b7308f3bff9e218aa5c8d24c2bad0a4e334fe9ae2cf2f50
 # Struo, which thread agents build and test with first; SHA-256 of
 # struo-<version>-x86_64-unknown-linux-gnu.tar.gz from the release's .sha256.
 ARG STRUO_VERSION=1.0.0
@@ -190,12 +190,16 @@ EOF
 
 # Amp's custom-image contract requires a glibc Linux binary and a `user`
 # account with passwordless sudo. Pin the CLI and verify its published hash.
+# `user` takes UID/GID 1000 from the base image's `ubuntu` account so it owns
+# what Linux runner jobs (`runner`, UID 1000) write to caches and checkouts,
+# and one custom image's ownership holds on both.
 ARG AMP_VERSION
 RUN curl -fsSL --retry 3 "https://static.ampcode.com/cli/${AMP_VERSION}/amp-linux-x64" -o /usr/local/bin/amp \
     && curl -fsSL --retry 3 "https://static.ampcode.com/cli/${AMP_VERSION}/linux-x64-amp.sha256" -o /tmp/amp.sha256 \
     && echo "$(cat /tmp/amp.sha256)  /usr/local/bin/amp" | sha256sum -c - \
     && chmod 0755 /usr/local/bin/amp && rm /tmp/amp.sha256 \
-    && groupadd user && useradd --create-home --gid user --shell /bin/bash user \
+    && userdel --remove ubuntu \
+    && groupadd --gid 1000 user && useradd --uid 1000 --create-home --gid user --shell /bin/bash user \
     && echo 'user ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/amp-user \
     && chmod 0440 /etc/sudoers.d/amp-user \
     && visudo -cf /etc/sudoers.d/amp-user
@@ -274,8 +278,10 @@ RUN case "$EMBEDDED_EXECUTOR" in \
       *) echo "EMBEDDED_EXECUTOR must be 0 or 1" >&2; exit 1 ;; \
     esac
 
-# UID 1000 cannot read the root worker's CAS credential or control sockets.
-RUN if ! getent passwd 1000 >/dev/null; then useradd --uid 1000 --create-home builder; fi
+# REAPI actions run as `builder` (UID/GID 2000, internal/executor.actionUID):
+# it cannot read the root worker's CAS credential or control sockets and,
+# unlike `user`, has no sudo.
+RUN groupadd --gid 2000 builder && useradd --uid 2000 --gid builder --create-home builder
 
 # The rootfs stage runs natively: mkfs.ext4 -d produces the same image on any
 # host, and this keeps the multi-gigabyte populate step off the emulator.

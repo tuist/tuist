@@ -1667,6 +1667,14 @@ jobs:
                 echo "::warning::No ${linux_runner_image_version}-${os_tag} Linux runner image; its profiles have no pool this deploy."
               fi
             done
+            # The trusted image for the poller, metrics and shell sidecars.
+            # A version without it keeps them on each pool's own image.
+            if sidecar_digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "${linux_runner_image_version}-sidecar" 2>/dev/null)"; then
+              add_set "runnersController.sidecarImage" \
+                "ghcr.io/tuist/tuist-linux-runner@${sidecar_digest}"
+            else
+              echo "::warning::No ${linux_runner_image_version}-sidecar Linux runner image; runner sidecars run each pool's image this deploy."
+            fi
           fi
 
           helm_values_args=(
@@ -2145,6 +2153,14 @@ jobs:
               -f infra/helm/shard-storage-rustfs/values-production-gra.yaml \
               --wait=hookOnly ||
               echo "::warning::Could not upgrade the public RustFS store; the server keeps default shard storage."
+            # The rack Macs' store on larch-store-a. A rack is down for days at
+            # a time, so nothing waits on it: Macs keep default shard storage
+            # until it serves and its entrances are marked ready.
+            helm upgrade --install rustfs-larch infra/helm/shard-storage-rustfs \
+              --namespace rustfs-larch --create-namespace \
+              -f infra/helm/shard-storage-rustfs/values-production-larch.yaml \
+              --wait=hookOnly ||
+              echo "::warning::Could not upgrade the rack Macs' RustFS store; Macs keep default shard storage."
           fi
 
           # Helm's wait holds an OnDelete DaemonSet until its Pods run the new

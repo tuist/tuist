@@ -3730,6 +3730,12 @@ runnersController:
   # identical to docker.io/library/docker:28-dind (ECR Public is a faithful
   # mirror), so this is the same image, just a non-rate-limited registry.
   # renovate: datasource=docker depName=public.ecr.aws/docker/library/docker versioning=docker
+  # Tuist-owned image the poller, metrics and shell sidecars of Linux runner
+  # Pods run. They hold the pool's dispatch token, so they never run the
+  # job's image, which a custom image may replace. Deploy-resolved from the
+  # linux-runner-image release's `<version>-sidecar` tag. Empty runs them on
+  # each pool's own image. Passed as an env var, so older controllers ignore it.
+  sidecarImage: ""
   dindImage: "public.ecr.aws/docker/library/docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
   # Override for the URL the dind dockerd mirrors docker.io through (with
   # a matching insecure-registry, since it's http in-cluster). Empty (the

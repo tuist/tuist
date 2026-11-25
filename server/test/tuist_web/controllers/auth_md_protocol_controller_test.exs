@@ -374,6 +374,48 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     assert json_response(invalid_key_conn, 400)["err"] == "invalid_key"
   end
 
+  test "a revoked delegation cannot be claimed again with a still-valid user code", %{conn: conn} do
+    email = AccountsFixtures.unique_user_email()
+    user = AccountsFixtures.user_fixture(email: email)
+    {provider, assertion, jwk} = id_jag(email, "provider-revoked-reclaim")
+    stub(Tuist.Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+    response =
+      conn
+      |> post("/agent/identity", %{
+        "type" => "identity_assertion",
+        "assertion_type" => "urn:ietf:params:oauth:token-type:id-jag",
+        "assertion" => assertion
+      })
+      |> json_response(401)
+
+    claim_page_conn = build_conn() |> log_in_user(user) |> get(response["claim"]["verification_uri"])
+    body = html_response(claim_page_conn, 200)
+
+    confirm_params = %{
+      "_csrf_token" => extract_hidden_value(body, "_csrf_token"),
+      "claim_attempt_token" => extract_hidden_value(body, "claim_attempt_token"),
+      "user_code" => response["claim"]["user_code"]
+    }
+
+    claim_page_conn |> recycle() |> post("/agent/identity/claim/complete", confirm_params) |> html_response(200)
+    assert poll_claim(response["claim_token"])["access_token"]
+
+    event_conn =
+      build_conn()
+      |> put_req_header("content-type", "application/secevent+jwt")
+      |> post("/agent/event/notify", security_event(jwk, "event-revoked-reclaim"))
+
+    assert response(event_conn, 202) == ""
+
+    registration_id = String.replace_prefix(response["registration_id"], "reg_", "")
+    assert Repo.get!(AgentRegistration, registration_id).status == :revoked
+
+    claim_page_conn |> recycle() |> post("/agent/identity/claim/complete", confirm_params)
+
+    assert Repo.get!(AgentRegistration, registration_id).status == :revoked
+  end
+
   # Repeated id_jag exchanges reuse the existing delegation rather than inserting
   # a new claimed registration, which is what keeps revoke_provider_delegation/2's
   # per-registration loop off an unbounded set. If this ever starts accumulating,

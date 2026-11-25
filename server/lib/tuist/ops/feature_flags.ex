@@ -28,7 +28,7 @@ defmodule Tuist.Ops.FeatureFlags do
     {:immutable_shard_reports, "account",
      "Disabled in code until immutable shard plans support coverage and test selection; the toggle has no effect."},
     {:runner_shard_storage, "account",
-     "Opt-in Linux Mix/Cargo plans to runner-local storage; existing plans keep their store."},
+     "Opt-in Linux Mix/Cargo plans and rack Mac plans to their runner site's store; existing plans keep their store."},
     {:public_shard_storage, "account",
      "Opt-in Xcode/Mix/Cargo plans to public shard storage; custom S3 and eligible private stores take priority. Existing plans keep their store."},
     {:kura_positive_fence, "account",

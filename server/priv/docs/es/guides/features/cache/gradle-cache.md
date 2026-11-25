@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Caché de Gradle",
-  "titleTemplate": ":title · Caché · Funcionalidades · Guías · Tuist",
-  "description": "Comparte artefactos de la caché de compilación de Gradle con tu equipo y CI mediante Tuist."
+  "title": "Caché de compilación de Gradle: configura una caché remota para CI y tu equipo",
+  "titleTemplate": ":title · Tuist",
+  "description": "Configura una caché de compilación remota de Gradle con el plugin de Tuist y org.gradle.caching=true, para que CI y los desarrolladores reutilicen las salidas de las tareas en lugar de volver a ejecutarlas."
 }
 ---
-# Caché de Gradle {#gradle-cache}
+# Caché de compilación de Gradle {#gradle-cache}
 
-Tuist ofrece un plugin de Gradle que se integra con [la caché de compilación integrada de Gradle](https://docs.gradle.org/current/userguide/build_cache.html) para compartir artefactos de compilación de forma remota. Cuando las salidas de una tarea ya están en caché, Gradle omite la ejecución y obtiene el resultado desde la caché remota de Tuist, ahorrando tiempo de compilación para tu equipo y en entornos de CI. Para saber en qué se diferencian las cachés de compilación local y remota de Gradle de las comprobaciones de actualización y de la caché de configuración, consulta <.localized_link href="/references/concepts/build-cache#gradle">¿Qué es una caché de compilación?</.localized_link>. Para identificar qué parte de una compilación lenta elimina la caché y qué corregir primero en el proyecto, consulta [Compilaciones lentas](https://tuist.dev/solutions/slow-builds).
+Tuist es una caché de compilación remota para Gradle: su plugin de Gradle conecta [la caché de compilación integrada de Gradle](https://docs.gradle.org/current/userguide/build_cache.html) a un servidor compartido, de modo que la CI y cada máquina de desarrollador reutilizan los resultados de las tareas en lugar de volver a ejecutarlas. Cuando los resultados de una tarea ya están en caché, Gradle omite la ejecución y obtiene el resultado desde Tuist, ahorrando tiempo de compilación en todo tu equipo y en los entornos de CI. Para saber qué más añade Tuist a las compilaciones de Gradle, como análisis de compilaciones y análisis de tests, consulta [Gradle con Tuist](https://tuist.dev/build-systems/gradle); si lo estás comparando con Develocity, consulta [Develocity vs Tuist](https://tuist.dev/compare/develocity). Para entender en qué se diferencian las cachés de compilación local y remota de Gradle de las comprobaciones de actualización y de la caché de configuración, consulta <.localized_link href="/references/concepts/build-cache#gradle">¿Qué es una caché de compilación?</.localized_link>. Para averiguar qué parte de una compilación lenta elimina la caché y qué corregir primero en el proyecto, consulta [Compilaciones lentas](https://tuist.dev/solutions/slow-builds).
 
 Una vez instalado el <.localized_link href="/guides/install-gradle-plugin">plugin de Tuist para Gradle</.localized_link>, también debes habilitar la caché de compilación de Gradle en tu archivo `gradle.properties`:
 
@@ -15,11 +15,11 @@ Una vez instalado el <.localized_link href="/guides/install-gradle-plugin">plugi
 org.gradle.caching=true
 ```
 
-Sin esto, Gradle no activa su subsistema de caché de compilación —aunque haya una caché remota configurada— y todas las tareas se ejecutarán sin aprovechar ni rellenar la caché. Una vez habilitada, Gradle usará Tuist como caché de compilación remota, descargando las salidas de tareas almacenadas en caché cuando haya aciertos y subiéndolas tras la ejecución de la tarea.
+Sin esto, Gradle no activa su subsistema de caché de compilación, incluso con una caché remota configurada, y todas las tareas se ejecutarán sin aprovechar ni rellenar la caché. Una vez habilitada, Gradle usará Tuist como caché de compilación remota, descargando los resultados de tareas almacenados en caché cuando haya aciertos y subiéndolos tras la ejecución de la tarea.
 
 ## Política de subida a la caché {#cache-upload-policy}
 
-De forma predeterminada, el plugin descarga y sube artefactos a la caché remota. Puedes controlar las subidas con la opción `push` dentro del bloque `buildCache`:
+De forma predeterminada, el plugin descarga y sube artefactos a la caché remota. Puedes controlar las subidas con la opción `push` en el bloque `buildCache`:
 
 ```kotlin
 tuist {
@@ -29,7 +29,7 @@ tuist {
 }
 ```
 
-Un patrón habitual es subir artefactos solo desde CI, donde las compilaciones son reproducibles, mientras se mantienen los entornos locales en modo de solo lectura:
+Un patrón habitual es subir artefactos solo desde la CI, donde las compilaciones son reproducibles, mientras se mantienen los entornos locales en modo solo lectura:
 
 ```kotlin
 tuist {
@@ -47,11 +47,11 @@ Para entornos de CI, autentícate usando uno de los métodos de la <.localized_l
 
 ### Desactivar la caché de compilación local {#disabling-the-local-build-cache}
 
-Gradle mantiene tanto una caché de compilación local como una remota. La caché de compilación local almacena las salidas de las tareas en disco bajo `~/.gradle/caches/build-cache-1`.
+Gradle mantiene tanto una caché de compilación local como una remota. La caché de compilación local almacena los resultados de las tareas en disco bajo `~/.gradle/caches/build-cache-1`.
 
-Cuando Tuist está configurado como caché de compilación remota, se recomienda desactivar la caché de compilación local en CI. Esto evita almacenar artefactos redundantes en los runners de CI y garantiza que las compilaciones siempre rellenen la caché remota con entradas actualizadas para el resto del equipo.
+Cuando Tuist está configurado como caché de compilación remota, se recomienda desactivar la caché de compilación local en la CI. Esto evita almacenar artefactos redundantes en los runners de CI y garantiza que las compilaciones siempre rellenen la caché remota con entradas nuevas para el resto del equipo.
 
-Desactiva la caché de compilación local de Gradle en CI en tu `settings.gradle.kts`:
+Desactiva la caché de compilación local de Gradle en la CI en tu `settings.gradle.kts`:
 
 ```kotlin
 buildCache {
@@ -61,7 +61,7 @@ buildCache {
 }
 ```
 
-Esto mantiene la caché de compilación local disponible para el desarrollo local mientras la desactiva en CI, donde la caché remota de Tuist gestiona el intercambio de artefactos.
+Esto mantiene la caché de compilación local disponible para el desarrollo local mientras la desactiva en la CI, donde la caché remota de Tuist gestiona el intercambio de artefactos.
 
 ## Referencia de configuración {#configuration-reference}
 
@@ -70,5 +70,5 @@ El bloque `buildCache` admite:
 | Opción | Tipo | Predeterminado | Descripción |
 | --- | --- | --- | --- |
 | `enabled` | `Boolean` | `true` | Indica si la caché de compilación remota está habilitada. |
-| `push` | `Boolean` | `true` | Indica si se deben subir las salidas de las tareas a la caché remota. |
+| `push` | `Boolean` | `true` | Indica si se deben subir los resultados de las tareas a la caché remota. |
 | `allowInsecureProtocol` | `Boolean` | `false` | Indica si se permiten conexiones HTTP inseguras. |

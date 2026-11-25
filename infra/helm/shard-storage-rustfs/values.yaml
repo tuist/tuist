@@ -33,6 +33,24 @@ target:
   # placements, so shard plans, Actions cache entries and sandbox archives
   # recorded under it keep resolving. Needs privateNetwork.
   aliases: []
+  # Publishes runnerEntrances to the server as the store's runner_endpoints,
+  # all at once, once every entrance answers from its site's runners. Until
+  # then no Mac is given this store.
+  runnerEntrancesReady: false
+# Rack sites' gateways that publish the store to their Macs, which reach no
+# cluster network: each gets an Ingress on that site's gateway class, a DNS
+# record at the gateway's address and a certificate. Macs at the store's own
+# site (target.site) place plans here; every listed site reads them, since a
+# plan's shard jobs run at whichever site claims them. Needs privateNetwork.
+#   - site: larch
+#     host: s3-larch.example.com
+#     ingressClassName: kura-larch-runners
+#     address: 10.20.0.11
+#     clientCIDRs: [10.20.0.0/24]
+runnerEntrances: []
+runnerEntranceTLS:
+  # DNS-01 issuer: the entrance names resolve to private addresses.
+  clusterIssuer: ""
 # In-cluster S3 (<release>-s3:9000) for callers on the private network, which
 # reach every bucket the service user may use, unlike the public gateway.
 # sandboxd must keep its guests off port 9000 (DAEMON_ONLY_TCP_PORTS), since

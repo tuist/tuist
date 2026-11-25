@@ -42,6 +42,16 @@ defmodule Atlas.Connections.Provider do
       token_url: "https://oauth.qonto.com/oauth2/token",
       profile_url: "https://thirdparty.qonto.com/v2/membership",
       scopes: ~w(offline_access membership.read request_transfers.write)
+    },
+    # Read-only: the connected account's posts and their metrics, synced into
+    # Social for the team. Access tokens last two hours; offline.access adds a
+    # rotating refresh token.
+    "x" => %{
+      name: "X",
+      authorize_url: "https://x.com/i/oauth2/authorize",
+      token_url: "https://api.x.com/2/oauth2/token",
+      profile_url: "https://api.x.com/2/users/me",
+      scopes: ~w(tweet.read users.read offline.access)
     }
   }
 
@@ -53,7 +63,7 @@ defmodule Atlas.Connections.Provider do
     "compose" => "https://www.googleapis.com/auth/gmail.compose"
   }
 
-  def providers, do: ~w(github slack google qonto)
+  def providers, do: ~w(github slack google qonto x)
 
   @doc "Scopes for the requested Gmail consents (`read`, `compose`); unknown names request nothing."
   def gmail_scopes(consents) when is_list(consents) do
@@ -136,10 +146,7 @@ defmodule Atlas.Connections.Provider do
 
   defp token_request(provider, params) do
     with {:ok, config} <- configured(provider),
-         {:ok, body} <-
-           request(:post, config.token_url,
-             form: Map.merge(params, %{"client_id" => config.client_id, "client_secret" => config.client_secret})
-           ) do
+         {:ok, body} <- request(:post, config.token_url, client_credentials(provider, config, params)) do
       # A Slack install may also return a bot token. Only retain the user's token.
       token = if provider == "slack", do: body["authed_user"] || body, else: body
 
@@ -148,6 +155,13 @@ defmodule Atlas.Connections.Provider do
         else: {:error, :missing_user_token}
     end
   end
+
+  # X requires confidential clients to authenticate with HTTP Basic, not form fields.
+  defp client_credentials("x", config, params),
+    do: [form: params, auth: {:basic, "#{config.client_id}:#{config.client_secret}"}]
+
+  defp client_credentials(_provider, config, params),
+    do: [form: Map.merge(params, %{"client_id" => config.client_id, "client_secret" => config.client_secret})]
 
   defp token_attrs(%{"access_token" => token} = body) when is_binary(token) and token != "" do
     {:ok,
@@ -185,6 +199,10 @@ defmodule Atlas.Connections.Provider do
   defp profile("qonto", %{"membership" => %{"id" => id} = membership}) do
     name = Enum.join(Enum.reject([membership["first_name"], membership["last_name"]], &(&1 in [nil, ""])), " ")
     {:ok, %{provider_user_id: id, account_name: membership["email"] || name, workspace_id: nil}}
+  end
+
+  defp profile("x", %{"data" => %{"id" => id, "username" => username}}) do
+    {:ok, %{provider_user_id: id, account_name: "@" <> username, workspace_id: nil}}
   end
 
   defp profile(_provider, _body), do: {:error, :invalid_profile_response}

@@ -2,6 +2,14 @@
 
 One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are owned by [runners-controller](../runners-controller/AGENTS.md).
 
+The Dockerfile's `sidecar` target, released as `<version>-sidecar`, is the
+Tuist-owned image the `poller`, `metrics` and `shell` sidecars run
+(`runnersController.sidecarImage`). They hold the dispatch token, so they
+must not depend on the job's image, which a custom image may replace. Keep
+it to what those containers execute, and keep `runner` the last stage so
+it stays the default target. Ubuntu's `awk` (mawk) is deliberate: the
+metrics sampler is written and tested for it.
+
 ## What's in the image
 
 - `/home/runner/actions-runner/` — GitHub Actions runner binary

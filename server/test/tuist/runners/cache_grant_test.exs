@@ -25,12 +25,13 @@ defmodule Tuist.Runners.CacheGrantTest do
     assert CacheGrant.mint(42) == nil
   end
 
-  test "Linux routing verifies lifetime, issuer, audience, platform, site, account and signature" do
+  test "runner routing verifies lifetime, issuer, audience, platform, site, account and signature" do
     {private_pem, _} = keypair()
     stub(Environment, :cache_grant_private_key, fn -> private_pem end)
     token = CacheGrant.mint(42, platform: :linux, site: "gra")
-    assert {:ok, "gra"} = CacheGrant.linux_site(token, 42)
-    assert {:error, :invalid_runner_grant} = CacheGrant.linux_site(token, 43)
+    assert {:ok, :linux, "gra"} = CacheGrant.runner_site(token, 42)
+    assert {:ok, :macos, "larch"} = CacheGrant.runner_site(CacheGrant.mint(42, platform: :macos, site: "larch"), 42)
+    assert {:error, :invalid_runner_grant} = CacheGrant.runner_site(token, 43)
     jwk = JOSE.JWK.from_pem(private_pem)
     {true, %JOSE.JWT{fields: claims}, _} = JOSE.JWT.verify_strict(jwk, ["EdDSA"], token)
     now = System.system_time(:second)
@@ -42,16 +43,17 @@ defmodule Tuist.Runners.CacheGrantTest do
           %{"iss" => "other"},
           %{"aud" => "other"},
           %{"site" => nil},
-          %{"platform" => "macos"}
+          %{"platform" => nil},
+          %{"platform" => "windows"}
         ] do
       {_, invalid} = jwk |> JOSE.JWT.sign(%{"alg" => "EdDSA"}, Map.merge(claims, override)) |> JOSE.JWS.compact()
-      assert {:error, :invalid_runner_grant} = CacheGrant.linux_site(invalid, 42)
+      assert {:error, :invalid_runner_grant} = CacheGrant.runner_site(invalid, 42)
     end
 
     {other_private, _} = keypair()
     stub(Environment, :cache_grant_private_key, fn -> other_private end)
-    assert {:error, :invalid_runner_grant} = CacheGrant.linux_site(token, 42)
-    assert {:error, :invalid_runner_grant} = CacheGrant.linux_site("malformed", 42)
+    assert {:error, :invalid_runner_grant} = CacheGrant.runner_site(token, 42)
+    assert {:error, :invalid_runner_grant} = CacheGrant.runner_site("malformed", 42)
   end
 
   test "mint/1 returns nil for a non-integer account id" do

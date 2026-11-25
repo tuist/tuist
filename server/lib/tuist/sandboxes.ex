@@ -726,12 +726,9 @@ defmodule Tuist.Sandboxes do
             do: %{},
             else: %{cache_volume_id: cache_volume_id, cache_generation: cache_generation}
 
-        # Placement recorded the node (and, for macOS, its incarnation) on
-        # the row behind this struct.
         result =
-          sandbox
-          |> Repo.reload!()
-          |> update_sandbox(
+          mark_created(
+            sandbox,
             Map.merge(
               %{
                 state: :running,
@@ -746,7 +743,6 @@ defmodule Tuist.Sandboxes do
             ),
             boot_event
           )
-          |> schedule_idle_pause()
 
         # A sandbox resumed from its archived memory still reads it until its
         # node reports `memory_loaded`.
@@ -1694,7 +1690,8 @@ defmodule Tuist.Sandboxes do
     with_sandbox_lock(id, fn ->
       sandbox = get_sandbox_by_id(id) || sandbox
 
-      with {:ok, sandbox} <- update_sandbox(sandbox, %{state: :deleted, residency_work_id: nil}),
+      with {:ok, sandbox} <-
+             update_sandbox(sandbox, %{state: :deleted, residency_work_id: nil, delete_requested_at: now()}),
            :ok <- delete_on_node(sandbox),
            :ok <- Archives.delete_object(sandbox) do
         with {:ok, deleted} <- Repo.delete(sandbox) do
@@ -1708,6 +1705,41 @@ defmodule Tuist.Sandboxes do
       end
     end)
   end
+
+  # Placement recorded the node (and, for macOS, its incarnation) on the row
+  # behind this struct, hence the reload, under the row lock so a delete that
+  # starts now waits for the running row. A delete asked for while the node
+  # was still booting the VM wins: the row is gone (the node's delete answered
+  # before the VM existed), still `deleted` (that delete is in flight) or
+  # `error` with `delete_requested_at` (its node call failed). The VM is torn
+  # down rather than marked running; a failed delete is retried, which removes
+  # the row once the node answers. Other `error` writers (the stuck-create
+  # reaper, `sandbox_died`) leave no request, so a finishing create heals them.
+  defp mark_created(%Sandbox{} = sandbox, %{node_name: node_name} = attrs, boot_event) do
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        case Repo.one(from(s in Sandbox, where: s.id == ^sandbox.id, lock: "FOR UPDATE")) do
+          %Sandbox{state: state, delete_requested_at: nil} = current when state != :deleted ->
+            update_sandbox(current, attrs, boot_event)
+
+          current ->
+            {:delete_requested, current}
+        end
+      end)
+
+    case outcome do
+      {:delete_requested, current} ->
+        Logger.info("sandboxes: sandbox was deleted while it was being created", sandbox_id: sandbox.id, node: node_name)
+        finish_delete(current, %{sandbox | node_name: node_name})
+        {:error, :deleted}
+
+      result ->
+        schedule_idle_pause(result)
+    end
+  end
+
+  defp finish_delete(%Sandbox{state: :error} = current, _created), do: delete(current)
+  defp finish_delete(_current, created), do: delete_on_node(created)
 
   defp delete_on_node(%Sandbox{node_name: nil}), do: :ok
 

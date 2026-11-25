@@ -24,14 +24,15 @@ each workload cluster's `symptoms-<env>` namespace. Modelled on
   as `symptoms-<env>` by the Tailscale operator. There is no Ingress.
 - **NetworkPolicy** (in-cluster peers) and **CiliumNetworkPolicy** (DNS and the
   Kubernetes API, which a Kubernetes NetworkPolicy cannot name). Ingress: the Tuist server, the
-  Tailscale proxy, and alloy-metrics for the metrics scrape. Egress: Pulse, the
+  Tailscale proxy (API port only), and alloy-metrics on the separate metrics
+  port, which the Service does not expose. Egress: Pulse, the
   Tuist server, its own database, DNS and the Kubernetes API. No public HTTPS egress is allowed.
   The CNPG pods are not selected.
 - **CNPG Cluster** `symptoms-pg`: two instances, daily backups to the
   environment's `tuist-<env>-pg-backups` bucket under `symptoms/`.
 - **ExternalSecrets**: `symptoms-runtime` (below) and
-  `symptoms-backup-credentials` (`S3_BACKUP_CREDENTIALS`, the item the server's
-  CNPG cluster already uses).
+  `symptoms-backup-credentials` (`SYMPTOMS_PG_BACKUP`, a key scoped to the
+  `symptoms/` prefix; see "Backup key").
 
 ## Runtime configuration
 
@@ -41,14 +42,13 @@ each workload cluster's `symptoms-<env>` namespace. Modelled on
 | `PHX_HOST`, `PORT`, `POOL_SIZE`, `SKIP_MIGRATIONS` | values |
 | `SYMPTOMS_ENVIRONMENT` | `environment` |
 | `SYMPTOMS_SERVER_NAMESPACE`, `SYMPTOMS_SERVER_SERVICE_ACCOUNT` | Required `tuist.namespace`, `tuist.serviceAccount`: the exact server principal allowed to call the evaluator API |
+| `SYMPTOMS_METRICS_PORT` | `metrics.port`, the scrape-only listener (`metrics.enabled`) |
 | `SYMPTOMS_PAGING_ENABLED`, `SYMPTOMS_LINK_BASE_URL` | `decision.pagingEnabled`, `decision.linkBaseUrl` (omitted when empty) |
 | `SYMPTOMS_STATE_URL`, `SYMPTOMS_STATE_TOKEN_PATH` | `tuist.url`, the projected token |
-| `SYMPTOMS_PULSE_URL`, `SYMPTOMS_PULSE_USER` | `pulse.url`, `pulse.username` (read-only `dashboard`) |
-| `SYMPTOMS_PULSE_TOKEN` | `PULSE_TOKEN/password` (`pulse.tokenItem`/`tokenField`) |
-| `SYMPTOMS_PULSE_WRITE_USER` | `pulse.writeUsername` (write-only `tuist`), for the hourly span-edge INSERT |
-| `SYMPTOMS_PULSE_WRITE_TOKEN` | `PULSE_TOKEN/password` (`pulse.writeTokenItem`/`writeTokenField`): Pulse's `tuist:wo` identity shares the dashboard password |
+| `SYMPTOMS_PULSE_URL`, `SYMPTOMS_PULSE_USER` | `pulse.url`, `pulse.username` (read-only `symptoms`) |
+| `SYMPTOMS_PULSE_TOKEN` | `PULSE_SYMPTOMS_READER/password` (`pulse.tokenItem`/`tokenField`). Never `PULSE_TOKEN`, which is also the collectors' write password |
 | `SYMPTOMS_PROMETHEUS_URL` | `pulse.url` + `/v1/prometheus` (Pulse's Prometheus-compatible API, database `public`) |
-| `SYMPTOMS_PROMETHEUS_USER`, `SYMPTOMS_PROMETHEUS_TOKEN` | `pulse.username`, the existing read-only `PULSE_TOKEN/password` |
+| `SYMPTOMS_PROMETHEUS_USER`, `SYMPTOMS_PROMETHEUS_TOKEN` | `pulse.username` and the same `PULSE_SYMPTOMS_READER/password` |
 
 IRM integration is deferred. The chart mounts no IRM credentials and paging stays disabled.
 
@@ -65,17 +65,72 @@ matching `tuist.namespace`. Do not allow a namespace-wide group. The separate
 
 ## Before the first deploy
 
+These are human steps; nothing in CI or an agent session does them.
+
 1. Set `tuist.namespace` and `tuist.serviceAccount` to the server Pod's exact
    principal. The API-only evaluator uses no shared API token, sessions or signing
-   key. Keep the existing `PULSE_TOKEN/password` for telemetry reads and writes.
-2. Let the evaluator reach Pulse: Pulse's `pulse-private` NetworkPolicy
-   (`infra/helm/pulse`) admits only the observability namespace and the Tuist
-   server today, so add an ingress rule for `symptoms-<env>` pods
-   (`app.kubernetes.io/name: symptoms`) on port 4000.
-3. Confirm the `S3_BACKUP_CREDENTIALS` keys may write `symptoms/` in each
-   environment's backup bucket.
+   key.
+2. Give the evaluator its own Pulse reader: create `PULSE_SYMPTOMS_READER` in
+   each vault with a `password` field of letters and digits only, add the
+   environment to `symptomsReader.environments` in `infra/helm/pulse/values.yaml`
+   and deploy Pulse (it restarts the frontends, which load users at startup).
+   The evaluator reads as `symptoms:ro`; it never gets `PULSE_TOKEN`, which is
+   also the collectors' `tuist:wo` password. Pulse's `pulse-private`
+   NetworkPolicy already admits the evaluator on port 4000.
+3. Create the backup key below and store it as `SYMPTOMS_PG_BACKUP`.
 4. Deploy with `.github/workflows/symptoms-deployment.yml`, then turn on
    `server.symptoms.enabled` in the tuist chart's managed values.
+
+## Backup key
+
+The evaluator's CNPG cluster archives to `s3://tuist-<env>-pg-backups/symptoms`
+with a Tigris key of its own. It must not use `S3_BACKUP_CREDENTIALS`: the
+server's cluster archives to the root of the same bucket with that key, so
+anyone who can read the Secret or exec into `symptoms-<env>` could read and
+delete customer Postgres backups. The chart refuses that item and any
+destination outside `symptoms/`.
+
+Per environment (`stag`, `can`, `prod`), as a Tigris organization admin, with
+the AWS CLI pointed at `iam.storage.dev`:
+
+1. Create the policy `symptoms-<env>-pg-backups` (barman needs to list, read,
+   write and expire its own objects):
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"],
+         "Resource": ["arn:aws:s3:::tuist-<env>-pg-backups/symptoms/*"]
+       },
+       {
+         "Effect": "Allow",
+         "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+         "Resource": ["arn:aws:s3:::tuist-<env>-pg-backups"]
+       }
+     ]
+   }
+   ```
+
+   `s3:ListBucket` is bucket-level: Tigris conditions do not support
+   `s3:prefix`, so the key can list object names elsewhere in the bucket, but
+   not read, overwrite or delete them.
+2. Create an access key with scope `no_default_allow` (no bucket roles, so it
+   cannot create buckets or keys) and attach the policy:
+   `aws iam attach-user-policy --policy-arn <arn> --user-name <tid_…>`.
+3. Check it from a workstation: a `put`/`get`/`rm` under
+   `s3://tuist-<env>-pg-backups/symptoms/` succeeds, and a `get` of any object
+   outside `symptoms/` (for example one under `tuist-tuist-pg/`) fails with
+   `AccessDenied`.
+4. Store the key as `SYMPTOMS_PG_BACKUP` in `tuist-k8s-<env>` with fields
+   `access_key_id` and `secret_access_key`.
+5. After the first deploy, confirm the cluster's `ContinuousArchiving`
+   condition is true and a base backup appears under `symptoms/`.
+
+`infra/helm/tuist-ops` (`TUIST_OPS_PG_BACKUP`, `tuist-ops/`) and
+`infra/helm/mdm` (`MDM_PG_BACKUP`, `mdm/`) use keys made the same way.
 
 ## Image and deploy
 

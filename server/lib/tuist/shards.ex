@@ -77,6 +77,8 @@ defmodule Tuist.Shards do
         }
       end)
 
+    account = Repo.preload(project, :account).account
+
     attrs = %{
       id: Ecto.UUID.generate(),
       reference: reference,
@@ -90,7 +92,7 @@ defmodule Tuist.Shards do
       storage_target:
         ShardStorage.select(
           project,
-          Repo.preload(project, :account).account,
+          account,
           Keyword.get(opts, :runner_grant),
           Keyword.get(opts, :public_storage, false)
         ),
@@ -113,6 +115,13 @@ defmodule Tuist.Shards do
 
     insert_recent_plan!(plan)
     {:ok, plan} = IngestRepo.insert(plan)
+
+    :telemetry.execute(
+      [:tuist, :shards, :plan, :created],
+      %{count: 1},
+      ShardStorage.telemetry_tags(plan.storage_target, account, Keyword.get(opts, :runner_grant))
+    )
+
     if modules != [], do: IngestRepo.insert_all(ShardPlanModule, modules)
     if suites != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suites)
 
@@ -227,13 +236,29 @@ defmodule Tuist.Shards do
 
       # Clients replay a completion whose response they lost, for example while the shard store
       # restarts; the store then no longer knows the upload, but the object is there.
-      case Storage.multipart_complete_upload(key, upload_id, parts, actor) do
-        {:error, :multipart_upload_not_found} = error ->
-          if Storage.object_exists?(key, actor), do: :ok, else: error
+      result =
+        case Storage.multipart_complete_upload(key, upload_id, parts, actor) do
+          {:error, :multipart_upload_not_found} = error ->
+            if Storage.object_exists?(key, actor), do: :ok, else: error
 
-        result ->
-          result
-      end
+          result ->
+            result
+        end
+
+      if result == :ok, do: record_upload_completed(project, account, plan_id, opts)
+      result
+    end
+  end
+
+  # Uploads start right after the plan is written, so its age when an artifact
+  # completes bounds that artifact's upload time, comparably across stores.
+  defp record_upload_completed(project, account, plan_id, opts) do
+    with %{storage_target: target, inserted_at: %DateTime{} = inserted_at} <- upload_plan(project.id, plan_id) do
+      :telemetry.execute(
+        [:tuist, :shards, :upload, :completed],
+        %{plan_age: DateTime.diff(DateTime.utc_now(), inserted_at, :millisecond)},
+        ShardStorage.telemetry_tags(target, account, Keyword.get(opts, :runner_grant))
+      )
     end
   end
 
@@ -279,9 +304,9 @@ defmodule Tuist.Shards do
   # the account's storage.
   defp plan_storage(project, account, plan_id, opts) do
     if ShardStorage.routable?(project) do
-      case storage_target(project.id, plan_id) do
+      case upload_plan(project.id, plan_id) do
         nil -> {:error, :not_found}
-        target -> ShardStorage.resolve_for_request(%{storage_target: target}, account, Keyword.get(opts, :runner_grant))
+        plan -> ShardStorage.resolve_for_request(plan, account, Keyword.get(opts, :runner_grant))
       end
     else
       {:ok, account}
@@ -318,16 +343,15 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp storage_target(project_id, plan_id) do
+  defp upload_plan(project_id, plan_id) do
     with {:ok, plan_id} <- Ecto.UUID.cast(plan_id),
-         %RecentShardPlan{storage_target: target} <-
-           Repo.get_by(RecentShardPlan, plan_id: plan_id, project_id: project_id) do
-      target
+         %RecentShardPlan{} = plan <- Repo.get_by(RecentShardPlan, plan_id: plan_id, project_id: project_id) do
+      plan
     else
       _ ->
         case get_plan_by_id(project_id, plan_id) do
           nil -> nil
-          plan -> plan.storage_target
+          plan -> %{storage_target: plan.storage_target, inserted_at: DateTime.from_naive!(plan.inserted_at, "Etc/UTC")}
         end
     end
   end

@@ -529,17 +529,17 @@ defmodule Tuist.Kura.Regions do
   # gateway (`entrance_sites`). Until the sites have a private link, one rack's
   # traffic crosses both sites' internet ports to the other's primary, and a
   # rollout can move which rack that is. The other sites' own regions
-  # (`larch-runners`) remain only until their accounts' jobs have moved onto
-  # the entrances; see infra/kura-controller/rack-runner-region.md.
+  # (`larch-runners`) are retired tombstones: their nodes are gone, but usage
+  # billing still reads their ids as private (`UsageMeters`), and the reconciler
+  # resolves stored rows through them; see
+  # infra/kura-controller/rack-runner-region.md.
   @rack_sites [
     # The machines segment of each site, where its minis sit
     # (infra/rack-switch-fleet/sites/<site>.json).
     %{site: "ber1", display_name: "Alder rack (runner cache)", client_cidr: "10.10.0.0/24"},
-    # Draining: larch-store-a's memory holds ber1-runners' second replicas,
-    # so this region admits no account and serves larch's jobs through
-    # ber1-runners' entrance on its gateway instead. Retire it once nothing
-    # is left in it (infra/kura-controller/rack-runner-region.md).
-    %{site: "larch", display_name: "Larch rack (runner cache)", client_cidr: "10.20.0.0/24", draining: true}
+    # Retired: larch-store-a holds ber1-runners' second replicas, and larch's
+    # jobs reach them through ber1-runners' entrance on larch's gateway.
+    %{site: "larch", display_name: "Larch rack (runner cache)", client_cidr: "10.20.0.0/24", retired: true}
   ]
 
   rack_site_region_specs =
@@ -580,7 +580,7 @@ defmodule Tuist.Kura.Regions do
         # request as a connection, so 16 refused a build's parallel cache
         # lookups with HTML 503s past the sixteenth (measured, 2026-11).
         entrance_rate_limit_kbps: 6400,
-        draining: Map.get(rack, :draining, false),
+        retired: Map.get(rack, :retired, false),
         tolerations: [
           %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
         ],
@@ -984,15 +984,6 @@ defmodule Tuist.Kura.Regions do
   def retired?(_), do: false
 
   @doc """
-  True iff the region admits no account, so `Tuist.Kura.RunnerCache` drains
-  its nodes the way it drains one an account stops qualifying for. Unlike a
-  retired region it stays available: it keeps its catalog entry, its site and
-  the entrances other regions publish on its gateway.
-  """
-  def draining?(%__MODULE__{provisioner_config: %{draining: true}}), do: true
-  def draining?(_), do: false
-
-  @doc """
   Ids of regions kept only as catalog tombstones. A tombstone exists so the
   reconciler can still resolve a stored server's cluster identity long enough
   to tear its resources down; servers left in one can never schedule, because
@@ -1347,7 +1338,6 @@ defmodule Tuist.Kura.Regions do
       provisioner_config: %{
         cluster_id: spec.cluster_id,
         private: true,
-        draining: Map.get(spec, :draining, false),
         # Stable in-cluster access, including debugging gateway regions.
         # Off-cluster runner dispatch uses the observed private entrance.
         private_url_template: @in_cluster_url_template,

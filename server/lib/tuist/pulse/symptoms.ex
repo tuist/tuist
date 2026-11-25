@@ -37,6 +37,11 @@ defmodule Tuist.Pulse.Symptoms do
   advisory lock before drawing it, so changes commit in `change_seq` order and
   the evaluator's cursor over `state_changes/1` never skips a change that
   commits late.
+
+  The state rows keep only the latest change and overwrite `user_id`. Every
+  change also appends a `Tuist.Pulse.SymptomStateEvent` with its user, in the
+  same transaction, which the database never lets anyone update or delete
+  (`history/2`).
   """
 
   import Ecto.Query
@@ -53,6 +58,7 @@ defmodule Tuist.Pulse.Symptoms do
   alias Tuist.Pulse.SymptomMute
   alias Tuist.Pulse.SymptomOutcome
   alias Tuist.Pulse.SymptomRevision
+  alias Tuist.Pulse.SymptomStateEvent
   alias Tuist.Repo
 
   require Logger
@@ -690,7 +696,7 @@ defmodule Tuist.Pulse.Symptoms do
   """
   def ack(user, account, id) do
     with {:ok, symptom} <- actionable(user, account, id) do
-      record_change(fn change_seq, now ->
+      record_change(user, account, symptom, :ack, fn change_seq, now ->
         Repo.insert_all(
           SymptomAck,
           [
@@ -708,6 +714,8 @@ defmodule Tuist.Pulse.Symptoms do
           on_conflict: {:replace, [:revision, :user_id, :change_seq, :updated_at]},
           conflict_target: [:symptom_id]
         )
+
+        %{"revision" => symptom.revision}
       end)
     end
   end
@@ -722,20 +730,28 @@ defmodule Tuist.Pulse.Symptoms do
 
     with {:ok, symptom} <- actionable(user, account, id),
          true <- phenomenon in symptom.phenomenon_names and seconds > 0 and seconds <= @max_mute_seconds do
-      record_change(fn change_seq, at ->
+      record_change(user, account, symptom, :mute, fn change_seq, at ->
+        key = scope_key(symptom, phenomenon)
+        expires_at = DateTime.truncate(expires_at, :second)
+
+        previous =
+          Repo.one(
+            from(m in SymptomMute, where: m.account_id == ^account.id and m.scope_key == ^key, select: m.expires_at)
+          )
+
         Repo.insert_all(
           SymptomMute,
           [
             %{
               id: UUIDv7.generate(),
               account_id: account.id,
-              scope_key: scope_key(symptom, phenomenon),
+              scope_key: key,
               environment: symptom.environment,
               service: symptom.service,
               entity_kind: symptom.entity_kind,
               entity_key: symptom.entity_key,
               phenomenon: phenomenon,
-              expires_at: DateTime.truncate(expires_at, :second),
+              expires_at: expires_at,
               symptom_id: symptom.id,
               user_id: user.id,
               change_seq: change_seq,
@@ -746,6 +762,18 @@ defmodule Tuist.Pulse.Symptoms do
           on_conflict: {:replace, [:expires_at, :symptom_id, :user_id, :change_seq, :updated_at]},
           conflict_target: [:account_id, :scope_key]
         )
+
+        %{
+          "phenomenon" => phenomenon,
+          "entity" => %{
+            "environment" => symptom.environment,
+            "service" => symptom.service,
+            "kind" => symptom.entity_kind,
+            "key" => symptom.entity_key
+          },
+          "expires_at" => DateTime.to_iso8601(expires_at),
+          "previous_expires_at" => previous && DateTime.to_iso8601(previous)
+        }
       end)
     else
       false -> {:error, :invalid_params}
@@ -761,7 +789,9 @@ defmodule Tuist.Pulse.Symptoms do
   def confirm_outcome(user, account, id, outcome) do
     with {:ok, symptom} <- actionable(user, account, id),
          {:ok, outcome} <- Map.fetch(@outcomes, outcome) do
-      record_change(fn change_seq, now ->
+      record_change(user, account, symptom, :outcome, fn change_seq, now ->
+        previous = Repo.one(from(o in SymptomOutcome, where: o.symptom_id == ^symptom.id, select: o.outcome))
+
         Repo.insert_all(
           SymptomOutcome,
           [
@@ -779,6 +809,8 @@ defmodule Tuist.Pulse.Symptoms do
           on_conflict: {:replace, [:outcome, :user_id, :change_seq, :updated_at]},
           conflict_target: [:symptom_id]
         )
+
+        %{"outcome" => Atom.to_string(outcome), "previous" => previous && Atom.to_string(previous)}
       end)
     else
       :error -> {:error, :invalid_params}
@@ -804,14 +836,52 @@ defmodule Tuist.Pulse.Symptoms do
     |> Base.encode16(case: :lower)
   end
 
-  defp record_change(write) do
+  # Writes the state row and, in the same transaction, its event. The previous
+  # values `write` reads are stable: every writer holds the advisory lock
+  # `draw_change_seq/0` takes.
+  defp record_change(user, account, symptom, kind, write) do
     {:ok, :ok} =
       Repo.transaction(fn ->
-        write.(draw_change_seq(), DateTime.truncate(DateTime.utc_now(), :second))
+        change_seq = draw_change_seq()
+        now = DateTime.truncate(DateTime.utc_now(), :second)
+        details = write.(change_seq, now)
+
+        Repo.insert_all(SymptomStateEvent, [
+          %{
+            id: UUIDv7.generate(),
+            account_id: account.id,
+            symptom_id: symptom.id,
+            kind: kind,
+            user_id: user.id,
+            change_seq: change_seq,
+            details: details,
+            inserted_at: now
+          }
+        ])
+
         :ok
       end)
 
     :ok
+  end
+
+  @doc """
+  Every ack, mute and outcome change ever made to the symptom, oldest first,
+  with the user who made it: `%{kind, user_id, change_seq, details,
+  inserted_at}`. Unlike the state rows, nothing here is ever overwritten.
+  """
+  def history(account, symptom_id) do
+    SymptomStateEvent
+    |> where([e], e.account_id == ^account.id and e.symptom_id == ^symptom_id)
+    |> order_by([e], asc: e.change_seq)
+    |> select([e], %{
+      kind: e.kind,
+      user_id: e.user_id,
+      change_seq: e.change_seq,
+      details: e.details,
+      inserted_at: e.inserted_at
+    })
+    |> Repo.all()
   end
 
   @doc """

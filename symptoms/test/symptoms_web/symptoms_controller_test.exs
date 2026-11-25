@@ -132,8 +132,12 @@ defmodule SymptomsWeb.SymptomsControllerTest do
     assert Enum.map(symptoms, & &1["symptom_id"]) == [c, a]
   end
 
-  test "metrics report coverage and pipeline lag without auth" do
-    body = build_conn() |> get("/metrics") |> response(200)
+  test "metrics are not on the API listener, which the tailnet reaches" do
+    assert build_conn() |> get("/metrics") |> response(404)
+  end
+
+  test "the metrics listener reports coverage and pipeline lag" do
+    body = metrics()
     assert body =~ "symptoms_up 1\n"
     assert body =~ "symptoms_coverage_ratio 1.0\n"
     assert body =~ ~s(symptoms_open_symptoms{tier="board"} 2\n)
@@ -142,13 +146,24 @@ defmodule SymptomsWeb.SymptomsControllerTest do
   test "metrics show when no source is configured and no entity is expected" do
     # Test config has `sources: []` and no entity was seen: the coverage
     # ratio reads 1.0, so these two are what reveal it.
-    body = build_conn() |> get("/metrics") |> response(200)
+    body = metrics()
     assert body =~ "symptoms_sources_configured 0\n"
     assert body =~ "symptoms_entities_expected 0\n"
 
     previous = Application.get_env(:symptoms, :sources)
     on_exit(fn -> Application.put_env(:symptoms, :sources, previous) end)
     Application.put_env(:symptoms, :sources, [Symptoms.FakeSource])
-    assert build_conn() |> get("/metrics") |> response(200) =~ "symptoms_sources_configured 1\n"
+    assert metrics() =~ "symptoms_sources_configured 1\n"
+  end
+
+  test "the metrics listener serves nothing else" do
+    conn = :get |> Plug.Test.conn("/api/v1/symptoms/log") |> SymptomsWeb.MetricsPlug.call([])
+    assert conn.status == 404
+  end
+
+  defp metrics do
+    conn = :get |> Plug.Test.conn("/metrics") |> SymptomsWeb.MetricsPlug.call([])
+    assert conn.status == 200
+    conn.resp_body
   end
 end

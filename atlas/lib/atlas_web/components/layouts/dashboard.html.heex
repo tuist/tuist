@@ -127,7 +127,16 @@
             label={gettext("Social")}
             icon="message_circle"
             navigate={~p"/commercial/gtm/social"}
-            selected={String.starts_with?(@current_path, "/commercial/gtm/social")}
+            selected={
+              String.starts_with?(@current_path, "/commercial/gtm/social") and
+                not String.starts_with?(@current_path, "/commercial/gtm/social/performance")
+            }
+          />
+          <.sidebar_item
+            label={gettext("Post performance")}
+            icon="chart_column"
+            navigate={~p"/commercial/gtm/social/performance"}
+            selected={String.starts_with?(@current_path, "/commercial/gtm/social/performance")}
           />
         </.sidebar_group>
         <.sidebar_item

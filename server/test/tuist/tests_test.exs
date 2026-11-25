@@ -12027,6 +12027,75 @@ defmodule Tuist.TestsTest do
       assert run.status == "failure"
     end
 
+    test "fails shards stuck in processing so a late shard report cannot reopen the run" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      seven_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -7, :hour)
+      stale_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(Test, [
+        %{
+          id: stale_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "in_progress",
+          model_identifier: "",
+          macos_version: "",
+          xcode_version: "",
+          git_branch: "main",
+          git_commit_sha: "",
+          git_ref: "",
+          ran_at: seven_hours_ago,
+          is_ci: true,
+          is_flaky: false,
+          shard_plan_id: plan.id,
+          inserted_at: seven_hours_ago
+        }
+      ])
+
+      # Shard 0 uploaded its result bundle but its processing never finished.
+      IngestRepo.insert_all(
+        ShardRun,
+        for {index, status} <- [{0, "processing"}, {1, "success"}] do
+          %{
+            shard_plan_id: plan.id,
+            project_id: project.id,
+            test_run_id: stale_id,
+            shard_index: index,
+            status: status,
+            duration: 0,
+            ran_at: seven_hours_ago,
+            inserted_at: seven_hours_ago
+          }
+        end
+      )
+
+      :ok = Tests.expire_stale_in_progress_test_runs()
+
+      {:ok, retried} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert retried.id == stale_id
+      assert retried.status == "failure"
+    end
+
     test "does not affect recent in_progress test runs" do
       project = ProjectsFixtures.project_fixture()
       one_hour_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :hour)

@@ -30,12 +30,17 @@ Cilium overlay between the storage nodes' WAN addresses
   has no rate or connection limit.
 - **Accounting.** `RunnerCache` counts traffic, job runs and drain waits at
   every site the region serves (`Regions.sites/1`).
-- **larch-runners.** Marked `draining`: it stays in the catalog but admits no
-  account, so `RunnerCache` drains any node in it.
+- **larch-runners.** A retired tombstone: never available, so no account gets
+  a node in it. It stays in the catalog because usage billing halves
+  private-region traffic by region id (`UsageMeters`), including the traffic
+  larch-runners served before it drained, and because its destroyed rows
+  still resolve. Larch's site entry (`@rack_sites`) also stays: it defines
+  ber1-runners' entrance on larch's gateway, which keeps serving.
 
 ## Migration (2026-11-25)
 
-1. **Drain `larch-runners`.** Its five nodes drained without restarting and
+1. **Drain `larch-runners`** with a temporary `draining` flag that admitted no
+   account. Its five nodes drained without restarting and
    were destroyed 15 minutes later, freeing larch-store-a's memory (12.21 GiB
    allocatable, 1.64 GiB of other pods: room for five 2 GiB replicas). Larch
    jobs fell back to their ber1 node through the rate-limited entrance.
@@ -53,9 +58,11 @@ Cilium overlay between the storage nodes' WAN addresses
    ordinal 0 restarts, ordinal 1 serves and may miss. Check with
    `kubectl -n kura get pods -l app.kubernetes.io/name=kura -o wide`: every
    account should have `-0` on ber1-store-a and `-1` on larch-store-a.
-5. **Follow-ups.** Delete the `larch-runners` region spec once nothing refers
-   to it. Ship the plan-sized memory floors (`memory_governed`), which roll
-   one replica at a time now, to make room at larch for more accounts.
+5. **Plan-sized memory floors** (`memory_governed`) shipped in the same
+   deploy, so all six accounts' second replicas fit on larch-store-a.
+6. **Retire `larch-runners`.** With no node left, the region became a retired
+   tombstone, the `draining` flag was removed, and the region left
+   `TUIST_KURA_AVAILABLE_REGIONS`. The `kura-larch-runners` gateway stays.
 
 ## Known gaps
 
@@ -63,8 +70,10 @@ Cilium overlay between the storage nodes' WAN addresses
   about 777 GiB allocatable, so `Capacity.room_for?` refuses tuist's 256 GiB
   claim; its jobs use the public cache until ber1 has room or the claim
   shrinks.
-- **No memory headroom at larch.** About 0.57 GiB stays free, so no new rack
-  account is admitted until the memory floors shrink.
+- **Memory overcommit at larch.** With plan floors, the six replicas request
+  about 6.1 GiB of larch-store-a's 12.2 GiB, but their 4 GiB ceilings add up
+  to about 240% of it, so several caches growing at once would put the node
+  under memory pressure.
 - **Overlay encryption.** No WireGuard or IPsec setting was found for Cilium,
   so replication and the gateways' proxying between sites likely cross the
   internet unencrypted. Kura authenticates every request, but cache contents

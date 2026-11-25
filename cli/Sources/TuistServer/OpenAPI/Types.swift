@@ -12355,18 +12355,10 @@ public enum Components {
             public var enabled: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/AutomationAlert/id`.
             public var id: Swift.String
-            /// The monitor type that evaluates the condition.
+            /// The monitor type that evaluates the condition. Known values: flakiness_rate, flaky_run_count, reliability_rate, test_duration, test_updated.
             ///
             /// - Remark: Generated from `#/components/schemas/AutomationAlert/monitor_type`.
-            @frozen public enum monitor_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case flakiness_rate = "flakiness_rate"
-                case flaky_run_count = "flaky_run_count"
-                case reliability_rate = "reliability_rate"
-            }
-            /// The monitor type that evaluates the condition.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AutomationAlert/monitor_type`.
-            public var monitor_type: Components.Schemas.AutomationAlert.monitor_typePayload
+            public var monitor_type: Swift.String
             /// - Remark: Generated from `#/components/schemas/AutomationAlert/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/AutomationAlert/recovery_actions`.
@@ -12389,7 +12381,7 @@ public enum Components {
             ///   - cadence: Evaluation cadence (e.g. "5m").
             ///   - enabled:
             ///   - id:
-            ///   - monitor_type: The monitor type that evaluates the condition.
+            ///   - monitor_type: The monitor type that evaluates the condition. Known values: flakiness_rate, flaky_run_count, reliability_rate, test_duration, test_updated.
             ///   - name:
             ///   - recovery_actions:
             ///   - recovery_config: Recovery parameters (e.g. window).
@@ -12400,7 +12392,7 @@ public enum Components {
                 cadence: Swift.String,
                 enabled: Swift.Bool,
                 id: Swift.String,
-                monitor_type: Components.Schemas.AutomationAlert.monitor_typePayload,
+                monitor_type: Swift.String,
                 name: Swift.String,
                 recovery_actions: [Components.Schemas.AutomationAlertAction]? = nil,
                 recovery_config: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
@@ -13373,7 +13365,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/skipped_test_suites`.
             public var skipped_test_suites: [Swift.String]?
-            /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+            /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. For a build system whose plans distribute a selection by module (Mix), the plan balances the modules sent, which should leave out those with nothing selected, and each shard read carries the run's whole `skipped_tests` list and its `test_impact_run_id`. Omit it on fallbacks and default selective testing.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/test_impact_run_id`.
             public var test_impact_run_id: Swift.String?
@@ -13397,7 +13389,7 @@ public enum Components {
             ///   - shard_min: Minimum number of shards.
             ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
             ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
-            ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+            ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. For a build system whose plans distribute a selection by module (Mix), the plan balances the modules sent, which should leave out those with nothing selected, and each shard read carries the run's whole `skipped_tests` list and its `test_impact_run_id`. Omit it on fallbacks and default selective testing.
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
@@ -13491,7 +13483,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/skip`.
             public var skip: [Swift.String]?
-            /// For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans.
+            /// For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. A plan that distributes the selection by module (Mix) gives every shard the run's whole list. Absent for other plans.
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/skipped_tests`.
             public var skipped_tests: [Components.Schemas.SkippedTest]?
@@ -13519,6 +13511,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/suites`.
             public var suites: Components.Schemas.Shard.suitesPayload
+            /// For a plan that distributes a selection by module (Mix): the impact run, which the shard reports with its tests. Absent for other plans.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/test_impact_run_id`.
+            public var test_impact_run_id: Swift.String?
             /// Creates a new `Shard`.
             ///
             /// - Parameters:
@@ -13527,8 +13523,9 @@ public enum Components {
             ///   - modules: The test modules assigned to this shard.
             ///   - shard_plan_id: The UUID of the shard plan.
             ///   - skip: Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards.
-            ///   - skipped_tests: For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans.
+            ///   - skipped_tests: For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. A plan that distributes the selection by module (Mix) gives every shard the run's whole list. Absent for other plans.
             ///   - suites: The test suites assigned to this shard, grouped by module name.
+            ///   - test_impact_run_id: For a plan that distributes a selection by module (Mix): the impact run, which the shard reports with its tests. Absent for other plans.
             public init(
                 download_url: Swift.String? = nil,
                 download_urls: [Swift.String],
@@ -13536,7 +13533,8 @@ public enum Components {
                 shard_plan_id: Swift.String,
                 skip: [Swift.String]? = nil,
                 skipped_tests: [Components.Schemas.SkippedTest]? = nil,
-                suites: Components.Schemas.Shard.suitesPayload
+                suites: Components.Schemas.Shard.suitesPayload,
+                test_impact_run_id: Swift.String? = nil
             ) {
                 self.download_url = download_url
                 self.download_urls = download_urls
@@ -13545,6 +13543,7 @@ public enum Components {
                 self.skip = skip
                 self.skipped_tests = skipped_tests
                 self.suites = suites
+                self.test_impact_run_id = test_impact_run_id
             }
             public enum CodingKeys: String, CodingKey {
                 case download_url
@@ -13554,6 +13553,7 @@ public enum Components {
                 case skip
                 case skipped_tests
                 case suites
+                case test_impact_run_id
             }
         }
         /// - Remark: Generated from `#/components/schemas/PreviewTracks`.
@@ -27264,6 +27264,39 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/commit_sha`.
             public var commit_sha: Swift.String
+            /// Mix only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/mix`.
+            public struct mixPayload: Codable, Hashable, Sendable {
+                /// The OTP application whose suite runs, for display.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/mix/app`.
+                public var app: Swift.String?
+                /// The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/mix/scheme`.
+                public var scheme: Swift.String?
+                /// Creates a new `mixPayload`.
+                ///
+                /// - Parameters:
+                ///   - app: The OTP application whose suite runs, for display.
+                ///   - scheme: The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+                public init(
+                    app: Swift.String? = nil,
+                    scheme: Swift.String? = nil
+                ) {
+                    self.app = app
+                    self.scheme = scheme
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case app
+                    case scheme
+                }
+            }
+            /// Mix only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/mix`.
+            public var mix: Components.Schemas.ResolveTestImpactBaselineParams.mixPayload?
             /// The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
             ///
             /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/parent_shas`.
@@ -27272,7 +27305,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/platform`.
             public var platform: Swift.String?
-            /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+            /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
             ///
             /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/scope`.
             public var scope: Swift.String?
@@ -27323,14 +27356,16 @@ public enum Components {
             ///   - ancestor_shas: The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges.
             ///   - build_system: The build system, `xcode` first. A plain string so new build systems don't need a new client.
             ///   - commit_sha: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+            ///   - mix: Mix only: the scope the invocation tests.
             ///   - parent_shas: The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
             ///   - platform: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
-            ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+            ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
             ///   - xcode: Xcode only: the scope the invocation tests.
             public init(
                 ancestor_shas: [Swift.String]? = nil,
                 build_system: Swift.String,
                 commit_sha: Swift.String,
+                mix: Components.Schemas.ResolveTestImpactBaselineParams.mixPayload? = nil,
                 parent_shas: [Swift.String]? = nil,
                 platform: Swift.String? = nil,
                 scope: Swift.String? = nil,
@@ -27339,6 +27374,7 @@ public enum Components {
                 self.ancestor_shas = ancestor_shas
                 self.build_system = build_system
                 self.commit_sha = commit_sha
+                self.mix = mix
                 self.parent_shas = parent_shas
                 self.platform = platform
                 self.scope = scope
@@ -27348,6 +27384,7 @@ public enum Components {
                 case ancestor_shas
                 case build_system
                 case commit_sha
+                case mix
                 case parent_shas
                 case platform
                 case scope
@@ -39085,6 +39122,39 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/head_sha`.
             public var head_sha: Swift.String
+            /// Mix only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/mix`.
+            public struct mixPayload: Codable, Hashable, Sendable {
+                /// The OTP application whose suite runs, for display.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/mix/app`.
+                public var app: Swift.String?
+                /// The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/mix/scheme`.
+                public var scheme: Swift.String?
+                /// Creates a new `mixPayload`.
+                ///
+                /// - Parameters:
+                ///   - app: The OTP application whose suite runs, for display.
+                ///   - scheme: The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+                public init(
+                    app: Swift.String? = nil,
+                    scheme: Swift.String? = nil
+                ) {
+                    self.app = app
+                    self.scheme = scheme
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case app
+                    case scheme
+                }
+            }
+            /// Mix only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/mix`.
+            public var mix: Components.Schemas.CreateTestImpactRunParams.mixPayload?
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/modulesPayload`.
             public struct modulesPayloadPayload: Codable, Hashable, Sendable {
                 /// The test module.
@@ -39128,7 +39198,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/platform`.
             public var platform: Swift.String?
-            /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+            /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/scope`.
             public var scope: Swift.String?
@@ -39187,10 +39257,11 @@ public enum Components {
             ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
             ///   - git_branch: The git branch, shown on the overview.
             ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+            ///   - mix: Mix only: the scope the invocation tests.
             ///   - modules: Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.
             ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
             ///   - platform: The platform the tests run on. Absent where the build system has none.
-            ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+            ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
             ///   - xcode: Xcode only: the scope the invocation tests.
             public init(
                 ancestor_shas: [Swift.String]? = nil,
@@ -39204,6 +39275,7 @@ public enum Components {
                 fallback_reason: Swift.String? = nil,
                 git_branch: Swift.String? = nil,
                 head_sha: Swift.String,
+                mix: Components.Schemas.CreateTestImpactRunParams.mixPayload? = nil,
                 modules: Components.Schemas.CreateTestImpactRunParams.modulesPayload,
                 parent_shas: [Swift.String]? = nil,
                 platform: Swift.String? = nil,
@@ -39221,6 +39293,7 @@ public enum Components {
                 self.fallback_reason = fallback_reason
                 self.git_branch = git_branch
                 self.head_sha = head_sha
+                self.mix = mix
                 self.modules = modules
                 self.parent_shas = parent_shas
                 self.platform = platform
@@ -39239,6 +39312,7 @@ public enum Components {
                 case fallback_reason
                 case git_branch
                 case head_sha
+                case mix
                 case modules
                 case parent_shas
                 case platform
@@ -122150,6 +122224,39 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/commit_sha`.
                     public var commit_sha: Swift.String
+                    /// Mix only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/mix`.
+                    public struct mixPayload: Codable, Hashable, Sendable {
+                        /// The OTP application whose suite runs, for display.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/mix/app`.
+                        public var app: Swift.String?
+                        /// The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/mix/scheme`.
+                        public var scheme: Swift.String?
+                        /// Creates a new `mixPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - app: The OTP application whose suite runs, for display.
+                        ///   - scheme: The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+                        public init(
+                            app: Swift.String? = nil,
+                            scheme: Swift.String? = nil
+                        ) {
+                            self.app = app
+                            self.scheme = scheme
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case app
+                            case scheme
+                        }
+                    }
+                    /// Mix only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/mix`.
+                    public var mix: Operations.resolveTestImpactBaseline.Input.Body.jsonPayload.mixPayload?
                     /// The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/parent_shas`.
@@ -122158,7 +122265,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/platform`.
                     public var platform: Swift.String?
-                    /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+                    /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/scope`.
                     public var scope: Swift.String?
@@ -122209,14 +122316,16 @@ public enum Operations {
                     ///   - ancestor_shas: The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges.
                     ///   - build_system: The build system, `xcode` first. A plain string so new build systems don't need a new client.
                     ///   - commit_sha: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+                    ///   - mix: Mix only: the scope the invocation tests.
                     ///   - parent_shas: The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
                     ///   - platform: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
-                    ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+                    ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
                     ///   - xcode: Xcode only: the scope the invocation tests.
                     public init(
                         ancestor_shas: [Swift.String]? = nil,
                         build_system: Swift.String,
                         commit_sha: Swift.String,
+                        mix: Operations.resolveTestImpactBaseline.Input.Body.jsonPayload.mixPayload? = nil,
                         parent_shas: [Swift.String]? = nil,
                         platform: Swift.String? = nil,
                         scope: Swift.String? = nil,
@@ -122225,6 +122334,7 @@ public enum Operations {
                         self.ancestor_shas = ancestor_shas
                         self.build_system = build_system
                         self.commit_sha = commit_sha
+                        self.mix = mix
                         self.parent_shas = parent_shas
                         self.platform = platform
                         self.scope = scope
@@ -122234,6 +122344,7 @@ public enum Operations {
                         case ancestor_shas
                         case build_system
                         case commit_sha
+                        case mix
                         case parent_shas
                         case platform
                         case scope
@@ -140385,7 +140496,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/skipped_test_suites`.
                     public var skipped_test_suites: [Swift.String]?
-                    /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+                    /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. For a build system whose plans distribute a selection by module (Mix), the plan balances the modules sent, which should leave out those with nothing selected, and each shard read carries the run's whole `skipped_tests` list and its `test_impact_run_id`. Omit it on fallbacks and default selective testing.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/test_impact_run_id`.
                     public var test_impact_run_id: Swift.String?
@@ -140409,7 +140520,7 @@ public enum Operations {
                     ///   - shard_min: Minimum number of shards.
                     ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
                     ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
-                    ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+                    ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. For a build system whose plans distribute a selection by module (Mix), the plan balances the modules sent, which should leave out those with nothing selected, and each shard read carries the run's whole `skipped_tests` list and its `test_impact_run_id`. Omit it on fallbacks and default selective testing.
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
@@ -148095,6 +148206,39 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/head_sha`.
                     public var head_sha: Swift.String
+                    /// Mix only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/mix`.
+                    public struct mixPayload: Codable, Hashable, Sendable {
+                        /// The OTP application whose suite runs, for display.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/mix/app`.
+                        public var app: Swift.String?
+                        /// The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/mix/scheme`.
+                        public var scheme: Swift.String?
+                        /// Creates a new `mixPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - app: The OTP application whose suite runs, for display.
+                        ///   - scheme: The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any.
+                        public init(
+                            app: Swift.String? = nil,
+                            scheme: Swift.String? = nil
+                        ) {
+                            self.app = app
+                            self.scheme = scheme
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case app
+                            case scheme
+                        }
+                    }
+                    /// Mix only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/mix`.
+                    public var mix: Operations.createTestImpactRun.Input.Body.jsonPayload.mixPayload?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/modulesPayload`.
                     public struct modulesPayloadPayload: Codable, Hashable, Sendable {
                         /// The test module.
@@ -148138,7 +148282,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/platform`.
                     public var platform: Swift.String?
-                    /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+                    /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/scope`.
                     public var scope: Swift.String?
@@ -148197,10 +148341,11 @@ public enum Operations {
                     ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
                     ///   - git_branch: The git branch, shown on the overview.
                     ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+                    ///   - mix: Mix only: the scope the invocation tests.
                     ///   - modules: Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.
                     ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
                     ///   - platform: The platform the tests run on. Absent where the build system has none.
-                    ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+                    ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
                     ///   - xcode: Xcode only: the scope the invocation tests.
                     public init(
                         ancestor_shas: [Swift.String]? = nil,
@@ -148214,6 +148359,7 @@ public enum Operations {
                         fallback_reason: Swift.String? = nil,
                         git_branch: Swift.String? = nil,
                         head_sha: Swift.String,
+                        mix: Operations.createTestImpactRun.Input.Body.jsonPayload.mixPayload? = nil,
                         modules: Operations.createTestImpactRun.Input.Body.jsonPayload.modulesPayload,
                         parent_shas: [Swift.String]? = nil,
                         platform: Swift.String? = nil,
@@ -148231,6 +148377,7 @@ public enum Operations {
                         self.fallback_reason = fallback_reason
                         self.git_branch = git_branch
                         self.head_sha = head_sha
+                        self.mix = mix
                         self.modules = modules
                         self.parent_shas = parent_shas
                         self.platform = platform
@@ -148249,6 +148396,7 @@ public enum Operations {
                         case fallback_reason
                         case git_branch
                         case head_sha
+                        case mix
                         case modules
                         case parent_shas
                         case platform
@@ -190096,6 +190244,7 @@ public enum Operations {
                         case flakiness_rate = "flakiness_rate"
                         case flaky_run_count = "flaky_run_count"
                         case reliability_rate = "reliability_rate"
+                        case test_duration = "test_duration"
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/monitor_type`.
                     public var monitor_type: Operations.createAutomationAlert.Input.Body.jsonPayload.monitor_typePayload
@@ -190109,6 +190258,8 @@ public enum Operations {
                     public var recovery_enabled: Swift.Bool?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/trigger_actions`.
                     public var trigger_actions: [Components.Schemas.AutomationAlertAction]
+                    /// Monitor-specific parameters. test_duration takes statistic (average, p50, p90 or p99), threshold in milliseconds, comparison, window_type last_days and window (e.g. "30d").
+                    ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/trigger_config`.
                     public var trigger_config: OpenAPIRuntime.OpenAPIObjectContainer?
                     /// Creates a new `jsonPayload`.
@@ -190121,7 +190272,7 @@ public enum Operations {
                     ///   - recovery_config:
                     ///   - recovery_enabled:
                     ///   - trigger_actions:
-                    ///   - trigger_config:
+                    ///   - trigger_config: Monitor-specific parameters. test_duration takes statistic (average, p50, p90 or p99), threshold in milliseconds, comparison, window_type last_days and window (e.g. "30d").
                     public init(
                         cadence: Swift.String? = nil,
                         monitor_type: Operations.createAutomationAlert.Input.Body.jsonPayload.monitor_typePayload,

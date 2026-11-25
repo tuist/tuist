@@ -2,6 +2,7 @@
 #gtm-idea,
 #gtm-social,
 #gtm-social-idea,
+#gtm-social-performance,
 #gtm-outreach,
 #gtm-opportunity,
 #outreach-contacts,
@@ -1411,4 +1412,9 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+#gtm-social-performance #social-posts-table [data-part="source-entry"] {
+  max-width: 340px;
+  white-space: normal;
 }

@@ -70,23 +70,9 @@ FROM opentelemetry_logs
 WHERE template_key IS NOT NULL
 GROUP BY "service", time_window;
 
--- Span parent edges per hour. A Flow cannot join, so the evaluator fills this
--- table every hour with span-edges.sql.
-CREATE TABLE IF NOT EXISTS symptoms_span_edges_1h (
-  "time_window" TIMESTAMP(9) NOT NULL,
-  "caller_service" STRING,
-  "caller_span_name" STRING,
-  "callee_service" STRING,
-  "callee_span_name" STRING,
-  "edge_count" BIGINT,
-  TIME INDEX ("time_window"),
-  PRIMARY KEY ("caller_service", "caller_span_name", "callee_service", "callee_span_name")
-);
-
 -- The evaluator's baselines need 28 days of history; keep 35 whatever the
 -- database's TTL (forever in production).
 ALTER TABLE symptoms_trace_counts_1m SET 'ttl' = '35d';
 ALTER TABLE symptoms_trace_latency_5m SET 'ttl' = '35d';
 ALTER TABLE symptoms_log_counts_1m SET 'ttl' = '35d';
 ALTER TABLE symptoms_log_totals_1m SET 'ttl' = '35d';
-ALTER TABLE symptoms_span_edges_1h SET 'ttl' = '35d';

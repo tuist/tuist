@@ -248,6 +248,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListPostmortems
   alias Atlas.MCP.Tools.ListProductTraces
   alias Atlas.MCP.Tools.ListSocialChannelIdeas
+  alias Atlas.MCP.Tools.ListSocialPostPerformance
   alias Atlas.MCP.Tools.ListSocialPostRevisions
   alias Atlas.MCP.Tools.ListSpecComments
   alias Atlas.MCP.Tools.ListSpecs
@@ -842,6 +843,7 @@ defmodule Atlas.MCP.Server do
     CreateBlogPostIdea,
     CreateBlogPostIdeaComment,
     ListSocialChannelIdeas,
+    ListSocialPostPerformance,
     GetSocialChannelIdea,
     CreateSocialChannelIdea,
     UpdateSocialChannelIdea,

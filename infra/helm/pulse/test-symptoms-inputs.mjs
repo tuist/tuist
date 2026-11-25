@@ -1,7 +1,7 @@
 // Runs loki-otlp.yaml, symptoms.sql and span-edges.sql in a disposable Pulse
 // and checks the Symptoms evaluator's inputs: log template keys and masking,
 // exception fingerprints that match sentry-errors.yaml's for the same crash,
-// the trace and log Flows, and the span-edge table.
+// the trace and log Flows, and the span-edge query.
 //
 //   PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:secret node test-symptoms-inputs.mjs
 //
@@ -302,20 +302,21 @@ try {
   const totals = await sql(`SELECT "service", sum(line_count) AS lines FROM symptoms_log_totals_1m${suffix} GROUP BY "service" ORDER BY "service"`);
   assert.deepEqual(totals.map(entry => [entry.service, Number(entry.lines)]), [['kura-eu-west', 3], ['tuist-cache', 5], ['tuist-processor', 1], ['tuist-server', 6]]);
 
-  // Span edges for the hour holding the spans, twice: a rerun overwrites.
+  // Span edges for the hour holding the spans: a read-only query, which the
+  // dashboard identity may run, so the evaluator needs no write credential.
   const hour = new Date(Number((now - second) / 1000000n));
   hour.setUTCMinutes(0, 0, 0);
   const edgesSql = rename(readFileSync(new URL('span-edges.sql', directory), 'utf8').replace(/^--.*\n/gm, ''))
     .replaceAll('{{hour_start}}', hour.toISOString());
-  await sql(edgesSql);
-  await sql(edgesSql);
-  const edges = await sql(`SELECT time_window, caller_service, caller_span_name, callee_service, callee_span_name, edge_count FROM symptoms_span_edges_1h${suffix} ORDER BY callee_service, callee_span_name`);
-  assert.deepEqual(edges.map(edge => [edge.caller_service, edge.caller_span_name, edge.callee_service, edge.callee_span_name, edge.edge_count]), [
+  assert.match(edgesSql.trim(), /^SELECT\b/, 'span-edges.sql must stay a read');
+  const edges = (await sql(edgesSql))
+    .map(edge => [edge.caller_service, edge.caller_span_name, edge.callee_service, edge.callee_span_name, Number(edge.edge_count)])
+    .sort((a, b) => `${a[2]}\0${a[3]}`.localeCompare(`${b[2]}\0${b[3]}`));
+  assert.deepEqual(edges, [
     ['tuist-server', 'POST /cache', 'kura-eu-west', 'POST /cache', 2],
     ['tuist-server', 'GET /api/projects/:id', 'tuist-server', 'POST /cache', 1],
     ['tuist-server', 'GET /api/projects/:id', 'tuist-server', 'tuist.repo.query', 1],
   ]);
-  assert.ok(edges.every(edge => BigInt(edge.time_window) === BigInt(hour.getTime()) * 1000000n));
 
   // Asymmetric normalization regression: these expected hashes come from
   // explicit canonical keys, not either pipeline's output. Two different

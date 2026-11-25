@@ -140,6 +140,42 @@ Keep the override scoped to this Ingress, not the shared controller ConfigMap.
 See [NGINX's directive](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_buffer_size)
 and [HTTP/2 upload flow control](https://blog.cloudflare.com/delivering-http-2-upload-speed-improvements/).
 
+### Rack Macs' store on larch-store-a
+
+`values-production-larch.yaml` runs one member with one drive in `rustfs-larch`
+on larch-store-a, as private target `rustfs-larch-production-v1` (site
+`larch`). Macs reach no cluster network: a rack VM may reach only its site's
+storage node on TCP 443 (`rackFleet.vmCacheGatewayCIDRs`). So each entry in
+`runnerEntrances` is an Ingress on that site's host-network gateway
+(`kura-<site>-runners`), admitting only the site's machines segment, with a
+DNS record at the storage node's segment address and a DNS-01 certificate.
+The server reaches the store in-cluster, signs a Mac's URLs for its own
+site's entrance (`runner_endpoints`), and places plans here only from Macs at
+`larch` with `runner_shard_storage`. Shard jobs run at whichever site claims
+them, so ber1's entrance must serve before any plan lands here: the server
+gets `runner_endpoints` only once `target.runnerEntrancesReady` is set, for
+every entrance at once. ber1's traffic crosses both sites' internet ports
+until the inter-site link carries the machines segments.
+
+The main chart reads the published Secret as
+`server.externalSecrets.shardStorage.secret` (`rustfs-larch-targets`). Before
+the first install, check larch-store-a's memory (the store requests 512Mi, the
+gateway 64Mi) and that `kuraDataLVSize` keeps room for `volumeSize` beside the
+VM image cache: the lvm-v1 reinstall empties `/data`.
+
+To mark it ready, from a Mac at each site:
+`curl -sS -o /dev/null -w '%{http_code}' https://<entrance host>/shards/` answers
+403 (RustFS, unsigned). Then set `target.runnerEntrancesReady: true`, deploy,
+and restart the server so it reads the new map.
+
+In Pulse, `tuist_shards_plans_total{platform="macos"}` counts macOS plans by
+`store` (`default` is the account or Tigris), and
+`tuist_shards_upload_plan_age_milliseconds` times each artifact upload from its
+plan's creation, by store, platform and site. The store's own view is RustFS's
+OTLP export under `job="rustfs-larch"`, for example
+`histogram_quantile(0.5, sum by (le) (rate(rustfs_s3_put_object_duration_ms_bucket{job="rustfs-larch"}[1h])))`
+and `rate(rustfs_http_server_response_body_bytes_total{job="rustfs-larch"}[5m])`.
+
 ### Single-member OVH performance variant
 
 `values-staging-ovh.yaml` installs a second release, `rustfs-ovh`, as one

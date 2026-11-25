@@ -3,7 +3,7 @@ defmodule Symptoms.SourceHelpers do
   # Fakes for `Req.request/1` in the source tests: Pulse's /v1/sql replies and
   # Prometheus API replies, built from rows shaped like the real tables.
 
-  @pulse [pulse: [base_url: "http://pulse.test", token: "read-only", write_token: "writer"]]
+  @pulse [pulse: [base_url: "http://pulse.test", token: "read-only"]]
 
   def pulse_opts(opts \\ []), do: Keyword.merge(@pulse, opts)
 
@@ -25,7 +25,7 @@ defmodule Symptoms.SourceHelpers do
 
   @doc """
   Stubs Req so every Pulse query goes to `fun.(sql)`, which returns rows,
-  `{:error, status}` or `:insert`. Sends `{:sql, sql, request}` to the test.
+  `{:error, status}`. Sends `{:sql, sql, request}` to the test.
   """
   def stub_pulse(fun) do
     test = self()
@@ -36,7 +36,6 @@ defmodule Symptoms.SourceHelpers do
 
       case fun.(sql) do
         {:error, status} -> {:ok, %Req.Response{status: status, body: ""}}
-        :insert -> {:ok, %Req.Response{status: 200, body: %{"output" => [%{"affectedrows" => 12}]}}}
         rows -> {:ok, %Req.Response{status: 200, body: sql_reply(rows)}}
       end
     end)

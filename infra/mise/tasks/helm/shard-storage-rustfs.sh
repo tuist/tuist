@@ -200,8 +200,40 @@ if helm template rustfs "$chart" -n rustfs-production -f "$chart/values-producti
   echo 'FAIL: alias published without a private network' >&2; exit 1
 fi
 if helm template rustfs "$chart" -n rustfs-staging --set enabled=true --set target.id=x >/dev/null 2>&1; then
-  echo 'FAIL: target published without generated credentials and a public host' >&2; exit 1
+  echo 'FAIL: target published without generated credentials and a public host or runner entrances' >&2; exit 1
 fi
+# The rack Macs' store: private, on larch-store-a, reached through each rack
+# site's gateway on that site's segment, published to Macs only once ready.
+helm template rustfs-larch "$chart" -n rustfs-larch -f "$chart/values-production-larch.yaml" |
+  yq -o json -I0 'select(.kind != null)' | jq -s . >"$work/larch.json"
+jq -e '
+  all(.[] | select(.kind == "StatefulSet" or .kind == "Deployment");
+    .spec.template.spec.nodeSelector["node.cluster.x-k8s.io/pool"] == "rack-storage-larch" and
+    .spec.template.spec.tolerations[0].key == "tuist.dev/rack-storage") and
+  ([.[] | select(.kind == "Ingress") | {class: .spec.ingressClassName, host: .spec.rules[0].host,
+    target: .metadata.annotations["external-dns.alpha.kubernetes.io/target"],
+    allow: .metadata.annotations["nginx.ingress.kubernetes.io/whitelist-source-range"],
+    paths: [.spec.rules[0].http.paths[].path], buffer: .metadata.annotations["nginx.ingress.kubernetes.io/proxy-request-buffering"]}] |
+    sort_by(.host)) == [
+      {class: "kura-ber1-runners", host: "s3-larch-via-ber1.tuist.dev", target: "10.10.0.11", allow: "10.10.0.0/24", paths: ["/shards"], buffer: "off"},
+      {class: "kura-larch-runners", host: "s3-larch.tuist.dev", target: "10.20.0.11", allow: "10.20.0.0/24", paths: ["/shards"], buffer: "off"}] and
+  any(.[]; .kind == "ExternalSecret" and .metadata.namespace == "tuist" and .spec.target.name == "rustfs-larch-targets" and
+    (.spec.target.template.data["targets.json"] | fromjson | keys == ["rustfs-larch-production-v1"] and
+      (.["rustfs-larch-production-v1"] | .access == "private" and .site == "larch" and .private_network_ready == false and
+        .endpoint == "http://rustfs-larch-s3.rustfs-larch.svc.cluster.local:9000" and (has("runner_endpoints") | not)))) and
+  any(.[]; .kind == "CiliumNetworkPolicy" and .spec.ingress[0].fromEntities == ["host", "remote-node"]) and
+  any(.[]; .kind == "NetworkPolicy" and .metadata.name == "rustfs-larch-store" and
+    ([.spec.ingress[].from[] | .namespaceSelector.matchLabels["kubernetes.io/metadata.name"] // empty]) == ["tuist"])
+' "$work/larch.json" >/dev/null
+helm template rustfs-larch "$chart" -n rustfs-larch -f "$chart/values-production-larch.yaml" --set target.runnerEntrancesReady=true |
+  yq -o json -I0 'select(.kind == "ExternalSecret" and .metadata.name == "rustfs-larch-targets")' |
+  jq -e '.spec.target.template.data["targets.json"] | fromjson | .["rustfs-larch-production-v1"].runner_endpoints ==
+    {larch: "https://s3-larch.tuist.dev", ber1: "https://s3-larch-via-ber1.tuist.dev"}' >/dev/null
+if helm template rustfs-larch "$chart" -n rustfs-larch -f "$chart/values-production-larch.yaml" \
+  --set privateNetwork.enabled=false >/dev/null 2>&1; then
+  echo 'FAIL: runner entrances accepted without the in-cluster endpoint' >&2; exit 1
+fi
+echo 'PASS: rack Macs store: private target on larch-store-a, an entrance per rack site, published only once ready'
 echo 'PASS: production GRA store: one 1000G drive, generated credentials, in-cluster setup, public target, OTLP drive metrics, query-free gateway access log, scrubbed audit sidecar, private endpoint with archive and Actions cache buckets'
 echo 'PASS: single-member OVH performance variant: one member, eight drives, EC:4, kura-eu-west ingress'
 echo 'PASS: disabled defaults, isolation, eight volumes, four hosts, EC:4, retained PVCs, streaming gateway and restricted services'

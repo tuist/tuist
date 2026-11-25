@@ -252,7 +252,13 @@ ESO reads existing `PULSE_TOKEN/password` into a separate provider file containi
 `dashboard:ro=<token>` and `tuist:wo=<token>`. In the environments listed in
 `sentryWriter.environments` (none by default) it also holds `sentry:wo=<writer>`
 from `PULSE_SENTRY_WRITER/password`, the identity in Sentry producers' DSNs, so a
-DSN never carries the dashboard's token. List an environment only once that item
+DSN never carries the dashboard's token. In the environments listed in
+`symptomsReader.environments` (staging, canary and production) it also holds
+`symptoms:ro=<reader>` from `PULSE_SYMPTOMS_READER/password`, the Symptoms
+evaluator's own read-only identity, so the evaluator never holds
+`PULSE_TOKEN`, which is also the collectors' write password. Pulse's
+permission checker lets a `wo` user run every non-read statement, DDL
+(`DROP`, `ALTER`, `TRUNCATE`) included, not only inserts. List an environment only once that item
 exists in its vault, or the ExternalSecret fails and the deploy stops. Use only
 letters and digits for it (1Password's generator adds symbols by default): it
 goes into DSNs unescaped, and a `,`, `@`, `/`, `#` or `=` breaks every copy. The
@@ -470,8 +476,11 @@ The [Symptoms](../../../symptoms/README.md) evaluator reads these from database
 `public`. Windows are UTC and start at `time_window`, the sink tables' time
 index; counts are per window. The deployment smoke installs them alongside
 `loki_otlp`: `loki-otlp.yaml`, then `symptoms.sql` once a trace exists, both
-idempotent. The Flows' sink tables and `symptoms_span_edges_1h` keep 35 days
-whatever the database TTL.
+idempotent. The Flows' sink tables keep 35 days whatever the database TTL.
+The evaluator reads as its own read-only `symptoms` user
+(`symptomsReader`, from `PULSE_SYMPTOMS_READER/password`) and writes
+nothing to Pulse. An earlier `symptoms_span_edges_1h` table is no longer
+created or filled; drop it once no evaluator reads it.
 
 **Log columns** on `opentelemetry_logs`, written by `loki_otlp` for every Loki
 line (native OTLP rows leave them null):
@@ -534,13 +543,12 @@ the same window. Treat a missing window as unknown, never as zero. To repair a
 range, run the Flow's own `SELECT` restricted to it and `INSERT` the result into
 the sink, which overwrites rows with the same keys.
 
-**Span edges.** A Flow cannot join, so `symptoms.sql` only creates
-`symptoms_span_edges_1h` (`time_window` is the hour's start; keys
-`caller_service`, `caller_span_name`, `callee_service`, `callee_span_name`;
-value `edge_count`), and the evaluator fills it with `span-edges.sql` every
-hour, for the hour that ended at least 10 minutes earlier. It counts each span
-whose parent is in the same trace and started at most an hour before the window,
-by the child's start. Rerunning an hour overwrites it.
+**Span edges.** A Flow cannot join, so the evaluator runs the read-only
+`span-edges.sql` every hour, for the hour that ended at least 10 minutes
+earlier, and keeps the result (keys `caller_service`, `caller_span_name`,
+`callee_service`, `callee_span_name`; value `edge_count`) in its own database.
+It counts each span whose parent is in the same trace and started at most an
+hour before the window, by the child's start.
 
 **Cost.** Frontends mirror every write to `opentelemetry_traces` and
 `opentelemetry_logs` to the flownode and keep those tables off the bulk insert

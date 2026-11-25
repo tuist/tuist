@@ -1,26 +1,35 @@
 {{- if and .Values.enabled .Values.target.id }}
-{{- if not (and .Values.generateCredentials .Values.ingress.enabled .Values.ingress.host) }}
-{{- fail "target.id needs generateCredentials and a public ingress host" }}
+{{- $public := and .Values.ingress.enabled .Values.ingress.host }}
+{{- if not (and .Values.generateCredentials (or $public .Values.runnerEntrances)) }}
+{{- fail "target.id needs generateCredentials and a public ingress host or runnerEntrances" }}
 {{- end }}
 {{- if and .Values.target.privateNetworkReady (not .Values.privateNetwork.enabled) }}
 {{- fail "target.privateNetworkReady needs privateNetwork.enabled" }}
+{{- end }}
+{{- if and .Values.runnerEntrances (not .Values.privateNetwork.enabled) }}
+{{- fail "runnerEntrances need privateNetwork.enabled: the server reaches the store in-cluster" }}
 {{- end }}
 {{- if and .Values.actionsCache.bucket (le (int64 .Values.actionsCache.maxGB) 0) }}
 {{- fail "actionsCache.bucket needs a maxGB quota" }}
 {{- end }}
 {{- $reader := printf "%s-target-reader" .Release.Name }}
+{{- $inCluster := printf "http://%s-s3.%s.svc.cluster.local:9000" .Release.Name .Release.Namespace }}
+{{- /* Without a public ingress the store is private: the server and the runners
+  its entrances admit are its only callers. */}}
 {{- $config := dict
-  "access" "public"
+  "access" (ternary "public" "private" (not (empty $public)))
   "site" .Values.target.site
   "enabled" true
   "private_network_ready" (and .Values.privateNetwork.enabled .Values.target.privateNetworkReady)
-  "endpoint" (printf "https://%s" .Values.ingress.host)
+  "endpoint" (ternary (printf "https://%s" .Values.ingress.host) $inCluster (not (empty $public)))
   "region" "us-east-1"
   "bucket" "shards"
   "access_key_id" "{{ .access_key_id }}"
   "secret_access_key" "{{ .secret_access_key }}" }}
 {{- if .Values.privateNetwork.enabled }}
-{{- $_ := set $config "private_endpoint" (printf "http://%s-s3.%s.svc.cluster.local:9000" .Release.Name .Release.Namespace) }}
+{{- if $public }}
+{{- $_ := set $config "private_endpoint" $inCluster }}
+{{- end }}
 {{- with .Values.archiveBucket }}
 {{- $_ := set $config "archive_bucket" . }}
 {{- $_ := set $config "archive_budget_bytes" (mul (int64 $.Values.archiveBudgetGiB) 1073741824) }}
@@ -31,6 +40,16 @@
 {{- $_ := set $config "actions_cache_bytes" (mul (int64 $.Values.actionsCache.maxGB) 1000000000) }}
 {{- end }}
 {{- end }}
+{{- /* Every entrance at once: a plan placed at the store's site is read by shard
+  jobs at whichever site claims them, so publishing one site's entrance alone
+  would fail the others' reads. */}}
+{{- if and .Values.runnerEntrances .Values.target.runnerEntrancesReady }}
+{{- $endpoints := dict }}
+{{- range .Values.runnerEntrances }}
+{{- $_ := set $endpoints .site (printf "https://%s" .host) }}
+{{- end }}
+{{- $_ := set $config "runner_endpoints" $endpoints }}
+{{- end }}
 {{- $targets := dict .Values.target.id $config }}
 {{- range .Values.target.aliases }}
 {{- if not $.Values.privateNetwork.enabled }}
@@ -38,7 +57,7 @@
 {{- end }}
 {{- /* A retired store's ID, whose objects were copied here: rows that name it
   resolve to the same buckets in-cluster, and it never takes placements. */}}
-{{- $alias := merge (dict "access" "private" "endpoint" $config.private_endpoint "private_network_ready" false) (omit $config "access" "endpoint" "private_endpoint" "private_network_ready") }}
+{{- $alias := merge (dict "access" "private" "endpoint" $inCluster "private_network_ready" false) (omit $config "access" "endpoint" "private_endpoint" "private_network_ready") }}
 {{- $_ := set $targets . $alias }}
 {{- end }}
 # Publishes this store to the server as Secret <release>-targets (key

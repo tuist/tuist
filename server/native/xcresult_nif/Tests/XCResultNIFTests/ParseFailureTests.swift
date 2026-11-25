@@ -10,6 +10,14 @@ struct ParseFailureTests {
             "Error: item missing for id 0~example==\nUsage: xcresulttool <subcommand>\nDetails: \"quoted\" \\路径\t⚠️",
             "missing_object"
         ),
+        (
+            "Error: The operation couldn’t be completed. (XCResultKit_CASDB.FileBackedCASDatabase.Error error 1.)\nUsage: xcresulttool <subcommand>",
+            "missing_object"
+        ),
+        (
+            "Error: The operation couldn’t be completed. (XCResultKit_CASDB.FileBackedCASDatabase.Error error 0.)",
+            "command_failed"
+        ),
         ("Error: unable to open result bundle", "command_failed"),
         ("Warning: Error: item missing for id 0~example==", "command_failed"),
     ])

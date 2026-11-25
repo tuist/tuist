@@ -911,7 +911,13 @@ defmodule Tuist.Accounts.AgentAuth do
     end
   end
 
+  # Only a pending registration can be claimed. Expired and revoked are terminal:
+  # an OTP still inside its window must not move a revoked delegation back to claimed.
   defp ensure_not_claimed(%AgentRegistration{status: :claimed}), do: {:error, :previously_claimed}
+
+  defp ensure_not_claimed(%AgentRegistration{status: status}) when status in [:expired, :revoked],
+    do: {:error, :claim_expired}
+
   defp ensure_not_claimed(_registration), do: :ok
 
   defp ensure_claim_token_valid(%AgentRegistration{} = registration) do

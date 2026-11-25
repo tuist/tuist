@@ -14,23 +14,25 @@ for environment in staging canary production; do
     (.[] | select(.kind == "Deployment") | .spec.template.spec.containers[0].env |
       map({key: .name, value: .value}) | from_entries) as $env |
     ($env.SYMPTOMS_PROMETHEUS_URL == "http://pulse.observability.svc.cluster.local:4000/v1/prometheus") and
-    ($env.SYMPTOMS_PROMETHEUS_USER == "dashboard") and
+    ($env.SYMPTOMS_PROMETHEUS_USER == "symptoms") and
+    ($env.SYMPTOMS_PULSE_USER == "symptoms") and
     ($env.SYMPTOMS_PAGING_ENABLED == "false") and
     ($env.SYMPTOMS_SERVER_NAMESPACE == $server_namespace) and
     ($env.SYMPTOMS_SERVER_SERVICE_ACCOUNT == "tuist-server") and
     (.[] | select(.kind == "ExternalSecret" and .metadata.name == "symptoms-runtime") |
       ([.spec.data[].remoteRef.key] | sort) ==
-        (["PULSE_TOKEN/password", "PULSE_TOKEN/password"] | sort) and
+        ["PULSE_SYMPTOMS_READER/password"] and
       .spec.target.template.data.SYMPTOMS_PROMETHEUS_TOKEN == "{{ .pulse_token | trim }}") and
     (.[] | select(.kind == "ExternalSecret" and .metadata.name == "symptoms-backup-credentials") |
-      .spec.dataFrom == [{extract: {key: "S3_BACKUP_CREDENTIALS"}}]) and
+      .spec.dataFrom == [{extract: {key: "SYMPTOMS_PG_BACKUP"}}]) and
     ([.[] | select(.kind == "ClusterRole")] | length == 2) and
     (.[] | select(.kind == "ClusterRole" and (.metadata.name | endswith("-token-review"))) |
       .rules == [{apiGroups: ["authentication.k8s.io"], resources: ["tokenreviews"], verbs: ["create"]}]) and
     ([.. | objects | select(has("toFQDNs"))] | length == 0)
   ' "$work/render.json" > /dev/null
-  if grep -Eiq 'grafana_cloud|grafana\.net|IRM_WEBHOOK|SECRET_KEY_BASE|SYMPTOMS_API_TOKEN|SYMPTOMS/api_token' "$work/render.json"; then
-    echo "Unexpected cloud, IRM or session-key dependency in $environment" >&2
+  if grep -Eiq 'grafana_cloud|grafana\.net|IRM_WEBHOOK|SECRET_KEY_BASE|SYMPTOMS_API_TOKEN|SYMPTOMS/api_token' "$work/render.json" ||
+    grep -Eq '"PULSE_TOKEN/|S3_BACKUP_CREDENTIALS' "$work/render.json"; then
+    echo "Unexpected cloud, IRM, session-key, shared Pulse or shared backup credential in $environment" >&2
     exit 1
   fi
 done

@@ -88,7 +88,7 @@ defmodule Tuist.Storage do
         AzureBlob.multipart_generate_url(object_key, upload_id, part_number, opts)
 
       :s3 ->
-        {config, bucket_name} = s3_config_and_bucket(actor)
+        {config, bucket_name} = presign_config_and_bucket(actor)
 
         presigned_url_opts =
           [
@@ -800,6 +800,9 @@ defmodule Tuist.Storage do
   rescue
     _ -> false
   end
+
+  defp presign_config_and_bucket(%S3Target{presign_config: %{} = config, bucket: bucket}), do: {config, bucket}
+  defp presign_config_and_bucket(actor), do: s3_config_and_bucket(actor)
 
   defp s3_config_and_bucket(%S3Target{config: config, bucket: bucket}), do: {config, bucket}
 

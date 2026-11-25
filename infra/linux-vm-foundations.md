@@ -154,8 +154,12 @@ so.
 3. **CI-parity sandbox template** (needs a decision). A sandboxd template
    whose content is the runner image plus the sandbox guest binaries, so an
    agent can reproduce a CI job in the same environment. Open questions:
-   template size (the Android SDK), the runner user (`runner`, UID 1000)
-   versus the sandbox user (`user`), and how sessions choose it.
+   template size (the Android SDK) and how sessions choose it. The sandbox
+   `user` is UID/GID 1000 like the runner's `runner`, so CI-written caches
+   and checkouts keep their ownership in sandboxes; REAPI actions run as
+   `builder` (2000). Runner Pods' token holders (poller, metrics, shell)
+   run the Tuist-owned `sidecar` image, so a job image can be replaced
+   without handing it the dispatch token.
 4. **CI caches as sandbox drives** (needs a decision). Attach read-only
    clones of a repository's runner cache masters to sandboxes as drives.
    This needs a drive slot in the template snapshot and a server rule that

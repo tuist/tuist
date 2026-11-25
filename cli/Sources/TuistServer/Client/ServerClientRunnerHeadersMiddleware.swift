@@ -3,18 +3,9 @@ import HTTPTypes
 import OpenAPIRuntime
 import TuistEnvironment
 
-/// Dispatch attestation selects and accesses a Linux shard plan's local store.
+/// Dispatch attestation selects and accesses a shard plan's store beside the runner: a Linux
+/// runner's private network or a Mac's rack-site gateway. Only Tuist runners carry the grant.
 struct ServerClientRunnerHeadersMiddleware: ClientMiddleware {
-    private let isLinux: Bool
-
-    init(isLinux: Bool? = nil) {
-        #if os(Linux)
-            self.isLinux = isLinux ?? true
-        #else
-            self.isLinux = isLinux ?? false
-        #endif
-    }
-
     static let operations: Set<String> = [
         "createShardPlan", "getShard", "startShardUpload", "generateShardUploadURL", "completeShardUpload",
     ]
@@ -36,7 +27,7 @@ struct ServerClientRunnerHeadersMiddleware: ClientMiddleware {
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
-        if isLinux, Self.operations.contains(operationID),
+        if Self.operations.contains(operationID),
            let grant = Self.grant(variables: Environment.current.variables),
            let header = HTTPField.Name("x-tuist-runner-grant")
         {

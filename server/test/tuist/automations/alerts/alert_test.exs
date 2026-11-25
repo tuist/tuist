@@ -18,6 +18,38 @@ defmodule Tuist.Automations.Alerts.AlertTest do
   end
 
   describe "changeset/2" do
+    test "test_duration needs a statistic, a millisecond threshold and a calendar window" do
+      project = ProjectsFixtures.project_fixture()
+      config = %{"statistic" => "p90", "threshold" => 10_000, "window_type" => "last_days", "window" => "30d"}
+      attrs = valid_attrs(project, %{"monitor_type" => "test_duration", "trigger_config" => config})
+
+      assert Alert.changeset(%Alert{}, attrs).valid?
+
+      for {change, error} <- [
+            {%{"statistic" => "p95"}, "statistic must be one of: average, p50, p90, p99"},
+            {%{"threshold" => 2.5}, "threshold must be a positive integer of milliseconds"},
+            {%{"threshold" => 0}, "threshold must be a positive integer of milliseconds"},
+            {%{"window_type" => "rolling", "rolling_window_size" => 50},
+             "window_type must be last_days for test duration"},
+            {%{"window" => "12h"}, "window must be a string like '30d' (day-level only)"}
+          ] do
+        changeset = Alert.changeset(%Alert{}, Map.put(attrs, "trigger_config", Map.merge(config, change)))
+        assert error in errors_on(changeset).trigger_config
+      end
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          Map.merge(attrs, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "last_days", "window" => "7d", "condition" => "no_new_matches"},
+            "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
+          })
+        )
+
+      assert "condition no_new_matches is not supported for test duration" in errors_on(changeset).recovery_config
+    end
+
     test "existing-match actions are opt-in and require a boolean on a metric monitor" do
       project = ProjectsFixtures.project_fixture()
       attrs = valid_attrs(project)

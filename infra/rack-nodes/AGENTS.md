@@ -1264,7 +1264,7 @@ minute. A cluster the server cannot read leaves the rack up. An env that
 rents no macOS fleet (staging, canary) has no backup, so neither happens there.
 
 The flag also gives the account a node in the site's runner-cache region
-(`ber1-runners`, `larch-runners`), as `runner_site_cache` does. With the
+(`ber1-runners`, which spans every site), as `runner_site_cache` does. With the
 flag off for everyone, the rack's pools idle at their floors and nothing a
 customer runs lands on them.
 

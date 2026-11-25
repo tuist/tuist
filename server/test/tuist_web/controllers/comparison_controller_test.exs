@@ -73,8 +73,8 @@ defmodule TuistWeb.Marketing.ComparisonControllerTest do
     xml = conn |> get("/sitemap.xml") |> response(200)
 
     for {slug, title, migration_link, reviewed_on} <- [
-          {"xcodegen", "XcodeGen vs Tuist: keep XcodeGen, add build infrastructure",
-           "/en/docs/guides/features/projects/adoption/migrate/xcodegen-project", "2026-11-12"},
+          {"xcodegen", "XcodeGen vs Tuist: install, project.yml, and faster Xcode builds",
+           "/en/docs/guides/features/projects/adoption/migrate/xcodegen-project", "2026-11-25"},
           {"nx", "Nx vs Tuist: monorepo task runner and build infrastructure",
            "/en/docs/guides/features/cache/gradle-cache", "2026-11-12"},
           {"swift-package-manager", "Swift Package Manager vs Tuist: modularize with SPM or a Tuist project",
