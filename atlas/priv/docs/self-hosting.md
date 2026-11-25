@@ -171,6 +171,15 @@ docker compose up -d --force-recreate migrate atlas
 
 For [Helm](https://helm.sh/docs/), repeat the installation command with the new `--version`. Keep in mind that returning to an older image does not reverse database migrations. Check their compatibility before using a Helm rollback.
 
+## Rotate keys
+
+Give each key its own value, so a leaked key can be replaced without touching the others. Atlas can replace two of them without signing anyone out or losing data:
+
+- `GUARDIAN_SECRET_KEY` signs the access tokens MCP clients use. Move the current value to `GUARDIAN_SECRET_KEY_PREVIOUS`, set a new `GUARDIAN_SECRET_KEY`, and restart. Tokens signed with the previous key keep working until they expire a day later; then remove it.
+- `ENCRYPTION_KEY` encrypts saved integration credentials. Add a new key as `ENCRYPTION_KEYS=<id>:<base64 key>` and restart, then set `ENCRYPTION_CURRENT_KEY=<id>` and restart again. Run `bin/atlas eval 'Atlas.Release.reencrypt_vault("<id>")'` until it succeeds, then remove `ENCRYPTION_KEY`. With several replicas, also list every key id in `ENCRYPTION_KEY_IDS`, so a replica that lacks a key refuses to start instead of failing to read values the others write.
+
+Replacing `SECRET_KEY_BASE` signs everyone out of the web app, and makes saved AI provider keys unreadable until they are entered again.
+
 ## Keep the installation healthy
 
 If you need to override Erlang's automatic scheduler sizing, set `ERL_FLAGS` in Compose's `.env` or `env.ERL_FLAGS` in Helm values. For example, `+S 2:2` selects two schedulers. Leave the setting unset to use the resources available to the container.

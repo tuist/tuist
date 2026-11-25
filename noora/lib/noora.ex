@@ -20,6 +20,7 @@ defmodule Noora do
       import Noora.Card
       import Noora.Chart
       import Noora.Checkbox
+      import Noora.ContentDivider
       import Noora.DatePicker
       import Noora.DismissIcon
       import Noora.Dropdown
@@ -29,7 +30,6 @@ defmodule Noora do
       # The icon stays available as <.icon name="menu" />.
       import Noora.Icon, except: [menu: 1]
       import Noora.Label
-      import Noora.LineDivider
       import Noora.Menu
       import Noora.MiddleTruncate
       import Noora.Modal
@@ -45,7 +45,6 @@ defmodule Noora do
       import Noora.TabMenu
       import Noora.Tag
       import Noora.TextArea
-      import Noora.TextDivider
       import Noora.TextInput
       import Noora.Toggle
       import Noora.Tooltip

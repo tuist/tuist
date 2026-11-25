@@ -203,7 +203,7 @@
           <:header_icon>
             <.folder />
           </:header_icon>
-          <.line_divider />
+          <.content_divider />
           <.alert
             :if={Phoenix.Flash.get(@flash, :error)}
             id="add-connection-error"
@@ -261,7 +261,7 @@
               />
             </.dropdown>
           </div>
-          <.line_divider />
+          <.content_divider />
           <:footer>
             <.modal_footer>
               <:action>
@@ -369,7 +369,7 @@
             />
           </:trigger>
           <:header_icon><.folder /></:header_icon>
-          <.line_divider />
+          <.content_divider />
           <.origin_repository_status result={@origin_details} />
           <.alert
             :if={@origin_error}
@@ -454,7 +454,7 @@
               />
             </.dropdown>
           </div>
-          <.line_divider />
+          <.content_divider />
           <:footer>
             <.modal_footer>
               <:action>
@@ -528,7 +528,7 @@
               {attrs}
             />
           </:trigger>
-          <.line_divider />
+          <.content_divider />
           <div data-part="connect-gitlab">
             <.alert
               :if={@gitlab_error}
@@ -751,7 +751,7 @@
                 {attrs}
               />
             </:trigger>
-            <.line_divider />
+            <.content_divider />
             <div data-part="connect-buildkite">
               <.alert
                 :if={@buildkite_form_error}
@@ -785,7 +785,7 @@
                 show_required
               />
             </div>
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>
@@ -861,7 +861,7 @@
             />
           </:trigger>
           <:header_icon><.folder /></:header_icon>
-          <.line_divider />
+          <.content_divider />
           <div :if={@entire_repositories.loading} role="status">
             {dgettext("dashboard_integrations", "Loading Entire repositories…")}
           </div>
@@ -916,7 +916,7 @@
               />
             </.dropdown>
           </div>
-          <.line_divider />
+          <.content_divider />
           <:footer>
             <.modal_footer>
               <:action>
@@ -1023,7 +1023,7 @@
               {attrs}
             />
           </:trigger>
-          <.line_divider />
+          <.content_divider />
           <div data-part="connect-bitrise">
             <.alert
               :if={@bitrise_error}

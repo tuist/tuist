@@ -375,7 +375,7 @@ defmodule AtlasWeb.Admin.RolesLive do
                 {attrs}
               />
             </:trigger>
-            <.line_divider />
+            <.content_divider />
             <.alert
               status="warning"
               type="secondary"
@@ -392,7 +392,7 @@ defmodule AtlasWeb.Admin.RolesLive do
               type="basic"
               placeholder={@role.slug}
             />
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>

@@ -1737,6 +1737,24 @@ defmodule Tuist.Environment do
     get([:cache_api_key], secrets)
   end
 
+  @doc """
+  The keys the cache webhooks accept a signature from: the Kamal cache's
+  `cache_api_key/1`, then Kura's own keys from
+  `TUIST_KURA_ANALYTICS_SIGNING_KEYS` (comma-separated, so a new one is
+  accepted before Kura signs with it). Kura used to sign with the cache API key
+  too; its own keys let either be read off a node or rotated without the
+  other.
+  """
+  def cache_webhook_secrets(secrets \\ secrets()) do
+    kura_keys =
+      case get([:kura_analytics, :signing_keys], secrets) do
+        value when is_binary(value) -> value |> String.split(",") |> Enum.map(&String.trim/1)
+        _ -> []
+      end
+
+    Enum.reject([cache_api_key(secrets) | kura_keys], &(&1 in [nil, ""]))
+  end
+
   def delegate_process_build? do
     truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BUILD", "0"))
   end
@@ -2084,6 +2102,18 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  The key `Tuist.Guardian` verified tokens with before the current
+  `secret_key_tokens/1`, kept while tokens signed with it are still live. See
+  `Tuist.Guardian.SecretFetcher`.
+  """
+  def secret_key_tokens_previous(secrets \\ secrets()) do
+    case get([:secret_key, :tokens_previous], secrets) do
+      value when is_binary(value) -> if String.trim(value) == "", do: nil, else: value
+      _ -> nil
+    end
+  end
+
+  @doc """
   The private half of the keypair cache tokens are signed with, as a PEM.
 
   Absent unless a deployment has minted one, in which case cache tokens are
@@ -2255,12 +2285,45 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  RSA private key (PEM) that signs OpenID Connect ID tokens. Without it the
-  server is no OpenID Provider: discovery answers 404 and no relying party
-  client is registered.
+  RSA private key (PEM) that signs OpenID Connect ID tokens: the first of
+  `oidc_signing_keys/1`. Without it the server is no OpenID Provider:
+  discovery answers 404 and no relying party client is registered.
   """
   def oidc_signing_key(secrets \\ secrets()) do
-    get([:oidc, :signing_key], secrets)
+    List.first(oidc_signing_keys(secrets))
+  end
+
+  @doc """
+  Every RSA private key (PEM) in `TUIST_OIDC_SIGNING_KEY`, which may hold
+  several concatenated PEM blocks. The first signs ID tokens; `/oauth2/jwks`
+  publishes the public half of all of them, each under the `kid` Boruta puts
+  in the tokens it signs. Rotation, so relying parties never meet a `kid`
+  they cannot find:
+
+  1. Append the new key after the current one (`cat current.pem new.pem`, no
+     blank line or CRLF: Boruta's `kid` is a hash of the exact PEM text, so
+     changing the current block's whitespace changes its `kid`) and deploy.
+     It is published, not used.
+  2. Once relying parties' cached key sets have expired (the JWKS response is
+     cacheable for an hour), move it first and deploy. It signs.
+  3. Once ID tokens signed with the old key have expired (an hour), remove the
+     old key and deploy.
+  """
+  def oidc_signing_keys(secrets \\ secrets()) do
+    case get([:oidc, :signing_key], secrets) do
+      value when is_binary(value) ->
+        # Boruta's kid is a hash of the exact PEM string, so a single key is
+        # returned untouched and each block keeps the whitespace after it:
+        # appending a key to the file must not change the kid of the one that
+        # is already signing.
+        case ~r/-----BEGIN ([A-Z ]+)-----.+?-----END \1-----\s*/s |> Regex.scan(value) |> Enum.map(&hd/1) do
+          [_] -> [value]
+          blocks -> blocks
+        end
+
+      _ ->
+        []
+    end
   end
 
   @doc """

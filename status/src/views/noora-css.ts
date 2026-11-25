@@ -2265,8 +2265,8 @@ export const NOORA_CSS = String.raw`
   }
 }
 
-/* line_divider.css */
-.noora-line-divider {
+/* content_divider.css */
+.noora-content-divider {
   --noora-content-divider-line: light-dark(
     var(--noora-neutral-light-400),
     var(--noora-neutral-dark-900)
@@ -2303,6 +2303,24 @@ export const NOORA_CSS = String.raw`
     padding: var(--noora-spacing-0) var(--noora-spacing-2);
     color: var(--noora-content-divider-label);
     font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+    text-transform: uppercase;
+  }
+
+  /* A label without a line, such as a group heading in a list. */
+  &[data-variant="text"] {
+    box-sizing: border-box;
+    padding: var(--noora-spacing-4) var(--noora-spacing-2);
+    height: auto;
+    background-color: transparent;
+
+    &::before,
+    &::after {
+      content: none;
+    }
+
+    & [data-part="text"] {
+      padding: var(--noora-spacing-0);
+    }
   }
 }
 `;

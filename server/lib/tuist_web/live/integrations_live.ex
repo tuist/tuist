@@ -1093,7 +1093,7 @@ defmodule TuistWeb.IntegrationsLive do
             {attrs}
           />
         </:trigger>
-        <.line_divider />
+        <.content_divider />
         <div data-part="add-bitrise-pool">
           <.alert :if={@error} status="error" type="secondary" size="small" title={@error} />
           <.bitrise_pool_fields pools={@pools} profile_labels={@profile_labels} />

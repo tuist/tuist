@@ -22,8 +22,8 @@ defmodule Noora.Menu do
   use Phoenix.Component
 
   import Noora.CheckboxControl
+  import Noora.ContentDivider
   import Noora.Icon, except: [menu: 1]
-  import Noora.LineDivider
   import Noora.MiddleTruncate
   import Noora.Utils
 
@@ -298,7 +298,7 @@ defmodule Noora.Menu do
 
   def menu_separator(assigns) do
     ~H"""
-    <.line_divider data-part="separator" role="separator" {@rest} />
+    <.content_divider data-part="separator" role="separator" {@rest} />
     """
   end
 end

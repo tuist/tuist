@@ -164,7 +164,7 @@ defmodule TuistWeb.UserRegistrationLive do
                 </:icon_left>
               </.button>
             </div>
-            <.line_divider :if={oauth_configured?()} text="OR" />
+            <.content_divider :if={oauth_configured?()} text="OR" />
             <.form data-part="form" for={@form} id="login_form" phx-submit="save">
               <.alert
                 :if={Flash.get(@flash, :error)}

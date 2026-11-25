@@ -277,7 +277,7 @@ defmodule AtlasWeb.PostmortemLive.Show do
               </.button>
             </:trigger>
             <:header_icon><.circle_check /></:header_icon>
-            <.line_divider />
+            <.content_divider />
             <.form
               for={@action_item_form}
               id="new-action-item"
@@ -306,7 +306,7 @@ defmodule AtlasWeb.PostmortemLive.Show do
                 placeholder="https://github.com/tuist/tuist/pull/123"
               />
             </.form>
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>
@@ -392,7 +392,7 @@ defmodule AtlasWeb.PostmortemLive.Show do
                         </.button>
                       </:trigger>
                       <:header_icon><.pencil /></:header_icon>
-                      <.line_divider />
+                      <.content_divider />
                       <.form
                         for={edit_form}
                         id={"edit-action-item-#{action_item.id}"}
@@ -423,7 +423,7 @@ defmodule AtlasWeb.PostmortemLive.Show do
                           placeholder="https://github.com/tuist/tuist/pull/123"
                         />
                       </.form>
-                      <.line_divider />
+                      <.content_divider />
                       <:footer>
                         <.modal_footer>
                           <:action>

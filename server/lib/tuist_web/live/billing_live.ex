@@ -398,7 +398,7 @@ defmodule TuistWeb.BillingLive do
           {@description}
         </span>
       </div>
-      <.line_divider />
+      <.content_divider />
       <div data-part="price-with-button">
         <div data-part="price">
           <span data-part="title">{@price}</span>

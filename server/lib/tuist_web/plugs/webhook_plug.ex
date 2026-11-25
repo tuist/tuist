@@ -132,13 +132,23 @@ defmodule TuistWeb.Plugs.WebhookPlug do
   defp resolve_secret(config, conn) do
     case parse_secret!(config, conn) do
       nil -> {:error, "no secret"}
-      secret when is_binary(secret) -> {:ok, secret, conn}
-      {:ok, secret} when is_binary(secret) -> {:ok, secret, conn}
-      {:ok, secret, %Plug.Conn{} = conn} when is_binary(secret) -> {:ok, secret, conn}
+      {:ok, secret, %Plug.Conn{} = conn} -> checked_secret(secret, conn)
+      {:ok, secret} -> checked_secret(secret, conn)
       {:error, reason} -> {:error, reason}
-      other -> {:error, "unexpected secret: #{inspect(other)}"}
+      secret -> checked_secret(secret, conn)
     end
   end
+
+  # A list accepts a signature made with any of its secrets, so a sender's key
+  # can be rotated, or several senders keep keys of their own.
+  defp checked_secret(secret, conn) when is_binary(secret), do: {:ok, secret, conn}
+  defp checked_secret([], _conn), do: {:error, "no secret"}
+
+  defp checked_secret(secrets, conn) when is_list(secrets) do
+    if Enum.all?(secrets, &is_binary/1), do: {:ok, secrets, conn}, else: {:error, "unexpected secret"}
+  end
+
+  defp checked_secret(other, _conn), do: {:error, "unexpected secret: #{inspect(other)}"}
 
   defp handle_verified_webhook(conn, module) do
     result_conn = module.handle(conn, conn.body_params)
@@ -166,11 +176,9 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     Plug.Crypto.secure_compare(signature_in_header, expected_signature_with_prefix)
   end
 
-  defp valid_signature?(conn, secret, signature, signature_prefix) do
-    conn.assigns.raw_body
-    |> List.wrap()
-    |> IO.iodata_to_binary()
-    |> verify_signature(secret, signature, signature_prefix)
+  defp valid_signature?(conn, secrets, signature, signature_prefix) do
+    payload = conn.assigns.raw_body |> List.wrap() |> IO.iodata_to_binary()
+    secrets |> List.wrap() |> Enum.any?(&verify_signature(payload, &1, signature, signature_prefix))
   end
 
   defp parse_request_body(conn, parser_opts) do
@@ -197,11 +205,11 @@ defmodule TuistWeb.Plugs.WebhookPlug do
   defp parse_secret!({m, f, a}, _conn), do: apply(m, f, a)
   defp parse_secret!(fun, conn) when is_function(fun, 1), do: fun.(conn)
   defp parse_secret!(fun, _conn) when is_function(fun, 0), do: fun.()
-  defp parse_secret!(secret, _conn) when is_binary(secret), do: secret
+  defp parse_secret!(secret, _conn) when is_binary(secret) or is_list(secret), do: secret
 
   defp parse_secret!(secret, _conn) do
     raise """
-    The webhook secret is invalid. Expected a string, tuple, or function.
+    The webhook secret is invalid. Expected a string, a list of strings, a tuple, or a function.
     Got: #{inspect(secret)}
 
     If you're setting the secret at runtime, pass a tuple or function.

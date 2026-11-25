@@ -7,7 +7,7 @@ defmodule TuistWeb.Docs.ReleaseStatus do
   import Noora.Badge, only: [badge: 1]
   import Noora.Button, only: [link_button: 1]
   import Noora.Card, only: [card: 1, card_section: 1]
-  import Noora.LineDivider, only: [line_divider: 1]
+  import Noora.ContentDivider, only: [content_divider: 1]
   import Noora.Table, only: [table: 1, text_cell: 1]
 
   attr :status, :any, required: true
@@ -156,7 +156,7 @@ defmodule TuistWeb.Docs.ReleaseStatus do
             </footer>
           </.card_section>
           <.card_section :if={!@calendar_url && data.state != :unavailable}>
-            <.line_divider text={dgettext("docs", "Today")} />
+            <.content_divider text={dgettext("docs", "Today")} />
             <div data-part="release-calendar-header">
               <h4>{dgettext("docs", "Upcoming release windows")}</h4>
               <p :if={data.promotion} data-part="release-note">

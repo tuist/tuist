@@ -14,8 +14,8 @@ defmodule Noora.Dropdown do
   use Phoenix.Component
 
   import Noora.CheckboxControl
+  import Noora.ContentDivider
   import Noora.Icon
-  import Noora.LineDivider
   import Noora.Utils
 
   attr(:id, :string, required: true, doc: "Unique identifier for the dropdown component")
@@ -359,7 +359,7 @@ defmodule Noora.Dropdown do
 
   def dropdown_separator(assigns) do
     ~H"""
-    <.line_divider data-part="separator" />
+    <.content_divider data-part="separator" />
     """
   end
 end

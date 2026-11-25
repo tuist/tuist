@@ -90,8 +90,12 @@ server:
 ## Kura analytics
 
 Managed environments enable `kuraController.analytics.enabled`. The chart
-syncs `CACHE_API_KEY/password` from the same secret store used by the server
-into `kura-shared-secrets` as `KURA_ANALYTICS_SIGNING_KEY`, alongside
+syncs Kura's webhook signing key into `kura-shared-secrets` as
+`KURA_ANALYTICS_SIGNING_KEY`: the first entry of the `keys` field of the
+`kuraController.analytics.signingKeyItem` 1Password item, which the server
+accepts alongside the Kamal cache's `CACHE_API_KEY` (as
+`TUIST_KURA_ANALYTICS_SIGNING_KEYS`), or `CACHE_API_KEY/password` itself
+while that value is unset. It is synced alongside
 `KURA_ANALYTICS_SERVER_URL` pointing to the server's internal Service in
 absolute form, so a Kura node outside the control plane's region does not
 spend a WAN round trip per search domain resolving it. Both

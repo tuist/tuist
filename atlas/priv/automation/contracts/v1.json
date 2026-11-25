@@ -171,6 +171,7 @@
     "ovh_list_invoices": "Reads billing data through the caller's personal OVH OAuth grant; workflows must not use one person's private connection.",
     "ovh_save_invoice": "Copies an invoice through the caller's personal OVH OAuth grant into the shared document library; workflows must not use one person's private connection.",
     "get_contract_template": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
+    "get_document_download_url": "Returns a signed bearer URL to the stored file; workflows read documents through the documents.get behavior.",
     "convert_gtm_opportunity": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "update_manual_finance_invoice": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "check_letter_delivery": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",

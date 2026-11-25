@@ -67,6 +67,22 @@ defmodule Atlas.Documents.TextExtractorTest do
       assert Enum.map(pages, & &1.content) == ["page one", "page two"]
     end
 
+    # DOCX text has no page breaks, so a long document is one page split into
+    # several chunks. Page numbers are unique per document, so every chunk
+    # needs its own number.
+    @tag :tmp_dir
+    test "numbers every chunk of a long page and keeps its source page", %{tmp_dir: tmp_dir} do
+      paragraph = String.duplicate("Liability is capped at fees paid. ", 200)
+      path = Path.join(tmp_dir, "annex.txt")
+      File.write!(path, Enum.join(List.duplicate(paragraph, 4), "\n\n") <> "\fshort second page")
+
+      assert {:ok, pages} = TextExtractor.extract_pages(path, "text/plain", "annex.txt")
+      assert length(pages) > 2
+      assert Enum.map(pages, & &1.page_number) == Enum.to_list(1..length(pages))
+      assert pages |> Enum.drop(-1) |> Enum.map(& &1.metadata["source_page"]) |> Enum.uniq() == [1]
+      assert %{content: "short second page", metadata: %{"source_page" => 2}} = List.last(pages)
+    end
+
     # Scanned-image PDFs (e.g. phone-camera receipts converted to PDF) carry
     # no text layer, so pdftotext produces empty output. The extractor must
     # surface that as zero pages rather than an error, so downstream
@@ -78,6 +94,45 @@ defmodule Atlas.Documents.TextExtractorTest do
       File.write!(path, "")
 
       assert {:ok, []} = TextExtractor.extract_pages(path, "text/plain", "blank.txt")
+    end
+  end
+
+  describe "extract_pages/3 for zip archives" do
+    @tag :tmp_dir
+    test "extracts supported files in name order and skips the rest", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "package.zip")
+
+      {:ok, _path} =
+        :zip.create(String.to_charlist(path), [
+          {~c"b/terms.md", "Terms of service"},
+          {~c"logo.png", <<137, 80, 78, 71>>},
+          {~c"__MACOSX/a/._notes.txt", "resource fork"},
+          {~c"a/notes.txt", "Order form notes\fsecond page"}
+        ])
+
+      assert {:ok, pages} = TextExtractor.extract_pages(path, "application/zip", "package.zip")
+
+      assert Enum.map(pages, &{&1.page_number, &1.content, &1.metadata["archive_entry"]}) == [
+               {1, "Order form notes", "a/notes.txt"},
+               {2, "second page", "a/notes.txt"},
+               {3, "Terms of service", "b/terms.md"}
+             ]
+    end
+
+    @tag :tmp_dir
+    test "completes with no pages when nothing inside is readable", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "images.zip")
+      {:ok, _path} = :zip.create(String.to_charlist(path), [{~c"logo.png", <<137, 80, 78, 71>>}])
+
+      assert {:ok, []} = TextExtractor.extract_pages(path, nil, "images.zip")
+    end
+
+    @tag :tmp_dir
+    test "fails a file that is not a zip", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "broken.zip")
+      File.write!(path, "not a zip")
+
+      assert {:error, :zip_extraction_failed} = TextExtractor.extract_pages(path, "application/zip", "broken.zip")
     end
   end
 end

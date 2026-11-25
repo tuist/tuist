@@ -151,7 +151,7 @@ defmodule TuistWeb.MembersLive do
                         {modal_attrs}
                       ></button>
                     </:trigger>
-                    <.line_divider />
+                    <.content_divider />
                     <div data-part="change-role">
                       <label>{dgettext("dashboard_account", "Role")}</label>
                       <.dropdown
@@ -196,7 +196,7 @@ defmodule TuistWeb.MembersLive do
                         </.dropdown_item>
                       </.dropdown>
                     </div>
-                    <.line_divider />
+                    <.content_divider />
                     <:footer>
                       <.modal_footer>
                         <:action>
@@ -431,7 +431,7 @@ defmodule TuistWeb.MembersLive do
         </:trigger>
 
         <div data-part="modal-content-wrapper">
-          <.line_divider />
+          <.content_divider />
           <div data-part="modal-body">
             <%= if @invitation_disclosure do %>
               <div data-part="modal-message">
@@ -494,7 +494,7 @@ defmodule TuistWeb.MembersLive do
               </div>
             <% end %>
           </div>
-          <.line_divider />
+          <.content_divider />
         </div>
 
         <:footer>

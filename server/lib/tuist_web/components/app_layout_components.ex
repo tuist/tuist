@@ -815,7 +815,7 @@ defmodule TuistWeb.AppLayoutComponents do
           <% end %>
         </div>
       </div>
-      <.line_divider />
+      <.content_divider />
       <div data-part="second-row">
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="mobile-headerbar-breadcrumbs" />
       </div>

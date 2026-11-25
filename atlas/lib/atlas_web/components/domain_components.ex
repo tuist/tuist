@@ -288,7 +288,7 @@ defmodule AtlasWeb.DomainComponents do
                 {attrs}
               />
             </:trigger>
-            <.line_divider />
+            <.content_divider />
             <.alert
               status="warning"
               type="secondary"
@@ -301,7 +301,7 @@ defmodule AtlasWeb.DomainComponents do
               type="basic"
               placeholder={@domain.name}
             />
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>

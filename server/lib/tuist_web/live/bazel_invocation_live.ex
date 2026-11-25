@@ -672,7 +672,7 @@ defmodule TuistWeb.BazelInvocationLive do
                   <div data-part="positioner">
                     <div data-part="content" class="noora-chart-tooltip">
                       <span data-part="title">{row.action.title}</span>
-                      <div class="noora-line-divider">
+                      <div class="noora-content-divider">
                         <div data-part="line"></div>
                       </div>
                       <div :for={phase <- row.phases} data-part="series-item" data-phase={phase.phase}>

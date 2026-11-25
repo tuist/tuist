@@ -13,12 +13,27 @@ const lifecycleTimeout = 2 * time.Minute
 // Exec runs a command through Tart's per-VM host-local control socket and the
 // guest agent (vsock), without relying on a cached DHCP address or a network
 // listener. The caller supplies the deadline. Commands must be nonempty.
+// A failed command's error ends with the tail of its stdout, because macOS
+// tools such as diskutil and mdutil report their errors there and the
+// workspace scripts' callers keep only the error.
 func (c *Client) Exec(ctx context.Context, name string, command ...string) ([]byte, error) {
 	if len(command) == 0 {
 		return nil, errors.New("guest command is required")
 	}
-	return c.run(ctx, c.Binary, append([]string{"exec", name}, command...)...)
+	out, err := c.run(ctx, c.Binary, append([]string{"exec", name}, command...)...)
+	if err != nil {
+		if tail := strings.TrimSpace(string(out)); tail != "" {
+			if len(tail) > execErrorStdoutBytes {
+				tail = "…" + strings.ToValidUTF8(tail[len(tail)-execErrorStdoutBytes:], "")
+			}
+			err = fmt.Errorf("%w (stdout: %s)", err, tail)
+		}
+	}
+	return out, err
 }
+
+// execErrorStdoutBytes bounds the stdout a failed Exec's error carries.
+const execErrorStdoutBytes = 2048
 
 // Suspend saves the VM on this host and waits for Tart to release it. The
 // suspend CLI only delivers SIGUSR1; its exit is not proof that saving finished.

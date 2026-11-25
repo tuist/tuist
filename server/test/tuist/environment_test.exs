@@ -898,4 +898,36 @@ defmodule Tuist.EnvironmentTest do
       assert Environment.sentry_pulse_dsn(%{"sentry" => %{"pulse_dsn" => ""}}, :web) == nil
     end
   end
+
+  test "oidc_signing_keys/1 reads every concatenated PEM block, the signing key first" do
+    pem = fn -> {:rsa, 2048} |> JOSE.JWK.generate_key() |> JOSE.JWK.to_pem() |> elem(1) end
+    {current, next} = {pem.(), pem.()}
+
+    pkcs1 =
+      :public_key.pem_encode([
+        :public_key.pem_entry_encode(:RSAPrivateKey, :public_key.generate_key({:rsa, 2048, 65_537}))
+      ])
+
+    secrets = %{"oidc" => %{"signing_key" => current <> next <> pkcs1}}
+
+    # The signing key is byte-identical to the same key held alone, so adding a
+    # second one keeps the kid that is in use.
+    assert Environment.oidc_signing_keys(secrets) == [current, next, pkcs1]
+    assert Environment.oidc_signing_key(secrets) == current
+    assert Environment.oidc_signing_keys(%{"oidc" => %{"signing_key" => current <> "\n"}}) == [current <> "\n"]
+    assert Environment.oidc_signing_keys(%{}) == []
+    assert Environment.oidc_signing_key(%{}) == nil
+  end
+
+  test "cache webhooks accept the Kamal cache's key and each of Kura's own" do
+    # server/mise.toml sets TUIST_CACHE_API_KEY, which wins over the map.
+    cache_key = Environment.cache_api_key(%{"cache_api_key" => "cache"})
+
+    assert Environment.cache_webhook_secrets(%{"cache_api_key" => "cache"}) == [cache_key]
+
+    assert Environment.cache_webhook_secrets(%{
+             "cache_api_key" => "cache",
+             "kura_analytics" => %{"signing_keys" => "kura-new, kura-old,"}
+           }) == [cache_key, "kura-new", "kura-old"]
+  end
 end

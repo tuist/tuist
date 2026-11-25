@@ -806,7 +806,7 @@ defmodule AtlasWeb.ProjectLive.Show do
                 {attrs}
               />
             </:trigger>
-            <.line_divider />
+            <.content_divider />
             <.alert
               status="warning"
               type="secondary"
@@ -821,7 +821,7 @@ defmodule AtlasWeb.ProjectLive.Show do
               type="basic"
               placeholder={@project.name}
             />
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>

@@ -142,7 +142,7 @@ defmodule Cache.Authentication do
   end
 
   defp do_verify_jwt(token, requested_handle, action) do
-    case Cache.Guardian.decode_and_verify(token) do
+    case Cache.Guardian.verify_token(token) do
       {:ok, claims} ->
         verify_project_access(claims, requested_handle, action)
 

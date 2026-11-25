@@ -199,7 +199,7 @@ defmodule AtlasWeb.Admin.UsersLive do
       </:trigger>
 
       <div data-part="manage-roles-content">
-        <.line_divider />
+        <.content_divider />
 
         <.form
           id={"manage-roles-form-#{@user.id}"}
@@ -241,7 +241,7 @@ defmodule AtlasWeb.Admin.UsersLive do
           </div>
         </.form>
 
-        <.line_divider />
+        <.content_divider />
       </div>
 
       <:footer>
@@ -296,7 +296,7 @@ defmodule AtlasWeb.Admin.UsersLive do
           >
           </button>
         </:trigger>
-        <.line_divider />
+        <.content_divider />
         <.alert
           status="warning"
           type="secondary"
@@ -313,7 +313,7 @@ defmodule AtlasWeb.Admin.UsersLive do
           type="basic"
           placeholder={@user.email}
         />
-        <.line_divider />
+        <.content_divider />
         <:footer>
           <.modal_footer>
             <:action>

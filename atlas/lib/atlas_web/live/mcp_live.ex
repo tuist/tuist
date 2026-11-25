@@ -355,7 +355,7 @@ defmodule AtlasWeb.MCPLive do
             on_dismiss="close_delete_server_modal"
           >
             <:trigger :let={attrs}><button type="button" hidden {attrs}></button></:trigger>
-            <.line_divider />
+            <.content_divider />
             <.alert
               status="warning"
               type="secondary"
@@ -379,7 +379,7 @@ defmodule AtlasWeb.MCPLive do
                 placeholder={if @deleting_server, do: @deleting_server.name}
               />
             </.form>
-            <.line_divider />
+            <.content_divider />
             <:footer>
               <.modal_footer>
                 <:action>

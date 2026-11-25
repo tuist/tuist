@@ -41,7 +41,6 @@ alias Atlas.Push.Workers.Prune, as: PrunePushInstallations
 alias Atlas.Signals.Workers.SchedulePolls
 alias Atlas.TimeOff.SyncPublicHolidays
 alias Atlas.Workers.PruneRateLimits
-alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
 
 # Atlas uses native model/tool sessions, not the bundled Rust sandboxes.
@@ -68,17 +67,10 @@ config :atlas, Atlas.ClickHouseRepo, read_only: true
 config :atlas, Atlas.Contracts, source: :disk
 config :atlas, Atlas.Mailer, adapter: Local
 
-# Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
 # SQL bind values can contain OAuth credentials and workflow payloads.
 config :atlas, Atlas.Repo, log: false
-
-config :atlas, Atlas.Vault,
-  ciphers: [
-    default: {
-      GCM,
-      tag: "AES.GCM.V1", key: Base.decode64!("1oSOxarFdN433lR9b6TJDJD8I390ipHPFiSm1ykSYpQ=")
-    }
-  ]
+# Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
+config :atlas, Atlas.Vault, key: "1oSOxarFdN433lR9b6TJDJD8I390ipHPFiSm1ykSYpQ="
 
 # Configure the endpoint
 config :atlas, AtlasWeb.Endpoint,

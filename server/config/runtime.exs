@@ -1110,7 +1110,9 @@ config :tuist, Tuist.CacheGuardian,
 # Guardian
 config :tuist, Tuist.Guardian,
   issuer: "tuist",
-  secret_key: Tuist.Environment.secret_key_tokens(secrets)
+  secret_key: Tuist.Environment.secret_key_tokens(secrets),
+  previous_secret_key: Tuist.Environment.secret_key_tokens_previous(secrets),
+  secret_fetcher: Tuist.Guardian.SecretFetcher
 
 # Prometheus
 config :tuist, Tuist.PromEx,

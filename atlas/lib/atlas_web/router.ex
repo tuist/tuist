@@ -404,6 +404,7 @@ defmodule AtlasWeb.Router do
 
     # The signed token is the auth; never log it with the request path.
     get "/connections/slack/files/:file_id", SlackFileDownloadController, :show, log: false
+    get "/documents/:id/file/:filename", DocumentSignedDownloadController, :show, log: false
   end
 
   scope "/", AtlasWeb do

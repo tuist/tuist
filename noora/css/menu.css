@@ -289,7 +289,7 @@
   }
 }
 
-/* A Noora line divider between items, or above the footer. It's targeted by
+/* A Noora content divider between items, or above the footer. It's targeted by
    its part: the divider keeps its own class. */
 .noora-menu-panel [data-part="separator"] {
   flex: none;

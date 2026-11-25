@@ -3,6 +3,8 @@ defmodule Atlas.Release do
   alias Atlas.Demo
   alias Atlas.Demo.Seeds
   alias Atlas.Repo
+  alias Atlas.Vault
+  alias Atlas.Vault.Reencryption
 
   @app :atlas
 
@@ -40,6 +42,38 @@ defmodule Atlas.Release do
     IO.puts("Fictional Atlas demo data seeded.")
   end
 
+  @doc """
+  Re-encrypts every stored `Atlas.Encrypted.Binary` value under `key_id`, which
+  must already be the current encryption key (`ENCRYPTION_CURRENT_KEY`) on
+  every node:
+
+      bin/atlas eval 'Atlas.Release.reencrypt_vault("<key id>")'
+
+  It works in bounded batches and skips values already under the key, so rerun
+  it after an interruption. Raises, so the command exits nonzero, when a value
+  could not be decrypted with any configured key; drop a retired key only after
+  a run passes. Options: `batch_size` (default 500).
+  """
+  def reencrypt_vault(key_id, opts \\ []) when is_binary(key_id) do
+    load_app()
+
+    {:ok, counts, _apps} =
+      Ecto.Migrator.with_repo(Repo, fn _repo -> with_vault(fn -> Reencryption.run(key_id, opts) end) end)
+
+    for {field, %{reencrypted: reencrypted, changed: changed}} <- Enum.sort(counts),
+        reencrypted + changed > 0 do
+      IO.puts("#{field}: #{reencrypted} re-encrypted, #{changed} changed concurrently (rerun to cover them)")
+    end
+
+    failed = for {field, %{failed: failed}} <- Enum.sort(counts), failed != 0, do: "#{field} (#{failed})"
+
+    if failed != [] do
+      raise "Some values could not be re-encrypted: #{Enum.join(failed, ", ")}. Keep the retired keys."
+    end
+
+    counts
+  end
+
   def migrate do
     load_app()
 
@@ -55,6 +89,20 @@ defmodule Atlas.Release do
 
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
+  end
+
+  defp with_vault(fun) do
+    if Process.whereis(Vault) do
+      fun.()
+    else
+      {:ok, pid} = Vault.start_link()
+
+      try do
+        fun.()
+      after
+        GenServer.stop(pid)
+      end
+    end
   end
 
   defp load_app do

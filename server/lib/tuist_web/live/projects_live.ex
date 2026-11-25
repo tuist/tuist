@@ -386,7 +386,7 @@ defmodule TuistWeb.ProjectsLive do
             {attrs}
           />
         </:trigger>
-        <.line_divider />
+        <.content_divider />
         <div style="display: flex; flex-direction: column; gap: var(--noora-spacing-6); padding: var(--noora-spacing-9) 0 var(--noora-spacing-9) 0;">
           <.text_input
             id={"#{@id}-input"}
@@ -416,7 +416,7 @@ defmodule TuistWeb.ProjectsLive do
             </.select>
           </div>
         </div>
-        <.line_divider />
+        <.content_divider />
         <:footer>
           <.modal_footer>
             <:action>

@@ -307,7 +307,7 @@
     display: flex;
     flex-direction: column;
 
-    & > .noora-line-divider {
+    & > .noora-content-divider {
       flex-shrink: 0;
     }
   }

@@ -143,6 +143,7 @@ defmodule Atlas.Orbit.ToolPolicy do
     "check_out_air_gapped_license",
     "get_contract_template",
     "get_document",
+    "get_document_download_url",
     "list_documents",
     "create_document_upload",
     "finalize_document_upload",

@@ -25,7 +25,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
         build_system: :bazel
       )
 
-    stub(Tuist.Environment, :cache_api_key, fn -> @cache_api_key end)
+    stub(Tuist.Environment, :cache_webhook_secrets, fn -> [@cache_api_key] end)
 
     %{conn: conn, project: project}
   end

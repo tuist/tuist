@@ -119,9 +119,15 @@ if config_env() == :prod do
 
   s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
 
+  # CACHE_TOKEN_PUBLIC_KEY verifies the server's ES256 cache tokens and cannot
+  # mint anything. GUARDIAN_SECRET_KEY is the server's own HS512 token key, kept
+  # only until every node holds the public key and the server signs with ES256.
+  # With neither set, every token is answered by the server.
   config :cache, Cache.Guardian,
     issuer: "tuist",
-    secret_key: System.get_env("GUARDIAN_SECRET_KEY")
+    allowed_algos: ["HS512"],
+    secret_key: System.get_env("GUARDIAN_SECRET_KEY"),
+    cache_token_public_keys: Cache.Config.cache_token_public_keys!(System.get_env("CACHE_TOKEN_PUBLIC_KEY"))
 
   config :cache, Cache.KeyValueRepo,
     database: System.get_env("KEY_VALUE_DATABASE_PATH") || "/data/key_value.sqlite",

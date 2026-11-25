@@ -16,7 +16,7 @@ defmodule TuistWeb.Webhooks.BazelActionsControllerTest do
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :bazel)
-    stub(Tuist.Environment, :cache_api_key, fn -> @key end)
+    stub(Tuist.Environment, :cache_webhook_secrets, fn -> [@key] end)
     %{project: project}
   end
 

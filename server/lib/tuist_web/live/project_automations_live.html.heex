@@ -86,7 +86,7 @@
           />
         </:trigger>
         <div data-part="modal-content-wrapper">
-          <.line_divider />
+          <.content_divider />
           <div data-part="scroll-area">
             <div data-part="automation-form">
               <div data-part="automation-basics">
@@ -108,7 +108,7 @@
                 </div>
               </div>
 
-              <.line_divider />
+              <.content_divider />
 
               <section data-part="automation-section">
                 <button
@@ -375,7 +375,7 @@
                 </div>
               </section>
 
-              <.line_divider />
+              <.content_divider />
 
               <section data-part="automation-section">
                 <button
@@ -634,7 +634,9 @@
                 </div>
               </section>
 
-              <.line_divider :if={not event_driven_monitor_type?(@create_automation_form_metric)} />
+              <.content_divider :if={
+                not event_driven_monitor_type?(@create_automation_form_metric)
+              } />
               <section
                 :if={not event_driven_monitor_type?(@create_automation_form_metric)}
                 data-part="automation-section"
@@ -1051,7 +1053,7 @@
               </section>
             </div>
           </div>
-          <.line_divider />
+          <.content_divider />
         </div>
         <:footer>
           <div data-part="automation-save-options">

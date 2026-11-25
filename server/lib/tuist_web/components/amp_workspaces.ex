@@ -146,7 +146,7 @@ defmodule TuistWeb.Components.AmpWorkspaces do
         <:trigger :let={attrs}>
           <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
         </:trigger>
-        <.line_divider />
+        <.content_divider />
         <form
           id={"amp-workspace-form-#{@form_version}"}
           phx-submit="connect"

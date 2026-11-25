@@ -143,6 +143,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetContractTemplate
   alias Atlas.MCP.Tools.GetDataCenter
   alias Atlas.MCP.Tools.GetDocument
+  alias Atlas.MCP.Tools.GetDocumentDownloadUrl
   alias Atlas.MCP.Tools.GetDomainErrorDsn
   alias Atlas.MCP.Tools.GetEmailAudience
   alias Atlas.MCP.Tools.GetEngineeringDomain
@@ -471,6 +472,7 @@ defmodule Atlas.MCP.Server do
   @document_tools [
     ListDocuments,
     GetDocument,
+    GetDocumentDownloadUrl,
     SearchDocuments,
     CreateDocumentUpload,
     FinalizeDocumentUpload,
@@ -810,6 +812,7 @@ defmodule Atlas.MCP.Server do
     ListAccountServiceLevels,
     ListDocuments,
     GetDocument,
+    GetDocumentDownloadUrl,
     SearchDocuments,
     CreateDocumentUpload,
     FinalizeDocumentUpload,

@@ -146,7 +146,7 @@ defmodule TuistWeb.UserLoginLive do
               </div>
             </div>
           </div>
-          <.line_divider :if={@email_auth_enabled?} text="OR" />
+          <.content_divider :if={@email_auth_enabled?} text="OR" />
           <.alert
             :if={Flash.get(@flash, :info)}
             id="flash"

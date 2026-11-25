@@ -48,10 +48,28 @@ defmodule TuistWeb.Oauth.OpenidProviderTest do
     setup do
       key = {:rsa, 2048} |> JOSE.JWK.generate_key() |> JOSE.JWK.to_pem() |> elem(1)
       stub(Environment, :oidc_signing_key, fn -> key end)
+      stub(Environment, :oidc_signing_keys, fn -> [key] end)
       stub(Environment, :luft_server_oauth_client_id, fn -> @client_id end)
       stub(Environment, :luft_server_oauth_client_secret, fn -> @client_secret end)
       stub(Environment, :luft_server_oauth_redirect_uris, fn -> [@redirect_uri] end)
-      :ok
+      %{signing_key: key}
+    end
+
+    test "publishes every configured key and signs ID tokens with the first", %{conn: conn, signing_key: key} do
+      next = {:rsa, 2048} |> JOSE.JWK.generate_key() |> JOSE.JWK.to_pem() |> elem(1)
+      stub(Environment, :oidc_signing_keys, fn -> [key, next] end)
+
+      %{"keys" => [current_jwk, next_jwk]} = build_conn() |> get("/oauth2/jwks") |> json_response(200)
+      assert current_jwk["kid"] != next_jwk["kid"]
+      refute Map.has_key?(next_jwk, "d")
+
+      tokens = sign_in(conn, authorize_params())
+
+      assert %JOSE.JWS{fields: %{"kid" => kid}} = JOSE.JWT.peek_protected(tokens["id_token"])
+      assert kid == current_jwk["kid"]
+
+      assert {true, _jwt, _jws} =
+               current_jwk |> JOSE.JWK.from_map() |> JOSE.JWT.verify_strict(["RS256"], tokens["id_token"])
     end
 
     test "brokered sign-in requires fresh browser-bound consent even without prompt=consent", %{conn: conn, user: user} do

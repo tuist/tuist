@@ -11,6 +11,7 @@
 @import "./chart.css";
 @import "./checkbox.css";
 @import "./checkbox_control.css";
+@import "./content_divider.css";
 @import "./date_picker.css";
 @import "./dismiss_icon.css";
 @import "./dropdown.css";
@@ -19,7 +20,6 @@
 @import "./hint_text.css";
 @import "./icon.css";
 @import "./label.css";
-@import "./line_divider.css";
 @import "./menu.css";
 @import "./middle_truncate.css";
 @import "./modal.css";
@@ -37,7 +37,6 @@
 @import "./table.css";
 @import "./tag.css";
 @import "./text_area.css";
-@import "./text_divider.css";
 @import "./text_input.css";
 @import "./time.css";
 @import "./toggle.css";

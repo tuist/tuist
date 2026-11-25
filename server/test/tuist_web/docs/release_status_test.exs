@@ -54,7 +54,7 @@ defmodule TuistWeb.Docs.ReleaseStatusTest do
     refute Floki.text(Floki.find(document, "#docs-recent-history-cli")) =~ "canary"
     assert Floki.attribute(document, "#docs-earlier-releases-cli", "open") == []
     assert Floki.text(Floki.find(document, "#docs-earlier-releases-cli summary")) == "Show earlier releases"
-    assert Floki.text(Floki.find(document, ".noora-line-divider")) =~ "Today"
+    assert Floki.text(Floki.find(document, ".noora-content-divider")) =~ "Today"
     assert Floki.attribute(document, "#docs-earlier-history-cli time", "datetime") == ["2026-10-01T12:00:00Z"]
     assert Floki.text(document) =~ "not the full release history"
     assert Floki.text(document) =~ "backports"

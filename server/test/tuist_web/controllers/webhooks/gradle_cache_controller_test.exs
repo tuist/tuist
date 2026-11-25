@@ -15,7 +15,7 @@ defmodule TuistWeb.Webhooks.GradleCacheControllerTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
-    stub(Tuist.Environment, :cache_api_key, fn -> @cache_api_key end)
+    stub(Tuist.Environment, :cache_webhook_secrets, fn -> [@cache_api_key] end)
 
     %{conn: conn, user: user, project: project}
   end

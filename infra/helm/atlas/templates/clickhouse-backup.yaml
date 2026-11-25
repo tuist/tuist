@@ -85,7 +85,7 @@ spec:
                   valueFrom:
                     secretKeyRef:
                       name: {{ include "atlas.appSecretName" . }}
-                      key: SECRET_KEY_BASE
+                      key: {{ .Values.clickhouse.passwordSecretKey }}
                 - name: AWS_ACCESS_KEY_ID
                   valueFrom:
                     secretKeyRef:

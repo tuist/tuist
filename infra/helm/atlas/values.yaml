@@ -180,6 +180,16 @@ clickhouse:
     pullPolicy: IfNotPresent
   database: atlas
   username: default
+  # Key in the app Secret holding the ClickHouse password, for the server, its
+  # backup job, and Atlas (which reads ATLAS_CLICKHOUSE_PASSWORD and falls back
+  # to SECRET_KEY_BASE). Defaults to SECRET_KEY_BASE, which also signs Atlas
+  # sessions and tokens; set ATLAS_CLICKHOUSE_PASSWORD, synced from an item of
+  # its own, so the database password and the session key leak and rotate
+  # apart. Switch with a copy of the current value first, so nothing changes;
+  # rotate later. The official image applies the password on start, and Atlas
+  # reads it only at boot, so restart the StatefulSet and the Atlas Deployment
+  # together by hand when the value changes.
+  passwordSecretKey: SECRET_KEY_BASE
   service:
     httpPort: 8123
     nativePort: 9000

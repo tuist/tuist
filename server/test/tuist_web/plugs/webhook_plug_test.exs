@@ -429,4 +429,30 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       refute_receive {:handled, _, _}
     end
   end
+
+  describe "call/2 with several secrets" do
+    test "accepts a signature made with any of them, and only them" do
+      payload = ~s({"event": "cache"})
+
+      options =
+        WebhookPlug.init(
+          at: "/webhooks/cache",
+          secret: fn -> ["kamal-cache-key", "kura-key"] end,
+          handler: TestHandler,
+          signature_header: "x-cache-signature"
+        )
+
+      for secret <- ["kamal-cache-key", "kura-key"] do
+        conn = webhook_request(:post, "/webhooks/cache", payload, secret, "x-cache-signature")
+        assert WebhookPlug.call(conn, options).status == 200
+      end
+
+      conn = webhook_request(:post, "/webhooks/cache", payload, "retired-key", "x-cache-signature")
+      assert WebhookPlug.call(conn, options).status == 403
+
+      empty = WebhookPlug.init(Keyword.put(options, :secret, fn -> [] end))
+      conn = webhook_request(:post, "/webhooks/cache", payload, "kura-key", "x-cache-signature")
+      assert WebhookPlug.call(conn, empty).status == 403
+    end
+  end
 end
