@@ -47,6 +47,22 @@ defmodule TuistWeb.PreviewsLiveTest do
     end
   end
 
+  test "leaves previews whose builds never finished uploading out of the table", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    completed = AppBuildsFixtures.preview_fixture(project: project, display_name: "Atlas")
+    AppBuildsFixtures.app_build_fixture(preview: completed)
+    unfinished = AppBuildsFixtures.preview_fixture(project: project, display_name: "Borealis")
+    AppBuildsFixtures.app_build_fixture(preview: unfinished, upload_completed: false)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
+
+    assert has_element?(lv, "#previews-table", "Atlas")
+    refute has_element?(lv, "#previews-table", "Borealis")
+  end
+
   test "renders empty view when no previews are available", %{
     conn: conn,
     organization: organization,

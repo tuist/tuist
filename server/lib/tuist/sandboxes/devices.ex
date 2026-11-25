@@ -22,6 +22,7 @@ defmodule Tuist.Sandboxes.Devices do
   agent's context and the synchronous exec caps stdout at 1 MiB.
   """
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Sandbox
 
   @unsupported 3
@@ -89,6 +90,18 @@ defmodule Tuist.Sandboxes.Devices do
 
   @open_url_script @prelude <> @require_booted <> ~s(xcrun simctl openurl "$TUIST_DEVICE" "$TUIST_URL" >&2 || exit 1\n)
 
+  # The image's newest Pro iPhone (iPhone 18 Pro on Xcode 27.2), else its
+  # first iPhone.
+  @background_boot_script @prelude <>
+                            """
+                            available="$(xcrun simctl list devices available)"
+                            device="$(printf '%s\\n' "$available" | sed -nE 's/^ +iPhone ([0-9]+) Pro \\(([0-9A-F-]{36})\\).*/\\1 \\2/p' | sort -rn | head -1 | cut -d' ' -f2)"
+                            [ -n "$device" ] || device="$(printf '%s\\n' "$available" | sed -nE 's/^ +iPhone.* \\(([0-9A-F-]{36})\\).*/\\1/p' | head -1)"
+                            [ -n "$device" ] || exit #{@device_not_found}
+                            xcrun simctl boot "$device" || exit 1
+                            xcrun simctl bootstatus "$device" -b >/dev/null
+                            """
+
   @doc false
   def screenshot_script, do: @screenshot_script
 
@@ -115,6 +128,21 @@ defmodule Tuist.Sandboxes.Devices do
         found -> {:ok, found}
       end
     end
+  end
+
+  @doc """
+  Starts booting the image's newest Pro iPhone as a sandbox command and
+  answers at once, so a Mac a session builds on has a booted simulator by
+  the time its first build ends instead of booting one cold after it: a
+  first boot took 20–28 seconds until ready and the Mac stayed busy for
+  about a minute after (measured on Xcode 27.2, 2026-11).
+  """
+  def boot_in_background(%Sandbox{platform: :darwin} = sandbox) do
+    Commands.start(sandbox, %{
+      command: "/bin/bash",
+      args: ["-c", @background_boot_script],
+      timeout_ms: to_timeout(minute: 5)
+    })
   end
 
   @doc """

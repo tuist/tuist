@@ -109,6 +109,7 @@ defmodule Tuist.Runners do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.AirShare
+  alias Tuist.Runners.Allowance
   alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
@@ -982,11 +983,35 @@ defmodule Tuist.Runners do
 
   defp claim_candidate(%{candidate: candidate, fleet_name: fleet_name} = context) do
     with nil <- mint_hold(candidate),
+         :ok <- check_allowance(candidate),
          {:ok, resources} <- candidate_resources(candidate, fleet_name) do
       attempt_candidate(context, resources)
     else
       scope when scope in [:account, :repository] -> retry_claim_and_serve(context, scope)
+      {:error, :allowance_exhausted} -> retry_claim_and_serve(context, :account)
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # Enqueue checks the allowance too, but a free account can queue many
+  # jobs while its minutes are unspent, and every one of them would then
+  # run. Checked again here, counting the jobs it has running, so the
+  # account stops getting runners once its usage reaches the allowance.
+  # `Allowance.minutes_used/1` is cached for 30 seconds, which bounds the
+  # overshoot to what the account starts in that time. An account that no
+  # longer loads is left to the claim, which refuses it.
+  defp check_allowance(%{account_id: account_id} = candidate) do
+    with {:ok, account} <- Accounts.get_account_by_id(account_id),
+         true <- Allowance.exhausted?(account) do
+      Logger.info("runners: free runner allowance exhausted; not claiming queued job",
+        account_id: account_id,
+        workflow_job_id: candidate.workflow_job_id
+      )
+
+      Dispatch.report_refused(provider(candidate), :allowance_exhausted)
+      {:error, :allowance_exhausted}
+    else
+      _ -> :ok
     end
   end
 

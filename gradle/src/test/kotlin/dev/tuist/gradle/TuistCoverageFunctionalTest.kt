@@ -166,6 +166,74 @@ class TuistCoverageFunctionalTest {
     }
 
     @Test
+    fun `a test class that shadows a main class counts for its own file`() {
+        val mainClock = "core/src/main/java/dev/tuist/fixture/Clock.java"
+        val testClock = "core/src/test/java/dev/tuist/fixture/Clock.java"
+        write(mainClock, "package dev.tuist.fixture;\n\npublic final class Clock {\n    public static long now() {\n        return System.currentTimeMillis();\n    }\n}\n")
+        // The test JVM loads this copy: test classes come first on the test classpath.
+        write(testClock, "package dev.tuist.fixture;\n\npublic final class Clock {\n\n\n\n    public static long now() {\n        return 42L;\n    }\n}\n")
+        write(
+            "core/src/test/java/dev/tuist/fixture/ClockTest.java",
+            "package dev.tuist.fixture;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\nimport org.junit.jupiter.api.Test;\n\n" +
+                "public class ClockTest {\n    @Test\n    void ticks() {\n        assertEquals(42L, Clock.now());\n    }\n}\n"
+        )
+        fixture.git(projectDir, "add", ".")
+        fixture.git(projectDir, "commit", "-q", "-m", "Shadowed clock")
+
+        val result = runner("test").build()
+        val run = run(result)
+        val coverage = run.getAsJsonObject("coverage")
+
+        assertEquals(false, coverage.get("partial").asBoolean, result.output)
+        val main = file(coverage, mainClock)
+        assertEquals(false, main.get("is_test").asBoolean)
+        assertEquals(0, main.get("covered_lines").asInt, main.toString())
+        val test = file(coverage, testClock)
+        assertEquals(true, test.get("is_test").asBoolean)
+        assertTrue(test.get("covered_lines").asInt > 0, test.toString())
+
+        val paths = scopePaths(run.getAsJsonObject("coverage_evidence"), "test", ":core", "dev.tuist.fixture.ClockTest", "ticks()")
+        assertTrue(testClock in paths, paths.toString())
+        assertFalse(mainClock in paths, paths.toString())
+    }
+
+    @Test
+    fun `JaCoCo instruments only the repository's classes unless the build script says otherwise`() {
+        fun executedClasses(): Set<String> {
+            val store = org.jacoco.core.data.ExecutionDataStore()
+            GradleCoverage.readExecutionData(File(projectDir, "app/build/jacoco/test.exec").readBytes(), store)
+            return store.contents.map { it.name }.toSet()
+        }
+
+        runner("cleanTest", "test").build()
+        // Again from the configuration cache, which restores the task's JaCoCo settings.
+        val reused = runner("cleanTest", "test").build()
+        assertTrue(reused.output.contains("Reusing configuration cache"), reused.output)
+        val instrumented = executedClasses()
+        assertTrue("dev/tuist/fixture/Calc" in instrumented, instrumented.toString())
+        assertTrue("dev/tuist/fixture/app/Greeter" in instrumented, instrumented.toString())
+        assertTrue(instrumented.none { it.startsWith("org/junit/") }, instrumented.toString())
+
+        File(projectDir, "app/build.gradle.kts").appendText(
+            """
+
+            plugins.withId("jacoco") {
+                tasks.withType<Test>().configureEach {
+                    extensions.configure<JacocoTaskExtension> {
+                        includes = listOf("dev.tuist.fixture.app.*", "org.junit.*")
+                    }
+                }
+            }
+            """.trimIndent()
+        )
+        runner("test").build()
+        val configured = executedClasses()
+        assertTrue("dev/tuist/fixture/app/Greeter" in configured, configured.toString())
+        assertFalse("dev/tuist/fixture/Calc" in configured, configured.toString())
+        assertTrue(configured.any { it.startsWith("org/junit/") }, configured.toString())
+    }
+
+    @Test
     fun `test tasks restored from the build cache, or up to date, report the coverage of the run that executed them`() {
         runner("test", "--build-cache").build()
         val executed = run()

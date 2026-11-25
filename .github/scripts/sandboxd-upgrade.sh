@@ -21,16 +21,16 @@ set -euo pipefail
 # which holds the second restart within ten minutes for 10 s or more.
 #
 # Pods are replaced, like they are upgraded in place, only once no restore
-# still streams its disks from the archive: such a sandbox cannot pause, and
-# a daemon stopped under it leaves it in error.
+# still streams its disks or memory from the archive: such a sandbox cannot
+# pause, and a daemon stopped under it leaves it in error.
 #
 # Usage: sandboxd-upgrade.sh <namespace> <daemonset>
 namespace=$1
 daemonset=$2
 container=sandboxd
 annotation=sandboxes.tuist.dev/handover
-# How long the updater waits for restores to stop serving lazy disks
-# before it upgrades anyway (those sandboxes then pause and resume).
+# How long the updater waits for restores to stop receiving their disks or
+# memory before it upgrades anyway (those sandboxes then pause and resume).
 lazy_wait_seconds=${SANDBOXD_UPGRADE_LAZY_WAIT_SECONDS:-600}
 kubectl=${KUBECTL:-kubectl}
 sleep_step=${SANDBOXD_UPGRADE_SLEEP:-5}
@@ -75,9 +75,9 @@ bare_image() {
 wait_lazy() {
   local pod=$1 lazy
   for _ in $(seq 1 $((lazy_wait_seconds / sleep_step))); do
-    lazy=$(metrics "$pod" | awk '/^sandboxd_handover_blocked\{reason="lazy_disks"\}/ {print $2}')
+    lazy=$(metrics "$pod" | awk '/^sandboxd_handover_blocked\{reason="(lazy_disks|memory_loading)"\}/ {n += $2} END {print n + 0}')
     [ "${lazy:-0}" = 0 ] && return 0
-    echo "$pod: $lazy sandboxes still receive their disks; waiting"
+    echo "$pod: $lazy sandboxes still receive their disks or memory; waiting"
     sleep "$sleep_step"
   done
 }

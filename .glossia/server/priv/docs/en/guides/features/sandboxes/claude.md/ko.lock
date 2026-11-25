@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "3a45a0015cedfbc9849c0b0e8d3250650f01900e6c6a8a736d2f65c89e0972dd",
+  "hash": "742ed390ba10dd79cdf494a1142dfa6dc9e6ad2342e476057e6031badcd0511c",
   "hash_tree": {
     "root": {
       "children": [
@@ -44,7 +44,7 @@
                   "content_hash": "dae74f72682b29d2d5fdc72c8845201b61028da17151332ee8db098733f18f31"
                 },
                 "### Ready Macs {#remote-mac-snapshots}": {
-                  "content_hash": "cf6c149ac9cd2de59315e4a853070958ac11964dd91be9598f7b2e4ca0bacf95"
+                  "content_hash": "a9a75690f2fe9b03857475f0e9b63ae0c3c1beefeda73b28685afd1b33981aeb"
                 },
                 "### Start a session {#managed-agents-sessions}": {
                   "content_hash": "b84fe9af63efa1ccc72cb51d1eaa01f7abfc729246aa5a4bfb227d7c9ce54af2"
@@ -65,11 +65,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "2b50b8490d9fca3513255d15b87c09b4e60f87890e5a07e1e23416d9e07ebf25",
+          "hash": "9bbc98b8b96b4f3861201ff1377298eb2ea4ceb3653833240382867e3a9bd259",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes/claude.md",
           "metadata": {
-            "content_hash": "3fd80c6e8fd462faffa47c89a7e8a4c4bb46a9d33fc6d5aa5252b581ec1c0134"
+            "content_hash": "39d4ae08a9eb2cefd509a964b5521cca44a5c76a82f01722d54c425cba3561b7"
           }
         },
         {
@@ -266,14 +266,14 @@
         }
       ],
       "details": {},
-      "hash": "3a45a0015cedfbc9849c0b0e8d3250650f01900e6c6a8a736d2f65c89e0972dd",
+      "hash": "742ed390ba10dd79cdf494a1142dfa6dc9e6ad2342e476057e6031badcd0511c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes/claude.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "2c2fe2463a88bff7078016d0268dabf7bfb5944b103faf908618b932728af04b",
+  "output_hash": "168fe669adcff001d1b0526e68d210f35d78726e673fea4e6ea6c730b32ebe9d",
   "output_path": "server/priv/docs/ko/guides/features/sandboxes/claude.md",
   "protection_state": "recorded",
   "provider": "",
@@ -293,8 +293,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8fdbe02a754a6d32910a35093cf5fd32c7323315",
+  "source_commit_sha": "bbee4418c8eb8f81e5533fa0d09bb75fa7406569",
   "source_path": "server/priv/docs/en/guides/features/sandboxes/claude.md",
-  "translated_at": "2026-11-20T10:01:07.452607Z",
-  "translation_session_id": "01a1f861-6631-7a1b-8b2a-88744f990a8d"
+  "translated_at": "2026-11-25T17:50:31.738766Z",
+  "translation_session_id": "01a213cf-6b91-75cb-8002-9aced897dabf"
 }

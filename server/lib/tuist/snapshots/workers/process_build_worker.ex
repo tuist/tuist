@@ -23,13 +23,20 @@ defmodule Tuist.Snapshots.Workers.ProcessBuildWorker do
   def perform(%Oban.Job{args: %{"build_id" => build_id}, attempt: attempt, max_attempts: max_attempts}) do
     case Repo.get(Build, build_id) do
       %Build{state: "processing"} = build ->
+        # Images are compared in linked tasks: a task that crashes or times
+        # out would kill this process past any rescue. Trapping exits turns
+        # it into an exit we catch, so the last attempt still fails the build.
+        trap_exit = Process.flag(:trap_exit, true)
+
         try do
           {:ok, _build} = Snapshots.process_build(build)
           :ok
-        rescue
-          error ->
+        catch
+          kind, reason ->
             if attempt >= max_attempts, do: Snapshots.mark_failed(build)
-            reraise error, __STACKTRACE__
+            :erlang.raise(kind, reason, __STACKTRACE__)
+        after
+          Process.flag(:trap_exit, trap_exit)
         end
 
       _ ->

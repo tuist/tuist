@@ -39,6 +39,9 @@ defmodule Tuist.AppBuilds.AppBuild do
     field :binary_id, :string
     field :build_version, :string
     field :artifact_storage_key, :string
+    # False from `tuist share`'s start until its multipart upload completes.
+    # Holds the binary's (binary_id, build_version) slot for a retry to reuse.
+    field :upload_completed, :boolean, default: true
 
     timestamps(type: :utc_datetime)
   end
@@ -52,7 +55,8 @@ defmodule Tuist.AppBuilds.AppBuild do
       :supported_platforms,
       :supported_architectures,
       :binary_id,
-      :build_version
+      :build_version,
+      :upload_completed
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
     |> validate_subset(:supported_architectures, ["arm64", "x86_64"])

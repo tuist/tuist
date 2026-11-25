@@ -34,6 +34,10 @@ on:
         description: Bind a cache volume's checkout-relative paths (server/deps) into a checkout in real guests
         type: boolean
         default: false
+      hung_resume:
+        description: Resume a real guest whose memory image was taken while its agent hung
+        type: boolean
+        default: false
 
 concurrency:
   group: sandbox-orbs-validation-${{ github.event.pull_request.number || github.ref }}
@@ -148,6 +152,59 @@ jobs:
         with:
           name: cache-drive-validation-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/cache-drive-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  hung-resume:
+    name: Real Firecracker resume of a hung guest's image
+    if: github.event_name == 'workflow_dispatch' && inputs.hung_resume && !inputs.live_amp
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require hardware virtualization
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo test -r /dev/kvm
+          sudo test -w /dev/kvm
+          df -h /
+      - uses: docker/setup-buildx-action@v3
+      - name: Build guest template
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-template:validation
+          cache-from: |
+            type=gha,scope=sandbox-orbs-validation
+            type=gha,scope=sandbox-image
+      - name: Build sandboxd
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/sandboxd/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sandbox-orbs-daemon:validation
+          cache-from: type=gha,scope=sandboxd-image
+      - name: Resume a hung guest's memory image
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xfsprogs
+          bash infra/sandboxd/validation/validate-hung-resume.sh
+      - name: Upload hung resume evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hung-resume-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/hung-resume-evidence/
           if-no-files-found: ignore
           retention-days: 7
 

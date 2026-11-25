@@ -478,6 +478,14 @@ abstract class TuistTestInsightsService :
         coverageRecords[record.taskPath] = record
     }
 
+    private val compiledSources = mutableMapOf<java.io.File, Set<java.io.File>>()
+
+    /** The source files a compile task compiled into each of its output directories. */
+    @Synchronized
+    internal fun registerCompilation(outputs: Set<java.io.File>, sources: Set<java.io.File>) {
+        outputs.forEach { compiledSources[it.absoluteFile.normalize()] = sources }
+    }
+
     private val coverageTestTaskPaths: Set<String> by lazy { parameters.coverageTestTasks.orNull?.keys.orEmpty() }
 
     // Every listed test task's outcome, beside the recorded ones': a task the build's own
@@ -761,6 +769,7 @@ abstract class TuistTestInsightsService :
                     moduleDirectories = moduleDirectories,
                     records = records,
                     outcomes = outcomes,
+                    compiledSources = synchronized(this) { compiledSources.toMap() },
                     testTasks = parameters.coverageTestTasks.orNull,
                     excludedTaskNames = parameters.excludedTaskNames.getOrElse(emptyList()),
                     executedTests = executed
@@ -867,6 +876,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor(
         }
         if (coverageEnabled) {
             TestTaskCoverage.applyJacoco(project)
+            TestTaskCoverage.recordCompilations(project, serviceProvider)
             if (project.path == ":") configureCoverageBuild(project, serviceProvider, coverageTestTasks)
         }
 

@@ -111,6 +111,30 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     assert name == warm.name
   end
 
+  test "placement spreads creates across hosts by free slots, not host name", %{node: node} do
+    # Sorted by name, ber1's hosts come before larch's.
+    ber1 = %{node | name: "tuist-tuist-rack-fleet-ber1-runner-b03"}
+    larch = %{node | name: "tuist-tuist-rack-fleet-larch-runner-b03"}
+    nodes = [ber1, larch]
+    stub(Nodes, :connected_nodes, fn -> nodes end)
+    stub(Nodes, :lookup, fn name -> {:ok, self(), Enum.find(nodes, &(&1.name == name))} end)
+
+    # Two idle hosts with two slots each take one sandbox each.
+    assert {:ok, first} = Capacity.place(sandbox(vcpus: 4))
+    assert {:ok, second} = Capacity.place(sandbox(vcpus: 4))
+    assert Enum.sort([first, second]) == [ber1.name, larch.name]
+
+    # A host already holding a VM is tried after an idle one, whatever its
+    # name, and the log tells the sites' same-named hosts apart.
+    Logger.put_module_level(MacosCapacity, :info)
+    on_exit(fn -> Logger.delete_module_level(MacosCapacity) end)
+    larch_name = larch.name
+    Repo.delete_all(from(s in Sandbox, where: s.node_name == ^larch_name))
+
+    log = capture_log([level: :info], fn -> assert {:ok, ^larch_name} = Capacity.place(sandbox(vcpus: 4)) end)
+    assert log =~ "hosts=ber1/b03=not_tried larch/b03=chosen"
+  end
+
   test "placement logs why a host holding a warm VM was not chosen", %{node: node} do
     Logger.put_module_level(MacosCapacity, :info)
     on_exit(fn -> Logger.delete_module_level(MacosCapacity) end)
@@ -206,15 +230,16 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     roomy = %{full | name: "b-#{System.unique_integer([:positive])}", disk: %{disk | budget_bytes: 10 * ceiling}}
 
     nodes = [full, roomy]
-    stub(Nodes, :connected_nodes, fn -> nodes end)
     stub(Nodes, :lookup, fn name -> {:ok, self(), Enum.find(nodes, &(&1.name == name))} end)
 
     # One evicted environment still leaves room for a second.
+    stub(Nodes, :connected_nodes, fn -> [full] end)
     sandbox(state: :paused, node_name: full.name, node_uid: node.generation, resident: false)
     first = sandbox()
     assert {:ok, name} = Capacity.place(first)
     assert name == full.name
     first |> Repo.reload!() |> Ecto.Changeset.change(state: :paused, resident: false) |> Repo.update!()
+    stub(Nodes, :connected_nodes, fn -> nodes end)
 
     # Two evicted environments hold none of the grant's slots, but their disks fill the budget.
     assert {:ok, name} = Capacity.place(sandbox())
@@ -231,9 +256,10 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   end
 
   test "a create the host refuses moves on to the next host", %{node: node} do
-    refusing = %{node | name: "a-#{System.unique_integer([:positive])}"}
-    accepting = %{node | name: "b-#{System.unique_integer([:positive])}", generation: "other-uid"}
-    accepting = put_in(accepting.admission["node_uid"], "other-uid")
+    refusing = %{node | name: "b-#{System.unique_integer([:positive])}"}
+    # One granted slot to the refusing host's two, so it is tried second.
+    accepting = %{node | name: "a-#{System.unique_integer([:positive])}", generation: "other-uid"}
+    accepting = update_in(accepting.admission, &Map.merge(&1, %{"node_uid" => "other-uid", "slots" => 1}))
     nodes = [refusing, accepting]
     stub(Nodes, :connected_nodes, fn -> nodes end)
     stub(Nodes, :lookup, fn name -> {:ok, self(), Enum.find(nodes, &(&1.name == name))} end)

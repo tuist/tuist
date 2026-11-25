@@ -193,8 +193,9 @@ type Sandbox struct {
 	disksPending  bool
 	lazy          *lazyDisks
 	// memoryServed is the instance whose guest memory this process serves
-	// through userfaultfd, for as long as it runs: a warm restore's. It
-	// cannot outlive the daemon.
+	// through userfaultfd: a warm restore's, until its memory is all on the
+	// node and released (uffd.Options.Release). It cannot outlive the
+	// daemon until then.
 	memoryServed vm.Instance
 }
 
@@ -208,6 +209,9 @@ var (
 	ErrShape         = errors.New("shape is not offered by this node")
 	ErrNoWorker      = errors.New("no worker running")
 	ErrWorkerRunning = errors.New("worker already running")
+	// ErrVMNotKilled marks a failed spawn whose Firecracker did not die
+	// when killed: it may still hold, and write, the sandbox's disks.
+	ErrVMNotKilled = errors.New("firecracker did not die")
 )
 
 func New(cfg Config, deps Deps) *Manager {
@@ -560,7 +564,9 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 	fail := func(err error) (vm.Instance, vsock.Agent, error) {
 		killCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		_ = inst.Kill(killCtx)
+		if killErr := inst.Kill(killCtx); killErr != nil {
+			err = fmt.Errorf("%w; %w: %w", err, ErrVMNotKilled, killErr)
+		}
 		_ = m.net.Teardown(context.Background(), ns, meta.Slot)
 		// The console log carries guest output, so it stays in the daemon's
 		// log rather than travelling to the server inside the error.
@@ -868,7 +874,38 @@ func (m *Manager) Resume(ctx context.Context, id string) (res protocol.ResumeRes
 	if coldBoot {
 		inst, agent, err = m.boot(ctx, sb, log)
 	} else {
-		inst, agent, err = m.restore(ctx, sb, log, nil, false)
+		loaded := false
+		inst, agent, err = m.restore(ctx, sb, log, func(*firecracker.Client, vm.Instance) error {
+			loaded = true
+			return nil
+		}, false)
+		if err != nil && loaded && errors.Is(err, ErrVMNotKilled) {
+			// The guest ran and its process may still write the disks, so
+			// neither they nor the image can be trusted, as in PauseWith.
+			// A second VM on them would corrupt them.
+			m.markDied(sb, fmt.Sprintf("resume: %v", err))
+			return res, err
+		}
+		if err != nil && loaded {
+			// The guest ran from the image before the restore failed, as one
+			// snapshotted while it hung does when its agent never answers,
+			// and was killed, so its disks have moved on past the image.
+			// Restoring the image again would fail the same way or hand the
+			// guest a stale page cache: cold boot on the disks instead, and
+			// record it first so a boot that fails too is not retried
+			// from the image.
+			log.Warn("restoring the sandbox's memory failed after the guest resumed; cold booting on its own disks", "error", err)
+			sb.mu.Lock()
+			sb.meta.ColdBoot = true
+			sb.meta.DisksSynced = false
+			saveErr := sb.meta.Save(sb.root)
+			sb.mu.Unlock()
+			if saveErr != nil {
+				return res, errors.Join(err, saveErr)
+			}
+			coldBoot = true
+			inst, agent, err = m.boot(ctx, sb, log)
+		}
 	}
 	if err != nil {
 		return res, err
@@ -1805,8 +1842,8 @@ func (m *Manager) Handover(ctx context.Context) {
 
 // HandoverBlocked counts the running sandboxes a handover would pause:
 // those whose disks still arrive through the daemon's mounts (minutes after
-// a restore) and those whose guest memory the daemon serves (for the VM's
-// whole life after a warm restore from an archive).
+// a restore) and those whose guest memory the daemon still serves (seconds
+// to a minute after a warm restore from an archive).
 func (m *Manager) HandoverBlocked() (lazyDisks, memoryServed int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -10,6 +10,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
+  alias Tuist.Runners.Allowance
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.CacheVolumes
@@ -1086,6 +1087,37 @@ defmodule Tuist.RunnersTest do
       reject(&Claims.attempt/6)
 
       assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-2")
+    end
+
+    test "does not claim a job for an account whose free allowance ran out after it was queued" do
+      # The allowance is also checked when a job is queued, but a free account
+      # can queue far more than it may run while its minutes are unspent.
+      exhausted_account = account_fixture()
+      candidate = candidate_with_label(exhausted_account, "tuist-default", workflow_job_id: 90_121)
+      exhausted_account_id = exhausted_account.id
+
+      stub(Allowance, :exhausted?, fn %{id: id} -> id == exhausted_account_id end)
+
+      stub(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", "ghcr.io/tuist/tuist-runner@sha256:current")}
+      end)
+
+      stub(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      stub(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], [], _k ->
+        assert excluded_account_ids == [exhausted_account_id]
+        {:error, :empty}
+      end)
+
+      reject(&Claims.attempt/6)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
     test "skips only the repository whose runner endpoint returns not found" do

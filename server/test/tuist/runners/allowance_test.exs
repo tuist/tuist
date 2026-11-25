@@ -39,6 +39,24 @@ defmodule Tuist.Runners.AllowanceTest do
     })
   end
 
+  # An open session whose job has not reported its window yet.
+  defp running_since(account, started) do
+    Repo.insert!(%RunnerSession{
+      account_id: account.id,
+      workflow_job_id: System.unique_integer([:positive]),
+      fleet_name: "tuist-macos",
+      pod_name: "pod-#{System.unique_integer([:positive])}",
+      runner_name: "",
+      platform: :macos,
+      vcpus: 6,
+      memory_gb: 14,
+      billing_multiplier: 10_000,
+      started_at: started,
+      inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+      updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+    })
+  end
+
   defp ran_minutes(account, started, minutes) do
     # Session timestamps are microsecond-precision; callers pass whatever
     # precision the instant they care about happens to carry.
@@ -220,6 +238,30 @@ defmodule Tuist.Runners.AllowanceTest do
       used_minutes(account, 49)
 
       assert Allowance.exhausted?(account)
+    end
+
+    test "a free account's jobs still running spend the allowance", %{account: account} do
+      # Finished jobs alone leave 60 minutes, but three jobs have been
+      # running for 30 minutes each. Counting only finished jobs lets a free
+      # account start as many as its concurrency allows and run far past the
+      # allowance before any of them is counted.
+      stub(Billing, :effective_plan, fn _account -> :air end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+      used_minutes(account, 40)
+
+      for _ <- 1..3, do: running_since(account, DateTime.add(DateTime.utc_now(), -30, :minute))
+
+      assert Allowance.exhausted?(account)
+    end
+
+    test "a running job whose window is already recorded is counted once", %{account: account} do
+      # The completion recorded 60 minutes and the Pod is still tearing down.
+      # Counted again from the job's start, it would read as 180.
+      stub(Billing, :effective_plan, fn _account -> :air end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+      used_minutes(account, 60)
+
+      refute Allowance.exhausted?(account)
     end
 
     test "a paid account is never cut off, because the excess is what it pays for", %{account: account} do

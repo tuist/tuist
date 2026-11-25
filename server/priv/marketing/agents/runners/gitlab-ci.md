@@ -1,6 +1,6 @@
-# Tuist Runners for GitLab CI: macOS and Linux
+# GitLab runners for macOS and Linux, managed by Tuist
 
-Managed macOS and Linux runners for GitLab CI on GitLab.com and self-managed GitLab. Pick the machine with a job tag.
+Managed GitLab runners for macOS and Linux on GitLab.com and self-managed GitLab. Tag a job to pick the machine, with no runner fleet to operate.
 
 Your pipelines stay in GitLab, and Tuist provides an isolated machine for each tagged job, next to the same build cache your developers and coding agents use.
 
@@ -28,7 +28,7 @@ No GitLab Runner to operate. Works with GitLab.com and self-managed GitLab 19.3+
 
 ## Sources and review
 
-Sources checked on **2026-11-13**. Written by Tuist from its own documentation and the provider's public documentation; not an independent benchmark. Primary sources: [GitLab-hosted runners](https://docs.gitlab.com/ci/runners/hosted_runners/) and the Tuist [GitLab CI setup guide](/en/docs-markdown/guides/features/runners/ci-providers/gitlab-ci).
+Sources checked on **2026-11-25**. Written by Tuist from its own documentation and the provider's public documentation; not an independent benchmark. Primary sources: [GitLab Runner](https://docs.gitlab.com/runner/), [GitLab-hosted runners](https://docs.gitlab.com/ci/runners/hosted_runners/) and the Tuist [GitLab CI setup guide](/en/docs-markdown/guides/features/runners/ci-providers/gitlab-ci).
 
 ## Further reading
 
@@ -37,6 +37,10 @@ Sources checked on **2026-11-13**. Written by Tuist from its own documentation a
 - [Rising CI costs](/marketing-markdown/solutions/ci-costs) on measuring total cost before and after moving jobs.
 
 ## Frequently asked questions
+
+### What is a GitLab runner?
+
+A [GitLab runner](https://docs.gitlab.com/runner/) is the agent that picks up CI/CD jobs from GitLab and runs them on a machine. GitLab offers hosted runners for GitLab.com and GitLab Dedicated, or you install GitLab Runner on your own machines and choose an executor, such as shell or Docker. Tuist Runners replace that self-managed fleet: GitLab sends jobs tagged with a Tuist profile to an isolated Tuist machine.
 
 ### Do we have to leave GitLab CI?
 

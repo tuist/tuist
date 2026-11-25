@@ -15,6 +15,8 @@ defmodule Tuist.Sandboxes.Query do
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Schemas
 
+  require Logger
+
   @max_range_seconds 90 * 86_400
   @no_filters %{"search" => nil, "status" => nil, "vcpus" => nil}
   @create_fields ~w(platform template xcode_version vcpus memory_mb workspace_gb lifetime_seconds)
@@ -64,7 +66,9 @@ defmodule Tuist.Sandboxes.Query do
              capacity_wait_ms: capacity_wait_ms()
            ) do
       ClaudeCodeSnapshots.request_mac_build(source)
-      {:ok, sandbox(kept(created))}
+      held = kept(created)
+      if source, do: boot_device_in_background(held)
+      {:ok, sandbox(held)}
     end
   end
 
@@ -429,6 +433,22 @@ defmodule Tuist.Sandboxes.Query do
     case Commands.keep(sandbox) do
       {:ok, kept} -> kept
       {:error, _reason} -> sandbox
+    end
+  end
+
+  # A repository's Mac is a session's build machine, which tests on a
+  # simulator next: it boots one while the session syncs and builds. The
+  # create succeeds without it.
+  defp boot_device_in_background(sandbox) do
+    case Devices.boot_in_background(sandbox) do
+      {:ok, _command} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: background simulator boot not started",
+          sandbox_id: sandbox.id,
+          reason: inspect(reason)
+        )
     end
   end
 

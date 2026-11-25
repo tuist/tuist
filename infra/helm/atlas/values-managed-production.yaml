@@ -99,7 +99,7 @@ env:
   ATLAS_DEMO_MODE: "false"
   # Every pod must hold each listed key; writes use the current one.
   ENCRYPTION_KEY_IDS: "V1,K2026A"
-  ENCRYPTION_CURRENT_KEY: "V1"
+  ENCRYPTION_CURRENT_KEY: "K2026A"
   # Explicitly retain Tuist's managed upstream discovery.
   MCP_PROXY_SERVERS: "tuist-managed"
   ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"

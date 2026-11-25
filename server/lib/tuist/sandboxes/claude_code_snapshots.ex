@@ -117,10 +117,13 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # kind"), and one saved after the flush built from the kept store without
   # a miss (measured 2026-11). It also drops
   # the session the CLI stored from the build's identity token, and the
-  # script's simulators, and stops the simulator services: a Mac booted
-  # from the disks mounts the simulator runtimes at new paths, and the
+  # simulators the script created, and stops the simulator services: a Mac
+  # booted from the disks mounts the simulator runtimes at new paths, and the
   # devices and services the disks recorded left its runtimes unavailable
-  # (measured, 2026-11). The script runs without the clone's
+  # (measured, 2026-11). The image's own devices stay, shut down: a Mac
+  # restored with them kept its runtimes and devices, and the session's
+  # Mac pre-boots one (`Devices.boot_in_background/1`; measured, 2026-11).
+  # The script runs without the clone's
   # `GIT_TERMINAL_PROMPT`, which a session's commands lack: Tuist keys its
   # package-manifest cache on the environment, and the variable left the
   # session's first `tuist install` recompiling the manifests.
@@ -133,6 +136,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   mv "$path.sbx-clone" "$path"
   unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_TERMINAL_PROMPT
   cd "$path"
+  devices() { xcrun simctl list devices 2>/dev/null | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}' | sort -u || true; }
+  image_devices=$(devices)
   /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
   derived_data="$HOME/Library/Developer/Xcode/DerivedData"
   launchctl bootout "gui/$(id -u)/tuist.cas-proxy" >/dev/null 2>&1 || true
@@ -146,7 +151,9 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   fi
   rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"
   xcrun simctl shutdown all >/dev/null 2>&1 || true
-  xcrun simctl delete all >/dev/null 2>&1 || true
+  for device in $(devices); do
+    printf '%s\\n' "$image_devices" | grep -qxF "$device" || xcrun simctl delete "$device" >/dev/null 2>&1 || true
+  done
   killall -TERM Simulator com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
   sudo -n killall -TERM simdiskimaged >/dev/null 2>&1 || true
   git update-index -q --refresh || true

@@ -570,6 +570,11 @@ defmodule Tuist.Runners.RunnerSessions do
 
   defp billable_job_window(_job_window), do: %{}
 
+  defp recordable_job_window(%RunnerSession{job_started_at: nil, job_ended_at: nil}, job_window),
+    do: billable_job_window(job_window)
+
+  defp recordable_job_window(_session, _job_window), do: %{}
+
   # "Prefer the row still open, else the most recent closed one." Both the
   # runner_name and pod_name lookups want exactly this ordering.
   defp prefer_open_then_latest(query) do
@@ -584,6 +589,23 @@ defmodule Tuist.Runners.RunnerSessions do
   # after it, neither of which is the customer's to pay for. Absent or
   # partial timestamps are left NULL and bill nothing rather than
   # falling back to the Pod's wall clock.
+  #
+  # A JIT runner runs exactly one job, so once a session names the job its
+  # runner ran, a report of another job is wrong and changes nothing, and
+  # once its job window is recorded, the first record stands. Before both
+  # guards a delivery naming the runner could rebind the session to any job
+  # and stretch the window it bills to whatever the payload claimed.
+  defp bind_execution(%RunnerSession{executed_workflow_job_id: bound_job_id} = session, executed_workflow_job_id, _window)
+       when is_integer(bound_job_id) and bound_job_id != executed_workflow_job_id do
+    Logger.warning("runners: refused to rebind a session to another job",
+      runner_name: session.runner_name,
+      workflow_job_id: executed_workflow_job_id,
+      recorded_workflow_job_id: bound_job_id
+    )
+
+    :mismatch
+  end
+
   defp bind_execution(%RunnerSession{workflow_job_id: claimed_job_id} = session, executed_workflow_job_id, job_window) do
     # A GitHub OIDC token the job minted named its job first. A later report of
     # another job means one of them is wrong; the claims stop applying either
@@ -606,7 +628,7 @@ defmodule Tuist.Runners.RunnerSessions do
           executed_workflow_job_id: executed_workflow_job_id,
           updated_at: DateTime.truncate(DateTime.utc_now(), :second)
         },
-        billable_job_window(job_window)
+        recordable_job_window(session, job_window)
       )
 
     session

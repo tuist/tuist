@@ -13,3 +13,7 @@ service:
 postgresql:
   backup:
     destinationPath: s3://tuist-stag-pg-backups/symptoms
+    # symptoms-pg/ holds WAL from the cluster recreated on 2026-11-25, so this
+    # cluster archives beside it. Delete symptoms-pg/ once it is no longer
+    # needed for recovery.
+    serverName: symptoms-pg-2

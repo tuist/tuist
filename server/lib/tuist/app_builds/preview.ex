@@ -23,7 +23,9 @@ defmodule Tuist.AppBuilds.Preview do
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "previews" do
-    has_many :app_builds, Tuist.AppBuilds.AppBuild
+    # Only builds whose upload completed: one `tuist share` started and never
+    # finished has no archive to download or install.
+    has_many :app_builds, Tuist.AppBuilds.AppBuild, where: [upload_completed: true]
     belongs_to :project, Project
     belongs_to :created_by_account, Tuist.Accounts.Account
     field :display_name, :string

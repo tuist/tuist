@@ -455,6 +455,109 @@ func TestResumeGrowsARootfsSmallerThanItsTemplate(t *testing.T) {
 	}
 }
 
+func TestResumeColdBootsAMemoryImageWhoseGuestNeverAnswers(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.create(t, testID, 10)
+	h.m.cfg.BootTimeout = 300 * time.Millisecond
+	root := vm.RootDir(h.jailBase, testID)
+	if _, err := h.m.Pause(ctx, testID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+
+	// A failure before the image is loaded leaves it valid for the next
+	// resume.
+	h.launcher.FailLaunch = errors.New("launch refused (test)")
+	if _, err := h.m.Resume(ctx, testID); err == nil {
+		t.Fatal("a failed launch resumed")
+	}
+	if meta, _ := LoadMetadata(root); meta.ColdBoot || meta.State != protocol.StatePaused {
+		t.Fatalf("a failed launch changed the sandbox: %+v", meta)
+	}
+
+	// The image holds a guest that hung: it resumes but never answers.
+	h.launcher.HungRestores = true
+	before := len(h.launcher.Instances())
+	if _, err := h.m.Resume(ctx, testID); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	launched := h.launcher.Instances()[before:]
+	if len(launched) != 2 {
+		t.Fatalf("want a restore and a cold boot, launched %d instances", len(launched))
+	}
+	restored, booted := launched[0], launched[1]
+	if !strings.Contains(strings.Join(callPaths(restored), ","), "PUT /snapshot/load") || !restored.Killed() {
+		t.Fatalf("the hung restore was not attempted and killed: %v", callPaths(restored))
+	}
+	if paths := strings.Join(callPaths(booted), ","); strings.Contains(paths, "/snapshot/load") || !strings.Contains(paths, "PUT /actions") {
+		t.Fatalf("the fallback did not cold boot: %v", callPaths(booted))
+	}
+	for _, stale := range []string{firecracker.MemPath, firecracker.SnapshotPath} {
+		if vm.Exists(filepath.Join(root, stale)) {
+			t.Fatalf("the hung image %s was kept", stale)
+		}
+	}
+	if meta, _ := LoadMetadata(root); meta.ColdBoot || meta.State != protocol.StateRunning {
+		t.Fatalf("after the cold boot: %+v", meta)
+	}
+
+	// The next pause writes a fresh image, which resumes warm.
+	h.launcher.HungRestores = false
+	if _, err := h.m.Pause(ctx, testID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	if _, err := h.m.Resume(ctx, testID); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if paths := strings.Join(callPaths(h.launcher.Last()), ","); !strings.Contains(paths, "PUT /snapshot/load") {
+		t.Fatalf("a fresh image did not resume warm: %v", paths)
+	}
+}
+
+func TestResumeKeepsTheDisksOfAHungRestoreThatDoesNotDie(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.create(t, testID, 10)
+	h.m.cfg.BootTimeout = 300 * time.Millisecond
+	root := vm.RootDir(h.jailBase, testID)
+	if _, err := h.m.Pause(ctx, testID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+
+	h.launcher.HungRestores = true
+	h.launcher.FailKill = true
+	before := len(h.launcher.Instances())
+	if _, err := h.m.Resume(ctx, testID); !errors.Is(err, ErrVMNotKilled) {
+		t.Fatalf("resume: %v, want %v", err, ErrVMNotKilled)
+	}
+	launched := h.launcher.Instances()[before:]
+	t.Cleanup(func() {
+		for _, inst := range launched {
+			inst.Crash()
+		}
+	})
+	// The restored VM may still write the disks: no second VM boots on them.
+	if len(launched) != 1 {
+		t.Fatalf("want only the hung restore, launched %d instances", len(launched))
+	}
+	meta, err := LoadMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.State != protocol.StateError || meta.ColdBoot {
+		t.Fatalf("want the sandbox in error without a cold boot pending, got %+v", meta)
+	}
+	if e := h.events.wait(t, protocol.EventSandboxDied, time.Second); e.SandboxID != testID {
+		t.Fatalf("sandbox_died for %q", e.SandboxID)
+	}
+	if _, err := h.m.Resume(ctx, testID); !errors.Is(err, ErrNotPaused) {
+		t.Fatalf("a later resume: %v, want %v", err, ErrNotPaused)
+	}
+	if got := len(h.launcher.Instances()) - before; got != 1 {
+		t.Fatalf("a later resume launched another VM: %d instances", got)
+	}
+}
+
 func TestCreateValidation(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
@@ -822,8 +925,8 @@ func TestHandoverLeavesVMsRunningForTheNextDaemon(t *testing.T) {
 	if _, err := h.m.StartWorker(ctx, protocol.StartWorkerArgs{SandboxID: "busy"}); err != nil {
 		t.Fatal(err)
 	}
-	// A warm restore's memory is served by this process for as long as its
-	// VM runs, so that VM cannot outlive it.
+	// A warm restore's memory is served by this process until it is all on
+	// the node, so until then that VM cannot outlive it.
 	restored, _ := h.m.get("restored")
 	restored.mu.Lock()
 	restored.memoryServed = restored.inst

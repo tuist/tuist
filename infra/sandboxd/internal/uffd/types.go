@@ -46,7 +46,13 @@ type Options struct {
 	// first. Zero FillWorkers leaves untouched chunks unfetched.
 	FaultWorkers int
 	FillWorkers  int
-	// OnLoaded runs once every chunk is installed.
+	// Release unregisters the guest's memory from the userfaultfd once every
+	// chunk is installed, and Serve then returns: the process no longer
+	// depends on this server. A page the guest later frees (Firecracker's
+	// balloon drops it) reads back as zeros from the kernel, which is what
+	// the server would have answered.
+	Release bool
+	// OnLoaded runs once every chunk is installed, after the release.
 	OnLoaded func(Stats)
 }
 
@@ -59,4 +65,6 @@ type Stats struct {
 	Faults  int64 `json:"faults"`
 	// Bytes is the guest memory installed from non-zero chunks.
 	Bytes int64 `json:"bytes"`
+	// Released reports that the memory is no longer registered (Release).
+	Released bool `json:"released"`
 }

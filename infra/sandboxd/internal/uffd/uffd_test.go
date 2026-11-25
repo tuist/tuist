@@ -98,6 +98,15 @@ func guest(sock string) error {
 		return err
 	}
 	hash := sha256.New()
+	if line == "drop" {
+		// What Firecracker's balloon does to pages the guest freed.
+		for _, mem := range mems {
+			if err := syscall.Madvise(mem[:pageSize], syscall.MADV_DONTNEED); err != nil {
+				return err
+			}
+		}
+		line = "all"
+	}
 	if line == "all" {
 		for _, mem := range mems {
 			hash.Write(mem)
@@ -194,6 +203,12 @@ func start(t *testing.T, src Source, opts Options) *run {
 
 func (r *run) touch(t *testing.T, what string) string {
 	t.Helper()
+	return r.touchWith(t, what, r.done)
+}
+
+// touchWith fails when ended closes while the guest still waits.
+func (r *run) touchWith(t *testing.T, what string, ended <-chan struct{}) string {
+	t.Helper()
 	fmt.Fprintln(r.stdin, what)
 	waited := make(chan error, 1)
 	go func() { waited <- r.cmd.Wait() }()
@@ -202,7 +217,7 @@ func (r *run) touch(t *testing.T, what string) string {
 		if err != nil {
 			t.Fatalf("guest: %v: %s", err, r.out)
 		}
-	case <-r.done:
+	case <-ended:
 		t.Fatalf("serve ended while the guest waited: %v", r.err)
 	case <-time.After(20 * time.Second):
 		t.Fatalf("guest still waiting on its memory: %+v", r.srv.Stats())
@@ -256,6 +271,37 @@ func TestFillInstallsEverythingBeforeTheGuestLooks(t *testing.T) {
 	src.fail.Store(true)
 	if got := r.touch(t, "all"); got != digest(src.data) {
 		t.Fatalf("guest memory differs from the image")
+	}
+}
+
+func TestReleasedMemoryNoLongerNeedsTheServer(t *testing.T) {
+	src := newSource()
+	loaded := make(chan Stats, 1)
+	r := start(t, src, Options{FaultWorkers: 1, FillWorkers: 2, Release: true, OnLoaded: func(s Stats) { loaded <- s }})
+	select {
+	case stats := <-loaded:
+		if !stats.Released {
+			t.Fatalf("stats %+v, expected the memory released", stats)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("fill never finished")
+	}
+	select {
+	case <-r.done:
+		if r.err != nil {
+			t.Fatalf("serve answered %v after the release", r.err)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("serve kept running after the release")
+	}
+	// The guest still holds its own copy of the descriptor, as Firecracker
+	// does. Pages it drops now come back as zeros with no server running;
+	// still registered, they would wait on the server forever.
+	want := bytes.Clone(src.data)
+	clear(want[:pageSize])
+	clear(want[testSplit : testSplit+pageSize])
+	if got := r.touchWith(t, "drop", nil); got != digest(want) {
+		t.Fatalf("guest memory differs from the image with its dropped pages zeroed")
 	}
 }
 

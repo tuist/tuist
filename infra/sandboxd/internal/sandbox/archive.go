@@ -420,8 +420,10 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 			res, err = m.warmCreate(ctx, sb, src, args.WorkspaceGB, uid, log)
 			// A guest that never answers after its memory loaded would
 			// fail every restore the same way; synced disks hold its files
-			// without the memory, so they cold boot instead.
-			if err == nil || !header.DisksSynced || !errors.Is(err, vsock.ErrAgentNotReady) || ctx.Err() != nil {
+			// without the memory, so they cold boot instead, unless that
+			// guest's Firecracker did not die and may still write them: the
+			// create then fails and leaves the archive to a later restore.
+			if err == nil || !header.DisksSynced || !errors.Is(err, vsock.ErrAgentNotReady) || errors.Is(err, ErrVMNotKilled) || ctx.Err() != nil {
 				return res, err
 			}
 			log.Warn("archived memory did not resume; cold booting the disks", "error", err)
@@ -514,7 +516,8 @@ func (m *Manager) downloadArchive(ctx context.Context, src *protocol.ArchiveSour
 // warmCreate resumes an archived sandbox from its VM state, its memory
 // served from the archive by userfaultfd: the guest runs as soon as the
 // state loads, each first touch of a page fetches its chunk, and a fill
-// fetches the rest. Until every chunk is on the node the sandbox depends on
+// fetches the rest, after which the memory is released and the VM no
+// longer depends on this process. Until every chunk is on the node the sandbox depends on
 // the archive, so the server keeps it until EventMemoryLoaded; a chunk that
 // cannot be fetched kills the VM, which could never run on without it.
 func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.ArchiveSource, workspaceGB, uid int, log *slog.Logger) (protocol.CreateResult, error) {
@@ -559,11 +562,22 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 	serveCtx, stopServing := context.WithCancel(context.Background())
 	served := make(chan error, 1)
 	started := time.Now()
+	// Set once the memory is released, which may come before the restore
+	// below returns; under sb.mu.
+	released := false
 	go func() {
 		defer memory.Close()
 		served <- server.Serve(serveCtx, memory, uffd.Options{
-			FaultWorkers: memoryFaultWorkers, FillWorkers: memoryFillWorkers,
+			FaultWorkers: memoryFaultWorkers, FillWorkers: memoryFillWorkers, Release: true,
 			OnLoaded: func(stats uffd.Stats) {
+				if stats.Released {
+					// The VM no longer needs this process, so a handover
+					// can keep it running.
+					sb.mu.Lock()
+					released = true
+					sb.memoryServed = nil
+					sb.mu.Unlock()
+				}
 				m.memoryLoaded(sb, stats, time.Since(started))
 				if disks != nil {
 					disks.startFill()
@@ -598,7 +612,9 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 		}
 	}()
 	sb.mu.Lock()
-	sb.memoryServed = inst
+	if !released {
+		sb.memoryServed = inst
+	}
 	sb.meta.State = protocol.StateRunning
 	sb.meta.Generation = 0
 	sb.meta.FirecrackerVersion = m.cfg.FirecrackerVersion
@@ -650,7 +666,7 @@ func (m *Manager) memoryLoaded(sb *Sandbox, stats uffd.Stats, elapsed time.Durat
 	id := sb.meta.ID
 	sb.mu.Unlock()
 	m.log.Info("sandbox memory loaded from its archive", "sandbox", id, "elapsed", elapsed,
-		"chunks", stats.Chunks, "faulted", stats.Faulted, "filled", stats.Filled, "zero", stats.Zero, "faults", stats.Faults, "bytes", stats.Bytes)
+		"chunks", stats.Chunks, "faulted", stats.Faulted, "filled", stats.Filled, "zero", stats.Zero, "faults", stats.Faults, "bytes", stats.Bytes, "released", stats.Released)
 	m.restorePartLoaded(sb, true)
 }
 

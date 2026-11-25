@@ -135,6 +135,35 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"])
     end
 
+    test "room for a repository snapshot never archives the paused builder waiting for it", %{account: account} do
+      agent_environment =
+        agent_environment_fixture(account: account, kind: :claude_code, anthropic_environment_id: "ccpool_01linux")
+
+      {:ok, build} = DiskSnapshots.start_build(agent_environment, "acme/app", "sha")
+
+      sandbox_fixture(
+        account: account,
+        id: build.id,
+        agent_environment_id: agent_environment.id,
+        state: :paused,
+        node_name: "node-a",
+        paused_at: hours_ago(5)
+      )
+
+      orb = paused_orb(account, paused_at: hours_ago(1))
+
+      assert Archives.make_node_room(["node-a"])
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
+        assert id == orb.id
+        {:error, "upload failed"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"])
+    end
+
     test "a held Managed Agents work item makes room too, unless an archive already uploads there",
          %{account: account} do
       uploading = paused_orb(account, archive_upload_id: "upload-in-flight")
@@ -1161,6 +1190,15 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       stub(Nodes, :call, fn "node-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
       stub(Storage, :delete_object, fn _key, _account -> flunk("the archive went while its memory was loading") end)
 
+      # A `run/0` on another replica can land as soon as the row is running,
+      # here while its idle pause is scheduled (production, 2026-11-25).
+      stub(Capacity, :shared_node?, fn _name -> false end)
+
+      expect(Capacity, :shared_node?, fn _name ->
+        Archives.run()
+        false
+      end)
+
       assert {:ok, %Sandbox{state: :running}} =
                AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
 
@@ -1307,9 +1345,11 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       Sandboxes.handle_node_event("node-b", %{"event" => "memory_loaded", "sandbox_id" => sandbox.id})
       assert Repo.reload!(sandbox).archive_key == sandbox.archive_key
 
-      running = sandbox |> Repo.reload!() |> Sandbox.update_changeset(%{state: :running}) |> Repo.update!()
+      loaded = Repo.reload!(sandbox)
+      assert Archives.memory_loading_attrs(loaded) == %{}
+      running = loaded |> Sandbox.update_changeset(%{state: :running}) |> Repo.update!()
       expect(Storage, :delete_object, fn _key, _account -> :ok end)
-      assert :ok = Archives.memory_loading(running)
+      assert :ok = Archives.delete_restored(running)
       assert Repo.reload!(sandbox).archive_key == nil
     end
 
@@ -1487,7 +1527,8 @@ defmodule Tuist.Sandboxes.ArchivesTest do
          %{account: account} do
       warm = mac("mac-w")
       warm = %{warm | templates: Enum.map(warm.templates, &Map.put(&1, :warm, ["4x8192"]))}
-      connect([warm, mac("mac-x"), mac("mac-y")])
+      # One granted slot to mac-x's two, so mac-y is tried after it.
+      connect([warm, mac("mac-x"), put_in(mac("mac-y").admission["slots"], 1)])
 
       session =
         evicted(account, mac("mac-a"),

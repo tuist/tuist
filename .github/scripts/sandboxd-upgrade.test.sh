@@ -48,6 +48,7 @@ scenario() {
     {metadata: {name: "sandboxd-x", labels: {"controller-revision-hash": $h}}, spec: ($t.spec + {nodeName: "node-1"}),
      status: {containerStatuses: [{name: "sandboxd", containerID: $id, ready: true, image: $t.spec.containers[0].image, imageID: $iid}]}}]}' > "$state/pods.json"
   echo "${LAZY:-0}" > "$state/lazy"
+  echo "${LOADING:-0}" > "$state/loading"
   jq -n --arg c "$config" '{data: {"config.env": $c}}' > "$state/cm.json"
   [ "$3" = yes ] && touch "$state/arms"
   echo "${4:-$config_sum}" > "$state/loaded"
@@ -91,6 +92,10 @@ case "$1 $2" in
     else
       lazy=$(cat "$state/lazy")
       echo "sandboxd_handover_blocked{reason=\"lazy_disks\"} $lazy"
+      loading=$(cat "$state/loading")
+      echo "sandboxd_handover_blocked{reason=\"memory_loading\"} $loading"
+      [ "$lazy" = 0 ] && [ "$loading" -gt 0 ] && echo $((loading - 1)) > "$state/loading"
+      echo 'sandboxd_handover_blocked{reason="memory_served"} 3'
       [ "$lazy" -gt 0 ] && echo $((lazy - 1)) > "$state/lazy"
       echo "sandboxd_config_info{sha256=\"$(cat "$state/loaded")\"} 1"
     fi ;;
@@ -160,7 +165,12 @@ check "a config-only change replaces a daemon that never arms" \
 
 LAZY=2 scenario sha-old sha-oldvmm yes
 check "a replacement waits until no restore streams its disks" \
-  'grep -q "2 sandboxes still receive their disks" "$state/out" && [ "$(cat "$state/lazy")" = 0 ] &&
+  'grep -q "2 sandboxes still receive their disks or memory" "$state/out" && [ "$(cat "$state/lazy")" = 0 ] &&
    [ "$(grep -n "still receive" "$state/out" | tail -1 | cut -d: -f1)" -lt "$(grep -n "^Replacing" "$state/out" | cut -d: -f1)" ]'
+
+LAZY=1 LOADING=1 scenario sha-old sha-vmm yes
+check "an in-place upgrade waits for memory still loading too, not for an old daemon's served memory" \
+  'grep -q "2 sandboxes still receive their disks or memory" "$state/out" && grep -q "1 sandboxes still receive" "$state/out" &&
+   [ "$(cat "$state/loading")" = 0 ] && [ -e "$state/patched" ]'
 
 [ "$failures" -eq 0 ] || { echo "$failures failures"; exit 1; }

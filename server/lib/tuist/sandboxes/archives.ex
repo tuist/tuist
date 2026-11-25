@@ -469,12 +469,16 @@ defmodule Tuist.Sandboxes.Archives do
   defp idle_paused_sessions do
     claude_code = from(e in AgentEnvironment, where: e.kind == :claude_code, select: e.id)
     threads = from(e in ProviderEnvironment, where: like(e.external_key, "threads/%"), select: e.id)
+    # A repository snapshot's builder (its row shares the build's ID) pauses
+    # once its script ends and then waits on its node for room to save the
+    # snapshot; archiving it fails the build (`ClaudeCodeSnapshots`).
+    builders = from(d in DiskSnapshot, where: d.state == :building, select: d.id)
 
     where(
       idle_paused(),
       [s],
-      s.platform == :darwin or not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code) or
-        s.provider_environment_id in subquery(threads)
+      (s.platform == :darwin or not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code) or
+         s.provider_environment_id in subquery(threads)) and s.id not in subquery(builders)
     )
   end
 
@@ -1273,20 +1277,21 @@ defmodule Tuist.Sandboxes.Archives do
   defp loading_memory?(%Sandbox{}), do: false
 
   @doc """
-  Marks a sandbox resumed from its archive's memory image as still reading
-  it, which keeps the archive until `memory_loaded/1`. A node may report
-  the memory loaded before its create answer arrives; then the archive
-  goes now.
+  The attributes that mark a sandbox resumed from its archive's memory image
+  as still reading it, which keeps the archive until `memory_loaded/1`.
+  Write them in the same update that makes the row running: `run/0` deletes
+  the archive of a running row that is not marked, and in production
+  (2026-11-25) one ran between two separate updates and deleted a lazy-disk
+  restore's only copy under it. A node may report the memory loaded before
+  its create answer arrives; then nothing is marked and `delete_restored/1`
+  deletes the archive.
   """
-  def memory_loading(%Sandbox{archive_memory: %{"loaded" => true}} = sandbox), do: delete_restored(sandbox)
+  def memory_loading_attrs(%Sandbox{archive_memory: %{"loaded" => true}}), do: %{}
 
-  def memory_loading(%Sandbox{archive_memory: %{} = memory} = sandbox) do
-    sandbox
-    |> Sandbox.update_changeset(%{archive_memory: Map.put(memory, "loading_since", DateTime.to_iso8601(now()))})
-    |> Repo.update()
-  end
+  def memory_loading_attrs(%Sandbox{archive_memory: %{} = memory}),
+    do: %{archive_memory: Map.put(memory, "loading_since", DateTime.to_iso8601(now()))}
 
-  def memory_loading(%Sandbox{}), do: :ok
+  def memory_loading_attrs(%Sandbox{}), do: %{}
 
   @doc """
   A node reports that a warm restore holds all of its memory: the archive

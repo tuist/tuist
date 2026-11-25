@@ -20,7 +20,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     {"namespace", "Namespace"},
     {"runs-on", "RunsOn"},
     {"ubicloud", "Ubicloud"},
-    {"warpbuild", "WarpBuild"}
+    {"warpbuild", "WarpBuild"},
+    {"xcode-cloud", "Xcode Cloud"}
   ]
   @featured_providers ~w(buildkite develocity namespace)
   @comparison_paths Enum.map(@providers, fn {slug, _name} -> "/compare/" <> slug end)
@@ -418,6 +419,10 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/appcircle") =~ "Enterprise plan"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "MIT-licensed"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "not remote execution"
+
+    xcode_cloud = MarketingMarkdown.get("/compare/xcode-cloud")
+    assert xcode_cloud =~ "doesn't name the chip or list CPU or memory sizes"
+    assert xcode_cloud =~ "https://developer.apple.com/xcode-cloud/get-started/"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "explicitly separates `enterprise/`"
     assert MarketingMarkdown.get("/compare/cachely") =~ "enforced by the server"
     assert MarketingMarkdown.get("/compare/cachely") =~ "Cloudflare R2"

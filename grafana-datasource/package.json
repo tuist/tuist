@@ -90,6 +90,7 @@
     "immutable": "^5.1.9",
     "js-cookie": "^3.0.8",
     "basic-ftp": "6.2.4",
+    "i18next": "26.3.4",
     "react-router-dom-v5-compat": {
       "react-router": "7.18.5"
     },

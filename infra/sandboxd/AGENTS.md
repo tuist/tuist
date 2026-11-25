@@ -129,7 +129,13 @@ memory image until they cold boot.
   sandbox's own `mem` (`File` backend, `resume_vm: true`), then `set_time`,
   `configure` (flushes ARP) and `ping`. Reports `restore_ms`. Resuming a
   sandbox that is already running succeeds without doing anything, so a
-  retried resume whose first answer was lost is harmless.
+  retried resume whose first answer was lost is harmless. A restore that
+  fails after the load resumed the guest (an image of a hung guest whose
+  agent never answers) sets `cold_boot` and cold boots the disks in the
+  same command: the killed guest may have written them, so the image is
+  never loaded again. When that Firecracker does not die, the sandbox moves
+  to `error` (`sandbox_died`) instead, as a pause does: a second VM on the
+  disks it may still write would corrupt them.
 - Rootfs growth (`internal/sandbox/rootfs.go`): a sandbox keeps the rootfs
   it was created with, so after every `resume` and every create that cold
   boots its own disks (disk snapshot, archive), a rootfs smaller than the
@@ -226,7 +232,9 @@ memory image until they cold boot.
   fetched kills the VM. Elsewhere it cold boots the disks, and so does a
   warm restore of synced disks whose guest agent never answers (`agent not
   ready`): the memory image is dropped, processes are lost, and lazy disks
-  keep arriving through their mounts. With
+  keep arriving through their mounts. When that guest's Firecracker does not
+  die, the create fails instead (`firecracker did not die`), leaving the
+  archive for a later restore. With
   `lazy_disks` (`internal/lazydisk`, `internal/sandbox/lazydisks.go`) each
   disk is a FUSE mount over its path in the jail, which the jailer's
   recursive bind carries into the chroot: a chunk the guest reads or
@@ -868,8 +876,8 @@ SIGTERM pauses every VM, except a handover (step 2b,
 `sandboxes.vmm.inPlaceUpgrades`). The chart makes the DaemonSet `OnDelete`
 and the deploy runs `.github/scripts/sandboxd-upgrade.sh`: for a Pod that
 differs from the DaemonSet only in the `sandboxd` image, it waits for
-`sandboxd_handover_blocked{reason="lazy_disks"}` to reach zero (up to ten
-minutes), annotates the Pod with `{container, until, nonce}`, waits for the
+`sandboxd_handover_blocked{reason=~"lazy_disks|memory_loading"}` to reach
+zero (up to ten minutes), annotates the Pod with `{container, until, nonce}`, waits for the
 daemon's `handover armed` log with that nonce and the new ConfigMap's hash,
 and patches the container's image; the kubelet restarts only that
 container. A Pod already on the current revision whose
@@ -882,8 +890,12 @@ for 48 s. Any other difference replaces the Pod, after the same wait for
 lazy disks: a restore still streaming its disks cannot pause, and a Pod
 deleted under it leaves the sandbox in error. An armed daemon stops its
 workers and detaches each running VM, recording `handover {pid, start}` in
-its metadata; VMs whose memory it serves through userfaultfd, whose disks
-still arrive through its mounts, or that vmm refuses are paused instead.
+its metadata; VMs whose memory it still serves through userfaultfd, whose
+disks still arrive through its mounts, or that vmm refuses are paused
+instead. A warm restore's memory is served only until it is all on the
+node: the daemon then unregisters it from the userfaultfd
+(`uffd.Options.Release`) and the kernel zero-fills the pages the balloon
+drops, as the daemon did.
 `vmm.image.tag` pins vmm (and Firecracker) separately; the deploy keeps the
 live one unless the values set it.
 
@@ -980,7 +992,7 @@ processes hold, summed over the node) and observes every running VM's
 resident share of its guest memory in `sandboxd_vm_resident_share`.
 `sandboxd_lifecycle_phase_seconds{phase}` breaks down fixed lifecycle phases;
 `sandboxd_config_info{sha256}` names the configuration file the daemon loaded;
-`sandboxd_handover_blocked{reason}` counts running sandboxes a handover would pause (`lazy_disks`, `memory_served`).
+`sandboxd_handover_blocked{reason}` counts running sandboxes a handover would pause (`lazy_disks`, `memory_loading`).
 `sandboxd_blob_cache_requests_total{result}`, `sandboxd_blob_cache_fetched_bytes_total` and `sandboxd_blob_cache_bytes` cover the blob cache. sandbox IDs are never labels. Delete overlaps process exit and network teardown,
 but retains files, the instance reference and slot until both succeed.
 

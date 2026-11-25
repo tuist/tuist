@@ -459,6 +459,26 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :provisioning
     end
 
+    test "never leaves an idle Air instance archived without the hold that keeps it archived" do
+      account = account()
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      server = active_instance(account, age_days: 30)
+      with_demand(account, 0, traffic_days_ago: 40)
+      Lifecycle.sweep()
+      elapse_drain(account)
+
+      # The reconciler dies right after the server's status commits.
+      stub(Kura, :archive_server, fn server ->
+        {:ok, _archived} = Mimic.call_original(Kura, :archive_server, [server])
+        raise "reconciler stopped"
+      end)
+
+      assert_raise RuntimeError, fn -> Lifecycle.reconcile() end
+      assert {:ok, []} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+      assert reload(server).status == :drain_pending
+    end
+
     test "returns an idle Air archival on resolution once its hold has run out" do
       account = account()
       server = archive_idle(account)
