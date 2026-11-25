@@ -195,6 +195,13 @@ defmodule Tuist.Kura.RegionsTest do
       end
 
       assert Regions.memory_governed?(Regions.get("scw-fr-par-runners"))
+
+      # The rack sites hold a replica of every rack account on each storage
+      # node, and larch-store-a fits only five flat 2Gi floors.
+      for id <- ["ber1-runners", "larch-runners"] do
+        assert Regions.memory_governed?(Regions.get(id))
+        refute Regions.memory_ceiling_bin_packed?(Regions.get(id))
+      end
     end
 
     test "bin-packs memory ceilings only where a node budget is advertised" do

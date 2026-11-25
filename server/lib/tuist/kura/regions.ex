@@ -563,6 +563,12 @@ defmodule Tuist.Kura.Regions do
         # the account's other regions.
         storage_size: "50Gi",
         storage_governed: true,
+        # Sized per plan like the public bare-metal regions: the merged region
+        # puts a replica of every rack account on each site's storage node, so
+        # a flat 2Gi floor fills 16 GB larch-store-a with five accounts. The
+        # nodes advertise no tuist.dev/memory-ceiling-mib budget, so ceilings
+        # are not bin-packed.
+        memory_governed: true,
         runner_platforms: [:macos],
         data_plane: :private_gateway,
         client_cidrs: [rack.client_cidr],
