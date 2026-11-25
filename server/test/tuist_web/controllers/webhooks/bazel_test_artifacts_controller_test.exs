@@ -17,7 +17,7 @@ defmodule TuistWeb.Webhooks.BazelTestArtifactsControllerTest do
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :bazel)
-    stub(Tuist.Environment, :cache_api_key, fn -> @cache_api_key end)
+    stub(Tuist.Environment, :cache_webhook_secrets, fn -> [@cache_api_key] end)
 
     %{conn: conn, project: project}
   end

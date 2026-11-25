@@ -1737,6 +1737,24 @@ defmodule Tuist.Environment do
     get([:cache_api_key], secrets)
   end
 
+  @doc """
+  The keys the cache webhooks accept a signature from: the Kamal cache's
+  `cache_api_key/1`, then Kura's own keys from
+  `TUIST_KURA_ANALYTICS_SIGNING_KEYS` (comma-separated, so a new one is
+  accepted before Kura signs with it). Kura used to sign with the cache API key
+  too; its own keys let either be read off a node or rotated without the
+  other.
+  """
+  def cache_webhook_secrets(secrets \\ secrets()) do
+    kura_keys =
+      case get([:kura_analytics, :signing_keys], secrets) do
+        value when is_binary(value) -> value |> String.split(",") |> Enum.map(&String.trim/1)
+        _ -> []
+      end
+
+    Enum.reject([cache_api_key(secrets) | kura_keys], &(&1 in [nil, ""]))
+  end
+
   def delegate_process_build? do
     truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BUILD", "0"))
   end

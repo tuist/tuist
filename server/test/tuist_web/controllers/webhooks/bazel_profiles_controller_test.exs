@@ -13,7 +13,7 @@ defmodule TuistWeb.Webhooks.BazelProfilesControllerTest do
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :bazel)
-    stub(Tuist.Environment, :cache_api_key, fn -> "profile-test-key" end)
+    stub(Tuist.Environment, :cache_webhook_secrets, fn -> ["profile-test-key"] end)
     %{project: project, account: user.account}
   end
 

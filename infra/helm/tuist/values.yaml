@@ -256,6 +256,15 @@ kuraController:
     # Self-hosted installs can instead supply KURA_ANALYTICS_SERVER_URL and
     # KURA_ANALYTICS_SIGNING_KEY through sharedSecrets.data.
     enabled: false
+    # 1Password item whose `keys` field holds Kura's own webhook signing keys,
+    # comma-separated. Kura signs with the first; the server accepts all of
+    # them alongside CACHE_API_KEY. Empty keeps Kura on CACHE_API_KEY/password,
+    # the key the Kamal cache also holds. Start the item as
+    # `<current CACHE_API_KEY>,<new>` so Kura's key does not change on the
+    # first deploy. Rotate by appending a key and deploying the server, moving
+    # it first (Kura rolls on the change), then dropping the old one once
+    # every Kura pod has rolled.
+    signingKeyItem: ""
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the
     # controller namespace. Set to false if the Secret is managed

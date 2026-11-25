@@ -919,4 +919,15 @@ defmodule Tuist.EnvironmentTest do
     assert Environment.oidc_signing_key(%{}) == nil
   end
 
+  test "cache webhooks accept the Kamal cache's key and each of Kura's own" do
+    # server/mise.toml sets TUIST_CACHE_API_KEY, which wins over the map.
+    cache_key = Environment.cache_api_key(%{"cache_api_key" => "cache"})
+
+    assert Environment.cache_webhook_secrets(%{"cache_api_key" => "cache"}) == [cache_key]
+
+    assert Environment.cache_webhook_secrets(%{
+             "cache_api_key" => "cache",
+             "kura_analytics" => %{"signing_keys" => "kura-new, kura-old,"}
+           }) == [cache_key, "kura-new", "kura-old"]
+  end
 end
