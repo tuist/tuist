@@ -4,6 +4,7 @@ host: symptoms-staging.taild6d7bb.ts.net
 tuist:
   url: http://tuist-tuist-server.tuist-staging.svc.cluster.local
   namespace: tuist-staging
+  serviceAccount: tuist-server
 
 service:
   tailscale:

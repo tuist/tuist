@@ -91,7 +91,7 @@ defmodule Tuist.Pulse.Symptoms do
   Pulls new revisions from the evaluator's log into the mirror for `account`,
   up to #{@max_pages} pages of #{@log_limit}. Returns
   `{:ok, %{applied: n, superseded: n}}`, `{:error, :not_configured}` without a
-  URL and token, or `{:error, reason}` when the log could not be read or a
+  URL and token path, or `{:error, reason}` when the log could not be read or a
   revision was rejected (after committing what preceded it).
   """
   def sync(account) do
@@ -103,10 +103,10 @@ defmodule Tuist.Pulse.Symptoms do
   defp client do
     config = Environment.symptoms_config()
     url = Keyword.get(config, :base_url)
-    token = Keyword.get(config, :token)
+    token_path = Keyword.get(config, :token_path)
 
-    if is_binary(url) and String.starts_with?(url, ["http://", "https://"]) and is_binary(token) and token != "",
-      do: {:ok, %{base_url: String.trim_trailing(url, "/"), token: token}},
+    if is_binary(url) and String.starts_with?(url, ["http://", "https://"]) and is_binary(token_path) and token_path != "",
+      do: {:ok, %{base_url: String.trim_trailing(url, "/"), token_path: token_path}},
       else: {:error, :not_configured}
   end
 
@@ -132,11 +132,24 @@ defmodule Tuist.Pulse.Symptoms do
   end
 
   defp fetch_log(client, after_seq) do
-    case Req.get(client.base_url <> "/api/v1/symptoms/log",
+    # A projected token rotates in place. Read it for each page, not at boot
+    # or once for an entire multi-page sync.
+    with {:ok, raw_token} <- File.read(client.token_path),
+         token = String.trim(raw_token),
+         true <- token != "" do
+      request_log(client.base_url, token, after_seq)
+    else
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  defp request_log(base_url, token, after_seq) do
+    case Req.get(base_url <> "/api/v1/symptoms/log",
            params: [after: after_seq, limit: @log_limit],
-           auth: {:bearer, client.token},
+           auth: {:bearer, token},
            headers: [{"accept", "application/json"}],
            receive_timeout: 15_000,
+           redirect: false,
            retry: false
          ) do
       {:ok, %Req.Response{status: 200, body: %{"revisions" => revisions}}} when is_list(revisions) ->

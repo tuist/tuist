@@ -68,8 +68,8 @@ registry:
 
 server:
   # The Symptoms evaluator (infra/helm/symptoms, release `symptoms` in
-  # `symptoms-production`). Enable once SYMPTOMS/api_token exists in this environment's
-  # vault and the evaluator is deployed.
+  # `symptoms-production`). Enable only after the evaluator is deployed and its
+  # tuist.namespace/serviceAccount allow this server's exact principal.
   symptoms:
     enabled: false
     url: http://symptoms.symptoms-production.svc.cluster.local

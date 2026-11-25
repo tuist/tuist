@@ -32,7 +32,7 @@ config :tuist, :pulse,
 # human state back. Leave unset outside the Tuist deployment.
 config :tuist, :symptoms,
   base_url: System.get_env("TUIST_SYMPTOMS_URL"),
-  token: System.get_env("TUIST_SYMPTOMS_TOKEN"),
+  token_path: System.get_env("TUIST_SYMPTOMS_TOKEN_PATH"),
   evaluator_namespace: System.get_env("TUIST_SYMPTOMS_EVALUATOR_NAMESPACE"),
   evaluator_service_account: System.get_env("TUIST_SYMPTOMS_EVALUATOR_SERVICE_ACCOUNT")
 

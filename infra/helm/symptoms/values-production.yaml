@@ -9,6 +9,7 @@ decision:
 tuist:
   url: http://tuist-tuist-server.tuist.svc.cluster.local
   namespace: tuist
+  serviceAccount: tuist-server
 
 service:
   tailscale:

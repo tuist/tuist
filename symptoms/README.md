@@ -363,7 +363,7 @@ mirror and cursor, so a failed enqueue rolls back the page for retry.
 }
 ```
 
-API, bearer token, tailnet-only, both directions pull:
+API, projected Kubernetes ServiceAccount tokens, tailnet-only, both directions pull:
 
 - Evaluator: `GET /api/v1/symptoms/log?after=<seq>&limit=500` returns
   `{"revisions": [...], "next": <seq>}`; `GET /api/v1/symptoms/:id` returns the
@@ -389,8 +389,13 @@ exceed 16 KB. `limit` is 1–500 (default 500); `next` is the last `seq`
 returned, or `after` when nothing is newer. Revisions commit in `seq`
 order under an advisory lock. `GET /api/v1/symptoms/board` returns
 `{"symptoms": [...]}`, the open root symptoms at board tier with the highest
-expected cost. The bearer token is `SYMPTOMS_API_TOKEN`; without one the API
-answers 503. The evaluator reads `/api/internal/symptoms/state` from
+expected cost. The server presents a pod-bound token with audience
+`tuist-symptoms-api`. The evaluator verifies it with Kubernetes TokenReview,
+requiring that audience and the exact configured server namespace and ServiceAccount.
+It rereads its own Kubernetes API token for each review and caches no decisions;
+expired or revoked tokens fail closed. Missing trust configuration or an unavailable
+API server returns 503; invalid credentials return 401. No shared API secret is used.
+The evaluator reads `/api/internal/symptoms/state` from
 `SYMPTOMS_STATE_URL` with the projected token at
 `SYMPTOMS_STATE_TOKEN_PATH`. Pages go to an IRM webhook only with
 `SYMPTOMS_PAGING_ENABLED=true` and `SYMPTOMS_IRM_WEBHOOK_URL`; otherwise
@@ -418,9 +423,10 @@ chart value or 1Password field.
 
 | Variable | Use |
 | --- | --- |
-| `DATABASE_URL`, `SECRET_KEY_BASE`, `PHX_HOST`, `PORT`, `POOL_SIZE`, `SKIP_MIGRATIONS` | Phoenix and Ecto |
+| `DATABASE_URL`, `PHX_HOST`, `PORT`, `POOL_SIZE`, `SKIP_MIGRATIONS` | Phoenix and Ecto (no sessions or signing key) |
 | `SYMPTOMS_ENVIRONMENT` | Entity `environment` (default `production`) |
-| `SYMPTOMS_API_TOKEN` | Bearer token of the evaluator API |
+| `SYMPTOMS_SERVER_NAMESPACE`, `SYMPTOMS_SERVER_SERVICE_ACCOUNT` | Exact server ServiceAccount allowed to read the evaluator API |
+| `KUBERNETES_SERVICE_HOST`, `KUBERNETES_SERVICE_PORT` | In-cluster API server for TokenReview, using the mounted ServiceAccount token and CA |
 | `SYMPTOMS_PAGING_ENABLED`, `SYMPTOMS_IRM_WEBHOOK_URL`, `SYMPTOMS_IRM_WEBHOOK_TOKEN`, `SYMPTOMS_LINK_BASE_URL` | Paging |
 | `SYMPTOMS_STATE_URL`, `SYMPTOMS_STATE_TOKEN_PATH` | The Tuist server (state read-back) |
 | `SYMPTOMS_PULSE_URL`, `SYMPTOMS_PULSE_USER`, `SYMPTOMS_PULSE_TOKEN` | Pulse reads (default user `dashboard`) |

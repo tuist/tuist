@@ -4,6 +4,30 @@ This chart deploys the Tuist server, cache service, processor, and optional serv
 
 Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so it can keep an independent deployment workflow.
 
+## Symptoms authentication
+
+`server.symptoms.enabled` enables symptom-log sync and projects a pod-bound
+ServiceAccount token into the server at `/var/run/secrets/tuist-symptoms-api/token`.
+The kubelet rotates it with audience `tuist-symptoms-api` and a 3600-second
+lifetime; `TUIST_SYMPTOMS_TOKEN_PATH` points to that file. No Symptoms API token
+comes from the server-config ExternalSecret, and enabling sync does not require
+`server.config.managedSecrets`.
+
+Set `server.symptoms.url` to the evaluator Service. In the
+[evaluator chart](../symptoms/README.md), set `tuist.namespace` and
+`tuist.serviceAccount` to this server's exact Pod principal. Managed-common values
+set `server.serviceAccount.name: tuist-server`. With release `tuist` and
+`server.serviceAccount.create: true` but no name override, the helper instead
+generates `tuist-tuist-server`.
+Custom releases, fullname overrides, and `server.serviceAccount.name` require
+matching evaluator values. The evaluator verifies this principal with TokenReview
+for the fixed API audience, using only `create tokenreviews` RBAC.
+
+The reverse direction still uses audience `tuist-symptoms-state`: configure
+`server.symptoms.evaluatorNamespace` and `evaluatorServiceAccount` for the exact
+evaluator principal. Managed values keep server sync and evaluator paging disabled
+until rollout approval.
+
 ## Conversation runtime cutover
 
 The conversation runtime belongs to the standalone headless Luft API/auth server in `infra/helm/luft-server/`. This chart no longer deploys the dedicated `Tuist.Agents`/Threads workers, their HPA or PDB, or the server delegation flag. Old `agents` values do not recreate those resources. Sandbox agent sessions and sandbox/runner infrastructure are separate and remain in Tuist.

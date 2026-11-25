@@ -19,12 +19,10 @@ config :symptoms, Symptoms.Repo,
 
 config :symptoms, SymptomsWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4201],
-  secret_key_base: "test_secret_key_base_only_for_tests____________________________________",
   server: false
 
+config :symptoms, migrate_on_boot: false, start_repo: false
+
 config :symptoms,
-  api_token: "test-api-token",
   sources: [],
   pipeline_delay_seconds: 0
-
-config :symptoms, migrate_on_boot: false, start_repo: false
