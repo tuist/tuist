@@ -135,12 +135,13 @@ server:
       enabled: true
     originAppKey:
       enabled: true
-    # Rotation rehearsal, step 2 of the Tuist.Vault moduledoc: every pod holds
-    # V1 and k2026-11 and encrypts new values with k2026-11.
+    # Rotation rehearsal, step 4 of the Tuist.Vault moduledoc: every value was
+    # re-encrypted under k2026-11, so V1 (SECRET_KEYS/encryption) is retired.
     encryptionKeys:
       enabled: true
-      keyIds: [V1, k2026-11]
+      keyIds: [k2026-11]
       currentKeyId: k2026-11
+      legacyKey: false
     apns:
       enabled: true
     fcm:
