@@ -701,7 +701,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.retired?(Regions.get("hetzner-staging-runners"))
       assert Regions.retired?(Regions.get("scw-fr-par-runners"))
       refute Regions.retired?(Regions.get("ber1-runners"))
-      refute Regions.retired?(Regions.get("larch-runners"))
+      assert Regions.retired?(Regions.get("larch-runners"))
 
       assert %{cluster_id: "scw-fr-par", node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}} =
                Regions.get("scw-fr-par-runners").provisioner_config
@@ -712,11 +712,12 @@ defmodule Tuist.Kura.RegionsTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "scw-fr-par-runners", "ber1-runners"]
+        ["eu-west", "scw-fr-par-runners", "ber1-runners", "larch-runners"]
       end)
 
       assert Enum.map(Regions.available(), & &1.id) == ["eu-west", "ber1-runners"]
       refute Regions.available?("scw-fr-par-runners")
+      refute Regions.available?("larch-runners")
     end
   end
 
@@ -747,8 +748,8 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert Regions.gateway_node_selector(ber1) == %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"}
 
-      # larch's own region is unchanged until its accounts move to the
-      # entrance, so the cutover can be staged.
+      # larch's own region stays a tombstone of the single-site shape, so
+      # its destroyed rows still resolve.
       assert %{
                cluster_id: "larch",
                ingress_class_name: "kura-larch-runners",
@@ -774,12 +775,6 @@ defmodule Tuist.Kura.RegionsTest do
       config = Regions.get("ber1-runners").provisioner_config
       assert is_nil(config.entrance_rate_limit_kbps)
       assert is_nil(config.entrance_connection_limit)
-      # larch's fallback entrance on alder's gateway keeps its caps.
-      assert Regions.get("larch-runners").provisioner_config.entrance_rate_limit_kbps == 6400
-
-      # larch's own region drains: it admits no account while the merged one takes its site.
-      refute Regions.draining?(Regions.get("ber1-runners"))
-      assert Regions.draining?(Regions.get("larch-runners"))
     end
   end
 

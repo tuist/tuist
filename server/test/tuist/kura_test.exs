@@ -1413,7 +1413,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "ber1-runners", "larch-runners"]
+        ["eu-west", "ber1-runners"]
       end)
 
       stub(Provisioner, :external_endpoint, fn %Server{region: region} ->
@@ -1443,14 +1443,6 @@ defmodule Tuist.KuraTest do
       assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
     end
 
-    test "a fleet at the larch site gets the account's node in larch-runners once it is active", %{account: account} do
-      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "larch-runners", image_tag: "0.5.2"})
-      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
-
-      {:ok, _active} = Kura.activate_server(server, "0.5.2")
-      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == "https://tuist-larch-runners.kura.tuist.dev"
-    end
-
     test "a site without a serving node of its own falls back to another site's through its entrance", %{
       account: account
     } do
@@ -1464,15 +1456,6 @@ defmodule Tuist.KuraTest do
       # Alder's own jobs keep alder's own host; an entrance is never handed to
       # the site it belongs to.
       assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == "https://tuist-ber1-runners.kura.tuist.dev"
-
-      # A local node that serves always wins over the entrance.
-      {:ok, larch} = Kura.create_server(%{account_id: account.id, region: "larch-runners", image_tag: "0.5.2"})
-      {:ok, larch} = Kura.activate_server(larch, "0.5.2")
-      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == "https://tuist-larch-runners.kura.tuist.dev"
-
-      # Once larch's node stops serving, the fallback takes over again.
-      larch |> Ecto.Changeset.change(last_ready_at: ~U[2020-01-01 00:00:00Z]) |> Repo.update!()
-      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == via_larch
 
       # A stale entrance observation is not handed out: larch's gateway is dark.
       set_entrances.(gateway_entrances: %{"larch" => %{"url" => via_larch, "observed_at" => "2020-01-01T00:00:00Z"}})

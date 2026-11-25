@@ -297,14 +297,13 @@ server:
     # Exposes the managed Kura regions in account settings. Regions now
     # reconcile inside this workload cluster; per-region Kura node pools
     # decide placement.
-    # ber1-runners is the BER1 rack's cache on ber1-store-a, beside the
-    # rack's minis, and larch-runners larch's on larch-store-a; only the
-    # accounts the runner_site_cache flag enables, and whose jobs run at the
-    # site, get a node there. scw-fr-par-runners, the cache beside the rented Scaleway Mac
-    # fleet, is retired (Tuist.Kura.Regions) and never offered, listed here
-    # or not.
+    # ber1-runners is the rack sites' cache, one replica on ber1-store-a and
+    # one on larch-store-a; only the accounts the runner_site_cache flag
+    # enables, and whose jobs run at a rack site, get a node there.
+    # larch-runners and scw-fr-par-runners are retired (Tuist.Kura.Regions)
+    # and never offered, listed here or not.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners,larch-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners
     # The remote-execution chart's gateway Ingress host, which accounts'
     # Bazel workspaces use as --remote_executor (capabilities API).
     - name: TUIST_REMOTE_EXECUTION_ENDPOINT
@@ -2071,8 +2070,8 @@ rackLinuxFleet:
       bootMAC: "34:d8:68:5a:10:5a"
       address: 10.20.0.11
       # On the cluster's Cilium network at larch's WAN address, like
-      # ber1-store-a at alder's, so the larch-runners Kura region replicates
-      # pod to pod with the accounts' other regions. larch's edges forward the
+      # ber1-store-a at alder's, so ber1-runners' replica here replicates
+      # pod to pod with the one there and the accounts' other regions. larch's edges forward the
       # cluster ports on it to this host.
       publicAddress: 149.6.170.1
       # Its next install is lvm-v1, for the larch-runners thin cutover: the

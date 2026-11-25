@@ -251,7 +251,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(no_jobs) == []
   end
 
-  test "traffic from one site admits the account at every site's region that is not draining" do
+  test "traffic from either site admits the account at the merged region alone" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners", "larch-runners"] end)
     at_ber1 = account_with_profiles([:macos], site_job: false)
     build_in_job(at_ber1, @site_macos_pool, site: "ber1")
@@ -261,34 +261,11 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert :ok = RunnerCache.reconcile()
 
-    # larch-runners is draining, so larch's traffic admits the account only at ber1.
+    # larch-runners is a retired tombstone, so even with the gate still naming
+    # it, larch's traffic admits the account only at ber1-runners.
     assert server_regions(at_ber1) == ["ber1-runners"]
     assert server_regions(at_larch) == ["ber1-runners"]
     assert server_regions(no_traffic) == []
-  end
-
-  test "a draining region drains its nodes and its site's jobs fall back to the entrance" do
-    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners", "larch-runners"] end)
-    account = account_with_profiles([:macos], site_job: false)
-    build_in_job(account, @site_macos_pool, site: "larch")
-    assert :ok = RunnerCache.reconcile()
-
-    fresh = DateTime.to_iso8601(DateTime.truncate(DateTime.utc_now(), :second))
-    via_larch = "https://#{account.id}-via-larch.runners.example.com"
-
-    account
-    |> activate()
-    |> Ecto.Changeset.change(gateway_entrances: %{"larch" => %{"url" => via_larch, "observed_at" => fresh}})
-    |> Repo.update!()
-
-    {:ok, _larch} = Kura.create_server(%{account_id: account.id, region: "larch-runners", image_tag: "0.5.2"})
-    larch = activate(account, "larch-runners")
-    assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == larch.url
-
-    assert :ok = RunnerCache.reconcile()
-
-    assert %Server{status: :drain_pending} = Repo.get!(Server, larch.id)
-    assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == via_larch
   end
 
   test "keeps every site's nodes when one site's traffic cannot be read" do

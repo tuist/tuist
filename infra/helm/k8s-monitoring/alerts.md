@@ -1713,7 +1713,7 @@ documented here, and update this rule's description. These documentation edits
 do not publish Grafana changes. During a mixed server rollout, `max` can report
 the new line while an old replica still refuses under the old one.
 
-The private runner-cache regions (`ber1-runners`, `larch-runners`) report
+The private runner-cache region (`ber1-runners`) reports
 the gauge too. Before they did, the plugin polled it over the same public-only
 region list as the lifecycle gauges, so a full runner-cache box had neither
 operand and the rule could not fire for it: on 2026-10-16 `scw-fr-par-runners`
@@ -6362,9 +6362,9 @@ GiB to 1161 and stayed there, and the rule projected -1289 GiB for three days.
 It also read a new box as a reversal of the burn, which hid eu-west's queued
 claim growth taking about 440 GiB of its fifth box within a day of it joining
 on 2026-10-15. Reserved disk does not move when a box joins, leaves, or is
-evacuated, so its slope is the burn alone. The private runner-cache regions
-(`ber1-runners`, `larch-runners`) report headroom but no reserved series,
-so they fall through the `or` to the headroom trend.
+evacuated, so its slope is the burn alone. The private runner-cache region
+(`ber1-runners`) reports headroom but no reserved series,
+so it falls through the `or` to the headroom trend.
 
 Backtested over 2026-09-03 to 2026-09-17, it fired for us-west from
 2026-09-11 14:33 and eu-west from 2026-09-11 12:03, four and five days before
