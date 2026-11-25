@@ -242,7 +242,12 @@ defmodule Tuist.Tests.Coverage.Commits do
     |> Enum.each(fn {{repository_id, ref}, ran_at} ->
       parent = if ref == project.default_branch, do: nil, else: project.default_branch
       observed_at = Enum.max(ran_at, NaiveDateTime)
-      GitHistory.advance_ref(repository_id, ref, parent, sha, only_forward: true, observed_at: observed_at)
+
+      GitHistory.advance_ref(repository_id, ref, parent, sha,
+        only_forward: true,
+        observed_at: observed_at,
+        root: ref == project.default_branch
+      )
     end)
   end
 

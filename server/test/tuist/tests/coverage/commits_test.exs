@@ -1210,6 +1210,27 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       assert CoverageFixtures.branch_head(repository_id, "feature") == "y1"
     end
 
+    test "makes the project's default branch the root once the project names it", %{
+      account: account,
+      project: project
+    } do
+      repository_id =
+        CoverageFixtures.seed_history(account, [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("b", ["a"], 1)
+        ])
+
+      file = [CoverageFixtures.file("Sources/A.swift", [1, 0])]
+      CoverageFixtures.run_with_coverage(project, account, file, %{git_commit_sha: "a", git_branch: "develop"})
+      assert GitHistory.ref(repository_id, "develop").parent_ref_id
+
+      project = project |> Ecto.Changeset.change(default_branch: "develop") |> Repo.update!()
+      CoverageFixtures.run_with_coverage(project, account, file, %{git_commit_sha: "b", git_branch: "develop"})
+
+      assert GitHistory.ref(repository_id, "develop").parent_ref_id == nil
+      assert GitHistory.position(repository_id, "a") == {GitHistory.ref(repository_id, "develop").id, 1}
+    end
+
     test "publishes no place for a commit only a detached ref holds", %{account: account, project: project} do
       repository_id =
         CoverageFixtures.seed_history(

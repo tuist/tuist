@@ -361,6 +361,95 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.position(repository, "d") == nil
     end
 
+    test "fork a branch again when a force-push of the default branch rewrote where it forked", %{
+      repository: repository
+    } do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("f1", ["d"], 10), commit("x", ["c"], 11)])
+
+      GitHistory.record_commits(repository, "sha1", [commit("g1", ["d"], 12)])
+
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "feature", "main", "f1")
+      GitHistory.advance_ref(repository, "other", "main", "g1")
+      assert GitHistory.ref(repository, "feature").fork_position == 4
+      assert GitHistory.ref(repository, "other").fork_position == 4
+
+      # main's d is rewritten as x, which takes position 4: both branches'
+      # history is still a, b, c, d, so they fork at c. The first created
+      # holds d, and the other forks where it does, numbering only its own.
+      GitHistory.advance_ref(repository, "main", nil, "x")
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"x", 4}]
+      assert GitHistory.ref(repository, "feature").fork_position == 3
+      assert owned(repository, "feature") == [{"d", 4}, {"f1", 5}]
+      assert GitHistory.ref(repository, "other").fork_position == 3
+      assert owned(repository, "other") == [{"g1", 4}]
+    end
+
+    test "make a branch the root once it becomes the default branch, and move the others under it", %{
+      repository: repository
+    } do
+      seed(repository)
+
+      # The project said main while CI ran on develop: main never gets a
+      # head, and the first branch reported owns the shared history.
+      GitHistory.record_branch_head(repository, "feature", "e", "main")
+      GitHistory.record_branch_head(repository, "develop", "d", "main")
+      assert owned(repository, "feature") == [{"a", 1}, {"b", 2}, {"e", 3}]
+
+      # The default branch is now develop: it becomes the root and takes over
+      # its history, even though the head it reports is the one it holds.
+      GitHistory.record_branch_head(repository, "develop", "d", "develop")
+      assert GitHistory.ref(repository, "develop").parent_ref_id == nil
+      assert owned(repository, "develop") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}]
+
+      develop = GitHistory.ref(repository, "develop").id
+      GitHistory.record_branch_head(repository, "feature", "e", "develop")
+      assert %{parent_ref_id: ^develop, fork_position: 2} = GitHistory.ref(repository, "feature")
+      assert owned(repository, "feature") == [{"e", 3}]
+    end
+
+    test "hand a renamed default branch's history and pull requests to the new one", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("p1", ["b"], 10), commit("t1", ["d"], 11)])
+
+      GitHistory.record_branch_head(repository, "main", "d", "main")
+      GitHistory.record_branch_head(repository, "pull/1", "p1", "main")
+      assert GitHistory.ref(repository, "pull/1").fork_position == 2
+
+      # The default branch is renamed to trunk, at the same commit.
+      GitHistory.record_branch_head(repository, "trunk", "d", "trunk")
+      trunk = GitHistory.ref(repository, "trunk").id
+
+      assert owned(repository, "trunk") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}]
+      assert %{parent_ref_id: ^trunk} = GitHistory.ref(repository, "main")
+      assert owned(repository, "main") == []
+      assert %{parent_ref_id: ^trunk, fork_position: 2} = GitHistory.ref(repository, "pull/1")
+      assert owned(repository, "pull/1") == [{"p1", 3}]
+
+      # A project still naming main the default branch does not take the root
+      # back: trunk's history is not part of main's.
+      GitHistory.record_branch_head(repository, "main", "d", "main")
+      GitHistory.record_branch_head(repository, "trunk", "t1", "trunk")
+      GitHistory.record_branch_head(repository, "main", "d", "main")
+      assert %{parent_ref_id: ^trunk} = GitHistory.ref(repository, "main")
+      assert owned(repository, "trunk") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"t1", 5}]
+
+      # Nor does it move trunk under main, which forks from trunk.
+      GitHistory.record_branch_head(repository, "trunk", "t1", "main")
+      assert GitHistory.ref(repository, "trunk").parent_ref_id == nil
+    end
+
+    test "leave a ref's parent as it is on a late report", %{repository: repository} do
+      seed(repository)
+
+      GitHistory.advance_ref(repository, "develop", "main", "d", observed_at: ~U[2026-09-01 11:00:00Z])
+      main = GitHistory.ref(repository, "main").id
+
+      GitHistory.advance_ref(repository, "develop", nil, "d", root: true, observed_at: ~U[2026-09-01 10:00:00Z])
+      assert %{parent_ref_id: ^main} = GitHistory.ref(repository, "develop")
+    end
+
     test "never move a branch back on a late report of a commit the default branch took over", %{
       repository: repository
     } do
@@ -535,14 +624,16 @@ defmodule Tuist.GitHistoryTest do
                {"p2", main, 6}
              ]
 
+      # main is rewound below where pull/1 forked, so pull/1 forks again at c
+      # and holds its commits back.
       GitHistory.advance_ref(repository, "main", nil, "c")
 
       assert coverage_places(project) == [
                {"c", main, 3},
-               {"d", nil, nil},
+               {"d", pull, 4},
                {"e", main, 42},
-               {"p1", nil, nil},
-               {"p2", nil, nil}
+               {"p1", pull, 5},
+               {"p2", pull, 6}
              ]
     end
 
