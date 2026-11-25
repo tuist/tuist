@@ -111,6 +111,16 @@ type RunnerPoolSpec struct {
 	// +kubebuilder:default=14336
 	PodMemoryMB int32 `json:"podMemoryMB,omitempty"`
 
+	// PodDiskGB grows a macOS runner VM's disk to this many decimal GB
+	// before it boots (tart-kubelet's `tart set --disk-size`, from the
+	// Pod's `tuist.dev/guest-disk-gb` annotation); the guest grows its
+	// APFS container into the space. Zero keeps the image's disk. It can
+	// only grow the image's, and costs the host disk only as a job writes.
+	// Ignored for Linux pools.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	PodDiskGB int32 `json:"podDiskGB,omitempty"`
+
 	// RuntimeClass, when set, is stamped on the runner Pod's
 	// `spec.runtimeClassName`. The chart's `kata-qemu` RuntimeClass
 	// wraps each Pod in a microVM with its own kernel — required on

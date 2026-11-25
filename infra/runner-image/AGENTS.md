@@ -415,6 +415,12 @@ added to catch that failed on `admin`'s unwritable cache instead.
   -69606 and rolls itself back, so it is retried up to five times. Growing
   the disk again takes room from the rack's disk plan (`rackFleet.machine` in
   `values-managed-production.yaml`), which counts two guests at this size.
+  A pool can give one shape a bigger disk instead (`rackFleet.runners
+  .guestShapes.<shape>.diskGb`, RunnerPool `podDiskGB`): tart-kubelet runs
+  `tart set --disk-size` on the clone before boot, and `dispatch-poll.sh`
+  (`grow_disk_container`) grows the container into it the same way before
+  the first poll. Growing is best-effort: a guest that cannot grow keeps this
+  disk and still serves its job.
 - `/opt/tuist/tuist-cas-proxy` — the last-resort compilation-cache (CAS) prune
   client, built from `cas-plugin/` alongside `runner-shell-agent` by
   `.github/actions/build-runner-image-binaries`. Every `provisioner "file"` in

@@ -259,6 +259,18 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 	return err
 }
 
+// ResizeDisk grows a stopped VM's disk to sizeGB decimal gigabytes (`tart set
+// --disk-size`). Tart only grows a disk and treats the current size as a
+// no-op, so a re-run on the same clone is safe. A stacked clone grows its
+// writable overlay, which needs macOS 27 and a size aligned to the stack's
+// block size. The guest still has to grow its APFS container into the space.
+func (c *Client) ResizeDisk(ctx context.Context, name string, sizeGB int) error {
+	ctx, cancel := context.WithTimeout(ctx, setTimeout)
+	defer cancel()
+	_, err := c.run(ctx, c.Binary, "set", name, "--disk-size", fmt.Sprintf("%d", sizeGB))
+	return err
+}
+
 // RegenerateIdentity gives a freshly-cloned macOS VM its own device identity.
 // `tart clone` copies the source VM's ECID (VZMacMachineIdentifier) verbatim,
 // so every clone off one golden base presents the SAME serial + IOPlatformUUID

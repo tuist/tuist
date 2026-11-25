@@ -109,6 +109,15 @@ spec:
                   type: integer
                   default: 14336
                   description: Pod memory request matching the host's capacity minus substrate overhead.
+                podDiskGB:
+                  type: integer
+                  minimum: 0
+                  description: |
+                    macOS only. Grows the runner VM's disk to this many decimal GB
+                    before it boots (tart-kubelet runs `tart set --disk-size`
+                    from the Pod's `tuist.dev/guest-disk-gb` annotation), and the
+                    guest grows its APFS container into it. Zero keeps the image's
+                    disk; a size below it cannot shrink it.
                 idleTimeoutSeconds:
                   type: integer
                   description: |
