@@ -2149,22 +2149,27 @@ jobs:
 
           # Helm's wait holds an OnDelete DaemonSet until its Pods run the new
           # revision, which only the updater moves them to. So with in-place
-          # sandboxd upgrades the updater runs alongside: once Helm applied the
-          # DaemonSet, it rolls the Pods and the wait completes.
+          # sandboxd upgrades the updater runs alongside: once Helm changed the
+          # DaemonSet (its generation moved past today's), it rolls the Pods and
+          # the wait completes. A deploy that leaves the DaemonSet alone never
+          # starts it here; the step after Helm then handles a config change.
           sandboxd_updater=""
+          sandboxd_updater_started="$RUNNER_TEMP/sandboxd-updater-started"
+          rm -f "$sandboxd_updater_started"
           if [ "$sandboxd_in_place" = true ]; then
-            want_sandboxd="$(yq '.sandboxes.image.repository' "$HELM_CHART_PATH/values.yaml"):$sandboxd_tag"
+            ds_generation=$(kubectl -n "$sandbox_namespace" get daemonset "$sandbox_name" -o jsonpath='{.metadata.generation}' 2>/dev/null || echo 0)
             (
               set -euo pipefail
               for _ in $(seq 1 360); do
-                ds=$(kubectl -n "$sandbox_namespace" get daemonset "$sandbox_name" -o json)
-                if jq -e --arg i "$want_sandboxd" '.metadata.generation == .status.observedGeneration
-                  and any(.spec.template.spec.containers[]; .name == "sandboxd" and .image == $i)' <<< "$ds" >/dev/null; then
+                ds=$(kubectl -n "$sandbox_namespace" get daemonset "$sandbox_name" -o json || echo '{}')
+                if jq -e --argjson g "${ds_generation:-0}" '.metadata.generation > $g
+                  and .metadata.generation == .status.observedGeneration' <<< "$ds" >/dev/null; then
+                  touch "$sandboxd_updater_started"
                   exec bash .github/scripts/sandboxd-upgrade.sh "$sandbox_namespace" "$sandbox_name"
                 fi
                 sleep 10
               done
-              echo "::warning::Helm did not apply the sandboxd DaemonSet within an hour; its Pods were not rolled"
+              echo "::warning::Helm did not change the sandboxd DaemonSet within an hour; its Pods were not rolled"
             ) &
             sandboxd_updater=$!
           fi
@@ -2178,7 +2183,11 @@ jobs:
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
           if [ -n "$sandboxd_updater" ]; then
-            wait "$sandboxd_updater"
+            # Helm finished without changing the DaemonSet: nothing to roll here.
+            if [ ! -e "$sandboxd_updater_started" ]; then
+              kill "$sandboxd_updater" 2>/dev/null || true
+            fi
+            wait "$sandboxd_updater" || { [ -e "$sandboxd_updater_started" ] && exit 1; true; }
           fi
 
           # What runs on a rack's Linux nodes (infra/helm/rack-nodes), from the
