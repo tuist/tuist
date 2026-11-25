@@ -1042,6 +1042,9 @@ defmodule Tuist.VCS do
       :dirty_run_excluded in reasons ->
         "some schemes only ran on a checkout with uncommitted changes, whose coverage doesn't count"
 
+      :run_data_unavailable in reasons ->
+        "some of the runs' data couldn't be read in time"
+
       :uninstrumented_code in reasons ->
         "some of the code the tests ran came from the binary cache without coverage counters"
 

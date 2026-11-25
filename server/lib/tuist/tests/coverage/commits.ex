@@ -39,6 +39,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Reported
+  alias Tuist.Tests.Coverage.RunInputs
   alias Tuist.Tests.Coverage.TargetSources
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
@@ -109,16 +110,32 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @publish_attempts 3
   @pending_completions "coverage_commit_completions"
+  @signal_wait_ms 15_000
 
   @doc """
   Republishes the commit's totals from its runs' retained reports and
   returns the row published, or nil when no run measured the commit.
   `complete:` and `completeness:` set the completion state; without them the
-  state already published is kept.
+  state already published is kept. `incomplete: true` is for a fold that
+  went ahead without some of its runs' data (`Tuist.Tests.Coverage.RunInputs`):
+  its figure is published as a lower bound (`run_data_unavailable`), and
+  nothing is derived from the runs' tests, neither carry sources nor test
+  maps, which a later fold over all of it writes and no fold rewrites.
+
+  `gated_at:` is when the caller's gate saw every input of the commit's runs
+  on every replica (`Tuist.Tests.Coverage.RunInputs.status/2`). A run whose
+  report was declared after it may be among the runs the fold read without
+  its other rows having replicated, so the fold then publishes nothing and
+  returns `:wait`, for the caller to gate again.
   """
   def recompute(%Project{} = project, sha, opts \\ []) do
-    {row, runs, carried_targets} = fold_and_publish(project, sha, opts, @publish_attempts)
+    case fold_and_publish(project, sha, opts, @publish_attempts) do
+      :wait -> :wait
+      {row, runs, carried_targets} -> derive(project, sha, row, runs, carried_targets, opts)
+    end
+  end
 
+  defp derive(project, sha, row, runs, carried_targets, opts) do
     # Outside the commit's lock: advancing a ref takes the repository's.
     if row do
       advance_refs(project, sha, runs)
@@ -130,13 +147,14 @@ defmodule Tuist.Tests.Coverage.Commits do
       if row.git_repository_id > 0, do: GitHistory.sync_coverage_places(row.git_repository_id, [sha])
 
       # The targets the commit's runs executed whole become carry sources for
-      # the commits that skip them.
-      TargetSources.record(project.id, runs)
-
-      # The test maps coverage-based test selection and coverage carry
-      # will read, for every project with coverage, copying into a selective
-      # run's checkpoint the targets the fold carried by hash.
-      Snapshots.record(project, runs, carried_targets)
+      # the commits that skip them, and the test maps coverage-based test
+      # selection and coverage carry will read are written, for every project
+      # with coverage, copying into a selective run's checkpoint the targets
+      # the fold carried by hash. Neither from a fold that read part of a run.
+      if not Keyword.get(opts, :incomplete, false) do
+        TargetSources.record(project.id, runs)
+        Snapshots.record(project, runs, carried_targets)
+      end
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
@@ -159,11 +177,12 @@ defmodule Tuist.Tests.Coverage.Commits do
   # so it always ends up reading what the previous write left.
   defp fold_and_publish(project, sha, opts, attempts) when attempts > 1 do
     previous = summary(project.id, sha)
-    {row, runs, carried_targets} = fold(project, sha, previous, opts)
 
-    case publish_unless_changed(project, sha, previous && previous.version, row, opts) do
-      :changed -> fold_and_publish(project, sha, opts, attempts - 1)
-      published -> {published, runs, carried_targets}
+    with {row, runs, carried_targets} <- gated_fold(project, sha, previous, opts) do
+      case publish_unless_changed(project, sha, previous && previous.version, row, opts) do
+        :changed -> fold_and_publish(project, sha, opts, attempts - 1)
+        published -> {published, runs, carried_targets}
+      end
     end
   end
 
@@ -172,8 +191,8 @@ defmodule Tuist.Tests.Coverage.Commits do
       project,
       sha,
       fn ->
-        {row, runs, carried_targets} = fold(project, sha, summary(project.id, sha), opts)
-        {write(project, sha, row, opts), runs, carried_targets}
+        with {row, runs, carried_targets} <- gated_fold(project, sha, summary(project.id, sha), opts),
+             do: {write(project, sha, row, opts), runs, carried_targets}
       end,
       timeout: to_timeout(minute: 5)
     )
@@ -306,6 +325,26 @@ defmodule Tuist.Tests.Coverage.Commits do
       true ->
         {project |> measured_row(sha, runs, previous, reported, opts) |> lower_bound(project.id, sha, dirty_ci), runs,
          carried_targets}
+    end
+  end
+
+  # The fold, unless a run's report was declared after the caller's gate: the
+  # run may be among those it read, with rows the gate never counted. A
+  # report declares its rows before it publishes the coverage the fold finds
+  # it by, so any run the fold read is declared by now.
+  defp gated_fold(project, sha, previous, opts) do
+    folded = project |> fold(sha, previous, opts) |> unavailable(opts)
+    gated_at = Keyword.get(opts, :gated_at)
+    if gated_at && RunInputs.declared_since?(project.id, sha, gated_at), do: :wait, else: folded
+  end
+
+  # A figure folded without some of its runs' data is a lower bound.
+  defp unavailable({row, runs, carried_targets}, opts) do
+    if row && Keyword.get(opts, :incomplete, false) do
+      reasons = GapReasons.decode(row.gap_reasons) ++ [:run_data_unavailable]
+      {%{row | reported_kind: "partial", gap_reasons: GapReasons.encode(reasons)}, runs, carried_targets}
+    else
+      {row, runs, carried_targets}
     end
   end
 
@@ -613,9 +652,26 @@ defmodule Tuist.Tests.Coverage.Commits do
   totals as complete. Returns the row, or nil when no run measured the
   commit yet: the signal is then kept and the commit's first fold publishes
   it complete.
+
+  The signal usually follows the last runs by seconds, so it waits briefly
+  for what their fold reads to reach every replica
+  (`Tuist.Tests.Coverage.RunInputs`). Past that it keeps the signal for the
+  fold it schedules, and returns nil too. `wait_ms:` sets how long it waits.
   """
-  def signal_complete(%Project{} = project, sha) do
-    recompute(project, sha, complete: true, completeness: "signal")
+  def signal_complete(%Project{} = project, sha, opts \\ []) do
+    gated_at = RunInputs.gated_at()
+
+    with status when status != :wait <- RunInputs.await(project.id, sha, Keyword.get(opts, :wait_ms, @signal_wait_ms)),
+         opts = [complete: true, completeness: "signal", incomplete: status != :ready, gated_at: gated_at],
+         summary when summary != :wait <- recompute(project, sha, opts) do
+      with {:incomplete, missing} <- status, do: CommitWorker.enqueue_follow_up(project.id, sha, missing)
+      summary
+    else
+      :wait ->
+        with_commit_lock(project, sha, fn -> write(project, sha, nil, complete: true) end)
+        CommitWorker.enqueue(project.id, sha)
+        nil
+    end
   end
 
   @doc "The published totals of a commit, with the measured set, or nil."

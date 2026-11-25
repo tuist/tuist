@@ -330,17 +330,31 @@ func (c *Client) WaitReady(ctx context.Context, timeout time.Duration) (Pong, er
 // ErrAgentNotReady is WaitReady's error when the agent never answered.
 var ErrAgentNotReady = errors.New("agent not ready")
 
+// readyAttemptTimeout is the first readiness ping's budget. Firecracker
+// serves vsock on the thread that also runs its block devices and memory
+// faults, so a guest restored mid-writeback onto a congested disk, or onto
+// memory and disks still arriving from an archive, acks connections seconds
+// late. Every ping that runs out doubles the next one's budget, up to the
+// time left: retrying at a fixed budget abandons each ping just before its
+// answer and never succeeds, although the guest is alive.
+var readyAttemptTimeout = 2 * time.Second
+
 // WaitReady pings any Agent until it answers or the timeout passes.
 func WaitReady(ctx context.Context, agent Agent, timeout time.Duration) (Pong, error) {
 	deadline := time.Now().Add(timeout)
 	delay := time.Millisecond
+	budget := readyAttemptTimeout
 	var last error
 	for {
-		attempt, cancel := context.WithTimeout(ctx, 2*time.Second)
+		attempt, cancel := context.WithTimeout(ctx, min(budget, time.Until(deadline)))
 		pong, err := agent.Ping(attempt)
+		ranOut := attempt.Err() != nil
 		cancel()
 		if err == nil {
 			return pong, nil
+		}
+		if ranOut {
+			budget *= 2
 		}
 		last = err
 		if ctx.Err() != nil {

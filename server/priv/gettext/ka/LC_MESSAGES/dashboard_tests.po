@@ -27,8 +27,8 @@ msgstr "%{selective_test_effectiveness}%"
 msgid "All tests passed!"
 msgstr "ყველა ტესტი წარმატებით დასრულდა!"
 
-#: lib/tuist_web/live/coverage/components.ex:556
-#: lib/tuist_web/live/coverage/components.ex:766
+#: lib/tuist_web/live/coverage/components.ex:562
+#: lib/tuist_web/live/coverage/components.ex:772
 #: lib/tuist_web/live/coverage_detail_live.html.heex:117
 #: lib/tuist_web/live/coverage_file_live.html.heex:66
 #: lib/tuist_web/live/once_tests_live.html.heex:65
@@ -60,7 +60,7 @@ msgstr "ანალიტიკა"
 msgid "Any"
 msgstr "ნებისმიერი"
 
-#: lib/tuist_web/live/coverage/components.ex:731
+#: lib/tuist_web/live/coverage/components.ex:737
 #: lib/tuist_web/live/flaky_tests_live.html.heex:75
 #: lib/tuist_web/live/once_tests_live.html.heex:45
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:45
@@ -194,7 +194,7 @@ msgstr "CI"
 msgid "CI Run"
 msgstr "CI გაშვება"
 
-#: lib/tuist_web/live/coverage/components.ex:726
+#: lib/tuist_web/live/coverage/components.ex:732
 #: lib/tuist_web/live/flaky_tests_live.html.heex:66
 #: lib/tuist_web/live/once_tests_live.html.heex:36
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:36
@@ -264,7 +264,7 @@ msgstr "კომიტი"
 msgid "Crash Report"
 msgstr "კრეშის ანგარიში"
 
-#: lib/tuist_web/live/coverage/components.ex:717
+#: lib/tuist_web/live/coverage/components.ex:723
 #: lib/tuist_web/live/flaky_tests_live.html.heex:57
 #: lib/tuist_web/live/once_tests_live.html.heex:27
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:27
@@ -468,7 +468,7 @@ msgid "Failures"
 msgstr "წარუმატებლობები"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:29
-#: lib/tuist_web/live/coverage/components.ex:661
+#: lib/tuist_web/live/coverage/components.ex:667
 #: lib/tuist_web/live/coverage_detail_live.ex:504
 #: lib/tuist_web/live/test_selection/run_tab.ex:556
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:200
@@ -596,7 +596,7 @@ msgstr "პრობლემა ჩაიწერა %{location}-ში: %{mes
 msgid "Issue recorded: %{message}"
 msgstr "პრობლემა ჩაიწერა: %{message}"
 
-#: lib/tuist_web/live/coverage/components.ex:714
+#: lib/tuist_web/live/coverage/components.ex:720
 #: lib/tuist_web/live/flaky_tests_live.html.heex:54
 #: lib/tuist_web/live/once_tests_live.html.heex:24
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:24
@@ -623,7 +623,7 @@ msgstr "ბოლო 12 თვე"
 msgid "Last 24 hours"
 msgstr "ბოლო 24 საათი"
 
-#: lib/tuist_web/live/coverage/components.ex:711
+#: lib/tuist_web/live/coverage/components.ex:717
 #: lib/tuist_web/live/flaky_tests_live.html.heex:49
 #: lib/tuist_web/live/once_tests_live.html.heex:19
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:19
@@ -637,7 +637,7 @@ msgstr "ბოლო 24 საათი"
 msgid "Last 30 days"
 msgstr "ბოლო 30 დღე"
 
-#: lib/tuist_web/live/coverage/components.ex:710
+#: lib/tuist_web/live/coverage/components.ex:716
 #: lib/tuist_web/live/flaky_tests_live.html.heex:44
 #: lib/tuist_web/live/once_tests_live.html.heex:14
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:14
@@ -1428,7 +1428,7 @@ msgstr "გაშვებული სატესტო შემთხვე�
 msgid "Try changing your search term"
 msgstr "შეცვალეთ საძიებო სიტყვა"
 
-#: lib/tuist_web/live/coverage/components.ex:682
+#: lib/tuist_web/live/coverage/components.ex:688
 #: lib/tuist_web/live/coverage_detail_live.html.heex:266
 #: lib/tuist_web/live/coverage_detail_live.html.heex:567
 #: lib/tuist_web/live/coverage_file_live.html.heex:198
@@ -1686,7 +1686,7 @@ msgstr "დეტალიზაცია"
 msgid "How evenly test duration is distributed across shards. 100% means perfectly balanced."
 msgstr "რამდენად თანაბრადად არის განაწილებული ტესტების ხანგრძლივობა შარდებს შორის. 100% ნიშნავს იდეალურ ბალანსს."
 
-#: lib/tuist_web/live/coverage/components.ex:426
+#: lib/tuist_web/live/coverage/components.ex:432
 #: lib/tuist_web/live/coverage_detail_live.ex:378
 #: lib/tuist_web/live/once_test_run_live.html.heex:103
 #: lib/tuist_web/live/shards_live.ex:41
@@ -2177,9 +2177,9 @@ msgid "The runner for this target didn't emit test.xml, so per-case detail isn't
 msgstr "ამ მიზნის გამშვებმა არ გამოიმუშავა test.xml, ამიტომ დეტალური ინფორმაცია თითოეული სატესტო შემთხვევის შესახებ ხელმიუწვდომელია. ნედლი test.log-ის სანახავად გახსენით ბოლო გაშვება."
 
 #: lib/tuist_web/live/coverage/components.ex:352
-#: lib/tuist_web/live/coverage/components.ex:564
-#: lib/tuist_web/live/coverage/components.ex:775
-#: lib/tuist_web/live/coverage/components.ex:946
+#: lib/tuist_web/live/coverage/components.ex:570
+#: lib/tuist_web/live/coverage/components.ex:781
+#: lib/tuist_web/live/coverage/components.ex:952
 #: lib/tuist_web/live/coverage_commits_live.html.heex:3
 #: lib/tuist_web/live/coverage_detail_live.ex:52
 #: lib/tuist_web/live/coverage_detail_live.ex:132
@@ -2203,9 +2203,9 @@ msgstr "კოდის დაფარვა"
 msgid "Coverage"
 msgstr "დაფარვა"
 
-#: lib/tuist_web/live/coverage/components.ex:575
-#: lib/tuist_web/live/coverage/components.ex:794
-#: lib/tuist_web/live/coverage/components.ex:947
+#: lib/tuist_web/live/coverage/components.ex:581
+#: lib/tuist_web/live/coverage/components.ex:800
+#: lib/tuist_web/live/coverage/components.ex:953
 #: lib/tuist_web/live/coverage_detail_live.html.heex:137
 #: lib/tuist_web/live/coverage_file_live.ex:202
 #: lib/tuist_web/live/coverage_file_live.html.heex:157
@@ -2213,14 +2213,14 @@ msgstr "დაფარვა"
 msgid "Covered lines"
 msgstr "დაფარული ხაზები"
 
-#: lib/tuist_web/live/coverage/components.ex:811
-#: lib/tuist_web/live/coverage/components.ex:948
+#: lib/tuist_web/live/coverage/components.ex:817
+#: lib/tuist_web/live/coverage/components.ex:954
 #: lib/tuist_web/live/coverage_detail_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Executable lines"
 msgstr "შესრულებადი ხაზები"
 
-#: lib/tuist_web/live/coverage/components.ex:578
+#: lib/tuist_web/live/coverage/components.ex:584
 #, elixir-autogen, elixir-format
 msgid "Executable lines the tests ran at least once."
 msgstr "შესრულებადი ხაზები, რომლებიც ტესტებმა მინიმუმ ერთხელ შეასრულა."
@@ -2247,13 +2247,13 @@ msgstr "ფაილები"
 msgid "Function"
 msgstr "ფუნქცია"
 
-#: lib/tuist_web/live/coverage/components.ex:587
+#: lib/tuist_web/live/coverage/components.ex:593
 #: lib/tuist_web/live/coverage_file_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Functions"
 msgstr "ფუნქციები"
 
-#: lib/tuist_web/live/coverage/components.ex:589
+#: lib/tuist_web/live/coverage/components.ex:595
 #, elixir-autogen, elixir-format
 msgid "Functions the compiler instrumented in the file."
 msgstr "ფუნქციები, რომლებიც კომპილატორმა ამ ფაილში დაამატა ინსტრუმენტაცია."
@@ -2269,7 +2269,7 @@ msgstr "ხაზი"
 msgid "Line coverage"
 msgstr "ხაზების დაფარვა"
 
-#: lib/tuist_web/live/coverage/components.ex:566
+#: lib/tuist_web/live/coverage/components.ex:572
 #, elixir-autogen, elixir-format
 msgid "Share of the file's executable lines the tests ran at least once."
 msgstr "ფაილის შესრულებადი ხაზების წილი, რომელიც ტესტებმა მინიმუმ ერთხელ გაუშვეს."
@@ -2417,7 +2417,7 @@ msgstr "კომიტები"
 msgid "Committed"
 msgstr "დაკომიტილი"
 
-#: lib/tuist_web/live/coverage/components.ex:428
+#: lib/tuist_web/live/coverage/components.ex:434
 #: lib/tuist_web/live/coverage_detail_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Complete"
@@ -2438,7 +2438,7 @@ msgstr "ცვლილებები დაფარვაში"
 msgid "Every test of the run's scheme ran, so it measured the scheme in full."
 msgstr "გაშვების სქემის ყველა ტესტი შესრულდა, ამიტომ სქემა სრულად შეფასდა."
 
-#: lib/tuist_web/live/coverage/components.ex:672
+#: lib/tuist_web/live/coverage/components.ex:678
 #: lib/tuist_web/live/coverage_detail_live.ex:504
 #, elixir-autogen, elixir-format
 msgid "File coverage"
@@ -2449,13 +2449,13 @@ msgstr "ფაილის დაფარვა"
 msgid "File: %{name}"
 msgstr "ფაილი: %{name}"
 
-#: lib/tuist_web/live/coverage/components.ex:797
+#: lib/tuist_web/live/coverage/components.ex:803
 #: lib/tuist_web/live/coverage_detail_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Lines that commit's tests ran at least once."
 msgstr "ხაზები, რომლებზეც კომიტის ტესტები მინიმუმ ერთხელ გაშვებულა."
 
-#: lib/tuist_web/live/coverage/components.ex:813
+#: lib/tuist_web/live/coverage/components.ex:819
 #: lib/tuist_web/live/coverage_detail_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Lines the compiler instrumented for coverage at that commit."
@@ -2486,7 +2486,7 @@ msgstr "დაფარვის ცვლილება არ არის"
 msgid "No coverage changed on %{branch} in this period"
 msgstr "%{branch}-ზე ამ პერიოდში დაფარვა არ შეცვლილა"
 
-#: lib/tuist_web/live/coverage/components.ex:681
+#: lib/tuist_web/live/coverage/components.ex:687
 #, elixir-autogen, elixir-format
 msgid "No file matches this search"
 msgstr "ამ ძიებას არცერთი ფაილი არ შეესაბამება"
@@ -2521,7 +2521,7 @@ msgstr "ამ ფილტრებს არცერთი გაშვებ
 msgid "No run of commit %{sha} gathered coverage."
 msgstr "კომიტის %{sha} არცერთმა გაშვებამ არ შეაგროვა დაფარვა."
 
-#: lib/tuist_web/live/coverage/components.ex:436
+#: lib/tuist_web/live/coverage/components.ex:442
 #, elixir-autogen, elixir-format
 msgid "No run of this commit gathered coverage, so it has no figure of its own."
 msgstr "ამ კომიტის არცერთმა გაშვებამ არ შეაგროვა დაფარვა, ამიტომ მას საკუთარი მაჩვენებელი არ აქვს."
@@ -2541,7 +2541,7 @@ msgstr "ამ ფილტრებს არცერთი სამიზნ
 msgid "No target was measured at this commit"
 msgstr "ამ კომიტზე სამიზნე არ გაზომილა"
 
-#: lib/tuist_web/live/coverage/components.ex:425
+#: lib/tuist_web/live/coverage/components.ex:431
 #: lib/tuist_web/live/coverage_detail_live.ex:379
 #: lib/tuist_web/live/coverage_detail_live.html.heex:240
 #, elixir-autogen, elixir-format
@@ -2560,7 +2560,7 @@ msgstr "ბოლო კომიტები"
 msgid "Selective testing, or a filter, left some of the run's tests out, so it measured part of the scheme."
 msgstr "შერჩევითმა ტესტირებამ ან ფილტრმა ზოგიერთი ტესტი ამოიღო, რის გამოც სქემის მხოლოდ ნაწილი გაიზომა."
 
-#: lib/tuist_web/live/coverage/components.ex:777
+#: lib/tuist_web/live/coverage/components.ex:783
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it."
 msgstr "%{branch}-ის ბოლო გაზომილ კომიტზე (%{sha}) შესრულებადი ხაზების დაფარვის წილი, იმ სქემების მიხედვით, რომლებმაც ის გაზომეს."
@@ -2590,36 +2590,36 @@ msgstr "ამ პერიოდში %{branch}-ზე ბოლო სრუ�
 msgid "These commits are listed in the order they were measured, not the order the repository's history puts them in."
 msgstr "ეს კომიტები ჩამოთვლილია გაზომვის თანმიმდევრობით, არა რეპოზიტორიის ისტორიის მიხედვით."
 
-#: lib/tuist_web/live/coverage/components.ex:439
+#: lib/tuist_web/live/coverage/components.ex:445
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
 msgstr "ამ კომიტის დაფარვის პაიპლაინმა ჯერ არ აჩვენა დასრულება, ამიტომ შესაძლოა კიდევ გამოჩნდეს გაშვებები და მისი შეზღუდვები ლოდინის რეჟიმშია."
 
-#: lib/tuist_web/live/coverage/components.ex:448
+#: lib/tuist_web/live/coverage/components.ex:454
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
 msgstr "ამ კომიტის დაფარვის პაიპლაინმა დაასრულა, ამიტომ მაჩვენებელი საბოლოოა და შეზღუდვები გადაწყვეტილია."
 
-#: lib/tuist_web/live/coverage/components.ex:787
-#: lib/tuist_web/live/coverage/components.ex:804
-#: lib/tuist_web/live/coverage/components.ex:822
+#: lib/tuist_web/live/coverage/components.ex:793
+#: lib/tuist_web/live/coverage/components.ex:810
+#: lib/tuist_web/live/coverage/components.ex:828
 #, elixir-autogen, elixir-format
 msgid "over the period"
 msgstr "პერიოდის განმავლობაში"
 
-#: lib/tuist_web/live/coverage/components.ex:427
+#: lib/tuist_web/live/coverage/components.ex:433
 #: lib/tuist_web/live/coverage_detail_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Incomplete"
 msgstr "არასრული"
 
-#: lib/tuist_web/live/coverage/components.ex:403
+#: lib/tuist_web/live/coverage/components.ex:409
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
 msgid_plural "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
 msgstr[0] "ზოგიერთი ტესტი გამოტოვებული იყო და %{count} მათგანის დაფარვის განსაზღვრა ვერ მოხერხდა, ამიტომ რეალური დაფარვა შესაძლოა უფრო მაღალი იყოს."
 
-#: lib/tuist_web/live/coverage/components.ex:414
+#: lib/tuist_web/live/coverage/components.ex:420
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and their coverage couldn't be fully determined, so the actual coverage may be higher."
 msgstr "ზოგიერთი ტესტი გამოტოვებული იყო და მათი დაფარვა სრულად ვერ განისაზღვრა, ამიტომ რეალური დაფარვა შეიძლება უფრო მაღალი იყოს."
@@ -2669,7 +2669,7 @@ msgstr "აპლიკაციის სახელი"
 msgid "Applications"
 msgstr "აპლიკაციები"
 
-#: lib/tuist_web/live/coverage/components.ex:623
+#: lib/tuist_web/live/coverage/components.ex:629
 #, elixir-autogen, elixir-format
 msgid "%{count} of them belongs to no function, such as code a macro generates."
 msgid_plural "%{count} of them belong to no function, such as code a macro generates."
@@ -2680,12 +2680,12 @@ msgstr[0] "მათგან %{count} არ მიეკუთვნება 
 msgid "Every run that executed this target's tests took it from the binary cache as a binary built without coverage counters, so what they covered in it is unknown."
 msgstr "ამ სამიზნის ტესტების შემცველი ყოველი გაშვება ბინარულ ქეშიდან იღებდა ბინარს, აგებულს დაფარვის მრიცხველების გარეშე, ამიტომ უცნობია, რა დაფარა მათ ამ ბინარში."
 
-#: lib/tuist_web/live/coverage/components.ex:391
+#: lib/tuist_web/live/coverage/components.ex:397
 #, elixir-autogen, elixir-format
 msgid "Some of the code the tests ran came from the binary cache as binaries built without coverage counters, so what they covered in it is unknown and the actual coverage may be higher. The Targets tab lists them as not measured."
 msgstr "ტესტების მიერ შესრულებული კოდის ნაწილი ბინარულ ქეშიდან მოვიდა ბინარების სახით, აგებული დაფარვის მრიცხველების გარეშე, ამიტომ უცნობია, რა დაფარა მათ ამ ბინარში და რეალური დაფარვა შეიძლება უფრო მაღალი იყოს. „სამიზნეების“ ჩანართში ისინი ჩამოთვლილია როგორც გაუზომავი."
 
-#: lib/tuist_web/live/coverage/components.ex:845
+#: lib/tuist_web/live/coverage/components.ex:851
 #, elixir-autogen, elixir-format
 msgid "No complete commit on %{branch} in this period"
 msgstr "ამ პერიოდში %{branch}-ზე სრული კომიტი არ არის"
@@ -3344,3 +3344,8 @@ msgstr "მოთხოვნილი არეალის სრული გ
 #, elixir-autogen, elixir-format
 msgid "No run in the evidence window recorded coverage evidence of its own for it, so Tuist can't tell what it depends on. That happens for a new test, a test that ran at the same time as others, or one whose runs don't record per-test coverage."
 msgstr "მტკიცებულებების ფანჯარაში არ არსებობს ისეთი გაშვება, რომელმაც საკუთარი კოდის დაფარვის მონაცემები ჩაწერა, ამიტომ Tuist-ს არ შეუძლია განსაზღვროს, რაზეა ის დამოკიდებული. ეს ხდება ახალი ტესტის შემთხვევაში, როცა ტესტი სხვებთან ერთად გაშვებულა, ან როცა მისი გაშვებები ცალ-ცალკე კოდის დაფარვას არ იწერენ."
+
+#: lib/tuist_web/live/coverage/components.ex:391
+#, elixir-autogen, elixir-format
+msgid "Some of the runs' data couldn't be read in time, so their coverage may be missing and the actual coverage may be higher."
+msgstr "ზოგიერთი გაშვების მონაცემები დროულად ვერ წაიკითხა, ამიტომ შესაძლოა დაფარვა არ ჩანს და რეალური დაფარვა უფრო მაღალი იყოს."

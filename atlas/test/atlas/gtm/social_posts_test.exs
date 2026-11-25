@@ -26,7 +26,11 @@ defmodule Atlas.GTM.SocialPostsTest do
     })
     |> Repo.insert!()
 
-    ids = for suffix <- ~w(video thread child reply link), into: %{}, do: {suffix, "#{n}#{byte_size(suffix)}#{suffix}"}
+    ids =
+      for suffix <- ~w(video thread child reply mention link),
+          into: %{},
+          do: {suffix, "#{n}#{byte_size(suffix)}#{suffix}"}
+
     %{user: user, account_id: account_id, username: "brand#{n}", ids: ids}
   end
 
@@ -77,11 +81,21 @@ defmodule Atlas.GTM.SocialPostsTest do
         "conversation_id" => "999",
         "in_reply_to_user_id" => "other"
       },
+      # X sometimes omits in_reply_to_user_id on replies; the reference still marks it.
+      %{
+        "id" => ctx.ids["mention"],
+        "text" => "@someone glad it works",
+        "created_at" => now,
+        "public_metrics" => metrics.(12),
+        "conversation_id" => "998",
+        "referenced_tweets" => [%{"type" => "replied_to", "id" => "998"}]
+      },
       %{
         "id" => ctx.ids["link"],
         "text" => "Docs: https://tuist.dev/docs",
         "created_at" => now,
-        "public_metrics" => metrics.(0)
+        "public_metrics" => metrics.(0),
+        "non_public_metrics" => %{"url_link_clicks" => 7, "user_profile_clicks" => 3}
       }
     ]
   end
@@ -91,26 +105,19 @@ defmodule Atlas.GTM.SocialPostsTest do
       assert opts[:auth] == {:bearer, "x-access"}
 
       body =
-        cond do
-          String.ends_with?(opts[:url], "/users/me") ->
-            %{"data" => %{"id" => ctx.account_id, "username" => ctx.username}}
+        if String.ends_with?(opts[:url], "/users/me") do
+          %{"data" => %{"id" => ctx.account_id, "username" => ctx.username}}
+        else
+          # One read covers the last 14 days, clicks included.
+          assert opts[:params][:"tweet.fields"] =~ "non_public_metrics"
+          {:ok, start_time, _} = DateTime.from_iso8601(opts[:params][:start_time])
+          assert_in_delta DateTime.diff(DateTime.utc_now(), start_time, :day), 14, 1
 
-          String.contains?(opts[:params][:"tweet.fields"], "non_public_metrics") ->
-            %{
-              "data" => [
-                %{
-                  "id" => ctx.ids["link"],
-                  "non_public_metrics" => %{"url_link_clicks" => 7, "user_profile_clicks" => 3}
-                }
-              ]
-            }
-
-          true ->
-            %{
-              "data" => posts(ctx, likes),
-              "includes" => %{"media" => [%{"media_key" => "m1", "type" => "video"}]},
-              "meta" => %{}
-            }
+          %{
+            "data" => posts(ctx, likes),
+            "includes" => %{"media" => [%{"media_key" => "m1", "type" => "video"}]},
+            "meta" => %{}
+          }
         end
 
       {:ok, %Req.Response{status: 200, body: body}}

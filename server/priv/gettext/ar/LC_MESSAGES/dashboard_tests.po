@@ -27,8 +27,8 @@ msgstr "%{selective_test_effectiveness}%"
 msgid "All tests passed!"
 msgstr "نجحت جميع الاختبارات!"
 
-#: lib/tuist_web/live/coverage/components.ex:556
-#: lib/tuist_web/live/coverage/components.ex:766
+#: lib/tuist_web/live/coverage/components.ex:562
+#: lib/tuist_web/live/coverage/components.ex:772
 #: lib/tuist_web/live/coverage_detail_live.html.heex:117
 #: lib/tuist_web/live/coverage_file_live.html.heex:66
 #: lib/tuist_web/live/once_tests_live.html.heex:65
@@ -60,7 +60,7 @@ msgstr "التحليلات"
 msgid "Any"
 msgstr "أي"
 
-#: lib/tuist_web/live/coverage/components.ex:731
+#: lib/tuist_web/live/coverage/components.ex:737
 #: lib/tuist_web/live/flaky_tests_live.html.heex:75
 #: lib/tuist_web/live/once_tests_live.html.heex:45
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:45
@@ -194,7 +194,7 @@ msgstr "CI"
 msgid "CI Run"
 msgstr "تشغيل CI"
 
-#: lib/tuist_web/live/coverage/components.ex:726
+#: lib/tuist_web/live/coverage/components.ex:732
 #: lib/tuist_web/live/flaky_tests_live.html.heex:66
 #: lib/tuist_web/live/once_tests_live.html.heex:36
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:36
@@ -264,7 +264,7 @@ msgstr "التزام"
 msgid "Crash Report"
 msgstr "تقرير تعطل"
 
-#: lib/tuist_web/live/coverage/components.ex:717
+#: lib/tuist_web/live/coverage/components.ex:723
 #: lib/tuist_web/live/flaky_tests_live.html.heex:57
 #: lib/tuist_web/live/once_tests_live.html.heex:27
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:27
@@ -468,7 +468,7 @@ msgid "Failures"
 msgstr "الأخطاء"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:29
-#: lib/tuist_web/live/coverage/components.ex:661
+#: lib/tuist_web/live/coverage/components.ex:667
 #: lib/tuist_web/live/coverage_detail_live.ex:504
 #: lib/tuist_web/live/test_selection/run_tab.ex:556
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:200
@@ -596,7 +596,7 @@ msgstr "تم تسجيل المشكلة في %{location}: %{message}"
 msgid "Issue recorded: %{message}"
 msgstr "تم تسجيل المشكلة: %{message}"
 
-#: lib/tuist_web/live/coverage/components.ex:714
+#: lib/tuist_web/live/coverage/components.ex:720
 #: lib/tuist_web/live/flaky_tests_live.html.heex:54
 #: lib/tuist_web/live/once_tests_live.html.heex:24
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:24
@@ -623,7 +623,7 @@ msgstr "آخر 12 شهرًا"
 msgid "Last 24 hours"
 msgstr "آخر 24 ساعة"
 
-#: lib/tuist_web/live/coverage/components.ex:711
+#: lib/tuist_web/live/coverage/components.ex:717
 #: lib/tuist_web/live/flaky_tests_live.html.heex:49
 #: lib/tuist_web/live/once_tests_live.html.heex:19
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:19
@@ -637,7 +637,7 @@ msgstr "آخر 24 ساعة"
 msgid "Last 30 days"
 msgstr "آخر 30 يومًا"
 
-#: lib/tuist_web/live/coverage/components.ex:710
+#: lib/tuist_web/live/coverage/components.ex:716
 #: lib/tuist_web/live/flaky_tests_live.html.heex:44
 #: lib/tuist_web/live/once_tests_live.html.heex:14
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:14
@@ -1428,7 +1428,7 @@ msgstr "إجمالي عدد حالات الاختبار المنفذة."
 msgid "Try changing your search term"
 msgstr "جرّب تغيير مصطلح البحث"
 
-#: lib/tuist_web/live/coverage/components.ex:682
+#: lib/tuist_web/live/coverage/components.ex:688
 #: lib/tuist_web/live/coverage_detail_live.html.heex:266
 #: lib/tuist_web/live/coverage_detail_live.html.heex:567
 #: lib/tuist_web/live/coverage_file_live.html.heex:198
@@ -1686,7 +1686,7 @@ msgstr "مستوى التفصيل"
 msgid "How evenly test duration is distributed across shards. 100% means perfectly balanced."
 msgstr "مدى تساوي توزيع مدة الاختبارات عبر الأجزاء. تعني 100% توازناً مثالياً."
 
-#: lib/tuist_web/live/coverage/components.ex:426
+#: lib/tuist_web/live/coverage/components.ex:432
 #: lib/tuist_web/live/coverage_detail_live.ex:378
 #: lib/tuist_web/live/once_test_run_live.html.heex:103
 #: lib/tuist_web/live/shards_live.ex:41
@@ -2192,9 +2192,9 @@ msgid "The runner for this target didn't emit test.xml, so per-case detail isn't
 msgstr "لم يُصدِر المشغّل لهذا الهدف ملف test.xml، لذا لا تتوفر تفاصيل لكل حالة. افتح تشغيلًا حديثًا لعرض ملف test.log الخام."
 
 #: lib/tuist_web/live/coverage/components.ex:352
-#: lib/tuist_web/live/coverage/components.ex:564
-#: lib/tuist_web/live/coverage/components.ex:775
-#: lib/tuist_web/live/coverage/components.ex:946
+#: lib/tuist_web/live/coverage/components.ex:570
+#: lib/tuist_web/live/coverage/components.ex:781
+#: lib/tuist_web/live/coverage/components.ex:952
 #: lib/tuist_web/live/coverage_commits_live.html.heex:3
 #: lib/tuist_web/live/coverage_detail_live.ex:52
 #: lib/tuist_web/live/coverage_detail_live.ex:132
@@ -2218,9 +2218,9 @@ msgstr "تغطية الكود"
 msgid "Coverage"
 msgstr "التغطية"
 
-#: lib/tuist_web/live/coverage/components.ex:575
-#: lib/tuist_web/live/coverage/components.ex:794
-#: lib/tuist_web/live/coverage/components.ex:947
+#: lib/tuist_web/live/coverage/components.ex:581
+#: lib/tuist_web/live/coverage/components.ex:800
+#: lib/tuist_web/live/coverage/components.ex:953
 #: lib/tuist_web/live/coverage_detail_live.html.heex:137
 #: lib/tuist_web/live/coverage_file_live.ex:202
 #: lib/tuist_web/live/coverage_file_live.html.heex:157
@@ -2228,14 +2228,14 @@ msgstr "التغطية"
 msgid "Covered lines"
 msgstr "الأسطر المغطاة"
 
-#: lib/tuist_web/live/coverage/components.ex:811
-#: lib/tuist_web/live/coverage/components.ex:948
+#: lib/tuist_web/live/coverage/components.ex:817
+#: lib/tuist_web/live/coverage/components.ex:954
 #: lib/tuist_web/live/coverage_detail_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Executable lines"
 msgstr "الأسطر القابلة للتنفيذ"
 
-#: lib/tuist_web/live/coverage/components.ex:578
+#: lib/tuist_web/live/coverage/components.ex:584
 #, elixir-autogen, elixir-format
 msgid "Executable lines the tests ran at least once."
 msgstr "الأسطر القابلة للتنفيذ التي نفذتها الاختبارات مرة واحدة على الأقل."
@@ -2262,13 +2262,13 @@ msgstr "الملفات"
 msgid "Function"
 msgstr "دالة"
 
-#: lib/tuist_web/live/coverage/components.ex:587
+#: lib/tuist_web/live/coverage/components.ex:593
 #: lib/tuist_web/live/coverage_file_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Functions"
 msgstr "الدوال"
 
-#: lib/tuist_web/live/coverage/components.ex:589
+#: lib/tuist_web/live/coverage/components.ex:595
 #, elixir-autogen, elixir-format
 msgid "Functions the compiler instrumented in the file."
 msgstr "الدوال التي قام المترجم بإدراج تعليمات قياس فيها داخل الملف."
@@ -2284,7 +2284,7 @@ msgstr "السطر"
 msgid "Line coverage"
 msgstr "تغطية الأسطر"
 
-#: lib/tuist_web/live/coverage/components.ex:566
+#: lib/tuist_web/live/coverage/components.ex:572
 #, elixir-autogen, elixir-format
 msgid "Share of the file's executable lines the tests ran at least once."
 msgstr "نسبة الأسطر القابلة للتنفيذ في الملف التي نفذتها الاختبارات مرة واحدة على الأقل."
@@ -2437,7 +2437,7 @@ msgstr "الالتزامات"
 msgid "Committed"
 msgstr "تم الالتزام"
 
-#: lib/tuist_web/live/coverage/components.ex:428
+#: lib/tuist_web/live/coverage/components.ex:434
 #: lib/tuist_web/live/coverage_detail_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Complete"
@@ -2458,7 +2458,7 @@ msgstr "تغييرات التغطية"
 msgid "Every test of the run's scheme ran, so it measured the scheme in full."
 msgstr "تم تشغيل كل اختبار في مخطط التشغيل، لذا تم قياس المخطط بالكامل."
 
-#: lib/tuist_web/live/coverage/components.ex:672
+#: lib/tuist_web/live/coverage/components.ex:678
 #: lib/tuist_web/live/coverage_detail_live.ex:504
 #, elixir-autogen, elixir-format
 msgid "File coverage"
@@ -2469,13 +2469,13 @@ msgstr "تغطية الملفات"
 msgid "File: %{name}"
 msgstr "ملف: %{name}"
 
-#: lib/tuist_web/live/coverage/components.ex:797
+#: lib/tuist_web/live/coverage/components.ex:803
 #: lib/tuist_web/live/coverage_detail_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Lines that commit's tests ran at least once."
 msgstr "الأسطر التي شغّلت اختبارات الالتزام مرة واحدة على الأقل."
 
-#: lib/tuist_web/live/coverage/components.ex:813
+#: lib/tuist_web/live/coverage/components.ex:819
 #: lib/tuist_web/live/coverage_detail_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Lines the compiler instrumented for coverage at that commit."
@@ -2506,7 +2506,7 @@ msgstr "لا تغيير في التغطية"
 msgid "No coverage changed on %{branch} in this period"
 msgstr "لم تتغير التغطية على %{branch} خلال هذه الفترة"
 
-#: lib/tuist_web/live/coverage/components.ex:681
+#: lib/tuist_web/live/coverage/components.ex:687
 #, elixir-autogen, elixir-format
 msgid "No file matches this search"
 msgstr "لا يوجد ملف يطابق هذا البحث"
@@ -2541,7 +2541,7 @@ msgstr "لا يوجد تشغيل يطابق هذه الفلاتر"
 msgid "No run of commit %{sha} gathered coverage."
 msgstr "لم يجمع أي تشغيل للالتزام %{sha} تغطية."
 
-#: lib/tuist_web/live/coverage/components.ex:436
+#: lib/tuist_web/live/coverage/components.ex:442
 #, elixir-autogen, elixir-format
 msgid "No run of this commit gathered coverage, so it has no figure of its own."
 msgstr "لم يجمع أي تشغيل لهذا الالتزام تغطية، لذا لا يحتوي على قيمة خاصة به."
@@ -2561,7 +2561,7 @@ msgstr "لا توجد أهداف تطابق هذه المرشحات"
 msgid "No target was measured at this commit"
 msgstr "لم يتم قياس أي هدف عند هذا الالتزام"
 
-#: lib/tuist_web/live/coverage/components.ex:425
+#: lib/tuist_web/live/coverage/components.ex:431
 #: lib/tuist_web/live/coverage_detail_live.ex:379
 #: lib/tuist_web/live/coverage_detail_live.html.heex:240
 #, elixir-autogen, elixir-format
@@ -2580,7 +2580,7 @@ msgstr "الالتزامات الأخيرة"
 msgid "Selective testing, or a filter, left some of the run's tests out, so it measured part of the scheme."
 msgstr "أبقى الاختبار الانتقائي، أو أحد المرشحات، بعض اختبارات التشغيل خارج النطاق، لذا تم قياس جزء من المخطط فقط."
 
-#: lib/tuist_web/live/coverage/components.ex:777
+#: lib/tuist_web/live/coverage/components.ex:783
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it."
 msgstr "نسبة الأسطر القابلة للتنفيذ التي غطّتها أحدث التزام مقاس في %{branch}، %{sha}، مجمعة عبر المخططات التي قاستها."
@@ -2610,30 +2610,30 @@ msgstr "لا يغطي أحدث التزام مكتمل على %{branch} خلال
 msgid "These commits are listed in the order they were measured, not the order the repository's history puts them in."
 msgstr "تُسرَد هذه الالتزامات بالترتيب الذي قيسَت فيه، وليس حسب ترتيب سجل المستودع."
 
-#: lib/tuist_web/live/coverage/components.ex:439
+#: lib/tuist_web/live/coverage/components.ex:445
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
 msgstr "لم تُعلِن أنابيب تغطية هذا الالتزام اكتمالها بعد، لذا قد تصل عمليات تشغيل إضافية وتظل بواباتها معلقة."
 
-#: lib/tuist_web/live/coverage/components.ex:448
+#: lib/tuist_web/live/coverage/components.ex:454
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
 msgstr "أعلنت أنابيب تغطية هذا الالتزام انتهاءها، لذا فإن الرقم نهائي وقد حُسِمت بواباته."
 
-#: lib/tuist_web/live/coverage/components.ex:787
-#: lib/tuist_web/live/coverage/components.ex:804
-#: lib/tuist_web/live/coverage/components.ex:822
+#: lib/tuist_web/live/coverage/components.ex:793
+#: lib/tuist_web/live/coverage/components.ex:810
+#: lib/tuist_web/live/coverage/components.ex:828
 #, elixir-autogen, elixir-format
 msgid "over the period"
 msgstr "خلال الفترة"
 
-#: lib/tuist_web/live/coverage/components.ex:427
+#: lib/tuist_web/live/coverage/components.ex:433
 #: lib/tuist_web/live/coverage_detail_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Incomplete"
 msgstr "غير مكتمل"
 
-#: lib/tuist_web/live/coverage/components.ex:403
+#: lib/tuist_web/live/coverage/components.ex:409
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
 msgid_plural "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
@@ -2644,7 +2644,7 @@ msgstr[3] "تم تجاهل بعض الاختبارات، ولم يمكن تحد�
 msgstr[4] "تم تجاهل بعض الاختبارات، ولم يمكن تحديد تغطية %{count} منها، لذا قد تكون التغطية الفعلية أعلى."
 msgstr[5] "تم تجاهل بعض الاختبارات، ولم يمكن تحديد تغطية %{count} منها، لذا قد تكون التغطية الفعلية أعلى."
 
-#: lib/tuist_web/live/coverage/components.ex:414
+#: lib/tuist_web/live/coverage/components.ex:420
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and their coverage couldn't be fully determined, so the actual coverage may be higher."
 msgstr "تم تجاهل بعض الاختبارات، ولم يمكن تحديد تغطيتها بالكامل، لذا قد تكون التغطية الفعلية أعلى."
@@ -2694,7 +2694,7 @@ msgstr "اسم التطبيق"
 msgid "Applications"
 msgstr "التطبيقات"
 
-#: lib/tuist_web/live/coverage/components.ex:623
+#: lib/tuist_web/live/coverage/components.ex:629
 #, elixir-autogen, elixir-format
 msgid "%{count} of them belongs to no function, such as code a macro generates."
 msgid_plural "%{count} of them belong to no function, such as code a macro generates."
@@ -2710,12 +2710,12 @@ msgstr[5] "%{count} منها لا تنتمي إلى أي دالة، مثل ال�
 msgid "Every run that executed this target's tests took it from the binary cache as a binary built without coverage counters, so what they covered in it is unknown."
 msgstr "كل تشغيل نفّذ اختبارات هذا الهدف جلبه من ذاكرة التخزين المؤقت الثنائية كملف ثنائي مُبنى بدون عدادات التغطية، لذا فإن ما غطته الاختبارات فيه غير معروف."
 
-#: lib/tuist_web/live/coverage/components.ex:391
+#: lib/tuist_web/live/coverage/components.ex:397
 #, elixir-autogen, elixir-format
 msgid "Some of the code the tests ran came from the binary cache as binaries built without coverage counters, so what they covered in it is unknown and the actual coverage may be higher. The Targets tab lists them as not measured."
 msgstr "جزء من الشيفرة التي نفذتها الاختبارات جاء من ذاكرة التخزين المؤقت الثنائية كملفات ثنائية مُبنية بدون عدادات التغطية، لذا فإن ما غطته الاختبارات فيه غير معروف وقد تكون التغطية الفعلية أعلى. يعرض تبويب الأهداف هذه العناصر على أنها غير مقاسة."
 
-#: lib/tuist_web/live/coverage/components.ex:845
+#: lib/tuist_web/live/coverage/components.ex:851
 #, elixir-autogen, elixir-format
 msgid "No complete commit on %{branch} in this period"
 msgstr "لا توجد عملية إيداع كاملة على %{branch} خلال هذه الفترة"
@@ -3374,3 +3374,8 @@ msgstr "تشغيل كامل ضمن النطاق المطلوب حديث بما �
 #, elixir-autogen, elixir-format
 msgid "No run in the evidence window recorded coverage evidence of its own for it, so Tuist can't tell what it depends on. That happens for a new test, a test that ran at the same time as others, or one whose runs don't record per-test coverage."
 msgstr "لم يسجّل أي تشغيل في نافذة الأدلة أدلة تغطية خاصة به لهذا الاختبار، لذا لا يمكن لـ Tuist تحديد ما يعتمد عليه. يحدث ذلك مع اختبار جديد، أو اختبار تم تنفيذه بالتزامن مع اختبارات أخرى، أو أحد عملياته التي لا تسجل تغطية على مستوى الاختبار الفردي."
+
+#: lib/tuist_web/live/coverage/components.ex:391
+#, elixir-autogen, elixir-format
+msgid "Some of the runs' data couldn't be read in time, so their coverage may be missing and the actual coverage may be higher."
+msgstr "لم تتمكّن من قراءة بيانات بعض عمليات التشغيل في الوقت المحدد، لذا قد تكون تغطيتها مفقودة وقد تكون التغطية الفعلية أعلى."

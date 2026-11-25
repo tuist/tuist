@@ -656,10 +656,17 @@ defmodule Tuist.Tests do
       test = %{test | inserted_at: NaiveDateTime.utc_now()}
       test = insert_test_run(test, shard_plan)
 
+      # Declared before the coverage is published: once it is, a fold counts
+      # the run, and waits for these rows (`Coverage.RunInputs`).
+      run_inputs = Coverage.RunInputs.declare(test, shard_index, Map.get(attrs, :coverage))
+      Coverage.RunInputs.written(run_inputs, "test_runs", test.inserted_at, 1)
+
       create_run_errors(test, Map.get(attrs, :run_errors, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
       record_coverage_data(test, attrs, coverage, shard_index, expected_shards)
+
+      test_case_runs_at = NaiveDateTime.utc_now()
 
       {_newly_flaky_test_case_ids, test_case_runs} =
         create_test_modules(
@@ -671,6 +678,7 @@ defmodule Tuist.Tests do
           Map.get(attrs, :run_destinations, [])
         )
 
+      Coverage.RunInputs.written(run_inputs, "test_case_runs", test_case_runs_at, length(test_case_runs))
       run_test_followups(test, test_case_runs, shard_plan)
 
       if test.status == "failure" and test.submission_auth != "network_trusted",
@@ -1052,6 +1060,10 @@ defmodule Tuist.Tests do
               Coverage.Evidence.merge_status(existing_test.coverage_evidence_status, attrs.coverage_evidence_status)
             )
 
+          # Declared before the shard's coverage is published (`create_new_test/3`).
+          run_inputs = Coverage.RunInputs.declare(merged_test, shard_index, Map.get(attrs, :coverage))
+          test_case_runs_at = NaiveDateTime.utc_now()
+
           {_newly_flaky_test_case_ids, test_case_runs} =
             OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
               create_test_modules(
@@ -1063,6 +1075,8 @@ defmodule Tuist.Tests do
                 Map.get(attrs, :run_destinations, [])
               )
             end
+
+          Coverage.RunInputs.written(run_inputs, "test_case_runs", test_case_runs_at, length(test_case_runs))
 
           # Every shard carries its own errors, and only unattributed issues
           # leave the shard's status untouched, so dropping these would erase
@@ -1129,6 +1143,7 @@ defmodule Tuist.Tests do
             |> Map.drop(@test_struct_non_field_keys)
 
           IngestRepo.insert_all(Test, [update_attrs])
+          Coverage.RunInputs.written(run_inputs, "test_runs", updated_test.inserted_at, 1)
 
           if merged_status == "failure" and updated_test.submission_auth != "network_trusted",
             do:

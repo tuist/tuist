@@ -278,6 +278,29 @@ func TestWaitReadyRetriesUntilAgentAnswers(t *testing.T) {
 	}
 }
 
+// A guest whose every answer comes later than the first ping's budget, as
+// one restored onto a congested disk, must still be found ready.
+func TestWaitReadyWaitsForAnAgentSlowerThanOnePing(t *testing.T) {
+	readyAttemptTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { readyAttemptTimeout = 2 * time.Second })
+	c := NewClient(func(ctx context.Context) (net.Conn, error) {
+		client, server := net.Pipe()
+		go func() {
+			time.Sleep(120 * time.Millisecond)
+			(&fakeAgent{}).serve(t, server)
+		}()
+		if err := Handshake(ctx, client, 5000); err != nil {
+			client.Close()
+			return nil, err
+		}
+		return client, nil
+	})
+	pong, err := c.WaitReady(context.Background(), 2*time.Second)
+	if err != nil || pong.AgentVersion != "test" {
+		t.Fatalf("wait ready: %+v %v", pong, err)
+	}
+}
+
 func TestReadFrameRejectsOversizedFrames(t *testing.T) {
 	small := strings.Repeat("a", 1000) + "\n"
 	got, err := readFrame(bufio.NewReaderSize(strings.NewReader(small), 64), 4096)

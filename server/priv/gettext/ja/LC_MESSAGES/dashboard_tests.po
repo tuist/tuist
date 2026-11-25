@@ -27,8 +27,8 @@ msgstr "%{selective_test_effectiveness}%"
 msgid "All tests passed!"
 msgstr "すべてのテストに合格しました！"
 
-#: lib/tuist_web/live/coverage/components.ex:556
-#: lib/tuist_web/live/coverage/components.ex:766
+#: lib/tuist_web/live/coverage/components.ex:562
+#: lib/tuist_web/live/coverage/components.ex:772
 #: lib/tuist_web/live/coverage_detail_live.html.heex:117
 #: lib/tuist_web/live/coverage_file_live.html.heex:66
 #: lib/tuist_web/live/once_tests_live.html.heex:65
@@ -60,7 +60,7 @@ msgstr "アナリティクス"
 msgid "Any"
 msgstr "すべて"
 
-#: lib/tuist_web/live/coverage/components.ex:731
+#: lib/tuist_web/live/coverage/components.ex:737
 #: lib/tuist_web/live/flaky_tests_live.html.heex:75
 #: lib/tuist_web/live/once_tests_live.html.heex:45
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:45
@@ -194,7 +194,7 @@ msgstr "CI"
 msgid "CI Run"
 msgstr "CI 実行"
 
-#: lib/tuist_web/live/coverage/components.ex:726
+#: lib/tuist_web/live/coverage/components.ex:732
 #: lib/tuist_web/live/flaky_tests_live.html.heex:66
 #: lib/tuist_web/live/once_tests_live.html.heex:36
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:36
@@ -264,7 +264,7 @@ msgstr "コミット"
 msgid "Crash Report"
 msgstr "クラッシュレポート"
 
-#: lib/tuist_web/live/coverage/components.ex:717
+#: lib/tuist_web/live/coverage/components.ex:723
 #: lib/tuist_web/live/flaky_tests_live.html.heex:57
 #: lib/tuist_web/live/once_tests_live.html.heex:27
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:27
@@ -468,7 +468,7 @@ msgid "Failures"
 msgstr "失敗"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:29
-#: lib/tuist_web/live/coverage/components.ex:661
+#: lib/tuist_web/live/coverage/components.ex:667
 #: lib/tuist_web/live/coverage_detail_live.ex:504
 #: lib/tuist_web/live/test_selection/run_tab.ex:556
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:200
@@ -596,7 +596,7 @@ msgstr "%{location} で問題を記録: %{message}"
 msgid "Issue recorded: %{message}"
 msgstr "問題を記録: %{message}"
 
-#: lib/tuist_web/live/coverage/components.ex:714
+#: lib/tuist_web/live/coverage/components.ex:720
 #: lib/tuist_web/live/flaky_tests_live.html.heex:54
 #: lib/tuist_web/live/once_tests_live.html.heex:24
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:24
@@ -623,7 +623,7 @@ msgstr "過去12ヶ月"
 msgid "Last 24 hours"
 msgstr "過去24時間"
 
-#: lib/tuist_web/live/coverage/components.ex:711
+#: lib/tuist_web/live/coverage/components.ex:717
 #: lib/tuist_web/live/flaky_tests_live.html.heex:49
 #: lib/tuist_web/live/once_tests_live.html.heex:19
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:19
@@ -637,7 +637,7 @@ msgstr "過去24時間"
 msgid "Last 30 days"
 msgstr "過去30日間"
 
-#: lib/tuist_web/live/coverage/components.ex:710
+#: lib/tuist_web/live/coverage/components.ex:716
 #: lib/tuist_web/live/flaky_tests_live.html.heex:44
 #: lib/tuist_web/live/once_tests_live.html.heex:14
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:14
@@ -1428,7 +1428,7 @@ msgstr "実行されたテストケースの総数。"
 msgid "Try changing your search term"
 msgstr "検索語を変更してみてください"
 
-#: lib/tuist_web/live/coverage/components.ex:682
+#: lib/tuist_web/live/coverage/components.ex:688
 #: lib/tuist_web/live/coverage_detail_live.html.heex:266
 #: lib/tuist_web/live/coverage_detail_live.html.heex:567
 #: lib/tuist_web/live/coverage_file_live.html.heex:198
@@ -1686,7 +1686,7 @@ msgstr "粒度"
 msgid "How evenly test duration is distributed across shards. 100% means perfectly balanced."
 msgstr "テストの実行時間がシャード間でどれだけ均等に分散されているかを示します。100%は完全に均衡していることを意味します。"
 
-#: lib/tuist_web/live/coverage/components.ex:426
+#: lib/tuist_web/live/coverage/components.ex:432
 #: lib/tuist_web/live/coverage_detail_live.ex:378
 #: lib/tuist_web/live/once_test_run_live.html.heex:103
 #: lib/tuist_web/live/shards_live.ex:41
@@ -2177,9 +2177,9 @@ msgid "The runner for this target didn't emit test.xml, so per-case detail isn't
 msgstr "このターゲットの実行エージェントがtest.xmlを出力しなかったため、テストケースごとの詳細は利用できません。最近の実行を開いて生のtest.logを確認してください。"
 
 #: lib/tuist_web/live/coverage/components.ex:352
-#: lib/tuist_web/live/coverage/components.ex:564
-#: lib/tuist_web/live/coverage/components.ex:775
-#: lib/tuist_web/live/coverage/components.ex:946
+#: lib/tuist_web/live/coverage/components.ex:570
+#: lib/tuist_web/live/coverage/components.ex:781
+#: lib/tuist_web/live/coverage/components.ex:952
 #: lib/tuist_web/live/coverage_commits_live.html.heex:3
 #: lib/tuist_web/live/coverage_detail_live.ex:52
 #: lib/tuist_web/live/coverage_detail_live.ex:132
@@ -2203,9 +2203,9 @@ msgstr "コードカバレッジ"
 msgid "Coverage"
 msgstr "カバレッジ"
 
-#: lib/tuist_web/live/coverage/components.ex:575
-#: lib/tuist_web/live/coverage/components.ex:794
-#: lib/tuist_web/live/coverage/components.ex:947
+#: lib/tuist_web/live/coverage/components.ex:581
+#: lib/tuist_web/live/coverage/components.ex:800
+#: lib/tuist_web/live/coverage/components.ex:953
 #: lib/tuist_web/live/coverage_detail_live.html.heex:137
 #: lib/tuist_web/live/coverage_file_live.ex:202
 #: lib/tuist_web/live/coverage_file_live.html.heex:157
@@ -2213,14 +2213,14 @@ msgstr "カバレッジ"
 msgid "Covered lines"
 msgstr "カバーされた行数"
 
-#: lib/tuist_web/live/coverage/components.ex:811
-#: lib/tuist_web/live/coverage/components.ex:948
+#: lib/tuist_web/live/coverage/components.ex:817
+#: lib/tuist_web/live/coverage/components.ex:954
 #: lib/tuist_web/live/coverage_detail_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Executable lines"
 msgstr "実行可能行数"
 
-#: lib/tuist_web/live/coverage/components.ex:578
+#: lib/tuist_web/live/coverage/components.ex:584
 #, elixir-autogen, elixir-format
 msgid "Executable lines the tests ran at least once."
 msgstr "テストが少なくとも1回実行された実行可能行数"
@@ -2247,13 +2247,13 @@ msgstr "ファイル数"
 msgid "Function"
 msgstr "関数"
 
-#: lib/tuist_web/live/coverage/components.ex:587
+#: lib/tuist_web/live/coverage/components.ex:593
 #: lib/tuist_web/live/coverage_file_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Functions"
 msgstr "関数一覧"
 
-#: lib/tuist_web/live/coverage/components.ex:589
+#: lib/tuist_web/live/coverage/components.ex:595
 #, elixir-autogen, elixir-format
 msgid "Functions the compiler instrumented in the file."
 msgstr "コンパイラがファイル内でインストルメント化した関数。"
@@ -2269,7 +2269,7 @@ msgstr "行"
 msgid "Line coverage"
 msgstr "行カバレッジ"
 
-#: lib/tuist_web/live/coverage/components.ex:566
+#: lib/tuist_web/live/coverage/components.ex:572
 #, elixir-autogen, elixir-format
 msgid "Share of the file's executable lines the tests ran at least once."
 msgstr "テストが少なくとも1回実行された、ファイル内の実行可能行の割合。"
@@ -2417,7 +2417,7 @@ msgstr "コミット"
 msgid "Committed"
 msgstr "コミット済み"
 
-#: lib/tuist_web/live/coverage/components.ex:428
+#: lib/tuist_web/live/coverage/components.ex:434
 #: lib/tuist_web/live/coverage_detail_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Complete"
@@ -2438,7 +2438,7 @@ msgstr "カバレッジの変更"
 msgid "Every test of the run's scheme ran, so it measured the scheme in full."
 msgstr "この実行のスキームに含まれるすべてのテストが実行されたため、スキーム全体のカバレッジを測定しました。"
 
-#: lib/tuist_web/live/coverage/components.ex:672
+#: lib/tuist_web/live/coverage/components.ex:678
 #: lib/tuist_web/live/coverage_detail_live.ex:504
 #, elixir-autogen, elixir-format
 msgid "File coverage"
@@ -2449,13 +2449,13 @@ msgstr "ファイルカバレッジ"
 msgid "File: %{name}"
 msgstr "ファイル: %{name}"
 
-#: lib/tuist_web/live/coverage/components.ex:797
+#: lib/tuist_web/live/coverage/components.ex:803
 #: lib/tuist_web/live/coverage_detail_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Lines that commit's tests ran at least once."
 msgstr "コミットのテストが少なくとも1回実行された行"
 
-#: lib/tuist_web/live/coverage/components.ex:813
+#: lib/tuist_web/live/coverage/components.ex:819
 #: lib/tuist_web/live/coverage_detail_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Lines the compiler instrumented for coverage at that commit."
@@ -2486,7 +2486,7 @@ msgstr "カバレッジの変化なし"
 msgid "No coverage changed on %{branch} in this period"
 msgstr "この期間中に%{branch}上でカバレッジの変更はありません"
 
-#: lib/tuist_web/live/coverage/components.ex:681
+#: lib/tuist_web/live/coverage/components.ex:687
 #, elixir-autogen, elixir-format
 msgid "No file matches this search"
 msgstr "この検索に一致するファイルはありません"
@@ -2521,7 +2521,7 @@ msgstr "これらのフィルターに一致する実行はありません"
 msgid "No run of commit %{sha} gathered coverage."
 msgstr "コミット%{sha}の実行でカバレッジは収集されませんでした。"
 
-#: lib/tuist_web/live/coverage/components.ex:436
+#: lib/tuist_web/live/coverage/components.ex:442
 #, elixir-autogen, elixir-format
 msgid "No run of this commit gathered coverage, so it has no figure of its own."
 msgstr "このコミットの実行でカバレッジは収集されていないため、独自の数値がありません。"
@@ -2541,7 +2541,7 @@ msgstr "これらのフィルターに一致するターゲットはありませ
 msgid "No target was measured at this commit"
 msgstr "このコミットで測定されたターゲットはありません"
 
-#: lib/tuist_web/live/coverage/components.ex:425
+#: lib/tuist_web/live/coverage/components.ex:431
 #: lib/tuist_web/live/coverage_detail_live.ex:379
 #: lib/tuist_web/live/coverage_detail_live.html.heex:240
 #, elixir-autogen, elixir-format
@@ -2560,7 +2560,7 @@ msgstr "最近のコミット"
 msgid "Selective testing, or a filter, left some of the run's tests out, so it measured part of the scheme."
 msgstr "選択的テストまたはフィルターにより、実行の一部のテストが除外されたため、スキームの一部のみが測定されました。"
 
-#: lib/tuist_web/live/coverage/components.ex:777
+#: lib/tuist_web/live/coverage/components.ex:783
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it."
 msgstr "%{branch}、%{sha} の最新測定コミットにおいて、それを測定したスキーム全体でプールされた、カバーされた実行可能行の割合。"
@@ -2590,36 +2590,36 @@ msgstr "この期間中に%{branch}で完了した最新のコミットには、
 msgid "These commits are listed in the order they were measured, not the order the repository's history puts them in."
 msgstr "これらのコミットは、リポジトリの履歴順ではなく、測定された順序でリストされています。"
 
-#: lib/tuist_web/live/coverage/components.ex:439
+#: lib/tuist_web/live/coverage/components.ex:445
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
 msgstr "このコミットのカバレッジパイプラインはまだ完了を通知していないため、さらに実行結果が追加される可能性があり、ゲートの判定も保留されています。"
 
-#: lib/tuist_web/live/coverage/components.ex:448
+#: lib/tuist_web/live/coverage/components.ex:454
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
 msgstr "このコミットのカバレッジパイプラインは完了を通知したため、数値は確定しており、ゲートの判定も完了しています。"
 
-#: lib/tuist_web/live/coverage/components.ex:787
-#: lib/tuist_web/live/coverage/components.ex:804
-#: lib/tuist_web/live/coverage/components.ex:822
+#: lib/tuist_web/live/coverage/components.ex:793
+#: lib/tuist_web/live/coverage/components.ex:810
+#: lib/tuist_web/live/coverage/components.ex:828
 #, elixir-autogen, elixir-format
 msgid "over the period"
 msgstr "期間中"
 
-#: lib/tuist_web/live/coverage/components.ex:427
+#: lib/tuist_web/live/coverage/components.ex:433
 #: lib/tuist_web/live/coverage_detail_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Incomplete"
 msgstr "不完全"
 
-#: lib/tuist_web/live/coverage/components.ex:403
+#: lib/tuist_web/live/coverage/components.ex:409
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
 msgid_plural "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
 msgstr[0] "一部のテストがスキップされ、そのうち%{count}件のカバレッジを特定できなかったため、実際のカバレッジはこれより高い可能性があります。"
 
-#: lib/tuist_web/live/coverage/components.ex:414
+#: lib/tuist_web/live/coverage/components.ex:420
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and their coverage couldn't be fully determined, so the actual coverage may be higher."
 msgstr "一部のテストがスキップされ、そのカバレッジを完全に特定できなかったため、実際のカバレッジはより高い可能性があります。"
@@ -2669,7 +2669,7 @@ msgstr "アプリケーション名"
 msgid "Applications"
 msgstr "アプリケーション"
 
-#: lib/tuist_web/live/coverage/components.ex:623
+#: lib/tuist_web/live/coverage/components.ex:629
 #, elixir-autogen, elixir-format
 msgid "%{count} of them belongs to no function, such as code a macro generates."
 msgid_plural "%{count} of them belong to no function, such as code a macro generates."
@@ -2680,12 +2680,12 @@ msgstr[0] "%{count}個はマクロが生成したコードなど、どの関数�
 msgid "Every run that executed this target's tests took it from the binary cache as a binary built without coverage counters, so what they covered in it is unknown."
 msgstr "このターゲットのテストを実行したすべての実行で、カバレッジカウンターなしでビルドされたバイナリをバイナリキャッシュから取得したため、どこをカバーしたかは不明です。"
 
-#: lib/tuist_web/live/coverage/components.ex:391
+#: lib/tuist_web/live/coverage/components.ex:397
 #, elixir-autogen, elixir-format
 msgid "Some of the code the tests ran came from the binary cache as binaries built without coverage counters, so what they covered in it is unknown and the actual coverage may be higher. The Targets tab lists them as not measured."
 msgstr "テストが実行したコードの一部は、カバレッジカウンターなしでビルドされたバイナリとしてバイナリキャッシュから取得されたため、どこをカバーしたかは不明で、実際のカバレッジはより高い可能性があります。[ターゲット]タブでは、これらは未測定として一覧表示されます。"
 
-#: lib/tuist_web/live/coverage/components.ex:845
+#: lib/tuist_web/live/coverage/components.ex:851
 #, elixir-autogen, elixir-format
 msgid "No complete commit on %{branch} in this period"
 msgstr "この期間中に%{branch}に完全なコミットはありません"
@@ -3344,3 +3344,8 @@ msgstr "リクエストされたスコープの完全な実行がベースライ
 #, elixir-autogen, elixir-format
 msgid "No run in the evidence window recorded coverage evidence of its own for it, so Tuist can't tell what it depends on. That happens for a new test, a test that ran at the same time as others, or one whose runs don't record per-test coverage."
 msgstr "エビデンスウィンドウ内のどの実行も独自のカバレッジエビデンスを記録していないため、Tuist はその依存関係を特定できません。これは、新しいテスト、他のテストと同時に実行されたテスト、またはテストごとのカバレッジを記録しない実行を持つテストで発生します。"
+
+#: lib/tuist_web/live/coverage/components.ex:391
+#, elixir-autogen, elixir-format
+msgid "Some of the runs' data couldn't be read in time, so their coverage may be missing and the actual coverage may be higher."
+msgstr "一部の実行のデータをタイムリーに読み取れなかったため、カバレッジが表示されていない可能性があります。実際のカバレッジはより高い場合があります。"

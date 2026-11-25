@@ -27,7 +27,16 @@ defmodule Tuist.Xcode do
       BuildEntities.Producers.xcode_graph(command_event, projects_data, targets_data)
     end
 
-    xcode_graph = %{id: xcode_graph_id, name: name, command_event_id: command_event_id}
+    # With the `inserted_at` its targets share and how many there are, which
+    # the fold of the event's run waits for (`Tuist.Tests.Coverage.RunInputs`).
+    xcode_graph = %{
+      id: xcode_graph_id,
+      name: name,
+      command_event_id: command_event_id,
+      inserted_at: xcode_graph_data.inserted_at,
+      targets: length(targets_data)
+    }
+
     {:ok, xcode_graph}
   end
 

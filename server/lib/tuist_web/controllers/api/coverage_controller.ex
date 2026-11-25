@@ -513,7 +513,10 @@ defmodule TuistWeb.API.CoverageController do
       nil ->
         conn
         |> put_status(:accepted)
-        |> json(%{message: "No run of commit #{sha} gathered coverage yet; it is marked complete once one does"})
+        |> json(%{
+          message:
+            "No run of commit #{sha} gathered coverage yet, or its runs are still being stored; it is marked complete once one is"
+        })
 
       summary ->
         json(conn, Report.commit(summary, Commits.targets(project.id, sha)))

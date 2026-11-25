@@ -32,8 +32,8 @@ defmodule Tuist.Tests.Coverage.Workers.TotalsWorkerTest do
       })
 
     assert [%{covered_lines: 1, executable_lines: 2}] = totals(run.id)
-    inserts = Inserts.by_table(Coverage.report_key(run.id, 0))
-    assert Map.keys(inserts) == ["coverage_files", "coverage_run_files"]
+    inserts = Map.take(Inserts.by_table(Coverage.report_key(run.id, 0)), ["coverage_files", "coverage_run_files"])
+    assert map_size(inserts) == 2
     assert Enum.all?(Map.values(inserts), & &1.synced_at)
     refute_enqueued(worker: TotalsWorker)
   end

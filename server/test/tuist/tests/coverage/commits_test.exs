@@ -4,6 +4,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouse.Inserts
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
   alias Tuist.IngestRepo
@@ -469,19 +470,51 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     end
   end
 
-  test "a completion signal is not lost when the first run folds while the signal reads", %{
+  test "a completion signal is not lost when the first run reports while the signal folds", %{
     project: project,
     account: account
   } do
     stub(Reported, :compute, fn project, sha, opts -> Mimic.call_original(Reported, :compute, [project, sha, opts]) end)
 
     expect(Reported, :compute, fn project, sha, opts ->
-      CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{recompute: false})
       Mimic.call_original(Reported, :compute, [project, sha, opts])
     end)
 
-    assert %{complete: true, completeness: "signal"} = Commits.signal_complete(project, "abc123")
-    assert %{complete: true, completeness: "signal"} = Commits.summary(project.id, "abc123")
+    # The run was declared after the signal's gate, so the signal's fold may
+    # have read part of it: it publishes nothing and leaves the signal to the
+    # commit's fold job, which gates again.
+    assert Commits.signal_complete(project, "abc123") == nil
+    assert Commits.summary(project.id, "abc123") == nil
+
+    assert [job] = all_enqueued(worker: CommitWorker)
+    assert :ok = perform_job(CommitWorker, job.args)
+    assert %{complete: true, completeness: "signal", covered_lines: 1} = Commits.summary(project.id, "abc123")
+  end
+
+  test "a fold that read a run declared after its gate publishes nothing and gates again", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{recompute: false})
+    Repo.delete_all(Oban.Job)
+    key = "#{UUIDv7.generate()}/0"
+
+    # Another shard of the commit declares its rows while the fold reads.
+    stub(Reported, :compute, fn project, sha, opts -> Mimic.call_original(Reported, :compute, [project, sha, opts]) end)
+
+    expect(Reported, :compute, fn project, sha, opts ->
+      Inserts.record("test_case_runs", key, project.id, NaiveDateTime.utc_now(), sha: sha)
+      Mimic.call_original(Reported, :compute, [project, sha, opts])
+    end)
+
+    args = %{"project_id" => project.id, "git_commit_sha" => "abc123"}
+    assert perform_job(CommitWorker, args) == {:snooze, 5}
+    assert Commits.summary(project.id, "abc123") == nil
+
+    Inserts.record("test_case_runs", key, project.id, NaiveDateTime.utc_now(), sha: "abc123", rows: 0)
+    assert perform_job(CommitWorker, args) == :ok
+    assert %{covered_lines: 1} = Commits.summary(project.id, "abc123")
   end
 
   test "a fold computes outside a transaction and never overwrites what was written meanwhile", %{
@@ -580,11 +613,76 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert deduped.id == pending.id
 
     # Once that job is running, the fold it would be deduped into has already
-    # read the runs, so the report cannot wait for it.
-    Repo.update_all(from(j in Oban.Job, where: j.id == ^pending.id), set: [state: "executing"])
+    # read the runs, so the report cannot wait for it: it gets a job of its
+    # own, held back until the running fold has published.
+    running = start(pending)
     {:ok, own} = Commits.enqueue_recompute(run)
     assert own.id != pending.id
     assert own.state == "scheduled"
+    assert DateTime.diff(own.scheduled_at, DateTime.utc_now()) in 590..600
+
+    # Every later report lands in that one job.
+    {:ok, again} = Commits.enqueue_recompute(run)
+    assert again.id == own.id
+
+    # The fold publishes, then lets the pending one go at once.
+    assert :ok = perform_job(running)
+    assert [next] = all_enqueued(worker: CommitWorker)
+    assert next.id == own.id
+    assert DateTime.diff(next.scheduled_at, DateTime.utc_now()) <= 0
+    assert %{covered_lines: 1} = Commits.summary(project.id, "abc123")
+
+    # A report after the fold published, while its job is still finishing,
+    # is folded after the usual delay.
+    Repo.delete_all(from(j in Oban.Job, where: j.id == ^own.id))
+    {:ok, after_release} = Commits.enqueue_recompute(run)
+    assert after_release.id != pending.id
+    assert DateTime.diff(after_release.scheduled_at, DateTime.utc_now()) < 60
+  end
+
+  test "a fold that must wait for its runs' inputs ends when a fold is pending after it", %{project: project} do
+    {:ok, pending} = CommitWorker.enqueue(project.id, "abc123")
+    running = start(pending)
+    {:ok, next} = CommitWorker.enqueue(project.id, "abc123")
+    Inserts.record("test_case_runs", "#{UUIDv7.generate()}/0", project.id, NaiveDateTime.utc_now(), sha: "abc123")
+
+    assert :ok = perform_job(running)
+    assert [%{id: id, scheduled_at: scheduled_at}] = all_enqueued(worker: CommitWorker)
+    assert id == next.id
+    assert DateTime.diff(scheduled_at, DateTime.utc_now()) <= 0
+  end
+
+  test "a fold retried after its node died holds new reports back again", %{project: project} do
+    {:ok, pending} = CommitWorker.enqueue(project.id, "abc123")
+    running = start(pending)
+    assert :ok = perform_job(running)
+
+    # Released on its first attempt; Oban fetching it again starts another.
+    start(Repo.get!(Oban.Job, pending.id))
+    {:ok, held} = CommitWorker.enqueue(project.id, "abc123")
+    assert DateTime.diff(held.scheduled_at, DateTime.utc_now()) in 590..600
+  end
+
+  test "a report whose job another insert of the commit's job is writing leaves that one pending", %{project: project} do
+    # What Oban returns when another transaction holds its unique lock on the
+    # job (never in tests, which run without it): the job, unsaved.
+    expect(Oban, :insert, fn changeset ->
+      {:ok, job} = Ecto.Changeset.apply_action(changeset, :insert)
+      {:ok, %{job | conflict?: true}}
+    end)
+
+    assert {:ok, %Oban.Job{id: nil, conflict?: true}} = CommitWorker.enqueue(project.id, "abc123")
+  end
+
+  # A job as Oban hands it to a worker: executing, its attempt counted.
+  defp start(job) do
+    {1, [started]} =
+      Repo.update_all(from(j in Oban.Job, where: j.id == ^job.id, select: j),
+        set: [state: "executing", attempted_at: DateTime.utc_now()],
+        inc: [attempt: 1]
+      )
+
+    started
   end
 
   test "the worker republishes the commit and is scheduled once per commit", %{project: project, account: account} do
@@ -610,7 +708,9 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   end
 
   test "a later report never pulls a later scheduled fold forward", %{project: project} do
-    assert {:ok, refold} = CommitWorker.enqueue_refold(project.id, "abc123", 600)
+    assert {:ok, refold} =
+             %{project_id: project.id, git_commit_sha: "abc123"} |> CommitWorker.new(schedule_in: 600) |> Oban.insert()
+
     assert {:ok, _job} = CommitWorker.enqueue(project.id, "abc123")
 
     assert [job] = all_enqueued(worker: CommitWorker)
@@ -648,13 +748,38 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
         projects: [%{"targets" => [%{"name" => "AppTests", "selective_testing_metadata" => %{"hit" => hit}}]}]
       }
 
+    # The command event as the client reports it (`refold_after_selective_testing/3`
+    # also needs the graph it stored only for its targets' count and time).
+    defp event(run),
+      do: %{
+        id: UUIDv7.generate(),
+        project_id: run.project_id,
+        test_run_id: run.id,
+        git_commit_sha: "abc123",
+        created_at: NaiveDateTime.utc_now()
+      }
+
+    defp stored, do: %{targets: 0, inserted_at: NaiveDateTime.utc_now()}
+
     test "refold the commit once they are stored", %{project: project, account: account} do
       run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
       Commits.signal_complete(project, "abc123")
       Oban.drain_queue(queue: :default, with_scheduled: true)
 
-      assert {:ok, %Oban.Job{} = job} =
-               Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, graph("local"))
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          test_run_id: run.id,
+          git_commit_sha: "abc123"
+        )
+
+      {:ok, stored} =
+        with_flushed_ingestion_buffers(fn ->
+          Tuist.Xcode.create_xcode_graph(%{command_event: event, xcode_graph: graph("local")})
+        end)
+
+      assert {:ok, %Oban.Job{} = job} = Coverage.refold_after_selective_testing(event, graph("local"), stored)
 
       assert %{git_commit_sha: "abc123"} = job.args
       assert DateTime.after?(job.scheduled_at, DateTime.utc_now())
@@ -684,21 +809,21 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       }
 
       assert {:ok, %Oban.Job{}} =
-               Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, cached)
+               Coverage.refold_after_selective_testing(event(run), cached, stored())
 
       remote_package_only = update_in(cached, [:projects, Access.at(0), "targets"], &tl/1)
 
-      assert Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, remote_package_only) ==
+      assert Coverage.refold_after_selective_testing(event(run), remote_package_only, stored()) ==
                :skipped
     end
 
     test "schedule nothing when no target was skipped, or the event has no run", %{project: project, account: account} do
       run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
 
-      assert Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, graph("miss")) ==
+      assert Coverage.refold_after_selective_testing(event(run), graph("miss"), stored()) ==
                :skipped
 
-      assert Coverage.refold_after_selective_testing(%{test_run_id: nil, project_id: project.id}, graph("local")) ==
+      assert Coverage.refold_after_selective_testing(%{event(run) | test_run_id: nil}, graph("local"), stored()) ==
                :skipped
     end
   end

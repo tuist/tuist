@@ -19,8 +19,14 @@ defmodule Tuist.ClickHouse.Inserts do
 
   @retention_hours 24
 
-  @doc "Records that `key`'s rows, sharing `rows_inserted_at`, were inserted into `table`."
-  def record(table, key, project_id, rows_inserted_at) do
+  @doc """
+  Records that `key`'s rows, sharing `rows_inserted_at`, were inserted into
+  `table`. `rows:` is how many there are, for rows that don't share one
+  `inserted_at` but were all inserted at or after it. `sha:` names the
+  commit whose fold reads them (`Tuist.Tests.Coverage.RunInputs`), which
+  takes a commit's insert recorded without `rows:` as one still being written.
+  """
+  def record(table, key, project_id, rows_inserted_at, opts \\ []) do
     Repo.insert_all(
       Insert,
       [
@@ -29,11 +35,13 @@ defmodule Tuist.ClickHouse.Inserts do
           key: key,
           project_id: project_id,
           rows_inserted_at: utc(rows_inserted_at),
+          row_count: Keyword.get(opts, :rows),
+          git_commit_sha: Keyword.get(opts, :sha),
           synced_at: nil,
           inserted_at: DateTime.utc_now()
         }
       ],
-      on_conflict: {:replace, [:project_id, :rows_inserted_at, :synced_at, :inserted_at]},
+      on_conflict: {:replace, [:project_id, :rows_inserted_at, :row_count, :git_commit_sha, :synced_at, :inserted_at]},
       conflict_target: [:clickhouse_table, :key]
     )
 
@@ -104,6 +112,7 @@ defmodule Tuist.ClickHouse.Inserts do
     "`" <> (IngestRepo.config() |> Keyword.fetch!(:database) |> to_string() |> String.replace("`", "")) <> "`"
   end
 
-  defp utc(%NaiveDateTime{} = at), do: DateTime.from_naive!(at, "Etc/UTC")
-  defp utc(%DateTime{} = at), do: at
+  # At microsecond precision whatever the rows' own, such as whole seconds.
+  defp utc(%NaiveDateTime{} = at), do: at |> DateTime.from_naive!("Etc/UTC") |> utc()
+  defp utc(%DateTime{microsecond: {value, _precision}} = at), do: %{at | microsecond: {value, 6}}
 end
