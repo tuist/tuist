@@ -3,6 +3,7 @@ import Config
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
 alias Atlas.Environments.Tuist
+alias Atlas.Guardian.SecretFetcher
 alias Atlas.LLMs.ChatGPT
 alias Atlas.MCP.Proxy.StripeCallPolicy
 alias Atlas.Push.Config
@@ -918,7 +919,10 @@ if config_env() == :prod do
     issuer: "atlas",
     secret_key:
       System.get_env("GUARDIAN_SECRET_KEY") ||
-        raise("environment variable GUARDIAN_SECRET_KEY is missing")
+        raise("environment variable GUARDIAN_SECRET_KEY is missing"),
+    # Verify-only, while tokens signed before a rotation are live.
+    previous_secret_key: System.get_env("GUARDIAN_SECRET_KEY_PREVIOUS"),
+    secret_fetcher: SecretFetcher
 
   config :atlas,
          Atlas.Repo,
@@ -948,7 +952,8 @@ end
 if config_env() in [:dev, :test] do
   config :atlas, Atlas.Guardian,
     issuer: "atlas",
-    secret_key: "dev-only-guardian-secret-do-not-use-in-prod-aaaaaaaaaaaaaaaa"
+    secret_key: "dev-only-guardian-secret-do-not-use-in-prod-aaaaaaaaaaaaaaaa",
+    secret_fetcher: SecretFetcher
 end
 
 # ClickHouse (Engineering.Errors) - separate instance from Tuist server's analytics DB.

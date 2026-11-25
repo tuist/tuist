@@ -63,7 +63,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ $appSecret }}
-                  key: SECRET_KEY_BASE
+                  key: {{ .Values.clickhouse.passwordSecretKey }}
             - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
               value: "1"
           ports:
