@@ -285,6 +285,37 @@ jobs:
             -f "$HELM_CHART_PATH/values-$DEPLOY_ENV.yaml" \
             --set image.tag="$IMAGE_TAG" \
             --atomic --timeout 10m --wait
+      - name: Restart the evaluator if its credentials changed after it started
+        # The evaluator reads symptoms-runtime through envFrom, once, at
+        # container start. Helm applies the ExternalSecret and the Deployment
+        # together and ESO rewrites the Secret a few seconds later, so a pod
+        # can start with the previous credentials (staging did on 2026-11-25
+        # and failed every Pulse login until restarted).
+        run: |
+          set -euo pipefail
+          secret="$HELM_RELEASE_NAME-runtime"
+          # Wait until ESO has synced this generation of the ExternalSecret.
+          for _ in $(seq 1 30); do
+            synced=$(kubectl -n "$NAMESPACE" get externalsecret "$secret" -o json |
+              jq -r '.metadata.generation as $generation |
+                select(.status.syncedResourceVersion // "" | startswith("\($generation)-")) |
+                .status.conditions[]? | select(.type == "Ready") | .status')
+            [[ "$synced" == True ]] && break
+            sleep 2
+          done
+          [[ "$synced" == True ]] || { echo "::error::$secret did not sync"; exit 1; }
+          # Last time ESO wrote the Secret, and the oldest running evaluator container.
+          written=$(kubectl -n "$NAMESPACE" get secret "$secret" -o json |
+            jq -r '[.metadata.managedFields[]? | select(.manager | test("external-secrets")) | .time] | max // empty')
+          started=$(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/instance="$HELM_RELEASE_NAME",app.kubernetes.io/component=evaluator -o json |
+            jq -r '[.items[].status.containerStatuses[]? | .state.running.startedAt // empty] | min // empty')
+          echo "Secret written at ${written:-unknown}; oldest evaluator container started at ${started:-none}"
+          # Timestamps have second precision, so a tie counts as stale.
+          if [[ -n "$written" && -n "$started" && ! "$started" > "$written" ]]; then
+            echo "The evaluator started before its credentials were written; restarting it."
+            kubectl -n "$NAMESPACE" rollout restart deployment/"$HELM_RELEASE_NAME"
+            kubectl -n "$NAMESPACE" rollout status deployment/"$HELM_RELEASE_NAME" --timeout=5m
+          fi
       - name: Diagnostics on failure
         if: failure()
         run: |
