@@ -1,9 +1,9 @@
 [[tools.elixir]]
-version = "1.19.2"
+version = "1.20.5"
 backend = "core:elixir"
 
 [[tools.erlang]]
-version = "28.1"
+version = "29.0.6"
 backend = "core:erlang"
 
 [[tools.ruby]]
