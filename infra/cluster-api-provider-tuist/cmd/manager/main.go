@@ -132,6 +132,8 @@ func main() {
 		orphanReclaimClaimNamePrefix string
 		orphanReclaimZonesRaw        string
 		orphanReclaimInterval        time.Duration
+		nodeIdentitySweepInterval    time.Duration
+		nodeIdentitySweepRevoke      bool
 		ovhPoolPrepInterval          time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
@@ -506,6 +508,12 @@ func main() {
 			"unioned with the distinct zones of all live CRs. The static list keeps a "+
 			"zone covered after its last CR is deleted — the case where a strand is "+
 			"most likely and least visible.")
+	flag.DurationVar(&nodeIdentitySweepInterval, "node-identity-sweep-interval", 15*time.Minute,
+		"How often the sweep for node identities (tart-kubelet-<machine> ServiceAccounts) "+
+			"whose machine, RackHostLease and Node are all gone runs. 0 disables it.")
+	flag.BoolVar(&nodeIdentitySweepRevoke, "node-identity-sweep-revoke", false,
+		"Revoke the orphaned node identities the sweep finds. Without it the sweep "+
+			"only logs them and exports capt_orphaned_node_identities.")
 	flag.DurationVar(&orphanReclaimInterval, "orphan-reclaim-interval", 15*time.Minute,
 		"How often the orphan-reclaim sweep runs. The sweep is a full Scaleway "+
 			"ListServers per zone plus a CR list, so keep it coarse.")
@@ -1152,6 +1160,27 @@ func main() {
 		}
 		setupLog.Info("fleet-spread controller enabled",
 			"deployment", fleetSpreadDeployment, "namespace", ns)
+	}
+
+	if nodeIdentitySweepInterval > 0 {
+		var leaseNodeName func(string) string
+		if rackLeaseFleetName != "" {
+			leaseNodeName = func(lease string) string { return rackLeaseFleetName + "-" + lease }
+		}
+		if err := mgr.Add(&shared.NodeIdentitySweep{
+			Client:        mgr.GetClient(),
+			APIReader:     mgr.GetAPIReader(),
+			Revoker:       credsManager,
+			Namespace:     secretsNamespace,
+			LeaseNodeName: leaseNodeName,
+			Interval:      nodeIdentitySweepInterval,
+			Grace:         2 * time.Hour,
+			Revoke:        nodeIdentitySweepRevoke,
+			Log:           ctrl.Log.WithName("node-identity-sweep"),
+		}); err != nil {
+			setupLog.Error(err, "setup NodeIdentitySweep")
+			os.Exit(1)
+		}
 	}
 
 	// Orphan-reclaim sweep: enabled once a pool prefix is configured

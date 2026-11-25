@@ -2403,6 +2403,15 @@ macosFleet:
     # host, whose CR isn't visible to this cluster's API server.
     activeReclaim: false
 
+  # Node-identity sweep: finds operator-minted tart-kubelet-<machine>
+  # identities (ServiceAccount, long-lived token, ClusterRoleBinding to
+  # tart-kubelet or system:node) whose machine, RackHostLease and Node are all
+  # gone, which happens when a machine is deleted without its finalizer. It
+  # always exports capt_orphaned_node_identities; with revoke it also deletes
+  # them. See controllers/shared/node_identity_gc.go.
+  nodeIdentitySweep:
+    revoke: false
+
   # tart-kubelet — kubelet-shaped agent the CAPI provider installs on
   # each Mac mini. Each Mac mini joins the cluster as a real Node and
   # runs Pods scheduled to it as Tart VMs. The darwin/arm64 binary is

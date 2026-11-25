@@ -331,7 +331,7 @@ own source address. Notes:
   refills within seconds, which is why hosts stayed wedged for weeks with the
   watchdog installed and firing.
 
-Two auxiliary controllers run alongside it:
+Three auxiliary controllers run alongside it:
 
 - **OrphanReclaimer** (`controllers/orphan_reclaimer.go`) — a
   leader-gated periodic sweep that returns Scaleway hosts which were
@@ -348,6 +348,15 @@ Two auxiliary controllers run alongside it:
   `scaleway_orphan_servers` gauge. Enabled by
   `macosFleet.orphanReclaim.poolPrefix`, which also serves as the
   delete path's pool-prefix fallback for legacy CRs.
+- **NodeIdentitySweep** (`controllers/shared/node_identity_gc.go`): a
+  leader-gated sweep for the `tart-kubelet-<machine>` identities every kind
+  mints (ServiceAccount, long-lived token, ClusterRoleBinding to tart-kubelet
+  or `system:node`) whose machine, RackHostLease and Node are all gone. Each
+  kind's delete path revokes its identity only while the finalizer runs, so a
+  stripped finalizer or a removed CRD left valid tokens behind (staging's
+  Elastic Metal `kura-fleet-*`, production's pre-MachineDeployment
+  `macos-fleet-0/-1`). It exports `capt_orphaned_node_identities` and revokes
+  them only with `macosFleet.nodeIdentitySweep.revoke`.
 - **FleetSpreadReconciler** (`controllers/fleetspread_controller.go`) —
   re-rolls a target Deployment when the Ready Mac mini set changes so
   Pods spread across newly-joined hosts.

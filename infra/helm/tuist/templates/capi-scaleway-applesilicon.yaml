@@ -708,6 +708,11 @@ spec:
             - --orphan-reclaim-claim-name-prefix={{ include "tuist.fullname" . }}-
             {{- end }}
             {{- end }}
+            {{- if .Values.macosFleet.nodeIdentitySweep.revoke }}
+            # Revoke node identities whose machine, lease and Node are gone
+            # (controllers/shared/node_identity_gc.go); report-only without.
+            - --node-identity-sweep-revoke
+            {{- end }}
           env:
             # The manager holds about 130 MB of host binaries plus the
             # cluster-wide informer caches. Collect harder as it nears the
