@@ -35,9 +35,24 @@ const (
 // which makes the shim share even a block-backed rootfs over virtiofs, and
 // block_device_driver = "virtio-scsi". virtio-blk is what the staging
 // measurements used.
+//
+// The cache lines change what the guest's flushes cost. By default QEMU opens
+// the thin device through the host page cache and turns every guest flush into
+// an fsync of it, which ends at /data's md RAID1 and takes 5 to 16 ms: the
+// runner's apt-get install took 13.3 s to unpack and configure, against about
+// 1 s over virtiofs, which never passed flushes down, and fsync ran at 33 to 59
+// iops. noflush drops the guest's flushes and direct opens the device with
+// O_DIRECT, so writes skip a second copy in the host page cache: apt took
+// 1.2 s, fsync ran at 6k to 11k iops and sequential writes went from about
+// 0.9 GB/s to 2.6 to 4.9 GB/s. A host crash can lose writes the guest thought
+// were durable, which only matters to a container that outlives the box, and
+// none does: the rootfs is gone with the job.
 const kataBlockRootfsDropIn = `[hypervisor.qemu]
 disable_block_device_use = false
 block_device_driver = "virtio-blk"
+block_device_cache_set = true
+block_device_cache_direct = true
+block_device_cache_noflush = true
 `
 
 // The pool takes a quarter of /data's free space at first boot, at most 400
@@ -85,7 +100,7 @@ fi
 attach() {
   local dev
   dev=$(losetup -j "$1" -n -O NAME | head -n 1)
-  [ -n "$dev" ] || dev=$(losetup -f --show "$1")
+  [ -n "$dev" ] || dev=$(losetup -f --show --direct-io=on "$1")
   echo "$dev"
 }
 meta=$(attach "$dir/metadata")
