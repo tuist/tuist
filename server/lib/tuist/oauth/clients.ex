@@ -193,11 +193,16 @@ defmodule Tuist.OAuth.Clients do
   def oidc_jwks do
     keys =
       case luft_server_client() do
-        %Client{private_key: private_key} ->
-          {_fields, public} = private_key |> JOSE.JWK.from_pem() |> JOSE.JWK.to_public_map()
-          # The same `kid` Boruta puts in the ID token's header.
-          kid = Crypto.kid_from_private_key(private_key)
-          [Map.merge(public, %{"kid" => kid, "use" => "sig", "alg" => "RS256"})]
+        %Client{} ->
+          # Every configured key, not only the one that signs, so a key is
+          # published before it signs and stays published while tokens signed
+          # with it are live. See `Environment.oidc_signing_keys/1`.
+          for private_key <- Environment.oidc_signing_keys() do
+            {_fields, public} = private_key |> JOSE.JWK.from_pem() |> JOSE.JWK.to_public_map()
+            # The same `kid` Boruta puts in the ID token's header.
+            kid = Crypto.kid_from_private_key(private_key)
+            Map.merge(public, %{"kid" => kid, "use" => "sig", "alg" => "RS256"})
+          end
 
         nil ->
           []

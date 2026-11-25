@@ -63,7 +63,7 @@ Unauthenticated API calls answer `401 {"error": "unauthenticated", "login_url": 
 
 Tuist server (the deployment Luft signs in to), all required for it to act as the OpenID Provider. In production the Tuist chart's `server.config.luftServerOidc` syncs them: the signing key from the `OIDC_PROVIDER` 1Password item (`signing-key.pem`), the client ID and secret from the `LUFT_SERVER` item this server's chart also reads, and the redirect URIs from the chart's values.
 
-- `TUIST_OIDC_SIGNING_KEY`: RSA private key (PEM) that signs ID tokens.
+- `TUIST_OIDC_SIGNING_KEY`: RSA private key (PEM) that signs ID tokens. It may hold several concatenated PEM blocks: the first signs, and `/oauth2/jwks` publishes all of them, so a key can be published before it signs and kept while its tokens are live. `Tuist.Environment.oidc_signing_keys/1` has the rotation steps.
 - `TUIST_LUFT_SERVER_OAUTH_CLIENT_ID` (a UUID) and `TUIST_LUFT_SERVER_OAUTH_CLIENT_SECRET`.
 - `TUIST_LUFT_SERVER_OAUTH_REDIRECT_URIS`: `https://luft.work/auth/callback` (comma-separated, exact).
 

@@ -2267,12 +2267,45 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  RSA private key (PEM) that signs OpenID Connect ID tokens. Without it the
-  server is no OpenID Provider: discovery answers 404 and no relying party
-  client is registered.
+  RSA private key (PEM) that signs OpenID Connect ID tokens: the first of
+  `oidc_signing_keys/1`. Without it the server is no OpenID Provider:
+  discovery answers 404 and no relying party client is registered.
   """
   def oidc_signing_key(secrets \\ secrets()) do
-    get([:oidc, :signing_key], secrets)
+    List.first(oidc_signing_keys(secrets))
+  end
+
+  @doc """
+  Every RSA private key (PEM) in `TUIST_OIDC_SIGNING_KEY`, which may hold
+  several concatenated PEM blocks. The first signs ID tokens; `/oauth2/jwks`
+  publishes the public half of all of them, each under the `kid` Boruta puts
+  in the tokens it signs. Rotation, so relying parties never meet a `kid`
+  they cannot find:
+
+  1. Append the new key after the current one (`cat current.pem new.pem`, no
+     blank line or CRLF: Boruta's `kid` is a hash of the exact PEM text, so
+     changing the current block's whitespace changes its `kid`) and deploy.
+     It is published, not used.
+  2. Once relying parties' cached key sets have expired (the JWKS response is
+     cacheable for an hour), move it first and deploy. It signs.
+  3. Once ID tokens signed with the old key have expired (an hour), remove the
+     old key and deploy.
+  """
+  def oidc_signing_keys(secrets \\ secrets()) do
+    case get([:oidc, :signing_key], secrets) do
+      value when is_binary(value) ->
+        # Boruta's kid is a hash of the exact PEM string, so a single key is
+        # returned untouched and each block keeps the whitespace after it:
+        # appending a key to the file must not change the kid of the one that
+        # is already signing.
+        case ~r/-----BEGIN ([A-Z ]+)-----.+?-----END \1-----\s*/s |> Regex.scan(value) |> Enum.map(&hd/1) do
+          [_] -> [value]
+          blocks -> blocks
+        end
+
+      _ ->
+        []
+    end
   end
 
   @doc """
