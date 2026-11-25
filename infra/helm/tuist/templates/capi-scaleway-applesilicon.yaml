@@ -152,31 +152,26 @@ rules:
     # stranded, once the takeover's tart-kubelet has reaped their VMs.
     resources: [pods]
     verbs: [patch, delete]
-  - apiGroups: [""]
-    # The operator owns four Secret families in its own namespace:
-    #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
-    #   - <machine>-bootstrap: per-machine sudo password +
-    #     SSH username + TOFU host fingerprint
-    #   - tart-kubelet-<machine>-token: the long-lived kubelet token of
-    #     a Linux machine, and of a macOS host until it moves to the token
-    #     it rotates (then the node access controller deletes it)
-    # Plus bootstrap-token-<id> in kube-system. Other Secrets (cluster
-    # Secret holding Scaleway creds) are watched read-only.
-    resources: [secrets]
-    verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: [""]
-    # Per-machine kubelet identity. Manager.EnsureNodeIdentity creates
-    # one ServiceAccount per Mac mini in the operator's namespace and
-    # binds it to the chart's tart-kubelet ClusterRole.
-    resources: [serviceaccounts]
-    verbs: [get, list, watch, create, update, patch, delete]
+  # No Secret or ServiceAccount rule here: a cluster-wide one reads every
+  # Secret in the cluster, the 1Password service account token included. The
+  # operator's Secrets and node-identity ServiceAccounts all live in its own
+  # namespace, and its only other Secret write is a kubeadm bootstrap token in
+  # kube-system; both are namespaced Roles below, and the admission policy
+  # after them pins what it may write in kube-system and which
+  # ClusterRoleBindings it may write.
   - apiGroups: ["rbac.authorization.k8s.io"]
     # Per-machine binding referencing the chart's tart-kubelet
     # ClusterRole. We bind, never modify the role itself; the chart
-    # owns the role definition centrally.
+    # owns the role definition centrally. RBAC cannot scope a create by
+    # name, so `<name>-identity-writes` below admits only
+    # tart-kubelet-<machine> bindings of one ServiceAccount in this namespace.
     resources: [clusterrolebindings]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["rbac.authorization.k8s.io"]
+    # `<name>-identity-writes` admits a RoleBinding only of a Role to one
+    # tart-kubelet-<node> ServiceAccount in this namespace: with `bind` on
+    # system:node, a RoleBinding of that ClusterRole would read a namespace's
+    # Secrets.
     # Node access: per macOS host, a Role and RoleBinding in each namespace
     # with Pods on its Node, naming the Secrets, ConfigMaps and ServiceAccount
     # tokens those Pods use, plus the host's own Roles. The cache watches only
@@ -190,16 +185,12 @@ rules:
     resourceNames:
       - {{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
     verbs: [bind]
-  - apiGroups: [""]
-    # RBAC lets the operator write a Role granting only what it holds itself:
-    # the node access Roles grant `get` on named ConfigMaps (Secrets it reads
-    # already) and `create` on named ServiceAccount tokens. Token create also
-    # mints each macOS host's kubeconfig token.
-    resources: [configmaps]
-    verbs: [get]
-  - apiGroups: [""]
-    resources: [serviceaccounts/token]
-    verbs: [create]
+  # RBAC lets the operator write a Role granting only what it holds itself,
+  # and the node access Roles grant `get` on named Secrets and ConfigMaps and
+  # `create` on named ServiceAccount tokens. It holds those only in the
+  # namespaces macOS Pods run in (`<name>-macos-pod-refs` below), never
+  # cluster-wide: token create on any ServiceAccount is any ServiceAccount's
+  # access.
   # Verbs no API serves, which the node access Roles grant by name and the
   # tart-kubelet admission policy asks the authorizer about: binding a token
   # to a Pod on the host's Node, and the fleet the host's Node may join.
@@ -245,6 +236,200 @@ rules:
     resources: [daemonsets]
     resourceNames: [cilium]
     verbs: [get]
+---
+# The operator's Secrets (fleet SSH keys, per-machine bootstrap, rack card
+# credentials, lease keys, node tokens) and the per-machine node-identity
+# ServiceAccounts, in its own namespace only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-credentials
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: [""]
+    resources: [secrets, serviceaccounts]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Node access Roles for macOS Pods here (see `<name>-macos-pod-refs`), and
+  # each macOS host's kubeconfig token.
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-credentials
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-credentials
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+{{- range $ns := list (.Values.runnersFleet.namespace | default "tuist-runners") (.Values.sandboxes.namespace | default "tuist-sandboxes") | uniq }}
+{{- if ne $ns $.Release.Namespace }}
+---
+# The namespaces macOS Pods run in besides this one. The node access
+# controller grants each host, by name, the Secrets, ConfigMaps and
+# ServiceAccount tokens its Pods use here, which RBAC lets it write only while
+# it holds them itself.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-macos-pod-refs
+  namespace: {{ $ns }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: [""]
+    resources: [secrets, configmaps]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-macos-pod-refs
+  namespace: {{ $ns }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-macos-pod-refs
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}
+---
+# kubeadm bootstrap tokens for the Linux self-join (bootstrap-token-<id>).
+# Create and delete, never read: `<name>-identity-writes` admits only
+# bootstrap-token Secrets here.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-bootstrap-tokens
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [create, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-bootstrap-tokens
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-bootstrap-tokens
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+# What RBAC cannot say by name. The operator may write a ClusterRoleBinding
+# only as a node identity: named tart-kubelet-<machine>, binding the chart's
+# tart-kubelet role or system:node to the one ServiceAccount of the same name
+# in this namespace. Without this, `create clusterrolebindings` plus `bind` on
+# system:node would let the operator bind system:node, which reads every
+# Secret, to any subject, its own ServiceAccount included. RoleBindings (the
+# node access controller's) likewise bind only Roles to tart-kubelet-<node>,
+# never a ClusterRole such as system:node into a namespace. In kube-system it
+# may write only bootstrap-token Secrets.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $name }}-identity-writes
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["rbac.authorization.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["clusterrolebindings"]
+      - apiGroups: ["rbac.authorization.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["rolebindings"]
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["secrets"]
+  matchConditions:
+    - name: operator
+      expression: >-
+        request.userInfo.username == {{ printf "system:serviceaccount:%s:%s" .Release.Namespace $name | quote }}
+  variables:
+    - name: obj
+      expression: "request.operation == 'DELETE' ? oldObject : object"
+    - name: nodeIdentitySubject
+      expression: >-
+        request.operation == 'DELETE' || request.resource.resource == 'secrets' ||
+        (size(object.subjects) == 1 &&
+         object.subjects[0].kind == 'ServiceAccount' &&
+         object.subjects[0].namespace == {{ .Release.Namespace | quote }} &&
+         object.subjects[0].name.startsWith('tart-kubelet-'))
+  validations:
+    - expression: >-
+        request.resource.resource != 'secrets' ||
+        request.namespace == {{ .Release.Namespace | quote }} ||
+        (request.namespace == 'kube-system' &&
+         variables.obj.metadata.name.startsWith('bootstrap-token-') &&
+         (request.operation == 'DELETE' || object.type == 'bootstrap.kubernetes.io/token'))
+      message: The CAPI operator writes no Secret outside its namespace but kube-system bootstrap tokens.
+    - expression: >-
+        request.resource.resource != 'clusterrolebindings' ||
+        (variables.obj.metadata.name.startsWith('tart-kubelet-') &&
+         (request.operation == 'DELETE' ||
+          (object.roleRef.kind == 'ClusterRole' &&
+         object.roleRef.name in [{{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") | quote }}, 'system:node'] &&
+         variables.nodeIdentitySubject &&
+         object.subjects[0].name == object.metadata.name)))
+      message: The CAPI operator writes only tart-kubelet-<machine> node-identity ClusterRoleBindings.
+    - expression: >-
+        request.resource.resource != 'rolebindings' ||
+        (object.roleRef.kind == 'Role' && variables.nodeIdentitySubject)
+      message: The CAPI operator binds only Roles, and only to one tart-kubelet-<node> ServiceAccount in its namespace.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $name }}-identity-writes
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+spec:
+  policyName: {{ $name }}-identity-writes
+  validationActions: [Deny]
 {{- if .Values.macosFleet.tailscaleEgress.enabled }}
 ---
 # Namespaced Role + RoleBinding granting the operator's SA the
