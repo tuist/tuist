@@ -108,11 +108,13 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # tracked files the script changed go back to the commit first, so the
   # record describes the copy. Before that it stops the cache proxy and the
   # build service that write the compilation cache, waits for them to exit,
-  # and deletes the cache. A kept store, quiesced or not, failed the
-  # sessions' compiles with "not a IncludeFileList node kind", and the plugin
-  # logged action-cache entries whose values the store lacked (measured
-  # 2026-11). The build products in DerivedData stay, and the remote cache
-  # serves what reruns. It also drops
+  # and flushes each of the cache's files with `F_FULLFSYNC` (51). The store
+  # writes through shared mappings, and `sync` returns before their pages
+  # reach the disk: a Mac booted from disks saved after `sync` alone read
+  # `data.v1` with a zeroed header ("specified header offset (16) does not
+  # match existing config (0)") or with missing objects ("not a
+  # IncludeFileList node kind"), and one saved after the flush built from the
+  # kept store without a miss (measured 2026-11). It also drops
   # the session the CLI stored from the build's identity token, and the
   # script's simulators, and stops the simulator services: a Mac booted
   # from the disks mounts the simulator runtimes at new paths, and the
@@ -138,7 +140,9 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   while pgrep -x SWBBuildService >/dev/null || pgrep -x XCBBuildService >/dev/null; do
     i=$((i + 1)); [ "$i" -gt 30 ] && break; sleep 1
   done
-  rm -rf "$cache"
+  if [ -d "$cache" ]; then
+    find "$cache" -type f -exec perl -e 'for (@ARGV) { open my $f, "+<", $_ or die "$_: $!"; fcntl($f, 51, 0) or die "$_: $!" }' {} +
+  fi
   rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"
   xcrun simctl shutdown all >/dev/null 2>&1 || true
   xcrun simctl delete all >/dev/null 2>&1 || true
