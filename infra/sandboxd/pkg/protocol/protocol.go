@@ -237,6 +237,10 @@ type Hello struct {
 	// CacheDriveInTemplate: shape snapshots carry the cache placeholder, so
 	// a template create can attach a cache and still restore from memory.
 	CacheDriveInTemplate bool `json:"cache_drive_in_template,omitempty"`
+	// CacheGrantsFromArchive: a create from an archive without a memory
+	// image (a disk snapshot's archive) takes a CacheGrant too; it cold
+	// boots like a disk-snapshot create.
+	CacheGrantsFromArchive bool `json:"cache_grants_from_archive,omitempty"`
 }
 
 type Result struct {

@@ -11,10 +11,15 @@
 # agent's configure mounted: the same BindCheckoutCache sbx-worker calls after
 # seeding a Claude Code session's checkout. It checks the bind, its ownership,
 # an empty target, a second call, a checkout's own deps kept and a symlinked
-# parent refused, then the mount after a pause and resume.
+# parent refused, then the mount after a pause and resume. It then archives the
+# disk snapshot to a local object store (archive_disks, as the server does for
+# a project snapshot) and runs the same test in a sandbox created from that
+# object alone with the cache image: how a session starts when no node holds
+# the snapshot any more.
 #
 # NOT COVERED: sbx-worker's call site (it needs a Claude Code work order), the
-# runner-cache agent's copy and the server's grant.
+# runner-cache agent's copy, the server's grant and S3 (the store is a local
+# HTTP server answering UploadPart and ranged GETs).
 set -euo pipefail
 [[ "${GITHUB_ACTIONS:-}" == true && "${RUNNER_ENVIRONMENT:-}" == github-hosted ]] || {
   echo 'Run this only on a disposable GitHub-hosted Linux runner.' >&2
@@ -30,9 +35,11 @@ daemon="checkout-cache-${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:-1}"
 go_version=$(awk '$1 == "go" { print $2 }' "$repo/infra/sandbox-image/go.mod")
 go_url="https://go.dev/dl/go${go_version}.linux-amd64.tar.gz"
 loop=''
+store_pid=''
 cleanup() {
   local rc=$?
   trap - EXIT
+  if [[ -n "$store_pid" ]]; then kill "$store_pid" 2>/dev/null || true; fi
   docker logs "$daemon" > "$evidence/sandboxd.log" 2>&1 || true
   docker rm -f "$daemon" >/dev/null 2>&1 || true
   if mountpoint -q "$work/data"; then sudo umount "$work/data" || rc=1; fi
@@ -59,7 +66,69 @@ sudo chown -R 1000:1000 "$work/volume"
 sudo mkdir -p "$work/data/cache-images"
 sudo mkfs.ext4 -q -F -d "$work/volume" "$work/data/cache-images/checkout-cache" 1G
 
+# The object store archives go to: UploadPart PUTs (?partNumber=N, answering
+# an ETag) and GETs of the parts joined, ranged or whole.
+cat > "$work/store.py" <<'PY'
+import http.server, os, re, sys
+root, port = sys.argv[1], int(sys.argv[2])
+os.makedirs(root, exist_ok=True)
+
+def parts():
+    names = sorted(n for n in os.listdir(root) if not n.startswith('.'))
+    return [(os.path.join(root, n), os.path.getsize(os.path.join(root, n))) for n in names]
+
+class Store(http.server.BaseHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
+
+    def do_PUT(self):
+        number = int(re.search(r'partNumber=(\d+)', self.path).group(1))
+        left = int(self.headers['Content-Length'])
+        tmp = os.path.join(root, '.%d.tmp' % number)
+        with open(tmp, 'wb') as f:
+            while left:
+                chunk = self.rfile.read(min(left, 1 << 20))
+                if not chunk:
+                    raise ConnectionError('short part')
+                f.write(chunk)
+                left -= len(chunk)
+        os.replace(tmp, os.path.join(root, '%05d' % number))
+        self.send_response(200)
+        self.send_header('ETag', '"etag-%d"' % number)
+        self.send_header('Content-Length', '0')
+        self.end_headers()
+
+    def do_GET(self):
+        files = parts()
+        total = sum(size for _, size in files)
+        start, end, status = 0, total - 1, 200
+        ranged = re.fullmatch(r'bytes=(\d+)-(\d+)', self.headers.get('Range', ''))
+        if ranged:
+            start, end, status = int(ranged.group(1)), min(int(ranged.group(2)), total - 1), 206
+        self.send_response(status)
+        self.send_header('Content-Length', str(max(end - start + 1, 0)))
+        if ranged:
+            self.send_header('Content-Range', 'bytes %d-%d/%d' % (start, end, total))
+        self.end_headers()
+        offset = 0
+        for path, size in files:
+            lo, hi = max(start, offset), min(end + 1, offset + size)
+            if lo < hi:
+                with open(path, 'rb') as f:
+                    f.seek(lo - offset)
+                    left = hi - lo
+                    while left:
+                        chunk = f.read(min(left, 1 << 20))
+                        self.wfile.write(chunk)
+                        left -= len(chunk)
+            offset += size
+
+http.server.ThreadingHTTPServer(('0.0.0.0', port), Store).serve_forever()
+PY
+python3 -I "$work/store.py" "$work/store" 9472 > "$evidence/store.log" 2>&1 &
+store_pid=$!
+
 docker run -d --name "$daemon" --privileged --cgroupns=host --dns 1.1.1.1 --dns 8.8.8.8 \
+  --add-host objstore:host-gateway \
   -v "$work/data:/data/sandboxes" -p 127.0.0.1:9471:9471 \
   -e ADMIN_ADDR=:9471 -e TEMPLATE_TAG=validation -e CACHE_IMAGE_DIR=/data/sandboxes/cache-images \
   -e BOOT_TIMEOUT=120s -e TEMPLATE_BOOT_TIMEOUT=180s -e SHUTDOWN_TIMEOUT=60s \
@@ -115,10 +184,25 @@ api POST /v1/sandboxes/cached/resume --data '{}' > "$evidence/resume.json"
 guest cached "$check" | tee "$evidence/bind-resumed.txt"
 api POST /v1/sandboxes/cached/delete >/dev/null
 
-for f in bind bind-resumed; do
+# The same snapshot through its archive: no memory image, so the create cold
+# boots it with the cache drive.
+part_urls=$(jq -nc '[range(1; 65) | "http://objstore:9472/archive?partNumber=\(.)"]')
+jq -nc --argjson urls "$part_urls" '{part_size: 134217728, part_urls: $urls}' \
+  | api POST /v1/disk_snapshots/guest-test/archive --data-binary @- | tee "$evidence/archive.json"
+echo
+jq -e '.disks_synced == true and (.tail_offset // 0) == 0 and .bytes > 0' "$evidence/archive.json" >/dev/null
+jq -c '{id: "archived", template: "default", vcpus: 2, memory_mb: 4096, workspace_gb: 2,
+  cache_image: "checkout-cache", from_archive: {url: "http://objstore:9472/archive", bytes, sha256}}' \
+  "$evidence/archive.json" | api POST /v1/sandboxes --data-binary @- | tee "$evidence/create-archived.json"
+echo
+guest archived "$check" | tee "$evidence/bind-archive.txt"
+api POST /v1/sandboxes/archived/delete >/dev/null
+grep -q '"GET /archive HTTP' "$evidence/store.log"
+
+for f in bind bind-resumed bind-archive; do
   grep -q '^/mnt/tuist-cache /dev/vdc ext4 .*noatime' "$evidence/$f.txt"
   grep -q -- '--- PASS: TestBindCheckoutCacheEndToEnd' "$evidence/$f.txt"
   if grep -q -- '--- SKIP' "$evidence/$f.txt"; then exit 1; fi
   [[ $(grep -c -- '    --- PASS:' "$evidence/$f.txt") == 4 ]]
 done
-echo 'DONE: checkout-relative cache paths bound into a checkout inside real Firecracker guests.'
+echo 'DONE: checkout-relative cache paths bound into a checkout inside real Firecracker guests, from a disk snapshot and from its archive.'

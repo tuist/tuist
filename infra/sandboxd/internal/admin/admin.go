@@ -38,6 +38,13 @@ type createRequest struct {
 	// the same names.
 	FromDiskSnapshot string `json:"from_disk_snapshot"`
 	CacheImage       string `json:"cache_image"`
+	// FromArchive is protocol.CreateArgs' field of the same name.
+	FromArchive *protocol.ArchiveSource `json:"from_archive"`
+}
+
+type archiveDisksRequest struct {
+	PartSize int64    `json:"part_size"`
+	PartURLs []string `json:"part_urls"`
 }
 
 type pauseRequest struct {
@@ -80,6 +87,7 @@ func NewHandler(backend Backend, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /v1/sandboxes/{id}/pause", h.pause)
 	mux.HandleFunc("POST /v1/sandboxes/{id}/resume", h.resume)
 	mux.HandleFunc("POST /v1/sandboxes/{id}/save_disks", h.saveDisks)
+	mux.HandleFunc("POST /v1/disk_snapshots/{id}/archive", h.archiveDisks)
 	mux.HandleFunc("POST /v1/sandboxes/{id}/delete", h.delete)
 	mux.HandleFunc("DELETE /v1/sandboxes/{id}", h.delete)
 	mux.HandleFunc("POST /v1/sandboxes/{id}/exec", h.exec)
@@ -176,7 +184,7 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 	res, err := h.backend.Create(r.Context(), protocol.CreateArgs{
 		SandboxID: id, Template: req.Template, TemplateTag: req.TemplateTag, VCPUs: req.VCPUs,
 		MemoryMB: req.MemoryMB, WorkspaceGB: req.WorkspaceGB, Hostname: req.Hostname,
-		FromDiskSnapshot: req.FromDiskSnapshot, CacheImage: req.CacheImage,
+		FromDiskSnapshot: req.FromDiskSnapshot, CacheImage: req.CacheImage, FromArchive: req.FromArchive,
 	})
 	if err != nil {
 		writeError(w, err)
@@ -234,6 +242,24 @@ func (h *handler) saveDisks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := h.backend.SaveDisks(r.Context(), protocol.SaveDisksArgs{SandboxID: id, SnapshotID: req.SnapshotID})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (h *handler) archiveDisks(w http.ResponseWriter, r *http.Request) {
+	id, ok := segment(w, r, "id")
+	if !ok {
+		return
+	}
+	var req archiveDisksRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+	res, err := h.backend.ArchiveDisks(r.Context(), protocol.ArchiveDisksArgs{SnapshotID: id, PartSize: req.PartSize, PartURLs: req.PartURLs})
 	if err != nil {
 		writeError(w, err)
 		return

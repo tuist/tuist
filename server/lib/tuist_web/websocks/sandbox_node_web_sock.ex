@@ -54,7 +54,8 @@ defmodule TuistWeb.SandboxNodeWebSock do
       archives: false,
       cpu_guarantees: false,
       cache_grants: false,
-      cache_drive_in_template: false
+      cache_drive_in_template: false,
+      cache_grants_from_archive: false
     }
   end
 
@@ -249,6 +250,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
     |> maybe_merge(:cpu_guarantees, frame["cpu_guarantees"], &(&1 == true))
     |> maybe_merge(:cache_grants, frame["cache_grants"], &(&1 == true))
     |> maybe_merge(:cache_drive_in_template, frame["cache_drive_in_template"], &(&1 == true))
+    |> maybe_merge(:cache_grants_from_archive, frame["cache_grants_from_archive"], &(&1 == true))
     |> maybe_merge(:direct_exec_endpoint, frame["direct_exec_endpoint"], &direct_exec_endpoint/1)
   end
 

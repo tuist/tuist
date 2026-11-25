@@ -340,8 +340,11 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		if m.cfg.CacheImageDir == "" {
 			return res, fmt.Errorf("%w: this daemon has no cache image directory", ErrCacheImage)
 		}
-		if fromArchive {
-			return res, fmt.Errorf("%w: a create from an archive cannot attach one", ErrCacheImage)
+		// An archive without a memory image always cold boots, like a disk
+		// snapshot, so it can take a cache drive; one with memory restores
+		// a guest that never had it.
+		if fromArchive && args.FromArchive.TailOffset > 0 {
+			return res, fmt.Errorf("%w: a create from an archive with memory cannot attach one", ErrCacheImage)
 		}
 		if err := vm.ValidateID(args.CacheImage); err != nil {
 			return res, fmt.Errorf("%w: %v", ErrCacheImage, err)
