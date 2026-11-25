@@ -357,7 +357,14 @@ RUN install -m 0755 -d /etc/apt/keyrings \
         docker-buildx-plugin \
         docker-compose-plugin \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # The base image's docker-clean apt config, dropped now that the image's
+    # own installs are done. It disables pkgcache.bin, so every apt command
+    # in a job re-parses all lists (0.35 s against 0.01 s per `apt-cache`,
+    # 0.56 s against 0.20 s for a no-op `apt-get install`). Keep
+    # docker-gzip-indexes: uncompressed lists are 2.5 times the bytes, and
+    # writing them to the virtio-fs rootfs adds 0.6 s to `apt-get update`.
+    && rm -f /etc/apt/apt.conf.d/docker-clean
 
 # Android SDK, resolved in the `android-sdk` stage above. Gradle
 # cannot configure an Android project without a platform + build-tools:

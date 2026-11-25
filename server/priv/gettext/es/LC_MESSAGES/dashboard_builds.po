@@ -523,7 +523,7 @@ msgstr "Rendimiento de descarga"
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:49
 #: lib/tuist_web/live/once_runs_live.ex:1002
-#: lib/tuist_web/live/remote_execution_live.ex:725
+#: lib/tuist_web/live/remote_execution_live.ex:693
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:30
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
@@ -1070,7 +1070,7 @@ msgstr "Configuración del proyecto"
 #: lib/tuist_web/live/generate_runs_live.html.heex:108
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:76
 #: lib/tuist_web/live/once_runs_live.ex:1003
-#: lib/tuist_web/live/remote_execution_live.ex:731
+#: lib/tuist_web/live/remote_execution_live.ex:699
 #: lib/tuist_web/live/run_detail_live.html.heex:156
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:15
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
@@ -1124,6 +1124,7 @@ msgid "Resources"
 msgstr "Recursos"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:90
+#: lib/tuist_web/live/remote_execution_live.ex:482
 #: lib/tuist_web/live/run_detail_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Run"
@@ -1203,7 +1204,7 @@ msgstr "Tamaño (MB)"
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
 #: lib/tuist_web/live/mix_build_live.html.heex:601
 #: lib/tuist_web/live/once_runs_live.ex:846
-#: lib/tuist_web/live/remote_execution_live.ex:473
+#: lib/tuist_web/live/remote_execution_live.ex:433
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
@@ -1246,7 +1247,7 @@ msgstr "Fuentes"
 #: lib/tuist_web/live/mix_build_live.html.heex:399
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:23
 #: lib/tuist_web/live/once_run_live.ex:319
-#: lib/tuist_web/live/remote_execution_live.ex:730
+#: lib/tuist_web/live/remote_execution_live.ex:698
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #: lib/tuist_web/live/xcode_build_runs_live.ex:221
 #: lib/tuist_web/live/xcode_builds_live.ex:451
@@ -2504,8 +2505,8 @@ msgstr "Índice de acción declarada"
 #: lib/tuist_web/live/bazel_invocation_live.ex:455
 #: lib/tuist_web/live/bazel_invocation_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:625
-#: lib/tuist_web/live/remote_execution_live.ex:245
-#: lib/tuist_web/live/remote_execution_live.ex:846
+#: lib/tuist_web/live/remote_execution_live.ex:239
+#: lib/tuist_web/live/remote_execution_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "Executions"
 msgstr "Ejecuciones"
@@ -2590,7 +2591,7 @@ msgstr "No encontrado en este proyecto."
 #: lib/tuist_web/live/build_entity_live.html.heex:443
 #: lib/tuist_web/live/build_entity_live.html.heex:455
 #: lib/tuist_web/live/build_entity_live.html.heex:594
-#: lib/tuist_web/live/remote_execution_live.ex:701
+#: lib/tuist_web/live/remote_execution_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr "Sin registrar"
@@ -3404,110 +3405,100 @@ msgstr "Cola"
 msgid "Remote execution"
 msgstr "Ejecución remota"
 
-#: lib/tuist_web/live/remote_execution_live.ex:418
-#, elixir-autogen, elixir-format
-msgid "Execution diagnostics"
-msgstr "Diagnóstico de ejecución"
-
-#: lib/tuist_web/live/remote_execution_live.ex:443
-#, elixir-autogen, elixir-format
-msgid "Open build runs"
-msgstr "Abrir ejecuciones de compilación"
-
-#: lib/tuist_web/live/remote_execution_live.ex:579
-#: lib/tuist_web/live/remote_execution_live.ex:727
+#: lib/tuist_web/live/remote_execution_live.ex:542
+#: lib/tuist_web/live/remote_execution_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Avg. execution"
 msgstr "Ejecución media"
 
-#: lib/tuist_web/live/remote_execution_live.ex:696
+#: lib/tuist_web/live/remote_execution_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "Avg. execution time"
 msgstr "Tiempo medio de ejecución"
 
-#: lib/tuist_web/live/remote_execution_live.ex:692
+#: lib/tuist_web/live/remote_execution_live.ex:660
 #, elixir-autogen, elixir-format
 msgid "Avg. queue time"
 msgstr "Tiempo medio en cola"
 
-#: lib/tuist_web/live/remote_execution_live.ex:400
+#: lib/tuist_web/live/remote_execution_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "No remote execution timings in this period"
 msgstr "No hay tiempos de ejecución remota en este periodo"
 
-#: lib/tuist_web/live/remote_execution_live.ex:569
-#: lib/tuist_web/live/remote_execution_live.ex:726
-#: lib/tuist_web/live/remote_execution_live.ex:770
+#: lib/tuist_web/live/remote_execution_live.ex:532
+#: lib/tuist_web/live/remote_execution_live.ex:694
+#: lib/tuist_web/live/remote_execution_live.ex:738
 #, elixir-autogen, elixir-format
 msgid "Remote actions"
 msgstr "Acciones remotas"
 
-#: lib/tuist_web/live/remote_execution_live.ex:316
+#: lib/tuist_web/live/remote_execution_live.ex:308
 #, elixir-autogen, elixir-format
 msgid "Time actions ran on a remote worker. This is per-action work, not build wall time or billed VM time."
 msgstr "Tiempo que las acciones se ejecutaron en un trabajador remoto. Se trata del trabajo por acción, no del tiempo total de compilación ni del tiempo facturado de la máquina virtual."
 
-#: lib/tuist_web/live/remote_execution_live.ex:291
+#: lib/tuist_web/live/remote_execution_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Time actions waited for a remote worker. Actions without a recorded queue phase are excluded."
 msgstr "Tiempo que las acciones esperaron a un trabajador remoto. Las acciones sin una fase de cola registrada quedan excluidas."
 
-#: lib/tuist_web/live/remote_execution_live.ex:695
+#: lib/tuist_web/live/remote_execution_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "p50 execution time"
 msgstr "Tiempo de ejecución p50"
 
-#: lib/tuist_web/live/remote_execution_live.ex:691
+#: lib/tuist_web/live/remote_execution_live.ex:659
 #, elixir-autogen, elixir-format
 msgid "p50 queue time"
 msgstr "Tiempo en cola p50"
 
-#: lib/tuist_web/live/remote_execution_live.ex:694
+#: lib/tuist_web/live/remote_execution_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "p90 execution time"
 msgstr "Tiempo de ejecución p90"
 
-#: lib/tuist_web/live/remote_execution_live.ex:690
+#: lib/tuist_web/live/remote_execution_live.ex:658
 #, elixir-autogen, elixir-format
 msgid "p90 queue time"
 msgstr "Tiempo en cola p90"
 
-#: lib/tuist_web/live/remote_execution_live.ex:693
+#: lib/tuist_web/live/remote_execution_live.ex:661
 #, elixir-autogen, elixir-format
 msgid "p99 execution time"
 msgstr "Tiempo de ejecución p99"
 
-#: lib/tuist_web/live/remote_execution_live.ex:689
+#: lib/tuist_web/live/remote_execution_live.ex:657
 #, elixir-autogen, elixir-format
 msgid "p99 queue time"
 msgstr "Tiempo en cola p99"
 
-#: lib/tuist_web/live/remote_execution_live.ex:453
+#: lib/tuist_web/live/remote_execution_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "Invocations"
 msgstr "Invocaciones"
 
-#: lib/tuist_web/live/remote_execution_live.ex:625
+#: lib/tuist_web/live/remote_execution_live.ex:588
 #, elixir-autogen, elixir-format
 msgid "No invocations match your search"
 msgstr "Ninguna invocación coincide con tu búsqueda"
 
-#: lib/tuist_web/live/remote_execution_live.ex:621
+#: lib/tuist_web/live/remote_execution_live.ex:584
 #, elixir-autogen, elixir-format
 msgid "No invocations with remote execution timings in this period"
 msgstr "No hay invocaciones con tiempos de ejecución remota en este periodo"
 
-#: lib/tuist_web/live/remote_execution_live.ex:465
+#: lib/tuist_web/live/remote_execution_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "Search invocations..."
 msgstr "Buscar invocaciones..."
 
-#: lib/tuist_web/live/remote_execution_live.ex:728
+#: lib/tuist_web/live/remote_execution_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "p50 execution"
 msgstr "ejecución p50"
 
-#: lib/tuist_web/live/remote_execution_live.ex:729
+#: lib/tuist_web/live/remote_execution_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "p90 execution"
 msgstr "ejecución p90"
@@ -3545,7 +3536,7 @@ msgstr "%{vcpus} vCPU · %{memory} GB"
 msgid "Machine"
 msgstr "Máquina"
 
-#: lib/tuist_web/live/remote_execution_live.ex:370
+#: lib/tuist_web/live/remote_execution_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "No remote executions in this period"
 msgstr "No hay ejecuciones remotas en este periodo"
@@ -3559,23 +3550,23 @@ msgstr "En cola"
 #: lib/tuist_web/live/bazel_invocation_live.ex:239
 #: lib/tuist_web/live/bazel_invocation_live.ex:389
 #: lib/tuist_web/live/bazel_remote_action_live.ex:241
-#: lib/tuist_web/live/remote_execution_live.ex:535
+#: lib/tuist_web/live/remote_execution_live.ex:498
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr "En ejecución"
 
-#: lib/tuist_web/live/remote_execution_live.ex:265
-#: lib/tuist_web/live/remote_execution_live.ex:856
+#: lib/tuist_web/live/remote_execution_live.ex:259
+#: lib/tuist_web/live/remote_execution_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Total execution time"
 msgstr "Tiempo total de ejecución"
 
-#: lib/tuist_web/live/remote_execution_live.ex:826
+#: lib/tuist_web/live/remote_execution_live.ex:813
 #, elixir-autogen, elixir-format
 msgid "%{running} running · %{queued} queued"
 msgstr "%{running} en ejecución · %{queued} en cola"
 
-#: lib/tuist_web/live/remote_execution_live.ex:819
+#: lib/tuist_web/live/remote_execution_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Invocation %{id}"
 msgstr "Invocación %{id}"
@@ -3597,28 +3588,18 @@ msgstr "No hay ejecuciones en curso ni en cola"
 msgid "Running executions are unavailable"
 msgstr "Las ejecuciones en curso no están disponibles"
 
-#: lib/tuist_web/live/remote_execution_live.ex:248
+#: lib/tuist_web/live/remote_execution_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Remote actions that ran in a VM, as the execution node recorded them. Results served from the cache are not executions."
 msgstr "Acciones remotas que se ejecutaron en una VM, tal como las registró el nodo de ejecución. Los resultados servidos desde la caché no son ejecuciones."
 
-#: lib/tuist_web/live/remote_execution_live.ex:268
+#: lib/tuist_web/live/remote_execution_live.ex:262
 #, elixir-autogen, elixir-format
 msgid "Time the executor ran in each action's VM, from its start to its exit, summed over executions. It includes fetching inputs and uploading outputs, but not queueing or preparing the VM. The Usage page bills this time per machine shape."
 msgstr "Tiempo que el ejecutor estuvo activo en la VM de cada acción, desde su inicio hasta su salida, sumado entre todas las ejecuciones. Incluye la obtención de entradas y la subida de salidas, pero no el tiempo en cola ni la preparación de la VM. La página de Uso factura este tiempo según el tipo de máquina."
 
-#: lib/tuist_web/live/remote_execution_live.ex:424
-#, elixir-autogen, elixir-format
-msgid "Per-action remote timings are not available for Struo yet"
-msgstr "Los tiempos remotos por acción aún no están disponibles para Struo"
-
-#: lib/tuist_web/live/remote_execution_live.ex:436
-#, elixir-autogen, elixir-format
-msgid "Struo run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
-msgstr "La telemetría de ejecuciones de Struo aún no distingue entre acciones remotas y locales, por lo que no se muestran los tiempos de cola y ejecución por acción ni las invocaciones que las ejecutaron."
-
-#: lib/tuist_web/live/remote_execution_live.ex:308
-#: lib/tuist_web/live/remote_execution_live.ex:339
+#: lib/tuist_web/live/remote_execution_live.ex:301
+#: lib/tuist_web/live/remote_execution_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "Couldn't load"
 msgstr "No se pudo cargar"
@@ -3871,3 +3852,13 @@ msgstr "El comando, la salida y los tiempos aparecen aquí cuando la acción fin
 #, elixir-autogen, elixir-format
 msgid "Waiting for"
 msgstr "Esperando"
+
+#: lib/tuist_web/live/remote_execution_live.ex:411
+#, elixir-autogen, elixir-format
+msgid "Runs"
+msgstr "Ejecuciones"
+
+#: lib/tuist_web/live/remote_execution_live.ex:796
+#, elixir-autogen, elixir-format
+msgid "Run %{id}"
+msgstr "Ejecución %{id}"

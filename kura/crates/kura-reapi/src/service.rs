@@ -3187,22 +3187,12 @@ impl ByteStream for ReapiService {
                     );
                     return Err(Status::not_found("blob not found"));
                 };
-                // Compressed reads of Kura's internal chunked (SplitBlob) recipes
-                // are not currently supported: composite reads assemble
-                // decoded bytes from many manifests and the encoder wrapper
-                // above assumes a single reader. Bazel does not use split
-                // blobs, so this codepath is unreachable in production;
-                // failing closed is safer than silently corrupting a serve.
-                // The guard runs after the recipe lookup so a plain miss on a
-                // compressed read still answers NOT_FOUND (which Bazel maps
-                // to CacheNotFoundException and treats as a normal miss)
-                // rather than UNIMPLEMENTED (which becomes an IOException and
-                // breaks the AC-hit-then-CAS-evicted graceful fallback).
-                if resource.compressor == BlobCompressor::Zstd {
-                    return Err(Status::unimplemented(
-                        "compressed reads of chunked blobs are not supported",
-                    ));
-                }
+                // A compressed read of a spliced blob compresses the assembled
+                // chunks as one zstd stream. Tuist clients from before 4.217
+                // read every blob above the compression threshold through
+                // `compressed-blobs/zstd` and do not fall back to an identity
+                // read, so refusing it would make the blob unrestorable for
+                // them while FindMissingBlobs keeps reporting it present.
                 let manifests =
                     match fetch_chunk_manifests(&self.state, &resource.namespace_id, &recipe, true)
                         .await
@@ -3244,15 +3234,19 @@ impl ByteStream for ReapiService {
                 )
                 .unwrap_or(u64::MAX)
                 .saturating_add(inline_bytes);
+                let requested_bytes = usize::try_from(requested_bytes).map_err(|_| {
+                    Status::resource_exhausted("blob stream memory requirement is too large")
+                })?;
+                let requested_bytes = if resource.compressor == BlobCompressor::Zstd {
+                    requested_bytes.saturating_add(BYTESTREAM_ZSTD_ENCODER_FOOTPRINT_BYTES)
+                } else {
+                    requested_bytes
+                };
                 let permit = self
                     .state
                     .memory
                     .acquire_response_stream_memory(
-                        usize::try_from(requested_bytes).map_err(|_| {
-                            Status::resource_exhausted(
-                                "blob stream memory requirement is too large",
-                            )
-                        })?,
+                        requested_bytes,
                         "bytestream",
                         crate::memory::ResponseStreamAdmissionPatience::Blocking,
                     )
@@ -3269,6 +3263,14 @@ impl ByteStream for ReapiService {
                     slices,
                     stream_chunk_bytes,
                 );
+                let stream: Self::ReadStream = if resource.compressor == BlobCompressor::Zstd {
+                    Box::pin(zstd_bytestream_read_response_stream(
+                        stream,
+                        stream_chunk_bytes,
+                    ))
+                } else {
+                    Box::pin(stream)
+                };
                 self.state.metrics.record_artifact_read(
                     ArtifactProducer::Reapi,
                     "ok",
@@ -3281,7 +3283,7 @@ impl ByteStream for ReapiService {
                 self.state
                     .metrics
                     .record_reapi_chunking_bytes("served", bytes_to_read);
-                let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
+                let mut response = Response::new(stream);
                 response
                     .extensions_mut()
                     .insert(permit.into_transport_guard());
@@ -3620,8 +3622,23 @@ fn compressed_bytestream_read_response_stream(
     reader: ArtifactReader,
     chunk_bytes: usize,
 ) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send {
-    struct ReadState {
-        reader: Option<ArtifactReader>,
+    zstd_bytestream_read_response_stream(
+        bytestream_read_response_stream(reader, chunk_bytes),
+        chunk_bytes,
+    )
+}
+
+/// Compresses a stream of uncompressed ByteStream responses, such as a
+/// single artifact or the chunks of a spliced blob, into one zstd stream.
+fn zstd_bytestream_read_response_stream<S>(
+    input: S,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send
+where
+    S: tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send + 'static,
+{
+    struct ReadState<S> {
+        input: Option<Pin<Box<S>>>,
         // None once `finish()` was called; the encoder cannot be reused after.
         encoder: Option<zstd::stream::write::Encoder<'static, Vec<u8>>>,
         pending: Vec<u8>,
@@ -3631,7 +3648,7 @@ fn compressed_bytestream_read_response_stream(
     let encoder = zstd::stream::write::Encoder::new(Vec::new(), BYTESTREAM_ZSTD_LEVEL)
         .expect("zstd encoder construction should succeed for a fixed level");
     let state = ReadState {
-        reader: Some(reader),
+        input: Some(Box::pin(input)),
         encoder: Some(encoder),
         pending: Vec::new(),
         chunk_bytes,
@@ -3659,15 +3676,13 @@ fn compressed_bytestream_read_response_stream(
             // Feed the encoder another input chunk, or finalize it if we are
             // out of input. `finish()` writes the closing frame bytes into the
             // encoder's sink, which then joins the pending queue.
-            if let Some(reader) = state.reader.as_mut() {
-                let input = reader
-                    .read_chunk_owned(state.chunk_bytes)
-                    .await
-                    .map_err(|error| {
-                        Status::internal(format!("failed to stream blob chunk: {error}"))
-                    })?;
+            if let Some(stream) = state.input.as_mut() {
+                let input = match stream.next().await.transpose()? {
+                    Some(response) => response.data,
+                    None => Vec::new(),
+                };
                 if input.is_empty() {
-                    state.reader = None;
+                    state.input = None;
                 } else {
                     let encoder = state
                         .encoder

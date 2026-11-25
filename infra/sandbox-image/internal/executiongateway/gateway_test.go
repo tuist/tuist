@@ -437,8 +437,10 @@ type blobStore struct {
 	// fail answers every read with an error, unavailable its first reads.
 	fail        bool
 	unavailable int32
-	reads       atomic.Int32
-	treeCalls   atomic.Int32
+	// delay holds every read back, until the caller gives up.
+	delay     time.Duration
+	reads     atomic.Int32
+	treeCalls atomic.Int32
 }
 
 func (b *blobStore) GetTree(r *re.GetTreeRequest, s grpc.ServerStreamingServer[re.GetTreeResponse]) error {
@@ -480,6 +482,11 @@ func (b *blobStore) message(m proto.Message) *re.Digest {
 func (b *blobStore) BatchReadBlobs(ctx context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
 	if b.reads.Add(1) <= b.unavailable {
 		return nil, status.Error(codes.Unavailable, "cache busy")
+	}
+	select {
+	case <-ctx.Done():
+		return nil, status.FromContextError(ctx.Err()).Err()
+	case <-time.After(b.delay):
 	}
 	if b.fail {
 		return nil, status.Error(codes.Internal, "cache failure")

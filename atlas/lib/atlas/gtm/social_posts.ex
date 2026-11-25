@@ -101,9 +101,11 @@ defmodule Atlas.GTM.SocialPosts do
   end
 
   @doc "Reads the connected X account's posts and stores today's metrics."
-  def sync_x(nil), do: {:error, :not_connected}
+  def sync_x(user, interface \\ "worker")
 
-  def sync_x(user) do
+  def sync_x(nil, _interface), do: {:error, :not_connected}
+
+  def sync_x(user, interface) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     with {:ok, me} <- with_token(user, &get(&1, "/users/me", [])),
@@ -126,7 +128,7 @@ defmodule Atlas.GTM.SocialPosts do
           }
         },
         actor: user,
-        interface: "worker"
+        interface: interface
       )
 
       {:ok, length(rows)}
@@ -263,7 +265,7 @@ defmodule Atlas.GTM.SocialPosts do
   defp with_token(user, fun) do
     with {:ok, token} <- Connections.access_token(user, "x", @scopes) do
       case fun.(token) do
-        {:error, {:http, 401}} ->
+        {:error, {:http, 401, _detail}} ->
           with {:ok, refreshed} <- Connections.refresh_access_token(user, "x", @scopes, token), do: fun.(refreshed)
 
         result ->
@@ -276,8 +278,12 @@ defmodule Atlas.GTM.SocialPosts do
     case Req.request(method: :get, url: @api <> path, params: params, auth: {:bearer, token}, retry: false) do
       {:ok, %Req.Response{status: 200, body: body}} when is_map(body) -> {:ok, body}
       {:ok, %Req.Response{status: 429}} -> {:error, :rate_limited}
-      {:ok, %Req.Response{status: status}} -> {:error, {:http, status}}
+      {:ok, %Req.Response{status: status, body: body}} -> {:error, {:http, status, error_detail(body)}}
       _ -> {:error, :provider_unavailable}
     end
   end
+
+  # X explains rejections such as missing credits in `title` and `detail`.
+  defp error_detail(%{} = body), do: body |> Map.take(["title", "detail"]) |> Map.values() |> Enum.join(": ")
+  defp error_detail(_body), do: nil
 end

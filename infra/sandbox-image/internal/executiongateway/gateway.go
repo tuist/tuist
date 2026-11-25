@@ -50,6 +50,9 @@ type Gateway struct {
 	conns        map[string]*grpc.ClientConn
 	// Each project's cache endpoint, learned from capability checks.
 	endpoints map[string]endpoint
+	// Each project's size keys that automatic sizing runs in more than a
+	// default VM, which a lease cannot hold (see sized).
+	sized map[string]map[string]bool
 	// Cache endpoints that answered GetTree with Unimplemented.
 	noTree map[string]bool
 	// Direct claims a leased VM's exec on its node; it has no timeout of
@@ -82,7 +85,7 @@ func New(serverURL string) *Gateway {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = maxStreams
 	registry := prometheus.NewRegistry()
-	return &Gateway{Registry: registry, metrics: newMetrics(registry), URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, ActionReadBudget: 2 * time.Minute, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}, recorder: newRecorder(), LogUploads: &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone(), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, logs: newLogCopier()}
+	return &Gateway{Registry: registry, metrics: newMetrics(registry), URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, ActionReadBudget: 2 * time.Minute, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, sized: map[string]map[string]bool{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}, recorder: newRecorder(), LogUploads: &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone(), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, logs: newLogCopier()}
 }
 func (g *Gateway) Register(s *grpc.Server) {
 	re.RegisterExecutionServer(s, g)
@@ -145,6 +148,8 @@ type operation struct {
 	ActionSize  int64  `json:"action_size"`
 	CASEndpoint string `json:"cas_endpoint"`
 	Leases      bool   `json:"leases"`
+	// Capabilities: the size keys the server sizes above a default VM.
+	SizedKeys []string `json:"sized_keys"`
 	// The VM that ran the action, for its record.
 	SandboxID string `json:"sandbox_id"`
 }
@@ -208,6 +213,7 @@ func (g *Gateway) GetCapabilities(ctx context.Context, r *re.GetCapabilitiesRequ
 		return nil, err
 	}
 	g.remember(account, r.InstanceName, op.CASEndpoint, op.Leases)
+	g.setSized(account, r.InstanceName, op.SizedKeys)
 	return &re.ServerCapabilities{LowApiVersion: &semver.SemVer{Major: 2}, HighApiVersion: &semver.SemVer{Major: 2, Minor: 3}, ExecutionCapabilities: &re.ExecutionCapabilities{ExecEnabled: true, DigestFunction: re.DigestFunction_SHA256, DigestFunctions: []re.DigestFunction_Value{re.DigestFunction_SHA256}}}, nil
 }
 
@@ -254,8 +260,27 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 		return err
 	}
 	record := newRecording(s.Context(), account, r.InstanceName, auth, r.ActionDigest, action, inputs, memory)
+	// The server sizes the action from its earlier runs under this key.
+	// Without the prefetched command there is none, and it runs at the size
+	// it asks for.
+	sizing := "auto"
+	if action != nil {
+		platform := action.Platform
+		command := prefetchedCommand(inputs, action.CommandDigest)
+		if platform == nil && command != nil {
+			platform = command.Platform
+		}
+		if command != nil {
+			record.sizeKey = worker.SizeKey(command, platform)
+		}
+		for _, p := range platform.GetProperties() {
+			if p.Name == worker.SizingProperty {
+				sizing = p.Value
+			}
+		}
+	}
 	// Leases hold VMs of the default size.
-	if memory == worker.DefaultMemoryGB {
+	if memory == worker.DefaultMemoryGB && !g.isSized(account, r.InstanceName, record.sizeKey) {
 		if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs); ok {
 			path, record.path = "lease", "lease"
 			code, err = g.stream(s, account, r.InstanceName, auth, op, record)
@@ -270,6 +295,12 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	// Always sent, so the size does not depend on the server's default
 	// matching this gateway's while either is rolled out.
 	body["memory_gb"] = memory
+	if record.sizeKey != "" {
+		body["size_key"] = record.sizeKey
+	}
+	if sizing == "off" {
+		body["task_sizing"] = false
+	}
 	for key, value := range requestMetadata(s.Context()) {
 		body[key] = value
 	}
@@ -361,6 +392,15 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 				}
 				// Diagnostics only: neither the client nor the action cache keeps them.
 				stripCASReads(response.GetResult().GetExecutionMetadata())
+				// The usage sizes the action's next run; it goes to the server
+				// with the action's record, never to the client.
+				if usage, ok := worker.ReadUsage(response.GetResult().GetExecutionMetadata()); ok && record != nil {
+					record.usage = &usage
+					if usage.OOMKills > 0 && record.sizeKey != "" {
+						g.markSized(account, project, record.sizeKey)
+					}
+				}
+				worker.StripUsage(response.GetResult().GetExecutionMetadata())
 				payload, _ := anypb.New(response)
 				message.Result = &lro.Operation_Response{Response: payload}
 				finished = response

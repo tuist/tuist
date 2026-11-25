@@ -48,7 +48,8 @@ defmodule Tuist.RemoteExecution.Usage do
       project_id: project_id,
       sandbox_id: sandbox.id,
       mode: mode,
-      vcpus: sandbox.vcpus,
+      # Billed by shape: a bursting VM's guarantee at reservation.
+      vcpus: div(Sandbox.guaranteed_cpu_milli(sandbox), 1000),
       memory_mb: sandbox.memory_mb,
       duration_ms: duration_ms,
       inserted_at: NaiveDateTime.utc_now()

@@ -8,6 +8,18 @@ defmodule AtlasWeb.Oauth.TokenController do
   alias Boruta.Oauth.TokenApplication
   alias Boruta.Oauth.TokenResponse
 
+  # Boruta resolves `request` (an unsigned JWT merged into the parameters) and
+  # `request_uri` (fetched over HTTP) from the query or body before it
+  # authenticates the client, so an anonymous caller could make Atlas request
+  # arbitrary URLs. No supported client uses either.
+  def token(%Plug.Conn{query_params: query_params, body_params: body_params} = conn, _params)
+      when is_map_key(query_params, "request") or is_map_key(query_params, "request_uri") or
+             is_map_key(body_params, "request") or is_map_key(body_params, "request_uri") do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "invalid_request", error_description: "request and request_uri are not supported."})
+  end
+
   def token(%Plug.Conn{} = conn, _params), do: Oauth.token(conn, __MODULE__)
 
   @impl TokenApplication

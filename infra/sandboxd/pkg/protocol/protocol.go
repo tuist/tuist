@@ -441,6 +441,10 @@ type ExecArgs struct {
 	TimeoutMs int64             `json:"timeout_ms"`
 	// Claim makes the exec wait for a direct caller to supply one variable.
 	Claim *ClaimArgs `json:"claim,omitempty"`
+	// CPUGuaranteeMilli, when set, reweighs the VM's cgroup before the command
+	// runs: a remote execution VM is prepared before its action is known, and
+	// the guarantee is the action's.
+	CPUGuaranteeMilli uint64 `json:"cpu_guarantee_milli,omitempty"`
 }
 
 // ClaimArgs: the exec runs only once a caller presents the nonce whose

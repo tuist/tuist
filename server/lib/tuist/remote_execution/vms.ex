@@ -42,15 +42,20 @@ defmodule Tuist.RemoteExecution.VMs do
     Repo.transaction(fn ->
       lock_account(account_id)
 
-      %{vcpus: vcpus, memory_mb: memory_mb} =
+      %{cpu_milli: cpu_milli, memory_mb: memory_mb} =
         Repo.one(
           from(s in Sandbox,
             where: s.account_id == ^account_id and s.purpose == :remote_execution,
-            select: %{vcpus: coalesce(sum(s.vcpus), 0), memory_mb: coalesce(sum(s.memory_mb), 0)}
+            select: %{
+              # A bursting VM charges the guarantee it was reserved with, not
+              # the vCPUs it boots with.
+              cpu_milli: coalesce(sum(coalesce(s.guaranteed_cpu_milli, s.vcpus * 1000)), 0),
+              memory_mb: coalesce(sum(s.memory_mb), 0)
+            }
           )
         )
 
-      if vcpus + shape.vcpus > settings.vcpus or memory_mb + shape.memory_mb > settings.memory_gb * 1024,
+      if cpu_milli + shape.vcpus * 1000 > settings.vcpus * 1000 or memory_mb + shape.memory_mb > settings.memory_gb * 1024,
         do: Repo.rollback(:busy)
 
       %Sandbox{}
@@ -66,9 +71,21 @@ defmodule Tuist.RemoteExecution.VMs do
         template_tag: settings.image_tag,
         execution_lease_expires_at: DateTime.add(now(), @reserved_lease_seconds, :second)
       )
+      |> burst(settings, memory_gb, shape)
       |> Repo.insert!()
     end)
   end
+
+  # A bursting VM boots with more vCPUs than its shape, which validation does
+  # not offer, and keeps the shape's as its guarantee.
+  defp burst(changeset, %Settings{burst: true} = settings, memory_gb, shape),
+    do:
+      Ecto.Changeset.change(changeset,
+        vcpus: Settings.boot_vcpus(settings, memory_gb),
+        guaranteed_cpu_milli: shape.vcpus * 1000
+      )
+
+  defp burst(changeset, _settings, _memory_gb, _shape), do: changeset
 
   @doc """
   Places and boots a pristine VM for a reserved row. On failure, returns the
@@ -192,6 +209,9 @@ defmodule Tuist.RemoteExecution.VMs do
   end
 
   defp run(sandbox, request, project_id, token) do
+    # The action's guarantee weighs the VM while it runs (sandboxd's exec).
+    {guarantee, request} = Map.pop(request, :cpu_guarantee_milli)
+
     args = %{
       sandbox_id: sandbox.id,
       cmd: ["/usr/local/bin/sbx-executor"],
@@ -199,6 +219,8 @@ defmodule Tuist.RemoteExecution.VMs do
       cwd: "/workspace",
       timeout_ms: @exec_timeout_ms
     }
+
+    args = if guarantee, do: Map.put(args, :cpu_guarantee_milli, guarantee), else: args
 
     Process.put(:remote_execution_stdout, [])
 

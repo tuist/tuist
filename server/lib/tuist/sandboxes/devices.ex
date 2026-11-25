@@ -65,7 +65,7 @@ defmodule Tuist.Sandboxes.Devices do
                  """
                  xcrun simctl list devices available | grep -qF -e "    $TUIST_DEVICE (" -e "($TUIST_DEVICE)" || exit #{@device_not_found}
                  out="$(xcrun simctl boot "$TUIST_DEVICE" 2>&1)" || case "$out" in *"current state: Booted"*) ;; *) echo "$out" >&2; exit 1 ;; esac
-                 open -a Simulator >/dev/null 2>&1 || true
+                 open -a "$(xcode-select -p)/Applications/Simulator.app" >/dev/null 2>&1 || true
                  for _ in $(seq #{@boot_wait_seconds}); do
                    xcrun simctl list devices | grep -F -e "    $TUIST_DEVICE (" -e "($TUIST_DEVICE)" | grep -q '(Booted)' && break
                    sleep 1

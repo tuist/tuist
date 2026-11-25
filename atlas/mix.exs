@@ -110,7 +110,9 @@ defmodule Atlas.MixProject do
       {:javex, "~> 0.1.5"},
       {:browse, "~> 0.5"},
       {:browse_chrome, "~> 0.4"},
-      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"}
+      # Pinned: upstream master's registration allow-list drops the PKCE and
+      # public-refresh settings Atlas relies on (see AGENTS.md, Client → Atlas).
+      {:boruta, git: "https://github.com/malach-it/boruta_auth", ref: "848755219075105bbcf73c8200d15bd18774f822"}
     ]
   end
 

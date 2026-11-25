@@ -42,7 +42,10 @@ type Worker struct {
 	// Inputs, when set, is a directory of verified blobs named <hash>-<size>
 	// on the input root's filesystem (the node's inputs image); see
 	// linkInputs.
-	Inputs  string
+	Inputs string
+	// Meter measures the command's usage, reported in the result's
+	// auxiliary metadata (UsageKind); nil measures nothing.
+	Meter   Meter
 	entries int
 	// Streamed inputs by digest: the first path downloads a blob, later paths
 	// with the same digest copy that file instead of reading it again.
@@ -195,9 +198,17 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 		Stdout: &limitedLog{file: stdout}, Stderr: errLog,
 		SysProcAttr: &syscall.SysProcAttr{Setpgid: true, Credential: w.Credential}, WaitDelay: time.Second}
 	oomBefore, oomKnown := w.oomKills()
+	// A guest that cannot meter the command still runs it, unmeasured.
+	meter := w.Meter
+	if meter != nil && meter.Prepare(cmd) != nil {
+		meter = nil
+	}
 	started := time.Now()
 	if err = w.start(cmd); err != nil {
 		return nil, false, err
+	}
+	if meter != nil {
+		meter.Start()
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -224,6 +235,14 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	}
 	metadata.ExecutionStartTimestamp = timestamppb.New(started)
 	metadata.ExecutionCompletedTimestamp = timestamppb.Now()
+	if meter != nil {
+		if usage, ok := meter.Stop(); ok {
+			usage.MemoryGB = w.memoryGB()
+			if a, err := usageMetadata(usage); err == nil {
+				metadata.AuxiliaryMetadata = append(metadata.AuxiliaryMetadata, a)
+			}
+		}
+	}
 	metadata.OutputUploadStartTimestamp = timestamppb.Now()
 	result := &re.ActionResult{ExitCode: int32(exitCode), ExecutionMetadata: metadata}
 	if timedOut {
@@ -299,6 +318,12 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 	}
 	required := 3
 	if _, ok := properties[MemoryProperty]; ok {
+		required++
+	}
+	if v, ok := properties[SizingProperty]; ok {
+		if v != "off" && v != "auto" {
+			return status.Error(codes.InvalidArgument, SizingProperty+" must be off or auto")
+		}
 		required++
 	}
 	if len(properties) != required || properties["OSFamily"] != "Linux" || properties["Arch"] != "amd64" || properties["tuist-image"] != w.Image || w.Image == "" {
@@ -387,7 +412,7 @@ func (w *Worker) failureNote(state *os.ProcessState, oomKilled int64) string {
 		note := fmt.Sprintf("\ntuist: this action ran out of memory: the kernel's OOM killer ended %d of its processes in a remote execution VM with %d GB.", oomKilled, memory)
 		if i := slices.Index(MemorySizesGB, memory); i >= 0 && i+1 < len(MemorySizesGB) {
 			larger := MemorySizesGB[i+1]
-			note += fmt.Sprintf(" Run it in a larger VM by adding exec_properties = {%q: %q} to its target.", MemoryProperty, strconv.Itoa(larger))
+			note += fmt.Sprintf(" Where automatic task sizing is on, its next run gets a larger VM; otherwise run it in one by adding exec_properties = {%q: %q} to its target.", MemoryProperty, strconv.Itoa(larger))
 		} else {
 			note += " That is the largest VM size."
 		}

@@ -3500,7 +3500,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:236
 #: lib/tuist_web/components/dashboard_navigation.ex:174
-#: lib/tuist_web/live/remote_execution_live.ex:38
+#: lib/tuist_web/live/remote_execution_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Remote execution"
 msgstr ""

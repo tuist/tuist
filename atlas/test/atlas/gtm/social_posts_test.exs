@@ -2,12 +2,13 @@ defmodule Atlas.GTM.SocialPostsTest do
   use Atlas.DataCase, async: true
   use Mimic
 
-  import Atlas.MCP.ToolCase, only: [insert_user!: 0]
+  import Atlas.MCP.ToolCase, only: [insert_user!: 0, mcp_conn: 1]
 
   alias Atlas.Connections.Connection
   alias Atlas.GTM.SocialPost
   alias Atlas.GTM.SocialPosts
   alias Atlas.GTM.SocialPostSnapshot
+  alias Atlas.MCP.Tools.SyncMySocialPosts
 
   setup do
     user = insert_user!()
@@ -144,6 +145,19 @@ defmodule Atlas.GTM.SocialPostsTest do
     post = Repo.get_by!(SocialPost, platform: "x", external_id: ctx.ids["video"])
     assert post.likes == 8
     assert [%SocialPostSnapshot{likes: 8}] = Repo.all(from s in SocialPostSnapshot, where: s.social_post_id == ^post.id)
+  end
+
+  test "the on-demand sync tool syncs the caller's account and reports X's reason when X rejects it", ctx do
+    stub_x(ctx, 5)
+    assert {:ok, %{posts: 3}} = SyncMySocialPosts.execute(mcp_conn(ctx.user), %{})
+
+    stub(Req, :request, fn _opts ->
+      {:ok, %Req.Response{status: 402, body: %{"title" => "CreditsDepleted", "detail" => "Add credits to continue."}}}
+    end)
+
+    assert {:error, message} = SyncMySocialPosts.execute(mcp_conn(ctx.user), %{})
+    assert message =~ "402"
+    assert message =~ "Add credits to continue."
   end
 
   test "summaries use medians per account and label threads separately", ctx do

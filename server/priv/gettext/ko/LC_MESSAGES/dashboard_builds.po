@@ -523,7 +523,7 @@ msgstr "다운로드 처리량"
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:49
 #: lib/tuist_web/live/once_runs_live.ex:1002
-#: lib/tuist_web/live/remote_execution_live.ex:725
+#: lib/tuist_web/live/remote_execution_live.ex:693
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:30
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
@@ -1070,7 +1070,7 @@ msgstr "프로젝트 설정"
 #: lib/tuist_web/live/generate_runs_live.html.heex:108
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:76
 #: lib/tuist_web/live/once_runs_live.ex:1003
-#: lib/tuist_web/live/remote_execution_live.ex:731
+#: lib/tuist_web/live/remote_execution_live.ex:699
 #: lib/tuist_web/live/run_detail_live.html.heex:156
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:15
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
@@ -1124,6 +1124,7 @@ msgid "Resources"
 msgstr "리소스"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:90
+#: lib/tuist_web/live/remote_execution_live.ex:482
 #: lib/tuist_web/live/run_detail_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Run"
@@ -1203,7 +1204,7 @@ msgstr "크기 (MB)"
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
 #: lib/tuist_web/live/mix_build_live.html.heex:601
 #: lib/tuist_web/live/once_runs_live.ex:846
-#: lib/tuist_web/live/remote_execution_live.ex:473
+#: lib/tuist_web/live/remote_execution_live.ex:433
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
@@ -1246,7 +1247,7 @@ msgstr "소스"
 #: lib/tuist_web/live/mix_build_live.html.heex:399
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:23
 #: lib/tuist_web/live/once_run_live.ex:319
-#: lib/tuist_web/live/remote_execution_live.ex:730
+#: lib/tuist_web/live/remote_execution_live.ex:698
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #: lib/tuist_web/live/xcode_build_runs_live.ex:221
 #: lib/tuist_web/live/xcode_builds_live.ex:451
@@ -2503,8 +2504,8 @@ msgstr "선언된 작업 인덱스"
 #: lib/tuist_web/live/bazel_invocation_live.ex:455
 #: lib/tuist_web/live/bazel_invocation_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:625
-#: lib/tuist_web/live/remote_execution_live.ex:245
-#: lib/tuist_web/live/remote_execution_live.ex:846
+#: lib/tuist_web/live/remote_execution_live.ex:239
+#: lib/tuist_web/live/remote_execution_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "Executions"
 msgstr "실행"
@@ -2589,7 +2590,7 @@ msgstr "이 프로젝트에서 찾을 수 없습니다."
 #: lib/tuist_web/live/build_entity_live.html.heex:443
 #: lib/tuist_web/live/build_entity_live.html.heex:455
 #: lib/tuist_web/live/build_entity_live.html.heex:594
-#: lib/tuist_web/live/remote_execution_live.ex:701
+#: lib/tuist_web/live/remote_execution_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr "기록되지 않음"
@@ -3403,110 +3404,100 @@ msgstr "대기열"
 msgid "Remote execution"
 msgstr "원격 실행"
 
-#: lib/tuist_web/live/remote_execution_live.ex:418
-#, elixir-autogen, elixir-format
-msgid "Execution diagnostics"
-msgstr "실행 진단"
-
-#: lib/tuist_web/live/remote_execution_live.ex:443
-#, elixir-autogen, elixir-format
-msgid "Open build runs"
-msgstr "빌드 실행 열기"
-
-#: lib/tuist_web/live/remote_execution_live.ex:579
-#: lib/tuist_web/live/remote_execution_live.ex:727
+#: lib/tuist_web/live/remote_execution_live.ex:542
+#: lib/tuist_web/live/remote_execution_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Avg. execution"
 msgstr "평균 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:696
+#: lib/tuist_web/live/remote_execution_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "Avg. execution time"
 msgstr "평균 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:692
+#: lib/tuist_web/live/remote_execution_live.ex:660
 #, elixir-autogen, elixir-format
 msgid "Avg. queue time"
 msgstr "평균 대기 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:400
+#: lib/tuist_web/live/remote_execution_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "No remote execution timings in this period"
 msgstr "이 기간 동안 원격 실행 시간이 없습니다"
 
-#: lib/tuist_web/live/remote_execution_live.ex:569
-#: lib/tuist_web/live/remote_execution_live.ex:726
-#: lib/tuist_web/live/remote_execution_live.ex:770
+#: lib/tuist_web/live/remote_execution_live.ex:532
+#: lib/tuist_web/live/remote_execution_live.ex:694
+#: lib/tuist_web/live/remote_execution_live.ex:738
 #, elixir-autogen, elixir-format
 msgid "Remote actions"
 msgstr "원격 작업"
 
-#: lib/tuist_web/live/remote_execution_live.ex:316
+#: lib/tuist_web/live/remote_execution_live.ex:308
 #, elixir-autogen, elixir-format
 msgid "Time actions ran on a remote worker. This is per-action work, not build wall time or billed VM time."
 msgstr "원격 작업자에서 작업이 실행된 시간입니다. 이는 작업별 작업 시간이며, 빌드 벽시계 시간이나 청구 대상 VM 시간이 아닙니다."
 
-#: lib/tuist_web/live/remote_execution_live.ex:291
+#: lib/tuist_web/live/remote_execution_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Time actions waited for a remote worker. Actions without a recorded queue phase are excluded."
 msgstr "원격 작업자를 기다린 시간입니다. 대기 단계가 기록되지 않은 작업은 제외됩니다."
 
-#: lib/tuist_web/live/remote_execution_live.ex:695
+#: lib/tuist_web/live/remote_execution_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "p50 execution time"
 msgstr "p50 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:691
+#: lib/tuist_web/live/remote_execution_live.ex:659
 #, elixir-autogen, elixir-format
 msgid "p50 queue time"
 msgstr "p50 대기열 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:694
+#: lib/tuist_web/live/remote_execution_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "p90 execution time"
 msgstr "p90 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:690
+#: lib/tuist_web/live/remote_execution_live.ex:658
 #, elixir-autogen, elixir-format
 msgid "p90 queue time"
 msgstr "p90 대기열 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:693
+#: lib/tuist_web/live/remote_execution_live.ex:661
 #, elixir-autogen, elixir-format
 msgid "p99 execution time"
 msgstr "p99 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:689
+#: lib/tuist_web/live/remote_execution_live.ex:657
 #, elixir-autogen, elixir-format
 msgid "p99 queue time"
 msgstr "p99 대기열 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:453
+#: lib/tuist_web/live/remote_execution_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "Invocations"
 msgstr "실행 횟수"
 
-#: lib/tuist_web/live/remote_execution_live.ex:625
+#: lib/tuist_web/live/remote_execution_live.ex:588
 #, elixir-autogen, elixir-format
 msgid "No invocations match your search"
 msgstr "검색 조건과 일치하는 실행이 없습니다"
 
-#: lib/tuist_web/live/remote_execution_live.ex:621
+#: lib/tuist_web/live/remote_execution_live.ex:584
 #, elixir-autogen, elixir-format
 msgid "No invocations with remote execution timings in this period"
 msgstr "이 기간에는 원격 실행 시간이 기록된 호출이 없습니다"
 
-#: lib/tuist_web/live/remote_execution_live.ex:465
+#: lib/tuist_web/live/remote_execution_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "Search invocations..."
 msgstr "호출 검색..."
 
-#: lib/tuist_web/live/remote_execution_live.ex:728
+#: lib/tuist_web/live/remote_execution_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "p50 execution"
 msgstr "p50 실행"
 
-#: lib/tuist_web/live/remote_execution_live.ex:729
+#: lib/tuist_web/live/remote_execution_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "p90 execution"
 msgstr "p90 실행"
@@ -3544,7 +3535,7 @@ msgstr "%{vcpus} vCPU · %{memory} GB"
 msgid "Machine"
 msgstr "머신"
 
-#: lib/tuist_web/live/remote_execution_live.ex:370
+#: lib/tuist_web/live/remote_execution_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "No remote executions in this period"
 msgstr "이 기간 동안 원격 실행 없음"
@@ -3558,23 +3549,23 @@ msgstr "대기 중"
 #: lib/tuist_web/live/bazel_invocation_live.ex:239
 #: lib/tuist_web/live/bazel_invocation_live.ex:389
 #: lib/tuist_web/live/bazel_remote_action_live.ex:241
-#: lib/tuist_web/live/remote_execution_live.ex:535
+#: lib/tuist_web/live/remote_execution_live.ex:498
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr "실행 중"
 
-#: lib/tuist_web/live/remote_execution_live.ex:265
-#: lib/tuist_web/live/remote_execution_live.ex:856
+#: lib/tuist_web/live/remote_execution_live.ex:259
+#: lib/tuist_web/live/remote_execution_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Total execution time"
 msgstr "총 실행 시간"
 
-#: lib/tuist_web/live/remote_execution_live.ex:826
+#: lib/tuist_web/live/remote_execution_live.ex:813
 #, elixir-autogen, elixir-format
 msgid "%{running} running · %{queued} queued"
 msgstr "%{running}개 실행 중 · %{queued}개 대기 중"
 
-#: lib/tuist_web/live/remote_execution_live.ex:819
+#: lib/tuist_web/live/remote_execution_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Invocation %{id}"
 msgstr "호출 %{id}"
@@ -3596,28 +3587,18 @@ msgstr "실행 중이거나 대기 중인 실행이 없습니다"
 msgid "Running executions are unavailable"
 msgstr "실행 중인 실행을 사용할 수 없습니다"
 
-#: lib/tuist_web/live/remote_execution_live.ex:248
+#: lib/tuist_web/live/remote_execution_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Remote actions that ran in a VM, as the execution node recorded them. Results served from the cache are not executions."
 msgstr "실행 노드가 기록한 대로 VM에서 실행된 원격 작업입니다. 캐시에서 제공된 결과는 실행으로 간주되지 않습니다."
 
-#: lib/tuist_web/live/remote_execution_live.ex:268
+#: lib/tuist_web/live/remote_execution_live.ex:262
 #, elixir-autogen, elixir-format
 msgid "Time the executor ran in each action's VM, from its start to its exit, summed over executions. It includes fetching inputs and uploading outputs, but not queueing or preparing the VM. The Usage page bills this time per machine shape."
 msgstr "각 작업의 VM에서 실행자가 시작부터 종료까지 실행한 시간을 모든 실행에 대해 합산한 값입니다. 입력 가져오기와 출력 업로드는 포함되지만, 대기 시간이나 VM 준비 시간은 제외됩니다. 사용량 페이지에서는 이 시간을 머신 유형별로 청구합니다."
 
-#: lib/tuist_web/live/remote_execution_live.ex:424
-#, elixir-autogen, elixir-format
-msgid "Per-action remote timings are not available for Struo yet"
-msgstr "작업별 원격 타이밍은 아직 Struo에서 사용할 수 없습니다"
-
-#: lib/tuist_web/live/remote_execution_live.ex:436
-#, elixir-autogen, elixir-format
-msgid "Struo run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
-msgstr "Struo 실행 텔레메트리는 아직 원격 작업과 로컬 작업을 구분하지 않으므로, 작업별 대기 및 실행 시간과 이를 실행한 호출은 표시되지 않습니다."
-
-#: lib/tuist_web/live/remote_execution_live.ex:308
-#: lib/tuist_web/live/remote_execution_live.ex:339
+#: lib/tuist_web/live/remote_execution_live.ex:301
+#: lib/tuist_web/live/remote_execution_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "Couldn't load"
 msgstr "로드할 수 없습니다"
@@ -3870,3 +3851,13 @@ msgstr "작업이 완료되면 명령, 출력 및 시간이 여기에 표시됩�
 #, elixir-autogen, elixir-format
 msgid "Waiting for"
 msgstr "대기 중"
+
+#: lib/tuist_web/live/remote_execution_live.ex:411
+#, elixir-autogen, elixir-format
+msgid "Runs"
+msgstr "실행"
+
+#: lib/tuist_web/live/remote_execution_live.ex:796
+#, elixir-autogen, elixir-format
+msgid "Run %{id}"
+msgstr "실행 %{id}"

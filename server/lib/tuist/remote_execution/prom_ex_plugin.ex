@@ -42,6 +42,12 @@ defmodule Tuist.RemoteExecution.PromExPlugin do
           reporter_options: [buckets: @duration_buckets],
           description: "VM reservation, creation and preparation, by outcome."
         ),
+        counter([:tuist, :remote_execution, :task_sizing, :total],
+          event_name: [:tuist, :remote_execution, :task_sizing],
+          tags: [:reason],
+          description:
+            "Automatic task sizing decisions for actions of flagged accounts: unmeasured (default), the size asked for (explicit), the measured peak (measured_memory) or an OOM floor (oom_floor)."
+        ),
         counter([:tuist, :remote_execution, :leases, :total],
           event_name: [:tuist, :remote_execution, :lease],
           tags: [:outcome],

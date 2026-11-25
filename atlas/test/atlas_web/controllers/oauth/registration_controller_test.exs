@@ -174,6 +174,77 @@ defmodule AtlasWeb.Oauth.RegistrationControllerTest do
     assert redirected_to(conn) == ~p"/login"
   end
 
+  describe "grant types" do
+    # Boruta stores every grant it implements when registration names none, and
+    # accepts any the registrant lists. Implicit would hand a full MCP token to
+    # the redirect URI without PKCE.
+    test "registration keeps only the authorization code and refresh grants", %{conn: conn} do
+      for grant_types <- [nil, ["implicit", "authorization_code", "client_credentials", "password", "refresh_token"]] do
+        params = %{
+          "client_name" => "Grants",
+          "redirect_uris" => [@redirect_uri],
+          "token_endpoint_auth_method" => "none"
+        }
+
+        params = if grant_types, do: Map.put(params, "grant_types", grant_types), else: params
+
+        registration = conn |> post(~p"/oauth2/register", params) |> json_response(201)
+
+        assert registration["grant_types"] == ["authorization_code", "refresh_token"]
+
+        assert %Client{supported_grant_types: ["authorization_code", "refresh_token"]} =
+                 Repo.get(Client, registration["client_id"])
+
+        refute_implicit_token(registration["client_id"])
+      end
+    end
+
+    test "clients stored with Boruta's default grants can neither use implicit nor client credentials" do
+      {:ok, client} = Admin.create_client(%{name: "Legacy", redirect_uris: [@redirect_uri], confidential: true})
+      assert "implicit" in client.supported_grant_types
+
+      refute_implicit_token(client.id)
+
+      conn =
+        post_form(%{"grant_type" => "client_credentials", "client_id" => client.id, "client_secret" => client.secret})
+
+      assert %{"error" => "unsupported_grant_type"} = json_response(conn, 400)
+    end
+  end
+
+  describe "request objects at the token endpoint" do
+    # Boruta resolves `request_uri` with an HTTP GET before it authenticates the
+    # client, so anyone could make Atlas request an internal address.
+    test "are refused before Boruta fetches or reads them" do
+      port = start_loopback_fixture()
+      request_uri = "http://127.0.0.1:#{port}/request"
+
+      request =
+        Enum.map_join(
+          [%{"alg" => "none"}, %{"grant_type" => "password"}],
+          ".",
+          &Base.url_encode64(JSON.encode!(&1), padding: false)
+        ) <> "."
+
+      for {query, body} <- [
+            {%{}, %{"request_uri" => request_uri}},
+            {%{"request_uri" => request_uri}, %{}},
+            {%{}, %{"request" => request}}
+          ] do
+        conn =
+          build_conn()
+          |> put_req_header("content-type", "application/x-www-form-urlencoded")
+          |> post(
+            "/oauth2/token?" <> URI.encode_query(query),
+            URI.encode_query(Map.put(body, "grant_type", "client_credentials"))
+          )
+
+        refute_received {:loopback_fixture_request, _}
+        assert %{"error" => "invalid_request"} = json_response(conn, 400)
+      end
+    end
+  end
+
   describe "client jwks_uri" do
     # Registration is anonymous and Boruta fetches `jwks_uri` with a plain
     # Finch GET, so accepting it would let anyone make the server request an
@@ -242,6 +313,24 @@ defmodule AtlasWeb.Oauth.RegistrationControllerTest do
 
       refute_received {:loopback_fixture_request, _}
       assert %{"error" => "invalid_client"} = json_response(conn, 401)
+    end
+  end
+
+  defp refute_implicit_token(client_id) do
+    {conn, _user} = log_in_user(build_conn())
+
+    for response_type <- ["token", "id_token token"] do
+      path =
+        ~p"/oauth2/authorize?#{%{"response_type" => response_type, "client_id" => client_id, "redirect_uri" => @redirect_uri, "scope" => "mcp", "state" => "s", "nonce" => "n"}}"
+
+      consent = get(conn, path)
+      approval = post(conn, path, %{"decision" => "allow"})
+
+      for response <- [consent, approval], location <- get_resp_header(response, "location") do
+        refute location =~ "access_token"
+      end
+
+      refute consent.status == 200
     end
   end
 

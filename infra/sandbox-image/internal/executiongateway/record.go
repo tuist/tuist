@@ -100,6 +100,9 @@ type actionRecord struct {
 	// ask for a copy of the rest (see logcopy.go).
 	StdoutHash string `json:"stdout_hash,omitempty"`
 	StderrHash string `json:"stderr_hash,omitempty"`
+	// What the command used in its VM, which sizes its next run.
+	Usage   *worker.Usage `json:"usage,omitempty"`
+	SizeKey string        `json:"size_key,omitempty"`
 }
 
 // recording is what Execute knows about an action when it starts streaming
@@ -113,6 +116,10 @@ type recording struct {
 	inputs                 string
 	memory                 int
 	path                   string
+	// What the command used, when the VM measured it.
+	usage *worker.Usage
+	// The action's key for automatic sizing (worker.SizeKey).
+	sizeKey string
 }
 
 type finishedAction struct {
@@ -191,6 +198,7 @@ func (g *Gateway) complete(a finishedAction) {
 		ExecutionPath: a.path, SandboxID: a.op.SandboxID, MemoryGB: a.memory,
 		StatusCode: a.response.GetStatus().GetCode(), StatusMessage: limit(a.response.GetStatus().GetMessage(), maxRecordValue),
 		CachedResult: a.response.CachedResult, Timestamps: map[string]int64{},
+		Usage: a.usage, SizeKey: a.sizeKey,
 	}
 	if record.InvocationID == "" {
 		// Nothing on the server could find it.
@@ -232,6 +240,9 @@ func (g *Gateway) complete(a finishedAction) {
 		}
 		for _, p := range platform.GetProperties() {
 			record.Platform = appendPair(record.Platform, p.Name, p.Value, maxRecordValue)
+		}
+		if record.SizeKey == "" && command != nil {
+			record.SizeKey = worker.SizeKey(command, platform)
 		}
 	}
 	if result := a.response.Result; result != nil {

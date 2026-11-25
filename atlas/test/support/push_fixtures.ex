@@ -23,7 +23,7 @@ defmodule Atlas.PushFixtures do
 
   @doc "A bearer token issued to a dynamically registered native app client."
   def native_access_token(%User{} = user, redirect_uris \\ [@native_redirect_uri]) do
-    {:ok, client} = Clients.create_client(%{"name" => "Atlas native", "redirect_uris" => redirect_uris})
+    {:ok, client} = Clients.create_client(%{name: "Atlas native", redirect_uris: redirect_uris})
     {:ok, token} = AccessTokens.create(%{client: client, scope: "mcp", sub: user.id}, refresh_token: true)
     {client.id, token.value}
   end

@@ -594,6 +594,90 @@ async fn write_of_a_composite_only_blob_uploads_normally() {
 }
 
 #[tokio::test]
+async fn compressed_read_of_a_spliced_blob_serves_its_bytes() {
+    // Clients that splice large blobs leave only a recipe behind, and clients
+    // that predate splicing read every blob through `compressed-blobs/zstd`
+    // without falling back, so a compressed read must assemble the chunks.
+    let context = test_context(|_| {}).await;
+    let service = ReapiService::new(context.state.clone());
+    let first: Vec<u8> = (0..1024 * 1024).map(|index| (index % 251) as u8).collect();
+    let second: Vec<u8> = (0..768 * 1024).map(|index| (index % 13) as u8).collect();
+    let digest = |bytes: &[u8]| reapi::Digest {
+        hash: hex::encode(Sha256::digest(bytes)),
+        size_bytes: bytes.len() as i64,
+    };
+    for chunk in [&first, &second] {
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "recovery",
+                &blob_key(&digest_key(&digest(chunk)).unwrap()),
+                "application/octet-stream",
+                chunk,
+            )
+            .await
+            .unwrap();
+    }
+    let mut blob = first.clone();
+    blob.extend_from_slice(&second);
+    let blob_digest = digest(&blob);
+    let mut splice = Request::new(reapi::SpliceBlobRequest {
+        instance_name: "recovery".into(),
+        blob_digest: Some(blob_digest.clone()),
+        chunk_digests: vec![digest(&first), digest(&second)],
+        digest_function: 0,
+        chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
+    });
+    splice.extensions_mut().insert(
+        GrpcWriteAdmission::new(
+            &context.state.memory,
+            CAS_SPLICE_DECODE_COPIES,
+            context.state.metrics.grpc_write_admission_metrics(),
+        )
+        .unwrap(),
+    );
+    service.splice_blob(splice).await.unwrap();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let router = routes(context.state.clone());
+    let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    let mut client = ByteStreamClient::connect(format!("http://{address}"))
+        .await
+        .unwrap();
+    // A whole read, and a resumed read whose offset falls inside the first chunk.
+    for offset in [0_usize, first.len() - 10] {
+        let mut stream = client
+            .read(bytestream::ReadRequest {
+                resource_name: format!(
+                    "recovery/compressed-blobs/zstd/{}/{}",
+                    blob_digest.hash,
+                    blob.len()
+                ),
+                read_offset: offset as i64,
+                read_limit: 0,
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        let mut received = Vec::new();
+        while let Some(message) = stream.message().await.unwrap() {
+            received.extend_from_slice(&message.data);
+        }
+        let decoded = zstd::stream::decode_all(received.as_slice()).expect("zstd stream");
+        assert_eq!(decoded.len(), blob.len() - offset);
+        assert!(
+            decoded == blob[offset..],
+            "offset {offset} served other bytes"
+        );
+    }
+    server.abort();
+    let _ = server.await;
+}
+
+#[tokio::test]
 async fn cancelling_a_staged_write_releases_its_file_and_reservation() {
     let context = test_context(|_| {}).await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

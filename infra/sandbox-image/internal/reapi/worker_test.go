@@ -428,7 +428,7 @@ func TestWorkerExplainsOOMKillsAndSignals(t *testing.T) {
 		stderr    string
 	}{
 		// A wrapper whose child the OOM killer ended, like rules_rust's process_wrapper.
-		{"oom kill behind a wrapper", "printf partial >&2; exit 1", 0, 2, 1, "partial\ntuist: this action ran out of memory: the kernel's OOM killer ended 2 of its processes in a remote execution VM with 4 GB. Run it in a larger VM by adding exec_properties = {\"tuist-memory-gb\": \"8\"} to its target.\n"},
+		{"oom kill behind a wrapper", "printf partial >&2; exit 1", 0, 2, 1, "partial\ntuist: this action ran out of memory: the kernel's OOM killer ended 2 of its processes in a remote execution VM with 4 GB. Where automatic task sizing is on, its next run gets a larger VM; otherwise run it in one by adding exec_properties = {\"tuist-memory-gb\": \"8\"} to its target.\n"},
 		{"oom kill in the largest VM", "exit 1", 16, 1, 1, "\ntuist: this action ran out of memory: the kernel's OOM killer ended 1 of its processes in a remote execution VM with 16 GB. That is the largest VM size.\n"},
 		{"oom kill without failure", "printf ok >&2", 0, 1, 0, "ok"},
 		{"signal", "kill -TERM $$", 0, 0, 128, "\ntuist: the action's command was killed by signal 15 (terminated).\n"},

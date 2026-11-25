@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "fc31cd60583baaf95398fe8b5f0f1af0f430ae30161b254474a09d534288ba83",
+  "hash": "8892f98e6370bcd38fbf3515f7eb55112fa14c7b2762aa3a88406c4d10a014d9",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "a5751f9d54c58a292dae532e0a6b6b52a9548da9146565b291bf88148abf3aec"
                 },
                 "## Inspect remote execution {#inspect-remote-execution}": {
-                  "content_hash": "4d6dbb375b30e6def131b11c0e9c76e3e566d59d2e1222f7f425624f70bf2fad"
+                  "content_hash": "4bd2dc30630ce28e468df10c4d56b4bafafdb0f4321accc03116459e2e69d94c"
                 },
                 "## Prepare actions for workers {#prepare-actions-for-workers}": {
                   "content_hash": "192571fed050cc6b1ca3cf9297a55faa9242c8236489363a24fd0a2800800c6e"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "533910250851bbbaa15f53515abc360b997de8f9ae8deb3c58dbc61f27d419ec",
+          "hash": "4561120155a206767774d4917ac8f64c1f75c9a99c06a93833ef142d1875e4c2",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/struo.md",
           "metadata": {
-            "content_hash": "ac7d58a0caeecb53cc053e3c1ad213ae219867aec33e06852b7cf3a5149f4d27"
+            "content_hash": "e21ab20f46323f0125846277810334d0a41a07a7039444e3babe8fbdc6e0cae7"
           }
         },
         {
@@ -224,14 +224,14 @@
         }
       ],
       "details": {},
-      "hash": "fc31cd60583baaf95398fe8b5f0f1af0f430ae30161b254474a09d534288ba83",
+      "hash": "8892f98e6370bcd38fbf3515f7eb55112fa14c7b2762aa3a88406c4d10a014d9",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/struo.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "64c2a8c86af318034d546d0394bfc301c228ba7044ba1565c085c3fb07da6daf",
+  "output_hash": "cdbb2542a325457ec1edb8515ae37976debb607c223c101b241ba47aefd865d9",
   "output_path": "server/priv/docs/zh_Hans/guides/features/runners/struo.md",
   "protection_state": "recorded",
   "provider": "",
@@ -251,8 +251,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5f6b0c6761cf60e6ba412eb3de60cafd4a5b924e",
+  "source_commit_sha": "8db55863a22eb35e095a8cfb810fd09e55957c86",
   "source_path": "server/priv/docs/en/guides/features/runners/struo.md",
-  "translated_at": "2026-11-19T14:38:21.210238Z",
-  "translation_session_id": "01a1f43c-cc79-7fa7-97c3-b1bca0dda8f1"
+  "translated_at": "2026-11-25T16:56:42.091233Z",
+  "translation_session_id": "01a213a1-76f4-7d23-8b1d-a40f1e5c7122"
 }

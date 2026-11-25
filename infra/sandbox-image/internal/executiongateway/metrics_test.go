@@ -44,16 +44,27 @@ func TestPrefetchesAreCountedByHowTheInputsWereRead(t *testing.T) {
 	for _, test := range []struct {
 		name  string
 		store *blobStore
+		// dropAction removes the action from the cache before the prefetch.
+		dropAction bool
 	}{
-		{"inputs", &blobStore{blobs: map[string][]byte{}, tree: true, inputs: true}},
-		{"tree", &blobStore{blobs: map[string][]byte{}, tree: true}},
-		{"walk", &blobStore{blobs: map[string][]byte{}}},
+		{"inputs", &blobStore{blobs: map[string][]byte{}, tree: true, inputs: true}, false},
+		{"tree", &blobStore{blobs: map[string][]byte{}, tree: true}, false},
+		{"walk", &blobStore{blobs: map[string][]byte{}}, false},
+		{"timeout", &blobStore{blobs: map[string][]byte{}, inputs: true, delay: time.Minute}, false},
+		{"missing", &blobStore{blobs: map[string][]byte{}, inputs: true}, true},
+		{"failed", &blobStore{blobs: map[string][]byte{}, inputs: true, fail: true}, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			prefetch, _, g := prefetchLab(t, test.store)
+			prefetch, digests, g := prefetchLab(t, test.store)
+			if test.dropAction {
+				delete(test.store.blobs, digests[0].Hash)
+			}
 			prefetch()
 			if n := testutil.ToFloat64(g.metrics.prefetches.WithLabelValues(test.name)); n != 1 {
 				t.Fatalf("%v prefetches counted as %s", n, test.name)
+			}
+			if n := testutil.CollectAndCount(g.metrics.prefetchDuration); n != 1 {
+				t.Fatalf("%d prefetch duration series; want one, for %s", n, test.name)
 			}
 		})
 	}

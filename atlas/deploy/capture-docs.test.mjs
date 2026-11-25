@@ -15,13 +15,17 @@ async function fixture(t, mode = 'success') {
   await mkdir(output);
   const chrome = join(root, 'fake chrome.mjs');
   await writeFile(chrome, `#!${process.execPath}
-import { appendFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 const mode = ${JSON.stringify(mode)};
 const args = process.argv.slice(2);
 const shot = args.find(arg => arg.startsWith('--screenshot=')).slice('--screenshot='.length);
 writeFileSync(shot.replace('.png', '.json'), JSON.stringify(args));
 console.error('capture diagnostics');
 if (mode === 'failure') process.exit(7);
+if (mode === 'fails-once' && !existsSync(shot + '.failed')) {
+  writeFileSync(shot + '.failed', '');
+  process.exit(7);
+}
 if (['hang', 'teardown-hang', 'truncated-hang'].includes(mode)) {
   writeFileSync(shot.replace('.png', '.pid'), String(process.pid));
   setTimeout(() => {}, 60_000);
@@ -57,6 +61,16 @@ test('failed capture removes stale images and preserves diagnostics', async t =>
   await assert.rejects(captureOne(options), /exit 7.*desktop.log/);
   assert.equal(existsSync(shot), false);
   assert.match(await readFile(join(options.output, 'desktop.log'), 'utf8'), /capture diagnostics/);
+});
+
+test('a failed capture is retried once with a new profile', async t => {
+  const options = await fixture(t, 'fails-once');
+  await captureOne(options);
+  const args = JSON.parse(await readFile(join(options.output, 'desktop.json'), 'utf8'));
+  assert.ok(args.includes(`--user-data-dir=${join(options.temporary, 'profile-desktop-2')}`));
+  assert.ok((await readFile(join(options.output, 'desktop.png'))).subarray(0, 8).equals(PNG_HEADER));
+  const log = await readFile(join(options.output, 'desktop.log'), 'utf8');
+  assert.equal(log.match(/capture diagnostics/g).length, 2);
 });
 
 test('missing, incomplete, truncated and invalid images fail', async t => {

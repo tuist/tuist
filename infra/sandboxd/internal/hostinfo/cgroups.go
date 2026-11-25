@@ -211,6 +211,11 @@ func (c *VMCgroups) MemoryCurrent(id string) (uint64, bool) {
 	return bytes, err == nil
 }
 
+// Reweigh sets a running VM's cpu.weight to guaranteeMilli.
+func (c *VMCgroups) Reweigh(id string, guaranteeMilli uint64) error {
+	return writeWeight(filepath.Join(c.dir, vmCgroupPrefix+id), guaranteeMilli)
+}
+
 // Remove deletes the VM's cgroup once its process has exited (a pause, a
 // death or a delete); the kernel moves the memory still charged to it to
 // the container's cgroup. A cgroup left behind is reused by the VM's next

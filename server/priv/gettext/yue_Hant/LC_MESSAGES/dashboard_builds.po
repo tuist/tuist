@@ -523,7 +523,7 @@ msgstr "下載吞吐量"
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:49
 #: lib/tuist_web/live/once_runs_live.ex:1002
-#: lib/tuist_web/live/remote_execution_live.ex:725
+#: lib/tuist_web/live/remote_execution_live.ex:693
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:30
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
@@ -1070,7 +1070,7 @@ msgstr "專案設定"
 #: lib/tuist_web/live/generate_runs_live.html.heex:108
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:76
 #: lib/tuist_web/live/once_runs_live.ex:1003
-#: lib/tuist_web/live/remote_execution_live.ex:731
+#: lib/tuist_web/live/remote_execution_live.ex:699
 #: lib/tuist_web/live/run_detail_live.html.heex:156
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:15
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
@@ -1124,6 +1124,7 @@ msgid "Resources"
 msgstr "資源"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:90
+#: lib/tuist_web/live/remote_execution_live.ex:482
 #: lib/tuist_web/live/run_detail_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Run"
@@ -1203,7 +1204,7 @@ msgstr "大小 (MB)"
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
 #: lib/tuist_web/live/mix_build_live.html.heex:601
 #: lib/tuist_web/live/once_runs_live.ex:846
-#: lib/tuist_web/live/remote_execution_live.ex:473
+#: lib/tuist_web/live/remote_execution_live.ex:433
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
@@ -1246,7 +1247,7 @@ msgstr "來源"
 #: lib/tuist_web/live/mix_build_live.html.heex:399
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:23
 #: lib/tuist_web/live/once_run_live.ex:319
-#: lib/tuist_web/live/remote_execution_live.ex:730
+#: lib/tuist_web/live/remote_execution_live.ex:698
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #: lib/tuist_web/live/xcode_build_runs_live.ex:221
 #: lib/tuist_web/live/xcode_builds_live.ex:451
@@ -2504,8 +2505,8 @@ msgstr "已宣告動作索引"
 #: lib/tuist_web/live/bazel_invocation_live.ex:455
 #: lib/tuist_web/live/bazel_invocation_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:625
-#: lib/tuist_web/live/remote_execution_live.ex:245
-#: lib/tuist_web/live/remote_execution_live.ex:846
+#: lib/tuist_web/live/remote_execution_live.ex:239
+#: lib/tuist_web/live/remote_execution_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "Executions"
 msgstr "執行次數"
@@ -2590,7 +2591,7 @@ msgstr "在此項目中找不到。"
 #: lib/tuist_web/live/build_entity_live.html.heex:443
 #: lib/tuist_web/live/build_entity_live.html.heex:455
 #: lib/tuist_web/live/build_entity_live.html.heex:594
-#: lib/tuist_web/live/remote_execution_live.ex:701
+#: lib/tuist_web/live/remote_execution_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr "未記錄"
@@ -3404,110 +3405,100 @@ msgstr "佇列"
 msgid "Remote execution"
 msgstr "遠端執行"
 
-#: lib/tuist_web/live/remote_execution_live.ex:418
-#, elixir-autogen, elixir-format
-msgid "Execution diagnostics"
-msgstr "執行診斷"
-
-#: lib/tuist_web/live/remote_execution_live.ex:443
-#, elixir-autogen, elixir-format
-msgid "Open build runs"
-msgstr "開啟構建運行"
-
-#: lib/tuist_web/live/remote_execution_live.ex:579
-#: lib/tuist_web/live/remote_execution_live.ex:727
+#: lib/tuist_web/live/remote_execution_live.ex:542
+#: lib/tuist_web/live/remote_execution_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Avg. execution"
 msgstr "平均執行時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:696
+#: lib/tuist_web/live/remote_execution_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "Avg. execution time"
 msgstr "平均執行時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:692
+#: lib/tuist_web/live/remote_execution_live.ex:660
 #, elixir-autogen, elixir-format
 msgid "Avg. queue time"
 msgstr "平均排隊時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:400
+#: lib/tuist_web/live/remote_execution_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "No remote execution timings in this period"
 msgstr "本期間無遠程執行時間數據"
 
-#: lib/tuist_web/live/remote_execution_live.ex:569
-#: lib/tuist_web/live/remote_execution_live.ex:726
-#: lib/tuist_web/live/remote_execution_live.ex:770
+#: lib/tuist_web/live/remote_execution_live.ex:532
+#: lib/tuist_web/live/remote_execution_live.ex:694
+#: lib/tuist_web/live/remote_execution_live.ex:738
 #, elixir-autogen, elixir-format
 msgid "Remote actions"
 msgstr "遠程操作"
 
-#: lib/tuist_web/live/remote_execution_live.ex:316
+#: lib/tuist_web/live/remote_execution_live.ex:308
 #, elixir-autogen, elixir-format
 msgid "Time actions ran on a remote worker. This is per-action work, not build wall time or billed VM time."
 msgstr "操作在遠程工作節點上運行的時間。這是每個操作的實際工作時間，並非構建總耗時或計費的虛擬機時間。"
 
-#: lib/tuist_web/live/remote_execution_live.ex:291
+#: lib/tuist_web/live/remote_execution_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Time actions waited for a remote worker. Actions without a recorded queue phase are excluded."
 msgstr "操作等待遠程工作節點的時間。未記錄排隊階段的操作不包括在內。"
 
-#: lib/tuist_web/live/remote_execution_live.ex:695
+#: lib/tuist_web/live/remote_execution_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "p50 execution time"
 msgstr "p50 執行時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:691
+#: lib/tuist_web/live/remote_execution_live.ex:659
 #, elixir-autogen, elixir-format
 msgid "p50 queue time"
 msgstr "p50 佇列時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:694
+#: lib/tuist_web/live/remote_execution_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "p90 execution time"
 msgstr "p90 執行時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:690
+#: lib/tuist_web/live/remote_execution_live.ex:658
 #, elixir-autogen, elixir-format
 msgid "p90 queue time"
 msgstr "p90 佇列時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:693
+#: lib/tuist_web/live/remote_execution_live.ex:661
 #, elixir-autogen, elixir-format
 msgid "p99 execution time"
 msgstr "p99 執行時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:689
+#: lib/tuist_web/live/remote_execution_live.ex:657
 #, elixir-autogen, elixir-format
 msgid "p99 queue time"
 msgstr "p99 佇列時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:453
+#: lib/tuist_web/live/remote_execution_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "Invocations"
 msgstr "調用次數"
 
-#: lib/tuist_web/live/remote_execution_live.ex:625
+#: lib/tuist_web/live/remote_execution_live.ex:588
 #, elixir-autogen, elixir-format
 msgid "No invocations match your search"
 msgstr "沒有符合你搜尋條件的調用"
 
-#: lib/tuist_web/live/remote_execution_live.ex:621
+#: lib/tuist_web/live/remote_execution_live.ex:584
 #, elixir-autogen, elixir-format
 msgid "No invocations with remote execution timings in this period"
 msgstr "本期沒有包含遠端執行時間的調用記錄"
 
-#: lib/tuist_web/live/remote_execution_live.ex:465
+#: lib/tuist_web/live/remote_execution_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "Search invocations..."
 msgstr "搜尋調用記錄..."
 
-#: lib/tuist_web/live/remote_execution_live.ex:728
+#: lib/tuist_web/live/remote_execution_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "p50 execution"
 msgstr "p50 執行時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:729
+#: lib/tuist_web/live/remote_execution_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "p90 execution"
 msgstr "p90 執行時間"
@@ -3545,7 +3536,7 @@ msgstr "%{vcpus} 個 vCPU · %{memory} GB"
 msgid "Machine"
 msgstr "機器"
 
-#: lib/tuist_web/live/remote_execution_live.ex:370
+#: lib/tuist_web/live/remote_execution_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "No remote executions in this period"
 msgstr "此期間沒有遠端執行"
@@ -3559,23 +3550,23 @@ msgstr "已排入佇列"
 #: lib/tuist_web/live/bazel_invocation_live.ex:239
 #: lib/tuist_web/live/bazel_invocation_live.ex:389
 #: lib/tuist_web/live/bazel_remote_action_live.ex:241
-#: lib/tuist_web/live/remote_execution_live.ex:535
+#: lib/tuist_web/live/remote_execution_live.ex:498
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr "執行中"
 
-#: lib/tuist_web/live/remote_execution_live.ex:265
-#: lib/tuist_web/live/remote_execution_live.ex:856
+#: lib/tuist_web/live/remote_execution_live.ex:259
+#: lib/tuist_web/live/remote_execution_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Total execution time"
 msgstr "總執行時間"
 
-#: lib/tuist_web/live/remote_execution_live.ex:826
+#: lib/tuist_web/live/remote_execution_live.ex:813
 #, elixir-autogen, elixir-format
 msgid "%{running} running · %{queued} queued"
 msgstr "%{running} 個執行中 · %{queued} 個已排入佇列"
 
-#: lib/tuist_web/live/remote_execution_live.ex:819
+#: lib/tuist_web/live/remote_execution_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Invocation %{id}"
 msgstr "調用 %{id}"
@@ -3597,28 +3588,18 @@ msgstr "沒有正在運行或排隊的執行"
 msgid "Running executions are unavailable"
 msgstr "無法提供正在運行的執行"
 
-#: lib/tuist_web/live/remote_execution_live.ex:248
+#: lib/tuist_web/live/remote_execution_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Remote actions that ran in a VM, as the execution node recorded them. Results served from the cache are not executions."
 msgstr "在 VM 中運行的遠端操作，由執行節點記錄。從快取提供的結果不算作執行。"
 
-#: lib/tuist_web/live/remote_execution_live.ex:268
+#: lib/tuist_web/live/remote_execution_live.ex:262
 #, elixir-autogen, elixir-format
 msgid "Time the executor ran in each action's VM, from its start to its exit, summed over executions. It includes fetching inputs and uploading outputs, but not queueing or preparing the VM. The Usage page bills this time per machine shape."
 msgstr "每次執行的總和，即執行器在各個操作的 VM 中從開始到結束的運行時間。包括獲取輸入和上傳輸出，但不包括排隊或準備 VM 的時間。「使用量」頁面會按機器規格對此時間計費。"
 
-#: lib/tuist_web/live/remote_execution_live.ex:424
-#, elixir-autogen, elixir-format
-msgid "Per-action remote timings are not available for Struo yet"
-msgstr "Struo 暫不提供每個操作的遠端計時數據"
-
-#: lib/tuist_web/live/remote_execution_live.ex:436
-#, elixir-autogen, elixir-format
-msgid "Struo run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
-msgstr "Struo 運行遙測數據尚未區分遠端操作與本機操作，因此不會顯示每個操作的排隊和執行時間，以及運行它們的調用。"
-
-#: lib/tuist_web/live/remote_execution_live.ex:308
-#: lib/tuist_web/live/remote_execution_live.ex:339
+#: lib/tuist_web/live/remote_execution_live.ex:301
+#: lib/tuist_web/live/remote_execution_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "Couldn't load"
 msgstr "無法載入"
@@ -3871,3 +3852,13 @@ msgstr "動作完成後，指令、輸出和計時會在此顯示。"
 #, elixir-autogen, elixir-format
 msgid "Waiting for"
 msgstr "等待中"
+
+#: lib/tuist_web/live/remote_execution_live.ex:411
+#, elixir-autogen, elixir-format
+msgid "Runs"
+msgstr "執行次數"
+
+#: lib/tuist_web/live/remote_execution_live.ex:796
+#, elixir-autogen, elixir-format
+msgid "Run %{id}"
+msgstr "執行 %{id}"

@@ -523,7 +523,7 @@ msgstr "İndirme hızı"
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:49
 #: lib/tuist_web/live/once_runs_live.ex:1002
-#: lib/tuist_web/live/remote_execution_live.ex:725
+#: lib/tuist_web/live/remote_execution_live.ex:693
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:30
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
@@ -1070,7 +1070,7 @@ msgstr "Proje ayarları"
 #: lib/tuist_web/live/generate_runs_live.html.heex:108
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:76
 #: lib/tuist_web/live/once_runs_live.ex:1003
-#: lib/tuist_web/live/remote_execution_live.ex:731
+#: lib/tuist_web/live/remote_execution_live.ex:699
 #: lib/tuist_web/live/run_detail_live.html.heex:156
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:15
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
@@ -1124,6 +1124,7 @@ msgid "Resources"
 msgstr "Kaynaklar"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:90
+#: lib/tuist_web/live/remote_execution_live.ex:482
 #: lib/tuist_web/live/run_detail_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Run"
@@ -1203,7 +1204,7 @@ msgstr "Boyut (MB)"
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
 #: lib/tuist_web/live/mix_build_live.html.heex:601
 #: lib/tuist_web/live/once_runs_live.ex:846
-#: lib/tuist_web/live/remote_execution_live.ex:473
+#: lib/tuist_web/live/remote_execution_live.ex:433
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
@@ -1246,7 +1247,7 @@ msgstr "Kaynaklar"
 #: lib/tuist_web/live/mix_build_live.html.heex:399
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:23
 #: lib/tuist_web/live/once_run_live.ex:319
-#: lib/tuist_web/live/remote_execution_live.ex:730
+#: lib/tuist_web/live/remote_execution_live.ex:698
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #: lib/tuist_web/live/xcode_build_runs_live.ex:221
 #: lib/tuist_web/live/xcode_builds_live.ex:451
@@ -2504,8 +2505,8 @@ msgstr "Bildirilen eylem dizini"
 #: lib/tuist_web/live/bazel_invocation_live.ex:455
 #: lib/tuist_web/live/bazel_invocation_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:625
-#: lib/tuist_web/live/remote_execution_live.ex:245
-#: lib/tuist_web/live/remote_execution_live.ex:846
+#: lib/tuist_web/live/remote_execution_live.ex:239
+#: lib/tuist_web/live/remote_execution_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "Executions"
 msgstr "Çalıştırmalar"
@@ -2590,7 +2591,7 @@ msgstr "Bu projede bulunamadı."
 #: lib/tuist_web/live/build_entity_live.html.heex:443
 #: lib/tuist_web/live/build_entity_live.html.heex:455
 #: lib/tuist_web/live/build_entity_live.html.heex:594
-#: lib/tuist_web/live/remote_execution_live.ex:701
+#: lib/tuist_web/live/remote_execution_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr "Kaydedilmedi"
@@ -3404,110 +3405,100 @@ msgstr "Kuyruk"
 msgid "Remote execution"
 msgstr "Uzak çalıştırma"
 
-#: lib/tuist_web/live/remote_execution_live.ex:418
-#, elixir-autogen, elixir-format
-msgid "Execution diagnostics"
-msgstr "Çalıştırma tanılama"
-
-#: lib/tuist_web/live/remote_execution_live.ex:443
-#, elixir-autogen, elixir-format
-msgid "Open build runs"
-msgstr "Derleme çalıştırmalarını aç"
-
-#: lib/tuist_web/live/remote_execution_live.ex:579
-#: lib/tuist_web/live/remote_execution_live.ex:727
+#: lib/tuist_web/live/remote_execution_live.ex:542
+#: lib/tuist_web/live/remote_execution_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Avg. execution"
 msgstr "Ort. yürütme süresi"
 
-#: lib/tuist_web/live/remote_execution_live.ex:696
+#: lib/tuist_web/live/remote_execution_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "Avg. execution time"
 msgstr "Ortalama yürütme süresi"
 
-#: lib/tuist_web/live/remote_execution_live.ex:692
+#: lib/tuist_web/live/remote_execution_live.ex:660
 #, elixir-autogen, elixir-format
 msgid "Avg. queue time"
 msgstr "Ortalama kuyruk süresi"
 
-#: lib/tuist_web/live/remote_execution_live.ex:400
+#: lib/tuist_web/live/remote_execution_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "No remote execution timings in this period"
 msgstr "Bu dönemde uzak yürütme süreleri yok"
 
-#: lib/tuist_web/live/remote_execution_live.ex:569
-#: lib/tuist_web/live/remote_execution_live.ex:726
-#: lib/tuist_web/live/remote_execution_live.ex:770
+#: lib/tuist_web/live/remote_execution_live.ex:532
+#: lib/tuist_web/live/remote_execution_live.ex:694
+#: lib/tuist_web/live/remote_execution_live.ex:738
 #, elixir-autogen, elixir-format
 msgid "Remote actions"
 msgstr "Uzak eylemler"
 
-#: lib/tuist_web/live/remote_execution_live.ex:316
+#: lib/tuist_web/live/remote_execution_live.ex:308
 #, elixir-autogen, elixir-format
 msgid "Time actions ran on a remote worker. This is per-action work, not build wall time or billed VM time."
 msgstr "Eylemlerin uzak bir işçi üzerinde çalıştığı süre. Bu, eylem başına iş süresidir; derlemenin toplam duvar saati veya faturalandırılan VM süresi değildir."
 
-#: lib/tuist_web/live/remote_execution_live.ex:291
+#: lib/tuist_web/live/remote_execution_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Time actions waited for a remote worker. Actions without a recorded queue phase are excluded."
 msgstr "Eylemlerin uzak bir işçi için beklediği süre. Kuyruk aşaması kaydedilmemiş eylemler hariçtir."
 
-#: lib/tuist_web/live/remote_execution_live.ex:695
+#: lib/tuist_web/live/remote_execution_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "p50 execution time"
 msgstr "p50 yürütme süresi"
 
-#: lib/tuist_web/live/remote_execution_live.ex:691
+#: lib/tuist_web/live/remote_execution_live.ex:659
 #, elixir-autogen, elixir-format
 msgid "p50 queue time"
 msgstr "p50 kuyruk süresi"
 
-#: lib/tuist_web/live/remote_execution_live.ex:694
+#: lib/tuist_web/live/remote_execution_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "p90 execution time"
 msgstr "p90 yürütme süresi"
 
-#: lib/tuist_web/live/remote_execution_live.ex:690
+#: lib/tuist_web/live/remote_execution_live.ex:658
 #, elixir-autogen, elixir-format
 msgid "p90 queue time"
 msgstr "p90 kuyruk süresi"
 
-#: lib/tuist_web/live/remote_execution_live.ex:693
+#: lib/tuist_web/live/remote_execution_live.ex:661
 #, elixir-autogen, elixir-format
 msgid "p99 execution time"
 msgstr "p99 yürütme süresi"
 
-#: lib/tuist_web/live/remote_execution_live.ex:689
+#: lib/tuist_web/live/remote_execution_live.ex:657
 #, elixir-autogen, elixir-format
 msgid "p99 queue time"
 msgstr "p99 kuyruk süresi"
 
-#: lib/tuist_web/live/remote_execution_live.ex:453
+#: lib/tuist_web/live/remote_execution_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "Invocations"
 msgstr "Çağrılar"
 
-#: lib/tuist_web/live/remote_execution_live.ex:625
+#: lib/tuist_web/live/remote_execution_live.ex:588
 #, elixir-autogen, elixir-format
 msgid "No invocations match your search"
 msgstr "Aramanızla eşleşen çağrı bulunamadı"
 
-#: lib/tuist_web/live/remote_execution_live.ex:621
+#: lib/tuist_web/live/remote_execution_live.ex:584
 #, elixir-autogen, elixir-format
 msgid "No invocations with remote execution timings in this period"
 msgstr "Bu dönemde uzak yürütme sürelerine sahip çağrı bulunmuyor"
 
-#: lib/tuist_web/live/remote_execution_live.ex:465
+#: lib/tuist_web/live/remote_execution_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "Search invocations..."
 msgstr "Çağrıları ara..."
 
-#: lib/tuist_web/live/remote_execution_live.ex:728
+#: lib/tuist_web/live/remote_execution_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "p50 execution"
 msgstr "p50 yürütme"
 
-#: lib/tuist_web/live/remote_execution_live.ex:729
+#: lib/tuist_web/live/remote_execution_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "p90 execution"
 msgstr "p90 yürütme"
@@ -3545,7 +3536,7 @@ msgstr "%{vcpus} vCPU · %{memory} GB"
 msgid "Machine"
 msgstr "Makine"
 
-#: lib/tuist_web/live/remote_execution_live.ex:370
+#: lib/tuist_web/live/remote_execution_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "No remote executions in this period"
 msgstr "Bu dönemde uzak yürütme yok"
@@ -3559,23 +3550,23 @@ msgstr "Kuyrukta"
 #: lib/tuist_web/live/bazel_invocation_live.ex:239
 #: lib/tuist_web/live/bazel_invocation_live.ex:389
 #: lib/tuist_web/live/bazel_remote_action_live.ex:241
-#: lib/tuist_web/live/remote_execution_live.ex:535
+#: lib/tuist_web/live/remote_execution_live.ex:498
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr "Çalışıyor"
 
-#: lib/tuist_web/live/remote_execution_live.ex:265
-#: lib/tuist_web/live/remote_execution_live.ex:856
+#: lib/tuist_web/live/remote_execution_live.ex:259
+#: lib/tuist_web/live/remote_execution_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Total execution time"
 msgstr "Toplam yürütme süresi"
 
-#: lib/tuist_web/live/remote_execution_live.ex:826
+#: lib/tuist_web/live/remote_execution_live.ex:813
 #, elixir-autogen, elixir-format
 msgid "%{running} running · %{queued} queued"
 msgstr "%{running} çalışıyor · %{queued} kuyrukta"
 
-#: lib/tuist_web/live/remote_execution_live.ex:819
+#: lib/tuist_web/live/remote_execution_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Invocation %{id}"
 msgstr "Çağrı %{id}"
@@ -3597,28 +3588,18 @@ msgstr "Hiçbir yürütme çalışmıyor veya sıraya alınmadı"
 msgid "Running executions are unavailable"
 msgstr "Çalışan yürütmeler kullanılamıyor"
 
-#: lib/tuist_web/live/remote_execution_live.ex:248
+#: lib/tuist_web/live/remote_execution_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Remote actions that ran in a VM, as the execution node recorded them. Results served from the cache are not executions."
 msgstr "Yürütme düğümünün kaydettiği şekilde bir VM'de çalışan uzak eylemler. Önbellekten sunulan sonuçlar yürütme değildir."
 
-#: lib/tuist_web/live/remote_execution_live.ex:268
+#: lib/tuist_web/live/remote_execution_live.ex:262
 #, elixir-autogen, elixir-format
 msgid "Time the executor ran in each action's VM, from its start to its exit, summed over executions. It includes fetching inputs and uploading outputs, but not queueing or preparing the VM. The Usage page bills this time per machine shape."
 msgstr "Her eylemin VM'sinde yürütücünün başlangıcından çıkışına kadar geçen süre, yürütmeler üzerinden toplanır. Girdileri getirmeyi ve çıktıları yüklemeyi içerir ancak kuyruğa alma veya VM hazırlama dahil değildir. Kullanım sayfası bu süreyi makine tipine göre faturalandırır."
 
-#: lib/tuist_web/live/remote_execution_live.ex:424
-#, elixir-autogen, elixir-format
-msgid "Per-action remote timings are not available for Struo yet"
-msgstr "Eylem bazlı uzak zamanlamalar henüz Struo için mevcut değil"
-
-#: lib/tuist_web/live/remote_execution_live.ex:436
-#, elixir-autogen, elixir-format
-msgid "Struo run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
-msgstr "Struo çalışma telemetrisi henüz uzak eylemleri yerel olanlardan ayırt etmiyor; bu nedenle eylem başına kuyruk ve yürütme süreleri ile bunları çalıştıran çağrılar gösterilmiyor."
-
-#: lib/tuist_web/live/remote_execution_live.ex:308
-#: lib/tuist_web/live/remote_execution_live.ex:339
+#: lib/tuist_web/live/remote_execution_live.ex:301
+#: lib/tuist_web/live/remote_execution_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "Couldn't load"
 msgstr "Yüklenemedi"
@@ -3871,3 +3852,13 @@ msgstr "Komut, çıktı ve zamanlamalar eylem tamamlandığında burada görün�
 #, elixir-autogen, elixir-format
 msgid "Waiting for"
 msgstr "Bekleniyor"
+
+#: lib/tuist_web/live/remote_execution_live.ex:411
+#, elixir-autogen, elixir-format
+msgid "Runs"
+msgstr "Çalıştırmalar"
+
+#: lib/tuist_web/live/remote_execution_live.ex:796
+#, elixir-autogen, elixir-format
+msgid "Run %{id}"
+msgstr "%{id} çalıştırması"

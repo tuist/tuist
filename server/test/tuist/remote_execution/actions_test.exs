@@ -60,6 +60,12 @@ defmodule Tuist.RemoteExecution.ActionsTest do
     assert {:ok, %{output_count: 2000, output_paths: ["bazel-out/foo.o"]}} =
              Actions.get(project.id, "inv-1", cut["operation_id"])
 
+    # A record stores the size the action ran in, not the one it asked for.
+    sized = record(%{"usage" => %{"memory_gb" => 8}})
+    assert {:ok, 1} = Actions.ingest(project, [sized])
+    assert {:ok, %{memory_gb: 8}} = Actions.get(project.id, "inv-1", sized["operation_id"])
+    assert action.memory_gb == 4
+
     assert Enum.zip(action.environment_names, action.environment_values) == [
              {"PATH", "/usr/bin"},
              {"GITHUB_TOKEN", "****"}
