@@ -2084,6 +2084,18 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  The key `Tuist.Guardian` verified tokens with before the current
+  `secret_key_tokens/1`, kept while tokens signed with it are still live. See
+  `Tuist.Guardian.SecretFetcher`.
+  """
+  def secret_key_tokens_previous(secrets \\ secrets()) do
+    case get([:secret_key, :tokens_previous], secrets) do
+      value when is_binary(value) -> if String.trim(value) == "", do: nil, else: value
+      _ -> nil
+    end
+  end
+
+  @doc """
   The private half of the keypair cache tokens are signed with, as a PEM.
 
   Absent unless a deployment has minted one, in which case cache tokens are

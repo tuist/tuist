@@ -313,6 +313,7 @@ As an on-premise user, you'll receive a license that you'll need to expose as an
 | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
 | `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |
+| `TUIST_SECRET_KEY_TOKENS_PREVIOUS` | The previous `TUIST_SECRET_KEY_TOKENS`, which still verifies tokens issued before a rotation. Remove it once they have expired (30 days) | No | | |
 | `TUIST_SECRET_KEY_ENCRYPTION` | Key for AES-GCM encryption of sensitive data. Values longer than 32 bytes are cut to their first 32 bytes; prefer `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | Comma-separated `id:base64` encryption keys, each 32 bytes (`openssl rand -base64 32`). The first encrypts new data; the others and `TUIST_SECRET_KEY_ENCRYPTION` (id `V1`) still decrypt existing data. Move existing data to the current key with `bin/tuist eval 'Tuist.Release.reencrypt_vault("<id>")'` | No | | `k2:3q2+7w...` |
 | `TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY` | Id of the key that encrypts new data, when it should not be the first of `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | No | | `V1` |
