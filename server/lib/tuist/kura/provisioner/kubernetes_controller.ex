@@ -512,6 +512,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "storageSize" => claim,
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
+          "replicaSpreadTopologyKey" => Regions.replica_spread_topology_key(region),
           "tolerations" => tolerations(region),
           "extraEnv" => auth_env(region, claim, entitlements)
         }
@@ -572,22 +573,23 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp private_host(_handle, _region), do: nil
 
-  # A rack site's node is published on every other available site's gateway,
-  # so a job at that site whose own node is missing or not serving can read
-  # this one through its local gateway (`Tuist.Kura.runner_cache_endpoint_url/3`).
-  # Only the site gateway's own fields come from the other region; the host and
-  # the limits are this region's, because they describe traffic leaving it.
+  # A rack site's node is published on another site's gateway, so a job at
+  # that site reads it through its local gateway
+  # (`Tuist.Kura.runner_cache_endpoint_url/3`): every site the region declares
+  # an entrance for, or else every other available rack site
+  # (`Regions.entrance_sites/1`). Only the site gateway's own fields come from
+  # the entrance site; the host and the limits are this region's, because they
+  # describe traffic leaving it.
   defp gateway_entrances(handle, %Regions{provisioner_config: %{entrance_host_template: template} = config} = region)
        when is_binary(template) do
     entrances =
-      for other <- entrance_sites(region) do
+      for entrance <- Regions.entrance_sites(region) do
         %{
-          "site" => Regions.site(other),
-          "host" =>
-            template |> String.replace("{site}", Regions.site(other)) |> interpolate_host(dns_handle(handle), config),
-          "ingressClassName" => other.provisioner_config[:ingress_class_name],
-          "clientCIDRs" => other.provisioner_config[:client_cidrs],
-          "nodeSelector" => node_selector(other),
+          "site" => entrance.site,
+          "host" => template |> String.replace("{site}", entrance.site) |> interpolate_host(dns_handle(handle), config),
+          "ingressClassName" => entrance.ingress_class_name,
+          "clientCIDRs" => entrance.client_cidrs,
+          "nodeSelector" => entrance.node_selector,
           "rateLimitKBps" => config[:entrance_rate_limit_kbps],
           "connectionLimit" => config[:entrance_connection_limit]
         }
@@ -600,19 +602,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp gateway_entrances(_handle, _region), do: nil
 
-  defp entrance_sites(%Regions{} = region) do
-    site = Regions.site(region)
+  # Keyed on the spread and the node selector it spans, and empty for a
+  # co-located region, so the site regions that keep their own pool keep
+  # their revision.
+  defp spread_revision_suffix(region) do
+    case Regions.replica_spread_topology_key(region) do
+      nil ->
+        ""
 
-    if is_binary(site) do
-      Regions.available()
-      |> Enum.filter(fn other ->
-        Regions.private?(other) and Regions.observed_private_endpoint?(other) and
-          Regions.site(other) not in [nil, site] and is_binary(other.provisioner_config[:ingress_class_name]) and
-          (other.provisioner_config[:client_cidrs] || []) != []
-      end)
-      |> Enum.sort_by(&Regions.site/1)
-    else
-      []
+      key ->
+        nodes = Enum.map(node_selector(region) || %{}, fn {label, value} -> "node=#{label}=#{value}" end)
+        "+spread" <> revision_digest(["key=#{key}" | nodes])
     end
   end
 
@@ -774,7 +774,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           Enum.map(config[:client_cidrs] || [], &"cidr=#{&1}")
 
       digest = revision_digest(inputs)
-      "+replicas#{replicas(region)}+endpoint#{digest}" <> entrances_revision_suffix(region)
+
+      "+replicas#{replicas(region)}+endpoint#{digest}" <>
+        spread_revision_suffix(region) <> entrances_revision_suffix(region)
     else
       ""
     end

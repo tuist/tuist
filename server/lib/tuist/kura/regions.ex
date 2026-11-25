@@ -513,16 +513,29 @@ defmodule Tuist.Kura.Regions do
   # rack edge forwards the cluster's tunnel, health and kubelet ports to it
   # on the site's public address (`rackLinuxFleet` in the tuist chart). So
   # the cache joins the account mesh pod to pod like any other region's and
-  # reaches the server and the trace collector through their Services. One
-  # replica per site: the sites' nodes pair through the account mesh.
+  # reaches the server and the trace collector through their Services.
+  #
+  # The first site's region spans every site: `ber1-runners` keeps its id,
+  # cluster id and private host (so its instances keep their names, their
+  # volumes and the URLs running jobs hold) and runs two replicas, one per
+  # site's storage node (`replica_spread_topology_key`), on the nodes labelled
+  # `tuist.dev/kura-runner-region`. Only the controller's selected primary
+  # serves (the Service and the gateways point at that one pod), so each
+  # site's Macs reach it through their own site's gateway: the first site's
+  # through the private host, every other site's through an entrance on its
+  # gateway (`entrance_sites`). Until the sites have a private link, one rack's
+  # traffic crosses both sites' internet ports to the other's primary, and a
+  # rollout can move which rack that is. The other sites' own regions
+  # (`larch-runners`) remain only until their accounts' jobs have moved onto
+  # the entrances; see infra/kura-controller/rack-runner-region.md.
   @rack_sites [
     # The machines segment of each site, where its minis sit
     # (infra/rack-switch-fleet/sites/<site>.json).
     %{site: "ber1", display_name: "Alder rack (runner cache)", client_cidr: "10.10.0.0/24"},
-    # Draining: larch-store-a's memory goes to ber1-runners' second replicas
-    # once that region spans both sites, so this region admits no account and
-    # its nodes drain. It stays available so ber1's nodes keep
-    # their fallback entrance on larch's gateway.
+    # Draining: larch-store-a's memory holds ber1-runners' second replicas,
+    # so this region admits no account and serves larch's jobs through
+    # ber1-runners' entrance on its gateway instead. Retire it once nothing
+    # is left in it (infra/kura-controller/rack-runner-region.md).
     %{site: "larch", display_name: "Larch rack (runner cache)", client_cidr: "10.20.0.0/24", draining: true}
   ]
 
@@ -566,6 +579,40 @@ defmodule Tuist.Kura.Regions do
         subdivision: "DE-BE"
       }
     end
+
+  [%{site: home_site} | other_racks] = @rack_sites
+
+  rack_site_region_specs =
+    Enum.map(rack_site_region_specs, fn
+      %{site: ^home_site} = spec ->
+        Map.merge(spec, %{
+          display_name: "Rack sites (runner cache)",
+          # A standby at the other site, so a rollout fails over rather than
+          # going dark, and a dark site leaves the other serving.
+          replicas: 2,
+          node_selector: %{"tuist.dev/kura-runner-region" => "#{home_site}-runners"},
+          replica_spread_topology_key: "tuist.dev/rack-storage",
+          # The gateway that serves the private host runs on this site's node
+          # alone, whichever site the primary is at.
+          gateway_node_selector: %{@managed_region_node_pool_label => "rack-storage-#{home_site}"},
+          entrance_sites:
+            for rack <- other_racks do
+              %{
+                site: rack.site,
+                ingress_class_name: "kura-#{rack.site}-runners",
+                client_cidrs: [rack.client_cidr],
+                node_selector: %{@managed_region_node_pool_label => "rack-storage-#{rack.site}"}
+              }
+            end,
+          # An entrance here is its site's own front door rather than a
+          # fallback, so it carries the site's traffic unthrottled.
+          entrance_rate_limit_kbps: nil,
+          entrance_connection_limit: nil
+        })
+
+      spec ->
+        spec
+    end)
 
   @rack_site_region_specs rack_site_region_specs
 
@@ -1025,6 +1072,68 @@ defmodule Tuist.Kura.Regions do
   def site(%__MODULE__{site: site}), do: site
   def site(_), do: nil
 
+  @doc """
+  Every site whose runners a private region serves: its own site first, then
+  the sites it reaches through an entrance on their gateway. `[]` for public
+  regions.
+  """
+  def sites(%__MODULE__{site: site, provisioner_config: config}) when is_binary(site) do
+    [site | Enum.map(config[:entrance_sites] || [], & &1.site)]
+  end
+
+  def sites(_), do: []
+
+  @doc """
+  The sites that publish the region's instances on their own gateway, as
+  `%{site:, ingress_class_name:, client_cidrs:, node_selector:}`. A region
+  that declares none is published on every other available rack site's
+  region's gateway, which is the cross-site fallback.
+  """
+  def entrance_sites(%__MODULE__{provisioner_config: config} = region) do
+    case config[:entrance_sites] do
+      [_ | _] = sites ->
+        sites
+
+      _ ->
+        site = site(region)
+
+        if is_binary(site) do
+          available()
+          |> Enum.filter(fn other ->
+            private?(other) and observed_private_endpoint?(other) and site(other) not in [nil, site] and
+              is_binary(other.provisioner_config[:ingress_class_name]) and
+              (other.provisioner_config[:client_cidrs] || []) != []
+          end)
+          |> Enum.sort_by(&site/1)
+          |> Enum.map(fn other ->
+            %{
+              site: site(other),
+              ingress_class_name: other.provisioner_config[:ingress_class_name],
+              client_cidrs: other.provisioner_config[:client_cidrs],
+              node_selector: gateway_node_selector(other)
+            }
+          end)
+        else
+          []
+        end
+    end
+  end
+
+  @doc """
+  The nodes the region's own gateway runs on, which is where its private host
+  resolves: its node selector unless its instances span more than that site.
+  """
+  def gateway_node_selector(%__MODULE__{provisioner_config: config}) do
+    config[:gateway_node_selector] || config[:node_selector]
+  end
+
+  @doc """
+  The node label an instance's replicas must each hold a different value of,
+  or `nil` for a region that co-locates them.
+  """
+  def replica_spread_topology_key(%__MODULE__{provisioner_config: config}), do: config[:replica_spread_topology_key]
+  def replica_spread_topology_key(_), do: nil
+
   @doc "The region with the given ID in the current runtime, or `nil` if unavailable."
   def available_region(id) when is_binary(id), do: Enum.find(available(), &(&1.id == id))
   def available_region(_), do: nil
@@ -1250,7 +1359,10 @@ defmodule Tuist.Kura.Regions do
         pod_annotations: egress_bandwidth_pod_annotations(spec),
         egress_burst_mbps: Map.get(spec, :egress_burst_mbps),
         tolerations: Map.get(spec, :tolerations, []),
-        node_selector: %{@managed_region_node_pool_label => spec.node_pool},
+        node_selector: Map.get(spec, :node_selector, %{@managed_region_node_pool_label => spec.node_pool}),
+        gateway_node_selector: Map.get(spec, :gateway_node_selector),
+        replica_spread_topology_key: Map.get(spec, :replica_spread_topology_key),
+        entrance_sites: Map.get(spec, :entrance_sites),
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
         storage_class: spec.storage_class,

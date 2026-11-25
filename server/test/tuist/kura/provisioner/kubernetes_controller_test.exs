@@ -2375,19 +2375,40 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                "http://actual-ref.kura.svc.cluster.local:4000"
     end
 
-    test "places the alder rack's cache on its storage node, in the mesh on the cluster network" do
+    test "places the rack sites' cache on both storage nodes, one replica each, in the mesh on the cluster network" do
       stub(Tuist.Environment, :env, fn -> :stag end)
       stub(Tuist.Environment, :kura_tuist_base_url, fn -> "http://tuist.tuist.svc.cluster.local" end)
       region = Regions.get("ber1-runners")
       account = %Account{id: 1, name: "tuist", subscriptions: []}
-      spec = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})["spec"]
+      manifest = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})
+      spec = manifest["spec"]
 
-      assert spec["replicas"] == 1
+      assert spec["replicas"] == 2
+      assert spec["replicaSpreadTopologyKey"] == "tuist.dev/rack-storage"
       assert spec["mesh"]
+      # The instance keeps its name and its private host, so running jobs keep
+      # their URL and the existing volume becomes ordinal 0's.
       assert spec["privateHost"] == "tuist-ber1-runners-staging.kura.tuist.dev"
       assert spec["ingressClassName"] == "kura-ber1-runners"
       assert spec["clientCIDRs"] == ["10.10.0.0/24"]
-      assert spec["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"}
+      assert spec["nodeSelector"] == %{"tuist.dev/kura-runner-region" => "ber1-runners"}
+
+      # larch's Macs reach whichever site the primary is at through their own
+      # gateway, at the site's full rate.
+      assert spec["gatewayEntrances"] == [
+               %{
+                 "site" => "larch",
+                 "host" => "tuist-ber1-runners-via-larch-staging.kura.tuist.dev",
+                 "ingressClassName" => "kura-larch-runners",
+                 "clientCIDRs" => ["10.20.0.0/24"],
+                 "nodeSelector" => %{"node.cluster.x-k8s.io/pool" => "rack-storage-larch"}
+               }
+             ]
+
+      revision = manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"]
+      assert revision =~ "+replicas2+endpoint"
+      assert revision =~ "+spread"
+      assert revision =~ "+entrances"
 
       assert spec["tolerations"] == [
                %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}

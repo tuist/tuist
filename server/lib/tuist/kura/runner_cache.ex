@@ -203,8 +203,8 @@ defmodule Tuist.Kura.RunnerCache do
     pinned = MapSet.filter(site_account_ids, &FeatureFlags.runner_site_cache_pinned?(%Account{id: &1}))
     candidates = MapSet.difference(site_account_ids, pinned)
 
-    Enum.reduce_while(regions, {:ok, pinned}, fn %Regions{site: site} = region, {:ok, admitted} ->
-      case site_traffic_account_ids(candidates, region, site) do
+    Enum.reduce_while(regions, {:ok, pinned}, fn region, {:ok, admitted} ->
+      case site_traffic_account_ids(candidates, region, Regions.sites(region)) do
         {:ok, trafficked} -> {:cont, {:ok, MapSet.union(admitted, trafficked)}}
         {:error, reason} -> {:halt, {:error, reason}}
       end
@@ -218,10 +218,10 @@ defmodule Tuist.Kura.RunnerCache do
   # a node at the site, its site jobs reach the public regions instead. Builds
   # are matched by CI run, so a build from another job of a run that also ran
   # at the site counts too.
-  defp site_traffic_account_ids(account_ids, %Regions{id: region_id} = region, site) do
+  defp site_traffic_account_ids(account_ids, %Regions{id: region_id} = region, sites) do
     since = DateTime.add(DateTime.utc_now(), -@site_traffic_window_days * 86_400, :second)
     served = served_account_ids(region_id, account_ids, DateTime.to_date(since))
-    site_runs = site_job_runs(MapSet.difference(account_ids, served), region, site, since)
+    site_runs = site_job_runs(MapSet.difference(account_ids, served), region, sites, since)
 
     case remote_cache_run_account_ids(site_runs, since) do
       {:ok, building} -> {:ok, MapSet.union(served, building)}
@@ -236,9 +236,9 @@ defmodule Tuist.Kura.RunnerCache do
     |> MapSet.new(& &1.account_id)
   end
 
-  # `{account_id, workflow_run_id}` of the account's jobs claimed at the site
-  # for the region's platforms in the window.
-  defp site_job_runs(account_ids, region, site, since) do
+  # `{account_id, workflow_run_id}` of the account's jobs claimed at one of the
+  # region's sites for its platforms in the window.
+  defp site_job_runs(account_ids, region, sites, since) do
     platforms = region |> region_platforms() |> Enum.map(&Atom.to_string/1)
 
     if MapSet.size(account_ids) == 0 or Environment.runners_site_pools() == %{} do
@@ -250,7 +250,7 @@ defmodule Tuist.Kura.RunnerCache do
           where: j.account_id in ^MapSet.to_list(account_ids),
           where: j.updated_at >= ^since and j.claimed_at >= ^since,
           where: j.platform in ^platforms,
-          where: ^claimed_at_site(site),
+          where: ^claimed_at_sites(sites),
           where: j.workflow_run_id > 0,
           distinct: true,
           select: {j.account_id, j.workflow_run_id}
@@ -431,7 +431,7 @@ defmodule Tuist.Kura.RunnerCache do
         where: j.status in ^@in_flight_job_statuses,
         where: j.platform in ^platforms,
         where: j.claimed_at <= parent_as(:server).drain_started_at,
-        where: ^claimed_at_site(region.site),
+        where: ^claimed_at_sites(Regions.sites(region)),
         select: 1
       )
 
@@ -469,10 +469,11 @@ defmodule Tuist.Kura.RunnerCache do
 
   # A rack pool spans every site whose runners are on, so a job's site is the
   # one its claim recorded from the claiming Node. A row claimed before claims
-  # recorded it counts at its pool's site.
-  defp claimed_at_site(site) do
-    site_pools = for {pool, %{site: ^site}} <- Environment.runners_site_pools(), do: pool
-    dynamic([job: j], j.site == ^site or (is_nil(j.site) and j.fleet_name in ^site_pools))
+  # recorded it counts at its pool's site. A region spanning sites counts jobs
+  # claimed at any of them.
+  defp claimed_at_sites(sites) do
+    site_pools = for {pool, %{site: site}} <- Environment.runners_site_pools(), site in sites, do: pool
+    dynamic([job: j], j.site in ^sites or (is_nil(j.site) and j.fleet_name in ^site_pools))
   end
 
   defp provision(account_id, region_id, image_tag) do

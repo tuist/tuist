@@ -710,7 +710,11 @@ defmodule Tuist.Kura.Capacity do
          false <- MapSet.member?(off_pool, handle) do
       nodes
       |> Enum.filter(&(&1.thin_ready? or not sizing.thin?))
-      |> fits?(handle, sizing, replicas(region))
+      |> fits?(
+        handle,
+        Map.put(sizing, :spread?, not is_nil(Regions.replica_spread_topology_key(region))),
+        replicas(region)
+      )
     else
       _ -> nil
     end
@@ -733,7 +737,7 @@ defmodule Tuist.Kura.Capacity do
   defp fits?(nodes, handle, %{disk: disk, request: request} = sizing, replicas) do
     case placed_replicas(nodes, handle) do
       [] ->
-        nodes |> Enum.map(&div(max(disk_available(&1, disk), 0), request)) |> Enum.sum() >= replicas
+        placements(nodes, &div(max(disk_available(&1, disk), 0), request)) >= replicas
 
       placed ->
         with %{} = volumes <- data_volume_bytes(placed) do
@@ -756,7 +760,7 @@ defmodule Tuist.Kura.Capacity do
     |> Enum.reduce_while(Map.new(nodes, &{&1.name, &1}), fn {kind, replica}, nodes ->
       nodes = release(nodes, handle, replica)
 
-      case landing(kind, replica, nodes, handle, request, disk) do
+      case landing(kind, replica, nodes, handle, request, disk, sizing.spread?) do
         nil -> {:halt, :unplaceable}
         name -> {:cont, charge(nodes, name, handle, request)}
       end
@@ -833,14 +837,22 @@ defmodule Tuist.Kura.Capacity do
   # goes where the scheduler puts it: beside the account's other replicas when
   # that node has room, as the controller's affinity prefers, and otherwise on
   # the node with the most disk left.
-  defp landing(:kept, %{node: name}, nodes, _handle, request, _disk) do
+  defp landing(:kept, %{node: name}, nodes, _handle, request, _disk, _spread?) do
     if replicas_fitting(Map.fetch!(nodes, name), request) >= 1, do: name
   end
 
-  defp landing(:rebuilt, _replica, nodes, handle, request, disk) do
+  # In a region that spreads replicas across a node label, a rebuilt replica
+  # may only land where no other replica of the account holds that label's
+  # value.
+  defp landing(:rebuilt, _replica, nodes, handle, request, disk, spread?) do
+    occupied =
+      for %{topology: topology, kura_replicas: replicas} <- Map.values(nodes),
+          spread? and Map.get(replicas, handle, []) != [],
+          do: topology
+
     nodes
     |> Map.values()
-    |> Enum.filter(&(replicas_fitting(&1, request) >= 1))
+    |> Enum.filter(&(replicas_fitting(&1, request) >= 1 and &1.topology not in occupied))
     |> Enum.sort_by(&{Map.get(&1.kura_replicas, handle, []) == [], -disk_available(&1, disk), &1.name})
     |> case do
       [%{name: name} | _] -> name
@@ -1009,7 +1021,7 @@ defmodule Tuist.Kura.Capacity do
       %{nodes: [_ | _] = nodes} = pool ->
         request = pod_request(region, plan, pool, thin)
 
-        nodes |> Enum.filter(&(&1.thin_ready? or not thin)) |> Enum.map(&replicas_fitting(&1, request)) |> Enum.sum() >=
+        nodes |> Enum.filter(&(&1.thin_ready? or not thin)) |> placements(&replicas_fitting(&1, request)) >=
           replicas(region)
 
       _ ->
@@ -1036,6 +1048,19 @@ defmodule Tuist.Kura.Capacity do
       headroom when is_integer(headroom) -> replica_gib(region, plan, thin) * replicas(region) <= headroom
       nil -> nil
     end
+  end
+
+  # How many replicas the nodes take at once, given how many each takes alone.
+  # A region that spreads its replicas across a node label takes at most one
+  # per value of it, so larch's spare disk cannot stand in for ber1's.
+  defp placements(nodes, fitting) do
+    nodes
+    |> Enum.group_by(&(&1.topology || {:node, &1.name}))
+    |> Enum.map(fn
+      {{:node, _name}, [node]} -> fitting.(node)
+      {_value, group} -> group |> Enum.map(fitting) |> Enum.sum() |> min(1)
+    end)
+    |> Enum.sum()
   end
 
   # How many replicas the node's free resources cover, bound by whichever
@@ -1162,11 +1187,20 @@ defmodule Tuist.Kura.Capacity do
         name: name,
         allocatable: allocatable,
         thin_ready?: get_in(node, ["metadata", "labels", @thin_ready_label]) == "true",
+        topology: node_topology(node, region),
         reserved: pods |> pods_requested() |> Map.update!(disk, &(&1 + Map.get(retained, name, 0))),
         kura_replicas: kura_replicas(pods, region_id)
       }
     else
       _ -> nil
+    end
+  end
+
+  # The value of the label the region spreads replicas across, or nil.
+  defp node_topology(node, region) do
+    case Regions.replica_spread_topology_key(region) do
+      nil -> nil
+      key -> get_in(node, ["metadata", "labels", key])
     end
   end
 

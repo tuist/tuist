@@ -109,6 +109,45 @@ defmodule Tuist.Kura.CapacityTest do
     end
   end
 
+  describe "a region spreading replicas across sites" do
+    setup do
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, fun -> fun.() end)
+      %{region: Regions.get("ber1-runners")}
+    end
+
+    defp site_box(site, gib, pods \\ []) do
+      pool_box("#{site}-store-a",
+        allocatable: %{"ephemeral-storage" => "#{gib}Gi"},
+        labels: %{"tuist.dev/rack-storage" => site, "tuist.dev/kura-runner-region" => "ber1-runners"},
+        pods: pods
+      )
+    end
+
+    test "places a new instance only when each site takes one replica", %{region: region} do
+      stub_pool([site_box("ber1", 100), site_box("larch", 100)])
+      assert Capacity.placeable?(region, claim(placement_account(), "50Gi")) == true
+
+      # larch has room for both, but the replicas may not share a site.
+      stub_pool([site_box("ber1", 40), site_box("larch", 1000)])
+      assert Capacity.placeable?(region, claim(placement_account(), "50Gi")) == false
+    end
+
+    test "rebuilds a grown replica at its own site, never beside its sibling", %{region: region} do
+      account = placement_account()
+      at_ber1 = kura_pod(account, 50, ordinal: 0, region: "ber1-runners")
+      at_larch = kura_pod(account, 50, ordinal: 1, region: "ber1-runners")
+
+      # ber1 has room to grow its own replica: placeable.
+      stub_pool([site_box("ber1", 200, [at_ber1]), site_box("larch", 200, [at_larch])])
+      assert Capacity.placeable?(region, claim(account, "80Gi")) == true
+
+      # ber1 cannot hold its replica at 80Gi; larch could hold both, but the
+      # rebuilt one may not land there.
+      stub_pool([site_box("ber1", 70, [at_ber1]), site_box("larch", 1000, [at_larch])])
+      assert Capacity.placeable?(region, claim(account, "80Gi")) == false
+    end
+  end
+
   describe "thin volume accounting" do
     # diskReservation in infra/kura-controller/controllers/disk_resource.go,
     # evaluated for each claim.

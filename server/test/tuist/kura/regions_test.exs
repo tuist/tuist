@@ -43,7 +43,8 @@ defmodule Tuist.Kura.RegionsTest do
       other_config = Regions.get(other_id).provisioner_config
       assert other_config.storage_class == "scw-local-nvme"
       refute other_config.encrypted_volumes
-      assert other_config.replicas == 1
+      # The merged region runs a replica per site whatever its storage.
+      assert other_config.replicas == if(other_id == "ber1-runners", do: 2, else: 1)
     end
   end
 
@@ -713,16 +714,34 @@ defmodule Tuist.Kura.RegionsTest do
   end
 
   describe "rack site regions" do
-    test "each site has its own runner-cache region on its own storage pool" do
+    test "the first site's region spans every site, one replica per site, and keeps its identity" do
       ber1 = Regions.get("ber1-runners")
       larch = Regions.get("larch-runners")
 
       assert Regions.site(ber1) == "ber1"
+      assert Regions.sites(ber1) == ["ber1", "larch"]
       assert Regions.site(larch) == "larch"
+      assert Regions.sites(larch) == ["larch"]
 
-      assert ber1.display_name == "Alder rack (runner cache)"
+      assert ber1.display_name == "Rack sites (runner cache)"
       assert larch.display_name == "Larch rack (runner cache)"
 
+      # Instance names, volumes and the private host all derive from the id
+      # and cluster id, so existing instances are adopted in place.
+      assert %{
+               cluster_id: "ber1",
+               ingress_class_name: "kura-ber1-runners",
+               client_cidrs: ["10.10.0.0/24"],
+               replicas: 2,
+               node_selector: %{"tuist.dev/kura-runner-region" => "ber1-runners"},
+               replica_spread_topology_key: "tuist.dev/rack-storage",
+               data_plane: :private_gateway
+             } = ber1.provisioner_config
+
+      assert Regions.gateway_node_selector(ber1) == %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"}
+
+      # larch's own region is unchanged until its accounts move to the
+      # entrance, so the cutover can be staged.
       assert %{
                cluster_id: "larch",
                ingress_class_name: "kura-larch-runners",
@@ -732,19 +751,28 @@ defmodule Tuist.Kura.RegionsTest do
                data_plane: :private_gateway
              } = larch.provisioner_config
 
-      assert %{
-               cluster_id: "ber1",
-               ingress_class_name: "kura-ber1-runners",
-               node_selector: %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"},
-               client_cidrs: ["10.10.0.0/24"]
-             } = ber1.provisioner_config
+      assert Regions.replica_spread_topology_key(larch) == nil
+    end
 
-      # Apart from what the site names, the two are the same region.
-      site_fields = [:cluster_id, :ingress_class_name, :node_selector, :client_cidrs, :draining]
+    test "the merged region is published on larch's gateway, unthrottled, whatever else is available" do
+      assert Regions.entrance_sites(Regions.get("ber1-runners")) == [
+               %{
+                 site: "larch",
+                 ingress_class_name: "kura-larch-runners",
+                 client_cidrs: ["10.20.0.0/24"],
+                 node_selector: %{"node.cluster.x-k8s.io/pool" => "rack-storage-larch"}
+               }
+             ]
 
-      assert Map.drop(ber1.provisioner_config, site_fields) == Map.drop(larch.provisioner_config, site_fields)
-      refute Regions.draining?(ber1)
-      assert Regions.draining?(larch)
+      config = Regions.get("ber1-runners").provisioner_config
+      assert is_nil(config.entrance_rate_limit_kbps)
+      assert is_nil(config.entrance_connection_limit)
+      # larch's fallback entrance on alder's gateway keeps its caps.
+      assert Regions.get("larch-runners").provisioner_config.entrance_rate_limit_kbps == 6400
+
+      # larch's own region drains: it admits no account while the merged one takes its site.
+      refute Regions.draining?(Regions.get("ber1-runners"))
+      assert Regions.draining?(Regions.get("larch-runners"))
     end
   end
 
