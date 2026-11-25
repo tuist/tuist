@@ -468,12 +468,12 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   simulator devices and stops the simulator services, since runtimes mount
   at new paths on each boot and a Mac restored with the builder's devices
   and simulator state lost its iOS runtime. Before that it stops the cache
-  proxy and build service, waits for them to exit, and deletes the records
-  `tuist-spool` still holds, keeping `CompilationCache.noindex`: the build's
-  credential only reads the cache, so the remote refuses every publication
-  and the spool never drains. A store saved while the proxy and build
-  service ran failed session compiles with "not a IncludeFileList node kind". The build ends with `sync`. The snapshot's key hashes the
-  build script with the macOS setup script, so changing either rebuilds it.
+  proxy and build service, waits for them to exit, and deletes
+  `CompilationCache.noindex`. A kept store, even a quiesced one, failed
+  session compiles with "not a IncludeFileList node kind", and the plugin
+  logged action-cache entries whose values the store lacked. DerivedData's
+  build products stay, and the remote cache serves the tasks that rerun.
+  The build ends with `sync`. The snapshot's key hashes the build script with the macOS setup script, so changing either rebuilds it.
   `ClaudeCodeRunners` creates a session's sandbox
   from the repository's snapshot; a new session without one starts on the
   template and, after its worker started, requests a build. Nothing runs

@@ -246,10 +246,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert account_id == account.id
     assert grant == %{"all_projects" => true, "scopes" => ["account:cache:read", "project:cache:read"]}
     assert command =~ ~S|rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"|
-    # It keeps the compilation cache and drops only the publications the
-    # read-only credential could not upload.
-    assert command =~ "/tuist-spool/*'\\'' -type f -delete"
-    refute command =~ ~S|rm -rf "$cache"|
+    # It deletes the compilation cache once its writers have exited.
+    assert command =~ ~r/pgrep -x XCBBuildService.*rm -rf "\$cache"/s
     assert command =~ "unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_TERMINAL_PROMPT\n"
 
     finish_command(build, 0)

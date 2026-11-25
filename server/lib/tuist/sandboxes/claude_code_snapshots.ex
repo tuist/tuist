@@ -107,13 +107,12 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # its Git hash, and their paths, under the clone's resolved path. The
   # tracked files the script changed go back to the commit first, so the
   # record describes the copy. Before that it stops the cache proxy and the
-  # build service that write the compilation cache and waits for them to
-  # exit, so the saved store is quiesced: one saved while they ran failed the
-  # sessions' compiles with "not a IncludeFileList node kind" (measured
-  # 2026-11). It keeps the store, which the sessions' first builds reuse, and
-  # drops the records its spool (`tuist-spool`) still owes: the build's
-  # credential only reads the cache, so the remote refuses every publication
-  # and the spool never drains. It also drops
+  # build service that write the compilation cache, waits for them to exit,
+  # and deletes the cache. A kept store, quiesced or not, failed the
+  # sessions' compiles with "not a IncludeFileList node kind", and the plugin
+  # logged action-cache entries whose values the store lacked (measured
+  # 2026-11). The build products in DerivedData stay, and the remote cache
+  # serves what reruns. It also drops
   # the session the CLI stored from the build's identity token, and the
   # script's simulators, and stops the simulator services: a Mac booted
   # from the disks mounts the simulator runtimes at new paths, and the
@@ -139,11 +138,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   while pgrep -x SWBBuildService >/dev/null || pgrep -x XCBBuildService >/dev/null; do
     i=$((i + 1)); [ "$i" -gt 30 ] && break; sleep 1
   done
-  owed=$(find "$cache" -path '*/tuist-spool/*' -type f ! -name '*.tags' 2>/dev/null | wc -l | tr -d ' ')
-  if [ "$owed" != 0 ]; then
-    echo "snapshot: dropping $owed publications the build could not upload" >> "$HOME/.claude-code-setup.log"
-    find "$cache" -path '*/tuist-spool/*' -type f -delete
-  fi
+  rm -rf "$cache"
   rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"
   xcrun simctl shutdown all >/dev/null 2>&1 || true
   xcrun simctl delete all >/dev/null 2>&1 || true
