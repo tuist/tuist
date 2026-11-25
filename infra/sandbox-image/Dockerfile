@@ -57,10 +57,10 @@ RUN sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${UBUNTU_MIRR
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl unzip libssl3t64 libncurses6 libtinfo6 \
     && rm -rf /var/lib/apt/lists/*
-ARG ERLANG_VERSION=29.0.3
-ARG ERLANG_SHA256=07c6b118ea17000e85b646418a4eec8c20fc2b04118b4b756695b4568e3d0526
-ARG ELIXIR_VERSION=1.20.2
-ARG ELIXIR_SHA256=a9e88cd41fbbba7da6f6dc237a49dd2ed4e70457121035cc7fc56ad05582f394
+ARG ERLANG_VERSION=29.1.3
+ARG ERLANG_SHA256=1436e790ad4d3d0e8737c3f81010df48460be8bb981b24395ffdb50eb2bdf322
+ARG ELIXIR_VERSION=1.20.5
+ARG ELIXIR_SHA256=f424d6f0bb710a1d4898f2645d8ad6cab3f5eab8d71848c0dda2579d3a8e8a06
 ARG HEX_VERSION=2.7.0
 ARG HEX_SHA256=f248381ceb4bef12c990b223a7f998113b1997cb58d29b9883b7d03a0b990f9e
 ARG REBAR_VERSION=3.28.0

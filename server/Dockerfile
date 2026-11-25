@@ -2,7 +2,7 @@ ARG DOCKER_IMAGE_PREFIX=
 ARG DOCKER_OFFICIAL_IMAGE_PREFIX=
 # Renovate bumps the *_IMAGE tags below. The Elixir and OTP versions in the
 # builder tag match mise.toml.
-ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:1.20.2-erlang-29.0.3-debian-bookworm-20260623-slim"
+ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:1.20.5-erlang-29.1.3-debian-bookworm-20261123-slim"
 ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:bookworm-20261027-slim"
 # Swift 6.4 includes the FoundationNetworking fix for concurrent registry
 # redirects on Bookworm (swiftlang/swift-corelibs-foundation#5448).

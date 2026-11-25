@@ -15,7 +15,7 @@
 # in CI without a moving tag serving a stale image. A reference with both a
 # tag and a digest is pulled by the digest alone, so each image is written
 # out as one literal and its tag and digest change in the same edit.
-ARG BUILDER_IMAGE=hexpm/elixir:1.20.2-erlang-29.0.3-debian-bookworm-20260623-slim@sha256:4ced3cb72e20ff8ad8315ec05af520c43431ea2ae459a205f5217670df45f2cf
+ARG BUILDER_IMAGE=hexpm/elixir:1.20.5-erlang-29.1.3-debian-bookworm-20261123-slim@sha256:feeeefac76e848dd8cc8b003ebfadf00225db2a4bbe195a3f6442b8a807b308a
 ARG RUNNER_IMAGE=debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
 
 # Keep Aube 1.6.2's esbuild behavior, but rebuild its embedded TLS verifier/roots.
