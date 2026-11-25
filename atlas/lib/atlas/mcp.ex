@@ -568,11 +568,18 @@ defmodule Atlas.MCP do
         "path" => "/approvals/#{approval.id}",
         "server_name" => approval.server_name,
         "tool_name" => approval.tool_name,
-        "arguments" => approval.arguments,
+        "arguments" => audit_approval_arguments(approval),
         "status" => approval.status
       }
     })
   end
+
+  # A Slack post's text is shown to its approver from the row, but the audit
+  # trail keeps only where it goes and which files it carries.
+  defp audit_approval_arguments(%ToolApproval{server_name: "slack", tool_name: "post-message", arguments: arguments}),
+    do: Map.delete(arguments, "text")
+
+  defp audit_approval_arguments(%ToolApproval{arguments: arguments}), do: arguments
 
   # Map key order is not part of a call's meaning, so the digest is taken over
   # JSON with every object's keys sorted.
