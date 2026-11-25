@@ -13,9 +13,9 @@ defmodule Atlas.OAuth.AccessTokensTest do
   setup do
     {:ok, client} =
       Clients.create_client(%{
-        "name" => "Grant concurrency test",
-        "redirect_uris" => ["https://example.com/callback"],
-        "grant_types" => ["authorization_code", "refresh_token"]
+        name: "Grant concurrency test",
+        redirect_uris: ["https://example.com/callback"],
+        supported_grant_types: ["authorization_code", "refresh_token"]
       })
 
     {:ok, client: client}

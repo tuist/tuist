@@ -10,10 +10,16 @@ defmodule Atlas.OAuth.Clients do
 
   alias Atlas.Audit
   alias Boruta.Ecto.Clients, as: EctoClients
+  alias Boruta.Oauth.Client
   alias Boruta.Oauth.Clients
 
+  # Boruta's registration stores whatever grants the anonymous registrant lists,
+  # and every grant it implements when none are listed. Implicit would issue MCP
+  # tokens without PKCE, so clients only get the grants Atlas advertises.
+  @supported_grant_types ["authorization_code", "refresh_token"]
+
   @impl Clients
-  def get_client(client_id), do: EctoClients.get_client(client_id)
+  def get_client(client_id), do: client_id |> EctoClients.get_client() |> restrict_grant_types()
 
   @impl Clients
   def public!, do: EctoClients.public!()
@@ -22,11 +28,12 @@ defmodule Atlas.OAuth.Clients do
   def authorized_scopes(client), do: EctoClients.authorized_scopes(client)
 
   @impl Clients
-  def get_client_by_did(did), do: EctoClients.get_client_by_did(did)
+  def get_client_by_did(did), do: did |> EctoClients.get_client_by_did() |> restrict_grant_types()
 
   @impl Boruta.Openid.Clients
   def create_client(registration_params) do
     registration_params
+    |> Map.update(:supported_grant_types, @supported_grant_types, &supported_grant_types/1)
     |> EctoClients.create_client()
     |> tap(fn
       {:ok, client} ->
@@ -45,6 +52,17 @@ defmodule Atlas.OAuth.Clients do
         :ok
     end)
   end
+
+  # Clients registered before this restriction still carry Boruta's default list.
+  defp restrict_grant_types(%Client{supported_grant_types: grant_types} = client),
+    do: %{client | supported_grant_types: supported_grant_types(grant_types)}
+
+  defp restrict_grant_types(other), do: other
+
+  defp supported_grant_types(grant_types) when is_list(grant_types),
+    do: Enum.filter(grant_types, &(&1 in @supported_grant_types))
+
+  defp supported_grant_types(_grant_types), do: @supported_grant_types
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, _key, []), do: map

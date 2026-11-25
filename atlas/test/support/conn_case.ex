@@ -92,7 +92,7 @@ defmodule AtlasWeb.ConnCase do
   @doc "Creates a persisted OAuth access token, including its client, for API/MCP tests."
   def oauth_access_token_fixture(%User{} = user) do
     {:ok, client} =
-      Clients.create_client(%{"name" => "Test OAuth client", "redirect_uris" => ["https://example.com/callback"]})
+      Clients.create_client(%{name: "Test OAuth client", redirect_uris: ["https://example.com/callback"]})
 
     {:ok, token} = AccessTokens.create(%{client: client, scope: "mcp", sub: user.id}, refresh_token: true)
     token.value

@@ -68,6 +68,13 @@ Do not add README entries for internal operational details such as env var names
   those hosts cannot receive codes); add a hosted client's callback there to
   support it.
   Existing registrations keep their stored redirects but still require consent.
+- Clients only get the `authorization_code` and `refresh_token` grants
+  (`Atlas.OAuth.Clients`), whatever registration requested and including
+  rows stored with Boruta's default list: implicit would issue MCP tokens without
+  PKCE. `POST /oauth2/token` refuses `request`/`request_uri` in the query or body
+  because Boruta fetches them before authenticating the client. Do not move to a
+  Boruta revision whose registration allow-list drops `pkce`/`public_refresh_token`
+  without keeping Atlas's public-client settings.
 - Google sign-in requires `email_verified: true` and the userinfo `hd` claim to
   equal `ATLAS_ALLOWED_EMAIL_DOMAIN`; the `hd` authorization parameter is only an
   account-picker hint, and personal Google accounts using a work address lack `hd`.
