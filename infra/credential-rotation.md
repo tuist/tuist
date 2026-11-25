@@ -486,12 +486,18 @@ uses Play App Signing, so users' devices only see Google's app signing key.
 #### Gradle Plugin Portal key and secret
 
 `gradle-release.yml` publishes `dev.tuist` with `GRADLE_PUBLISH_KEY` and
-`GRADLE_PUBLISH_SECRET` from `tuist-gradle-plugin-portal`. The portal does not
-let users revoke or regenerate keys, and it has no trusted publishing.
+`GRADLE_PUBLISH_SECRET` from `tuist-gradle-plugin-portal`. The key belongs to
+the `tuist` portal account (contact@tuist.dev), which owns `dev.tuist`. The
+portal has no trusted publishing.
 
-- **Revoke** (leak): email `security@gradle.com` to revoke the key, then take
-  the new one from the account's API Keys tab and replace both items. Check
-  the plugin's versions on plugins.gradle.org for releases we did not make.
+- **Rotate**: while no Gradle Release run is in progress, open the account's
+  API Keys tab on plugins.gradle.org, choose "Generate new publishing key",
+  write the new key and secret to both items, then delete the old key with
+  its edit button. The next Gradle Release run proves the new key.
+- **Revoke** (leak): delete the key on the API Keys tab right away, then
+  generate a new one as above. Check the plugin's versions on
+  plugins.gradle.org against our `gradle@` tags for releases we did not make,
+  and email `security@gradle.com` about any you find.
 
 #### Hex packages (condukt, noora, tuist_ex)
 
@@ -677,5 +683,5 @@ What a full rotation cannot do yet, with the owner where one exists:
 8. Release signing: no single job should hold both Sparkle anchors (the
    `app-release` environment reads the Developer ID and the Sparkle key), the
    Play service-account key should give way to Workload Identity Federation, and
-   the Gradle Plugin Portal key can only be revoked by Gradle. See
+   the Gradle Plugin Portal has no keyless publishing. See
    [Release signing and publishing credentials](#release-signing-and-publishing-credentials).
