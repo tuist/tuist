@@ -100,8 +100,8 @@ func TestBuild_MacOSGoldenAffinity(t *testing.T) {
 
 func TestBuild_LinuxHasNoGoldenAffinity(t *testing.T) {
 	pod := build(t, basePool("linux"))
-	if pod.Spec.Affinity != nil {
-		t.Fatalf("linux pod got affinity %+v, want nil (no golden-base concept)", pod.Spec.Affinity)
+	if pod.Spec.Affinity.NodeAffinity != nil {
+		t.Fatalf("linux pod got node affinity %+v, want nil (no golden-base concept)", pod.Spec.Affinity.NodeAffinity)
 	}
 }
 
@@ -1438,8 +1438,35 @@ func TestCacheReadinessIsPreferredRatherThanRequired(t *testing.T) {
 	}
 	pool.Spec.CacheVolumeRoot = ""
 	pool.Spec.CacheVolumeURL = ""
-	if build(t, pool).Spec.Affinity != nil {
+	if build(t, pool).Spec.Affinity.NodeAffinity != nil {
 		t.Fatal("changed scheduling for disabled cache fleet")
+	}
+}
+
+// Small Linux runners pack onto hosts already running runners, so whole hosts
+// stay free for 16 vCPU shapes instead of every host keeping a few vCPU used.
+func TestLinuxRunnersPreferHostsWithRunners(t *testing.T) {
+	for _, cache := range []bool{true, false} {
+		pool := basePool("linux")
+		if cache {
+			pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+			pool.Spec.CacheVolumeURL = "http://agent:8090"
+		}
+		affinity := build(t, pool).Spec.Affinity
+		if affinity == nil || affinity.PodAffinity == nil {
+			t.Fatalf("cache=%v: no packing preference", cache)
+		}
+		if affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil || affinity.PodAntiAffinity != nil {
+			t.Fatalf("cache=%v: packing must be preferred only", cache)
+		}
+		terms := affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+		if len(terms) != 1 || terms[0].PodAffinityTerm.TopologyKey != "kubernetes.io/hostname" ||
+			terms[0].PodAffinityTerm.LabelSelector.MatchLabels["tuist.dev/runner"] != "true" {
+			t.Fatalf("cache=%v: packing term = %+v", cache, terms)
+		}
+	}
+	if affinity := build(t, basePool("darwin")).Spec.Affinity; affinity.PodAffinity != nil {
+		t.Fatal("macOS Pods are placed by golden image, not packing")
 	}
 }
 
@@ -1471,8 +1498,8 @@ func TestPreferCacheVolumeNode(t *testing.T) {
 func TestPreferCacheVolumeNodeLeavesThePodAloneWithoutANode(t *testing.T) {
 	pod := build(t, basePool("linux"))
 	PreferCacheVolumeNode(pod, "")
-	if pod.Spec.Affinity != nil {
-		t.Fatalf("affinity = %+v, want none", pod.Spec.Affinity)
+	if pod.Spec.Affinity.NodeAffinity != nil {
+		t.Fatalf("node affinity = %+v, want none", pod.Spec.Affinity.NodeAffinity)
 	}
 }
 

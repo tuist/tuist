@@ -938,19 +938,36 @@ func GoldenNodeAffinityKey(image string) string {
 //
 // Linux prefers cache-ready hosts but still schedules when provisioning fails.
 // Cache availability must never gate jobs that can use job-local directories.
+//
+// Linux Pods also prefer hosts that already run runner Pods. kube-scheduler's
+// default scoring spreads Pods onto the least-allocated host, so a morning of
+// 2 and 4 vCPU jobs leaves a few vCPU used on every host and no host with the
+// 16.25 CPU a 16 vCPU Pod needs beside the sandbox carve-outs. Packing keeps
+// whole hosts free for those shapes; the node reservation remains the
+// fallback. Inter-pod affinity scores by the number of matching Pods on a
+// host, so the fullest host that still fits wins.
 func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 	if pool.Spec.OS == "linux" {
-		if pool.Spec.CacheVolumeRoot == "" || pool.Spec.CacheVolumeURL == "" {
-			return nil
-		}
-		return &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{
-			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
+		affinity := &corev1.Affinity{PodAffinity: &corev1.PodAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{{
 				Weight: 100,
-				Preference: corev1.NodeSelectorTerm{MatchExpressions: []corev1.NodeSelectorRequirement{{
-					Key: "tuist.dev/linux-cache-volumes", Operator: corev1.NodeSelectorOpIn, Values: []string{"local-images-v1"},
-				}}},
+				PodAffinityTerm: corev1.PodAffinityTerm{
+					LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"tuist.dev/runner": "true"}},
+					TopologyKey:   "kubernetes.io/hostname",
+				},
 			}},
 		}}
+		if pool.Spec.CacheVolumeRoot != "" && pool.Spec.CacheVolumeURL != "" {
+			affinity.NodeAffinity = &corev1.NodeAffinity{
+				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
+					Weight: 100,
+					Preference: corev1.NodeSelectorTerm{MatchExpressions: []corev1.NodeSelectorRequirement{{
+						Key: "tuist.dev/linux-cache-volumes", Operator: corev1.NodeSelectorOpIn, Values: []string{"local-images-v1"},
+					}}},
+				}},
+			}
+		}
+		return affinity
 	}
 	terms := []corev1.PreferredSchedulingTerm{{
 		Weight: 100,
