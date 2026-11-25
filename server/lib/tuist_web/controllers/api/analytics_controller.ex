@@ -714,8 +714,8 @@ defmodule TuistWeb.API.AnalyticsController do
     xcode_graph = Map.get(body_params, :xcode_graph)
 
     if not is_nil(xcode_graph) do
-      Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
-      Coverage.refold_after_selective_testing(command_event, xcode_graph)
+      {:ok, stored_graph} = Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
+      Coverage.refold_after_selective_testing(command_event, xcode_graph, stored_graph)
     end
 
     if not is_nil(test_run_id) and selective_testing_metadata.test_targets != [] do

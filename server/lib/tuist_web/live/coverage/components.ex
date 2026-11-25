@@ -387,6 +387,12 @@ defmodule TuistWeb.Coverage.Components do
           "Some coverage only came from runs on a checkout with uncommitted changes, which don't count, so the actual coverage may be higher."
         )
 
+      :run_data_unavailable in reasons ->
+        dgettext(
+          "dashboard_tests",
+          "Some of the runs' data couldn't be read in time, so their coverage may be missing and the actual coverage may be higher."
+        )
+
       :uninstrumented_code in reasons ->
         dgettext(
           "dashboard_tests",

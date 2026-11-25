@@ -64,10 +64,10 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.IngestRepo
   alias Tuist.Projects
   alias Tuist.Projects.Project
-  alias Tuist.Tests
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.ExcludedPaths
+  alias Tuist.Tests.Coverage.RunInputs
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.Coverage.Workers.TotalsWorker
   alias Tuist.Tests.CoverageFileLayout
@@ -96,27 +96,28 @@ defmodule Tuist.Tests.Coverage do
   @max_query_parameters 900
 
   @doc """
-  Refolds the commit of the run a command event belongs to once the targets
-  the event reported are stored, when any target was skipped or a repository
-  target came from the binary cache. Reported coverage reads them to know
-  which targets a run left out and whether it ran code without coverage
-  counters, and they are written through a buffer after the run itself, so a
-  fold triggered by the run or by the completion signal can run without them.
-  The refold waits out the buffer.
+  Records the targets a run's command event stored (`stored_graph`, from
+  `Tuist.Xcode.create_xcode_graph/1`) as an input of the fold of the run's
+  commit (`Tuist.Tests.Coverage.RunInputs`), and refolds the commit when any
+  target was skipped or a repository target came from the binary cache.
+  Reported coverage reads them to know which targets a run left out and
+  whether it ran code without coverage counters. The event usually lands
+  after the run, whose fold went without them; the refold waits until every
+  replica holds them. The commit is the event's, which names the same
+  checkout as its run.
   """
-  def refold_after_selective_testing(%{test_run_id: test_run_id, project_id: project_id}, xcode_graph)
-      when is_binary(test_run_id) and test_run_id != "" do
-    with true <- selective_testing_hit?(xcode_graph) or binary_cache_hit?(xcode_graph),
-         true <- enabled_for_project?(project_id),
-         {:ok, %Test{git_commit_sha: sha, git_dirty: dirty}} when is_binary(sha) and sha != "" and dirty != true <-
-           Tests.get_test(test_run_id) do
-      CommitWorker.enqueue_refold(project_id, sha, div(Environment.clickhouse_flush_interval_ms(), 1000) + 5)
+  def refold_after_selective_testing(command_event, xcode_graph, stored_graph) do
+    RunInputs.event_written(command_event, stored_graph)
+
+    with %{test_run_id: run_id, git_commit_sha: sha, project_id: project_id}
+         when is_binary(run_id) and run_id != "" and is_binary(sha) and sha != "" <- command_event,
+         true <- selective_testing_hit?(xcode_graph) or binary_cache_hit?(xcode_graph),
+         true <- enabled_for_project?(project_id) do
+      CommitWorker.enqueue(project_id, sha)
     else
       _ -> :skipped
     end
   end
-
-  def refold_after_selective_testing(_command_event, _xcode_graph), do: :skipped
 
   defp selective_testing_hit?(xcode_graph) do
     xcode_graph

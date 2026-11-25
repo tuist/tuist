@@ -56,6 +56,9 @@ defmodule Tuist.Tests.Coverage.GapReasons do
   - `test_list_changed`: a skipped test target's test files changed since
     the commit's baseline, and no run was recorded under its hash, so which
     tests it holds now is unknown.
+  - `run_data_unavailable`: some of a run's data never reached every
+    database replica in time (`Tuist.Tests.Coverage.RunInputs`), so the
+    commit was folded without it.
   """
   import Bitwise
 
@@ -78,7 +81,8 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     :target_without_history,
     :caller_selected_tests,
     :uninstrumented_code,
-    :test_list_changed
+    :test_list_changed,
+    :run_data_unavailable
   ]
 
   @bits @reasons |> Enum.with_index() |> Map.new(fn {reason, index} -> {reason, 1 <<< index} end)
