@@ -205,12 +205,15 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(off_site) == []
   end
 
-  test "a site's region counts the jobs of its pool claimed at the site, not those claimed at another" do
+  test "a site's region counts the jobs of its pool claimed at the sites it serves, not those claimed at another" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
     at_site = account_with_profiles([:macos], site_job: false)
     build_in_job(at_site, @site_macos_pool, site: "ber1")
+    # The merged region serves larch's runners through larch's gateway.
+    at_larch = account_with_profiles([:macos], site_job: false)
+    build_in_job(at_larch, @site_macos_pool, site: "larch")
     elsewhere = account_with_profiles([:macos], site_job: false)
-    build_in_job(elsewhere, @site_macos_pool, site: "larch")
+    build_in_job(elsewhere, @site_macos_pool, site: "elm")
     before_sites = account_with_profiles([:macos], site_job: false)
     build_in_job(before_sites, @site_macos_pool)
     stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
@@ -219,6 +222,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert :ok = RunnerCache.reconcile()
 
     assert server_regions(at_site) == ["ber1-runners"]
+    assert server_regions(at_larch) == ["ber1-runners"]
     assert server_regions(elsewhere) == []
     assert server_regions(before_sites) == ["ber1-runners"]
   end
@@ -425,13 +429,14 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert Repo.get!(Server, server.id).status == :destroying
   end
 
-  test "a drained site node waits only for the jobs claimed at its site" do
+  test "a drained site node waits only for the jobs claimed at the sites it serves" do
     account = account_with_profiles([:macos])
     assert :ok = RunnerCache.reconcile()
     server = activate(account)
     an_hour_ago = DateTime.add(DateTime.utc_now(), -3600, :second)
     at_site = claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago, site: "ber1")
-    claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago, site: "larch")
+    at_larch = claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago, site: "larch")
+    claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago, site: "elm")
     set_runners_available(false)
     assert :ok = RunnerCache.reconcile()
     drained_for(server, 20 * 60)
@@ -440,6 +445,11 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert Repo.get!(Server, server.id).status == :drain_pending
 
     Repo.update!(Ecto.Changeset.change(at_site, status: "completed"))
+    assert :ok = RunnerCache.reconcile()
+    # A larch job holds the merged region's endpoint through larch's entrance.
+    assert Repo.get!(Server, server.id).status == :drain_pending
+
+    Repo.update!(Ecto.Changeset.change(at_larch, status: "completed"))
     assert :ok = RunnerCache.reconcile()
 
     assert Repo.get!(Server, server.id).status == :destroying

@@ -2147,7 +2147,8 @@ defmodule Tuist.Environment do
   - `TUIST_SECRET_KEY_ENCRYPTION`: the original single key, id `V1`. Its raw
     value is cut or zero-padded to 32 bytes, the derivation every value
     written before the key ring used, so it stays readable. Without either
-    variable it falls back to `secret_key_base`, except in hosted production.
+    variable it falls back to `secret_key_base`, except in hosted production
+    and when `TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS` leaves `V1` out.
   - `TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY`: the id to encrypt with; the
     first ring entry by default, or `V1` without a ring.
   - `TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS`: comma-separated ids the node must
@@ -2160,10 +2161,14 @@ defmodule Tuist.Environment do
   def encryption_keys(secrets \\ secrets(), hosted_production? \\ tuist_hosted?() and env() in [:prod, :can]) do
     base = secret_key_base(secrets)
     explicit_legacy = get([:secret_key, :encryption], secrets)
-    keys = encryption_key_ring(secrets) ++ legacy_encryption_keys(explicit_legacy || if(!hosted_production?, do: base))
+    key_ids = get([:secret_key, :encryption_key_ids], secrets)
+
+    keys =
+      encryption_key_ring(secrets) ++
+        legacy_encryption_keys(explicit_legacy || base_derived_key(base, key_ids, hosted_production?))
 
     keys = current_encryption_key_first(keys, get([:secret_key, :encryption_current_key], secrets))
-    require_encryption_key_ids!(keys, get([:secret_key, :encryption_key_ids], secrets))
+    require_encryption_key_ids!(keys, key_ids)
 
     case keys do
       _keys when not hosted_production? ->
@@ -2177,6 +2182,18 @@ defmodule Tuist.Environment do
         keys
     end
   end
+
+  # Without TUIST_SECRET_KEY_ENCRYPTION, V1 is derived from secret_key_base:
+  # values stored before an explicit key was set are under it. A deployment
+  # whose required key ids leave V1 out has retired it, so it is not derived.
+  defp base_derived_key(_base, _key_ids, true = _hosted_production?), do: nil
+  defp base_derived_key(base, key_ids, _hosted_production?) when key_ids in [nil, ""], do: base
+
+  defp base_derived_key(base, key_ids, _hosted_production?) do
+    if @legacy_encryption_key_id in encryption_key_ids(key_ids), do: base
+  end
+
+  defp encryption_key_ids(ids), do: ids |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
 
   defp current_encryption_key_first(keys, current_id) when current_id in [nil, ""], do: keys
 
@@ -2198,7 +2215,7 @@ defmodule Tuist.Environment do
 
   defp require_encryption_key_ids!(keys, ids) do
     held = Enum.map(keys, &elem(&1, 0))
-    missing = ids |> String.split(",", trim: true) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 in held))
+    missing = ids |> encryption_key_ids() |> Enum.reject(&(&1 in held))
 
     if missing != [] do
       raise "TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS lists #{Enum.join(missing, ", ")}, which this node has no key for; " <>

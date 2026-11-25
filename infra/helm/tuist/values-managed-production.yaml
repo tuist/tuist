@@ -1967,8 +1967,12 @@ rackLinuxFleet:
       tailnetTags: [tag:tuist-rack-node]
       nodeLabels:
         tuist.dev/rack-storage: ber1
-        # The pool the ber1-runners Kura region places its instances in.
+        # The pool the site's gateway entrance and its shard store select.
         node.cluster.x-k8s.io/pool: rack-storage-ber1
+        # The ber1-runners Kura region spans both sites' storage nodes, one
+        # replica per site (tuist.dev/rack-storage). Kubelet sets labels only
+        # when a node registers, so a running node is labelled by hand too.
+        tuist.dev/kura-runner-region: ber1-runners
       nodeTaints:
         - {key: tuist.dev/rack-storage, value: ber1, effect: NoSchedule}
   # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its hosts set `site:
@@ -1989,8 +1993,10 @@ rackLinuxFleet:
           tailnetTags: [tag:tuist-rack-node]
           nodeLabels:
             tuist.dev/rack-storage: larch
-            # The pool a larch Kura region would place its instances in.
+            # The pool the site's gateway entrance and its shard store select.
             node.cluster.x-k8s.io/pool: rack-storage-larch
+            # Holds larch's replica of the ber1-runners Kura region.
+            tuist.dev/kura-runner-region: ber1-runners
           nodeTaints:
             - {key: tuist.dev/rack-storage, value: larch, effect: NoSchedule}
   hosts:

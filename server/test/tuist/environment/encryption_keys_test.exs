@@ -125,4 +125,26 @@ defmodule Tuist.Environment.EncryptionKeysTest do
     secrets = put_in(secrets, ["secret_key", "encryption_keys"], "k2:#{Base.encode64(key)}")
     assert [{"k2", ^key}, {"V1", _legacy}] = Environment.encryption_keys(secrets, false)
   end
+
+  test "derives V1 from secret_key_base until the required key ids retire it" do
+    key = :crypto.strong_rand_bytes(32)
+    base = String.duplicate("b", 64)
+    secrets = %{"secret_key" => %{"base" => base, "encryption_keys" => "k2:#{Base.encode64(key)}"}}
+    derived = binary_part(base, 0, 32)
+
+    # Mid-rotation: values stored under the base-derived key must stay readable.
+    assert Environment.encryption_keys(secrets, false) == [{"k2", key}, {"V1", derived}]
+
+    assert Environment.encryption_keys(put_in(secrets, ["secret_key", "encryption_key_ids"], "k2, V1"), false) ==
+             [{"k2", key}, {"V1", derived}]
+
+    assert Environment.encryption_keys(put_in(secrets, ["secret_key", "encryption_key_ids"], "k2"), false) ==
+             [{"k2", key}]
+
+    # An explicit single key is configuration, not a fallback: it stays.
+    explicit = put_in(secrets, ["secret_key", "encryption"], String.duplicate("l", 32))
+
+    assert Environment.encryption_keys(put_in(explicit, ["secret_key", "encryption_key_ids"], "k2"), false) ==
+             [{"k2", key}, {"V1", String.duplicate("l", 32)}]
+  end
 end

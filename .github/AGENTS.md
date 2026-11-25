@@ -93,9 +93,21 @@ environment's main-only branch policy and required reviewers remain the
 control; those settings are not in the repository.
 
 The repository-level `OP_SERVICE_ACCOUNT_TOKEN` reads the `tuist` vault (Cloudflare,
-the Automation GitHub App key, signing keys). Set it only in the env of the
+the Automation GitHub App key). Set it only in the env of the
 steps that call `op`, never at job or workflow level, and never in a job that
 builds pull request or branch code, including team members' pull requests.
+
+Signing and publish credentials never use it. A job that signs or publishes
+names a main-only environment (`apple-signing`, `app-release`, `google-play`,
+`gradle-plugin-portal`) and reads `secrets.RELEASE_OP_SERVICE_ACCOUNT_TOKEN`,
+which exists only as an environment secret, so a job outside the environment
+gets nothing rather than a broader token. A job that also runs on pull requests
+enters the environment only on main (`environment: ${{ github.ref == 'refs/heads/main' && 'apple-signing' || '' }}`).
+Apple notarization and uploads use the App Store Connect API key, never an
+Apple ID password. Hex packages publish through Workload Identity in the
+`hex-publish` environment with `id-token: write`; never set `HEX_API_KEY` in a
+publish job, because Hex prefers it. Vaults, environments and rotation:
+`infra/credential-rotation.md`, "Release signing and publishing credentials".
 
 Deploy and release workflows and the composite actions under `actions/` use
 third-party actions by full commit SHA with the exact version in a trailing
@@ -181,8 +193,9 @@ stable dispatch validates an immutable release-branch tip and exact next patch,
 then reuses validation and publishing with that source. Keep control code on
 main and recheck source/tag boundaries before publication. See the stable hotfix
 procedure in `tuist_ex/README.md`; validate the guard with
-`bash .github/scripts/tuist-ex-stable-release.test.sh`. The existing
-`HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
+`bash .github/scripts/tuist-ex-stable-release.test.sh`. Publishing uses Hex
+Workload Identity in the `hex-publish` environment, which hex.pm must trust for
+`tuist-ex-release.yml`.
 
 The optional `custom_cache_apfs` staging smoke input runs the candidate shared
 cache lifecycle and real APFS tests in a staging macOS runner. It validates native

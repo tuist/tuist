@@ -93,6 +93,31 @@ cannot express, followed by the shared self-join. Its Ready path also reconciles
 qualified private networks. See `docs/vultr-baremetal-support.md` and the Vultr
 private-network guide above.
 
+## The operator's own credentials
+
+The operator holds Secrets and ServiceAccounts only in its release namespace
+(`<name>-credentials` Role), and its manager caches them there only, so a
+Secret this provider reads or writes lives in `--secrets-namespace`; one placed
+anywhere else is unreadable by design. In the namespaces macOS Pods run in
+(the runner and sandbox namespaces, `<name>-macos-pod-refs`) it holds `get` on
+Secrets and ConfigMaps and `create` on ServiceAccount tokens, because RBAC lets
+the node access controller write a per-node pod-refs Role only with what the
+operator holds there; a macOS Pod in any other namespace gets no grant. In
+kube-system it may create and delete `bootstrap-token-*` Secrets and read
+nothing. RBAC cannot scope a binding by name or subject, so
+`<name>-identity-writes` (a ValidatingAdmissionPolicy in
+`capi-scaleway-applesilicon.yaml`) admits only `tart-kubelet-<machine>`
+ClusterRoleBindings of the tart-kubelet role or `system:node` to the one
+ServiceAccount of that name in the release namespace, and only RoleBindings of
+a Role to one `tart-kubelet-<node>` ServiceAccount there; with `bind` on
+`system:node`, a RoleBinding of it would otherwise read any namespace's
+Secrets. Before this, a
+cluster-wide Secret rule let the operator read every Secret, the 1Password
+service account token included. `controllers/shared/operator_rbac_envtest_test.go`
+checks the boundary and `controllers/macos/node_scope_envtest_test.go` the node
+access grants under it, both against a real API server (needs helm and
+`KUBEBUILDER_ASSETS`).
+
 ## CRDs
 
 | Kind | Purpose |
@@ -331,7 +356,7 @@ own source address. Notes:
   refills within seconds, which is why hosts stayed wedged for weeks with the
   watchdog installed and firing.
 
-Two auxiliary controllers run alongside it:
+Three auxiliary controllers run alongside it:
 
 - **OrphanReclaimer** (`controllers/orphan_reclaimer.go`) — a
   leader-gated periodic sweep that returns Scaleway hosts which were
@@ -348,6 +373,15 @@ Two auxiliary controllers run alongside it:
   `scaleway_orphan_servers` gauge. Enabled by
   `macosFleet.orphanReclaim.poolPrefix`, which also serves as the
   delete path's pool-prefix fallback for legacy CRs.
+- **NodeIdentitySweep** (`controllers/shared/node_identity_gc.go`): a
+  leader-gated sweep for the `tart-kubelet-<machine>` identities every kind
+  mints (ServiceAccount, long-lived token, ClusterRoleBinding to tart-kubelet
+  or `system:node`) whose machine, RackHostLease and Node are all gone. Each
+  kind's delete path revokes its identity only while the finalizer runs, so a
+  stripped finalizer or a removed CRD left valid tokens behind (staging's
+  Elastic Metal `kura-fleet-*`, production's pre-MachineDeployment
+  `macos-fleet-0/-1`). It exports `capt_orphaned_node_identities` and revokes
+  them only with `macosFleet.nodeIdentitySweep.revoke`.
 - **FleetSpreadReconciler** (`controllers/fleetspread_controller.go`) —
   re-rolls a target Deployment when the Ready Mac mini set changes so
   Pods spread across newly-joined hosts.

@@ -824,6 +824,18 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			},
 		},
 	}
+	if linuxPod {
+		// ClusterFirst's default ndots:5 sends every external name with
+		// fewer than five dots through the three cluster search domains
+		// first: three NXDOMAIN round trips to CoreDNS before the real
+		// query, about 50 ms per new hostname from the OVH runner hosts.
+		// Every cluster name runners use is a full `*.svc.cluster.local`
+		// name, which ndots:1 still resolves on the first query; only a
+		// dotted short name (`svc.namespace`) now tries upstream first.
+		pod.Spec.DNSConfig = &corev1.PodDNSConfig{
+			Options: []corev1.PodDNSConfigOption{{Name: "ndots", Value: ptr("1")}},
+		}
+	}
 	if IsMacosSandboxWarm(pool) {
 		// A warm sandbox VM is booted by tart-kubelet's sandbox service,
 		// which owns its finalizer, and later handed to a sandbox. It

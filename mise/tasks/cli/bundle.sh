@@ -23,6 +23,7 @@ TUIST_DIR=$MISE_PROJECT_ROOT
 # of what is unreadable. `set -e` aborts on the first failing read, which used
 # to surface as a bare `op` 401 forty lines in and read like a build failure.
 CERTIFICATE_P12_PATH=$TMP_DIR/certificate.p12
+NOTARY_KEY_PATH=$TMP_DIR/AuthKey.p8
 OP_UNREADABLE=""
 OP_READABLE=""
 op_record() {
@@ -50,10 +51,11 @@ op_read_file() {
 }
 
 print_status "Checking access to signing credentials in 1Password..."
-op_read_field "op://tuist/App Specific Password/username" "$TMP_DIR/apple_id"
-op_read_field "op://tuist/App Specific Password/password" "$TMP_DIR/apple_password"
-op_read_field "op://tuist/Developer ID Application Certificate/password" "$TMP_DIR/certificate_password"
-op_read_file "op://tuist/Developer ID Application Certificate/certificate.p12" "$CERTIFICATE_P12_PATH"
+op_read_field "op://tuist-apple-signing/App Store Connect API Key/key-id" "$TMP_DIR/notary_key_id"
+op_read_field "op://tuist-apple-signing/App Store Connect API Key/issuer-id" "$TMP_DIR/notary_issuer_id"
+op_read_file "op://tuist-apple-signing/App Store Connect API Key/AuthKey.p8" "$NOTARY_KEY_PATH"
+op_read_field "op://tuist-apple-signing/Developer ID Application Certificate/password" "$TMP_DIR/certificate_password"
+op_read_file "op://tuist-apple-signing/Developer ID Application Certificate/certificate.p12" "$CERTIFICATE_P12_PATH"
 
 if [ -n "$OP_UNREADABLE" ]; then
     {
@@ -68,7 +70,8 @@ if [ -n "$OP_UNREADABLE" ]; then
         fi
         echo
         if [ "${CI:-}" = "true" ]; then
-            echo "CI authenticates with the OP_SERVICE_ACCOUNT_TOKEN secret. If some of"
+            echo "CI authenticates with the apple-signing environment's RELEASE_OP_SERVICE_ACCOUNT_TOKEN"
+            echo "secret, which reads only the tuist-apple-signing vault. If some of"
             echo "the references above were readable and others were not, the token itself"
             echo "is valid and unexpired, so look at the refused items rather than rotating"
             echo "it. That pattern has two known causes: a transient 1Password-side error"
@@ -81,11 +84,9 @@ if [ -n "$OP_UNREADABLE" ]; then
     exit 1
 fi
 
-APPLE_ID=$(cat "$TMP_DIR/apple_id")
-APPLE_PASSWORD=$(cat "$TMP_DIR/apple_password")
+NOTARY_KEY_ID=$(cat "$TMP_DIR/notary_key_id")
+NOTARY_ISSUER_ID=$(cat "$TMP_DIR/notary_issuer_id")
 CERTIFICATE_PASSWORD=$(cat "$TMP_DIR/certificate_password")
-TEAM_ID='U6LC622NKF'
-ASC_PROVIDER=PedroPieraBuendia211042238 # Obtained with xcrun altool -list-providers
 CERTIFICATE_NAME="Developer ID Application: Tuist GmbH (U6LC622NKF)"
 # Until Xcode 27's prefix mapping lands, a compilation-cache key embeds the
 # DerivedData path, so a per-run temporary path gives every task a key no other
@@ -254,9 +255,9 @@ echo "$(format_section "Bundling")"
     zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor libtuist_cas_plugin.dylib tuist-cas-proxy
 
     RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
-        --apple-id "$APPLE_ID" \
-        --team-id "$TEAM_ID" \
-        --password "$APPLE_PASSWORD" \
+        --key "$NOTARY_KEY_PATH" \
+        --key-id "$NOTARY_KEY_ID" \
+        --issuer "$NOTARY_ISSUER_ID" \
         --output-format json)
     echo "$RAW_JSON"
     SUBMISSION_ID=$(echo "$RAW_JSON" | jq -r '.id')
@@ -264,9 +265,9 @@ echo "$(format_section "Bundling")"
 
     while true; do
         STATUS=$(xcrun notarytool info "$SUBMISSION_ID" \
-            --apple-id "$APPLE_ID" \
-            --team-id "$TEAM_ID" \
-            --password "$APPLE_PASSWORD" \
+            --key "$NOTARY_KEY_PATH" \
+            --key-id "$NOTARY_KEY_ID" \
+            --issuer "$NOTARY_ISSUER_ID" \
             --output-format json | jq -r '.status')
 
         case $STATUS in
@@ -281,9 +282,9 @@ echo "$(format_section "Bundling")"
             "Invalid"|"Rejected")
                 echo "Notarization failed with status: $STATUS"
                 xcrun notarytool log "$SUBMISSION_ID" \
-                    --apple-id "$APPLE_ID" \
-                    --team-id "$TEAM_ID" \
-                    --password "$APPLE_PASSWORD"
+                    --key "$NOTARY_KEY_PATH" \
+                    --key-id "$NOTARY_KEY_ID" \
+                    --issuer "$NOTARY_ISSUER_ID"
                 exit 1
                 ;;
             *)

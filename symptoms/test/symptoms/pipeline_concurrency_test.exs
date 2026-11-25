@@ -69,9 +69,14 @@ defmodule Symptoms.PipelineConcurrencyTest do
     {:ok, FakeSource.records(window, [@route], 100)}
   end
 
-  test "two concurrent jobs on the same windows open one symptom" do
+  test "a job longer than the query timeout keeps its lock and opens one symptom" do
     first = job(self())
     assert_receive {:entered, first_pid}, 5_000
+
+    # A source request may take 30 seconds. The pipeline's session must
+    # survive the repository's default 15-second query timeout, including
+    # while no SQL is running, or another job can process the same window.
+    Process.sleep(16_000)
 
     second = job(self())
 

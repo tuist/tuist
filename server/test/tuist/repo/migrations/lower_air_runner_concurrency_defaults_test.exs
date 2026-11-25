@@ -22,6 +22,8 @@ defmodule Tuist.Repo.Migrations.LowerAirRunnerConcurrencyDefaultsTest do
 
     pro = AccountsFixtures.account_fixture()
     BillingFixtures.subscription_fixture(account_id: pro.id, plan: :pro)
+    # This migration ran when Pro started on these values.
+    old_defaults(pro)
 
     lapsed = old_defaults(AccountsFixtures.account_fixture())
     BillingFixtures.subscription_fixture(account_id: lapsed.id, plan: :pro, status: "canceled")

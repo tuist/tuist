@@ -16,13 +16,19 @@ fi
 echo "Uploading to App Store Connect..."
 
 ALTOOL_LOG=$(mktemp)
-trap 'rm -f "$ALTOOL_LOG"' EXIT
+# altool looks the key up as AuthKey_<key id>.p8 in API_PRIVATE_KEYS_DIR.
+API_PRIVATE_KEYS_DIR=$(mktemp -d)
+export API_PRIVATE_KEYS_DIR
+trap 'rm -rf "$ALTOOL_LOG" "$API_PRIVATE_KEYS_DIR"' EXIT
+ASC_KEY_ID=$(op read "op://tuist-apple-signing/App Store Connect API Key/key-id")
+ASC_ISSUER_ID=$(op read "op://tuist-apple-signing/App Store Connect API Key/issuer-id")
+op read "op://tuist-apple-signing/App Store Connect API Key/AuthKey.p8" --out-file "$API_PRIVATE_KEYS_DIR/AuthKey_${ASC_KEY_ID}.p8" >/dev/null
 
 if xcrun altool --upload-app \
     --type ios \
     --file "build/Tuist.ipa" \
-    --username "$(op read "op://tuist/App Specific Password/username")" \
-    --password "$(op read "op://tuist/App Specific Password/password")" 2>&1 | tee "$ALTOOL_LOG"; then
+    --apiKey "$ASC_KEY_ID" \
+    --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$ALTOOL_LOG"; then
     echo "Upload to App Store Connect completed successfully!"
     exit 0
 fi

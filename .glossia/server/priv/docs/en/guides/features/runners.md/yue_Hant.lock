@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "59623499a480ad631e251d2da6aa01c85e9f2f27ff5ef588b42ae67cf667b93e",
+  "hash": "39b9fd49edb5c95f50d7aec4872bd9cb24c086d7d7e8483c6048a1da1d5ae1bf",
   "hash_tree": {
     "root": {
       "children": [
@@ -17,7 +17,7 @@
                   "content_hash": "c5b3f0c44f3ae89ad3017cd5e8879236d42c2fdb555fd5809c538e1347b2d530"
                 },
                 "## Concurrency limits {#concurrency-limits}": {
-                  "content_hash": "2b786f231d3dd332dc592ba9c7fd19056e9780e50c7a10e140cf0fed68207cb6"
+                  "content_hash": "6bed91f4cf0c0caad7c827e9dea35f22e696c4d6456f13be5600a8741c51e9af"
                 },
                 "## Network access {#network-access}": {
                   "content_hash": "58dbcc6af9ea31d8b85a64c4e3fd70c52b71ebbd99d4ac7065c85091984cb570"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "3ba0867984546a9bac6e67809c118d61c651f452c329299cd1084d2158a14497",
+          "hash": "ca2b462db3d874c0cd95cca47f43657d30680d1fae66a79d349292ce009197d0",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners.md",
           "metadata": {
-            "content_hash": "a1ed0de3413371a987d556abd807301103ce961d9ef2b1f4bd23e17c2ce1bc7a"
+            "content_hash": "b575fefc48397b02022cc2310124373a57ab0f25585c865b5b38b857620c76d6"
           }
         },
         {
@@ -236,14 +236,14 @@
         }
       ],
       "details": {},
-      "hash": "59623499a480ad631e251d2da6aa01c85e9f2f27ff5ef588b42ae67cf667b93e",
+      "hash": "39b9fd49edb5c95f50d7aec4872bd9cb24c086d7d7e8483c6048a1da1d5ae1bf",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "8e2f9558e5fb4188f6d28595f675ae7554f685e10a009ced16aea8245bb0a4d4",
+  "output_hash": "68a65610c6f2038b91eae0c6e58db069c5b20c69a6363ae2f912f7efdc6cf5ef",
   "output_path": "server/priv/docs/yue_Hant/guides/features/runners.md",
   "protection_state": "recorded",
   "provider": "",
@@ -264,8 +264,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "b8555c38b38b06097bb039927ff09f5e43d2768b",
+  "source_commit_sha": "dd9165f7a793bbcf8dea5db4eb15e2485f02106d",
   "source_path": "server/priv/docs/en/guides/features/runners.md",
-  "translated_at": "2026-11-24T16:46:16.632549Z",
-  "translation_session_id": "01a20e70-9654-7b34-acb1-e4dffd01b038"
+  "translated_at": "2026-11-25T14:33:50.714604Z",
+  "translation_session_id": "01a2131f-40f6-77f0-9e53-178d609e2493"
 }

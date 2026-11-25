@@ -290,6 +290,18 @@ func TestBuild_ClusterDNSEnvOnMacOSOnly(t *testing.T) {
 	}
 }
 
+func TestBuild_LinuxResolvesDottedNamesAbsoluteFirst(t *testing.T) {
+	// ndots:1 keeps external names off the cluster search path. A pod
+	// without it inherits ndots:5 and pays three NXDOMAINs per new name.
+	dns := build(t, basePool("linux")).Spec.DNSConfig
+	if dns == nil || len(dns.Options) != 1 || dns.Options[0].Name != "ndots" || dns.Options[0].Value == nil || *dns.Options[0].Value != "1" {
+		t.Errorf("linux DNSConfig = %+v, want options [ndots:1]", dns)
+	}
+	if dns := build(t, basePool("macos")).Spec.DNSConfig; dns != nil {
+		t.Errorf("macOS DNSConfig = %+v, want nil (tart-kubelet VMs use their own resolver)", dns)
+	}
+}
+
 func TestBuild_RuntimeClassNameStampedWhenSet(t *testing.T) {
 	pool := basePool("linux")
 	pool.Spec.RuntimeClass = "kata-qemu"

@@ -3,14 +3,18 @@ defmodule Tuist.Runners.ConcurrencySizing do
   Growth-only runner concurrency sizing for enabled Pro and Enterprise accounts.
 
   Recurring sizing uses the second-highest daily peak in fourteen completed UTC
-  days, with 25% or one observed machine of headroom. The queue path only asks
-  for room for one recent, valid job blocked by current claims. Neither path
-  consumes the asynchronous ClickHouse replica or bypasses normal admission.
+  days, with 25% or one observed machine of headroom. The queue path asks for
+  room for every recent, valid queued job once one of them is blocked by
+  current claims. Neither path consumes the asynchronous ClickHouse replica or
+  bypasses normal admission.
 
-  An account/platform grows at most once per 24h, by at most 50%, and no more
-  than doubles in a rolling week, counted from its latest plan or operator
-  grant. Existing grants, including contractual
-  minima, are never reduced, even when above the automatic safety ceilings.
+  Below the platform's fast-growth threshold an account grows straight to its
+  demand, up to that threshold, at most once an hour: a jump there is small
+  in absolute terms. Above it, an account/platform grows at most once per 24h
+  and by at most 50%, up to the automatic safety ceiling. Operator edits always
+  hold growth for 24h.
+  Existing grants, including contractual minima, are never reduced, even when
+  above the automatic safety ceilings.
   """
   import Ecto.Query
 
@@ -27,6 +31,9 @@ defmodule Tuist.Runners.ConcurrencySizing do
 
   @ceilings %{linux: %{vcpus: 256, memory_gb: 1024}, macos: %{vcpus: 128, memory_gb: 384}}
   @quanta %{linux: %{vcpus: 4, memory_gb: 8}, macos: %{vcpus: 8, memory_gb: 24}}
+  # Up to these limits growth ignores the 50% step bound and its cooldown is
+  # an hour: twelve baseline macOS guests, and half the Linux ceiling.
+  @fast_growth %{linux: %{vcpus: 128, memory_gb: 512}, macos: %{vcpus: 96, memory_gb: 288}}
   @hourly_budget 5
 
   @doc """
@@ -99,14 +106,14 @@ defmodule Tuist.Runners.ConcurrencySizing do
   defp grow_limit(limit, mode, demand, now) do
     # The sweep's clock predates this lock. Include changes committed
     # since it started, especially a manual edit we just waited behind.
-    history = ConcurrencyHistory.between(limit.account_id, DateTime.add(now, -7, :day), DateTime.utc_now())
+    history = ConcurrencyHistory.between(limit.account_id, DateTime.add(now, -1, :day), DateTime.utc_now())
     platform_history = Enum.filter(history, &(&1.platform == limit.platform))
     target = if mode == :daily, do: demand, else: queued_demand(limit.account_id, limit.platform, limit, now)
 
     with %{} <- target,
-         true <- may_grow?(platform_history, now),
+         true <- may_grow?(limit, platform_history, now),
          true <- budget_available?(now),
-         resources = bounded_target(limit.platform, limit, target, since_latest_grant(platform_history)),
+         resources = bounded_target(limit.platform, limit, target),
          true <- resources.vcpus > limit.vcpus or resources.memory_gb > limit.memory_gb do
       apply_growth(limit, resources, mode, now)
       resources
@@ -141,29 +148,41 @@ defmodule Tuist.Runners.ConcurrencySizing do
     used = Map.fetch!(Concurrency.usage_by_platform(account_id), platform)
     platform_name = Atom.to_string(platform)
 
-    WorkflowJob
-    |> where([j], j.account_id == ^account_id and j.platform == ^platform_name and j.status == "queued")
-    |> where(
-      [j],
-      j.enqueued_at >= ^DateTime.add(now, -3600, :second) and j.enqueued_at <= ^DateTime.add(now, -60, :second)
-    )
-    |> order_by([j], asc: j.enqueued_at, asc: j.workflow_job_id)
-    |> Repo.all()
-    |> Enum.find_value(fn job ->
-      resources = %{vcpus: job.vcpus, memory_gb: job.memory_gb}
+    jobs =
+      WorkflowJob
+      |> where([j], j.account_id == ^account_id and j.platform == ^platform_name and j.status == "queued")
+      |> where(
+        [j],
+        j.enqueued_at >= ^DateTime.add(now, -3600, :second) and j.enqueued_at <= ^DateTime.add(now, -60, :second)
+      )
+      |> Repo.all()
+      |> Enum.map(&%{vcpus: &1.vcpus, memory_gb: &1.memory_gb})
+      |> Enum.filter(&Catalog.find_shape(platform, &1.vcpus, &1.memory_gb))
 
-      if Catalog.find_shape(platform, job.vcpus, job.memory_gb) &&
-           not Concurrency.fits?(used, Concurrency.limit_resources(limit), resources) do
-        %{vcpus: used.vcpus + job.vcpus, memory_gb: used.memory_gb + job.memory_gb}
-      end
+    # Pressure is one job the limit blocks; the target then makes room for
+    # every queued job at once, so a burst is not admitted one step at a time.
+    # The bounds in `bounded_target/3` still cap how far that goes.
+    if Enum.any?(jobs, &(not Concurrency.fits?(used, Concurrency.limit_resources(limit), &1))) do
+      Enum.reduce(jobs, used, &%{vcpus: &2.vcpus + &1.vcpus, memory_gb: &2.memory_gb + &1.memory_gb})
+    end
+  end
+
+  defp may_grow?(limit, history, now) do
+    # Manual changes always get a full day, so an operator's reduction cannot
+    # be immediately undone. The pause flag provides a durable operator hold.
+    # Automatic growth below the fast-growth threshold waits an hour instead.
+    manual_since = DateTime.add(now, -1, :day)
+    automatic_since = if fast_growth?(limit), do: DateTime.add(now, -3600, :second), else: manual_since
+
+    not Enum.any?(history, fn change ->
+      (change.source == "manual" and DateTime.after?(change.recorded_at, manual_since)) or
+        (change.source == "automatic" and DateTime.after?(change.recorded_at, automatic_since))
     end)
   end
 
-  defp may_grow?(history, now) do
-    since = DateTime.add(now, -1, :day)
-    # Manual changes get the same cooldown, so an operator's reduction cannot
-    # be immediately undone. The pause flag provides a durable operator hold.
-    not Enum.any?(history, &(&1.source in ["automatic", "manual"] and DateTime.after?(&1.recorded_at, since)))
+  defp fast_growth?(limit) do
+    threshold = Map.fetch!(@fast_growth, limit.platform)
+    limit.vcpus < threshold.vcpus or limit.memory_gb < threshold.memory_gb
   end
 
   defp budget_available?(now) do
@@ -175,28 +194,17 @@ defmodule Tuist.Runners.ConcurrencySizing do
     |> Kernel.<(@hourly_budget)
   end
 
-  # Plan defaults and operator edits are grants, not growth: the weekly
-  # doubling bound counts from the latest one, so automatic growth can always
-  # double what was last granted. An upgrade records no `plan` row when an
-  # operator had already raised the account above the plan's defaults, so
-  # counting only plan rows would hold it at twice its pre-upgrade limit for a
-  # week. History is oldest first.
-  defp since_latest_grant(history) do
-    case history |> Enum.reverse() |> Enum.find_index(&(&1.source in ["plan", "manual"])) do
-      nil -> history
-      index -> Enum.take(history, -(index + 1))
-    end
-  end
-
-  defp bounded_target(platform, current, target, history) do
+  defp bounded_target(platform, current, target) do
     Map.new([:vcpus, :memory_gb], fn resource ->
       existing = Map.fetch!(current, resource)
       quantum = get_in(@quanta, [platform, resource])
-      week_floor = Enum.reduce(history, existing, &min(Map.fetch!(&1, resource), &2))
 
+      # Up to the fast-growth threshold, growth goes straight to demand; past
+      # it, one step adds at most 50%, so a large limit never doubles in a day.
       ceiling =
-        [get_in(@ceilings, [platform, resource]), div(existing * 3, 2), week_floor * 2]
-        |> Enum.min()
+        @ceilings
+        |> get_in([platform, resource])
+        |> min(max(div(existing * 3, 2), get_in(@fast_growth, [platform, resource])))
         |> then(&(div(&1, quantum) * quantum))
 
       desired = Map.fetch!(target, resource)

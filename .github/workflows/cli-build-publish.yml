@@ -49,6 +49,9 @@ jobs:
     name: Release CLI
     runs-on: tuist-macos-26-0-1
     timeout-minutes: 75
+    # Main-only environment whose 1Password token reads only tuist-apple-signing.
+    # Backports dispatch from main, so the branch policy holds for them too.
+    environment: apple-signing
     permissions:
       contents: write
       id-token: write
@@ -98,7 +101,7 @@ jobs:
       - name: Bundle CLI
         run: mise run --no-deps --skip-tools cli:bundle
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.RELEASE_OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Upload CLI artifacts
         id: upload

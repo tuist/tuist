@@ -166,7 +166,10 @@ Implementation choices (`Symptoms.Lifecycle`):
   a score.
 - Only one job per pipeline processes windows at a time: `Symptoms.Pipeline`
   holds a session advisory lock keyed by the window length, and a job that
-  finds it held does nothing. Root scores are unique per root key, pipeline
+  finds it held does nothing. The lock's connection has a 25-minute budget
+  for source collection and up to five catch-up windows, below Oban's
+  30-minute rescue age; individual SQL queries and HTTP requests keep their
+  own shorter timeouts. Root scores are unique per root key, pipeline
   and window. Direct window calls take the same lock and skip completed
   windows. Detector state, revisions and the completion marker commit in
   one transaction, so a retry cannot accumulate the same window twice.

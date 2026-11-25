@@ -89,8 +89,13 @@ jobs:
     if: needs.check.outputs.should-release == 'true'
     runs-on: tuist-linux
     timeout-minutes: 30
+    # Publishes with Hex Workload Identity: hex.pm trusts this workflow file in
+    # the main-only hex-publish environment and hands out a 15-minute token for
+    # this package only. No HEX_API_KEY may be set, or Hex uses it instead.
+    environment: hex-publish
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -139,9 +144,10 @@ jobs:
       # release creation is interrupted.
       - name: Publish to hex.pm
         working-directory: noora
-        run: mix hex.publish --yes --replace
-        env:
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: |
+          # Workload Identity needs Hex 2.6 or later.
+          mix local.hex --force
+          mix hex.publish --yes --replace
 
       - name: Create Noora GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2

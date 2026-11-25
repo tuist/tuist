@@ -36,8 +36,8 @@ xcrun vtool -show-build "$app/Contents/MacOS/Luft" | grep -Eq 'platform MACOS$' 
 "$plist" -c "Set :CFBundleVersion $(date +%s)" "$app/Contents/Info.plist"
 
 # Provider diagnostics may echo credentials; keep them in this private directory.
-op read 'op://tuist/Developer ID Application Certificate/certificate.p12' --out-file "$tmp/certificate.p12" > "$tmp/vault.log" 2>&1 || fail 'Could not read the Developer ID certificate'
-certificate_password=$(op read 'op://tuist/Developer ID Application Certificate/password' 2> "$tmp/vault.log") || fail 'Could not read the Developer ID certificate password'
+op read 'op://tuist-apple-signing/Developer ID Application Certificate/certificate.p12' --out-file "$tmp/certificate.p12" > "$tmp/vault.log" 2>&1 || fail 'Could not read the Developer ID certificate'
+certificate_password=$(op read 'op://tuist-apple-signing/Developer ID Application Certificate/password' 2> "$tmp/vault.log") || fail 'Could not read the Developer ID certificate password'
 keychain_password=$(uuidgen)
 create_signing_keychain "$keychain" "$keychain_password" > "$tmp/keychain.log" 2>&1 || fail 'Could not create the temporary signing keychain'
 security import "$tmp/certificate.p12" -k "$keychain" -P "$certificate_password" -T /usr/bin/codesign > "$tmp/keychain.log" 2>&1 || fail 'Could not import the Developer ID certificate'
@@ -58,12 +58,13 @@ codesign --verify --strict --deep "$app"
 [[ "$(codesign -dv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p')" = "$team" ]] || fail 'Expected the Tuist team signature'
 
 ditto -c -k --sequesterRsrc --keepParent "$app" "$tmp/notarization.zip"
-apple_id=$(op read 'op://tuist/App Specific Password/username' 2> "$tmp/vault.log") || fail 'Could not read the Apple notarization account'
-notarization_password=$(op read 'op://tuist/App Specific Password/password' 2> "$tmp/vault.log") || fail 'Could not read the Apple notarization password'
+op read 'op://tuist-apple-signing/App Store Connect API Key/AuthKey.p8' --out-file "$tmp/AuthKey.p8" > "$tmp/vault.log" 2>&1 || fail 'Could not read the App Store Connect API key'
+notary_key_id=$(op read 'op://tuist-apple-signing/App Store Connect API Key/key-id' 2> "$tmp/vault.log") || fail 'Could not read the App Store Connect API key ID'
+notary_issuer=$(op read 'op://tuist-apple-signing/App Store Connect API Key/issuer-id' 2> "$tmp/vault.log") || fail 'Could not read the App Store Connect API issuer'
 xcrun notarytool submit "$tmp/notarization.zip" --wait --timeout 20m \
-    --apple-id "$apple_id" --team-id "$team" --password "$notarization_password" \
+    --key "$tmp/AuthKey.p8" --key-id "$notary_key_id" --issuer "$notary_issuer" \
     --output-format json > "$tmp/notarization.json" 2> "$tmp/notarization.log" || fail 'Apple notarization submission failed (private diagnostics withheld)'
-unset apple_id notarization_password
+unset notary_key_id notary_issuer
 [[ "$(plutil -extract status raw -o - "$tmp/notarization.json" 2>/dev/null)" = Accepted ]] || fail 'Notarization was not accepted'
 xcrun stapler staple "$app"
 xcrun stapler validate "$app"

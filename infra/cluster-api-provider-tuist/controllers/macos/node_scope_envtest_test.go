@@ -24,7 +24,6 @@ import (
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -53,7 +52,8 @@ const (
 )
 
 // renderNodeScope renders the chart's tart-kubelet RBAC and policy and the
-// operator's ClusterRole as the production values do.
+// operator's RBAC (its ClusterRole, the Roles in the namespaces it works in,
+// and its admission policy) as the production values do.
 func renderNodeScope(t *testing.T) []*unstructured.Unstructured {
 	t.Helper()
 	helm, err := exec.LookPath("helm")
@@ -84,8 +84,10 @@ func renderNodeScope(t *testing.T) []*unstructured.Unstructured {
 		}
 		switch {
 		case u.Object == nil:
-		case strings.HasPrefix(u.GetName(), scopeClusterRole),
-			u.GetKind() == "ClusterRole" && u.GetName() == scopeOperatorRole:
+		case strings.HasPrefix(u.GetName(), scopeClusterRole):
+			objs = append(objs, u)
+		case strings.HasPrefix(u.GetName(), scopeOperatorRole) && u.GetKind() != "Deployment" &&
+			u.GetKind() != "ServiceAccount" && u.GetKind() != "Service" && u.GetKind() != "PodDisruptionBudget":
 			objs = append(objs, u)
 		}
 	}
@@ -118,7 +120,7 @@ func TestHostIdentityIsScopedToItsOwnNodeOnARealAPIServer(t *testing.T) {
 		}
 	}
 
-	for _, ns := range []string{scopeNamespace, scopeRunners, scopeSandboxes} {
+	for _, ns := range []string{scopeNamespace, scopeRunners, scopeSandboxes, "tailscale-operator"} {
 		mustCreate(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	}
 	kinds := map[string]bool{}
@@ -132,15 +134,12 @@ func TestHostIdentityIsScopedToItsOwnNodeOnARealAPIServer(t *testing.T) {
 		}
 	}
 
-	// The operator acts with the chart's ClusterRole, so a grant it may not
-	// make (RBAC escalation) fails here as it would in the cluster.
+	// The operator acts as the chart's ServiceAccount with the chart's
+	// bindings and admission policy, so a grant it may not make (RBAC
+	// escalation, or a binding the policy refuses) fails here as it would in
+	// the cluster.
 	mustCreate(
-		&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: scopeNamespace, Name: "operator"}},
-		&rbacv1.ClusterRoleBinding{
-			ObjectMeta: metav1.ObjectMeta{Name: "operator"},
-			RoleRef:    rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: scopeOperatorRole},
-			Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Namespace: scopeNamespace, Name: "operator"}},
-		},
+		&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: scopeNamespace, Name: scopeOperatorRole}},
 		&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: scopeRunners, Name: scopeCacheSA}},
 		&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: scopeRunners, Name: "runner"}},
 		&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: scopeSandboxes, Name: "tuist-macos-sandboxd"}},
@@ -149,7 +148,7 @@ func TestHostIdentityIsScopedToItsOwnNodeOnARealAPIServer(t *testing.T) {
 		&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: scopeSandboxes, Name: "default"}},
 	)
 	operatorCfg := rest.CopyConfig(cfg)
-	operatorCfg.Impersonate = rest.ImpersonationConfig{UserName: "system:serviceaccount:" + scopeNamespace + ":operator"}
+	operatorCfg.Impersonate = rest.ImpersonationConfig{UserName: "system:serviceaccount:" + scopeNamespace + ":" + scopeOperatorRole}
 	operator, err := client.New(operatorCfg, client.Options{Scheme: clientgoscheme.Scheme})
 	if err != nil {
 		t.Fatal(err)
