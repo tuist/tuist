@@ -227,8 +227,8 @@ copies without a deploy.
 ### Guest isolation
 
 A root `sbx-executor` in the guest downloads verified input blobs, drops the
-command to UID/GID 1000 with an explicit environment, and uploads outputs and
-logs to the project's CAS. It never looks the action up in the action
+command to `builder` (UID/GID 2000, without sudo) with an explicit
+environment, and uploads outputs and logs to the project's CAS. It never looks the action up in the action
 cache: Bazel checks it before calling `Execute`. The build does not inherit
 the CAS token. Linux `no_new_privs` prevents setuid/file-capability
 escalation. It is applied on a locked OS thread through the command's

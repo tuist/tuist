@@ -128,7 +128,9 @@ Linux amd64 CLI, verified against its published SHA-256), `TUIST_VERSION` and
 The final stage is Alpine with GNU coreutils and e2fsprogs and carries
 `/template/vmlinux`, `/template/vmlinux.config`, `/template/rootfs.ext4` and
 `/template/metadata.json`, which records the guest `user`'s `runner_uid` and
-`runner_gid` for sandboxd's prepared checkout workspaces. The sandboxes chart runs it as the init container
+`runner_gid` (1000, the Linux runner image's `runner` UID, so CI-written
+caches and checkouts need no ownership change) for sandboxd's prepared
+checkout workspaces. The sandboxes chart runs it as the init container
 of a template installer DaemonSet, separate from sandboxd's so a template
 upgrade never restarts the daemon, with the node's `/data/sandboxes` mounted
 at `/host` and `TEMPLATE_TAG` set
@@ -164,7 +166,7 @@ Other language runtimes come from `mise` inside the sandbox. Ordinary vsock exec
 Amp bootstrap runs as `user` with passwordless sudo; see
 [`../amp-orbs/README.md`](../amp-orbs/README.md) for its lifecycle, persistent
 workspace, required egress, Desktop and rollout.
-REAPI commands run as UID/GID 1000; preserve explicit command environments,
-`no_new_privs`, and host-only vsock access so actions cannot obtain the root
-worker's scoped CAS credential. See [remote execution](remote-execution.md)
+REAPI commands run as `builder` (UID/GID 2000, not `user`'s 1000, which has
+sudo); preserve explicit command environments, `no_new_privs`, and host-only
+vsock access so actions cannot obtain the root worker's scoped CAS credential. See [remote execution](remote-execution.md)
 for the separate gateway, deployment and qualification workflow.

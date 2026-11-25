@@ -33,6 +33,10 @@ type request struct {
 
 const actionMemoryLimit = 256 << 20
 
+// actionUID is the template's `builder` account, which runs REAPI commands.
+// It is not `user` (UID 1000), which has passwordless sudo.
+const actionUID = 2000
+
 // ConfigureRuntime prepares an agent that will run one action and then be
 // destroyed with its VM: collecting garbage would only add pauses, so the Go
 // runtime collects only near the limit. It runs once, before the template
@@ -69,7 +73,7 @@ func (s *Session) Run(parent context.Context, requestJSON, token string) (string
 	ctx, cancel := context.WithTimeout(parent, 12*time.Minute)
 	defer cancel()
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+token, "x-tuist-account-handle", r.Account))
-	w := worker.Worker{CAS: worker.NewCAS(conn, r.Instance), Root: actionRoot, Image: r.Image, MemoryGB: r.MemoryGB, Credential: &syscall.Credential{Uid: 1000, Gid: 1000}, Start: startWithoutNewPrivileges}
+	w := worker.Worker{CAS: worker.NewCAS(conn, r.Instance), Root: actionRoot, Image: r.Image, MemoryGB: r.MemoryGB, Credential: &syscall.Credential{Uid: actionUID, Gid: actionUID}, Start: startWithoutNewPrivileges}
 	w.CAS.Seed(r.Inputs)
 	w.CAS.Host = hostBlobs{dial: dialHost}
 	if info, err := os.Stat(inputsDir); err == nil && info.IsDir() {
