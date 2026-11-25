@@ -287,6 +287,21 @@ struct CargoReportingTests {
         #expect(CargoCommand.delegatedArguments(in: ["tuist", "generate", "cargo", "--quiet"]) == nil)
     }
 
+    @Test func coverageCompleteIsAnAliasThatPassesOnTuistProject() {
+        let project = ["TUIST_PROJECT": "acme/rust"]
+        #expect(CargoCommand.coverageCompleteArguments(
+            in: ["tuist", "--verbose", "cargo", "coverage-complete", "--commit", "abc1234"], environment: project
+        ) == ["tuist", "--verbose", "coverage", "complete", "--full-handle", "acme/rust", "--commit", "abc1234"])
+        #expect(CargoCommand.coverageCompleteArguments(
+            in: ["tuist", "cargo", "coverage-complete", "--full-handle=acme/explicit"], environment: project
+        ) == ["tuist", "coverage", "complete", "--full-handle=acme/explicit"])
+        #expect(CargoCommand.coverageCompleteArguments(
+            in: ["tuist", "cargo", "coverage-complete", "--json"], environment: ["TUIST_PROJECT": ""]
+        ) == ["tuist", "coverage", "complete", "--json"])
+        #expect(CargoCommand.coverageCompleteArguments(in: ["tuist", "cargo", "test"], environment: project) == nil)
+        #expect(CargoCommand.coverageCompleteArguments(in: ["tuist", "coverage", "complete"], environment: project) == nil)
+    }
+
     @Test func passesThroughOtherCommands() {
         #expect(!CargoInvocation(["metadata", "--format-version", "1"]).observesBuild)
         #expect(!CargoInvocation(["build", "--help"]).observesBuild)

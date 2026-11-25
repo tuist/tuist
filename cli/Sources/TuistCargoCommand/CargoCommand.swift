@@ -9,7 +9,7 @@ public struct CargoCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "cargo",
         abstract: "Run Cargo with Tuist build and test insights.",
-        discussion: "Cargo arguments are forwarded unchanged except Tuist shard options. Use 'test --no-run --shard-max N' to plan target-level shards, then set TUIST_SHARD_INDEX and TUIST_SHARD_PLAN_ID for 'test'. Plain tests apply mute/skip quarantine; TUIST_TEST_SKIP_QUARANTINE=1 disables it. With '[test_insights.coverage] upload = true' in tuist.toml (or '[workspace.metadata.tuist.test_insights.coverage]' in Cargo.toml), test runs report code coverage; once every test job of a commit has finished, 'coverage-complete [--commit <sha>]' marks the commit's coverage complete."
+        discussion: "Cargo arguments are forwarded unchanged except Tuist shard options. Use 'test --no-run --shard-max N' to plan target-level shards, then set TUIST_SHARD_INDEX and TUIST_SHARD_PLAN_ID for 'test'. Plain tests apply mute/skip quarantine; TUIST_TEST_SKIP_QUARANTINE=1 disables it. With '[test_insights.coverage] upload = true' in tuist.toml (or '[workspace.metadata.tuist.test_insights.coverage]' in Cargo.toml), test runs report code coverage; once every test job of a commit has finished, 'coverage-complete [--commit <sha>]', an alias of 'tuist coverage complete', marks the commit's coverage complete."
     )
 
     private static let testBuildHelp = """
@@ -42,6 +42,20 @@ public struct CargoCommand: AsyncParsableCommand {
         let command = arguments.dropFirst().drop(while: { ["--verbose", "--quiet"].contains($0) })
         guard command.first == configuration.commandName else { return nil }
         return Array(command.dropFirst())
+    }
+
+    /// `tuist cargo coverage-complete` predates `tuist coverage complete` on Linux and stays as its alias: the command
+    /// line that runs `tuist coverage complete` instead, or `nil` for any other command. Cargo setups name their project
+    /// with `TUIST_PROJECT`, which the alias passes on as `--full-handle` unless the caller passed one.
+    public static func coverageCompleteArguments(in arguments: [String], environment: [String: String]) -> [String]? {
+        guard let cargoArguments = delegatedArguments(in: arguments), cargoArguments.first == "coverage-complete" else {
+            return nil
+        }
+        let options = Array(cargoArguments.dropFirst())
+        let namesProject = options.contains { $0 == "--full-handle" || $0.hasPrefix("--full-handle=") }
+        let project = namesProject ? nil : environment["TUIST_PROJECT"].flatMap { $0.isEmpty ? nil : $0 }
+        return Array(arguments.dropLast(cargoArguments.count + 1)) + ["coverage", "complete"]
+            + (project.map { ["--full-handle", $0] } ?? []) + options
     }
 
     /// Runs a per-compiler hook (`__compiler`, `__native`, `__script`) without ArgumentParser: Cargo starts one for

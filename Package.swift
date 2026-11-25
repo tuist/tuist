@@ -63,6 +63,7 @@ var tuistDependencies: [Target.Dependency] = [
     "TuistRunnerCommand",
     "TuistSandboxCommand",
     "TuistSnapshotsCommand",
+    "TuistCoverageCommand",
     "TuistInspectCommand",
     argumentParserDependency,
     "TuistServer",
@@ -452,6 +453,20 @@ var tuistSnapshotsCommandDependencies: [Target.Dependency] = [
     argumentParserDependency,
     mockableDependency,
     .product(name: "Crypto", package: "apple.swift-crypto"),
+    .product(name: "Noora", package: "tuist.Noora"),
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistNooraExtension",
+    "TuistSupport",
+    "TuistGit",
+    "TuistAlert",
+]
+var tuistCoverageCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    mockableDependency,
     .product(name: "Noora", package: "tuist.Noora"),
     "TuistServer",
     "TuistEnvironment",
@@ -1066,6 +1081,14 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistCoverageCommand",
+        dependencies: tuistCoverageCommandDependencies,
+        path: "cli/Sources/TuistCoverageCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistInspectCommand",
         dependencies: tuistInspectCommandDependencies,
         path: "cli/Sources/TuistInspectCommand",
@@ -1379,6 +1402,25 @@ var targets: [Target] = [
             mockableDependency,
         ],
         path: "cli/Tests/TuistSnapshotsCommandTests"
+    ),
+    .testTarget(
+        name: "TuistCoverageCommandTests",
+        dependencies: [
+            "TuistCoverageCommand",
+            "TuistAlert",
+            "TuistConfig",
+            "TuistConfigLoader",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
+            "TuistGit",
+            "TuistNooraExtension",
+            "TuistNooraTesting",
+            "TuistServer",
+            "TuistTesting",
+            argumentParserDependency,
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistCoverageCommandTests"
     ),
     .testTarget(
         name: "TuistInitCommandTests",

@@ -81,6 +81,7 @@ public enum Module: String, CaseIterable {
     case runnerCommand = "TuistRunnerCommand"
     case sandboxCommand = "TuistSandboxCommand"
     case snapshotsCommand = "TuistSnapshotsCommand"
+    case coverageCommand = "TuistCoverageCommand"
     case shareCommand = "TuistShareCommand"
     case inspectCommand = "TuistInspectCommand"
     case android = "TuistAndroid"
@@ -602,8 +603,8 @@ public enum Module: String, CaseIterable {
         case .cacheCommand, .bazelCommand, .cargoCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand, .testCommand,
-             .initCommand, .runCommand, .runnerCommand, .sandboxCommand, .snapshotsCommand, .shareCommand, .inspectCommand,
-             .android:
+             .initCommand, .runCommand, .runnerCommand, .sandboxCommand, .snapshotsCommand, .coverageCommand, .shareCommand,
+             .inspectCommand, .android:
             moduleTags.append("domain:cli")
         case .nooraExtension, .alert, .threadSafe, .macOSSDK, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
@@ -784,6 +785,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.runnerCommand.targetName),
                     .target(name: Module.sandboxCommand.targetName),
                     .target(name: Module.snapshotsCommand.targetName),
+                    .target(name: Module.coverageCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
                     .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.constants.targetName),
@@ -1672,6 +1674,20 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "ArgumentParser"),
                 ]
+            case .coverageCommand:
+                [
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.git.targetName),
+                    .target(name: Module.alert.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Mockable"),
+                ]
             case .sandboxCommand:
                 [
                     .target(name: Module.server.targetName),
@@ -1785,6 +1801,20 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.git.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.nooraTesting.targetName),
+                ]
+            case .coverageCommand:
+                [
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.git.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.testing.targetName),
+                    .external(name: "ArgumentParser"),
                 ]
             case .runnerCommand, .sandboxCommand:
                 [

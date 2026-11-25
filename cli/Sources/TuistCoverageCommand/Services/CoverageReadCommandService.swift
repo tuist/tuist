@@ -29,7 +29,11 @@ struct CoverageReadContext {
         serverEnvironmentService: ServerEnvironmentServicing
     ) async throws -> CoverageReadContext {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
-        let config = try await configLoader.loadConfig(path: directoryPath)
+        var config = try await configLoader.loadConfig(path: directoryPath)
+        // A Cargo workspace can keep its Tuist configuration in Cargo.toml, where `tuist cargo` reads it.
+        if config.fullHandle == nil, let cargoConfig = try? await configLoader.loadCargoConfig(path: directoryPath) {
+            config = cargoConfig
+        }
         guard let fullHandle = fullHandle ?? config.fullHandle else {
             throw CoverageReadCommandServiceError.missingFullHandle
         }

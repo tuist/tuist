@@ -4,7 +4,6 @@ import Foundation
 import Path
 import Testing
 import TuistProcess
-import TuistServer
 import TuistTestSupport
 @testable import TuistCargoCommand
 
@@ -34,32 +33,6 @@ struct CargoCoverageTests {
     ])
     func narrowed(arguments: [String], expected: Bool) {
         #expect(CargoCoverage.narrowed(arguments) == expected)
-    }
-
-    @Test func explainsThatDirtyRunsDontCountAndWhereToSeeTheRuns() throws {
-        let coverage = CommitCoverage(
-            gitCommitSHA: "abcdef1234567",
-            coverage: 0,
-            coveredLines: 0,
-            executableLines: 0,
-            schemes: [""],
-            partialSchemes: [""],
-            complete: true,
-            incomplete: true,
-            gapReasons: ["dirty_run_excluded"]
-        )
-
-        let message = CargoCoverage.dirtyRunsExcluded(
-            coverage, serverURL: try #require(URL(string: "https://tuist.dev")), fullHandle: "acme/app"
-        )
-
-        #expect(message.hasPrefix("Some runs came from a checkout with uncommitted changes and don't count"))
-        #expect(message.contains("keep the files the CI job writes out of it"))
-        #if os(macOS)
-            #expect(message.hasSuffix("See which runs count with `tuist coverage runs --commit abcdef1234567`."))
-        #else
-            #expect(message.hasSuffix("See which runs count at https://tuist.dev/acme/app/tests/coverage/commits/abcdef1234567."))
-        #endif
     }
 
     @Test func partialWhenAFailureStoppedTheRun() {
@@ -413,50 +386,6 @@ struct CargoCoverageTests {
         #expect(found.map(\.test) == ["cart::adds", nil])
         #expect(found.map(\.binary) == ["/other/target/debug/deps/api-1111", "/workspace/target/debug/deps/store-2222"])
         #expect(found.map(\.profiles.count) == [2, 1])
-    }
-
-    @Test func completionLinksTheCommitsPageOnceCompleteAndTheListWhilePending() throws {
-        let serverURL = try #require(URL(string: "https://tuist.dev"))
-        let complete = CargoCoverage.completionMessage(
-            .complete(CommitCoverage(
-                gitCommitSHA: "abcdef1234567", coverage: 82.5, coveredLines: 33, executableLines: 40,
-                schemes: ["cargo test"], partialSchemes: [], complete: true
-            )),
-            commit: "abcdef1234567", fromCheckout: true, serverURL: serverURL, handle: "acme/app"
-        )
-        #expect(complete == """
-        Coverage of commit abcdef1 is complete: 82.5%.
-        See the commit's coverage at https://tuist.dev/acme/app/tests/coverage/commits/abcdef1234567
-        """)
-
-        // The commit's own page is a 404 until one of its runs is processed, so the pending output links the list.
-        let pending = CargoCoverage.completionMessage(
-            .pending, commit: "abcdef1234567", fromCheckout: true, serverURL: serverURL, handle: "acme/app"
-        ).components(separatedBy: "\n")
-        #expect(pending.count == 3)
-        #expect(pending[0].hasPrefix("No run of commit abcdef1, the checkout's HEAD, has reported coverage yet."))
-        #expect(pending[1].contains("tuist cargo coverage-complete --commit <sha>"))
-        #expect(
-            pending[2] == "See the commits your runs reported coverage for at https://tuist.dev/acme/app/tests/coverage/commits"
-        )
-
-        let named = CargoCoverage.completionMessage(
-            .pending, commit: "0123abc", fromCheckout: false, serverURL: serverURL, handle: "acme/app"
-        )
-        #expect(named.hasPrefix("No run of commit 0123abc has reported coverage yet."))
-
-        // Off macOS the dirty-runs explanation names the commit's page itself, so it is linked once either way.
-        let dirty = CargoCoverage.completionMessage(
-            .complete(CommitCoverage(
-                gitCommitSHA: "abcdef1234567", coverage: 0, coveredLines: 0, executableLines: 0,
-                schemes: ["cargo test"], partialSchemes: ["cargo test"], complete: true, incomplete: true,
-                gapReasons: ["dirty_run_excluded"]
-            )),
-            commit: "abcdef1234567", fromCheckout: true, serverURL: serverURL, handle: "acme/app"
-        )
-        #expect(dirty.contains("Some runs came from a checkout with uncommitted changes and don't count"))
-        #expect(!dirty.contains("The figure is incomplete"))
-        #expect(dirty.components(separatedBy: "https://tuist.dev/acme/app/tests/coverage/commits/abcdef1234567").count == 2)
     }
 
     @Test func storedDeflateBlocksSpanLargeInputs() throws {

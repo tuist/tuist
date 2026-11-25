@@ -12,6 +12,7 @@ import TuistBundleCommand
 import TuistCacheCommand
 import TuistCargoCommand
 import TuistConfigLoader
+import TuistCoverageCommand
 import TuistEnvironment
 import TuistGenerateCommand
 import TuistInitCommand
@@ -119,6 +120,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     SnapshotsCommand.self,
                     TestCommand.self,
                     InspectCommand.self,
+                    CoverageCommand.self,
                 ]
             ))
             groups.append(CommandGroup(
@@ -161,7 +163,13 @@ public struct TuistCommand: AsyncParsableCommand {
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
-        if let cargoArguments = CargoCommand.delegatedArguments(in: arguments ?? Array(Environment.current.arguments)) {
+        var arguments = arguments ?? Array(Environment.current.arguments)
+        if let coverageComplete = CargoCommand.coverageCompleteArguments(
+            in: arguments, environment: Environment.current.variables
+        ) {
+            arguments = coverageComplete
+        }
+        if let cargoArguments = CargoCommand.delegatedArguments(in: arguments) {
             // Cargo owns its flags and exit status. Compiler hooks must never enter CLI analytics/authentication.
             do {
                 let command = try CargoCommand.parse(cargoArguments)

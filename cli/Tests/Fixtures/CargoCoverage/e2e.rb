@@ -448,10 +448,12 @@ begin
         "The shards together measured something else than the full run")
 
   # Once every test job of a commit has finished, CI marks its coverage complete: the checkout's commit by default.
+  # `tuist cargo coverage-complete` is an alias of `tuist coverage complete`.
   _, received, completed = run.call("coverage-complete", ["coverage-complete"], 0, reports: 0)
   check(received.map { |item| item["kind"] } == ["complete"] && received[0]["payload"]["sha"] == head,
         "coverage-complete: #{received.inspect}")
-  check(completed[1].include?("Coverage of commit #{head[0, 7]} is complete: 90.0%."), "coverage-complete: #{completed[1]}")
+  check(completed[1].include?("Coverage of commit #{head[0, 7]} is complete: 90.0% over cargo test."),
+        "coverage-complete: #{completed[1]}")
   check(completed[1].include?("See the commit's coverage at http://127.0.0.1:#{port}/e2e/cargo/tests/coverage/commits/#{head}"),
         "coverage-complete: no link to the commit's page: #{completed[1]}")
   _, received, = run.call("coverage-complete-commit", ["coverage-complete", "--commit", "0123abc"], 0, reports: 0)
@@ -465,7 +467,7 @@ begin
   check(received[0]["payload"]["sha"] == head, "coverage-complete-pending: #{received.inspect}")
   check(pending[1].include?("No run of commit #{head[0, 7]}, the checkout's HEAD, has reported coverage yet"),
         "coverage-complete-pending: #{pending[1]}")
-  check(pending[1].include?("tuist cargo coverage-complete --commit <sha>"), "coverage-complete-pending: #{pending[1]}")
+  check(pending[1].include?("tuist coverage complete --commit <sha>"), "coverage-complete-pending: #{pending[1]}")
   check(pending[1].include?("See the commits your runs reported coverage for at http://127.0.0.1:#{port}/e2e/cargo/tests/coverage/commits\n"),
         "coverage-complete-pending: no link to the commits list: #{pending[1]}")
   check(pending_commit[1].include?("No run of commit 0123abc has reported coverage yet"),
@@ -475,13 +477,13 @@ begin
   _, _, dirty_complete = run.call("coverage-complete-dirty-runs", ["coverage-complete"], 0, reports: 0)
   completion_gap_reasons = nil
   page = "http://127.0.0.1:#{port}/e2e/cargo/tests/coverage/commits/#{head}"
-  check(dirty_complete[1].include?("Coverage of commit #{head[0, 7]} is complete: 0.0%. Some runs came from a checkout " \
-                                   "with uncommitted changes and don't count"),
+  check(dirty_complete[1].include?("Coverage of commit #{head[0, 7]} is complete: 0.0% over cargo test") &&
+        dirty_complete[1].include?("Some runs came from a checkout with uncommitted changes and don't count"),
         "coverage-complete-dirty-runs: #{dirty_complete[1]}")
   check(!dirty_complete[1].include?("The figure is incomplete"), "coverage-complete-dirty-runs: #{dirty_complete[1]}")
   check(dirty_complete[1].scan(page).length == 1,
         "coverage-complete-dirty-runs: the commit's page isn't linked once: #{dirty_complete[1]}")
-  check(RUBY_PLATFORM.include?("darwin") == dirty_complete[1].include?("`tuist coverage runs --commit #{head}`"),
+  check(dirty_complete[1].include?("tuist coverage runs --commit #{head}"),
         "coverage-complete-dirty-runs: #{dirty_complete[1]}")
 
   # Files a CI job writes next to the sources leave the run on its commit; a changed tracked file doesn't, and the
