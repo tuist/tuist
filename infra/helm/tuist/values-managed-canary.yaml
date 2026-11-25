@@ -921,6 +921,9 @@ sandboxes:
   # Memory bursting: guests return the memory they free (and, once idle,
   # their page cache) to the host, and pauses punch zeros out of images.
   balloonFreePageReporting: true
+  # Pauses of a VM restored from its own memory image write only the pages
+  # it changed, merged onto a clone of that image.
+  diffSnapshots: true
   # Short so canary exercises archive and restore through the in-rack store
   # within an hour of a pause.
   archiveAfterHours: 1
