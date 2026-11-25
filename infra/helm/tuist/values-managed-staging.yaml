@@ -979,6 +979,8 @@ sandboxes:
   prebuildShapes: "16x4096,16x8192"
   # Memory bursting prototype: measure how much memory guests return.
   balloonFreePageReporting: true
+  # Memory bursting: pauses write only what the guest changed.
+  diffSnapshots: true
   diskGiB: 100
   archiveAfterHours: 24
   admin:

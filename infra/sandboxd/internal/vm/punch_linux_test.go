@@ -45,3 +45,33 @@ func TestPunchZerosFreesOnlyZeroBlocks(t *testing.T) {
 		t.Fatalf("still %d bytes allocated of %d", allocated, len(content))
 	}
 }
+
+func TestPunchZerosSkipsHolesAndCountsThem(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mem")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// data | 4-block hole | zero block | data, with the hole never written.
+	data := bytes.Repeat([]byte{0xcd}, punchBlock)
+	for offset, block := range map[int64][]byte{0: data, 5 * punchBlock: make([]byte, punchBlock), 6 * punchBlock: data} {
+		if _, err := f.WriteAt(block, offset); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.Close()
+	want, _ := os.ReadFile(path)
+	punched, err := PunchZeros(path)
+	if errors.Is(err, unix.EOPNOTSUPP) {
+		t.Skip("filesystem cannot punch holes")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if punched != 5*punchBlock {
+		t.Fatalf("punched %d, want %d", punched, 5*punchBlock)
+	}
+	if got, _ := os.ReadFile(path); !bytes.Equal(got, want) {
+		t.Fatal("punching changed the file's bytes")
+	}
+}
