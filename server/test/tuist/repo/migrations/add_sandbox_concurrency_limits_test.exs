@@ -14,7 +14,7 @@ defmodule Tuist.Repo.Migrations.AddSandboxConcurrencyLimitsTest do
     account = AccountsFixtures.account_fixture()
     default = AccountsFixtures.account_fixture()
     # This migration ran when every account started at 32 vCPU / 64 GB on Linux.
-    Concurrency.raise_to_plan_defaults(default, :pro)
+    {:ok, _} = Concurrency.update_limits(default, %{runner_linux_vcpus_limit: 32, runner_linux_memory_gb_limit: 64})
 
     {:ok, _} =
       Concurrency.update_limits(account, %{

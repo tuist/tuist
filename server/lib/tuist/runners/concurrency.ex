@@ -23,14 +23,15 @@ defmodule Tuist.Runners.Concurrency do
   alias Tuist.Runners.RunnerSessions
 
   @platforms [:linux, :macos]
-  # Paid plans start at two baseline macOS guests and 32 Linux vCPUs, and
+  # Paid plans start at six baseline macOS guests and 64 Linux vCPUs, and
   # `ConcurrencySizing` grows them from there. Air never grows, so it starts
   # at what one job of the largest Linux shape and one baseline macOS guest
   # need. The database trigger `create_default_runner_concurrency_limits`
   # inserts the Air values for every new account and must change with them.
+  # Migration 20261125120000 raised existing paid accounts to these values.
   @paid_limits %{
-    linux: %{vcpus: 32, memory_gb: 64},
-    macos: %{vcpus: 16, memory_gb: 48}
+    linux: %{vcpus: 64, memory_gb: 128},
+    macos: %{vcpus: 48, memory_gb: 144}
   }
   @air_limits %{
     linux: %{vcpus: 16, memory_gb: 64},

@@ -472,6 +472,7 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
   defp with_accounts(count, function) do
     users = Enum.map(1..count, fn _index -> user_fixture(preload: [:account]) end)
     Enum.each(users, &Tuist.Runners.Concurrency.raise_to_plan_defaults(&1.account, :pro))
+    Enum.each(users, &pin_small_paid_limits(&1.account.id))
 
     try do
       function.(Enum.map(users, & &1.account))
@@ -480,6 +481,16 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
         Repo.delete!(user.account)
         Repo.delete!(user)
       end)
+    end
+  end
+
+  # The paid plans' limits before 20261125120000, which these tests' resource
+  # figures assume: 32 vCPU / 64 GB on Linux and 16 vCPU / 48 GB on macOS.
+  defp pin_small_paid_limits(account_id) do
+    for {platform, vcpus, memory_gb} <- [{:linux, 32, 64}, {:macos, 16, 48}] do
+      ConcurrencyLimit
+      |> where([l], l.account_id == ^account_id and l.platform == ^platform)
+      |> Repo.update_all(set: [vcpus: vcpus, memory_gb: memory_gb])
     end
   end
 end

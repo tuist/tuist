@@ -29,22 +29,26 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
     account: account,
     now: now
   } do
+    # Pro starts at six macOS guests; a burst of three more queued jobs gets
+    # room for all three in one step.
     fill_macos(account)
-    queue(account, now)
+    for _ <- 1..3, do: queue(account, now)
 
-    assert {:ok, %{vcpus: 24, memory_gb: 72}} = ConcurrencySizing.grow(account, :macos, :queue, now)
-    assert Concurrency.limits_for(account, :linux) == %{vcpus: 32, memory_gb: 64}
+    assert {:ok, %{vcpus: 72, memory_gb: 216}} = ConcurrencySizing.grow(account, :macos, :queue, now)
+    assert Concurrency.limits_for(account, :linux) == %{vcpus: 64, memory_gb: 128}
     assert {:ok, :unchanged} = ConcurrencySizing.grow(account, :macos, :queue, now)
 
     changes = Repo.all(from h in ConcurrencyHistory, where: h.account_id == ^account.id and h.source == "automatic")
-    assert [%{platform: :macos, vcpus: 24, memory_gb: 72, reason: "queue:" <> _}] = changes
+    assert [%{platform: :macos, vcpus: 72, memory_gb: 216, reason: "queue:" <> _}] = changes
 
-    assert {:ok, _} =
-             Claims.attempt(unique_id(), account.id, "macos-pool", "after-growth", %{
-               platform: :macos,
-               vcpus: 8,
-               memory_gb: 24
-             })
+    for n <- 1..3 do
+      assert {:ok, _} =
+               Claims.attempt(unique_id(), account.id, "macos-pool", "after-growth-#{n}", %{
+                 platform: :macos,
+                 vcpus: 8,
+                 memory_gb: 24
+               })
+    end
 
     assert {:error, {:concurrency_limit_reached, _}} =
              Claims.attempt(unique_id(), account.id, "macos-pool", "still-bounded", %{
@@ -93,12 +97,14 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
   end
 
   test "recurring sizing ignores a single spike and separates CPU from memory", %{account: account, now: now} do
-    for days_ago <- [2, 4], _ <- 1..2, do: session(account, now, days_ago, :macos, 8, 24)
-    for _ <- 1..8, do: session(account, now, 1, :macos, 8, 24)
-    assert {:ok, %{vcpus: 24, memory_gb: 72}} = ConcurrencySizing.grow(account, :macos, :daily, now)
+    # Second-highest peak 56/168 plus 25%: 70/210, rounded to whole guests.
+    for days_ago <- [2, 4], _ <- 1..7, do: session(account, now, days_ago, :macos, 8, 24)
+    for _ <- 1..20, do: session(account, now, 1, :macos, 8, 24)
+    assert {:ok, %{vcpus: 72, memory_gb: 216}} = ConcurrencySizing.grow(account, :macos, :daily, now)
 
-    for days_ago <- [2, 4], _ <- 1..2, do: session(account, now, days_ago, :linux, 8, 32)
-    assert {:ok, %{vcpus: 32, memory_gb: 96}} = ConcurrencySizing.grow(account, :linux, :daily, now)
+    # 80/320 plus 25%: memory-heavy jobs grow memory further than CPU.
+    for days_ago <- [2, 4], _ <- 1..10, do: session(account, now, days_ago, :linux, 8, 32)
+    assert {:ok, %{vcpus: 100, memory_gb: 400}} = ConcurrencySizing.grow(account, :linux, :daily, now)
   end
 
   test "one active day is not recurring demand, and completion prevents phantom overlaps", %{account: account, now: now} do
@@ -125,7 +131,7 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
     assert {:ok, :unchanged} = ConcurrencySizing.grow(account, :macos, :daily, now)
   end
 
-  test "honors weekly and absolute ceilings without reducing existing grants", %{account: account, now: now} do
+  test "honors the absolute ceiling without reducing existing grants", %{account: account, now: now} do
     configure_macos(account, 120, 360, now)
     for days_ago <- [1, 2], _ <- 1..16, do: session(account, now, days_ago, :macos, 8, 24)
     assert {:ok, %{vcpus: 128, memory_gb: 384}} = ConcurrencySizing.grow(account, :macos, :daily, now)
@@ -134,41 +140,44 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
     configure_macos(account, 256, 768, now)
     assert {:ok, :unchanged} = ConcurrencySizing.grow(account, :macos, :daily, now)
     assert Concurrency.limits_for(account, :macos) == %{vcpus: 256, memory_gb: 768}
-
-    configure_macos(account, 32, 96, now)
-
-    Repo.insert!(%ConcurrencyHistory{
-      account_id: account.id,
-      platform: :macos,
-      vcpus: 16,
-      memory_gb: 48,
-      source: "baseline",
-      reason: "",
-      recorded_at: DateTime.add(now, -6, :day)
-    })
-
-    assert {:ok, :unchanged} = ConcurrencySizing.grow(account, :macos, :daily, now)
   end
 
-  test "weekly doubling counts from the latest operator grant, not a lower limit before it", %{
-    account: account,
-    now: now
-  } do
-    # A lower baseline, then an operator raise past the plan's defaults that
-    # leaves an upgrade with no `plan` row to record.
-    configure_macos(account, 16, 48, now)
-    {:ok, _} = Concurrency.update_limits(account, %{runner_macos_vcpus_limit: 32, runner_macos_memory_gb_limit: 96})
+  test "grows a low limit hourly and past doubling, a high one at most 50% a day", %{account: account, now: now} do
+    configure_macos(account, 8, 24, now)
+    claim_macos(account, 1)
 
-    Repo.update_all(
-      from(h in ConcurrencyHistory,
-        where: h.account_id == ^account.id and h.platform == :macos and h.vcpus == 32 and h.source == "manual"
-      ),
+    # 8 → 24 vCPU: three times the limit in one step.
+    for _ <- 1..2, do: queue(account, now)
+    assert {:ok, %{vcpus: 24, memory_gb: 72}} = ConcurrencySizing.grow(account, :macos, :queue, now)
+
+    # Below the threshold the cooldown is an hour.
+    claim_macos(account, 2)
+    queue(account, DateTime.add(now, 30, :minute))
+    assert {:ok, :unchanged} = ConcurrencySizing.grow(account, :macos, :queue, DateTime.add(now, 30, :minute))
+
+    # Ten more queued jobs ask for 104/312; fast growth stops at the threshold.
+    later = DateTime.add(now, 2, :hour)
+    for _ <- 1..10, do: queue(account, later)
+    assert {:ok, %{vcpus: 96, memory_gb: 288}} = ConcurrencySizing.grow(account, :macos, :queue, later)
+
+    # At the threshold, the next growth waits a full day.
+    claim_macos(account, 9)
+    queue(account, DateTime.add(now, 4, :hour))
+    assert {:ok, :unchanged} = ConcurrencySizing.grow(account, :macos, :queue, DateTime.add(now, 4, :hour))
+
+    next_day = DateTime.add(now, 26, :hour)
+    for _ <- 1..10, do: queue(account, next_day)
+    assert {:ok, %{vcpus: 128, memory_gb: 384}} = ConcurrencySizing.grow(account, :macos, :queue, next_day)
+
+    # Past the threshold a step adds at most 50%, here 128 → 192 on Linux.
+    {:ok, _} = Concurrency.update_limits(account, %{runner_linux_vcpus_limit: 128, runner_linux_memory_gb_limit: 512})
+
+    Repo.update_all(from(h in ConcurrencyHistory, where: h.account_id == ^account.id and h.platform == :linux),
       set: [recorded_at: DateTime.add(now, -2, :day)]
     )
 
-    for days_ago <- [1, 2], _ <- 1..5, do: session(account, now, days_ago, :macos, 8, 24)
-
-    assert {:ok, %{vcpus: 48, memory_gb: 144}} = ConcurrencySizing.grow(account, :macos, :daily, now)
+    for days_ago <- [1, 2], _ <- 1..30, do: session(account, now, days_ago, :linux, 8, 32)
+    assert {:ok, %{vcpus: 192, memory_gb: 768}} = ConcurrencySizing.grow(account, :linux, :daily, now)
   end
 
   test "manual edits get a cooldown and rejected sizing spends no fleet budget", %{account: account, now: now} do
@@ -195,7 +204,7 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
     queue(other, now)
     assert {:ok, :unchanged} = ConcurrencySizing.grow(other, :macos, :queue, now)
     Repo.delete_all(from h in ConcurrencyHistory, where: h.account_id == ^account.id and h.reason == "budget")
-    assert {:ok, %{vcpus: 24, memory_gb: 72}} = ConcurrencySizing.grow(other, :macos, :queue, now)
+    assert {:ok, %{vcpus: 56, memory_gb: 168}} = ConcurrencySizing.grow(other, :macos, :queue, now)
   end
 
   # Fills the account's whole macOS limit with one claim, whatever its plan.
@@ -210,6 +219,17 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
                "full-#{account.id}",
                Map.put(limit, :platform, :macos)
              )
+  end
+
+  defp claim_macos(account, count) do
+    for _ <- 1..count do
+      assert {:ok, _} =
+               Claims.attempt(unique_id(), account.id, "macos-pool", "pod-#{unique_id()}", %{
+                 platform: :macos,
+                 vcpus: 8,
+                 memory_gb: 24
+               })
+    end
   end
 
   defp queue(account, now) do

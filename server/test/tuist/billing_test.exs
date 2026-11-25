@@ -486,8 +486,8 @@ defmodule Tuist.BillingTest do
 
       {:ok, _} =
         Concurrency.update_limits(account, %{
-          runner_linux_vcpus_limit: 48,
-          runner_linux_memory_gb_limit: 96,
+          runner_linux_vcpus_limit: 96,
+          runner_linux_memory_gb_limit: 192,
           runner_macos_vcpus_limit: 8,
           runner_macos_memory_gb_limit: 24
         })
@@ -508,10 +508,10 @@ defmodule Tuist.BillingTest do
       event.("canceled")
 
       # Then
-      assert Concurrency.limits_for(account, :macos) == %{vcpus: 16, memory_gb: 48}
-      assert Concurrency.limits_for(account, :linux) == %{vcpus: 48, memory_gb: 96}
+      assert Concurrency.limits_for(account, :macos) == %{vcpus: 48, memory_gb: 144}
+      assert Concurrency.limits_for(account, :linux) == %{vcpus: 96, memory_gb: 192}
 
-      assert [%{platform: :macos, vcpus: 16, memory_gb: 48}] =
+      assert [%{platform: :macos, vcpus: 48, memory_gb: 144}] =
                Repo.all(
                  from(h in Tuist.Runners.ConcurrencyHistory, where: h.account_id == ^account.id and h.source == "plan")
                )

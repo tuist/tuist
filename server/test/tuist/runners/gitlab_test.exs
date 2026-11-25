@@ -1,12 +1,14 @@
 defmodule Tuist.Runners.GitLabTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query
   import Mimic
 
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.GitLab.Cache
@@ -23,6 +25,7 @@ defmodule Tuist.Runners.GitLabTest do
     %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
     # The stubbed target is a 16 vCPU / 48 GB macOS guest, larger than Air's limit.
     Concurrency.raise_to_plan_defaults(account, :pro)
+    pin_small_paid_limits(account.id)
     stub(Allowance, :exhausted?, fn _ -> false end)
 
     stub(Dispatch, :resolve_dispatch_target, fn _, [label] ->
@@ -579,5 +582,15 @@ defmodule Tuist.Runners.GitLabTest do
 
   defp age_assignments(seconds) do
     Repo.update_all(Job, set: [inserted_at: DateTime.utc_now() |> DateTime.add(-seconds) |> DateTime.truncate(:second)])
+  end
+
+  # The paid plans' limits before 20261125120000, which these tests' resource
+  # figures assume: 32 vCPU / 64 GB on Linux and 16 vCPU / 48 GB on macOS.
+  defp pin_small_paid_limits(account_id) do
+    for {platform, vcpus, memory_gb} <- [{:linux, 32, 64}, {:macos, 16, 48}] do
+      ConcurrencyLimit
+      |> where([l], l.account_id == ^account_id and l.platform == ^platform)
+      |> Repo.update_all(set: [vcpus: vcpus, memory_gb: memory_gb])
+    end
   end
 end

@@ -1475,9 +1475,16 @@ defmodule Tuist.Runners.ClaimsTest do
   end
 
   # The paid plans' limits, which these tests' resource figures assume.
+  # A paid account whose macOS limit is two baseline guests (16 vCPU / 48 GB),
+  # small enough for the tests to fill.
   defp pro_account_fixture do
     account = account_fixture()
     Tuist.Runners.Concurrency.raise_to_plan_defaults(account, :pro)
+
+    ConcurrencyLimit
+    |> where([l], l.account_id == ^account.id and l.platform == :macos)
+    |> Repo.update_all(set: [vcpus: 16, memory_gb: 48])
+
     account
   end
 end

@@ -631,10 +631,20 @@ defmodule Tuist.Runners.PromExPluginTest do
     end
   end
 
-  # The paid plans' limits, which these tests' resource figures assume.
   defp pro_account_fixture do
     account = account_fixture()
     Tuist.Runners.Concurrency.raise_to_plan_defaults(account, :pro)
+    pin_small_paid_limits(account.id)
     account
+  end
+
+  # The paid plans' limits before 20261125120000, which these tests' resource
+  # figures assume: 32 vCPU / 64 GB on Linux and 16 vCPU / 48 GB on macOS.
+  defp pin_small_paid_limits(account_id) do
+    for {platform, vcpus, memory_gb} <- [{:linux, 32, 64}, {:macos, 16, 48}] do
+      ConcurrencyLimit
+      |> where([l], l.account_id == ^account_id and l.platform == ^platform)
+      |> Repo.update_all(set: [vcpus: vcpus, memory_gb: memory_gb])
+    end
   end
 end
