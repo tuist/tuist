@@ -1,393 +1,197 @@
 name: Atlas
 
-on:
-  push:
-    branches: [main]
-    paths:
-      - atlas/**
-      - condukt/**
-      - infra/helm/atlas/**
-      - infra/k8s/atlas/**
-      - .github/workflows/atlas.yml
-      - .github/workflows/atlas-deployment-validation.yml
-      - struo.toml
-      # Grouping cases shared with Pulse's sentry_errors pipeline.
-      - infra/helm/pulse/sentry-errors-cases.json
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - atlas/**
-      - condukt/**
-      - infra/helm/atlas/**
-      - infra/k8s/atlas/**
-      - .github/workflows/atlas.yml
-      - .github/workflows/atlas-deployment-validation.yml
-      - struo.toml
-      # Grouping cases shared with Pulse's sentry_errors pipeline.
-      - infra/helm/pulse/sentry-errors-cases.json
+# Bench branch only: compares cold and warm Struo builds of
+# atlas/mix_application_test, local against Tuist remote execution in
+# production, the way run 44296966109 did for Once candidates 9 and 10.
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+on:
+  workflow_dispatch:
+    inputs:
+      struo_version:
+        description: Published Struo release to measure
+        default: "2.19.0"
+      struo_sha256:
+        description: SHA-256 of its x86_64 Linux archive
+        default: 0d3bd2d809afaffd8d9f087a58740c8f43e83ba7783cf63a8c99401e95c3b02a
+      candidate_ref:
+        description: Optional tuist/struo ref built from source and measured as an extra remote mode
+        default: ""
 
 permissions:
   contents: read
 
-env:
-  MIX_ENV: test
-
-defaults:
-  run:
-    working-directory: atlas
-
 jobs:
-  automation-contracts:
-    name: Automation compatibility
+  candidate:
+    name: Build Struo candidate
+    if: inputs.candidate_ref != ''
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          repository: tuist/struo
+          ref: ${{ inputs.candidate_ref }}
           persist-credentials: false
-      - uses: ./.github/actions/mise-install
-        with:
-          install: erlang elixir
-          working-directory: atlas
-      - name: Preserve published behavior contracts
-        env:
-          CONTRACT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          git rev-parse --verify "$CONTRACT_BASE_SHA^{commit}"
-          previous="$(mktemp)"
-          trap 'rm -f "$previous"' EXIT
-          path="atlas/priv/automation/contracts/v1.json"
-          if git cat-file -e "$CONTRACT_BASE_SHA:$path"; then
-            git show "$CONTRACT_BASE_SHA:$path" > "$previous"
-          else
-            printf '{"operations":[]}' > "$previous"
-          fi
-          elixir scripts/check_automation_contracts.exs "$previous"
-
-  deployment:
-    uses: ./.github/workflows/atlas-deployment-validation.yml
-
-  # Build, lint, and test run through Struo, which derives the graph from
-  # atlas/mix.exs and shares results through the tuist/atlas project. Forks
-  # can't mint an OIDC token, so they fall back to the local cache.
-  build:
-    name: Build
-    runs-on: tuist-linux-large
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/mise-install
-        with:
-          install: erlang elixir node github:tuist/struo
-          working-directory: atlas
-
-      # The Linux Struo binary links against ALSA for its sound cues.
-      - name: Install Struo runtime libraries
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
-
-      # Struo runs from the repository root, where the workspace manifest lives,
-      # but the tool is pinned in atlas/mise.toml.
-      - name: Put Struo on PATH
-        run: dirname "$(mise which struo)" >> "$GITHUB_PATH"
-
-      - name: Cache deps
-        uses: actions/cache@v6
-        with:
-          path: atlas/deps
-          key: deps-${{ runner.os }}-${{ hashFiles('atlas/mix.lock') }}
-          restore-keys: deps-${{ runner.os }}-
-
-      - name: Materialize locked dependency sources
-        run: |
-          mix local.hex --force
-          mix local.rebar --force
-          mix deps.get --check-locked
-
-      - name: Authenticate the Struo cache
-        id: struo-auth
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        working-directory: .
-        run: struo auth login --provider tuist --no-browser
-
       - name: Build
-        working-directory: .
-        run: struo build atlas/mix_application_test
-        env:
-          STRUO_CACHE_PROVIDER: ${{ steps.struo-auth.outcome == 'success' && 'tuist' || 'local' }}
-
-      # Struo persists the compiler's stderr as a build output, so this also
-      # catches warnings replayed from a cached compilation. Lines from mise's
-      # tool shims land there too and are not compiler warnings.
-      - name: Fail on compiler warnings
-        working-directory: .
         run: |
-          warnings=$(grep -v -E '^(mise |hint: .*mise)' .struo/out/atlas/mix_application_test/mix-project-warnings.log || true)
-          if [ -n "$warnings" ]; then
-            echo "$warnings"
-            exit 1
-          fi
+          sudo apt-get update -y
+          sudo apt-get install -y libasound2-dev protobuf-compiler pkg-config
+          cargo build --release --locked -p struo
+          mkdir -p dist && cp target/release/struo dist/
+          git rev-parse HEAD > dist/commit.txt
+      - uses: actions/upload-artifact@v6
+        with:
+          name: struo-candidate
+          path: dist
 
-  format:
-    name: Format
-    runs-on: tuist-linux-large
-    needs: build
+  benchmark:
+    name: Struo production benchmark
+    needs: [candidate]
+    if: ${{ !cancelled() && (needs.candidate.result == 'success' || needs.candidate.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
     permissions:
       contents: read
       id-token: write
-
+    env:
+      STRUO_CACHE_PROVIDER: production
+      MIX_HOME: /opt/mix
+      MIX_REBAR3: /opt/mix/rebar3
+      MIX_ENV: test
+      ERL_FLAGS: '+S 4:4'
     steps:
       - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/mise-install
         with:
-          install: erlang elixir node github:tuist/struo
-          working-directory: atlas
-
-      # The Linux Struo binary links against ALSA for its sound cues.
-      - name: Install Struo runtime libraries
+          persist-credentials: false
+      - name: Install the pinned coordinator toolchain
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
-
-      # Struo runs from the repository root, where the workspace manifest lives,
-      # but the tool is pinned in atlas/mise.toml.
-      - name: Put Struo on PATH
-        run: dirname "$(mise which struo)" >> "$GITHUB_PATH"
-
-      - name: Cache deps
-        uses: actions/cache@v6
+          sudo apt-get install -y libasound2t64 libssl-dev libncurses6 libtinfo6 cmake pkg-config build-essential
+          docker build --target elixir-toolchain -t struo-elixir-toolchain -f infra/sandbox-image/Dockerfile infra/sandbox-image
+          container=$(docker create struo-elixir-toolchain true)
+          trap 'docker rm "$container"' EXIT
+          sudo docker cp "$container:/opt/." /opt/
+          sudo chown -R "$(id -u):$(id -g)" /opt/mix
+          echo /opt/erlang/bin >> "$GITHUB_PATH"
+          echo /opt/elixir/bin >> "$GITHUB_PATH"
+      - name: Install the published release
+        env:
+          VERSION: ${{ inputs.struo_version }}
+          CHECKSUM: ${{ inputs.struo_sha256 }}
+        run: |
+          archive="struo-$VERSION-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fLsS --retry 3 "https://github.com/tuist/struo/releases/download/$VERSION/$archive" -o "$RUNNER_TEMP/$archive"
+          echo "$CHECKSUM  $RUNNER_TEMP/$archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/struo-bin-release"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/struo-bin-release"
+          bin=$(dirname "$(find "$RUNNER_TEMP/struo-bin-release" -type f -name struo | head -1)")
+          echo "RELEASE_BIN=$bin" >> "$GITHUB_ENV"
+          "$bin/struo" --version
+      - uses: actions/download-artifact@v7
+        if: inputs.candidate_ref != ''
         with:
-          path: atlas/deps
-          key: deps-${{ runner.os }}-${{ hashFiles('atlas/mix.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          name: struo-candidate
+          path: ${{ runner.temp }}/struo-bin-candidate
+      - name: Prepare the candidate
+        if: inputs.candidate_ref != ''
+        run: |
+          chmod +x "$RUNNER_TEMP/struo-bin-candidate/struo"
+          echo "CANDIDATE_BIN=$RUNNER_TEMP/struo-bin-candidate" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/struo-bin-candidate/struo" --version
+      - name: Configure production execution for tuist/atlas
+        run: |
+          # No execution_image: since 2.19.0 the client follows the image the
+          # service advertises.
+          cat >> struo.toml <<'EOF'
 
+          [infrastructures.production]
+          kind = "tuist"
+          account = "tuist"
+          project = "atlas"
+
+          [infrastructure.execution]
+          provider = "production"
+
+          [infrastructure.execution.properties.elixir]
+          schema_version = 1
+          os = "linux"
+          arch = "x86_64"
+          elixir_bin = "/opt/elixir/bin"
+          erlang_bin = "/opt/erlang/bin"
+          mix_home = "/opt/mix"
+          rebar3 = "/opt/mix/rebar3"
+          EOF
+          mkdir -p "$RUNNER_TEMP/struo-evidence"
+          cp struo.toml "$RUNNER_TEMP/struo-evidence/struo.toml"
+          nproc | tee "$RUNNER_TEMP/struo-evidence/coordinator-cpus.txt"
+          free -b > "$RUNNER_TEMP/struo-evidence/coordinator-memory.txt"
+          "$RELEASE_BIN/struo" auth login --provider production --no-browser
       - name: Materialize locked dependency sources
-        run: |
-          mix local.hex --force
-          mix local.rebar --force
-          mix deps.get --check-locked
-
-      - name: Authenticate the Struo cache
-        id: struo-auth
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        working-directory: .
-        run: struo auth login --provider tuist --no-browser
-
-      # Runs `mix deps.unlock --check-unused` and `mix format --check-formatted`.
-      - name: Lint
-        working-directory: .
-        run: struo run atlas/mix_lint
-        env:
-          STRUO_CACHE_PROVIDER: ${{ steps.struo-auth.outcome == 'success' && 'tuist' || 'local' }}
-
-  credo:
-    name: Credo
-    runs-on: tuist-linux
-    needs: build
-    defaults:
-      run:
         working-directory: atlas
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/mise-install
-        with:
-          install: erlang elixir node
-          working-directory: atlas
-
-      - name: Cache deps
-        uses: actions/cache@v6
-        with:
-          path: atlas/deps
-          key: deps-${{ runner.os }}-${{ hashFiles('atlas/mix.lock') }}
-          restore-keys: deps-${{ runner.os }}-
-
-      - name: Cache build
-        uses: actions/cache@v6
-        with:
-          path: atlas/_build
-          key: build-${{ runner.os }}-${{ env.MIX_ENV }}-${{ hashFiles('atlas/mix.lock') }}
-          restore-keys: build-${{ runner.os }}-${{ env.MIX_ENV }}-
-
-      - run: mix deps.get
-
-      - run: mix credo
-
-  test:
-    name: Test
-    runs-on: tuist-linux-large
-    needs: build
-    permissions:
-      contents: read
-      id-token: write
-
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: atlas_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/mise-install
-        with:
-          install: erlang elixir node github:tuist/struo
-          working-directory: atlas
-
-      # The Linux Struo binary links against ALSA for its sound cues.
-      - name: Install Struo runtime libraries
+        run: mix deps.get --check-locked
+      - name: Exercise remote execution and remote-cache reuse
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
-
-      # Struo runs from the repository root, where the workspace manifest lives,
-      # but the tool is pinned in atlas/mise.toml.
-      - name: Put Struo on PATH
-        run: dirname "$(mise which struo)" >> "$GITHUB_PATH"
-
-      - name: Install document and label rendering tools
-        run: sudo apt-get update -y && sudo apt-get install -y poppler-utils libvips-tools fonts-dejavu-core
-
-      - name: Cache deps
-        uses: actions/cache@v6
-        with:
-          path: atlas/deps
-          key: deps-${{ runner.os }}-${{ hashFiles('atlas/mix.lock') }}
-          restore-keys: deps-${{ runner.os }}-
-
-      - name: Materialize locked dependency sources
+          set -euo pipefail
+          coordinator_path="$PATH"
+          extra=""
+          if [ -n "${CANDIDATE_BIN:-}" ]; then extra="remote-candidate"; fi
+          # Each mode builds cold, then warm from the remote cache, on this
+          # runner; modes rotate so no mode always runs first.
+          for trial in 1 2 3; do
+            case "$trial" in
+              1) modes="local remote $extra" ;;
+              2) modes="remote $extra local" ;;
+              3) modes="$extra local remote" ;;
+            esac
+            for mode in $modes; do
+              bin="$RELEASE_BIN"
+              remote_flags=(--remote --compute production)
+              case "$mode" in
+                local) remote_flags=() ;;
+                remote-candidate) bin="$CANDIDATE_BIN" ;;
+              esac
+              export PATH="$bin:$coordinator_path"
+              token="struo-production-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$trial-$mode"
+              evidence="$RUNNER_TEMP/struo-evidence/$mode/trial-$trial"
+              mkdir -p "$evidence"
+              struo --version | tee "$evidence/version.txt"
+              for phase in cold warm; do
+                rm -rf .struo
+                export XDG_CACHE_HOME="$RUNNER_TEMP/struo-cache-$mode-$trial-$phase"
+                export XDG_STATE_HOME="$evidence/$phase-state"
+                /usr/bin/time -f '%e' -o "$evidence/$phase-wall-seconds.txt" \
+                  struo -vv build "${remote_flags[@]}" --config "token=$token" atlas/mix_application_test \
+                  2>&1 | tee "$evidence/$phase.log"
+                struo --format json cache stats > "$evidence/$phase-cache-stats.json"
+                find .struo/out -type f -print0 | sort -z | xargs -0 sha256sum > "$evidence/$phase-files.txt"
+                find .struo/out -type l -printf '%p -> %l\n' | sort > "$evidence/$phase-links.txt"
+                test -s "$evidence/$phase-files.txt"
+              done
+              if [ "$mode" = local ]; then
+                # Local compile digests are not stable across runs, so the
+                # warm local build recompiles and its outputs are not compared.
+                if grep -q 'remote action completed' "$evidence/cold.log"; then
+                  echo 'The local baseline dispatched worker actions' >&2
+                  exit 1
+                fi
+              else
+                diff -u "$evidence/cold-files.txt" "$evidence/warm-files.txt"
+                diff -u "$evidence/cold-links.txt" "$evidence/warm-links.txt"
+                grep -q 'remote action completed' "$evidence/cold.log"
+              fi
+              if grep -q 'remote execution response' "$evidence/warm.log"; then
+                echo 'Warm restoration unexpectedly dispatched worker actions' >&2
+                exit 1
+              fi
+            done
+          done
+      - name: Summarize
+        if: always()
         run: |
-          mix local.hex --force
-          mix local.rebar --force
-          mix deps.get --check-locked
-
-      - name: Authenticate the Struo cache
-        id: struo-auth
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        working-directory: .
-        run: struo auth login --provider tuist --no-browser
-
-      # Discovered Mix tests run on every invocation and keep the project's
-      # `test` alias, so the database is created and migrated as before.
-      - name: Test
-        id: tests
-        working-directory: .
-        run: struo test atlas/mix_tests
-        env:
-          STRUO_CACHE_PROVIDER: ${{ steps.struo-auth.outcome == 'success' && 'tuist' || 'local' }}
-
-      - name: Upload test logs
-        if: failure() && steps.tests.outcome == 'failure'
-        uses: actions/upload-artifact@v7
+          cd "$RUNNER_TEMP/struo-evidence"
+          for f in */trial-*/*-wall-seconds.txt; do echo "$f $(cat "$f")"; done | tee summary.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v6
+        if: always()
         with:
-          name: atlas-test-logs
-          include-hidden-files: true
-          path: .struo/out/atlas/mix_tests/test/
-
-  # Builds atlas/Dockerfile through Struo. Instructions are cached individually
-  # in the tuist/atlas-oci project, separate from the Mix build. Publishing
-  # still happens in atlas-release.yml.
-  image:
-    name: Image
-    runs-on: tuist-linux-large
-    permissions:
-      contents: read
-      id-token: write
-    defaults:
-      run:
-        working-directory: .
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/mise-install
-        with:
-          install: github:tuist/struo
-          working-directory: atlas
-
-      # The Linux Struo binary links against ALSA for its sound cues.
-      - name: Install Struo runtime libraries
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
-
-      # Struo runs from the repository root, where the workspace manifest lives,
-      # but the tool is pinned in atlas/mise.toml.
-      - name: Put Struo on PATH
-        working-directory: atlas
-        run: dirname "$(mise which struo)" >> "$GITHUB_PATH"
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Authenticate the Struo cache
-        id: struo-auth
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        working-directory: .
-        run: struo auth login --provider tuist --no-browser
-
-      - name: Build image
-        run: struo build atlas_image
-        env:
-          STRUO_CACHE_PROVIDER: ${{ steps.struo-auth.outcome == 'success' && 'tuist-oci' || 'local' }}
-
-  inbox-worker:
-    name: Inbox Worker
-    runs-on: tuist-linux
-    defaults:
-      run:
-        working-directory: atlas/workers/inbox
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/mise-install
-        with:
-          install: node
-          working-directory: atlas/workers/inbox
-
-      # aube is pinned in atlas/mise.toml at a version newer than the
-      # root mise.lock's aube entry, so `mise install --locked` refuses
-      # it. Install it unlocked; the aube-lock.yaml pins the JS
-      # dependency graph, which is what actually matters here.
-      - name: Install aube
-        working-directory: atlas
-        run: mise install aube
-
-      - name: Restore Aube cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.local/share/aube
-            ~/.cache/aube
-          key: aube-${{ hashFiles('atlas/workers/inbox/aube-lock.yaml') }}
-
-      - run: aube ci
-
-      - run: aube run check
-
-      - run: aube test
+          name: struo-production-evidence
+          path: ${{ runner.temp }}/struo-evidence
