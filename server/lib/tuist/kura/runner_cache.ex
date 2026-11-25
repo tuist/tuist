@@ -118,7 +118,9 @@ defmodule Tuist.Kura.RunnerCache do
 
         case admitted_account_ids(regions, account_ids) do
           {:ok, admitted} ->
-            Enum.each(regions, &converge_region(&1, admitted))
+            Enum.each(regions, fn region ->
+              converge_region(region, if(Regions.draining?(region), do: MapSet.new(), else: admitted))
+            end)
 
           # Without the evidence the sites' regions admit on, an empty set
           # would read as "no account uses the racks" and tear every node

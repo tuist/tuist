@@ -247,7 +247,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(no_jobs) == []
   end
 
-  test "traffic from one site admits the account at every site's region" do
+  test "traffic from one site admits the account at every site's region that is not draining" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners", "larch-runners"] end)
     at_ber1 = account_with_profiles([:macos], site_job: false)
     build_in_job(at_ber1, @site_macos_pool, site: "ber1")
@@ -257,22 +257,47 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(at_ber1) == ["ber1-runners", "larch-runners"]
-    assert server_regions(at_larch) == ["ber1-runners", "larch-runners"]
+    # larch-runners is draining, so larch's traffic admits the account only at ber1.
+    assert server_regions(at_ber1) == ["ber1-runners"]
+    assert server_regions(at_larch) == ["ber1-runners"]
     assert server_regions(no_traffic) == []
+  end
+
+  test "a draining region drains its nodes and its site's jobs fall back to the entrance" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners", "larch-runners"] end)
+    account = account_with_profiles([:macos], site_job: false)
+    build_in_job(account, @site_macos_pool, site: "larch")
+    assert :ok = RunnerCache.reconcile()
+
+    fresh = DateTime.to_iso8601(DateTime.truncate(DateTime.utc_now(), :second))
+    via_larch = "https://#{account.id}-via-larch.runners.example.com"
+
+    account
+    |> activate()
+    |> Ecto.Changeset.change(gateway_entrances: %{"larch" => %{"url" => via_larch, "observed_at" => fresh}})
+    |> Repo.update!()
+
+    {:ok, _larch} = Kura.create_server(%{account_id: account.id, region: "larch-runners", image_tag: "0.5.2"})
+    larch = activate(account, "larch-runners")
+    assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == larch.url
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert %Server{status: :drain_pending} = Repo.get!(Server, larch.id)
+    assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == via_larch
   end
 
   test "keeps every site's nodes when one site's traffic cannot be read" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners", "larch-runners"] end)
     account = account_with_profiles([:macos], site_job: false)
-    build_in_job(account, @site_macos_pool, site: "ber1")
+    build_in_job(account, @site_macos_pool, site: "larch")
     assert :ok = RunnerCache.reconcile()
-    assert server_regions(account) == ["ber1-runners", "larch-runners"]
+    assert server_regions(account) == ["ber1-runners"]
 
     stub(Builds, :ci_runs_with_remote_cache_hits, fn _project_ids, _ci_run_ids, _since -> {:error, :timeout} end)
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(account) == ["ber1-runners", "larch-runners"]
+    assert server_regions(account) == ["ber1-runners"]
   end
 
   test "keeps a site's node while it serves hits and tears it down once they stop" do
@@ -713,12 +738,12 @@ defmodule Tuist.Kura.RunnerCacheTest do
              Repo.get_by!(Deployment, kura_server_id: server.id, status: :pending)
   end
 
-  defp activate(account) do
+  defp activate(account, region \\ "ber1-runners") do
     Server
-    |> Repo.get_by!(account_id: account.id, region: "ber1-runners")
+    |> Repo.get_by!(account_id: account.id, region: region)
     |> Server.observation_changeset(%{
       status: :active,
-      url: "https://#{account.id}.runners.example.com",
+      url: "https://#{account.id}.#{region}.example.com",
       current_image_tag: "0.5.2",
       last_ready_at: DateTime.truncate(DateTime.utc_now(), :second)
     })
