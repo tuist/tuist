@@ -133,7 +133,8 @@ takes for a rotated value to be used.
 | Per-env ESO service account token | 1Password `Founders`, referenced by item UUID (`bootstrap-workload.sh` step 9, `op://Founders/${OP_TOKEN_ID}/credential`) | `onepassword/onepassword-sa-token` in each workload cluster; read by ESO's `onepassword` ClusterSecretStore (vault `tuist-k8s-<env>`, [`k8s/mgmt/bootstrap/onepassword-secretstore.yaml`](k8s/mgmt/bootstrap/onepassword-secretstore.yaml)) | **Restart ESO**: its 1Password SDK client caches the token for the controller's lifetime | Same service account as the env's GitHub Environment `OP_SERVICE_ACCOUNT_TOKEN` ([`eso-token-refresh.yml`](../.github/workflows/eso-token-refresh.yml)), which also reads `kubeconfig: tuist-<env>`. Recovery workflow: **ESO Token Refresh**. |
 | Mgmt ESO service account token (`tuist-mgmt-k8s`) | 1Password `Founders`, item `sfbjwcktutbhtilzjatwx3rkdy` | `onepassword/onepassword-sa-token` on the mgmt cluster; read-only on `tuist-k8s-mgmt` | Restart ESO on mgmt | Procedure in the header of [`k8s/mgmt/external-secrets.yaml`](k8s/mgmt/external-secrets.yaml). |
 | GitHub Environment `OP_SERVICE_ACCOUNT_TOKEN` (`server-k8s-<env>`, `mgmt-hetzner`, others) | GitHub Environment secrets | Deploy and mgmt workflows (`op document get "kubeconfig: tuist-<env>"`, `op read`) | Next workflow run | Scope per token is **unverified** from the repo. |
-| Repo-level `OP_SERVICE_ACCOUNT_TOKEN` | GitHub repository secret | 53 workflow references; reads vault `tuist` (Cloudflare, Tuist Automation GitHub App, Play keystore, Sparkle key, Gradle publish keys) | Next run | Available to same-repo PR workflows; see the CI thread below. |
+| Repo-level `OP_SERVICE_ACCOUNT_TOKEN` | GitHub repository secret | Reads vault `tuist` (Cloudflare, Tuist Automation GitHub App) for docs, handbook, status and automation jobs | Next run | Signing and publish keys moved out to per-environment tokens; see [Release signing and publishing credentials](#release-signing-and-publishing-credentials). Until that rollout's step 6, the vault still holds them. |
+| Release environment `RELEASE_OP_SERVICE_ACCOUNT_TOKEN` (`apple-signing`, `app-release`, `google-play`, `gradle-plugin-portal`) | GitHub Environment secrets | One read-only service account per environment | Next run | Rotate with 1Password's Rotate Token (sets an overlap), then `gh secret set RELEASE_OP_SERVICE_ACCOUNT_TOKEN --env <environment>`. |
 | `CACHE_OP_SERVICE_ACCOUNT_TOKEN`, `ATLAS_OP_SERVICE_ACCOUNT_TOKEN` | GitHub repository secrets | Cache and Atlas deploy workflows (vaults `cache`, `atlas-k8s-production`) | Next run | |
 | 1Password `Founders` vault | 1Password | Humans; bootstrap scripts read `tuist-workloads` (Hetzner), `cloudflare-tuist-dns`, `cloudflare-origin-cert-tuist-dev`, the ESO tokens | n/a | Root of trust for every env. A Founders compromise means rotating everything below. |
 | GitHub org owners, Google Workspace admins, Tailscale admins, cloud-console users | Each provider | Humans | n/a | Reset passwords and sessions, re-enroll 2FA, review admins. Outside the repo. |
@@ -317,18 +318,227 @@ action, so the platform's job is to revoke and tell them.
 Referenced by `.github/workflows` (count of references): `TUIST_RELEASE_GITHUB_TOKEN`
 (117), `OP_SERVICE_ACCOUNT_TOKEN` (53), `TUIST_CLI_GITHUB_TOKEN` (20),
 `TUIST_DEPLOY_GITHUB_TOKEN` (13), `TUIST_APP_GITHUB_TOKEN` (7), `KUBECONFIG` (5),
-`HEX_API_KEY` (4), `CACHE_OP_SERVICE_ACCOUNT_TOKEN` (4), `CACHE_SSH_PRIVATE_KEY`,
+`HEX_API_KEY` (being retired), `CACHE_OP_SERVICE_ACCOUNT_TOKEN` (4), `CACHE_SSH_PRIVATE_KEY`,
 `CACHE_KAMAL_SECRETS`, `ATLAS_OP_SERVICE_ACCOUNT_TOKEN`,
 `COMMUNITY_SLACK_WEBHOOK_URL`, `PENTEST_USER_*`, `SPEC95_STAGING_CACHE_TOKEN`,
-`AMP_ORB_ISOLATED_VALIDATION_TOKEN`. Vault `tuist` also feeds CI the Play
-keystore, the Sparkle key and the Gradle publish keys.
+`AMP_ORB_ISOLATED_VALIDATION_TOKEN`, and per release environment
+`RELEASE_OP_SERVICE_ACCOUNT_TOKEN`. Signing and publishing credentials have
+their own section below.
 
 Rotate each at its issuer and with `gh secret set` (repository or
-`--env <environment>`). Signing keys (Sparkle, Play upload key, Gradle/Maven
-signing) cannot be revoked silently: a leaked Sparkle key needs a client update
-that trusts a new key, and the Play upload key is reset through Google Play
-support. Workflow hardening (token scope, pinning, guards) is in
+`--env <environment>`). Workflow hardening (token scope, pinning, guards) is in
 [the CI thread](https://ampcode.com/threads/T-01a1e431-33d5-71a0-9548-f69639c2c9bb).
+
+### Release signing and publishing credentials
+
+These sign or publish what customers install: the CLI, the macOS and iOS
+apps, the Android app, Luft previews, the Gradle plugin and the Hex packages.
+Someone holding one of them can ship code that customers' machines trust as
+Tuist's, so treat them as Tier 4. They live outside the clusters, so the
+ESO path above does not apply: each one is read by a CI job at release time,
+and the procedures below replace it at its issuer.
+
+**Where they live.** Each credential has its own 1Password vault, and each
+GitHub environment has its own read-only 1Password service account. The
+service account's token is that environment's `RELEASE_OP_SERVICE_ACCOUNT_TOKEN`.
+No repository-level secret has that name, so a job outside the environment
+gets an empty value instead of falling back to a broader token. Every one of
+these environments must allow deployments from `main` only. On a pull request
+or a pushed branch, the jobs that sign run without an environment.
+
+| Environment | 1Password service account reads | Jobs |
+| --- | --- | --- |
+| `apple-signing` | `tuist-apple-signing` | `cli-build-publish.yml` `release-cli` (CLI and backports), `app-release.yml` `release-ios`, `app.yml` `app-device-build` (main only), `luft.yml` `apple` (signed legs on main only) |
+| `app-release` | `tuist-apple-signing`, `tuist-sparkle` | `app-release.yml` `release-app` (macOS app, appcast) |
+| `google-play` | `tuist-google-play` | `app-release.yml` `release-android` |
+| `gradle-plugin-portal` | `tuist-gradle-plugin-portal` | `gradle-release.yml` `release` |
+| `hex-publish` | none (Hex Workload Identity) | `publish` in `condukt-release.yml`, `noora-release.yml`, `tuist-ex-release.yml` |
+
+1Password service accounts cannot gain or lose vault access after creation,
+so changing what an environment reads means creating a new service account.
+`app-release` reads two vaults because one job builds the DMG and signs the
+appcast. Splitting the appcast into its own job and environment would mean
+no single token holds both of the anchors Sparkle trusts (see below).
+
+**Expiry.** The repository records no expiry date for any of these. The Luft
+iOS bundle script refuses an expired ad-hoc profile at build time, and that
+is the only check. Record the dates here after reading them in the Apple
+Developer portal (Certificates, Profiles) and Google Play Console. Validity
+periods set by the issuers:
+
+| Credential | Validity | Expires |
+| --- | --- | --- |
+| Developer ID Application certificate (`tuist-apple-signing`, and the separate copy in vault `swifterpm`) | 5 years from creation | _record_ |
+| Apple Distribution certificate | 1 year | _record_ |
+| Ad-hoc and App Store provisioning profiles (Tuist App, Tuist Code, Tuist Code Live Activity) | 1 year, or less if the certificate expires sooner | _record_ |
+| App Store Connect API key | No expiry; revoke to end it | n/a |
+| Sparkle EdDSA key | No expiry | n/a |
+| Google Play upload key | Validity of the keystore's certificate | _record_ |
+| Google Cloud service-account key (Play publishing) | No expiry unless an org policy sets one | _record_ |
+| Gradle Plugin Portal key and secret | No expiry | n/a |
+| 1Password service-account tokens (`RELEASE_OP_SERVICE_ACCOUNT_TOKEN`) | None. 1Password caps `--expires-in` at 90 days, and an expired token fails the next release with no warning, so these were created without one. Rotate them once a year and after any suspected leak | n/a |
+
+A person with the portal open can read a certificate's date from the portal
+list. To read one from the 1Password copy without printing the key, read the
+`.p12` to a file and run
+`openssl pkcs12 -in certificate.p12 -nokeys -legacy | openssl x509 -noout -enddate -subject`.
+Do this on a laptop, not in CI or an agent thread.
+
+#### Developer ID Application certificate
+
+Signs and, with notarization, makes Gatekeeper accept the CLI (`mise/tasks/cli/bundle.sh`),
+the macOS app (`mise/tasks/app/bundle.sh`), Luft for macOS
+(`luft/macos/distribution/bundle.sh`) and SwifterPM (`swifterpm/mise/tasks/release/package.sh`,
+vault `swifterpm`). A leak lets someone sign software as "Tuist GmbH (U6LC622NKF)".
+They would also need a notarization credential to get it past Gatekeeper on a
+default Mac.
+
+- **Rotate** (Account Holder; up to five Developer ID Application certificates
+  can exist at once): create a new certificate from a CSR made on a trusted
+  Mac, export it with its key as `.p12`, and replace the `certificate.p12`
+  and `password` fields in `tuist-apple-signing` (and `swifterpm` if it is the
+  same certificate). The next release signs with it. Nothing else changes:
+  the scripts select the identity by name, and Sparkle accepts an update
+  signed with a new certificate as long as the EdDSA key stays the same.
+- **Revoke** (leak): email `product-security@apple.com` to ask Apple to
+  revoke it. **Once it is revoked, every installed copy signed with it stops
+  launching**, which includes every CLI, macOS app and SwifterPM release
+  since the certificate was created. So rotate first, ship re-signed releases
+  of each product, tell customers to update, then revoke. If the key is being
+  used to sign malware, revoke at once and accept the outage.
+
+#### Apple Distribution certificate and provisioning profiles
+
+Sign the iOS app for App Store Connect and the ad-hoc device builds
+(`mise/tasks/app/bundle-ios.sh`, `luft/ios/distribution/bundle.sh`). A leak
+alone does not reach the App Store, because an upload also needs an App Store
+Connect credential. It does let someone sign an ad-hoc build that installs on
+the registered devices.
+
+- **Rotate**: create a new Apple Distribution certificate (Account Holder or
+  Admin), regenerate the four profiles against it (Tuist App Ad Hoc, Tuist App
+  Store Connect, Tuist Code Ad Hoc, Tuist Code Live Activity Ad Hoc), and
+  replace the items in `tuist-apple-signing`.
+- **Revoke**: revoke the certificate in the portal. App Store builds already
+  live are not affected. Ad-hoc builds signed with it stop installing.
+
+#### App Store Connect API key (notarization and iOS upload)
+
+Notarizes every macOS artifact (`notarytool --key`) and uploads the iOS app
+(`altool --apiKey`). This replaces the app-specific password on Pedro's
+personal Apple ID, which signed in to Apple as a person and, per Apple, also
+works for that account's iCloud Mail, Contacts and Calendars in third-party
+apps. Item `App Store Connect API Key` in `tuist-apple-signing` holds `key-id`,
+`issuer-id` and the `AuthKey.p8` file. Vault `swifterpm` needs an item with
+the same fields.
+
+- **Create**: App Store Connect → Users and Access → Integrations → Team Keys
+  (Account Holder or Admin), role **Developer**. That role can notarize and
+  upload builds but cannot submit for review, release, or manage users. Apple
+  shows the `.p8` once.
+- **Rotate**: create a second key, replace the item's three fields, run a
+  release, then revoke the old key.
+- **Revoke**: revoke it on the same page. It stops working at once.
+- **After the switch**: revoke the app-specific password at account.apple.com
+  → Sign-In and Security → App-Specific Passwords, and delete item
+  `App Specific Password` from vaults `tuist` and `swifterpm`.
+
+#### Sparkle EdDSA key
+
+Signs the macOS app's update feed entries (`app-release.yml`, item
+`Tuist App Private Sparkle Key` in `tuist-sparkle`). Installed apps trust the
+public key in `app/Project.swift` (`SUPublicEDKey`). Sparkle installs an
+update when it is signed by that key **or** when it is signed with the same
+Developer ID as the installed app, and it lets one update change one of the
+two, never both.
+
+- **Rotate or revoke** (leak): generate a new key pair with Sparkle's
+  `generate_keys`, put the new public key in `SUPublicEDKey`, sign that
+  release with the **old** key or rely on the unchanged Developer ID, and
+  replace the vault item. Installed copies move to the new key when they take
+  that update. Delete the old private key everywhere afterwards.
+- If the EdDSA key and the Developer ID certificate leaked together, an
+  attacker who can also write the feed (the `appcast` release asset on
+  `tuist/tuist`) can push an update every installed copy accepts. Treat that
+  as the Developer ID case above, with a forced re-download.
+
+#### Google Play upload key and publishing service account
+
+`release-android` signs the bundle with the upload key (`Google Play
+release.keystore` document and `password` field in `tuist-google-play`) and
+publishes with a Google Cloud service-account JSON key (same item). The app
+uses Play App Signing, so users' devices only see Google's app signing key.
+
+- **Upload key, rotate or revoke**: make a new keystore, export its
+  certificate (`keytool -export -rfc -keystore … -alias tuist -file upload_certificate.pem`),
+  and request an upload key reset in Play Console → Play app signing (account
+  owner). Google takes about two days. Replace the keystore and password in
+  the vault once the email confirms the new key.
+- **Service account, rotate**: create a new JSON key in Google Cloud, replace
+  the vault field, publish, then delete the old key. **Revoke**: delete the
+  key in Google Cloud. Removing the account from Play Console → Users and
+  permissions also takes its Play access away whatever credential it uses.
+- **Better**: Gradle Play Publisher supports Application Default Credentials,
+  so the job can use Workload Identity Federation from GitHub's OIDC token
+  and the JSON key can go. Not done yet: it needs a workload identity pool in
+  Google Cloud.
+
+#### Gradle Plugin Portal key and secret
+
+`gradle-release.yml` publishes `dev.tuist` with `GRADLE_PUBLISH_KEY` and
+`GRADLE_PUBLISH_SECRET` from `tuist-gradle-plugin-portal`. The portal does not
+let users revoke or regenerate keys, and it has no trusted publishing.
+
+- **Revoke** (leak): email `security@gradle.com` to revoke the key, then take
+  the new one from the account's API Keys tab and replace both items. Check
+  the plugin's versions on plugins.gradle.org for releases we did not make.
+
+#### Hex packages (condukt, noora, tuist_ex)
+
+The three publish jobs use Hex Workload Identity (Hex 2.6+, OTP 27+): hex.pm
+exchanges the job's GitHub OIDC token for a 15-minute token that can publish
+one package, and only when the token names `tuist/tuist`, the package's
+workflow file and the `hex-publish` environment. There is no stored key.
+
+- **Set up** (a full owner with 2FA, once per package): on hex.pm, package →
+  Settings → Workload identities, add repository owner `tuist`, repository
+  `tuist`, the workflow file (`condukt-release.yml`, `noora-release.yml` or
+  `tuist-ex-release.yml`) and environment `hex-publish`. Then turn on
+  Settings → Staged publishing, so a release CI publishes waits for a person
+  with 2FA to approve it. With staging on, `tuist-ex-release.yml` and
+  `condukt-hex.sh` see the package as unpublished (404) until it is approved.
+- **Revoke**: remove the workload identity on hex.pm. Tokens already issued
+  expire within 15 minutes.
+- **After the switch**: revoke the key behind the old `HEX_API_KEY` on
+  hex.pm (Dashboard → Keys) and delete the repository secret. It was one key
+  for all three packages, and any key set in a job takes precedence over
+  Workload Identity.
+
+#### Rollout from the shared `tuist` vault
+
+Done by a person, in this order, because a workflow change that lands before
+its environment exists fails that release:
+
+1. Create vaults `tuist-apple-signing`, `tuist-sparkle`, `tuist-google-play` and
+   `tuist-gradle-plugin-portal`, and move each item there, keeping its item and
+   field names.
+2. Create the App Store Connect API key and its item in `tuist-apple-signing`
+   (and `swifterpm`).
+3. Create one read-only service account per environment in the table, and the
+   GitHub environments with a `main`-only deployment branch policy and the
+   `RELEASE_OP_SERVICE_ACCOUNT_TOKEN` secret.
+4. Add the Hex workload identities.
+5. Push the workflow and script changes, then watch the next release of each
+   product.
+6. Revoke the app-specific password and the Hex key, delete `HEX_API_KEY`,
+   and delete the moved items from vault `tuist`. The repository-level
+   `OP_SERVICE_ACCOUNT_TOKEN` then reaches only the Cloudflare token and the
+   Tuist Automation GitHub App key.
+7. Because every item here was readable by the old repository-level token
+   from push jobs without an environment, rotate each of them once by the
+   procedures above (the Developer ID and Distribution certificates, the
+   Sparkle key, the Play service-account key, the Gradle key) and fill in the
+   expiry table.
 
 ## Cluster CAs and ServiceAccount signing keys
 
@@ -464,3 +674,8 @@ What a full rotation cannot do yet, with the owner where one exists:
    in the repository; record them here after checking the consoles.
 7. A timed rehearsal of this document on staging, which is the only way to know
    how long a full rotation takes.
+8. Release signing: no single job should hold both Sparkle anchors (the
+   `app-release` environment reads the Developer ID and the Sparkle key), the
+   Play service-account key should give way to Workload Identity Federation, and
+   the Gradle Plugin Portal key can only be revoked by Gradle. See
+   [Release signing and publishing credentials](#release-signing-and-publishing-credentials).

@@ -148,6 +148,9 @@ jobs:
     name: Device Build
     runs-on: tuist-macos
     timeout-minutes: 30
+    # Only main's runs enter the main-only apple-signing environment and get its
+    # token; pull requests and branch dispatches build without signing secrets.
+    environment: ${{ github.ref == 'refs/heads/main' && 'apple-signing' || '' }}
     permissions:
       contents: read
       id-token: write
@@ -180,15 +183,15 @@ jobs:
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp --configuration Release
-      # Signing reads the distribution certificate from the `tuist` vault, whose
-      # token also reaches the Cloudflare token and the Automation GitHub App
-      # key. Only main's code may run next to it: pull requests, including team
-      # members' branches, and dispatches from branches build without signing.
+      # Signing reads the distribution certificate from the tuist-apple-signing
+      # vault through the apple-signing environment's token. Only main's code may
+      # run next to it: pull requests, including team members' branches, and
+      # dispatches from branches build without signing.
       - name: Bundle iOS app
         if: github.ref == 'refs/heads/main'
         env:
           EXPORT_METHOD: release-testing
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.RELEASE_OP_SERVICE_ACCOUNT_TOKEN }}
         run: mise run app:bundle-ios
       - name: Inspect TuistApp
         if: github.ref == 'refs/heads/main'

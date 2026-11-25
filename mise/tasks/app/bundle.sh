@@ -13,7 +13,6 @@ BUILD_DIRECTORY_BINARY=$DERIVED_DATA_PATH/Build/Products/Release/Tuist.app
 BUILD_ARTIFACTS_DIRECTORY=$BUILD_DIRECTORY/artifacts
 SHASUMS256_FILE=$BUILD_ARTIFACTS_DIRECTORY/SHASUMS256.txt
 SHASUMS512_FILE=$BUILD_ARTIFACTS_DIRECTORY/SHASUMS512.txt
-TEAM_ID='U6LC622NKF'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
@@ -35,9 +34,9 @@ if [ "${CI:-}" = "true" ]; then
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
 
-op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
+op read "op://tuist-apple-signing/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
 print_status "Importing certificate to keychain..."
-security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
+security import $TMP_DIR/certificate.p12 -P "$(op read "op://tuist-apple-signing/Developer ID Application Certificate/password")" -A
 
 # Build
 print_status "Building the Tuist App..."
@@ -76,11 +75,13 @@ python3 -m venv "$DMGBUILD_VENV"
 
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" --identifier "dev.tuist.app.tuist-app-dmg" "$BUILD_DMG_PATH"
 
+NOTARY_KEY_PATH=$TMP_DIR/AuthKey.p8
+op read "op://tuist-apple-signing/App Store Connect API Key/AuthKey.p8" --out-file "$NOTARY_KEY_PATH" >/dev/null
 xcrun notarytool submit "${BUILD_DMG_PATH}" \
     --wait \
-    --apple-id "$(op read "op://tuist/App Specific Password/username")" \
-    --team-id "$TEAM_ID" \
-    --password "$(op read "op://tuist/App Specific Password/password")" \
+    --key "$NOTARY_KEY_PATH" \
+    --key-id "$(op read "op://tuist-apple-signing/App Store Connect API Key/key-id")" \
+    --issuer "$(op read "op://tuist-apple-signing/App Store Connect API Key/issuer-id")" \
     --output-format json | jq -r '.id'
 xcrun stapler staple "${BUILD_DMG_PATH}"
 

@@ -15,8 +15,8 @@ source ios/distribution/live-activity.sh
 app_source="$PWD/.struo/out/LuftIOSDevice/Luft.app"
 team=U6LC622NKF
 application_id="$team.dev.tuist.code"
-profile_ref="op://tuist/Tuist Code Ad Hoc/Tuist_Code_Ad_Hoc.mobileprovision"
-activity_profile_ref="op://tuist/Tuist Code Live Activity Ad Hoc/Tuist_Code_Live_Activity_Ad_Hoc.mobileprovision"
+profile_ref="op://tuist-apple-signing/Tuist Code Ad Hoc/Tuist_Code_Ad_Hoc.mobileprovision"
+activity_profile_ref="op://tuist-apple-signing/Tuist Code Live Activity Ad Hoc/Tuist_Code_Live_Activity_Ad_Hoc.mobileprovision"
 plist=/usr/libexec/PlistBuddy
 fail() { echo "$*" >&2; exit 1; }
 test -d "$app_source" || fail "Run mise run build:ios-device first"
@@ -50,8 +50,8 @@ validate_live_activity_profile "$tmp/activity-profile.plist" "$tmp/profile.plist
 plutil -extract Entitlements xml1 -o "$tmp/entitlements.plist" "$tmp/profile.plist"
 plutil -replace keychain-access-groups -json "[\"$application_id\"]" "$tmp/entitlements.plist"
 
-op read "op://tuist/Distribution Certificate/distribution.p12" --out-file "$tmp/certificate.p12" >/dev/null
-certificate_password=$(op read "op://tuist/Distribution Certificate/password")
+op read "op://tuist-apple-signing/Distribution Certificate/distribution.p12" --out-file "$tmp/certificate.p12" >/dev/null
+certificate_password=$(op read "op://tuist-apple-signing/Distribution Certificate/password")
 keychain_password=$(uuidgen)
 create_signing_keychain "$keychain" "$keychain_password" || fail "Could not create the temporary signing keychain"
 security import "$tmp/certificate.p12" -k "$keychain" -P "$certificate_password" -T /usr/bin/codesign >/dev/null

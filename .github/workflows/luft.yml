@@ -193,6 +193,9 @@ jobs:
             app: Luft.app
             artifact: macos-unsigned
             signed: macos
+    # Signed previews from main enter the main-only apple-signing environment;
+    # every other leg (and every pull request) runs without it.
+    environment: ${{ github.ref == 'refs/heads/main' && matrix.signed != '' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_previews)) && 'apple-signing' || '' }}
     env:
       PUBLISH_PREVIEW: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_previews)) }}
       PUBLISH_SIGNED_PREVIEW: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_previews)) && matrix.signed != '' }}
@@ -243,7 +246,7 @@ jobs:
       - name: Sign internal Tuist preview
         if: env.PUBLISH_SIGNED_PREVIEW == 'true'
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.RELEASE_OP_SERVICE_ACCOUNT_TOKEN }}
           SIGNED: ${{ matrix.signed }}
         run: mise run --skip-tools "bundle:$SIGNED"
       # Struo publishes only its own outputs, so signed copies go through the Tuist CLI.

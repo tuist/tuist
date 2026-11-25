@@ -121,8 +121,13 @@ jobs:
     needs: [plan, build-nifs]
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # Publishes with Hex Workload Identity: hex.pm trusts this workflow file in
+    # the main-only hex-publish environment and hands out a 15-minute token for
+    # this package only. No HEX_API_KEY may be set, or Hex uses it instead.
+    environment: hex-publish
     permissions:
       contents: write
+      id-token: write
     defaults:
       run:
         working-directory: condukt
@@ -177,15 +182,9 @@ jobs:
           GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
         run: bash ../.github/scripts/condukt-publish.sh
       - name: Publish package to Hex
-        env:
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
-        run: |
-          set -euo pipefail
-          : "${HEX_API_KEY:?HEX_API_KEY secret is required}"
-          bash ../.github/scripts/condukt-hex.sh
+        run: bash ../.github/scripts/condukt-hex.sh
       - name: Publish HexDocs
         env:
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
           MIX_ENV: dev
           # ExDoc is dev-only. Do not source-build NIFs just to render docs.
           CONDUKT_BASHKIT_DISABLE: "1"

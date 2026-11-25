@@ -94,6 +94,9 @@ jobs:
     if: needs.check-releases.outputs.app-should-release == 'true'
     runs-on: tuist-macos
     timeout-minutes: 50
+    # Main-only environment whose 1Password token reads the tuist-apple-signing
+    # and tuist-sparkle vaults (infra/credential-rotation.md, release signing).
+    environment: app-release
     permissions:
       contents: write
       id-token: write
@@ -142,11 +145,11 @@ jobs:
       - name: Bundle macOS app
         run: mise run --no-deps --skip-tools app:bundle
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.RELEASE_OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Generate Sparkle appcast
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.RELEASE_OP_SERVICE_ACCOUNT_TOKEN }}
         # generate_appcast mutates the directory it reads: archives it considers old
         # are moved into old_updates. Point it at a copy so that decision can never
         # remove the DMG the release is about to upload.
@@ -157,7 +160,7 @@ jobs:
             -o app/appcast.xml
           mkdir -p app/build/appcast-input
           cp app/build/artifacts/Tuist.dmg app/build/appcast-input/
-          op read "op://tuist/Tuist App Private Sparkle Key/credential" | .build/artifacts/sparkle-project.Sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/appcast-input --ed-key-file -
+          op read "op://tuist-sparkle/Tuist App Private Sparkle Key/credential" | .build/artifacts/sparkle-project.Sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/appcast-input --ed-key-file -
 
       - name: Validate Sparkle appcast
         env:
@@ -211,6 +214,8 @@ jobs:
     # this a full build of the app. 30 minutes fit only while the
     # cache was warm; it cancelled mid-`xcodebuild` on run 31618151811.
     timeout-minutes: 50
+    # Main-only environment whose 1Password token reads only tuist-apple-signing.
+    environment: apple-signing
     permissions:
       contents: write
       id-token: write
@@ -254,7 +259,7 @@ jobs:
       - name: Upload iOS App to App Store Connect
         run: mise run --no-deps --skip-tools app:upload-ios
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.RELEASE_OP_SERVICE_ACCOUNT_TOKEN }}
 
   release-android:
     name: Release Android App
@@ -262,6 +267,8 @@ jobs:
     if: github.event_name == 'push' && needs.check-releases.outputs.app-should-release == 'true'
     runs-on: tuist-linux
     timeout-minutes: 30
+    # Main-only environment whose 1Password token reads only tuist-google-play.
+    environment: google-play
     permissions:
       contents: write
       id-token: write
@@ -298,19 +305,19 @@ jobs:
 
       - name: Setup signing and credentials
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.RELEASE_OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          op document get "Google Play release.keystore binary" --vault tuist --out-file android/release.keystore
-          op read "op://tuist/Google Play release.keystore/sirudpicoo6z2b3rmdtfhcj3aa" --out-file android/service-account.json
+          op document get "Google Play release.keystore binary" --vault tuist-google-play --out-file android/release.keystore
+          op read "op://tuist-google-play/Google Play release.keystore/sirudpicoo6z2b3rmdtfhcj3aa" --out-file android/service-account.json
 
       - name: Publish to Google Play
         working-directory: android
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.RELEASE_OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          export ANDROID_KEYSTORE_PASSWORD=$(op read "op://tuist/Google Play release.keystore/password")
+          export ANDROID_KEYSTORE_PASSWORD=$(op read "op://tuist-google-play/Google Play release.keystore/password")
           export ANDROID_KEY_ALIAS=tuist
-          export ANDROID_KEY_PASSWORD=$(op read "op://tuist/Google Play release.keystore/password")
+          export ANDROID_KEY_PASSWORD=$(op read "op://tuist-google-play/Google Play release.keystore/password")
           ./gradlew publishReleaseBundle
 
   publish-app:

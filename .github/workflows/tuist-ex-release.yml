@@ -82,8 +82,13 @@ jobs:
     if: needs.check.outputs.should-release == 'true'
     runs-on: tuist-linux
     timeout-minutes: 20
+    # Publishes with Hex Workload Identity: hex.pm trusts this workflow file in
+    # the main-only hex-publish environment and hands out a 15-minute token for
+    # this package only. No HEX_API_KEY may be set, or Hex uses it instead.
+    environment: hex-publish
     permissions:
       contents: write
+      id-token: write
     defaults:
       run:
         working-directory: tuist_ex
@@ -162,8 +167,6 @@ jobs:
               exit 1
               ;;
           esac
-        env:
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
       - name: Create GitHub release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:

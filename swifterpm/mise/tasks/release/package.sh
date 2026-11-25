@@ -96,10 +96,9 @@ if [[ "${target}" == *-apple-darwin && "${SWIFTERPM_SIGN_MACOS:-}" == "true" ]];
   keychain_path="${stage_dir}/signing.keychain"
   keychain_password="$(uuidgen)"
   mask_ci_value "${keychain_password}"
-  team_id="${SWIFTERPM_APPLE_TEAM_ID:-U6LC622NKF}"
   certificate_name="${SWIFTERPM_CERTIFICATE_NAME:-Developer ID Application: Tuist GmbH (U6LC622NKF)}"
   certificate_item="${SWIFTERPM_CERTIFICATE_ITEM:-op://swifterpm/Developer ID Application Certificate}"
-  app_password_item="${SWIFTERPM_APP_PASSWORD_ITEM:-op://swifterpm/App Specific Password}"
+  notary_key_item="${SWIFTERPM_NOTARY_KEY_ITEM:-op://swifterpm/App Store Connect API Key}"
 
   if [[ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
     echo "OP_SERVICE_ACCOUNT_TOKEN is required to sign and notarize macOS releases" >&2
@@ -146,16 +145,15 @@ if [[ "${target}" == *-apple-darwin && "${SWIFTERPM_SIGN_MACOS:-}" == "true" ]];
 
   echo "Submitting ${bin_name} for notarization"
   notarization_zip="${stage_dir}/notarization.zip"
-  notary_username="$(op_read_with_retry "Apple notarization username" "${app_password_item}/username")"
-  notary_password="$(op_read_with_retry "Apple notarization password" "${app_password_item}/password")"
-  mask_ci_value "${notary_username}"
-  mask_ci_value "${notary_password}"
+  op_read_with_retry "App Store Connect API key" "${notary_key_item}/AuthKey.p8" --out-file "${stage_dir}/AuthKey.p8" >/dev/null
+  notary_key_id="$(op_read_with_retry "App Store Connect API key ID" "${notary_key_item}/key-id")"
+  notary_issuer="$(op_read_with_retry "App Store Connect API issuer" "${notary_key_item}/issuer-id")"
   ditto -c -k --keepParent "${stage_dir}/${bin_name}" "${notarization_zip}"
   xcrun notarytool submit "${notarization_zip}" \
     --wait \
-    --apple-id "${notary_username}" \
-    --team-id "${team_id}" \
-    --password "${notary_password}" \
+    --key "${stage_dir}/AuthKey.p8" \
+    --key-id "${notary_key_id}" \
+    --issuer "${notary_issuer}" \
     --output-format json | jq -e '.status == "Accepted"' >/dev/null
 fi
 
