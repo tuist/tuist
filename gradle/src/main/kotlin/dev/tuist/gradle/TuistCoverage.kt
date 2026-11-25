@@ -8,6 +8,7 @@ import org.gradle.api.logging.Logging
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.compile.AbstractCompile
 import org.gradle.api.tasks.testing.Test
 import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
@@ -165,6 +166,25 @@ internal object TestTaskCoverage {
         project.pluginManager.withPlugin("java-base") { project.pluginManager.apply("jacoco") }
     }
 
+    /**
+     * Records the source files each compile task (Java, Groovy, Scala, Kotlin, Android's) compiles
+     * into its output directories, so a class maps to the file it was compiled from even when
+     * another file shares its package and name, such as a test copy of a main class. Recorded in
+     * `onlyIf`, so compilations that are up to date or come from the build cache count too.
+     */
+    fun recordCompilations(project: Project, insights: Provider<TuistTestInsightsService>) {
+        project.tasks.configureEach {
+            if (this !is AbstractCompile && !javaClass.name.startsWith("org.jetbrains.kotlin.gradle.tasks.KotlinCompile")) return@configureEach
+            val sources = inputs.sourceFiles
+            val outputs = outputs.files
+            usesService(insights)
+            onlyIf {
+                insights.get().registerCompilation(outputs.files, sources.files)
+                true
+            }
+        }
+    }
+
     fun configure(
         task: Test,
         project: Project,
@@ -207,9 +227,51 @@ internal object TestTaskCoverage {
             )
             true
         }
+        val projectDirectory = project.projectDir
+        val jacocoExtension: Provider<JacocoTaskExtension> = project.provider {
+            task.extensions.findByType(JacocoTaskExtension::class.java)
+        }
         task.doFirst {
             evidenceDirectory.get().asFile.deleteRecursively()
+            // Once the classes exist, before the test JVM starts. The patterns follow from the
+            // classpath, which is already an input, so leaving them out of the cache key is safe.
+            val jacoco = jacocoExtension.orNull
+            if (jacoco != null && jacoco.isEnabled && jacoco.includes.isNullOrEmpty()) {
+                repositoryIncludes(projectDirectory, (this as Test).classpath.files).takeIf { it.isNotEmpty() }?.let { jacoco.includes = it }
+            }
         }
+    }
+
+    /**
+     * JaCoCo `includes` patterns for the packages of the repository's own classes on [classpath],
+     * so the agent instruments neither dependencies nor the JDK, Gradle and test frameworks, whose
+     * coverage is never reported. Empty outside a Git checkout, which instruments everything.
+     */
+    fun repositoryIncludes(directory: File, classpath: Collection<File>): List<String> {
+        val root = generateSequence(directory.absoluteFile) { it.parentFile }.firstOrNull { File(it, ".git").exists() }
+            ?: return emptyList()
+        val repository = CoverageRepository(root, emptyList()) { emptyMap() }
+        val classNames = classpath.filter(repository::isOwnOutput).flatMap { entry ->
+            when {
+                entry.isDirectory -> entry.walkTopDown().filter { it.isFile && it.name.endsWith(".class") }
+                    .map { it.relativeTo(entry).invariantSeparatorsPath }.toList()
+                entry.isFile && entry.name.endsWith(".jar") -> try {
+                    ZipFile(entry).use { zip -> zip.entries().asSequence().map { it.name }.filter { it.endsWith(".class") }.toList() }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                else -> emptyList()
+            }
+        }.map { it.removeSuffix(".class") }.filter { !it.startsWith("META-INF/") && !it.endsWith("module-info") }
+        val packages = classNames.map { it.substringBeforeLast('/', "") }.filter { it.isNotEmpty() }.toSet()
+        // `a.b.*` covers `a.b.c` too, so a package under another one adds nothing.
+        val roots = packages.filter { name ->
+            generateSequence(name.substringBeforeLast('/', "")) { it.substringBeforeLast('/', "") }
+                .takeWhile { it.isNotEmpty() }
+                .none { it in packages }
+        }
+        val defaultPackage = classNames.filter { '/' !in it }
+        return (roots.map { "${it.replace('/', '.')}.*" } + defaultPackage).sorted()
     }
 }
 
@@ -289,6 +351,8 @@ internal class GradleCoverage(
     private val moduleDirectories: Map<String, String>,
     private val records: Collection<CoverageTaskRecord>,
     private val outcomes: Map<String, CoverageTaskOutcome>,
+    /** The source files each compile task compiled into each of its output directories. */
+    private val compiledSources: Map<File, Set<File>>,
     /** Every test task of the build and its module; null when the build cannot know them (Isolated Projects, configuration on demand). */
     private val testTasks: Map<String, String>?,
     private val excludedTaskNames: Collection<String>,
@@ -306,7 +370,8 @@ internal class GradleCoverage(
 
         val testRoots = measured.flatMap { it.testClassesDirs }.map { it.absoluteFile }.toSet()
         val classes = ClassIndex(measured.flatMap { it.classpath }.filter(repository::isOwnOutput).distinct())
-        val analysis = ClassAnalysis(classes, repository, moduleDirectories, testRoots)
+        val compiled = compiledSources.mapValues { (_, sources) -> sources.mapNotNull(repository::relative).toSet() }
+        val analysis = ClassAnalysis(classes, repository, moduleDirectories, testRoots, compiled)
 
         val runStore = ExecutionDataStore()
         for (record in measured) {
@@ -568,7 +633,9 @@ internal class ClassAnalysis(
     private val classes: ClassIndex,
     private val repository: CoverageRepository,
     private val moduleDirectories: Map<String, String>,
-    private val testRoots: Set<File>
+    private val testRoots: Set<File>,
+    /** Repository-relative source files by the absolute, normalized directory they were compiled into. */
+    private val compiledSources: Map<File, Set<String>>
 ) {
     val mismatchedClasses = sortedSetOf<String>()
     val unreadableClasses = sortedSetOf<String>()
@@ -577,13 +644,16 @@ internal class ClassAnalysis(
     /** Every class of the repository's classpath entries, with the lines the execution data covered. */
     fun measure(store: ExecutionDataStore): Map<String, FileCoverage> {
         val files = TreeMap<String, FileCoverage>()
+        val ids = HashMap<String, MutableSet<Long>>()
+        val productClasses = HashSet<String>()
         for ((name, entries) in classes.byName) {
             for (entry in entries) {
                 analyze(entry, store) { coverage ->
+                    ids.getOrPut(name) { HashSet() } += coverage.id
                     // Classes without a repository file, such as those Spring AOT precompiles and
                     // Spring Data defines again at runtime, count for nothing, so a mismatch there is moot.
                     val file = locate(entry, coverage) ?: return@analyze
-                    if (coverage.isNoMatch) mismatchedClasses += name
+                    if (!file.isTest) productClasses += name
                     val measured = files.getOrPut(file.path) { file }
                     for (line in coverage.firstLine..coverage.lastLine) {
                         if (coverage.firstLine <= 0) break
@@ -605,6 +675,14 @@ internal class ClassAnalysis(
                         }
                     }
                 }
+            }
+        }
+        // Execution data is lost only when it matches none of the classes of its name: another
+        // class of that name, such as a stub module's, a test copy or a test stand-in, is simply
+        // not the one a test JVM loaded. Test code counts for nothing, so a mismatch there is moot.
+        for (data in store.contents) {
+            if (data.hasHits() && data.name in productClasses && data.id !in ids[data.name].orEmpty()) {
+                mismatchedClasses += data.name
             }
         }
         return files
@@ -656,9 +734,21 @@ internal class ClassAnalysis(
     private fun locate(entry: ClassIndex.Entry, coverage: IClassCoverage): FileCoverage? {
         val sourceFile = coverage.sourceFileName ?: return null
         val module = owner(entry.root)
-        val path = repository.locate(coverage.packageName, sourceFile, module?.let { moduleDirectories[it] }) ?: return null
+        val path = repository.locate(coverage.packageName, sourceFile, module?.let { moduleDirectories[it] }) {
+            compiledFrom(entry, coverage.name)
+        } ?: return null
         return FileCoverage(path, module, entry.root.absoluteFile in testRoots)
     }
+
+    /**
+     * The sources of the compilation a class came from: its directory's, or for a jar, such as a
+     * project dependency's, the compile output that holds the same class file.
+     */
+    private fun compiledFrom(entry: ClassIndex.Entry, name: String): Set<String>? =
+        compiledSources[entry.root.absoluteFile.normalize()]
+            ?: compiledSources.entries.firstOrNull { (directory, _) ->
+                File(directory, "$name.class").let { it.isFile && it.readBytes().contentEquals(entry.bytes) }
+            }?.value
 
     private fun owner(root: File): String? {
         val relative = repository.relative(root) ?: return null
@@ -737,11 +827,18 @@ internal class CoverageRepository(val root: File, sourceFiles: Collection<String
      * file's name, preferring the class's own module. Kotlin does not require a file's directory
      * to match its package, so a file the module holds only once by that name also matches.
      */
-    fun locate(packageName: String, sourceFile: String, moduleDirectory: String?): String? {
+    fun locate(packageName: String, sourceFile: String, moduleDirectory: String?, compiledFrom: () -> Set<String>? = { null }): String? {
         val candidates = byName[sourceFile] ?: return null
         val suffix = if (packageName.isEmpty()) sourceFile else "$packageName/$sourceFile"
         fun inModule(path: String) = moduleDirectory != null && (moduleDirectory.isEmpty() || path.startsWith("$moduleDirectory/"))
         val matching = candidates.filter { it == suffix || it.endsWith("/$suffix") }
+        // Several files could be the class's, such as a main class and its test copy: the
+        // compilation that produced it says which one it was.
+        if (matching.size > 1 || (matching.isEmpty() && candidates.size > 1)) {
+            compiledFrom()?.let { compiled ->
+                (matching.filter { it in compiled }.minOrNull() ?: candidates.filter { it in compiled }.singleOrNull())?.let { return it }
+            }
+        }
         matching.filter(::inModule).minOrNull()?.let { return it }
         if (matching.isNotEmpty()) return matching.min()
         return candidates.filter(::inModule).singleOrNull()

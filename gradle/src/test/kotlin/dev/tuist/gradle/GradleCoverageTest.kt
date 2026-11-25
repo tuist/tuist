@@ -2,6 +2,7 @@ package dev.tuist.gradle
 
 import org.jacoco.core.data.ExecutionData
 import org.jacoco.core.data.ExecutionDataStore
+import org.jacoco.core.internal.data.CRC64
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.objectweb.asm.ClassWriter
@@ -43,6 +44,7 @@ class GradleCoverageTest {
         moduleDirectories = mapOf(":core" to "core", ":app" to "app"),
         records = records,
         outcomes = outcomes,
+        compiledSources = emptyMap(),
         testTasks = testTasks,
         excludedTaskNames = emptyList(),
         executedTests = executedTests,
@@ -144,12 +146,71 @@ class GradleCoverageTest {
             put(ExecutionData(1L, "dev/tuist/demo/Owner__Accessor_cj2ue3", booleanArrayOf(true)))
         }
         val repository = CoverageRepository(tempDir, listOf("core/src/main/java/dev/tuist/demo/Pricing.java")) { emptyMap() }
-        fun analysis() = ClassAnalysis(ClassIndex(listOf(classesDir)), repository, emptyMap(), emptySet())
+        fun analysis() = ClassAnalysis(ClassIndex(listOf(classesDir)), repository, emptyMap(), emptySet(), emptyMap())
 
         assertTrue(analysis().apply { measure(store) }.mismatchedClasses.isEmpty())
 
         store.put(ExecutionData(2L, "dev/tuist/demo/Pricing", booleanArrayOf(true)))
         assertEquals(setOf("dev/tuist/demo/Pricing"), analysis().apply { measure(store) }.mismatchedClasses)
+    }
+
+    @Test
+    fun `classes that share a name across classpath entries are not mismatched when the execution data matches one of them`() {
+        fun writeClass(dir: File, name: String, sourceFile: String, line: Int): ByteArray {
+            val writer = ClassWriter(0)
+            writer.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, name, null, "java/lang/Object", null)
+            writer.visitSource(sourceFile, null)
+            writer.visitMethod(Opcodes.ACC_PUBLIC or Opcodes.ACC_STATIC, "run", "()V", null, null).apply {
+                visitCode()
+                val start = Label()
+                visitLabel(start)
+                visitLineNumber(line, start)
+                visitInsn(Opcodes.RETURN)
+                visitMaxs(0, 0)
+                visitEnd()
+            }
+            writer.visitEnd()
+            return writer.toByteArray().also { File(dir, "$name.class").apply { parentFile.mkdirs() }.writeBytes(it) }
+        }
+        val feature = File(tempDir, "feature/build/classes").apply { mkdirs() }
+        val stub = File(tempDir, "feature-stub/build/classes").apply { mkdirs() }
+        val main = File(tempDir, "core/build/classes/main").apply { mkdirs() }
+        val test = File(tempDir, "core/build/classes/test").apply { mkdirs() }
+        // A stub module redefines a feature module's class; only the feature's tests load it.
+        val real = writeClass(feature, "dev/tuist/feature/Checkout", "Checkout.kt", 3)
+        writeClass(stub, "dev/tuist/feature/Checkout", "Checkout.kt", 4)
+        // A test source set shadows a main class; the test JVM loads the test copy.
+        writeClass(main, "dev/tuist/core/Clock", "Clock.kt", 3)
+        val shadow = writeClass(test, "dev/tuist/core/Clock", "Clock.kt", 5)
+        // A test stand-in for a library class that another test JVM loads from the library.
+        writeClass(test, "com/library/Logger", "Logger.kt", 3)
+        val repository = CoverageRepository(
+            tempDir,
+            listOf(
+                "feature/src/main/kotlin/dev/tuist/feature/Checkout.kt",
+                "feature-stub/src/main/kotlin/dev/tuist/feature/Checkout.kt",
+                "core/src/main/kotlin/dev/tuist/core/Clock.kt",
+                "core/src/test/kotlin/dev/tuist/core/Clock.kt",
+                "core/src/test/kotlin/com/library/Logger.kt"
+            )
+        ) { emptyMap() }
+        val analysis = ClassAnalysis(
+            ClassIndex(listOf(feature, stub, main, test)),
+            repository,
+            mapOf(":feature" to "feature", ":feature-stub" to "feature-stub", ":core" to "core"),
+            setOf(test.absoluteFile),
+            emptyMap()
+        )
+        val store = ExecutionDataStore().apply {
+            put(ExecutionData(CRC64.classId(real), "dev/tuist/feature/Checkout", booleanArrayOf(true)))
+            put(ExecutionData(CRC64.classId(shadow), "dev/tuist/core/Clock", booleanArrayOf(true)))
+            put(ExecutionData(42L, "com/library/Logger", booleanArrayOf(true)))
+        }
+
+        val files = analysis.measure(store)
+
+        assertEquals(emptySet<String>(), analysis.mismatchedClasses)
+        assertEquals(mapOf(3 to true), files["feature/src/main/kotlin/dev/tuist/feature/Checkout.kt"]?.lines?.toMap())
     }
 
     @Test
