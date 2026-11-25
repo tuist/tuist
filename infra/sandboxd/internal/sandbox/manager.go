@@ -776,7 +776,9 @@ func (m *Manager) holdBalloon(ctx context.Context, api *firecracker.Client, meta
 		m.log.Warn("holding the guest to its memory request failed", "sandbox", meta.ID, "balloon_mib", target, "error", err)
 		return
 	}
-	if err == nil && stats.ActualMiB < target {
+	// A guest that had reached its target and lost part of it was deflated
+	// by an OOM; a first inflation is not worth a line.
+	if err == nil && stats.TargetMiB == target && stats.ActualMiB < target {
 		m.log.Info("re-inflated the guest's balloon to its memory request", "sandbox", meta.ID, "balloon_mib", target, "was_mib", stats.ActualMiB)
 	}
 }

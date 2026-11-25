@@ -64,6 +64,11 @@ defmodule Tuist.Sandboxes.CapacityTest do
     test "charges guest memory plus the VMM overhead and keeps a daemon reserve" do
       assert Capacity.charge_bytes(%{memory_mb: 4096}) == 4096 * @mib + 64 * @mib
       assert Capacity.pause_bytes(%{memory_mb: 4096}) == 4096 * @mib
+      # A bursting sandbox holds its whole guest; it is billed from its request.
+      bursting = %{memory_mb: 4096, memory_limit_mb: 16_384}
+      assert Capacity.charge_bytes(bursting) == 16_384 * @mib + 64 * @mib
+      assert Capacity.pause_bytes(bursting) == 16_384 * @mib
+      assert Capacity.request_bytes(bursting) == 4096 * @mib + 64 * @mib
       assert Capacity.memory_budget_bytes(%{capacity: %{memory_bytes: 20 * @gib}}) == 20 * @gib - 512 * @mib
       assert Capacity.memory_budget_bytes(%{capacity: %{}}) == :unbounded
     end

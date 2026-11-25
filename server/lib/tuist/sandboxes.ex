@@ -711,21 +711,28 @@ defmodule Tuist.Sandboxes do
   defp attached_generation(nil, _data), do: nil
   defp attached_generation(cache, data), do: data["cache_generation"] || cache.base_generation
 
-  defp boot(%Sandbox{} = sandbox, source, prefer \\ [], cache \\ nil, capacity_wait_ms \\ 0) do
-    hostname = "sbx-" <> String.slice(sandbox.id, 0, 8)
-    started_at = System.monotonic_time(:millisecond)
-
+  defp create_args(sandbox, hostname) do
     args = %{
       sandbox_id: sandbox.id,
       template: sandbox.template,
       vcpus: sandbox.vcpus,
-      memory_mb: sandbox.memory_mb,
+      memory_mb: Sandbox.boot_memory_mb(sandbox),
       workspace_gb: sandbox.workspace_gb,
       hostname: hostname,
       cpu_guarantee_milli: Sandbox.guaranteed_cpu_milli(sandbox)
     }
 
-    args = with_cache(args, sandbox, source, cache)
+    # The node holds a bursting guest at its request with its balloon.
+    if Sandbox.boot_memory_mb(sandbox) > sandbox.memory_mb,
+      do: Map.put(args, :memory_request_mb, sandbox.memory_mb),
+      else: args
+  end
+
+  defp boot(%Sandbox{} = sandbox, source, prefer \\ [], cache \\ nil, capacity_wait_ms \\ 0) do
+    hostname = "sbx-" <> String.slice(sandbox.id, 0, 8)
+    started_at = System.monotonic_time(:millisecond)
+
+    args = sandbox |> create_args(hostname) |> with_cache(sandbox, source, cache)
 
     deadline = System.monotonic_time(:millisecond) + capacity_wait_ms
 
@@ -2645,7 +2652,7 @@ defmodule Tuist.Sandboxes do
   # `memory_bytes` (nil when the node did not read it). Memory is billed
   # max(request, use): every running session's request comes from its
   # lifecycle events (`Analytics.compute/2`), and this row adds what the VM
-  # held past its request and the VMM's overhead (`Capacity.charge_bytes/1`)
+  # held past its request and the VMM's overhead (`Capacity.request_bytes/1`)
   # over the interval, in MiB-milliseconds.
   defp usage(sandbox, cpu_ms, at, memory_bytes \\ nil) do
     {duration_ms, used_ms} =
@@ -2659,6 +2666,7 @@ defmodule Tuist.Sandboxes do
       end
 
     guaranteed = Sandbox.guaranteed_cpu_milli(sandbox)
+    excess_bytes = max((memory_bytes || 0) - Capacity.request_bytes(sandbox), 0)
 
     %{
       id: UUIDv7.generate(),
@@ -2672,7 +2680,7 @@ defmodule Tuist.Sandboxes do
       used_cpu_ms: used_ms,
       billed_cpu_ms: max(div(guaranteed * duration_ms, 1000), used_ms),
       used_memory_bytes: memory_bytes || 0,
-      excess_memory_mib_ms: div(max((memory_bytes || 0) - Capacity.charge_bytes(sandbox), 0), 1024 * 1024) * duration_ms,
+      excess_memory_mib_ms: div(excess_bytes, 1024 * 1024) * duration_ms,
       inserted_at: DateTime.to_naive(at)
     }
   end
