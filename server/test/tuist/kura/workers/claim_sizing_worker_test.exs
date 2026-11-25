@@ -171,7 +171,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
   test "applies open proposals", %{account: account} do
     assert :ok = perform_job(ClaimSizingWorker, %{})
 
-    assert PlacerClaims.claim_for(account) == "15Gi"
+    assert PlacerClaims.claim_for(account) == "40Gi"
     assert [%ClaimProposal{status: :applied, resolved_by: "automatic"}] = Repo.all(ClaimProposal)
   end
 
@@ -353,6 +353,6 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
 
     assert :ok = perform_job(ClaimSizingWorker, %{})
 
-    assert PlacerClaims.claim_for(account) == "15Gi"
+    assert PlacerClaims.claim_for(account) == "40Gi"
   end
 end

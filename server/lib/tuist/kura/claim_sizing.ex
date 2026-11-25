@@ -9,7 +9,9 @@ defmodule Tuist.Kura.ClaimSizing do
   the ring cycled in place of elapsed time. The step a reading may take scales
   with the confirmation behind it. A step clamped below its own projection lets
   the next one confirm on a single day of the resized ring that cycled at least
-  a ring, within each rung's own window of the resize.
+  a ring, within each rung's own window of the resize. Below the fast-growth
+  size no step bound applies short of that size, so a small claim reaches it in
+  one rebuild.
 
   Shrinking has two signals. A ring that never evicts produces no shed age at
   all, so it shrinks on occupancy: every day of a month either stayed under
@@ -96,7 +98,11 @@ defmodule Tuist.Kura.ClaimSizing do
     retention_correction_max_reduction_percent: 25,
     retention_correction_min_reduction_percent: 10,
     max_step_factor: 2.0,
-    max_confirmed_step_factor: 4.0
+    max_confirmed_step_factor: 4.0,
+    # Up to this size a growth step lands on its projection instead of the step
+    # factor: a starting claim one warm overruns otherwise climbs it one rebuild
+    # per doubling, each rebuild emptying the cache it is growing.
+    fast_growth_until: "64Gi"
   }
 
   def default_policy, do: @default_policy
@@ -658,7 +664,7 @@ defmodule Tuist.Kura.ClaimSizing do
 
     claim_bytes
     |> projected_bytes(floor_seconds, span_seconds, policy)
-    |> min(claim_bytes * max_step_factor(rung, policy))
+    |> min(max(claim_bytes * max_step_factor(rung, policy), quantity_bytes(policy.fast_growth_until)))
     |> max(claim_bytes)
     |> round()
   end
@@ -674,7 +680,8 @@ defmodule Tuist.Kura.ClaimSizing do
   # doubling, a tier proven across days buys the projection's own answer. It
   # binds only under 22.5 hours of retention at 2x and 11.25 hours at 4x, so an
   # account near the floor is sized by the projection either way and the one
-  # furthest under it arrives in a single rebuild rather than three.
+  # furthest under it arrives in a single rebuild rather than three. Neither
+  # binds under `fast_growth_until`.
   defp max_step_factor(%{window_days: 1}, policy), do: policy.max_step_factor
   defp max_step_factor(_rung, policy), do: policy.max_confirmed_step_factor
 

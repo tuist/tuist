@@ -11,9 +11,12 @@ defmodule Tuist.Kura.ClaimSizingTest do
   # shrink steps) are tested against a fixed 3-day floor, so recalibrating the
   # production floor does not rewrite their fixtures. Its middle rungs read
   # 0.34 of that floor, the same 24.5 hours the default's 0.68 of 1.5 days
-  # reads. The production calibration has its own describe block.
+  # reads. The production calibration has its own describe block. Fast growth
+  # is off, so the step bounds these fixtures measure bind at every size; it
+  # has its own test.
   @reference_policy ClaimSizing.default_policy()
                     |> Map.put(:retention_floor_days, 3)
+                    |> Map.put(:fast_growth_until, "1Gi")
                     |> Map.update!(:grow_windows, fn rungs ->
                       Enum.map(rungs, fn
                         %{shed_age_under: {:floor_fraction, 0.68}} = rung ->
@@ -211,7 +214,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
                evaluate(context(rollups: List.replace_at(streak, 8, idle)))
 
       assert evaluate(context(rollups: List.replace_at(streak, 8, fitting))) == :none
-      assert {:shrink, "10Gi", _evidence} = evaluate(context(rollups: fitting_days(30, @today)))
+      assert {:shrink, "10Gi", _evidence} = evaluate(context(plan: :air, rollups: fitting_days(30, @today)))
     end
 
     test "ordinary days of a right-sized ring break the window rather than being passed over" do
@@ -550,6 +553,28 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
       assert {:grow, "32Gi", %{"window_days" => 1}} = evaluate(context(rollups: one_day))
       assert {:grow, "64Gi", %{"window_days" => 2}} = evaluate(context(rollups: severe_churn(2, @today)))
+    end
+
+    test "a small claim reaches the fast-growth size in one step, and the step bound applies past it" do
+      # A starting claim one heavy warm overruns must not climb 6, 12, 24, 48
+      # one rebuild at a time: under 64Gi a step goes where its projection
+      # lands, up to 64Gi. Past 64Gi the one-day doubling is back.
+      policy = %{@reference_policy | fast_growth_until: ClaimSizing.default_policy().fast_growth_until}
+      evaluate = &ClaimSizing.evaluate(&1, policy)
+      one_day = 1 |> severe_churn(@today) |> Enum.map(&Map.put(&1, :evicted_bytes, 33 * @gibibyte))
+
+      assert {:grow, "64Gi", %{"window_days" => 1}} =
+               evaluate.(context(plan: :air, current_claim_size: "6Gi", rollups: one_day))
+
+      assert {:grow, "128Gi", %{"window_days" => 1}} =
+               evaluate.(context(plan: :pro, current_claim_size: "64Gi", rollups: one_day))
+
+      # The allowance lifts the bound, not the target: 8Gi holding half the
+      # floor projects 20Gi, which is where it lands.
+      modest = Enum.map(one_day, &Map.put(&1, :median_ring_span_seconds, div(3 * @day_seconds, 2)))
+
+      assert {:grow, "20Gi", %{"window_days" => 1}} =
+               evaluate.(context(plan: :air, current_claim_size: "8Gi", rollups: modest))
     end
 
     test "moderate shedding waits out the middle tier" do
@@ -1004,7 +1029,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
   describe "evaluate/2 shrinking" do
     test "proposes shrinking after a long window of low occupancy" do
       # 6Gi peak at the 60% occupancy target asks for 10Gi.
-      context = context(current_claim_size: "16Gi", rollups: fitting_days(30, @today))
+      context = context(plan: :air, current_claim_size: "16Gi", rollups: fitting_days(30, @today))
 
       assert {:shrink, "10Gi", evidence} = evaluate(context)
       assert evidence["region"] == "us-east"
@@ -1066,7 +1091,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
     test "one step never less than halves the claim" do
       rollups = fitting_days(30, @today, max_live_segment_bytes: 2 * @gibibyte)
 
-      assert {:shrink, "8Gi", _evidence} = evaluate(context(rollups: rollups))
+      assert {:shrink, "8Gi", _evidence} = evaluate(context(plan: :air, rollups: rollups))
     end
 
     test "never shrinks under the validated minimum claim" do
@@ -1128,11 +1153,21 @@ defmodule Tuist.Kura.ClaimSizingTest do
     test "a shrink needs its whole window after the last resize" do
       rollups = fitting_days(30, @today)
 
-      recent = context(rollups: rollups, last_resized_at: DateTime.new!(Date.add(@today, -10), ~T[12:00:00], "Etc/UTC"))
+      recent =
+        context(
+          plan: :air,
+          rollups: rollups,
+          last_resized_at: DateTime.new!(Date.add(@today, -10), ~T[12:00:00], "Etc/UTC")
+        )
+
       assert evaluate(recent) == :none
 
       settled =
-        context(rollups: rollups, last_resized_at: DateTime.new!(Date.add(@today, -31), ~T[12:00:00], "Etc/UTC"))
+        context(
+          plan: :air,
+          rollups: rollups,
+          last_resized_at: DateTime.new!(Date.add(@today, -31), ~T[12:00:00], "Etc/UTC")
+        )
 
       assert {:shrink, "10Gi", _evidence} = evaluate(settled)
     end
@@ -1226,8 +1261,11 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
       assert evaluate(retention_context(current_claim_size: "16Gi", rollups: rollups)) == :none
 
+      assert {:shrink, "16Gi", _evidence} =
+               evaluate(retention_context(plan: :pro, current_claim_size: "20Gi", rollups: rollups))
+
       assert {:shrink, "6Gi", _evidence} =
-               evaluate(retention_context(plan: :pro, current_claim_size: "10Gi", rollups: rollups))
+               evaluate(retention_context(plan: :air, current_claim_size: "10Gi", rollups: rollups))
     end
 
     test "a day under three floors of retention breaks the window" do

@@ -223,7 +223,7 @@ defmodule Tuist.Kura.RegionsTest do
 
     test "descends the storage ladder and floors it at air" do
       claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
-      assert claims == ["16Gi", "6Gi", "6Gi"]
+      assert claims == ["16Gi", "16Gi", "6Gi"]
 
       # Air is the floor, and unknown plans land on it.
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
