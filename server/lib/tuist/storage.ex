@@ -30,6 +30,18 @@ defmodule Tuist.Storage do
   # connection alive with whitespace in the meantime.
   @multipart_complete_http_opts [receive_timeout: 60_000, pool_timeout: 5_000]
 
+  @doc """
+  Whether a caller-supplied value is safe as one segment of an object key.
+
+  A `/` or a `.`/`..` segment would address keys outside the prefix the
+  caller's key is built under, as path-style S3 clients may resolve dot
+  segments (CVE-2026-59698). Same rule as the cache service's
+  `SafePathComponent`, plus control characters such as a trailing newline,
+  which that pattern's `$` lets through.
+  """
+  def valid_key_segment?(value) when is_binary(value), do: value =~ ~r/^(?!\.{1,2}\z)[^\/\\\x{0}-\x{1f}\x{7f}]+\z/u
+  def valid_key_segment?(_value), do: false
+
   def multipart_generate_url(object_key, upload_id, part_number, actor, opts \\ []) do
     opts =
       opts

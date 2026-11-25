@@ -460,7 +460,8 @@ defmodule Tuist.Processor.XCResultProcessor do
     file_name = Map.get(attachment, "file_name")
     attachment_id = Map.fetch!(attachment, "attachment_id")
 
-    if file_path && File.exists?(file_path) do
+    # `file_name` comes from the uploaded bundle and becomes a key segment.
+    if file_path && File.exists?(file_path) && Storage.valid_key_segment?(file_name) do
       s3_key =
         "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
 

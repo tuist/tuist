@@ -545,6 +545,51 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       end)
     end
 
+    test "skips attachments whose file name is not a single key segment" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+      test_pid = self()
+
+      stub(Tuist.Storage, :upload_file, fn _path, key, :system, _opts ->
+        send(test_pid, {:uploaded, key})
+        {:ok, :uploaded}
+      end)
+
+      file_names = ["screenshot.png", "../../../../victim/app/screenshot.png", "nested/name.png", ".."]
+
+      attachments =
+        file_names
+        |> Enum.with_index()
+        |> Enum.map(fn {file_name, index} ->
+          path = Path.join(fixture_dir, "attachment-#{index}")
+          File.write!(path, "data")
+          %{"file_path" => path, "file_name" => file_name}
+        end)
+
+      expect(XCResultNIF, :parse, fn _path, _root ->
+        {:ok,
+         %{
+           "test_modules" => [
+             %{"name" => "Module", "test_cases" => [%{"name" => "test_example", "attachments" => attachments}]}
+           ]
+         }}
+      end)
+
+      opts = [test_run_id: "run-123", account_handle: "org", project_handle: "project"]
+
+      capture_log(fn ->
+        assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
+        [module] = result["test_modules"]
+        [test_case] = module["test_cases"]
+        assert Enum.map(test_case["attachments"], & &1["file_name"]) == ["screenshot.png"]
+      end)
+
+      assert_received {:uploaded, key}
+      assert String.starts_with?(key, "org/project/tests/runs/run-123/attachments/")
+      assert String.ends_with?(key, "/screenshot.png")
+      refute_received {:uploaded, _}
+    end
+
     test "native module order cannot change attachment identities or reorder legacy payloads" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)
