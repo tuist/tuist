@@ -906,6 +906,12 @@ sandboxes:
   # restarts), after qualifying on staging.
   vmm:
     enabled: true
+    # In-place daemon upgrades (step 2b), qualified on staging.
+    inPlaceUpgrades: true
+    # vmm holds Firecracker under the running VMs; moving it replaces the
+    # daemon Pod and pauses its sandboxes, so it moves only on purpose.
+    image:
+      tag: sha-424ca4b74de3
   # Two `linux` Orbs (38 GiB each with the 20 GiB rootfs) next to the
   # checkout workspaces, on the runner node's ~410 GiB data disk.
   diskGiB: 130
