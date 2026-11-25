@@ -469,8 +469,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   at new paths on each boot and a Mac restored with the builder's devices
   and simulator state lost its iOS runtime. Before that it stops the cache
   proxy and build service, waits for them to exit, and flushes every file
-  in `CompilationCache.noindex` with `F_FULLFSYNC`. The store writes through
-  shared mappings that `sync` does not wait for: restored without the flush,
+  in DerivedData, including `CompilationCache.noindex`, with `F_FULLFSYNC`.
+  The cache store writes through shared mappings that `sync` does not wait
+  for: restored without the flush,
   `data.v1` came back with a zeroed header or missing objects, and session
   compiles failed with "not a IncludeFileList node kind" or "specified
   header offset (16) does not match existing config (0)"; with it, a

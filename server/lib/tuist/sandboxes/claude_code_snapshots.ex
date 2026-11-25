@@ -108,13 +108,14 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # tracked files the script changed go back to the commit first, so the
   # record describes the copy. Before that it stops the cache proxy and the
   # build service that write the compilation cache, waits for them to exit,
-  # and flushes each of the cache's files with `F_FULLFSYNC` (51). The store
-  # writes through shared mappings, and `sync` returns before their pages
-  # reach the disk: a Mac booted from disks saved after `sync` alone read
-  # `data.v1` with a zeroed header ("specified header offset (16) does not
-  # match existing config (0)") or with missing objects ("not a
-  # IncludeFileList node kind"), and one saved after the flush built from the
-  # kept store without a miss (measured 2026-11). It also drops
+  # and flushes each file in DerivedData, the compilation cache and the
+  # build products, with `F_FULLFSYNC` (51). The cache store writes through
+  # shared mappings, and `sync` returns before their pages reach the disk:
+  # a Mac booted from disks saved after `sync` alone read `data.v1` with a
+  # zeroed header ("specified header offset (16) does not match existing
+  # config (0)") or with missing objects ("not a IncludeFileList node
+  # kind"), and one saved after the flush built from the kept store without
+  # a miss (measured 2026-11). It also drops
   # the session the CLI stored from the build's identity token, and the
   # script's simulators, and stops the simulator services: a Mac booted
   # from the disks mounts the simulator runtimes at new paths, and the
@@ -133,15 +134,15 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_TERMINAL_PROMPT
   cd "$path"
   /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
-  cache="$HOME/Library/Developer/Xcode/DerivedData/CompilationCache.noindex"
+  derived_data="$HOME/Library/Developer/Xcode/DerivedData"
   launchctl bootout "gui/$(id -u)/tuist.cas-proxy" >/dev/null 2>&1 || true
   killall -TERM SWBBuildService XCBBuildService >/dev/null 2>&1 || true
   i=0
   while pgrep -x SWBBuildService >/dev/null || pgrep -x XCBBuildService >/dev/null; do
     i=$((i + 1)); [ "$i" -gt 30 ] && break; sleep 1
   done
-  if [ -d "$cache" ]; then
-    find "$cache" -type f -exec perl -e 'for (@ARGV) { open my $f, "+<", $_ or die "$_: $!"; fcntl($f, 51, 0) or die "$_: $!" }' {} +
+  if [ -d "$derived_data" ]; then
+    find "$derived_data" -type f -exec perl -e 'for (@ARGV) { open my $f, "<", $_ or die "$_: $!"; fcntl($f, 51, 0) or die "$_: $!" }' {} +
   fi
   rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"
   xcrun simctl shutdown all >/dev/null 2>&1 || true
