@@ -1420,6 +1420,16 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.placeable?(region(), claim(placement_account(), "50Gi")) == true
     end
 
+    test "refuses a new instance the node has disk for and no memory" do
+      # The box has 800 GiB of disk free and 200 MiB of memory, under every
+      # plan's floor: the scheduler leaves the replica Pending on memory alone.
+      stub_pool([
+        pool_box("box-1", allocatable: %{"memory" => "8Gi"}, pods: [pool_pod(%{"memory" => "7992Mi"})])
+      ])
+
+      assert Capacity.placeable?(region(), claim(placement_account(), "50Gi")) == false
+    end
+
     test "counts back what the instance's own replicas release" do
       # 40 GiB left with the account's own two 30Gi replicas on the box. The
       # rebuild hands those 60 GiB back, which is the only reason two 50Gi

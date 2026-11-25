@@ -706,18 +706,30 @@ defmodule Tuist.Kura.Capacity do
   def placeable?(%Regions{} = region, %Server{} = server) do
     with handle when is_binary(handle) <- account_handle(server),
          %{request: request} = sizing when request > 0 <- replica_sizing(region, server),
-         %{nodes: [_ | _] = nodes, accounts_off_pool: %MapSet{} = off_pool} <- node_headroom(region),
+         %{nodes: [_ | _] = nodes, accounts_off_pool: %MapSet{} = off_pool} = pool <- node_headroom(region),
          false <- MapSet.member?(off_pool, handle) do
       nodes
       |> Enum.filter(&(&1.thin_ready? or not sizing.thin?))
       |> fits?(
         handle,
         Map.put(sizing, :spread?, not is_nil(Regions.replica_spread_topology_key(region))),
-        replicas(region)
+        replicas(region),
+        new_replica_request(region, server, pool, sizing)
       )
     else
       _ -> nil
     end
+  end
+
+  # What a replica with nothing placed yet asks the scheduler for: every
+  # resource `room_for?/3` reads, at the instance's own claim. Disk alone is not
+  # what binds on every pool; a small storage node runs out of memory first.
+  defp new_replica_request(region, server, pool, %{thin?: thin?, disk: disk, request: disk_request}) do
+    plan = if match?(%Server{account: %Account{}}, server), do: AccountPolicies.sizing_plan(server.account)
+
+    region
+    |> pod_request(plan, pool, thin?)
+    |> Map.put(disk, disk_request)
   end
 
   # A thin replica asks for its virtual device on `tuist.dev/kura-disk` and,
@@ -734,10 +746,10 @@ defmodule Tuist.Kura.Capacity do
 
   # `request` is what each replica asks the scheduler for on `disk`; `claim` is
   # what its data volume asks for, which decides whether a replica is rebuilt.
-  defp fits?(nodes, handle, %{disk: disk, request: request} = sizing, replicas) do
+  defp fits?(nodes, handle, sizing, replicas, new_request) do
     case placed_replicas(nodes, handle) do
       [] ->
-        placements(nodes, &div(max(disk_available(&1, disk), 0), request)) >= replicas
+        placements(nodes, &replicas_fitting(&1, new_request)) >= replicas
 
       placed ->
         with %{} = volumes <- data_volume_bytes(placed) do
