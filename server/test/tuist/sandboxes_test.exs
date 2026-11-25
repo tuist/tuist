@@ -600,6 +600,35 @@ defmodule Tuist.SandboxesTest do
       assert job.args == %{"sandbox_id" => sandbox.id, "residency_epoch" => 3}
     end
 
+    test "a late worker_exited of an earlier worker leaves the next turn's residency alone" do
+      sandbox =
+        sandbox_fixture(state: :running, node_name: "node-a", residency_work_id: "work_1", residency_epoch: 1)
+
+      # The node frees work_1's slot before its exit reaches the server, so
+      # work_2's turn can start first.
+      assert {:ok, _} = Sandboxes.begin_residency(Repo.reload!(sandbox), "work_2")
+
+      assert :ok =
+               Sandboxes.handle_node_event("node-a", %{
+                 "event" => "worker_exited",
+                 "sandbox_id" => sandbox.id,
+                 "work_id" => "work_1"
+               })
+
+      assert %Sandbox{residency_work_id: "work_2", residency_epoch: 2} = Repo.reload!(sandbox)
+      assert [] = all_enqueued(worker: PauseSandboxWorker)
+
+      assert :ok =
+               Sandboxes.handle_node_event("node-a", %{
+                 "event" => "worker_exited",
+                 "sandbox_id" => sandbox.id,
+                 "work_id" => "work_2"
+               })
+
+      assert %Sandbox{residency_work_id: nil, residency_epoch: 3} = Repo.reload!(sandbox)
+      assert [%{args: %{"residency_epoch" => 3}}] = all_enqueued(worker: PauseSandboxWorker)
+    end
+
     test "worker_exited for an unknown sandbox is ignored" do
       assert :ok =
                Sandboxes.handle_node_event("node-a", %{"event" => "worker_exited", "sandbox_id" => Ecto.UUID.generate()})

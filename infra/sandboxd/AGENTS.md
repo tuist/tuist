@@ -249,7 +249,11 @@ memory image until they cold boot.
   whatever is left on disk under it.
 - `exec` streams a command's output back to the server; `start_worker` runs
   `/usr/local/bin/sbx-worker` with the Anthropic environment variables and
-  emits `worker_exited` when it ends; `stop_worker` sends SIGTERM and waits.
+  emits `worker_exited` when it ends, echoing the `work_id` the server sent
+  with `start_worker`; `stop_worker` sends SIGTERM and waits. The slot is free
+  before the event goes out (events travel in their own queue), so the next
+  turn's worker can start first, and the server ends only the residency the
+  echoed `work_id` names.
 
 Firecracker loads a snapshot only into a fresh process, so every resume spawns
 a new jailer. The memory file the VM is mapped from must not change while it
@@ -500,7 +504,7 @@ Node to server:
 {"type":"result","id":"c1","ok":true,"data":{...}}
 {"type":"result","id":"c1","ok":false,"error":"..."}
 {"type":"stream","id":"c1","stream":"stdout","data_b64":"..."}
-{"type":"event","event":"worker_exited","sandbox_id":"...","exit_code":0,"duration_ms":1234}
+{"type":"event","event":"worker_exited","sandbox_id":"...","work_id":"...","exit_code":0,"duration_ms":1234}
 {"type":"event","event":"sandbox_died","sandbox_id":"...","reason":"..."}
 {"type":"event","event":"template_ready","name":"default","tag":"..."}
 {"type":"report","capacity":{...same shape as hello...},"sandboxes":[...same shape as hello...],"memory":{"used_bytes":N},"disk":{...same shape as hello...}}
@@ -515,7 +519,7 @@ Server to node:
 {"type":"command","id":"c4","op":"delete","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c5","op":"exec","args":{"sandbox_id":"...","cmd":["/bin/bash","-lc","ls"],"env":{},"cwd":"/workspace","timeout_ms":60000}}
 {"type":"command","id":"c11","op":"exec","args":{"sandbox_id":"...","cmd":["/usr/local/bin/sbx-executor"],"env":{...},"cwd":"/workspace","timeout_ms":780000,"claim":{"nonce_sha256":"<hex>","env":"SBX_EXECUTION_REQUEST","timeout_ms":30000}}}
-{"type":"command","id":"c6","op":"start_worker","args":{"sandbox_id":"...","env":{"ANTHROPIC_SESSION_ID":"...","ANTHROPIC_WORK_ID":"...","ANTHROPIC_ENVIRONMENT_ID":"...","ANTHROPIC_ENVIRONMENT_KEY":"...","ANTHROPIC_WORK_SECRET":"...","ANTHROPIC_BASE_URL":"...","SBX_MAX_IDLE":"30s"}}}
+{"type":"command","id":"c6","op":"start_worker","args":{"sandbox_id":"...","work_id":"...","env":{"ANTHROPIC_SESSION_ID":"...","ANTHROPIC_WORK_ID":"...","ANTHROPIC_ENVIRONMENT_ID":"...","ANTHROPIC_ENVIRONMENT_KEY":"...","ANTHROPIC_WORK_SECRET":"...","ANTHROPIC_BASE_URL":"...","SBX_MAX_IDLE":"30s"}}}
 {"type":"command","id":"c7","op":"stop_worker","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c8","op":"status","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c9","op":"reclaim","args":{"target_bytes":N}}

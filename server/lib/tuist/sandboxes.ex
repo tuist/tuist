@@ -1928,8 +1928,14 @@ defmodule Tuist.Sandboxes do
 
   def start_worker(%Sandbox{state: :running, node_name: node_name} = sandbox, env, checkout)
       when is_binary(node_name) and is_map(env) do
-    args = %{sandbox_id: sandbox.id, env: env}
-    node_call(sandbox, "start_worker", if(checkout, do: Map.put(args, :checkout, checkout), else: args), [])
+    # The node echoes `work_id` in the worker's `worker_exited`, which ends
+    # only that residency (`handle_node_event/2`).
+    args =
+      %{sandbox_id: sandbox.id, env: env}
+      |> maybe_put(:checkout, checkout)
+      |> maybe_put(:work_id, sandbox.residency_work_id)
+
+    node_call(sandbox, "start_worker", args, [])
   end
 
   def start_worker(%Sandbox{state: :running}, _env, _checkout), do: {:error, :no_node}
@@ -2180,10 +2186,21 @@ defmodule Tuist.Sandboxes do
           duration_ms: event["duration_ms"]
         )
 
-        if sandbox.platform != :darwin or
-             (sandbox.node_name == node_name and sandbox.node_uid == event["generation"] and
-                sandbox.residency_work_id == event["work_id"]) do
-          {:ok, _sandbox} = end_residency(sandbox)
+        cond do
+          sandbox.platform == :darwin ->
+            if sandbox.node_name == node_name and sandbox.node_uid == event["generation"] and
+                 sandbox.residency_work_id == event["work_id"],
+               do: {:ok, _sandbox} = end_residency(sandbox)
+
+          # The node frees the worker's slot before this event reaches us, so
+          # the next turn's worker can already hold the sandbox: end only the
+          # residency of the worker that exited.
+          is_binary(event["work_id"]) ->
+            _ = end_residency(sandbox.id, event["work_id"])
+
+          # Daemons before `work_id` was echoed.
+          true ->
+            {:ok, _sandbox} = end_residency(sandbox)
         end
 
         :ok
