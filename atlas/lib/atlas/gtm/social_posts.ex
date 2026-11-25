@@ -21,10 +21,10 @@ defmodule Atlas.GTM.SocialPosts do
 
   @api "https://api.x.com/2"
   @scopes ["tweet.read"]
-  # Public counters are read for this window; X returns click metrics only
-  # for posts created in the last 30 days.
-  @window_days 90
-  @click_window_days 29
+  # Posts gain nearly all their engagement in the first two weeks; older posts
+  # keep the numbers of their last sync. X returns clicks for 30 days, so one
+  # read covers both public and non-public metrics.
+  @window_days 14
   @max_pages 10
 
   @doc "Posts from the last `days` days, newest first."
@@ -110,10 +110,8 @@ defmodule Atlas.GTM.SocialPosts do
 
     with {:ok, me} <- with_token(user, &get(&1, "/users/me", [])),
          %{"id" => account_id, "username" => username} <- me["data"] || {:error, :invalid_response},
-         {:ok, posts} <- fetch(user, account_id, DateTime.add(now, -@window_days * 86_400, :second), false),
-         {:ok, recent} <- fetch(user, account_id, DateTime.add(now, -@click_window_days * 86_400, :second), true) do
-      clicks = Map.new(recent, &{&1["id"], &1["non_public_metrics"]})
-      rows = build_rows(posts, account_id, username, clicks, now)
+         {:ok, posts} <- fetch(user, account_id, DateTime.add(now, -@window_days * 86_400, :second)) do
+      rows = build_rows(posts, account_id, username, now)
       Enum.each(rows, &store(&1, DateTime.to_date(now)))
 
       Audit.record(
@@ -139,9 +137,9 @@ defmodule Atlas.GTM.SocialPosts do
   end
 
   # Own posts including self-replies (so threads can be detected), excluding reposts.
-  defp fetch(user, account_id, start_time, clicks?) do
-    fields = ~w(created_at public_metrics attachments referenced_tweets conversation_id in_reply_to_user_id)
-    fields = if clicks?, do: ["non_public_metrics" | fields], else: fields
+  defp fetch(user, account_id, start_time) do
+    fields =
+      ~w(created_at public_metrics non_public_metrics attachments referenced_tweets conversation_id in_reply_to_user_id)
 
     params = [
       max_results: 100,
@@ -182,16 +180,21 @@ defmodule Atlas.GTM.SocialPosts do
 
   @doc false
   # Replies to other accounts are dropped; self-replies mark their root as a
-  # thread and are otherwise folded into it.
-  def build_rows(posts, account_id, username, clicks, now) do
+  # thread and are otherwise folded into it. X sometimes omits
+  # `in_reply_to_user_id` on replies, so a `replied_to` reference also marks one.
+  def build_rows(posts, account_id, username, now) do
     thread_roots =
       for post <- posts, post["in_reply_to_user_id"] == account_id, into: MapSet.new(), do: post["conversation_id"]
 
-    for post <- posts, is_nil(post["in_reply_to_user_id"]) do
+    for post <- posts, not reply?(post) do
       post
-      |> row(account_id, username, clicks[post["id"]] || %{}, now)
+      |> row(account_id, username, post["non_public_metrics"] || %{}, now)
       |> Map.put(:thread, MapSet.member?(thread_roots, post["id"]))
     end
+  end
+
+  defp reply?(post) do
+    post["in_reply_to_user_id"] != nil or Enum.any?(post["referenced_tweets"] || [], &(&1["type"] == "replied_to"))
   end
 
   defp row(post, account_id, username, private, now) do
