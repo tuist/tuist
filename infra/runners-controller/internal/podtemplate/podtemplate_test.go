@@ -1416,6 +1416,11 @@ func TestCacheVolumesArePrivateAndVisibleToDocker(t *testing.T) {
 			if v.HostPath == nil || v.HostPath.Path != "/var/lib/cache/pods" {
 				t.Fatalf("wrong source: %+v", v)
 			}
+			// Kubelet must never create pods/ itself: on a fresh host it would land
+			// on the host disk before the cache filesystem is mounted over it.
+			if v.HostPath.Type == nil || *v.HostPath.Type != corev1.HostPathDirectory {
+				t.Fatalf("cache source may be created by kubelet: %+v", v.HostPath.Type)
+			}
 		}
 	}
 	if !found {

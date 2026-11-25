@@ -708,7 +708,13 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	if cacheVolumes {
 		// SubPathExpr is resolved by kubelet, not a guest-supplied path. Only this
 		// pod's directory crosses virtiofs; slots and other tenants never do.
-		volumes = append(volumes, corev1.Volume{Name: "cache-volumes", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: filepath.Join(pool.Spec.CacheVolumeRoot, "pods"), Type: ptr(corev1.HostPathDirectoryOrCreate)}}})
+		//
+		// Directory, not DirectoryOrCreate: the cache agent creates pods/ once it
+		// has verified the dedicated cache filesystem at the root. On a freshly
+		// installed host kubelet otherwise created it on the host disk first,
+		// and the provisioning init container then refused the nonempty root
+		// forever. Until the agent is up, runner Pods here wait in volume setup.
+		volumes = append(volumes, corev1.Volume{Name: "cache-volumes", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: filepath.Join(pool.Spec.CacheVolumeRoot, "pods"), Type: ptr(corev1.HostPathDirectory)}}})
 		mount := corev1.VolumeMount{Name: "cache-volumes", MountPath: workPath + "/_tuist_cache", SubPathExpr: "$(TUIST_CACHE_VOLUME_UID)", MountPropagation: ptr(corev1.MountPropagationHostToContainer)}
 		uidEnv := corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_UID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}}
 		runnerMounts = append(runnerMounts, mount)

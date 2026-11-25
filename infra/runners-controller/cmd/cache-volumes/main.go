@@ -321,6 +321,11 @@ func main() {
 	if err := dedicatedFilesystem(*root, *kubelet, *rootDevice); err != nil {
 		log.Fatal(err)
 	}
+	// Runner Pods mount pods/ without creating it, so they start only once it
+	// exists on the verified cache filesystem.
+	if err := os.MkdirAll(filepath.Join(*root, "pods"), 0o755); err != nil {
+		log.Fatal(err)
+	}
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
 		log.Fatal(err)

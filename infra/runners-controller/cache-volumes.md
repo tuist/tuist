@@ -135,9 +135,15 @@ the host cannot advertise volume readiness. Each reconcile also labels the Node
 `tuist.dev/cache-volume-<scope prefix>` for every lineage with an installed
 master and removes the labels of evicted ones. Disabling provisioning never deletes
 the backing file or unmounts existing storage. Runner scheduling prefers ready
-hosts but does not require them; jobs on other hosts fall back to ordinary
-directories. If unprovisioned hosts have accumulated pod directories, drain those
-pods and remove only their confirmed-unused directories before retrying setup.
+hosts but does not require them. The agent creates `pods/` only after it has
+verified the dedicated filesystem, and runner Pods mount it as `Directory`, so on
+a host whose agent is not up yet they wait in volume setup instead of starting.
+Kubelet used to create `pods/` itself (`DirectoryOrCreate`): on a freshly
+installed host the warm runner Pods scheduled before provisioning, created it on
+the host disk, and the init container then refused the nonempty root on every
+retry. Hosts that accumulated pod directories that way before this change still
+need the manual step: drain those pods and remove only their confirmed-unused
+directories before retrying setup.
 
 ### Changing the cache size
 
