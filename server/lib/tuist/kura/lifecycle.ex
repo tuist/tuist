@@ -1186,17 +1186,26 @@ defmodule Tuist.Kura.Lifecycle do
     reclaimed_bytes = Capacity.resident_bytes(region, server)
     drain_duration_ms = drain_duration_ms(lifecycle)
 
-    case Kura.archive_server(server) do
+    # The server's :archived status and the lifecycle's `archived_at` commit
+    # together: between them an archived row would look returnable without
+    # the archival's hold (`not_held_by_archival/0`), and an on-demand
+    # provision could bring it straight back.
+    case Repo.transaction(fn ->
+           with {:ok, archived} <- Kura.archive_server(server),
+                {:ok, _lifecycle} <-
+                  lifecycle
+                  |> AccountRegionLifecycle.phase_changeset(%{
+                    archived_at: now(),
+                    last_reclaimed_bytes: reclaimed_bytes,
+                    last_drain_duration_ms: drain_duration_ms
+                  })
+                  |> Repo.update() do
+             archived
+           else
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
       {:ok, _server} ->
-        {:ok, _lifecycle} =
-          lifecycle
-          |> AccountRegionLifecycle.phase_changeset(%{
-            archived_at: now(),
-            last_reclaimed_bytes: reclaimed_bytes,
-            last_drain_duration_ms: drain_duration_ms
-          })
-          |> Repo.update()
-
         Telemetry.archived(plan, server.region, lifecycle.drain_reason || :inactive, reclaimed_bytes, drain_duration_ms)
 
         Logger.info(
