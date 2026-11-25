@@ -305,7 +305,7 @@ jobs:
           done
           [[ "$synced" == True ]] || { echo "::error::$secret did not sync"; exit 1; }
           # Last time ESO wrote the Secret, and the oldest running evaluator container.
-          written=$(kubectl -n "$NAMESPACE" get secret "$secret" -o json |
+          written=$(kubectl -n "$NAMESPACE" get secret "$secret" -o json --show-managed-fields |
             jq -r '[.metadata.managedFields[]? | select(.manager | test("external-secrets")) | .time] | max // empty')
           started=$(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/instance="$HELM_RELEASE_NAME",app.kubernetes.io/component=evaluator -o json |
             jq -r '[.items[].status.containerStatuses[]? | .state.running.startedAt // empty] | min // empty')
