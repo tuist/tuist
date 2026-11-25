@@ -24,3 +24,29 @@ func TestExecutionScopeComesOnlyFromActionExecs(t *testing.T) {
 		}
 	}
 }
+
+func TestClaimedExecScopeIsTheServersPin(t *testing.T) {
+	pin := &protocol.ExecutionScope{Endpoint: "grpc://kura.kura.svc:4000", Account: "tuist", Instance: "kura"}
+	claimed := func(request string, pin *protocol.ExecutionScope) protocol.ExecArgs {
+		return protocol.ExecArgs{
+			Cmd:   []string{executorPath},
+			Env:   map[string]string{"SBX_EXECUTION_TOKEN": "t", "SBX_EXECUTION_REQUEST": request},
+			Claim: &protocol.ClaimArgs{Env: "SBX_EXECUTION_REQUEST", Scope: pin},
+		}
+	}
+	// Handles are case-insensitive; the cache keys on the server's spelling.
+	scope, ok := executionScope(claimed(`{"endpoint":"grpc://kura.kura.svc:4000","account":"Tuist","instance":"KURA"}`, pin))
+	if !ok || scope.Account != "tuist" || scope.Instance != "kura" || scope.Token != "t" {
+		t.Fatalf("pinned scope: %+v %v", scope, ok)
+	}
+	for name, args := range map[string]protocol.ExecArgs{
+		"other account":  claimed(`{"endpoint":"grpc://kura.kura.svc:4000","account":"victim","instance":"kura"}`, pin),
+		"other instance": claimed(`{"endpoint":"grpc://kura.kura.svc:4000","account":"tuist","instance":"app"}`, pin),
+		"other endpoint": claimed(`{"endpoint":"grpc://other:4000","account":"tuist","instance":"kura"}`, pin),
+		"no pin":         claimed(`{"endpoint":"grpc://kura.kura.svc:4000","account":"tuist","instance":"kura"}`, nil),
+	} {
+		if scope, ok := executionScope(args); ok {
+			t.Errorf("%s: node cache scope %+v", name, scope)
+		}
+	}
+}

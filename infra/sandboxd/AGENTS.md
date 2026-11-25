@@ -366,7 +366,12 @@ instead of once per action. The guest connects to vsock port 5001 on the host
 listens there only while an action exec runs: `/usr/local/bin/sbx-executor`
 with no arguments, `SBX_EXECUTION_TOKEN` and `SBX_EXECUTION_REQUEST` (its
 `endpoint`, `account` and `instance`), on a VM of the template tag the daemon
-is configured with. The scope comes from that exec, never from the guest.
+is configured with. The scope comes from that exec, never from the guest. A
+claimed exec's request comes from the claimer, so its scope is the server's
+`claim.scope`, used only when the request names it; without one the guest
+reads the CAS itself. A hit never asks the CAS, so a scope must come from
+whoever issued the credential. Each serve and inputs-image swap logs the
+scope key, account, instance and endpoint.
 
 One request per connection, a JSON line:
 
@@ -570,7 +575,10 @@ An `exec` with a `claim` waits up to `claim.timeout_ms` for a caller to post
 (advertised as `direct_exec_endpoint` in `hello`). The nonce must hash to
 `claim.nonce_sha256`; the claim is single-use. The command then runs with
 `value` in `claim.env`, its standard output goes only to the caller
-(`{exit_code, stdout}`), and the result carries the exit code. Unclaimed, the
+(`{exit_code, stdout}`), and the result carries the exit code. A
+`claim.scope` (`{endpoint, account, instance}`) on an `sbx-executor` exec
+refuses, without running, a claimed request that names another scope
+(account and instance compare case-insensitively). Unclaimed, the
 result is `{"unclaimed": true}` and nothing ran.
 
 The daemon rereads its cgroup's memory limit every 250 ms and sends a

@@ -266,6 +266,11 @@ func claimedExec(ctx context.Context, ops Operations, id string, args protocol.E
 	if !claimed {
 		return protocol.OKResult(id, protocol.ExecResult{Unclaimed: true})
 	}
+	if claimedScopeMismatch(args, offer.value) {
+		err := errors.New("exec: the claimed request is outside the scope the server authorized")
+		offer.outcome <- ClaimOutcome{Err: err}
+		return protocol.ErrorResult(id, err)
+	}
 	env := make(map[string]string, len(args.Env)+1)
 	maps.Copy(env, args.Env)
 	env[args.Claim.Env] = offer.value

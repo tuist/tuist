@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -17,24 +18,59 @@ import (
 
 const executorPath = "/usr/local/bin/sbx-executor"
 
-// executionScope is the CAS scope of a remote-execution action exec: the
-// endpoint, account and instance the server or gateway put in its request, and
-// the project credential the server issued. Nothing comes from the guest.
+// executionScope is the CAS scope of a remote-execution action exec, with
+// the project credential the server issued. The server writes a scheduled
+// action's request itself. A claimed action's request comes from the
+// claimer, so its scope is the one the server pinned in the claim, and only
+// when the request names that scope: the node's cache answers a hit without
+// asking the CAS, so a scope must never come from someone the credential
+// does not bind. Nothing comes from the guest.
 func executionScope(args protocol.ExecArgs) (blobcache.Scope, bool) {
 	token, request := args.Env["SBX_EXECUTION_TOKEN"], args.Env["SBX_EXECUTION_REQUEST"]
-	if len(args.Cmd) != 1 || args.Cmd[0] != executorPath || token == "" || request == "" {
+	if len(args.Cmd) != 1 || args.Cmd[0] != executorPath || token == "" {
 		return blobcache.Scope{}, false
 	}
-	var r struct {
-		Endpoint string `json:"endpoint"`
-		Account  string `json:"account"`
-		Instance string `json:"instance"`
+	r, ok := requestScope(request)
+	if !ok {
+		return blobcache.Scope{}, false
 	}
-	if json.Unmarshal([]byte(request), &r) != nil ||
-		!(strings.HasPrefix(r.Endpoint, "grpc://") || strings.HasPrefix(r.Endpoint, "grpcs://")) {
+	if args.Claim != nil {
+		if args.Claim.Scope == nil || !sameScope(*args.Claim.Scope, r) {
+			return blobcache.Scope{}, false
+		}
+		r = *args.Claim.Scope
+	}
+	if !(strings.HasPrefix(r.Endpoint, "grpc://") || strings.HasPrefix(r.Endpoint, "grpcs://")) {
 		return blobcache.Scope{}, false
 	}
 	return blobcache.Scope{Endpoint: r.Endpoint, Account: r.Account, Instance: r.Instance, Token: token}, true
+}
+
+// requestScope reads the CAS scope an action request names.
+func requestScope(request string) (protocol.ExecutionScope, bool) {
+	var r protocol.ExecutionScope
+	if request == "" || json.Unmarshal([]byte(request), &r) != nil {
+		return r, false
+	}
+	return r, true
+}
+
+// sameScope reports whether a request names the pinned scope. Account and
+// project handles are case-insensitive, as the server resolves them.
+func sameScope(pinned, requested protocol.ExecutionScope) bool {
+	return pinned.Endpoint == requested.Endpoint &&
+		strings.EqualFold(pinned.Account, requested.Account) &&
+		strings.EqualFold(pinned.Instance, requested.Instance)
+}
+
+// claimedScopeMismatch reports a claimed action whose request names a scope
+// other than the one the server authorized; it must not run.
+func claimedScopeMismatch(args protocol.ExecArgs, value string) bool {
+	if args.Claim.Scope == nil || len(args.Cmd) != 1 || args.Cmd[0] != executorPath {
+		return false
+	}
+	r, ok := requestScope(value)
+	return !ok || !sameScope(*args.Claim.Scope, r)
 }
 
 // serveBlobs lets an executing action's guest read input blobs from the
@@ -63,6 +99,7 @@ func (m *Manager) serveBlobs(sb *Sandbox, args protocol.ExecArgs) func() {
 		m.log.Warn("serving blobs to the guest", "sandbox", args.SandboxID, "error", err)
 		return func() {}
 	}
+	m.scopeLog(args.SandboxID, scope).Info("serving blobs to the guest")
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -126,5 +163,10 @@ func (m *Manager) inputsWorkspace(ctx context.Context, sb *Sandbox, agent vsock.
 	if !ok {
 		return
 	}
-	m.swapWorkspace(ctx, sb, inst, agent, image, m.log.With("sandbox", args.SandboxID), "inputs image")
+	m.swapWorkspace(ctx, sb, inst, agent, image, m.scopeLog(args.SandboxID, scope), "inputs image")
+}
+
+// scopeLog records whose cached inputs a VM reads, for forensics.
+func (m *Manager) scopeLog(sandboxID string, scope blobcache.Scope) *slog.Logger {
+	return m.log.With("sandbox", sandboxID, "scope", scope.Key(), "account", scope.Account, "instance", scope.Instance, "endpoint", scope.Endpoint)
 }

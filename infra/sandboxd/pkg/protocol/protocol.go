@@ -453,6 +453,17 @@ type ClaimArgs struct {
 	NonceSHA256 string `json:"nonce_sha256"`
 	Env         string `json:"env"`
 	TimeoutMs   int64  `json:"timeout_ms"`
+	// Scope is the CAS scope the server authorized for a remote-execution
+	// action: the claimed request must name it, and the node's blob cache
+	// serves only it.
+	Scope *ExecutionScope `json:"scope,omitempty"`
+}
+
+// ExecutionScope is one project's CAS: its endpoint, account and instance.
+type ExecutionScope struct {
+	Endpoint string `json:"endpoint"`
+	Account  string `json:"account"`
+	Instance string `json:"instance"`
 }
 
 type StartWorkerArgs struct {

@@ -160,8 +160,12 @@ defmodule Tuist.RemoteExecution.VMs do
   and only the caller receives the output. Returns `:claimed` after that
   action ran and `:unclaimed` when the claim expired with the VM untouched,
   with the issued credential as in `execute/4`.
+
+  `scope` is the project's CAS (`endpoint`, `account`, `instance`). The
+  caller writes the request, so the node runs it only when it names this
+  scope, and serves its blob cache only for it.
   """
-  def lease(%Sandbox{} = sandbox, nonce_sha256, project_id, token) do
+  def lease(%Sandbox{} = sandbox, nonce_sha256, project_id, token, scope) do
     {token, issued} = token_for(project_id, token)
 
     args = %{
@@ -170,7 +174,7 @@ defmodule Tuist.RemoteExecution.VMs do
       env: %{"SBX_EXECUTION_TOKEN" => token},
       cwd: "/workspace",
       timeout_ms: @exec_timeout_ms,
-      claim: %{nonce_sha256: nonce_sha256, env: "SBX_EXECUTION_REQUEST", timeout_ms: @claim_timeout_ms}
+      claim: %{nonce_sha256: nonce_sha256, env: "SBX_EXECUTION_REQUEST", timeout_ms: @claim_timeout_ms, scope: scope}
     }
 
     result =

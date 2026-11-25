@@ -286,7 +286,7 @@ func TestCompressedDownloads(t *testing.T) {
 				if err == nil {
 					t.Fatal("invalid compressed response was cached")
 				}
-				files, _ := filepath.Glob(filepath.Join(c.Dir(), s.key(), "*"))
+				files, _ := filepath.Glob(filepath.Join(c.Dir(), s.Key(), "*"))
 				if len(files) != 0 {
 					t.Fatalf("failed fill left files: %v", files)
 				}
@@ -414,7 +414,7 @@ func TestCacheStepsAsideWhenTheDiskIsShort(t *testing.T) {
 	if _, err := readAll(t, c, s, second, size); !errors.Is(err, ErrFull) {
 		t.Fatalf("download under disk pressure: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(c.Dir(), s.key(), first+"-10")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(c.Dir(), s.Key(), first+"-10")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("cached blob kept under disk pressure: %v", err)
 	}
 	// 211 free leaves 201 after the write, above the 200 floor.

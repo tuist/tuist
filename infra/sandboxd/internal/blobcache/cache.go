@@ -76,7 +76,8 @@ type Scope struct {
 	Token    string
 }
 
-func (s Scope) key() string {
+// Key names the scope's directory in the cache, and identifies it in logs.
+func (s Scope) Key() string {
 	h := sha256.Sum256([]byte(s.Endpoint + "\n" + s.Account + "\n" + s.Instance))
 	return hex.EncodeToString(h[:16])
 }
@@ -169,7 +170,7 @@ func (c *Cache) Open(ctx context.Context, s Scope, hash string, size int64) (*os
 		c.count("full")
 		return nil, ErrFull
 	}
-	ns := s.key()
+	ns := s.Key()
 	name := hash + "-" + strconv.FormatInt(size, 10)
 	key := ns + "/" + name
 	result := "hit"
