@@ -428,10 +428,13 @@ defmodule Tuist.Runners.Claims do
 
   **Recovery path only.** This releases the claim of whichever Pod
   *claimed* the job, which is not necessarily the Pod that *ran* it —
-  GitHub assigns jobs to any label-eligible runner. The completed
-  webhook must therefore NOT use this (see `complete_by_runner_name/3`);
-  it exists for `OrphanedRunnersWorker`, where a GitHub-side terminal
-  status has already proven the claim is stale and the slot is leaked.
+  GitHub assigns jobs to any label-eligible runner. Neither the completed
+  webhook nor `OrphanedRunnersWorker`'s GitHub recovery may use it for a
+  GitHub job (see `complete_by_runner_name/3`): a GitHub-side terminal
+  status proves the job is over, not that the runner behind the claim
+  naming it is idle. It is for providers whose claim is bound to exactly
+  one job at mint (Buildkite, GitLab, Bitrise, API jobs) and for jobs no
+  runner could have taken.
 
   Job-keyed, like `release/2`: a claim whose job was displaced no longer
   names it and is left alone, which is right — that Pod's slot is held for
@@ -476,13 +479,21 @@ defmodule Tuist.Runners.Claims do
   still running. This is the same trap `complete/1` warns about and that
   `executing?/1` guards for the queued-side recovery.
 
-  So the claim is released only when the claimed job AND the executed job
-  (whichever of the two the claim still names) are both complete. A runner
-  minted for a single-shot JIT runs at most one job, so those two cover
-  everything the claim can be holding the slot for. A displaced claim names
-  no job at all — `record_execution/3` cleared it — and is held purely for
-  the executed one; a claim naming neither is not this pass's to release,
-  since nothing proves the runner is finished.
+  So the claim is released only once the job its runner executed is
+  complete, and the claimed job too while the claim still names it. A
+  runner minted for a single-shot JIT runs at most one job, so a completed
+  executed job proves the runner is finished.
+
+  A claim with no recorded execution is never released here, even when its
+  claimed job completed. That job may have run on another runner, and the
+  runner behind this claim may be idle, still registered with GitHub, or
+  already running a job whose `in_progress` webhook has not landed yet.
+  The runner's idle timeout (300 s) counts from its registration, after the
+  VM boots, while `threshold` counts from the claim, so an idle runner
+  outlives a claim this pass would have released, and the next job GitHub
+  hands it would run with no claim charging its slot. Such a claim is freed
+  when its Pod stops (`release_by_pod_name/1`), or by
+  `PodClaimReconciliationWorker` when that report is lost.
 
   `threshold` only avoids racing the webhook's own release between the
   completion insert and the delete; it is not the staleness signal.
@@ -494,11 +505,8 @@ defmodule Tuist.Runners.Claims do
       Repo.delete_all(
         from(c in Claim,
           where: c.claimed_at < ^threshold,
-          where: not (is_nil(c.workflow_job_id) and is_nil(c.executed_workflow_job_id)),
-          where: is_nil(c.workflow_job_id) or c.workflow_job_id in subquery(completed),
-          where:
-            is_nil(c.executed_workflow_job_id) or
-              c.executed_workflow_job_id in subquery(completed)
+          where: c.executed_workflow_job_id in subquery(completed),
+          where: is_nil(c.workflow_job_id) or c.workflow_job_id in subquery(completed)
         )
       )
 

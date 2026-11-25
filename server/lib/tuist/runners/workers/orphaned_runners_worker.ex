@@ -473,13 +473,14 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
       case GitHubClient.get_workflow_job(installation, repository, workflow_job_id) do
         {:ok, job} ->
           {gh_status, conclusion} = effective_gh_status(installation, orphan, job)
+          orphan = Map.put(orphan, :executor, Map.get(job, :runner_name))
           handle_gh_status(gh_status, conclusion, orphan, account, evidence, stage)
 
         {:error, :not_found} ->
           # GH pruned the workflow_job (90-day retention by default).
           # The job can't be live; treat as completed so the PG cap
           # slot doesn't leak forever.
-          handle_gh_status("completed", "", orphan, account, evidence, stage)
+          handle_gh_status("completed", "", Map.put(orphan, :executor, nil), account, evidence, stage)
 
         {:error, reason} ->
           Logger.warning("runners: orphan worker GH lookup failed; will retry next tick",
@@ -600,7 +601,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   defp handle_gh_status(
          "completed",
          conclusion,
-         %{workflow_job_id: workflow_job_id, pod_name: pod_name, fleet_name: fleet_name},
+         %{workflow_job_id: workflow_job_id, pod_name: pod_name, fleet_name: fleet_name} = orphan,
          account,
          _evidence,
          _stage
@@ -623,7 +624,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
       conclusion: conclusion || ""
     )
 
-    safe_complete_pg(workflow_job_id)
+    safe_complete_pg(orphan, account)
     safe_complete_job(workflow_job_id, conclusion || "")
 
     :telemetry.execute(
@@ -778,11 +779,36 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
   defp stranded_ms(_started_at), do: 0
 
-  # `Claims.complete/1` is idempotent and deletes the PG row
-  # regardless of the claim handle. Used here because the GH-side
-  # job is already terminal — we don't care about handle races, we
-  # just want the cap slot back.
-  defp safe_complete_pg(workflow_job_id) do
+  # A GitHub job is released like the `completed` webhook we missed would
+  # have released it: by the runner GitHub says ran it
+  # (`Claims.complete_by_runner_name/3`), never by the job. The claim that
+  # names the job belongs to the Pod minted for it, and under the runner
+  # shuffle that Pod's runner can be busy with another job whose
+  # `in_progress` webhook has not landed yet; deleting it would stop
+  # counting a working runner. When GitHub names no runner (a 404, or a run
+  # that completed without starting the job) nothing ran the job, so no
+  # claim is released here: the claim naming it is freed when its Pod stops
+  # or by `PodClaimReconciliationWorker`.
+  #
+  # Every other provider binds a claim to exactly one job at mint, so
+  # releasing by the job is exact for them.
+  defp safe_complete_pg(%{executor: executor, workflow_job_id: workflow_job_id}, account) do
+    if is_binary(executor) and executor != "" do
+      Claims.complete_by_runner_name(executor, account.id, workflow_job_id)
+    end
+
+    :ok
+  rescue
+    e ->
+      Logger.warning("runners: claim release failed in orphan worker; will retry next tick",
+        workflow_job_id: workflow_job_id,
+        release_error: Exception.message(e)
+      )
+
+      :error
+  end
+
+  defp safe_complete_pg(%{workflow_job_id: workflow_job_id}, _account) do
     :ok = Claims.complete(workflow_job_id)
   rescue
     e ->
@@ -796,7 +822,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
   # Terminal lifecycle transition. `Jobs.complete` returns
   # `{:error, :not_found}` when no lifecycle row exists — fine, the
-  # claim is already freed by `safe_complete_pg/1`.
+  # claim is already freed by `safe_complete_pg/2`.
   defp safe_complete_job(workflow_job_id, conclusion) do
     case Jobs.complete(workflow_job_id, conclusion) do
       {:ok, _} -> :ok
