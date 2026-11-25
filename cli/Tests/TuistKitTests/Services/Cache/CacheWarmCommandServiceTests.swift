@@ -740,6 +740,8 @@
                 projectSettings: .test(defaultSettings: .recommended)
             )
 
+            // A configuration that turns debug symbols off leaves a static archive with nothing to record, and
+            // admission then skips it, so the warm turns them back on for every slice.
             verify(xcodeBuildController)
                 .build(
                     .any,
@@ -748,7 +750,10 @@
                     rosetta: .any,
                     derivedDataPath: .any,
                     clean: .any,
-                    arguments: .matching { $0.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym")) },
+                    arguments: .matching {
+                        $0.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"))
+                            && $0.contains(.xcarg("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"))
+                    },
                     passthroughXcodeBuildArguments: .any
                 )
                 .called(2)
