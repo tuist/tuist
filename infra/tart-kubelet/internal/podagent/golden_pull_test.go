@@ -143,6 +143,38 @@ func TestGoldenPullDoesNotBlockAnotherPodsDeletion(t *testing.T) {
 	}
 }
 
+// The scheduler's bind time survives the PullingImage status: the
+// runners-controller measures how long a Pod has been pulling from it and
+// retires a Pod it reads as stuck.
+func TestPublishStatusKeepsTheBindTime(t *testing.T) {
+	ctx := context.Background()
+	boundAt := metav1.NewTime(time.Now().Add(-5 * time.Minute).Truncate(time.Second))
+	pod := runnerPod("runner-pulling")
+	pod.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodScheduled, Status: corev1.ConditionTrue, LastTransitionTime: boundAt}}
+	kubeClient := newPodTestClient(t, pod)
+	r := &Reconciler{CachedClient: kubeClient}
+
+	current := &corev1.Pod{}
+	if err := kubeClient.Get(ctx, types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}, current); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.publishStatus(ctx, current, &corev1.PodStatus{Phase: corev1.PodPending, Reason: "PullingImage"}); err != nil {
+		t.Fatalf("publishStatus: %v", err)
+	}
+
+	got := &corev1.Pod{}
+	if err := kubeClient.Get(ctx, types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status.Reason != "PullingImage" {
+		t.Fatalf("reason = %q, want the published status", got.Status.Reason)
+	}
+	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Type != corev1.PodScheduled ||
+		!got.Status.Conditions[0].LastTransitionTime.Equal(&boundAt) {
+		t.Fatalf("conditions = %+v, want PodScheduled kept at %v", got.Status.Conditions, boundAt)
+	}
+}
+
 // A failed pull is reported to every Pod that waited on it until the retry
 // interval passes, and only then pulled again.
 func TestGoldenPullFailureIsReportedThenRetried(t *testing.T) {

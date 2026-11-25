@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1816,6 +1817,16 @@ func (r *Reconciler) stopWedgedGuest(ctx context.Context, pod *corev1.Pod) {
 }
 
 func (r *Reconciler) publishStatus(ctx context.Context, pod *corev1.Pod, status *corev1.PodStatus) error {
+	// Keep the scheduler's PodScheduled condition: its transition time is the
+	// only record of when the Pod bound. The runners-controller protects a
+	// macOS Pod still pulling its golden for 20 minutes from that time; with
+	// the condition gone it measured from creation, so a Pod that waited for a
+	// seat first was retired mid-pull (2026-11-25, 26.5's warm runner on b08:
+	// unschedulable 12 minutes, retired 15 minutes into its pull).
+	scheduled := slices.IndexFunc(status.Conditions, func(c corev1.PodCondition) bool { return c.Type == corev1.PodScheduled })
+	if previous := slices.IndexFunc(pod.Status.Conditions, func(c corev1.PodCondition) bool { return c.Type == corev1.PodScheduled }); scheduled < 0 && previous >= 0 {
+		status.Conditions = append([]corev1.PodCondition{pod.Status.Conditions[previous]}, status.Conditions...)
+	}
 	pod.Status = *status
 	return r.CachedClient.Status().Update(ctx, pod)
 }
