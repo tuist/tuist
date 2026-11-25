@@ -13,9 +13,16 @@ set -euo pipefail
 # the new daemon re-attaches them. Any other difference (vmm's image, volumes,
 # a first rollout) replaces the Pod, which pauses its sandboxes as before.
 # A Pod on the current revision whose daemon loaded an older ConfigMap
-# (`sandboxd_config_info`) restarts the same way, by a SIGTERM to the daemon
-# instead of an image patch: the kubelet refreshes the mounted file, but the
-# daemon reads it only at startup.
+# (`sandboxd_config_info`) restarts the same way: the kubelet refreshes the
+# mounted file, but the daemon reads it only at startup. Its patch toggles
+# the image between `<tag>` and `<tag>@<digest it runs>`, the same image, so
+# the kubelet restarts the container for a spec change. A daemon that exited
+# instead (a SIGTERM) would be restarted under the kubelet's crash back-off,
+# which holds the second restart within ten minutes for 10 s or more.
+#
+# Pods are replaced, like they are upgraded in place, only once no restore
+# still streams its disks from the archive: such a sandbox cannot pause, and
+# a daemon stopped under it leaves it in error.
 #
 # Usage: sandboxd-upgrade.sh <namespace> <daemonset>
 namespace=$1
@@ -59,13 +66,28 @@ loaded_config() {
 
 log_lines() { k logs "$1" -c "$container" --since="${2:-10m}" 2>/dev/null || true; }
 
+# A Pod's image without the digest a config-only restart appended to its tag.
+bare_image() {
+  local ref=${1%@sha256:*}
+  if [ "$ref" != "$1" ] && [[ ${ref##*/} == *:* ]]; then echo "$ref"; else echo "$1"; fi
+}
+
+wait_lazy() {
+  local pod=$1 lazy
+  for _ in $(seq 1 $((lazy_wait_seconds / sleep_step))); do
+    lazy=$(metrics "$pod" | awk '/^sandboxd_handover_blocked\{reason="lazy_disks"\}/ {print $2}')
+    [ "${lazy:-0}" = 0 ] && return 0
+    echo "$pod: $lazy sandboxes still receive their disks; waiting"
+    sleep "$sleep_step"
+  done
+}
+
 wait_ready() {
   local pod=$1 old_id=$2
   for _ in $(seq 1 120); do
     status=$(k get pod "$pod" -o json | jq -c --arg c "$container" '.status.containerStatuses[]? | select(.name == $c)')
     id=$(jq -r '.containerID // ""' <<< "$status")
-    if [ -n "$id" ] && [ "$id" != "$old_id" ] && [ "$(jq -r '.ready' <<< "$status")" = true ] &&
-      [ "$(jq -r '.image' <<< "$status")" = "$want_image" ]; then
+    if [ -n "$id" ] && [ "$id" != "$old_id" ] && [ "$(jq -r '.ready' <<< "$status")" = true ]; then
       return 0
     fi
     sleep "$sleep_step"
@@ -75,6 +97,7 @@ wait_ready() {
 
 replace() {
   local pod=$1 node=$2
+  wait_lazy "$pod"
   echo "Replacing $pod on $node (its sandboxes pause and resume)"
   k delete pod "$pod" --wait=true --timeout=180s
   new=""
@@ -88,20 +111,10 @@ replace() {
   k wait --for=condition=Ready "pod/$new" --timeout=10m
 }
 
-# upgrade_in_place <pod> <node> <container id> <patch|restart>
+# upgrade_in_place <pod> <node> <container id> <image to patch in | "" to SIGTERM>
 upgrade_in_place() {
-  local pod=$1 node=$2 old_id=$3 how=$4
-  if [ "$how" = patch ]; then
-    echo "Upgrading $pod on $node in place to $want_image"
-  else
-    echo "Restarting $pod's daemon on $node in place for its new configuration"
-  fi
-  for _ in $(seq 1 $((lazy_wait_seconds / sleep_step))); do
-    lazy=$(metrics "$pod" | awk '/^sandboxd_handover_blocked\{reason="lazy_disks"\}/ {print $2}')
-    [ "${lazy:-0}" = 0 ] && break
-    echo "$pod: $lazy sandboxes still receive their disks; waiting"
-    sleep "$sleep_step"
-  done
+  local pod=$1 node=$2 old_id=$3 image=$4
+  wait_lazy "$pod"
   nonce=$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')
   until=$(date -u -d "+5 minutes" +%Y-%m-%dT%H:%M:%SZ)
   marker=$(jq -cn --arg c "$old_id" --arg u "$until" --arg n "$nonce" '{container: $c, until: $u, nonce: $n}')
@@ -123,10 +136,11 @@ upgrade_in_place() {
     replace "$pod" "$node"
     return
   fi
-  if [ "$how" = patch ]; then
-    k patch pod "$pod" --type=strategic -p "$(jq -cn --arg c "$container" --arg i "$want_image" --arg h "$current_hash" \
+  if [ -n "$image" ]; then
+    k patch pod "$pod" --type=strategic -p "$(jq -cn --arg c "$container" --arg i "$image" --arg h "$current_hash" \
       '{metadata: {labels: {"controller-revision-hash": $h}}, spec: {containers: [{name: $c, image: $i}]}}')" >/dev/null
   else
+    # Only when the image cannot carry a digest; see the header.
     # The Pod shares one PID namespace, so PID 1 is the pause container.
     k exec "$pod" -c "$container" -- sh -c 'kill -TERM $(pidof sandboxd)' >/dev/null
   fi
@@ -147,15 +161,24 @@ upgrade_in_place() {
 
 pods=$(k get pods -l "$selector" -o json)
 rolled=0
-while IFS='|' read -r -u 3 pod node hash old_id image; do
+while IFS='|' read -r -u 3 pod node hash old_id image image_id; do
   [ -n "$pod" ] || continue
-  if [ "$hash" = "$current_hash" ] && [ "$image" = "$want_image" ]; then
+  if [ "$hash" = "$current_hash" ] && [ "$(bare_image "$image")" = "$want_image" ]; then
     loaded=$(loaded_config "$pod")
     if [ -z "$loaded" ]; then
       echo "::warning::$pod does not report the configuration it loaded; leaving it"
     elif [ "$loaded" != "$want_config" ] && [ -n "$old_id" ]; then
       rolled=$((rolled + 1))
-      upgrade_in_place "$pod" "$node" "$old_id" restart
+      echo "Restarting $pod's daemon on $node in place for its new configuration"
+      digest=${image_id##*@}
+      if [ "$image" != "$want_image" ]; then
+        restart_image=$want_image
+      elif [[ $want_image != *@* && $digest == sha256:* ]]; then
+        restart_image=$want_image@$digest
+      else
+        restart_image=""
+      fi
+      upgrade_in_place "$pod" "$node" "$old_id" "$restart_image"
     fi
     continue
   fi
@@ -163,13 +186,15 @@ while IFS='|' read -r -u 3 pod node hash old_id image; do
     ".items[] | select(.metadata.labels.\"controller-revision-hash\" == \$h) | .data.spec.template | $normalize" <<< "$revisions" | head -n1)
   rolled=$((rolled + 1))
   if [ -n "$have_spec" ] && [ "$have_spec" = "$want_spec" ] && [ -n "$old_id" ]; then
-    upgrade_in_place "$pod" "$node" "$old_id" patch
+    echo "Upgrading $pod on $node in place to $want_image"
+    upgrade_in_place "$pod" "$node" "$old_id" "$want_image"
   else
     replace "$pod" "$node"
   fi
 done 3< <(jq -r --arg c "$container" '.items[]
   | [.metadata.name, .spec.nodeName, .metadata.labels."controller-revision-hash",
      ([.status.containerStatuses[]? | select(.name == $c) | .containerID][0] // ""),
-     ([.spec.containers[] | select(.name == $c) | .image][0])]
+     ([.spec.containers[] | select(.name == $c) | .image][0]),
+     ([.status.containerStatuses[]? | select(.name == $c) | .imageID][0] // "")]
   | join("|")' <<< "$pods")
 echo "Rolled $rolled sandboxd Pods to revision $current_hash"
