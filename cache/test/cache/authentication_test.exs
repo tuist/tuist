@@ -837,6 +837,101 @@ defmodule Cache.AuthenticationTest do
     end
   end
 
+  describe "ES256 cache tokens" do
+    setup do
+      key_a = JOSE.JWK.generate_key({:ec, "P-256"})
+      key_b = JOSE.JWK.generate_key({:ec, "P-256"})
+
+      # The server denies everything, so an answer of :ok can only have come
+      # from verifying the token locally.
+      stub_api_call(401, nil)
+      stub(Cache.Config, :guardian_secret_key, fn -> nil end)
+
+      {:ok, key_a: key_a, key_b: key_b, token: es256_cache_token(key_a)}
+    end
+
+    test "verifies with the public half of the signing key", %{cache_name: cache_name, key_a: key_a, token: token} do
+      hold_public_keys([key_a])
+
+      assert {:ok, _} = request_with_token(cache_name, token)
+    end
+
+    test "verifies when the signing key is any of several concatenated during a rotation", %{
+      cache_name: cache_name,
+      key_a: key_a,
+      key_b: key_b,
+      token: token
+    } do
+      hold_public_keys([key_b, key_a])
+
+      assert {:ok, _} = request_with_token(cache_name, token)
+    end
+
+    test "falls through to the server when no held key signed it", %{cache_name: cache_name, key_b: key_b, token: token} do
+      hold_public_keys([key_b])
+
+      assert request_with_token(cache_name, token) == {:error, 401, "Unauthorized"}
+    end
+
+    test "falls through to the server for a token from another issuer", %{cache_name: cache_name, key_a: key_a} do
+      hold_public_keys([key_a])
+
+      token = es256_cache_token(key_a, %{"iss" => "someone-else"})
+
+      assert request_with_token(cache_name, token) == {:error, 401, "Unauthorized"}
+    end
+
+    test "never reads a public key's PEM as an HMAC secret", %{cache_name: cache_name, key_a: key_a} do
+      hold_public_keys([key_a])
+      {_, public_pem} = key_a |> JOSE.JWK.to_public() |> JOSE.JWK.to_pem()
+
+      for alg <- ["HS256", "HS512"] do
+        token = hmac_cache_token(public_pem, alg)
+
+        assert request_with_token(cache_name, token) == {:error, 401, "Unauthorized"}
+      end
+    end
+
+    test "never reads a public key's PEM as an HMAC secret while the legacy secret is also held", %{
+      cache_name: cache_name,
+      key_a: key_a
+    } do
+      hold_public_keys([key_a])
+      stub(Cache.Config, :guardian_secret_key, fn -> "legacy-secret" end)
+      {_, public_pem} = key_a |> JOSE.JWK.to_public() |> JOSE.JWK.to_pem()
+
+      token = hmac_cache_token(public_pem, "HS512")
+
+      assert request_with_token(cache_name, token) == {:error, 401, "Unauthorized"}
+    end
+
+    test "still verifies a legacy HS512 token when the legacy secret is held alongside", %{
+      cache_name: cache_name,
+      key_a: key_a
+    } do
+      hold_public_keys([key_a])
+      stub(Cache.Config, :guardian_secret_key, fn -> "legacy-secret" end)
+
+      assert {:ok, _} = request_with_token(cache_name, hmac_cache_token("legacy-secret", "HS512"))
+    end
+
+    test "falls through to the server for a legacy HS512 token once the legacy secret is gone", %{
+      cache_name: cache_name,
+      key_a: key_a
+    } do
+      hold_public_keys([key_a])
+
+      assert request_with_token(cache_name, hmac_cache_token("legacy-secret", "HS512")) ==
+               {:error, 401, "Unauthorized"}
+    end
+
+    test "falls through to the server when no key of either kind is held", %{cache_name: cache_name, token: token} do
+      hold_public_keys([])
+
+      assert request_with_token(cache_name, token) == {:error, 401, "Unauthorized"}
+    end
+  end
+
   describe "cache grants" do
     setup %{cache_name: cache_name} do
       {:ok, cache_name: cache_name}
@@ -1010,6 +1105,59 @@ defmodule Cache.AuthenticationTest do
 
     {:ok, jwt_token, _claims} = Cache.Guardian.encode_and_sign(%{}, claims)
     "Bearer #{jwt_token}"
+  end
+
+  defp cache_token_claims(overrides) do
+    Map.merge(
+      %{
+        "cache_grants" => %{"project" => %{"read" => ["account/project"], "write" => []}},
+        "exp" => System.system_time(:second) + 3600,
+        "iat" => System.system_time(:second),
+        "iss" => "tuist",
+        "sub" => "user-123",
+        "typ" => "cache"
+      },
+      overrides
+    )
+  end
+
+  defp es256_cache_token(signing_key, overrides \\ %{}) do
+    {_, token} =
+      signing_key
+      |> JOSE.JWT.sign(%{"alg" => "ES256", "typ" => "JWT"}, cache_token_claims(overrides))
+      |> JOSE.JWS.compact()
+
+    token
+  end
+
+  defp hmac_cache_token(secret, alg) do
+    {_, token} =
+      secret
+      |> JOSE.JWK.from_oct()
+      |> JOSE.JWT.sign(%{"alg" => alg, "typ" => "JWT"}, cache_token_claims(%{}))
+      |> JOSE.JWS.compact()
+
+    token
+  end
+
+  # Held the way a node holds them in production: the public PEMs concatenated
+  # into one CACHE_TOKEN_PUBLIC_KEY value and parsed by the boot-time reader.
+  defp hold_public_keys(signing_keys) do
+    keys =
+      signing_keys
+      |> Enum.map_join(fn key -> key |> JOSE.JWK.to_public() |> JOSE.JWK.to_pem() |> elem(1) end)
+      |> Cache.Config.cache_token_public_keys!()
+
+    stub(Cache.Config, :cache_token_public_keys, fn -> keys end)
+  end
+
+  defp request_with_token(cache_name, token) do
+    Authentication.ensure_project_accessible(
+      build_conn([{"authorization", "Bearer #{token}"}], "GET"),
+      "account",
+      "project",
+      cache_name: cache_name
+    )
   end
 
   defp request(cache_name, method, project \\ "project") do

@@ -68,10 +68,90 @@ defmodule Cache.Config do
   end
 
   @doc """
-  Returns true if Guardian JWT verification is configured.
+  Returns true if any key that verifies JWTs locally is configured: the cache
+  token public keys, the legacy Guardian secret, or both. With neither, every
+  token is answered by the server.
   """
   def guardian_configured? do
-    guardian_secret_key() != nil
+    cache_token_public_keys() != [] or guardian_secret_key() != nil
+  end
+
+  @doc """
+  Returns the public keys that verify ES256 cache tokens, parsed at boot by
+  `cache_token_public_keys!/1`. Empty when none are configured.
+  """
+  def cache_token_public_keys do
+    case :cache |> Application.get_env(Cache.Guardian, []) |> Keyword.get(:cache_token_public_keys) do
+      keys when is_list(keys) -> keys
+      _ -> []
+    end
+  end
+
+  @doc """
+  Parses `CACHE_TOKEN_PUBLIC_KEY`: one or more concatenated PEM public keys on
+  P-256, more than one while a rotation publishes the next key alongside the
+  current one. Returns `[]` when unset or blank.
+
+  Raises on anything else, naming the mistake without echoing key material: a
+  key that cannot verify ES256 would otherwise boot cleanly and quietly send
+  every token to the server, and a private key does not belong on a cache node.
+  """
+  def cache_token_public_keys!(nil), do: []
+
+  def cache_token_public_keys!(bundle) when is_binary(bundle) do
+    if String.trim(bundle) == "" do
+      []
+    else
+      bundle
+      |> pem_entries!()
+      |> Enum.with_index(1)
+      |> Enum.map(fn {entry, index} -> cache_token_public_key!(entry, index) end)
+    end
+  end
+
+  defp pem_entries!(bundle) do
+    entries =
+      try do
+        :public_key.pem_decode(bundle)
+      rescue
+        _ -> :unreadable
+      end
+
+    case entries do
+      :unreadable -> raise "CACHE_TOKEN_PUBLIC_KEY is not a readable PEM bundle"
+      [] -> raise "CACHE_TOKEN_PUBLIC_KEY contains no PEM block"
+      entries -> entries
+    end
+  end
+
+  defp cache_token_public_key!({:SubjectPublicKeyInfo, _der, _} = entry, index) do
+    jwk =
+      try do
+        JOSE.JWK.from_pem(:public_key.pem_encode([entry]))
+      rescue
+        _ -> nil
+      end
+
+    map =
+      case jwk do
+        %JOSE.JWK{} -> jwk |> JOSE.JWK.to_map() |> elem(1)
+        _ -> raise "CACHE_TOKEN_PUBLIC_KEY block #{index} is not a readable public key"
+      end
+
+    cond do
+      map["kty"] != "EC" ->
+        raise "CACHE_TOKEN_PUBLIC_KEY block #{index} is a #{map["kty"]} key; cache tokens are ES256, which needs an EC key"
+
+      map["crv"] != "P-256" ->
+        raise "CACHE_TOKEN_PUBLIC_KEY block #{index} is on curve #{map["crv"]}; ES256 needs P-256"
+
+      true ->
+        jwk
+    end
+  end
+
+  defp cache_token_public_key!({type, _der, _}, index) do
+    raise "CACHE_TOKEN_PUBLIC_KEY block #{index} is a #{type} PEM; the cache takes only P-256 public keys in BEGIN PUBLIC KEY blocks"
   end
 
   @doc """
