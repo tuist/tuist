@@ -52,6 +52,58 @@ true
 {{- end -}}
 {{- end -}}
 
+{{/*
+An Ingress's `annotations:` block. With `cloudflareOnly`, adds the
+ingress-nginx source allowlist of `cloudflareIPRanges`, so the origin answers
+403 to anything that did not come through Cloudflare. It fails rather than
+render an empty list, which ingress-nginx would treat as no restriction.
+Takes dict "root" ., "annotations" (map), "cloudflareOnly" (bool).
+*/}}
+{{- define "tuist.ingressAnnotations" -}}
+{{- $annotations := deepCopy (.annotations | default dict) -}}
+{{- if .cloudflareOnly -}}
+{{- $ranges := .root.Values.cloudflareIPRanges | default list -}}
+{{- if not $ranges -}}
+{{- fail "cloudflareOnly requires cloudflareIPRanges" -}}
+{{- end -}}
+{{- if hasKey $annotations "nginx.ingress.kubernetes.io/whitelist-source-range" -}}
+{{- fail "cloudflareOnly sets nginx.ingress.kubernetes.io/whitelist-source-range; remove it from the Ingress annotations" -}}
+{{- end -}}
+{{- $_ := set $annotations "nginx.ingress.kubernetes.io/whitelist-source-range" (join "," $ranges) -}}
+{{- end -}}
+{{- with $annotations }}
+annotations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/*
+NetworkPolicy peers for the Tailscale operator proxies that put one Service
+on the tailnet: its own proxy (`tailscale.com/expose`) and, when it is served
+by a ProxyGroup, that group's pods. Both are listed while a Service moves
+between them. Other operator pods, such as the cluster subnet router, stay
+out. Takes dict "namespace", "releaseNamespace", "service", "proxyGroup".
+*/}}
+{{- define "tuist.dataTailnetProxies" -}}
+- namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: {{ .namespace | quote }}
+  podSelector:
+    matchLabels:
+      tailscale.com/parent-resource-type: svc
+      tailscale.com/parent-resource-ns: {{ .releaseNamespace | quote }}
+      tailscale.com/parent-resource: {{ .service | quote }}
+{{- with .proxyGroup }}
+- namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: {{ $.namespace | quote }}
+  podSelector:
+    matchLabels:
+      tailscale.com/parent-resource-type: proxygroup
+      tailscale.com/parent-resource: {{ . | quote }}
+{{- end }}
+{{- end -}}
+
 {{- define "tuist.componentLabels" -}}
 {{ include "tuist.selectorLabels" .root }}
 app.kubernetes.io/component: {{ .component }}

@@ -8,6 +8,10 @@
 #     -f infra/helm/tuist/values-managed-staging.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+dataNetworkPolicy:
+  # Staging first, then canary and production once Hubble shows no drops.
+  enabled: true
+
 # Sweeps this env's abandoned tailnet devices only; production and canary run
 # their own. Starts in dry-run -- read a run's logs, then set dryRun: false.
 tailscaleDeviceReaper:
@@ -372,6 +376,10 @@ server:
     className: nginx
     host: staging.tuist.dev
     tlsSecretName: tuist-tls-cloudflare-origin
+    # Cloudflare proxies this host; the origin refuses everyone else. Staging
+    # first, then canary and production (registry too there, which
+    # Cloudflare proxies only in production).
+    cloudflareOnly: true
     annotations:
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"

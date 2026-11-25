@@ -24,9 +24,13 @@ metadata:
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: faro
+  {{- /* ingress-nginx applies an allowlist per Ingress, so the collector path needs its own. */}}
+  {{- $annotations := dict }}
   {{- if not .Values.server.faro.gateway.enabled }}
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /collect
+  {{- $_ := set $annotations "nginx.ingress.kubernetes.io/rewrite-target" "/collect" }}
+  {{- end }}
+  {{- with include "tuist.ingressAnnotations" (dict "root" . "annotations" $annotations "cloudflareOnly" .Values.server.ingress.cloudflareOnly) }}
+  {{- . | trim | nindent 2 }}
   {{- end }}
 spec:
   {{- with .Values.server.ingress.className }}

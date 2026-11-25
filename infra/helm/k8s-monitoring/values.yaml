@@ -1675,7 +1675,9 @@ k8s-monitoring:
           role = "pod"
           selectors {
             role = "pod"
-            label = "cnpg.io/cluster=tuist-tuist-pg"
+            // Instances only: the cluster's PgBouncer pods carry the same
+            // cluster label but export on 9127, not the 9187 used below.
+            label = "cnpg.io/cluster=tuist-tuist-pg,cnpg.io/podRole=instance"
           }
         }
 

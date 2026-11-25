@@ -1,0 +1,42 @@
+name: Cloudflare IP Ranges
+
+# Ingresses with `cloudflareOnly` admit only `cloudflareIPRanges` from
+# infra/helm/tuist/values-managed-common.yaml, so a range Cloudflare adds and
+# the list lacks turns requests from that range into 403s. Fails when the
+# published list and the chart's differ; notify-failure.yml posts it to Slack.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - infra/helm/tuist/values-managed-common.yaml
+      - .github/workflows/cloudflare-ip-ranges.yml
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Compare with Cloudflare's published ranges
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compare
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 https://api.cloudflare.com/client/v4/ips > ips.json
+          # An empty or failed answer must fail the job, not read as "no ranges".
+          jq -e '.success and (.result.ipv4_cidrs | length > 0) and (.result.ipv6_cidrs | length > 0)' ips.json >/dev/null
+          published=$(jq -r '.result.ipv4_cidrs[], .result.ipv6_cidrs[]' ips.json | sort)
+          chart=$(yq -r '.cloudflareIPRanges[]' infra/helm/tuist/values-managed-common.yaml | sort)
+          if [ "$published" != "$chart" ]; then
+            echo "::error file=infra/helm/tuist/values-managed-common.yaml::cloudflareIPRanges differs from https://api.cloudflare.com/client/v4/ips"
+            diff <(echo "$chart") <(echo "$published") || true
+            exit 1
+          fi
+          echo "cloudflareIPRanges matches Cloudflare's $(echo "$published" | wc -l) published ranges."

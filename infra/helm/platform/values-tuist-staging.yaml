@@ -45,6 +45,15 @@ ciliumEgressGateway:
 
 ingress-nginx:
   controller:
+    # Take the client address only from the PROXY header, which a client
+    # cannot write. With forwarded headers on, real_ip reads a request header
+    # that the base http-snippet overwrites too late: a direct client that
+    # sends it chooses $remote_addr, and so passes the Cloudflare allowlist
+    # on Ingresses with `cloudflareOnly`. Upstreams then get X-Forwarded-For
+    # set to that single address; the client's own header still arrives as
+    # X-Original-Forwarded-For. Staging first, then canary and production.
+    config:
+      use-forwarded-headers: "false"
     service:
       annotations:
         load-balancer.hetzner.cloud/location: fsn1
