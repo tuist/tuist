@@ -248,6 +248,30 @@ defmodule Tuist.SandboxesTest do
                )
     end
 
+    test "boots a sandbox with a memory limit at the limit and sends its request" do
+      account = account_fixture()
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        assert args.memory_mb == 16_384
+        assert args.memory_request_mb == 4096
+        {:ok, %{"boot_ms" => 180}}
+      end)
+
+      assert {:ok, %Sandbox{memory_mb: 4096, memory_limit_mb: 16_384}} =
+               Sandboxes.create_sandbox(account, %{memory_limit_mb: 16_384})
+    end
+
+    test "refuses a memory limit that is not an offered guest size above the request" do
+      account = account_fixture()
+
+      assert {:error, %Ecto.Changeset{errors: [memory_limit_mb: _]}} =
+               Sandboxes.create_sandbox(account, %{memory_limit_mb: 3000})
+
+      assert {:error, %Ecto.Changeset{errors: [memory_limit_mb: _]}} =
+               Sandboxes.create_sandbox(account, %{vcpus: 4, memory_mb: 8192, memory_limit_mb: 4096})
+    end
+
     test "records a claimed warm VM as the boot source" do
       account = account_fixture()
       expect(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)

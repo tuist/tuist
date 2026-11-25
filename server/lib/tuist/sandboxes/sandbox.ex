@@ -70,7 +70,11 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :xcode_version, :string, virtual: true
     field :template_tag, :string
     field :vcpus, :integer
+    # The memory the sandbox is guaranteed (its request) and billed for at
+    # least. A Linux agent sandbox with `memory_limit_mb` boots its guest
+    # with that much instead and bursts into it (`boot_memory_mb/1`).
     field :memory_mb, :integer
+    field :memory_limit_mb, :integer
     field :workspace_gb, :integer
     # NULL is the default guarantee (`guaranteed_cpu_milli/1`).
     field :guaranteed_cpu_milli, :integer
@@ -131,6 +135,18 @@ defmodule Tuist.Sandboxes.Sandbox do
   def max_workspace_gb, do: @max_workspace_gb
   def burst_vcpus, do: @burst_vcpus
   def guaranteed_cpu_choices, do: @guaranteed_cpu_choices
+
+  @doc """
+  The memory a sandbox's guest boots with: its limit when it bursts above
+  its request, otherwise its request. The node holds it at the request with
+  the guest's balloon, which deflates when its processes need more.
+  """
+  def boot_memory_mb(%{memory_limit_mb: limit, memory_mb: request}) when is_integer(limit) and limit > request, do: limit
+
+  def boot_memory_mb(%{memory_mb: memory_mb}), do: memory_mb
+
+  @doc "The guest sizes a Linux agent sandbox can burst up to: the offered shapes' memory."
+  def memory_limits, do: @shapes |> Enum.map(&elem(&1, 1)) |> Enum.uniq() |> Enum.sort()
 
   @doc """
   The CPU, in millicores, a sandbox (or an agent environment's shape) is
@@ -208,11 +224,13 @@ defmodule Tuist.Sandboxes.Sandbox do
       :memory_mb,
       :workspace_gb,
       :guaranteed_cpu_milli,
+      :memory_limit_mb,
       :lifetime_seconds
     ])
     |> validate_required([:account_id, :template, :vcpus, :memory_mb, :workspace_gb])
     |> validate_lifetime()
     |> validate_guaranteed_cpu()
+    |> validate_memory_limit()
     |> validate_format(:template, ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
     |> Tuist.Sandboxes.Xcode.validate()
     |> validate_shape()
@@ -266,6 +284,31 @@ defmodule Tuist.Sandboxes.Sandbox do
             validate_inclusion(changeset, :guaranteed_cpu_milli, @guaranteed_cpu_choices,
               message: "must be one of #{Enum.map_join(@guaranteed_cpu_choices, ", ", &vcpus/1)} vCPUs"
             )
+    end
+  end
+
+  # Only a Linux agent sandbox bursts above its memory request, to one of
+  # the offered guest sizes above it. A limit equal to the request is none.
+  defp validate_memory_limit(changeset) do
+    limit = get_field(changeset, :memory_limit_mb)
+    request = get_field(changeset, :memory_mb)
+
+    cond do
+      is_nil(limit) ->
+        changeset
+
+      get_field(changeset, :platform) == :darwin or get_field(changeset, :purpose) == :remote_execution ->
+        add_error(changeset, :memory_limit_mb, "only Linux sandboxes burst above their memory")
+
+      limit == request ->
+        put_change(changeset, :memory_limit_mb, nil)
+
+      is_integer(request) and (limit < request or limit not in memory_limits()) ->
+        offered = memory_limits() |> Enum.filter(&(&1 > request)) |> Enum.join(", ")
+        add_error(changeset, :memory_limit_mb, "must be one of #{offered}")
+
+      true ->
+        changeset
     end
   end
 

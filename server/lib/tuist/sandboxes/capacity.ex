@@ -119,9 +119,19 @@ defmodule Tuist.Sandboxes.Capacity do
   # How long a node's last confirmed CPU request saves a Kubernetes read.
   @cpu_request_cache_ttl to_timeout(minute: 5)
 
-  def charge_bytes(%{memory_mb: memory_mb}) when is_integer(memory_mb), do: memory_mb * @mib + @vm_overhead_bytes
+  # A sandbox is charged its whole guest, the limit it may burst to as well
+  # as its request: until bursts can be throttled and their carve-out grown
+  # (the plan's pressure policy), a guest charged only its request could
+  # fill its daemon's carve-out past its limit and get its VMM OOM-killed.
+  def charge_bytes(%{memory_mb: memory_mb} = sandbox) when is_integer(memory_mb),
+    do: Sandbox.boot_memory_mb(sandbox) * @mib + @vm_overhead_bytes
 
-  def pause_bytes(%{memory_mb: memory_mb}) when is_integer(memory_mb), do: memory_mb * @mib
+  @doc "What a sandbox is billed for at least: its memory request and the VMM's overhead."
+  def request_bytes(%{memory_mb: memory_mb}) when is_integer(memory_mb), do: memory_mb * @mib + @vm_overhead_bytes
+
+  # The memory image a pause writes is the size of the whole guest.
+  def pause_bytes(%{memory_mb: memory_mb} = sandbox) when is_integer(memory_mb),
+    do: Sandbox.boot_memory_mb(sandbox) * @mib
 
   @doc "Stores a controller observation, ordered across replicas and bound to a daemon Pod."
   def update_allocation(
@@ -479,7 +489,7 @@ defmodule Tuist.Sandboxes.Capacity do
           where:
             s.node_name == ^node_name and
               (s.state in ^@charged_states or (s.purpose == :remote_execution and s.state == :error)),
-          select: {count(s.id), coalesce(sum(s.memory_mb), 0)}
+          select: {count(s.id), coalesce(sum(coalesce(s.memory_limit_mb, s.memory_mb)), 0)}
       )
 
     memory_mb * @mib + count * @vm_overhead_bytes
@@ -515,7 +525,9 @@ defmodule Tuist.Sandboxes.Capacity do
   logs. The rootfs size comes from the node's report of the template.
   """
   def disk_ceiling_bytes(%{workspace_gb: workspace_gb, memory_mb: memory_mb} = sandbox, node) do
-    (workspace_gb || 0) * @gib + (memory_mb || 0) * @mib + rootfs_bytes(node, Map.get(sandbox, :template)) +
+    memory_mb = if is_integer(memory_mb), do: Sandbox.boot_memory_mb(sandbox), else: 0
+
+    (workspace_gb || 0) * @gib + memory_mb * @mib + rootfs_bytes(node, Map.get(sandbox, :template)) +
       @sandbox_disk_overhead_bytes
   end
 
@@ -563,7 +575,14 @@ defmodule Tuist.Sandboxes.Capacity do
       from(s in Sandbox,
         where: s.node_name == ^node_name,
         where: ^reserved,
-        select: %{id: s.id, state: s.state, workspace_gb: s.workspace_gb, memory_mb: s.memory_mb, template: s.template}
+        select: %{
+          id: s.id,
+          state: s.state,
+          workspace_gb: s.workspace_gb,
+          memory_mb: s.memory_mb,
+          memory_limit_mb: s.memory_limit_mb,
+          template: s.template
+        }
       )
       |> Repo.all()
       |> Enum.map(&held_disk_bytes(&1, disk_ceiling_bytes(&1, node), paused_use))

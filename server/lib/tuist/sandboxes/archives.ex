@@ -680,8 +680,8 @@ defmodule Tuist.Sandboxes.Archives do
 
   defp memory_allowance(%Sandbox{platform: :darwin}), do: 0
 
-  defp memory_allowance(%Sandbox{memory_mb: memory_mb}) when is_integer(memory_mb),
-    do: memory_mb * @mib + @memory_state_allowance_bytes
+  defp memory_allowance(%Sandbox{memory_mb: memory_mb} = sandbox) when is_integer(memory_mb),
+    do: Sandbox.boot_memory_mb(sandbox) * @mib + @memory_state_allowance_bytes
 
   defp memory_allowance(_subject), do: 0
 
