@@ -105,26 +105,32 @@ defmodule Symptoms.Pipeline do
   end
 
   defp with_lock(window_seconds, mode, fun) do
-    Repo.checkout(fn ->
-      locked =
-        if mode == :try do
-          %{rows: [[locked]]} = Repo.query!("SELECT pg_try_advisory_lock($1, $2)", [@lock_class, window_seconds])
-          locked
-        else
-          Repo.query!("SELECT pg_advisory_lock($1, $2)", [@lock_class, window_seconds])
-          true
-        end
+    # The session spans source HTTP requests and up to five catch-up windows,
+    # not one SQL query. Keep its budget below Oban's 30-minute rescue age;
+    # individual queries and HTTP requests retain their own shorter timeouts.
+    Repo.checkout(
+      fn ->
+        locked =
+          if mode == :try do
+            %{rows: [[locked]]} = Repo.query!("SELECT pg_try_advisory_lock($1, $2)", [@lock_class, window_seconds])
+            locked
+          else
+            Repo.query!("SELECT pg_advisory_lock($1, $2)", [@lock_class, window_seconds])
+            true
+          end
 
-      if locked do
-        try do
-          fun.()
-        after
-          Repo.query!("SELECT pg_advisory_unlock($1, $2)", [@lock_class, window_seconds])
+        if locked do
+          try do
+            fun.()
+          after
+            Repo.query!("SELECT pg_advisory_unlock($1, $2)", [@lock_class, window_seconds])
+          end
+        else
+          :locked
         end
-      else
-        :locked
-      end
-    end)
+      end,
+      timeout: to_timeout(minute: 25)
+    )
   end
 
   @doc """
