@@ -25,14 +25,16 @@ data:
     }
     # Only the access key ID, which is not secret, from SigV4 or SigV2
     # signatures: a presigned URL's credential or the Authorization header.
+    # The chart's keys contain hyphens; "=" and "," are excluded so a crafted
+    # credential cannot carry a signature into the log.
     map $args $rustfs_query_key_id {
-      "~(?:^|&)X-Amz-Credential=([A-Za-z0-9]{1,128})(?:%2[Ff]|/)" $1;
-      "~(?:^|&)AWSAccessKeyId=([A-Za-z0-9]{1,128})(?:&|$)" $1;
+      "~(?:^|&)X-Amz-Credential=([A-Za-z0-9._@+-]{1,128})(?:%2[Ff]|/)" $1;
+      "~(?:^|&)AWSAccessKeyId=([A-Za-z0-9._@+-]{1,128})(?:&|$)" $1;
       default "";
     }
     map $http_authorization $rustfs_key_id {
-      "~^AWS4-HMAC-SHA256 +Credential=([A-Za-z0-9]{1,128})/" $1;
-      "~^AWS ([A-Za-z0-9]{1,128}):" $1;
+      "~^AWS4-HMAC-SHA256 +Credential=([A-Za-z0-9._@+-]{1,128})/" $1;
+      "~^AWS ([A-Za-z0-9._@+-]{1,128}):" $1;
       default $rustfs_query_key_id;
     }
     map $http_authorization $rustfs_auth {

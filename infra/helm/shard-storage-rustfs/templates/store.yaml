@@ -111,6 +111,21 @@ spec:
             - name: RUSTFS_OBS_PROFILING_EXPORT_ENABLED
               value: "false"
             {{- end }}
+            {{- if .Values.audit.enabled }}
+            - name: RUSTFS_AUDIT_ENABLE
+              value: "true"
+            - name: RUSTFS_AUDIT_WEBHOOK_ENABLE_PULSE
+              value: "on"
+            - name: RUSTFS_AUDIT_WEBHOOK_ENDPOINT_PULSE
+              value: "http://127.0.0.1:9900/audit"
+            - name: RUSTFS_AUDIT_WEBHOOK_QUEUE_DIR_PULSE
+              value: "/audit-queue"
+            - name: RUSTFS_AUDIT_WEBHOOK_QUEUE_LIMIT_PULSE
+              value: {{ .Values.audit.queueLimit | quote }}
+            # RustFS refuses webhook targets outside this list.
+            - name: RUSTFS_OUTBOUND_ALLOW_ORIGINS
+              value: "http://127.0.0.1:9900"
+            {{- end }}
             {{- if .Values.unsafeSharedDisks }}
             - name: RUSTFS_UNSAFE_BYPASS_DISK_CHECK
               value: "true"
@@ -146,6 +161,43 @@ spec:
             - name: data{{ . }}
               mountPath: /data{{ . }}
             {{- end }}
+            {{- if .Values.audit.enabled }}
+            - name: audit-queue
+              mountPath: /audit-queue
+            {{- end }}
+        {{- if .Values.audit.enabled }}
+        # A container that is not running makes the pod NotReady, which takes
+        # the store out of its Service. So: no probes, a shell that restarts
+        # the receiver in place, and a memory limit well above its needs.
+        - name: audit
+          image: {{ .Values.audit.image | quote }}
+          command:
+            - sh
+            - -c
+            - trap 'kill $p; exit 0' TERM; while :; do python3 -I -B /app/audit_receiver.py 9900 & p=$!; wait $p; sleep 1; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 50m, memory: 32Mi}
+            limits: {memory: 512Mi}
+          volumeMounts:
+            - name: audit-receiver
+              mountPath: /app
+              readOnly: true
+        {{- end }}
+      {{- if .Values.audit.enabled }}
+      volumes:
+        - name: audit-queue
+          # Over its limit an emptyDir evicts the pod, so leave ample room
+          # above queueLimit records.
+          emptyDir: {sizeLimit: 2Gi}
+        - name: audit-receiver
+          configMap:
+            name: {{ .Release.Name }}-audit-receiver
+      {{- end }}
   volumeClaimTemplates:
     {{- range $drives }}
     - metadata:
@@ -157,6 +209,16 @@ spec:
           requests:
             storage: {{ $.Values.volumeSize }}
     {{- end }}
+{{- if .Values.audit.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-audit-receiver
+data:
+  audit_receiver.py: |
+    {{- .Files.Get "files/audit_receiver.py" | nindent 4 }}
+{{- end }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

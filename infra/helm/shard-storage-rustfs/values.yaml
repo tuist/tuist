@@ -76,6 +76,16 @@ tolerations: []
 # capacity (rustfs_cluster_drive_*), which back the capacity alerts. Empty
 # exports nothing. Traces, logs and profiles are never exported.
 metricsEndpoint: ""
+# RustFS audit records for every S3 request, including in-cluster callers that
+# bypass the gateway. A sidecar receives them on loopback and prints one
+# scrubbed JSON line per request (files/audit_receiver.py), which Alloy ships
+# to Pulse. Delivery never blocks S3: RustFS queues up to queueLimit records
+# (one small file each) on an emptyDir while the receiver is down and drops
+# beyond that.
+audit:
+  enabled: true
+  image: python:3.13.9-alpine3.22@sha256:e5fa639e49b85986c4481e28faa2564b45aa8021413f31026c3856e5911618b1
+  queueLimit: 10000
 resources:
   requests:
     cpu: 500m
