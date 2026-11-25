@@ -9,6 +9,10 @@
 #     -f infra/helm/tuist/values-managed-canary.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+dataNetworkPolicy:
+  # Enabled on staging 2026-11-25 with no drops; production follows canary.
+  enabled: true
+
 # Sweeps this env's abandoned tailnet devices only; production and staging run
 # their own. Starts in dry-run -- read a run's logs, then set dryRun: false.
 tailscaleDeviceReaper:
@@ -214,6 +218,9 @@ server:
     className: nginx
     host: canary.tuist.dev
     tlsSecretName: tuist-tls-cloudflare-origin
+    # Cloudflare proxies this host; the origin refuses everyone else.
+    # registry-canary and events-canary are DNS-only, so they stay open.
+    cloudflareOnly: true
     annotations:
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
