@@ -16,7 +16,7 @@ async function communityNotification({ github, context, hasTeamToken }) {
   if (author.type === 'Bot' || login.endsWith('[bot]') || botLogins.has(login)) return null;
 
   if (!hasTeamToken) {
-    throw new Error('TUIST_APP_GITHUB_TOKEN must have organization Members: read permission.');
+    throw new Error('The Tuist CI GitHub App token (organization Members: read) is missing.');
   }
 
   for (const team of staffTeams) {

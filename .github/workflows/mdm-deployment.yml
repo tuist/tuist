@@ -45,7 +45,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   REGISTRY: ghcr.io
   HELM_CHART_PATH: infra/helm/mdm
   HELM_RELEASE_NAME: mdm

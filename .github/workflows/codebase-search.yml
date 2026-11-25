@@ -30,7 +30,7 @@ defaults:
     working-directory: codebase-search
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
   checks:

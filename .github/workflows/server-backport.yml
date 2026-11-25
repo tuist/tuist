@@ -37,7 +37,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
       - id: plan
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}

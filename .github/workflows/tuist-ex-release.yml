@@ -167,10 +167,33 @@ jobs:
               exit 1
               ;;
           esac
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked 1password-cli"
+          cache: "false"
+          # Only for the App token below; keep this job's toolchain env.
+          env: "false"
+      # From this workflow's revision: the checked-out source can be a release
+      # branch cut before this action existed.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          path: .github-app-token
+          sparse-checkout: .github/actions/github-app-token
+          persist-credentials: false
+      # The release's tag points at source-sha, which for a patch release is an off-main
+      # commit whose workflow files differ from main's. Creating that tag needs
+      # the workflows permission, which GITHUB_TOKEN never has.
+      - id: release-token
+        uses: ./.github-app-token/.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
       - name: Create GitHub release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          token: ${{ steps.release-token.outputs.token }}
           target_commitish: ${{ needs.check.outputs.source-sha }}
           tag_name: ${{ needs.check.outputs.next-version }}
           name: Tuist Elixir ${{ needs.check.outputs.next-version-number }}

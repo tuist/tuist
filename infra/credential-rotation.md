@@ -282,8 +282,11 @@ then revoke the old value.
 | `GITHUB_APP` | app_id, client_id, client_secret, webhook_secret, `private-key.pem` | GitHub App settings (Tuist GitHub App) | Separate Secret `<release>-github-external-secrets`. GitHub allows two private keys at once: generate the new key, deploy, then delete the old one. The webhook secret is a hard cut. Key rotation and permission review: [GitHub App thread](https://ampcode.com/threads/T-01a1e430-e75d-72d2-b718-9c50ba61d9c3). |
 | `BUILDERS_FLEET_GITHUB_APP` | app-id, installation-id, private-key | GitHub App | VM image builder runners. |
 | `FLUX_GITHUB_APP` (mgmt) | app_id, installation_id, `private-key.pem` | GitHub App | `flux-system/flux-system`; Flux reconnects on the next fetch. |
-| Tuist Automation GitHub App | vault `tuist` | GitHub App | CI only. |
-| `GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES`, `GITHUB_TOKEN_UPDATE_PACKAGES`, `REGISTRY/REGISTRY_GITHUB_TOKEN` | PATs | GitHub | Prefer replacing PATs with App tokens. |
+| Tuist Automation GitHub App | vault `tuist` (app-id, private-key) | GitHub App | CI release and deploy jobs on main; see [GitHub tokens in CI](#github-tokens-in-ci). |
+| Tuist CI GitHub App | repository variable `TUIST_CI_APP_CLIENT_ID`, secret `TUIST_CI_APP_PRIVATE_KEY` | GitHub App | Read-only, reachable from pull requests; see [GitHub tokens in CI](#github-tokens-in-ci). |
+| `GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES` | PAT | GitHub | Stays for now; see [PATs that remain](#pats-that-remain). |
+| `REGISTRY/REGISTRY_GITHUB_TOKEN` | PAT | GitHub | Fallback for the registry mirror; see [PATs that remain](#pats-that-remain). |
+| `GITHUB_TOKEN_UPDATE_PACKAGES` | PAT | GitHub | Unused: nothing read it, and the chart no longer syncs it. Revoke it and delete the item once that chart is deployed everywhere. |
 | `ORIGIN_APP` | app_id, private_key (Ed25519) | Tuist-registered app | Per env. |
 | `OAUTH` | client_id, client_secret, `jwt-public-key.pem` | Tuist OAuth/OIDC | |
 | `GOOGLE_OAUTH` | client_id, client_secret | Google Cloud console | `<release>-google-external-secrets`. |
@@ -317,9 +320,8 @@ action, so the platform's job is to revoke and tell them.
 
 ### CI and GitHub repository secrets
 
-Referenced by `.github/workflows` (count of references): `TUIST_RELEASE_GITHUB_TOKEN`
-(117), `OP_SERVICE_ACCOUNT_TOKEN` (53), `TUIST_CLI_GITHUB_TOKEN` (20),
-`TUIST_DEPLOY_GITHUB_TOKEN` (13), `TUIST_APP_GITHUB_TOKEN` (7), `KUBECONFIG` (5),
+Referenced by `.github/workflows` (count of references): `OP_SERVICE_ACCOUNT_TOKEN`
+(62), `TUIST_CI_APP_PRIVATE_KEY` (12), `KUBECONFIG` (5),
 `HEX_API_KEY` (being retired), `CACHE_OP_SERVICE_ACCOUNT_TOKEN` (4), `CACHE_SSH_PRIVATE_KEY`,
 `CACHE_KAMAL_SECRETS`, `ATLAS_OP_SERVICE_ACCOUNT_TOKEN`,
 `COMMUNITY_SLACK_WEBHOOK_URL`, `PENTEST_USER_*`, `SPEC95_STAGING_CACHE_TOKEN`,
@@ -547,6 +549,76 @@ its environment exists fails that release:
    procedures above (the Developer ID and Distribution certificates, the
    Sparkle key, the Play service-account key, the Gradle key) and fill in the
    expiry table.
+
+### GitHub tokens in CI
+
+No workflow holds a personal access token. The four former PATs
+(`TUIST_RELEASE_GITHUB_TOKEN`, `TUIST_CLI_GITHUB_TOKEN`,
+`TUIST_APP_GITHUB_TOKEN`, `TUIST_DEPLOY_GITHUB_TOKEN`) belonged to the machine
+user `tuistit`, never expired, and were exposed to every step of up to 60
+workflows, including jobs that build pull request code. A job now uses the
+first of these that is enough:
+
+1. **`GITHUB_TOKEN`** (`github.token`), with the job's `permissions:`. It covers
+   everything inside `tuist/tuist`: checkouts, mise downloads, releases and tags
+   on main's current commit, GHCR pushes, and dispatching this repository's
+   workflows.
+2. **Tuist CI GitHub App**, read-only, for pull-request-reachable jobs.
+   `actions/create-github-app-token` mints the token from the repository
+   variable `TUIST_CI_APP_CLIENT_ID` and secret `TUIST_CI_APP_PRIVATE_KEY`.
+   Uses: cloning the private `tuist/TuistCacheEE` submodule (`contents: read`
+   on `tuist` and `TuistCacheEE`) in `cli.yml`, `tuist-project-tests.yml`,
+   `tuist-project-coverage-backfill.yml`, the CLI release build and the deploy
+   cascade's acceptance job; and team-membership checks (`members: read`) in
+   `app.yml` and `community-notifications.yml`. Fork pull requests get no
+   secrets and skip those steps, as before.
+3. **Tuist Automation GitHub App**, for writes `GITHUB_TOKEN` cannot make, only
+   in release and deploy jobs that run on main. The
+   `.github/actions/github-app-token` composite reads the key from 1Password
+   (`op://tuist/Tuist Automation GitHub App`) and requires explicit
+   repositories and permissions:
+
+| Need | Workflows | Repositories | Permissions |
+| --- | --- | --- | --- |
+| Create a tag or ref at a commit whose workflow files differ from main's (release branches, patch releases, a main that moved during the run) | `cli-`, `server-`, `kura-`, `pulse-build-publish.yml`, the four `*-rc.yml` branch cuts, `app-release.yml`, `gradle-release.yml`, `tuist-ex-release.yml`, `condukt-release.yml`, `runner-image-release.yml`, `linux-runner-image-release.yml`, `server-production-deployment.yml` (`tag-infra-releases`) | `tuist` | contents, workflows: write |
+| Dispatch the Homebrew formula and cask workflows | `cli-build-publish.yml`, `app-release.yml` | `homebrew-tuist` | actions: write |
+| Push distributions | `install-action.yml` | `install` | contents: write |
+| | `cache-volume-action.yml` | `cache-volume`, `cache-volume-buildkite-plugin`, `cache-volume-gitlab` | contents: write |
+| | `runner-cache-actions.yml` | the nine in `ci/runner-caches/distributions` | contents: write |
+| | `skills-release.yml` | `agent-skills`, `agent-plugin`, `cursor-plugin`, `claude-plugin` | contents: write |
+
+`mise-lock.yml` and `update-tuist-cli.yml` already used this App, with the
+App's full permission set; narrowing them is a follow-up.
+
+Installation tokens expire after an hour and the action revokes them when the
+job ends, so jobs mint them right before use. Publish jobs that check out a
+release branch load the composite from the workflow's own revision
+(`.github-app-token/`), since older branches do not contain it.
+
+Tradeoff: minting through 1Password puts `OP_SERVICE_ACCOUNT_TOKEN`, which can
+read the whole `tuist` vault, into the env of one step in each of these jobs.
+Storing the Automation App's key as a secret of a main-only GitHub Environment
+instead would keep that token out of them.
+
+Rotation: each App holds up to 25 private keys. Generate a new key, update
+1Password (Automation) or `gh secret set TUIST_CI_APP_PRIVATE_KEY` (CI), run
+one release or pull request, then delete the old key in the App's settings.
+There is nothing to revoke per run.
+
+#### PATs that remain
+
+Each needs a named owner, a fine-grained token, and an expiry of at most 90
+days. Record the owner and expiry here when you create or rotate it.
+
+| Item | Consumer | Scope it needs | Owner | Expiry | Why it stays |
+| --- | --- | --- | --- | --- | --- |
+| `GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES` (`tuist-k8s-<env>`) | Server: `Tuist.GitHub.Releases`, `Tuist.Docs.ReleaseStatus` | Public repositories, read-only; no permissions | unassigned | unset | Only raises the API rate limit for public reads. An installation token of the server's GitHub App would do; that needs server code. |
+| `REGISTRY/REGISTRY_GITHUB_TOKEN` (`tuist-k8s-<env>`) | `swift-registry-sync` | Public repositories, read-only | unassigned | unset | Fallback only once `swiftRegistrySync.githubAppInstallation` is set, which the managed overlays do not set yet. Remove the fallback after that runs green. |
+| `SEARCH_GITHUB_TOKEN` (`tuist-k8s-<env>`) | Typesense indexers (`search/bin/index-github*`) | Public repositories, read-only | unassigned | unset | Shell indexers cannot mint App tokens. |
+| `KAMAL_REGISTRY_PASSWORD` (vault `cache`) | Cache (Kamal) deploy | — | `cschmatzler` | — | Being replaced by the deploy job's `GITHUB_TOKEN` (cache stack work, not yet on main). Revoke after the first green Cache Deploy. |
+
+A read-only public PAT cannot write anything, so a leak costs rate limit, not
+integrity.
 
 ## Cluster CAs and ServiceAccount signing keys
 

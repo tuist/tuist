@@ -28,8 +28,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
-  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
   check:
@@ -59,15 +59,13 @@ jobs:
     if: needs.check.outputs.should-release == 'true'
     runs-on: tuist-linux
     timeout-minutes: 15
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff"
+          install_args: "--locked git-cliff 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -89,7 +87,18 @@ jobs:
         working-directory: skills
         run: git cliff --include-path "skills/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check.outputs.next-version }}" -o CHANGELOG.md 2>/dev/null
 
+      # Writes only the four distribution repositories; the release below is
+      # created in this repository with GITHUB_TOKEN.
+      - id: app-token
+        uses: ./.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          repositories: agent-skills,agent-plugin,cursor-plugin,claude-plugin
+          permission-contents: write
+
       - name: Push to tuist/agent-skills
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           VERSION="${{ needs.check.outputs.next-version-number }}"
           git clone https://x-access-token:${GITHUB_TOKEN}@github.com/tuist/agent-skills.git /tmp/agent-skills
@@ -108,6 +117,8 @@ jobs:
           fi
 
       - name: Push to tuist/agent-plugin
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git clone https://x-access-token:${GITHUB_TOKEN}@github.com/tuist/agent-plugin.git /tmp/agent-plugin
           rm -rf /tmp/agent-plugin/skills
@@ -124,6 +135,8 @@ jobs:
           fi
 
       - name: Push to tuist/cursor-plugin
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git clone https://x-access-token:${GITHUB_TOKEN}@github.com/tuist/cursor-plugin.git /tmp/cursor-plugin
           rm -rf /tmp/cursor-plugin/plugins/tuist/skills
@@ -140,6 +153,8 @@ jobs:
           fi
 
       - name: Push to tuist/claude-plugin
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git clone https://x-access-token:${GITHUB_TOKEN}@github.com/tuist/claude-plugin.git /tmp/claude-plugin
           rm -rf /tmp/claude-plugin/plugins/tuist/skills

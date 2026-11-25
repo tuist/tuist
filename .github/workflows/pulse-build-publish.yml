@@ -37,7 +37,7 @@ on:
         default: true
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   MISE_GITHUB_ATTESTATIONS: 0
 
 defaults:
@@ -63,10 +63,9 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff jq"
+          install_args: "--locked git-cliff jq 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Refuse to replace a published version
@@ -198,11 +197,29 @@ jobs:
             '{tag: $tag, version: $version, upstream_version: $upstream,
               source_sha: $source_sha, image: "ghcr.io/tuist/pulse", image_digest: $image_digest}' \
             > "$RUNNER_TEMP/pulse-release.json"
+      # From this workflow's revision: the checked-out source can be a release
+      # branch cut before this action existed.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          path: .github-app-token
+          sparse-checkout: .github/actions/github-app-token
+          persist-credentials: false
+      # Minted here, not at the start of this long job: it expires after an
+      # hour. The release's tag points at inputs.ref, which can be a
+      # release-branch commit whose workflow files differ from main's. Creating
+      # that tag needs the workflows permission, which GITHUB_TOKEN never has.
+      - id: release-token
+        uses: ./.github-app-token/.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
       - name: Create GitHub release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           repository: tuist/tuist
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          token: ${{ steps.release-token.outputs.token }}
           target_commitish: ${{ inputs.ref }}
           tag_name: ${{ env.TAG }}
           name: Pulse ${{ inputs.version }}

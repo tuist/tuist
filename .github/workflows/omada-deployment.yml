@@ -75,7 +75,7 @@ permissions:
   packages: read
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   HELM_CHART_PATH: infra/helm/omada
   HELM_RELEASE_NAME: omada
   NAMESPACE: omada

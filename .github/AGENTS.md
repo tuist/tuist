@@ -109,6 +109,15 @@ Apple ID password. Hex packages publish through Workload Identity in the
 publish job, because Hex prefers it. Vaults, environments and rotation:
 `infra/credential-rotation.md`, "Release signing and publishing credentials".
 
+Never add a personal access token. Use `github.token` with job `permissions:`
+first; jobs a pull request can reach use the read-only Tuist CI App
+(`vars.TUIST_CI_APP_CLIENT_ID`, `secrets.TUIST_CI_APP_PRIVATE_KEY`); writes
+`GITHUB_TOKEN` cannot make (other repositories, tags at off-main commits) use
+`actions/github-app-token` in main-only release jobs, naming every repository
+and permission. A job that checks out a release branch loads that action from
+`github.sha`, since older branches lack it. See "GitHub tokens in CI" in
+`infra/credential-rotation.md`.
+
 Deploy and release workflows and the composite actions under `actions/` use
 third-party actions by full commit SHA with the exact version in a trailing
 comment (`@<sha> # v4.4.0`). Renovate pins new references in those files and

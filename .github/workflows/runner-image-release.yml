@@ -59,7 +59,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
   test-tcc-report:
@@ -367,7 +367,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff jq"
+          install_args: "--locked git-cliff jq 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -414,6 +414,13 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # Minted right before use: it expires after an hour.
+      - id: release-token
+        uses: ./.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
       - name: Create runner-image GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
@@ -425,9 +432,10 @@ jobs:
           files: build-manifest.json
           body: ${{ steps.notes.outputs.body }}
           # The workflow token cannot tag a commit whose workflow files differ
-          # from main's, which a release that outlasts later merges hits. The
-          # action reads only this input, not GITHUB_TOKEN from env.
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          # from main's, which a release that outlasts later merges hits: the
+          # App token has the workflows permission. The action reads only this
+          # input, not GITHUB_TOKEN from env.
+          token: ${{ steps.release-token.outputs.token }}
 
   # Names this release's images to each cluster's macOS hosts as the builds
   # publish them, so hosts pull the next image of each pool they serve in the

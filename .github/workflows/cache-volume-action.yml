@@ -107,9 +107,9 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff jq"
+          install_args: "--locked git-cliff jq 1password-cli"
           cache: "false"
-          github_token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          github_token: ${{ github.token }}
       - name: Reject stale release runs
         run: |
           latest=$(git tag -l 'cache-volume@*' --sort=-version:refname | head -n1)
@@ -118,12 +118,19 @@ jobs:
           fi
       - id: check
         run: mise run --skip-tools release:check cache-volume
+      - id: app-token
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        uses: ./.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          repositories: cache-volume,cache-volume-buildkite-plugin,cache-volume-gitlab
+          permission-contents: write
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.check.outputs.cache-volume-should-release == 'true'
         with:
           repository: tuist/cache-volume
           ref: main
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           path: distributions/github
           fetch-depth: 0
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -131,7 +138,7 @@ jobs:
         with:
           repository: tuist/cache-volume-buildkite-plugin
           ref: main
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           path: distributions/buildkite
           fetch-depth: 0
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -139,7 +146,7 @@ jobs:
         with:
           repository: tuist/cache-volume-gitlab
           ref: main
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           path: distributions/gitlab
           fetch-depth: 0
       - name: Prepare or recover coordinated release

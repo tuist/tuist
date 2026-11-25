@@ -152,8 +152,8 @@ even after `main` advances. Later changes are released in a follow-up run.
 See the monorepo's
 [release implementation](https://github.com/tuist/tuist/tree/main/ci/cache-volume).
 
-Distribution repositories need a `main` branch and write access for
-`TUIST_RELEASE_GITHUB_TOKEN` as a one-time setup. Publishing the wrappers does
+Distribution repositories need a `main` branch and the Tuist Automation GitHub
+App installed with contents write as a one-time setup. Publishing the wrappers does
 not enable cache volumes on the fleet; storage rollout is independent.
 
 On Linux, paths are mounted as ordinary directories, so tools can use their usual locations

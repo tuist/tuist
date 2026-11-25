@@ -56,8 +56,8 @@ on:
 # Top-level env does not cross the workflow_call boundary, so it is redeclared
 # here rather than inherited from the caller.
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
-  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ github.token }}
   MISE_GITHUB_ATTESTATIONS: 0
 
 jobs:
@@ -79,7 +79,6 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked git-cliff"
@@ -144,7 +143,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -245,13 +243,31 @@ jobs:
     permissions:
       contents: write
       packages: read
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked 1password-cli"
+          cache: "false"
+      # From this workflow's revision: the checked-out source can be a release
+      # branch cut before this action existed.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          path: .github-app-token
+          sparse-checkout: .github/actions/github-app-token
+          persist-credentials: false
+      # The release's tag points at inputs.ref, which can be a release-branch
+      # commit whose workflow files differ from main's. Creating that tag needs
+      # the workflows permission, which GITHUB_TOKEN never has.
+      - id: release-token
+        uses: ./.github-app-token/.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
       - name: Check out trusted patch controls
         if: inputs.stable_base_tag != '' || inputs.stable_base_sha != ''
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -278,8 +294,8 @@ jobs:
           # input wins over the GITHUB_TOKEN env var. GitHub answers 403
           # "Resource not accessible by integration" to that token when the
           # tag it has to create points at the soaked release-branch commit
-          # rather than main HEAD, so the release token is passed explicitly.
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          # rather than main HEAD, so the App token is passed explicitly.
+          token: ${{ steps.release-token.outputs.token }}
           # Pin the tag to the exact commit that was built. github.sha
           # would resolve to the caller's triggering commit under
           # workflow_call (main HEAD for an RC), not the release branch

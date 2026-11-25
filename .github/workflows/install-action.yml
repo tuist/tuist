@@ -155,7 +155,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff jq"
+          install_args: "--locked git-cliff jq 1password-cli"
           cache: "false"
       - name: Reject stale release runs
         run: |
@@ -165,19 +165,21 @@ jobs:
           fi
       - id: check
         run: mise run --skip-tools release:check install-action
-      - name: Verify distribution credential access
+      # Minting fails unless the App is installed on tuist/install with
+      # contents: write, so this also checks distribution access up front.
+      - id: app-token
         if: steps.check.outputs.install-action-should-release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-        run: |
-          test -n "$GH_TOKEN"
-          gh api repos/tuist/install --jq '.permissions.push' | grep -qx true
+        uses: ./.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          repositories: install
+          permission-contents: write
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.check.outputs.install-action-should-release == 'true'
         with:
           repository: tuist/install
           ref: main
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
           path: distribution
       - name: Prepare or recover release

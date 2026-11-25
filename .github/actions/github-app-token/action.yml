@@ -1,0 +1,93 @@
+name: github-app-token
+description: |
+  Mints a Tuist Automation GitHub App installation token. It expires after an
+  hour and is revoked when the job ends. Use it, not a personal access token,
+  when a job needs more than its own GITHUB_TOKEN allows: writing to another
+  tuist repository, dispatching its workflows, or creating a ref whose push
+  must trigger workflows or pass a ruleset that lists the App as a bypass actor.
+
+  The App's private key is read from 1Password, so only trusted jobs that
+  already receive OP_SERVICE_ACCOUNT_TOKEN (release and deploy jobs on main)
+  may use this action. Jobs that also run on pull requests use the read-only
+  Tuist CI App instead (infra/credential-rotation.md, "GitHub tokens in CI").
+
+  Name every repository and permission the job needs. At least one permission
+  is required: without one, the token would carry every permission the App has.
+  The job must have installed the 1Password CLI (mise's 1password-cli).
+
+inputs:
+  op_service_account_token:
+    description: secrets.OP_SERVICE_ACCOUNT_TOKEN
+    required: true
+  repositories:
+    description: Comma-separated repository names under the tuist organization. Empty means the current repository only.
+    required: false
+    default: ""
+  permission-actions:
+    description: read or write. write dispatches workflows.
+    required: false
+    default: ""
+  permission-contents:
+    description: read or write
+    required: false
+    default: ""
+  permission-pull-requests:
+    description: read or write
+    required: false
+    default: ""
+  permission-workflows:
+    description: write, to push changes under .github/workflows
+    required: false
+    default: ""
+
+outputs:
+  token:
+    description: The installation token
+    value: ${{ steps.token.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Require explicit permissions
+      shell: bash
+      env:
+        PERMISSIONS: ${{ inputs.permission-actions }}${{ inputs.permission-contents }}${{ inputs.permission-pull-requests }}${{ inputs.permission-workflows }}
+      run: |
+        if [ -z "$PERMISSIONS" ]; then
+          echo "::error::github-app-token needs at least one permission-* input"
+          exit 1
+        fi
+        if ! command -v op >/dev/null; then
+          echo "::error::github-app-token needs the 1Password CLI: add 1password-cli to the job's mise install_args"
+          exit 1
+        fi
+    - name: Load GitHub App credentials from 1Password
+      id: credentials
+      shell: bash
+      env:
+        OP_SERVICE_ACCOUNT_TOKEN: ${{ inputs.op_service_account_token }}
+      run: |
+        set -euo pipefail
+        # Not GITHUB_ENV: its values are printed unmasked in every later step's
+        # env. add-mask matches single lines, so each PEM line is masked.
+        key="$(op read 'op://tuist/Tuist Automation GitHub App/private-key')"
+        while IFS= read -r line; do
+          [ -n "$line" ] && echo "::add-mask::$line"
+        done <<< "$key"
+        {
+          echo "app-id=$(op read 'op://tuist/Tuist Automation GitHub App/app-id')"
+          echo "private-key<<__OP_PEM__"
+          printf '%s\n' "$key"
+          echo "__OP_PEM__"
+        } >> "$GITHUB_OUTPUT"
+    - name: Mint a GitHub App token
+      id: token
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      with:
+        app-id: ${{ steps.credentials.outputs.app-id }}
+        private-key: ${{ steps.credentials.outputs.private-key }}
+        repositories: ${{ inputs.repositories }}
+        permission-actions: ${{ inputs.permission-actions }}
+        permission-contents: ${{ inputs.permission-contents }}
+        permission-pull-requests: ${{ inputs.permission-pull-requests }}
+        permission-workflows: ${{ inputs.permission-workflows }}

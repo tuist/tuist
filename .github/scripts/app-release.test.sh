@@ -106,11 +106,11 @@ jq -e '
     any($root.jobs[$job].steps[]; (.uses // "" | startswith("actions/checkout@")) and .with.ref == "${{ needs.check-releases.outputs.source-sha }}")) and
   any(.jobs["publish-app"].steps[]; .name == "Create App GitHub Release" and
     .with.target_commitish == "${{ needs.check-releases.outputs.source-sha }}" and
-    .with.token == "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}")
-' "$scratch/workflow.json" >/dev/null || fail 'Lost immutable build/tag source or explicit release-token fallback'
+    .with.token == "${{ steps.release-token.outputs.token }}")
+' "$scratch/workflow.json" >/dev/null || fail 'Lost immutable build/tag source or explicit App release token'
 jq -er '.jobs["check-releases"].if' "$scratch/workflow.json" |
   grep -Fq "github.ref == 'refs/heads/main'" || fail 'Lost main-only planning guard'
-ok 'build/tag source stays immutable with explicit release-token fallback and main-only planning'
+ok 'build/tag source stays immutable with explicit App release token and main-only planning'
 
 jq -e '.concurrency.group == "app-release-refs/heads/main" and .concurrency["cancel-in-progress"] == false' \
   "$scratch/workflow.json" >/dev/null || fail 'Lost the legacy main concurrency lock or disabled serialization'

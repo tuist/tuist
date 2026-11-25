@@ -21,14 +21,22 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
           sparse-checkout: .github/scripts
+      # Listing team members needs organization Members: read, which
+      # GITHUB_TOKEN never has. The token can do nothing else.
+      - id: members-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.TUIST_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TUIST_CI_APP_PRIVATE_KEY }}
+          permission-members: read
       - name: Filter author and prepare notification
         id: notification
         uses: actions/github-script@v7
         env:
-          TEAM_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN }}
+          TEAM_TOKEN: ${{ steps.members-token.outputs.token }}
           SLACK_WEBHOOK_URL: ${{ secrets.COMMUNITY_SLACK_WEBHOOK_URL }}
         with:
-          github-token: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+          github-token: ${{ steps.members-token.outputs.token }}
           script: |
             const { writeFile } = require('node:fs/promises');
             const { join } = require('node:path');

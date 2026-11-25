@@ -29,7 +29,7 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
   # Skip mise's SLSA provenance verification for github-backend tools only.
@@ -60,16 +60,25 @@ jobs:
     if: github.event_name == 'pull_request'
     outputs:
       is-team-member: ${{ steps.check.outputs.is-member }}
+    env:
+      HAS_TOKEN: ${{ secrets.TUIST_CI_APP_PRIVATE_KEY != '' }}
     steps:
+      # Team membership needs organization Members: read, which GITHUB_TOKEN
+      # never has. Fork pull requests get no secrets and skip this.
+      - id: members-token
+        if: env.HAS_TOKEN == 'true'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.TUIST_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TUIST_CI_APP_PRIVATE_KEY }}
+          permission-members: read
       - name: Check if author is team member
         id: check
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        env:
-          HAS_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN != '' }}
         with:
-          github-token: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+          github-token: ${{ steps.members-token.outputs.token || github.token }}
           script: |
-            // If TUIST_APP_GITHUB_TOKEN is not available (e.g., from a fork), treat as non-member
+            // Without the Tuist CI App (e.g., from a fork), treat as non-member
             if (process.env.HAS_TOKEN !== 'true') {
               console.log(`Running from fork - treating ${context.payload.pull_request.user.login} as non-member`);
               core.setOutput('is-member', 'false');

@@ -100,9 +100,9 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff jq"
+          install_args: "--locked git-cliff jq 1password-cli"
           cache: "false"
-          github_token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          github_token: ${{ github.token }}
       - name: Reject stale release runs
         run: |
           latest=$(git tag -l 'runner-caches@*' --sort=-version:refname | head -n1)
@@ -111,19 +111,23 @@ jobs:
           fi
       - id: check
         run: mise run --skip-tools release:check runner-caches
-      - name: Verify distribution credential access
+      - name: List distribution repositories
+        id: distributions
         if: steps.check.outputs.runner-caches-should-release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-        run: |
-          test -n "$GH_TOKEN"
-          while IFS=$'\t' read -r repository _; do
-            gh api "repos/tuist/$repository" --jq '.permissions.push' | grep -qx true
-          done < ci/runner-caches/distributions
+        run: echo "repositories=$(cut -f1 ci/runner-caches/distributions | paste -sd, -)" >> "$GITHUB_OUTPUT"
+      # Minting fails unless the App is installed on every distribution
+      # repository with contents: write, so this also checks access up front.
+      - id: app-token
+        if: steps.check.outputs.runner-caches-should-release == 'true'
+        uses: ./.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          repositories: ${{ steps.distributions.outputs.repositories }}
+          permission-contents: write
       - name: Check out distribution repositories
         if: steps.check.outputs.runner-caches-should-release == 'true'
         env:
-          RELEASE_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          RELEASE_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$RELEASE_TOKEN" | base64 -w0)"
           while IFS=$'\t' read -r repository _; do

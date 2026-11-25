@@ -68,7 +68,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   HELM_CHART_PATH: infra/helm/remote-execution
   HELM_RELEASE_NAME: remote-execution
   NAMESPACE: tuist-sandboxes

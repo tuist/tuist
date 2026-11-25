@@ -42,8 +42,8 @@ existing `release:check cache-volume` and git-cliff version calculation. A share
 - `tuist/cache-volume-buildkite-plugin`: Buildkite plugin with executable hook.
 - `tuist/cache-volume-gitlab`: reusable `cache-volume.yml` for `include:remote`.
 
-As a one-time bootstrap, create those repositories with a `main` branch and give
-`TUIST_RELEASE_GITHUB_TOKEN` write access. Each release pushes the generated main
+As a one-time bootstrap, create those repositories with a `main` branch and
+install the Tuist Automation GitHub App on them with contents write. Each release pushes the generated main
 branch, immutable version tag and moving major tag atomically. The monorepo tag
 is recorded only after all three pushes succeed. Releases are serialized;
 stale runs predating the latest monorepo release are rejected.
