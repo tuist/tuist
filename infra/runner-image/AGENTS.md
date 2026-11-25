@@ -140,6 +140,32 @@ The raw stream is temporary inside the guest and grows for the job lifetime;
 only the bounded report is exported. No grants, probes, or daemon reloads are
 introduced. Remove the capture when the failure is understood.
 
+Simulator runtimes are registered as disk images, not cryptexes. Layer 1
+registers Xcode 27's runtimes as cryptexes (`personalizeAndMountAsCryptex` in
+`/Library/Developer/CoreSimulator/Images/images.plist`), personalized for the
+build VM. tart-kubelet gives every runner VM its own identity
+(`tart set --random-serial`, see `infra/tart-kubelet`), so cryptexd rejects that
+personalization on each boot ("The given chip does not satisfy the constraints
+of attached manifest"). simdiskimaged then mounts the runtimes as disk images
+under `/Library/Developer/CoreSimulator/Volumes`, re-personalizes them, and 20
+to 60 s later remounts them under
+`/private/var/run/com.apple.security.cryptexd/mnt`. A simulator clone during the
+switch (xcodebuild parallel testing) fails with `Unable to clone device due to
+missing runtime bundle`; Apple lists the remount as a known issue (191574717,
+Xcode 27.3 beta 2 notes), and GitHub's images hit it too
+(actions/runner-images#14946, #15334). Deleting the stale manifests does not
+help: cryptexd still falls back and remounts.
+
+The Packer template therefore moves `images.plist` aside right after a reboot,
+before anything starts CoreSimulator, and lets simdiskimaged rediscover the
+runtimes, which registers them as `mountAsDMG` like Xcode 26 runtimes (about a
+minute). It fails the build if a runtime stays a cryptex, before and after the
+final reboot. Verified on rack guests on 2026-11-25 (macOS 26.6.2, Xcode 27.2):
+after re-registering and rebooting with a new serial, the first `simctl` call
+took 2 s, no runtime moved, and four staggered parallel `xcodebuild test` runs
+passed, against two of four clone failures on the image without it. If a later
+Xcode refuses disk-image mounts, that build check is what fails.
+
 Run `bash infra/runner-image/tcc-report_test.sh` from the checkout. It also
 covers `tcc-approvals.sh`. Tests use synthetic JSON and temporary
 SQLite/processes, never host privacy APIs. The existing release workflow

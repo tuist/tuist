@@ -840,6 +840,35 @@ build {
     ]
   }
 
+  # Register the simulator runtimes as disk images instead of cryptexes.
+  # Layer 1 registers Xcode 27's runtimes as cryptexes personalized for the
+  # build VM, and every runner VM gets its own identity (`tart set
+  # --random-serial`), so cryptexd rejects that personalization on each boot.
+  # simdiskimaged then mounts the runtimes as disk images and, 20 to 60 s
+  # later, remounts them as cryptexes, and a simulator clone during the switch
+  # fails with "missing runtime bundle". Without images.plist simdiskimaged
+  # rediscovers the runtimes and registers them as disk images (mountAsDMG,
+  # as Xcode 26 runtimes are), which every later boot mounts once and keeps.
+  # Runs right after a reboot, before anything starts CoreSimulator, and fails
+  # the build rather than ship a runtime still registered as a cryptex. See
+  # AGENTS.md.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "PLIST=/Library/Developer/CoreSimulator/Images/images.plist",
+      "if ! sudo plutil -p $PLIST | grep personalizeAndMountAsCryptex >/dev/null; then echo 'no cryptex simulator runtimes to re-register'; exit 0; fi",
+      "if pgrep -x simdiskimaged >/dev/null; then echo 'simdiskimaged is already running; it would keep the cryptex registration' >&2; exit 1; fi",
+      "EXPECTED=$(sudo plutil -p $PLIST | grep -o 'com\\.apple\\.CoreSimulator\\.SimRuntime\\.[A-Za-z0-9.-]*' | sort -u | wc -l | tr -d ' ')",
+      "[ \"$EXPECTED\" -gt 0 ] || { echo 'images.plist names no simulator runtime' >&2; exit 1; }",
+      "sudo mv $PLIST /var/tmp/images.plist.cryptex",
+      "DMG=0; READY=0; for i in $(seq 1 150); do READY=$(xcrun simctl list runtimes -j 2>/dev/null | /opt/homebrew/bin/jq '[.runtimes[] | select(.isAvailable)] | length' 2>/dev/null || echo 0); DMG=$(sudo plutil -p $PLIST 2>/dev/null | grep -c mountAsDMG || true); [ \"$DMG\" -ge \"$EXPECTED\" ] && [ \"$READY\" -ge \"$EXPECTED\" ] && break; sleep 2; done",
+      "[ \"$DMG\" -ge \"$EXPECTED\" ] && [ \"$READY\" -ge \"$EXPECTED\" ] || { echo \"$DMG of $EXPECTED simulator runtimes re-registered as disk images, $READY available\" >&2; exit 1; }",
+      "if sudo plutil -p $PLIST | grep personalizeAndMountAsCryptex >/dev/null; then echo 'a simulator runtime is still registered as a cryptex' >&2; exit 1; fi",
+      "sudo rm -f /var/tmp/images.plist.cryptex",
+      "xcrun simctl runtime list"
+    ]
+  }
+
   provisioner "shell" {
     expect_disconnect = true
     skip_clean        = true
@@ -856,7 +885,8 @@ build {
       "[ \"$(sysctl -n kern.boottime)\" != \"$(cat /var/tmp/tuist-boottime-before-reboot)\" ] || { echo 'connected before the reboot; raise pause_before' >&2; exit 1; }",
       "rm -f /var/tmp/tuist-boottime-before-reboot",
       "sudo /opt/tuist/tcc-approvals.sh wait",
-      "sudo -u runner /opt/tuist/tcc-approvals.sh check"
+      "sudo -u runner /opt/tuist/tcc-approvals.sh check",
+      "if sudo plutil -p /Library/Developer/CoreSimulator/Images/images.plist 2>/dev/null | grep personalizeAndMountAsCryptex >/dev/null; then echo 'a simulator runtime is registered as a cryptex again after the reboot' >&2; exit 1; fi"
     ]
   }
 
