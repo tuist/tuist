@@ -1914,6 +1914,18 @@ rackFleet:
           minWarmPoolFloor: 0
           maxLearnedWarmPoolFloor: 1
           maxReplicas: 26
+    # A 16 vCPU guest takes the whole host, so it gets the disk the plan in
+    # `machine` above counts for the host's two 200 GB guests: 400 GB, about
+    # 300 GiB free to a job against 118 GiB. A module-cache warm of a
+    # customer's 230-module app after a build-for-testing in one job ran out of the
+    # 200 GB disk on 2026-11-24. The image's own `disk_size_gb` stays 200
+    # for every other shape. Needs a runner image whose dispatch-poll.sh
+    # grows the APFS container at boot; older images ignore the space.
+    guestShapes:
+      16vcpu-48gb:
+        vcpus: 16
+        memoryGb: 48
+        diskGb: 400
   # The fleet's sites other than ber1 (`site`). While a site's runners are off,
   # its minis register with their own fleet, tuist-tuist-rack-fleet-<site>, and
   # run nothing. Turning them on moves the minis onto the rack fleet, so the
