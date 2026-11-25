@@ -322,9 +322,9 @@ for (const environment of ['staging', 'canary', 'production', 'disabled']) {
     // Execute the workflow's actual selector and tag helper against Helm output.
     const selector = shell.slice(shell.indexOf('sandbox_namespace='), shell.indexOf('rm -f "$registry_render"'));
     assert.ok(selector.length > 0);
-    const selected = spawnSync('bash', ['-euc', 'add_set() { printf "%s=%s\\n" "$1" "$2"; }\n' + selector], {
+    const selected = spawnSync('bash', ['-euc', 'add_set() { printf "%s=%s\\n" "$1" "$2"; }\nvmm_render_sets=()\n' + selector], {
       cwd: root,
-      env: { ...env, registry_render: rendered, SANDBOX_TEMPLATE_IMAGE_TAG: 'sha-abcdef012345', SANDBOXD_IMAGE_TAG: 'sha-0123456789ab' },
+      env: { ...env, registry_render: rendered, GITHUB_ENV: join(dir, 'github-env'), SANDBOX_TEMPLATE_IMAGE_TAG: 'sha-abcdef012345', SANDBOXD_IMAGE_TAG: 'sha-0123456789ab' },
       encoding: 'utf8',
     });
     assert.equal(selected.status, 0, selected.stderr);
