@@ -56,7 +56,7 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: {{ include "symptoms.pgClusterName" . }}-backup-store
-        serverName: {{ include "symptoms.pgClusterName" . | quote }}
+        serverName: {{ .Values.postgresql.backup.serverName | default (include "symptoms.pgClusterName" .) | quote }}
   {{- end }}
 {{- if .Values.postgresql.backup.enabled }}
 {{- if eq .Values.postgresql.backup.credentialsItem "S3_BACKUP_CREDENTIALS" }}

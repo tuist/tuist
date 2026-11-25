@@ -125,6 +125,11 @@ postgresql:
     destinationPath: ""
     endpointURL: https://t3.storage.dev
     retentionPolicy: "30d"
+    # The archive's folder under destinationPath; empty means the cluster name.
+    # Barman refuses to archive into a folder that already holds another
+    # cluster's WAL ("Expected empty archive"), so a recreated cluster needs a
+    # new one.
+    serverName: ""
     # ESO-synced from the evaluator's own Tigris key (fields access_key_id,
     # secret_access_key), scoped by an IAM policy to the `symptoms/` prefix of
     # the environment's backup bucket (README "Backup key"). Never the shared
