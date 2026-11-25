@@ -876,6 +876,32 @@ func TestReservation_SkipsTheSmallShapeOnADualSeatHost(t *testing.T) {
 	}
 }
 
+// Still not large once the pool already holds a guest on every host. The
+// guest it holds takes one of the host's two seats, but the shape itself
+// still fits any seat another pool frees: on a full rack, reserving here
+// only retires another pool's warm runner (production, 2026-11-25: 27.2
+// reserved b08 and retired 26.5's only runner mid-pull).
+func TestReservation_SkipsTheSmallShapeBesideItsOwnGuest(t *testing.T) {
+	pool := smallPool()
+	starved := pendingPod("small-2", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, largePool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		placedPod("small-0", pool.Name, "m4-0", "acme"),
+		placedPod("small-1", pool.Name, "m4-1", "acme"),
+		placedPod("other-0", "macos-26-5", "m4-0", ""),
+		placedPod("other-1", "macos-26-5", "m4-1", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	for _, name := range []string{"m4-0", "m4-1"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Fatalf("%s reserved for a shape that fits any free seat", name)
+		}
+	}
+}
+
 // The timeout is only a safety valve if the host actually goes back
 // into circulation. `starvedPod` measures the Pod's own age, so the Pod
 // that triggered the reservation is still long past the grace period the
