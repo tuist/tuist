@@ -40,9 +40,13 @@ disable_block_device_use = false
 block_device_driver = "virtio-blk"
 `
 
-// The pool takes half of /data's free space at first boot, at most 400 GiB,
-// and refuses to come up with less than 60 GiB: the 2 GiB runner image alone
-// used about 6 GiB of the pool once unpacked. Data blocks are 64 KiB (128
+// The pool takes a quarter of /data's free space at first boot, at most 400
+// GiB, and refuses to come up with less than 60 GiB: the 2 GiB runner image
+// alone used about 6 GiB of the pool once unpacked. It has to leave room for
+// the runner cache volume, which the cache-volumes agent preallocates on the
+// same disk after the box joins (200 GB plus 40 GB of headroom on staging):
+// half of /data's free space left a staging RISE-M with 168 GB, and the agent's
+// provisioning failed. Data blocks are 64 KiB (128
 // sectors) with block zeroing off, as the prototype ran; 2 GiB of metadata is
 // several times what thin_metadata_size asks for at this size. The pool still
 // frees blocks it is told to discard, but no_discard_passdown keeps it from
@@ -67,7 +71,7 @@ if [ ! -e "$dir/data" ] || [ ! -e "$dir/metadata" ]; then
   rm -f "$dir/initialized" "$dir/data" "$dir/metadata"
   install -d -m 0700 "$dir" "$dir/containerd"
   avail=$(df --output=avail -B1 "$dir" | tail -1)
-  size=$(( avail / 2 / 1073741824 ))
+  size=$(( avail / 4 / 1073741824 ))
   [ "$size" -le 400 ] || size=400
   if [ "$size" -lt 60 ]; then
     echo "tuist: $dir has room for a ${size} GiB pool; the Kata devmapper pool needs 60 GiB." >&2

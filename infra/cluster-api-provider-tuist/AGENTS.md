@@ -2616,7 +2616,7 @@ in staging only) gives kata-qemu containers a devmapper rootfs, which the guest
 mounts as ext4 over virtio-blk, instead of the overlayfs snapshot shared over
 virtio-fs. A Redis `make -j5` in a 4 vCPU staging VM took 24.8 s instead of
 35.4 s. `controllers/linux/kata_block_rootfs.go` keeps the thin pool in
-preallocated loop files under `/data/kata-devmapper`, brought up before
+preallocated loop files under `/data/kata-devmapper`, sized to leave room for the runner cache volume and brought up before
 containerd by `tuist-kata-devmapper.service`, fills in containerd's devmapper
 section, sets `snapshotter = "devmapper"` on the kata-qemu handler only, and
 installs the Kata drop-in `50-tuist-block-rootfs.toml`. runc Pods keep
