@@ -111,7 +111,11 @@ defmodule Symptoms.Sources.PulseSpanEdgesTest do
     end)
 
     test = self()
-    put_edges = fn hour, edges -> send(test, {:edges, hour, edges}) && :ok end
+
+    put_edges = fn hour, edges ->
+      send(test, {:edges, hour, edges})
+      :ok
+    end
 
     assert {:ok, []} =
              PulseSpanEdges.collect(%{start: @now - 3600, seconds: 3600}, pulse_opts(now: @now, put_edges: put_edges))

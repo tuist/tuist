@@ -49,7 +49,11 @@ defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
   # The plugin hands its report to the test, which posts it. The request is
   # then made by the process that owns the database connections, so the test
   # needs no shared state and can run next to others.
-  defp report_to(test), do: fn payload, _opts -> send(test, {:report, payload}) && :ok end
+  defp report_to(test),
+    do: fn payload, _opts ->
+      send(test, {:report, payload})
+      :ok
+    end
 
   defp environment("GIT_BRANCH"), do: "main"
   defp environment("GIT_COMMIT"), do: "0000000000000000000000000000000000000000"

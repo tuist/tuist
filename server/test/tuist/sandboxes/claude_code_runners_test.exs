@@ -123,8 +123,12 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
     end)
 
     stub(Nodes, :call, fn
-      "mac-a", "create", _args, _opts -> {:ok, %{}}
-      "mac-a", "start_worker", args, _opts -> send(test_pid, {:start_worker, args}) && {:ok, %{}}
+      "mac-a", "create", _args, _opts ->
+        {:ok, %{}}
+
+      "mac-a", "start_worker", args, _opts ->
+        send(test_pid, {:start_worker, args})
+        {:ok, %{}}
     end)
 
     order = Map.put(@order, :repository_url, "https://github.com/acme/app.git")
@@ -149,8 +153,12 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
     stub(CacheVolumes, :allocate_sandbox_checkout, fn _sandbox, _repository, _work_id -> {:error, :unavailable} end)
 
     stub(Nodes, :call, fn
-      "mac-a", "create", _args, _opts -> {:ok, %{}}
-      "mac-a", "start_worker", args, _opts -> send(test_pid, {:start_worker, args}) && {:ok, %{}}
+      "mac-a", "create", _args, _opts ->
+        {:ok, %{}}
+
+      "mac-a", "start_worker", args, _opts ->
+        send(test_pid, {:start_worker, args})
+        {:ok, %{}}
     end)
 
     order = Map.put(@order, :repository_url, "https://github.com/acme/private")

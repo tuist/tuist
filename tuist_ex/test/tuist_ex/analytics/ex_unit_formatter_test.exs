@@ -318,7 +318,11 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
 
   test "keeps the run for the caller in defer mode and writes outcomes to a file in collect mode" do
     parent = self()
-    submit = fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end
+
+    submit = fn payload, _opts ->
+      send(parent, {:submitted, payload})
+      :ok
+    end
 
     events = [
       {:suite_started, []},
@@ -411,7 +415,10 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     {:ok, pid} =
       GenServer.start_link(ExUnitFormatter,
         environment: &environment/1,
-        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        submit: fn payload, _opts ->
+          send(parent, {:submitted, payload})
+          :ok
+        end,
         notify: &send(parent, {:notified, &1}),
         quarantine: quarantine
       )

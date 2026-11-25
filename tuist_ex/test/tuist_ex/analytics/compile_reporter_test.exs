@@ -210,7 +210,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     reporter =
       start(
         submit: fn _payload, _opts -> raise "credentials could not be saved" end,
-        shell: fn message -> send(parent, {:shell, message}) && :ok end
+        shell: fn message ->
+          send(parent, {:shell, message})
+          :ok
+        end
       )
 
     CompileReporter.record(reporter, :elixir, {:ok, []})
@@ -240,7 +243,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
 
     reporter =
       start(
-        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        submit: fn payload, _opts ->
+          send(parent, {:submitted, payload})
+          :ok
+        end,
         max_payload_bytes: 20_000
       )
 
@@ -268,7 +274,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
 
     reporter =
       start(
-        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        submit: fn payload, _opts ->
+          send(parent, {:submitted, payload})
+          :ok
+        end,
         sampler: nil
       )
 
@@ -282,7 +291,13 @@ defmodule TuistEx.Analytics.CompileReporterTest do
   test "reports nothing when idle compilers return :ok instead of :noop" do
     parent = self()
 
-    reporter = start(submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end)
+    reporter =
+      start(
+        submit: fn payload, _opts ->
+          send(parent, {:submitted, payload})
+          :ok
+        end
+      )
 
     CompileReporter.record(reporter, :elixir, {:ok, []})
     CompileReporter.record(reporter, :boundary, {:ok, []})
@@ -295,7 +310,13 @@ defmodule TuistEx.Analytics.CompileReporterTest do
   test "reports nothing when idle compilers emit only warnings" do
     parent = self()
 
-    reporter = start(submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end)
+    reporter =
+      start(
+        submit: fn payload, _opts ->
+          send(parent, {:submitted, payload})
+          :ok
+        end
+      )
 
     CompileReporter.record(
       reporter,
@@ -314,7 +335,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
 
     reporter =
       start(
-        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        submit: fn payload, _opts ->
+          send(parent, {:submitted, payload})
+          :ok
+        end,
         sampler: nil
       )
 
@@ -329,7 +353,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
 
     reporter =
       start(
-        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        submit: fn payload, _opts ->
+          send(parent, {:submitted, payload})
+          :ok
+        end,
         sampler: nil
       )
 
@@ -351,7 +378,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
 
     reporter =
       start(
-        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        submit: fn payload, _opts ->
+          send(parent, {:submitted, payload})
+          :ok
+        end,
         sampler: nil
       )
 
@@ -381,7 +411,11 @@ defmodule TuistEx.Analytics.CompileReporterTest do
 
   test "a finished build takes its reporter with it, so the next build starts clean" do
     parent = self()
-    submit = fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end
+
+    submit = fn payload, _opts ->
+      send(parent, {:submitted, payload})
+      :ok
+    end
 
     first = start(submit: submit, sampler: nil)
     reference = Process.monitor(first)
@@ -411,7 +445,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
 
     reporter =
       start(
-        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        submit: fn payload, _opts ->
+          send(parent, {:submitted, payload})
+          :ok
+        end,
         sampler: nil
       )
 
