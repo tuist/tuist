@@ -39,7 +39,7 @@ public protocol APIProtocol: Sendable {
     func getGeneration(_ input: Operations.getGeneration.Input) async throws -> Operations.getGeneration.Output
     /// Get a signed URL to upload a test run's code coverage.
     ///
-    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.
+    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists. A second key and URL take the run's per-test coverage evidence, which the run references through `coverage_evidence.storage_key` and the server reads while it creates the run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/post(createCoverageUpload)`.
@@ -1902,7 +1902,7 @@ extension APIProtocol {
     }
     /// Get a signed URL to upload a test run's code coverage.
     ///
-    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.
+    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists. A second key and URL take the run's per-test coverage evidence, which the run references through `coverage_evidence.storage_key` and the server reads while it creates the run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/post(createCoverageUpload)`.
@@ -6535,7 +6535,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/only_test_identifiers`.
             public var only_test_identifiers: [Swift.String]?
-            /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+            /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution, or `mix tuist.test`): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index. Instead of `paths` and `scopes`, a client may upload the scopes (see `createCoverageUpload`) and send `storage_key`.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence`.
             public struct coverage_evidencePayload: Codable, Hashable, Sendable {
@@ -6583,7 +6583,7 @@ public enum Components {
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/overlapped_tests`.
                 public var overlapped_tests: Components.Schemas.TestParams.coverage_evidencePayload.overlapped_testsPayload?
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/paths`.
-                public var paths: [Swift.String]
+                public var paths: [Swift.String]?
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/scopesPayload`.
                 public struct scopesPayloadPayload: Codable, Hashable, Sendable {
                     /// Indices into `paths`.
@@ -6654,7 +6654,7 @@ public enum Components {
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/scopes`.
                 public typealias scopesPayload = [Components.Schemas.TestParams.coverage_evidencePayload.scopesPayloadPayload]
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/scopes`.
-                public var scopes: Components.Schemas.TestParams.coverage_evidencePayload.scopesPayload
+                public var scopes: Components.Schemas.TestParams.coverage_evidencePayload.scopesPayload?
                 /// Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
                 ///
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/status`.
@@ -6667,6 +6667,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/status`.
                 public var status: Components.Schemas.TestParams.coverage_evidencePayload.statusPayload?
+                /// The `evidence_storage_key` createCoverageUpload returned for this run's id, in place of `paths` and `scopes`. The object is DEFLATE-compressed NDJSON, one scope per line, shaped as an item of `scopes` except that `files` holds the repository-relative paths themselves rather than indices; `overlapped_tests` and `status` stay in this object. The server reads it while it creates the run; an object it can't read leaves the run without evidence, its status `failed`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/storage_key`.
+                public var storage_key: Swift.String?
                 /// Creates a new `coverage_evidencePayload`.
                 ///
                 /// - Parameters:
@@ -6674,25 +6678,29 @@ public enum Components {
                 ///   - paths:
                 ///   - scopes:
                 ///   - status: Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
+                ///   - storage_key: The `evidence_storage_key` createCoverageUpload returned for this run's id, in place of `paths` and `scopes`. The object is DEFLATE-compressed NDJSON, one scope per line, shaped as an item of `scopes` except that `files` holds the repository-relative paths themselves rather than indices; `overlapped_tests` and `status` stay in this object. The server reads it while it creates the run; an object it can't read leaves the run without evidence, its status `failed`.
                 public init(
                     overlapped_tests: Components.Schemas.TestParams.coverage_evidencePayload.overlapped_testsPayload? = nil,
-                    paths: [Swift.String],
-                    scopes: Components.Schemas.TestParams.coverage_evidencePayload.scopesPayload,
-                    status: Components.Schemas.TestParams.coverage_evidencePayload.statusPayload? = nil
+                    paths: [Swift.String]? = nil,
+                    scopes: Components.Schemas.TestParams.coverage_evidencePayload.scopesPayload? = nil,
+                    status: Components.Schemas.TestParams.coverage_evidencePayload.statusPayload? = nil,
+                    storage_key: Swift.String? = nil
                 ) {
                     self.overlapped_tests = overlapped_tests
                     self.paths = paths
                     self.scopes = scopes
                     self.status = status
+                    self.storage_key = storage_key
                 }
                 public enum CodingKeys: String, CodingKey {
                     case overlapped_tests
                     case paths
                     case scopes
                     case status
+                    case storage_key
                 }
             }
-            /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+            /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution, or `mix tuist.test`): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index. Instead of `paths` and `scopes`, a client may upload the scopes (see `createCoverageUpload`) and send `storage_key`.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence`.
             public var coverage_evidence: Components.Schemas.TestParams.coverage_evidencePayload?
@@ -7393,7 +7401,7 @@ public enum Components {
             ///   - shard_index: The zero-based shard index for this test result.
             ///   - custom_metadata: Optional client metadata accepted for wire compatibility; not persisted on test runs.
             ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
-            ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+            ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution, or `mix tuist.test`): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index. Instead of `paths` and `scopes`, a client may upload the scopes (see `createCoverageUpload`) and send `storage_key`.
             ///   - shard_attempt: Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
             ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
             ///   - otp_version: Optional Mix client runtime metadata.
@@ -27931,6 +27939,14 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/CoverageUpload`.
         public struct CoverageUpload: Codable, Hashable, Sendable {
+            /// The key to send with the run as `coverage_evidence.storage_key`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageUpload/evidence_storage_key`.
+            public var evidence_storage_key: Swift.String?
+            /// A short-lived URL to PUT the run's DEFLATE-compressed per-test coverage evidence to (see `coverage_evidence.storage_key` on the test run).
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageUpload/evidence_upload_url`.
+            public var evidence_upload_url: Swift.String?
             /// The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
             ///
             /// - Remark: Generated from `#/components/schemas/CoverageUpload/storage_key`.
@@ -27942,16 +27958,24 @@ public enum Components {
             /// Creates a new `CoverageUpload`.
             ///
             /// - Parameters:
+            ///   - evidence_storage_key: The key to send with the run as `coverage_evidence.storage_key`.
+            ///   - evidence_upload_url: A short-lived URL to PUT the run's DEFLATE-compressed per-test coverage evidence to (see `coverage_evidence.storage_key` on the test run).
             ///   - storage_key: The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
             ///   - upload_url: A short-lived URL to PUT the compressed coverage to.
             public init(
+                evidence_storage_key: Swift.String? = nil,
+                evidence_upload_url: Swift.String? = nil,
                 storage_key: Swift.String,
                 upload_url: Swift.String
             ) {
+                self.evidence_storage_key = evidence_storage_key
+                self.evidence_upload_url = evidence_upload_url
                 self.storage_key = storage_key
                 self.upload_url = upload_url
             }
             public enum CodingKeys: String, CodingKey {
+                case evidence_storage_key
+                case evidence_upload_url
                 case storage_key
                 case upload_url
             }
@@ -43624,7 +43648,7 @@ public enum Operations {
     }
     /// Get a signed URL to upload a test run's code coverage.
     ///
-    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.
+    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists. A second key and URL take the run's per-test coverage evidence, which the run references through `coverage_evidence.storage_key` and the server reads while it creates the run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/post(createCoverageUpload)`.
@@ -43712,6 +43736,14 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/POST/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The key to send with the run as `coverage_evidence.storage_key`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/POST/responses/200/content/json/evidence_storage_key`.
+                        public var evidence_storage_key: Swift.String?
+                        /// A short-lived URL to PUT the run's DEFLATE-compressed per-test coverage evidence to (see `coverage_evidence.storage_key` on the test run).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/POST/responses/200/content/json/evidence_upload_url`.
+                        public var evidence_upload_url: Swift.String?
                         /// The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/POST/responses/200/content/json/storage_key`.
@@ -43723,16 +43755,24 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - evidence_storage_key: The key to send with the run as `coverage_evidence.storage_key`.
+                        ///   - evidence_upload_url: A short-lived URL to PUT the run's DEFLATE-compressed per-test coverage evidence to (see `coverage_evidence.storage_key` on the test run).
                         ///   - storage_key: The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
                         ///   - upload_url: A short-lived URL to PUT the compressed coverage to.
                         public init(
+                            evidence_storage_key: Swift.String? = nil,
+                            evidence_upload_url: Swift.String? = nil,
                             storage_key: Swift.String,
                             upload_url: Swift.String
                         ) {
+                            self.evidence_storage_key = evidence_storage_key
+                            self.evidence_upload_url = evidence_upload_url
                             self.storage_key = storage_key
                             self.upload_url = upload_url
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case evidence_storage_key
+                            case evidence_upload_url
                             case storage_key
                             case upload_url
                         }
@@ -54274,7 +54314,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/only_test_identifiers`.
                     public var only_test_identifiers: [Swift.String]?
-                    /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+                    /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution, or `mix tuist.test`): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index. Instead of `paths` and `scopes`, a client may upload the scopes (see `createCoverageUpload`) and send `storage_key`.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence`.
                     public struct coverage_evidencePayload: Codable, Hashable, Sendable {
@@ -54322,7 +54362,7 @@ public enum Operations {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/overlapped_tests`.
                         public var overlapped_tests: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.overlapped_testsPayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/paths`.
-                        public var paths: [Swift.String]
+                        public var paths: [Swift.String]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/scopesPayload`.
                         public struct scopesPayloadPayload: Codable, Hashable, Sendable {
                             /// Indices into `paths`.
@@ -54393,7 +54433,7 @@ public enum Operations {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/scopes`.
                         public typealias scopesPayload = [Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.scopesPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/scopes`.
-                        public var scopes: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.scopesPayload
+                        public var scopes: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.scopesPayload?
                         /// Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/status`.
@@ -54406,6 +54446,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/status`.
                         public var status: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.statusPayload?
+                        /// The `evidence_storage_key` createCoverageUpload returned for this run's id, in place of `paths` and `scopes`. The object is DEFLATE-compressed NDJSON, one scope per line, shaped as an item of `scopes` except that `files` holds the repository-relative paths themselves rather than indices; `overlapped_tests` and `status` stay in this object. The server reads it while it creates the run; an object it can't read leaves the run without evidence, its status `failed`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/storage_key`.
+                        public var storage_key: Swift.String?
                         /// Creates a new `coverage_evidencePayload`.
                         ///
                         /// - Parameters:
@@ -54413,25 +54457,29 @@ public enum Operations {
                         ///   - paths:
                         ///   - scopes:
                         ///   - status: Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
+                        ///   - storage_key: The `evidence_storage_key` createCoverageUpload returned for this run's id, in place of `paths` and `scopes`. The object is DEFLATE-compressed NDJSON, one scope per line, shaped as an item of `scopes` except that `files` holds the repository-relative paths themselves rather than indices; `overlapped_tests` and `status` stay in this object. The server reads it while it creates the run; an object it can't read leaves the run without evidence, its status `failed`.
                         public init(
                             overlapped_tests: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.overlapped_testsPayload? = nil,
-                            paths: [Swift.String],
-                            scopes: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.scopesPayload,
-                            status: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.statusPayload? = nil
+                            paths: [Swift.String]? = nil,
+                            scopes: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.scopesPayload? = nil,
+                            status: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.statusPayload? = nil,
+                            storage_key: Swift.String? = nil
                         ) {
                             self.overlapped_tests = overlapped_tests
                             self.paths = paths
                             self.scopes = scopes
                             self.status = status
+                            self.storage_key = storage_key
                         }
                         public enum CodingKeys: String, CodingKey {
                             case overlapped_tests
                             case paths
                             case scopes
                             case status
+                            case storage_key
                         }
                     }
-                    /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+                    /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution, or `mix tuist.test`): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index. Instead of `paths` and `scopes`, a client may upload the scopes (see `createCoverageUpload`) and send `storage_key`.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence`.
                     public var coverage_evidence: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload?
@@ -55132,7 +55180,7 @@ public enum Operations {
                     ///   - shard_index: The zero-based shard index for this test result.
                     ///   - custom_metadata: Optional client metadata accepted for wire compatibility; not persisted on test runs.
                     ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
-                    ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+                    ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution, or `mix tuist.test`): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index. Instead of `paths` and `scopes`, a client may upload the scopes (see `createCoverageUpload`) and send `storage_key`.
                     ///   - shard_attempt: Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
                     ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
                     ///   - otp_version: Optional Mix client runtime metadata.

@@ -1,26 +1,26 @@
 ---
 {
-  "title": "Xcode Test İçgörüler",
-  "titleTemplate": ":title · Test İçgörüler · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Test İçgörüler ile yavaş ve kararsız testleri belirlemek için Xcode test analizlerini takip edin."
+  "title": "Xcode Test İçgörileri",
+  "titleTemplate": ":title · Test İçgörileri · Özellikler · Kılavuzlar · Tuist",
+  "description": "Tuist Test İçgörileri ile yavaş ve kararsız testleri belirlemek için Xcode test analizlerini takip edin."
 }
 ---
 # Xcode test içgörüleri {#xcode-test-insights}
 
-Tuist Test Insights, yavaş testleri belirleyerek veya başarısız CI çalıştırmalarını hızla anlayarak test paketinizin sağlığını izlemeniz için Xcode test analizleri sunar. Test paketiniz büyüdükçe, giderek yavaşlayan testler veya aralıklı hatalar gibi eğilimleri fark etmek giderek zorlaşır. Tuist Test Insights, hızlı ve güvenilir bir test paketini korumak için ihtiyacınız olan görünürlüğü sağlar.
+Tuist Test Insights, yavaş testleri tespit ederek veya başarısız CI çalıştırmalarını hızla anlayarak test paketinizin sağlığını izlemeniz için Xcode test analitiği sunar. Test paketiniz büyüdükçe, kademeli olarak yavaşlayan testler veya aralıklı hatalar gibi eğilimleri fark etmek giderek zorlaşır. Tuist Test Insights, hızlı ve güvenilir bir test paketini sürdürmeniz için gereken görünürlüğü sağlar.
 
 Test Insights ile şu gibi soruları yanıtlayabilirsiniz:
-- Testlerim yavaşladı mı? Hangileri?
+- Testlerim daha mı yavaşladı? Hangileri?
 - Hangi testler kararsız ve dikkat gerektiriyor?
-- CI çalışmam neden başarısız oldu?
+- CI çalıştırmam neden başarısız oldu?
 
 ## Kurulum {#setup}
 
 Testlerinizi izlemeye başlamak için, şemanızın test son eylemine ekleyerek `tuist inspect test` komutundan yararlanabilirsiniz:
 
-![Testleri incelemek için son eylem](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
+![Testleri denetlemek için son eylem](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
 
-Eğer [Mise](https://mise.jdx.dev/) kullanıyorsanız, betiğinizin son eylem ortamında `tuist` etkinleştirmesi gerekecektir:
+[Mise](https://mise.jdx.dev/) kullanıyorsanız, betiğinizin son eylem ortamında `tuist` etkinleştirmesi gerekir:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
@@ -30,13 +30,13 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 > [!TIP]
 > **Mise ve proje yolları**
 >
-> Ortamınızın `PATH` ortam değişkeni şema son eylemi tarafından miras alınmaz, bu nedenle Mise'nin mutlak yolunu kullanmanız gerekir; bu yol, Mise'yi nasıl yüklediğinize bağlı olacaktır. Ayrıca, $SRCROOT tarafından işaret edilen dizinden Mise'yi çalıştırabilmeniz için projenizdeki bir hedeften derleme ayarlarını miras almayı unutmayın.
+> Ortamınızın `PATH` ortam değişkeni şema son eylemi tarafından devralınmaz; bu nedenle Mise'nin kurulum yöntemine bağlı olan mutlak yolunu kullanmanız gerekir. Ayrıca, $SRCROOT tarafından işaret edilen dizinden Mise'yi çalıştırabilmeniz için projenizdeki bir hedeften derleme ayarlarını devralmayı unutmayın.
 
-Tuist hesabınıza giriş yaptığınız sürece test çalıştırmalarınız artık izlenmektedir. Test içgörülerinize Tuist kontrol panelinden erişebilir ve zaman içinde nasıl değiştiklerini görebilirsiniz:
+Tuist hesabınıza giriş yaptığınız sürece test çalıştırmalarınız artık izlenir. Tuist kontrol panelinde test içgörülerinize erişebilir ve zaman içinde nasıl değiştiklerini görebilirsiniz:
 
-![Test içgörülerine sahip kontrol paneli](/images/guides/features/build-insights/tests-dashboard.png)
+![Test içgörülerini içeren kontrol paneli](/images/guides/features/build-insights/tests-dashboard.png)
 
-Genel eğilimlerin yanı sıra, her bir teste derinlemesine inebilirsiniz; örneğin, CI üzerinde hataları veya yavaş testleri hata ayıklarken:
+Genel eğilimlere ek olarak, CI üzerinde hataları veya yavaş testleri hata ayıklarken olduğu gibi her bir teste derinlemesine inebilirsiniz:
 
 ![Test detayı](/images/guides/features/build-insights/test-detail.png)
 
@@ -47,7 +47,7 @@ Genel eğilimlerin yanı sıra, her bir teste derinlemesine inebilirsiniz; örne
 >
 > Otomatik oluşturulan şemalarınızda test içgörülerini izlemekle ilgilenmiyorsanız, bunları [testInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) oluşturma seçeneğini kullanarak devre dışı bırakın.
 
-Özel şemalara sahip oluşturulmuş projeler kullanıyorsanız, test içgörüleri için son eylemleri ayarlayabilirsiniz:
+Özel şemalara sahip oluşturulmuş projeler kullanıyorsanız, test içgörüleri için son eylemleri yapılandırabilirsiniz:
 
 ```swift
 let project = Project(
@@ -95,19 +95,20 @@ testAction: .testAction(
 
 ## Sürekli entegrasyon {#continuous-integration}
 
-CI üzerinde test içgörülerini izlemek için, CI'nizin <.localized_link href="/guides/server/authentication#continuous-integration">kimlik doğrulamasının yapıldığından</.localized_link> emin olmanız gerekecektir.
+CI üzerinde test içgörülerini izlemek için, CI sisteminizin <.localized_link href="/guides/server/authentication#continuous-integration">kimliğin doğrulanmış</.localized_link> olduğundan emin olmanız gerekir.
 
-Ayrıca, şunlardan birini yapmanız gerekecektir:
+Ayrıca şunlardan birini yapmanız gerekir:
 - `xcodebuild` eylemlerini çağırırken <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> komutunu kullanın.
 - `xcodebuild` çağrınıza `-resultBundlePath` ekleyin.
 
-`xcodebuild`, projenizi `-resultBundlePath` olmadan test ettiğinde, gerekli sonuç paketi dosyaları oluşturulmaz. `tuist inspect test` son eylemi, testlerinizi analiz etmek için bu dosyalara ihtiyaç duyar.
+`xcodebuild`, projenizi `-resultBundlePath` olmadan test ettiğinde gerekli sonuç paketi dosyaları oluşturulmaz. `tuist inspect test` son eylemi, testlerinizi analiz etmek için bu dosyaları gerektirir.
 
 ### Git geçmişi {#git-history}
 
-CI üzerinde, Tuist ayrıca checkout'un commit geçmişini yükler: commit SHA'ları, ebeveynleri, commit tarihleri ve çalıştırmanın ile pull request'in temel dalının bulunduğu dal. Hiçbir dosya içeriği, commit mesajı veya yazar yüklenmez. Bu, Tuist'e hangi commit'lerin varsayılan dalınıza indiğini söyler; örneğin, bir birleştirme kuyruğunun test ettiği commit'ler. Tuist, checkout'un zaten sahip olduğu geçmişi okur ve checkout temel dala sahip olmadığında, uzaktan en son commit'ini ister (`git ls-remote`). Kod kapsamı dışında, geçmiş getirilmez. Kod kapsamı ile birlikte, sığ bir checkout, dosya içerikleri olmadan derinleştirilir; böylece bir pull request'in nereden dallandığı bulunur ve Tuist'in zaten sahip olduğu commit'lere ulaşılır; bu sayede bir commit, üzerinde durduğu ebeveyni olmadan asla yüklenmez.
+CI üzerinde Tuist, checkout'un commit geçmişini de yükler: commit SHA'ları, ebeveynleri, commit tarihleri ve çalıştırmanın ile pull request'in temel dalının bulunduğu dal. Dosya içerikleri, commit mesajları veya yazarlar yüklenmez. Bu bilgiler, Tuist'e hangi commit'lerin varsayılan dalınıza geldiğini söyler; örneğin birleştirme kuyruğunun test ettiği commit'ler. Tuist, checkout'un zaten sahip olduğu geçmişi okur ve checkout temel dala sahip olmadığında, uzaktan en son commit'i ister (`git ls-remote`). Kod kapsamı dışında geçmiş getirilmez. Kod kapsamı ile birlikte, sığ bir checkout, dosya içerikleri olmadan, bir pull request'in nerede dallandığını bulmak ve Tuist'in zaten sahip olduğu commit'lere ulaşmak için derinleştirilir; böylece bir commit, üzerinde durduğu ebeveyni olmadan asla yüklenmez.
 
 | Değişken | Etki |
 | --- | --- |
 | `TUIST_GIT_UPLOAD_ENABLED=false` | Hiçbir Git geçmişini okumaz veya yüklemez. |
-| `TUIST_GIT_UNSHALLOW_ENABLED=false` | Uzak sunucuya başvurmadan yalnızca checkout'u okur. |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | Yalnızca checkout'u okur, uzak sunucuya bağlanmaz. |
+| `TUIST_GIT_BRANCH=<branch>` | Çalıştırmanın dalını adlandırır; CI sağlayıcısının ve checkout'un tanımlamasından önce gelir. Tuist'in tanımadığı ve bir dal yerine bir commit checkout eden CI sistemlerinde ayarlayın; aksi takdirde bu çalıştırmaların dalı olmaz. |

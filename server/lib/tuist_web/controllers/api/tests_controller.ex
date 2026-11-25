@@ -452,8 +452,13 @@ defmodule TuistWeb.API.TestsController do
            coverage_evidence: %Schema{
              type: :object,
              description:
-               "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.",
+               "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution, or `mix tuist.test`): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index. Instead of `paths` and `scopes`, a client may upload the scopes (see `createCoverageUpload`) and send `storage_key`.",
              properties: %{
+               storage_key: %Schema{
+                 type: :string,
+                 description:
+                   "The `evidence_storage_key` createCoverageUpload returned for this run's id, in place of `paths` and `scopes`. The object is DEFLATE-compressed NDJSON, one scope per line, shaped as an item of `scopes` except that `files` holds the repository-relative paths themselves rather than indices; `overlapped_tests` and `status` stay in this object. The server reads it while it creates the run; an object it can't read leaves the run without evidence, its status `failed`."
+               },
                paths: %Schema{type: :array, maxItems: 200_000, items: %Schema{type: :string}},
                scopes: %Schema{
                  type: :array,
@@ -508,8 +513,7 @@ defmodule TuistWeb.API.TestsController do
                  description:
                    "Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it."
                }
-             },
-             required: [:paths, :scopes]
+             }
            },
            coverage: CoverageSchema,
            xcode_coverage: XcodeCoverage,
@@ -1142,14 +1146,17 @@ defmodule TuistWeb.API.TestsController do
   end
 
   # An uploaded coverage file is only ever read back under the run's own key
-  # (`Tuist.Tests.Coverage.storage_key/2`), so a run cannot point at another's.
+  # (`Tuist.Tests.Coverage.storage_key/2`, `evidence_storage_key/2` for the
+  # evidence), so a run cannot point at another's.
   # Every key the request names is checked: either one may be the one read.
   defp validate_coverage_storage_key(params, test_id) do
     own = Coverage.storage_key(params.project, test_id)
+    evidence = Map.get(Map.get(params, :coverage_evidence) || %{}, :storage_key)
 
     [Map.get(params, :xcode_coverage_storage_key), Map.get(Map.get(params, :coverage) || %{}, :storage_key)]
     |> Enum.reject(&is_nil/1)
     |> Enum.all?(&(&1 == own))
+    |> Kernel.and(evidence in [nil, Coverage.evidence_storage_key(params.project, test_id)])
     |> if(do: :ok, else: {:error, :invalid_coverage_storage_key})
   end
 

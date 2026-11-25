@@ -10,15 +10,23 @@ defmodule TuistEx.Analytics.TempDir do
   Calls `fun` with a new private directory and removes it afterwards.
   """
   def with_dir(prefix, fun) do
-    name = Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)
-    dir = Path.join(System.tmp_dir!(), "#{prefix}-#{name}")
-    File.mkdir!(dir)
-    File.chmod!(dir, 0o700)
+    dir = create(prefix)
 
     try do
       fun.(dir)
     after
       File.rm_rf(dir)
     end
+  end
+
+  @doc """
+  Creates a new private directory, which the caller removes.
+  """
+  def create(prefix) do
+    name = Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)
+    dir = Path.join(System.tmp_dir!(), "#{prefix}-#{name}")
+    File.mkdir!(dir)
+    File.chmod!(dir, 0o700)
+    dir
   end
 end

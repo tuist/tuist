@@ -2,25 +2,25 @@
 {
   "title": "Análisis de tests de Xcode",
   "titleTemplate": ":title · Análisis de tests · Funcionalidades · Guías · Tuist",
-  "description": "Realiza un seguimiento de las analíticas de tests de Xcode para identificar tests lentos e inestables con el análisis de tests de Tuist."
+  "description": "Sigue las analíticas de los tests de Xcode para identificar tests lentos e inestables con el análisis de tests de Tuist."
 }
 ---
 # Análisis de tests de Xcode {#xcode-test-insights}
 
-Tuist Test Insights te ofrece análisis de tests de Xcode para supervisar la salud de tu suite de tests identificando tests lentos o entendiendo rápidamente ejecuciones de CI fallidas. A medida que tu suite de tests crece, resulta cada vez más difícil detectar tendencias como tests que se vuelven gradualmente más lentos o fallos intermitentes. Tuist Test Insights te proporciona la visibilidad necesaria para mantener una suite de tests rápida y fiable.
+Tuist Test Insights te ofrece análisis de tests de Xcode para monitorizar la salud de tu suite de tests identificando tests lentos o entendiendo rápidamente las ejecuciones de CI fallidas. A medida que tu suite de tests crece, resulta cada vez más difícil detectar tendencias como tests que se ralentizan gradualmente o fallos intermitentes. Tuist Test Insights te proporciona la visibilidad necesaria para mantener una suite de tests rápida y fiable.
 
 Con Test Insights, puedes responder a preguntas como:
 - ¿Se han vuelto más lentos mis tests? ¿Cuáles?
 - ¿Qué tests son inestables y necesitan atención?
-- ¿Por qué ha fallado mi ejecución de CI?
+- ¿Por qué falló mi ejecución de CI?
 
 ## Configuración {#setup}
 
-Para empezar a hacer seguimiento de tus tests, puedes aprovechar el comando `tuist inspect test` añadiéndolo a la post-acción de test de tu esquema:
+Para empezar a rastrear tus tests, puedes aprovechar el comando `tuist inspect test` añadiéndolo a la post-acción de test de tu esquema:
 
 ![Post-acción para inspeccionar tests](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
 
-Si estás usando [Mise](https://mise.jdx.dev/), tu script deberá activar `tuist` en el entorno de la post-acción:
+Si estás usando [Mise](https://mise.jdx.dev/), tu script necesitará activar `tuist` en el entorno de la post-acción:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
@@ -36,7 +36,7 @@ Tus ejecuciones de tests ahora se rastrean siempre que hayas iniciado sesión en
 
 ![Panel con análisis de tests](/images/guides/features/build-insights/tests-dashboard.png)
 
-Además de las tendencias generales, también puedes profundizar en cada test individual, por ejemplo al depurar fallos o tests lentos en la CI:
+Además de las tendencias generales, también puedes profundizar en cada test individual, por ejemplo, al depurar fallos o tests lentos en la CI:
 
 ![Detalle del test](/images/guides/features/build-insights/test-detail.png)
 
@@ -45,7 +45,7 @@ Además de las tendencias generales, también puedes profundizar en cada test in
 > [!NOTE]
 > Los esquemas autogenerados incluyen automáticamente la post-acción `tuist inspect test` .
 >
-> Si no te interesa hacer seguimiento de los análisis de tests en tus esquemas autogenerados, desactívalos mediante la opción de generación [testInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) .
+> Si no te interesa rastrear los análisis de tests en tus esquemas autogenerados, desactívalos mediante la opción de generación [testInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) .
 
 Si estás usando proyectos generados con esquemas personalizados, puedes configurar post-acciones para los análisis de tests:
 
@@ -95,9 +95,9 @@ testAction: .testAction(
 
 ## Integración continua {#continuous-integration}
 
-Para hacer seguimiento de los análisis de tests en la CI, deberás asegurarte de que tu CI esté <.localized_link href="/guides/server/authentication#continuous-integration">autenticada</.localized_link> .
+Para rastrear los análisis de tests en la CI, deberás asegurarte de que tu CI esté <.localized_link href="/guides/server/authentication#continuous-integration">autenticada</.localized_link> .
 
-Además, necesitarás either:
+Además, tendrás que:
 - Usar el comando <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> al invocar acciones de `xcodebuild` .
 - Añadir `-resultBundlePath` a tu invocación de `xcodebuild` .
 
@@ -105,9 +105,10 @@ Cuando `xcodebuild` prueba tu proyecto sin `-resultBundlePath` , no se generan l
 
 ### Historial de Git {#git-history}
 
-En la CI, Tuist también sube el historial de commits del checkout: SHAs de commit, sus padres, fechas de commit y la rama en la que estaba la ejecución y la rama base de su pull request. No se suben contenidos de archivos, mensajes de commit ni autores. Esto es lo que indica a Tuist qué commits llegaron a tu rama predeterminada, por ejemplo los que probó una cola de merge. Tuist lee el historial que ya tiene el checkout y, cuando el checkout no tiene la rama base, solicita al remoto su último commit (`git ls-remote`). Fuera de la cobertura de código, no obtiene historial. Con cobertura de código, se amplía un checkout superficial, sin contenidos de archivo, para encontrar dónde se bifurcó un pull request y alcanzar los commits que Tuist ya tiene, de modo que nunca se sube un commit sin el padre sobre el que se asienta.
+En la CI, Tuist también sube el historial de commits del checkout: SHAs de los commits, sus padres, fechas de commit y la rama en la que estaba la ejecución y la rama base de su pull request. No se suben contenidos de archivos, mensajes de commit ni autores. Esto es lo que le indica a Tuist qué commits llegaron a tu rama predeterminada, por ejemplo, los que probó una cola de fusiones. Tuist lee el historial que ya tiene el checkout y, cuando el checkout no tiene la rama base, solicita al remoto su último commit (`git ls-remote`). Fuera de la cobertura de código, no obtiene historial. Con la cobertura de código, se amplía un checkout superficial, sin contenidos de archivo, para encontrar dónde se bifurcó un pull request y alcanzar los commits que Tuist ya tiene, de modo que nunca se sube un commit sin el padre sobre el que se asienta.
 
 | Variable | Efecto |
 | --- | --- |
 | `TUIST_GIT_UPLOAD_ENABLED=false` | No lee ni sube ningún historial de Git. |
 | `TUIST_GIT_UNSHALLOW_ENABLED=false` | Lee solo el checkout, sin contactar con el remoto. |
+| `TUIST_GIT_BRANCH=<branch>` | Nombra la rama de la ejecución, por encima de la del proveedor de CI y la del checkout. Configúrala en sistemas de CI que Tuist no reconoce y que hacen checkout de un commit en lugar de una rama, cuyas ejecuciones de otro modo no tendrían rama. |

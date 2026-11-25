@@ -63,6 +63,24 @@ defmodule Mix.Tasks.Tuist.Test do
   that sets its own `test_coverage` tool, such as excoveralls, and a runtime
   without the JIT, which cannot count natively, use Mix's coverage tool.
 
+  ## Coverage-based test selection
+
+  A project that opts in runs only the tests whose code a change touched:
+
+      def project do
+        [tuist: [selective_testing: [strategy: :coverage]]]
+      end
+
+  With `--cover`, the task asks Tuist for the closest earlier run of the same
+  application that recorded which lines each test executed, sends the files
+  that changed since then, and leaves out the test modules and tests the
+  server says the change cannot reach. Until such a run exists, or when a
+  tracked file such as `mix.exs` or `mix.lock` changed, every test runs. A
+  request that fails also runs every test, with a warning. Shards planned by
+  `mix tuist.test.build` run only what was selected. `--no-selective-testing`
+  runs every test and still records evidence for later runs. Umbrella roots
+  are not selected.
+
   ## Quarantined tests
 
   Before the run, the task reads the tests the project quarantines in Tuist.
@@ -93,22 +111,31 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.CoverageSummary
+  alias TuistEx.Analytics.Evidence
   alias TuistEx.Analytics.ExUnitFormatter
   alias TuistEx.Analytics.GitHistory
   alias TuistEx.Analytics.Isolated
   alias TuistEx.Analytics.Quarantine
   alias TuistEx.Analytics.Report
+  alias TuistEx.Analytics.SelectionFilter
   alias TuistEx.Analytics.Shards
   alias TuistEx.Analytics.Subprocess
   alias TuistEx.Analytics.TempDir
+  alias TuistEx.Analytics.TestSelection
   alias TuistEx.Auth
+  alias TuistEx.Git
+  alias TuistEx.HTTP.JSONFile
 
   @formatter ExUnitFormatter
   @preferred_cli_env :test
   @retry_results "TUIST_EX_RETRY_RESULTS"
   @prepared_build "TUIST_EX_PREPARED_BUILD"
   @retry_mix_path "TUIST_EX_RETRY_MIX_PATH"
+  @retry_selection "TUIST_EX_RETRY_SELECTION"
   @suite_failed "\"mix test\" failed"
+  # The server's limit on a report's (inflated) body, less room for the
+  # request's own framing.
+  @report_limit 50_000_000 - 1_000_000
 
   def run(args) do
     case Args.ensure_env(:test, "tuist.test", args) do
@@ -142,7 +169,7 @@ defmodule Mix.Tasks.Tuist.Test do
             if options[:prepare_only] do
               :ok
             else
-              options = quarantine(options, test_args)
+              options = options |> quarantine(test_args) |> select_tests()
 
               case retries_for(options, test_args) do
                 0 ->
@@ -178,6 +205,7 @@ defmodule Mix.Tasks.Tuist.Test do
           System.put_env([{"MIX_PATH", System.get_env(@retry_mix_path)}, {@retry_mix_path, nil}])
         end
 
+        options = retry_selection(options)
         configure(Keyword.put(options, :mode, {:collect, path}))
         run_test(test_args, options)
     end
@@ -250,10 +278,9 @@ defmodule Mix.Tasks.Tuist.Test do
           )
 
           options =
-            Keyword.merge(options,
-              shard_plan_id: shard["shard_plan_id"],
-              shard_index: index
-            )
+            options
+            |> Keyword.merge(shard_plan_id: shard["shard_plan_id"], shard_index: index)
+            |> shard_selection(shard)
 
           {options, Enum.reject(prebuilt, &(&1 in test_args)) ++ test_args ++ files}
         end
@@ -307,11 +334,42 @@ defmodule Mix.Tasks.Tuist.Test do
               coverage_summary: CoverageSummary.options(options[:shard_index])
             )
 
-          {options, Coverage.without_cover(test_args)}
+          evidence? = TestSelection.configured?() and evidence_supported?()
+          test_args = Coverage.without_cover(test_args)
+
+          {Keyword.put(options, :coverage_evidence, evidence?),
+           if(evidence?, do: one_at_a_time(test_args), else: test_args)}
         else
           {options, test_args}
         end
     end
+  end
+
+  # Before Elixir 1.19 nothing tells a test's process apart, so the run
+  # records no evidence and keeps its concurrency.
+  defp evidence_supported? do
+    supported? = Evidence.supported?()
+
+    if not supported? do
+      Mix.shell().info(
+        "warning: Tuist: recording which lines each test executes needs Elixir 1.19 or later, " <>
+          "so this run records none for coverage-based test selection"
+      )
+    end
+
+    supported?
+  end
+
+  # What a test executed is the change in the line counters while it ran, so
+  # a run that records evidence runs one module at a time: `--max-cases`
+  # given last wins, over the test helper's too. Sharding parallelizes it.
+  defp one_at_a_time(test_args) do
+    Mix.shell().info(
+      "Tuist: running test modules one at a time to record which lines each test executes; " <>
+        "shard the run with mix tuist.test.build to run in parallel"
+    )
+
+    test_args ++ ["--max-cases", "1"]
   end
 
   # Mix's coverage tool writes an HTML report to `:output`; counting natively
@@ -336,6 +394,125 @@ defmodule Mix.Tasks.Tuist.Test do
 
       {:error, reason} ->
         Mix.raise("Could not download the build for shard #{index}: #{inspect(reason)}")
+    end
+  end
+
+  # A plan for an impact run that selected tests hands each shard the run's
+  # whole skip list, and the run, which it reports its tests with.
+  defp shard_selection(options, shard) do
+    case shard do
+      %{"test_impact_run_id" => run_id, "skipped_tests" => skipped}
+      when is_binary(run_id) and is_list(skipped) ->
+        skipped =
+          for %{"module" => module} = entry <- skipped,
+              do: %{module: module, suite: entry["suite"] || "", name: entry["name"]}
+
+        apply_selection(options, {:selected, %{run_id: run_id, skipped_tests: skipped}})
+
+      %{"test_impact_run_id" => run_id} when is_binary(run_id) ->
+        Keyword.put(options, :test_impact_run_id, run_id)
+
+      _shard ->
+        options
+    end
+  end
+
+  # Coverage-based test selection, for a project that opts into it and a run
+  # that measures coverage, which keeps the evidence fresh. The run's Git
+  # history goes up first, so the server's graph has the checkout's commit,
+  # and the run reuses it. Shards apply what the plan job decided. A VM
+  # whose ExUnit can't take the skip list doesn't ask: nothing could be
+  # left out.
+  defp select_tests(options) do
+    if is_nil(options[:shard_index]) and selects?(options) and filter_installed?() do
+      network_publishing? = network_publishing?(options)
+      history = collect_history(options, network_publishing?)
+      upload_history(history, &GitHistory.publish/2, network_publishing?)
+      index = TestSelection.index(TestSelection.test_files())
+
+      outcome =
+        case Isolated.run(
+               fn ->
+                 TestSelection.decide(index, Keyword.take(options, [:url, :project, :scheme]))
+               end,
+               600_000
+             ) do
+          {:error, reason} -> {:failed, reason}
+          outcome -> outcome
+        end
+
+      TestSelection.report(outcome)
+      options |> Keyword.put(:history, history) |> apply_selection(outcome)
+    else
+      options
+    end
+  end
+
+  @doc false
+  def selects?(options, config \\ Mix.Project.config()) do
+    TestSelection.configured?(config) and options[:coverage] == true and
+      options[:no_selective_testing] != true and options[:prepare_only] != true and
+      not Mix.Project.umbrella?()
+  end
+
+  # A selection leaves its skip list out of the run and its retries, and
+  # makes the run's coverage partial when it skips anything; it is not
+  # among what the run's own arguments left out, as quarantine is not. Like
+  # a shard's, a partial run's total says nothing of the suite, so it skips
+  # the coverage summary and its threshold. A run with a reason runs
+  # everything and only reports its impact run.
+  defp apply_selection(options, {:selected, selection}) do
+    if SelectionFilter.apply(selection.skipped_tests) == :ok do
+      skips? = selection.skipped_tests != []
+
+      Keyword.merge(options,
+        test_impact_run_id: selection.run_id,
+        selection_skipped: selection.skipped_tests,
+        coverage_partial: options[:coverage_partial] == true or skips?,
+        coverage_summary: if(skips?, do: false, else: options[:coverage_summary])
+      )
+    else
+      warn_unfiltered()
+      options
+    end
+  end
+
+  defp apply_selection(options, {:fallback, %{run_id: run_id}}),
+    do: Keyword.put(options, :test_impact_run_id, run_id)
+
+  defp apply_selection(options, _outcome), do: options
+
+  defp filter_installed? do
+    case SelectionFilter.install() do
+      :ok ->
+        true
+
+      :error ->
+        warn_unfiltered()
+        false
+    end
+  end
+
+  defp warn_unfiltered do
+    Mix.shell().info(
+      "warning: Tuist coverage-based test selection can't leave tests out with this version of ExUnit, so every test runs."
+    )
+  end
+
+  # A retry leaves out what its parent's selection did, which the parent
+  # wrote to a file: a skip list can be longer than an argument list.
+  defp retry_selection(options) do
+    with path when is_binary(path) and path != "" <- System.get_env(@retry_selection),
+         {:ok, binary} <- File.read(path),
+         [_ | _] = skipped <- :erlang.binary_to_term(binary) do
+      if SelectionFilter.apply(skipped) == :ok do
+        Keyword.put(options, :selection_skipped, skipped)
+      else
+        warn_unfiltered()
+        options
+      end
+    else
+      _ -> options
     end
   end
 
@@ -420,7 +597,8 @@ defmodule Mix.Tasks.Tuist.Test do
   end
 
   defp run_test(args, options) do
-    args = args ++ Quarantine.exclude_args(options[:quarantine])
+    args =
+      args ++ Quarantine.exclude_args(options[:quarantine])
 
     if prepared?(options),
       do: Mix.Tasks.Test.run(args),
@@ -445,9 +623,12 @@ defmodule Mix.Tasks.Tuist.Test do
   # Git history goes with the run too, so the runs wait for the suite to end;
   # the Git history is read before the tests can change the checkout.
   defp run_deferred(options, test_args) do
+    network_publishing? = network_publishing?(options)
+
+    {history, options} =
+      Keyword.pop_lazy(options, :history, fn -> collect_history(options, network_publishing?) end)
+
     configure(Keyword.put(options, :mode, {:defer, self()}))
-    network_publishing? = network_publishing?()
-    history = collect_history(options, network_publishing?)
 
     try do
       run_test(test_args, options)
@@ -462,9 +643,12 @@ defmodule Mix.Tasks.Tuist.Test do
   end
 
   defp run_with_retries(options, test_args, retries) do
+    network_publishing? = network_publishing?(options)
+
+    {history, options} =
+      Keyword.pop_lazy(options, :history, fn -> collect_history(options, network_publishing?) end)
+
     configure(Keyword.put(options, :mode, {:defer, self()}))
-    network_publishing? = network_publishing?()
-    history = collect_history(options, network_publishing?)
     suite = run_suite(test_args, options)
     # One per suite that ran: an umbrella runs one for each application. The
     # first run's coverage is the run's: retries never carry `--cover`.
@@ -562,6 +746,8 @@ defmodule Mix.Tasks.Tuist.Test do
       payload
       |> with_coverage(options, opts, history, network_publishing?)
       |> ExUnitFormatter.submit(opts)
+
+      if dir = get_in(payload, [:evidence_snapshot, :collected, :dir]), do: File.rm_rf(dir)
     end
 
     upload_history(history, &GitHistory.upload_listing/2, network_publishing?)
@@ -584,15 +770,17 @@ defmodule Mix.Tasks.Tuist.Test do
     end
   end
 
-  defp network_publishing? do
-    analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
+  # Both read the run's own options, as `configure/1` will store them: they
+  # run before it, a selection's before the task even knows how it runs.
+  defp network_publishing?(options) do
+    analytics_options = analytics_options(options)
     Isolated.run(fn -> Auth.network_publishing?(analytics_options) end, 2_000) == true
   end
 
   # On authenticated CI, or with coverage, unless `TUIST_GIT_UPLOAD_ENABLED=false`.
   defp collect_history(options, network_publishing?) do
     coverage? = options[:coverage] == true
-    analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
+    analytics_options = analytics_options(options)
 
     with true <-
            not network_publishing? and GitHistory.enabled?(coverage?),
@@ -616,13 +804,111 @@ defmodule Mix.Tasks.Tuist.Test do
 
   defp with_coverage(payload, options, opts, history, network_publishing?) do
     {snapshot, payload} = Map.pop(payload, :coverage_snapshot)
+    {evidence, payload} = Map.pop(payload, :evidence_snapshot)
 
     if network_publishing? do
       payload
     else
-      do_with_coverage(payload, snapshot, options, opts, history)
+      payload
+      |> do_with_coverage(snapshot, options, opts, history)
+      |> with_evidence(evidence, opts)
     end
   end
+
+  # Which lines each test ran, by repository-relative path, as the run's
+  # coverage names its files. Evidence whose uncompressed size is past the
+  # server's inline threshold, or past what the report's limit leaves once
+  # the coverage is in, is uploaded, one scope per line, and the run names the
+  # upload; otherwise it's written to a file the request reads as it's sent.
+  # With a server that takes no evidence uploads, evidence that would take the
+  # report past its limit is written again without lines, which selection
+  # doesn't need, and left out when even that doesn't fit.
+  defp with_evidence(payload, nil, _opts), do: payload
+
+  defp with_evidence(payload, %{collected: collected} = evidence, opts) do
+    case Git.toplevel(File.cwd!()) do
+      {:ok, root} ->
+        root = Path.expand(root)
+
+        relative = fn path ->
+          if String.starts_with?(path, root <> "/"), do: Path.relative_to(path, root)
+        end
+
+        ndjson = Path.join(collected.dir, "coverage_evidence.ndjson")
+        {:ok, rest} = write_evidence(evidence, relative, ndjson, format: :ndjson)
+        budget = @report_limit - IO.iodata_length(JSON.encode_to_iodata!(payload))
+
+        case Isolated.run(
+               fn -> Coverage.attach_evidence(payload, ndjson, rest, budget, opts) end,
+               600_000
+             ) do
+          {:ok, payload} ->
+            payload
+
+          :inline ->
+            inline_evidence(payload, evidence, relative)
+
+          problem ->
+            Report.debug(
+              "tuist analytics: the run's coverage evidence could not be uploaded: #{inspect(problem)}"
+            )
+
+            inline_evidence(payload, evidence, relative)
+        end
+
+      :error ->
+        payload
+    end
+  rescue
+    exception ->
+      Report.debug(
+        "tuist analytics: the run's coverage evidence could not be sent: #{Exception.message(exception)}"
+      )
+
+      payload
+  end
+
+  defp write_evidence(
+         %{collected: collected, identities: identities, sources: sources},
+         relative,
+         out,
+         options
+       ), do: Evidence.write(collected, identities, sources, relative, out, options)
+
+  defp inline_evidence(payload, %{collected: collected} = evidence, relative) do
+    out = Path.join(collected.dir, "coverage_evidence.json")
+    write = &write_evidence(evidence, relative, out, lines: &1)
+    budget = @report_limit - IO.iodata_length(JSON.encode_to_iodata!(payload))
+    {:ok, _rest} = write.(true)
+
+    cond do
+      File.stat!(out).size <= budget ->
+        Map.put(payload, :coverage_evidence, %JSONFile{path: out})
+
+      (
+        size = File.stat!(out).size
+        {:ok, _rest} = write.(false)
+        File.stat!(out).size <= budget
+      ) ->
+        Mix.shell().info(
+          "warning: Tuist: the run's coverage evidence (#{megabytes(size)}) is too large " <>
+            "to send with lines, so carried coverage can't use it; " <>
+            "shard the run with mix tuist.test.build to keep them"
+        )
+
+        Map.put(payload, :coverage_evidence, %JSONFile{path: out})
+
+      true ->
+        Mix.shell().info(
+          "warning: Tuist: the run's coverage evidence is too large to send, so it's left out; " <>
+            "shard the run with mix tuist.test.build"
+        )
+
+        payload
+    end
+  end
+
+  defp megabytes(bytes), do: "#{Float.round(bytes / 1_000_000, 1)} MB"
 
   defp do_with_coverage(payload, snapshot, options, opts, history) do
     payload = if history, do: Map.merge(payload, GitHistory.payload(history)), else: payload
@@ -634,8 +920,9 @@ defmodule Mix.Tasks.Tuist.Test do
 
     with snapshot when is_list(snapshot) <- snapshot,
          {:ok, coverage} <- Coverage.build(snapshot, File.cwd!(), partial?),
+         budget = @report_limit - IO.iodata_length(JSON.encode_to_iodata!(payload)),
          {:ok, payload} <-
-           Isolated.run(fn -> Coverage.attach(payload, coverage, opts) end, 600_000) do
+           Isolated.run(fn -> Coverage.attach(payload, coverage, budget, opts) end, 600_000) do
       payload
     else
       nil ->
@@ -713,7 +1000,20 @@ defmodule Mix.Tasks.Tuist.Test do
           ["tuist.test", "--failed" | retry_args(test_args)] ++
             Quarantine.exclude_args(options[:quarantine])
 
-        status = Subprocess.run(mix, args, retry_env(path, options))
+        env = retry_env(path, options)
+
+        env =
+          case options[:selection_skipped] do
+            [_ | _] = selection ->
+              file = Path.join(Path.dirname(path), "selection")
+              File.write!(file, :erlang.term_to_binary(selection))
+              [{@retry_selection, file} | env]
+
+            _ ->
+              env
+          end
+
+        status = Subprocess.run(mix, args, env)
         {:ok, status, ExUnitFormatter.read_collected(path)}
 
       _ ->
@@ -837,10 +1137,12 @@ defmodule Mix.Tasks.Tuist.Test do
     Application.put_env(:ex_unit, :formatters, formatters(existing))
     # Read here, in the project `mix test` was started from: the formatter
     # runs inside each child of an umbrella, which has its own config.
-    options = Keyword.put_new_lazy(options, :project_config, &Config.project_tuist_config/0)
-    Application.put_env(:tuist_ex, :analytics_options, options)
+    Application.put_env(:tuist_ex, :analytics_options, analytics_options(options))
     :ok
   end
+
+  defp analytics_options(options),
+    do: Keyword.put_new_lazy(options, :project_config, &Config.project_tuist_config/0)
 
   @own_switches [
     url: :string,
@@ -862,7 +1164,8 @@ defmodule Mix.Tasks.Tuist.Test do
       [
         prepare_only: "--prepare-only",
         no_download: "--no-download",
-        no_quarantine: "--no-quarantine"
+        no_quarantine: "--no-quarantine",
+        no_selective_testing: "--no-selective-testing"
       ],
       {options, forwarded},
       fn

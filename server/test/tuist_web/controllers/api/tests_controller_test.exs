@@ -8,6 +8,7 @@ defmodule TuistWeb.API.TestsControllerTest do
   alias Tuist.Shards
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.RunSelections
   alias Tuist.Tests.Test
   alias Tuist.Tests.Workers.ProcessXcresultWorker
@@ -653,12 +654,32 @@ defmodule TuistWeb.API.TestsControllerTest do
           is_ci: false,
           test_modules: [],
           status: "success",
-          xcode_coverage_storage_key: Tuist.Tests.Coverage.storage_key(project, id),
+          xcode_coverage_storage_key: Coverage.storage_key(project, id),
           coverage: %{
             tool: "cover",
             partial: false,
             storage_key: "#{user.account.name}/#{project.name}/runs/other/coverage.ndjson.deflate"
           }
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "coverage storage key"
+    end
+
+    test "rejects an evidence storage key that is not the run's evidence key", %{conn: conn, user: user, project: project} do
+      id = UUIDv7.generate()
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          id: id,
+          duration: 1000,
+          is_ci: false,
+          build_system: "mix",
+          test_modules: [],
+          status: "success",
+          coverage_evidence: %{storage_key: Coverage.storage_key(project, id)}
         })
         |> json_response(:bad_request)
 

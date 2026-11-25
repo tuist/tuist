@@ -601,7 +601,21 @@ defmodule TuistWeb.TestSelection.RunTab do
     """
   end
 
+  # The run keeps every target, which the test run page's own module table
+  # reads by name; the table shows them a page at a time.
+  @modules_page_size 20
+
   defp modules_card(assigns) do
+    page = (assigns.uri.query || "") |> URI.decode_query() |> Map.get("selection-page") |> parse_page()
+    pages = max(div(length(assigns.targets) + @modules_page_size - 1, @modules_page_size), 1)
+    page = min(page, pages)
+
+    assigns =
+      assign(assigns,
+        targets_page: Enum.slice(assigns.targets, (page - 1) * @modules_page_size, @modules_page_size),
+        targets_meta: %{current_page: page, total_pages: pages}
+      )
+
     ~H"""
     <.card
       title={dgettext("dashboard_tests", "Modules")}
@@ -612,7 +626,7 @@ defmodule TuistWeb.TestSelection.RunTab do
         <div :if={@targets != []} data-part="selection-table">
           <.table
             id="selection-modules-table"
-            rows={@targets}
+            rows={@targets_page}
             row_key={& &1.module_name}
             row_navigate={
               fn target ->
@@ -638,6 +652,12 @@ defmodule TuistWeb.TestSelection.RunTab do
               <.text_cell label={format_duration(target.estimated_skipped_duration)} icon="history" />
             </:col>
           </.table>
+          <.pagination_group
+            :if={@targets_meta.total_pages > 1}
+            current_page={@targets_meta.current_page}
+            number_of_pages={@targets_meta.total_pages}
+            page_patch={fn page -> "?#{Query.put(@uri.query, "selection-page", page)}" end}
+          />
         </div>
         <.coverage_empty
           :if={@targets == []}

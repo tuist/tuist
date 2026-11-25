@@ -7,6 +7,7 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
   alias Tuist.IngestRepo
   alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -208,7 +209,7 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
 
     flags =
       Tuist.ClickHouseRepo.all(
-        from(r in Tuist.Tests.TestCaseRun,
+        from(r in TestCaseRun,
           where: r.test_run_id == ^measured.id,
           order_by: r.name,
           select: {r.name, r.coverage_evidence}
@@ -216,6 +217,149 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
       )
 
     assert flags == [{"testAdd()", "own"}, {"testNone()", "none"}, {"testOverlap()", "overlapped"}]
+  end
+
+  describe "evidence the client uploaded" do
+    @modules [
+      %{
+        name: "AppTests",
+        status: "success",
+        duration: 10,
+        test_cases: [
+          %{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 5},
+          %{name: "testNone()", test_suite_name: "MathTests", status: "success", duration: 5},
+          %{name: "testOverlap()", test_suite_name: "MathTests", status: "success", duration: 5}
+        ]
+      }
+    ]
+
+    @tag :tmp_dir
+    test "is read while the run is created, each scope naming its files by path", %{project: project, tmp_dir: tmp_dir} do
+      lines = [
+        %{
+          kind: "test",
+          module: "AppTests",
+          suite: "MathTests",
+          name: "testAdd()",
+          files: ["Sources/Math.swift"],
+          lines: [[3, 5]]
+        },
+        %{
+          kind: "target",
+          module: "AppTests",
+          suite: "",
+          name: "",
+          files: ["Sources/Boot.swift", "Sources/Math.swift"],
+          lines: [[1, 1], [3, 6]]
+        }
+      ]
+
+      upload = deflated(tmp_dir, Enum.map_join(lines, "\n", &JSON.encode!/1) <> "\n")
+
+      expect(Tuist.Storage, :download_to_file, fn "key", destination, _account -> {:ok, File.cp!(upload, destination)} end)
+
+      {:ok, run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: @modules,
+          coverage_evidence: %{
+            storage_key: "key",
+            overlapped_tests: [%{module: "AppTests", suite: "MathTests", name: "testOverlap()"}],
+            status: "collected"
+          }
+        )
+
+      rows = run |> CoverageFixtures.evidence_rows() |> Enum.map(&{&1.scope_kind, &1.path, &1.line_numbers})
+
+      assert Enum.sort(rows) == [
+               {"target", "Sources/Boot.swift", [1]},
+               {"target", "Sources/Math.swift", [3, 4, 5, 6]},
+               {"test", "Sources/Math.swift", [3, 4, 5]}
+             ]
+
+      assert case_flags(run) == [{"testAdd()", "own"}, {"testNone()", "none"}, {"testOverlap()", "overlapped"}]
+      assert run.coverage_evidence_status == "collected"
+      assert [] = Path.wildcard(Path.join(System.tmp_dir!(), "coverage_evidence_*"))
+    end
+
+    @tag :tmp_dir
+    test "that can't be read leaves the run without evidence, its status failed", %{project: project, tmp_dir: tmp_dir} do
+      upload = deflated(tmp_dir, ~s({"kind":"test","module":"AppTests"}\nnot json\n))
+
+      for download <- [
+            fn _key, destination, _account -> {:ok, File.cp!(upload, destination)} end,
+            fn _key, _destination, _account -> {:error, :not_found} end
+          ] do
+        expect(Tuist.Storage, :download_to_file, download)
+
+        {:ok, run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            test_modules: @modules,
+            coverage_evidence: %{storage_key: "key", status: "collected"}
+          )
+
+        assert CoverageFixtures.evidence_rows(run) == []
+        assert Enum.all?(case_flags(run), &(elem(&1, 1) == "none"))
+        assert run.coverage_evidence_status == "failed"
+      end
+    end
+
+    @tag :tmp_dir
+    test "reads a scope spread over many reads, and none larger than the inline request may be", %{
+      project: project,
+      tmp_dir: tmp_dir
+    } do
+      # Past one 64 KB read, then past the 50 MB a whole inline request may hold.
+      for {padding, status} <- [{200_000, "collected"}, {50_000_000, "failed"}] do
+        scope = %{
+          kind: "test",
+          module: "AppTests",
+          suite: "MathTests",
+          name: "testAdd()",
+          files: ["Sources/Math.swift"],
+          lines: [[3, 5]],
+          padding: String.duplicate("x", padding)
+        }
+
+        upload = deflated(tmp_dir, JSON.encode!(scope) <> "\n")
+
+        expect(Tuist.Storage, :download_to_file, fn _key, destination, _account ->
+          {:ok, File.cp!(upload, destination)}
+        end)
+
+        {:ok, run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            test_modules: @modules,
+            coverage_evidence: %{storage_key: "key", status: "collected"}
+          )
+
+        assert run.coverage_evidence_status == status
+
+        assert run |> CoverageFixtures.evidence_rows() |> Enum.map(&{&1.path, &1.line_numbers}) ==
+                 if(status == "collected", do: [{"Sources/Math.swift", [3, 4, 5]}], else: [])
+      end
+    end
+
+    defp deflated(tmp_dir, ndjson) do
+      z = :zlib.open()
+      :ok = :zlib.deflateInit(z, :default, :deflated, -15, 8, :default)
+      path = Path.join(tmp_dir, "evidence.ndjson.deflate")
+      File.write!(path, [:zlib.deflate(z, ndjson), :zlib.deflate(z, "", :finish)])
+      :zlib.close(z)
+      path
+    end
+
+    defp case_flags(run) do
+      Tuist.ClickHouseRepo.all(
+        from(r in TestCaseRun,
+          where: r.test_run_id == ^run.id,
+          order_by: r.name,
+          select: {r.name, r.coverage_evidence}
+        )
+      )
+    end
   end
 
   test "a report's rows share one timestamp, later than the shard's earlier report", %{test_run: test_run} do

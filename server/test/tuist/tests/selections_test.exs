@@ -202,6 +202,23 @@ defmodule Tuist.Tests.SelectionsTest do
       assert meta.total_count == 5
     end
 
+    test "puts each selected test on its module's shard under a plan that distributes modules", %{project: project} do
+      %{run: run, test_run: test_run} = run(project)
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, granularity: "module", test_impact_run_id: run.id)
+
+      ShardsFixtures.shard_plan_module_fixture(
+        shard_plan_id: plan.id,
+        project_id: project.id,
+        module_name: "SearchTests",
+        shard_index: 1
+      )
+
+      {rows, _meta} = Selections.run_tests(run, test_run.id, decision: "selected")
+      assert Enum.map(rows, &{&1.name, &1.shard_index}) == [{"test_gone()", 1}, {"test_load()", 1}]
+      assert {[_, _], _meta} = Selections.run_tests(run, test_run.id, shard: 1)
+      assert {[], _meta} = Selections.run_tests(run, test_run.id, shard: 0)
+    end
+
     test "filters by decision, reason, shard and search, and sorts by duration", %{project: project} do
       %{run: run, test_run: test_run} = run(project)
 

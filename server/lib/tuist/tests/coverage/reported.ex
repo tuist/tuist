@@ -301,10 +301,6 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp missing_evidence_reasons(%{repository_id: repository_id}, _tests) when repository_id in [nil, 0],
     do: [:no_ancestor]
 
-  # Mix collects no per-test evidence, whatever its ancestors ran, and its
-  # runs usually have no scheme to find a baseline by.
-  defp missing_evidence_reasons(%{project: %{build_system: :mix}}, _tests), do: [:collection_off]
-
   defp missing_evidence_reasons(context, tests) do
     source_runs = context.baseline
     collected = Enum.filter(source_runs, &(&1.coverage_evidence_status == "collected"))
@@ -625,7 +621,9 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Map.new(fn {{module, _hash}, source} -> {module, Map.put(source, :depth, nil)} end)
   end
 
-  # The commit's baseline: for each scheme and platform its runs ran, the
+  # The commit's baseline: for each scheme and platform its runs ran (a run
+  # without a scheme, as Mix's usually are, has the empty one, which any
+  # checkpoint matches, as a selection request without one does), the
   # checkpoint coverage-based test selection would decide from at this
   # commit (`Baselines.resolve/3`, the nearest ancestor with a live
   # checkpoint of the scope), with the runs it holds, each with its
@@ -641,8 +639,7 @@ defmodule Tuist.Tests.Coverage.Reported do
     platforms = platforms(project.id, Enum.map(runs, & &1.test_run_id))
 
     runs
-    |> Enum.reject(&(&1.scheme in [nil, ""]))
-    |> Enum.map(&{&1.scheme, Map.get(platforms, &1.test_run_id, "")})
+    |> Enum.map(&{&1.scheme || "", Map.get(platforms, &1.test_run_id, "")})
     |> Enum.uniq()
     |> Enum.flat_map(fn {scheme, platform} -> baseline_runs(project, sha, scheme, platform) end)
     |> Enum.uniq_by(& &1.test_run_id)

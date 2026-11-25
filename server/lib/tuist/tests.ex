@@ -560,7 +560,14 @@ defmodule Tuist.Tests do
   end
 
   def create_test(attrs) do
-    attrs = attrs |> normalize_string_keys() |> Coverage.normalize_attrs() |> FlakinessEvidence.annotate()
+    attrs
+    |> normalize_string_keys()
+    |> Coverage.normalize_attrs()
+    |> FlakinessEvidence.annotate()
+    |> Coverage.Evidence.with_uploaded(&create_normalized_test/1)
+  end
+
+  defp create_normalized_test(attrs) do
     # Unsigned clients cannot manufacture future/ancient storage partitions or
     # recency evidence; their completed reports use the server receipt time.
     attrs =

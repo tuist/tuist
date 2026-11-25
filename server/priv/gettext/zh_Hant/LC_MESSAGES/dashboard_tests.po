@@ -49,9 +49,9 @@ msgstr "分析資料"
 #: lib/tuist_web/live/test_cases_live.ex:395
 #: lib/tuist_web/live/test_cases_live.html.heex:10
 #: lib/tuist_web/live/test_runs_live.ex:372
-#: lib/tuist_web/live/test_selection/run_tab.ex:794
-#: lib/tuist_web/live/test_selection/run_tab.ex:797
-#: lib/tuist_web/live/test_selection/run_tab.ex:800
+#: lib/tuist_web/live/test_selection/run_tab.ex:814
+#: lib/tuist_web/live/test_selection/run_tab.ex:817
+#: lib/tuist_web/live/test_selection/run_tab.ex:820
 #: lib/tuist_web/live/tests_live.ex:436
 #: lib/tuist_web/live/tests_live.ex:454
 #: lib/tuist_web/live/tests_live.html.heex:18
@@ -744,8 +744,8 @@ msgstr "未命中"
 #: lib/tuist_web/helpers/test_labels.ex:17
 #: lib/tuist_web/helpers/test_labels.ex:52
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:48
-#: lib/tuist_web/live/test_selection/run_tab.ex:623
-#: lib/tuist_web/live/test_selection/run_tab.ex:666
+#: lib/tuist_web/live/test_selection/run_tab.ex:637
+#: lib/tuist_web/live/test_selection/run_tab.ex:686
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr "模組"
@@ -759,7 +759,7 @@ msgstr "模組快取"
 #: lib/tuist_web/helpers/test_labels.ex:57
 #: lib/tuist_web/live/test_run_live.html.heex:572
 #: lib/tuist_web/live/test_run_live.html.heex:1852
-#: lib/tuist_web/live/test_selection/run_tab.ex:607
+#: lib/tuist_web/live/test_selection/run_tab.ex:621
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr "模組"
@@ -1113,8 +1113,8 @@ msgstr "訊號"
 #: lib/tuist_web/live/test_runs_live.ex:51
 #: lib/tuist_web/live/test_runs_live.html.heex:501
 #: lib/tuist_web/live/test_selection/components.ex:42
-#: lib/tuist_web/live/test_selection/run_tab.ex:701
-#: lib/tuist_web/live/test_selections_live.ex:154
+#: lib/tuist_web/live/test_selection/run_tab.ex:721
+#: lib/tuist_web/live/test_selections_live.ex:158
 #: lib/tuist_web/live/test_selections_live.html.heex:87
 #: lib/tuist_web/live/tests_live.html.heex:998
 #, elixir-autogen, elixir-format
@@ -1602,7 +1602,7 @@ msgstr "p99 測試執行時間"
 #: lib/tuist_web/live/test_case_live.ex:134
 #: lib/tuist_web/live/test_cases_live.ex:393
 #: lib/tuist_web/live/test_runs_live.ex:368
-#: lib/tuist_web/live/test_selections_live.ex:200
+#: lib/tuist_web/live/test_selections_live.ex:204
 #: lib/tuist_web/live/tests_live.ex:434
 #, elixir-autogen, elixir-format
 msgid "since last month"
@@ -1614,7 +1614,7 @@ msgstr "自上月起"
 #: lib/tuist_web/live/test_case_live.ex:133
 #: lib/tuist_web/live/test_cases_live.ex:392
 #: lib/tuist_web/live/test_runs_live.ex:367
-#: lib/tuist_web/live/test_selections_live.ex:199
+#: lib/tuist_web/live/test_selections_live.ex:203
 #: lib/tuist_web/live/tests_live.ex:433
 #, elixir-autogen, elixir-format
 msgid "since last period"
@@ -1626,7 +1626,7 @@ msgstr "自上一週期起"
 #: lib/tuist_web/live/test_case_live.ex:131
 #: lib/tuist_web/live/test_cases_live.ex:390
 #: lib/tuist_web/live/test_runs_live.ex:365
-#: lib/tuist_web/live/test_selections_live.ex:197
+#: lib/tuist_web/live/test_selections_live.ex:201
 #: lib/tuist_web/live/tests_live.ex:431
 #, elixir-autogen, elixir-format
 msgid "since last week"
@@ -1638,7 +1638,7 @@ msgstr "自上週起"
 #: lib/tuist_web/live/test_case_live.ex:132
 #: lib/tuist_web/live/test_cases_live.ex:391
 #: lib/tuist_web/live/test_runs_live.ex:366
-#: lib/tuist_web/live/test_selections_live.ex:198
+#: lib/tuist_web/live/test_selections_live.ex:202
 #: lib/tuist_web/live/tests_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "since last year"
@@ -1650,7 +1650,7 @@ msgstr "自去年起"
 #: lib/tuist_web/live/test_case_live.ex:130
 #: lib/tuist_web/live/test_cases_live.ex:389
 #: lib/tuist_web/live/test_runs_live.ex:364
-#: lib/tuist_web/live/test_selections_live.ex:196
+#: lib/tuist_web/live/test_selections_live.ex:200
 #: lib/tuist_web/live/tests_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
@@ -1737,7 +1737,7 @@ msgstr "分片"
 #: lib/tuist_web/live/test_run_live.html.heex:1333
 #: lib/tuist_web/live/test_run_live.html.heex:1507
 #: lib/tuist_web/live/test_run_live.html.heex:1723
-#: lib/tuist_web/live/test_selection/run_tab.ex:798
+#: lib/tuist_web/live/test_selection/run_tab.ex:818
 #, elixir-autogen, elixir-format
 msgid "Shard %{index}"
 msgstr "分片 %{index}"
@@ -2064,7 +2064,7 @@ msgid "Successful"
 msgstr "成功"
 
 #: lib/tuist_web/live/test_case_live.html.heex:293
-#: lib/tuist_web/live/test_selection/run_tab.ex:804
+#: lib/tuist_web/live/test_selection/run_tab.ex:824
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "全部"
@@ -2738,11 +2738,6 @@ msgstr "%{path} 是其測試套件的測試程式碼，且自基準以來已變�
 msgid "%{selected} of %{requested} tests"
 msgstr "%{selected} 個（共 %{requested} 個）測試"
 
-#: lib/tuist_web/live/test_selection/components.ex:139
-#, elixir-autogen, elixir-format
-msgid "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage. Only XCTest tests in targets that link TestCoverageAttribution record it."
-msgstr "已存在足夠近期的完整執行可作為基準，但其中沒有任何測試記錄了個別測試涵蓋率。只有連結 TestCoverageAttribution 的目標中的 XCTest 測試才會記錄。"
-
 #: lib/tuist_web/live/test_selection/components.ex:149
 #, elixir-autogen, elixir-format
 msgid "A file that can affect any test without showing up in coverage changed, such as a dependency pin or build settings."
@@ -2769,7 +2764,7 @@ msgstr "基準過舊"
 msgid "Changed files"
 msgstr "已變更的檔案"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:747
+#: lib/tuist_web/live/test_selection/run_tab.ex:767
 #, elixir-autogen, elixir-format
 msgid "Changed files (%{count})"
 msgstr "已變更的檔案（%{count} 個）"
@@ -2823,7 +2818,7 @@ msgstr "預估持續時間"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:221
 #: lib/tuist_web/live/test_selection/run_tab.ex:273
-#: lib/tuist_web/live/test_selection/run_tab.ex:637
+#: lib/tuist_web/live/test_selection/run_tab.ex:651
 #, elixir-autogen, elixir-format
 msgid "Est. time saved"
 msgstr "預估節省時間"
@@ -2838,7 +2833,7 @@ msgstr "上次執行失敗"
 msgid "Files:"
 msgstr "檔案："
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:646
+#: lib/tuist_web/live/test_selection/run_tab.ex:666
 #, elixir-autogen, elixir-format
 msgid "Hashing left no module to decide"
 msgstr "雜湊後沒有需要決定的模組"
@@ -2868,7 +2863,7 @@ msgstr "其證據顯示它執行了 %{path}，但該路徑隨後已變更，因�
 msgid "Its newest run in the evidence window failed or flaked, so a past pass can't vouch for it."
 msgstr "其在證據視窗中的最新一次測試執行失敗或不穩定，因此過去的通過記錄無法作為擔保。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:729
+#: lib/tuist_web/live/test_selection/run_tab.ex:749
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:148
 #, elixir-autogen, elixir-format
 msgid "Matched path"
@@ -2879,7 +2874,7 @@ msgstr "相符路徑"
 msgid "Modified"
 msgstr "已修改"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:753
+#: lib/tuist_web/live/test_selection/run_tab.ex:773
 #, elixir-autogen, elixir-format
 msgid "Modules (%{count})"
 msgstr "模組（%{count}）"
@@ -2930,15 +2925,10 @@ msgstr "無相符檔案"
 msgid "No rule decided it, so it runs: selection only skips what a rule proves unaffected."
 msgstr "無規則判定，因此會執行：選擇性測試僅略過經規則證明未受影響的項目。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:715
+#: lib/tuist_web/live/test_selection/run_tab.ex:735
 #, elixir-autogen, elixir-format
 msgid "No rule ran"
 msgstr "無規則執行"
-
-#: lib/tuist_web/live/test_selection/components.ex:78
-#, elixir-autogen, elixir-format
-msgid "No run in the evidence window recorded coverage evidence of its own for it (it is new, it is a Swift Testing test, or its target doesn't link TestCoverageAttribution), so Tuist can't tell what it depends on."
-msgstr "在證據視窗中沒有記錄到自身的涵蓋率證據（它是新的、屬於 Swift Testing 測試，或其目標未連結 TestCoverageAttribution），因此 Tuist 無法判斷其相依關係。"
 
 #: lib/tuist_web/live/test_selections_live.html.heex:191
 #, elixir-autogen, elixir-format
@@ -2961,7 +2951,7 @@ msgid "None"
 msgstr "無"
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:456
-#: lib/tuist_web/live/test_selection/run_tab.ex:723
+#: lib/tuist_web/live/test_selection/run_tab.ex:743
 #, elixir-autogen, elixir-format
 msgid "Reason"
 msgstr "原因"
@@ -2976,7 +2966,7 @@ msgstr "原因："
 msgid "Requested tests the period's selection runs had to execute: their evidence executed a changed file, their target changed, they failed at the baseline or they had no evidence."
 msgstr "本期選擇性測試執行必須執行的要求測試：其憑證執行了已變更的檔案、其目標已變更、它們在基準線失敗，或它們沒有憑證。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:695
+#: lib/tuist_web/live/test_selection/run_tab.ex:715
 #, elixir-autogen, elixir-format
 msgid "Rule"
 msgstr "規則"
@@ -2994,9 +2984,9 @@ msgstr "按路徑搜尋..."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:185
 #: lib/tuist_web/live/test_selection/components.ex:41
-#: lib/tuist_web/live/test_selection/run_tab.ex:626
-#: lib/tuist_web/live/test_selection/run_tab.ex:698
-#: lib/tuist_web/live/test_selections_live.ex:153
+#: lib/tuist_web/live/test_selection/run_tab.ex:640
+#: lib/tuist_web/live/test_selection/run_tab.ex:718
+#: lib/tuist_web/live/test_selections_live.ex:157
 #: lib/tuist_web/live/test_selections_live.html.heex:67
 #: lib/tuist_web/live/test_selections_live.html.heex:257
 #, elixir-autogen, elixir-format
@@ -3008,7 +2998,7 @@ msgstr "已選取"
 msgid "Selected at"
 msgstr "選取時間"
 
-#: lib/tuist_web/live/test_selections_live.ex:135
+#: lib/tuist_web/live/test_selections_live.ex:139
 #: lib/tuist_web/live/test_selections_live.html.heex:125
 #: lib/tuist_web/live/test_selections_live.html.heex:214
 #, elixir-autogen, elixir-format
@@ -3033,8 +3023,8 @@ msgstr "自基準以來"
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:197
 #: lib/tuist_web/live/test_run_live.html.heex:507
 #: lib/tuist_web/live/test_selection/run_tab.ex:254
-#: lib/tuist_web/live/test_selection/run_tab.ex:629
-#: lib/tuist_web/live/test_selections_live.ex:141
+#: lib/tuist_web/live/test_selection/run_tab.ex:643
+#: lib/tuist_web/live/test_selections_live.ex:145
 #: lib/tuist_web/live/test_selections_live.html.heex:106
 #: lib/tuist_web/live/test_selections_live.html.heex:272
 #, elixir-autogen, elixir-format
@@ -3046,18 +3036,18 @@ msgstr "跳過率"
 msgid "Test"
 msgstr "測試"
 
-#: lib/tuist_web/live/test_selections_live.ex:36
+#: lib/tuist_web/live/test_selections_live.ex:37
 #: lib/tuist_web/live/test_selections_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Test Selection"
 msgstr "測試選擇"
 
-#: lib/tuist_web/live/test_selections_live.ex:31
+#: lib/tuist_web/live/test_selections_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Test selection is not enabled for this project."
 msgstr "此專案未啟用測試選擇功能。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:743
+#: lib/tuist_web/live/test_selection/run_tab.ex:763
 #, elixir-autogen, elixir-format
 msgid "Tests (%{count})"
 msgstr "測試（%{count}）"
@@ -3067,7 +3057,7 @@ msgstr "測試（%{count}）"
 msgid "Tests it selected"
 msgstr "已選取的測試"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:669
+#: lib/tuist_web/live/test_selection/run_tab.ex:689
 #, elixir-autogen, elixir-format
 msgid "Tests skipped"
 msgstr "已跳過的測試"
@@ -3092,7 +3082,7 @@ msgstr "無法讀取自基準版本以來的變更檔案。"
 msgid "The coverage selection's details expired"
 msgstr "涵蓋率選擇的詳細資訊已過期"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:647
+#: lib/tuist_web/live/test_selection/run_tab.ex:667
 #, elixir-autogen, elixir-format
 msgid "The invocation requested no tests"
 msgstr "此次執行未要求測試"
@@ -3109,7 +3099,7 @@ msgstr "此測試執行使用基於涵蓋率的測試選擇，但其影響執行
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:568
 #: lib/tuist_web/live/test_selection/run_tab.ex:571
-#: lib/tuist_web/live/test_selection/run_tab.ex:803
+#: lib/tuist_web/live/test_selection/run_tab.ex:823
 #, elixir-autogen, elixir-format
 msgid "Tracked"
 msgstr "已追蹤"
@@ -3119,7 +3109,7 @@ msgstr "已追蹤"
 msgid "Tracked file changed"
 msgstr "已追蹤的檔案已變更"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:733
+#: lib/tuist_web/live/test_selection/run_tab.ex:753
 #, elixir-autogen, elixir-format
 msgid "Tracked files"
 msgstr "追蹤的檔案"
@@ -3134,7 +3124,7 @@ msgstr "Tuist 的提交歷史中既沒有目前檢出的提交，也沒有其父
 msgid "Undecided"
 msgstr "未決定"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:704
+#: lib/tuist_web/live/test_selection/run_tab.ex:724
 #, elixir-autogen, elixir-format
 msgid "Verdict"
 msgstr "判定結果"
@@ -3146,13 +3136,13 @@ msgid "View selection"
 msgstr "檢視選擇"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:209
-#: lib/tuist_web/live/test_selection/run_tab.ex:632
+#: lib/tuist_web/live/test_selection/run_tab.ex:646
 #, elixir-autogen, elixir-format
 msgid "Why it runs"
 msgstr "執行原因"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:684
-#: lib/tuist_web/live/test_selection/run_tab.ex:757
+#: lib/tuist_web/live/test_selection/run_tab.ex:704
+#: lib/tuist_web/live/test_selection/run_tab.ex:777
 #, elixir-autogen, elixir-format
 msgid "Debug"
 msgstr "除錯"
@@ -3165,7 +3155,7 @@ msgstr "已選測試"
 
 #: lib/tuist_web/live/test_run_live.html.heex:511
 #: lib/tuist_web/live/test_selection/run_tab.ex:262
-#: lib/tuist_web/live/test_selection/run_tab.ex:655
+#: lib/tuist_web/live/test_selection/run_tab.ex:675
 #, elixir-autogen, elixir-format
 msgid "Skipped modules"
 msgstr "已略過的模組"
@@ -3344,3 +3334,13 @@ msgstr "包含未提交變更的簽出所執行的測試不會計入"
 #, elixir-autogen, elixir-format
 msgid "They measured code that isn't the commit's, so their coverage is left out of the commit's and the actual coverage may be higher. To measure the commit, commit or discard those changes before testing, or keep files your CI job writes out of the checkout or ignored by Git. The Test Runs tab lists them as Discarded."
 msgstr "這些測試衡量的是非該提交的程式碼，因此其涵蓋率不會納入該提交的計算，實際涵蓋率可能更高。若要衡量該提交，請在測試前提交或捨棄這些變更，或將 CI 工作寫入的檔案排除在簽出目錄之外，或由 Git 忽略。測試執行分頁會將它們列為已捨棄。"
+
+#: lib/tuist_web/live/test_selection/components.ex:139
+#, elixir-autogen, elixir-format
+msgid "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage, so Tuist can't tell what any of them depends on."
+msgstr "請求範圍的完整執行記錄足夠新，可作為基準，但其中沒有任何測試記錄個別測試涵蓋率，因此 Tuist 無法判斷它們的相依性。"
+
+#: lib/tuist_web/live/test_selection/components.ex:78
+#, elixir-autogen, elixir-format
+msgid "No run in the evidence window recorded coverage evidence of its own for it, so Tuist can't tell what it depends on. That happens for a new test, a test that ran at the same time as others, or one whose runs don't record per-test coverage."
+msgstr "證據視窗中的任何執行記錄都沒有為其提供自身的涵蓋率證據，因此 Tuist 無法判斷它的相依性。這可能發生在新測試、與其他測試同時執行的測試，或其執行未記錄個別測試涵蓋率的測試上。"

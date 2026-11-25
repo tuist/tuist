@@ -562,7 +562,7 @@ defmodule TuistEx.Analytics.CoverageTest do
     end
   end
 
-  describe "attach/3" do
+  describe "attach/4" do
     @coverage %{
       tool: "cover",
       tool_version: "OTP 28/Elixir 1.19.5",
@@ -575,7 +575,8 @@ defmodule TuistEx.Analytics.CoverageTest do
         {:ok, %{"inline_threshold_bytes" => 5_000_000}}
       end)
 
-      assert {:ok, %{coverage: @coverage}} = Coverage.attach(%{id: "run"}, @coverage, [])
+      assert {:ok, %{coverage: @coverage}} =
+               Coverage.attach(%{id: "run"}, @coverage, 1_000_000, [])
     end
 
     test "uploads the coverage past the threshold and names the upload" do
@@ -594,7 +595,8 @@ defmodule TuistEx.Analytics.CoverageTest do
         {:ok, "etag"}
       end)
 
-      assert {:ok, %{coverage: coverage}} = Coverage.attach(%{id: "run"}, @coverage, [])
+      assert {:ok, %{coverage: coverage}} =
+               Coverage.attach(%{id: "run"}, @coverage, 1_000_000, [])
 
       assert coverage == %{
                tool: "cover",
@@ -638,12 +640,30 @@ defmodule TuistEx.Analytics.CoverageTest do
       end)
 
       assert {:ok, %{coverage: %{storage_key: "key"} = attached}} =
-               Coverage.attach(%{id: "run"}, coverage, [])
+               Coverage.attach(%{id: "run"}, coverage, 1_000_000, [])
 
       refute Map.has_key?(attached, :files)
       assert_received {:uploaded, compressed}
       assert byte_size(compressed) < threshold
       assert :zlib.unzip(compressed) == ndjson
+    end
+
+    test "uploads coverage within the threshold that the rest of the report leaves no room for" do
+      stub(HTTP, :project_request, fn
+        :get, "/tests/coverage/settings", nil, _ ->
+          {:ok, %{"inline_threshold_bytes" => 5_000_000}}
+
+        :post, "/tests/coverage/uploads", %{test_run_id: "run"}, _ ->
+          {:ok, %{"storage_key" => "key", "upload_url" => "https://upload"}}
+      end)
+
+      stub(TuistEx.HTTP, :put_binary, fn "https://upload", _compressed -> {:ok, "etag"} end)
+      size = byte_size(Enum.map_join(@coverage.files, "\n", &JSON.encode!/1))
+
+      assert {:ok, %{coverage: @coverage}} = Coverage.attach(%{id: "run"}, @coverage, size, [])
+
+      assert {:ok, %{coverage: %{storage_key: "key"}}} =
+               Coverage.attach(%{id: "run"}, @coverage, size - 1, [])
     end
 
     test "reports a failed upload" do
@@ -652,7 +672,138 @@ defmodule TuistEx.Analytics.CoverageTest do
         :post, "/tests/coverage/uploads", _, _ -> {:error, {:http, 404, %{}}}
       end)
 
-      assert {:error, {:http, 404, %{}}} = Coverage.attach(%{id: "run"}, @coverage, [])
+      assert {:error, {:http, 404, %{}}} = Coverage.attach(%{id: "run"}, @coverage, 1_000_000, [])
+    end
+  end
+
+  describe "attach_evidence/5" do
+    @rest %{overlapped_tests: [], status: "collected"}
+
+    setup do
+      dir =
+        Path.join(System.tmp_dir!(), "tuist-ex-evidence-#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+      ndjson = Path.join(dir, "coverage_evidence.ndjson")
+
+      File.write!(ndjson, [
+        ~s({"kind":"test","module":"ATest","suite":"","name":"a","files":["lib/a.ex"],"lines":[[3,5]]}\n),
+        ~s({"kind":"target","module":"ATest","suite":"","name":"","files":["lib/a.ex"],"lines":[[1,5]]}\n)
+      ])
+
+      %{ndjson: ndjson}
+    end
+
+    test "uploads evidence within the threshold that the rest of the report leaves no room for",
+         %{ndjson: ndjson} do
+      stub(HTTP, :project_request, fn
+        :get, "/tests/coverage/settings", nil, _ ->
+          {:ok, %{"inline_threshold_bytes" => 5_000_000}}
+
+        :post, "/tests/coverage/uploads", _, _ ->
+          {:ok, %{"evidence_storage_key" => "evidence-key", "evidence_upload_url" => "https://u"}}
+      end)
+
+      stub(TuistEx.HTTP, :put_binary, fn "https://u", _ -> {:ok, "etag"} end)
+
+      assert {:ok, %{coverage_evidence: %{storage_key: "evidence-key"}}} =
+               Coverage.attach_evidence(%{id: "run"}, ndjson, @rest, 10, [])
+    end
+
+    test "uploads evidence that compresses under the threshold but is past it uncompressed",
+         %{ndjson: ndjson} do
+      line =
+        ~s({"kind":"test","module":"ATest","suite":"","name":"a","files":["lib/a.ex"],"lines":[[3,5]]}\n)
+
+      File.write!(ndjson, List.duplicate(line, 500))
+      threshold = div(File.stat!(ndjson).size, 2)
+
+      stub(HTTP, :project_request, fn
+        :get, "/tests/coverage/settings", nil, _ ->
+          {:ok, %{"inline_threshold_bytes" => threshold}}
+
+        :post, "/tests/coverage/uploads", _, _ ->
+          {:ok, %{"evidence_storage_key" => "evidence-key", "evidence_upload_url" => "https://u"}}
+      end)
+
+      test_pid = self()
+
+      stub(TuistEx.HTTP, :put_binary, fn "https://u", compressed ->
+        send(test_pid, {:uploaded, byte_size(compressed)})
+        {:ok, "etag"}
+      end)
+
+      assert {:ok, %{coverage_evidence: %{storage_key: "evidence-key"}}} =
+               Coverage.attach_evidence(%{id: "run"}, ndjson, @rest, 50_000_000, [])
+
+      assert_received {:uploaded, compressed_size}
+      assert compressed_size < threshold
+    end
+
+    test "uploads the evidence past the threshold and names the upload", %{ndjson: ndjson} do
+      test_pid = self()
+
+      stub(HTTP, :project_request, fn
+        :get, "/tests/coverage/settings", nil, _ ->
+          {:ok, %{"inline_threshold_bytes" => 1}}
+
+        :post, "/tests/coverage/uploads", %{test_run_id: "run"}, _ ->
+          {:ok,
+           %{
+             "storage_key" => "key",
+             "upload_url" => "https://upload",
+             "evidence_storage_key" => "evidence-key",
+             "evidence_upload_url" => "https://evidence-upload"
+           }}
+      end)
+
+      stub(TuistEx.HTTP, :put_binary, fn "https://evidence-upload", compressed ->
+        send(test_pid, {:uploaded, compressed})
+        {:ok, "etag"}
+      end)
+
+      assert {:ok, %{coverage_evidence: evidence}} =
+               Coverage.attach_evidence(%{id: "run"}, ndjson, @rest, 50_000_000, [])
+
+      assert evidence == Map.put(@rest, :storage_key, "evidence-key")
+      assert_received {:uploaded, compressed}
+      assert :zlib.unzip(compressed) == File.read!(ndjson)
+    end
+
+    test "is inline within the threshold, or when the server takes no evidence uploads",
+         %{ndjson: ndjson} do
+      stub(HTTP, :project_request, fn :get, "/tests/coverage/settings", nil, _ ->
+        {:ok, %{"inline_threshold_bytes" => 5_000_000}}
+      end)
+
+      assert :inline = Coverage.attach_evidence(%{id: "run"}, ndjson, @rest, 50_000_000, [])
+
+      stub(HTTP, :project_request, fn
+        :get, "/tests/coverage/settings", nil, _ ->
+          {:ok, %{"inline_threshold_bytes" => 1}}
+
+        :post, "/tests/coverage/uploads", _, _ ->
+          {:ok, %{"storage_key" => "key", "upload_url" => "https://upload"}}
+      end)
+
+      reject(&TuistEx.HTTP.put_binary/2)
+      assert :inline = Coverage.attach_evidence(%{id: "run"}, ndjson, @rest, 50_000_000, [])
+    end
+
+    test "reports a failed upload", %{ndjson: ndjson} do
+      stub(HTTP, :project_request, fn
+        :get, "/tests/coverage/settings", nil, _ ->
+          {:ok, %{"inline_threshold_bytes" => 1}}
+
+        :post, "/tests/coverage/uploads", _, _ ->
+          {:ok, %{"evidence_storage_key" => "k", "evidence_upload_url" => "https://u"}}
+      end)
+
+      stub(TuistEx.HTTP, :put_binary, fn _, _ -> {:error, {:http, 403}} end)
+
+      assert {:error, {:http, 403}} =
+               Coverage.attach_evidence(%{id: "run"}, ndjson, @rest, 50_000_000, [])
     end
   end
 end

@@ -2,25 +2,25 @@
 {
   "title": "Xcode 测试洞察",
   "titleTemplate": ":title · 测试洞察 · 功能 · 指南 · Tuist",
-  "description": "通过 Tuist 测试洞察追踪 Xcode 测试分析数据，识别缓慢和不稳定的测试。"
+  "description": "通过 Tuist 测试洞察跟踪 Xcode 测试分析数据，识别缓慢和不稳定的测试。"
 }
 ---
 # Xcode 测试洞察 {#xcode-test-insights}
 
-Tuist Test Insights 提供 Xcode 测试分析功能，帮助你通过识别缓慢的测试或快速理解失败的 CI 运行来监控测试套件的健康状况。随着测试套件的增长，越来越难以发现诸如测试逐渐变慢或间歇性失败等趋势。Tuist Test Insights 为你提供所需的可见性，以维护快速且可靠的测试套件。
+Tuist Test Insights 提供 Xcode 测试分析功能，帮助你通过识别缓慢测试或快速理解失败的 CI 运行来监控测试套件的健康状况。随着测试套件的增长，发现诸如测试逐渐变慢或间歇性失败等趋势变得越来越困难。Tuist Test Insights 为你提供所需的可见性，以维护快速且可靠的测试套件。
 
 借助 Test Insights，你可以回答以下问题：
-- 我的测试是否变慢了？哪些测试？
-- 哪些测试不稳定并需要关注？
+- 我的测试是否变慢了？是哪些测试？
+- 哪些测试不稳定且需要关注？
 - 为什么我的 CI 运行失败了？
 
 ## 设置 {#setup}
 
-要开始跟踪你的测试，可以将 `tuist inspect test` 命令添加到方案的测试后操作中：
+要开始跟踪你的测试，你可以利用 `tuist inspect test` 命令，将其添加到方案的测试后操作中：
 
-![用于检查测试的后操作](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
+![检查测试的后操作](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
 
-如果你使用的是 [Mise](https://mise.jdx.dev/)，则需要在后操作环境中激活 `tuist`：
+如果你使用 [Mise](https://mise.jdx.dev/)，则需要在后操作环境中激活 `tuist`：
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
@@ -30,13 +30,13 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 > [!TIP]
 > **Mise 与项目路径**
 >
-> 你的环境中的 `PATH` 环境变量不会被方案的后操作继承，因此你必须使用 Mise 的绝对路径，该路径取决于你安装 Mise 的方式。此外，别忘了从项目中的某个目标继承构建设置，以便你可以从 $SRCROOT 指向的目录运行 Mise。
+> 你的环境中的 `PATH` 环境变量不会被方案的后操作继承，因此你必须使用 Mise 的绝对路径，具体取决于你安装 Mise 的方式。此外，不要忘记从项目中的某个目标继承构建设置，以便你可以从 $SRCROOT 指向的目录运行 Mise。
 
-只要你登录了 Tuist 账户，你的测试运行就会被跟踪。你可以在 Tuist 仪表板中访问你的测试洞察，并查看它们随时间的变化：
+只要你登录了 Tuist 账户，你的测试运行就会被跟踪。你可以在 Tuist 仪表板中访问测试洞察，并查看它们随时间的变化：
 
 ![包含测试洞察的仪表板](/images/guides/features/build-insights/tests-dashboard.png)
 
-除了整体趋势外，你还可以深入查看每个单独的测试，例如在 CI 上调试失败或缓慢的测试时：
+除了整体趋势外，你还可以深入查看每个单独的测试，例如在 CI 上调试失败或缓慢测试时：
 
 ![测试详情](/images/guides/features/build-insights/test-detail.png)
 
@@ -105,9 +105,10 @@ testAction: .testAction(
 
 ### Git 历史 {#git-history}
 
-在 CI 上，Tuist 还会上传检出仓库的提交历史：提交 SHA、其父提交、提交日期以及运行及其拉取请求的基础分支所在的分支。不会上传文件内容、提交消息或作者信息。这能让 Tuist 知道哪些提交合并到了你的默认分支，例如合并队列测试过的提交。Tuist 会读取检出仓库已有的历史，如果检出仓库没有基础分支，则会向远程仓库请求其最新提交（`git ls-remote`）。除代码覆盖率外，它不会获取历史。启用代码覆盖率时，浅层检出会被加深（不包含文件内容），以找到拉取请求的分叉点并到达 Tuist 已有的提交，因此提交的上传永远不会缺少其父提交。
+在 CI 上，Tuist 还会上传检出（checkout）的提交历史：提交 SHA、其父提交、提交日期以及运行及其拉取请求的基础分支所在的分支。不会上传文件内容、提交消息或作者信息。这能让 Tuist 知道哪些提交进入了你的默认分支，例如合并队列测试过的提交。Tuist 会读取检出已有的历史，如果检出没有基础分支，则会向远程请求其最新提交（`git ls-remote`）。除代码覆盖率外，它不会获取历史。启用代码覆盖率时，浅层检出会被加深（不包含文件内容），以找到拉取请求的分叉点并到达 Tuist 已有的提交，因此提交永远不会在没有其父提交的情况下被上传。
 
 | 变量 | 效果 |
 | --- | --- |
 | `TUIST_GIT_UPLOAD_ENABLED=false` | 不读取或上传任何 Git 历史。 |
-| `TUIST_GIT_UNSHALLOW_ENABLED=false` | 仅读取检出仓库，不联系远程仓库。 |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | 仅读取检出内容，不联系远程仓库。 |
+| `TUIST_GIT_BRANCH=<branch>` | 命名运行的分支，优先于 CI 提供商和检出的分支。在 Tuist 无法识别的 CI 系统上设置此变量，这些系统检出的是提交而非分支，否则其运行将没有分支。 |

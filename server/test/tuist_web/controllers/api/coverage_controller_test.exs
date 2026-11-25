@@ -29,14 +29,24 @@ defmodule TuistWeb.API.CoverageControllerTest do
            |> json_response(:ok) == %{"inline_threshold_bytes" => 42}
   end
 
-  test "uploads return the run's key and a signed URL for it", %{conn: conn, user: user, project: project} do
+  test "uploads return the run's keys, for its coverage and its evidence, and a signed URL for each", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
     run_id = UUIDv7.generate()
     key = "#{user.account.name}/#{project.name}/runs/#{run_id}/coverage.ndjson.deflate"
-    expect(Storage, :generate_upload_url, fn ^key, _account -> "https://storage/#{key}?signed" end)
+    evidence_key = "#{user.account.name}/#{project.name}/runs/#{run_id}/coverage_evidence.ndjson.deflate"
+    stub(Storage, :generate_upload_url, fn key, _account -> "https://storage/#{key}?signed" end)
 
     assert conn
            |> post("/api/projects/#{user.account.name}/#{project.name}/tests/coverage/uploads", %{test_run_id: run_id})
-           |> json_response(:ok) == %{"storage_key" => key, "upload_url" => "https://storage/#{key}?signed"}
+           |> json_response(:ok) == %{
+             "storage_key" => key,
+             "upload_url" => "https://storage/#{key}?signed",
+             "evidence_storage_key" => evidence_key,
+             "evidence_upload_url" => "https://storage/#{evidence_key}?signed"
+           }
   end
 
   describe "completing a commit" do

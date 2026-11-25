@@ -49,9 +49,9 @@ msgstr "التحليلات"
 #: lib/tuist_web/live/test_cases_live.ex:395
 #: lib/tuist_web/live/test_cases_live.html.heex:10
 #: lib/tuist_web/live/test_runs_live.ex:372
-#: lib/tuist_web/live/test_selection/run_tab.ex:794
-#: lib/tuist_web/live/test_selection/run_tab.ex:797
-#: lib/tuist_web/live/test_selection/run_tab.ex:800
+#: lib/tuist_web/live/test_selection/run_tab.ex:814
+#: lib/tuist_web/live/test_selection/run_tab.ex:817
+#: lib/tuist_web/live/test_selection/run_tab.ex:820
 #: lib/tuist_web/live/tests_live.ex:436
 #: lib/tuist_web/live/tests_live.ex:454
 #: lib/tuist_web/live/tests_live.html.heex:18
@@ -744,8 +744,8 @@ msgstr "فقدان وحدة التخزين المؤقتة"
 #: lib/tuist_web/helpers/test_labels.ex:17
 #: lib/tuist_web/helpers/test_labels.ex:52
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:48
-#: lib/tuist_web/live/test_selection/run_tab.ex:623
-#: lib/tuist_web/live/test_selection/run_tab.ex:666
+#: lib/tuist_web/live/test_selection/run_tab.ex:637
+#: lib/tuist_web/live/test_selection/run_tab.ex:686
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr "الوحدة النمطية"
@@ -759,7 +759,7 @@ msgstr "ذاكرة التخزين المؤقت للوحدة النمطية"
 #: lib/tuist_web/helpers/test_labels.ex:57
 #: lib/tuist_web/live/test_run_live.html.heex:572
 #: lib/tuist_web/live/test_run_live.html.heex:1852
-#: lib/tuist_web/live/test_selection/run_tab.ex:607
+#: lib/tuist_web/live/test_selection/run_tab.ex:621
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr "الوحدات النمطية"
@@ -1113,8 +1113,8 @@ msgstr "إشارة"
 #: lib/tuist_web/live/test_runs_live.ex:51
 #: lib/tuist_web/live/test_runs_live.html.heex:501
 #: lib/tuist_web/live/test_selection/components.ex:42
-#: lib/tuist_web/live/test_selection/run_tab.ex:701
-#: lib/tuist_web/live/test_selections_live.ex:154
+#: lib/tuist_web/live/test_selection/run_tab.ex:721
+#: lib/tuist_web/live/test_selections_live.ex:158
 #: lib/tuist_web/live/test_selections_live.html.heex:87
 #: lib/tuist_web/live/tests_live.html.heex:998
 #, elixir-autogen, elixir-format
@@ -1602,7 +1602,7 @@ msgstr "مدة تشغيل الاختبارات p99"
 #: lib/tuist_web/live/test_case_live.ex:134
 #: lib/tuist_web/live/test_cases_live.ex:393
 #: lib/tuist_web/live/test_runs_live.ex:368
-#: lib/tuist_web/live/test_selections_live.ex:200
+#: lib/tuist_web/live/test_selections_live.ex:204
 #: lib/tuist_web/live/tests_live.ex:434
 #, elixir-autogen, elixir-format
 msgid "since last month"
@@ -1614,7 +1614,7 @@ msgstr "منذ الشهر الماضي"
 #: lib/tuist_web/live/test_case_live.ex:133
 #: lib/tuist_web/live/test_cases_live.ex:392
 #: lib/tuist_web/live/test_runs_live.ex:367
-#: lib/tuist_web/live/test_selections_live.ex:199
+#: lib/tuist_web/live/test_selections_live.ex:203
 #: lib/tuist_web/live/tests_live.ex:433
 #, elixir-autogen, elixir-format
 msgid "since last period"
@@ -1626,7 +1626,7 @@ msgstr "منذ الفترة السابقة"
 #: lib/tuist_web/live/test_case_live.ex:131
 #: lib/tuist_web/live/test_cases_live.ex:390
 #: lib/tuist_web/live/test_runs_live.ex:365
-#: lib/tuist_web/live/test_selections_live.ex:197
+#: lib/tuist_web/live/test_selections_live.ex:201
 #: lib/tuist_web/live/tests_live.ex:431
 #, elixir-autogen, elixir-format
 msgid "since last week"
@@ -1638,7 +1638,7 @@ msgstr "منذ الأسبوع الماضي"
 #: lib/tuist_web/live/test_case_live.ex:132
 #: lib/tuist_web/live/test_cases_live.ex:391
 #: lib/tuist_web/live/test_runs_live.ex:366
-#: lib/tuist_web/live/test_selections_live.ex:198
+#: lib/tuist_web/live/test_selections_live.ex:202
 #: lib/tuist_web/live/tests_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "since last year"
@@ -1650,7 +1650,7 @@ msgstr "منذ العام الماضي"
 #: lib/tuist_web/live/test_case_live.ex:130
 #: lib/tuist_web/live/test_cases_live.ex:389
 #: lib/tuist_web/live/test_runs_live.ex:364
-#: lib/tuist_web/live/test_selections_live.ex:196
+#: lib/tuist_web/live/test_selections_live.ex:200
 #: lib/tuist_web/live/tests_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
@@ -1737,7 +1737,7 @@ msgstr "شاردة"
 #: lib/tuist_web/live/test_run_live.html.heex:1333
 #: lib/tuist_web/live/test_run_live.html.heex:1507
 #: lib/tuist_web/live/test_run_live.html.heex:1723
-#: lib/tuist_web/live/test_selection/run_tab.ex:798
+#: lib/tuist_web/live/test_selection/run_tab.ex:818
 #, elixir-autogen, elixir-format
 msgid "Shard %{index}"
 msgstr "الشاردة %{index}"
@@ -2069,7 +2069,7 @@ msgid "Successful"
 msgstr "ناجح"
 
 #: lib/tuist_web/live/test_case_live.html.heex:293
-#: lib/tuist_web/live/test_selection/run_tab.ex:804
+#: lib/tuist_web/live/test_selection/run_tab.ex:824
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "الكل"
@@ -2768,11 +2768,6 @@ msgstr "%{path} هو كود اختبار لحزمة الاختبارات الخ�
 msgid "%{selected} of %{requested} tests"
 msgstr "%{selected} من %{requested} اختبار"
 
-#: lib/tuist_web/live/test_selection/components.ex:139
-#, elixir-autogen, elixir-format
-msgid "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage. Only XCTest tests in targets that link TestCoverageAttribution record it."
-msgstr "تشغيل كامل للنطاق المطلوب حديث بما يكفي ليكون خط الأساس، لكن لم تسجل أي من اختباراتهِ تغطيةً على مستوى الاختبار. فقط اختبارات XCTest في الأهداف التي تربط TestCoverageAttribution تسجلها."
-
 #: lib/tuist_web/live/test_selection/components.ex:149
 #, elixir-autogen, elixir-format
 msgid "A file that can affect any test without showing up in coverage changed, such as a dependency pin or build settings."
@@ -2799,7 +2794,7 @@ msgstr "خط الأساس بعيد جداً"
 msgid "Changed files"
 msgstr "الملفات المتغيرة"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:747
+#: lib/tuist_web/live/test_selection/run_tab.ex:767
 #, elixir-autogen, elixir-format
 msgid "Changed files (%{count})"
 msgstr "الملفات المتغيرة (%{count})"
@@ -2853,7 +2848,7 @@ msgstr "المدة المتوقعة"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:221
 #: lib/tuist_web/live/test_selection/run_tab.ex:273
-#: lib/tuist_web/live/test_selection/run_tab.ex:637
+#: lib/tuist_web/live/test_selection/run_tab.ex:651
 #, elixir-autogen, elixir-format
 msgid "Est. time saved"
 msgstr "الوقت المتوقع توفيره"
@@ -2868,7 +2863,7 @@ msgstr "فشل في التشغيل الأخير"
 msgid "Files:"
 msgstr "الملفات:"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:646
+#: lib/tuist_web/live/test_selection/run_tab.ex:666
 #, elixir-autogen, elixir-format
 msgid "Hashing left no module to decide"
 msgstr "لم يتبقَّ أي وحدة للتحديد بعد التجزئة"
@@ -2898,7 +2893,7 @@ msgstr "تُظهر الأدلة أنه نفّذ %{path}، الذي تغيّر م
 msgid "Its newest run in the evidence window failed or flaked, so a past pass can't vouch for it."
 msgstr "أحدث تشغيل له في نافذة الأدلة فشل أو كان غير مستقر، لذا لا يمكن لنتيجة نجاح سابقة الاعتماد عليها."
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:729
+#: lib/tuist_web/live/test_selection/run_tab.ex:749
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:148
 #, elixir-autogen, elixir-format
 msgid "Matched path"
@@ -2909,7 +2904,7 @@ msgstr "المسار المطابق"
 msgid "Modified"
 msgstr "معدّل"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:753
+#: lib/tuist_web/live/test_selection/run_tab.ex:773
 #, elixir-autogen, elixir-format
 msgid "Modules (%{count})"
 msgstr "الوحدات (%{count})"
@@ -2960,15 +2955,10 @@ msgstr "لا تتطابق أي ملفات"
 msgid "No rule decided it, so it runs: selection only skips what a rule proves unaffected."
 msgstr "لم تقرر أي قاعدة ذلك، لذا يتم تشغيله: الاختيار الانتقائي يتخطى فقط ما تثبت القاعدة أنه غير متأثر."
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:715
+#: lib/tuist_web/live/test_selection/run_tab.ex:735
 #, elixir-autogen, elixir-format
 msgid "No rule ran"
 msgstr "لم تُنفَّذ أي قاعدة"
-
-#: lib/tuist_web/live/test_selection/components.ex:78
-#, elixir-autogen, elixir-format
-msgid "No run in the evidence window recorded coverage evidence of its own for it (it is new, it is a Swift Testing test, or its target doesn't link TestCoverageAttribution), so Tuist can't tell what it depends on."
-msgstr "لم يسجل أي تشغيل في نافذة الأدلة أدلة تغطية خاصة به (إما لأنه جديد، أو أنه اختبار Swift Testing، أو أن هدفه لا يربط TestCoverageAttribution)، لذلك لا يمكن لـ Tuist تحديد ما يعتمد عليه."
 
 #: lib/tuist_web/live/test_selections_live.html.heex:191
 #, elixir-autogen, elixir-format
@@ -2991,7 +2981,7 @@ msgid "None"
 msgstr "لا يوجد"
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:456
-#: lib/tuist_web/live/test_selection/run_tab.ex:723
+#: lib/tuist_web/live/test_selection/run_tab.ex:743
 #, elixir-autogen, elixir-format
 msgid "Reason"
 msgstr "السبب"
@@ -3006,7 +2996,7 @@ msgstr "السبب:"
 msgid "Requested tests the period's selection runs had to execute: their evidence executed a changed file, their target changed, they failed at the baseline or they had no evidence."
 msgstr "الاختبارات المطلوبة التي كان على عمليات تشغيل الاختيار في الفترة تنفيذها: أدلتها نفذت ملفًا متغيرًا، أو تغير هدفها، أو فشلت عند خط الأساس، أو لم يكن لديها أدلة."
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:695
+#: lib/tuist_web/live/test_selection/run_tab.ex:715
 #, elixir-autogen, elixir-format
 msgid "Rule"
 msgstr "القاعدة"
@@ -3024,9 +3014,9 @@ msgstr "البحث حسب المسار..."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:185
 #: lib/tuist_web/live/test_selection/components.ex:41
-#: lib/tuist_web/live/test_selection/run_tab.ex:626
-#: lib/tuist_web/live/test_selection/run_tab.ex:698
-#: lib/tuist_web/live/test_selections_live.ex:153
+#: lib/tuist_web/live/test_selection/run_tab.ex:640
+#: lib/tuist_web/live/test_selection/run_tab.ex:718
+#: lib/tuist_web/live/test_selections_live.ex:157
 #: lib/tuist_web/live/test_selections_live.html.heex:67
 #: lib/tuist_web/live/test_selections_live.html.heex:257
 #, elixir-autogen, elixir-format
@@ -3038,7 +3028,7 @@ msgstr "محدّد"
 msgid "Selected at"
 msgstr "تم التحديد في"
 
-#: lib/tuist_web/live/test_selections_live.ex:135
+#: lib/tuist_web/live/test_selections_live.ex:139
 #: lib/tuist_web/live/test_selections_live.html.heex:125
 #: lib/tuist_web/live/test_selections_live.html.heex:214
 #, elixir-autogen, elixir-format
@@ -3063,8 +3053,8 @@ msgstr "منذ خط الأساس"
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:197
 #: lib/tuist_web/live/test_run_live.html.heex:507
 #: lib/tuist_web/live/test_selection/run_tab.ex:254
-#: lib/tuist_web/live/test_selection/run_tab.ex:629
-#: lib/tuist_web/live/test_selections_live.ex:141
+#: lib/tuist_web/live/test_selection/run_tab.ex:643
+#: lib/tuist_web/live/test_selections_live.ex:145
 #: lib/tuist_web/live/test_selections_live.html.heex:106
 #: lib/tuist_web/live/test_selections_live.html.heex:272
 #, elixir-autogen, elixir-format
@@ -3076,18 +3066,18 @@ msgstr "معدل التخطي"
 msgid "Test"
 msgstr "اختبار"
 
-#: lib/tuist_web/live/test_selections_live.ex:36
+#: lib/tuist_web/live/test_selections_live.ex:37
 #: lib/tuist_web/live/test_selections_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Test Selection"
 msgstr "تحديد الاختبارات"
 
-#: lib/tuist_web/live/test_selections_live.ex:31
+#: lib/tuist_web/live/test_selections_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Test selection is not enabled for this project."
 msgstr "لم يتم تفعيل تحديد الاختبارات لهذا المشروع."
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:743
+#: lib/tuist_web/live/test_selection/run_tab.ex:763
 #, elixir-autogen, elixir-format
 msgid "Tests (%{count})"
 msgstr "الاختبارات (%{count})"
@@ -3097,7 +3087,7 @@ msgstr "الاختبارات (%{count})"
 msgid "Tests it selected"
 msgstr "الاختبارات التي تم تحديدها"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:669
+#: lib/tuist_web/live/test_selection/run_tab.ex:689
 #, elixir-autogen, elixir-format
 msgid "Tests skipped"
 msgstr "الاختبارات المتخطاة"
@@ -3122,7 +3112,7 @@ msgstr "تعذر قراءة الملفات المتغيرة منذ خط الأس
 msgid "The coverage selection's details expired"
 msgstr "انتهت صلاحية تفاصيل اختيار التغطية."
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:647
+#: lib/tuist_web/live/test_selection/run_tab.ex:667
 #, elixir-autogen, elixir-format
 msgid "The invocation requested no tests"
 msgstr "لم يطلب الاستدعاء أي اختبارات."
@@ -3139,7 +3129,7 @@ msgstr "استخدم تشغيل الاختبار هذا اختيار الاخت�
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:568
 #: lib/tuist_web/live/test_selection/run_tab.ex:571
-#: lib/tuist_web/live/test_selection/run_tab.ex:803
+#: lib/tuist_web/live/test_selection/run_tab.ex:823
 #, elixir-autogen, elixir-format
 msgid "Tracked"
 msgstr "متتبع"
@@ -3149,7 +3139,7 @@ msgstr "متتبع"
 msgid "Tracked file changed"
 msgstr "تغيّر الملف المتتبع"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:733
+#: lib/tuist_web/live/test_selection/run_tab.ex:753
 #, elixir-autogen, elixir-format
 msgid "Tracked files"
 msgstr "الملفات المتتبَّعة"
@@ -3164,7 +3154,7 @@ msgstr "لا يحتوي سجلّ التزامات Tuist على الالتزام 
 msgid "Undecided"
 msgstr "غير محسوم"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:704
+#: lib/tuist_web/live/test_selection/run_tab.ex:724
 #, elixir-autogen, elixir-format
 msgid "Verdict"
 msgstr "الحكم"
@@ -3176,13 +3166,13 @@ msgid "View selection"
 msgstr "عرض التحديد"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:209
-#: lib/tuist_web/live/test_selection/run_tab.ex:632
+#: lib/tuist_web/live/test_selection/run_tab.ex:646
 #, elixir-autogen, elixir-format
 msgid "Why it runs"
 msgstr "لماذا يتم التشغيل"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:684
-#: lib/tuist_web/live/test_selection/run_tab.ex:757
+#: lib/tuist_web/live/test_selection/run_tab.ex:704
+#: lib/tuist_web/live/test_selection/run_tab.ex:777
 #, elixir-autogen, elixir-format
 msgid "Debug"
 msgstr "تصحيح الأخطاء"
@@ -3195,7 +3185,7 @@ msgstr "الاختبارات المحددة"
 
 #: lib/tuist_web/live/test_run_live.html.heex:511
 #: lib/tuist_web/live/test_selection/run_tab.ex:262
-#: lib/tuist_web/live/test_selection/run_tab.ex:655
+#: lib/tuist_web/live/test_selection/run_tab.ex:675
 #, elixir-autogen, elixir-format
 msgid "Skipped modules"
 msgstr "الوحدات المُتجاهَلة"
@@ -3374,3 +3364,13 @@ msgstr "لا تُحتسب عمليات التشغيل من نسخة مستنسخ
 #, elixir-autogen, elixir-format
 msgid "They measured code that isn't the commit's, so their coverage is left out of the commit's and the actual coverage may be higher. To measure the commit, commit or discard those changes before testing, or keep files your CI job writes out of the checkout or ignored by Git. The Test Runs tab lists them as Discarded."
 msgstr "لأنها قاست شيفرة لا تنتمي إلى الالتزام، لذا استُبعدت تغطيتها من تغطية الالتزام وقد تكون التغطية الفعلية أعلى. لقياس الالتزام، اِلتزم بتلك التغييرات أو تخلَّص منها قبل الاختبار، أو احتفظ بالملفات التي تكتبها مهمة CI خارج النسخة المستنسخة أو اجعل Git يتجاهلها. يعرض تبويب «عمليات تشغيل الاختبارات» هذه العمليات كمستبعدة."
+
+#: lib/tuist_web/live/test_selection/components.ex:139
+#, elixir-autogen, elixir-format
+msgid "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage, so Tuist can't tell what any of them depends on."
+msgstr "تشغيل كامل ضمن النطاق المطلوب حديث بما يكفي ليكون خط الأساس، لكن لم تسجّل أي من اختباراتاته تغطية على مستوى الاختبار الفردي، لذا لا يمكن لـ Tuist تحديد ما تعتمد عليه."
+
+#: lib/tuist_web/live/test_selection/components.ex:78
+#, elixir-autogen, elixir-format
+msgid "No run in the evidence window recorded coverage evidence of its own for it, so Tuist can't tell what it depends on. That happens for a new test, a test that ran at the same time as others, or one whose runs don't record per-test coverage."
+msgstr "لم يسجّل أي تشغيل في نافذة الأدلة أدلة تغطية خاصة به لهذا الاختبار، لذا لا يمكن لـ Tuist تحديد ما يعتمد عليه. يحدث ذلك مع اختبار جديد، أو اختبار تم تنفيذه بالتزامن مع اختبارات أخرى، أو أحد عملياته التي لا تسجل تغطية على مستوى الاختبار الفردي."

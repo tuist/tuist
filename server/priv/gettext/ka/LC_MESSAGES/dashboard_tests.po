@@ -49,9 +49,9 @@ msgstr "ანალიტიკა"
 #: lib/tuist_web/live/test_cases_live.ex:395
 #: lib/tuist_web/live/test_cases_live.html.heex:10
 #: lib/tuist_web/live/test_runs_live.ex:372
-#: lib/tuist_web/live/test_selection/run_tab.ex:794
-#: lib/tuist_web/live/test_selection/run_tab.ex:797
-#: lib/tuist_web/live/test_selection/run_tab.ex:800
+#: lib/tuist_web/live/test_selection/run_tab.ex:814
+#: lib/tuist_web/live/test_selection/run_tab.ex:817
+#: lib/tuist_web/live/test_selection/run_tab.ex:820
 #: lib/tuist_web/live/tests_live.ex:436
 #: lib/tuist_web/live/tests_live.ex:454
 #: lib/tuist_web/live/tests_live.html.heex:18
@@ -744,8 +744,8 @@ msgstr "გამოტოვებული"
 #: lib/tuist_web/helpers/test_labels.ex:17
 #: lib/tuist_web/helpers/test_labels.ex:52
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:48
-#: lib/tuist_web/live/test_selection/run_tab.ex:623
-#: lib/tuist_web/live/test_selection/run_tab.ex:666
+#: lib/tuist_web/live/test_selection/run_tab.ex:637
+#: lib/tuist_web/live/test_selection/run_tab.ex:686
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr "მოდული"
@@ -759,7 +759,7 @@ msgstr "მოდულის ქეში"
 #: lib/tuist_web/helpers/test_labels.ex:57
 #: lib/tuist_web/live/test_run_live.html.heex:572
 #: lib/tuist_web/live/test_run_live.html.heex:1852
-#: lib/tuist_web/live/test_selection/run_tab.ex:607
+#: lib/tuist_web/live/test_selection/run_tab.ex:621
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr "მოდილები"
@@ -1113,8 +1113,8 @@ msgstr "სიგნალი"
 #: lib/tuist_web/live/test_runs_live.ex:51
 #: lib/tuist_web/live/test_runs_live.html.heex:501
 #: lib/tuist_web/live/test_selection/components.ex:42
-#: lib/tuist_web/live/test_selection/run_tab.ex:701
-#: lib/tuist_web/live/test_selections_live.ex:154
+#: lib/tuist_web/live/test_selection/run_tab.ex:721
+#: lib/tuist_web/live/test_selections_live.ex:158
 #: lib/tuist_web/live/test_selections_live.html.heex:87
 #: lib/tuist_web/live/tests_live.html.heex:998
 #, elixir-autogen, elixir-format
@@ -1602,7 +1602,7 @@ msgstr "p99 ტესტების გაშვების ხანგრძ
 #: lib/tuist_web/live/test_case_live.ex:134
 #: lib/tuist_web/live/test_cases_live.ex:393
 #: lib/tuist_web/live/test_runs_live.ex:368
-#: lib/tuist_web/live/test_selections_live.ex:200
+#: lib/tuist_web/live/test_selections_live.ex:204
 #: lib/tuist_web/live/tests_live.ex:434
 #, elixir-autogen, elixir-format
 msgid "since last month"
@@ -1614,7 +1614,7 @@ msgstr "გასული თვიდან"
 #: lib/tuist_web/live/test_case_live.ex:133
 #: lib/tuist_web/live/test_cases_live.ex:392
 #: lib/tuist_web/live/test_runs_live.ex:367
-#: lib/tuist_web/live/test_selections_live.ex:199
+#: lib/tuist_web/live/test_selections_live.ex:203
 #: lib/tuist_web/live/tests_live.ex:433
 #, elixir-autogen, elixir-format
 msgid "since last period"
@@ -1626,7 +1626,7 @@ msgstr "გასული პერიოდიდან"
 #: lib/tuist_web/live/test_case_live.ex:131
 #: lib/tuist_web/live/test_cases_live.ex:390
 #: lib/tuist_web/live/test_runs_live.ex:365
-#: lib/tuist_web/live/test_selections_live.ex:197
+#: lib/tuist_web/live/test_selections_live.ex:201
 #: lib/tuist_web/live/tests_live.ex:431
 #, elixir-autogen, elixir-format
 msgid "since last week"
@@ -1638,7 +1638,7 @@ msgstr "გასული კვირიდან"
 #: lib/tuist_web/live/test_case_live.ex:132
 #: lib/tuist_web/live/test_cases_live.ex:391
 #: lib/tuist_web/live/test_runs_live.ex:366
-#: lib/tuist_web/live/test_selections_live.ex:198
+#: lib/tuist_web/live/test_selections_live.ex:202
 #: lib/tuist_web/live/tests_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "since last year"
@@ -1650,7 +1650,7 @@ msgstr "გასული წლიდან"
 #: lib/tuist_web/live/test_case_live.ex:130
 #: lib/tuist_web/live/test_cases_live.ex:389
 #: lib/tuist_web/live/test_runs_live.ex:364
-#: lib/tuist_web/live/test_selections_live.ex:196
+#: lib/tuist_web/live/test_selections_live.ex:200
 #: lib/tuist_web/live/tests_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
@@ -1737,7 +1737,7 @@ msgstr "შარდი"
 #: lib/tuist_web/live/test_run_live.html.heex:1333
 #: lib/tuist_web/live/test_run_live.html.heex:1507
 #: lib/tuist_web/live/test_run_live.html.heex:1723
-#: lib/tuist_web/live/test_selection/run_tab.ex:798
+#: lib/tuist_web/live/test_selection/run_tab.ex:818
 #, elixir-autogen, elixir-format
 msgid "Shard %{index}"
 msgstr "შარდი %{index}"
@@ -2064,7 +2064,7 @@ msgid "Successful"
 msgstr "წარმატებული"
 
 #: lib/tuist_web/live/test_case_live.html.heex:293
-#: lib/tuist_web/live/test_selection/run_tab.ex:804
+#: lib/tuist_web/live/test_selection/run_tab.ex:824
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "ყველა"
@@ -2738,11 +2738,6 @@ msgstr "%{path} არის თავისი სიუიტის სატ�
 msgid "%{selected} of %{requested} tests"
 msgstr "%{selected} %{requested}-დან ტესტი"
 
-#: lib/tuist_web/live/test_selection/components.ex:139
-#, elixir-autogen, elixir-format
-msgid "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage. Only XCTest tests in targets that link TestCoverageAttribution record it."
-msgstr "მოთხოვნილი არეალის სრული გაშვება საკმარისად ახალია, რომ იყოს ბაზისური ხაზი, მაგრამ მისმა არცერთმა ტესტმა არ ჩაწერა ტესტების დონის დაფარვა. მას ჩაწერენ მხოლოდ XCTest ტესტები ისეთ სამიზნეებში, რომლებიც TestCoverageAttribution-ს უკავშირდება."
-
 #: lib/tuist_web/live/test_selection/components.ex:149
 #, elixir-autogen, elixir-format
 msgid "A file that can affect any test without showing up in coverage changed, such as a dependency pin or build settings."
@@ -2769,7 +2764,7 @@ msgstr "ბაზისური ხაზი ზედმეტად ძვე
 msgid "Changed files"
 msgstr "შეცვლილი ფაილები"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:747
+#: lib/tuist_web/live/test_selection/run_tab.ex:767
 #, elixir-autogen, elixir-format
 msgid "Changed files (%{count})"
 msgstr "შეცვლილი ფაილები (%{count})"
@@ -2823,7 +2818,7 @@ msgstr "შეფასებული ხანგრძლივობა"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:221
 #: lib/tuist_web/live/test_selection/run_tab.ex:273
-#: lib/tuist_web/live/test_selection/run_tab.ex:637
+#: lib/tuist_web/live/test_selection/run_tab.ex:651
 #, elixir-autogen, elixir-format
 msgid "Est. time saved"
 msgstr "შეფასებული დაზოგილი დრო"
@@ -2838,7 +2833,7 @@ msgstr "ბოლო გაშვება ჩავარდა"
 msgid "Files:"
 msgstr "ფაილები:"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:646
+#: lib/tuist_web/live/test_selection/run_tab.ex:666
 #, elixir-autogen, elixir-format
 msgid "Hashing left no module to decide"
 msgstr "ჰეშირებამ არ დატოვა მოდული გადასაწყვეტად"
@@ -2868,7 +2863,7 @@ msgstr "მისი მტკიცებულება აჩვენებ�
 msgid "Its newest run in the evidence window failed or flaked, so a past pass can't vouch for it."
 msgstr "მტკიცებულების ფანჯარაში მისი უახლესი გაშვება ჩავარდა ან არასტაბილური იყო, ამიტომ წარსული წარმატება მასზე პასუხს ვერ აგებს."
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:729
+#: lib/tuist_web/live/test_selection/run_tab.ex:749
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:148
 #, elixir-autogen, elixir-format
 msgid "Matched path"
@@ -2879,7 +2874,7 @@ msgstr "შეთავსებული გზა"
 msgid "Modified"
 msgstr "შეცვლილი"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:753
+#: lib/tuist_web/live/test_selection/run_tab.ex:773
 #, elixir-autogen, elixir-format
 msgid "Modules (%{count})"
 msgstr "მოდულები (%{count})"
@@ -2930,15 +2925,10 @@ msgstr "ფაილი არ ემთხვევა"
 msgid "No rule decided it, so it runs: selection only skips what a rule proves unaffected."
 msgstr "წესმა ეს არ განსაზღვრა, ამიტომ ის სრულდება: შერჩევა ტოვებს მხოლოდ იმას, რაც წესით დაუმტკიცებლად უცვლელია."
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:715
+#: lib/tuist_web/live/test_selection/run_tab.ex:735
 #, elixir-autogen, elixir-format
 msgid "No rule ran"
 msgstr "წესი არ შესრულებულა"
-
-#: lib/tuist_web/live/test_selection/components.ex:78
-#, elixir-autogen, elixir-format
-msgid "No run in the evidence window recorded coverage evidence of its own for it (it is new, it is a Swift Testing test, or its target doesn't link TestCoverageAttribution), so Tuist can't tell what it depends on."
-msgstr "მტკიცებულების ფანჯარაში ჩაწერილ გაშვებას საკუთარი დაფარვის მტკიცებულება არ აქვს (ის ახალია, Swift Testing-ის ტესტია ან მისი მიზანი არ აკავშირებს TestCoverageAttribution-ს), ამიტომ Tuist ვერ განსაზღვრავს, რაზეა ის დამოკიდებული."
 
 #: lib/tuist_web/live/test_selections_live.html.heex:191
 #, elixir-autogen, elixir-format
@@ -2961,7 +2951,7 @@ msgid "None"
 msgstr "არცერთი"
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:456
-#: lib/tuist_web/live/test_selection/run_tab.ex:723
+#: lib/tuist_web/live/test_selection/run_tab.ex:743
 #, elixir-autogen, elixir-format
 msgid "Reason"
 msgstr "მიზეზი"
@@ -2976,7 +2966,7 @@ msgstr "მიზეზი:"
 msgid "Requested tests the period's selection runs had to execute: their evidence executed a changed file, their target changed, they failed at the baseline or they had no evidence."
 msgstr "მოთხოვნილი ტესტები, რომლებიც ამ პერიოდის შერჩევითმა გაშვებებმა უნდა შეასრულოს: მათი მტკიცებულება ცვლილების შემცველ ფაილს ეხებოდა, მათი სამიზნე შეიცვალა, ისინი ბაზისურ ხაზთან ჩავარდნენ ან მტკიცებულება არ ჰქონდათ."
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:695
+#: lib/tuist_web/live/test_selection/run_tab.ex:715
 #, elixir-autogen, elixir-format
 msgid "Rule"
 msgstr "წესი"
@@ -2994,9 +2984,9 @@ msgstr "მოძებნეთ გზის მიხედვით..."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:185
 #: lib/tuist_web/live/test_selection/components.ex:41
-#: lib/tuist_web/live/test_selection/run_tab.ex:626
-#: lib/tuist_web/live/test_selection/run_tab.ex:698
-#: lib/tuist_web/live/test_selections_live.ex:153
+#: lib/tuist_web/live/test_selection/run_tab.ex:640
+#: lib/tuist_web/live/test_selection/run_tab.ex:718
+#: lib/tuist_web/live/test_selections_live.ex:157
 #: lib/tuist_web/live/test_selections_live.html.heex:67
 #: lib/tuist_web/live/test_selections_live.html.heex:257
 #, elixir-autogen, elixir-format
@@ -3008,7 +2998,7 @@ msgstr "შერჩეულია"
 msgid "Selected at"
 msgstr "შერჩევის დრო"
 
-#: lib/tuist_web/live/test_selections_live.ex:135
+#: lib/tuist_web/live/test_selections_live.ex:139
 #: lib/tuist_web/live/test_selections_live.html.heex:125
 #: lib/tuist_web/live/test_selections_live.html.heex:214
 #, elixir-autogen, elixir-format
@@ -3033,8 +3023,8 @@ msgstr "ბაზის ხაზიდან მოყოლებული"
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:197
 #: lib/tuist_web/live/test_run_live.html.heex:507
 #: lib/tuist_web/live/test_selection/run_tab.ex:254
-#: lib/tuist_web/live/test_selection/run_tab.ex:629
-#: lib/tuist_web/live/test_selections_live.ex:141
+#: lib/tuist_web/live/test_selection/run_tab.ex:643
+#: lib/tuist_web/live/test_selections_live.ex:145
 #: lib/tuist_web/live/test_selections_live.html.heex:106
 #: lib/tuist_web/live/test_selections_live.html.heex:272
 #, elixir-autogen, elixir-format
@@ -3046,18 +3036,18 @@ msgstr "გამოტოვების მაჩვენებელი"
 msgid "Test"
 msgstr "ტესტი"
 
-#: lib/tuist_web/live/test_selections_live.ex:36
+#: lib/tuist_web/live/test_selections_live.ex:37
 #: lib/tuist_web/live/test_selections_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Test Selection"
 msgstr "ტესტების შერჩევა"
 
-#: lib/tuist_web/live/test_selections_live.ex:31
+#: lib/tuist_web/live/test_selections_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Test selection is not enabled for this project."
 msgstr "ამ პროექტისთვის ტესტების შერჩევა გამორთულია."
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:743
+#: lib/tuist_web/live/test_selection/run_tab.ex:763
 #, elixir-autogen, elixir-format
 msgid "Tests (%{count})"
 msgstr "ტესტები (%{count})"
@@ -3067,7 +3057,7 @@ msgstr "ტესტები (%{count})"
 msgid "Tests it selected"
 msgstr "შერჩეული ტესტები"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:669
+#: lib/tuist_web/live/test_selection/run_tab.ex:689
 #, elixir-autogen, elixir-format
 msgid "Tests skipped"
 msgstr "გამოტოვებული ტესტები"
@@ -3092,7 +3082,7 @@ msgstr "ბაზისური ხაზის შემდეგ შეცვ
 msgid "The coverage selection's details expired"
 msgstr "დაფარვის შერჩევის დეტალები ვადაგასულია"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:647
+#: lib/tuist_web/live/test_selection/run_tab.ex:667
 #, elixir-autogen, elixir-format
 msgid "The invocation requested no tests"
 msgstr "გამოძახებამ ტესტები არ მოითხოვა"
@@ -3109,7 +3099,7 @@ msgstr "ამ ტესტების გაშვებამ გამოი
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:568
 #: lib/tuist_web/live/test_selection/run_tab.ex:571
-#: lib/tuist_web/live/test_selection/run_tab.ex:803
+#: lib/tuist_web/live/test_selection/run_tab.ex:823
 #, elixir-autogen, elixir-format
 msgid "Tracked"
 msgstr "თვალყურადევნებული"
@@ -3119,7 +3109,7 @@ msgstr "თვალყურადევნებული"
 msgid "Tracked file changed"
 msgstr "თვალყურადევნებული ფაილი შეიცვალა"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:733
+#: lib/tuist_web/live/test_selection/run_tab.ex:753
 #, elixir-autogen, elixir-format
 msgid "Tracked files"
 msgstr "ტრეკირებული ფაილები"
@@ -3134,7 +3124,7 @@ msgstr "Tuist-ის კომიტების ისტორიაში ა
 msgid "Undecided"
 msgstr "გადაუწყვეტელი"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:704
+#: lib/tuist_web/live/test_selection/run_tab.ex:724
 #, elixir-autogen, elixir-format
 msgid "Verdict"
 msgstr "ვერდიქტი"
@@ -3146,13 +3136,13 @@ msgid "View selection"
 msgstr "ნახეთ შერჩევა"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:209
-#: lib/tuist_web/live/test_selection/run_tab.ex:632
+#: lib/tuist_web/live/test_selection/run_tab.ex:646
 #, elixir-autogen, elixir-format
 msgid "Why it runs"
 msgstr "რატომ გადის"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:684
-#: lib/tuist_web/live/test_selection/run_tab.ex:757
+#: lib/tuist_web/live/test_selection/run_tab.ex:704
+#: lib/tuist_web/live/test_selection/run_tab.ex:777
 #, elixir-autogen, elixir-format
 msgid "Debug"
 msgstr "დებაგი"
@@ -3165,7 +3155,7 @@ msgstr "შერჩეული ტესტები"
 
 #: lib/tuist_web/live/test_run_live.html.heex:511
 #: lib/tuist_web/live/test_selection/run_tab.ex:262
-#: lib/tuist_web/live/test_selection/run_tab.ex:655
+#: lib/tuist_web/live/test_selection/run_tab.ex:675
 #, elixir-autogen, elixir-format
 msgid "Skipped modules"
 msgstr "გამოტოვებული მოდულები"
@@ -3344,3 +3334,13 @@ msgstr "გაშვებები, რომლებიც შესრულ
 #, elixir-autogen, elixir-format
 msgid "They measured code that isn't the commit's, so their coverage is left out of the commit's and the actual coverage may be higher. To measure the commit, commit or discard those changes before testing, or keep files your CI job writes out of the checkout or ignored by Git. The Test Runs tab lists them as Discarded."
 msgstr "ისინი ზომავდნენ კოდს, რომელიც არ ეკუთვნის კომიტს, ამიტომ მათი დაფარვა არ შედის კომიტის დაფარვაში და რეალური დაფარვა შეიძლება უფრო მაღალი იყოს. კომიტის გასაზომად, ტესტირებამდე შეიტანეთ ან გააუქმეთ ეს ცვლილებები, ან შეინახეთ ფაილები, რომლებსაც თქვენი CI სამუშაო წერს, ჩექაუთის გარეთ ან Git-ით იგნორირებულად. ტესტების გაშვებების ჩანართში ისინი ჩამოთვლილია როგორც გაუქმებული."
+
+#: lib/tuist_web/live/test_selection/components.ex:139
+#, elixir-autogen, elixir-format
+msgid "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage, so Tuist can't tell what any of them depends on."
+msgstr "მოთხოვნილი არეალის სრული გაშვება საკმარისად ახალია, რომ საბაზისო ვერსიად გამოდგეს, მაგრამ მისმა ტესტებმა ცალ-ცალკე კოდის დაფარვის მონაცემები არ ჩაწერეს, ამიტომ Tuist-ს არ შეუძლია განსაზღვროს, რაზეა დამოკიდებული თითოეული მათგანი."
+
+#: lib/tuist_web/live/test_selection/components.ex:78
+#, elixir-autogen, elixir-format
+msgid "No run in the evidence window recorded coverage evidence of its own for it, so Tuist can't tell what it depends on. That happens for a new test, a test that ran at the same time as others, or one whose runs don't record per-test coverage."
+msgstr "მტკიცებულებების ფანჯარაში არ არსებობს ისეთი გაშვება, რომელმაც საკუთარი კოდის დაფარვის მონაცემები ჩაწერა, ამიტომ Tuist-ს არ შეუძლია განსაზღვროს, რაზეა ის დამოკიდებული. ეს ხდება ახალი ტესტის შემთხვევაში, როცა ტესტი სხვებთან ერთად გაშვებულა, ან როცა მისი გაშვებები ცალ-ცალკე კოდის დაფარვას არ იწერენ."

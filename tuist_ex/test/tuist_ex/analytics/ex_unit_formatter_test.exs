@@ -506,6 +506,36 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     refute Map.has_key?(payload, :only_test_identifiers)
   end
 
+  test "a run coverage selected names its impact run, and not the tests selection left out" do
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        mode: {:defer, self()},
+        coverage: true,
+        test_impact_run_id: "8f2b3c4d-0000-0000-0000-000000000000"
+      )
+
+    send_lifecycle(pid, [
+      {:suite_started, []},
+      {:test_finished, new_test(name: :"test runs")},
+      {:test_finished,
+       new_test(name: :"test unaffected", state: {:excluded, "due to location filter"})},
+      {:test_finished,
+       new_test(
+         name: :"test elsewhere",
+         module: OtherTest,
+         state: {:excluded, "due to module filter"}
+       )},
+      {:suite_finished, %{run: 1_000}}
+    ])
+
+    :ok = GenServer.stop(pid)
+    assert [{payload, _opts, false}] = ExUnitFormatter.take_deferred()
+    assert payload.test_impact_run_id == "8f2b3c4d-0000-0000-0000-000000000000"
+    assert [%{name: "SomeModuleTest", test_cases: [%{name: "runs"}]}] = payload.test_modules
+    refute Map.has_key?(payload, :skip_test_identifiers)
+  end
+
   test "maps ExUnit outcomes onto success/failure/skipped" do
     assert %{status: "success"} = ExUnitFormatter.record(new_test(state: nil))
 

@@ -178,17 +178,12 @@ defmodule TuistEx.Analytics.Coverage do
   # A module the run never loaded still counts its lines, so every module of
   # the build is loaded first. Mimic's copies count as their originals'.
   defp native_lines(config, compiled) do
-    project = config |> Mix.Project.compile_path() |> build_modules()
-    Enum.each(project, &Code.ensure_loaded/1)
-    project = MapSet.new(project)
+    project = config |> Mix.Project.compile_path() |> build_modules() |> MapSet.new()
 
-    # Mimic's proxies count lines of Mimic's own source.
     counted =
-      for {module, _path} <- :code.all_loaded(),
+      for module <- native_modules(config),
           source = original(module),
-          MapSet.member?(project, source) and not MapSet.member?(compiled, source),
-          not function_exported?(module, :__mimic_info__, 0),
-          :code.get_coverage_mode(module) != :none,
+          not MapSet.member?(compiled, source),
           {line, count} <- :code.get_coverage(:line, module),
           do: {{source, line}, count}
 
@@ -201,6 +196,38 @@ defmodule TuistEx.Analytics.Coverage do
     (counted ++ before_swap)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
     |> Enum.map(fn {key, counts} -> {key, Enum.sum(counts)} end)
+  end
+
+  @doc """
+  The loaded modules that count the project's lines natively: every module of
+  the build, loaded first, and Mimic's copies of them, less Mimic's proxies,
+  which count lines of Mimic's own source.
+  """
+  def native_modules(config \\ Mix.Project.config()) do
+    project = config |> Mix.Project.compile_path() |> build_modules()
+    Enum.each(project, &Code.ensure_loaded/1)
+    project = MapSet.new(project)
+
+    for {module, _path} <- :code.all_loaded(),
+        MapSet.member?(project, original(module)),
+        not function_exported?(module, :__mimic_info__, 0),
+        :code.get_coverage_mode(module) != :none,
+        do: module
+  end
+
+  @doc """
+  The source file each of `modules` was compiled from, found under
+  `project_dir` when the build was compiled elsewhere, with Mimic's copies
+  under their originals'. Modules without a source in the project are left
+  out.
+  """
+  def sources(modules, project_dir \\ File.cwd!()) do
+    for module <- Enum.uniq(modules),
+        {source, _clauses} = build_info(original(module)),
+        path = locate(source, project_dir),
+        path != nil,
+        into: %{},
+        do: {module, path}
   end
 
   defp build_modules(ebin) do
@@ -614,15 +641,17 @@ defmodule TuistEx.Analytics.Coverage do
 
   @doc """
   Puts the block into the run's payload: inline when its uncompressed size is
-  within the server's threshold, and otherwise uploaded first, compressed, the
-  run naming the upload's key. The server holds an inline run to its body
-  limit after inflating it, and coverage compresses tenfold or more, so the
-  decision reads the uncompressed size.
+  within the server's threshold and within `budget`, what the report's body
+  limit leaves it, and otherwise uploaded first, compressed, the run naming
+  the upload's key. The server holds an inline run to its body limit after
+  inflating it, and coverage compresses tenfold or more, so the decision
+  reads the uncompressed size. The run's evidence is decided afterwards, from
+  what's left.
   """
-  def attach(payload, coverage, options) do
+  def attach(payload, coverage, budget, options) do
     ndjson = Enum.map_join(coverage.files, "\n", &JSON.encode!/1)
 
-    if byte_size(ndjson) <= inline_threshold(options) do
+    if byte_size(ndjson) <= min(inline_threshold(options), budget) do
       {:ok, Map.put(payload, :coverage, coverage)}
     else
       compressed = deflate(ndjson)
@@ -644,10 +673,52 @@ defmodule TuistEx.Analytics.Coverage do
     end
   end
 
+  @doc """
+  Uploads the run's per-test evidence, `ndjson` as `Evidence.write/6` wrote
+  it with `format: :ndjson`, when its uncompressed size is past the server's
+  inline threshold or `budget`, what the report's body limit leaves it once
+  the coverage is in (the server holds a deflated body's inflated size to the
+  limit), and puts `rest` (`overlapped_tests`, `status`) with the upload's key
+  into the payload. `:inline` when it's small enough to send
+  inline, or the server predates evidence uploads; `{:error, reason}` when
+  the upload failed.
+  """
+  def attach_evidence(payload, ndjson, rest, budget, options) do
+    with true <- File.stat!(ndjson).size > min(inline_threshold(options), budget),
+         {:ok, %{"evidence_storage_key" => key, "evidence_upload_url" => url}} <-
+           HTTP.project_request(
+             :post,
+             "/tests/coverage/uploads",
+             %{test_run_id: payload.id},
+             options
+           ),
+         compressed = ndjson |> File.stream!(65_536) |> deflate_stream(),
+         {:ok, _etag} <- Client.put_binary(url, compressed) do
+      {:ok, Map.put(payload, :coverage_evidence, Map.put(rest, :storage_key, key))}
+    else
+      false -> :inline
+      {:ok, %{}} -> :inline
+      {:error, reason} -> {:error, reason}
+      other -> {:error, {:unexpected_response, other}}
+    end
+  end
+
   defp inline_threshold(options) do
     case HTTP.project_request(:get, "/tests/coverage/settings", nil, options) do
       {:ok, %{"inline_threshold_bytes" => bytes}} when is_integer(bytes) -> bytes
       _ -> 5_000_000
+    end
+  end
+
+  defp deflate_stream(chunks) do
+    z = :zlib.open()
+    :ok = :zlib.deflateInit(z, :default, :deflated, -15, 8, :default)
+
+    try do
+      compressed = Enum.map(chunks, &:zlib.deflate(z, &1))
+      IO.iodata_to_binary([compressed, :zlib.deflate(z, [], :finish)])
+    after
+      :zlib.close(z)
     end
   end
 

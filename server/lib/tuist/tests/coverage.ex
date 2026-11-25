@@ -312,6 +312,15 @@ defmodule Tuist.Tests.Coverage do
   end
 
   @doc """
+  Where a client uploads a run's per-test coverage evidence when it doesn't
+  send it inline (`Tuist.Tests.Coverage.Evidence.with_uploaded/2`), beside
+  the run's coverage.
+  """
+  def evidence_storage_key(%{account: %{name: account}, name: project}, test_run_id) do
+    "#{account}/#{project}/runs/#{test_run_id}/coverage_evidence.ndjson.deflate"
+  end
+
+  @doc """
   Schedules the publication of coverage a client uploaded for the run, once
   the run exists. `coverage` is the run's block, naming the upload's
   `storage_key`, the tool that measured it, and whether the run was `partial`;

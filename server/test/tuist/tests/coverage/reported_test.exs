@@ -102,6 +102,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
           platform: Keyword.get(opts, :platform),
           git_commit_sha: Keyword.get(opts, :sha, "base"),
           scheme: Keyword.get(opts, :scheme, "App"),
+          build_system: Keyword.get(opts, :build_system, "xcode"),
           test_modules:
             modules([
               test_case("testAdd()", "MathTests"),
@@ -299,6 +300,28 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "measured", covered_lines: 5, executable_lines: 7, skipped_tests_count: 0} =
              Reported.compute(project, "base")
+  end
+
+  test "carries a skipped test's lines for runs without a scheme, as Mix's are", %{
+    project: project,
+    account: account
+  } do
+    project = project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
+    base_run(project, account, scheme: nil, build_system: "mix")
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      scheme: nil,
+      build_system: "mix",
+      partial: true,
+      test_modules: modules([test_case("testAdd()", "MathTests")]),
+      skip_test_identifiers: ["AppTests/TextTests/testTrim()"]
+    })
+
+    expire_evidence(project)
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["base"]} =
+             Reported.compute(project, "head")
   end
 
   test "carries a skipped test's lines from the nearest ancestor run that holds its evidence", %{
@@ -2059,7 +2082,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       skip_test_identifiers: ["CartTest/add%2F2/rejects nil"]
     })
 
-    # Mix records no per-test evidence, so the skipped test is a gap.
+    # The base run collected no per-test evidence, so the skipped test is a gap.
     assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} =
              reported = Reported.compute(project, "head")
 

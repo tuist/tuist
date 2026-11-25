@@ -41,6 +41,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   alias Tuist.Projects.Project
   alias Tuist.TestImpactAnalysis
   alias Tuist.TestImpactAnalysis.Baselines
+  alias Tuist.TestImpactAnalysis.BuildSystem
   alias Tuist.TestImpactAnalysis.Decision
   alias Tuist.TestImpactAnalysis.Snapshot
   alias Tuist.TestImpactAnalysis.Snapshots
@@ -100,10 +101,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       strategy: "coverage",
       build_system: params.build_system,
       platform: Map.get(params, :platform) || "",
-      build_context:
-        (Map.get(params, :xcode) || %{})
-        |> Map.put(:scheme, TestImpactAnalysis.scope(params))
-        |> Map.put(:coverage_policy, Map.get(params, :coverage_policy)),
+      build_context: BuildSystem.context(params),
       requested_modules: params.decided_modules,
       skipped_modules: Map.new(params.skipped_modules, &{&1, 0}),
       rules_version: TestImpactAnalysis.rules_version()
@@ -162,7 +160,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       parent_shas: Map.get(params, :parent_shas) || [],
       ancestor_shas: Map.get(params, :ancestor_shas) || [],
       platform: Map.get(params, :platform),
-      scheme: TestImpactAnalysis.scope(params)
+      scheme: BuildSystem.scheme(params)
     }
   end
 
@@ -181,7 +179,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
           request = %{
             commit_sha: commit_sha,
             git_branch: Map.get(params, :git_branch) || "",
-            scheme: TestImpactAnalysis.scope(params),
+            scheme: BuildSystem.scheme(params),
             platform: Map.get(params, :platform) || "",
             requested_modules: params.decided_modules,
             coverage_policy: if(!Map.get(params, :dirty), do: Map.get(params, :coverage_policy)),
@@ -400,14 +398,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   Nil when the run doesn't exist or isn't a selection.
   """
   def shard_skip(project_id, run_id, own_suites, other_suites \\ nil) do
-    case stored(project_id, run_id) do
-      %{tests: tests} = decision ->
-        skipped = for %{decision: :skipped} = test <- tests, do: test.idx
-        names = Snapshots.names(project_id, %{checkpoint: %Snapshot{id: decision.snapshot_id}, overlay: nil}, skipped)
-        # A skipped test without a name can't be listed, so it runs.
-        tests = Enum.map(tests, &named(&1, names))
-        selected_ids = for %{decision: :selected} = test <- tests, into: MapSet.new(), do: test.test_case_id
-
+    case named_decision(project_id, run_id) do
+      {tests, selected_ids} ->
         case other_suites do
           nil ->
             tests
@@ -418,6 +410,34 @@ defmodule Tuist.TestImpactAnalysis.Runs do
           other_suites ->
             catch_all_skip(tests, selected_ids, other_suites)
         end
+
+      nil ->
+        nil
+    end
+  end
+
+  @doc """
+  The skip list of the impact run `run_id`, as the runs request returned it
+  (`skip_entries/2`): what a shard of a plan that distributes the selection
+  by module reads, keeping the entries of the tests it runs. Nil when the run
+  doesn't exist or isn't a selection.
+  """
+  def skipped_tests(project_id, run_id) do
+    case named_decision(project_id, run_id) do
+      {tests, selected_ids} -> skip_entries(tests, selected_ids)
+      nil -> nil
+    end
+  end
+
+  # The stored decision's tests, the skipped ones named, and the ids of the
+  # selected ones. A skipped test without a name can't be listed, so it runs.
+  defp named_decision(project_id, run_id) do
+    case stored(project_id, run_id) do
+      %{tests: tests} = decision ->
+        skipped = for %{decision: :skipped} = test <- tests, do: test.idx
+        names = Snapshots.names(project_id, %{checkpoint: %Snapshot{id: decision.snapshot_id}, overlay: nil}, skipped)
+        tests = Enum.map(tests, &named(&1, names))
+        {tests, for(%{decision: :selected} = test <- tests, into: MapSet.new(), do: test.test_case_id)}
 
       nil ->
         nil
@@ -470,11 +490,28 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   What a shard plan for the impact run `run_id` balances: its suites with
   selected tests, as `Module/Suite`, each priced at its selected tests'
   average durations (`test_cases.avg_duration`; a test without one counts as
-  the median of those with one). `{:ok, %{run_id, durations}}`, or
-  `{:error, :not_selected}` when the run doesn't exist or fell back.
+  the median of those with one). `{:ok, %{run_id, granularity: "suite",
+  durations}}`, or `{:error, :not_selected}` when the run doesn't exist or
+  fell back. A build system whose plans distribute a selection by module
+  (`BuildSystem.shard_granularity/1`) gets `{:ok, %{run_id, granularity:
+  "module"}}`: its plan balances the modules the client sends, as without a
+  selection.
   """
   def shard_units(project_id, run_id) do
-    case stored(project_id, run_id) do
+    case Storage.get_run(project_id, run_id) do
+      {:ok, %{outcome: "selected", build_system: build_system}} ->
+        case BuildSystem.shard_granularity(build_system) do
+          "module" -> {:ok, %{run_id: run_id, granularity: "module"}}
+          "suite" -> suite_units(project_id, run_id)
+        end
+
+      _ ->
+        {:error, :not_selected}
+    end
+  end
+
+  defp suite_units(project_id, run_id) do
+    case Decision.stored(project_id, run_id) do
       %{tests: tests} ->
         tests = Enum.filter(tests, &(&1.decision == :selected and &1.suite_name != ""))
         known = test_durations(project_id, Enum.map(tests, & &1.test_case_id))
@@ -485,7 +522,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
           |> Enum.group_by(&"#{&1.module_name}/#{&1.suite_name}", &Map.get(known, &1.test_case_id, default))
           |> Map.new(fn {unit, durations} -> {unit, Enum.sum(durations)} end)
 
-        {:ok, %{run_id: run_id, durations: durations}}
+        {:ok, %{run_id: run_id, granularity: "suite", durations: durations}}
 
       nil ->
         {:error, :not_selected}

@@ -1,29 +1,29 @@
 ---
 {
-  "title": "Gradle 測試洞察",
-  "titleTemplate": ":title · 測試洞察 · 功能 · 指南 · Tuist",
-  "description": "在 Tuist 儀表板中追蹤 Gradle 測試分析數據，以監控測試效能。"
+  "title": "Gradle 測試分析",
+  "titleTemplate": ":title · 測試分析 · 功能 · 指南 · Tuist",
+  "description": "在 Tuist 儀表板中追蹤 Gradle 測試分析資料，以監控測試效能。"
 }
 ---
-# Gradle 測試洞察 {#gradle-test-insights}
+# Gradle 測試見解 {#gradle-test-insights}
 
 > [!IMPORTANT]
 > **必要條件**
 >
 > - 已套用 `dev.tuist` Gradle 外掛程式，如 <.localized_link href="/guides/get-started/gradle-project">開始使用 Gradle 專案</.localized_link> 中所述。
 
-Tuist 的 Gradle 外掛程式會在每次測試工作執行後自動上傳測試結果，讓你能直接在 Tuist 儀表板中查看測試效能與不穩定測試。
+Tuist 的 Gradle 外掛程式會在每次測試任務執行後自動上傳測試結果，讓你能直接在 Tuist 儀表板中查看測試效能與不穩定測試。
 
-一旦套用上外掛程式，就會自動收集測試洞察資料。無需額外設定。
+一旦套用外掛程式，系統就會自動收集測試見解。無需額外設定。
 
-你可以在 Tuist 儀表板中存取測試洞察資料，並觀察其隨時間的變化：
+你可以在 Tuist 儀表板中存取測試見解，並觀察其隨時間的變化：
 
-![含測試洞察的儀表板](/images/guides/features/build-insights/tests-dashboard.png)
+![包含測試見解的儀表板](/images/guides/features/build-insights/tests-dashboard.png)
 
 ## 追蹤內容 {#what-is-tracked}
 
-此外掛程式會收集所有 Gradle `Test` 工作的結果，包括：
-- 個別測試案例的通過／失敗狀態與耗時
+此外掛程式會收集所有 Gradle `Test` 任務的結果，包括：
+- 個別測試案例的通過／失敗狀態與持續時間
 - 測試套件與類別結構
 - 跨多次執行的不穩定測試偵測
 
@@ -35,7 +35,7 @@ Tuist 的 Gradle 外掛程式會在每次測試工作執行後自動上傳測試
 - 本機建置的測試結果會在背景上傳。
 - CI 執行的測試結果會在前台上傳，以避免在短暫存活的代理程式上遺失遙測資料。
 
-你可以使用 `settings.gradle.kts` 中 `tuist` 區塊內的 `uploadInBackground` 來覆寫此行為：
+你可以使用 `uploadInBackground`（位於 `tuist` 區塊中）覆寫此行為，該區塊位於你的 `settings.gradle.kts`：
 
 ```kotlin
 tuist {
@@ -45,9 +45,10 @@ tuist {
 
 ### Git 歷史記錄 {#git-history}
 
-在 CI 上，此外掛程式於回報測試執行時，也會上傳檢出版本的提交歷史記錄：提交 SHA、其父節點、提交日期，以及該次執行與其拉取請求基礎分支所在的分支。不會上傳檔案內容、提交訊息或作者資訊。這能讓 Tuist 知道哪些提交已合併至你的預設分支，例如合併佇列所測試的提交。此外掛程式會讀取檢出版本已有的歷史記錄；若檢出版本不包含基礎分支，則會向遠端查詢其最新提交（`git ls-remote`）。除程式碼涵蓋率外，它不會抓取歷史記錄。啟用程式碼涵蓋率時，會在不包含檔案內容的情況下加深淺層檢出，以找出拉取請求的分叉點，並取得 Tuist 已擁有的提交，確保不會在上傳某個提交時缺少其父節點。
+在 CI 上，此外掛程式於回報測試執行時也會上傳檢出區的提交歷史記錄：提交的 SHA、其父提交、提交日期，以及該執行與其拉取請求基礎分支所在的分支。不會上傳檔案內容、提交訊息或作者資訊。這能讓 Tuist 知道哪些提交已合併至你的預設分支，例如合併佇列所測試的提交。外掛程式會讀取檢出區已有的歷史記錄；若檢出區沒有基礎分支，則會向遠端查詢其最新提交（`git ls-remote`）。除程式碼涵蓋率外，它不會抓取歷史記錄。啟用程式碼涵蓋率時，系統會深化淺層檢出（不包含檔案內容），以找出拉取請求的分叉點並取得 Tuist 已擁有的提交，確保不會上傳缺少父提交的提交。
 
 | 變數 | 效果 |
 | --- | --- |
 | `TUIST_GIT_UPLOAD_ENABLED=false` | 不會讀取或上傳任何 Git 歷史記錄。 |
-| `TUIST_GIT_UNSHALLOW_ENABLED=false` | 僅讀取檢出版本，不會聯絡遠端。 |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | 僅讀取檢出區，不會聯絡遠端。 |
+| `TUIST_GIT_BRANCH=<branch>` | 為執行指定分支名稱，優先於 CI 供應商與檢出區提供的資訊。在 Tuist 無法識別、且檢出的是提交而非分支的 CI 系統上設定此變數，否則這些系統的執行將沒有分支資訊。 |

@@ -117,7 +117,7 @@ defmodule TuistWeb.API.ShardsController do
              type: :string,
              format: :uuid,
              description:
-               "The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing."
+               "The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. For a build system whose plans distribute a selection by module (Mix), the plan balances the modules sent, which should leave out those with nothing selected, and each shard read carries the run's whole `skipped_tests` list and its `test_impact_run_id`. Omit it on fallbacks and default selective testing."
            }
          },
          required: [:reference]
@@ -612,11 +612,13 @@ defmodule TuistWeb.API.ShardsController do
       download_urls: result.download_urls
     }
 
-    case Map.get(result, :skipped_tests) do
-      nil -> response
-      skipped_tests -> Map.put(response, :skipped_tests, skipped_tests)
-    end
+    response
+    |> put_present(:skipped_tests, Map.get(result, :skipped_tests))
+    |> put_present(:test_impact_run_id, Map.get(result, :test_impact_run_id))
   end
+
+  defp put_present(response, _key, nil), do: response
+  defp put_present(response, key, value), do: Map.put(response, key, value)
 
   defp runner_grant(conn) do
     case get_req_header(conn, "x-tuist-runner-grant") do
