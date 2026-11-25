@@ -142,6 +142,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   wins, ties going to the most CPU the grant reports free. Sandboxes burst
   into each other's idle cores, and nodes left whole take runners. Remote
   execution VMs still go to the node with the most free memory.
+- macOS placement (`MacosCapacity.place/3`) spreads instead: after warm VMs,
+  the host with the most granted slots free wins, ties at random. Don't
+  rely on `Nodes.connected_nodes/0`'s order: it is by name, so it fills one
+  site's hosts (ber1) before another's (larch).
 - Bursting and metering: a Linux agent sandbox boots with
   `Sandbox.burst_vcpus/0` (16) vCPUs whatever shape it asks for; the shape
   picks its memory. Each node report bills a running one the larger of its

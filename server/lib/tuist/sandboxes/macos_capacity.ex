@@ -23,20 +23,21 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   @free_disk_reserve_bytes 20 * 1024 * @mib
 
   @doc """
-  Reserves the first macOS host that takes the sandbox. `claims_warm: false`
-  is for a create that cannot claim a warm VM (a restore): the warm VM keeps
-  one of the host's slots, so hosts without one are tried first.
+  Reserves the first macOS host that takes the sandbox, trying the hosts
+  with the most free granted slots first, in random order among equals, so
+  creates spread across every site's hosts instead of filling them in name
+  order. `claims_warm: false` is for a create that cannot claim a warm VM
+  (a restore): the warm VM keeps one of the host's slots, so hosts without
+  one are tried first.
   """
   def place(sandbox, node_filter \\ fn _node -> true end, opts \\ []) do
     darwin = Enum.filter(Nodes.connected_nodes(), &(&1[:platform] == "darwin"))
     claims_warm = Keyword.get(opts, :claims_warm, true)
 
-    # A host with a booted warm VM of this shape claims it instead of
-    # cold-booting, so it is tried first.
     nodes =
       darwin
       |> Enum.filter(&(ready?(&1, sandbox.template) and node_filter.(&1)))
-      |> Enum.sort_by(&(warm?(&1, sandbox) != claims_warm))
+      |> rank(sandbox, claims_warm)
 
     {result, refused} =
       Enum.reduce_while(nodes, {{:error, :no_capacity}, %{}}, fn node, {_result, refused} ->
@@ -48,6 +49,32 @@ defmodule Tuist.Sandboxes.MacosCapacity do
 
     log_placement(sandbox, darwin, node_filter, result, refused)
     result
+  end
+
+  # A host with a booted warm VM of this shape claims it instead of
+  # cold-booting, so it is tried first; then the host with the most granted
+  # slots its VMs leave free. The shuffle breaks ties at random, so equally
+  # free hosts share the creates and concurrent ones don't all queue on one
+  # host's lock.
+  defp rank(nodes, sandbox, claims_warm) do
+    names = Enum.map(nodes, & &1.name)
+
+    held =
+      from(s in Sandbox,
+        where: s.node_name in ^names and (s.state in ^@charged or s.resident) and s.id != ^sandbox.id,
+        group_by: s.node_name,
+        select: {s.node_name, count(s.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    nodes
+    |> Enum.shuffle()
+    |> Enum.sort_by(fn node ->
+      slots = get_in(node, [:admission, "slots"])
+      free = if is_integer(slots), do: min(2, slots) - Map.get(held, node.name, 0), else: 0
+      {warm?(node, sandbox) != claims_warm, -free}
+    end)
   end
 
   # One line per macOS placement naming every connected host, whether it
@@ -62,7 +89,7 @@ defmodule Tuist.Sandboxes.MacosCapacity do
       |> Enum.map_join(" ", fn node ->
         warm = if warm?(node, sandbox), do: "warm:", else: ""
 
-        "#{node.name |> String.split("-") |> List.last()}=#{warm}#{host_reason(node, sandbox, node_filter, chosen, refused)}"
+        "#{host_label(node.name)}=#{warm}#{host_reason(node, sandbox, node_filter, chosen, refused)}"
       end)
 
     Logger.info("sandboxes: macOS placement",
@@ -71,6 +98,16 @@ defmodule Tuist.Sandboxes.MacosCapacity do
       node: chosen,
       hosts: hosts
     )
+  end
+
+  # Rack hosts are named `…-<site>-runner-<host>`, and host names repeat
+  # across sites (ber1 and larch both have b01–b05), so the label keeps the
+  # site: `ber1/b03`.
+  defp host_label(name) do
+    case name |> String.split("-") |> Enum.reverse() do
+      [host, "runner", site | _rest] -> "#{site}/#{host}"
+      [host | _rest] -> host
+    end
   end
 
   defp host_reason(%{name: chosen}, _sandbox, _node_filter, chosen, _refused), do: "chosen"

@@ -1487,7 +1487,8 @@ defmodule Tuist.Sandboxes.ArchivesTest do
          %{account: account} do
       warm = mac("mac-w")
       warm = %{warm | templates: Enum.map(warm.templates, &Map.put(&1, :warm, ["4x8192"]))}
-      connect([warm, mac("mac-x"), mac("mac-y")])
+      # One granted slot to mac-x's two, so mac-y is tried after it.
+      connect([warm, mac("mac-x"), put_in(mac("mac-y").admission["slots"], 1)])
 
       session =
         evicted(account, mac("mac-a"),
