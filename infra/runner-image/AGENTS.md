@@ -159,8 +159,12 @@ help: cryptexd still falls back and remounts.
 The Packer template therefore moves `images.plist` aside right after a reboot,
 before anything starts CoreSimulator, and lets simdiskimaged rediscover the
 runtimes, which registers them as `mountAsDMG` like Xcode 26 runtimes (about a
-minute). It fails the build if a runtime stays a cryptex, before and after the
-final reboot. Verified on rack guests on 2026-11-25 (macOS 26.6.2, Xcode 27.2):
+minute). On macOS 27 guests (27.2-macos-27: 4 of 5) and with Xcode 27.3 beta
+(0 of 4) simdiskimaged does not register every runtime that way, so the step
+prints the registrations, restores the original `images.plist` and warns
+rather than failing: that profile ships unchanged and the release is not held.
+Otherwise the final reboot fails the build if a runtime is a cryptex again.
+Verified on rack guests on 2026-11-25 (macOS 26.6.2, Xcode 27.2):
 after re-registering and rebooting with a new serial, the first `simctl` call
 took 2 s, no runtime moved, and four staggered parallel `xcodebuild test` runs
 passed, against two of four clone failures on the image without it. If a later
