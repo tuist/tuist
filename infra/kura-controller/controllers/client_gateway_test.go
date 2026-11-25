@@ -591,3 +591,39 @@ func TestReconcileStatefulSetPreservesOperatorRolloutPause(t *testing.T) {
 		t.Fatal("gateway backend must be selected by the Cilium node-identity policy")
 	}
 }
+
+// A region spanning sites spreads its two replicas one per site, whatever the
+// serving mode, instead of preferring them on one box.
+func TestReplicaSpreadTopologyKeyRequiresOneReplicaPerSite(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+	instance := meshInstance("kura-tuist-ber1", "tuist")
+	instance.Spec.Replicas = ptr(int32(2))
+	instance.Spec.NodeSelector = map[string]string{"tuist.dev/kura-runner-region": "ber1-runners"}
+	instance.Spec.ReplicaSpreadTopologyKey = "tuist.dev/rack-storage"
+	r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).Build(), Scheme: scheme}
+	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal(err)
+	}
+	affinity := sts.Spec.Template.Spec.Affinity
+	if affinity.PodAffinity != nil {
+		t.Fatalf("a spread instance must not prefer co-location: %+v", affinity.PodAffinity)
+	}
+	terms := affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	if len(terms) != 1 || terms[0].TopologyKey != "tuist.dev/rack-storage" || terms[0].LabelSelector.MatchLabels["app.kubernetes.io/instance"] != instance.Name {
+		t.Fatalf("expected one required anti-affinity term on the site label, got %+v", terms)
+	}
+	if sts.Spec.Template.Spec.NodeSelector["tuist.dev/kura-runner-region"] != "ber1-runners" {
+		t.Fatalf("node selector not rendered: %+v", sts.Spec.Template.Spec.NodeSelector)
+	}
+
+	instance.Spec.ServingMode = servingMode
+	fenced := instancePodAffinity(instance).PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	if len(fenced) != 2 || fenced[0].TopologyKey != corev1.LabelHostname || fenced[1].TopologyKey != "tuist.dev/rack-storage" {
+		t.Fatalf("a fenced spread instance must keep the host term and add the site term, got %+v", fenced)
+	}
+}

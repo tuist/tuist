@@ -5079,10 +5079,22 @@ func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
 // Preferred co-location permits placement and evacuation across hosts when a
 // single host cannot fit the whole instance. The gateway routes to the primary
 // Service regardless of the primary pod's host.
+//
+// An instance with a ReplicaSpreadTopologyKey spreads instead: its replicas
+// may not share a value of that node label, so a region spanning sites keeps
+// one replica per site.
 func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
-	if instance.Spec.ReplicaRecovery != nil || fencedServing(instance) {
+	spread := instance.Spec.ReplicaSpreadTopologyKey
+	if instance.Spec.ReplicaRecovery != nil || fencedServing(instance) || spread != "" {
+		var terms []corev1.PodAffinityTerm
+		if instance.Spec.ReplicaRecovery != nil || fencedServing(instance) || spread == corev1.LabelHostname {
+			terms = append(terms, corev1.PodAffinityTerm{TopologyKey: corev1.LabelHostname, LabelSelector: &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}})
+		}
+		if spread != "" && spread != corev1.LabelHostname {
+			terms = append(terms, corev1.PodAffinityTerm{TopologyKey: spread, LabelSelector: &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}})
+		}
 		affinity := &corev1.Affinity{
-			PodAntiAffinity: &corev1.PodAntiAffinity{RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{{TopologyKey: corev1.LabelHostname, LabelSelector: &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}}}},
+			PodAntiAffinity: &corev1.PodAntiAffinity{RequiredDuringSchedulingIgnoredDuringExecution: terms},
 		}
 		if instance.Spec.ReplicaRecovery != nil {
 			affinity.NodeAffinity = &corev1.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchFields: []corev1.NodeSelectorRequirement{{Key: "metadata.name", Operator: corev1.NodeSelectorOpNotIn, Values: []string{instance.Spec.ReplicaRecovery.HostName}}}}}}}
