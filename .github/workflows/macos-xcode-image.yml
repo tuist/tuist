@@ -94,14 +94,23 @@ jobs:
         run: |
           set -euo pipefail
           case "$MACOS_VERSION" in
-            26) name=macos-tahoe-xcode; base=ghcr.io/cirruslabs/macos-tahoe-base:latest ;;
-            27) name=macos-golden-gate-xcode; base=ghcr.io/cirruslabs/macos-golden-gate-base:latest ;;
+            26) name=macos-tahoe-xcode; base=ghcr.io/cirruslabs/macos-tahoe-base:latest; disk_size_gb=140 ;;
+            # The Golden Gate base ships an ASIF disk whose recovery
+            # partition sits after the APFS container. Packer's tart
+            # plugin cannot read ASIF partition tables, so it cannot
+            # delete that partition, and once this layer has grown the
+            # container up to it, the runner image layered on top can
+            # never grow it again (-69519). Size this layer at the
+            # runner image's final disk_size_gb so that layer has
+            # nothing left to claim.
+            27) name=macos-golden-gate-xcode; base=ghcr.io/cirruslabs/macos-golden-gate-base:latest; disk_size_gb=200 ;;
             *) echo "::error::macos_version must be 26 or 27, not ${MACOS_VERSION}"; exit 1 ;;
           esac
           {
             echo "name=${name}"
             echo "repository=ghcr.io/tuist/${name}"
             echo "base=${BASE_IMAGE:-$base}"
+            echo "disk_size_gb=${disk_size_gb}"
           } >> "$GITHUB_OUTPUT"
           echo "Guest macOS ${MACOS_VERSION}: ${BASE_IMAGE:-$base} -> ghcr.io/tuist/${name}"
 
@@ -234,6 +243,7 @@ jobs:
             -var "output_image=${{ steps.guest.outputs.name }}" \
             -var "xcode_xip_path=${{ steps.xcode_xip.outputs.path }}" \
             -var "xcode_version=${XCODE_VERSION}" \
+            -var "disk_size_gb=${{ steps.guest.outputs.disk_size_gb }}" \
             macos-xcode.pkr.hcl
 
           # Tag is the full version with dots → dashes:
