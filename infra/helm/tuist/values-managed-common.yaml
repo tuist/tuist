@@ -55,6 +55,10 @@ kuraController:
     otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local.:4318/v1/traces
   analytics:
     enabled: true
+    # Kura's own webhook signing keys, apart from CACHE_API_KEY. Each env's
+    # vault holds the item; see "Splitting reused secrets" in
+    # infra/credential-rotation.md for the key order during rotation.
+    signingKeyItem: KURA_ANALYTICS_SIGNING_KEY
   sharedSecrets:
     kuraIntrospection:
       enabled: true
