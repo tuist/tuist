@@ -670,7 +670,10 @@ defmodule Tuist.Storage do
   defp delete_object_errors(%{"error" => error}), do: normalize_delete_errors(error)
 
   defp delete_object_errors(body) when is_binary(body) do
-    SweetXml.xpath(body, ~x"//Error"l,
+    # The body is an object store's reply; never fetch or expand a DTD it names.
+    body
+    |> SweetXml.parse(dtd: :none, quiet: true)
+    |> SweetXml.xpath(~x"//Error"l,
       key: ~x"./Key/text()"s,
       version_id: ~x"./VersionId/text()"s,
       code: ~x"./Code/text()"s,

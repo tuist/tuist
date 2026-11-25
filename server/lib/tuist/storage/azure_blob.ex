@@ -462,8 +462,11 @@ defmodule Tuist.Storage.AzureBlob do
   end
 
   defp parse_list_objects_response(body) do
+    # The body is the storage service's reply; never fetch or expand a DTD it names.
+    document = SweetXml.parse(body, dtd: :none, quiet: true)
+
     contents =
-      body
+      document
       |> SweetXml.xpath(~x"//Blobs/Blob"l,
         key: ~x"./Name/text()"s,
         last_modified: ~x"./Properties/Last-Modified/text()"s
@@ -472,7 +475,7 @@ defmodule Tuist.Storage.AzureBlob do
         %{object | last_modified: parse_http_date(object.last_modified)}
       end)
 
-    next_marker = SweetXml.xpath(body, ~x"string(//NextMarker)"s)
+    next_marker = SweetXml.xpath(document, ~x"string(//NextMarker)"s)
 
     %{
       contents: contents,
