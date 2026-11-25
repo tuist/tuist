@@ -67,7 +67,8 @@ func TestKataSetupBlockRootfs(t *testing.T) {
 	}
 	// The pool must exist before bootstrap restarts containerd, and the Kata
 	// drop-in must land with it.
-	for _, want := range []string{"systemctl start tuist-kata-devmapper.service", kataBlockRootfsDropInPath, "disable_block_device_use = false"} {
+	// Without noflush every guest flush becomes a host fsync of /data's RAID.
+	for _, want := range []string{"systemctl start tuist-kata-devmapper.service", kataBlockRootfsDropInPath, "disable_block_device_use = false", "block_device_cache_noflush = true", "--direct-io=on"} {
 		if !strings.Contains(on, want) {
 			t.Fatalf("expected %q in the setup, got:\n%s", want, on)
 		}

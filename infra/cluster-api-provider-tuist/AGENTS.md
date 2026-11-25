@@ -2614,7 +2614,10 @@ virtio-fs. A Redis `make -j5` in a 4 vCPU staging VM took 24.8 s instead of
 preallocated loop files under `/data/kata-devmapper`, sized to leave room for the runner cache volume and brought up before
 containerd by `tuist-kata-devmapper.service`, fills in containerd's devmapper
 section, sets `snapshotter = "devmapper"` on the kata-qemu handler only, and
-installs the Kata drop-in `50-tuist-block-rootfs.toml`. runc Pods keep
+installs the Kata drop-in `50-tuist-block-rootfs.toml`. The loops use direct
+I/O, and the drop-in has QEMU open the thin devices with O_DIRECT and drop the
+guest's flushes: passed through, each flush was an fsync of `/data`'s md RAID1,
+and apt installs ran about 12 s slower than over virtio-fs. runc Pods keep
 overlayfs. It is bootstrap-time only: the Ready-path repair does not apply it
 and `tuist.dev/kata-host-config` does not cover it, so flipping the field reaches
 a box when it is reprovisioned. Without the `io.containerd.cri.runtime-handler`
