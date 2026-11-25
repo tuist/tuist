@@ -328,6 +328,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SetPOCContext
   alias Atlas.MCP.Tools.StartChatGPTProviderLogin
   alias Atlas.MCP.Tools.SuggestMoodboardResource
+  alias Atlas.MCP.Tools.SyncMySocialPosts
   alias Atlas.MCP.Tools.SyncPublicHolidays
   alias Atlas.MCP.Tools.TerminateFinancing
   alias Atlas.MCP.Tools.UnlinkAssetFromInsuranceClaim
@@ -844,6 +845,7 @@ defmodule Atlas.MCP.Server do
     CreateBlogPostIdeaComment,
     ListSocialChannelIdeas,
     ListSocialPostPerformance,
+    SyncMySocialPosts,
     GetSocialChannelIdea,
     CreateSocialChannelIdea,
     UpdateSocialChannelIdea,

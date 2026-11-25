@@ -85,6 +85,7 @@
   ],
   "excluded_tools": {
     "list_social_post_performance": "Social post metrics are a shared read of connected accounts; workflows that act on them need a dedicated, versioned adapter.",
+    "sync_my_social_posts": "Reads the caller's own X account through their personal OAuth grant and is billed per post; it is an on-demand operator action, not a workflow step.",
     "save_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "check_out_air_gapped_license": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "get_my_gmail_draft": "Reads or writes drafts in the caller's personal mailbox through their own OAuth grant; workflows must not act on one person's private messages.",
