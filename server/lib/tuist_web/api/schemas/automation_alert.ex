@@ -16,10 +16,12 @@ defmodule TuistWeb.API.Schemas.AutomationAlert do
       id: %Schema{type: :string, format: :uuid},
       name: %Schema{type: :string},
       enabled: %Schema{type: :boolean},
+      # An open string rather than an enum: generated clients reject a whole
+      # response with a value their enum does not know, and monitor types grow.
       monitor_type: %Schema{
         type: :string,
-        enum: ["flakiness_rate", "flaky_run_count", "reliability_rate"],
-        description: "The monitor type that evaluates the condition."
+        description:
+          "The monitor type that evaluates the condition. Known values: flakiness_rate, flaky_run_count, reliability_rate, test_duration, test_updated."
       },
       trigger_config: %Schema{type: :object, description: "Monitor-specific trigger parameters (e.g. threshold, window)."},
       cadence: %Schema{type: :string, description: "Evaluation cadence (e.g. \"5m\")."},

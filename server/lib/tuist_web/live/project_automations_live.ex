@@ -196,6 +196,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_metric: "flakiness_rate")
     |> assign(create_automation_form_comparison: "gte")
     |> assign(create_automation_form_threshold: "10")
+    |> assign(create_automation_form_statistic: "p90")
     |> assign(create_automation_form_window_type: "last_days")
     |> assign(create_automation_form_window: "30d")
     |> assign(create_automation_form_rolling_window_size: "75")
@@ -224,6 +225,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   defp default_threshold("flakiness_rate"), do: "10"
   defp default_threshold("flaky_run_count"), do: "3"
   defp default_threshold("reliability_rate"), do: "90"
+  defp default_threshold("test_duration"), do: "10"
   defp default_threshold(_), do: "1"
 
   defp default_comparison("reliability_rate"), do: "lt"
@@ -235,31 +237,32 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   @default_trigger_slack_message ":warning: *{{test_case.name}}* in module `{{test_case.module_name}}` has been detected as flaky by automation *{{automation.name}}*.\n\n<{{test_case.url}}|View test case>"
   @default_recovery_slack_message ":white_check_mark: *{{test_case.name}}* in module `{{test_case.module_name}}` has recovered.\n\n<{{test_case.url}}|View test case>"
+  @default_duration_trigger_slack_message ":snail: *{{test_case.name}}* in module `{{test_case.module_name}}` is slower than the threshold of automation *{{automation.name}}*.\n\n<{{test_case.url}}|View test case>"
 
-  defp default_send_slack_action(:trigger),
-    do: %{
+  defp default_send_slack_action(context, metric) do
+    message =
+      case {context, metric} do
+        {:recovery, _metric} -> @default_recovery_slack_message
+        {:trigger, "test_duration"} -> @default_duration_trigger_slack_message
+        {:trigger, _metric} -> @default_trigger_slack_message
+      end
+
+    %{
       "type" => "send_slack",
       "channel" => "",
       "channel_name" => "",
       "webhook_url_encrypted" => "",
-      "message" => @default_trigger_slack_message
+      "message" => message
     }
-
-  defp default_send_slack_action(:recovery),
-    do: %{
-      "type" => "send_slack",
-      "channel" => "",
-      "channel_name" => "",
-      "webhook_url_encrypted" => "",
-      "message" => @default_recovery_slack_message
-    }
+  end
 
   defp automation_to_form(automation) do
     %{
       name: automation.name,
       metric: automation.monitor_type,
       comparison: parse_comparison(automation.trigger_config["comparison"]),
-      threshold: to_string(automation.trigger_config["threshold"] || ""),
+      threshold: form_threshold(automation.monitor_type, automation.trigger_config["threshold"]),
+      statistic: parse_statistic(automation.trigger_config["statistic"]),
       window_type: parse_window_type(automation.trigger_config["window_type"]),
       window: automation.trigger_config["window"] || "30d",
       rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 75),
@@ -287,6 +290,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
   defp parse_comparison(_), do: "gte"
+
+  defp parse_statistic(statistic) do
+    if statistic in Alert.duration_statistics(), do: statistic, else: "p90"
+  end
+
+  # Duration thresholds are stored in milliseconds and edited in seconds.
+  defp form_threshold("test_duration", milliseconds) when is_integer(milliseconds), do: format_seconds(milliseconds)
+  defp form_threshold(_metric, threshold), do: to_string(threshold || "")
+
+  defp format_seconds(milliseconds) when rem(milliseconds, 1000) == 0, do: Integer.to_string(div(milliseconds, 1000))
+  defp format_seconds(milliseconds), do: :erlang.float_to_binary(milliseconds / 1000, [:short])
 
   defp parse_window_type(window_type) when window_type in @window_types, do: window_type
   defp parse_window_type(_), do: "last_days"
@@ -326,6 +340,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_metric: form.metric)
         |> assign(create_automation_form_comparison: form.comparison)
         |> assign(create_automation_form_threshold: form.threshold)
+        |> assign(create_automation_form_statistic: form.statistic)
         |> assign(create_automation_form_window_type: form.window_type)
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
@@ -373,13 +388,32 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
     trigger_actions = strip_redundant_actions(socket.assigns.create_automation_form_trigger_actions, metric)
 
+    # A slow test isn't flaky, so a duration automation starts with a Slack
+    # notification instead of the flaky label.
+    trigger_actions =
+      if metric == "test_duration" and trigger_actions == [],
+        do: [default_send_slack_action(:trigger, metric)],
+        else: trigger_actions
+
     # Event-driven monitors are discrete one-shots — there's no "condition no
     # longer holds" semantic, so we force recovery off when switching to one.
     {recovery_enabled, recovery_actions} =
       if event_driven? do
         {false, socket.assigns.create_automation_form_recovery_actions}
       else
-        {socket.assigns.create_automation_form_recovery_enabled, socket.assigns.create_automation_form_recovery_actions}
+        {socket.assigns.create_automation_form_recovery_enabled,
+         strip_redundant_actions(socket.assigns.create_automation_form_recovery_actions, metric)}
+      end
+
+    socket =
+      if metric == "test_duration" do
+        socket
+        |> assign(create_automation_form_window_type: "last_days")
+        |> assign(create_automation_form_recovery_condition: "condition_clears")
+        |> assign(create_automation_form_trigger_states: [])
+        |> assign(create_automation_form_recovery_states: [])
+      else
+        socket
       end
 
     {:noreply,
@@ -390,6 +424,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
      |> assign(create_automation_form_trigger_actions: trigger_actions)
      |> assign(create_automation_form_recovery_enabled: recovery_enabled)
      |> assign(create_automation_form_recovery_actions: recovery_actions)}
+  end
+
+  def handle_event("update_create_automation_form_statistic", %{"data" => statistic}, socket) do
+    {:noreply, assign(socket, create_automation_form_statistic: parse_statistic(statistic))}
   end
 
   def handle_event("update_create_automation_form_comparison", %{"data" => comparison}, socket) do
@@ -439,7 +477,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("add_create_automation_form_trigger_action", %{"data" => type}, socket) do
-    actions = socket.assigns.create_automation_form_trigger_actions ++ [new_action(type, :trigger)]
+    actions =
+      socket.assigns.create_automation_form_trigger_actions ++
+        [new_action(type, :trigger, socket.assigns.create_automation_form_metric)]
+
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
   end
 
@@ -542,7 +583,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("add_create_automation_form_recovery_action", %{"data" => type}, socket) do
-    actions = socket.assigns.create_automation_form_recovery_actions ++ [new_action(type, :recovery)]
+    actions =
+      socket.assigns.create_automation_form_recovery_actions ++
+        [new_action(type, :recovery, socket.assigns.create_automation_form_metric)]
+
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
 
@@ -604,7 +648,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("save_automation", _params, %{assigns: assigns} = socket) do
     if condition_inputs_valid?(assigns) and rolling_window_inputs_valid?(assigns) and
-         day_window_inputs_valid?(assigns) do
+         day_window_inputs_valid?(assigns) and slack_actions_configured?(assigns) do
       save_automation(socket)
     else
       {:noreply, socket}
@@ -658,13 +702,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  defp new_action("change_state", :trigger), do: default_change_state_action("muted")
-  defp new_action("change_state", :recovery), do: default_change_state_action("enabled")
-  defp new_action("send_slack", context), do: default_send_slack_action(context)
-  defp new_action("add_label_flaky", _context), do: %{"type" => "add_label", "label" => "flaky"}
-  defp new_action("remove_label_flaky", _context), do: %{"type" => "remove_label", "label" => "flaky"}
-  defp new_action(_, :recovery), do: default_change_state_action("enabled")
-  defp new_action(_, _), do: default_change_state_action("muted")
+  defp new_action("change_state", :trigger, _metric), do: default_change_state_action("muted")
+  defp new_action("change_state", :recovery, _metric), do: default_change_state_action("enabled")
+  defp new_action("send_slack", context, metric), do: default_send_slack_action(context, metric)
+  defp new_action("add_label_flaky", _context, _metric), do: %{"type" => "add_label", "label" => "flaky"}
+  defp new_action("remove_label_flaky", _context, _metric), do: %{"type" => "remove_label", "label" => "flaky"}
+  defp new_action(_, :recovery, _metric), do: default_change_state_action("enabled")
+  defp new_action(_, _, _metric), do: default_change_state_action("muted")
 
   defp save_automation(%{assigns: assigns} = socket) do
     attrs = build_automation_attrs(assigns.selected_project.id, assigns)
@@ -740,7 +784,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp form_actions_summary(assigns) do
-    case assigns.create_automation_form_trigger_actions do
+    case configured_actions(assigns.create_automation_form_trigger_actions) do
       [] ->
         dgettext("dashboard_projects", "No actions selected.")
 
@@ -754,7 +798,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
   defp form_recovery_summary(assigns) do
     if assigns.create_automation_form_recovery_enabled do
       recovery_config = recovery_config_for(assigns.create_automation_form_metric, assigns)
-      actions = Enum.map_join(assigns.create_automation_form_recovery_actions, ", ", &form_action_summary/1)
+
+      actions =
+        assigns.create_automation_form_recovery_actions
+        |> configured_actions()
+        |> Enum.map_join(", ", &form_action_summary/1)
 
       if recovery_config["condition"] == "no_new_matches" do
         dgettext("dashboard_projects", "After %{window} %{without_matches}: %{actions}.",
@@ -771,6 +819,20 @@ defmodule TuistWeb.ProjectAutomationsLive do
     else
       dgettext("dashboard_projects", "Recovery is disabled.")
     end
+  end
+
+  defp configured_actions(actions), do: Enum.reject(actions, &unconfigured_slack_action?/1)
+
+  defp unconfigured_slack_action?(%{"type" => "send_slack"} = action), do: action["channel"] in [nil, ""]
+  defp unconfigured_slack_action?(_action), do: false
+
+  def slack_actions_configured?(assigns) do
+    recovery_actions =
+      if assigns.create_automation_form_recovery_enabled,
+        do: assigns.create_automation_form_recovery_actions,
+        else: []
+
+    not Enum.any?(assigns.create_automation_form_trigger_actions ++ recovery_actions, &unconfigured_slack_action?/1)
   end
 
   defp form_action_summary(%{"type" => "add_label", "label" => "flaky"}),
@@ -810,14 +872,20 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp trigger_config_for(metric, assigns) do
+    # Durations are read from a per-day aggregate, so they only take a
+    # calendar window.
+    window_type =
+      if metric == "test_duration", do: "last_days", else: assigns.create_automation_form_window_type
+
     metric
     |> parse_threshold(assigns.create_automation_form_threshold)
     |> build_trigger_config(
       assigns.create_automation_form_comparison,
-      assigns.create_automation_form_window_type,
+      window_type,
       assigns.create_automation_form_window,
       assigns.create_automation_form_rolling_window_size
     )
+    |> maybe_put_statistic(metric, assigns.create_automation_form_statistic)
     |> maybe_put_states(assigns.create_automation_form_trigger_states)
     |> maybe_put_apply_existing_matches(
       assigns.create_automation_form_apply_existing_matches,
@@ -898,6 +966,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
     }
   end
 
+  defp maybe_put_statistic(config, "test_duration", statistic), do: Map.put(config, "statistic", statistic)
+  defp maybe_put_statistic(config, _metric, _statistic), do: config
+
   defp maybe_put_states(config, []), do: config
   defp maybe_put_states(config, states), do: Map.put(config, "states", states)
 
@@ -911,7 +982,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   # which sub-events to react to (mark / unmark / state change), and a
   # blanket label flip tends to fight at least one of those sub-events.
   # Strip them on switch; the user can opt back in via "Add action".
-  defp strip_redundant_actions(actions, "test_updated") do
+  defp strip_redundant_actions(actions, metric) when metric in ["test_updated", "test_duration"] do
     Enum.reject(actions, fn action ->
       action["label"] == "flaky" and action["type"] in ["add_label", "remove_label"]
     end)
@@ -925,6 +996,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
     case Float.parse(value) do
       {n, _} -> n
       :error -> metric |> default_threshold() |> parse_default_rate_threshold()
+    end
+  end
+
+  defp parse_threshold("test_duration", value) do
+    case Float.parse(value) do
+      {seconds, _} -> round(seconds * 1000)
+      :error -> 10_000
     end
   end
 
@@ -947,8 +1025,23 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
   def metric_label("reliability_rate"), do: dgettext("dashboard_projects", "Test reliability")
+  def metric_label("test_duration"), do: dgettext("dashboard_projects", "Test duration")
   def metric_label("test_updated"), do: dgettext("dashboard_projects", "Test updated")
   def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def statistic_label("average"), do: dgettext("dashboard_projects", "Average")
+  def statistic_label("p50"), do: dgettext("dashboard_projects", "p50")
+  def statistic_label("p90"), do: dgettext("dashboard_projects", "p90")
+  def statistic_label("p99"), do: dgettext("dashboard_projects", "p99")
+  def statistic_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  @doc """
+  Recovery conditions the form offers for a metric. A duration percentile has
+  no single matching run, so `no_new_matches` is flakiness- and
+  reliability-only.
+  """
+  def recovery_conditions("test_duration"), do: ["condition_clears"]
+  def recovery_conditions(_metric), do: @recovery_conditions
 
   def test_updated_event_label("marked_flaky"), do: dgettext("dashboard_projects", "Marked as flaky")
   def test_updated_event_label("unmarked_flaky"), do: dgettext("dashboard_projects", "Unmarked as flaky")
@@ -993,6 +1086,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def threshold_label("flakiness_rate"), do: dgettext("dashboard_projects", "Percent")
   def threshold_label("reliability_rate"), do: dgettext("dashboard_projects", "Percent")
   def threshold_label("flaky_run_count"), do: dgettext("dashboard_projects", "Count")
+  def threshold_label("test_duration"), do: dgettext("dashboard_projects", "Seconds")
   def threshold_label(_), do: dgettext("dashboard_projects", "Threshold")
 
   def state_action_label("muted"), do: dgettext("dashboard_projects", "Mute")
@@ -1070,6 +1164,20 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "When test reliability on the default branch %{symbol} %{threshold}% over %{window}",
       symbol: symbol,
       threshold: threshold,
+      window: window_summary(trigger_config)
+    )
+  end
+
+  def automation_summary(%{monitor_type: "test_duration", trigger_config: trigger_config}) do
+    threshold = trigger_config["threshold"]
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+
+    dgettext(
+      "dashboard_projects",
+      "When test duration (%{statistic}) %{symbol} %{threshold}s over %{window}",
+      statistic: statistic_label(trigger_config["statistic"]),
+      symbol: symbol,
+      threshold: if(is_integer(threshold), do: format_seconds(threshold), else: "?"),
       window: window_summary(trigger_config)
     )
   end

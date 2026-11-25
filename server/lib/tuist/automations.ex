@@ -10,6 +10,7 @@ defmodule Tuist.Automations do
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
   alias Tuist.Automations.Alerts.Revision
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.Automations.Monitors.TestDurationMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -701,6 +702,9 @@ defmodule Tuist.Automations do
 
         "reliability_rate" ->
           FlakyTestsMonitor.evaluate_by_reliability_rate(alert, test_case_ids)
+
+        "test_duration" ->
+          TestDurationMonitor.evaluate(alert, test_case_ids)
 
         "test_updated" ->
           %{triggered: []}

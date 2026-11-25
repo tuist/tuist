@@ -167,10 +167,41 @@
                           <:right_icon><.check /></:right_icon>
                         </.dropdown_item>
                         <.dropdown_item
+                          value="test_duration"
+                          label={dgettext("dashboard_projects", "Test duration")}
+                          on_click="update_create_automation_form_metric"
+                          data-selected={@create_automation_form_metric == "test_duration"}
+                        >
+                          <:right_icon><.check /></:right_icon>
+                        </.dropdown_item>
+                        <.dropdown_item
                           value="test_updated"
                           label={dgettext("dashboard_projects", "Test updated")}
                           on_click="update_create_automation_form_metric"
                           data-selected={@create_automation_form_metric == "test_updated"}
+                        >
+                          <:right_icon><.check /></:right_icon>
+                        </.dropdown_item>
+                      </.dropdown>
+                    </div>
+                    <div
+                      :if={@create_automation_form_metric == "test_duration"}
+                      data-part="form-row"
+                      data-size="dropdown-narrow"
+                    >
+                      <label data-part="label">
+                        {dgettext("dashboard_projects", "Statistic")}
+                      </label>
+                      <.dropdown
+                        id="create-automation-statistic-dropdown"
+                        label={statistic_label(@create_automation_form_statistic)}
+                      >
+                        <.dropdown_item
+                          :for={statistic <- Tuist.Automations.Alerts.Alert.duration_statistics()}
+                          value={statistic}
+                          label={statistic_label(statistic)}
+                          on_click="update_create_automation_form_statistic"
+                          data-selected={@create_automation_form_statistic == statistic}
                         >
                           <:right_icon><.check /></:right_icon>
                         </.dropdown_item>
@@ -241,7 +272,10 @@
                       />
                     </div>
                     <div
-                      :if={not event_driven_monitor_type?(@create_automation_form_metric)}
+                      :if={
+                        not event_driven_monitor_type?(@create_automation_form_metric) and
+                          @create_automation_form_metric != "test_duration"
+                      }
                       data-part="form-row"
                       data-size="dropdown-narrow"
                     >
@@ -351,7 +385,10 @@
                       </label>
                     </div>
                   </div>
-                  <div data-part="form-row">
+                  <div
+                    :if={@create_automation_form_metric != "test_duration"}
+                    data-part="form-row"
+                  >
                     <label data-part="label">
                       {dgettext("dashboard_projects", "Only apply to tests in these states")}
                     </label>
@@ -430,11 +467,12 @@
                         />
                         <.dropdown_item
                           :if={
-                            not has_label_action?(
-                              @create_automation_form_trigger_actions,
-                              "add_label",
-                              "flaky"
-                            ) and
+                            @create_automation_form_metric != "test_duration" and
+                              not has_label_action?(
+                                @create_automation_form_trigger_actions,
+                                "add_label",
+                                "flaky"
+                              ) and
                               not has_label_action?(
                                 @create_automation_form_trigger_actions,
                                 "remove_label",
@@ -447,11 +485,12 @@
                         />
                         <.dropdown_item
                           :if={
-                            not has_label_action?(
-                              @create_automation_form_trigger_actions,
-                              "remove_label",
-                              "flaky"
-                            ) and
+                            @create_automation_form_metric != "test_duration" and
+                              not has_label_action?(
+                                @create_automation_form_trigger_actions,
+                                "remove_label",
+                                "flaky"
+                              ) and
                               not has_label_action?(
                                 @create_automation_form_trigger_actions,
                                 "add_label",
@@ -702,11 +741,12 @@
                         />
                         <.dropdown_item
                           :if={
-                            not has_label_action?(
-                              @create_automation_form_recovery_actions,
-                              "remove_label",
-                              "flaky"
-                            ) and
+                            @create_automation_form_metric != "test_duration" and
+                              not has_label_action?(
+                                @create_automation_form_recovery_actions,
+                                "remove_label",
+                                "flaky"
+                              ) and
                               not has_label_action?(
                                 @create_automation_form_recovery_actions,
                                 "add_label",
@@ -719,11 +759,12 @@
                         />
                         <.dropdown_item
                           :if={
-                            not has_label_action?(
-                              @create_automation_form_recovery_actions,
-                              "add_label",
-                              "flaky"
-                            ) and
+                            @create_automation_form_metric != "test_duration" and
+                              not has_label_action?(
+                                @create_automation_form_recovery_actions,
+                                "add_label",
+                                "flaky"
+                              ) and
                               not has_label_action?(
                                 @create_automation_form_recovery_actions,
                                 "remove_label",
@@ -760,7 +801,9 @@
                             }
                           >
                             <.dropdown_item
-                              :for={condition <- ["condition_clears", "no_new_matches"]}
+                              :for={
+                                condition <- recovery_conditions(@create_automation_form_metric)
+                              }
                               value={condition}
                               label={
                                 recovery_condition_label(
@@ -864,7 +907,10 @@
                           />
                         </div>
                       </div>
-                      <div data-part="form-row">
+                      <div
+                        :if={@create_automation_form_metric != "test_duration"}
+                        data-part="form-row"
+                      >
                         <label data-part="label">
                           {dgettext("dashboard_projects", "Only apply to tests in these states")}
                         </label>
@@ -1150,6 +1196,7 @@
                     not rolling_window_inputs_valid?(assigns) or
                     not day_window_inputs_valid?(assigns) or
                     not condition_inputs_valid?(assigns) or
+                    not slack_actions_configured?(assigns) or
                     Enum.empty?(@create_automation_form_trigger_actions)
                 }
                 phx-click="save_automation"

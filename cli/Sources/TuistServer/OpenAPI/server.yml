@@ -4278,11 +4278,7 @@ components:
           x-struct:
           x-validate:
         monitor_type:
-          description: The monitor type that evaluates the condition.
-          enum:
-            - flakiness_rate
-            - flaky_run_count
-            - reliability_rate
+          description: 'The monitor type that evaluates the condition. Known values: flakiness_rate, flaky_run_count, reliability_rate, test_duration, test_updated.'
           type: string
           x-struct:
           x-validate:
@@ -76600,6 +76596,7 @@ paths:
                     - flakiness_rate
                     - flaky_run_count
                     - reliability_rate
+                    - test_duration
                   type: string
                   x-struct:
                   x-validate:
@@ -76628,6 +76625,7 @@ paths:
                   x-struct:
                   x-validate:
                 trigger_config:
+                  description: Monitor-specific parameters. test_duration takes statistic (average, p50, p90 or p99), threshold in milliseconds, comparison, window_type last_days and window (e.g. "30d").
                   type: object
                   x-struct:
                   x-validate:

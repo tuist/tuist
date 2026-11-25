@@ -433,6 +433,62 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert automation.trigger_config["threshold"] == 3
     end
 
+    test "creates a test duration automation with its threshold in seconds and keeps it across an edit", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Slow tests"})
+      render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
+      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "enabled"})
+      html = render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_duration"})
+
+      # A slow test isn't flaky: the flaky label gives way to a Slack message.
+      assert html =~ "is slower than the threshold of automation"
+      refute html =~ "Mark test as flaky"
+      # The duration trigger has no state filter, and one picked earlier is dropped.
+      refute html =~ "create-automation-trigger-states"
+      # Flaky labels don't apply to slow tests, in either action menu (rendered
+      # in portals, which only `render/1` includes).
+      refute render(lv) =~ "add_label_flaky"
+      refute render(lv) =~ "remove_label_flaky"
+
+      render_hook(lv, "update_create_automation_form_statistic", %{"data" => "average"})
+      render_hook(lv, "update_create_automation_form_threshold", %{"value" => "2.5"})
+      render_hook(lv, "update_create_automation_form_window", %{"value" => "7d"})
+      html = render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+
+      # The default Slack action has no channel yet: the summary leaves it out
+      # and the automation can't be created until one is picked.
+      refute html =~ "Slack: not configured"
+      render_hook(lv, "save_automation", %{})
+      assert [] = Automations.list_alerts(project.id)
+
+      render_hook(lv, "delete_create_automation_form_trigger_action", %{"index" => "0"})
+      render_hook(lv, "save_automation", %{})
+
+      expected = %{
+        "statistic" => "average",
+        "threshold" => 2500,
+        "comparison" => "gte",
+        "window_type" => "last_days",
+        "window" => "7d"
+      }
+
+      assert [%{monitor_type: "test_duration", trigger_config: ^expected} = automation] =
+               Automations.list_alerts(project.id)
+
+      assert [%{"type" => "change_state", "state" => "muted"}] = automation.trigger_actions
+
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      render_hook(lv, "save_automation", %{})
+
+      assert [%{trigger_config: ^expected}] = Automations.list_alerts(project.id)
+    end
+
     test "defaults reliability-rate automations to less-than 90 percent", %{
       conn: conn,
       organization: organization,

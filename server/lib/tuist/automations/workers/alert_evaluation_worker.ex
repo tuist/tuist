@@ -8,6 +8,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.Automations.Monitors.TestDurationMonitor
   alias Tuist.Automations.Workers.AlertEvaluationBatchWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.Projects
@@ -410,11 +411,17 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       candidates
       |> Enum.map(& &1.test_case_id)
       |> Enum.chunk_every(@recovery_candidate_batch_size)
-      |> Enum.flat_map(&FlakyTestsMonitor.measurable_test_case_ids(alert, &1))
+      |> Enum.flat_map(&measurable_test_case_ids(alert, &1))
       |> MapSet.new()
 
     Enum.filter(candidates, &MapSet.member?(measurable, &1.test_case_id))
   end
+
+  defp measurable_test_case_ids(%{monitor_type: "test_duration"} = alert, test_case_ids),
+    do: TestDurationMonitor.measurable_test_case_ids(alert, test_case_ids)
+
+  defp measurable_test_case_ids(alert, test_case_ids),
+    do: FlakyTestsMonitor.measurable_test_case_ids(alert, test_case_ids)
 
   # A state filter makes an action conditional on the test case's current
   # control-plane state. It lets a skipped-test recovery leave a test alone
@@ -578,6 +585,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp evaluate_monitor(%{monitor_type: "reliability_rate"} = alert, test_case_ids) do
     FlakyTestsMonitor.evaluate_by_reliability_rate(alert, test_case_ids)
+  end
+
+  defp evaluate_monitor(%{monitor_type: "test_duration"} = alert, test_case_ids) do
+    TestDurationMonitor.evaluate(alert, test_case_ids)
   end
 
   # Event-driven monitors are dispatched directly from the originating event

@@ -12355,18 +12355,10 @@ public enum Components {
             public var enabled: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/AutomationAlert/id`.
             public var id: Swift.String
-            /// The monitor type that evaluates the condition.
+            /// The monitor type that evaluates the condition. Known values: flakiness_rate, flaky_run_count, reliability_rate, test_duration, test_updated.
             ///
             /// - Remark: Generated from `#/components/schemas/AutomationAlert/monitor_type`.
-            @frozen public enum monitor_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case flakiness_rate = "flakiness_rate"
-                case flaky_run_count = "flaky_run_count"
-                case reliability_rate = "reliability_rate"
-            }
-            /// The monitor type that evaluates the condition.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AutomationAlert/monitor_type`.
-            public var monitor_type: Components.Schemas.AutomationAlert.monitor_typePayload
+            public var monitor_type: Swift.String
             /// - Remark: Generated from `#/components/schemas/AutomationAlert/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/AutomationAlert/recovery_actions`.
@@ -12389,7 +12381,7 @@ public enum Components {
             ///   - cadence: Evaluation cadence (e.g. "5m").
             ///   - enabled:
             ///   - id:
-            ///   - monitor_type: The monitor type that evaluates the condition.
+            ///   - monitor_type: The monitor type that evaluates the condition. Known values: flakiness_rate, flaky_run_count, reliability_rate, test_duration, test_updated.
             ///   - name:
             ///   - recovery_actions:
             ///   - recovery_config: Recovery parameters (e.g. window).
@@ -12400,7 +12392,7 @@ public enum Components {
                 cadence: Swift.String,
                 enabled: Swift.Bool,
                 id: Swift.String,
-                monitor_type: Components.Schemas.AutomationAlert.monitor_typePayload,
+                monitor_type: Swift.String,
                 name: Swift.String,
                 recovery_actions: [Components.Schemas.AutomationAlertAction]? = nil,
                 recovery_config: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
@@ -190096,6 +190088,7 @@ public enum Operations {
                         case flakiness_rate = "flakiness_rate"
                         case flaky_run_count = "flaky_run_count"
                         case reliability_rate = "reliability_rate"
+                        case test_duration = "test_duration"
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/monitor_type`.
                     public var monitor_type: Operations.createAutomationAlert.Input.Body.jsonPayload.monitor_typePayload
@@ -190109,6 +190102,8 @@ public enum Operations {
                     public var recovery_enabled: Swift.Bool?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/trigger_actions`.
                     public var trigger_actions: [Components.Schemas.AutomationAlertAction]
+                    /// Monitor-specific parameters. test_duration takes statistic (average, p50, p90 or p99), threshold in milliseconds, comparison, window_type last_days and window (e.g. "30d").
+                    ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/trigger_config`.
                     public var trigger_config: OpenAPIRuntime.OpenAPIObjectContainer?
                     /// Creates a new `jsonPayload`.
@@ -190121,7 +190116,7 @@ public enum Operations {
                     ///   - recovery_config:
                     ///   - recovery_enabled:
                     ///   - trigger_actions:
-                    ///   - trigger_config:
+                    ///   - trigger_config: Monitor-specific parameters. test_duration takes statistic (average, p50, p90 or p99), threshold in milliseconds, comparison, window_type last_days and window (e.g. "30d").
                     public init(
                         cadence: Swift.String? = nil,
                         monitor_type: Operations.createAutomationAlert.Input.Body.jsonPayload.monitor_typePayload,

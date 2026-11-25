@@ -7,9 +7,10 @@ defmodule Tuist.Automations.Alerts.Alert do
   alias Tuist.Projects.Project
 
   @event_driven_monitor_types ~w(test_updated)
-  @recovery_ledger_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
+  @recovery_ledger_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate test_duration)
   @monitor_types @recovery_ledger_monitor_types ++ @event_driven_monitor_types
   @comparisons ~w(gte gt lt lte)
+  @duration_statistics ~w(average p50 p90 p99)
   @valid_states ~w(enabled muted skipped)
   @test_updated_events ~w(
     marked_flaky
@@ -35,6 +36,12 @@ defmodule Tuist.Automations.Alerts.Alert do
   threshold or content filter.
   """
   def test_updated_events, do: @test_updated_events
+
+  @doc """
+  Duration statistics a `test_duration` monitor can compare against its
+  threshold, read from `trigger_config["statistic"]`.
+  """
+  def duration_statistics, do: @duration_statistics
 
   @doc """
   Maximum rolling trigger window the active aggregate storage can serve.
@@ -270,6 +277,7 @@ defmodule Tuist.Automations.Alerts.Alert do
         "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
         "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
         "reliability_rate" -> validate_reliability_rate_config(changeset, trigger_config)
+        "test_duration" -> validate_test_duration_config(changeset, trigger_config)
         "test_updated" -> validate_test_updated_config(changeset, trigger_config)
         _ -> changeset
       end
@@ -359,6 +367,31 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   defp validate_reliability_rate_config(changeset, trigger_config) do
     validate_flakiness_rate_config(changeset, trigger_config)
+  end
+
+  # Durations are read from a per-day aggregate that has no per-run ordering,
+  # so only calendar windows can be evaluated. `no_new_matches` recovery needs a
+  # notion of a single matching run, which a percentile does not have.
+  defp validate_test_duration_config(changeset, trigger_config) do
+    threshold = trigger_config["threshold"]
+
+    cond do
+      trigger_config["statistic"] not in @duration_statistics ->
+        add_error(changeset, :trigger_config, "statistic must be one of: #{Enum.join(@duration_statistics, ", ")}")
+
+      !is_integer(threshold) or threshold <= 0 ->
+        add_error(changeset, :trigger_config, "threshold must be a positive integer of milliseconds")
+
+      trigger_config["window_type"] != "last_days" ->
+        add_error(changeset, :trigger_config, "window_type must be last_days for test duration")
+
+      get_field(changeset, :recovery_enabled) and
+          (get_field(changeset, :recovery_config) || %{})["condition"] == "no_new_matches" ->
+        add_error(changeset, :recovery_config, "condition no_new_matches is not supported for test duration")
+
+      true ->
+        validate_window_config(changeset, trigger_config)
+    end
   end
 
   # `window_type` selects between a calendar window ("last_days", configured
