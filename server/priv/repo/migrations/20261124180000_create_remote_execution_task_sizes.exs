@@ -20,6 +20,7 @@ defmodule Tuist.Repo.Migrations.CreateRemoteExecutionTaskSizes do
     end
 
     # Retention deletes rows unused for 14 days.
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:remote_execution_task_sizes, [:updated_at])
   end
 end
