@@ -252,11 +252,15 @@ func (t *TartRuntime) addWorkspace(ctx context.Context, r *Record) error {
 	}
 	// The image's sandbox boot mode disables runner dispatch before its halt
 	// trap is armed. No runner service-account credential is shared with it.
-	if _, err := t.client(r).Exec(ctx, r.VMName(), "/bin/sh", "-c", fmt.Sprintf(`set -eu
+	// diskutil and mdutil report errors on stdout, which a failed Exec drops,
+	// so the script sends everything to stderr and traces each command: a
+	// failed create then says which step failed and why.
+	if _, err := t.client(r).Exec(ctx, r.VMName(), "/bin/sh", "-c", fmt.Sprintf(`set -eux
+exec 1>&2
 %scontainer=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSContainerReference raw -o - -)
 /usr/bin/sudo -n /usr/sbin/diskutil apfs addVolume "$container" APFS TuistSandboxWorkspace -quota %dg -mountpoint /Users/runner/work
 /usr/bin/sudo -n /usr/bin/touch /Users/runner/work/.metadata_never_index
-/usr/bin/sudo -n /usr/bin/mdutil -i off /Users/runner/work >/dev/null
+/usr/bin/sudo -n /usr/bin/mdutil -i off /Users/runner/work
 /usr/bin/sudo -n /usr/sbin/chown runner:staff /Users/runner/work`, replace, r.WorkspaceGB)); err != nil {
 		return err
 	}
