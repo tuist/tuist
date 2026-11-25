@@ -429,11 +429,13 @@ func main() {
 		Metrics: metrics, Events: events, Log: logger,
 		Blobs: blobs, Checkouts: checkouts, Workspaces: workspaces, CacheImages: cacheImages, Cgroups: vmCgroups,
 	})
-	// The in-place updater waits for lazy_disks to reach zero before it
-	// restarts the daemon; memory_served sandboxes pause regardless.
-	for reason, count := range map[string]func(lazy, served int) int{
-		"lazy_disks":    func(lazy, _ int) int { return lazy },
-		"memory_served": func(_, served int) int { return served },
+	// The in-place updater waits for both to reach zero before it restarts
+	// the daemon: restores whose disks or memory still arrive pause. Daemons
+	// that served a warm restore's memory for its VM's whole life reported
+	// it as memory_served, which the updater does not wait on.
+	for reason, count := range map[string]func(lazy, loading int) int{
+		"lazy_disks":     func(lazy, _ int) int { return lazy },
+		"memory_loading": func(_, loading int) int { return loading },
 	} {
 		registry.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Name: "sandboxd_handover_blocked", Help: "Running sandboxes an in-place daemon upgrade would pause, by reason.",

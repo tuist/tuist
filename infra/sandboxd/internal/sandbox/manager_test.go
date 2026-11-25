@@ -822,8 +822,8 @@ func TestHandoverLeavesVMsRunningForTheNextDaemon(t *testing.T) {
 	if _, err := h.m.StartWorker(ctx, protocol.StartWorkerArgs{SandboxID: "busy"}); err != nil {
 		t.Fatal(err)
 	}
-	// A warm restore's memory is served by this process for as long as its
-	// VM runs, so that VM cannot outlive it.
+	// A warm restore's memory is served by this process until it is all on
+	// the node, so until then that VM cannot outlive it.
 	restored, _ := h.m.get("restored")
 	restored.mu.Lock()
 	restored.memoryServed = restored.inst

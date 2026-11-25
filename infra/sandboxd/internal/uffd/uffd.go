@@ -23,6 +23,7 @@ const (
 	ioctlCopy      = 0xC028AA03
 	ioctlZeropage  = 0xC020AA04
 	ioctlWake      = 0x8010AA02
+	ioctlUnreg     = 0x8010AA01
 	eventPagefault = 0x12
 	msgSize        = 32
 
@@ -50,6 +51,9 @@ type Server struct {
 	faultQ  chan int
 	next    atomic.Int64
 	loaded  sync.Once
+	// release ends Serve once Options.Release unregistered the memory.
+	release  context.CancelCauseFunc
+	released atomic.Bool
 
 	chunks, installed, faulted, filled atomic.Int64
 	zero, faults, bytes                atomic.Int64
@@ -98,6 +102,7 @@ func (s *Server) Serve(ctx context.Context, src Source, opts Options) error {
 
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
+	s.release = cancel
 	var wg sync.WaitGroup
 	for range opts.FaultWorkers {
 		wg.Go(func() {
@@ -146,6 +151,9 @@ func (s *Server) Serve(ctx context.Context, src Source, opts Options) error {
 	err := s.events(ctx)
 	cancel(err)
 	wg.Wait()
+	if s.released.Load() {
+		return nil
+	}
 	if cause := context.Cause(ctx); !errors.Is(cause, context.Canceled) && cause != nil {
 		return cause
 	}
@@ -157,6 +165,7 @@ func (s *Server) Stats() Stats {
 	return Stats{
 		Chunks: int(s.chunks.Load()), Faulted: int(s.faulted.Load()), Filled: int(s.filled.Load()),
 		Zero: int(s.zero.Load()), Faults: s.faults.Load(), Bytes: s.bytes.Load(),
+		Released: s.released.Load(),
 	}
 }
 
@@ -303,8 +312,36 @@ func (s *Server) fetch(ctx context.Context, i int, counter *atomic.Int64) error 
 	} else {
 		s.bytes.Add(int64(len(data)))
 	}
-	if s.installed.Add(1) == s.chunks.Load() && s.opts.OnLoaded != nil {
-		s.loaded.Do(func() { s.opts.OnLoaded(s.Stats()) })
+	if s.installed.Add(1) == s.chunks.Load() {
+		s.loaded.Do(func() {
+			if s.opts.Release {
+				// A failed unregister keeps serving: the process still
+				// needs the zero pages after a balloon drop.
+				if s.unregister() == nil {
+					s.released.Store(true)
+					s.release(errReleased)
+				}
+			}
+			if s.opts.OnLoaded != nil {
+				s.opts.OnLoaded(s.Stats())
+			}
+		})
+	}
+	return nil
+}
+
+var errReleased = errors.New("memory released")
+
+// unregister drops the guest's regions from the userfaultfd, waking any
+// thread still waiting on them: from then on the kernel serves its faults as
+// for any anonymous memory. Registration belongs to the memory, not to a
+// descriptor, so Firecracker's own copy of the descriptor no longer matters.
+func (s *Server) unregister() error {
+	for _, r := range s.regions {
+		arg := struct{ start, len uint64 }{r.Base, r.Size}
+		if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(s.fd), ioctlUnreg, uintptr(unsafe.Pointer(&arg))); errno != 0 {
+			return fmt.Errorf("unregistering guest memory: %w", errno)
+		}
 	}
 	return nil
 }

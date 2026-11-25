@@ -193,8 +193,9 @@ type Sandbox struct {
 	disksPending  bool
 	lazy          *lazyDisks
 	// memoryServed is the instance whose guest memory this process serves
-	// through userfaultfd, for as long as it runs: a warm restore's. It
-	// cannot outlive the daemon.
+	// through userfaultfd: a warm restore's, until its memory is all on the
+	// node and released (uffd.Options.Release). It cannot outlive the
+	// daemon until then.
 	memoryServed vm.Instance
 }
 
@@ -1805,8 +1806,8 @@ func (m *Manager) Handover(ctx context.Context) {
 
 // HandoverBlocked counts the running sandboxes a handover would pause:
 // those whose disks still arrive through the daemon's mounts (minutes after
-// a restore) and those whose guest memory the daemon serves (for the VM's
-// whole life after a warm restore from an archive).
+// a restore) and those whose guest memory the daemon still serves (seconds
+// to a minute after a warm restore from an archive).
 func (m *Manager) HandoverBlocked() (lazyDisks, memoryServed int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

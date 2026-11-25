@@ -481,6 +481,11 @@ func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
 	if !bytes.Equal(inst.Memory(), want) {
 		t.Fatal("the restored guest memory differs from the archived image")
 	}
+	// Loaded, the memory is released: the VM no longer depends on this
+	// daemon, so an in-place upgrade keeps it running.
+	if lazy, served := other.m.HandoverBlocked(); lazy != 0 || served != 0 {
+		t.Fatalf("after its memory loaded, a warm restore still blocks a handover: %d lazy, %d served", lazy, served)
+	}
 	if _, err := other.m.Pause(ctx, "dst"); err != nil {
 		t.Fatalf("pause after a warm restore: %v", err)
 	}
