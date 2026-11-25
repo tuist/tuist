@@ -201,13 +201,16 @@ defmodule Tuist.AppBuilds do
 
   def list_preview_tracks(%Project{id: project_id}) do
     tracks =
-      Repo.all(
-        from p in Preview,
-          where: p.project_id == ^project_id and not is_nil(p.bundle_identifier) and p.bundle_identifier != "",
-          group_by: p.track,
-          order_by: p.track,
-          select: %{name: min(fragment("?::text", p.track)), count: count(p.id)}
+      from(p in Preview,
+        as: :preview,
+        where: p.project_id == ^project_id and not is_nil(p.bundle_identifier) and p.bundle_identifier != "",
+        group_by: p.track,
+        order_by: p.track,
+        select: %{name: min(fragment("?::text", p.track)), count: count(p.id)}
       )
+      # Counts only previews `list_previews/2` lists.
+      |> query_hiding_previews_without_uploaded_builds()
+      |> Repo.all()
 
     %{
       total_count: Enum.sum(Enum.map(tracks, & &1.count)),
@@ -218,10 +221,11 @@ defmodule Tuist.AppBuilds do
   def list_previews(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    Preview
+    from(p in Preview, as: :preview)
     |> preload(^preload)
     |> query_with_search_when_needed(opts)
     |> query_with_supported_platforms_when_needed(opts)
+    |> query_hiding_previews_without_uploaded_builds()
     |> query_with_distinct_when_needed(attrs, opts)
     |> query_hiding_unfinished_uploads_when_needed(opts)
     |> Flop.validate_and_run!(attrs, for: Preview)
@@ -344,6 +348,19 @@ defmodule Tuist.AppBuilds do
     else
       query
     end
+  end
+
+  # A preview whose builds all belong to uploads that never completed has
+  # nothing to show or download. It goes before the distinct step, so the
+  # previous preview of the same app stands in for it, and before pagination.
+  # Previews without any build keep their listing.
+  defp query_hiding_previews_without_uploaded_builds(query) do
+    where(
+      query,
+      [p],
+      exists(from(ab in AppBuild, where: ab.preview_id == parent_as(:preview).id and ab.upload_completed)) or
+        not exists(from(ab in AppBuild, where: ab.preview_id == parent_as(:preview).id))
+    )
   end
 
   defp distinct_expression(:platform), do: dynamic([variant: v], v.platform)

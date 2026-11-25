@@ -1244,6 +1244,21 @@ defmodule TuistWeb.PreviewsControllerTest do
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/previews/:preview_id" do
+    test "omits builds whose upload never completed", %{conn: conn, user: user, project: project, account: account} do
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      completed = AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa)
+      AppBuildsFixtures.app_build_fixture(preview: preview, type: :app_bundle, upload_completed: false)
+      stub(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://url.com" end)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+        |> json_response(:ok)
+
+      assert Enum.map(response["builds"], & &1["id"]) == [completed.id]
+    end
+
     test "return preview download URL", %{
       conn: conn,
       user: user,
@@ -1392,6 +1407,27 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert Enum.all?(tl(response["tracks"]), &(&1["count"] == 1))
     end
 
+    test "counts only previews the list shows, leaving out ones whose builds never finished uploading", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      completed = AppBuildsFixtures.preview_fixture(project: project, track: "beta")
+      AppBuildsFixtures.app_build_fixture(preview: completed)
+      unfinished = AppBuildsFixtures.preview_fixture(project: project, track: "beta")
+      AppBuildsFixtures.app_build_fixture(preview: unfinished, upload_completed: false)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
+        |> json_response(:ok)
+
+      assert response["total_count"] == 1
+      assert [%{"name" => "beta", "count" => 1}] = response["tracks"]
+    end
+
     test "returns an empty list when a project has no named tracks", %{
       conn: conn,
       user: user,
@@ -1534,6 +1570,29 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       assert untracked_response["pagination_metadata"]["total_count"] == 2
       assert untracked.id in Enum.map(untracked_response["previews"], & &1["id"])
+    end
+
+    test "leaves out previews whose builds never finished uploading, before pagination", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      completed = AppBuildsFixtures.preview_fixture(project: project, inserted_at: ~U[2021-01-01 00:00:00Z])
+      AppBuildsFixtures.app_build_fixture(preview: completed)
+      unfinished = AppBuildsFixtures.preview_fixture(project: project, inserted_at: ~U[2021-01-02 00:00:00Z])
+      AppBuildsFixtures.app_build_fixture(preview: unfinished, upload_completed: false)
+      stub(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://url.com" end)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=1")
+        |> json_response(:ok)
+
+      assert [%{"id" => id}] = response["previews"]
+      assert id == completed.id
+      assert response["pagination_metadata"]["total_count"] == 1
     end
 
     test "filters tracks before pagination and returns build notes", %{
