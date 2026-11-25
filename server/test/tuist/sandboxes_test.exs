@@ -527,6 +527,46 @@ defmodule Tuist.SandboxesTest do
       assert_received {:torn_down, _sandbox_id}
     end
 
+    test "a create that finishes after its sandbox's delete failed retries the delete" do
+      account = account_fixture()
+
+      expect(Capacity, :place, fn sandbox ->
+        Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id), set: [node_name: "node-a"])
+        {:ok, "node-a"}
+      end)
+
+      # The node cannot delete the VM it is still creating, so the delete fails.
+      expect(Nodes, :call, fn "node-a", "create", %{sandbox_id: sandbox_id}, _opts ->
+        assert {:error, :timeout} = Sandbox |> Repo.get!(sandbox_id) |> Sandboxes.delete()
+        {:ok, %{"boot_ms" => 180}}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:error, :timeout} end)
+      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
+
+      assert {:error, :deleted} = Sandboxes.create_sandbox(account, %{})
+      assert Repo.all(from(s in Sandbox, where: s.account_id == ^account.id)) == []
+    end
+
+    test "a create still heals an error the stuck-create reaper wrote while it booted" do
+      account = account_fixture()
+
+      expect(Capacity, :place, fn sandbox ->
+        Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id), set: [node_name: "node-a"])
+        {:ok, "node-a"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "create", %{sandbox_id: sandbox_id}, _opts ->
+        Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox_id),
+          set: [state: :error, error_message: "missing on node"]
+        )
+
+        {:ok, %{"boot_ms" => 180}}
+      end)
+
+      assert {:ok, %Sandbox{state: :running}} = Sandboxes.create_sandbox(account, %{})
+    end
+
     test "keeps the row as errored when the node fails the delete" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
       expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:error, "netns busy"} end)
