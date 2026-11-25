@@ -530,6 +530,146 @@ defmodule TuistWeb.PreviewsControllerTest do
                "An app build with the same binary ID '#{binary_id}' and build version '#{build_version}' already exists."
     end
 
+    test "a retried upload reuses the app build an unfinished upload of the same binary started", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      params = [display_name: "App", type: "ipa", binary_id: "550E8400-E29B-41D4-A716-446655440000", build_version: "1"]
+      expect(Storage, :multipart_start, fn _object_key, _actor -> {:error, :unavailable} end)
+      expect(Storage, :multipart_start, fn _object_key, _actor -> {:ok, "upload-id"} end)
+      conn = conn |> Authentication.put_current_user(user) |> put_req_header("content-type", "application/json")
+      path = ~p"/api/projects/#{account.name}/#{project.name}/previews/start"
+
+      # When
+      conn |> post(path, params) |> json_response(:internal_server_error)
+      response = conn |> post(path, params) |> json_response(:ok)
+
+      # Then
+      assert response["data"]["upload_id"] == "upload-id"
+      assert [%{id: id, upload_completed: false}] = Repo.all(AppBuilds.AppBuild)
+      assert response["data"]["app_build_id"] == id
+    end
+
+    test "an upload of the same binary for another preview that may still be running conflicts", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      running_preview = AppBuildsFixtures.preview_fixture(project: project, git_commit_sha: "other-commit")
+
+      running =
+        AppBuildsFixtures.app_build_fixture(
+          preview: running_preview,
+          type: :ipa,
+          binary_id: "550E8400-E29B-41D4-A716-446655440000",
+          build_version: "1",
+          upload_completed: false
+        )
+
+      reject(&Storage.multipart_start/2)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "App",
+          type: "ipa",
+          git_commit_sha: "commit-sha",
+          binary_id: "550E8400-E29B-41D4-A716-446655440000",
+          build_version: "1"
+        )
+
+      # Then
+      assert json_response(conn, :conflict)["code"] == "duplicate_app_build"
+      assert Repo.reload!(running).preview_id == running_preview.id
+    end
+
+    test "an abandoned upload of the same binary is taken over as a new build", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      abandoned_at = DateTime.add(DateTime.utc_now(:second), -40, :day)
+      abandoned_preview = AppBuildsFixtures.preview_fixture(project: project, git_commit_sha: "other-commit")
+
+      abandoned =
+        [
+          preview: abandoned_preview,
+          type: :ipa,
+          binary_id: "550E8400-E29B-41D4-A716-446655440000",
+          build_version: "1",
+          upload_completed: false
+        ]
+        |> AppBuildsFixtures.app_build_fixture()
+        |> Ecto.Changeset.change(inserted_at: abandoned_at, updated_at: abandoned_at)
+        |> Repo.update!()
+
+      expect(Storage, :multipart_start, fn _object_key, _actor -> {:ok, "upload-id"} end)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "App",
+          type: "ipa",
+          git_commit_sha: "commit-sha",
+          binary_id: "550E8400-E29B-41D4-A716-446655440000",
+          build_version: "1"
+        )
+
+      # Then
+      assert json_response(conn, :ok)["data"]["app_build_id"] == abandoned.id
+      taken_over = Repo.reload!(abandoned)
+      assert taken_over.preview_id != abandoned_preview.id
+      # Retention walks app builds by inserted_at, so the new upload starts its own window.
+      assert DateTime.diff(DateTime.utc_now(), taken_over.inserted_at, :minute) < 1
+    end
+
+    test "an unfinished upload of another project's binary still conflicts", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      other_preview = AppBuildsFixtures.preview_fixture()
+
+      AppBuildsFixtures.app_build_fixture(
+        preview: other_preview,
+        binary_id: "550E8400-E29B-41D4-A716-446655440000",
+        build_version: "1",
+        upload_completed: false
+      )
+
+      reject(&Storage.multipart_start/2)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "App",
+          type: "ipa",
+          binary_id: "550E8400-E29B-41D4-A716-446655440000",
+          build_version: "1"
+        )
+
+      # Then
+      assert json_response(conn, :conflict)["code"] == "duplicate_app_build"
+    end
+
     test "allows uploading app build with same binary_id but different build_version", %{
       conn: conn,
       user: user,
