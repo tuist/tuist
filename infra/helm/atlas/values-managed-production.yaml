@@ -97,6 +97,9 @@ ingress:
 env:
   # Never inherit the anonymous demo bypass from an application Secret.
   ATLAS_DEMO_MODE: "false"
+  # Every pod must hold each listed key; writes use the current one.
+  ENCRYPTION_KEY_IDS: "V1,K2026A"
+  ENCRYPTION_CURRENT_KEY: "V1"
   # Explicitly retain Tuist's managed upstream discovery.
   MCP_PROXY_SERVERS: "tuist-managed"
   ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"
@@ -200,8 +203,22 @@ externalSecrets:
       remoteRef: "atlas-secret-key-base/password"
     GUARDIAN_SECRET_KEY:
       remoteRef: "atlas-secret-key-base/password"
+    # The value GUARDIAN_SECRET_KEY reads today, kept verifying while
+    # GUARDIAN_SECRET_KEY moves to atlas-guardian-secret-key. Remove a day
+    # after that move.
+    GUARDIAN_SECRET_KEY_PREVIOUS:
+      remoteRef: "atlas-secret-key-base/password"
+    # Starts as a copy of atlas-secret-key-base so switching changes nothing;
+    # see clickhouse.passwordSecretKey before rotating it.
+    ATLAS_CLICKHOUSE_PASSWORD:
+      remoteRef: "atlas-clickhouse/password"
     ENCRYPTION_KEY:
       remoteRef: "atlas-encryption-key/password"
+    # Key ring entries (`<id>:<base64>`) for rotating ENCRYPTION_KEY (V1);
+    # ENCRYPTION_KEY_IDS and ENCRYPTION_CURRENT_KEY in `env:` select them.
+    # See the Atlas.Vault moduledoc.
+    ENCRYPTION_KEYS:
+      remoteRef: "atlas-encryption-keys/password"
     ATLAS_LICENSE_SIGNING_PRIVATE_KEY:
       remoteRef: "atlas-license-signing-key/password"
     GOOGLE_CLIENT_ID:
@@ -449,6 +466,8 @@ vector:
 # and configures per-environment resources and backups.
 clickhouse:
   enabled: true
+  # Its own item (atlas-clickhouse), no longer SECRET_KEY_BASE.
+  passwordSecretKey: ATLAS_CLICKHOUSE_PASSWORD
   # Must stay 1: the pods do not replicate (no Keeper, plain MergeTree
   # tables) and the headless Service spreads reads and writes across
   # them, so a second pod splits the data. The template enforces this.
