@@ -96,6 +96,9 @@ pub struct MobileClient {
     suggested_preview: Option<String>,
     /// The last `lounges` answer and the generation it belongs to, which `palette` searches.
     palette_lounges: Option<(u64, Value)>,
+    /// The profile and list (`None` for the person's own) of the MCP server
+    /// sign-in `authorize_mcp_server` started, until `complete_mcp_server`.
+    mcp_authorization: Option<(String, Option<String>)>,
 }
 
 impl MobileClient {
@@ -523,6 +526,11 @@ impl MobileClient {
             | "poll_chatgpt_login"
             | "cancel_chatgpt_login"
             | "disconnect_ai_subscription") => self.ai_subscriptions(op, args, host),
+            op @ ("mcp_servers"
+            | "add_mcp_server"
+            | "remove_mcp_server"
+            | "authorize_mcp_server"
+            | "complete_mcp_server") => self.mcp_servers(op, args, host),
             "push_enable" => self.push_enable(args, host),
             "live_activity_register" => self.live_activity_register(args, host),
             "live_activity_unregister" => self.live_activity_unregister(args, host),
@@ -1283,6 +1291,31 @@ impl MobileClient {
         )
     }
 
+    /// MCP servers (`crate::mcp_servers`) with the active profile's session. A
+    /// sign-in started in another profile can't complete in this one.
+    fn mcp_servers(&mut self, op: &str, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let index = self.active()?;
+        let profile = self.vault.profiles[index].id.clone();
+        let server = server_url(&self.vault.profiles[index].server)?;
+        let mut pending = match self.mcp_authorization.take() {
+            Some((owner, list)) if owner == profile => Some(list),
+            _ => None,
+        };
+        let result = crate::mcp_servers::call(
+            &server,
+            op,
+            args,
+            &mut pending,
+            &mut Authorized {
+                client: self,
+                index,
+                host,
+            },
+        );
+        self.mcp_authorization = pending.map(|list| (profile, list));
+        result
+    }
+
     /// Registers this device's push token for the active profile at
     /// `/api/me/push-devices/{installation}`. A device token reaches one sign-in
     /// at a time, so edges call this again whenever the active profile changes.
@@ -1936,7 +1969,7 @@ pub(crate) fn text<'a>(v: &'a Value, key: &str) -> Result<&'a str> {
         .ok_or("Missing required argument")
 }
 /// A lowercase hyphenated UUID, as the server's installation IDs are.
-fn is_uuid(v: &str) -> bool {
+pub(crate) fn is_uuid(v: &str) -> bool {
     v.len() == 36
         && v.bytes().enumerate().all(|(i, b)| {
             if [8, 13, 18, 23].contains(&i) {

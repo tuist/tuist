@@ -6,6 +6,7 @@ mod client;
 pub mod compose;
 mod live;
 mod lounges;
+pub mod mcp_servers;
 pub mod navigation;
 mod palette;
 mod presence;

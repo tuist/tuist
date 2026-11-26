@@ -1,6 +1,7 @@
 use super::*;
 use crate::THREADS_UNAVAILABLE;
 use crate::ai_subscriptions::{CLAUDE_TOKEN_REFUSED, UNAVAILABLE as AI_SUBSCRIPTIONS_UNAVAILABLE};
+use crate::mcp_servers::{ADMINS_ONLY, CANCELLED as MCP_CANCELLED};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use std::collections::VecDeque;
 
@@ -3381,7 +3382,7 @@ fn ai_subscriptions_connect_claude_and_sign_in_to_chatgpt() {
         "https://one.test/api/me/ai-subscriptions"
     );
 
-    // An API key instead of the setup token: Tuist refuses it, and the person hears why.
+    // An API key instead of the setup token: the server refuses it, and the person hears why.
     h.responses
         .push_back((422, json!({"message":"Provide the subscription token"})));
     let refused = call(
@@ -3481,6 +3482,127 @@ fn ai_subscriptions_connect_claude_and_sign_in_to_chatgpt() {
         .push_back((404, json!({"message":"Not found."})));
     let unavailable = call(&mut c, &mut h, "ai_subscriptions", json!({}));
     assert_eq!(unavailable["error"], AI_SUBSCRIPTIONS_UNAVAILABLE);
+}
+
+#[test]
+fn mcp_servers_are_listed_changed_and_signed_in_to_per_list() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "0192f0a0-0000-7000-8000-000000000001";
+
+    h.responses.push_back((200, json!({"servers":[]})));
+    let listed = call(&mut c, &mut h, "mcp_servers", json!({}));
+    assert_eq!(listed["data"], json!({"servers":[]}));
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        "https://one.test/api/me/mcp-servers"
+    );
+
+    h.responses.push_back((
+        422,
+        json!({"code":"invalid_url","message":"Enter the server's HTTPS URL."}),
+    ));
+    let refused = call(
+        &mut c,
+        &mut h,
+        "add_mcp_server",
+        json!({"url":"http://x","account_handle":"team"}),
+    );
+    assert_eq!(refused["error"], "Enter the server's HTTPS URL.");
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        "https://one.test/api/accounts/team/mcp-servers"
+    );
+
+    h.responses.push_back((403, json!({"code":"forbidden"})));
+    let members = call(
+        &mut c,
+        &mut h,
+        "remove_mcp_server",
+        json!({"id":id,"account_handle":"team"}),
+    );
+    assert_eq!(members["error"], ADMINS_ONLY);
+
+    // Handles and IDs never reach the URL unchecked.
+    let requests = h.actions.len();
+    for args in [json!({"account_handle":"../x"}), json!({"id":"../x"})] {
+        let op = if args.get("id").is_some() {
+            "remove_mcp_server"
+        } else {
+            "mcp_servers"
+        };
+        assert!(call(&mut c, &mut h, op, args)["error"].is_string());
+    }
+    assert_eq!(h.actions.len(), requests);
+
+    // Nothing started: a callback completes nothing.
+    let stray = call(
+        &mut c,
+        &mut h,
+        "complete_mcp_server",
+        json!({"url":"luft://mcp-callback?state=s&code=c"}),
+    );
+    assert!(stray["error"].is_string());
+    assert_eq!(h.actions.len(), requests);
+
+    h.responses
+        .push_back((200, json!({"url":"https://auth.example/authorize?state=s"})));
+    let started = call(
+        &mut c,
+        &mut h,
+        "authorize_mcp_server",
+        json!({"id":id,"account_handle":"team"}),
+    );
+    assert_eq!(
+        started["data"],
+        json!({"url":"https://auth.example/authorize?state=s","callback_scheme":"luft"})
+    );
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        format!("https://one.test/api/accounts/team/mcp-servers/{id}/authorize")
+    );
+
+    // The core remembers the list: the callback goes to the organization's.
+    h.responses
+        .push_back((200, json!({"server":{"id":id,"connected":true}})));
+    let completed = call(
+        &mut c,
+        &mut h,
+        "complete_mcp_server",
+        json!({"url":"luft://mcp-callback?state=s&code=c%26d&iss=https%3A%2F%2Fauth.example"}),
+    );
+    assert_eq!(completed["data"]["server"]["connected"], true);
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        "https://one.test/api/accounts/team/mcp-servers/complete"
+    );
+    assert_eq!(
+        sent_body(&h),
+        json!({"state":"s","code":"c&d","iss":"https://auth.example"})
+    );
+
+    // Used once.
+    let requests = h.actions.len();
+    let again = call(
+        &mut c,
+        &mut h,
+        "complete_mcp_server",
+        json!({"url":"luft://mcp-callback?state=s&code=c"}),
+    );
+    assert!(again["error"].is_string());
+
+    // A refused sign-in says so without asking the server.
+    h.responses
+        .push_back((200, json!({"url":"https://auth.example/authorize"})));
+    call(&mut c, &mut h, "authorize_mcp_server", json!({"id":id}));
+    let denied = call(
+        &mut c,
+        &mut h,
+        "complete_mcp_server",
+        json!({"url":"luft://mcp-callback?state=s&error=access_denied"}),
+    );
+    assert_eq!(denied["error"], MCP_CANCELLED);
+    assert_eq!(h.actions.len(), requests + 1);
 }
 
 #[test]
