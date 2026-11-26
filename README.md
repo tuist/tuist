@@ -22,6 +22,7 @@
 Tuist is a build platform for engineering teams and their coding agents. It works with Xcode, Gradle, Bazel, Elixir, and Rust builds. Features vary by toolchain: Rust compilation caching is experimental, and Once support is in canary.
 
 - [🚝 **Cache**](https://tuist.dev/en/docs/guides/features/cache): Reuse build artifacts across machines and CI.
+- [🏃 **Runners**](https://tuist.dev/runners): Run GitHub Actions, GitLab CI, Buildkite, and Bitrise jobs on managed macOS and Linux runners next to the cache.
 - [✅ **Selective testing**](https://tuist.dev/en/docs/guides/features/selective-testing): Skip test targets that haven't changed in Tuist-generated Xcode projects. Selecting individual XCTest/XCUITest tests is in early access.
 - [📦 **Registry**](https://tuist.dev/en/docs/guides/features/registry): Resolve [Swift Package Index](https://swiftpackageindex.com/) packages faster.
 - [📈 **Build insights**](https://tuist.dev/en/docs/guides/features/build-insights): Track your projects, builds, and test runs.
