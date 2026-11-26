@@ -91,23 +91,42 @@ for b in /sbin/sbx-init /usr/local/bin/sbx-agent /usr/local/bin/sbx-worker /usr/
 echo "contract: user=$(id user)"'
 
 echo '== the runner image reaches the guest'
-guest 'runuser -l runner -c '\''set -eu
-[ "$ImageOS" = ubuntu24 ]
+# Each step is written to a file and run as runner in a login shell, so the
+# image environment from /etc/profile.d applies and nothing is quoted twice.
+as_runner() {
+  guest "cat > /tmp/step.sh <<\"STEP\"
+set -eu
+$1
+STEP
+chmod 0755 /tmp/step.sh
+runuser -l runner -c \"bash /tmp/step.sh\""
+}
+as_runner '[ "$ImageOS" = ubuntu24 ]
 [ -d "$ANDROID_HOME/platforms" ] && [ -d "$ANDROID_HOME/build-tools" ]
+[ -n "$(ls "$ANDROID_HOME/platforms")" ]
 test -x /home/runner/actions-runner/run.sh
-for t in git git-lfs docker gh kubectl helm cmake ninja gcc python3 jq zstd; do command -v $t >/dev/null || { echo missing $t; exit 1; }; done
+for t in git git-lfs docker gh kubectl helm cmake ninja gcc python3 jq zstd; do command -v "$t" >/dev/null || { echo "missing $t"; exit 1; }; done
 echo "runner env: ImageOS=$ImageOS ANDROID_HOME=$ANDROID_HOME"
-echo "android platforms: $(ls $ANDROID_HOME/platforms | tr \"\\n\" \" \")"'\'''
+echo "android platforms: $(ls "$ANDROID_HOME/platforms" | paste -sd, -)"'
 
 echo '== a CI step as runner: clone and build a C project'
-guest 'mkdir -p /workspace/work && chown 1000:1000 /workspace/work
-runuser -l runner -c '\''set -eu
-cd /workspace/work
+guest 'mkdir -p /workspace/work && chown 1000:1000 /workspace/work'
+as_runner 'cd /workspace/work
 git clone --quiet --depth 1 https://github.com/madler/zlib.git
 cd zlib && cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release >/dev/null
 start=$(date +%s); ninja -C build >/dev/null; echo "zlib built in $(( $(date +%s) - start ))s"
-./build/example >/dev/null && echo "zlib example passed"
-stat -c "%U %u" /workspace/work/zlib/build/example'\'''
+lib=$(find build -maxdepth 1 -name "libz*.a" | head -1); [ -n "$lib" ]
+cat > roundtrip.c <<"C"
+#include <string.h>
+#include <zlib.h>
+int main(void) {
+  unsigned char in[] = "runner", z[64], out[64];
+  uLongf zl = sizeof z, ol = sizeof out;
+  return compress(z, &zl, in, sizeof in) || uncompress(out, &ol, z, zl) || memcmp(in, out, sizeof in);
+}
+C
+gcc -I. -Ibuild roundtrip.c "$lib" -o roundtrip && ./roundtrip
+echo "zlib round trip passed against $lib, owner $(stat -c "%U %u" roundtrip)"'
 
 echo '== warm pause and resume'
 guest 'nohup bash -c "n=0; while true; do n=\$((n+1)); echo \$n > /workspace/counter; sleep 1; done" </dev/null >/dev/null 2>&1 &
@@ -116,7 +135,7 @@ api POST "/v1/sandboxes/$id/pause" --data '{"sync_disks":true}' | tee "$evidence
 api POST "/v1/sandboxes/$id/resume" | tee "$evidence/resume.json"
 guest 'pid=$(cat /root/counter.pid); [[ $(awk "{print \$22}" /proc/$pid/stat) == $(cat /root/counter.start) ]]
 before=$(cat /workspace/counter); sleep 2; [[ $(cat /workspace/counter) -gt $before ]]
-[[ -x /workspace/work/zlib/build/example ]]
+[[ -x /workspace/work/zlib/roundtrip ]]
 echo "process and files survived the pause"'
 
 echo '== a second create restores from the shape snapshot'

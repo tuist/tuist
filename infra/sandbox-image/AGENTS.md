@@ -123,6 +123,19 @@ Linux amd64 CLI, verified against its published SHA-256), `TUIST_VERSION` and
 `SHASUMS256.txt`), `STRUO_VERSION` and `STRUO_SHA256` (the release's
 `struo-<version>-x86_64-unknown-linux-gnu.tar.gz` and its `.sha256`).
 
+`GUEST_IMAGE` (default `guest`, the stage above) names what the template
+boots, and `TEMPLATE_NAME` (default `default`) what `metadata.json` records.
+Any linux/amd64 image pinned by digest works: the `agents` stage copies the
+guest binaries in and runs `scripts/guest-contract.sh`, which installs nothing
+and fails naming what the image lacks (`/bin/bash`, `git`, `sudo`,
+`mkfs.ext4`, `resize2fs`, a UID/GID 1000 account and the like). It names UID
+1000 `user` as well when the image calls it something else (the Linux runner
+image's `runner`), adds `builder` on 2000 and `user`'s passwordless sudo, and
+writes the image's `ENV` to `/etc/profile.d/00-image-env.sh`, since a rootfs
+has no image config. Install the result with the same `TEMPLATE_NAME`.
+`validate-ci-template.sh` in sandboxd boots the published runner image this
+way on KVM (`sandbox-orbs-validation.yml`, `ci_template` input).
+
 ## Template init container
 
 The final stage is Alpine with GNU coreutils and e2fsprogs and carries
