@@ -132,6 +132,8 @@ jobs:
       - name: Build
         working-directory: .
         run: |
+          # This runner's default shell lacks pipefail, which `build | tee` needs.
+          set -o pipefail
           build() {
             if [ "$STRUO_CACHE_PROVIDER" = tuist ]; then
               struo build --remote --compute tuist atlas/mix_application_test
