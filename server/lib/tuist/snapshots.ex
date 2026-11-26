@@ -788,6 +788,66 @@ defmodule Tuist.Snapshots do
     end
   end
 
+  @doc """
+  The comparison of `build` is still running: `ProcessBuildWorker` calls it
+  as a heartbeat, which `recover_stalled_builds/1` reads.
+  """
+  def touch_processing(%Build{id: id}) do
+    Repo.update_all(from(b in Build, where: b.id == ^id and b.state == "processing"),
+      set: [updated_at: DateTime.truncate(DateTime.utc_now(), :second)]
+    )
+
+    :ok
+  rescue
+    error ->
+      Logger.warning("Snapshot build #{id} heartbeat not recorded: #{inspect(error)}")
+      :ok
+  end
+
+  @doc """
+  Comparisons whose job Oban still records as executing but whose heartbeat
+  stopped, because the pod running it went away: each is put back in the
+  queue, or, when it used its last attempt, discarded with its build marked
+  failed. Oban's Lifeline would only rescue them after 30 minutes, long after
+  the client stopped waiting for a verdict.
+  """
+  def recover_stalled_builds(now \\ DateTime.utc_now()) do
+    cutoff = now |> DateTime.add(-stalled_after_seconds(), :second) |> DateTime.truncate(:second)
+    worker = inspect(ProcessBuildWorker)
+
+    stalled =
+      Repo.all(
+        from(j in Oban.Job,
+          join: b in Build,
+          on: fragment("? ->> 'build_id'", j.args) == fragment("?::text", b.id),
+          where:
+            j.worker == ^worker and j.state == "executing" and j.attempted_at < ^cutoff and
+              b.state == "processing" and b.updated_at < ^cutoff,
+          select: {j, b}
+        )
+      )
+
+    Enum.each(stalled, fn {job, build} -> recover_stalled_build(job, build, now) end)
+    length(stalled)
+  end
+
+  # Two minutes: three missed beats, plus room for a slow write.
+  defp stalled_after_seconds, do: div(ProcessBuildWorker.heartbeat_interval(), 1000) * 4
+
+  defp recover_stalled_build(job, build, now) do
+    executing = from(j in Oban.Job, where: j.id == ^job.id and j.state == "executing")
+
+    if job.attempt < job.max_attempts do
+      Logger.warning("Requeuing the stalled comparison of snapshot build #{build.id}")
+      Repo.update_all(executing, set: [state: "available", scheduled_at: now])
+    else
+      Logger.warning("Failing snapshot build #{build.id}: its last comparison attempt stalled")
+
+      {count, _} = Repo.update_all(executing, set: [state: "discarded", discarded_at: now])
+      if count == 1, do: mark_failed(build)
+    end
+  end
+
   def mark_failed(%Build{} = build) do
     with {:ok, build} <- build |> Build.state_changeset(%{state: "failed"}) |> Repo.update() do
       refresh_commit(Repo.preload(build, :project).project, build.git_commit_sha)

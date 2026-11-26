@@ -550,7 +550,7 @@ defmodule TuistWeb.PulseSymptomsLive do
 
   defp define_filters do
     [
-      option_filter("state", dgettext("dashboard_pulse", "Status"), ~w(open resolved merged), &state_label/1),
+      option_filter("state", dgettext("dashboard_pulse", "Status"), ~w(open resolved), &state_label/1),
       option_filter(
         "tier",
         dgettext("dashboard_pulse", "Tier"),
@@ -595,7 +595,7 @@ defmodule TuistWeb.PulseSymptomsLive do
         description:
           dgettext(
             "dashboard_pulse",
-            "Times symptoms opened or reopened in the selected period, from the evaluator's revisions."
+            "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
           )
       },
       %{
@@ -604,7 +604,10 @@ defmodule TuistWeb.PulseSymptomsLive do
         color: "secondary",
         trend_type: :regular,
         description:
-          dgettext("dashboard_pulse", "Times symptoms resolved in the selected period, after several quiet windows.")
+          dgettext(
+            "dashboard_pulse",
+            "Times board or page symptoms resolved in the selected period, after several quiet windows."
+          )
       },
       %{
         id: "open",
@@ -614,7 +617,7 @@ defmodule TuistWeb.PulseSymptomsLive do
         description:
           dgettext(
             "dashboard_pulse",
-            "Symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+            "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
           )
       }
     ]

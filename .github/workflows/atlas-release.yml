@@ -107,7 +107,7 @@ jobs:
           ref: ${{ needs.check.outputs.source-sha }}
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff helm jq"
+          install_args: "--locked git-cliff helm jq 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -198,9 +198,19 @@ jobs:
           sed -i 's/^ATLAS_VERSION=.*/ATLAS_VERSION=${{ needs.check.outputs.next-version-number }}/' dist/atlas-compose/.env.example
           tar -czf dist/atlas-compose-${{ needs.check.outputs.next-version-number }}.tar.gz -C dist atlas-compose
 
+      # The release creates its tag at source-sha through the API. When main
+      # has moved past it with workflow changes, that needs the workflows
+      # permission, which GITHUB_TOKEN never has.
+      - id: release-token
+        uses: ./.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
       - name: Create Atlas GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
+          token: ${{ steps.release-token.outputs.token }}
           draft: false
           repository: tuist/tuist
           target_commitish: ${{ needs.check.outputs.source-sha }}
@@ -216,8 +226,6 @@ jobs:
             The Compose bundle below pins the same image version.
 
             ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
 
   deploy:
     name: Deploy to atlas-production

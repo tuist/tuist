@@ -78,6 +78,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateTask
   alias Atlas.MCP.Tools.CreateTimeOffLocation
   alias Atlas.MCP.Tools.DecommissionDataCenter
+  alias Atlas.MCP.Tools.DeleteAccountInvoice
   alias Atlas.MCP.Tools.DeleteAccountTerm
   alias Atlas.MCP.Tools.DeleteAsset
   alias Atlas.MCP.Tools.DeleteDataCenter
@@ -186,6 +187,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetTimeOffOverview
   alias Atlas.MCP.Tools.GetTuistAccount
   alias Atlas.MCP.Tools.GetTuistAccountPlan
+  alias Atlas.MCP.Tools.GetTuistAcquisitionFunnel
   alias Atlas.MCP.Tools.GetTuistFeatureFlag
   alias Atlas.MCP.Tools.GetTuistKuraRollout
   alias Atlas.MCP.Tools.GetTuistRunnerBilling
@@ -271,6 +273,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.MarkAssetRepaired
   alias Atlas.MCP.Tools.MarkAssetReturnedToLessor
   alias Atlas.MCP.Tools.MarkFinancingPaidOff
+  alias Atlas.MCP.Tools.MarkStripeInvoicePaid
   alias Atlas.MCP.Tools.MatchFinancingPayment
   alias Atlas.MCP.Tools.NotifyGTMOpportunity
   alias Atlas.MCP.Tools.PlaceAssetInService
@@ -343,6 +346,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UnpublishPOC
   alias Atlas.MCP.Tools.UnsubscribeEmailAudienceSubscriber
   alias Atlas.MCP.Tools.UpdateAccount
+  alias Atlas.MCP.Tools.UpdateAccountInvoice
   alias Atlas.MCP.Tools.UpdateAccountTerm
   alias Atlas.MCP.Tools.UpdateCodingRepositorySettings
   alias Atlas.MCP.Tools.UpdateContact
@@ -424,7 +428,7 @@ defmodule Atlas.MCP.Server do
   Atlas settings. It refuses IBANs Tuist has never paid; never work around that
   by retrying with other details. Tell the user to confirm new or changed bank
   details with the vendor and make the first payment in Qonto directly. Each
-  transfer is capped at 25,000 EUR; larger payments are made in Qonto directly.
+  transfer is capped at 80,000 EUR; larger payments are made in Qonto directly.
 
   For any request to create, draft, prepare, generate, or fill an order form, enterprise contract, Master Services Agreement, or contract package:
   1. Call `generate_enterprise_contract` with `document_scope` set to `order_form` or `contract_package`. Follow the workflow it returns.
@@ -471,6 +475,9 @@ defmodule Atlas.MCP.Server do
     ListAccountInvoices,
     CreateStripeDraftInvoice,
     EditStripeDraftInvoice,
+    MarkStripeInvoicePaid,
+    UpdateAccountInvoice,
+    DeleteAccountInvoice,
     FinanceGetTransaction,
     FinanceListTransactionAttachments,
     CategorizeFinanceTransaction,
@@ -616,7 +623,8 @@ defmodule Atlas.MCP.Server do
     GetTuistRunnerBilling,
     ActivateTuistRunnerPrepaidPool,
     UpdateTuistRunnerTrial,
-    GetTuistKuraRollout
+    GetTuistKuraRollout,
+    GetTuistAcquisitionFunnel
   ]
   # Tuist account tools (runner limits, plans) share the flag tools' scopes and Slack/interface rules.
   @feature_flag_read_tools [
@@ -814,6 +822,9 @@ defmodule Atlas.MCP.Server do
     ListAccountInvoices,
     CreateStripeDraftInvoice,
     EditStripeDraftInvoice,
+    MarkStripeInvoicePaid,
+    UpdateAccountInvoice,
+    DeleteAccountInvoice,
     ClaimNudge,
     DismissNudge,
     ReleaseNudge,
@@ -922,6 +933,7 @@ defmodule Atlas.MCP.Server do
     ActivateTuistRunnerPrepaidPool,
     UpdateTuistRunnerTrial,
     GetTuistKuraRollout,
+    GetTuistAcquisitionFunnel,
     ListAssets,
     GetAsset,
     ListAssetFinancings,

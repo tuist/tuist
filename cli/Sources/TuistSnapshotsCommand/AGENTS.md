@@ -19,7 +19,9 @@ names, so in-process verifiers can use it instead of reference images in Git.
   `gradle/src/main/kotlin/dev/tuist/gradle/TuistSnapshots.kt`: the same image
   names (paths relative to the directory), derived Roborazzi files skipped,
   Sentry-format JSON sidecars, `tuist-all-image-names.txt`, pull request title
-  sources, and the verdicts that fail the command (`needs_review`, `rejected`).
+  sources, and the verdicts that fail the command (`needs_review`, `rejected`;
+  `failed`, and a build still `processing` when the wait times out, whatever
+  `failOnChanges` says).
 - While snapshots run, `TestService` hands its selective-testing hashes to
   `SnapshotsTestRunner.hashStoresAwaitingVerdict`, which stores them only once
   the verdict is `passed`, `baseline` or `approved`. A hash stored earlier would

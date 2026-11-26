@@ -322,11 +322,19 @@ func (s *Store) Get(name, tag string) (Template, error) {
 	return t, nil
 }
 
-// Resolve finds a template by name and optional tag: with an empty tag the
-// template must have exactly one tag on the node.
+// Resolve finds a template by name and optional tag. An empty tag is the
+// one the installer completed last (the template's current file), or the
+// template's only tag on a node no installer has run on.
 func (s *Store) Resolve(name, tag string) (Template, error) {
 	if _, err := safepath.Segment(name); err != nil {
 		return Template{}, fmt.Errorf("template name: %w", err)
+	}
+	if tag == "" {
+		current, err := s.CurrentTag(name)
+		if err != nil {
+			return Template{}, err
+		}
+		tag = current
 	}
 	if tag != "" {
 		return s.Get(name, tag)

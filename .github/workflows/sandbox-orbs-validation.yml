@@ -177,13 +177,14 @@ jobs:
           # The runner image unpacks to about 7 GB and its rootfs is written twice.
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/boost
           df -h /
-      - name: Resolve the published Linux runner image
+      # The same pin sandbox-image.yml publishes the ci template from.
+      - name: Resolve the pinned Linux runner image
         id: runner
         run: |
           set -euo pipefail
-          digest=$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner latest)
-          echo "image=ghcr.io/tuist/tuist-linux-runner@${digest}" >> "$GITHUB_OUTPUT"
-          echo "runner image ghcr.io/tuist/tuist-linux-runner@${digest}"
+          image=$(tr -d '[:space:]' < infra/sandbox-image/ci-guest-image)
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "runner image ${image}"
       - uses: docker/setup-buildx-action@v3
       - name: Build the ci template
         uses: docker/build-push-action@v6

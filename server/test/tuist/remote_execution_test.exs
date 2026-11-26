@@ -776,6 +776,28 @@ defmodule Tuist.RemoteExecutionTest do
                        %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: ^id, env: %{"SBX_EXECUTION_REQUEST" => _}}}
     end
 
+    test "with task sizing, leases and actions without a size take the account's 2 GB VMs", %{project: project} do
+      stub(FeatureFlags, :remote_execution_task_sizing_enabled?, fn _ -> true end)
+      stub_node()
+
+      assert {:ok, %{sandbox_id: id, memory_gb: 2}} = RemoteExecution.lease(project, wait: 5_000)
+      assert_received {:node, "create", %{sandbox_id: ^id, vcpus: 8, memory_mb: 2048}}
+      assert_receive {:claim_pending, node_call}
+      send(node_call, {:claim, {:ok, %{"exit_code" => 0, "unclaimed" => true}}})
+
+      # The gateway still sends its own default of 4 GB, marked implicit.
+      assert {:ok, %{done: true}} = submit(project, %{"memory_gb" => 4, "memory_explicit" => false})
+
+      assert_received {:node, "exec",
+                       %{
+                         cmd: ["/usr/local/bin/sbx-executor"],
+                         sandbox_id: ^id,
+                         env: %{"SBX_EXECUTION_REQUEST" => request}
+                       }}
+
+      assert %{"memory_gb" => 2} = JSON.decode!(request)
+    end
+
     test "scheduled and claimed leased actions record the node-measured execution time", %{project: project} do
       stub_node()
 

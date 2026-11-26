@@ -83,6 +83,7 @@ defmodule Tuist.Runners.Claims do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.PodDispatch
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
 
@@ -115,6 +116,11 @@ defmodule Tuist.Runners.Claims do
       platform's fleet (`Tuist.Runners.AirShare`).
     * `{:error, :pod_in_use}` — `pod_name` already owns a live
       claim. Closes the SA-token-reuse path.
+    * `{:error, :pod_committed}` — `pod_name` was already handed a
+      runner credential (`record_dispatch/3`), whether or not its claim
+      row still exists. A Pod runs one job, so a later claim can only
+      be its dispatch token, which shares a guest with the tenant's
+      code, being replayed.
 
   `site` is the rack site of the Node the claiming Pod runs on, nil off the
   rack. The claim and the job's lifecycle row record it, and so does the row of
@@ -128,7 +134,8 @@ defmodule Tuist.Runners.Claims do
 
       Repo.transaction(fn ->
         result =
-          with {:ok, account} <- fetch_account(account_id),
+          with :ok <- check_pod_not_dispatched(pod_name),
+               {:ok, account} <- fetch_account(account_id),
                {:ok, claim} <- insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources, site),
                {:ok, limit} <- try_lock_concurrency_limit(account.id, resources.platform),
                :ok <- check_reserved_capacity(account.id, limit, resources),
@@ -201,6 +208,82 @@ defmodule Tuist.Runners.Claims do
           {:error, :concurrency_limit_missing}
         end
     end
+  end
+
+  # The claim row's primary key only refuses a second claim while the first
+  # is live. It is deleted when the job completes, while the Pod's
+  # ServiceAccount, and so the token the job could have read, still exists.
+  defp check_pod_not_dispatched(pod_name) do
+    if Repo.exists?(from(d in PodDispatch, where: d.pod_name == ^pod_name)),
+      do: {:error, :pod_committed},
+      else: :ok
+  end
+
+  @doc """
+  Records that `pod_name` was handed a runner credential for
+  `workflow_job_id`. The dispatch's last step before the credential is
+  returned to the Pod, so a Pod never runs a job without this row: when
+  the write fails the caller releases the claim and returns no
+  credential. From then on `attempt/6` refuses the Pod.
+
+  Not done earlier, because a dispatch that fails before the credential is
+  returned (a failed mint, a lifecycle write) releases the claim and the
+  same Pod polls again.
+
+  Returns `:ok`, or `{:error, :pod_dispatch_not_recorded}`.
+  """
+  def record_dispatch(pod_name, account_id, workflow_job_id)
+      when is_binary(pod_name) and is_integer(account_id) and is_integer(workflow_job_id) do
+    Repo.insert_all(
+      PodDispatch,
+      [
+        %{
+          pod_name: pod_name,
+          account_id: account_id,
+          workflow_job_id: workflow_job_id,
+          dispatched_at: DateTime.utc_now()
+        }
+      ],
+      on_conflict: :nothing
+    )
+
+    :ok
+  rescue
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.error("runners: could not record a Pod's dispatch; withholding its credential",
+        pod: pod_name,
+        workflow_job_id: workflow_job_id,
+        reason: Exception.message(error)
+      )
+
+      {:error, :pod_dispatch_not_recorded}
+  end
+
+  @doc """
+  The Pods with a dispatch record written before `written_before`, for
+  `PodReconciliationWorker` to compare against the Pods that exist.
+  """
+  def list_dispatched_pod_names(%DateTime{} = written_before) do
+    Repo.all(
+      from(d in PodDispatch,
+        where: d.dispatched_at < ^written_before,
+        order_by: [asc: d.dispatched_at],
+        select: d.pod_name
+      )
+    )
+  end
+
+  @doc """
+  Deletes the dispatch records of `pod_names`. Only for Pods confirmed
+  gone: a projected token is bound to its Pod and stops authenticating
+  once the Pod is deleted, so the record has nothing left to refuse.
+  Returns the row count.
+  """
+  def delete_dispatches([]), do: 0
+
+  def delete_dispatches(pod_names) when is_list(pod_names) do
+    {count, _} = Repo.delete_all(from(d in PodDispatch, where: d.pod_name in ^pod_names))
+    count
   end
 
   defp fetch_account(account_id) do

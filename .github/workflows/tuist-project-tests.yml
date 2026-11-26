@@ -548,6 +548,11 @@ jobs:
           TEST_RUNNER_TUIST_AUTH_PASSWORD: ${{ secrets.TUIST_CANARY_ACCEPTANCE_PASSWORD }}
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
           TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
+      # The CLI logs how it fetched the shard's test products at debug level only,
+      # so users never see it. Surface it here to compare shard stores and racks.
+      - name: Shard fetch timings
+        if: always()
+        run: grep -h "test products artifact(s)" ~/.local/state/tuist/sessions/*/logs.txt || true
 
   # Forks don't check out the EE submodule, so the suite that needs the
   # cas-plugin isn't in the scheme there, and they don't authenticate.

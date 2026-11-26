@@ -47,6 +47,9 @@ type Launcher struct {
 	// FailKill makes Kill on instances launched after it is set return an
 	// error and leave them running, as a Firecracker that does not die.
 	FailKill bool
+	// RefuseSnapshotLoads makes PUT /snapshot/load answer 400 before the
+	// guest runs, as a KVM that cannot set the snapshot's MSRs does.
+	RefuseSnapshotLoads bool
 	// ExecHook becomes the Agent.ExecHook of every instance launched after
 	// it is set.
 	ExecHook func(req map[string]any, out func(stream string, data []byte)) (exitCode int, handled bool)
@@ -72,17 +75,18 @@ func (l *Launcher) Launch(ctx context.Context, spec vm.Spec) (vm.Instance, error
 		return nil, err
 	}
 	inst := &Instance{
-		spec:      spec,
-		root:      root,
-		done:      make(chan struct{}),
-		Agent:     &Agent{delay: l.AgentBootDelay, started: time.Now(), ExecHook: l.ExecHook},
-		jailed:    spec.JailerEnabled,
-		bootedNow: time.Now(),
-		sizedMem:  l.SizedMemory,
-		launcher:  l,
-		startedAt: l.starts.Add(1),
-		hung:      l.HungRestores,
-		failKill:  l.FailKill,
+		spec:       spec,
+		root:       root,
+		done:       make(chan struct{}),
+		Agent:      &Agent{delay: l.AgentBootDelay, started: time.Now(), ExecHook: l.ExecHook},
+		jailed:     spec.JailerEnabled,
+		bootedNow:  time.Now(),
+		sizedMem:   l.SizedMemory,
+		launcher:   l,
+		startedAt:  l.starts.Add(1),
+		hung:       l.HungRestores,
+		failKill:   l.FailKill,
+		refuseLoad: l.RefuseSnapshotLoads,
 	}
 	if err := inst.start(); err != nil {
 		return nil, err
@@ -177,10 +181,11 @@ type Instance struct {
 
 	// memBytes is the guest's memory size, from its machine config or the
 	// snapshot it loaded. A snapshot's mem file is that long (sparse).
-	memBytes int64
-	sizedMem bool
-	hung     bool
-	failKill bool
+	memBytes   int64
+	sizedMem   bool
+	hung       bool
+	failKill   bool
+	refuseLoad bool
 	// memory is the guest memory a Uffd load mapped and registered with a
 	// userfaultfd, as Firecracker does; release unmaps it.
 	memory  []byte
@@ -306,6 +311,10 @@ func (i *Instance) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPut && r.URL.Path == "/snapshot/load":
+		if i.refuseLoad {
+			fault(400, "Load snapshot error: Failed to restore from snapshot: Failed to build microVM from snapshot: Failed to restore vCPUs: Failed to run action on vcpu: Failed to set all KVM MSRs for this vCPU. Only a partial write was done.")
+			return
+		}
 		snap, _ := call.Body["snapshot_path"].(string)
 		backend, _ := call.Body["mem_backend"].(map[string]any)
 		mem, _ := backend["backend_path"].(string)

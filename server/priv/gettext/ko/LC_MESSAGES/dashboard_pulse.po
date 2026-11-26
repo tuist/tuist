@@ -786,7 +786,7 @@ msgstr "관찰"
 msgid "Open"
 msgstr "열기"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:611
+#: lib/tuist_web/live/pulse_symptoms_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "Open symptoms"
 msgstr "증상 열기"
@@ -930,11 +930,6 @@ msgstr "증상 페이지"
 msgid "Symptoms"
 msgstr "증상"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:615
-#, elixir-autogen, elixir-format
-msgid "Symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
-msgstr "기간 시작 시점과 비교하여 현재 열려 있는 증상 수입니다. 차트는 매시간 또는 매일 종료 시점에 열려 있던 증상 수를 보여줍니다."
-
 #: lib/tuist_web/live/pulse_symptoms_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Symptoms opened"
@@ -965,16 +960,6 @@ msgstr "증상을 업데이트할 수 없습니다."
 #, elixir-autogen, elixir-format
 msgid "Tier"
 msgstr "등급"
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:596
-#, elixir-autogen, elixir-format
-msgid "Times symptoms opened or reopened in the selected period, from the evaluator's revisions."
-msgstr "평가자의 수정 사항으로 인해 선택된 기간 동안 증상이 열리거나 다시 열린 횟수입니다."
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:607
-#, elixir-autogen, elixir-format
-msgid "Times symptoms resolved in the selected period, after several quiet windows."
-msgstr "여러 개의 조용한 창 이후 선택된 기간 동안 해결된 증상 횟수입니다."
 
 #: lib/tuist_web/live/pulse_symptom_live.ex:149
 #: lib/tuist_web/live/pulse_symptoms_live.ex:283
@@ -1041,3 +1026,18 @@ msgstr "이전 30일 대비"
 #, elixir-autogen, elixir-format
 msgid "vs previous 7 days"
 msgstr "이전 7일 대비"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+msgstr "기간 시작 시점과 비교하여 현재 열려 있는 보드 또는 페이지 증상 수입니다. 차트는 매시간 또는 매일 종료 시점에 열려 있던 증상 수를 보여줍니다."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Times board or page symptoms resolved in the selected period, after several quiet windows."
+msgstr "여러 차례의 안정 기간 이후, 선택한 기간 동안 해결된 보드 또는 페이지 증상 횟수입니다."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
+msgstr "선택한 기간 동안 보드에 도달하거나 페이징된 증상이 열리거나 다시 열린 횟수입니다. 평가자가 로그만 기록하는 감사 계층에 머무른 증상은 포함되지 않습니다."

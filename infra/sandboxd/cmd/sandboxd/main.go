@@ -459,16 +459,16 @@ func main() {
 	// with, so a node that dropped it during an OnDelete rollout would take
 	// no work until most nodes rolled. Older tags serve nothing; keeping
 	// every one filled runner disks past the blob cache's free-space floor.
-	pruneTemplateTags := func(current string) {
+	pruneTemplateTags := func(name, current string) {
 		if current == "" {
 			return
 		}
 		inUse := map[string]bool{}
-		if executionSlots > 0 {
-			previous, err := store.PreviousTag(templateName, current)
+		if executionSlots > 0 && name == templateName {
+			previous, err := store.PreviousTag(name, current)
 			if err != nil {
 				// Keep every tag rather than drop the one a rollout still needs.
-				logger.Warn("finding the previous template tag", "template", templateName, "error", err)
+				logger.Warn("finding the previous template tag", "template", name, "error", err)
 				return
 			}
 			if previous != "" {
@@ -476,23 +476,50 @@ func main() {
 			}
 		}
 		for _, sb := range manager.List() {
-			if sb.Template == templateName {
+			if sb.Template == name {
 				inUse[sb.TemplateTag] = true
 			}
 		}
 		for _, snap := range manager.DiskSnapshots() {
-			if snap.Template == templateName {
+			if snap.Template == name {
 				inUse[snap.TemplateTag] = true
 			}
 		}
-		removed, err := store.RemoveStaleTags(templateName, current, func(tag string) bool { return inUse[tag] })
+		removed, err := store.RemoveStaleTags(name, current, func(tag string) bool { return inUse[tag] })
 		if err != nil {
-			logger.Warn("removing stale template tags", "template", templateName, "removed", removed, "error", err)
+			logger.Warn("removing stale template tags", "template", name, "removed", removed, "error", err)
 		} else if len(removed) > 0 {
-			logger.Info("removed stale template tags", "template", templateName, "tags", removed)
+			logger.Info("removed stale template tags", "template", name, "tags", removed)
 		}
 	}
-	pruneTemplateTags(keepTag)
+	pruneTemplateTags(templateName, keepTag)
+	// Templates other than the default (the CI-parity `ci` template) are
+	// installed beside it by the same installer, which names each one's
+	// current tag. Creates that name one without a tag get that tag
+	// (template.Store.Resolve), so its older tags serve only the sandboxes
+	// and disk snapshots that still record them. A template no installer
+	// manages (no current file) is left alone.
+	pruneOtherTemplates := func() {
+		templates, err := store.List()
+		if err != nil {
+			logger.Warn("listing templates", "error", err)
+			return
+		}
+		seen := map[string]bool{templateName: true}
+		for _, tmpl := range templates {
+			if seen[tmpl.Name] {
+				continue
+			}
+			seen[tmpl.Name] = true
+			current, err := store.CurrentTag(tmpl.Name)
+			if err != nil {
+				logger.Warn("reading the current template tag", "template", tmpl.Name, "error", err)
+				continue
+			}
+			pruneTemplateTags(tmpl.Name, current)
+		}
+	}
+	pruneOtherTemplates()
 
 	go func() {
 		for _, shape := range prebuild {
@@ -625,11 +652,25 @@ func main() {
 	}
 
 	if followCurrent {
-		go followTemplate(ctx, logger, store, builder, manager, templateName, prebuild, keepTag != "", pruneTemplateTags, func() {
+		go followTemplate(ctx, logger, store, builder, manager, templateName, prebuild, keepTag != "", func(current string) { pruneTemplateTags(templateName, current) }, func() {
 			if serverClient != nil {
 				serverClient.ReportNow()
 			}
 		})
+		// The other templates' installers upgrade them on their own; the
+		// 30 s report carries their new tags to the server.
+		go func() {
+			ticker := time.NewTicker(templateFollowInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					pruneOtherTemplates()
+				}
+			}
+		}()
 	}
 
 	logger.Info("sandboxd started", "version", version, "node", nodeName, "firecracker", fcVersion, "jailer", jailerEnabled, "data_dir", dataDir, "dns", dns)

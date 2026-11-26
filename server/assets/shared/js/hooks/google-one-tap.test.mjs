@@ -2,16 +2,23 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
+import { carryCampaign } from "../campaign-links.mjs";
 
-const source = readFileSync(new URL("./google-one-tap.js", import.meta.url), "utf8").replace(
-  "export const GoogleOneTap =",
-  "globalThis.hook =",
-);
+const source = readFileSync(new URL("./google-one-tap.js", import.meta.url), "utf8")
+  .replace(/^import .*$/m, "")
+  .replace("export const GoogleOneTap =", "globalThis.hook =");
 
 function fixture() {
   const state = { submitted: 0, cancelled: 0, listeners: new Set() };
   const form = {
     isConnected: true,
+    attributes: { action: "/auth/google/one-tap?return_to=%2Fdashboard" },
+    getAttribute(name) {
+      return this.attributes[name];
+    },
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
     elements: { _csrf_token: { value: "stale-token" }, credential: { value: "" }, nonce: { value: "" } },
     requestSubmit() {
       state.submitted++;
@@ -28,6 +35,7 @@ function fixture() {
     },
   };
   const window = {
+    location: { href: "https://tuist.dev/" },
     isSecureContext: true,
     IdentityCredential: class {},
     google: { accounts: { id: identity } },
@@ -36,6 +44,7 @@ function fixture() {
   };
   window.top = window.self = window;
   const context = {
+    carryCampaign,
     window,
     google: window.google,
     AbortController,
@@ -98,6 +107,27 @@ test("valid credentials still submit the protected form", async () => {
   assert.equal(form.elements.credential.value, "signed-token");
   assert.equal(form.elements.nonce.value, "test-nonce");
   assert.equal(state.submitted, 1);
+});
+
+test("carries the page's campaign in the URL the credential is posted to", async () => {
+  const { hook, state, form, window } = fixture();
+  window.location.href = "https://tuist.dev/pricing?utm_source=chatgpt.com&utm_campaign=hub&other=1";
+  await hook.mounted();
+  state.callback({ credential: "signed-token" });
+  const action = new URL(form.getAttribute("action"), "https://tuist.dev");
+  assert.equal(action.pathname, "/auth/google/one-tap");
+  assert.equal(action.searchParams.get("return_to"), "/dashboard");
+  assert.equal(action.searchParams.get("utm_source"), "chatgpt.com");
+  assert.equal(action.searchParams.get("utm_campaign"), "hub");
+  assert.equal(action.searchParams.get("other"), null);
+  assert.equal(state.submitted, 1);
+});
+
+test("leaves the form's URL alone on a page without a campaign", async () => {
+  const { hook, state, form } = fixture();
+  await hook.mounted();
+  state.callback({ credential: "signed-token" });
+  assert.equal(form.getAttribute("action"), "/auth/google/one-tap?return_to=%2Fdashboard");
 });
 
 test("does not prompt when the start response omits the fresh CSRF token", async () => {

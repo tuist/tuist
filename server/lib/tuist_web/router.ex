@@ -17,6 +17,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Marketing.MarketingController
   alias TuistWeb.Noora.NooraLive
   alias TuistWeb.Plugs.AtlasRateLimitPlug
+  alias TuistWeb.Plugs.AttributionPlug
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
@@ -159,6 +160,10 @@ defmodule TuistWeb.Router do
     plug :google_one_tap_content_security_policy
   end
 
+  pipeline :signup_attribution do
+    plug AttributionPlug, :signup
+  end
+
   # Marketing pages are stored by shared caches without Set-Cookie, so the
   # CSRF token embedded in the HTML belongs to whichever session produced the
   # cached copy and never validates for the visitors it is served to. Requests
@@ -207,6 +212,9 @@ defmodule TuistWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
+    # Before OAuthReturnToPlug, so its response hook runs after that plug
+    # versions the state.
+    plug AttributionPlug, :oauth_request
     plug OAuthReturnToPlug
     plug Ueberauth
   end
@@ -266,6 +274,7 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing do
     plug :enable_robot_indexing
     plug :mark_public_marketing_page
+    plug AttributionPlug, :landing
     plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
@@ -295,6 +304,7 @@ defmodule TuistWeb.Router do
     plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
     plug :enable_robot_indexing
+    plug AttributionPlug, :landing
     plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
@@ -1699,7 +1709,7 @@ defmodule TuistWeb.Router do
   ## Authentication routes
 
   scope "/", TuistWeb do
-    pipe_through [:browser_app, :redirect_if_user_is_authenticated, :google_one_tap]
+    pipe_through [:browser_app, :redirect_if_user_is_authenticated, :google_one_tap, :signup_attribution]
 
     live_session :redirect_if_user_is_authenticated,
       session: {TuistWeb.UserForgotPasswordLive, :password_reset_session, []},

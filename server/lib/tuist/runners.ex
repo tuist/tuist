@@ -1116,6 +1116,18 @@ defmodule Tuist.Runners do
     retry_claim_and_serve(context, :account)
   end
 
+  defp handle_claim_attempt({:error, :pod_committed}, %{fleet_name: fleet_name, sa_name: sa_name}) do
+    # The Pod was handed a credential, yet check_not_stale/3 did not refuse it:
+    # its account label stamp failed, or the Pod could not be read. A poll
+    # after that is a lost dispatch response or a replayed dispatch token.
+    Logger.warning("runners: refused a claim from a Pod that was already handed a credential",
+      fleet: fleet_name,
+      sa: sa_name
+    )
+
+    {:error, :pod_committed}
+  end
+
   defp handle_claim_attempt({:error, :pod_in_use}, %{fleet_name: fleet_name, sa_name: sa_name}) do
     Logger.debug("runners: claim attempt declined",
       reason: :pod_in_use,
@@ -1380,7 +1392,11 @@ defmodule Tuist.Runners do
              {:ok, credential, runner_name} <-
                mint_credential(account, candidate, name_prefix, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name, claim.claimed_at),
-             :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
+             :ok <- record_running_safe(candidate.workflow_job_id, runner_name),
+             # Last, so only a Pod that receives its credential is recorded: an
+             # earlier failure leaves it free to poll again. Durable, unlike the
+             # account label below: Claims.attempt/6 refuses the Pod for good.
+             :ok <- Claims.record_dispatch(pod_name, candidate.account_id, candidate.workflow_job_id) do
           # Fork-exclusion: only a trusted (same-repo, non-fork) job gets the
           # account's cache-signing grant. Trust is determined fail-closed.
           trusted = job_trusted?(candidate, account)

@@ -39,7 +39,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   describe "account flag" do
     test "answers 404 in production for an account without the sandboxes flag", %{conn: conn, account: account} do
       stub(Environment, :env, fn -> :prod end)
-      stub(FunWithFlags, :enabled?, fn :sandboxes, [for: _account] -> false end)
+      stub(FunWithFlags, :enabled?, fn _sandbox_flag, [for: _account] -> false end)
       reject(&Capacity.place/1)
 
       response =
@@ -52,6 +52,20 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       conn
       |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-sessions")
       |> json_response(:not_found)
+    end
+
+    test "refuses macOS with its own code in production while only Linux is open", %{conn: conn, account: account} do
+      stub(Environment, :env, fn -> :prod end)
+      stub(FunWithFlags, :enabled?, fn flag, [for: _account] -> flag == :linux_sandboxes end)
+      reject(&Capacity.place/1)
+
+      response =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes", %{platform: "darwin"})
+        |> json_response(:forbidden)
+
+      assert response["code"] == "platform_not_enabled"
+      assert response["message"] =~ "macOS sandboxes are not enabled"
     end
   end
 
@@ -168,7 +182,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
 
     test "requires the account feature flag", %{conn: conn, account: account} do
       stub(Environment, :env, fn -> :prod end)
-      stub(FunWithFlags, :enabled?, fn :sandboxes, [for: _account] -> false end)
+      stub(FunWithFlags, :enabled?, fn _sandbox_flag, [for: _account] -> false end)
 
       conn
       |> post(~p"/api/accounts/#{account.name}/sandboxes/amp-orbs/amp-thread", %{operation: "pause"})

@@ -71,6 +71,23 @@ defmodule Tuist.RemoteExecution.TaskSizesTest do
     assert {2, nil} = choose(project, key(2), 2, %{"task_sizing" => false})
   end
 
+  test "an action without a size starts at 2 GB, and its measurements take it below 4 GB", %{project: project} do
+    implicit = %{"memory_explicit" => false}
+    # 1.2 GiB × 1.3 needs more than a 2 GiB VM's usable memory.
+    run(project, key(1), %{"anon_peak_bytes" => round(1.2 * @gib)})
+    run(project, key(2), %{"anon_peak_bytes" => div(@gib, 2)})
+
+    assert {4, _} = choose(project, key(1), 4, implicit)
+    assert {2, _} = choose(project, key(2), 4, implicit)
+    assert {2, nil} = choose(project, key(3), 4, implicit)
+    assert {2, nil} = choose(project, key(2), 4, Map.put(implicit, "task_sizing", false))
+    # Asked for, or from a gateway that does not mark it, 4 GB stays a floor.
+    assert {4, _} = choose(project, key(2), 4)
+
+    stub(FeatureFlags, :remote_execution_task_sizing_enabled?, fn _ -> false end)
+    assert {4, nil} = choose(project, key(2), 4, implicit)
+  end
+
   test "a measured size the account's limits do not hold is lowered to the largest that fits" do
     project = project(16, 8)
     run(project, key(1), %{"anon_peak_bytes" => 10 * @gib})
@@ -102,10 +119,11 @@ defmodule Tuist.RemoteExecution.TaskSizesTest do
     assert Repo.get_by(Tuist.RemoteExecution.TaskSize, project_id: project.id, key: key(1))
   end
 
-  test "sized keys are those a leased default VM would not hold", %{project: project} do
-    run(project, key(1), %{"anon_peak_bytes" => 6 * @gib})
-    run(project, key(2), %{"cpu_ms" => 30_000, "wall_ms" => 10_000})
-    run(project, key(3), %{"anon_peak_bytes" => @gib, "cpu_ms" => 15_000, "wall_ms" => 10_000})
+  test "sized keys are those a leased 2 GB VM would not hold", %{project: project} do
+    run(project, key(1), %{"anon_peak_bytes" => round(1.2 * @gib)})
+    # More than the 1 vCPU a 2 GB VM guarantees.
+    run(project, key(2), %{"cpu_ms" => 15_000, "wall_ms" => 10_000})
+    run(project, key(3), %{"anon_peak_bytes" => div(@gib, 2), "cpu_ms" => 8_000, "wall_ms" => 10_000})
 
     assert Enum.sort(TaskSizes.sized_keys(project)) == [key(1), key(2)]
   end

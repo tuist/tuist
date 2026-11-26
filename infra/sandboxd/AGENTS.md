@@ -220,8 +220,9 @@ memory image until they cold boot.
   never touched. With `tail_offset` and `tail_sha256` only the disk stream
   is downloaded and checked; when its memory was written on a node with
   this node's snapshot compatibility (hello `snapshot_compat`: CPU vendor,
-  family, model, stepping, name and flags, host kernel version and
-  Firecracker version) and matches the shape, the VM resumes warm from the
+  family, model, stepping, name, microcode and flags, the host kernel's
+  full release, distribution build included, since KVM's MSR handling
+  changes within one, and Firecracker version) and matches the shape, the VM resumes warm from the
   VM state with a `Uffd` memory backend: `internal/uffd` takes
   Firecracker's userfaultfd on the jail's `mem.sock`, fetches the chunk of
   each first-touched page by ranged GET (checked against the index's
@@ -231,7 +232,9 @@ memory image until they cold boot.
   `memory_pending`, and emits `memory_loaded` once every chunk is
   installed (or a pause wrote the memory locally). A chunk that cannot be
   fetched kills the VM. Elsewhere it cold boots the disks, and so does a
-  warm restore whose guest agent never answers (`agent not ready`), of
+  warm restore of synced disks whose VM state Firecracker refuses to load
+  (a 4xx from `/snapshot/load`, such as `Failed to set all KVM MSRs`: the
+  guest never ran), and one whose guest agent never answers (`agent not ready`), of
   synced disks, or of unsynced ones once every chunk was installed (the
   guest hung rather than waited on its memory; the boot is a power cut that
   loses what it had not written back): the memory image is dropped,
@@ -791,7 +794,7 @@ agent so the manager runs end to end without KVM).
 | `SERVER_URL` | | Server base URL; the daemon dials `/api/internal/sandboxes/nodes/connect`. Empty = admin-only. |
 | `TOKEN_PATH` | `/var/run/secrets/tuist/token` | Projected SA token, re-read on every reconnect. |
 | `DATA_DIR` | `/data/sandboxes` | Templates under `templates/`, jails under `jail/`. |
-| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, followed | Default template and the tag creates use for it when the caller names none. Without `TEMPLATE_TAG` (the sandboxes chart) the daemon uses the tag in `templates/<name>/current`, which the template installer writes once a tag is complete (before any installer ran, the tag whose `metadata.json` was rewritten last), checks that file every 30 s, and when it names another tag builds `PREBUILD_SHAPES` for it, then switches new creates to it, prunes unused tags and reports the new `templates` and `default_template_tag`; a tag whose shapes fail to build is retried after 10 minutes while creates keep the previous tag. A template upgrade therefore never restarts the daemon or its VMs. With a tag set (remote execution), the daemon keeps it until restarted, and startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. Remote-execution daemons (`EXECUTION_SLOTS`) also keep the tag the node ran before, the other tag whose `metadata.json` the init container rewrote last, because the server keeps placing executions on it until most nodes roll. |
+| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, followed | Default template and the tag creates use for it when the caller names none. Without `TEMPLATE_TAG` (the sandboxes chart) the daemon uses the tag in `templates/<name>/current`, which the template installer writes once a tag is complete (before any installer ran, the tag whose `metadata.json` was rewritten last), checks that file every 30 s, and when it names another tag builds `PREBUILD_SHAPES` for it, then switches new creates to it, prunes unused tags and reports the new `templates` and `default_template_tag`; a tag whose shapes fail to build is retried after 10 minutes while creates keep the previous tag. A template upgrade therefore never restarts the daemon or its VMs. Other templates the installer manages (the `ci` template, `sandboxes.ciTemplate`) need no setting: a create that names one without a tag gets the tag its `current` file names, its shapes are built by the first create that needs them, and the daemon prunes its tags no sandbox or disk snapshot records, at startup and every 30 s. A template without a `current` file is never pruned, and resolves only while it has a single tag. With a tag set (remote execution), the daemon keeps it until restarted, and startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. Remote-execution daemons (`EXECUTION_SLOTS`) also keep the tag the node ran before, the other tag whose `metadata.json` the init container rewrote last, because the server keeps placing executions on it until most nodes roll. |
 | `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |

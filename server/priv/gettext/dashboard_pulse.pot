@@ -787,7 +787,7 @@ msgstr ""
 msgid "Open"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:611
+#: lib/tuist_web/live/pulse_symptoms_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "Open symptoms"
 msgstr ""
@@ -931,11 +931,6 @@ msgstr ""
 msgid "Symptoms"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:615
-#, elixir-autogen, elixir-format
-msgid "Symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
-msgstr ""
-
 #: lib/tuist_web/live/pulse_symptoms_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Symptoms opened"
@@ -965,16 +960,6 @@ msgstr ""
 #: lib/tuist_web/live/pulse_symptoms_live.ex:556
 #, elixir-autogen, elixir-format
 msgid "Tier"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:596
-#, elixir-autogen, elixir-format
-msgid "Times symptoms opened or reopened in the selected period, from the evaluator's revisions."
-msgstr ""
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:607
-#, elixir-autogen, elixir-format
-msgid "Times symptoms resolved in the selected period, after several quiet windows."
 msgstr ""
 
 #: lib/tuist_web/live/pulse_symptom_live.ex:149
@@ -1041,4 +1026,19 @@ msgstr ""
 #: lib/tuist_web/live/pulse_symptoms_live.ex:586
 #, elixir-autogen, elixir-format
 msgid "vs previous 7 days"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+msgstr ""
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Times board or page symptoms resolved in the selected period, after several quiet windows."
+msgstr ""
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
 msgstr ""

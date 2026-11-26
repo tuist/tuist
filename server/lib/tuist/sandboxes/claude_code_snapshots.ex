@@ -49,7 +49,10 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   sync sends only the files that differ from that commit and leaves the
   others, and their modification times, which Xcode compares, alone.
   """
+  import Ecto.Query
+
   alias Tuist.Accounts.Account
+  alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Sandboxes
@@ -61,6 +64,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   alias Tuist.Sandboxes.Router
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxCommand
+  alias Tuist.VCS
 
   require Logger
 
@@ -70,9 +74,20 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # within 15 seconds.
   @poll_seconds 30
   @retry_seconds 60
-  # Refusals that pass: no room yet, or another admission of the account
-  # holding its row (two builds starting together).
-  @retryable_errors [:no_capacity, :no_node, :sandbox_concurrency_limit, :sandbox_account_busy]
+  # Refusals that pass: no room yet, another admission of the account
+  # holding its row (two builds starting together), or a host that dropped
+  # its connection or answered late. None of them ran the script, so none
+  # holds the key for an hour: a busy Mac fleet refuses and disconnects
+  # often, and failing on them left the snapshot unbuilt (measured, 2026-11).
+  @retryable_errors [
+    :no_capacity,
+    :no_node,
+    :sandbox_concurrency_limit,
+    :sandbox_account_busy,
+    :node_disconnected,
+    :not_connected,
+    :timeout
+  ]
 
   # Clones beside the final path as the runner's user, so a clone cut short
   # never looks like the runner's repository, then drops the token and runs
@@ -313,6 +328,93 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   def request_mac_build(_source), do: :ok
 
   @mac_snapshot_max_age_seconds 6 * 3600
+  # A snapshot is rebuilt for a push only once it is this old, so a default
+  # branch that moves every few minutes keeps one builder busy at most a
+  # fraction of the time; a build holds an idle Mac slot for about 7 minutes.
+  @mac_refresh_min_age_seconds 30 * 60
+  # A snapshot is kept fresh while Macs were created from its repository on
+  # its template this recently.
+  @mac_refresh_used_hours 24
+
+  @doc """
+  Rebuilds each macOS repository snapshot in use whose repository's default
+  branch moved past the commit it was built from
+  (`Tuist.Sandboxes.Workers.RefreshMacSnapshotsWorker`, every ten minutes),
+  so a session's Mac boots from a snapshot of the head instead of waiting
+  for `request_mac_build/1`'s six hours. A snapshot is in use while Macs
+  were created for its repository on its template in the last day, and is
+  rebuilt at most every half hour. The Macs keep booting from it until the
+  new one is saved.
+  """
+  def refresh_mac_snapshots do
+    now = DateTime.utc_now()
+    built_before = DateTime.add(now, -@mac_refresh_min_age_seconds, :second)
+
+    from(s in DiskSnapshot,
+      join: e in assoc(s, :agent_environment),
+      where: s.state == :ready and s.platform == :darwin and s.inserted_at < ^built_before,
+      where: e.enabled and e.kind == :claude_code and e.platform == :linux,
+      preload: [agent_environment: e]
+    )
+    |> Repo.all()
+    |> Enum.filter(&(mac_current?(&1) and mac_in_use?(&1, now)))
+    |> Enum.group_by(&{&1.account_id, &1.repository})
+    |> Enum.each(fn {{account_id, repository}, snapshots} ->
+      case default_branch_head(account_id, repository) do
+        {:ok, head} ->
+          for %DiskSnapshot{commit_sha: commit} = snapshot <- snapshots, commit != head do
+            start_mac_build(%{
+              agent_environment: snapshot.agent_environment,
+              repository: repository,
+              template: snapshot.template,
+              workspace_gb: snapshot.workspace_gb
+            })
+          end
+
+        {:error, _reason} ->
+          :ok
+      end
+    end)
+
+    :ok
+  end
+
+  # Built with the environment's current macOS setup script; an older one is
+  # rebuilt by the next Mac that asks for the repository.
+  defp mac_current?(%DiskSnapshot{agent_environment: %AgentEnvironment{macos_setup_script: script}} = snapshot),
+    do: script not in [nil, ""] and mac_setup_sha256(script) == snapshot.setup_sha256
+
+  defp mac_in_use?(%DiskSnapshot{} = snapshot, now) do
+    since = DateTime.add(now, -@mac_refresh_used_hours, :hour)
+
+    Repo.exists?(
+      from(s in Sandbox,
+        where: s.account_id == ^snapshot.account_id and s.repository == ^snapshot.repository,
+        where: s.template == ^snapshot.template and s.inserted_at >= ^since and s.state != :error
+      )
+    )
+  end
+
+  defp record_commit(%DiskSnapshot{id: id} = build) do
+    case default_branch_head(build.account_id, build.repository) do
+      {:ok, head} -> Repo.update_all(from(s in DiskSnapshot, where: s.id == ^id), set: [commit_sha: head])
+      {:error, _reason} -> :ok
+    end
+  end
+
+  # The default branch's head as GitHub reports it through the account's
+  # installation, which the build clones.
+  defp default_branch_head(account_id, repository) do
+    with {:ok, installation} <- VCS.get_github_app_installation_for_account(account_id),
+         {:ok, %{"default_branch" => default}} when is_binary(default) <-
+           GitHubClient.get_repository(installation, repository),
+         {:ok, %{"commit" => %{"sha" => head}}} when is_binary(head) <-
+           GitHubClient.get_branch(installation, repository, default) do
+      {:ok, head}
+    else
+      _ -> {:error, :unavailable}
+    end
+  end
 
   defp stale?(%DiskSnapshot{inserted_at: inserted_at}),
     do: DateTime.diff(DateTime.utc_now(), inserted_at) > @mac_snapshot_max_age_seconds
@@ -408,9 +510,17 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
 
   defp advance(build, agent_environment, nil), do: create_builder(build, agent_environment)
 
-  # A create that placement refused leaves its row without a node.
-  defp advance(build, agent_environment, %Sandbox{state: :error, node_name: nil} = sandbox) do
-    with {:ok, _deleted} <- Sandboxes.delete(sandbox), do: create_builder(build, agent_environment)
+  # A create that placement refused, or whose host disconnected while it
+  # booted, leaves an errored row that never ran the script: replace it.
+  defp advance(build, agent_environment, %Sandbox{state: :error} = sandbox) do
+    if Repo.get(SandboxCommand, build.id) do
+      fail(build, sandbox, {:builder, :error})
+    else
+      case Sandboxes.delete(sandbox) do
+        {:ok, _deleted} -> create_builder(build, agent_environment)
+        {:error, _reason} -> {:snooze, @retry_seconds}
+      end
+    end
   end
 
   defp advance(_build, _agent_environment, %Sandbox{state: state}) when state in [:creating, :resuming],
@@ -449,6 +559,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
     case Sandboxes.create_sandbox(agent_environment.account, attrs, id: build.id) do
       {:ok, sandbox} -> start_command(build, agent_environment, sandbox)
       {:error, reason} when reason in @retryable_errors -> {:snooze, @retry_seconds}
+      {:error, {:host_busy, _why}} -> {:snooze, @retry_seconds}
       {:error, reason} -> fail(build, Sandboxes.get_sandbox_by_id(build.id), reason)
     end
   end
@@ -465,8 +576,11 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
       |> Map.put("GIT_TERMINAL_PROMPT", "0")
 
     # A Mac build's script signs in to Tuist as a session's does
-    # (`CommandCredentials`, the CI preset on the account's cache).
+    # (`CommandCredentials`, the CI preset on the account's cache), and the
+    # build records the default branch's head it clones, which
+    # `refresh_mac_snapshots/0` compares against.
     started_by = if mac_build?(build, agent_environment), do: :snapshot_build
+    if started_by, do: record_commit(build)
 
     case Commands.start(sandbox, %{
            id: build.id,

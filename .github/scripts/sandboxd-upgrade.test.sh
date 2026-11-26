@@ -68,7 +68,13 @@ case "$1 $2" in
   "get controllerrevisions") cat "$state/revisions.json" ;;
   "get configmap") cat "$state/cm.json" ;;
   "get pods")
-    if [[ "$*" == *field-selector* ]]; then echo sandboxd-y; else cat "$state/pods.json"; fi ;;
+    # After a delete, the DaemonSet's replacement: pinned to the node by
+    # affinity and still unscheduled, so without a nodeName.
+    if [ -e "$state/order" ]; then
+      jq -n '{items: [{metadata: {name: "sandboxd-y"}, spec: {affinity: {nodeAffinity: {requiredDuringSchedulingIgnoredDuringExecution: {nodeSelectorTerms: [{matchFields: [{key: "metadata.name", operator: "In", values: ["node-1"]}]}]}}}}}]}'
+    else
+      cat "$state/pods.json"
+    fi ;;
   "get pod")
     if [ -e "$state/patched" ]; then
       jq -n --arg i "$repo:sha-new" '{status: {containerStatuses: [{name: "sandboxd", containerID: "containerd://new", ready: true, image: $i}]}}'
@@ -142,6 +148,8 @@ check "a daemon that never arms is replaced, not patched" \
 scenario sha-old sha-oldvmm yes
 check "a vmm image change replaces the Pod" \
   '[ ! -e "$state/patched" ] && grep -q "^delete pod sandboxd-x" "$state/calls" && ! grep -q "^annotate" "$state/calls"'
+check "a replacement still waiting to be scheduled on the node is found and awaited" \
+  'grep -q "^wait --for=condition=Ready pod/sandboxd-y --timeout=600s" "$state/calls"'
 
 scenario sha-new sha-vmm yes
 check "a current Pod is left alone" \

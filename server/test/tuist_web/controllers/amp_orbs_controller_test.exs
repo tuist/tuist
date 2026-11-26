@@ -187,6 +187,22 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     assert_received {:shape, %{platform: :linux, template: "default", vcpus: 4, memory_mb: 8192}}
   end
 
+  test "a macOS Orb of an account with only Linux open is refused for good, without a sandbox", %{
+    conn: conn,
+    integration: integration,
+    user: user
+  } do
+    identity(integration)
+    stub(Tuist.FeatureFlags, :sandbox_platform_enabled?, fn _account, platform -> platform == :linux end)
+
+    result = request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "orb_type" => "macos"})
+
+    assert response(result, 403) == "macOS Orbs are not enabled for this account"
+    assert get_resp_header(result, "x-tuist-orb-refusal") == ["platform-not-enabled"]
+    assert get_resp_header(result, "x-tuist-orb-retry") == []
+    assert Tuist.Sandboxes.list_sandboxes(user.account) == []
+  end
+
   test "an unknown orb type is refused before dispatch", %{conn: conn, integration: integration} do
     identity(integration)
     reject(&Tuist.Sandboxes.dispatch_amp_orb/3)

@@ -19,6 +19,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn _account -> false end)
     stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> false end)
     stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
+    stub(Tuist.FeatureFlags, :kura_learned_memory_floor_enabled?, fn _account -> false end)
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
 
     stub(Identity, :endpoint_migration_enabled?, fn _account -> false end)
@@ -385,6 +386,37 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert profile.(:enterprise) == {1024, 4096, true, 4000}
       assert profile.(:pro) == {512, 4096, true, 4000}
       assert profile.(:air) == {256, 768, true, 1000}
+    end
+
+    test "lets the controller raise a paid plan's floor only for an account that opted in" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      region = eu_region(%{memory_governed: true})
+      account = %Account{id: 1, name: "tuist"}
+
+      render = fn plan, opted_in? ->
+        stub(Tuist.Billing, :effective_plan, fn _ -> plan end)
+        stub(Tuist.FeatureFlags, :kura_learned_memory_floor_enabled?, fn ^account -> opted_in? end)
+        manifest = KubernetesController.manifest("kura-tuist-eu-west-1", "0.5.2", account, region, %Server{})
+        revision = KubernetesController.manifest_revision(%Server{account: account}, region)
+        assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == revision
+        {manifest["spec"]["memoryFloorMaxMib"], revision}
+      end
+
+      {nil, off} = render.(:enterprise, false)
+      {4096, on} = render.(:enterprise, true)
+      {2048, _pro} = render.(:pro, true)
+      # Air's floor is fixed, so opting in changes nothing, revision included.
+      assert {nil, :air |> render.(false) |> elem(1)} == render.(:air, true)
+
+      # The revision moves with the flag, which is what re-applies a live
+      # instance when an account opts in or out.
+      refute off == on
     end
 
     test "sizes a self-hosted deployment off its license rather than a subscription" do

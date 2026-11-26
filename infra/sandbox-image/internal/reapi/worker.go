@@ -312,7 +312,7 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 		}
 		properties[p.Name] = p.Value
 	}
-	memory, err := MemoryGB(platform)
+	memory, explicit, err := MemoryGB(platform)
 	if err != nil {
 		return err
 	}
@@ -329,7 +329,9 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 	if len(properties) != required || properties["OSFamily"] != "Linux" || properties["Arch"] != "amd64" || properties["tuist-image"] != w.Image || w.Image == "" {
 		return status.Error(codes.FailedPrecondition, "unsupported execution platform")
 	}
-	if memory > w.memoryGB() {
+	// Without the property the control plane picks the size, which can be
+	// below DefaultMemoryGB.
+	if explicit && memory > w.memoryGB() {
 		return status.Error(codes.FailedPrecondition, "the action needs a larger VM")
 	}
 	seen := map[string]bool{}
@@ -346,7 +348,8 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 }
 
 // MemoryProperty sizes the VM an action runs in: the guest memory in GB, with
-// one vCPU per 2 GB. Actions without it run with DefaultMemoryGB.
+// one vCPU per 2 GB. Actions without it run in the size the control plane
+// picks: DefaultMemoryGB, or less for an account with automatic task sizing.
 const MemoryProperty = "tuist-memory-gb"
 
 const DefaultMemoryGB = 4
@@ -358,26 +361,27 @@ const MaxTimeout = 10 * time.Minute
 // MemorySizesGB are the VM sizes workers offer, smallest first.
 var MemorySizesGB = []int{2, 4, 8, 16}
 
-// MemoryGB returns the VM memory a platform asks for.
-func MemoryGB(p *re.Platform) (int, error) {
+// MemoryGB returns the VM memory a platform asks for, and whether it asks
+// for one with MemoryProperty rather than taking DefaultMemoryGB.
+func MemoryGB(p *re.Platform) (int, bool, error) {
 	value, found := "", false
 	for _, property := range p.GetProperties() {
 		if property.Name != MemoryProperty {
 			continue
 		}
 		if found {
-			return 0, status.Error(codes.InvalidArgument, "duplicate platform property")
+			return 0, false, status.Error(codes.InvalidArgument, "duplicate platform property")
 		}
 		value, found = property.Value, true
 	}
 	if !found {
-		return DefaultMemoryGB, nil
+		return DefaultMemoryGB, false, nil
 	}
 	gb, err := strconv.Atoi(value)
 	if err != nil || strconv.Itoa(gb) != value || !slices.Contains(MemorySizesGB, gb) {
-		return 0, status.Error(codes.InvalidArgument, MemoryProperty+" must be 2, 4, 8 or 16")
+		return 0, false, status.Error(codes.InvalidArgument, MemoryProperty+" must be 2, 4, 8 or 16")
 	}
-	return gb, nil
+	return gb, true, nil
 }
 
 func (w *Worker) memoryGB() int {

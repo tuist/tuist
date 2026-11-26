@@ -47,6 +47,9 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     installation = %{installation_id: "123", account_id: account.id}
     stub(VCS, :get_github_app_installation_for_account, fn _account_id -> {:ok, installation} end)
 
+    stub(GitHub.Client, :get_repository, fn ^installation, _repository -> {:ok, %{"default_branch" => "main"}} end)
+    stub(GitHub.Client, :get_branch, fn ^installation, _repository, "main" -> {:ok, %{"commit" => %{"sha" => "c1"}}} end)
+
     stub(GitHub.App, :create_scoped_installation_token, fn ^installation, ["app"], %{contents: "read"} ->
       {:ok, %{token: "ghs_secret_token", expires_at: DateTime.utc_now()}}
     end)
@@ -264,7 +267,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert :ok = advance(build)
     assert {:error, :sandbox_command_not_running} = CommandCredentials.account_grant(claims)
 
-    assert %DiskSnapshot{state: :ready, platform: :darwin, template: "macos", template_tag: "sha-new"} =
+    # It records the default branch's head it cloned.
+    assert %DiskSnapshot{state: :ready, platform: :darwin, template: "macos", template_tag: "sha-new", commit_sha: "c1"} =
              snapshot =
              Repo.one!(from(d in DiskSnapshot, where: d.state == :ready and d.platform == :darwin))
 
@@ -443,5 +447,67 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     DiskSnapshots.delete_expired()
     refute Repo.get(DiskSnapshot, build.id)
     refute Repo.get(Sandbox, build.id)
+  end
+
+  test "a create whose host disconnected is retried rather than failing the build", %{build: build, test_pid: test_pid} do
+    stub(Nodes, :call, fn "node-a", "create", _args, _opts -> {:error, :node_disconnected} end)
+    assert {:snooze, 60} = advance(build)
+    assert %DiskSnapshot{state: :building} = Repo.get!(DiskSnapshot, build.id)
+
+    # The next step replaces the builder the create left behind and runs.
+    stub_node(test_pid)
+    assert {:snooze, 30} = advance(build)
+    assert Repo.get(SandboxCommand, build.id)
+    assert %DiskSnapshot{state: :building} = Repo.get!(DiskSnapshot, build.id)
+  end
+
+  test "a macOS snapshot in use is rebuilt once its default branch moves", %{
+    account: account,
+    agent_environment: agent_environment
+  } do
+    {:ok, _environment} =
+      Sandboxes.update_agent_environment(agent_environment, %{macos_setup_script: "mise install && tuist generate\n"})
+
+    project_fixture(account: account, vcs_connection: [repository_full_handle: "acme/app"])
+
+    stub(Nodes, :connected_nodes, fn ->
+      [%{name: "node-a", disk: %{}, templates: [%{name: "macos", ready: true, tag: "sha-new", rootfs_bytes: 1}]}]
+    end)
+
+    # A ready snapshot of the current script, built from c1 an hour ago.
+    {:ok, source} = ClaudeCodeSnapshots.mac_source(account, "acme/app", %{platform: "darwin"})
+    :ok = ClaudeCodeSnapshots.request_mac_build(source)
+    snapshot = Repo.one!(from(d in DiskSnapshot, where: d.state == :building and d.platform == :darwin))
+
+    snapshot
+    |> Ecto.Changeset.change(
+      state: :ready,
+      node_name: "node-a",
+      template_tag: "sha-new",
+      commit_sha: "c1",
+      inserted_at: DateTime.add(DateTime.utc_now(:second), -1, :hour)
+    )
+    |> Repo.update!()
+
+    building = fn ->
+      Repo.aggregate(from(d in DiskSnapshot, where: d.state == :building and d.platform == :darwin), :count)
+    end
+
+    # The branch moved, but no Mac used the snapshot.
+    stub(GitHub.Client, :get_branch, fn _installation, "acme/app", "main" -> {:ok, %{"commit" => %{"sha" => "c2"}}} end)
+    assert :ok = ClaudeCodeSnapshots.refresh_mac_snapshots()
+    assert building.() == 0
+
+    sandbox_fixture(account: account, platform: :darwin, template: "macos", repository: "acme/app")
+
+    # In use, at the head: nothing to do.
+    stub(GitHub.Client, :get_branch, fn _installation, "acme/app", "main" -> {:ok, %{"commit" => %{"sha" => "c1"}}} end)
+    assert :ok = ClaudeCodeSnapshots.refresh_mac_snapshots()
+    assert building.() == 0
+
+    # In use, behind the head: rebuilt.
+    stub(GitHub.Client, :get_branch, fn _installation, "acme/app", "main" -> {:ok, %{"commit" => %{"sha" => "c2"}}} end)
+    assert :ok = ClaudeCodeSnapshots.refresh_mac_snapshots()
+    assert building.() == 1
   end
 end

@@ -463,6 +463,108 @@ defmodule Atlas.Accounts.Invoices do
     end
   end
 
+  @doc """
+  Marks an account's open Stripe invoice as paid outside Stripe, for example
+  after its bank wire arrived, and stores the paid invoice.
+
+  Refuses invoices of another Stripe customer and invoices that are not open.
+  """
+  def mark_stripe_invoice_paid_out_of_band(%Account{} = account, invoice_id, opts \\ []) when is_binary(invoice_id) do
+    with {:ok, stripe_invoice} <- get_stripe_invoice(invoice_id, opts),
+         :ok <- ensure_account_customer(account, stripe_invoice),
+         :ok <- ensure_open(stripe_invoice),
+         {:ok, paid_invoice} <- pay_stripe_invoice_out_of_band(invoice_id, opts),
+         {:ok, stored_invoice} <- upsert_stripe_invoice(account, paid_invoice) do
+      Audit.record("account_invoice.stripe_paid_out_of_band", %{
+        target_type: "account_invoice",
+        target_id: stored_invoice.id,
+        target_label: stored_invoice.number || stored_invoice.external_id,
+        metadata: %{
+          "path" => "/commercial/sales/accounts/#{account.id}",
+          "account_id" => account.id,
+          "stripe_invoice_id" => stored_invoice.external_id
+        }
+      })
+
+      {:ok, %{account: account, invoice: stored_invoice, stripe_invoice: paid_invoice}}
+    end
+  end
+
+  defp ensure_account_customer(%Account{stripe_customer_id: customer_id}, %Stripe.Invoice{customer_id: customer_id})
+       when is_binary(customer_id), do: :ok
+
+  defp ensure_account_customer(_account, _stripe_invoice), do: {:error, :invoice_not_for_account}
+
+  defp ensure_open(%Stripe.Invoice{status: "open"}), do: :ok
+  defp ensure_open(%Stripe.Invoice{status: status}), do: {:error, {:invoice_not_open, status}}
+
+  defp pay_stripe_invoice_out_of_band(invoice_id, opts) do
+    case stripe_client(opts).pay_invoice_out_of_band(invoice_id, client_opts(opts)) do
+      {:ok, %Stripe.Invoice{} = invoice} -> {:ok, invoice}
+      :disabled -> {:error, :stripe_disabled}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @imported_invoice_fields [:number, :due_date, :amount_value, :amount_currency, :status]
+
+  @doc """
+  Corrects an account invoice record imported from outside Stripe, such as an
+  enterprise wire invoice. Stripe-synced records are refused, because the next
+  reconciliation would overwrite the edit; change those in Stripe instead.
+  """
+  def update_imported_invoice(invoice_id, attrs) when is_binary(invoice_id) and is_map(attrs) do
+    with {:ok, invoice} <- fetch_imported_invoice(invoice_id),
+         {:ok, updated} <-
+           invoice
+           |> Invoice.changeset(Map.take(attrs, @imported_invoice_fields))
+           |> Repo.update() do
+      audit_imported_invoice("account_invoice.updated", updated)
+      {:ok, updated}
+    end
+  end
+
+  @doc """
+  Deletes an account invoice record imported from outside Stripe, for example
+  one whose invoice no longer exists. Stripe-synced records are refused.
+  """
+  def delete_imported_invoice(invoice_id) when is_binary(invoice_id) do
+    with {:ok, invoice} <- fetch_imported_invoice(invoice_id),
+         {:ok, deleted} <- Repo.delete(invoice) do
+      audit_imported_invoice("account_invoice.deleted", deleted)
+      {:ok, deleted}
+    end
+  end
+
+  defp fetch_imported_invoice(invoice_id) do
+    case Ecto.UUID.cast(invoice_id) do
+      {:ok, uuid} ->
+        case Repo.get(Invoice, uuid) do
+          nil -> {:error, :not_found}
+          %Invoice{source: "stripe"} -> {:error, :stripe_synced}
+          invoice -> {:ok, invoice}
+        end
+
+      :error ->
+        {:error, :not_found}
+    end
+  end
+
+  defp audit_imported_invoice(action, %Invoice{} = invoice) do
+    Audit.record(action, %{
+      target_type: "account_invoice",
+      target_id: invoice.id,
+      target_label: invoice.number || invoice.external_id,
+      metadata: %{
+        "path" => "/commercial/sales/accounts/#{invoice.account_id}",
+        "account_id" => invoice.account_id,
+        "source" => invoice.source,
+        "external_id" => invoice.external_id,
+        "status" => invoice.status
+      }
+    })
+  end
+
   def reconcile_stripe_invoices(account_id) when is_binary(account_id) do
     case Repo.get(Account, account_id) do
       nil -> {:error, :not_found}

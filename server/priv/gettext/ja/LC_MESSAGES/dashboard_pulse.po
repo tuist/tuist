@@ -786,7 +786,7 @@ msgstr "観察"
 msgid "Open"
 msgstr "開く"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:611
+#: lib/tuist_web/live/pulse_symptoms_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "Open symptoms"
 msgstr "症状を開く"
@@ -930,11 +930,6 @@ msgstr "症状ページ"
 msgid "Symptoms"
 msgstr "症状"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:615
-#, elixir-autogen, elixir-format
-msgid "Symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
-msgstr "期間開始時と比較した現在のオープン中の症状数。チャートは、各時間または日の終わりにオープン中だった症状の数を示します。"
-
 #: lib/tuist_web/live/pulse_symptoms_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Symptoms opened"
@@ -965,16 +960,6 @@ msgstr "症状を更新できませんでした。"
 #, elixir-autogen, elixir-format
 msgid "Tier"
 msgstr "ティア"
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:596
-#, elixir-autogen, elixir-format
-msgid "Times symptoms opened or reopened in the selected period, from the evaluator's revisions."
-msgstr "評価者の修正に基づき、選択期間中に症状が開かれた、または再開された回数。"
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:607
-#, elixir-autogen, elixir-format
-msgid "Times symptoms resolved in the selected period, after several quiet windows."
-msgstr "複数の静穏ウィンドウを経て、選択期間中に症状が解決された回数。"
 
 #: lib/tuist_web/live/pulse_symptom_live.ex:149
 #: lib/tuist_web/live/pulse_symptoms_live.ex:283
@@ -1041,3 +1026,18 @@ msgstr "直近30日間との比較"
 #, elixir-autogen, elixir-format
 msgid "vs previous 7 days"
 msgstr "前の7日間と比較"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+msgstr "期間の開始時と比較して、現在ボードまたはページング症状が開いている数。グラフには、毎時間または毎日終了時に開いていた数が表示されます。"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Times board or page symptoms resolved in the selected period, after several quiet windows."
+msgstr "複数の静穏ウィンドウの後、選択した期間中に解決されたボードまたはページング症状の回数。"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
+msgstr "選択した期間中に、ボードに到達した症状またはページングが発生した症状が開かれたり再開されたりした回数。評価者がログのみを記録する監査層にとどまっていた症状はカウントされません。"

@@ -21,7 +21,7 @@ use crate::{
     bazel_test_artifacts::BazelTestArtifactDelivery,
     config::Config,
     io::IoController,
-    memory::MemoryController,
+    memory::{FloorDemandSnapshot, MemoryController},
     metrics::Metrics,
     peer_tls::PeerClientFactory,
     runtime::{DataDirLock, HttpTrafficClass, InflightGuard, RuntimeState, TrafficState},
@@ -409,6 +409,10 @@ pub struct RolloutStatusReport {
     pub http_inflight: usize,
     pub grpc_inflight: usize,
     pub memory_pressure_state: i64,
+    /// The floor-derived transient pool and the foreground demand on it, which
+    /// the orchestrator sizes the floor from.
+    pub floor_pool_capacity_bytes: u64,
+    pub floor_demand: FloorDemandSnapshot,
     pub fd_timeout_count: u64,
     pub peer_connection_failure_count: u64,
     pub ring_fingerprint: String,
@@ -807,6 +811,8 @@ impl AppState {
             http_inflight: self.runtime.http_inflight(),
             grpc_inflight: self.runtime.grpc_inflight(),
             memory_pressure_state: self.memory.pressure().as_i64(),
+            floor_pool_capacity_bytes: self.memory.transient_capacity_bytes(),
+            floor_demand: self.memory.floor_demand(),
             fd_timeout_count: metrics.fd_timeout_count,
             peer_connection_failure_count: metrics.peer_connection_failure_count,
             backfill,

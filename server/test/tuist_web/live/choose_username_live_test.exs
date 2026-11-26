@@ -7,6 +7,7 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
+  alias Tuist.Marketing.Attribution
   alias TuistWeb.RateLimit.Registration
   alias TuistWeb.Turnstile
 
@@ -222,7 +223,7 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
         "oauth_return_url" => nil
       }
 
-      stub(Accounts, :create_user_from_pending_oauth, fn _oauth_data, _username ->
+      stub(Accounts, :create_user_from_pending_oauth, fn _oauth_data, _username, _opts ->
         {:error, :internal_server_error}
       end)
 
@@ -255,7 +256,7 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
         |> Ecto.Changeset.change()
         |> Ecto.Changeset.add_error(:email, "has already been taken")
 
-      stub(Accounts, :create_user_from_pending_oauth, fn _oauth_data, _username -> {:error, changeset} end)
+      stub(Accounts, :create_user_from_pending_oauth, fn _oauth_data, _username, _opts -> {:error, changeset} end)
       stub(Turnstile, :required?, fn -> false end)
 
       {:ok, lv, _html} =
@@ -299,6 +300,35 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
       # Verify user was created
       {:ok, user} = Accounts.get_user_by_email(oauth_data["email"])
       assert user.account.name == username
+    end
+
+    test "stores the campaign held for the provider sign-in with the new user", %{conn: conn} do
+      oauth_data = %{
+        "provider" => "github",
+        "uid" => "unique-uid-#{System.unique_integer([:positive])}",
+        "email" => "campaign-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil,
+        "oauth_return_url" => nil
+      }
+
+      Attribution.hold(["oauth_signup", "github", oauth_data["uid"]], %{
+        source: "chatgpt.com",
+        campaign: "business-hub"
+      })
+
+      {:ok, lv, _html} =
+        conn
+        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
+        |> live(~p"/users/choose-username")
+
+      lv
+      |> form("#choose-username-form", account: %{name: "campaign#{System.unique_integer([:positive])}"})
+      |> render_submit()
+
+      {:ok, user} = Accounts.get_user_by_email(oauth_data["email"])
+
+      assert %{source: "chatgpt.com", campaign: "business-hub"} =
+               Tuist.Repo.get!(Tuist.Marketing.Attribution.SignupAttribution, user.id)
     end
 
     test "trims whitespace from username before creating user", %{conn: conn} do

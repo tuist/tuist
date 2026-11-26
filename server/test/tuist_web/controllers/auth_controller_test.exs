@@ -2217,6 +2217,31 @@ defmodule TuistWeb.AuthControllerTest do
       assert get_session(conn, :pending_oauth_signup)
     end
 
+    test "carries the sign-up page's campaign across the provider round trip without the session", %{conn: conn} do
+      conn = get(conn, ~p"/users/auth/google?utm_source=ChatGPT.com&utm_campaign=hub&utm_content=ad-7")
+      %{"state" => state} = conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-campaign-uid",
+        info: %Info{email: "campaign-oauth@authctl-example.com"},
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
+      }
+
+      conn =
+        build_conn()
+        |> init_test_session(%{})
+        |> Map.put(:params, %{"state" => state})
+        |> assign(:ueberauth_auth, auth)
+        |> TuistWeb.AuthController.callback(%{"state" => state})
+
+      assert redirected_to(conn) == "/users/choose-username"
+      refute Enum.any?(Map.keys(get_session(conn)), &String.contains?(&1, "attribution"))
+
+      assert %{source: "chatgpt.com", campaign: "hub", content: "ad-7"} =
+               Tuist.Marketing.Attribution.held(["oauth_signup", "google", "google-campaign-uid"])
+    end
+
     test "rejects the GitHub callback when GitHub auth is disabled", %{conn: conn} do
       stub(Tuist.Environment, :github_auth_enabled?, fn -> false end)
 

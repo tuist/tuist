@@ -1,0 +1,45 @@
+{{- $uri := required "bucket.uri is required (a dedicated s3:// bucket/prefix)" (.Values.bucket.uri | trim) -}}
+{{- if not (hasPrefix "s3://" $uri) -}}
+{{- fail "bucket.uri must use s3://; ephemeral or local object stores are not supported by this chart" -}}
+{{- end -}}
+{{- if contains "conditional_put=disabled" $uri -}}
+{{- fail "Enroute requires conditional object-store writes; conditional_put=disabled is unsafe" -}}
+{{- end -}}
+{{- if empty .Values.clientPodLabels -}}
+{{- fail "clientPodLabels must restrict API access to Luft server pods" -}}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "luft-git.name" . }}
+  labels:
+    {{- include "luft-git.labels" . | nindent 4 }}
+data:
+  enroute.toml: |
+    [bucket]
+    uri = {{ $uri | toJson }}
+
+    [bucket.credentials]
+    access_key_id = "${AWS_ACCESS_KEY_ID}"
+    secret_access_key = "${AWS_SECRET_ACCESS_KEY}"
+
+    [node]
+    role = "both"
+    data_dir = "/var/lib/enroute/data"
+    internal_listen = "0.0.0.0:7400"
+    cpu_threads = 2
+    cache = "128 MiB"
+    page_cache = "64 MiB"
+    disk_cache = "5 GiB"
+
+    [ledger]
+    state_memory = "128 MiB"
+
+    [listen]
+    # No authorize hook exists in Luft yet. Git must stay on loopback.
+    git = "127.0.0.1:8080"
+    api = "0.0.0.0:50051"
+
+    [git]
+    create_on_push = false
+    max_object_size = "10 MiB"

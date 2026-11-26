@@ -453,7 +453,9 @@ defmodule Tuist.Environment do
   The most bytes an uploaded coverage report may inflate to before its
   publication is cancelled, from `TUIST_COVERAGE_MAX_INFLATED_BYTES`; 2 GB by
   default. DEFLATE expands up to about 1000:1, so without a ceiling a small
-  upload could fill the disk it is inflated to.
+  upload could fill the disk it is inflated to. A quarter of it bounds the
+  compressed upload, which is refused before it is downloaded
+  (`Tuist.Tests.Workers.PublishCoverageWorker.download/4`).
   """
   def coverage_max_inflated_bytes(environment \\ System.get_env()) when is_map(environment) do
     parse_artifact_retention_days(
@@ -2116,6 +2118,43 @@ defmodule Tuist.Environment do
   def secret_key_tokens(secrets \\ secrets()) do
     get([:secret_key, :tokens], secrets, default_value: secret_key_base(secrets))
   end
+
+  @doc """
+  Refuses to start hosted production and canary unless
+  `TUIST_SECRET_KEY_PASSWORD` and `TUIST_SECRET_KEY_TOKENS` are set and differ
+  from `TUIST_SECRET_KEY_BASE` and from each other. Each guards something
+  different: the base signs sessions, the password key peppers every stored
+  password and token hash, and the tokens key signs API credentials. Unset,
+  either falls back to the base, and then a leak of any one is a leak of the
+  others. Runs from `config/runtime.exs`, so a failing check also fails the
+  pre-upgrade migration job and stops the rollout before any pod restarts.
+  """
+  def validate_secret_keys!(secrets \\ secrets(), hosted_production? \\ secret_keys_guarded?(tuist_hosted?(), env()))
+
+  def validate_secret_keys!(_secrets, false), do: :ok
+
+  def validate_secret_keys!(secrets, true) do
+    keys = [
+      {"TUIST_SECRET_KEY_BASE", get([:secret_key, :base], secrets)},
+      {"TUIST_SECRET_KEY_PASSWORD", get([:secret_key, :password], secrets)},
+      {"TUIST_SECRET_KEY_TOKENS", get([:secret_key, :tokens], secrets)}
+    ]
+
+    for {name, value} <- keys, value in [nil, ""] do
+      raise "#{name} is not set; hosted production must not fall back to TUIST_SECRET_KEY_BASE"
+    end
+
+    for {{name, value}, index} <- Enum.with_index(keys),
+        {other, other_value} <- Enum.drop(keys, index + 1),
+        value == other_value do
+      raise "#{name} and #{other} hold the same value; each must be its own secret"
+    end
+
+    :ok
+  end
+
+  @doc "Whether `validate_secret_keys!/2` applies: hosted production and canary."
+  def secret_keys_guarded?(hosted?, env), do: hosted? and env in [:prod, :can]
 
   @doc """
   The key `Tuist.Guardian` verified tokens with before the current

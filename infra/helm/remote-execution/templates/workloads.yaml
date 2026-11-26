@@ -42,7 +42,16 @@ infra/sandboxd/AGENTS.md, "Process model". */}}
 {{- $floorGiB := div (add 512 (mul $floor 4160) 1023) 1024 }}
 {{- $ceilingGiB := div (add 512 (mul $slots 4160) 1023) 1024 }}
 {{- /* The VMs' container: sandboxd, or vmm when it holds Firecracker. */}}
-{{- $vmResources := dict "shared" $shared.enabled "floor" $floor "slots" $slots "floorGiB" $floorGiB }}
+{{- /* With vmm, the daemon's CPU request comes out of vmm's, so the Pod
+requests the CPU the single container did: a replacement must fit where its
+predecessor ran, on hosts runner Pods fill to the last core. (Memory is
+resized by the server from MEMORY_FLOOR_GIB, so it stays on the floor.) */}}
+{{- $daemonMilli := 0 }}
+{{- if $vmm }}
+{{- $cpu := .Values.workers.vmm.daemonResources.requests.cpu | toString }}
+{{- $daemonMilli = ternary (trimSuffix "m" $cpu | atoi) (mul (atoi $cpu) 1000) (hasSuffix "m" $cpu) }}
+{{- end }}
+{{- $vmResources := dict "shared" $shared.enabled "floor" $floor "slots" $slots "floorGiB" $floorGiB "daemonMilli" $daemonMilli }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -128,7 +137,7 @@ JAIL_UID_BASE (the jails of handed-over VMs keep their UIDs).
   "EXECUTION_SLOTS" ($slots | toString)
   "NETWORK_BACKEND" (.Values.workers.networkBackend | toString)
   "ALLOWED_SHAPES" "1x2048,2x4096,4x8192,8x16384,8x2048,8x4096,8x8192"
-  "PREBUILD_SHAPES" "1x2048,2x4096,4x8192,8x4096"
+  "PREBUILD_SHAPES" "1x2048,2x4096,4x8192,8x2048,8x4096"
   "TEMPLATE_WORKSPACE_GB" "30"
   "DISK_BUDGET_GIB" (.Values.workers.diskGiB | toString)
   "BLOB_CACHE_GIB" (.Values.workers.blobCacheGiB | toString) }}
@@ -282,7 +291,7 @@ spec:
             # vCPUs that accounts with automatic task sizing burst to. A
             # shape not prebuilt builds its snapshot on its first action.
             - {name: ALLOWED_SHAPES, value: "1x2048,2x4096,4x8192,8x16384,8x2048,8x4096,8x8192"}
-            - {name: PREBUILD_SHAPES, value: "1x2048,2x4096,4x8192,8x4096"}
+            - {name: PREBUILD_SHAPES, value: "1x2048,2x4096,4x8192,8x2048,8x4096"}
             # The workspace every VM gets (Settings.vm_workspace_gb), so
             # creates clone the snapshots' formatted workspace.
             - {name: TEMPLATE_WORKSPACE_GB, value: "30"}
@@ -364,11 +373,11 @@ resizePolicy:
   - {resourceName: memory, restartPolicy: NotRequired}
   - {resourceName: cpu, restartPolicy: NotRequired}
 resources:
-  requests: {cpu: {{ mul .floor 2 | quote }}, memory: "{{ .floorGiB }}Gi"}
+  requests: {cpu: "{{ sub (mul .floor 2000) .daemonMilli }}m", memory: "{{ .floorGiB }}Gi"}
   limits: {memory: "{{ .floorGiB }}Gi"}
 {{- else }}
 resources:
-  requests: {cpu: {{ mul .slots 2 | quote }}, memory: "{{ add 512 (mul .slots 4160) }}Mi"}
+  requests: {cpu: "{{ sub (mul .slots 2000) .daemonMilli }}m", memory: "{{ add 512 (mul .slots 4160) }}Mi"}
   limits: {cpu: {{ mul .slots 2 | quote }}, memory: "{{ add 512 (mul .slots 4160) }}Mi"}
 {{- end }}
 {{- end }}

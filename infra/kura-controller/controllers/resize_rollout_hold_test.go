@@ -47,6 +47,9 @@ func (f resizeHoldFixture) statefulSet(strategy appsv1.StatefulSetUpdateStrategy
 				}},
 			}},
 		},
+		// What the StatefulSet controller reports once every replica runs the
+		// template, which is when a resize normally releases its hold.
+		Status: appsv1.StatefulSetStatus{Replicas: 2, UpdatedReplicas: 2, UpdateRevision: "current", CurrentRevision: "current"},
 	}
 }
 

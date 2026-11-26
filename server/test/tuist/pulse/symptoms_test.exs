@@ -17,6 +17,11 @@ defmodule Tuist.Pulse.SymptomsTest do
 
   @a "0193a1f0-0000-7000-8000-00000000000a"
   @b "0193a1f0-0000-7000-8000-00000000000b"
+  @c "0193a1f0-0000-7000-8000-00000000000c"
+  @d "0193a1f0-0000-7000-8000-00000000000d"
+  @e "0193a1f0-0000-7000-8000-00000000000e"
+  @f "0193a1f0-0000-7000-8000-00000000000f"
+  @g "0193a1f0-0000-7000-8000-000000000010"
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -387,24 +392,87 @@ defmodule Tuist.Pulse.SymptomsTest do
   end
 
   describe "analytics/4" do
-    test "counts openings, resolutions and open symptoms from revisions", %{user: user, account: account} do
+    test "counts symptoms from when they reach board or page tier on", %{user: user, account: account} do
+      # The window is the 24 hours ending at 13:00, so it starts 23.5 hours
+      # before `now`, and the previous one 47.5 hours before.
       now = ~U[2026-11-16 12:30:00Z]
       at = fn hours -> now |> DateTime.add(-hours * 3600) |> DateTime.to_iso8601() end
+      audit = fn overrides -> Map.put(overrides, "tier", "audit") end
 
       {:ok, _} =
         PulseFixtures.mirror_symptoms(account, [
-          # Open since before the window.
-          revision(@a, 1, 1, %{"updated_at" => at.(30)}),
-          revision(@b, 2, 1, %{"updated_at" => at.(5)}),
-          revision(@b, 3, 2, %{"state" => "resolved", "transition" => "resolved", "updated_at" => at.(2)})
+          # Reached the board in the previous window and drops back to audit
+          # before it. Its resolution in this window counts, though only its
+          # audit revision precedes the previous window.
+          revision(@g, 1, 1, %{"updated_at" => at.(50)}),
+          revision(@g, 2, 2, audit.(%{"transition" => "deescalated", "updated_at" => at.(49)})),
+          # Opens in the previous window; an annotation in this one is no
+          # new opening.
+          revision(@a, 3, 1, %{"updated_at" => at.(30)}),
+          revision(@g, 4, 3, audit.(%{"state" => "resolved", "transition" => "resolved", "updated_at" => at.(10)})),
+          revision(@a, 5, 2, %{"transition" => "annotated", "updated_at" => at.(10)}),
+          # Pages, quiets down to audit and resolves there: it still resolves.
+          revision(@e, 6, 1, %{"tier" => "page", "updated_at" => at.(8)}),
+          # Merging takes it out of the open count without resolving it.
+          revision(@f, 7, 1, %{"updated_at" => at.(7)}),
+          revision(@d, 8, 1, audit.(%{"updated_at" => at.(6)})),
+          revision(@e, 9, 2, audit.(%{"transition" => "deescalated", "updated_at" => at.(6)})),
+          revision(@f, 10, 2, %{
+            "state" => "merged",
+            "transition" => "merged",
+            "merged_into" => @a,
+            "updated_at" => at.(6)
+          }),
+          revision(@b, 11, 1, %{"updated_at" => at.(5)}),
+          revision(@e, 12, 3, audit.(%{"state" => "resolved", "transition" => "resolved", "updated_at" => at.(5)})),
+          # Opens at audit tier and counts once, from its escalation, however
+          # often it moves between audit and the board afterwards.
+          revision(@c, 13, 1, audit.(%{"updated_at" => at.(4)})),
+          revision(@d, 14, 2, %{"transition" => "escalated", "updated_at" => at.(4)}),
+          # Only logged: opens and resolves at audit tier, so it never counts.
+          revision(@c, 15, 2, audit.(%{"state" => "resolved", "transition" => "resolved", "updated_at" => at.(3)})),
+          revision(@d, 16, 3, audit.(%{"transition" => "deescalated", "updated_at" => at.(3)})),
+          revision(@b, 17, 2, %{"state" => "resolved", "transition" => "resolved", "updated_at" => at.(2)}),
+          revision(@d, 18, 4, %{"transition" => "escalated", "updated_at" => at.(2)})
         ])
 
       assert {:ok, %{widgets: widgets}} = Symptoms.analytics(user, account, %{"range" => "24h"}, now)
       widgets = Map.new(widgets, &{&1.id, &1})
 
-      assert %{value: 1, previous_value: 1} = widgets["opened"]
-      assert %{value: 1, previous_value: 0} = widgets["resolved"]
-      assert %{value: 1, previous_value: 1} = widgets["open"]
+      # Opened: @b, @d, @e and @f in the window; @a in the previous one (@g
+      # opened before both).
+      assert %{value: 4, previous_value: 1} = widgets["opened"]
+      # Resolved: @b, @e and @g.
+      assert %{value: 3, previous_value: 0} = widgets["resolved"]
+      # Open now: @a and @d. At the window's start: @a and @g.
+      assert %{value: 2, previous_value: 2} = widgets["open"]
+    end
+  end
+
+  describe "list/3" do
+    test "leaves out merged symptoms, and those that never left audit tier unless a filter asks for them", %{
+      user: user,
+      account: account
+    } do
+      {:ok, _} =
+        PulseFixtures.mirror_symptoms(account, [
+          revision(@a, 1, 1),
+          revision(@b, 2, 1, %{"tier" => "audit"}),
+          revision(@c, 3, 1, %{"state" => "merged", "transition" => "merged", "merged_into" => @a}),
+          # Paged, then quieted down to audit and resolved there.
+          revision(@d, 4, 1, %{"tier" => "page"}),
+          revision(@d, 5, 2, %{"tier" => "audit", "state" => "resolved", "transition" => "resolved"})
+        ])
+
+      ids = fn params ->
+        {:ok, %{rows: rows}} = Symptoms.list(user, account, params)
+        rows |> Enum.map(& &1.id) |> Enum.sort()
+      end
+
+      assert ids.(%{}) == [@a, @d]
+      assert ids.(%{"state" => "open"}) == [@a]
+      assert ids.(%{"tier" => "audit"}) == [@b, @d]
+      assert {:error, :invalid_params} = Symptoms.list(user, account, %{"state" => "merged"})
     end
   end
 

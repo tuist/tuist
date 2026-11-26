@@ -59,6 +59,9 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
     field :setup_sha256, :string
     field :platform, Ecto.Enum, values: [:linux, :darwin], default: :linux
     field :disk_bytes, :integer
+    # The commit of the repository's default branch a macOS repository
+    # snapshot's build cloned, as GitHub reported it when the build began.
+    field :commit_sha, :string
 
     belongs_to :account, Account
     belongs_to :source_sandbox, Sandbox, type: :binary_id
@@ -82,7 +85,8 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
       :agent_environment_id,
       :repository,
       :setup_sha256,
-      :platform
+      :platform,
+      :commit_sha
     ])
     |> validate_required([:account_id, :node_name, :template, :workspace_gb, :last_used_at])
     |> validate_key()

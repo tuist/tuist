@@ -10,7 +10,6 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.TestImpactAnalysis.Baselines
-  alias Tuist.TestImpactAnalysis.Carry
   alias Tuist.TestImpactAnalysis.Snapshot
   alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
@@ -24,7 +23,6 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.ShardsFixtures
   alias TuistTestSupport.Fixtures.TestSelectionFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
@@ -1132,9 +1130,11 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     end
 
     # AppTests runs at `sha` and selective testing skips TextKitTests under
-    # `text_hash`, and the other targets `attrs` name (`hits`).
+    # `text_hash` (or builds it, with `text_hit: :miss`), and the other
+    # targets `attrs` name (`hits`).
     defp selective_run(project, account, sha, text_hash, attrs \\ %{}) do
       {hits, attrs} = Map.pop(attrs, :hits, [])
+      {text_hit, attrs} = Map.pop(attrs, :text_hit, :remote)
 
       run =
         CoverageFixtures.run_with_coverage(
@@ -1160,7 +1160,47 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
           )
         )
 
-      hashed(project, run, [{"AppTests", :miss, "app-" <> sha}, {"TextKitTests", :remote, text_hash} | hits])
+      hashed(project, run, [{"AppTests", :miss, "app-" <> sha}, {"TextKitTests", text_hit, text_hash} | hits])
+    end
+
+    # An impact run at `sha` deciding the tests of the `requested` modules
+    # from `base`'s checkpoint: those of the `skipped` ones skipped one by
+    # one, the others selected. `attrs` add to it (`skipped_modules`).
+    defp impact_run(project, sha, requested, skipped, attrs \\ []) do
+      [checkpoint] = checkpoints(project, "base")
+
+      tests =
+        """
+        SELECT test_idx, toString(test_case_id), module_name FROM test_impact_snapshot_tests FINAL
+        WHERE project_id = {project_id:Int64} AND snapshot_id = {id:UUID}
+        """
+        |> Snapshots.query!(%{project_id: project.id, id: checkpoint.id})
+        |> Enum.filter(fn [_idx, _id, module] -> module in requested end)
+        |> Enum.map(fn [idx, id, module] ->
+          %{
+            idx: idx,
+            test_case_id: id,
+            reason: if(module in skipped, do: "unaffected", else: "impacted"),
+            matched_path: ""
+          }
+        end)
+
+      hashed = attrs |> Keyword.get(:skipped_modules, %{}) |> Map.values() |> Enum.sum()
+
+      impact =
+        TestSelectionFixtures.run_fixture(
+          [
+            project_id: project.id,
+            commit_sha: sha,
+            baseline_sha: "base",
+            skipped_count: Enum.count(tests, &(&1.reason == "unaffected")) + hashed
+          ] ++ attrs
+        )
+
+      snapshot = %{id: checkpoint.id, tests: tests}
+      TestSelectionFixtures.decision_fixture(project_id: project.id, run_id: impact.id, snapshot: snapshot, tests: tests)
+      TestSelectionFixtures.diff_fixture(project_id: project.id, commit_sha: sha, baseline_sha: "base")
+      impact
     end
 
     defp checkpoints(project, sha),
@@ -1169,65 +1209,81 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
           from(s in Snapshot, where: s.project_id == ^project.id and s.commit_sha == ^sha and s.kind == :checkpoint)
         )
 
-    # The lines a snapshot holds for a TextKitTests test, its suite's setup
-    # and its target, as a carry plan reads them.
-    defp text_kit_lines(project, snapshot, test) do
-      [[idx]] =
-        Snapshots.query!(
-          """
-          SELECT t.test_idx FROM test_impact_snapshot_tests AS t FINAL
-          INNER JOIN (SELECT DISTINCT id, name FROM test_cases WHERE project_id = {project_id:Int64}) AS c
-            ON c.id = t.test_case_id
-          WHERE t.project_id = {project_id:Int64} AND t.snapshot_id = {id:UUID} AND c.name = {name:String}
-          """,
-          %{project_id: project.id, id: snapshot.id, name: test}
-        )
-
-      plan = [
-        %{
-          snapshot_id: snapshot.id,
-          checkpoint_id: snapshot.checkpoint_id || "00000000-0000-0000-0000-000000000000",
-          idx: Snapshots.idx_chunks([idx]),
-          targets: ["TextKitTests"],
-          source: %{run_id: ""}
-        }
-      ]
-
-      {sql, params} = Carry.lines_sql(project.id, plan)
-      sql |> Snapshots.query!(params) |> Enum.map(fn [path, lines, _rank, _run] -> {path, lines} end)
-    end
-
-    test "copies the targets skipped by hash into its checkpoint, which selection walks to and carry reads", %{
+    test "writes no checkpoint for a run whose every skip was carried by hash, so selection keeps the full run's", %{
       account: account,
       project: project
     } do
-      # Measured in an earlier week than the copy, whose rows live in its own.
-      full_run(project, account, NaiveDateTime.add(NaiveDateTime.utc_now(), -9 * 86_400))
-      [original] = checkpoints(project, "base")
-      head = selective_run(project, account, "head", "text")
+      full_run(project, account, NaiveDateTime.utc_now())
+      selective_run(project, account, "head", "text")
 
-      assert [copy] = checkpoints(project, "head")
-      assert copy.test_run_ids == [head.id]
-      assert copy.tests_count == 3
-      assert copy.carried_targets == ["TextKitTests\u001Ftext"]
-      assert copy.evidence_measured_at == original.ran_at
-      assert DateTime.diff(copy.expires_at, copy.ran_at, :day) == 31
-
-      for test <- ["testPad()", "testTrim()"] do
-        assert text_kit_lines(project, copy, test) == text_kit_lines(project, original, test)
-      end
-
-      assert text_kit_lines(project, copy, "testPad()") == [{"Sources/Text.swift", [2, 3, 5]}]
-      assert {:ok, %{sha: "head", distance: 1}} = Baselines.resolve(project, %{commit_sha: "tip", scheme: "App"})
-
-      # Once the snapshot it was measured in expires, the copy carries it.
-      Repo.update_all(from(s in Snapshot, where: s.id == ^original.id), set: [expires_at: DateTime.utc_now()])
-      selective_run(project, account, "tip", "text")
-
-      assert %{kind: "reported", carried_tests_count: 2, carried_from: ["base"]} = Reported.compute(project, "tip")
+      assert checkpoints(project, "head") == []
+      assert project |> snapshots() |> Enum.filter(&(&1.commit_sha == "head")) == []
+      assert %{carried_tests_count: 2, carried_from: ["base"]} = Reported.compute(project, "head")
+      assert {:ok, %{sha: "base", distance: 3}} = Baselines.resolve(project, %{commit_sha: "tip", scheme: "App"})
     end
 
-    test "lists a target without tests it skipped, which the next commit skipping it finds empty there", %{
+    test "writes an overlay, not a checkpoint, for a run whose impact run skipped only targets by hash, even reported full",
+         %{account: account, project: project} do
+      full_run(project, account, NaiveDateTime.utc_now())
+      [original] = checkpoints(project, "base")
+      impact = impact_run(project, "head", ["AppTests"], [], skipped_modules: %{"TextKitTests" => 2})
+      selective_run(project, account, "head", "text", %{partial: false, test_impact_run_id: impact.id})
+
+      assert checkpoints(project, "head") == []
+
+      assert [%Snapshot{kind: :overlay, checkpoint_id: checkpoint_id}] =
+               project |> snapshots() |> Enum.filter(&(&1.commit_sha == "head"))
+
+      assert checkpoint_id == original.id
+    end
+
+    test "writes an overlay, not a checkpoint, for a run whose impact run skipped single tests, though reported full",
+         %{account: account, project: project} do
+      full_run(project, account, NaiveDateTime.utc_now())
+      [original] = checkpoints(project, "base")
+      impact = impact_run(project, "head", ["AppTests", "TextKitTests"], ["TextKitTests"])
+
+      # TextKitTests changed, so it was built, and its tests were skipped in
+      # the test process. Xcode clients report such a run's coverage as full.
+      selective_run(project, account, "head", "text-head", %{
+        partial: false,
+        text_hit: :miss,
+        test_impact_run_id: impact.id
+      })
+
+      assert checkpoints(project, "head") == []
+
+      assert [%Snapshot{kind: :overlay, checkpoint_id: checkpoint_id}] =
+               project |> snapshots() |> Enum.filter(&(&1.commit_sha == "head"))
+
+      assert checkpoint_id == original.id
+      assert {:ok, %{sha: "base", distance: 3}} = Baselines.resolve(project, %{commit_sha: "tip", scheme: "App"})
+      assert %{carried_tests_count: 2} = Reported.compute(project, "head")
+    end
+
+    test "writes an overlay for a run whose impact run counts single tests skipped, though its decision is unreadable",
+         %{account: account, project: project} do
+      full_run(project, account, NaiveDateTime.utc_now())
+
+      # TextKitTests's two tests skipped by hash, and one more test by the
+      # decision, which isn't stored.
+      impact =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          commit_sha: "head",
+          baseline_sha: "base",
+          skipped_modules: %{"TextKitTests" => 2},
+          skipped_count: 3
+        )
+
+      TestSelectionFixtures.diff_fixture(project_id: project.id, commit_sha: "head", baseline_sha: "base")
+      selective_run(project, account, "head", "text", %{test_impact_run_id: impact.id})
+
+      assert checkpoints(project, "head") == []
+      assert [%Snapshot{kind: :overlay}] = project |> snapshots() |> Enum.filter(&(&1.commit_sha == "head"))
+    end
+
+    test "carries a target without tests it skipped without a gap, at its commit and the next that skips it", %{
       account: account,
       project: project
     } do
@@ -1236,19 +1292,16 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
       assert %{carried_tests_count: 2, gap_reasons: reasons} = Reported.compute(project, "head")
       refute :target_without_history in Coverage.GapReasons.decode(reasons)
-      assert [copy] = checkpoints(project, "head")
-      assert copy.tests_count == 3
-      assert Enum.sort(copy.carried_targets) == ["EmptyKitTests\u001Fempty", "TextKitTests\u001Ftext"]
+      assert checkpoints(project, "head") == []
 
       selective_run(project, account, "tip", "text", %{hits: [{"EmptyKitTests", :local, "empty"}]})
 
       assert %{carried_tests_count: 2, gap_reasons: reasons} = Reported.compute(project, "tip")
       refute :target_without_history in Coverage.GapReasons.decode(reasons)
-      assert [tip] = checkpoints(project, "tip")
-      assert {tip.tests_count, Enum.sort(tip.carried_targets)} == {copy.tests_count, Enum.sort(copy.carried_targets)}
+      assert checkpoints(project, "tip") == []
     end
 
-    test "writes a checkpoint for a run whose only skip is a target without tests", %{
+    test "writes no checkpoint for a run whose only skip is a target without tests", %{
       account: account,
       project: project
     } do
@@ -1267,7 +1320,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       hashed(project, head, [{"AppTests", :miss, "app-head"}, {"EmptyKitTests", :local, "empty"}])
 
       assert %{kind: "measured"} = Reported.compute(project, "head")
-      assert [%Snapshot{tests_count: 1, carried_targets: ["EmptyKitTests\u001Fempty"]}] = checkpoints(project, "head")
+      assert checkpoints(project, "head") == []
     end
 
     test "writes no checkpoint when a target without tests it skipped was built under another hash", %{
@@ -1304,100 +1357,6 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
       assert %{carried_tests_count: 2} = Reported.compute(project, "head")
       assert checkpoints(project, "head") == []
-    end
-
-    test "writes no checkpoint while a shard's report is on the replicas but not in the totals", %{
-      account: account,
-      project: project
-    } do
-      full_run(project, account, NaiveDateTime.utc_now())
-      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
-      sharded = %{shard_plan_id: plan.id, shard_index: 0}
-      head = selective_run(project, account, "head", "text", sharded)
-
-      # Shard 1's rows land before its totals do.
-      IngestRepo.insert_all(CoverageRunFile, [
-        %{
-          test_run_id: head.id,
-          project_id: project.id,
-          shard_index: 1,
-          build_system: "xcode",
-          path: "Sources/Math.swift",
-          layout_id: 1,
-          git_commit_sha: "head",
-          targets: ["App"],
-          covered_lines: 0,
-          executable_lines: 1,
-          execution_counts: [],
-          function_execution_counts: [],
-          function_covered_lines: [],
-          inserted_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      CoverageFixtures.recompute_commit(head)
-      assert checkpoints(project, "head") == []
-
-      CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 1, 0])], %{
-        sharded
-        | shard_index: 1
-      })
-
-      assert [%Snapshot{carried_targets: ["TextKitTests\u001Ftext"]}] = checkpoints(project, "head")
-    end
-
-    test "copies a target from an overlay with the tests it doesn't override from its checkpoint", %{
-      account: account,
-      project: project
-    } do
-      full_run(project, account, NaiveDateTime.utc_now())
-      [original] = checkpoints(project, "base")
-
-      impact = TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "mid", baseline_sha: "base")
-      TestSelectionFixtures.diff_fixture(project_id: project.id, commit_sha: "mid", baseline_sha: "base")
-
-      # A run of TextKitTests alone, skipping AppTests by name: only testTrim()
-      # changed, so the overlay holds it and its target's new lines (4).
-      mid =
-        CoverageFixtures.run_with_coverage(project, account, [file("Sources/Text.swift", [1, 1, 1, 1, 1])], %{
-          git_commit_sha: "mid",
-          partial: true,
-          recompute: false,
-          test_impact_run_id: impact.id,
-          skip_test_identifiers: ["AppTests/MathTests/testAdd()"],
-          test_modules: [text_kit_tests()],
-          coverage_evidence: %{
-            paths: ["Sources/Text.swift"],
-            scopes: [
-              %{kind: "test", module: "TextKitTests", suite: "TextTests", name: "testPad()", files: [0], lines: [[2, 2]]},
-              %{
-                kind: "test",
-                module: "TextKitTests",
-                suite: "TextTests",
-                name: "testTrim()",
-                files: [0],
-                lines: [[1, 2]]
-              },
-              %{kind: "suite", module: "TextKitTests", suite: "TextTests", name: "", files: [0], lines: [[3, 3]]},
-              %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0], lines: [[4, 4]]}
-            ]
-          }
-        })
-
-      hashed(project, mid, [{"TextKitTests", :miss, "text-mid"}])
-
-      assert [%Snapshot{kind: :overlay, checkpoint_id: checkpoint_id, overridden_count: 1}] =
-               project
-               |> snapshots()
-               |> Enum.filter(&(&1.commit_sha == "mid"))
-
-      assert checkpoint_id == original.id
-
-      selective_run(project, account, "head", "text-mid")
-
-      assert [copy] = checkpoints(project, "head")
-      assert text_kit_lines(project, copy, "testPad()") == [{"Sources/Text.swift", [2, 3, 4]}]
-      assert text_kit_lines(project, copy, "testTrim()") == [{"Sources/Text.swift", [1, 2, 3, 4]}]
     end
   end
 

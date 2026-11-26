@@ -534,6 +534,93 @@ struct ShardServiceTests {
         )
     }
 
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .serialized)
+    func shard_withRemoteDownloadUrls_extractsArtifactsInPlanOrderWhenALaterOneDownloadsFirst() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let appleArchiver = AppleArchiver()
+
+        // More artifacts than download ahead at once, each writing the same `order.txt`: the last one
+        // in the plan must win even though the first one finishes downloading last.
+        var responses = [URL: Data]()
+        var urls: [URL] = []
+        for index in 0 ..< 5 {
+            let productsPath = temporaryDirectory.appending(component: "artifact-\(index).xctestproducts")
+            try await fileSystem.makeDirectory(at: productsPath)
+            if index == 0 {
+                try await fileSystem.writeAsPlist(
+                    XCTestRunFixture(
+                        testConfigurations: [
+                            .init(testTargets: [.init(blueprintName: "AppTests", testHostPath: "/path/to/host")]),
+                        ]
+                    ),
+                    at: productsPath.appending(component: "MyApp.xctestrun"),
+                    encoder: plistEncoder()
+                )
+            }
+            try await fileSystem.writeText("\(index)", at: productsPath.appending(component: "order.txt"))
+            try await fileSystem.writeText("\(index)", at: productsPath.appending(component: "file-\(index).txt"))
+            let archivePath = temporaryDirectory.appending(component: "artifact-\(index).aar")
+            try await appleArchiver.compress(directory: productsPath, to: archivePath, excludePatterns: [])
+            let url = URL(string: "https://artifacts.tuist.test/artifact-\(index).aar")!
+            responses[url] = try await fileSystem.readFile(at: archivePath)
+            urls.append(url)
+        }
+        ShardDownloadURLProtocol.responses = responses
+        ShardDownloadURLProtocol.delays = [urls[0]: 0.5]
+        defer { ShardDownloadURLProtocol.delays = [:] }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ShardDownloadURLProtocol.self]
+        let fileClient = FileClient(session: URLSession(configuration: configuration), fileSystem: fileSystem)
+
+        let ciController = MockCIControlling()
+        given(ciController).ciInfo().willReturn(.test(provider: .github))
+
+        let getShardService = MockGetShardServicing()
+        given(getShardService).getShard(
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .any,
+            shardPlanId: .any,
+            shardIndex: .any
+        ).willReturn(
+            Components.Schemas.Shard(
+                download_url: urls[0].absoluteString,
+                download_urls: urls.map(\.absoluteString),
+                modules: ["AppTests"],
+                shard_plan_id: "plan-123",
+                skip: [],
+                suites: .init(additionalProperties: ["AppTests": ["LoginTests"]])
+            )
+        )
+
+        let subject = ShardService(
+            getShardService: getShardService,
+            ciController: ciController,
+            fileClient: fileClient,
+            fileSystem: fileSystem,
+            appleArchiver: appleArchiver
+        )
+
+        let shard = try await subject.shard(
+            shardIndex: 0,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!,
+            reference: nil,
+            testProductsPath: nil,
+            testProductsArchivePath: nil
+        )
+
+        #expect(try await fileSystem.readTextFile(at: shard.testProductsPath.appending(component: "order.txt")) == "4")
+        for index in 0 ..< 5 {
+            #expect(
+                try await fileSystem.readTextFile(at: shard.testProductsPath.appending(component: "file-\(index).txt"))
+                    == "\(index)"
+            )
+        }
+    }
+
     // MARK: - Helpers
 
     private func makeSubjectWithLocalProducts(
@@ -630,6 +717,7 @@ private func plistEncoder() -> PropertyListEncoder {
 
 private final class ShardDownloadURLProtocol: URLProtocol {
     nonisolated(unsafe) static var responses = [URL: Data]()
+    nonisolated(unsafe) static var delays = [URL: TimeInterval]()
 
     override class func canInit(with _: URLRequest) -> Bool {
         true
@@ -640,6 +728,16 @@ private final class ShardDownloadURLProtocol: URLProtocol {
     }
 
     override func startLoading() {
+        // A delayed response must not block the thread other loads share, or every download waits on it.
+        if let delay = request.url.flatMap({ Self.delays[$0] }) {
+            nonisolated(unsafe) let this = self
+            DispatchQueue.global().asyncAfter(deadline: .now() + delay) { this.respond() }
+        } else {
+            respond()
+        }
+    }
+
+    private func respond() {
         let data = request.url.flatMap { Self.responses[$0] } ?? Data()
         let statusCode = request.url.flatMap { Self.responses[$0] } == nil ? 404 : 200
         let response = HTTPURLResponse(

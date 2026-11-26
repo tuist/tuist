@@ -16,6 +16,7 @@ enum SnapshotsUploadServiceError: Equatable, LocalizedError {
     case changesNeedReview(summary: String, url: String)
     case changesRejected(summary: String, url: String)
     case comparisonFailed(url: String)
+    case comparisonTimedOut(url: String)
 
     var errorDescription: String? {
         switch self {
@@ -31,6 +32,8 @@ enum SnapshotsUploadServiceError: Equatable, LocalizedError {
             return "A reviewer rejected these snapshot changes (\(summary)). See \(url)"
         case let .comparisonFailed(url):
             return "The snapshot comparison failed. See \(url)"
+        case let .comparisonTimedOut(url):
+            return "The snapshot comparison didn't finish in time, so these snapshots have no verdict. See \(url)"
         }
     }
 }
@@ -247,8 +250,9 @@ public struct SnapshotsUploadService: SnapshotsUploadServicing {
         switch build.status {
         case "failed":
             throw SnapshotsUploadServiceError.comparisonFailed(url: build.url)
+        // Passing without a verdict would let unreviewed changes through.
         case "processing":
-            if !quiet { AlertController.current.warning(.alert("The snapshot comparison is still running. See \(build.url)")) }
+            throw SnapshotsUploadServiceError.comparisonTimedOut(url: build.url)
         default:
             if !quiet {
                 AlertController.current.success(

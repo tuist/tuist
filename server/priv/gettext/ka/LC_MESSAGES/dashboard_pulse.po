@@ -786,7 +786,7 @@ msgstr "დაკვირვება"
 msgid "Open"
 msgstr "გახსნა"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:611
+#: lib/tuist_web/live/pulse_symptoms_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "Open symptoms"
 msgstr "სიმპტომების გახსნა"
@@ -930,11 +930,6 @@ msgstr "სიმპტომების გვერდები"
 msgid "Symptoms"
 msgstr "სიმპტომები"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:615
-#, elixir-autogen, elixir-format
-msgid "Symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
-msgstr "ახლა ღია სიმპტომების რაოდენობა პერიოდის დასაწყისთან შედარებით. დიაგრამა აჩვენებს, რამდენი იყო ღია ყოველი საათის ან დღის ბოლოს."
-
 #: lib/tuist_web/live/pulse_symptoms_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Symptoms opened"
@@ -965,16 +960,6 @@ msgstr "სიმპტომის განახლება ვერ მო
 #, elixir-autogen, elixir-format
 msgid "Tier"
 msgstr "დონე"
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:596
-#, elixir-autogen, elixir-format
-msgid "Times symptoms opened or reopened in the selected period, from the evaluator's revisions."
-msgstr "რამდენჯერ გაიხსნა ან ხელახლა გაიხსნა სიმპტომები შერჩეულ პერიოდში, შემფასებლის რევიზიების მიხედვით."
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:607
-#, elixir-autogen, elixir-format
-msgid "Times symptoms resolved in the selected period, after several quiet windows."
-msgstr "რამდენჯერ გადაწყდა სიმპტომები შერჩეულ პერიოდში, რამდენიმე წყნარი ფანჯრის შემდეგ."
 
 #: lib/tuist_web/live/pulse_symptom_live.ex:149
 #: lib/tuist_web/live/pulse_symptoms_live.ex:283
@@ -1041,3 +1026,18 @@ msgstr "წინა 30-დღიან პერიოდთან შედა
 #, elixir-autogen, elixir-format
 msgid "vs previous 7 days"
 msgstr "წინა 7 დღესთან შედარებით"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+msgstr "დაფაზე ან გვერდის სიმპტომები, რომლებიც ახლა ღიაა, შედარებული პერიოდის დასაწყისთან. დიაგრამა აჩვენებს, რამდენი იყო ღია თითოეული საათის ან დღის ბოლოს."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Times board or page symptoms resolved in the selected period, after several quiet windows."
+msgstr "ჯერები, როდესაც დაფაზე ან გვერდის სიმპტომები გადაწყდა შერჩეულ პერიოდში, რამდენიმე მშვიდი ფანჯრის შემდეგ."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
+msgstr "ჯერები, როდესაც სიმპტომები, რომლებმაც დაფას მიაღწიეს ან გვერდზე გაიგზავნა, გაიხსნა ან ხელახლა გაიხსნა შერჩეულ პერიოდში. სიმპტომები, რომლებიც აუდიტის დონეზე დარჩა და რომლებსაც შემფასებელი მხოლოდ აღრიცხავს, არ შედის."

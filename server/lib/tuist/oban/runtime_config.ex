@@ -45,6 +45,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Sandboxes.ClaudeCodeReconciler},
     {"0 5 * * *", Tuist.Sandboxes.Workers.RetentionWorker},
     {"@hourly", Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker},
+    {"*/10 * * * *", Tuist.Sandboxes.Workers.RefreshMacSnapshotsWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ExpireSandboxesWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker},
@@ -59,6 +60,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@hourly", PruneJobKeysWorker},
     {"@hourly", Tuist.Shards.Workers.PruneRecentShardPlansWorker},
     {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker},
+    {"* * * * *", Tuist.Snapshots.Workers.RecoverStalledBuildsWorker},
     {"30 4 * * *", Tuist.Push.Workers.PruneWorker}
   ]
 

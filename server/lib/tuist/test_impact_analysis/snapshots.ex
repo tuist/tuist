@@ -66,6 +66,9 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   @no_details %{platform: "", test_impact_run_id: nil, git_ref: "", shard_plan_id: nil}
   # How long before its evidence starts expiring a run stops being written.
   @evidence_margin_seconds 3_600
+  # Whether a selective run whose every skip was carried by hash writes a
+  # checkpoint copying the skipped targets (`carried_runs/4`).
+  @carried_checkpoints false
   # A checkpoint of a large suite takes tens of seconds to write, beyond the
   # connection's default of 15.
   @write_timeout to_timeout(minute: 5)
@@ -84,9 +87,10 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   by hash (`Tuist.Tests.Coverage.Reported`), each with its `module`,
   `hash`, `source` and the snapshot it came from (`snapshot_id`, and
   `checkpoint_id` for an overlay), and the skipped targets that hold no
-  tests, each with its `module`, `hash` and `empty: true`: a selective run
-  whose every skip is among them writes a checkpoint that copies the former
-  and lists the latter without a row (`carried_runs/4`).
+  tests, each with its `module`, `hash` and `empty: true`: with carried
+  checkpoints on (`@carried_checkpoints`), a selective run whose every skip
+  is among them writes a checkpoint that copies the former and lists the
+  latter without a row (`carried_runs/4`).
   """
   def record(%Project{} = project, runs, carried_targets \\ []) do
     runs = Enum.filter(runs, &(Map.get(&1, :git_repository_id) not in [nil, 0] and fresh?(&1.ran_at)))
@@ -98,6 +102,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       runs = Enum.reject(runs, &MapSet.member?(uninstrumented, &1.test_run_id))
       details = details(project.id, Enum.map(runs, & &1.test_run_id))
       runs = Enum.map(runs, &Map.merge(&1, Map.get(details, &1.test_run_id, @no_details)))
+      runs = with_selection_skips(project.id, runs)
       whole = whole_evidence(project.id, runs)
       {full, partial} = Enum.split_with(runs, &(Map.get(&1, :partial) == false))
 
@@ -115,11 +120,17 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       partial = Enum.filter(partial, &MapSet.member?(whole, &1.test_run_id))
 
       # A run whose checkpoint holds every test it skipped needs no overlay.
+      # Carried checkpoints are off: a selective run writes an overlay, and
+      # the daily full run every client makes keeps a checkpoint fresh.
       carried =
-        project
-        |> carried_runs(partial, full, carried_targets)
-        |> Enum.filter(fn {run, targets} -> write_carried_checkpoint(project, run, targets) end)
-        |> MapSet.new(fn {run, _targets} -> run.test_run_id end)
+        if @carried_checkpoints do
+          project
+          |> carried_runs(partial, full, carried_targets)
+          |> Enum.filter(fn {run, targets} -> write_carried_checkpoint(project, run, targets) end)
+          |> MapSet.new(fn {run, _targets} -> run.test_run_id end)
+        else
+          MapSet.new()
+        end
 
       for run <- partial,
           run.test_impact_run_id,
@@ -131,6 +142,23 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   end
 
   defp scope(run), do: {run.git_repository_id, run.git_commit_sha, run.scheme || "", run.platform}
+
+  # A run left out what its impact run skipped, whatever its coverage says:
+  # Xcode clients report a run whose only skips are the single tests
+  # selection removed in the test process as full, which would make it a
+  # checkpoint without those tests. Such a run is partial, as Mix reports
+  # it, and `selection_skips` says whether its decision skipped single tests.
+  defp with_selection_skips(project_id, runs) do
+    impact_run_ids = for run <- runs, run.test_impact_run_id, uniq: true, do: run.test_impact_run_id
+    skips = Storage.skips(project_id, impact_run_ids)
+
+    Enum.map(runs, fn run ->
+      case Map.get(skips, run.test_impact_run_id) do
+        nil -> run
+        skipped -> Map.merge(run, %{partial: true, selection_skips: skipped})
+      end
+    end)
+  end
 
   # A scope's runs as `{whole, expired}` by their evidence (`whole_evidence/2`).
   defp write_scope_checkpoint(_project, _scope, {[], _expired}), do: :ok
@@ -491,8 +519,10 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   end
 
   # An impact run that fell back stored no decision; one that decided may
-  # have skipped nothing.
+  # have skipped nothing. Its counts say it skipped single tests even when
+  # its stored decision is incomplete.
   defp skipped_nothing?(_project, %{test_impact_run_id: nil}), do: true
+  defp skipped_nothing?(_project, %{selection_skips: :tests}), do: false
   defp skipped_nothing?(project, run), do: !Carry.skipped_any?(project.id, run.test_impact_run_id)
 
   defp shards_reported?(project_id, run) do

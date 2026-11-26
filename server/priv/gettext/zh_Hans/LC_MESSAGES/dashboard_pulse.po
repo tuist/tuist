@@ -786,7 +786,7 @@ msgstr "观察"
 msgid "Open"
 msgstr "打开"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:611
+#: lib/tuist_web/live/pulse_symptoms_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "Open symptoms"
 msgstr "查看症状"
@@ -930,11 +930,6 @@ msgstr "症状页面"
 msgid "Symptoms"
 msgstr "症状"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:615
-#, elixir-autogen, elixir-format
-msgid "Symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
-msgstr "与周期开始时相比，当前开放的“症状”数量。图表显示了每个小时或每天结束时处于开放状态的“症状”数量。"
-
 #: lib/tuist_web/live/pulse_symptoms_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Symptoms opened"
@@ -965,16 +960,6 @@ msgstr "无法更新症状。"
 #, elixir-autogen, elixir-format
 msgid "Tier"
 msgstr "层级"
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:596
-#, elixir-autogen, elixir-format
-msgid "Times symptoms opened or reopened in the selected period, from the evaluator's revisions."
-msgstr "在所选期间内，根据评估者的修订记录，症状被打开或重新打开的次数。"
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:607
-#, elixir-autogen, elixir-format
-msgid "Times symptoms resolved in the selected period, after several quiet windows."
-msgstr "在所选期间内，经过多个静默窗口后症状被解决的次数。"
 
 #: lib/tuist_web/live/pulse_symptom_live.ex:149
 #: lib/tuist_web/live/pulse_symptoms_live.ex:283
@@ -1041,3 +1026,18 @@ msgstr "与上一个 30 天相比"
 #, elixir-autogen, elixir-format
 msgid "vs previous 7 days"
 msgstr "对比前 7 天"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+msgstr "与周期开始时相比，看板或页面告警当前的开启数量。图表显示每小时或每天结束时仍处于开启状态的数量。"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Times board or page symptoms resolved in the selected period, after several quiet windows."
+msgstr "在选定的时间段内，经过多个静默窗口后解决的看板或页面告警次数。"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
+msgstr "在选定的时间段内，触发看板或页面告警的开启或重新开启次数。仅由评估者记录且停留在审计层级的告警不计入在内。"

@@ -113,6 +113,30 @@ defmodule Tuist.TestImpactAnalysis.Storage do
     end
   end
 
+  @doc """
+  What the project's impact runs among `ids` skipped, for those that skipped
+  anything: `:tests` when their decision skipped single tests, `:modules`
+  when only modules hashing found unchanged were skipped. Read off the run's
+  counts rather than its stored decision, which can be incomplete: its
+  `skipped_count` holds the tests of `skipped_modules` and those the
+  decision skipped.
+  """
+  def skips(_project_id, []), do: %{}
+
+  def skips(project_id, ids) do
+    query =
+      from(r in Run,
+        where: r.project_id == ^project_id and r.id in ^ids,
+        group_by: r.id,
+        having: max(r.skipped_count) > 0,
+        select: {r.id, fragment("max(?) > max(arraySum(mapValues(?)))", r.skipped_count, r.skipped_modules)}
+      )
+
+    fn -> IngestRepo.all(query) end
+    |> IngestRepo.with_retry()
+    |> Map.new(fn {id, tests?} -> {id, if(tests? in [true, 1], do: :tests, else: :modules)} end)
+  end
+
   defp build_context(context) do
     for {key, value} <- context,
         key = to_string(key),

@@ -106,7 +106,7 @@ func (r *KuraInstanceReconciler) reconcileCPUResizeHold(ctx context.Context, ins
 	}
 	if since, err := time.Parse(time.RFC3339, stamp); err != nil || now.Sub(since) >= cpuResizeStallTimeout {
 		log.FromContext(ctx).Info("in-place CPU resize made no progress; falling back to a rolling update", "heldSince", stamp)
-		return r.releaseCPUResizeHold(ctx, sts)
+		return r.releaseCPUResizeHold(ctx, instance, sts)
 	}
 	if sts.Status.ObservedGeneration < sts.Generation || sts.Status.UpdateRevision == "" {
 		return nil
@@ -144,7 +144,7 @@ func (r *KuraInstanceReconciler) reconcileCPUResizeHold(ctx context.Context, ins
 			}
 			if err != nil || !templatesDifferOnlyInCPURequest(from, target) {
 				log.FromContext(ctx).Info("Kura StatefulSet revision changes more than the CPU request; rolling", "pod", pod.Name, "fromRevision", revision, "toRevision", sts.Status.UpdateRevision)
-				return r.releaseCPUResizeHold(ctx, sts)
+				return r.releaseCPUResizeHold(ctx, instance, sts)
 			}
 		}
 		if pod.Spec.NodeName == "" {
@@ -162,7 +162,7 @@ func (r *KuraInstanceReconciler) reconcileCPUResizeHold(ctx context.Context, ins
 					continue
 				}
 				log.FromContext(ctx).Info("in-place CPU resize refused; falling back to a rolling update", "pod", pod.Name, "error", err.Error())
-				return r.releaseCPUResizeHold(ctx, sts)
+				return r.releaseCPUResizeHold(ctx, instance, sts)
 			}
 			log.FromContext(ctx).Info("resizing Kura pod CPU request in place", "pod", pod.Name, "fromMilli", podCPURequestMilli(pod), "toMilli", want)
 			continue
@@ -180,16 +180,12 @@ func (r *KuraInstanceReconciler) reconcileCPUResizeHold(ctx context.Context, ins
 	if !settled || sts.Status.Replicas != replicas(instance) || sts.Status.UpdatedReplicas != sts.Status.Replicas {
 		return nil
 	}
-	return r.releaseCPUResizeHold(ctx, sts)
+	return r.releaseCPUResizeHold(ctx, instance, sts)
 }
 
-func (r *KuraInstanceReconciler) releaseCPUResizeHold(ctx context.Context, sts *appsv1.StatefulSet) error {
+func (r *KuraInstanceReconciler) releaseCPUResizeHold(ctx context.Context, instance *kurav1alpha1.KuraInstance, sts *appsv1.StatefulSet) error {
 	before := sts.DeepCopy()
-	delete(sts.Annotations, cpuResizeHoldAnnotation)
-	sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
-		Type:          appsv1.RollingUpdateStatefulSetStrategyType,
-		RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{Partition: ptr(int32(0))},
-	}
+	releaseControllerRolloutHold(instance, sts)
 	return r.Patch(ctx, sts, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{}))
 }
 

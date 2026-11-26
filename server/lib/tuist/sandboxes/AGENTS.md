@@ -440,7 +440,17 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `tuist generate` takes more targets from the binary cache as it fills in
   after a push, which changes their dependents' build settings, and a
   session's first build recompiled 302 files of the Tuist app a few hours
-  after its snapshot (measured, 2026-11).
+  after its snapshot (measured, 2026-11). A build records the default
+  branch's head it cloned (`commit_sha`, from GitHub through the account's
+  installation), and `RefreshMacSnapshotsWorker` (every ten minutes,
+  `refresh_mac_snapshots/0`) rebuilds a snapshot of the current script that
+  is at least half an hour old once the head moved, while Macs were created
+  for its repository on its template in the last day, so sessions boot from
+  a recent head instead of waiting out the six hours. A builder whose create
+  or command failed for the infrastructure (no room, a host that
+  disconnected or timed out, CI taking the slot) is replaced on the next
+  step; only a script that exits non-zero, or a builder that dies after its
+  command started, fails the build and holds the key for an hour.
   Such a Mac records the repository (`sandboxes.repository`): the Macs
   created for it on the snapshot's template in 24 hours, except creates that
   failed (`error`), are the snapshot's spawns, which make it popular and so copied out like an Orb snapshot (the
@@ -546,8 +556,8 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `archived`, never to `error`, because the object is the only copy. An
   archive with memory (`archive_memory`: the disk stream's `tail_offset`
   and `tail_sha256`, and the writing node's `compat`, its hello's
-  `snapshot_compat`: CPU model and flags, host kernel version and
-  Firecracker version) is placed only on nodes with the same
+  `snapshot_compat`: CPU model, microcode and flags, full host kernel
+  release and Firecracker version) is placed only on nodes with the same
   `snapshot_compat`, waiting for room on them, and on the node it was
   archived from (`archive_memory.node`), or on a node still loading another
   warm restore's memory (`Archives.restoring_nodes/0`: restores on one node
@@ -860,10 +870,15 @@ socket, the poller and the caller share a replica:
   to, WebSocket upgrade to `TuistWeb.SandboxNodeWebSock` with a 120 s
   idle timeout (nodes report every 30 s).
 - `TuistWeb.Plugs.RequireSandboxesPlug` gates both account APIs on
-  `FeatureFlags.sandboxes_enabled?/1` (an explicit `:sandboxes` flag on
-  canary and production), and the poller manager only runs pollers for
-  flagged accounts. Accounts get the shapes in `Sandbox.shapes/0` and
-  workspaces up to 100 GB.
+  `FeatureFlags.sandboxes_enabled?/1` (on canary and production, any of
+  `:sandboxes`, `:linux_sandboxes` or `:macos_sandboxes`), and the poller
+  manager only runs pollers for flagged accounts. Platforms open separately:
+  `Sandboxes.create_sandbox/3` refuses a platform the account lacks
+  (`FeatureFlags.sandbox_platform_enabled?/2`: `:sandboxes` covers both, the
+  others one each) with `platform_not_enabled` (403) before admission, and
+  Amp gets a final 403 for that Orb type. Turning a platform flag's boolean
+  gate on opens that platform to every account. Accounts get the shapes in
+  `Sandbox.shapes/0` and workspaces up to 100 GB.
 - `TuistWeb.API.SandboxesController`: API under
   `/api/accounts/:account_handle/sandboxes` (agent environments,
   including `PATCH agent-environments/:id` for the API key, the federation

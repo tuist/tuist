@@ -42,6 +42,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
+  alias Tuist.Marketing.Attribution
   alias Tuist.RateLimit
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
@@ -1140,7 +1141,7 @@ defmodule Tuist.Accounts do
   Creates a user from pending OAuth sign-up data with a specific username.
   Used after the user selects their username during OAuth sign-up flow.
   """
-  def create_user_from_pending_oauth(oauth_data, username) do
+  def create_user_from_pending_oauth(oauth_data, username, opts \\ []) do
     oauth2_attrs = %{
       provider: String.to_existing_atom(oauth_data["provider"]),
       id_in_provider: oauth_data["uid"],
@@ -1151,7 +1152,8 @@ defmodule Tuist.Accounts do
            password: generate_random_string(16),
            handle: username,
            oauth2_identity: oauth2_attrs,
-           email_verified_at: oauth_email_verified_at(oauth2_attrs.provider)
+           email_verified_at: oauth_email_verified_at(oauth2_attrs.provider),
+           attribution: Keyword.get(opts, :attribution)
          ) do
       {:ok, user} ->
         assign_sso_user_to_organization(
@@ -1232,6 +1234,7 @@ defmodule Tuist.Accounts do
       |> Multi.run(:default_macos_runner_profile, fn _repo, %{account: account} ->
         RunnerProfiles.create_default_macos_for_account(account)
       end)
+      |> insert_signup_attribution(Keyword.get(opts, :attribution))
 
     user_account =
       if is_nil(oauth2_identity) do
@@ -1277,6 +1280,18 @@ defmodule Tuist.Accounts do
         {:error, :internal_server_error}
     end
   end
+
+  defp insert_signup_attribution(multi, attribution) when is_map(attribution) do
+    Multi.run(multi, :signup_attribution, fn repo, %{user: %{id: user_id}} ->
+      # Attribution is best effort: a malformed one must not fail the sign-up.
+      case user_id |> Attribution.signup_changeset(attribution) |> repo.insert() do
+        {:ok, signup_attribution} -> {:ok, signup_attribution}
+        {:error, %Changeset{}} -> {:ok, nil}
+      end
+    end)
+  end
+
+  defp insert_signup_attribution(multi, _attribution), do: multi
 
   defp user_handle(email, opts) do
     suffix = Keyword.get(opts, :suffix, "")

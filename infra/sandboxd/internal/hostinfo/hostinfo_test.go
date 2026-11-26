@@ -123,20 +123,24 @@ func TestReclaimCgroupLeavesACgroupUnderTargetAlone(t *testing.T) {
 }
 
 func TestSnapshotCompatFollowsTheCPUKernelAndFirecracker(t *testing.T) {
-	cpu := func(model, flags string) string {
+	cpu := func(model, microcode, flags string) string {
 		return "processor\t: 0\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: " + model +
-			"\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nflags\t\t: " + flags +
-			"\n\nprocessor\t: 1\nvendor_id\t: other\n"
+			"\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: " + microcode +
+			"\nflags\t\t: " + flags + "\n\nprocessor\t: 1\nvendor_id\t: other\n"
 	}
-	base := ParseSnapshotCompat(cpu("68", "fpu avx512f"), "6.8.0-138-generic\n", "1.16.2")
-	if got := ParseSnapshotCompat(cpu("68", "fpu avx512f"), "6.8.0-149-generic", "1.16.2"); got != base {
-		t.Fatal("a distribution kernel build changed the key")
+	base := ParseSnapshotCompat(cpu("68", "0xb404032", "fpu avx512f"), "6.8.0-149-generic\n", "1.16.2")
+	if got := ParseSnapshotCompat(cpu("68", "0xb404032", "fpu avx512f"), "6.8.0-149-generic", "1.16.2"); got != base {
+		t.Fatal("a trailing newline changed the key")
 	}
 	for name, other := range map[string]string{
-		"model":       ParseSnapshotCompat(cpu("69", "fpu avx512f"), "6.8.0-138-generic", "1.16.2"),
-		"flags":       ParseSnapshotCompat(cpu("68", "fpu"), "6.8.0-138-generic", "1.16.2"),
-		"kernel":      ParseSnapshotCompat(cpu("68", "fpu avx512f"), "6.11.0-1-generic", "1.16.2"),
-		"firecracker": ParseSnapshotCompat(cpu("68", "fpu avx512f"), "6.8.0-138-generic", "1.17.0"),
+		"model":     ParseSnapshotCompat(cpu("69", "0xb404032", "fpu avx512f"), "6.8.0-149-generic", "1.16.2"),
+		"microcode": ParseSnapshotCompat(cpu("68", "0xb404035", "fpu avx512f"), "6.8.0-149-generic", "1.16.2"),
+		"flags":     ParseSnapshotCompat(cpu("68", "0xb404032", "fpu"), "6.8.0-149-generic", "1.16.2"),
+		// KVM's MSR handling changes within one upstream version: snapshots
+		// of 6.8.0-151 did not load on 6.8.0-149.
+		"distribution build": ParseSnapshotCompat(cpu("68", "0xb404032", "fpu avx512f"), "6.8.0-151-generic", "1.16.2"),
+		"kernel":             ParseSnapshotCompat(cpu("68", "0xb404032", "fpu avx512f"), "6.11.0-1-generic", "1.16.2"),
+		"firecracker":        ParseSnapshotCompat(cpu("68", "0xb404032", "fpu avx512f"), "6.8.0-149-generic", "1.17.0"),
 	} {
 		if other == base {
 			t.Errorf("a different %s kept the key", name)

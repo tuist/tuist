@@ -82,12 +82,13 @@ server:
     # Static key authenticating sealed volume-key responses (KURA_VOLUME_TRANSPORT_KEYS).
     kuraVolumeTransportKeys:
       enabled: true
-    # Cloak key rotation off V1, step 1 of the Tuist.Vault moduledoc: every pod
-    # holds k2026-11 (SECRET_KEYS/encryption_keys) but still encrypts with V1.
+    # Cloak key rotation off V1, step 2 of the Tuist.Vault moduledoc: new
+    # writes use k2026-11 (SECRET_KEYS/encryption_keys); V1 stays to read
+    # existing values until they are re-encrypted.
     encryptionKeys:
       enabled: true
       keyIds: [V1, k2026-11]
-      currentKeyId: V1
+      currentKeyId: k2026-11
     originAppKey:
       enabled: true
     apns:
@@ -916,6 +917,11 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
+  # The CI-parity `ci` template beside the default, for sessions that ask
+  # for `template: "ci"`. Canary first; production stays off until a ci
+  # session has run here.
+  ciTemplate:
+    enabled: true
   # Firecracker in its own vmm container (step 2a of seamless daemon
   # restarts), after qualifying on staging.
   vmm:

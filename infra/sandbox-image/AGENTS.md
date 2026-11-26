@@ -133,8 +133,16 @@ and fails naming what the image lacks (`/bin/bash`, `git`, `sudo`,
 image's `runner`), adds `builder` on 2000 and `user`'s passwordless sudo, and
 writes the image's `ENV` to `/etc/profile.d/00-image-env.sh`, since a rootfs
 has no image config. Install the result with the same `TEMPLATE_NAME`.
-`validate-ci-template.sh` in sandboxd boots the published runner image this
-way on KVM (`sandbox-orbs-validation.yml`, `ci_template` input).
+
+The `ci` template is built this way from the Linux runner image pinned by
+digest in `ci-guest-image`. `sandbox-image.yml` publishes it with every
+template tag as `<tag>-ci`; the file is part of the template's source, so
+bumping it publishes a new tag, and a published tag never changes (a node
+keeps a tag it already installed). `sandboxes.ciTemplate.enabled` adds a
+second init container to the installer that seeds it under
+`templates/ci/<tag>` with its own `ROOTFS_SIZE`. `validate-ci-template.sh` in
+sandboxd boots the same pin on KVM (`sandbox-orbs-validation.yml`,
+`ci_template` input).
 
 ## Template init container
 

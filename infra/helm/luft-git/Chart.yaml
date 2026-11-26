@@ -1,0 +1,6 @@
+apiVersion: v2
+name: luft-git
+description: Private Git storage for Luft, independent of the application release.
+type: application
+version: 0.1.0
+appVersion: "0.4.1"

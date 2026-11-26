@@ -12,7 +12,6 @@ place to assign, review, and close work. It does not backfill existing items.
 The workflow checks the issue/PR author, not the event sender. It excludes:
 
 - GitHub accounts of type `Bot` and logins ending in `[bot]`.
-- `tuistit`, the legacy automation account that has a human account type.
 - Members of `@tuist/company` (employees) or `@tuist/external` (contractors).
 
 Team membership is fetched with pagination for each event. Keep those teams up

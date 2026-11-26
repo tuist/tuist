@@ -651,6 +651,26 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /host
+        {{- if .Values.sandboxes.ciTemplate.enabled }}
+        # The CI-parity template, installed under its own name with the same
+        # tag. The daemon serves it to creates that name it and prunes its
+        # older tags itself; the default template stays what creates get.
+        - name: ci-template
+          image: "{{ .Values.sandboxes.templateImage.repository }}:{{ $templateTag }}{{ .Values.sandboxes.ciTemplate.tagSuffix }}"
+          imagePullPolicy: {{ .Values.sandboxes.templateImage.pullPolicy }}
+          env:
+            - name: TEMPLATE_TAG
+              value: {{ $templateTag | quote }}
+            - name: TEMPLATE_NAME
+              value: ci
+            - name: TEMPLATE_DIR
+              value: "/host/templates/ci/{{ $templateTag }}"
+            - name: ROOTFS_SIZE
+              value: "{{ .Values.sandboxes.ciTemplate.rootfsGiB }}G"
+          volumeMounts:
+            - name: data
+              mountPath: /host
+        {{- end }}
       containers:
         # Keeps the Pod, and with it the installed version, until the next
         # template upgrade replaces it.

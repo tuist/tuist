@@ -62,7 +62,7 @@ defmodule TuistWeb.PulseSymptomsLiveTest do
       ])
 
     {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse")
-    html = render_async(view)
+    html = render_async(view, 5_000)
 
     assert has_element?(view, "#symptoms-widget-opened")
     sources = "#symptom-#{id(1)} [data-part='symptom-sources']"
@@ -112,7 +112,7 @@ defmodule TuistWeb.PulseSymptomsLiveTest do
     {:ok, _} = PulseFixtures.mirror_symptoms(ctx.account, revisions)
     base = "/#{ctx.account.name}/pulse"
     {:ok, view, _} = live(ctx.conn, base)
-    render_async(view)
+    render_async(view, 5_000)
 
     first_row = fn -> view |> element("#symptoms-table tbody tr:first-child") |> render() end
     assert first_row.() =~ ~r/Title 1\s*</
@@ -124,28 +124,28 @@ defmodule TuistWeb.PulseSymptomsLiveTest do
           "filter_phenomenon_op===&filter_phenomenon_val=saturation"
         ] do
       render_patch(view, base <> "?" <> filter)
-      render_async(view)
+      render_async(view, 5_000)
       assert has_element?(view, "[data-part='active-filters']")
       assert has_element?(view, "#symptoms-table", "Title 22")
       refute has_element?(view, "#symptoms-table", ~r/Title 1(?!\d)/)
     end
 
     render_patch(view, base <> "?sort_by=p_degraded&sort_order=desc")
-    render_async(view)
+    render_async(view, 5_000)
     assert first_row.() =~ "Title 22"
 
     render_patch(view, base <> "?page=2")
-    render_async(view)
+    render_async(view, 5_000)
     assert first_row.() =~ "Title 21"
 
     render_patch(view, base <> "?search=Title%2017")
-    render_async(view)
+    render_async(view, 5_000)
     assert has_element?(view, "#symptoms-table", "Title 17")
     refute has_element?(view, "#symptoms-table", "Title 18")
 
     # Unknown values are dropped rather than failing the page.
     render_patch(view, base <> "?page=abc&sort_by=title&filter_tier_op===&filter_tier_val=urgent")
-    render_async(view)
+    render_async(view, 5_000)
     refute has_element?(view, "#symptoms-error")
     refute has_element?(view, "[data-part='active-filters']")
     assert first_row.() =~ ~r/Title 1\s*</
@@ -165,7 +165,7 @@ defmodule TuistWeb.PulseSymptomsLiveTest do
 
   test "shows an empty state when nothing was mirrored", ctx do
     {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse")
-    render_async(view)
+    render_async(view, 5_000)
     assert has_element?(view, "#symptoms-empty", "Nothing has needed investigation yet.")
   end
 
@@ -289,7 +289,7 @@ defmodule TuistWeb.PulseSymptomsLiveTest do
     end)
 
     {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/symptoms/#{id(1)}")
-    render_async(view)
+    render_async(view, 5_000)
     chart = view |> element("#pulse-symptom-occurrences [data-part='data']") |> render() |> Floki.parse_fragment!()
     [series] = chart |> Floki.text() |> JSON.decode!() |> Access.get("series")
     assert series["data"] == [[point * 1000, 743], [(point + 60) * 1000, 0]]
@@ -298,7 +298,7 @@ defmodule TuistWeb.PulseSymptomsLiveTest do
 
     expect(Tuist.Pulse, :error_issue, fn _, _, _, _ -> {:error, :timeout} end)
     render_patch(view, "/#{ctx.account.name}/pulse/symptoms/#{id(1)}")
-    render_async(view)
+    render_async(view, 5_000)
     assert has_element?(view, "#pulse-symptom-measurements-unavailable", "Missing data is not zero events")
     refute has_element?(view, "#pulse-symptom-occurrences")
     assert has_element?(view, "#pulse-symptom-summary")

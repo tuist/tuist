@@ -112,6 +112,12 @@
           default_open={String.starts_with?(@current_path, "/commercial/gtm")}
         >
           <.sidebar_item
+            label={gettext("Acquisition")}
+            icon="filter"
+            navigate={~p"/commercial/gtm/acquisition"}
+            selected={String.starts_with?(@current_path, "/commercial/gtm/acquisition")}
+          />
+          <.sidebar_item
             label={gettext("Content")}
             icon="file_text"
             navigate={~p"/commercial/gtm/content"}

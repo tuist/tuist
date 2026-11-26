@@ -791,7 +791,7 @@ msgstr "ملاحظة"
 msgid "Open"
 msgstr "فتح"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:611
+#: lib/tuist_web/live/pulse_symptoms_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "Open symptoms"
 msgstr "فتح الأعراض"
@@ -935,11 +935,6 @@ msgstr "صفحات الأعراض"
 msgid "Symptoms"
 msgstr "الأعراض"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:615
-#, elixir-autogen, elixir-format
-msgid "Symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
-msgstr "الأعراض المفتوحة الآن مقارنةً ببداية الفترة. يوضح الرسم البياني عدد الأعراض التي كانت مفتوحة في نهاية كل ساعة أو يوم."
-
 #: lib/tuist_web/live/pulse_symptoms_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Symptoms opened"
@@ -970,16 +965,6 @@ msgstr "لم يتم تحديث العَرَض."
 #, elixir-autogen, elixir-format
 msgid "Tier"
 msgstr "المستوى"
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:596
-#, elixir-autogen, elixir-format
-msgid "Times symptoms opened or reopened in the selected period, from the evaluator's revisions."
-msgstr "عدد مرات فتح أو إعادة فتح الأعراض في الفترة المحددة، بناءً على مراجعات المقيِّم."
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:607
-#, elixir-autogen, elixir-format
-msgid "Times symptoms resolved in the selected period, after several quiet windows."
-msgstr "عدد مرات حل الأعراض في الفترة المحددة، بعد عدة فترات هدوء."
 
 #: lib/tuist_web/live/pulse_symptom_live.ex:149
 #: lib/tuist_web/live/pulse_symptoms_live.ex:283
@@ -1046,3 +1031,18 @@ msgstr "مقارنةً بآخر 30 يومًا"
 #, elixir-autogen, elixir-format
 msgid "vs previous 7 days"
 msgstr "مقارنة بالأيام السبعة السابقة"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+msgstr "عدد الأعراض المفتوحة في اللوحة أو التي تسببت في تنبيهات الصفحة الآن، مقارنةً ببداية الفترة. يوضح الرسم البياني عدد الأعراض التي كانت مفتوحة في نهاية كل ساعة أو يوم."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Times board or page symptoms resolved in the selected period, after several quiet windows."
+msgstr "عدد المرات التي تم فيها حل أعراض اللوحة أو تنبيهات الصفحة خلال الفترة المحددة، بعد عدة فترات هدوء."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
+msgstr "عدد المرات التي فتحت أو أعيد فيها فتح أعراض وصلت إلى اللوحة أو تسببت في تنبيهات صفحة خلال الفترة المحددة. لا تُحتسب الأعراض التي بقيت في مرحلة التدقيق، والتي يسجلها المُقيّم فقط."

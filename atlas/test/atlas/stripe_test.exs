@@ -448,6 +448,33 @@ defmodule Atlas.StripeTest do
     end
   end
 
+  describe "pay_invoice_out_of_band/2" do
+    test "posts paid_out_of_band to /invoices/:id/pay" do
+      test_pid = self()
+
+      post = fn %Req.Request{} = request ->
+        send(test_pid, {:post, URI.to_string(request.url), request.options.form})
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{
+             "id" => "in_wire",
+             "customer" => "cus_wire",
+             "status" => "paid",
+             "currency" => "usd",
+             "livemode" => true
+           }
+         }}
+      end
+
+      assert {:ok, %Invoice{id: "in_wire", status: "paid"}} =
+               Stripe.pay_invoice_out_of_band("in_wire", api_key: "sk_test_pay", post: post)
+
+      assert_received {:post, "https://api.stripe.com/v1/invoices/in_wire/pay", [paid_out_of_band: true]}
+    end
+  end
+
   describe "search_customers/2" do
     test "queries /customers/search and decodes the results" do
       test_pid = self()

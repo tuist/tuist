@@ -41,6 +41,16 @@ defmodule TuistWeb.AmpOrbsController do
     send_resp(conn, :forbidden, "Provider is not authorized")
   end
 
+  # Final: the account may not create on the Orb type's platform, such as
+  # macOS while only Linux is open, so Amp must not retry the spawn.
+  defp respond(conn, {:error, {:platform_not_enabled, platform}}) do
+    name = if platform == :darwin, do: "macOS", else: "Linux"
+
+    conn
+    |> put_resp_header("x-tuist-orb-refusal", "platform-not-enabled")
+    |> send_resp(:forbidden, "#{name} Orbs are not enabled for this account")
+  end
+
   defp respond(conn, {:error, :sandbox_concurrency_limit}) do
     conn
     |> put_resp_header("x-tuist-orb-retry", "admission")

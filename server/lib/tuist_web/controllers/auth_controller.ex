@@ -8,6 +8,7 @@ defmodule TuistWeb.AuthController do
   alias Tuist.Accounts
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
+  alias Tuist.Marketing.Attribution
   alias Tuist.OAuth.Google
   alias Tuist.OAuth2.SSOClient
   alias TuistWeb.Authentication
@@ -85,14 +86,25 @@ defmodule TuistWeb.AuthController do
       conn = Authentication.restore_login_return_to(conn, params)
 
       if Google.authoritative_email?(claims) or match?({:ok, _}, Accounts.get_oauth2_identity(:google, claims["sub"])) do
-        complete_oauth_callback(conn, %Auth{
-          provider: :google,
-          uid: claims["sub"],
-          info: %Info{email: claims["email"], name: claims["name"], image: claims["picture"]},
-          extra: %Extra{raw_info: %{user: claims}}
-        })
+        # One Tap has no OAuth `state`; its form posts the page's campaign
+        # in its URL instead.
+        complete_oauth_callback(
+          conn,
+          %Auth{
+            provider: :google,
+            uid: claims["sub"],
+            info: %Info{email: claims["email"], name: claims["name"], image: claims["picture"]},
+            extra: %Extra{raw_info: %{user: claims}}
+          },
+          attribution: Attribution.from_params(params)
+        )
       else
-        redirect(conn, to: Authentication.login_path(~p"/users/auth/google", get_session(conn, :user_return_to)))
+        redirect(conn,
+          to:
+            ~p"/users/auth/google"
+            |> Authentication.login_path(get_session(conn, :user_return_to))
+            |> Attribution.with_campaign(params)
+        )
       end
     else
       failure ->
@@ -103,7 +115,9 @@ defmodule TuistWeb.AuthController do
           :error,
           dgettext("dashboard_auth", "Google sign-in could not be completed. Please try logging in again.")
         )
-        |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
+        |> redirect(
+          to: ~p"/users/log_in" |> Authentication.login_path(params["return_to"]) |> Attribution.with_campaign(params)
+        )
     end
   end
 
@@ -307,6 +321,9 @@ defmodule TuistWeb.AuthController do
     end
   end
 
+  defp callback_state(%Plug.Conn{params: %{"state" => state}}), do: state
+  defp callback_state(_conn), do: nil
+
   defp provider_auth_enabled?(:github), do: Tuist.Environment.github_auth_enabled?()
   defp provider_auth_enabled?(:google), do: Tuist.Environment.google_auth_enabled?()
   defp provider_auth_enabled?(:apple), do: Tuist.Environment.apple_auth_enabled?()
@@ -368,6 +385,13 @@ defmodule TuistWeb.AuthController do
                   "oauth_return_url" => return_to,
                   "invitation_token" => invitation_token_for_signup(invitation, sso_organization, auth.info.email)
                 }
+
+                # The campaign the sign-up page passed on waits on the server
+                # for the username step, not in the session.
+                Attribution.hold(
+                  ["oauth_signup", oauth_data["provider"], oauth_data["uid"]],
+                  Keyword.get_lazy(opts, :attribution, fn -> Attribution.held(["oauth_state", callback_state(conn)]) end)
+                )
 
                 conn
                 |> put_session(:pending_oauth_signup, oauth_data)

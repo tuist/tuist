@@ -788,7 +788,7 @@ msgstr "Наблюдение"
 msgid "Open"
 msgstr "Открыть"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:611
+#: lib/tuist_web/live/pulse_symptoms_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "Open symptoms"
 msgstr "Открытые симптомы"
@@ -932,11 +932,6 @@ msgstr "Страницы симптомов"
 msgid "Symptoms"
 msgstr "Симптомы"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:615
-#, elixir-autogen, elixir-format
-msgid "Symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
-msgstr "Симптомы, открытые на данный момент по сравнению с началом периода. На графике показано количество открытых симптомов в конце каждого часа или дня."
-
 #: lib/tuist_web/live/pulse_symptoms_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Symptoms opened"
@@ -967,16 +962,6 @@ msgstr "Не удалось обновить симптом."
 #, elixir-autogen, elixir-format
 msgid "Tier"
 msgstr "Уровень"
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:596
-#, elixir-autogen, elixir-format
-msgid "Times symptoms opened or reopened in the selected period, from the evaluator's revisions."
-msgstr "Количество открытий или повторных открытий симптомов за выбранный период на основе правок оценщика."
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:607
-#, elixir-autogen, elixir-format
-msgid "Times symptoms resolved in the selected period, after several quiet windows."
-msgstr "Количество разрешённых симптомов за выбранный период после нескольких спокойных окон."
 
 #: lib/tuist_web/live/pulse_symptom_live.ex:149
 #: lib/tuist_web/live/pulse_symptoms_live.ex:283
@@ -1043,3 +1028,18 @@ msgstr "по сравнению с предыдущими 30 днями"
 #, elixir-autogen, elixir-format
 msgid "vs previous 7 days"
 msgstr "по сравнению с предыдущими 7 днями"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+msgstr "Количество открытых симптомов на доске или вызывающих пейджинг в данный момент по сравнению с началом периода. График показывает, сколько симптомов было открыто в конце каждого часа или дня."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Times board or page symptoms resolved in the selected period, after several quiet windows."
+msgstr "Количество случаев разрешения симптомов на доске или вызывающих пейджинг за выбранный период после нескольких окон тишины."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
+msgstr "Количество случаев открытия или повторного открытия симптомов, попавших на доску или вызвавших пейджинг, за выбранный период. Симптомы, оставшиеся на уровне аудита, которые фиксируются только оценщиком, не учитываются."

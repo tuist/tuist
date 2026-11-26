@@ -15,6 +15,7 @@ defmodule Tuist do
       # -----
       # These modules contain utilities that are used for the marketing-related
       # routes and features.
+      Marketing.Attribution,
       Marketing.BazelShowcase,
       Marketing.Blog,
       Marketing.Blog.CoverArtwork,

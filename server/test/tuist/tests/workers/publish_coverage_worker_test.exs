@@ -39,10 +39,7 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorkerTest do
 
     key = Coverage.storage_key(Tuist.Repo.preload(project, :account), run.id)
 
-    expect(Storage, :download_to_file, fn ^key, destination, _account ->
-      File.cp!(upload, destination)
-      {:ok, destination}
-    end)
+    serve(key, upload)
 
     assert :ok =
              perform_job(PublishCoverageWorker, %{
@@ -69,12 +66,41 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorkerTest do
 
     @tag :tmp_dir
     test "is cancelled when it inflates past the limit", %{tmp_dir: tmp_dir} = context do
-      stub(Environment, :coverage_max_inflated_bytes, fn -> 100 end)
-      upload = write_upload(tmp_dir, deflate(String.duplicate(file_line("Sources/A.swift"), 5)))
+      # Small enough compressed to be downloaded (under a quarter of the
+      # limit), past the limit once inflated.
+      stub(Environment, :coverage_max_inflated_bytes, fn -> 2_000 end)
+      upload = write_upload(tmp_dir, deflate(String.duplicate(file_line("Sources/A.swift"), 50)))
+      assert File.stat!(upload).size < 500
 
       assert {:cancel, :coverage_too_large} = perform_upload(context, upload)
       assert CoverageFixtures.run_summary(context.project.id, context.run.id) == nil
       assert [] = Path.wildcard(Path.join(System.tmp_dir!(), "coverage_*.ndjson"))
+    end
+
+    test "is cancelled without being downloaded when it is past a quarter of the inflated limit", context do
+      stub(Environment, :coverage_max_inflated_bytes, fn -> 4_000 end)
+      expect(Storage, :get_object_size, fn _key, _account -> {:ok, 1_001} end)
+      reject(&Storage.stream_object/2)
+
+      assert {:cancel, :coverage_too_large} = perform_upload(context)
+      assert CoverageFixtures.run_summary(context.project.id, context.run.id) == nil
+    end
+
+    test "is cancelled once the download passes the limit, when the object grew since it was sized", context do
+      stub(Environment, :coverage_max_inflated_bytes, fn -> 4_000 end)
+      pulled = :counters.new(1, [])
+      expect(Storage, :get_object_size, fn _key, _account -> {:ok, 100} end)
+
+      expect(Storage, :stream_object, fn _key, _account ->
+        Stream.repeatedly(fn ->
+          :counters.add(pulled, 1, 1)
+          :binary.copy("x", 100)
+        end)
+      end)
+
+      assert {:cancel, :coverage_too_large} = perform_upload(context)
+      assert :counters.get(pulled, 1) == 11
+      assert [] = Path.wildcard(Path.join(System.tmp_dir!(), "coverage_*.deflate"))
     end
 
     @tag :tmp_dir
@@ -148,22 +174,16 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorkerTest do
     running = Tuist.Repo.get!(Oban.Job, running.id)
     {:ok, _rerun} = Coverage.enqueue_publish(run, %{storage_key: "rerun", tool: "llvm-cov"}, 1, 2)
 
-    expect(Storage, :download_to_file, fn "first", destination, _account ->
-      File.cp!(upload, destination)
-      {:ok, destination}
-    end)
+    serve("first", upload)
 
     assert {:snooze, 0} = PublishCoverageWorker.perform(running)
     assert %Oban.Job{args: %{"storage_key" => "rerun"}} = Tuist.Repo.get!(Oban.Job, running.id)
   end
 
-  defp perform_upload(%{account: account, project: project, run: run}, upload) do
+  defp perform_upload(%{account: account, project: project, run: run}, upload \\ nil) do
     key = Coverage.storage_key(Tuist.Repo.preload(project, :account), run.id)
 
-    expect(Storage, :download_to_file, fn ^key, destination, _account ->
-      File.cp!(upload, destination)
-      {:ok, destination}
-    end)
+    if upload, do: serve(key, upload)
 
     perform_job(PublishCoverageWorker, %{
       "test_run_id" => run.id,
@@ -174,6 +194,11 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorkerTest do
       "shard_index" => nil,
       "expected_shards" => 1
     })
+  end
+
+  defp serve(key, upload) do
+    expect(Storage, :get_object_size, fn ^key, _account -> {:ok, File.stat!(upload).size} end)
+    expect(Storage, :stream_object, fn ^key, _account -> File.stream!(upload, 65_536) end)
   end
 
   defp file_line(path) do

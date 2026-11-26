@@ -277,6 +277,13 @@ type runtimeStatus struct {
 	// GatewayGRPCPort is the gRPC-only listener the process has bound, zero
 	// when it has none. It is the evidence the gRPC Ingress switches on.
 	GatewayGRPCPort int32 `json:"gateway_grpc_port"`
+	// The floor-derived admission pool and the peak foreground demand on it
+	// over the last one to two minutes, which memory autosizing learns the
+	// floor from. Nil from a release that predates them: no reading, never
+	// a reading of zero.
+	FloorPoolCapacityBytes          *uint64 `json:"floor_pool_capacity_bytes"`
+	FloorPoolRecentPeakDemandBytes  *uint64 `json:"floor_pool_recent_peak_demand_bytes"`
+	FloorPoolAdmissionTimeoutsTotal *uint64 `json:"floor_pool_admission_timeouts_total"`
 }
 
 // podRuntimeSample is one pod's last observed /status/rollout report plus
@@ -542,6 +549,8 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
 	r.observeSteadyCPUUsage(ctx, instance, pods, samples)
 	applyScheduleCap(instance, pods, time.Now())
+	r.observeMemoryDemand(ctx, instance, pods, samples, time.Now())
+	applyMemoryScheduleCap(instance, pods, time.Now())
 	// A single-copy LVM migration runs a temporary standby (lvm_standby.go).
 	// Roles and the storage lifecycle count it; spec and status writes keep the
 	// declared instance.
@@ -712,6 +721,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 	}
+	handoffRollout, err := r.reconcilePrimaryHandoffRollout(ctx, desired, primaryPod)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.replacePendingPodsForStorageDecrease(ctx, desired); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -766,6 +779,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
+	// A held rollout advances on runtime catch-up and endpoint changes, which
+	// raise no pod event, so it is polled rather than left to the resync.
+	if handoffRollout {
+		return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
+	}
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
@@ -2384,6 +2402,20 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(
 		// Do not substitute an unverified destination during a storage handoff.
 		return current, evacuating, nil
 	}
+	// A held rollout replaces the routed primary last, and only after both
+	// roles have moved to an updated, caught-up replica.
+	sts := &appsv1.StatefulSet{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); {
+	case err == nil:
+		for name := range primaryHandoffDemotions(sts, pods) {
+			if evacuating == nil {
+				evacuating = map[string]bool{}
+			}
+			evacuating[name] = true
+		}
+	case !apierrors.IsNotFound(err):
+		return "", nil, err
+	}
 	demoteEvacuatingPods(pods, health, caughtUp, evacuating)
 	return choosePrimaryPod(current, instance.Name, pods, health), evacuating, nil
 }
@@ -3569,8 +3601,10 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
 			sts.Spec.PersistentVolumeClaimRetentionPolicy.WhenDeleted = appsv1.RetainPersistentVolumeClaimRetentionPolicyType
 			delete(sts.Annotations, cpuResizeHoldAnnotation)
+			delete(sts.Annotations, primaryHandoffRolloutAnnotation)
 		}
 		holdCPURequestChange(sts, previousTemplate, time.Now())
+		holdTemplateChangeForPrimaryHandoff(instance, sts)
 		return nil
 	})
 	return err
@@ -4865,20 +4899,9 @@ const (
 // peaks at, so raising it in step would exhaust a box's schedulable memory
 // without serving a single extra byte.
 func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) corev1.ResourceRequirements {
-	floorMib := instance.Spec.MemoryFloorMib
-	if floorMib <= 0 {
-		floorMib = defaultMemoryFloorMib
-	}
-	ceilingMib := instance.Spec.MemoryCeilingMib
-	if ceilingMib <= 0 {
-		ceilingMib = defaultMemoryCeilingMib
-	}
-	// The API rejects a limit below its request, so a profile that inverts the
-	// two would make every pod of the instance unadmittable. Clamping keeps the
-	// floor authoritative: a reservation is a promise, a ceiling is headroom.
-	if ceilingMib < floorMib {
-		ceilingMib = floorMib
-	}
+	// The plan's profile, raised where the instance's admission pool demand
+	// has outgrown it (see memory_autosize.go).
+	floorMib, ceilingMib := memoryProfileMib(instance)
 
 	// The request is observed per instance (see cpu_autosize.go); the ceiling
 	// is the plan's, and bounds it because the API rejects a limit under its

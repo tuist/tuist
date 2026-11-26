@@ -1979,6 +1979,10 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "http_inflight_requests": status.http_inflight,
         "grpc_inflight_requests": status.grpc_inflight,
         "memory_pressure_state": status.memory_pressure_state,
+        "floor_pool_capacity_bytes": status.floor_pool_capacity_bytes,
+        "floor_pool_recent_peak_demand_bytes": status.floor_demand.recent_peak_bytes,
+        "floor_pool_admission_waits_total": status.floor_demand.waits,
+        "floor_pool_admission_timeouts_total": status.floor_demand.timeouts,
         "fd_timeout_count": status.fd_timeout_count,
         "peer_connection_failure_count": status.peer_connection_failure_count,
         "backfill_initial_cycle": status.backfill.initial_cycle.as_str(),
@@ -5862,6 +5866,12 @@ mod tests {
             .metrics
             .record_file_descriptor_wait("timeout", Duration::from_millis(5));
         context.state.metrics.note_peer_connection_failure();
+        let _materialized = context
+            .state
+            .memory
+            .try_acquire_response_materialization(4096)
+            .expect("an empty pool admits the response")
+            .expect("non-zero reservation should return a permit");
         context.state.enter_draining();
 
         let response = public_router(context.state.clone())
@@ -5881,6 +5891,13 @@ mod tests {
         assert_eq!(body["ready"], false);
         assert_eq!(body["ring_members"], 2);
         assert_eq!(body["memory_pressure_state"], 0);
+        assert_eq!(
+            body["floor_pool_capacity_bytes"],
+            context.state.memory.transient_capacity_bytes()
+        );
+        assert_eq!(body["floor_pool_recent_peak_demand_bytes"], 2 * 4096);
+        assert_eq!(body["floor_pool_admission_waits_total"], 0);
+        assert_eq!(body["floor_pool_admission_timeouts_total"], 0);
         assert_eq!(body["fd_timeout_count"], 1);
         assert_eq!(body["peer_connection_failure_count"], 1);
         let fingerprint = body["ring_fingerprint"]

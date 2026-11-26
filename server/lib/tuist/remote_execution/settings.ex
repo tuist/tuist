@@ -8,7 +8,11 @@ defmodule Tuist.RemoteExecution.Settings do
   An action asks for another VM size with the `tuist-memory-gb` execution
   property, which the gateway passes on as `memory_gb`; with automatic task
   sizing (`Tuist.RemoteExecution.TaskSizes`) that is a floor and every VM
-  boots with `burst_vcpus/0`. Each size has one vCPU per 2 GB, its guarantee
+  boots with `burst_vcpus/0`. An action without the property runs in
+  `default_memory_gb/1`, which is also the size of the warm pool and of
+  leases: 4 GB, or 2 GB when the account's VMs burst, since their vCPUs no
+  longer follow their memory and task sizing raises an action to what it
+  measured. Each size has one vCPU per 2 GB, its guarantee
   when it bursts; the workers offer the same shapes
   (`infra/helm/remote-execution`). Every size gets a workspace disk of
   `vm_workspace_gb/0`, which the workers' template snapshots are built with
@@ -23,6 +27,7 @@ defmodule Tuist.RemoteExecution.Settings do
   # into idle cores; its cgroup weight is its guarantee, which the account's
   # vCPU limit counts: the shape's vCPUs until the action has been measured.
   @burst_vcpus 8
+  @burst_default_memory_gb 2
 
   defstruct [
     :vcpus,
@@ -39,6 +44,10 @@ defmodule Tuist.RemoteExecution.Settings do
   def vm_memory_mb, do: @vm_memory_mb
   def vm_workspace_gb, do: @vm_workspace_gb
   def default_memory_gb, do: div(@vm_memory_mb, 1024)
+
+  @doc "The size of an action that asks for none, and of the account's warm and leased VMs."
+  def default_memory_gb(%__MODULE__{burst: true}), do: @burst_default_memory_gb
+  def default_memory_gb(_settings), do: default_memory_gb()
   def memory_sizes_gb, do: @memory_sizes_gb
 
   def shape(memory_gb) when memory_gb in @memory_sizes_gb,

@@ -261,6 +261,12 @@ spec:
                 memoryCeilingMib:
                   type: integer
                   format: int32
+                # Upper bound (MiB) for a floor the controller raises from the
+                # instance's admission pool demand. Zero keeps memoryFloorMib.
+                memoryFloorMaxMib:
+                  type: integer
+                  format: int32
+                  minimum: 0
                 # limits.cpu. requests.cpu has no field here: the controller
                 # observes it per instance. Zero sets no CPU limit.
                 cpuCeilingMilli:
@@ -496,6 +502,44 @@ spec:
                 lastReconciledAt:
                   type: string
                   format: date-time
+                memoryAutosize:
+                  type: object
+                  properties:
+                    floorMib:
+                      type: integer
+                      format: int32
+                    bucketStartedAt:
+                      type: string
+                      format: date-time
+                    bucketFloorsMib:
+                      type: array
+                      maxItems: 28
+                      items:
+                        type: integer
+                        format: int32
+                    bucketWantedMib:
+                      type: integer
+                      format: int32
+                    bucketTimeouts:
+                      type: integer
+                      format: int64
+                    podTimeouts:
+                      type: array
+                      items:
+                        type: object
+                        required: [pod, timeouts]
+                        properties:
+                          pod:
+                            type: string
+                          timeouts:
+                            type: integer
+                            format: int64
+                    scheduleCapMib:
+                      type: integer
+                      format: int32
+                    scheduleCapSetAt:
+                      type: string
+                      format: date-time
                 cpuAutosize:
                   type: object
                   properties:

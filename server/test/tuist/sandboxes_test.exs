@@ -329,6 +329,25 @@ defmodule Tuist.SandboxesTest do
       reject(&Capacity.place/1)
       assert {:error, %Ecto.Changeset{}} = Sandboxes.create_sandbox(account_fixture(), %{vcpus: 0})
     end
+
+    test "refuses a platform the account may not create on without a row, and still creates on the other" do
+      account = account_fixture()
+      account_id = account.id
+      stub(Tuist.FeatureFlags, :sandbox_platform_enabled?, fn %{id: ^account_id}, platform -> platform == :linux end)
+
+      # The API passes the platform as a string; Amp Orbs pass an atom.
+      assert {:error, {:platform_not_enabled, :darwin}} = Sandboxes.create_sandbox(account, %{platform: "darwin"})
+      assert {:error, {:platform_not_enabled, :darwin}} = Sandboxes.create_sandbox(account, %{platform: :darwin})
+      assert Repo.all(from(s in Sandbox, where: s.account_id == ^account_id)) == []
+
+      expect(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
+
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts ->
+        {:ok, %{"boot_ms" => 180, "template_tag" => "sha-1"}}
+      end)
+
+      assert {:ok, %Sandbox{platform: :linux, state: :running}} = Sandboxes.create_sandbox(account, %{})
+    end
   end
 
   describe "pause/1 and resume/1" do

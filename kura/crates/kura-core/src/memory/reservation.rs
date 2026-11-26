@@ -242,6 +242,7 @@ impl ForegroundMemoryReservation {
 
 pub(super) struct ForegroundWaiter {
     inner: Arc<MemoryControllerInner>,
+    requested_bytes: u64,
 }
 
 pub(super) struct ResponseStreamWaiter {
@@ -278,10 +279,19 @@ impl Drop for ResponseStreamWaiter {
 }
 
 impl ForegroundWaiter {
-    pub(super) fn new(inner: Arc<MemoryControllerInner>) -> Self {
+    /// Queues `requested_bytes` of foreground demand on the floor pool until
+    /// dropped.
+    pub(super) fn new(inner: Arc<MemoryControllerInner>, requested_bytes: u64) -> Self {
         let waiters = inner.foreground_waiters.fetch_add(1, Ordering::AcqRel) + 1;
         inner.metrics.update_foreground_memory_waiters(waiters);
-        Self { inner }
+        inner.floor_demand.begin_wait(
+            inner.pools.transient_reserved_bytes() as u64,
+            requested_bytes,
+        );
+        Self {
+            inner,
+            requested_bytes,
+        }
     }
 }
 
@@ -289,6 +299,7 @@ impl Drop for ForegroundWaiter {
     fn drop(&mut self) {
         let waiters = self.inner.foreground_waiters.fetch_sub(1, Ordering::AcqRel) - 1;
         self.inner.metrics.update_foreground_memory_waiters(waiters);
+        self.inner.floor_demand.end_wait(self.requested_bytes);
     }
 }
 

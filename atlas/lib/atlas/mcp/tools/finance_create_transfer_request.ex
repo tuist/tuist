@@ -1,4 +1,4 @@
-max_transfer_amount = "25000.00"
+max_transfer_amount = "80000.00"
 
 defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
   @moduledoc """

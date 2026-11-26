@@ -159,9 +159,11 @@ defmodule Tuist.RemoteExecution do
     skip_cache = Map.get(params, "skip_cache", false)
     inputs = Map.get(params, "inputs")
     memory_gb = Map.get(params, "memory_gb", Settings.default_memory_gb())
+    memory_explicit = Map.get(params, "memory_explicit", true)
 
     if Regex.match?(~r/^[a-f0-9]{64}$/, hash) and is_boolean(skip_cache) and
-         memory_gb in Settings.memory_sizes_gb() and valid_inputs?(inputs) do
+         memory_gb in Settings.memory_sizes_gb() and is_boolean(memory_explicit) and
+         valid_inputs?(inputs) do
       {memory_gb, cpu_guarantee_milli} = TaskSizes.choose(project, memory_gb, params)
 
       attrs = %{

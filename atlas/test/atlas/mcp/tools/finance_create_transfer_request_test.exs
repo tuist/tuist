@@ -167,14 +167,14 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequestTest do
     assert message =~ "directly in Qonto"
   end
 
-  test "caps each transfer at 25000.00 EUR, even to a known IBAN", %{conn: conn} do
-    at_cap = put_in(@args, ["transfers", Access.at(1), "amount"], "25000.00")
+  test "caps each transfer at 80000.00 EUR, even to a known IBAN", %{conn: conn} do
+    at_cap = put_in(@args, ["transfers", Access.at(1), "amount"], "80000.00")
     assert {:ok, _result} = execute_tool(FinanceCreateTransferRequest, conn, at_cap)
     assert_received {:qonto, _path, _auth, _key, _body}
 
-    over_cap = put_in(@args, ["transfers", Access.at(1), "amount"], "25000.01")
+    over_cap = put_in(@args, ["transfers", Access.at(1), "amount"], "80000.01")
     assert {:error, message} = execute_tool(FinanceCreateTransferRequest, conn, over_cap)
-    assert message =~ "transfers[1]: amount 25000.01 is above the 25000.00 EUR limit"
+    assert message =~ "transfers[1]: amount 80000.01 is above the 80000.00 EUR limit"
     refute_received {:qonto, _path, _auth, _key, _body}
   end
 

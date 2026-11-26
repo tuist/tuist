@@ -430,7 +430,15 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 			// back, as on a local resume of such an image. Neither boots
 			// when that guest's Firecracker did not die and may still write
 			// the disks: the create fails and leaves the archive.
-			if err == nil || !errors.Is(err, vsock.ErrAgentNotReady) || errors.Is(err, ErrVMNotKilled) || ctx.Err() != nil || (!header.DisksSynced && !memoryLoaded) {
+			//
+			// A VM state Firecracker refuses to load (a node whose KVM
+			// cannot set its MSRs, which the compatibility key missed)
+			// never ran the guest, so synced disks cold boot as on a node
+			// of another kind; unsynced ones keep the archive for a node
+			// that loads it.
+			hung := errors.Is(err, vsock.ErrAgentNotReady) && (header.DisksSynced || memoryLoaded)
+			refused := loadRefused(err) && header.DisksSynced
+			if err == nil || errors.Is(err, ErrVMNotKilled) || ctx.Err() != nil || (!hung && !refused) {
 				return res, err
 			}
 			log.Warn("archived memory did not resume; cold booting the disks", "error", err, "disks_synced", header.DisksSynced)
@@ -637,6 +645,13 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 	log.Info("sandbox resumed from its archived memory", "restore", time.Since(started), "pid", inst.PID(),
 		"chunks", stats.Chunks, "stored_chunks", memory.StoredChunks(), "faulted", stats.Faulted, "filled", stats.Filled)
 	return protocol.CreateResult{BootMs: time.Since(started).Milliseconds(), MemoryPending: true}, nil
+}
+
+// loadRefused reports whether Firecracker answered a snapshot load with a
+// client error: it built no microVM, so the guest never ran.
+func loadRefused(err error) bool {
+	var apiErr *firecracker.APIError
+	return errors.As(err, &apiErr) && apiErr.Path == "/snapshot/load" && apiErr.Status >= 400 && apiErr.Status < 500
 }
 
 // coldCreateAfterWarm boots the kernel on a restore's disks once its

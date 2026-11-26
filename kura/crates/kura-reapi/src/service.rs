@@ -537,13 +537,11 @@ impl ReapiService {
         }
         let mut inputs = Vec::new();
         while !level.is_empty() {
-            let level_bytes = level.iter().map(|digest| digest.size_bytes as u64).sum();
-            let Ok(mut budget) =
-                AtomicMaterializationBudget::reserve(&self.state, level_bytes).await
+            let Ok((reads, mut budget)) =
+                batch_read_many_atomic(&self.state, namespace_id, &level).await
             else {
                 break;
             };
-            let reads = batch_read_many_atomic(&self.state, namespace_id, &level, &budget).await;
             permits.extend(budget.take_permit());
             let mut next = Vec::new();
             for (digest, (read, duration)) in level.into_iter().zip(reads) {
@@ -2605,20 +2603,12 @@ impl ContentAddressableStorage for ReapiService {
         } else {
             None
         };
-        // Reserve the whole batch's response memory once, before any blob is
-        // read, waiting for a momentarily full pool. The client's digests carry
-        // the sizes, so the request can be admitted as a unit; claiming per blob
-        // while blobs read concurrently would mean waiting for the pool while
-        // already holding part of it.
-        let mut budget = AtomicMaterializationBudget::reserve(
-            &self.state,
-            digests
-                .iter()
-                .map(|digest| u64::try_from(digest.size_bytes).unwrap_or(0))
-                .fold(0_u64, |total, size| total.saturating_add(size)),
-        )
-        .await?;
-        let reads = batch_read_many_atomic(&self.state, namespace_id, &digests, &budget).await;
+        // Look every blob up, then reserve the response memory for the ones
+        // present, once and before any is read, waiting for a momentarily full
+        // pool. Claiming per blob while blobs read concurrently would mean
+        // waiting for the pool while already holding part of it.
+        let (reads, mut budget) =
+            batch_read_many_atomic(&self.state, namespace_id, &digests).await?;
         let read_results: Vec<(reapi::batch_read_blobs_response::Response, Duration)> = digests
             .into_iter()
             .zip(reads)
@@ -2819,8 +2809,8 @@ impl ContentAddressableStorage for ReapiService {
                     "GetTree tree exceeds one request's response budget",
                 ));
             }
-            let mut budget = AtomicMaterializationBudget::reserve(&self.state, level_bytes).await?;
-            let reads = batch_read_many_atomic(&self.state, namespace_id, &level, &budget).await;
+            let (reads, mut budget) =
+                batch_read_many_atomic(&self.state, namespace_id, &level).await?;
             permits.extend(budget.take_permit());
             let mut next = Vec::new();
             for (read, _duration) in reads {
@@ -3947,61 +3937,120 @@ const BATCH_READ_GROUP_ITEMS: usize = 8;
 const BATCH_READ_GROUP_CONCURRENCY: usize = 16;
 
 /// Reads a whole `BatchReadBlobs` request, returning one result and duration
-/// per digest in request order. Direct blobs are resolved on the async worker
-/// and read in groups, one blocking-pool task per group instead of one per
-/// blob. Recipes, misses and failed reads (for example a blob relocated by a
-/// concurrent promotion) take the per-blob path, so answers are unchanged.
-async fn batch_read_many_atomic(
-    state: &SharedState,
+/// per digest in request order, and the budget the response's memory was
+/// reserved under.
+///
+/// Every digest is looked up before any memory is reserved, so the request
+/// waits for the response pool only for the blobs it will actually serve: a
+/// miss costs nothing and an all-miss batch never queues. Reserving from the
+/// client's declared sizes instead held pool memory for every missing blob
+/// until the response was read, which is how a build probing an evicted
+/// cache filled the pool with reservations for bytes it never received.
+///
+/// Direct blobs are read in groups, one blocking-pool task per group instead
+/// of one per blob; chunked blobs are reassembled from their recipe. A direct
+/// read that fails (for example a blob relocated by a concurrent promotion)
+/// falls back to the per-blob serving read, so answers are unchanged.
+async fn batch_read_many_atomic<'a>(
+    state: &'a SharedState,
     namespace_id: &str,
     digests: &[reapi::Digest],
-    budget: &AtomicMaterializationBudget<'_>,
-) -> Vec<(BlobRead, Duration)> {
+) -> Result<(Vec<(BlobRead, Duration)>, AtomicMaterializationBudget<'a>), Status> {
     enum Plan {
         Done(BlobRead),
+        Missing,
         Read(Box<ArtifactManifest>),
-        PerBlob,
+        Recipe(Box<ChunkedBlobRecipe>),
     }
-    // Each item reports the time spent on it: its own manifest lookup plus,
-    // for a grouped read, its group's read.
+    // Each item reports the time spent on it: its own lookup plus, for a
+    // grouped read, its group's read. Waiting for the pool is the request's,
+    // not any one item's.
     let mut plans = Vec::with_capacity(digests.len());
     let mut durations = Vec::with_capacity(digests.len());
-    for digest in digests {
+    // Digests with no direct blob, whose recipes are looked up concurrently
+    // below rather than one at a time in this loop.
+    let mut unresolved = Vec::new();
+    for (index, digest) in digests.iter().enumerate() {
         let started_at = Instant::now();
-        if is_empty_blob(digest) {
-            plans.push(Plan::Done(Ok(Some(Vec::new()))));
-            durations.push(started_at.elapsed());
-            continue;
-        }
-        let key = match digest_key(digest) {
-            Ok(key) => blob_key(&key),
-            Err(status) => {
-                plans.push(Plan::Done(Err(status)));
-                durations.push(started_at.elapsed());
-                continue;
-            }
-        };
-        let plan = match state
-            .store
-            .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
-            .await
-        {
-            Ok(Some(manifest)) => match budget.claim(manifest.size, "CAS response materialization")
-            {
-                Ok(()) => Plan::Read(Box::new(manifest)),
+        let plan = if is_empty_blob(digest) {
+            // FindMissingBlobs reports the empty blob present without it ever
+            // being stored, so it has to be served here too.
+            Plan::Done(Ok(Some(Vec::new())))
+        } else {
+            match digest_key(digest) {
                 Err(status) => Plan::Done(Err(status)),
-            },
-            Ok(None) => Plan::PerBlob,
-            Err(error) => {
-                state
-                    .metrics
-                    .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-                Plan::Done(Err(Status::internal(error)))
+                Ok(key) => match state
+                    .store
+                    .fetch_artifact_for_serving(
+                        ArtifactProducer::Reapi,
+                        namespace_id,
+                        &blob_key(&key),
+                    )
+                    .await
+                {
+                    Ok(Some(manifest)) => Plan::Read(Box::new(manifest)),
+                    Ok(None) => {
+                        unresolved.push(index);
+                        Plan::Missing
+                    }
+                    Err(error) => {
+                        state
+                            .metrics
+                            .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
+                        Plan::Done(Err(Status::internal(error)))
+                    }
+                },
             }
         };
         plans.push(plan);
         durations.push(started_at.elapsed());
     }
+    let lookups: Vec<_> = futures_util::stream::iter(unresolved.into_iter().map(|index| {
+        let digest = &digests[index];
+        async move {
+            let started_at = Instant::now();
+            let plan = match fetch_recipe(state, namespace_id, digest).await {
+                Ok(Some((_recipe_manifest, recipe))) => Plan::Recipe(Box::new(recipe)),
+                Ok(None) => Plan::Missing,
+                Err(error) => Plan::Done(Err(Status::internal(error))),
+            };
+            (index, plan, started_at.elapsed())
+        }
+    }))
+    .buffered(BATCH_READ_GROUP_CONCURRENCY)
+    .collect()
+    .await;
+    for (index, plan, duration) in lookups {
+        plans[index] = plan;
+        durations[index] += duration;
+    }
+    let wanted_bytes = plans
+        .iter()
+        .map(|plan| match plan {
+            Plan::Read(manifest) => manifest.size,
+            Plan::Recipe(recipe) => recipe.blob_size(),
+            _ => 0,
+        })
+        .fold(0_u64, u64::saturating_add);
+
+    let budget = AtomicMaterializationBudget::reserve(state, wanted_bytes).await?;
+
+    // Claims run in request order, so a batch larger than one request's
+    // budget serves its leading blobs and refuses the rest, as before.
+    let plans: Vec<Plan> = plans
+        .into_iter()
+        .map(|plan| {
+            let size = match &plan {
+                Plan::Read(manifest) => manifest.size,
+                Plan::Recipe(recipe) => recipe.blob_size(),
+                _ => return plan,
+            };
+            match budget.claim(size, "CAS response materialization") {
+                Ok(()) => plan,
+                Err(status) => Plan::Done(Err(status)),
+            }
+        })
+        .collect();
 
     let reads: Vec<(usize, &ArtifactManifest)> = plans
         .iter()
@@ -4065,96 +4114,46 @@ async fn batch_read_many_atomic(
     for (index, result, group_duration) in groups.into_iter().flatten() {
         results[index] = Some((result, durations[index] + group_duration));
     }
-    let mut per_blob = Vec::new();
+    let mut recipes = Vec::new();
     for (index, plan) in plans.into_iter().enumerate() {
         match plan {
             Plan::Done(result) => results[index] = Some((result, durations[index])),
+            Plan::Missing => {
+                state
+                    .metrics
+                    .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+                results[index] = Some((Ok(None), durations[index]));
+            }
             Plan::Read(_) => {}
-            Plan::PerBlob => per_blob.push(index),
+            Plan::Recipe(recipe) => recipes.push((index, recipe)),
         }
     }
-    let per_blob_results: Vec<_> = futures_util::stream::iter(per_blob.into_iter().map(|index| {
-        let digest = &digests[index];
-        async move {
+    let recipe_results: Vec<_> =
+        futures_util::stream::iter(recipes.into_iter().map(|(index, recipe)| async move {
             let started_at = Instant::now();
-            let result = batch_read_one_atomic(state, namespace_id, digest, budget).await;
+            let result = read_composite_bytes(state, namespace_id, &recipe, true)
+                .await
+                .map(|bytes| {
+                    state.metrics.record_artifact_read(
+                        ArtifactProducer::Reapi,
+                        "ok",
+                        bytes.len() as u64,
+                    );
+                    Some(bytes)
+                });
             (index, result, started_at.elapsed())
-        }
-    }))
-    .buffered(16)
-    .collect()
-    .await;
-    for (index, result, duration) in per_blob_results {
-        results[index] = Some((result, duration));
+        }))
+        .buffered(BATCH_READ_GROUP_CONCURRENCY)
+        .collect()
+        .await;
+    for (index, result, duration) in recipe_results {
+        results[index] = Some((result, durations[index] + duration));
     }
-    results
+    let results = results
         .into_iter()
         .map(|result| result.expect("every digest has a read result"))
-        .collect()
-}
-
-/// Lock-free batch-read path. The memory permit travels with the returned bytes
-/// and is retained by the response, while an atomic request counter bounds the
-/// aggregate before any materialization starts.
-async fn batch_read_one_atomic(
-    state: &SharedState,
-    namespace_id: &str,
-    digest: &reapi::Digest,
-    budget: &AtomicMaterializationBudget<'_>,
-) -> Result<Option<Vec<u8>>, Status> {
-    // FindMissingBlobs reports the empty blob present without it ever being
-    // stored, so it has to be served here too.
-    if is_empty_blob(digest) {
-        return Ok(Some(Vec::new()));
-    }
-    let key = blob_key(&digest_key(digest)?);
-    let manifest = state
-        .store
-        .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
-        .await
-        .inspect_err(|_| {
-            state
-                .metrics
-                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-        })
-        .map_err(Status::internal)?;
-    if manifest.is_none() {
-        let Some((_recipe_manifest, recipe)) = fetch_recipe(state, namespace_id, digest)
-            .await
-            .map_err(Status::internal)?
-        else {
-            state
-                .metrics
-                .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
-            return Ok(None);
-        };
-        budget.claim(recipe.blob_size(), "CAS response materialization")?;
-        let bytes = read_composite_bytes(state, namespace_id, &recipe, true).await?;
-        state
-            .metrics
-            .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
-        return Ok(Some(bytes));
-    }
-    let manifest = manifest.expect("checked above");
-    budget.claim(manifest.size, "CAS response materialization")?;
-    let Some(bytes) = read_serving_bytes(state, &manifest)
-        .await
-        .inspect_err(|_| {
-            state
-                .metrics
-                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-        })
-        .map_err(Status::internal)?
-    else {
-        state
-            .metrics
-            .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
-        return Ok(None);
-    };
-    state
-        .metrics
-        .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
-    Ok(Some(bytes))
+        .collect();
+    Ok((results, budget))
 }
 
 async fn maybe_read_cas_bytes(
@@ -5020,11 +5019,10 @@ impl<'a> AtomicMaterializationBudget<'a> {
     /// Reserves what the request asked for, bounded by the per-request budget,
     /// waiting for a momentarily full pool rather than shedding against it.
     ///
-    /// `wanted_bytes` comes from the client's own digests, so a batch whose
-    /// blobs are missing reserves for bytes it never serves. That over-reserve
-    /// is bounded by the per-request budget and released with the response; the
-    /// alternative is to learn each size only after a store lookup, which is
-    /// what forced the per-blob claims this replaces.
+    /// `wanted_bytes` is what the caller's lookups found present, so a miss
+    /// reserves nothing. Callers look blobs up before reserving rather than
+    /// sizing from the client's digests, which reserved for blobs that were
+    /// never served and held the pool against them until the response was read.
     async fn reserve(state: &'a SharedState, wanted_bytes: u64) -> Result<Self, Status> {
         let budget_bytes = state.memory.reapi_response_budget_bytes();
         let over_budget_kind = over_budget_shed_kind(state);
@@ -12206,6 +12204,61 @@ mod tests {
             .collect();
         assert_eq!(codes, vec![Some(0), Some(tonic::Code::NotFound as i32)]);
         assert_eq!(response.get_ref().responses[0].data, bytes);
+        assert_materialization_metrics(&context, 0, 0, 0);
+    }
+
+    #[tokio::test]
+    async fn cas_batch_reads_of_missing_blobs_answer_on_a_full_pool() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 512 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 640 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
+            state: context.state.clone(),
+        };
+        let limit = context.state.memory.reapi_materialization_limit_bytes();
+        let _first_hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(limit)
+            .expect("the per-request limit should be acquirable when idle");
+        let _second_hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(
+                context.state.memory.transient_capacity_bytes() as usize - limit,
+            )
+            .expect("the remaining transient budget should be acquirable when idle");
+        // A build probing an evicted cache declares real sizes for blobs the
+        // node no longer holds. Reserving from those sizes waited out the
+        // admission timeout on a full pool and shed the request.
+        let missing_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"evicted-bytes")),
+            size_bytes: 8 * 1024 * 1024,
+        };
+
+        let started_at = Instant::now();
+        let response = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                digests: vec![missing_digest],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("a batch of missing blobs needs no response memory");
+
+        assert!(started_at.elapsed() < Duration::from_millis(500));
+        let codes: Vec<_> = response
+            .get_ref()
+            .responses
+            .iter()
+            .map(|response| response.status.as_ref().map(|status| status.code))
+            .collect();
+        assert_eq!(codes, vec![Some(tonic::Code::NotFound as i32)]);
         assert_materialization_metrics(&context, 0, 0, 0);
     }
 

@@ -788,7 +788,7 @@ msgstr "Obserwacja"
 msgid "Open"
 msgstr "Otwórz"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:611
+#: lib/tuist_web/live/pulse_symptoms_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "Open symptoms"
 msgstr "Otwarte symptomy"
@@ -932,11 +932,6 @@ msgstr "Strony objawów"
 msgid "Symptoms"
 msgstr "Objawy"
 
-#: lib/tuist_web/live/pulse_symptoms_live.ex:615
-#, elixir-autogen, elixir-format
-msgid "Symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
-msgstr "Objawy otwarte obecnie w porównaniu ze stanem na początku okresu. Wykres pokazuje liczbę otwartych objawów na koniec każdej godziny lub dnia."
-
 #: lib/tuist_web/live/pulse_symptoms_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Symptoms opened"
@@ -967,16 +962,6 @@ msgstr "Nie udało się zaktualizować objawu."
 #, elixir-autogen, elixir-format
 msgid "Tier"
 msgstr "Poziom"
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:596
-#, elixir-autogen, elixir-format
-msgid "Times symptoms opened or reopened in the selected period, from the evaluator's revisions."
-msgstr "Liczba otwarć lub ponownych otwarć objawów w wybranym okresie, na podstawie rewizji oceniającego."
-
-#: lib/tuist_web/live/pulse_symptoms_live.ex:607
-#, elixir-autogen, elixir-format
-msgid "Times symptoms resolved in the selected period, after several quiet windows."
-msgstr "Liczba rozwiązanych objawów w wybranym okresie, po kilku oknach bez aktywności."
 
 #: lib/tuist_web/live/pulse_symptom_live.ex:149
 #: lib/tuist_web/live/pulse_symptoms_live.ex:283
@@ -1043,3 +1028,18 @@ msgstr "w porównaniu z poprzednimi 30 dniami"
 #, elixir-autogen, elixir-format
 msgid "vs previous 7 days"
 msgstr "w porównaniu z poprzednimi 7 dniami"
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Board or page symptoms open now, compared with the start of the period. The chart shows how many were open at the end of each hour or day."
+msgstr "Liczba otwartych objawów na tablicy lub zgłoszeń pagerowych w chwili obecnej w porównaniu z początkiem okresu. Wykres pokazuje, ile było ich otwartych na koniec każdej godziny lub dnia."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Times board or page symptoms resolved in the selected period, after several quiet windows."
+msgstr "Liczba przypadków rozwiązania objawów na tablicy lub zgłoszeń pagerowych w wybranym okresie, po kilku oknach ciszy."
+
+#: lib/tuist_web/live/pulse_symptoms_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Times symptoms that reached the board or paged opened or reopened in the selected period. Symptoms that stayed at audit tier, which the evaluator only logs, are not counted."
+msgstr "Liczba przypadków otwarcia lub ponownego otwarcia objawów, które trafiły na tablicę lub wywołały pager, w wybranym okresie. Objawy, które pozostały na poziomie audytu (rejestrowanym tylko przez ewaluator), nie są liczone."

@@ -43,7 +43,7 @@ struct SnapshotsUploadServiceTests {
         return directory
     }
 
-    private func subject() -> SnapshotsUploadService {
+    private func subject(timeout: Duration = .seconds(600)) -> SnapshotsUploadService {
         given(configLoader).loadConfig(path: .any).willReturn(.test(fullHandle: "tuist/ios"))
         given(serverEnvironmentService).url(configServerURL: .any).willReturn(Self.serverURL)
         given(gitController).gitInfo(workingDirectory: .any).willReturn(
@@ -54,7 +54,8 @@ struct SnapshotsUploadServiceTests {
             serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader,
             gitController: gitController,
-            pollInterval: .zero
+            pollInterval: .zero,
+            timeout: timeout
         )
     }
 
@@ -189,6 +190,27 @@ struct SnapshotsUploadServiceTests {
 
         #expect(build?.status == "rejected")
         verify(snapshotBuildService).uploadSnapshotImage(.any, to: .any).called(0)
+    }
+
+    @Test(.withMockedEnvironment())
+    func failsWhenTheComparisonHasNoVerdictBeforeTheTimeout() async throws {
+        let directory = try Self.directory(["Primary.png": Self.png(width: 1, height: 1, payload: "button")])
+        defer { try? FileManager.default.removeItem(at: directory.url) }
+        given(snapshotBuildService).createSnapshotBuild(fullHandle: .any, serverURL: .any, manifest: .any)
+            .willReturn(CreatedSnapshotBuild(build: Self.build(status: "processing"), uploads: []))
+        given(snapshotBuildService).completeSnapshotBuild(fullHandle: .any, serverURL: .any, buildID: .any)
+            .willReturn(Self.build(status: "processing"))
+        given(snapshotBuildService).getSnapshotBuild(fullHandle: .any, serverURL: .any, buildID: .any)
+            .willReturn(Self.build(status: "processing"))
+
+        // Even when unreviewed changes shouldn't fail the command: without a verdict there is nothing to report.
+        let timedOut = SnapshotsUploadServiceError.comparisonTimedOut(url: "https://tuist.dev/tuist/ios/snapshots/build-1")
+        await #expect(throws: timedOut) {
+            try await subject(timeout: .zero).upload(
+                directory: directory,
+                options: SnapshotsUploadOptions(set: "ios-iphone", path: directory, failOnChanges: false)
+            )
+        }
     }
 
     @Test
