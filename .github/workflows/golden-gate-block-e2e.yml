@@ -43,6 +43,10 @@ jobs:
       - name: Build tuist-cache-volume from this branch
         working-directory: /Users/runner/src/infra/linux-runner-image
         run: mise x go@1.26.10 -- go build -o /tmp/tcv ./cmd/tuist-cache-volume
+      # The host keeps round 1's overlay once its VM is gone and Tart released it.
+      - name: Let the host keep round 1's writes
+        if: matrix.round == 2
+        run: sleep 90
       - name: Attach the block volume
         run: |
           set -euo pipefail
@@ -64,6 +68,7 @@ jobs:
           df -k "$root"
           diskutil apfs list "$(df "$root" | awk 'NR==2 {print $1}')" 2>&1 | grep -E "Capacity In Use|Volume Name|Snapshot" | head
           ls -la "/Volumes/My Shared Files/custom-cache/$scope" || true
+          echo "layers at attach: $(cat "/Volumes/My Shared Files/custom-cache/$scope/.layers" 2>/dev/null)"
       - name: Check what the previous run left
         if: matrix.round == 2
         run: |
@@ -101,3 +106,4 @@ jobs:
           mount | grep -F "$root" && echo "::error::still mounted" || echo "unmounted"
           ls -la "/Volumes/My Shared Files/custom-cache/$scope"
           cat "/Volumes/My Shared Files/custom-cache/$scope/.usage"; echo
+          echo "released: $(cat "/Volumes/My Shared Files/custom-cache/$scope/.released" 2>/dev/null || echo no)"
