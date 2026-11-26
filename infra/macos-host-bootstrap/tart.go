@@ -30,10 +30,12 @@ var hostTartLayout = tartLayout{
 	Wrapper: "/usr/local/bin/tart",
 }
 
-var tartVersionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+var tartVersionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(-tuist\.[0-9]+)?$`)
 
 // ValidTartVersion reports whether version has the shape `tart --version`
-// prints, which is also what installTart interpolates into host paths.
+// prints, which is also what installTart interpolates into host paths. A
+// -tuist.<n> suffix marks a build of Tart with our patches
+// (infra/tart-build).
 func ValidTartVersion(version string) bool {
 	return tartVersionPattern.MatchString(version)
 }
