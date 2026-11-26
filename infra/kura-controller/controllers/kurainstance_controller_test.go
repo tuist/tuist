@@ -2704,6 +2704,71 @@ func TestReconcileDataStorageResize(t *testing.T) {
 			t.Fatal("co-location is the default placement and needs no rebuild")
 		}
 	})
+
+	// A bound local volume on a host the selector no longer matches, after a
+	// region's pool changes or a host leaves it, strands its next pod Pending:
+	// the pod must land beside the volume and the selector forbids it. The
+	// standby there is rebuilt on a selected host; the primary keeps serving.
+	selected := func() *kurav1alpha1.KuraInstance {
+		instance := instance("40Gi")
+		instance.Spec.NodeSelector = map[string]string{"node.cluster.x-k8s.io/pool": "kura-test"}
+		return instance
+	}
+	outside := func(name string) *corev1.Node {
+		node := box(name, true)
+		node.Labels["node.cluster.x-k8s.io/pool"] = "kura-other"
+		return node
+	}
+
+	t.Run("rebuilds a volume left on a host outside the node selector", func(t *testing.T) {
+		c := spreadFixtureOn(selected(), [2]string{"box-old", "box-a"}, []client.Object{box("box-a", true), outside("box-old")})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), selected())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the unselected volume to be rebuilt")
+		}
+		if exists(t, c, claim(0, "40Gi")) || exists(t, c, pod(0, true)) {
+			t.Fatal("expected ordinal 0, on the unselected host, to be taken for rebuild")
+		}
+		if !exists(t, c, claim(1, "40Gi")) || !exists(t, c, pod(1, true)) {
+			t.Fatal("the primary, on a selected host, must keep its volume and keep serving")
+		}
+	})
+
+	t.Run("holds a volume outside the node selector while no selected host can take it", func(t *testing.T) {
+		c := spreadFixtureOn(selected(), [2]string{"box-old", "box-a"}, []client.Object{box("box-a", false), outside("box-old")})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), selected())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("an unselected volume with nowhere to go must keep the rollout held")
+		}
+		for ordinal := 0; ordinal < 2; ordinal++ {
+			if !exists(t, c, claim(ordinal, "40Gi")) || !exists(t, c, pod(ordinal, true)) {
+				t.Fatalf("ordinal %d must keep its volume and keep serving", ordinal)
+			}
+		}
+	})
+
+	t.Run("leaves volumes on selected hosts alone", func(t *testing.T) {
+		c := spreadFixtureOn(selected(), [2]string{"box-a", "box-b"}, []client.Object{box("box-a", true), box("box-b", true), outside("box-old")})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), selected())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("volumes on selected hosts need no rebuild")
+		}
+	})
 }
 
 func TestKuraInstanceReconcileDeletionReclaimsDataVolumes(t *testing.T) {
