@@ -92,7 +92,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
     RunSelections.record(project.id, [test_run.id])
 
-    %{run: run, test_run: test_run, load_run: load_run}
+    %{run: run, test_run: test_run, load_run: load_run, refresh: refresh}
   end
 
   describe "the Test Selection page" do
@@ -237,7 +237,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       organization: organization,
       project: project
     } do
-      %{test_run: test_run, load_run: load_run} = selection(project)
+      %{test_run: test_run, load_run: load_run, refresh: refresh} = selection(project)
       path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
 
       {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
@@ -274,6 +274,9 @@ defmodule TuistWeb.TestSelectionsLiveTest do
                lv,
                "#selection-tests-table a[href$='/tests/test-cases/runs/#{load_run.id}?tab=selective-testing']"
              )
+
+      # A skipped test never ran in the test run, and opens its part in it.
+      assert has_element?(lv, "#selection-tests-table a[href$='/tests/test-runs/#{test_run.id}/test-cases/#{refresh}']")
     end
 
     test "shows the modules, changed files, shards and debug tabs", %{
@@ -603,6 +606,27 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#test-selection-test-reason", "SearchViewModel.swift")
       assert has_element?(lv, "#selection-executed-files-table", "SearchViewModel.swift")
       assert has_element?(lv, "#selection-executed-files-table", "APIClient.swift")
+    end
+
+    test "explains, scoped to the test run, why a test that never ran was skipped", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run, load_run: load_run, refresh: refresh} = selection(project)
+      base = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+
+      {:ok, lv, _html} = live(conn, "#{base}/test-cases/#{refresh}")
+
+      assert has_element?(lv, "h1", "test_refresh()")
+      assert has_element?(lv, "#test-selection-test-reason", "Skipped: No executed file changed")
+      assert has_element?(lv, "[data-part='back-button'][href$='/tests/test-runs/#{test_run.id}?tab=test-optimizations']")
+
+      # A test that ran has its test case run's page.
+      assert {:error, {:redirect, %{to: to}}} = live(conn, "#{base}/test-cases/#{load_run.test_case_id}")
+      assert to =~ "/tests/test-cases/runs/#{load_run.id}?tab=selective-testing"
+
+      assert_raise NotFoundError, fn -> live(conn, "#{base}/test-cases/#{UUIDv7.generate()}") end
     end
 
     test "is absent for a test run without a selection", %{conn: conn, organization: organization, project: project} do

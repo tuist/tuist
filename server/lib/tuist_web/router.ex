@@ -2087,6 +2087,10 @@ defmodule TuistWeb.Router do
       live "/tests/coverage/files/*path", CoverageFileLive, :show
       live "/tests/test-selection", TestSelectionsLive
       live "/tests/test-runs/:test_run_id", TestRunLive, metadata: @public_project_route_metadata
+
+      live "/tests/test-runs/:test_run_id/test-cases/:test_case_id", TestRunTestCaseLive,
+        metadata: @public_project_route_metadata
+
       live "/tests/test-cases", TestCasesLive, metadata: @public_project_route_metadata
       live "/tests/test-cases/:test_case_id", TestCaseLive, metadata: @public_project_route_metadata
       live "/tests/test-cases/runs/:test_case_run_id", TestCaseRunLive, metadata: @public_project_route_metadata

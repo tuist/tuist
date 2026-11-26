@@ -170,6 +170,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   attr :uri, :any, required: true
   attr :project, :map, required: true
   attr :account, :map, required: true
+  attr :test_run_id, :string, required: true
   attr :filters, :map, default: %{}
   attr :tests, :list, default: []
   attr :tests_meta, :map, default: %{}
@@ -435,7 +436,7 @@ defmodule TuistWeb.TestSelection.RunTab do
             id="selection-tests-table"
             rows={@tests}
             row_key={& &1.test_case_id}
-            row_navigate={&test_href(@account, @project, &1)}
+            row_navigate={&test_href(@account, @project, @test_run_id, &1)}
           >
             <:col
               :let={test}
@@ -776,12 +777,14 @@ defmodule TuistWeb.TestSelection.RunTab do
 
   defp tab_label("debug", _assigns), do: dgettext("dashboard_tests", "Debug")
 
-  # A test that ran opens its test case run's Selective Testing tab; one the
-  # selection skipped never ran, so it opens the test case.
-  defp test_href(account, project, %{test_case_run_id: id}) when is_binary(id) and id != "",
+  # A test that ran opens its test case run's Selective Testing tab.
+  defp test_href(account, project, _test_run_id, %{test_case_run_id: id}) when is_binary(id) and id != "",
     do: "/#{account.name}/#{project.name}/tests/test-cases/runs/#{id}?tab=selective-testing"
 
-  defp test_href(account, project, test), do: "/#{account.name}/#{project.name}/tests/test-cases/#{test.test_case_id}"
+  # A test without a run in the test run, such as a skipped one, still has
+  # its part in this selection, on a page scoped to the test run.
+  defp test_href(account, project, test_run_id, test),
+    do: "/#{account.name}/#{project.name}/tests/test-runs/#{test_run_id}/test-cases/#{test.test_case_id}"
 
   defp drop_tab_params(query) do
     Enum.reduce(
