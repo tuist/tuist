@@ -453,7 +453,9 @@ defmodule Tuist.Environment do
   The most bytes an uploaded coverage report may inflate to before its
   publication is cancelled, from `TUIST_COVERAGE_MAX_INFLATED_BYTES`; 2 GB by
   default. DEFLATE expands up to about 1000:1, so without a ceiling a small
-  upload could fill the disk it is inflated to.
+  upload could fill the disk it is inflated to. A quarter of it bounds the
+  compressed upload, which is refused before it is downloaded
+  (`Tuist.Tests.Workers.PublishCoverageWorker.download/4`).
   """
   def coverage_max_inflated_bytes(environment \\ System.get_env()) when is_map(environment) do
     parse_artifact_retention_days(

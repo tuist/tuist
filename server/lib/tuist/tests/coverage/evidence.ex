@@ -40,6 +40,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
   alias Tuist.Storage
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.Workers.PublishCoverageWorker
   alias TuistCommon.Ingestion.Bufferable
 
   require Logger
@@ -177,7 +178,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
     try do
       evidence =
         with %{account: account} <- Projects.get_project_by_id(Map.get(attrs, :project_id)),
-             :ok <- download(key, compressed, account),
+             :ok <- PublishCoverageWorker.download(key, compressed, account, @upload_max_compressed_bytes),
              {:ok, paths} <- uploaded_paths(compressed) do
           Map.merge(evidence, %{paths: paths, scopes: uploaded_scopes(compressed, paths)})
         else
@@ -192,40 +193,6 @@ defmodule Tuist.Tests.Coverage.Evidence do
       fun.(Map.put(attrs, :coverage_evidence, evidence))
     after
       File.rm(compressed)
-    end
-  end
-
-  # Sized first, so an object past the limit is never fetched, then fetched
-  # no further than the limit, in case it was replaced since: the signed URL
-  # stays valid for an hour.
-  defp download(key, destination, account) do
-    with {:ok, size} <- Storage.get_object_size(key, account),
-         :ok <- if(size > @upload_max_compressed_bytes, do: {:error, {:upload_too_large, size}}, else: :ok) do
-      stream = Storage.stream_object(key, account)
-
-      case File.open!(
-             destination,
-             [:write, :binary],
-             &Enum.reduce_while(stream, {&1, 0}, fn chunk, acc -> write_chunk(chunk, acc) end)
-           ) do
-        {:error, reason} -> {:error, reason}
-        _written -> :ok
-      end
-    end
-  rescue
-    error -> {:error, error}
-  catch
-    :exit, reason -> {:error, reason}
-  end
-
-  defp write_chunk(chunk, {file, size}) do
-    size = size + byte_size(chunk)
-
-    if size > @upload_max_compressed_bytes do
-      {:halt, {:error, :upload_too_large}}
-    else
-      IO.binwrite(file, chunk)
-      {:cont, {file, size}}
     end
   end
 

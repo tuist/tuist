@@ -7,9 +7,13 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
   the xcresult processor does. The object stays in storage as the run's raw
   coverage artifact, under the run's retention.
 
-  An upload that inflates past `Tuist.Environment.coverage_max_inflated_bytes/0`,
-  was cut off, or is not DEFLATE-compressed NDJSON is cancelled rather than
-  retried, since another attempt reads the same object. A run that has not
+  An upload larger than a quarter of
+  `Tuist.Environment.coverage_max_inflated_bytes/0` is cancelled without being
+  downloaded (`download/4`): the signed URL takes any size, and coverage
+  compresses at least 4x even with scattered lines and counts, so anything
+  within the inflated limit is within it. An upload that inflates past the
+  limit, was cut off, or is not DEFLATE-compressed NDJSON is cancelled too,
+  rather than retried, since another attempt reads the same object. A run that has not
   appeared an hour after the job was enqueued is given up on.
 
   One job publishes a shard's coverage. A newer upload for the same run and
@@ -92,7 +96,7 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
     inflated = Path.join(System.tmp_dir!(), "coverage_#{unique}.ndjson")
 
     try do
-      with {:ok, _} <- Storage.download_to_file(storage_key, compressed, account),
+      with :ok <- download_coverage(storage_key, compressed, account),
            :ok <- inflate(compressed, inflated, Environment.coverage_max_inflated_bytes()),
            :ok <-
              Coverage.publish(
@@ -111,6 +115,54 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
     after
       File.rm(compressed)
       File.rm(inflated)
+    end
+  end
+
+  defp download_coverage(storage_key, destination, account) do
+    case download(storage_key, destination, account, div(Environment.coverage_max_inflated_bytes(), 4)) do
+      {:error, {:upload_too_large, _size}} -> {:cancel, :coverage_too_large}
+      {:error, :upload_too_large} -> {:cancel, :coverage_too_large}
+      result -> result
+    end
+  end
+
+  @doc """
+  Downloads `key` to `destination`, at most `limit` bytes of it: an object
+  sized past `limit` is refused without being fetched
+  (`{:error, {:upload_too_large, size}}`), and the download stops there
+  (`{:error, :upload_too_large}`) should the object have been replaced since
+  it was sized, which its signed upload URL allows for an hour. Uploaded
+  evidence is fetched with it too
+  (`Tuist.Tests.Coverage.Evidence.with_uploaded/2`).
+  """
+  def download(key, destination, account, limit) do
+    with {:ok, size} <- Storage.get_object_size(key, account),
+         :ok <- if(size > limit, do: {:error, {:upload_too_large, size}}, else: :ok) do
+      stream = Storage.stream_object(key, account)
+
+      case File.open!(
+             destination,
+             [:write, :binary],
+             &Enum.reduce_while(stream, {&1, 0, limit}, fn chunk, acc -> write_chunk(chunk, acc) end)
+           ) do
+        {:error, reason} -> {:error, reason}
+        _written -> :ok
+      end
+    end
+  rescue
+    error -> {:error, error}
+  catch
+    :exit, reason -> {:error, reason}
+  end
+
+  defp write_chunk(chunk, {file, size, limit}) do
+    size = size + byte_size(chunk)
+
+    if size > limit do
+      {:halt, {:error, :upload_too_large}}
+    else
+      IO.binwrite(file, chunk)
+      {:cont, {file, size, limit}}
     end
   end
 

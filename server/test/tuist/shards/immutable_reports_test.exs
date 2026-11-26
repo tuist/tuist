@@ -68,7 +68,8 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     assert :skipped = Coverage.enqueue_publish(run, %{storage_key: "ignored"}, 0, 1)
     assert :skipped = Tuist.Tests.Coverage.Evidence.record(run, %{paths: ["Sources/App.swift"]}, 0)
 
-    reject(Storage, :download_to_file, 3)
+    reject(Storage, :get_object_size, 2)
+    reject(Storage, :stream_object, 2)
 
     assert {:cancel, :immutable_shard_coverage_unsupported} =
              Tuist.Tests.Workers.PublishCoverageWorker.perform(%Oban.Job{
