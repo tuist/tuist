@@ -172,4 +172,14 @@
     <string name="release_activate">"Activate release"</string>
     <string name="release_activate_title">"Change the live release?"</string>
     <string name="release_activate_message">"Activating this candidate replaces the live definition for this account.\n\nCandidate hash:\n%1$s\n\nCancel leaves the live release unchanged."</string>
+    <string name="mcp_servers">"Your MCP servers"</string>
+    <string name="organization_mcp_servers">"MCP servers for %1$s"</string>
+    <string name="mcp_servers_footer">"Threads you write in can use the tools of your servers."</string>
+    <string name="organization_mcp_servers_footer">"Every thread in this organization can use the tools of its servers. Only admins can change them."</string>
+    <string name="add">"Add"</string>
+    <string name="add_mcp_server">"Add MCP server"</string>
+    <string name="mcp_server_url_hint">"https://example.com/mcp"</string>
+    <string name="mcp_server_name_hint">"Name (optional)"</string>
+    <string name="mcp_sign_in">"Sign in"</string>
+    <string name="mcp_remove">"Remove"</string>
 </resources>

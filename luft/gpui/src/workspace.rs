@@ -13,6 +13,7 @@ use tuist_app_core::theme as theme_catalog;
 
 mod live;
 mod lounges;
+mod mcp_servers;
 mod preview;
 mod releases;
 mod socket;
@@ -20,6 +21,7 @@ mod subscriptions;
 mod threads;
 
 use lounges::{LoungesPanel, Scope};
+use mcp_servers::McpServersPanel;
 use subscriptions::SubscriptionsPanel;
 use threads::ThreadsPanel;
 
@@ -113,6 +115,7 @@ pub struct Workspace {
     dms: Entity<LoungesPanel>,
     subscriptions: Entity<SubscriptionsPanel>,
     releases: Entity<releases::ReleasesPanel>,
+    mcp_servers: Entity<McpServersPanel>,
     /// One per destination, so closing a preview can return focus to the sidebar.
     destination_focus: [FocusHandle; Destination::ALL.len()],
     _appearance: Subscription,
@@ -144,6 +147,7 @@ impl Workspace {
         let releases = cx.new(|cx| {
             releases::ReleasesPanel::new(session.clone(), &account, scroll.clone(), window, cx)
         });
+        let mcp_servers = cx.new(|cx| McpServersPanel::new(session.clone(), scope.clone(), cx));
         let threads =
             cx.new(|cx| ThreadsPanel::new(session, handle, navigation.clone(), window, cx));
         let observer = cx.observe(&navigation, |this: &mut Self, navigation, cx| {
@@ -164,6 +168,7 @@ impl Workspace {
             dms,
             subscriptions,
             releases,
+            mcp_servers,
             destination_focus: Destination::ALL.map(|_| cx.focus_handle().tab_stop(true)),
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
             _navigation: observer,
@@ -172,6 +177,12 @@ impl Workspace {
         };
         workspace.sync_subscriptions(cx);
         workspace
+    }
+
+    /// Completes the MCP server sign-in `luft://mcp-callback` answered.
+    pub fn complete_mcp_server(&mut self, url: String, cx: &mut Context<Self>) {
+        self.mcp_servers
+            .update(cx, |panel, cx| panel.complete(url, cx));
     }
 
     fn sync_subscriptions(&mut self, cx: &mut Context<Self>) {
@@ -390,6 +401,8 @@ impl Workspace {
             .child(self.subscriptions.clone())
             .child(section("Release review"))
             .child(self.releases.clone())
+            .child(section("MCP servers"))
+            .child(self.mcp_servers.clone())
             .child(section("Theme"))
             .child(themes)
             .child(section("Legal"))

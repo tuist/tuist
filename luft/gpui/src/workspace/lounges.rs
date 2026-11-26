@@ -225,6 +225,11 @@ impl Scope {
         }));
     }
 
+    /// The selected organization's handle, if one is selected.
+    pub fn organization(&self) -> Option<String> {
+        self.selected.clone()
+    }
+
     /// The account the core's lounge operations run in, and whether it is an
     /// organization. Without one, the core explains that lounges need one.
     fn account(&self) -> Option<(String, bool)> {

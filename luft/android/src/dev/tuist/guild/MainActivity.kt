@@ -103,6 +103,9 @@ class MainActivity : Activity() {
     private var subscriptionsUnavailable = false
     private var subscriptionsLive: Live? = null
     private var subscriptionsLiveKey: String? = null
+    /** MCP servers while Profile shows: the person's own and, keyed by handle, the selected organization's. */
+    private var mcpServers: List<JSONObject>? = null
+    private var organizationMcpServers: Pair<String, List<JSONObject>?>? = null
     /** The pending ChatGPT sign-in's next poll. */
     private var chatGPTPoll: Runnable? = null
     private var visible = false
@@ -247,6 +250,12 @@ class MainActivity : Activity() {
         intent.data = null
         intent.removeExtra("navigate")
         intentConsumed = true
+        if (uri?.scheme == "luft" && uri.host == "mcp-callback" && uri.path.isNullOrEmpty()) {
+            call("complete_mcp_server", JSONObject().put("url", uri.toString()), onFailure = { render() }) {
+                refreshMcpServers()
+            }
+            return true
+        }
         if (uri?.scheme == "luft" && uri.host == "oauth-callback" && uri.path.isNullOrEmpty()) {
             browserPending = false
             call("finish_sign_in", JSONObject().put("url", uri.toString())) {
@@ -329,6 +338,7 @@ class MainActivity : Activity() {
         threads = emptyList(); threadsSignInRequired = false; threadsAvailable = true; conversation = null; reply = ""
         lounges = null; room = null; readSent = 0; older = emptyList(); olderBefore = null
         subscriptions = null; subscriptionsUnavailable = false
+        mcpServers = null; organizationMcpServers = null
     }
 
     /** Loads the current screen's data. */
@@ -711,7 +721,11 @@ class MainActivity : Activity() {
             text(profile.optString("email"))
             text(profile.optString("server"))
             if (profile.optBoolean("rejected")) text(getString(R.string.sign_in_required))
-            else subscriptionsSection()
+            else {
+                subscriptionsSection()
+                mcpServersSection(null, mcpServers)
+                organizationMcpServers?.let { (handle, list) -> mcpServersSection(handle, list) }
+            }
         } ?: text(getString(R.string.sign_in_required))
         if (!browserPending) button(R.string.releases) {
             releaseSurface = java.util.UUID.randomUUID().toString()
@@ -1037,6 +1051,7 @@ class MainActivity : Activity() {
         if (isDestroyed || screen != "profile") return
         val generation = view.optLong("generation", -1)
         val profile = view.optString("active_profile_id")
+        refreshMcpServers()
         AppCore.submit("ai_subscriptions", JSONObject(), host) { result ->
             runOnUiThread {
                 if (isDestroyed || screen != "profile" ||
@@ -1085,6 +1100,100 @@ class MainActivity : Activity() {
             else -> text(getString(R.string.loading))
         }
         text(getString(R.string.ai_subscriptions_footer), 13f)
+    }
+
+    /** The selected organization's handle in the active profile, or null for the personal account. */
+    private fun selectedOrganization(): String? = view.optJSONArray("accounts").objects().firstOrNull {
+        it.optString("profile_id") == view.optString("active_profile_id") &&
+            it.optBoolean("selected") && !it.optBoolean("personal")
+    }?.optString("handle")?.ifBlank { null }
+
+    /** Reloads the MCP server lists Profile shows, for the profile and generation that asked. */
+    private fun refreshMcpServers() {
+        if (isDestroyed || screen != "profile") return
+        val generation = view.optLong("generation", -1)
+        val organization = selectedOrganization()
+        if (organization != organizationMcpServers?.first) {
+            organizationMcpServers = organization?.let { it to null }
+        }
+        for (handle in listOf(null, organization).distinct()) {
+            val args = JSONObject().apply { handle?.let { put("account_handle", it) } }
+            AppCore.submit("mcp_servers", args, host) { result ->
+                runOnUiThread {
+                    if (isDestroyed || screen != "profile" || generation != view.optLong("generation", -1)) {
+                        return@runOnUiThread
+                    }
+                    val list = result.optJSONObject("data")?.optJSONArray("servers")?.objects() ?: emptyList()
+                    if (handle == null) mcpServers = list
+                    else if (organizationMcpServers?.first == handle) organizationMcpServers = handle to list
+                    if (!busy) render()
+                }
+            }
+        }
+    }
+
+    /** MCP servers whose tools threads use: the person's own, or an organization's when `handle` is set. */
+    private fun mcpServersSection(handle: String?, list: List<JSONObject>?) {
+        text(if (handle == null) getString(R.string.mcp_servers) else getString(R.string.organization_mcp_servers, handle), 20f)
+        val args = { JSONObject().apply { handle?.let { put("account_handle", it) } } }
+        when (list) {
+            null -> text(getString(R.string.loading))
+            else -> list.forEach { server ->
+                val state = getString(
+                    if (server.optBoolean("connected")) R.string.subscription_connected else R.string.subscription_not_connected
+                )
+                button("${server.optString("name")} · $state") {
+                    AlertDialog.Builder(this).setTitle(server.optString("name"))
+                        .setMessage(server.optString("url"))
+                        .setPositiveButton(R.string.mcp_sign_in) { _, _ ->
+                            authorizeMcpServer(args().put("id", server.optString("id")))
+                        }
+                        .setNeutralButton(R.string.mcp_remove) { _, _ ->
+                            call("remove_mcp_server", args().put("id", server.optString("id"))) { refreshMcpServers() }
+                        }
+                        .setNegativeButton(R.string.cancel, null).show()
+                }
+            }
+        }
+        button(R.string.add_mcp_server) { addMcpServer(args()) }
+        text(getString(if (handle == null) R.string.mcp_servers_footer else R.string.organization_mcp_servers_footer), 13f)
+    }
+
+    private fun addMcpServer(args: JSONObject) {
+        val url = EditText(this).apply {
+            hint = getString(R.string.mcp_server_url_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
+        val name = EditText(this).apply { hint = getString(R.string.mcp_server_name_hint) }
+        val fields = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), 0, dp(20), 0)
+            addView(url); addView(name)
+        }
+        AlertDialog.Builder(this).setTitle(R.string.add_mcp_server)
+            .setView(fields)
+            .setPositiveButton(R.string.add) { _, _ ->
+                if (url.text.isBlank()) return@setPositiveButton
+                call("add_mcp_server", args.put("url", url.text.toString()).put("name", name.text.toString())) { data ->
+                    refreshMcpServers()
+                    val id = (data as? JSONObject)?.optJSONObject("server")?.optString("id").orEmpty()
+                    if (id.isNotBlank()) authorizeMcpServer(JSONObject(args.toString()).put("id", id))
+                }
+            }.setNegativeButton(R.string.cancel, null).show()
+    }
+
+    /** Opens the server's sign-in in a browser tab; `luft://mcp-callback` comes back through [consumeIntent]. */
+    private fun authorizeMcpServer(args: JSONObject) {
+        call("authorize_mcp_server", args) { data ->
+            render()
+            val uri = (data as? JSONObject)?.optString("url")?.let(Uri::parse) ?: return@call
+            if (uri.scheme != "https" || uri.host.isNullOrBlank()) { toast(R.string.request_failed); return@call }
+            try {
+                CustomTabsIntent.Builder().build().launchUrl(this, uri)
+            } catch (_: Exception) {
+                toast(R.string.browser_unavailable)
+            }
+        }
     }
 
     private fun subscriptionName(provider: String): String = when (provider) {

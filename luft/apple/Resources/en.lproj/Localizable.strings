@@ -465,3 +465,14 @@
 "This release changed. Open it again before continuing." = "This release changed. Open it again before continuing.";
 "Release request failed. Open it again to check its current state." = "Release request failed. Open it again to check its current state.";
 "This release cannot be displayed exactly with this session." = "This release cannot be displayed exactly with this session.";
+"Your MCP Servers" = "Your MCP Servers";
+"MCP Servers for %@" = "MCP Servers for %@";
+"Add Server" = "Add Server";
+"Add MCP Server" = "Add MCP Server";
+"Add" = "Add";
+"Sign In" = "Sign In";
+"Name (optional)" = "Name (optional)";
+"MCP servers are not available for this account." = "MCP servers are not available for this account.";
+"Threads you write in can use the tools of your servers." = "Threads you write in can use the tools of your servers.";
+"Every thread in this organization can use the tools of its servers. Only admins can change them." = "Every thread in this organization can use the tools of its servers. Only admins can change them.";
+"Luft signs in to the server in your browser and keeps the session on the server." = "Luft signs in to the server in your browser and keeps the session on the server.";

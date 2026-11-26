@@ -625,6 +625,12 @@ private struct ProfileView: View {
 
             if !account.rejected {
                 AISubscriptionsSection(client: client)
+                MCPServersSection(client: client, accountHandle: nil)
+                if let organization = client.view.accounts.first(where: {
+                    $0.profile_id == account.id && $0.selected && !$0.personal
+                }) {
+                    MCPServersSection(client: client, accountHandle: organization.handle)
+                }
             }
 
             // Builds without a push entitlement can't receive notifications, so they don't offer them.

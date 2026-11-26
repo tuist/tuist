@@ -314,6 +314,7 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
     @ObservationIgnored private let host = NativeHost()
     @ObservationIgnored private let queue = DispatchQueue(label: "dev.tuist.code.core", qos: .userInitiated)
     @ObservationIgnored private var browser: ASWebAuthenticationSession?
+    @ObservationIgnored private var mcpBrowser: ASWebAuthenticationSession?
     @ObservationIgnored private var browserAttempt: UUID?
     @ObservationIgnored private var started = false
 
@@ -339,7 +340,9 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
     func openURL(_ url: URL) async {
         // ASWebAuthenticationSession owns OAuth completion and state validation.
         // All other URLs go to the core, including validation of server origins.
-        guard !(url.scheme?.lowercased() == "luft" && url.host?.lowercased() == "oauth-callback") else { return }
+        guard !(url.scheme?.lowercased() == "luft" && ["oauth-callback", "mcp-callback"].contains(url.host?.lowercased())) else {
+            return
+        }
         await perform("navigate", ["url": url.absoluteString])
     }
 
@@ -422,6 +425,38 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
             self.error = error.localizedDescription
             await perform("cancel_sign_in")
         }
+    }
+
+    /// Signs in to an MCP server in the browser. The core remembers which list
+    /// the sign-in belongs to; the browser's `luft://mcp-callback` completes it.
+    /// Cancelling in the browser is not an error.
+    func authorizeMCPServer(_ id: String, accountHandle: String?) async throws {
+        var arguments: [String: Any] = ["id": id]
+        if let accountHandle { arguments["account_handle"] = accountHandle }
+        let data = try await call("authorize_mcp_server", arguments)
+        guard let text = data["url"] as? String, let url = URL(string: text) else {
+            throw AppClientError(message: String(localized: "Sign-in could not be started."))
+        }
+        let callback: URL? = try await withCheckedThrowingContinuation { continuation in
+            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: "luft") { url, error in
+                if let url {
+                    continuation.resume(returning: url)
+                } else if let error, (error as? ASWebAuthenticationSessionError)?.code != .canceledLogin {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
+            session.presentationContextProvider = self
+            session.prefersEphemeralWebBrowserSession = true
+            mcpBrowser = session
+            if !session.start() {
+                continuation.resume(throwing: AppClientError(message: String(localized: "Sign-in could not be started.")))
+            }
+        }
+        mcpBrowser = nil
+        guard let callback else { return }
+        _ = try await call("complete_mcp_server", ["url": callback.absoluteString])
     }
 
     func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
