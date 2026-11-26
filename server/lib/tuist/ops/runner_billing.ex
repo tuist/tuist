@@ -57,6 +57,12 @@ defmodule Tuist.Ops.RunnerBilling do
   unless the request sets `confirm_air_limits`, so moving an account off its
   trial before it subscribes is a deliberate choice rather than a slip.
 
+  `add_runner_items` adds the runner items to a Pro or Enterprise subscription
+  that lacks them on an account that is not on a trial, through
+  `Trials.start_billing/1`, so its runner usage is billable from then on. It is
+  refused with `:on_trial` (cancel the trial instead), `:paid_plan_required`,
+  or `:runner_items_present` when there is nothing to add.
+
   The change row is inserted before Stripe is called and the trial transition
   reconciles Stripe inside the same transaction, so a failed request records
   nothing and leaves the trial as it was.
@@ -122,6 +128,18 @@ defmodule Tuist.Ops.RunnerBilling do
       do: Repo.rollback(:paid_plan_required)
 
     account |> Trials.cancel() |> trial_result()
+  end
+
+  # For a paid subscription that never got its runner items, such as one that
+  # predates runner Prices on an account that was never on a trial.
+  defp transition_trial("add_runner_items", account, _params) do
+    if Billing.effective_plan(account) not in [:pro, :enterprise], do: Repo.rollback(:paid_plan_required)
+
+    case Trials.start_billing(account) do
+      {:ok, account} -> account
+      {:error, reason} when reason in [:on_trial, :runner_items_present, :no_subscription] -> Repo.rollback(reason)
+      {:error, _reason} -> Repo.rollback(:stripe_request_failed)
+    end
   end
 
   # With the trial state checked above, a transition only fails in Stripe.
@@ -455,7 +473,7 @@ defmodule Tuist.Ops.RunnerBilling do
   # `confirm_air_limits` is optional and only means anything to a cancel.
   defp validate_trial(params) when is_map(params) do
     with true <- Enum.sort(Map.keys(params) -- ["confirm_air_limits"]) == Enum.sort(@trial_fields),
-         true <- params["operation"] in ~w(start cancel),
+         true <- params["operation"] in ~w(start cancel add_runner_items),
          true <-
            not Map.has_key?(params, "confirm_air_limits") or
              (params["operation"] == "cancel" and is_boolean(params["confirm_air_limits"])),

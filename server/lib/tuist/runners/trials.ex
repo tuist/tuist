@@ -92,6 +92,40 @@ defmodule Tuist.Runners.Trials do
     end
   end
 
+  @doc """
+  Makes the runner usage of `account`, which is not on a trial, billable
+  from now by adding the runner items its subscription lacks, such as a
+  subscription that predates runner Prices on an account never put on a
+  trial.
+
+  Stamps `runner_trial_ended_at` as `cancel/1` does, because that instant
+  is where `Billing.usage_windows/3` splits the day: without it, the day's
+  usage from before the items existed would be invoiced too.
+
+  Changes nothing and returns `{:error, :runner_items_present}` when the
+  subscription already carries every runner item, or
+  `{:error, :no_subscription}` when the account has none.
+  """
+  def start_billing(%Account{} = account) do
+    if on_trial?(account) do
+      {:error, :on_trial}
+    else
+      Repo.transaction(fn ->
+        account =
+          account
+          |> Account.runner_trial_changeset(%{runner_trial_ended_at: DateTime.utc_now()})
+          |> Repo.update!()
+
+        case Billing.sync_runner_subscription_items(account) do
+          {:ok, :unchanged} -> Repo.rollback(:runner_items_present)
+          {:ok, :no_subscription} -> Repo.rollback(:no_subscription)
+          {:ok, _subscription} -> account
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+    end
+  end
+
   # Stripe is reconciled inside the transaction that records the
   # transition, and a failure rolls the row back. Committing first would
   # strand the account in the one state from which it cannot recover: off

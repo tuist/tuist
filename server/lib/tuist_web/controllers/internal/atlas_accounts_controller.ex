@@ -75,6 +75,8 @@ defmodule TuistWeb.Internal.AtlasAccountsController do
                :no_schedulable_subscription,
                :already_on_trial,
                :not_on_trial,
+               :on_trial,
+               :runner_items_present,
                :paid_plan_required
              ] ->
           :conflict
