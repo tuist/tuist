@@ -24191,6 +24191,98 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-255": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_action_cache_unservable_replica_declined_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Replicated action-cache entries this node declined because it lacks a blob they reference while it holds every blob of its own entry for the same action. Both regions rebuilt the action, and the region link brought the other result without its outputs; applying it would have turned a hit into a miss until the presence gate deleted it. A steady rate means two regions warm the same targets concurrently.\n\nPrometheus name: `kura_action_cache_unservable_replica_declined_total_total`",
+          "id": 255,
+          "links": [],
+          "title": "action_cache_unservable_replica_declined_total (rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -25250,11 +25342,24 @@
                         "x": 0,
                         "y": 50
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-255"
+                        },
+                        "height": 7,
+                        "width": 12,
+                        "x": 12,
+                        "y": 50
+                      }
                     }
                   ]
                 }
               },
-              "title": "Segment store, promotion & durability (18)"
+              "title": "Segment store, promotion & durability (19)"
             }
           },
           {

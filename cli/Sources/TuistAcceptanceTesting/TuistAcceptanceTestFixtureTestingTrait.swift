@@ -30,6 +30,12 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
+        // The canary account comes from CI secrets (see `acceptanceTestsEnvironmentVariables` in
+        // Project.swift), which fork pull requests don't get. Skipping is opt-in, so a secret that
+        // stops reaching the tests fails them instead of letting the deploy gate pass on skips.
+        if ProcessInfo.processInfo.environment["TUIST_ACCEPTANCE_SKIP_CANARY"] == "1" {
+            try Test.cancel("This run has no canary account (TUIST_ACCEPTANCE_SKIP_CANARY=1).")
+        }
         try await TuistAcceptanceTesting.withFixtureConnectedToCanary(
             fixture,
             fixturesDirectory: fixturesDirectory,

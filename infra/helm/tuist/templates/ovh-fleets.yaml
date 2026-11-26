@@ -18,6 +18,11 @@ account; the per-fleet displayName prefix + datacenter scope adoption).
 {{- range $key, $fleet := .Values.ovhFleets }}
 {{- if $fleet.enabled }}
 {{- $fleetName := include "tuist.componentName" (dict "root" $ "component" (printf "ovh-fleet-%s" $key)) }}
+{{- with $fleet.kuraStorageLayout }}
+{{- if ne . "lvm-v1" }}
+{{- fail (printf "ovhFleets.%s.kuraStorageLayout %q is not a known layout (lvm-v1)" $key .) }}
+{{- end }}
+{{- end }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: OVHDedicatedMachineTemplate
@@ -75,6 +80,10 @@ spec:
       tuist.dev/fleet: {{ $fleetName }}
   template:
     metadata:
+      {{- with $fleet.kuraStorageLayout }}
+      annotations:
+        tuist.dev/kura-storage-layout: {{ . | quote }}
+      {{- end }}
       labels:
         cluster.x-k8s.io/cluster-name: {{ $clusterName }}
         tuist.dev/fleet: {{ $fleetName }}

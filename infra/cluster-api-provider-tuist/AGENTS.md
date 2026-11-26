@@ -3569,7 +3569,8 @@ another host. No release-triggered or scheduled OS policy is enabled.
 LVM installation requires the explicit `tuist.dev/kura-storage-layout: lvm-v1`
 annotation on the infrastructure Machine or rack host (or `rack-seed --kura-lvm`
 for a deliberately prepared standalone seed). For a rented pool, set it on the
-MachineDeployment's `spec.template.metadata.annotations`; CAPI passes Machine
+MachineDeployment's `spec.template.metadata.annotations` (an OVH fleet does
+this with `ovhFleets.<key>.kuraStorageLayout`); CAPI passes Machine
 annotations to the cloned infrastructure Machine. Do not put it on the outer
 infrastructure-template metadata. Select replacement pools only after planning
 landing capacity; no managed pool opts in by

@@ -1647,6 +1647,8 @@ jobs:
       - name: Test
         env:
           TUIST_EE: 1
+          TEST_RUNNER_TUIST_AUTH_EMAIL: ${{ secrets.TUIST_CANARY_ACCEPTANCE_EMAIL }}
+          TEST_RUNNER_TUIST_AUTH_PASSWORD: ${{ secrets.TUIST_CANARY_ACCEPTANCE_PASSWORD }}
         run: |
           tuist test TuistServerProductionDeployAcceptanceTests --no-selective-testing -- \
             -maximum-parallel-testing-workers 2 \
@@ -1696,9 +1698,9 @@ jobs:
       # runner: with the pin the store+fetch round-trip succeeds; without it the
       # CLI picks the PN NodePort and stalls.
       TUIST_CACHE_ENDPOINT: https://cache-eu-central-canary.tuist.dev
-      # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
-      TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
-      TUIST_AUTH_PASSWORD: tuistrocks
+      # Canary test account, the same one the acceptance tests use.
+      TUIST_AUTH_EMAIL: ${{ secrets.TUIST_CANARY_ACCEPTANCE_EMAIL }}
+      TUIST_AUTH_PASSWORD: ${{ secrets.TUIST_CANARY_ACCEPTANCE_PASSWORD }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
