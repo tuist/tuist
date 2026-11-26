@@ -52,6 +52,11 @@ type blockUse struct {
 	// the same stack.
 	Layers []string
 	Clean  bool
+	// Released is Tart's word that it detached the disk and let go of the
+	// overlay. DiskImageKit writes an image out only when it is released, and
+	// Tart exits as soon as its VM stops, so an overlay still attached then can
+	// be incomplete: only a released one is kept.
+	Released bool
 }
 
 func (b *BlockVolumes) run(ctx context.Context, name string, args ...string) error {
@@ -138,6 +143,7 @@ func (b *BlockVolumes) Acquire(ctx context.Context, pod *corev1.Pod, share strin
 	}
 	_ = os.Chmod(markers, 0777)
 	_ = os.Remove(filepath.Join(markers, ".detached"))
+	_ = os.Remove(filepath.Join(markers, ".released"))
 	// Tells the guest's detach there is no image in the share to flush.
 	if err := os.WriteFile(filepath.Join(markers, ".block"), nil, 0644); err != nil {
 		return nil, err
@@ -182,13 +188,19 @@ func waitForTartReply(ctx context.Context, dir, id, reply string) error {
 	}
 }
 
-// Reconcile detaches each disk the guest has cleanly detached, and once its
-// pod's VM is gone keeps the overlay as the volume's next layer, or deletes it
-// when the guest did not detach it cleanly or another job's layer came first.
-func (b *BlockVolumes) Reconcile(ctx context.Context, gone func(name, uid string) (bool, error), end func(context.Context, string)) {
-	b.mu.Lock()
+// Settle asks Tart to detach each disk the guest has cleanly detached, and
+// tells the guest (`.released` beside its marker) once Tart has, so the guest
+// keeps its VM running until then. It runs every second beside the mailboxes
+// and skips a round while an attach holds the lock.
+func (b *BlockVolumes) Settle() {
+	if !b.mu.TryLock() {
+		return
+	}
 	defer b.mu.Unlock()
-	logger := log.FromContext(ctx).WithName("block-cache-volumes")
+	b.settle()
+}
+
+func (b *BlockVolumes) settle() {
 	for id, use := range b.uses {
 		requests := filepath.Join(b.Root, "requests", use.PodUID)
 		if !use.Clean {
@@ -197,12 +209,31 @@ func (b *BlockVolumes) Reconcile(ctx context.Context, gone func(name, uid string
 				_ = writeJSONAtomically(filepath.Join(requests, id+".detach"), map[string]any{})
 			}
 		}
+		if use.Clean && !use.Released {
+			if _, err := os.Stat(filepath.Join(requests, id+".detached")); err == nil {
+				use.Released = true
+				_ = os.WriteFile(filepath.Join(use.Share, ".released"), []byte(id), 0644)
+			}
+		}
+	}
+}
+
+// Reconcile settles every use, and once a pod's VM is gone keeps its overlay
+// as the volume's next layer, or deletes it when the guest did not detach it
+// cleanly, Tart did not release it, or another job's layer came first.
+func (b *BlockVolumes) Reconcile(ctx context.Context, gone func(name, uid string) (bool, error), end func(context.Context, string)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	logger := log.FromContext(ctx).WithName("block-cache-volumes")
+	b.settle()
+	for id, use := range b.uses {
+		requests := filepath.Join(b.Root, "requests", use.PodUID)
 		done, err := gone(use.PodName, use.PodUID)
 		if err != nil || !done {
 			continue
 		}
 		kept := b.keep(use)
-		logger.Info("block cache volume use ended", "use", id, "scope", use.Scope, "clean", use.Clean, "kept", kept)
+		logger.Info("block cache volume use ended", "use", id, "scope", use.Scope, "clean", use.Clean, "released", use.Released, "kept", kept)
 		end(ctx, id)
 		delete(b.uses, id)
 		if !slices.ContainsFunc(valuesOf(b.uses), func(other *blockUse) bool { return other.PodUID == use.PodUID }) {
@@ -214,7 +245,7 @@ func (b *BlockVolumes) Reconcile(ctx context.Context, gone func(name, uid string
 func (b *BlockVolumes) keep(use *blockUse) bool {
 	dir := b.volumeDir(use.Scope)
 	manifest, err := readBlockManifest(dir)
-	if err != nil || !use.Clean || !slices.Equal(manifest.Layers, use.Layers) || len(manifest.Layers) >= blockMaxLayers {
+	if err != nil || !use.Clean || !use.Released || !slices.Equal(manifest.Layers, use.Layers) || len(manifest.Layers) >= blockMaxLayers {
 		_ = os.Remove(use.Overlay)
 		return false
 	}

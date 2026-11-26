@@ -278,6 +278,9 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 			reconcile()
 		case <-requests:
 			c.notePressure(ctx)
+			if c.Block != nil {
+				c.Block.Settle()
+			}
 			listCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 			pods, err := c.Kube.CoreV1().Pods(c.Namespace).List(listCtx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + c.Node})
 			stop()
