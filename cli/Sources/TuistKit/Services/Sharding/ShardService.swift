@@ -193,8 +193,9 @@ public struct ShardService: ShardServicing {
                     }
                 }
             }
-            // Whatever follows this line until xcodebuild reports the tests starting is xcodebuild's own startup.
-            Logger.current.notice(
+            // Debug only: it shows with --verbose and in the session log. Whatever follows it until xcodebuild
+            // reports the tests starting is xcodebuild's own startup.
+            Logger.current.debug(
                 "Fetched \(downloadURLs.count) test products artifact(s), \(archiveBytes / 1_000_000) MB, in \(Self.seconds(fetchStart.duration(to: clock.now))): downloads finished after \(Self.seconds(fetchStart.duration(to: downloadsFinished))), \(Self.seconds(extracting)) extracting, \(Self.seconds(waitedForDownloads)) waiting for downloads"
             )
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
