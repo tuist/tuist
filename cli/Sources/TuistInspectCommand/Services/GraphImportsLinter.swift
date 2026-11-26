@@ -64,13 +64,11 @@
             let observedTargetImports = try await Array(allInternalTargets).concurrentMap(
                 maxConcurrentTasks: ProcessInfo.processInfo.activeProcessorCount
             ) { target -> (Target, Set<String>)? in
-                let reachableModules = reachableModules(
-                    for: target,
-                    graphTraverser: graphTraverser,
-                    allModuleNames: allModuleNames
+                let unreachableModules = allModuleNames.subtracting(
+                    reachableModules(for: target, graphTraverser: graphTraverser)
                 )
                 let sourceDependencies = Set(
-                    try await targetScanner.imports(for: target.target, reachableModules: reachableModules)
+                    try await targetScanner.imports(for: target.target, unreachableModules: unreachableModules)
                 )
 
                 let explicitDependencyModules = explicitDependencyModules(
@@ -188,19 +186,17 @@
         }
 
         /// Modules reachable from the target's transitive declared-dependency closure.
-        /// Used to evaluate `#if canImport(X)` the same way the compiler would: `X` is
-        /// reachable iff it sits in this target's declared dep graph.
+        /// `#if canImport(X)` is evaluated as false only for a graph module `X` outside this set;
+        /// modules the graph doesn't know, such as SDK frameworks, can't be judged.
         private func reachableModules(
             for target: GraphTarget,
-            graphTraverser: GraphTraverser,
-            allModuleNames: Set<String>
+            graphTraverser: GraphTraverser
         ) -> Set<String> {
             let graphDependency = GraphDependency.target(name: target.target.name, path: target.path)
             return Set(
                 transitiveDependencies(from: graphDependency, graphTraverser: graphTraverser)
                     .flatMap { moduleNames(for: $0, graphTraverser: graphTraverser) }
             )
-            .intersection(allModuleNames)
         }
 
         private func precompiledModuleNames(graphTraverser: GraphTraverser) -> Set<String> {

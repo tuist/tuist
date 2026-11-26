@@ -37,28 +37,30 @@
         // swiftlint:enable force_try
 
         func extractImports(from sourceCode: String, language: ProgrammingLanguage) throws -> Set<String> {
-            try extractImports(from: sourceCode, language: language, reachableModules: nil)
+            try extractImports(from: sourceCode, language: language, unreachableModules: nil)
         }
 
         /// Extract imports from a source file.
         ///
-        /// When `reachableModules` is non-nil and the language is Swift, `import` lines
+        /// When `unreachableModules` is non-nil and the language is Swift, `import` lines
         /// inside a `#if` containing only `canImport` checks joined by `&&` or `||` are
-        /// skipped when the condition is false for that set. This stops conditionally
-        /// linked dependencies from being misreported as implicit imports for variants
-        /// that don't declare them. Reachability is an approximation of compiler availability.
+        /// skipped when the condition is false. A `canImport(X)` check is false only when `X`
+        /// is in `unreachableModules`: the graph's modules the target can't reach. Checks of
+        /// modules outside the graph, such as `UIKit` or `AppKit`, stay true. This stops
+        /// conditionally linked dependencies from being misreported as implicit imports for
+        /// variants that don't declare them.
         ///
         /// Other `#if` shapes (custom flags, parentheses, etc.) are treated as active.
         func extractImports(
             from sourceCode: String,
             language: ProgrammingLanguage,
-            reachableModules: Set<String>?
+            unreachableModules: Set<String>?
         ) throws -> Set<String> {
-            Self.imports(in: scanImports(from: sourceCode, language: language), reachableModules: reachableModules)
+            Self.imports(in: scanImports(from: sourceCode, language: language), unreachableModules: unreachableModules)
         }
 
         /// Scans a source file once, keeping the `canImport` conditions of every import, so that
-        /// `imports(in:reachableModules:)` can resolve them for any target without scanning the file again.
+        /// `imports(in:unreachableModules:)` can resolve them for any target without scanning the file again.
         func scanImports(from sourceCode: String, language: ProgrammingLanguage) -> [ScannedImport] {
             switch language {
             case .swift:
@@ -69,22 +71,24 @@
         }
 
         /// The modules of `scannedImports`, skipping imports with any false `canImport` condition.
-        /// Nothing is skipped when `reachableModules` is nil.
-        static func imports(in scannedImports: [ScannedImport], reachableModules: Set<String>?) -> Set<String> {
+        /// Nothing is skipped when `unreachableModules` is nil.
+        static func imports(in scannedImports: [ScannedImport], unreachableModules: Set<String>?) -> Set<String> {
             Set(
                 scannedImports.lazy
                     .filter { scannedImport in
-                        !scannedImport.canImportConditions.contains { isDeadCanImport($0, reachableModules: reachableModules) }
+                        !scannedImport.canImportConditions
+                            .contains { isDeadCanImport($0, unreachableModules: unreachableModules) }
                     }
                     .map(\.module)
             )
         }
 
-        /// Without `reachableModules`, every branch stays active.
-        private static func isDeadCanImport(_ condition: CanImportCondition, reachableModules: Set<String>?) -> Bool {
-            guard let reachableModules else { return false }
-            return !condition.alternatives.contains { alternative in
-                alternative.allSatisfy { reachableModules.contains($0) }
+        /// True when every alternative requires an unreachable module. Without `unreachableModules`,
+        /// every branch stays active.
+        private static func isDeadCanImport(_ condition: CanImportCondition, unreachableModules: Set<String>?) -> Bool {
+            guard let unreachableModules else { return false }
+            return condition.alternatives.allSatisfy { alternative in
+                alternative.contains { unreachableModules.contains($0) }
             }
         }
 

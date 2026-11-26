@@ -86,8 +86,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -128,10 +128,10 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["FeatureA", "SharedCore"]))
-        given(targetScanner).imports(for: .value(featureA), reachableModules: .any).willReturn(Set(["SharedCore"]))
-        given(targetScanner).imports(for: .value(sharedCore), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(unusedFramework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["FeatureA", "SharedCore"]))
+        given(targetScanner).imports(for: .value(featureA), unreachableModules: .any).willReturn(Set(["SharedCore"]))
+        given(targetScanner).imports(for: .value(sharedCore), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(unusedFramework), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -172,10 +172,10 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Feature", "SharedCore"]))
-        given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["SharedCore"]))
-        given(targetScanner).imports(for: .value(sharedCore), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(unusedFramework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Feature", "SharedCore"]))
+        given(targetScanner).imports(for: .value(feature), unreachableModules: .any).willReturn(Set(["SharedCore"]))
+        given(targetScanner).imports(for: .value(sharedCore), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(unusedFramework), unreachableModules: .any).willReturn(Set([]))
 
         // When
         await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
@@ -214,8 +214,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
 
         // When
         await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
@@ -240,7 +240,7 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set([]))
 
         // When
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .json)
@@ -277,10 +277,10 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Feature", "SharedCore"]))
-        given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["SharedCore"]))
-        given(targetScanner).imports(for: .value(sharedCore), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(unusedFramework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Feature", "SharedCore"]))
+        given(targetScanner).imports(for: .value(feature), unreachableModules: .any).willReturn(Set(["SharedCore"]))
+        given(targetScanner).imports(for: .value(sharedCore), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(unusedFramework), unreachableModules: .any).willReturn(Set([]))
 
         // When
         await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
@@ -315,8 +315,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
 
         // When
         await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
@@ -341,7 +341,7 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set([]))
 
         // When
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .summary)
@@ -363,7 +363,7 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set([]))
         let alertController = AlertController()
 
         // When
@@ -400,9 +400,9 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(extraFramework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(extraFramework), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -433,8 +433,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant])
@@ -466,8 +466,8 @@ struct InspectDependenciesCommandServiceTests {
             loadCounter.count += 1
             return graph
         }
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
 
         // When
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant])
@@ -492,8 +492,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -550,9 +550,9 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["TestTargetDependency"]))
-        given(targetScanner).imports(for: .value(testTarget), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(testTargetDependency), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["TestTargetDependency"]))
+        given(targetScanner).imports(for: .value(testTarget), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(testTargetDependency), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -596,7 +596,7 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["BinaryKit"]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["BinaryKit"]))
 
         // When / Then
         await #expect(
@@ -633,14 +633,14 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["BinaryKit"]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["BinaryKit"]))
 
         // When
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
 
         // Then
         verify(targetScanner)
-            .imports(for: .value(app), reachableModules: .value(["BinaryKit"]))
+            .imports(for: .value(app), unreachableModules: .value(["App"]))
             .called(1)
     }
 
@@ -662,8 +662,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
@@ -695,9 +695,9 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(extraFramework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(extraFramework), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -732,8 +732,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -757,8 +757,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -799,7 +799,7 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -832,8 +832,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(bundleFramework), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(bundleFramework), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -870,9 +870,9 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(unitTests), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(uiTests), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(unitTests), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(uiTests), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -916,11 +916,11 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(appExtension), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(stickerPackExtension), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(appIntentExtension), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(messageExtension), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(appExtension), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(stickerPackExtension), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(appIntentExtension), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(messageExtension), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -958,9 +958,9 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(watch2Extension), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(watch2App), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(watch2Extension), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(watch2App), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -990,8 +990,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(watchApp), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -1021,8 +1021,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(containerApp), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(watchApp), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(containerApp), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -1052,8 +1052,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["WatchApp"]))
+        given(targetScanner).imports(for: .value(watchApp), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), unreachableModules: .any).willReturn(Set(["WatchApp"]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
@@ -1082,8 +1082,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(macro), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(framework), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(macro), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -1122,8 +1122,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(uiComponent), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(feature), unreachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(uiComponent), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -1166,8 +1166,8 @@ struct InspectDependenciesCommandServiceTests {
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["UIComponent"]))
-        given(targetScanner).imports(for: .value(uiComponent), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(feature), unreachableModules: .any).willReturn(Set(["UIComponent"]))
+        given(targetScanner).imports(for: .value(uiComponent), unreachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: projectPath.pathString, inspectionTypes: [.redundant])

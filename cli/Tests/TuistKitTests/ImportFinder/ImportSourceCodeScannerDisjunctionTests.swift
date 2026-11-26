@@ -19,11 +19,15 @@ struct ImportSourceCodeScannerDisjunctionTests {
                 CanImportCondition(alternatives: [["FrameworkA"], ["FrameworkB"], ["FrameworkC"]]),
             ]),
         ])
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: []) == [])
-        for module in ["FrameworkA", "FrameworkB", "FrameworkC"] {
-            #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: [module]) == ["Feature"])
+        let modules: Set<String> = ["FrameworkA", "FrameworkB", "FrameworkC"]
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: modules) == [])
+        for module in modules {
+            #expect(
+                ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: modules.subtracting([module]))
+                    == ["Feature"]
+            )
         }
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: nil) == ["Feature"])
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: nil) == ["Feature"])
     }
 
     @Test
@@ -53,7 +57,9 @@ struct ImportSourceCodeScannerDisjunctionTests {
             ScannedImport(module: "Second", canImportConditions: [CanImportCondition(alternatives: [["A", "B"], ["C"]])]),
         ])
         for (reachableModules, expectedImports) in cases {
-            #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: reachableModules) == expectedImports)
+            let unreachableModules = Set(["A", "B", "C"]).subtracting(reachableModules)
+            #expect(ImportSourceCodeScanner
+                .imports(in: scannedImports, unreachableModules: unreachableModules) == expectedImports)
         }
     }
 
@@ -80,8 +86,15 @@ struct ImportSourceCodeScannerDisjunctionTests {
             ScannedImport(module: "ElseIf", canImportConditions: [CanImportCondition(alternatives: [["A"], ["B"]])]),
             ScannedImport(module: "Else", canImportConditions: [CanImportCondition(alternatives: [["A"], ["B"]])]),
         ])
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: ["B", "D"]) == ["Nested", "ElseIf", "Else"])
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: ["B"]) == ["ElseIf", "Else"])
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: ["D"]) == [])
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: ["A", "C", "E"]) == [
+            "Nested",
+            "ElseIf",
+            "Else",
+        ])
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: ["A", "C", "D", "E"]) == [
+            "ElseIf",
+            "Else",
+        ])
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: ["A", "B", "C", "E"]) == [])
     }
 }

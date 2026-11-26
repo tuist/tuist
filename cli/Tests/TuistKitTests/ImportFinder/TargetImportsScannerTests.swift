@@ -197,8 +197,8 @@ struct TargetImportsScannerTests {
         let subject = TargetImportsScanner(sourceCodeReader: sourceCodeReader.read(at:))
 
         // When
-        let withoutB = try await subject.imports(for: target, reachableModules: [])
-        let withB = try await subject.imports(for: target, reachableModules: ["B"])
+        let withoutB = try await subject.imports(for: target, unreachableModules: ["B"])
+        let withB = try await subject.imports(for: target, unreachableModules: [])
 
         // Then
         #expect(withoutB == ["A"])
@@ -220,9 +220,9 @@ struct TargetImportsScannerTests {
         )
         let subject = TargetImportsScanner(sourceCodeReader: sourceCodeReader.read(at:))
 
-        #expect(try await subject.imports(for: target, reachableModules: []) == [])
-        #expect(try await subject.imports(for: target, reachableModules: ["A"]) == ["Feature"])
-        #expect(try await subject.imports(for: target, reachableModules: ["B"]) == ["Feature"])
+        #expect(try await subject.imports(for: target, unreachableModules: ["A", "B"]) == [])
+        #expect(try await subject.imports(for: target, unreachableModules: ["B"]) == ["Feature"])
+        #expect(try await subject.imports(for: target, unreachableModules: ["A"]) == ["Feature"])
         #expect(await sourceCodeReader.reads == 1)
     }
 
@@ -239,8 +239,8 @@ struct TargetImportsScannerTests {
         let subject = TargetImportsScanner(sourceCodeReader: sourceCodeReader.read(at:))
 
         // When
-        let first = try await subject.imports(for: target, reachableModules: [])
-        let second = try await subject.imports(for: target, reachableModules: ["A"])
+        let first = try await subject.imports(for: target, unreachableModules: ["A"])
+        let second = try await subject.imports(for: target, unreachableModules: [])
 
         // Then
         #expect(first.isEmpty)

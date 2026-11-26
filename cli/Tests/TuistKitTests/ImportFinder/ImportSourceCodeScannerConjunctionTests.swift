@@ -19,12 +19,12 @@ struct ImportSourceCodeScannerConjunctionTests {
                 CanImportCondition(alternatives: [["FrameworkA", "FrameworkB"]]),
             ]),
         ])
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: []) == ["Feature"])
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: ["FrameworkB"]) == [])
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: ["FrameworkA"]) == [])
         #expect(ImportSourceCodeScanner
-            .imports(in: scannedImports, reachableModules: ["FrameworkA", "FrameworkB"]) == ["Feature"])
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: ["FrameworkA"]) == [])
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: ["FrameworkB"]) == [])
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: []) == [])
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: nil) == ["Feature"])
+            .imports(in: scannedImports, unreachableModules: ["FrameworkA", "FrameworkB"]) == [])
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: nil) == ["Feature"])
     }
 
     @Test
@@ -50,8 +50,8 @@ struct ImportSourceCodeScannerConjunctionTests {
             ScannedImport(module: "ElseIf", canImportConditions: [CanImportCondition(alternatives: [["Outer"]])]),
             ScannedImport(module: "Else", canImportConditions: [CanImportCondition(alternatives: [["Outer"]])]),
         ])
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: ["Outer", "A", "B"]) == ["ElseIf", "Else"])
-        #expect(ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: []) == [])
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: ["C"]) == ["ElseIf", "Else"])
+        #expect(ImportSourceCodeScanner.imports(in: scannedImports, unreachableModules: ["Outer", "A", "B", "C"]) == [])
     }
 
     @Test(arguments: [
@@ -75,6 +75,8 @@ struct ImportSourceCodeScannerConjunctionTests {
         #endif
         """
 
-        #expect(try subject.extractImports(from: code, language: .swift, reachableModules: []) == ["Feature"])
+        #expect(
+            try subject.extractImports(from: code, language: .swift, unreachableModules: ["A", "B", "C"]) == ["Feature"]
+        )
     }
 }
