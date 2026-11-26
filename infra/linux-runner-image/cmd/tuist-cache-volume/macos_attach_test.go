@@ -33,7 +33,7 @@ func TestMacRetriesATransientAttachFailure(t *testing.T) {
 		}
 		return nil
 	}
-	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, attachUnenlarged(command)); err != nil {
+	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, attachUnenlarged(command), nil); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Join(calls, ",") != "attach,detach,attach" {
@@ -59,7 +59,7 @@ func TestMacRecordsTheReasonWhenAttachKeepsFailing(t *testing.T) {
 		}
 		return nil
 	}
-	_, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, attachUnenlarged(command))
+	_, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, attachUnenlarged(command), nil)
 	if err == nil || !strings.Contains(err.Error(), "Resource busy") || attaches != macAttachAttempts {
 		t.Fatal(err, attaches)
 	}

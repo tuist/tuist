@@ -33,6 +33,9 @@ type macResponse struct {
 	Warm      bool   `json:"warm"`
 	Error     string `json:"error"`
 	Reason    string `json:"reason"`
+	// Volume names the APFS volume of a volume the host hot-plugged as a USB
+	// disk, in place of an image in the share.
+	Volume string `json:"volume"`
 }
 
 func macUnavailable(reason string) error {
@@ -53,12 +56,14 @@ func macUnavailable(reason string) error {
 func acquireMac(key string, size int64) (string, string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if imagesOnShareLoseWrites(ctx) {
-		return "", "", false, errors.New("macOS 27 loses data written to cache volumes, so this job runs with an empty cache")
-	}
-	return acquireMacAt(ctx, key, size, macShare, macMountRoot, func(image, mountPoint string) error {
+	attachImage := func(image, mountPoint string) error {
 		return attachMacVolume(ctx, image, mountPoint, macRun, func(args ...string) error { return macCommandContext(ctx, args...) })
-	})
+	}
+	var mountBlock func(volume, mountPoint string) error
+	if imagesOnShareLoseWrites(ctx) {
+		mountBlock = func(volume, mountPoint string) error { return mountMacBlockVolume(ctx, volume, mountPoint, macRun) }
+	}
+	return acquireMacAt(ctx, key, size, macShare, macMountRoot, attachImage, mountBlock)
 }
 func macCommandContext(ctx context.Context, args ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -90,6 +95,34 @@ func imagesOnShareLoseWrites(ctx context.Context) bool {
 	out, err := macRun(ctx, nil, "sw_vers", "-productVersion")
 	major, convErr := strconv.Atoi(strings.SplitN(strings.TrimSpace(string(out)), ".", 2)[0])
 	return err == nil && convErr == nil && major >= 27
+}
+
+// mountMacBlockVolume mounts the APFS volume named volume at mountPoint once the
+// USB disk the host hot-plugged appears. Disk Arbitration mounts a new USB
+// volume under /Volumes first, so it is unmounted and mounted again, hidden.
+func mountMacBlockVolume(ctx context.Context, volume, mountPoint string, run macRunner) error {
+	var device string
+	for device == "" {
+		if out, err := run(ctx, nil, "diskutil", "info", "-plist", volume); err == nil {
+			var info struct {
+				Device string `json:"DeviceIdentifier"`
+			}
+			if decodePlist(ctx, run, out, &info) == nil {
+				device = info.Device
+			}
+		}
+		if device != "" {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("the cache volume %s did not appear: %w", volume, ctx.Err())
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+	_, _ = run(ctx, nil, "diskutil", "unmount", device)
+	_, err := run(ctx, nil, "diskutil", "mount", "nobrowse", "-mountPoint", mountPoint, device)
+	return err
 }
 
 // macRunner runs a macOS tool with optional standard input and returns its
@@ -243,10 +276,15 @@ func macImageHasRoom(ctx context.Context, run macRunner, image string) bool {
 	return false
 }
 
-func acquireMacAt(ctx context.Context, key string, size int64, share, mountRoot string, attachImage func(image, mountPoint string) error) (string, string, bool, error) {
+// acquireMacAt asks the host for the volume and mounts it. With mountBlock it
+// asks for a volume the host hot-plugs as a USB disk, and accepts no other.
+func acquireMacAt(ctx context.Context, key string, size int64, share, mountRoot string, attachImage func(image, mountPoint string) error, mountBlock func(volume, mountPoint string) error) (string, string, bool, error) {
 	request := map[string]any{"key": key, "uid": os.Getuid()}
 	if size > 0 {
 		request["requested_volume_bytes"] = size
+	}
+	if mountBlock != nil {
+		request["block"] = true
 	}
 	response, err := exchangeMac(ctx, share, request)
 	if err != nil {
@@ -267,7 +305,15 @@ func acquireMacAt(ctx context.Context, key string, size int64, share, mountRoot 
 		return "", "", false, err
 	}
 	_ = os.Remove(filepath.Join(shared, ".attach-error"))
-	if err = attachImage(filepath.Join(shared, "cache.sparseimage"), base); err != nil {
+	switch {
+	case mountBlock == nil:
+		err = attachImage(filepath.Join(shared, "cache.sparseimage"), base)
+	case response.Volume == "":
+		err = errors.New("macOS 27 loses data written to cache volumes, and this runner host cannot attach them another way, so this job runs with an empty cache")
+	default:
+		err = mountBlock(response.Volume, base)
+	}
+	if err != nil {
 		recordAttachError(shared, err)
 		return "", "", false, err
 	}
@@ -401,7 +447,11 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			continue
 		}
 		// Unflushed, the host would publish the image without this job's writes.
-		if err = syncSharedImage(filepath.Join(share, dir.Name(), "cache.sparseimage")); err != nil {
+		// A volume the host hot-plugged (marked .block) has no image in the share.
+		if _, statErr := os.Stat(filepath.Join(share, dir.Name(), ".block")); statErr != nil {
+			err = syncSharedImage(filepath.Join(share, dir.Name(), "cache.sparseimage"))
+		}
+		if err != nil {
 			failures = append(failures, err)
 			continue
 		}

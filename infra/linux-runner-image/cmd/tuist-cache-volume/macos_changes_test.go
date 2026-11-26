@@ -24,7 +24,7 @@ func mountedVolume(t *testing.T, seed map[string]string) (share, mount, base str
 	for name, contents := range seed {
 		writeVolumeFile(t, base, name, contents)
 	}
-	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, func(string, string) error { return nil }); err != nil {
+	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, func(string, string) error { return nil }, nil); err != nil {
 		t.Fatal(err)
 	}
 	// A job's writes come after the mount; make sure the test's do too. File
