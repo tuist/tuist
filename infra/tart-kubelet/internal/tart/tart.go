@@ -416,6 +416,11 @@ type RunOptions struct {
 	// without a wrapper change; v1 passes at most one.
 	Disks []string
 
+	// USBDiskRequests, when set, is the host-only directory a Tart built from
+	// infra/tart-build reads USB disk hot-plug requests from
+	// (`--usb-disk-requests`, see podagent.BlockVolumes).
+	USBDiskRequests string
+
 	// VNC enables Tart's host-owned experimental VNC server while keeping
 	// the VM headless. Tart prints a one-time password; Run captures it
 	// into RunHandle and redacts it from the VM log.
@@ -543,6 +548,9 @@ func (c *Client) StartWithOptions(ctx context.Context, name string, opts RunOpti
 	// CoW clone, as ephemeral as the VM, so default caching is fine.
 	for _, disk := range opts.Disks {
 		args = append(args, "--disk", disk)
+	}
+	if opts.USBDiskRequests != "" {
+		args = append(args, "--usb-disk-requests", opts.USBDiskRequests)
 	}
 
 	if c.LaunchGuard != nil {
