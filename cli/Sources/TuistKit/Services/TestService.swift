@@ -816,7 +816,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         requestedTestIdentifiers: testTargets,
                         skipUpload: shardSkipUpload,
                         archivePath: shardArchivePath,
-                        testImpactRunId: testImpactSkipList == nil ? nil : testImpactOutcome?.runID
+                        testImpactRunId: testImpactOutcome?.runID
                     )
                 }
             }
