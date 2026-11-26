@@ -60,6 +60,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@hourly", PruneJobKeysWorker},
     {"@hourly", Tuist.Shards.Workers.PruneRecentShardPlansWorker},
     {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker},
+    {"* * * * *", Tuist.Snapshots.Workers.RecoverStalledBuildsWorker},
     {"30 4 * * *", Tuist.Push.Workers.PruneWorker}
   ]
 

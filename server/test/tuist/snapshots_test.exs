@@ -159,6 +159,53 @@ defmodule Tuist.SnapshotsTest do
     end
   end
 
+  describe "recover_stalled_builds/1" do
+    # A completed build whose comparison job a pod took at `attempted_at` and
+    # last beat at `beat_at`, on its `attempt`th of 3 attempts.
+    defp executing_build(project, attempt, attempted_at, beat_at) do
+      binary = png(attempt)
+      Storage.put_object(Snapshots.blob_key(project, hash(binary)), binary, project.account)
+
+      {:ok, build, _} =
+        Snapshots.create_build(project, %{set_name: "phone-#{attempt}-#{beat_at.minute}"}, [
+          %{name: "a.png", content_hash: hash(binary)}
+        ])
+
+      {:ok, build} = Snapshots.complete_build(project, build)
+      Repo.update_all(from(b in Build, where: b.id == ^build.id), set: [updated_at: beat_at])
+
+      job = Repo.one!(from(j in Oban.Job, where: fragment("? ->> 'build_id'", j.args) == ^build.id))
+
+      Repo.update_all(from(j in Oban.Job, where: j.id == ^job.id),
+        set: [state: "executing", attempt: attempt, attempted_at: attempted_at]
+      )
+
+      {build, job.id}
+    end
+
+    test "requeues a comparison that stopped beating, and fails it on its last attempt", %{project: project} do
+      now = ~U[2026-11-26 15:00:00Z]
+      long_ago = ~U[2026-11-26 14:50:00Z]
+
+      {stalled, stalled_job} = executing_build(project, 1, long_ago, long_ago)
+      {last, last_job} = executing_build(project, 3, long_ago, long_ago)
+      # Taken long ago, but beat a minute ago: a big comparison still running.
+      {beating, beating_job} = executing_build(project, 2, long_ago, ~U[2026-11-26 14:59:00Z])
+
+      assert Snapshots.recover_stalled_builds(now) == 2
+
+      assert %{state: "available", scheduled_at: scheduled_at} = Repo.get!(Oban.Job, stalled_job)
+      assert DateTime.compare(scheduled_at, now) == :eq
+      assert Repo.get!(Build, stalled.id).state == "processing"
+
+      assert Repo.get!(Oban.Job, last_job).state == "discarded"
+      assert Repo.get!(Build, last.id).state == "failed"
+
+      assert Repo.get!(Oban.Job, beating_job).state == "executing"
+      assert Repo.get!(Build, beating.id).state == "processing"
+    end
+  end
+
   describe "resolve_baseline/1" do
     test "prefers the build at the merge base over the default branch's newest", %{project: project} do
       at_merge_base = processed_build(project, %{git_branch: "main", git_commit_sha: @a}, [{"a.png", png(5)}])
