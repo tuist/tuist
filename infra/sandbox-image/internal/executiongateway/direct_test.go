@@ -39,6 +39,8 @@ type directLab struct {
 	submitted atomic.Value
 	// The size keys capabilities list.
 	sizedKeys []string
+	// The leased VM's memory_gb, unset as from an older control plane.
+	leaseMemory int
 }
 
 func newDirectLab(t *testing.T, claimCode int) *directLab {
@@ -70,7 +72,12 @@ func newDirectLab(t *testing.T, claimCode int) *directLab {
 				return response(http.StatusNoContent, ""), nil
 			}
 			nonce := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{9}, 32))
-			return response(200, `{"sandbox_id":"vm-1","endpoint":"http://node.test","nonce":"`+nonce+`","image":"sha-x","cas_endpoint":"grpcs://cache.example","expires_in_ms":25000}`), nil
+			l := map[string]any{"sandbox_id": "vm-1", "endpoint": "http://node.test", "nonce": nonce, "image": "sha-x", "cas_endpoint": "grpcs://cache.example", "expires_in_ms": 25000}
+			if lab.leaseMemory != 0 {
+				l["memory_gb"] = lab.leaseMemory
+			}
+			out, _ := json.Marshal(l)
+			return response(200, string(out)), nil
 		default:
 			lab.operations.Add(1)
 			var body map[string]any
@@ -199,19 +206,43 @@ func TestLargerVMsAreRequestedFromTheControlPlaneInsteadOfLeased(t *testing.T) {
 	lab.capabilities(auth)
 	lab.execute(auth)
 	lab.awaitLease()
-	if body, _ := lab.submitted.Load().(map[string]any); body != nil && body["memory_gb"] != float64(4) {
+	if body, _ := lab.submitted.Load().(map[string]any); body != nil && (body["memory_gb"] != float64(4) || body["memory_explicit"] != false) {
 		t.Fatalf("an action without the property asked for another size: %v", body)
 	}
 
 	if code := lab.executeAction(auth, lab.sizedAction("8")); code != 3 || lab.operations.Load() != 2 || len(lab.claims) != 0 {
 		t.Fatalf("exit %d, operations %d, claims %d; want the control plane", code, lab.operations.Load(), len(lab.claims))
 	}
-	if body := lab.submitted.Load().(map[string]any); body["memory_gb"] != float64(8) {
+	if body := lab.submitted.Load().(map[string]any); body["memory_gb"] != float64(8) || body["memory_explicit"] != true {
 		t.Fatalf("submitted %v", body)
 	}
 	// The default size is the lease's, sent without the property.
 	if code := lab.executeAction(auth, lab.sizedAction("4")); code != 7 || lab.operations.Load() != 2 {
 		t.Fatalf("exit %d, operations %d; want the lease", code, lab.operations.Load())
+	}
+}
+
+// An account with task sizing leases smaller VMs than DefaultMemoryGB: an
+// action without the property runs on one, told its size, and one that asks
+// for the default size does not.
+func TestSmallerLeasesRunOnlyActionsWithoutASize(t *testing.T) {
+	lab := newDirectLab(t, http.StatusOK)
+	lab.leaseMemory = 2
+	auth := jwt(time.Now().Add(time.Hour))
+	lab.capabilities(auth)
+	lab.execute(auth)
+	lab.awaitLease()
+
+	if code := lab.executeAction(auth, lab.sizedAction("4")); code != 3 || lab.operations.Load() != 2 || len(lab.claims) != 0 {
+		t.Fatalf("exit %d, operations %d, claims %d; want the control plane", code, lab.operations.Load(), len(lab.claims))
+	}
+	if code := lab.execute(auth); code != 7 || lab.operations.Load() != 2 {
+		t.Fatalf("exit %d, operations %d; want the lease", code, lab.operations.Load())
+	}
+	var request map[string]any
+	_ = json.Unmarshal([]byte((<-lab.claims)["value"].(string)), &request)
+	if request["memory_gb"] != float64(2) {
+		t.Fatalf("request %v; want the lease's memory_gb", request)
 	}
 }
 
