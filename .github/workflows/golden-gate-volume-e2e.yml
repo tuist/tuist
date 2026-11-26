@@ -88,8 +88,9 @@ jobs:
           swiftc -O /tmp/writes.swift -o /tmp/writes
           echo "== through the symlinked path"; /tmp/writes "$E2E_ROOT/writes-link"
           echo "== through the resolved path"; /tmp/writes "$E2E_REAL/writes-real"
-          ls -la "$E2E_REAL" "$E2E_REAL/.." 2>/dev/null | head -30
-          find "$(dirname "$E2E_REAL")" -maxdepth 2 -name '.TemporaryItems' -print 2>/dev/null
+          ls -la "$E2E_REAL" "$E2E_REAL/.." 2>/dev/null | head -30 || true
+          find "$(dirname "$E2E_REAL")" -maxdepth 2 -name '.TemporaryItems' -print 2>/dev/null || true
+          exit 0
       - uses: ./.github/actions/mise-install
         with:
           install: "erlang elixir"
