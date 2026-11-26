@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Luft</title>
+    <meta name="description" content="Something is in the air." />
+    <meta property="og:title" content="Luft" />
+    <meta property="og:description" content="Something is in the air." />
+    <meta name="theme-color" content="#0a0910" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%238f63ff'/%3E%3C/svg%3E" />
+    <style>
+      :root {
+        --ink: #ecebf3;
+        --muted: #9c99ad;
+        --night: #0a0910;
+        --violet: 122, 60, 255;
+        --blue: 64, 120, 255;
+        --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body { height: 100%; margin: 0; }
+
+      body {
+        display: grid;
+        grid-template-rows: 1fr auto;
+        min-height: 100svh;
+        overflow: hidden;
+        background: var(--night);
+        color: var(--ink);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .air {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        overflow: hidden;
+      }
+
+      .air::before,
+      .air::after {
+        content: "";
+        position: absolute;
+        width: 70vmax;
+        height: 70vmax;
+        border-radius: 50%;
+        animation: drift 28s ease-in-out infinite alternate;
+      }
+
+      .air::before {
+        top: -25vmax;
+        left: -20vmax;
+        background: radial-gradient(
+          circle,
+          rgba(var(--violet), 0.5) 0%,
+          rgba(var(--violet), 0.3) 22%,
+          rgba(var(--violet), 0.12) 42%,
+          rgba(var(--violet), 0.03) 58%,
+          rgba(var(--violet), 0) 70%
+        );
+      }
+
+      .air::after {
+        right: -25vmax;
+        bottom: -30vmax;
+        background: radial-gradient(
+          circle,
+          rgba(var(--blue), 0.35) 0%,
+          rgba(var(--blue), 0.2) 22%,
+          rgba(var(--blue), 0.08) 42%,
+          rgba(var(--blue), 0.02) 58%,
+          rgba(var(--blue), 0) 70%
+        );
+        animation-duration: 36s;
+        animation-direction: alternate-reverse;
+      }
+
+      main {
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 1.25rem;
+        padding: 2rem;
+        text-align: center;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(4rem, 16vw, 10rem);
+        font-weight: 200;
+        letter-spacing: 0.12em;
+        /* Letter spacing trails the last letter; balance it to stay centered. */
+        padding-left: 0.12em;
+        line-height: 1;
+        animation: exhale 3.2s ease-out both;
+      }
+
+      .definition {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+        letter-spacing: 0.08em;
+        animation: appear 2s 1.4s ease-out both;
+      }
+
+      .definition i { font-style: italic; }
+
+      .whisper {
+        margin: 1.5rem 0 0;
+        font-size: clamp(1.05rem, 2.4vw, 1.35rem);
+        font-weight: 300;
+        letter-spacing: 0.02em;
+        animation: appear 2.4s 2.6s ease-out both;
+      }
+
+      footer {
+        padding: 1.5rem;
+        color: var(--muted);
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+        text-align: center;
+        animation: appear 2s 4s ease-out both;
+      }
+
+      footer a {
+        color: inherit;
+        text-underline-offset: 0.2em;
+      }
+
+      footer a:hover,
+      footer a:focus-visible { color: var(--ink); }
+
+      @keyframes drift {
+        from { transform: translate(0, 0) scale(1); }
+        to { transform: translate(12vmax, 8vmax) scale(1.15); }
+      }
+
+      @keyframes exhale {
+        from { opacity: 0; letter-spacing: 0.4em; filter: blur(6px); }
+        to { opacity: 1; letter-spacing: 0.12em; filter: blur(0); }
+      }
+
+      @keyframes appear {
+        from { opacity: 0; transform: translateY(0.4rem); }
+        to { opacity: 1; transform: none; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="air" aria-hidden="true"></div>
+    <main>
+      <h1>Luft</h1>
+      <p class="definition">/lʊft/ · <i>noun</i> · air</p>
+      <p class="whisper">Something is in the air.</p>
+    </main>
+    <footer>From the people behind <a href="https://tuist.dev">Tuist</a></footer>
+  </body>
+</html>

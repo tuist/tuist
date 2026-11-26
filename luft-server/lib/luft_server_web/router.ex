@@ -13,6 +13,9 @@ defmodule LuftServerWeb.Router do
     plug Plugs.Authenticate
   end
 
+  # Server-rendered marketing pages.
+  get "/", LuftServerWeb.HomeController, :show
+
   get "/healthz", LuftServerWeb.HealthController, :show
   get "/.well-known/luft.json", LuftServerWeb.NativeAuthController, :discovery
 

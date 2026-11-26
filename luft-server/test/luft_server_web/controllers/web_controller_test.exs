@@ -32,8 +32,22 @@ defmodule LuftServerWeb.WebControllerTest do
     end)
   end
 
-  test "root and client-side routes are JSON 404s even with a built HTML shell", %{conn: conn} do
-    for path <- ["/", "/index.html", "/organizations/tuist"] do
+  test "the root is the homepage, never a built shell, under a script-free policy", %{conn: conn} do
+    conn = conn |> put_req_header("accept", "text/html") |> get("/")
+    page = html_response(conn, 200)
+    assert page =~ "Something is in the air."
+    refute page =~ "<script"
+
+    [policy] = get_resp_header(conn, "content-security-policy")
+    [_, style] = Regex.run(~r/<style>(.*?)<\/style>/s, page)
+    hash = :sha256 |> :crypto.hash(style) |> Base.encode64()
+    assert policy =~ "style-src 'sha256-#{hash}'"
+    refute policy =~ "script-src"
+    refute policy =~ "unsafe-inline"
+  end
+
+  test "client-side routes are JSON 404s even with a built HTML shell", %{conn: conn} do
+    for path <- ["/index.html", "/organizations/tuist"] do
       conn = conn |> put_req_header("accept", "text/html") |> get(path)
       assert json_response(conn, 404) == %{"error" => "not_found"}
       refute response(conn, 404) =~ "<title>Luft</title>"
@@ -63,7 +77,7 @@ defmodule LuftServerWeb.WebControllerTest do
     end
   end
 
-  test "/app serves the web edge's page under its own policy; the root stays headless", %{
+  test "/app serves the web edge's page under its own policy; other paths stay headless", %{
     conn: conn
   } do
     assert redirected_to(get(conn, "/app?from=link"), 302) == "/app/?from=link"
@@ -77,7 +91,7 @@ defmodule LuftServerWeb.WebControllerTest do
       assert policy =~ "frame-ancestors 'none'"
     end
 
-    assert get_resp_header(get(conn, "/"), "content-security-policy") == [
+    assert get_resp_header(get(conn, "/organizations/tuist"), "content-security-policy") == [
              "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
            ]
   end
