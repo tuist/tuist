@@ -119,8 +119,7 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
   Compression framework and `tuist_ex` produce) from `source` to
   `destination` a chunk at a time, so the file never sits in memory whole and
   never grows past `limit` on disk. `{:cancel, reason}` when it can't: the
-  same object fails the same way again. Uploaded evidence is read with it too
-  (`Tuist.Tests.Coverage.Evidence.with_uploaded/2`).
+  same object fails the same way again.
   """
   def inflate(source, destination, limit) do
     z = :zlib.open()

@@ -256,7 +256,7 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
 
       upload = deflated(tmp_dir, Enum.map_join(lines, "\n", &JSON.encode!/1) <> "\n")
 
-      expect(Tuist.Storage, :download_to_file, fn "key", destination, _account -> {:ok, File.cp!(upload, destination)} end)
+      serve(upload)
 
       {:ok, run} =
         RunsFixtures.test_fixture(
@@ -286,11 +286,24 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
     test "that can't be read leaves the run without evidence, its status failed", %{project: project, tmp_dir: tmp_dir} do
       upload = deflated(tmp_dir, ~s({"kind":"test","module":"AppTests"}\nnot json\n))
 
-      for download <- [
-            fn _key, destination, _account -> {:ok, File.cp!(upload, destination)} end,
-            fn _key, _destination, _account -> {:error, :not_found} end
+      truncated = Path.join(tmp_dir, "truncated.deflate")
+
+      lines =
+        Enum.map_join(
+          1..2_000,
+          "\n",
+          &JSON.encode!(%{kind: "target", module: "AppTests", files: ["Sources/#{&1}.swift"]})
+        )
+
+      compressed = :zlib.zip(lines <> "\n")
+      File.write!(truncated, binary_part(compressed, 0, div(byte_size(compressed), 2)))
+
+      for serve <- [
+            fn -> serve(upload) end,
+            fn -> serve(truncated) end,
+            fn -> expect(Tuist.Storage, :get_object_size, fn _key, _account -> {:error, :not_found} end) end
           ] do
-        expect(Tuist.Storage, :download_to_file, download)
+        serve.()
 
         {:ok, run} =
           RunsFixtures.test_fixture(
@@ -324,9 +337,7 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
 
         upload = deflated(tmp_dir, JSON.encode!(scope) <> "\n")
 
-        expect(Tuist.Storage, :download_to_file, fn _key, destination, _account ->
-          {:ok, File.cp!(upload, destination)}
-        end)
+        serve(upload)
 
         {:ok, run} =
           RunsFixtures.test_fixture(
@@ -340,6 +351,50 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
         assert run |> CoverageFixtures.evidence_rows() |> Enum.map(&{&1.path, &1.line_numbers}) ==
                  if(status == "collected", do: [{"Sources/Math.swift", [3, 4, 5]}], else: [])
       end
+    end
+
+    test "past 250 MB compressed is refused before it is fetched", %{project: project} do
+      # Sized past the limit: nothing is downloaded.
+      expect(Tuist.Storage, :get_object_size, fn "key", _account -> {:ok, 250_000_001} end)
+      reject(&Tuist.Storage.stream_object/2)
+
+      {:ok, run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: @modules,
+          coverage_evidence: %{storage_key: "key", status: "collected"}
+        )
+
+      assert run.coverage_evidence_status == "failed"
+    end
+
+    test "sized within 250 MB but replaced since is never fetched past that", %{project: project} do
+      chunk = :binary.copy("x", 1_000_000)
+      pulled = :counters.new(1, [])
+      expect(Tuist.Storage, :get_object_size, fn "key", _account -> {:ok, 1_000} end)
+
+      expect(Tuist.Storage, :stream_object, fn "key", _account ->
+        Stream.repeatedly(fn ->
+          :counters.add(pulled, 1, 1)
+          chunk
+        end)
+      end)
+
+      {:ok, run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: @modules,
+          coverage_evidence: %{storage_key: "key", status: "collected"}
+        )
+
+      assert run.coverage_evidence_status == "failed"
+      assert :counters.get(pulled, 1) == 251
+      assert [] = Path.wildcard(Path.join(System.tmp_dir!(), "coverage_evidence_*"))
+    end
+
+    defp serve(upload) do
+      expect(Tuist.Storage, :get_object_size, fn _key, _account -> {:ok, File.stat!(upload).size} end)
+      expect(Tuist.Storage, :stream_object, fn _key, _account -> File.stream!(upload, 65_536) end)
     end
 
     defp deflated(tmp_dir, ndjson) do
