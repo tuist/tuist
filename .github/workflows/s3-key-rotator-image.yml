@@ -9,6 +9,8 @@ on:
   push:
     branches:
       - main
+      # TEMPORARY: staging trial build; drop this commit before merging.
+      - s3-key-rotation-staging
     paths:
       - infra/s3-key-rotator/**
       - .github/workflows/s3-key-rotator-image.yml
