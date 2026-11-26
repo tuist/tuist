@@ -1,0 +1,6 @@
+{
+  "format": 1,
+  "organization": "demo",
+  "title": "Company workspace",
+  "apps": ["../../apps/customer-management/app.json", "../../apps/support/app.json"]
+}

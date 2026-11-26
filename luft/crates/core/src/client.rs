@@ -60,9 +60,26 @@ struct Attempt {
     pkce: Pkce,
 }
 
+struct RecordContext {
+    generation: u64,
+    thread: String,
+    message: String,
+    surface: String,
+    module: String,
+}
+
+mod releases;
+pub use releases::ReleaseReviews;
+mod resources;
+
 /// Independent instances support regression tests; the ABI uses one serialized instance.
 #[derive(Default)]
 pub struct MobileClient {
+    workspace: crate::workspace::Workspace,
+    record_workspace: crate::workspace::Workspace,
+    record_context: Option<RecordContext>,
+    resources: resources::Resources,
+    releases: releases::Releases,
     vault: Vault,
     loaded: bool,
     dirty: bool,
@@ -87,6 +104,14 @@ impl MobileClient {
     }
 
     pub fn call(&mut self, input: &str, host: &mut dyn Host) -> String {
+        // Explicit local connections never load, migrate, or consult the identity vault.
+        if let Ok(request) = serde_json::from_str::<Value>(input)
+            && request["operation"]
+                .as_str()
+                .is_some_and(|op| op.starts_with("workspace_"))
+        {
+            return self.workspace.call(&request, host).to_string();
+        }
         let result = self.run(input, host).and_then(|data| {
             if let Some(profile) = self.vault.profiles.iter().find(|p| {
                 Some(&p.id) == self.vault.active_profile_id.as_ref()
@@ -232,6 +257,15 @@ impl MobileClient {
             }
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
+            op @ ("releases" | "release_open" | "release_approve" | "release_merge"
+            | "release_activate" | "release_close") => self.release_operation(op, args, host),
+            op @ ("record_open" | "record_query" | "record_action" | "record_retry"
+            | "record_refresh" | "record_close") => self.record_operation(op, args, host),
+            op if op.starts_with("native_record_") => self.native_record_operation(op, args, host),
+            op @ ("collections" | "collection_open" | "collection_query" | "collection_action"
+            | "collection_retry" | "collection_refresh" | "collection_close") => {
+                self.collection_operation(op, args, host)
+            }
             op @ ("threads" | "start_thread" | "thread" | "send_message" | "answer_question"
             | "snooze_thread" | "archive_thread" | "reauthorize_thread") => {
                 let mut view = self.threads_operation(op, args, host)?;
@@ -413,6 +447,7 @@ impl MobileClient {
                 )
             }
             "presence_disconnect" => {
+                self.releases = Default::default();
                 self.presence.disconnect(&mut HostSocket { host });
                 Ok(Value::Null)
             }
@@ -510,6 +545,111 @@ impl MobileClient {
             }
             _ => Err("Unknown operation"),
         }
+    }
+
+    /// Business surfaces are bound to this profile generation and a persisted
+    /// thread message, never an origin, database or actor supplied by module JS.
+    fn record_operation(&mut self, op: &str, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let index = self.active()?;
+        let thread = text(args, "thread")?;
+        let message = text(args, "message")?;
+        let surface = text(args, "surface")?;
+        if !is_uuid(thread) || !is_uuid(message) || !is_uuid(surface) {
+            return Err("Invalid record reference");
+        }
+        if args["generation"].as_u64() != Some(self.vault.generation) {
+            return Err("The record session changed. Open the record again.");
+        }
+        let server = server_url(&self.vault.profiles[index].server)?;
+        let account = self.account(index);
+        if !segment(account) {
+            return Err("Invalid account");
+        }
+        let base = endpoint(
+            &server,
+            &format!("api/accounts/{account}/threads/{thread}/records/{message}/"),
+        );
+        if op == "record_open" {
+            let same_reference = self.record_context.as_ref().is_some_and(|context| {
+                context.generation == self.vault.generation
+                    && context.thread == thread
+                    && context.message == message
+            });
+            if same_reference {
+                self.record_workspace.suspend();
+            } else {
+                self.record_context = None;
+                self.record_workspace = Default::default();
+            }
+            let response = self.send(
+                index,
+                "GET",
+                Url::parse(base.as_str().trim_end_matches('/'))
+                    .map_err(|_| "Invalid record reference")?,
+                None,
+                host,
+            )?;
+            if matches!(response.0, 401 | 403) {
+                self.record_context = None;
+                self.record_workspace = Default::default();
+            }
+            let entry = successful(response)?;
+            let module = text(&entry, "module")?.to_owned();
+            self.record_workspace
+                .attach(entry["workspace"].clone(), &module)?;
+            self.record_context = Some(RecordContext {
+                generation: self.vault.generation,
+                thread: thread.into(),
+                message: message.into(),
+                surface: surface.into(),
+                module,
+            });
+            let mut open = args.clone();
+            open["model"] = entry["reference"]["model"].clone();
+            open["id"] = entry["reference"]["id"].clone();
+            let mut result = self.record_operation("record_refresh", &open, host)?;
+            result["entry"] = entry["reference"].clone();
+            return Ok(result);
+        }
+        let context = self
+            .record_context
+            .as_ref()
+            .filter(|context| {
+                context.generation == self.vault.generation
+                    && context.thread == thread
+                    && context.message == message
+                    && context.surface == surface
+            })
+            .ok_or("The record session changed. Open the record again.")?;
+        let module = context.module.clone();
+        if op == "record_close" {
+            self.record_workspace.suspend();
+            return Ok(Value::Null);
+        }
+        let operation = match op {
+            "record_refresh" => "workspace_open",
+            "record_query" => "workspace_query",
+            "record_action" => "workspace_action",
+            "record_retry" => "workspace_retry",
+            _ => return Err("Unknown record operation"),
+        };
+        let mut input = args.clone();
+        input["module"] = json!(module);
+        let mut workspace = std::mem::take(&mut self.record_workspace);
+        let result = workspace.call(
+            &json!({"operation":operation,"args":input}),
+            &mut RecordHost {
+                transport: &mut Authorized {
+                    client: self,
+                    index,
+                    host,
+                },
+                base,
+                module: &module,
+            },
+        );
+        self.record_workspace = workspace;
+        Ok(result)
     }
 
     fn thread_call(
@@ -719,6 +859,16 @@ impl MobileClient {
         }
         candidate.generation = self.vault.generation + 1;
         write(host, &candidate)?;
+        self.record_context = None;
+        self.record_workspace = Default::default();
+        self.releases = Default::default();
+        if resources::owner(&self.vault).is_some()
+            && resources::owner(&self.vault) == resources::owner(&candidate)
+        {
+            self.resources.suspend();
+        } else {
+            self.resources = Default::default();
+        }
         // Metadata refresh and same-profile reauthentication retain navigation.
         // Only a change to an existing active account/server/organization resets it.
         if self.vault.active_profile_id.is_some()
@@ -1528,6 +1678,40 @@ struct Authorized<'a> {
 impl Transport for Authorized<'_> {
     fn send(&mut self, method: &str, url: Url, body: Option<Value>) -> Result<(u64, Value)> {
         self.client.send(self.index, method, url, body, self.host)
+    }
+}
+
+/// Reuses native authenticated transport, including refresh and secret scrubbing.
+/// Workspace code can request only the two data routes under its bound message.
+struct RecordHost<'a> {
+    transport: &'a mut dyn Transport,
+    base: Url,
+    module: &'a str,
+}
+
+impl Host for RecordHost<'_> {
+    fn perform(&mut self, action: Value) -> std::result::Result<Value, String> {
+        let path = action["path"]
+            .as_str()
+            .filter(|p| matches!(*p, "query" | "action"))
+            .ok_or("Invalid record operation")?;
+        if action["type"] != "record_request" {
+            return Err("Invalid record operation".into());
+        }
+        let mut body = action["body"].clone();
+        body["module"] = json!(self.module);
+        let response = self.transport.send(
+            "POST",
+            self.base
+                .join(path)
+                .map_err(|_| "Invalid record operation")?,
+            Some(body),
+        );
+        if response == Err(OFFLINE) {
+            return Ok(json!({"error":"offline"}));
+        }
+        let (status, value) = response.map_err(str::to_owned)?;
+        Ok(json!({"status":status,"body":value.to_string()}))
     }
 }
 

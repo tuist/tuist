@@ -2,6 +2,8 @@ defmodule LuftServer.Application do
   @moduledoc false
   use Application
 
+  alias LuftServer.Workspaces.BehaviorJavaScript
+
   @impl true
   def start(_type, _args) do
     if System.get_env("SKIP_MIGRATIONS") != "true" and
@@ -12,13 +14,14 @@ defmodule LuftServer.Application do
     children =
       [
         LuftServer.Repo,
+        {GRPC.Client.Supervisor, []},
         {DNSCluster, query: Application.get_env(:luft_server, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: LuftServer.PubSub},
         LuftServer.Lounges.Presence,
         LuftServer.Threads.Clients,
         {Oban, Application.fetch_env!(:luft_server, Oban)},
         LuftServerWeb.Endpoint
-      ] ++ thread_runtime()
+      ] ++ behavior_runtime() ++ thread_runtime()
 
     Supervisor.start_link(children, strategy: :one_for_one, name: LuftServer.Supervisor)
   end
@@ -39,6 +42,13 @@ defmodule LuftServer.Application do
       ]
     else
       []
+    end
+  end
+
+  defp behavior_runtime do
+    case BehaviorJavaScript.child_spec() do
+      nil -> []
+      runtime -> [runtime]
     end
   end
 

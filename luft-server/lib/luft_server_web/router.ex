@@ -70,12 +70,44 @@ defmodule LuftServerWeb.Router do
     get "/organizations", OrganizationsController, :index
     post "/organizations", OrganizationsController, :create
 
+    get "/accounts/:account_handle/collections", CollectionsController, :index, log: false
+
+    post "/accounts/:account_handle/collections/:collection/query", CollectionsController, :query,
+      log: false
+
+    get "/accounts/:account_handle/collections/:collection/records/:record_id",
+        CollectionsController,
+        :show, log: false
+
+    post "/accounts/:account_handle/methods/:method", CollectionsController, :invoke, log: false
+    get "/accounts/:account_handle/behaviors", CollectionsController, :authoring, log: false
+
+    post "/accounts/:account_handle/releases/validate", CollectionsController, :validate,
+      log: false
+
+    get "/accounts/:account_handle/releases", CollectionsController, :releases, log: false
+    post "/accounts/:account_handle/releases", CollectionsController, :propose, log: false
+    get "/accounts/:account_handle/releases/:hash", CollectionsController, :release, log: false
+
+    post "/accounts/:account_handle/releases/:hash/approve", CollectionsController, :approve,
+      log: false
+
+    post "/accounts/:account_handle/releases/:hash/activate", CollectionsController, :activate,
+      log: false
+
+    post "/accounts/:account_handle/releases/:hash/merge", CollectionsController, :merge,
+      log: false
+
     scope "/accounts/:account_handle/threads" do
       get "/", ThreadsController, :index, log: false
       post "/", ThreadsController, :create, log: false
       get "/repositories", ThreadsController, :repositories, log: false
       get "/models", ThreadsController, :models, log: false
       get "/:id", ThreadsController, :show, log: false
+      get "/:id/records/:message_id", RecordsController, :show, log: false
+      get "/:id/resources/:message_id", CollectionsController, :reference, log: false
+      post "/:id/records/:message_id/query", RecordsController, :query, log: false
+      post "/:id/records/:message_id/action", RecordsController, :execute, log: false
       post "/:id/messages", ThreadsController, :message, log: false
       post "/:id/reauthorize", ThreadsController, :reauthorize, log: false
       patch "/:id", ThreadsController, :update, log: false

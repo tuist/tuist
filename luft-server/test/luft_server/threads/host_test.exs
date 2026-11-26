@@ -77,6 +77,13 @@ defmodule LuftServer.Threads.HostTest do
 
     assert request["model"] == "test-model"
     assert request["stream"] == false
+    names = Enum.map(request["tools"], & &1["function"]["name"])
+
+    for name <-
+          ~w(inspect_behaviors validate_behavior_release propose_behavior_release inspect_behavior_releases promote_behavior_release),
+        do: assert(name in names)
+
+    refute "approve_behavior_release" in names
     eventually(fn -> Repo.get!(Run, run.id).status == "succeeded" end, 500)
 
     reply = Repo.one!(from m in Message, where: m.thread_id == ^thread.id and m.kind == "agent")

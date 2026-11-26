@@ -1,5 +1,153 @@
 # Mobile core contract
 
+## Native release review
+
+Profile → Releases → Release review uses the shell's existing native stack.
+Release operations use the authenticated selected account and require `generation`
+and a host-generated UUID `surface`. Detail operations also require the immutable
+`hash`, never a list index, title or the current active-release alias.
+
+| Operation | Behavior |
+| --- | --- |
+| `releases` | GET `/api/accounts/{account}/releases`; replaces list and clears detail authority |
+| `release_open` | GET `/api/accounts/{account}/releases/{hash}`; validates and loads exact review |
+| `release_approve` | POST that hash's `/approve` with `{}`, only for the loaded review's Rust-selected `approve` action |
+| `release_merge` | POST that hash's `/merge` with `{}`, only for the loaded review's Rust-selected `merge` action; does not activate |
+| `release_activate` | POST that hash's `/activate` with `{}`, only for the loaded review's Rust-selected `activate` action |
+| `release_close` | Clears this generation/surface; a stale close cannot clear a newer surface |
+
+The ordinary response's `data` is `{surface:{list,detail},error}`. `list` is null
+or `{active,releases:[metadata]}`; `detail` is null or the validated API detail,
+plus `actions:["approve"|"merge"|"activate"]`, `review_changes:[{path,kind,before,after}]`
+(the before/after values are exact pretty-printed JSON strings), `definition_text`
+and `baseline_text` (complete pretty-printed JSON). Swift adapts these values,
+localizes stable state/kind/action IDs, and displays server blockers verbatim.
+It does not infer permissions, author a summary, or execute candidate source.
+
+The core validates metadata, identities, JSON pointers, before/after values and
+coverage of all differing definition subtrees. It refuses a review that secret
+scrubbing would alter. Approval requires a proposed candidate and excludes the author.
+Merge requires `can_merge: true`, empty `merge_blockers`, and state `approved` or
+`merging`. Missing merge fields remain readable but never grant merge authority.
+`merging` means the uncertain merge awaits reconciliation; `merged` means merged
+but not active; `merge_conflict` means main moved and a new proposal is needed.
+Activation requires a merged, compatible, never-activated candidate without blockers. Server capability
+booleans remain required and the server rechecks current grants, runtime and
+baseline at POST time. Approval, merge and activation are separate deliberate actions.
+After each successful POST the core GETs the list and the exact hash's detail;
+any failed reload clears authority rather than showing a guessed success state.
+Writes are online-only, never automatically replayed or queued offline. After an
+uncertain outcome, reload and inspect current state before another deliberate action.
+Every failed/stale request clears review authority. Profile/account generation
+commits, `release_close`, and background `presence_disconnect` clear it as well.
+
+GPUI calls the public `ReleaseReviews` state machine directly with its existing
+authenticated `Session` transport; it does not synthesize a mobile profile or
+duplicate release validation. Its authority binds the server, account, actor,
+generation and surface. Deactivation invalidates queued transport work, clears
+the review and confirmation, and requires a fresh list on return.
+
+Each native edge presents approval separately from activation. Apple and Android
+show a system activation dialog naming the exact hash and an explicit Cancel;
+GPUI uses an inline confirmation with initial focus on Cancel, Escape to cancel,
+and focus restored to the activation button. Back reloads the list rather than
+restoring stale review authority. Android discards review data on pause and
+restores only an open-route flag after Activity recreation, never a pending write.
+
+## Authenticated session records
+
+A thread message may contain `record_reference: {model,id}`. It is a persisted
+locator, not a snapshot, grant, URL or executable card. Native hosts open its
+message ID, not a record inferred from conversation text. The iOS conversation
+pushes a record destination and preserves native Back to the session. The installed
+module can then navigate to a linked customer within its own native stack.
+
+`record_*` operations use the ordinary authenticated client and session view.
+Every call requires `thread`, `message`, `generation` (the current session view's
+generation) and `surface` (a host-generated UUID unique to the mounted destination).
+Changing account/profile invalidates the surface; a stale close cannot dismiss a
+newer instance of the same reference. These operations never use a preview token
+or the offline outbox.
+
+- `record_open`: GET the message's authorized catalog/entry, then fetch the canonical
+  record. Returns `{view,data,error?,entry}` inside the ordinary response's `data`.
+  Here the nested view is the workspace view with `preview:false`.
+- `record_refresh`: also takes `model,id`; re-fetches through the selected module's getter.
+- `record_query`: also takes `query,input`.
+- `record_action`: also takes `action,input,request_id`; the host supplies a fresh UUID
+  for a deliberate submission, while the core retains it for retry.
+- `record_retry`: repeats the retained submission without accepting a new identity.
+- `record_close`: clears this surface's source, data and authority. An unresolved
+  submission remains in memory for reopening the same reference in this session.
+
+Rust uses only the active Luft origin and account, refreshes its normal credentials
+and binds data requests to `/api/accounts/:account/threads/:thread/records/:message`.
+The server independently rechecks current membership, thread access, configured
+organization/database binding, user grants and declared module capabilities on
+every request, including replay. HTTP 401/403 clears the runtime's source, rows and
+pending submission. Access changes are detected on requests, not by a background
+subscription. Reopening refreshes both grants and record state.
+
+Background/foreground and transport recovery preserve the exact unresolved request
+for the same generation/thread/message, without retaining a data or permission
+snapshot. A fresh authorized open is required before replay. Revocation, switching
+to another reference/account, or process termination discards that in-memory
+identity; inspect current state before deliberately submitting again in those cases.
+
+Installed UI receives data, its filtered capabilities and an initial `entry`, never
+credentials. `entry` lets a module mount its record page instead of its list.
+Generated cards retain their separate reply-only bridge. Server installation/grants
+are opt-in administrative configuration; this does not provision databases or
+implement a hosted app directory or row-level policy language. See the Luft server
+README for the exact binding and grant configuration.
+
+## Explicit local workspace connection
+
+The `workspace_*` operations are an isolated, in-memory API through the same
+`MobileClient::call`/C bridge. They bypass identity boot and never read/write the
+credential vault or production session. Other callers may also own a standalone
+`workspace::Workspace`. Apple exposes this only in its simulator opt-in root;
+see [the local workspace example](../../workspaces/customer-management/README.md).
+
+Requests use the usual `{operation,args}` shape. Responses have
+`{view:{preview:true,connected,title,modules,selected,items,record,warning,can_retry},data,error?}`;
+this is **not** a session view. Each module includes its validated published source.
+No URL/token is returned. Error strings are fixed, never server/host text.
+
+| Operation | Args | Behavior |
+| --- | --- | --- |
+| `workspace_connect` | `url`, `token` | Drops the old connection, validates an explicit origin (root loopback HTTP or HTTPS, no user info/query/fragment), gets `/workspace`, selects its first module |
+| `workspace_snapshot` | none | Returns current in-memory workspace view without HTTP |
+| `workspace_select` | `module` | Validates selection against the manifest, clears list/pending action |
+| `workspace_open` | `module`, `model`, `id` UUID | Opens a typed reference to the selected module's model through its explicitly declared getter; fetches every time, validates identity, retains canonical `record` separately from the bounded list |
+| `workspace_query` | `module`, `query`, `input` | List takes `{}` and validates at most 100 ID-sorted rows. Get takes exactly `{id:UUID}` and validates `{record}` including its requested identity, without replacing the selected list |
+| `workspace_action` | `module`, `action`, `request_id` UUID, `input` | Validates capability/values and update ID/revision, calls `/action`, validates saved record, then refreshes the module's list if declared. A committed write remains successful with `warning` if that read fails |
+| `workspace_retry` | `module` | Repeats the pending action with identical serialized body/request ID; never creates a new submission |
+| `workspace_disconnect` | none | Clears source, records, pending action and credentials; subsequent calls fail without HTTP until explicit reconnect |
+
+The caller supplies a fresh UUID for a deliberate submission (Apple uses the OS
+UUID service). Safe automatic transport retry and deliberate retry reuse the
+stored request, not a renderer-provided ID. Only HTTP host actions are used;
+the HTTP host must retain the redirect/TLS/time/size restrictions below. A
+detected sustained transport failure or 401 disconnects and clears everything.
+Malformed responses do not enter state. Stored definitions support positive model
+versions and string/enum/UUID-reference fields; create inputs may omit defaulted fields and
+optional response fields may be null. String bounds are 4,000 UTF-8 bytes.
+
+A module can declare a cross-model getter only for a reference target in its own
+model. That getter still requires an explicit capability; a reference alone
+grants nothing. Cross-model writes are rejected. After writes the core refreshes
+the selected model's list, never whichever query happens to be first. Native host
+events update a running module without recreating its page history or drafts;
+module selection and disconnect dispose it. These preview capabilities do not
+replace actor-level server authorization, which is not part of this local pilot.
+
+A pending submission blocks fresh writes until the caller retries the retained
+request or explicitly leaves the module/disconnects. A failed read cannot discard
+that identity. Successful writes update the canonical open record before refreshing
+the list. Contextual record entry therefore does not depend on the record appearing
+in the first 100 list rows, and reopening never treats transcript text as current data.
+
 The Luft native clients use this crate and default to `https://luft.work`; it does not migrate or replace the
 shipping apps' credential stores. Custom origins must be Luft servers advertising the fixed native client through `/.well-known/luft.json`. Keep its vault in a separate Luft secure
 storage namespace. Never log host actions, HTTP authorization/body fields, or the

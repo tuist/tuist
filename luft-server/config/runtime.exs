@@ -1,6 +1,7 @@
 import Config
 
 config :luft_server, dns_cluster_query: System.get_env("DNS_CLUSTER_QUERY")
+config :luft_server, git_endpoint: System.get_env("LUFT_GIT_ENDPOINT")
 
 if System.get_env("PHX_SERVER") do
   config :luft_server, LuftServerWeb.Endpoint, server: true

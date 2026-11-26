@@ -1,9 +1,9 @@
 import AuthenticationServices
 import Foundation
+import LuftCore
 import OSLog
 import Security
 import SwiftUI
-import LuftCore
 
 private let coreLog = Logger(subsystem: "dev.tuist.guild", category: "core")
 
@@ -64,8 +64,15 @@ struct AppClientError: LocalizedError {
     var errorDescription: String? { message }
 }
 
-private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     private var response: UnsafeMutablePointer<CChar>?
+    private let httpOnly: Bool
+
+    init(httpOnly: Bool = false) {
+        self.httpOnly = httpOnly
+        super.init()
+    }
+
     private let keychain: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: "dev.tuist.code.profiles",
@@ -89,6 +96,9 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
         let result: [String: Any]
         do {
             let action = try JSONSerialization.jsonObject(with: Data(input.utf8)) as? [String: Any] ?? [:]
+            guard !httpOnly || action["type"] as? String == "http" else {
+                throw AppClientError(message: "Workspace host only supports HTTP")
+            }
             switch action["type"] as? String {
             case "read":
                 var query = keychain
@@ -306,6 +316,9 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
 
     /// Launch arguments are consumed once, after the core boots.
     func start() async {
+        #if targetEnvironment(simulator)
+            guard !WorkspacePreview.requested else { return }
+        #endif
         guard !started else { return }
         started = true
         // Loads profiles and migrates local stores before any screen reads them.
@@ -327,6 +340,11 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
     }
 
     func call(_ operation: String, _ args: [String: Any] = [:]) async throws -> [String: Any] {
+        #if targetEnvironment(simulator)
+            guard !WorkspacePreview.requested else {
+                throw AppClientError(message: "Production identity is unavailable in workspace preview")
+            }
+        #endif
         let request = try JSONSerialization.data(withJSONObject: ["operation": operation, "args": args])
         let host = host
         let data: Data = try await withCheckedThrowingContinuation { continuation in

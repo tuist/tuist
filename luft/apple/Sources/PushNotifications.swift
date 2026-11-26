@@ -205,6 +205,9 @@ final class PushNotifications: NSObject, UNUserNotificationCenterDelegate {
         func application(
             _: UIApplication, didFinishLaunchingWithOptions _: [UIApplication.LaunchOptionsKey: Any]? = nil
         ) -> Bool {
+            #if targetEnvironment(simulator)
+                if WorkspacePreview.requested { return true }
+            #endif
             PushNotifications.shared.configure()
             // A background launch has no scene to boot the core, and a Live
             // Activity the server started needs it to register its token.

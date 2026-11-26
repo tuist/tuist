@@ -124,7 +124,7 @@ info_plist = "ios/Info.plist"
 info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NAME = "iphonesimulator", LUFT_PUSH_ENVIRONMENT = "sandbox" }
 entitlements = "ios/Simulator.entitlements"
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
-resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png", "cards/bundle.js", "cards/decision-bundle.js"]
+resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png", "cards/bundle.js", "cards/decision-bundle.js", "workspaces/customer-management/session/session-bundle.js"]
 postbuild_actions = ['{"id":"embed-live-activity","argv":["/bin/bash","modules/embed-widget.sh",".struo/out/LuftIOS/LuftLiveActivity.appex",".struo/out/LuftIOS/Luft.app/PlugIns/LuftLiveActivity.appex"],"inputs":["modules/embed-widget.sh",".struo/out/LuftIOS/LuftLiveActivity.appex"],"outputs":[".struo/out/LuftIOS/Luft.app/PlugIns/LuftLiveActivity.appex"],"cacheable":true}', '{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphonesimulator","apple/Sources/AppShortcuts.swift",".struo/out/LuftIOS/Luft.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".struo/out/LuftIOS/Luft.app/Metadata.appintents"],"cacheable":false}']
 
 [[target]]

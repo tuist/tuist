@@ -1,0 +1,253 @@
+syntax = "proto3";
+
+package enroute.api.v1alpha1;
+
+import "enroute/common/v1alpha1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+// Granular reads: an object, a tree, a history, a diff. Where a git client
+// fetches a packfile and unpacks it, these answer in objects and in the
+// questions about them a reader actually has — for a caller that wants one
+// file or one commit without speaking git at all.
+//
+// Reads only.
+service ObjectService {
+  // One object's kind and size, then its bytes.
+  rpc GetObject(GetObjectRequest) returns (stream GetObjectResponse);
+
+  // Every path under a commit's tree, recursively.
+  rpc ListTree(ListTreeRequest) returns (stream ListTreeResponse);
+
+  // What landed before a commit, newest first.
+  rpc ListCommits(ListCommitsRequest) returns (stream ListCommitsResponse);
+
+  // Which paths lie between two commits, and the blobs on each side of them.
+  rpc DiffCommit(DiffCommitRequest) returns (stream DiffCommitResponse);
+
+  // Where two commits' histories last agreed — `git merge-base --all`.
+  //
+  // What a branch changed is read against the commit it left the other branch
+  // at, not against where that branch has since got to: compare the tips and
+  // everything landed there since reads as a reversion. Nothing but the commit
+  // graph knows the first of those, which is why it is asked here — the same
+  // reason `RefService.IsAncestor` is answered here rather than worked out by
+  // an application.
+  //
+  // Every base, because a criss-cross has more than one and choosing between
+  // them is an opinion this layer does not hold. One is the ordinary answer.
+  //
+  // Safe to ask separately from whatever it informs: two commits are
+  // immutable, so where their histories met is too.
+  rpc FindMergeBases(FindMergeBasesRequest) returns (FindMergeBasesResponse);
+}
+
+// ── granular reads ───────────────────────────────────────────────────────
+
+message GetObjectRequest {
+  common.v1alpha1.RepoKey repo = 1;
+  common.v1alpha1.ObjectId object_id = 2;
+}
+
+message ListTreeRequest {
+  common.v1alpha1.RepoKey repo = 1;
+  // A commit or a tree. A commit is resolved to its root tree, so a caller
+  // holding a branch tip needs no round trip to turn it into one.
+  common.v1alpha1.ObjectId object_id = 2;
+}
+
+// One path under the tree.
+//
+// No mode and no size. A mode says little that `kind` does not, and a size
+// would cost a read of every blob to answer — this walks trees and nothing
+// else, so what it costs is proportional to directories rather than to files.
+message TreeEntry {
+  // Slash-separated, from the root of the tree, with no leading slash.
+  //
+  // Git stores a filename as bytes and does not require them to be UTF-8,
+  // which this field does. A name that is not valid UTF-8 arrives with the
+  // invalid sequences replaced, so a listing stays a listing rather than
+  // failing over one file nobody can name.
+  string path = 1;
+  // `OBJECT_KIND_BLOB` or `OBJECT_KIND_TREE`. Directories are listed as well
+  // as the files in them, so an empty one is still visible.
+  ObjectKind kind = 2;
+  common.v1alpha1.ObjectId object_id = 3;
+}
+
+// Entries arrive in batches, breadth first: everything at one depth before
+// anything below it. Order within a depth is not promised.
+//
+// `truncated` is set when the walk stopped at the server's limit, and the
+// entries already sent are then a prefix of the answer rather than the whole
+// of it. A caller that must not draw a partial tree has to check it.
+message ListTreeResponse {
+  repeated TreeEntry entries = 1;
+  bool truncated = 2;
+}
+
+// The header always arrives first and carries no bytes of its own, so a
+// caller learns what it is about to receive, and how much of it, before
+// deciding to read on. Every message after it carries data.
+message GetObjectResponse {
+  oneof chunk {
+    ObjectHeader header = 1;
+    bytes data = 2;
+  }
+}
+
+message ObjectHeader {
+  ObjectKind kind = 1;
+  // Decoded size in bytes: the sum of the `data` chunks that follow. This is
+  // git's own notion of an object's size, not the compressed or deltified
+  // size it happens to be stored at.
+  uint64 size = 2;
+}
+
+enum ObjectKind {
+  OBJECT_KIND_UNSPECIFIED = 0;
+  OBJECT_KIND_COMMIT = 1;
+  OBJECT_KIND_TREE = 2;
+  OBJECT_KIND_BLOB = 3;
+  OBJECT_KIND_TAG = 4;
+}
+
+// ── commit histories ─────────────────────────────────────────────────────
+
+message ListCommitsRequest {
+  common.v1alpha1.RepoKey repo = 1;
+  // Where the walk starts, and the newest commit it can report. A branch tip
+  // read from `ListRefs` needs no round trip to become one.
+  common.v1alpha1.ObjectId commit_id = 2;
+  // How many commits to walk at most. Clamped to a server limit, and a zero
+  // asks for that limit.
+  uint32 limit = 3;
+  // Resume from a `ListCommitsResponse.next_page_token`. Empty starts at
+  // `commit_id`.
+  string page_token = 4;
+}
+
+// One commit, as data rather than as bytes to parse.
+//
+// First parent only in the walk, which is the history a branch reads as: the
+// commits that landed on it, not every commit that a merge ever brought along.
+// Every parent is still reported, so a caller that wants the others has them.
+message Commit {
+  common.v1alpha1.ObjectId commit_id = 1;
+  repeated common.v1alpha1.ObjectId parent_commit_ids = 2;
+  common.v1alpha1.ObjectId tree_id = 3;
+  Identity author = 4;
+  Identity committer = 5;
+  // The first line, which is what a listing shows.
+  string summary = 6;
+  // Everything after the first line, with the blank line between them
+  // removed. Empty when there is nothing after it.
+  string body = 7;
+}
+
+// Who wrote a commit, and when.
+//
+// The name and the address are the bytes git stored, which are not required
+// to be UTF-8 — invalid sequences arrive replaced, as elsewhere here. The
+// offset is what the author's clock said its own zone was, kept because a
+// time with no zone loses which day the commit was made on.
+message Identity {
+  string name = 1;
+  string email = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  int32 utc_offset_seconds = 4;
+}
+
+message ListCommitsResponse {
+  repeated Commit commits = 1;
+  // Where a following call resumes, to be sent back as
+  // `ListCommitsRequest.page_token`. Empty when the walk reached a commit
+  // with no first parent, which is the whole history rather than a page of it.
+  //
+  // Today it is the next commit's id. Treat it as a token rather than reading
+  // one out of it: what a page resumes from is this call's to decide.
+  string next_page_token = 2;
+}
+
+// ── merge bases ──────────────────────────────────────────────────────────
+
+message FindMergeBasesRequest {
+  common.v1alpha1.RepoKey repo = 1;
+  // Both must be commits this repository stores. The pair is unordered: a
+  // merge base is symmetric.
+  common.v1alpha1.ObjectId commit_id_a = 2;
+  common.v1alpha1.ObjectId commit_id_b = 3;
+}
+
+message FindMergeBasesResponse {
+  // A set, in no defined order, and empty when the two share no history at
+  // all — or when either commit is unknown here, which is the same answer a
+  // caller can act on: not a history this repository can vouch for.
+  repeated common.v1alpha1.ObjectId base_commit_ids = 1;
+
+  // Set when the walk stopped before it had looked at everything, so
+  // `base_commit_ids` is what was found by then rather than the answer.
+  //
+  // Two histories that never met cost a walk of both to say so, which on a
+  // large repository is every commit in it. A caller that reads this as an
+  // answer draws a diff against the wrong commit; it means "unknown".
+  bool exhausted = 2;
+}
+
+// ── commit diffs ─────────────────────────────────────────────────────────
+
+message DiffCommitRequest {
+  common.v1alpha1.RepoKey repo = 1;
+  // The commit to diff. A tree is refused: what a commit changed is a
+  // question about its history, and a tree has none.
+  common.v1alpha1.ObjectId commit_id = 2;
+
+  // What to diff against. Unset is the commit's first parent, which is what
+  // the commit itself changed.
+  //
+  // A branch against a trunk is the other use, and the commit to name here is
+  // the merge base — `FindMergeBases` answers that. Against the trunk's tip
+  // instead, everything landed there since reads as a reversion.
+  //
+  // Not required to be an ancestor: this reports what is between two commits
+  // and holds no opinion about how they are related, as `IsAncestor` reports
+  // ancestry without imposing it.
+  common.v1alpha1.ObjectId base_commit_id = 3;
+}
+
+// One path this commit changed, as the pair of blobs at it.
+//
+// A caller that wants the text reads each id with `GetObject`, which is why
+// this carries none: a diff of a directory nobody opens should not cost the
+// bytes of every file in it.
+message FileChange {
+  // Slash-separated, from the root of the tree, as `TreeEntry.path` is, and
+  // lossily decoded for the same reason.
+  string path = 1;
+
+  // `old_object_id` is unset when the commit adds the path,
+  // `new_object_id` when it deletes it. Never both.
+  //
+  // A path that changed between a file and a directory reads as a delete and
+  // an add of the paths under it, because there is no pair of blobs to name.
+  common.v1alpha1.ObjectId old_object_id = 2;
+  common.v1alpha1.ObjectId new_object_id = 3;
+}
+
+// Changes arrive in batches, ordered by path across the whole answer.
+//
+// Ordered because the diff is worked out before any of it is sent, so sorting
+// it costs one sort here rather than one in every client — and it makes a
+// truncated diff a prefix of the answer rather than an arbitrary part of it.
+//
+// Against `DiffCommitRequest.base_commit_id`, or the first parent when that
+// is unset — the change a merge landed rather than everything it brought
+// along, which is the history `ListCommits` walks. A commit with no parent
+// diffs against nothing, so every path in it is an add.
+//
+// No rename detection: git stores none, and a rename is a delete and an add
+// until somebody decides how alike is alike enough. `truncated` is set when
+// the diff stopped at the server's limit, as `ListTreeResponse.truncated` is.
+message DiffCommitResponse {
+  repeated FileChange changes = 1;
+  bool truncated = 2;
+}

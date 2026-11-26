@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "id": "support",
+  "version": 1,
+  "title": "Support",
+  "dependencies": { "accounts": 1 },
+  "models": {
+    "support.conversation": {
+      "version": 1,
+      "fields": {
+        "subject": { "type": "string", "required": true },
+        "status": { "type": "enum", "values": ["open", "closed"], "required": true, "default": "open" },
+        "customer": { "type": "reference", "model": "accounts.customer", "nullable": true }
+      }
+    }
+  },
+  "queries": {
+    "support.conversation.list": { "model": "support.conversation", "operation": "list" },
+    "support.conversation.get": { "model": "support.conversation", "operation": "get" }
+  },
+  "actions": {
+    "support.conversation.create": { "model": "support.conversation", "operation": "create" },
+    "support.conversation.update": { "model": "support.conversation", "operation": "update" }
+  },
+  "ui_modules": [{
+    "id": "support.inbox",
+    "title": "Inbox",
+    "group": "Support",
+    "model": "support.conversation",
+    "entry": "ui/bundle.js",
+    "capabilities": {
+      "queries": ["support.conversation.list", "support.conversation.get", "accounts.customer.get"],
+      "actions": ["support.conversation.create", "support.conversation.update"]
+    }
+  }],
+  "fixtures": "fixtures.json"
+}

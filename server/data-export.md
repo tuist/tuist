@@ -2,6 +2,59 @@
 
 This document outlines all data that Tuist can export for customers upon legal request (GDPR, CCPA). **Data is exported for the specific account associated with the requesting user or organization**.
 
+## Luft local workspace prototype
+
+The opt-in local workspace runner in `luft-server/` stores fictional development
+records in a separate, loopback PostgreSQL database named `luft_workspace_*`, one
+organization per database. The standalone preview remains local; an authenticated
+Thread integration is separately opt-in through trusted `:record_workspaces`
+configuration (disabled by default). This is not production database provisioning.
+`workspace_catalog` holds the installed
+definition and UI source, including installed portable app IDs, versions, titles
+and exact dependency versions in `definition.apps`. App manifests are organization-neutral;
+the composed catalog alone carries the selected organization. Absolute manifest paths and fixture
+file contents are not copied into this metadata. `model_<hash>` tables hold the declared business fields,
+record UUIDs and revisions, including nullable UUID references between app-owned models
+(for example a Support conversation's customer). Reference targets are enforced by
+foreign keys within this same organization database, with restricted deletion; they
+never point into Tuist accounts or another workspace database. `workspace_requests` holds mutation inputs and replay
+results; `workspace_audit` links request UUIDs, action names, record UUIDs and
+timestamps. Replay payloads can contain the same personal fields as business rows.
+All persist until the developer explicitly drops the disposable database; fixture
+seeding refuses to overwrite existing records. A full `pg_dump` of that selected
+local database retrieves these records, app metadata and foreign-key relationships.
+For selective exports read `workspace_catalog.definition`, derive table names using
+`LuftServer.Workspaces.Definition.table/1` for its model IDs, then select all rows
+from those tables along with `workspace_requests` and `workspace_audit`. The preview
+list query is capped at 100 and is not a complete export. No automatic production
+export integration or retention job is implemented. The separate owner-only preview
+connection file contains an ephemeral bearer token and must not be exported.
+
+The authenticated integration persists `thread_messages.record_reference` as a
+nullable JSONB `{model, id}` with `kind = 'record'` and generic body `Open record`.
+It contains no business title, row data, workspace source or grant snapshot. The
+message belongs to the Luft thread, follows its permanent retention and cascading
+deletion, and is included by the existing `SELECT * FROM thread_messages WHERE
+thread_id IN (...) ORDER BY thread_id, position` export against the Luft database.
+Filter parent threads by the requested account (and owner for personal exports).
+Apply migration `20261123000000_add_record_references` before new writers; export
+references before dropping the additive column on rollback. Thread readership
+does not grant business access: each open/query/action and mutation retry checks
+fresh Tuist context plus explicit per-user operation grants configured for the
+stable upstream organization/account IDs and installed local catalog organization.
+These scalar bindings and grants are operator configuration, not new identity
+tables. Consult that configuration to locate the separate workspace database for
+an account export; business models may contain personal fields independent of the
+thread owner, so export the selected organization's rows using the workspace
+procedure above. There is no cross-database foreign key or automatic deletion on
+Tuist account/user deletion. Operators must coordinate erasure across both stores.
+Action replay UUIDs are namespaced by account, user, thread and reference message;
+workspace replay payloads/results and audit rows retain the categories above, but
+the audit does not separately store an actor identity. Agent workspace query
+results can also persist in the encrypted Luft agent journal under the existing
+thread export/retention procedures. No new bucket, public URL, retention job or
+automatic legal-export endpoint is introduced.
+
 ## Export Format
 
 Opt-in managed Kura recovery also stores account operational state in Kubernetes:
@@ -1589,6 +1642,108 @@ Model-selected follow-up icon meanings are stored in `thread_messages.suggestion
 - **Notification projections:** Luft's `thread_live_activities` stores activity UUID, scalar upstream user ID, exact Luft session UUID in `oauth_grant_id`, environment, encrypted ActivityKit token and token hash, expiry, digest/phase digest, last-send time, working thread UUIDs and monotonic retirement reason/time. `thread_live_activity_starters` stores the exact session, upstream user ID, profile ID, encrypted push-to-start token/hash, environment and last-start metadata. `LuftServer.Notifications.PruneWorker` runs hourly; consult `LiveActivities.prune/0` for expiry and retirement grace periods. Export metadata by `user_id`, excluding tokens and token hashes. Tuist retains only generic installation and APNs authorization/transport records; existing registrations need native re-registration after cutover. Oban jobs contain conversation UUIDs/revisions/status, not conversation bodies or provider tokens; completed jobs are pruned after one day.
 - **Repository publication ledger:** Tuist's `vcs_publications` retains account-owned publication request UUIDs and fingerprints, nullable approving user ID, repository, opaque operation UUID, target branch, reviewed base/head SHAs, mode, status and timestamps. This ledger prevents repeating an uncertain GitHub write; it stores no conversation content or foreign keys into Luft. Account deletion cascades; user deletion clears attribution. No time-based retention is introduced. Export with `SELECT id, account_id, user_id, request_id, repository, operation_id, target_branch, base_sha, head_sha, mode, status, inserted_at, updated_at FROM vcs_publications WHERE account_id = <account_id>`; personal exports additionally filter `user_id`. Fingerprints are internal replay evidence, not credentials; include them only when requested for audit.
 - **Cross-service lifecycle and cutover:** Tuist user/account deletion does not cascade through these scalar references into the Luft database. Account/user deletion propagation, retention cleanup and export coordination must cover both databases before retiring the old authority. Existing-data transfer must preserve UUIDs, request identities, message/read positions, consent records and encrypted journals, with old workers fenced before enabling new execution. No automatic source deletion or production transfer is performed by these additive Luft migrations. Until cutover is complete, a legal export must check both databases and the retained Tuist journal prefix; do not assume the new local tables contain historical conversations.
+
+## Luft reviewed-behavior rehearsal storage
+
+This opt-in local foundation uses a separate loopback PostgreSQL database named
+`luft_workspace_*` per explicitly bound organization/account. It is not a
+production persistence or deletion service. Tuist IDs are scalar references:
+Tuist account/user deletion does not cascade here. Keep it disabled for customer
+data until coordinated export, erasure, retention and backups are implemented.
+
+- **Installation and grants:** `behavior_installation` binds the database to an
+  upstream organization/account and holds its active release, nullable `merged`
+  desired-release hash and disabled flag. Merging does not change `active`.
+  `behavior_principals` holds verified user IDs and explicit role, owner,
+  collection and method grants. Export both tables from each configured database;
+  a personal export restricts principals by `user_id`.
+- **Reviewed definitions:** `behavior_releases` retains the immutable definition
+  (including authored JavaScript, schemas, presentation projections and exports),
+  runtime identity, baseline/hash, author/reviewer IDs and creation/activation
+  times, plus nullable `repository_key`, `commit_id`, `reviewed_commit_id` and
+  `base_commit_id` for Git-backed releases. Nullable `merge_status` records
+  pending/merged/conflict; `merge_requested_by` attributes the durable intent,
+  and `merged_by`/`merged_at` attribute confirmation separately from activation.
+  Export `SELECT * FROM behavior_releases`; personal attribution matches
+  `author`, `reviewer`, `merge_requested_by` or `merged_by`. Definitions are customer-authored content, not secrets.
+  Agent authoring uses these same immutable releases and actor attribution; it
+  adds no draft table. Repeating identical proposal content/baseline/main-base retains one
+  release and one proposed event. Review diffs and capability/blocker responses
+  are computed on read, not separately persisted. Approval/activation use the
+  existing event records and release columns, including merge_requested, merged
+  and merge_conflict events. An unknown Git outcome retains its pending intent
+  for explicit, permission-checked reconciliation. Compile-only validation stores no
+  definition or validation report outside the conversation journal.
+- **Organization ops Git:** The central Luft PostgreSQL table
+  `organization_ops_repositories` maps one scalar Tuist organization ID
+  to an opaque repository UUID and timestamps. It is not a project repository
+  registry: multiple accounts in the organization share this ops repo,
+  retaining separate account-scoped release refs and authorization. Export
+  `SELECT * FROM organization_ops_repositories WHERE organization_id =
+  <organization_id>` along with the corresponding behavior databases. Git
+  stores complete `accounts/<account_id>/release.json` envelopes (definition,
+  authored JavaScript, schemas, runtime identity, active baseline/hash, reviewed
+  Git base and organization/account IDs), under proposal refs
+  `refs/heads/releases/<account_id>/<hash>` and the approved desired ref
+  `refs/heads/main`. Other account files are preserved when main advances.
+  Legacy proposals may retain root `release.json`; export them as well.
+  Commit authors contain scalar user
+  attribution (`Luft user <id>`, `user-<id>@luft.invalid`), not real email
+  addresses. These are customer-owned definitions, not business record rows,
+  grants, invocation results or credentials. The private Git service retains
+  its ledger on its PVC and objects in Tigris (`luft-git-production` in the
+  current deployment); the application uses its API, not physical bucket keys.
+  Export pinned commit metadata and each `release.json` via Git's commit/tree/
+  object APIs using every retained local pin, including pins no longer reachable
+  from a branch. Also enumerate repository refs/history: failed proposals may
+  leave Git-only commits without a corresponding release row. Personal exports
+  follow local author/reviewer IDs and Git author IDs, with related baselines
+  needed to interpret them. No Git lifecycle/export automation is introduced;
+  operators must coordinate these reads before enabling customer data.
+- **Current resources:** Each declared resource has a typed table named
+  `resource_` plus the first 24 hex characters of its SHA-256 identity, with UUID
+  `id`, revision, deletion flag and declared typed fields. Reference fields are
+  UUID foreign keys. Resolve the map from each retained release's
+  `definition.resources` keys using `BehaviorDefinition.table/1`, then export all
+  retained tables, including nonprojected fields and deletion flags. UI/API
+  projections are not complete legal exports. Personal resource selection is
+  application-schema-specific; do not assume a universal owner column.
+- **History and execution:** `behavior_versions` stores immutable resource/id/
+  revision snapshots, schema version, release and invocation ID.
+  `behavior_invocations` stores principal/request UUIDs, method/release, complete
+  input and projected result for durable replay. These can contain personal or
+  business data even when current projections hide it. `behavior_events` stores
+  actor, kind, target, invocation and timestamp. Export all three tables per
+  organization; personal attribution follows invocation/event `user_id` and
+  versions linked by invocation ID. Include related rows needed to interpret the
+  export. Resource history is not removed by changing a current row or release.
+- **Retention/deletion:** There is no automatic expiry, compaction, individual
+  erasure or upstream deletion propagation in this slice. Disabling an
+  installation blocks access but does not erase any row, history, definition,
+  invocation or backup. Local disposable rehearsals must remove their database
+  after use. Git-backed definitions additionally persist outside those databases;
+  deleting a release, mapping or database does not erase Git commits, Tigris
+  objects, ledger history or backups. No automatic Git pruning, organization
+  deletion propagation or individual erasure is implemented. Disposable
+  rehearsals must also remove their private Git repositories. A mapping or
+  orphaned proposal can remain after an interrupted write; retain it for
+  reconciliation/export rather than treating a failed response as no data.
+  No business external-effect delivery is added.
+- **Conversation references:** The existing nullable
+  `thread_messages.record_reference` retains only `{model, id}` under the thread's
+  retention/export rules. New behavior discovery/query tools put opaque locators,
+  not protected field values, in the agent journal. Opening a reference resolves
+  current grants and projections afresh. Historical journals from the earlier
+  workspace pilot may still contain authorized query values and retain their
+  existing conversation export/deletion requirements.
+- **Authoring journals:** Behavior inspection, validation, proposal, merge and promotion
+  tool inputs/results can retain customer-authored schemas, JavaScript, exact
+  definition changes, hashes and diagnostics in the existing encrypted agent
+  journal. They follow the thread's export/retention/deletion rules, not just
+  `behavior_releases`. Export both stores; a failed validation may exist only in
+  the journal. Tools must not be supplied with secrets or private row snapshots.
+  Native release review holds definitions and authority only in memory and does
+  not add release content to the offline outbox or local collection store.
 
 ## Luft sessions
 

@@ -4,6 +4,9 @@ use crate::ai_subscriptions::{CLAUDE_TOKEN_REFUSED, UNAVAILABLE as AI_SUBSCRIPTI
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use std::collections::VecDeque;
 
+mod releases;
+mod resources;
+
 #[derive(Default)]
 struct Fake {
     vault: Option<String>,
@@ -72,6 +75,101 @@ impl Host for Fake {
         }
     }
 }
+
+#[test]
+fn session_records_use_authenticated_message_routes_and_fail_closed_after_revocation_or_switch() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let thread = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    let message = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    let id = "11111111-1111-4111-8111-111111111111";
+    let mut catalog: Value = serde_json::from_str(include_str!(
+        "../../../../apps/customer-management/app.json"
+    ))
+    .unwrap();
+    catalog["title"] = json!("Accounts");
+    catalog["ui_modules"][0]["source"] = json!("// installed source");
+    let row = json!({"id":id,"revision":1,"name":"Northstar","email":null,"status":"active"});
+    let entry = json!({"workspace":catalog,"module":"accounts.customers","reference":{"model":"accounts.customer","id":id}});
+    let args = json!({"thread":thread,"message":message,"generation":c.vault.generation,"surface":"dddddddd-dddd-4ddd-8ddd-dddddddddddd"});
+    h.responses.push_back((200, entry.clone()));
+    h.responses.push_back((200, json!({"record":row})));
+    let opened = call(&mut c, &mut h, "record_open", args.clone());
+    assert!(opened.get("error").is_none(), "{opened}");
+    assert_eq!(opened["data"]["view"]["record"], row);
+    assert_eq!(opened["data"]["entry"], entry["reference"]);
+    let http: Vec<_> = h.actions.iter().filter(|a| a["type"] == "http").collect();
+    let base = format!("https://one.test/api/accounts/ana/threads/{thread}/records/{message}");
+    assert_eq!(http[http.len() - 2]["url"], base);
+    assert_eq!(http.last().unwrap()["url"], format!("{base}/query"));
+    let body: Value = serde_json::from_str(http.last().unwrap()["body"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        body,
+        json!({"module":"accounts.customers","query":"accounts.customer.get","input":{"id":id}})
+    );
+    assert!(!opened.to_string().contains(&c.vault.profiles[0].access));
+
+    let mut stale_surface = args.clone();
+    stale_surface["surface"] = json!("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+    let count = h.actions.len();
+    assert!(call(&mut c, &mut h, "record_close", stale_surface)["error"].is_string());
+    assert_eq!(h.actions.len(), count);
+
+    // A retained request is retried under the same authenticated message, never
+    // sent to the preview API or queued for a different profile.
+    let mut update = args.clone();
+    update["action"] = json!("accounts.customer.update");
+    update["request_id"] = json!("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+    update["input"] = json!({"id":id,"expected_revision":1,"values":{"status":"paused"}});
+    h.responses
+        .push_back((500, json!({"error":{"code":"UNAVAILABLE"}})));
+    let unknown = call(&mut c, &mut h, "record_action", update);
+    assert_eq!(unknown["data"]["view"]["can_retry"], true);
+    let original = h.actions.last().unwrap()["body"].clone();
+
+    // Foregrounding/remounting revalidates access and current data, but cannot
+    // turn an uncertain submission into a fresh write with a different UUID.
+    call(&mut c, &mut h, "record_close", args.clone());
+    h.responses.push_back((200, entry.clone()));
+    h.responses.push_back((200, json!({"record":row})));
+    let reopened = call(&mut c, &mut h, "record_open", args.clone());
+    assert_eq!(reopened["data"]["view"]["can_retry"], true);
+
+    // A dropped response receives one byte-identical transport retry. A second
+    // loss clears all rendered data, retaining only the unresolved submission.
+    h.responses.extend([(0, Value::Null), (0, Value::Null)]);
+    let disconnected = call(&mut c, &mut h, "record_retry", args.clone());
+    assert_eq!(disconnected["data"]["view"]["connected"], false);
+    assert!(disconnected["data"]["view"]["modules"].is_null());
+    let attempts: Vec<_> = h.actions.iter().rev().take(2).collect();
+    assert!(attempts.iter().all(|request| request["body"] == original));
+    h.responses.push_back((200, entry.clone()));
+    h.responses.push_back((200, json!({"record":row})));
+    let reopened = call(&mut c, &mut h, "record_open", args.clone());
+    assert_eq!(reopened["data"]["view"]["can_retry"], true);
+    h.responses
+        .push_back((403, json!({"error":{"code":"FORBIDDEN"}})));
+    let denied = call(&mut c, &mut h, "record_retry", args.clone());
+    assert_eq!(h.actions.last().unwrap()["body"], original);
+    assert_eq!(denied["data"]["view"]["connected"], false);
+    assert!(denied["data"]["view"]["record"].is_null());
+    assert!(denied["data"]["view"]["modules"].is_null());
+
+    h.responses.push_back((200, entry));
+    h.responses.push_back((200, json!({"record":row})));
+    call(&mut c, &mut h, "record_open", args.clone());
+    call(&mut c, &mut h, "select_organization", json!({"name":"ana"}));
+    // Change to another actual signed-in profile, then send the old surface's command.
+    login(&mut c, &mut h, "https://two.test", 2, i64::MAX);
+    let count = h.actions.len();
+    assert!(call(&mut c, &mut h, "record_retry", args)["error"].is_string());
+    assert_eq!(h.actions.len(), count);
+    assert_eq!(
+        call(&mut c, &mut h, "flush_outbox", json!({}))["data"]["sent"],
+        0
+    );
+}
+
 #[test]
 fn decision_answers_are_online_only_retry_idempotently_and_cache_terminal_metadata() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());

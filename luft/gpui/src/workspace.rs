@@ -14,6 +14,7 @@ use tuist_app_core::theme as theme_catalog;
 mod live;
 mod lounges;
 mod preview;
+mod releases;
 mod socket;
 mod subscriptions;
 mod threads;
@@ -111,10 +112,12 @@ pub struct Workspace {
     lounges: Entity<LoungesPanel>,
     dms: Entity<LoungesPanel>,
     subscriptions: Entity<SubscriptionsPanel>,
+    releases: Entity<releases::ReleasesPanel>,
     /// One per destination, so closing a preview can return focus to the sidebar.
     destination_focus: [FocusHandle; Destination::ALL.len()],
     _appearance: Subscription,
     _navigation: Subscription,
+    _releases: Subscription,
     _theme: Subscription,
 }
 
@@ -137,25 +140,34 @@ impl Workspace {
             })
         });
         let subscriptions = cx.new(|cx| SubscriptionsPanel::new(session.clone(), window, cx));
+        let scroll = ScrollHandle::new();
+        let releases = cx.new(|cx| {
+            releases::ReleasesPanel::new(session.clone(), &account, scroll.clone(), window, cx)
+        });
         let threads =
             cx.new(|cx| ThreadsPanel::new(session, handle, navigation.clone(), window, cx));
-        // Profile follows the AI subscriptions' live socket only while it shows.
-        let observer = cx.observe(&navigation, |this: &mut Self, _, cx| {
+        let observer = cx.observe(&navigation, |this: &mut Self, navigation, cx| {
             this.sync_subscriptions(cx);
+            if navigation.read(cx).tab != Destination::Profile {
+                this.releases.update(cx, |panel, cx| panel.close(cx));
+            }
             cx.notify();
         });
+        let release_observer = cx.observe(&releases, |_, _, cx| cx.notify());
         let mut workspace = Self {
             navigation,
             account,
             server,
-            scroll: ScrollHandle::new(),
+            scroll,
             threads,
             lounges,
             dms,
             subscriptions,
+            releases,
             destination_focus: Destination::ALL.map(|_| cx.focus_handle().tab_stop(true)),
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
             _navigation: observer,
+            _releases: release_observer,
             _theme: cx.observe_global::<crate::theme::ThemeState>(|_, cx| cx.notify()),
         };
         workspace.sync_subscriptions(cx);
@@ -263,6 +275,14 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        if self.releases.read(cx).is_open() {
+            return div()
+                .w_full()
+                .min_w_0()
+                .px_8()
+                .py_6()
+                .child(self.releases.clone());
+        }
         let handle = self.account.handle.clone();
         let email = self.account.email.clone();
         let name = handle
@@ -368,6 +388,8 @@ impl Workspace {
             .child(value("server", "Server", self.server.to_string()))
             .child(section("AI subscriptions"))
             .child(self.subscriptions.clone())
+            .child(section("Release review"))
+            .child(self.releases.clone())
             .child(section("Theme"))
             .child(themes)
             .child(section("Legal"))
@@ -568,6 +590,9 @@ impl Workspace {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    .when(self.releases.read(cx).is_open(), |body| {
+                        body.overflow_x_scroll()
+                    })
                     .track_scroll(&self.scroll)
                     .child(match preview {
                         Some(preview) => self
