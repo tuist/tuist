@@ -890,9 +890,22 @@ jobs:
 
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff"
+          install_args: "--locked git-cliff 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      # The Helm release creates its tag at github.sha through the API. When
+      # main has moved past this run's commit with workflow changes, that
+      # needs the workflows permission, which GITHUB_TOKEN never has (403
+      # "Resource not accessible by integration"). The other components'
+      # tags already exist (tag-infra-releases), so they keep the job token.
+      - id: release-token
+        if: needs.check-releases.outputs.helm-should-release == 'true' && needs.release-helm.result == 'success'
+        uses: ./.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
 
       - name: Download Helm artifacts
         if: needs.check-releases.outputs.helm-should-release == 'true' && needs.release-helm.result == 'success'
@@ -917,6 +930,7 @@ jobs:
         if: needs.check-releases.outputs.helm-should-release == 'true' && needs.release-helm.result == 'success'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
+          token: ${{ steps.release-token.outputs.token }}
           draft: false
           repository: tuist/tuist
           target_commitish: ${{ github.sha }}

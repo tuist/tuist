@@ -580,7 +580,7 @@ first of these that is enough:
 
 | Need | Workflows | Repositories | Permissions |
 | --- | --- | --- | --- |
-| Create a tag or ref at a commit whose workflow files differ from main's (release branches, patch releases, a main that moved during the run) | `cli-`, `server-`, `kura-`, `pulse-build-publish.yml`, the four `*-rc.yml` branch cuts, `app-release.yml`, `gradle-release.yml`, `tuist-ex-release.yml`, `condukt-release.yml`, `runner-image-release.yml`, `linux-runner-image-release.yml`, `server-production-deployment.yml` (`tag-infra-releases`) | `tuist` | contents, workflows: write |
+| Create a tag or ref at a commit whose workflow files differ from main's (release branches, patch releases, a main that moved during the run) | `cli-`, `server-`, `kura-`, `pulse-build-publish.yml`, the four `*-rc.yml` branch cuts, `app-release.yml`, `gradle-release.yml`, `tuist-ex-release.yml`, `condukt-release.yml`, `runner-image-release.yml`, `linux-runner-image-release.yml`, `atlas-release.yml`, `server-production-deployment.yml` (`tag-infra-releases`, and the Helm release in `publish-releases`) | `tuist` | contents, workflows: write |
 | Dispatch the Homebrew formula and cask workflows | `cli-build-publish.yml`, `app-release.yml` | `homebrew-tuist` | actions: write |
 | Push distributions | `install-action.yml` | `install` | contents: write |
 | | `cache-volume-action.yml` | `cache-volume`, `cache-volume-buildkite-plugin`, `cache-volume-gitlab` | contents: write |
