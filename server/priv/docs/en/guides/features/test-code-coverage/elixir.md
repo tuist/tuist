@@ -91,6 +91,7 @@ The package falls back to Mix's coverage tool, with the same upload, for:
 - **Product code only.** Files under your test paths are test code. Tuist stores them but leaves them out of every figure.
 - **Lines per file.** A line counts once per file, however many modules it belongs to.
 - **Functions.** Each line belongs to the function whose clause starts closest above it. Functions the compiler or a macro generates, such as `__info__/1` or `__schema__/1`, aren't listed, but their lines still count for their file.
+- **Templates.** With native counting, a template compiled into a module, such as a LiveView's `.html.heex`, `embed_templates` or `EEx.function_from_file`, is measured as a file of its own, with its own lines and no functions. Mix's coverage tool doesn't measure templates, so the summary and threshold leave them out.
 
 So Tuist's figures differ from Mix's own coverage report in a few ways: they leave test code out and count lines per file rather than per module. Native counting also sees the code that runs while your application starts, and leaves out the lines the compiler proves can never run, which Mix's tool reports as never covered.
 

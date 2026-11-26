@@ -1712,7 +1712,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           project_id
           |> Coverage.report_files_for_runs(ids, lines: false)
           |> Coverage.without_excluded(excluded)
-          |> where([f], not f.is_test)
+          |> where([f], not f.is_test and f.executable_lines > 0)
           |> search_paths(search)
 
         [files, count] =

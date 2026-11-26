@@ -91,6 +91,7 @@ defmodule Tuist.GitHistory do
       "**/mix.lock",
       "**/config/**",
       "**/test_helper.exs",
+      "**/priv/repo/migrations/**",
       "**/.tool-versions",
       "**/mise.toml",
       "**/.mise.toml"

@@ -75,7 +75,13 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       CoverageFixtures.run_with_coverage(
         project,
         account,
-        [file("Sources/A.swift", [0, 1, 0], targets: ["Other"]), file("Sources/C.swift", [0, 0], targets: ["Other"])],
+        [
+          file("Sources/A.swift", [0, 1, 0], targets: ["Other"]),
+          file("Sources/C.swift", [0, 0], targets: ["Other"]),
+          # A file without executable lines, as a Mix module's external
+          # resource is reported, is evidence only: no file list holds it.
+          file("priv/gettext/en/LC_MESSAGES/default.po", [], targets: ["Other"])
+        ],
         %{scheme: "Other", partial: true}
       )
 
