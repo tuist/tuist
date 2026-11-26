@@ -91,6 +91,37 @@ jobs:
           ls -la "$E2E_REAL" "$E2E_REAL/.." 2>/dev/null | head -30 || true
           find "$(dirname "$E2E_REAL")" -maxdepth 2 -name '.TemporaryItems' -print 2>/dev/null || true
           exit 0
+      # SwiftPM copies registry downloads from its cache on the root disk into
+      # the scratch path, so test copies that cross from the root volume into
+      # the cache volume, and concurrent writes.
+      - name: Cross-volume copies and concurrent writes
+        run: |
+          set -uo pipefail
+          src="$(mktemp -d "$HOME/xsrc.XXXX")"
+          for i in $(seq 1 200); do head -c $((RANDOM % 6000 + 20)) /dev/urandom > "$src/f$i"; done
+          (cd "$src" && shasum -a 256 f*) > /tmp/src.sum
+          check() { local d="$1" label="$2"; sleep 2; local z=0; for f in "$d"/f*; do [ -z "$(tr -d '\0' < "$f" | head -c1)" ] && z=$((z+1)); done; local m=0; (cd "$d" && shasum -a 256 -c /tmp/src.sum --quiet >/dev/null 2>&1) || m=1; echo "$label: all-zero=$z mismatch=$m"; }
+          for tool in cp "cp -c" ditto rsync; do d="$E2E_REAL/x-${tool// /_}"; rm -rf "$d"; mkdir -p "$d"; $tool "$src"/f* "$d"/ 2>/dev/null || { mkdir -p "$d"; for f in "$src"/f*; do $tool "$f" "$d/" ; done; }; check "$d" "$tool"; done
+          cat > /tmp/xcopy.swift <<'EOF2'
+          import Foundation
+          let src = URL(fileURLWithPath: CommandLine.arguments[1]), dst = URL(fileURLWithPath: CommandLine.arguments[2])
+          let fm = FileManager.default
+          try? fm.createDirectory(at: dst, withIntermediateDirectories: true)
+          let names = try! fm.contentsOfDirectory(atPath: src.path).filter { $0.hasPrefix("f") }
+          let mode = CommandLine.arguments[3]
+          DispatchQueue.concurrentPerform(iterations: names.count) { i in
+            let s = src.appendingPathComponent(names[i]), d = dst.appendingPathComponent(names[i])
+            switch mode {
+            case "copyItem": try! fm.copyItem(at: s, to: d)
+            case "moveItem": let t = src.appendingPathComponent("m-" + names[i]); try! fm.copyItem(at: s, to: t); try! fm.moveItem(at: t, to: d)
+            default: try! Data(contentsOf: s).write(to: d)
+            }
+          }
+          EOF2
+          swiftc -O /tmp/xcopy.swift -o /tmp/xcopy
+          for mode in copyItem moveItem write; do d="$E2E_REAL/s-$mode"; rm -rf "$d"; /tmp/xcopy "$src" "$d" "$mode"; check "$d" "concurrent $mode from root disk"; done
+          d="$E2E_REAL/s-inside"; mkdir -p "$d/src"; cp "$src"/f* "$d/src/"; /tmp/xcopy "$d/src" "$d/dst" copyItem; check "$d/dst" "concurrent copyItem inside volume"
+          exit 0
       - uses: ./.github/actions/mise-install
         with:
           install: "erlang elixir"
