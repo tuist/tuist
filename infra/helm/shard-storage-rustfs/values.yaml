@@ -37,6 +37,10 @@ target:
   # all at once, once every entrance answers from its site's runners. Until
   # then no Mac is given this store.
   runnerEntrancesReady: false
+  # Other rack sites whose Macs also place plans here, each through its own
+  # runnerEntrances entry; empty places only from target.site's Macs. Linux
+  # runners place only at target.site.
+  placementSites: []
 # Rack sites' gateways that publish the store to their Macs, which reach no
 # cluster network: each gets an Ingress on that site's gateway class, a DNS
 # record at the gateway's address and a certificate. Macs at the store's own

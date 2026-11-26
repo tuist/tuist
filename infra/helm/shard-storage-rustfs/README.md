@@ -150,8 +150,9 @@ storage node on TCP 443 (`rackFleet.vmCacheGatewayCIDRs`). So each entry in
 (`kura-<site>-runners`), admitting only the site's machines segment, with a
 DNS record at the storage node's segment address and a DNS-01 certificate.
 The server reaches the store in-cluster, signs a Mac's URLs for its own
-site's entrance (`runner_endpoints`), and places plans here only from Macs at
-`larch` with `runner_shard_storage`. Shard jobs run at whichever site claims
+site's entrance (`runner_endpoints`), and places plans here from Macs at
+`larch` and at each site in `target.placementSites` (ber1) with
+`runner_shard_storage`; a placement site needs its own entrance. Shard jobs run at whichever site claims
 them, so ber1's entrance must serve before any plan lands here: the server
 gets `runner_endpoints` only once `target.runnerEntrancesReady` is set, for
 every entrance at once. ber1's traffic crosses both sites' internet ports

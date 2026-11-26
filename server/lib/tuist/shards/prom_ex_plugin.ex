@@ -5,12 +5,20 @@ defmodule Tuist.Shards.PromExPlugin do
   """
   use PromEx.Plugin
 
+  alias Tuist.Shards.Storage
+
+  @plan_created [:tuist, :shards, :plan, :created]
+
   @impl true
   def event_metrics(_opts) do
     [
       Event.build(:tuist_shards_storage, [
-        counter([:tuist, :shards, :plans, :total],
-          event_name: [:tuist, :shards, :plan, :created],
+        # A sum rather than a counter, so the zero-count events below publish
+        # every possible series before its first plan; increase() never sees
+        # a series' first plan otherwise.
+        sum([:tuist, :shards, :plans, :total],
+          event_name: @plan_created,
+          measurement: :count,
           tags: [:store, :platform, :site],
           description: "Shard plans created, by the store they were placed in."
         ),
@@ -24,5 +32,22 @@ defmodule Tuist.Shards.PromExPlugin do
         )
       ])
     ]
+  end
+
+  @impl true
+  def polling_metrics(opts) do
+    [
+      Polling.build(
+        :tuist_shards_storage_placements,
+        Keyword.get(opts, :poll_rate, to_timeout(minute: 5)),
+        {__MODULE__, :publish_placements, []},
+        []
+      )
+    ]
+  end
+
+  def publish_placements do
+    :telemetry.execute(@plan_created, %{count: 0}, %{store: "default", platform: "none", site: "none"})
+    for tags <- Storage.placement_tags(), do: :telemetry.execute(@plan_created, %{count: 0}, tags)
   end
 end
