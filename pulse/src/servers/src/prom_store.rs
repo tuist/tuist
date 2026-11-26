@@ -1778,6 +1778,16 @@ mod tests {
     }
 
     #[test]
+    fn test_zstd_decoder_includes_the_cve_2026_124851_fix() {
+        // Tuist: remote write and the Sentry route's request decompression
+        // decode untrusted zstd with this one libzstd. Before 1.6.0, crafted
+        // frames could copy up to 64 KiB of the decoder's buffer, uninitialised
+        // or stale, into the output that gets stored. See pulse/FORK.md.
+        let version = zstd::zstd_safe::version_number();
+        assert!(version >= 10600, "libzstd {version} lacks the fix");
+    }
+
+    #[test]
     fn test_snappy_response_decompress_is_capped() {
         // The response-side (uncharged) helper must enforce the cap too.
         let bomb = [0xffu8, 0xff, 0xff, 0xff, 0x0f];

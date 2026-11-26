@@ -254,6 +254,16 @@ covered by this list.
   covers it.
   This is a compatibility fix with no Tuist-specific behavior; offer it
   upstream and drop it when upstream has an equivalent.
+- **libzstd 1.6.0** (`Cargo.lock`). `zstd-sys` is pinned to
+  `2.2.0+zstd.1.6.0` or later for CVE-2026-124851: with libzstd 1.5.1 to
+  1.5.7, crafted zstd bodies on remote write and the Sentry route decode to
+  output holding up to 64 KiB of the decoder's uninitialised or stale buffer,
+  which is then stored. libzstd 1.6.0 dropped `ZSTD_copyDCtx`, which
+  `zstd-safe` below 7.4.2 calls under the `experimental` feature that
+  `tantivy-sstable` enables, so `zstd` 0.13.6 and `zstd-safe` 7.4.2 moved with
+  it. Keep those versions when importing upstream's lockfile;
+  `prom_store.rs`'s `test_zstd_decoder_includes_the_cve_2026_124851_fix` fails
+  below libzstd 1.6.0.
 
 ## Build, release and deploy
 
