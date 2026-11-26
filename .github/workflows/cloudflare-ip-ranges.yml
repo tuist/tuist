@@ -2,8 +2,11 @@ name: Cloudflare IP Ranges
 
 # Ingresses with `cloudflareOnly` admit only `cloudflareIPRanges` from
 # infra/helm/tuist/values-managed-common.yaml, so a range Cloudflare adds and
-# the list lacks turns requests from that range into 403s. Fails when the
-# published list and the chart's differ; notify-failure.yml posts it to Slack.
+# the list lacks turns requests from that range into 403s. The server keeps
+# its own copy in server/lib/tuist_web/remote_ip.ex to decide which hops may
+# speak for a client; there a missing range misattributes requests. Fails when
+# the published list and either copy differ; notify-failure.yml posts it to
+# Slack.
 
 on:
   schedule:
@@ -12,6 +15,7 @@ on:
   pull_request:
     paths:
       - infra/helm/tuist/values-managed-common.yaml
+      - server/lib/tuist_web/remote_ip.ex
       - .github/workflows/cloudflare-ip-ranges.yml
 
 permissions:
@@ -34,9 +38,20 @@ jobs:
           jq -e '.success and (.result.ipv4_cidrs | length > 0) and (.result.ipv6_cidrs | length > 0)' ips.json >/dev/null
           published=$(jq -r '.result.ipv4_cidrs[], .result.ipv6_cidrs[]' ips.json | sort)
           chart=$(yq -r '.cloudflareIPRanges[]' infra/helm/tuist/values-managed-common.yaml | sort)
-          if [ "$published" != "$chart" ]; then
-            echo "::error file=infra/helm/tuist/values-managed-common.yaml::cloudflareIPRanges differs from https://api.cloudflare.com/client/v4/ips"
-            diff <(echo "$chart") <(echo "$published") || true
-            exit 1
-          fi
-          echo "cloudflareIPRanges matches Cloudflare's $(echo "$published" | wc -l) published ranges."
+          # The `@cloudflare_cidrs ~w(...)` list, one CIDR per line.
+          server=$(sed -n '/@cloudflare_cidrs ~w(/,/)/{/~w(\|)/d;s/[[:space:]]//g;p}' server/lib/tuist_web/remote_ip.ex | sort)
+          status=0
+          for copy in chart server; do
+            case $copy in
+              chart) file=infra/helm/tuist/values-managed-common.yaml; name=cloudflareIPRanges; ranges=$chart ;;
+              server) file=server/lib/tuist_web/remote_ip.ex; name=@cloudflare_cidrs; ranges=$server ;;
+            esac
+            if [ "$published" != "$ranges" ]; then
+              echo "::error file=$file::$name differs from https://api.cloudflare.com/client/v4/ips"
+              diff <(echo "$ranges") <(echo "$published") || true
+              status=1
+            else
+              echo "$name matches Cloudflare's $(echo "$published" | wc -l) published ranges."
+            fi
+          done
+          exit $status

@@ -10,30 +10,38 @@ defmodule TuistWeb.RemoteIp do
 
   import Bitwise
 
-  @cloudflare_ranges [
-    {{173, 245, 48, 0}, 20},
-    {{103, 21, 244, 0}, 22},
-    {{103, 22, 200, 0}, 22},
-    {{103, 31, 4, 0}, 22},
-    {{141, 101, 64, 0}, 18},
-    {{108, 162, 192, 0}, 18},
-    {{190, 93, 240, 0}, 20},
-    {{188, 114, 96, 0}, 20},
-    {{197, 234, 240, 0}, 22},
-    {{198, 41, 128, 0}, 17},
-    {{162, 158, 0, 0}, 15},
-    {{104, 16, 0, 0}, 13},
-    {{104, 24, 0, 0}, 14},
-    {{172, 64, 0, 0}, 13},
-    {{131, 0, 72, 0}, 22},
-    {{0x2400, 0xCB00, 0, 0, 0, 0, 0, 0}, 32},
-    {{0x2606, 0x4700, 0, 0, 0, 0, 0, 0}, 32},
-    {{0x2803, 0xF800, 0, 0, 0, 0, 0, 0}, 32},
-    {{0x2405, 0xB500, 0, 0, 0, 0, 0, 0}, 32},
-    {{0x2405, 0x8100, 0, 0, 0, 0, 0, 0}, 32},
-    {{0x2A06, 0x98C0, 0, 0, 0, 0, 0, 0}, 29},
-    {{0x2C0F, 0xF248, 0, 0, 0, 0, 0, 0}, 32}
-  ]
+  # One CIDR per line: .github/workflows/cloudflare-ip-ranges.yml reads this
+  # list and fails when it drifts from Cloudflare's published ranges.
+  @cloudflare_cidrs ~w(
+    173.245.48.0/20
+    103.21.244.0/22
+    103.22.200.0/22
+    103.31.4.0/22
+    141.101.64.0/18
+    108.162.192.0/18
+    190.93.240.0/20
+    188.114.96.0/20
+    197.234.240.0/22
+    198.41.128.0/17
+    162.158.0.0/15
+    104.16.0.0/13
+    104.24.0.0/14
+    172.64.0.0/13
+    131.0.72.0/22
+    2400:cb00::/32
+    2606:4700::/32
+    2803:f800::/32
+    2405:b500::/32
+    2405:8100::/32
+    2a06:98c0::/29
+    2c0f:f248::/32
+  )
+
+  @cloudflare_ranges Enum.map(@cloudflare_cidrs, fn cidr ->
+                       [address, prefix] = String.split(cidr, "/")
+                       {:ok, network} = :inet.parse_address(String.to_charlist(address))
+                       {network, String.to_integer(prefix)}
+                     end)
 
   # The countries that host more than one candidate cache region, and so are
   # the only ones a subdivision tells us anything extra about.
@@ -41,10 +49,9 @@ defmodule TuistWeb.RemoteIp do
 
   def get(conn) do
     forwarded_for = header(conn, "x-forwarded-for")
-    cloudflare_ip = cloudflare_ip(conn, forwarded_for)
-    forwarded_ip = first_forwarded_ip(forwarded_for)
 
-    cloudflare_ip || forwarded_ip || format_ip(conn.remote_ip)
+    cloudflare_ip(conn, forwarded_for) || forwarded_client_ip(conn.remote_ip, forwarded_for) ||
+      format_ip(conn.remote_ip)
   end
 
   @doc "Cloudflare request identifier, accepted only over the trusted edge/ingress path."
@@ -167,12 +174,54 @@ defmodule TuistWeb.RemoteIp do
     end)
   end
 
-  defp first_forwarded_ip(nil), do: nil
+  # The client as the proxies in front of us recorded it, for requests that
+  # did not come through Cloudflare. Each proxy appends the address it
+  # accepted the connection from, so only the entries a trusted (private) hop
+  # appended are facts; everything to their left is whatever the client
+  # wrote. Walk from the right, past the private hops, to the first public
+  # address. A public peer is not a proxy we run, so its header is ignored.
+  # When every entry is private, the request never left private networks and
+  # the leftmost entry is the furthest one recorded.
+  defp forwarded_client_ip(_peer_address, nil), do: nil
 
-  defp first_forwarded_ip(forwarded_for) do
-    forwarded_for
-    |> forwarded_ips()
-    |> List.first()
+  defp forwarded_client_ip(peer_address, forwarded_for) do
+    if private_address?(peer_address) do
+      forwarded_for
+      |> forwarded_ips()
+      |> Enum.reverse()
+      |> rightmost_untrusted_ip()
+    end
+  end
+
+  defp rightmost_untrusted_ip([]), do: nil
+
+  defp rightmost_untrusted_ip([entry | rest]) do
+    case parse_forwarded_entry(entry) do
+      {:ok, address} ->
+        cond do
+          not private_address?(address) -> format_ip(address)
+          rest == [] -> format_ip(address)
+          true -> rightmost_untrusted_ip(rest)
+        end
+
+      # An entry no proxy of ours would write: nothing to its left can be
+      # attributed either.
+      {:error, _reason} ->
+        nil
+    end
+  end
+
+  # Some proxies append the client's port: `203.0.113.7:51234` or
+  # `[2001:db8::7]:51234` (Azure Application Gateway does by default). A bare
+  # IPv6 address holds colons too, so it is tried as written first.
+  defp parse_forwarded_entry(entry) do
+    with {:error, _reason} <- parse_address(entry) do
+      case Regex.run(~r/\A(?:\[([0-9A-Fa-f:.]+)\]|(\d{1,3}(?:\.\d{1,3}){3}))(?::\d{1,5})?\z/, entry) do
+        [_, "", v4] -> parse_address(v4)
+        [_, v6] -> parse_address(v6)
+        _ -> {:error, :einval}
+      end
+    end
   end
 
   # `edge_address` is the address of the edge that opened the connection, set

@@ -335,6 +335,12 @@ As an on-premise user, you'll receive a license that you'll need to expose as an
 >
 > Session cookies are flagged `Secure`, so browsers drop them over plain `http://` and users cannot sign in. Terminate TLS in front of the server (a reverse proxy with a certificate from your internal CA is enough) and set `TUIST_APP_URL` to the `https://` URL, even for internal or VPN-only deployments.
 
+#### Client addresses behind a reverse proxy {#client-addresses-behind-a-reverse-proxy}
+
+The server keys sign-in and API rate limits, and logs requests, by client address. Behind a reverse proxy it reads that address from `X-Forwarded-For`, and believes only what a proxy on a private network (RFC 1918, carrier-grade NAT, loopback, link-local or IPv6 unique local addresses) wrote: it takes the rightmost public address in the header, so a client cannot choose its own address by sending the header. Entries with a port, such as `203.0.113.7:51234`, are read too.
+
+If the proxy connects to the server from a public address, the server ignores the header and every request counts as coming from the proxy, so all clients share one rate-limit budget. Connect the proxy to the server over a private network to keep per-client limits. Earlier versions took the leftmost `X-Forwarded-For` entry from any connection.
+
 ### Database configuration {#database-configuration}
 
 The following environment variables are used to configure the database connection:

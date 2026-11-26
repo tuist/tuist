@@ -32,45 +32,110 @@ defmodule TuistWeb.RemoteIpTest do
       assert got == "2001:db8::1"
     end
 
-    test "ignores the Cloudflare header from an untrusted hop" do
+    test "ignores the forwarding headers of a public peer" do
       # Given
       conn =
         build_conn()
         |> Map.put(:remote_ip, {203, 0, 113, 20})
         |> Plug.Conn.put_req_header("cf-connecting-ip", "198.51.100.10")
-        |> Plug.Conn.put_req_header("x-forwarded-for", "forwarded-ip, 198.51.100.20")
+        |> Plug.Conn.put_req_header("x-forwarded-for", "198.51.100.11, 198.51.100.20")
 
       # When
       got = TuistWeb.RemoteIp.get(conn)
 
       # Then
-      assert got == "forwarded-ip"
+      assert got == "203.0.113.20"
     end
 
-    test "ignores an invalid Cloudflare address from a trusted hop" do
+    test "takes the address the ingress recorded for a request that skipped Cloudflare" do
+      # Given: the headers the production ingress forwards (use-forwarded-headers
+      # on, PROXY protocol) for a client at 198.18.0.50 that connects to the
+      # origin directly and writes its own X-Forwarded-For and CF-Connecting-IP.
+      conn =
+        build_conn()
+        |> Map.put(:remote_ip, {0, 0, 0, 0, 0, 0xFFFF, 0x0A00, 0x0105})
+        |> Plug.Conn.put_req_header("cf-connecting-ip", "6.6.6.6")
+        |> Plug.Conn.put_req_header("x-forwarded-for", "6.6.6.6, 198.18.0.50")
+        |> Plug.Conn.put_req_header("x-tuist-edge-address", "198.18.0.50")
+
+      # When
+      got = TuistWeb.RemoteIp.get(conn)
+
+      # Then
+      assert got == "198.18.0.50"
+    end
+
+    test "skips private addresses a client prepends to the forwarding chain" do
+      # Given
+      conn =
+        build_conn()
+        |> Map.put(:remote_ip, {10, 0, 1, 5})
+        |> Plug.Conn.put_req_header("x-forwarded-for", "198.51.100.7, 10.9.9.9, 198.18.0.50, 10.0.0.9")
+
+      # When
+      got = TuistWeb.RemoteIp.get(conn)
+
+      # Then
+      assert got == "198.18.0.50"
+    end
+
+    test "takes the furthest address of a chain that stayed on private networks" do
+      # Given
+      conn =
+        build_conn()
+        |> Map.put(:remote_ip, {10, 0, 1, 5})
+        |> Plug.Conn.put_req_header("x-forwarded-for", "192.168.1.5, 10.0.0.9")
+
+      # When
+      got = TuistWeb.RemoteIp.get(conn)
+
+      # Then
+      assert got == "192.168.1.5"
+    end
+
+    test "reads forwarding entries that carry the client's port" do
+      # Given: what Azure Application Gateway forwards by default
+      conn =
+        build_conn()
+        |> Map.put(:remote_ip, {10, 0, 1, 5})
+        |> Plug.Conn.put_req_header("x-forwarded-for", "198.51.100.7, 203.0.113.7:51234, 10.0.0.9:443")
+
+      # When
+      got = TuistWeb.RemoteIp.get(conn)
+
+      # Then
+      assert got == "203.0.113.7"
+    end
+
+    test "reads bracketed IPv6 forwarding entries with and without a port" do
+      # Given
+      with_port =
+        build_conn()
+        |> Map.put(:remote_ip, {10, 0, 1, 5})
+        |> Plug.Conn.put_req_header("x-forwarded-for", "[2001:db8::7]:51234")
+
+      bare =
+        build_conn()
+        |> Map.put(:remote_ip, {10, 0, 1, 5})
+        |> Plug.Conn.put_req_header("x-forwarded-for", "2001:db8::8")
+
+      # When / Then
+      assert TuistWeb.RemoteIp.get(with_port) == "2001:db8::7"
+      assert TuistWeb.RemoteIp.get(bare) == "2001:db8::8"
+    end
+
+    test "falls back to the Cloudflare edge when a trusted hop sends no valid client address" do
       # Given
       conn =
         build_conn()
         |> Plug.Conn.put_req_header("cf-connecting-ip", "not-an-ip")
-        |> Plug.Conn.put_req_header("x-forwarded-for", "forwarded-ip, 173.245.48.10")
+        |> Plug.Conn.put_req_header("x-forwarded-for", "198.51.100.7, 173.245.48.10")
 
       # When
       got = TuistWeb.RemoteIp.get(conn)
 
       # Then
-      assert got == "forwarded-ip"
-    end
-
-    test "falls back to the first forwarded IP when the Cloudflare header is not present" do
-      # Given
-      conn = build_conn()
-      conn = Plug.Conn.put_req_header(conn, "x-forwarded-for", " ip-one, ip-two")
-
-      # When
-      got = TuistWeb.RemoteIp.get(conn)
-
-      # Then
-      assert got == "ip-one"
+      assert got == "173.245.48.10"
     end
 
     test "ignores empty forwarding headers" do
@@ -78,13 +143,13 @@ defmodule TuistWeb.RemoteIpTest do
       conn =
         build_conn()
         |> Plug.Conn.put_req_header("cf-connecting-ip", "  ")
-        |> Plug.Conn.put_req_header("x-forwarded-for", " , ip-two")
+        |> Plug.Conn.put_req_header("x-forwarded-for", " , 198.51.100.7")
 
       # When
       got = TuistWeb.RemoteIp.get(conn)
 
       # Then
-      assert got == "ip-two"
+      assert got == "198.51.100.7"
     end
 
     test "gets the connection address when forwarding headers are not present" do
