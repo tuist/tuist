@@ -44,10 +44,11 @@ TUIST_KATA_SANDBOX_CGROUP
 // Kata 4.0 flipped disable_guest_empty_dir to true (upstream a3e91d9ed), which
 // shares the kubelet's host emptyDir directory over virtiofs. Runner Pods keep
 // their work directory, Docker disk image and sockets in emptyDirs. false has
-// the agent create them in the pause container's rootfs, as on 3.x; true would
-// move them into the kubelet's pod directory, where the kubelet counts them
-// against ephemeral storage and can evict the Pod mid-job. Pinning 3.x's
-// default keeps the 4.x upgrade from moving where job files live.
+// the agent create them in the pause container's rootfs, as on 3.x (with the
+// devmapper rootfs, kataBlockRootfsSetup, a virtio-blk device rather than
+// virtiofs); true would move them into the kubelet's pod directory, where the
+// kubelet counts them against ephemeral storage and can evict the Pod mid-job.
+// Pinning 3.x's default keeps the 4.x upgrade from moving where job files live.
 //
 // Written at bootstrap only, like the static-sizing drop-in: hosts still on 3.x
 // already default to false.
