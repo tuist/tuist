@@ -6,6 +6,10 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+dataNetworkPolicy:
+  # Live on staging and canary since 2026-11-25 with no drops.
+  enabled: true
+
 # Sweeps this env's abandoned tailnet devices only; canary and staging run their
 # own. Starts in dry-run -- read a run's logs, then set dryRun: false.
 tailscaleDeviceReaper:
@@ -34,6 +38,8 @@ registry:
   ingress:
     host: registry.tuist.dev
     tlsSecretName: registry-tls
+    # Cloudflare proxies this host; the origin refuses everyone else.
+    cloudflareOnly: true
     annotations:
       external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
   podDisruptionBudget:
@@ -432,6 +438,9 @@ server:
     className: nginx
     host: tuist.dev
     tlsSecretName: tuist-tls-cloudflare-origin
+    # Cloudflare proxies this host; the origin refuses everyone else. The
+    # events.tuist.dev gRPC host is DNS-only and stays open.
+    cloudflareOnly: true
     annotations:
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
