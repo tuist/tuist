@@ -2467,6 +2467,11 @@ runnersFleet:
       # Link-local (cloud metadata) and CGNAT (tailnet).
       - "169.254.0.0/16"
       - "100.64.0.0/10"
+  # The gateways run on the same OVH hosts as the runners and workers, while
+  # execution.tuist.dev's load balancer is in Falkenstein.
+  remoteExecutionGateway:
+    name: remote-execution-gateway
+    namespace: tuist-sandboxes
   # Shape catalog. Overrides the common baseline to add the 16 vCPU shape.
   # Helm replaces lists rather than merging, so the default shape is
   # restated here.
