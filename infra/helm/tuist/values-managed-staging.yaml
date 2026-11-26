@@ -688,8 +688,12 @@ ovhFleet:
   # the OVH_API token carries GET /dedicated/server/* + GET /services/* + POST
   # /dedicated/server/*/reinstall (the release path reinstalls a released box).
   # replicas: 1 so the reconciler claims the box and self-joins it. The eu-west
+  # Two boxes, so staging can place an account's two replicas on separate
+  # hosts and rehearse losing one (spec 98). Deploy this only once the second
+  # box carries the adoption prefix, or the fleet waits on a box that is not
+  # there.
   enabled: true
-  replicas: 1
+  replicas: 2
   # OVHcloud US entity (api.us.ovhcloud.com). The box sits physically in Canada
   # (ca-east-bhs / BHS6) but on an OVHcloud US account, so the API endpoint is
   # ovh-us — a token minted on any other entity (ovh-ca, ovh-eu) is rejected as
