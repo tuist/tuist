@@ -23,11 +23,14 @@ import (
 // place of sparse images in the guest's virtio-fs share: a macOS 27 guest's
 // disk image driver loses writes to an image whose file is on the share.
 //
-// A volume is a DiskImageKit stack on this host: an empty ASIF base, the
-// overlays earlier jobs left as read-only layers, and the job's own writable
-// overlay, which Tart creates and which becomes the next layer once the guest
-// detached it cleanly. Nothing is uploaded yet, so a volume is warm only on the
-// host whose jobs wrote it, and each use is ended on the server as a cold one.
+// A volume is one ASIF image on this host. Each job gets an APFS clone of it
+// (`cp -c`, copy-on-write, no data copied), attached read-write on its own, and
+// the clone replaces the volume once the guest detached it cleanly, Tart let go
+// of it and no other job's clone replaced the volume first. DiskImageKit stacks
+// (read-only layers under a job overlay) were tried and dropped: on macOS 27.2 a
+// VM did not read a stack's middle layers. Nothing is uploaded yet, so a volume
+// is warm only on the host whose jobs wrote it, and each use is ended on the
+// server as a cold one.
 type BlockVolumes struct {
 	// Root is host-only: guests never see it.
 	Root string
@@ -37,25 +40,22 @@ type BlockVolumes struct {
 	uses map[string]*blockUse
 }
 
-// blockMaxLayers bounds a stack's depth. A clean job past it is not kept:
-// every layer is another file DiskImageKit validates at each attach.
-const blockMaxLayers = 8
-
 type blockManifest struct {
-	Volume string   `json:"volume"`
-	Layers []string `json:"layers"`
+	Volume string `json:"volume"`
+	// Generation counts the jobs whose writes the volume image holds; 0 is the
+	// empty volume.
+	Generation int `json:"generation"`
 }
 
 type blockUse struct {
-	ID, PodName, PodUID, Scope, Overlay, Share string
-	// Layers is the stack the overlay was created on; it is kept only on top of
-	// the same stack.
-	Layers []string
-	Clean  bool
+	ID, PodName, PodUID, Scope, Clone, Share string
+	// Generation is the volume's the clone was made from; the clone replaces
+	// the volume only while it is still that generation.
+	Generation int
+	Clean      bool
 	// Released is Tart's word that it detached the disk and let go of the
-	// overlay. DiskImageKit writes an image out only when it is released, and
-	// Tart exits as soon as its VM stops, so an overlay still attached then can
-	// be incomplete: only a released one is kept.
+	// clone. Tart exits as soon as its VM stops, so a clone still attached then
+	// can be missing writes: only a released one is kept.
 	Released bool
 }
 
@@ -78,6 +78,10 @@ func (b *BlockVolumes) RequestDir(pod *corev1.Pod) (string, error) {
 
 func (b *BlockVolumes) volumeDir(scope string) string {
 	return filepath.Join(b.Root, "volumes", scope)
+}
+
+func volumeImage(dir string) string {
+	return filepath.Join(dir, "volume.asif")
 }
 
 func readBlockManifest(dir string) (blockManifest, error) {
@@ -115,7 +119,7 @@ func (b *BlockVolumes) Acquire(ctx context.Context, pod *corev1.Pod, share strin
 	}
 	dir := b.volumeDir(identity.Scope)
 	manifest, err := readBlockManifest(dir)
-	if os.IsNotExist(err) {
+	if _, statErr := os.Stat(volumeImage(dir)); os.IsNotExist(err) || os.IsNotExist(statErr) {
 		manifest, err = b.create(ctx, dir, identity)
 	}
 	if err != nil {
@@ -128,12 +132,17 @@ func (b *BlockVolumes) Acquire(ctx context.Context, pod *corev1.Pod, share strin
 	if err := os.MkdirAll(filepath.Join(dir, "jobs"), 0700); err != nil {
 		return nil, err
 	}
-	overlay := filepath.Join(dir, "jobs", identity.ID+".asif")
-	if err := writeJSONAtomically(filepath.Join(requests, identity.ID+".attach"), map[string]any{"layers": manifest.Layers, "overlay": overlay}); err != nil {
+	clone := filepath.Join(dir, "jobs", identity.ID+".asif")
+	_ = os.Remove(clone)
+	if err := b.run(ctx, "cp", "-c", volumeImage(dir), clone); err != nil {
+		return nil, err
+	}
+	if err := writeJSONAtomically(filepath.Join(requests, identity.ID+".attach"), map[string]any{"image": clone}); err != nil {
+		_ = os.Remove(clone)
 		return nil, err
 	}
 	if err := waitForTartReply(ctx, requests, identity.ID, "attached"); err != nil {
-		_ = os.Remove(overlay)
+		_ = os.Remove(clone)
 		return nil, err
 	}
 	// The guest records its clean detach beside the volume, as for share volumes.
@@ -148,11 +157,11 @@ func (b *BlockVolumes) Acquire(ctx context.Context, pod *corev1.Pod, share strin
 	if err := os.WriteFile(filepath.Join(markers, ".block"), nil, 0644); err != nil {
 		return nil, err
 	}
-	b.uses[identity.ID] = &blockUse{ID: identity.ID, PodName: pod.Name, PodUID: string(pod.UID), Scope: identity.Scope, Overlay: overlay, Share: markers, Layers: slices.Clone(manifest.Layers)}
-	return map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": len(manifest.Layers) > 1, "volume": manifest.Volume}, nil
+	b.uses[identity.ID] = &blockUse{ID: identity.ID, PodName: pod.Name, PodUID: string(pod.UID), Scope: identity.Scope, Clone: clone, Share: markers, Generation: manifest.Generation}
+	return map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": manifest.Generation > 0, "volume": manifest.Volume}, nil
 }
 
-// create makes the volume's empty base: an APFS volume in an ASIF image of the
+// create makes the empty volume: an APFS volume in an ASIF image of the
 // capacity the server chose. The host formats it and never mounts it again.
 func (b *BlockVolumes) create(ctx context.Context, dir string, identity cachevolumes.Identity) (blockManifest, error) {
 	capacity := identity.VolumeBytes
@@ -162,10 +171,10 @@ func (b *BlockVolumes) create(ctx context.Context, dir string, identity cachevol
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return blockManifest{}, err
 	}
-	manifest := blockManifest{Volume: "TuistCache-" + identity.Scope[:12], Layers: []string{filepath.Join(dir, "base.asif")}}
-	_ = os.Remove(manifest.Layers[0])
+	manifest := blockManifest{Volume: "TuistCache-" + identity.Scope[:12]}
+	_ = os.Remove(volumeImage(dir))
 	size := fmt.Sprintf("%dG", (capacity+999_999_999)/1_000_000_000)
-	if err := b.run(ctx, "diskutil", "image", "create", "blank", "--fs", "APFS", "--format", "ASIF", "--size", size, "--volumeName", manifest.Volume, manifest.Layers[0]); err != nil {
+	if err := b.run(ctx, "diskutil", "image", "create", "blank", "--fs", "APFS", "--format", "ASIF", "--size", size, "--volumeName", manifest.Volume, volumeImage(dir)); err != nil {
 		return blockManifest{}, err
 	}
 	return manifest, writeJSONAtomically(filepath.Join(dir, "manifest.json"), manifest)
@@ -218,9 +227,9 @@ func (b *BlockVolumes) settle() {
 	}
 }
 
-// Reconcile settles every use, and once a pod's VM is gone keeps its overlay
-// as the volume's next layer, or deletes it when the guest did not detach it
-// cleanly, Tart did not release it, or another job's layer came first.
+// Reconcile settles every use, and once a pod's VM is gone makes its clone the
+// volume, or deletes it when the guest did not detach it cleanly, Tart did not
+// release it, or another job's clone replaced the volume first.
 func (b *BlockVolumes) Reconcile(ctx context.Context, gone func(name, uid string) (bool, error), end func(context.Context, string)) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -245,21 +254,16 @@ func (b *BlockVolumes) Reconcile(ctx context.Context, gone func(name, uid string
 func (b *BlockVolumes) keep(use *blockUse) bool {
 	dir := b.volumeDir(use.Scope)
 	manifest, err := readBlockManifest(dir)
-	if err != nil || !use.Clean || !use.Released || !slices.Equal(manifest.Layers, use.Layers) || len(manifest.Layers) >= blockMaxLayers {
-		_ = os.Remove(use.Overlay)
+	if err != nil || !use.Clean || !use.Released || manifest.Generation != use.Generation {
+		_ = os.Remove(use.Clone)
 		return false
 	}
-	layer := filepath.Join(dir, "layer-"+use.ID+".asif")
-	if err := os.Rename(use.Overlay, layer); err != nil {
-		_ = os.Remove(use.Overlay)
+	if err := os.Rename(use.Clone, volumeImage(dir)); err != nil {
+		_ = os.Remove(use.Clone)
 		return false
 	}
-	manifest.Layers = append(manifest.Layers, layer)
-	if err := writeJSONAtomically(filepath.Join(dir, "manifest.json"), manifest); err != nil {
-		_ = os.Remove(layer)
-		return false
-	}
-	return true
+	manifest.Generation++
+	return writeJSONAtomically(filepath.Join(dir, "manifest.json"), manifest) == nil
 }
 
 func valuesOf(uses map[string]*blockUse) []*blockUse {
