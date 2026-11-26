@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         runs_on: [tuist-macos-golden-gate, tuist-macos]
-        storage: [local]
+        storage: [volume]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Report the guest
@@ -41,118 +41,43 @@ jobs:
           echo "E2E_ROOT=$root" >> "$GITHUB_ENV"
           echo "E2E_REAL=$(cd "$root" && pwd -P)" >> "$GITHUB_ENV"
           mount | grep -iE 'tuist' || true
-      # Round 5: every failure so far was on an image the guest attaches
-      # (the cache volume and the cached checkout at /Users/runner/work/tuist).
-      # Find whether the image format or the virtio-fs share behind it matters.
-      - name: Attached images
+      # Round 9: the fix. tuist-cache-volume built from this branch declines
+      # share-backed images on macOS 27 and attaches them as before on 26.
+      - name: Patched tuist-cache-volume
         run: |
-          set +e -uo pipefail
-          hdiutil info | grep -E "image-path|image-type|/dev/disk" || true
-          mount | grep -iE "virtio|tuist" || true
-          src="$(mktemp -d "$HOME/xsrc.XXXX")"
-          for i in $(seq 1 400); do head -c $((RANDOM % 6000 + 20)) /dev/urandom > "$src/f$i"; done
-          (cd "$src" && shasum -a 256 f*) > /tmp/src.sum
-          cat > /tmp/xcopy.swift <<'EOF2'
-          import Foundation
-          let src = URL(fileURLWithPath: CommandLine.arguments[1]), dst = URL(fileURLWithPath: CommandLine.arguments[2])
-          let fm = FileManager.default
-          try? fm.createDirectory(at: dst, withIntermediateDirectories: true)
-          let names = try! fm.contentsOfDirectory(atPath: src.path).filter { $0.hasPrefix("f") }
-          DispatchQueue.concurrentPerform(iterations: names.count) { i in
-            try! fm.copyItem(at: src.appendingPathComponent(names[i]), to: dst.appendingPathComponent(names[i]))
-          }
-          EOF2
-          swiftc -O /tmp/xcopy.swift -o /tmp/xcopy
-          check() {
-            local d="$1" label="$2" z=0 bad=0
-            for f in "$d"/f*; do [ "$(LC_ALL=C tr -d '\0' < "$f" | wc -c | tr -d ' ')" = 0 ] && z=$((z+1)); done
-            bad=$(cd "$d" && shasum -a 256 -c /tmp/src.sum 2>/dev/null | grep -vc ': OK$' || true)
-            echo "$label: all-zero=$z bad=$bad of 400"
-          }
-          run_into() {
-            local dir="$1" label="$2"
-            rm -rf "$dir/cp" "$dir/cc"; mkdir -p "$dir/cp"
-            cp "$src"/f* "$dir/cp/"; check "$dir/cp" "$label cp"
-            sync; sudo -n purge 2>/dev/null; check "$dir/cp" "$label cp after purge"
-            /tmp/xcopy "$src" "$dir/cc"; check "$dir/cc" "$label concurrent copyItem"
-            sync; sudo -n purge 2>/dev/null; check "$dir/cc" "$label concurrent copyItem after purge"
-          }
-          run_into "$HOME/xroot" "root disk"
-          run_into "$GITHUB_WORKSPACE/.xtest" "cached checkout volume"
-          [ -n "${E2E_REAL:-}" ] && [ "$(df "$E2E_REAL" | tail -1 | cut -d' ' -f1)" != "$(df "$HOME" | tail -1 | cut -d' ' -f1)" ] && run_into "$E2E_REAL/xtest" "cache volume"
-          share="$(hdiutil info | sed -n 's/^image-path *: \(.*My Shared Files\/custom-cache\/[^/]*\)\/cache.sparseimage$/\1/p' | tail -1)"
-          echo "share dir: $share"; ls -la "$share"
-          img="$share/xtest"; mkdir -p "$img"
-          try_image() {
-            local label="$1" file="$2" how="$3"; shift 3
-            local mnt="$HOME/xmnt-$label"; mkdir -p "$mnt"
-            if [ "$how" = diskutil ]; then
-              diskutil image attach --mountPoint "$mnt" "$file" >/tmp/attach.err 2>&1 || { echo "$label: attach failed: $(cat /tmp/attach.err)"; return; }
-            elif ! hdiutil attach "$file" -owners off -nobrowse -mountpoint "$mnt" "$@" >/dev/null 2>/tmp/attach.err; then
-              echo "$label: attach failed: $(cat /tmp/attach.err)"; return
-            fi
-            run_into "$mnt" "$label on share"
-            hdiutil detach "$mnt" -force -quiet || diskutil unmount force "$mnt" || true
-          }
-          diskutil image attach 2>&1 | head -40 || true
-          cat > /tmp/pw.swift <<'EOF3'
-          import Foundation
-          // Writes 3000 random 4 KiB blocks at random offsets of a 1 GiB file,
-          // then (after the caller's sync/purge) reads them back.
-          let path = CommandLine.arguments[1], mode = CommandLine.arguments[2], phase = CommandLine.arguments[3]
-          var rng = SystemRandomNumberGenerator()
-          let offsets: [Int] = { var g = UInt64(42); return (0..<3000).map { _ in g = g &* 6364136223846793005 &+ 1442695040888963407; return Int((g >> 33) % 262144) * 4096 } }()
-          func block(_ i: Int) -> [UInt8] { (0..<4096).map { UInt8(truncatingIfNeeded: $0 &* 13 &+ i &* 7 &+ 1) } }
-          if phase == "write" {
-            let fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0o644); precondition(fd >= 0)
-            ftruncate(fd, 1 << 30)
-            if mode == "nocache" { _ = fcntl(fd, F_NOCACHE, 1) }
-            var last: [Int: Int] = [:]
-            for (i, o) in offsets.enumerated() { last[o] = i; var b = block(i); _ = b.withUnsafeMutableBytes { pwrite(fd, $0.baseAddress, 4096, off_t(o)) } }
-            if mode == "fullfsync" { _ = fcntl(fd, F_FULLFSYNC) }
-            if mode == "fsync" { fsync(fd) }
-            close(fd)
-          } else {
-            let fd = open(path, O_RDONLY); precondition(fd >= 0)
-            var last: [Int: Int] = [:]; for (i, o) in offsets.enumerated() { last[o] = i }
-            var bad = 0, zero = 0
-            for (o, i) in last { var b = [UInt8](repeating: 0, count: 4096); _ = b.withUnsafeMutableBytes { pread(fd, $0.baseAddress, 4096, off_t(o)) }; if b != block(i) { bad += 1; if b.allSatisfy({ $0 == 0 }) { zero += 1 } } }
-            print("\(mode): bad=\(bad) zero=\(zero) of \(last.count) blocks")
-          }
-          EOF3
-          swiftc -O /tmp/pw.swift -o /tmp/pw
-          raw() {
-            local dir="$1" label="$2"
-            for mode in plain nocache fsync fullfsync; do
-              /tmp/pw "$dir/pw-$mode" "$mode" write; sync; sudo -n purge; printf "%s " "$label"; /tmp/pw "$dir/pw-$mode" "$mode" read; rm -f "$dir/pw-$mode"
-            done
-          }
-          raw "$img" "raw file on share"
-          raw "$HOME" "raw file on root disk"
-          mkdir -p "$img/files"; cp "$src"/f* "$img/files/"; sync; sudo -n purge; check "$img/files" "plain files on share after purge"
-          for n in 1 2 3; do
-            hdiutil create -size 100g -fs APFS -volname T -type SPARSE -quiet "$img/r$n.sparseimage"
-            try_image "fresh-100g-$n" "$img/r$n.sparseimage" hdiutil
-            rm -f "$img/r$n.sparseimage"
-          done
-          rm -rf "$img"
-          exit 0
+          set -euo pipefail
+          (cd infra/linux-runner-image && mise x go@1.26.10 -- go build -o /tmp/tcv ./cmd/tuist-cache-volume)
+          mkdir -p "$HOME/fixcheck" && cd "$HOME/fixcheck"
+          /tmp/tcv --key "golden-gate-fix-${{ github.run_id }}" --path ./cached || echo "exit $?"
+          ls -la "$HOME/fixcheck"; [ -L ./cached ] && echo "cached -> $(readlink ./cached)" || echo "cached is a plain directory"
+          if [ "$(sw_vers -productVersion | cut -d. -f1)" -ge 27 ]; then
+            echo "checkout: $(/tmp/tcv --checkout "$HOME/fixws/repo")"
+          fi
       - uses: ./.github/actions/mise-install
         with:
           install: "erlang elixir"
           working-directory: server
+      # What a gated Golden Gate job does: no image on the share at all.
+      - name: Fresh clone on the root disk
+        run: |
+          git clone -q --depth 1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}" "$HOME/src"
+          echo "NIF_SRC=$HOME/src/server" >> "$GITHUB_ENV"
+          echo "E2E_ROOT=$HOME/nifroot" >> "$GITHUB_ENV"
+          echo "MISE_TRUSTED_CONFIG_PATHS=${MISE_TRUSTED_CONFIG_PATHS:-}:$HOME/src" >> "$GITHUB_ENV"
       - name: Build the xcresult NIF
         id: build
-        if: false
-        working-directory: server
+        working-directory: ${{ env.NIF_SRC }}
         env:
           TUIST_NIF_BUILD_ROOT: ${{ env.E2E_ROOT }}/nif
           MACOSX_DEPLOYMENT_TARGET: "14.0"
         run: |
           set -euo pipefail
           start=$(date +%s)
-          ./native/xcresult_nif/build.sh
-          echo "built in $(( $(date +%s) - start )) s"
+          for n in 1 2; do
+            rm -rf "$E2E_ROOT"; start=$(date +%s)
+            ./native/xcresult_nif/build.sh
+            echo "build $n built in $(( $(date +%s) - start )) s"
+          done
       - name: Inspect corrupt registry files
         if: always()
         run: |
