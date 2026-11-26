@@ -16,7 +16,9 @@ gateway:
   ingress:
     enabled: true
     host: execution.tuist.dev
-    className: execution-eu-west
+    # Stays on the nginx-grpc load balancer. The runner hosts' execution-eu-west
+    # controller publishes node addresses, and the runners' egress policy only
+    # allows world addresses on 443, so in-cluster runners could not connect.
 workers:
   # Six slots' rootfs clones, 30 GiB workspaces and memory images (277 GiB of
   # ceilings) plus the 20 GiB input blob cache, which comes out of this budget.
