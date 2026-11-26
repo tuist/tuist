@@ -59,6 +59,8 @@ type CustomVolumes struct {
 	spareScope string
 	// images is the backend run() serves; nil until then.
 	images *cachevolumes.APFSImages
+	// Block, when set, serves the volumes a guest asks for as block devices.
+	Block *BlockVolumes
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
@@ -404,6 +406,10 @@ func (c *CustomVolumes) reconcile(ctx context.Context) error {
 	if err := c.Store.Reconcile(c.gone, c.report); err != nil {
 		return err
 	}
+	// Before CleanPods removes the shares that hold the guests' detach markers.
+	if c.Block != nil {
+		c.Block.Reconcile(ctx, c.gone, c.endUse)
+	}
 	c.Checkouts.Maintain()
 	err := c.Store.CleanPods(func(uid string) (bool, error) {
 		name, err := os.ReadFile(filepath.Join(c.Root, "owners", uid))
@@ -477,6 +483,9 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			UID       int                        `json:"uid"`
 			Checkout  bool                       `json:"checkout"`
 			Requested cachevolumes.RequestedSize `json:"requested_volume_bytes"`
+			// Block asks for a volume Tart hot-plugs as a USB disk, never an
+			// image in the share (macOS 27 guests; see BlockVolumes).
+			Block bool `json:"block"`
 			// ExecutionToken is the GitHub OIDC token the job-started hook
 			// minted, which the server verifies; the agent never reads it.
 			ExecutionToken string `json:"execution_token"`
@@ -567,6 +576,18 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			log.FromContext(ctx).Info("custom cache volume larger than this host holds; job continues cold", "pod", pod.Name)
 		} else if err != nil {
 			log.FromContext(ctx).Info("custom cache volume not authorized; job continues cold", "pod", pod.Name, "error", err.Error())
+		} else if input.Block {
+			var block map[string]any
+			err := errors.New("this host serves no block volumes")
+			if c.Block != nil {
+				block, err = c.Block.Acquire(acquireCtx, pod, filepath.Join(c.Root, "pods", string(pod.UID)), identity)
+			}
+			if err == nil {
+				response = block
+			} else {
+				c.endUse(ctx, identity.ID)
+				log.FromContext(ctx).Info("block cache volume unavailable; job continues cold", "pod", pod.Name, "use", identity.ID, "error", err.Error())
+			}
 		} else {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
