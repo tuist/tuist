@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs_on: [tuist-macos-golden-gate]
-        storage: [volume, local]
+        runs_on: [tuist-macos-golden-gate, tuist-macos]
+        storage: [local]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Report the guest
@@ -94,33 +94,47 @@ jobs:
             run_into "$mnt" "$label on share"
             hdiutil detach "$mnt" -force -quiet || diskutil unmount force "$mnt" || true
           }
-          grown() {
-            local label="$1" file="$2" grow="$3"
-            local mnt="$HOME/xmnt-$label"; mkdir -p "$mnt"
-            [ "$grow" = yes ] && hdiutil resize -sectors $((16*1024*1024*1024/512)) -imageonly "$file"
-            local out; out=$(hdiutil attach "$file" -owners off -nobrowse -nomount -plist | plutil -convert json -o - -)
-            local vol; vol=$(echo "$out" | jq -r '[."system-entities"[]|select(."volume-kind"=="apfs")][0]."dev-entry"')
-            local whole; whole=$(echo "$out" | jq -r '."system-entities"[0]."dev-entry"')
-            local ctr; ctr=$(echo "$vol" | sed -E 's#/dev/(disk[0-9]+)s[0-9]+#\1#')
-            [ "$grow" = yes ] && diskutil apfs resizeContainer "$ctr" 0 >/dev/null && echo "$label: grew $ctr"
-            diskutil mount nobrowse -mountPoint "$mnt" "$vol" >/dev/null || { echo "$label: mount failed"; return; }
-            run_into "$mnt" "$label on share"
-            hdiutil detach "$whole" -force -quiet || true
+          diskutil image attach 2>&1 | head -40 || true
+          cat > /tmp/pw.swift <<'EOF3'
+          import Foundation
+          // Writes 3000 random 4 KiB blocks at random offsets of a 1 GiB file,
+          // then (after the caller's sync/purge) reads them back.
+          let path = CommandLine.arguments[1], mode = CommandLine.arguments[2], phase = CommandLine.arguments[3]
+          var rng = SystemRandomNumberGenerator()
+          let offsets: [Int] = { var g = UInt64(42); return (0..<3000).map { _ in g = g &* 6364136223846793005 &+ 1442695040888963407; return Int((g >> 33) % 262144) * 4096 } }()
+          func block(_ i: Int) -> [UInt8] { (0..<4096).map { UInt8(truncatingIfNeeded: $0 &* 13 &+ i &* 7 &+ 1) } }
+          if phase == "write" {
+            let fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0o644); precondition(fd >= 0)
+            ftruncate(fd, 1 << 30)
+            if mode == "nocache" { _ = fcntl(fd, F_NOCACHE, 1) }
+            var last: [Int: Int] = [:]
+            for (i, o) in offsets.enumerated() { last[o] = i; var b = block(i); _ = b.withUnsafeMutableBytes { pwrite(fd, $0.baseAddress, 4096, off_t(o)) } }
+            if mode == "fullfsync" { _ = fcntl(fd, F_FULLFSYNC) }
+            if mode == "fsync" { fsync(fd) }
+            close(fd)
+          } else {
+            let fd = open(path, O_RDONLY); precondition(fd >= 0)
+            var last: [Int: Int] = [:]; for (i, o) in offsets.enumerated() { last[o] = i }
+            var bad = 0, zero = 0
+            for (o, i) in last { var b = [UInt8](repeating: 0, count: 4096); _ = b.withUnsafeMutableBytes { pread(fd, $0.baseAddress, 4096, off_t(o)) }; if b != block(i) { bad += 1; if b.allSatisfy({ $0 == 0 }) { zero += 1 } } }
+            print("\(mode): bad=\(bad) zero=\(zero) of \(last.count) blocks")
           }
-          hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s1.sparseimage"
-          try_image fresh-4g "$img/s1.sparseimage" hdiutil
-          hdiutil create -size 100g -fs APFS -volname T -type SPARSE -quiet "$img/s2.sparseimage"
-          try_image fresh-100g "$img/s2.sparseimage" hdiutil
-          hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s3.sparseimage"
-          grown nomount-path "$img/s3.sparseimage" no
-          hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s4.sparseimage"
-          grown resized-and-grown "$img/s4.sparseimage" yes
-          hdiutil create -size 8g -fs APFS -volname T -type SPARSE -quiet "$img/s5.sparseimage"
-          m="$HOME/xmnt-prefill"; mkdir -p "$m"; hdiutil attach "$img/s5.sparseimage" -owners off -nobrowse -mountpoint "$m" -quiet
-          for i in $(seq 1 3000); do head -c 4000 /dev/urandom > "$m/p$i"; done; hdiutil detach "$m" -quiet
-          try_image prefilled-reattached "$img/s5.sparseimage" hdiutil
-          echo "== checkout volume again"; run_into "$GITHUB_WORKSPACE/.xtest2" "cached checkout volume (2)"
-          run_into "$HOME/xroot2" "root disk (2)"
+          EOF3
+          swiftc -O /tmp/pw.swift -o /tmp/pw
+          raw() {
+            local dir="$1" label="$2"
+            for mode in plain nocache fsync fullfsync; do
+              /tmp/pw "$dir/pw-$mode" "$mode" write; sync; sudo -n purge; printf "%s " "$label"; /tmp/pw "$dir/pw-$mode" "$mode" read; rm -f "$dir/pw-$mode"
+            done
+          }
+          raw "$img" "raw file on share"
+          raw "$HOME" "raw file on root disk"
+          mkdir -p "$img/files"; cp "$src"/f* "$img/files/"; sync; sudo -n purge; check "$img/files" "plain files on share after purge"
+          for n in 1 2 3; do
+            hdiutil create -size 100g -fs APFS -volname T -type SPARSE -quiet "$img/r$n.sparseimage"
+            try_image "fresh-100g-$n" "$img/r$n.sparseimage" hdiutil
+            rm -f "$img/r$n.sparseimage"
+          done
           rm -rf "$img"
           exit 0
       - uses: ./.github/actions/mise-install
