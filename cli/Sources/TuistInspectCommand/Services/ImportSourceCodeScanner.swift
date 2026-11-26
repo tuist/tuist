@@ -6,10 +6,15 @@
         case objc
     }
 
-    /// A module imported by a source file, with the modules of the `#if canImport(X)` blocks the import is nested in.
+    /// Alternatives of required modules in a single `#if` condition. Each alternative is a conjunction.
+    struct CanImportCondition: Equatable, Sendable {
+        let alternatives: [[String]]
+    }
+
+    /// A module imported by a source file, with the `canImport` conditions of its enclosing blocks.
     struct ScannedImport: Equatable, Sendable {
         let module: String
-        let canImportConditions: [String]
+        let canImportConditions: [CanImportCondition]
     }
 
     struct ImportSourceCodeScanner {
@@ -38,13 +43,12 @@
         /// Extract imports from a source file.
         ///
         /// When `reachableModules` is non-nil and the language is Swift, `import` lines
-        /// inside `#if canImport(X)` are skipped when `X` is not in the set. This stops
-        /// conditionally linked dependencies from being misreported as implicit imports
-        /// for variants that don't declare them — `canImport` is the exact same check
-        /// the compiler runs at build time.
+        /// inside a `#if` containing only `canImport` checks joined by `&&` or `||` are
+        /// skipped when the condition is false for that set. This stops conditionally
+        /// linked dependencies from being misreported as implicit imports for variants
+        /// that don't declare them. Reachability is an approximation of compiler availability.
         ///
-        /// Other `#if` shapes (custom flags, compound expressions, etc.) are treated as
-        /// active, preserving current scanner behaviour for everything else.
+        /// Other `#if` shapes (custom flags, parentheses, etc.) are treated as active.
         func extractImports(
             from sourceCode: String,
             language: ProgrammingLanguage,
@@ -64,8 +68,8 @@
             }
         }
 
-        /// The modules of `scannedImports`, skipping the imports in `#if canImport(X)` blocks whose `X`
-        /// is not in `reachableModules`. Nothing is skipped when `reachableModules` is nil.
+        /// The modules of `scannedImports`, skipping imports with any false `canImport` condition.
+        /// Nothing is skipped when `reachableModules` is nil.
         static func imports(in scannedImports: [ScannedImport], reachableModules: Set<String>?) -> Set<String> {
             Set(
                 scannedImports.lazy
@@ -76,20 +80,20 @@
             )
         }
 
-        /// True when the module of a `canImport` condition is not reachable from the current target.
         /// Without `reachableModules`, every branch stays active.
-        private static func isDeadCanImport(_ module: String, reachableModules: Set<String>?) -> Bool {
+        private static func isDeadCanImport(_ condition: CanImportCondition, reachableModules: Set<String>?) -> Bool {
             guard let reachableModules else { return false }
-            return !reachableModules.contains(module)
+            return !condition.alternatives.contains { alternative in
+                alternative.allSatisfy { reachableModules.contains($0) }
+            }
         }
 
         private func extractSwiftImports(from sourceCode: String) -> [ScannedImport] {
             let codeWithoutComments = removeComments(from: sourceCode)
 
-            // Walk lines top-to-bottom, maintaining a stack of `#if` frames. A frame holds `X` for
-            // `#if canImport(X)`, and nil for every other directive shape and once its `#elseif`/`#else`
-            // branch starts: those branches stay active, which matches the legacy behaviour for those cases.
-            var stack: [String?] = []
+            // Each frame holds a condition, or nil for unsupported conditions
+            // and `#elseif`/`#else` branches, which stay active.
+            var stack: [CanImportCondition?] = []
             var imports: [ScannedImport] = []
 
             for rawLine in codeWithoutComments.components(separatedBy: .newlines) {
@@ -97,7 +101,7 @@
 
                 if line.hasPrefix("#if ") || line == "#if" {
                     let condition = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-                    stack.append(canImportModule(in: condition))
+                    stack.append(canImportCondition(in: condition))
                     continue
                 }
 
@@ -130,10 +134,19 @@
             }
         }
 
-        /// `X` when the condition is exactly `canImport(X)`. Anything else (compound expressions,
-        /// negation, custom flags) returns nil so the branch stays active.
-        private func canImportModule(in condition: String) -> String? {
-            captures(of: Self.canImportConditionRegex, in: condition).first
+        /// Parses bare `canImport` checks, respecting the higher precedence of `&&` over `||`.
+        /// Unsupported or malformed expressions stay active.
+        private func canImportCondition(in condition: String) -> CanImportCondition? {
+            var alternatives: [[String]] = []
+            for alternative in condition.components(separatedBy: "||") {
+                let terms = alternative.components(separatedBy: "&&")
+                let modules = terms.compactMap { term in
+                    captures(of: Self.canImportConditionRegex, in: term.trimmingCharacters(in: .whitespaces)).first
+                }
+                guard modules.count == terms.count else { return nil }
+                alternatives.append(modules)
+            }
+            return CanImportCondition(alternatives: alternatives)
         }
 
         /// The first participating capture group of every match of `regex` in `string`.

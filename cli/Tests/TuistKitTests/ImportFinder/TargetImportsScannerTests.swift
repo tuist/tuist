@@ -206,6 +206,26 @@ struct TargetImportsScannerTests {
         #expect(await sourceCodeReader.reads == 1)
     }
 
+    @Test func imports_resolvesCachedDisjunctionForDifferentReachableModules() async throws {
+        let sourceCodeReader = CountingSourceCodeReader(
+            sourceCode: """
+            #if canImport(A) || canImport(B)
+            import Feature
+            #endif
+            """
+        )
+        let target = Target.test(
+            name: "FirstTarget",
+            sources: [SourceFile(path: try AbsolutePath(validating: "/Target/Sources/File.swift"))]
+        )
+        let subject = TargetImportsScanner(sourceCodeReader: sourceCodeReader.read(at:))
+
+        #expect(try await subject.imports(for: target, reachableModules: []) == [])
+        #expect(try await subject.imports(for: target, reachableModules: ["A"]) == ["Feature"])
+        #expect(try await subject.imports(for: target, reachableModules: ["B"]) == ["Feature"])
+        #expect(await sourceCodeReader.reads == 1)
+    }
+
     @Test func imports_cachesMissingFilesAndSkipsNonSourceFiles() async throws {
         // Given
         let sourceCodeReader = CountingSourceCodeReader(sourceCode: nil)

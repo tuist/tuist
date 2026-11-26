@@ -331,8 +331,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
     }
 
     func test_nonCanImportConditionStaysActive() throws {
-        // Anything that isn't a bare `canImport(X)` is treated as active so we keep
-        // the legacy permissive behaviour for compound expressions and custom flags.
+        // Unsupported expressions and custom flags retain the legacy permissive behaviour.
         let code = """
         #if DEBUG
         import DebugOnly
@@ -429,8 +428,11 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(scannedImports, [
             ScannedImport(module: "Foundation", canImportConditions: []),
-            ScannedImport(module: "B", canImportConditions: ["A"]),
-            ScannedImport(module: "D", canImportConditions: ["A", "C"]),
+            ScannedImport(module: "B", canImportConditions: [CanImportCondition(alternatives: [["A"]])]),
+            ScannedImport(module: "D", canImportConditions: [
+                CanImportCondition(alternatives: [["A"]]),
+                CanImportCondition(alternatives: [["C"]]),
+            ]),
             ScannedImport(module: "E", canImportConditions: []),
         ])
     }
@@ -439,8 +441,11 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         // Given
         let scannedImports = [
             ScannedImport(module: "Foundation", canImportConditions: []),
-            ScannedImport(module: "B", canImportConditions: ["A"]),
-            ScannedImport(module: "D", canImportConditions: ["A", "C"]),
+            ScannedImport(module: "B", canImportConditions: [CanImportCondition(alternatives: [["A"]])]),
+            ScannedImport(module: "D", canImportConditions: [
+                CanImportCondition(alternatives: [["A"]]),
+                CanImportCondition(alternatives: [["C"]]),
+            ]),
         ]
 
         // When
