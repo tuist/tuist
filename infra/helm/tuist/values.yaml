@@ -3207,6 +3207,15 @@ runnersFleet:
     # ranges (Pod CIDR, Service CIDR, Node CIDR, in-cluster
     # databases). Override per-env with the real cluster ranges.
     exceptCIDRs: []
+  # In-cluster remote execution gateway (infra/helm/remote-execution): its
+  # Service and Pod `app` label (`<release>-gateway`) and namespace. When
+  # set, Linux runner containers get TUIST_EXECUTION_ENDPOINT pointing at it
+  # and may reach its Pods on :50051, so Struo builds on the runners execute
+  # remotely without leaving the cluster. Authentication is unchanged: the
+  # gateway checks the same Tuist credential it does behind the Ingress.
+  remoteExecutionGateway:
+    name: ""
+    namespace: ""
   # macOS shape catalog. Symmetric with `runnersFleetLinux.shapes`:
   # single source of truth for the Profiles dropdown and the server's
   # `:runner_macos_shapes` validation. Injected into the server as

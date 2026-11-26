@@ -302,6 +302,22 @@ spec:
         - protocol: TCP
           port: 9000
     {{- end }}
+    {{- with .Values.runnersFleet.remoteExecutionGateway }}
+    {{- if .name }}
+    # Struo remote execution through the in-cluster gateway
+    # (runnersFleet.remoteExecutionGateway).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .namespace | quote }}
+          podSelector:
+            matchLabels:
+              app: {{ .name | quote }}
+      ports:
+        - protocol: TCP
+          port: 50051
+    {{- end }}
+    {{- end }}
 ---
 # Dispatch-egress policy: lets a runner Pod reach the in-cluster
 # Tuist server's dispatch endpoint. Split out from the base policy

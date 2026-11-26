@@ -58,6 +58,7 @@ func main() {
 		dindImage           string
 		sidecarImage        string
 		registryMirror      string
+		executionEndpoint   string
 		clusterDNSIP        string
 		clusterDomain       string
 		sandboxesNS         string
@@ -87,6 +88,9 @@ func main() {
 		"kube-dns ClusterIP injected into macOS pool Pods as TUIST_CLUSTER_DNS_IP. dispatch-poll.sh inside the Tart VM writes /etc/resolver/<cluster-domain> from it so the dispatch-provided cache_endpoint_url (*.svc.cluster.local) resolves in the VM. Optional; empty skips the injection (macOS runners then never receive a resolvable in-cluster cache URL — pair with the server's TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS gate).")
 	flag.StringVar(&clusterDomain, "cluster-domain", envOr("TUIST_RUNNER_CLUSTER_DOMAIN", "cluster.local"),
 		"Cluster DNS suffix paired with --cluster-dns-ip (TUIST_CLUSTER_DOMAIN in macOS pool Pods; names the /etc/resolver file in the VM).")
+	// Env, not a chart-passed flag, for the same reason as --sidecar-image.
+	flag.StringVar(&executionEndpoint, "execution-endpoint", envOr("TUIST_RUNNER_EXECUTION_ENDPOINT", ""),
+		"In-cluster remote execution gateway (grpc://host:port) set as TUIST_EXECUTION_ENDPOINT in Linux runner containers. Optional; empty leaves clients on the endpoint the server advertises.")
 	flag.StringVar(&sandboxesNS, "sandboxes-namespace", envOr("TUIST_SANDBOXES_NAMESPACE", ""),
 		"Namespace of the sandbox daemons sharing the Linux fleet's nodes, whose memory the autoscaler keeps out of the fleet budget. Optional; empty when no sandboxes run.")
 
@@ -152,6 +156,7 @@ func main() {
 		DindImage:           dindImage,
 		SidecarImage:        sidecarImage,
 		RegistryMirror:      registryMirror,
+		ExecutionEndpoint:   executionEndpoint,
 		ClusterDNSIP:        clusterDNSIP,
 		ClusterDomain:       clusterDomain,
 		Recorder:            mgr.GetEventRecorderFor("runnerpool-controller"),

@@ -254,10 +254,16 @@ spec:
             # the autoscaler.
             - --sessions-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners
           {{- $sandboxes := or .Values.sandboxes.enabled .Values.sandboxes.macos.enabled }}
-          {{- if or $sandboxes .Values.runnersController.sidecarImage }}
+          {{- $gateway := .Values.runnersFleet.remoteExecutionGateway }}
+          {{- if or $sandboxes .Values.runnersController.sidecarImage $gateway.name }}
           # Env vars rather than flags, so a controller release that predates
           # them ignores them instead of failing on an unknown flag.
           env:
+            {{- if $gateway.name }}
+            # In-cluster remote execution gateway for Linux runner containers.
+            - name: TUIST_RUNNER_EXECUTION_ENDPOINT
+              value: {{ printf "grpc://%s.%s.svc.cluster.local:50051" $gateway.name $gateway.namespace | quote }}
+            {{- end }}
             {{- with .Values.runnersController.sidecarImage }}
             # Trusted image for the token-holding sidecars of Linux runner Pods.
             - name: TUIST_RUNNER_SIDECAR_IMAGE

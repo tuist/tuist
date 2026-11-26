@@ -132,6 +132,11 @@ type RunnerPoolReconciler struct {
 	// Empty leaves dockerd pulling docker.io directly.
 	RegistryMirror string
 
+	// ExecutionEndpoint is the in-cluster remote execution gateway that
+	// Linux runner containers get as TUIST_EXECUTION_ENDPOINT. Empty leaves
+	// Struo on the endpoint the server advertises.
+	ExecutionEndpoint string
+
 	// ClusterDNSIP / ClusterDomain configure in-VM cluster DNS for
 	// macOS pools: when ClusterDNSIP is set, macOS runner Pods carry
 	// TUIST_CLUSTER_DNS_IP (+ TUIST_CLUSTER_DOMAIN) and
@@ -763,7 +768,7 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 		return "", fmt.Errorf("create sa: %w", err)
 	}
 
-	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.SidecarImage, r.RegistryMirror, r.ClusterDNSIP, r.ClusterDomain)
+	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.SidecarImage, r.RegistryMirror, r.ClusterDNSIP, r.ClusterDomain, r.ExecutionEndpoint)
 	if err != nil {
 		return "", fmt.Errorf("build pod: %w", err)
 	}
