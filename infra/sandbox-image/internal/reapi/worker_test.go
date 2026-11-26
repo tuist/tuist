@@ -412,7 +412,17 @@ func TestWorkerRunsOnlyInAVMOfTheRequestedSize(t *testing.T) {
 			}
 		})
 	}
+	// Without the property the control plane picked the size, even one
+	// smaller than DefaultMemoryGB.
 	w, m := harness(t)
+	w.MemoryGB = 2
+	if r, _ := w.Execute(context.Background(), action(t, m, "touch executed", &re.Directory{}, nil)); r.Status.Code != int32(codes.OK) {
+		t.Fatalf("no size in a 2 GB VM: %v", r)
+	}
+	if r, _ := w.Execute(context.Background(), withProperty(t, m, action(t, m, "true", &re.Directory{}, nil), MemoryProperty, "4")); r.Status.Code != int32(codes.FailedPrecondition) {
+		t.Fatalf("4 GB asked in a 2 GB VM: %v", r)
+	}
+	w, m = harness(t)
 	d := withProperty(t, m, action(t, m, "true", &re.Directory{}, nil), "other", "x")
 	if r, _ := w.Execute(context.Background(), d); r.Status.Code != int32(codes.FailedPrecondition) {
 		t.Fatalf("unknown property: %v", r)

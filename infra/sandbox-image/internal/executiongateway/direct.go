@@ -43,7 +43,9 @@ type lease struct {
 	Nonce       []byte `json:"nonce"`
 	Image       string `json:"image"`
 	CASEndpoint string `json:"cas_endpoint"`
-	ExpiresInMs int64  `json:"expires_in_ms"`
+	// The VM's memory: the account's default size, DefaultMemoryGB when unset.
+	MemoryGB    int   `json:"memory_gb"`
+	ExpiresInMs int64 `json:"expires_in_ms"`
 	expires     time.Time
 }
 
@@ -59,19 +61,22 @@ type projectLeases struct {
 // direct runs the action on a leased VM. ok is false when the action must
 // go to the control plane instead; the leased VM is then released unused or
 // already consumed, and either way the control plane replaces it.
-func (g *Gateway) direct(ctx context.Context, account, project, auth string, r *re.ExecuteRequest, inputs string) (operation, bool) {
+func (g *Gateway) direct(ctx context.Context, account, project, auth string, r *re.ExecuteRequest, inputs string, memory int, explicit bool) (operation, bool) {
 	admitted := time.Now()
 	g.touch(account, project, auth)
 	if !g.authorized(auth, account, project) {
 		return operation{}, false
 	}
-	l := g.take(account, project)
+	l := g.take(account, project, memory, explicit)
 	if l == nil {
 		return operation{}, false
 	}
 	request := map[string]any{"endpoint": l.CASEndpoint, "account": account, "instance": project, "hash": r.ActionDigest.Hash, "size": r.ActionDigest.SizeBytes, "image": l.Image}
 	if inputs != "" {
 		request["inputs"] = inputs
+	}
+	if l.MemoryGB > 0 {
+		request["memory_gb"] = l.MemoryGB
 	}
 	value, _ := json.Marshal(request)
 	body, _ := json.Marshal(map[string]any{"sandbox_id": l.SandboxID, "nonce": l.Nonce, "value": string(value)})
@@ -194,11 +199,14 @@ func (g *Gateway) touch(account, project, auth string) {
 	}
 }
 
-func (g *Gateway) take(account, project string) *lease {
+// take hands out the project's lease for an action that runs in its VM: one
+// without a size of its own, which the control plane leased for it, or one
+// that asks for the lease's size.
+func (g *Gateway) take(account, project string, memory int, explicit bool) *lease {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	p, ok := g.projects[account+"/"+project]
-	if !ok || p.lease == nil || !time.Now().Before(p.lease.expires) {
+	if !ok || p.lease == nil || !time.Now().Before(p.lease.expires) || (explicit && memory != p.lease.memoryGB()) {
 		return nil
 	}
 	l := p.lease
@@ -279,4 +287,11 @@ func (g *Gateway) requestLease(account, project, auth string) (*lease, int) {
 	}
 	l.expires = time.Now().Add(time.Duration(l.ExpiresInMs) * time.Millisecond)
 	return &l, http.StatusOK
+}
+
+func (l *lease) memoryGB() int {
+	if l.MemoryGB == 0 {
+		return worker.DefaultMemoryGB
+	}
+	return l.MemoryGB
 }

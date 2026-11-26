@@ -130,22 +130,23 @@ func (g *Gateway) learnEndpoint(ctx context.Context, account, project, auth stri
 	return nil
 }
 
-// memory returns the VM memory the action asks for, reading the action when
+// memory returns the VM memory the action asks for, and whether it asks with
+// tuist-memory-gb rather than taking the default, reading the action when
 // the prefetch did not. Running an action in a smaller VM than it asked for
 // only fails it, so the size must be read. A cache under load can take longer
 // than any one attempt, and Bazel fails the build after a few quick retries of
 // the call, so a slow or failed read is retried here with backoff for up to
 // ActionReadBudget before the call fails. A missing action runs at the default
 // size, where the VM reports it missing and Bazel uploads it again.
-func (g *Gateway) memory(parent context.Context, account, project, auth string, digest *re.Digest, action *re.Action) (int, error) {
+func (g *Gateway) memory(parent context.Context, account, project, auth string, digest *re.Digest, action *re.Action) (int, bool, error) {
 	if action == nil {
 		url := g.endpoint(account, project)
 		if url == "" {
-			return worker.DefaultMemoryGB, nil
+			return worker.DefaultMemoryGB, false, nil
 		}
 		conn, err := g.conn(url)
 		if err != nil {
-			return 0, err
+			return 0, false, err
 		}
 		ctx, cancel := context.WithTimeout(parent, g.ActionReadBudget)
 		defer cancel()
@@ -155,19 +156,19 @@ func (g *Gateway) memory(parent context.Context, account, project, auth string, 
 			response, err := cas.BatchReadBlobs(ctx, &re.BatchReadBlobsRequest{InstanceName: project, Digests: []*re.Digest{digest}, DigestFunction: re.DigestFunction_SHA256})
 			if err == nil && len(response.Responses) == 1 {
 				if response.Responses[0].GetStatus().GetCode() == int32(codes.NotFound) {
-					return worker.DefaultMemoryGB, nil
+					return worker.DefaultMemoryGB, false, nil
 				}
 				if matches(response.Responses[0], digest) {
 					action = &re.Action{}
 					if proto.Unmarshal(response.Responses[0].Data, action) != nil {
-						return 0, status.Error(codes.InvalidArgument, "invalid action")
+						return 0, false, status.Error(codes.InvalidArgument, "invalid action")
 					}
 					break
 				}
 			}
 			select {
 			case <-ctx.Done():
-				return 0, status.Error(codes.Unavailable, "reading the action")
+				return 0, false, status.Error(codes.Unavailable, "reading the action")
 			case <-time.After(delay):
 			}
 		}
