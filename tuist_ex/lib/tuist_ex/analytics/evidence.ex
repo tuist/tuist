@@ -41,6 +41,7 @@ defmodule TuistEx.Analytics.Evidence do
   # Nothing here may fail a test: a hook that raises turns collection off,
   # and the run reports its evidence as `failed`.
 
+  alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.ExUnitPatch
   alias TuistEx.Analytics.TempDir
 
@@ -340,8 +341,10 @@ defmodule TuistEx.Analytics.Evidence do
   Writes the `coverage_evidence` JSON for what `collect/0` returned to
   `out`, a record at a time. `identities` names each test that ran,
   `{module, name}` to the `{module, suite, name}` the run reports it by;
-  `sources` maps each counting module to its source file, and `relative`
-  turns one into a path in the repository, nil outside it. With `lines:
+  `sources` maps each counting module to the files it counts lines of and
+  its external resources (`TuistEx.Analytics.Coverage.sources/3`): a scope
+  that ran the module names its resources, without lines. `relative` turns
+  a file into a path in the repository, nil outside it. With `lines:
   false`, scopes name their files without lines.
 
   With `format: :ndjson`, `out` holds what a run uploads instead (see
@@ -355,11 +358,19 @@ defmodule TuistEx.Analytics.Evidence do
     ndjson? = Keyword.get(options, :format, :json) == :ndjson
 
     paths =
-      for {module, source} <- sources,
-          path = relative.(source),
-          path != nil,
+      for {module, %{files: files, resources: resources}} <- sources,
+          files =
+            for(
+              {index, file} <- files,
+              path = relative.(file),
+              path != nil,
+              into: %{},
+              do: {index, path}
+            ),
+          resources = for(file <- resources, path = relative.(file), path != nil, do: path),
+          files != %{} or resources != [],
           into: %{},
-          do: {module, path}
+          do: {module, {files, resources}}
 
     boot = by_path(collected.boot, paths)
     test_modules = identities |> Map.values() |> MapSet.new(&elem(&1, 0))
@@ -541,17 +552,38 @@ defmodule TuistEx.Analytics.Evidence do
     %{state | first?: false}
   end
 
-  # A module's lines by the path of its source, merged across the modules
-  # of one file. Records hold ranges (`expand?`), the boot sorted lines.
+  # A module's lines by the path of the file each is in, its source or a
+  # template, merged across the modules of one file, with its external
+  # resources, which hold none. Records hold ranges (`expand?`), the boot
+  # sorted lines.
   defp by_path(lines, paths, expand? \\ false) do
     Enum.reduce(lines, %{}, fn {module, lines}, acc ->
       case Map.get(paths, module) do
         nil ->
           acc
 
-        path ->
+        {files, resources} ->
           lines = if expand?, do: expand(lines), else: lines
-          Map.update(acc, path, lines, &:ordsets.union(&1, lines))
+          acc = Enum.reduce(resources, acc, &Map.put_new(&2, &1, []))
+
+          lines
+          |> file_lines(files)
+          |> Enum.reduce(acc, fn {path, lines}, acc ->
+            Map.update(acc, path, lines, &:ordsets.union(&1, lines))
+          end)
+      end
+    end)
+  end
+
+  defp file_lines(lines, %{0 => path} = files) when map_size(files) == 1, do: [{path, lines}]
+
+  defp file_lines(lines, files) do
+    lines
+    |> Enum.group_by(&elem(Coverage.file_line(&1), 0), &elem(Coverage.file_line(&1), 1))
+    |> Enum.flat_map(fn {index, lines} ->
+      case Map.fetch(files, index) do
+        {:ok, path} -> [{path, Enum.reject(lines, &(&1 == 0))}]
+        :error -> []
       end
     end)
   end

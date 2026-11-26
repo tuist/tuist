@@ -86,7 +86,16 @@ the project as `mix test` would, recompiles the modules from their debug info
 with `line_coverage` (`Coverage.instrument/1`; the Elixir compiler skips the
 pass that adds the counters), keeping chunks only Elixir writes and skipping
 modules that already carry the counters, so `mix tuist.test.build --cover`
-does it once for every shard. It then switches the runtime to line
+does it once for every shard. Erlang instruments only a module's own file, so
+a module with a template compiled in after a `-file` attribute (Phoenix, EEx)
+is instrumented with `sys_coverage` with those attributes naming its own
+source, which then go back with only the counters' lines offset by
+`@file_offset` per file (100,000: the runtime keeps no counter past line
+16,777,214). Only files in the project count; a dependency's macro that keeps
+its own location gets no counters. Keep stack traces naming the template, and its compile info claiming
+`line_coverage`, which Mimic's copies and the already-instrumented check read.
+External resources come from Mix's compile manifest (`Coverage.resources/2`).
+It then switches the runtime to line
 counters (`Coverage.enable_native/1`: `code:set_coverage_mode/1` applies after
 boot only to explicitly loaded code, so every module of the build is loaded
 then, before the application starts) and drops Mix's `--cover` and

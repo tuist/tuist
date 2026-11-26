@@ -31,6 +31,15 @@ defmodule TuistEx.Analytics.Coverage do
   # What limits a run to the tests it names, rather than leaving some out.
   @selectors ~w(--only --failed --stale --name-pattern)
 
+  # Code compiled into a module from another file, which a `-file` attribute
+  # names before it, as Phoenix and EEx compile `.heex` and `.eex` templates
+  # under `@file`, counts on its lines offset by this much times the file's
+  # number (`included_files/1`), apart from the module's own lines. The
+  # runtime keeps no counter past line 16,777,214, so a module counts in at
+  # most 166 such files, each, as its own source, up to line 99,999.
+  @file_offset 100_000
+  @max_line 16_777_214
+
   def requested?(test_args), do: "--cover" in test_args
 
   @doc """
@@ -73,7 +82,9 @@ defmodule TuistEx.Analytics.Coverage do
 
   @doc """
   The run's line counters, one entry per source file with its lines and its
-  functions, or nil when nothing counted. Called in the project the suite
+  functions, or nil when nothing counted. A template compiled into a module
+  has an entry of its own, and so has each external resource of a module
+  that ran, without lines (`sources/3`). Called in the project the suite
   belongs to, an umbrella's application for its own suite: its test paths say
   what is test code, and its directory finds sources a build compiled
   elsewhere.
@@ -84,6 +95,8 @@ defmodule TuistEx.Analytics.Coverage do
       default_app = config[:app] && to_string(config[:app])
       ignored = get_in(config, [:test_coverage, :ignore_modules]) || []
 
+      resources = resources(project_dir, config)
+
       entries
       |> Enum.reject(fn {{_module, line}, _count} -> line == 0 end)
       |> Enum.group_by(fn {{module, _line}, _count} -> module end, fn {{_module, line}, count} ->
@@ -92,18 +105,40 @@ defmodule TuistEx.Analytics.Coverage do
       |> Enum.map(fn {module, lines} -> {original(module), lines} end)
       |> Enum.reject(fn {module, _lines} -> ignored?(module, ignored) end)
       |> Enum.flat_map(fn {module, lines} ->
-        {source, clauses} = build_info(module)
+        {files, clauses} = module_files(module, project_dir, config)
+        app = application(module) || default_app
 
-        case locate(source, project_dir) do
-          nil ->
-            []
+        counted =
+          lines
+          |> Enum.group_by(fn {line, _count} -> div(line, @file_offset) end, fn {line, count} ->
+            {rem(line, @file_offset), count}
+          end)
+          |> Enum.flat_map(fn {index, lines} ->
+            # A template's code without a line, as a static one may only
+            # have, still says the module counts in it.
+            case Map.fetch(files, index) do
+              {:ok, path} ->
+                clauses = if index == 0, do: clauses, else: []
 
-          path ->
-            [
-              {path, application(module) || default_app, lines,
-               Enum.map(clauses, fn {head, body, function} -> {head, body, {module, function}} end)}
-            ]
-        end
+                [
+                  {path, app, Enum.reject(lines, &(elem(&1, 0) == 0)),
+                   Enum.map(clauses, fn {head, body, function} ->
+                     {head, body, {module, function}}
+                   end)}
+                ]
+
+              :error ->
+                []
+            end
+          end)
+
+        # A module that ran depends on its external resources, which hold
+        # no lines.
+        if Enum.any?(lines, fn {_line, count} -> count > 0 end),
+          do:
+            counted ++
+              for(path <- module_resources(resources, module, files), do: {path, app, [], []}),
+          else: counted
       end)
       |> Enum.group_by(&elem(&1, 0))
       |> Enum.map(fn {path, modules} ->
@@ -143,7 +178,9 @@ defmodule TuistEx.Analytics.Coverage do
 
       {entries, _calls} ->
         entries
-        |> Enum.reject(fn {{_module, line}, _count} -> line == 0 end)
+        # Mix's tool counts no template line, so neither do its summary
+        # and threshold.
+        |> Enum.reject(fn {{_module, line}, _count} -> line == 0 or line >= @file_offset end)
         |> Enum.reduce(%{}, fn {{module, line}, count}, acc ->
           Map.update(acc, original(module), %{line => count > 0}, fn lines ->
             Map.update(lines, line, count > 0, &(&1 or count > 0))
@@ -216,18 +253,122 @@ defmodule TuistEx.Analytics.Coverage do
   end
 
   @doc """
-  The source file each of `modules` was compiled from, found under
-  `project_dir` when the build was compiled elsewhere, with Mimic's copies
-  under their originals'. Modules without a source in the project are left
-  out.
+  The files each of `modules` counts lines of, found under `project_dir`
+  when the build was compiled elsewhere, with Mimic's copies under their
+  originals': `files`, by the number `file_line/1` reads off a counter's
+  line, the module's source as 0 and the templates compiled into it after
+  it; and `resources`, its other external resources, which every scope
+  that ran the module depends on. Modules without a file in the project
+  are left out.
   """
-  def sources(modules, project_dir \\ File.cwd!()) do
+  def sources(modules, project_dir \\ File.cwd!(), config \\ Mix.Project.config()) do
+    resources = resources(project_dir, config)
+
     for module <- Enum.uniq(modules),
-        {source, _clauses} = build_info(original(module)),
-        path = locate(source, project_dir),
-        path != nil,
+        {files, _clauses} = module_files(original(module), project_dir, config),
+        files != %{},
         into: %{},
-        do: {module, path}
+        do:
+          {module,
+           %{files: files, resources: module_resources(resources, original(module), files)}}
+  end
+
+  @doc """
+  The file a counter's line is in, by its number in `sources/3`'s `files`,
+  and the line in that file.
+  """
+  def file_line(line), do: {div(line, @file_offset), rem(line, @file_offset)}
+
+  # The module's files in the project, by number: its source, 0, and the
+  # files code was compiled into it from, as `included_files/1` numbers them.
+  # An included file outside the project or in its dependencies, such as a
+  # library's macro whose code keeps its own location, is left out. With
+  # where its own function clauses start.
+  defp module_files(module, project_dir, config) do
+    {files, clauses} = build_info(module)
+
+    located =
+      for {index, file} <- files,
+          file != nil,
+          path = locate(Path.expand(file, project_dir), project_dir),
+          path != nil,
+          index == 0 or in_project?(path, project_dir, config),
+          into: %{},
+          do: {index, path}
+
+    {located, clauses}
+  end
+
+  # Whether a file is the project's own, rather than outside it or in its
+  # dependencies.
+  defp in_project?(path, project_dir, config) do
+    deps = Path.expand(config[:deps_path] || "deps", project_dir)
+    String.starts_with?(path, project_dir <> "/") and not String.starts_with?(path, deps <> "/")
+  end
+
+  # The external resources of a module, less the files it counts lines of.
+  defp module_resources(resources, module, files) do
+    counted = files |> Map.values() |> MapSet.new()
+    resources |> Map.get(module, []) |> Enum.reject(&MapSet.member?(counted, &1))
+  end
+
+  @doc """
+  The files each of the project's modules names with `@external_resource`,
+  such as a Gettext backend's `.po` files, a template or data read at
+  compile time, as absolute paths. The BEAM keeps none of them: Mix's
+  compile manifest has them, by the source file that names them, which
+  holds the modules. A manifest Mix can't read names none.
+  """
+  def resources(project_dir \\ File.cwd!(), config \\ Mix.Project.config()) do
+    manifest = Path.join(Mix.Project.manifest_path(config), "compile.elixir")
+    {_modules, sources} = Mix.Compilers.Elixir.read_manifest(manifest)
+
+    # `Mix.Compilers.Elixir`'s private `source` record, the same from Elixir
+    # 1.18 to 1.20; another shape names nothing.
+    Enum.reduce(sources, %{}, fn
+      {_source, {:source, _, _, _, _, _, _, _, external, _, _, modules}}, acc
+      when external != [] ->
+        paths =
+          for entry <- external,
+              file = if(is_tuple(entry), do: elem(entry, 0), else: entry),
+              is_binary(file),
+              path = file |> Path.expand(project_dir) |> resolve_links(),
+              File.regular?(path),
+              uniq: true,
+              do: path
+
+        Enum.reduce(
+          modules,
+          acc,
+          &Map.update(&2, &1, paths, fn known -> Enum.uniq(known ++ paths) end)
+        )
+
+      _source, acc ->
+        acc
+    end)
+  rescue
+    _ -> %{}
+  end
+
+  # The path with its symbolic links resolved, as Git names the file: a module
+  # that reads `Application.app_dir/2` names its resources through the build's
+  # `priv` link to the project's `priv`. Gives up after 32 links.
+  defp resolve_links(path), do: resolve_links(Path.split(path), [], 32)
+
+  defp resolve_links(rest, resolved, 0), do: Path.join(resolved ++ rest)
+  defp resolve_links([], resolved, _budget), do: Path.join(resolved)
+
+  defp resolve_links([part | rest], resolved, budget) do
+    current = Path.join(resolved ++ [part])
+
+    case :file.read_link(current) do
+      {:ok, target} ->
+        target = target |> to_string() |> Path.expand(Path.dirname(current))
+        resolve_links(Path.split(target) ++ rest, [], budget - 1)
+
+      {:error, _reason} ->
+        resolve_links(rest, resolved ++ [part], budget)
+    end
   end
 
   defp build_modules(ebin) do
@@ -246,22 +387,30 @@ defmodule TuistEx.Analytics.Coverage do
   for them, which is why this starts from the debug info. The module keeps
   its own debug info, which protocol consolidation reads, and the chunks
   only Elixir writes, such as the docs doctests read. A module without debug
-  info stays as it was. Returns how many modules were instrumented and the
-  ones that could not be.
+  info stays as it was. Code compiled into a module from another file counts
+  only when that file is in the project at `project_dir`, such as a
+  template, not a dependency's macro. Returns how many modules were
+  instrumented and the ones that could not be.
   """
-  def instrument(dirs) do
+  def instrument(dirs, project_dir \\ File.cwd!(), config \\ Mix.Project.config()) do
+    project_dir = Path.expand(project_dir)
+    project? = &in_project?(Path.expand(to_string(&1), project_dir), project_dir, config)
+
     results =
       dirs
       |> List.wrap()
       |> Enum.flat_map(&Path.wildcard(Path.join(&1, "*.beam")))
-      |> Task.async_stream(&{&1, instrument_beam(&1)}, timeout: :infinity, ordered: false)
+      |> Task.async_stream(&{&1, instrument_beam(&1, project?)},
+        timeout: :infinity,
+        ordered: false
+      )
       |> Enum.map(fn {:ok, result} -> result end)
 
     {Enum.count(results, &(elem(&1, 1) == :instrumented)),
      for({path, :skipped} <- results, do: Path.basename(path))}
   end
 
-  defp instrument_beam(path) do
+  defp instrument_beam(path, project?) do
     beam = String.to_charlist(path)
 
     # Decoding Elixir's debug info is the costly part, so a module that
@@ -270,10 +419,10 @@ defmodule TuistEx.Analytics.Coverage do
          false <- :line_coverage in (info[:options] || []),
          {:ok, {module, [abstract_code: {:raw_abstract_v1, forms}]}} <-
            :beam_lib.chunks(beam, [:abstract_code]),
-         {:ok, ^module, binary} <- :compile.forms(forms, native_options(info)),
+         {:ok, ^module, binary} <- compile_native(forms, info, project?),
          {:ok, _module, original} <- :beam_lib.all_chunks(beam),
          {:ok, _module, chunks} <- :beam_lib.all_chunks(binary),
-         chunks = Enum.reject(chunks, &(elem(&1, 0) == ~c"Dbgi")),
+         chunks = chunks |> Enum.reject(&(elem(&1, 0) == ~c"Dbgi")) |> Enum.map(&counted_info/1),
          ids = MapSet.new(chunks, &elem(&1, 0)),
          {:ok, binary} <-
            :beam_lib.build_module(
@@ -287,11 +436,94 @@ defmodule TuistEx.Analytics.Coverage do
     end
   end
 
+  # Erlang counts only the code of a module's own file: none of a template's,
+  # which Phoenix and EEx compile into it after a `-file` attribute naming
+  # the template. For each such file in the project, the forms go to the
+  # instrumentation with its attribute naming the module's own source, and
+  # come back with the attribute as it was, so the line table, and stack
+  # traces, still name the template and its lines: only each counter's line
+  # is offset, by `@file_offset` times the file's number. A file outside the
+  # project, such as a dependency's macro that keeps its own location, gets
+  # no counters, as Erlang has it. Forms the instrumentation can't take back
+  # that way are compiled as any other.
+  defp compile_native(forms, info, project?) do
+    counted =
+      for {file, index} <- included_files(forms),
+          project?.(file),
+          (index + 1) * @file_offset - 1 <= @max_line,
+          into: %{},
+          do: {file, index * @file_offset}
+
+    with true <- counted != %{},
+         [own | _] <- for({:attribute, _anno, :file, {file, _line}} <- forms, do: file),
+         {:ok, instrumented} <-
+           forms |> Enum.map(&as_own_file(&1, counted, own)) |> :sys_coverage.module([]),
+         true <- length(instrumented) == length(forms),
+         {:ok, _module, _binary} = compiled <-
+           forms
+           |> Enum.zip(instrumented)
+           |> Enum.map_reduce(0, &restore_file(&1, &2, counted))
+           |> elem(0)
+           |> :compile.forms(native_options(info)) do
+      compiled
+    else
+      _ -> :compile.forms(forms, [:line_coverage | native_options(info)])
+    end
+  rescue
+    _ -> :compile.forms(forms, [:line_coverage | native_options(info)])
+  end
+
+  defp as_own_file({:attribute, anno, :file, {file, line}}, counted, own)
+       when is_map_key(counted, file), do: {:attribute, anno, :file, {own, line}}
+
+  defp as_own_file(form, _counted, _own), do: form
+
+  # A form as it was, with its counters' lines offset by the counted file
+  # it's in. The instrumentation keeps the forms one to one.
+  defp restore_file({{:attribute, _, :file, {file, _}} = form, _instrumented}, _offset, counted),
+    do: {form, Map.get(counted, file, 0)}
+
+  defp restore_file({_form, instrumented}, offset, _counted),
+    do: {offset_counters(instrumented, offset), offset}
+
+  defp offset_counters(form, 0), do: form
+
+  defp offset_counters({:executable_line, anno, index}, offset) do
+    line = :erl_anno.line(anno)
+    if line >= @file_offset, do: raise(ArgumentError, "line #{line} past the offset")
+    {:executable_line, :erl_anno.set_line(line + offset, anno), index}
+  end
+
+  defp offset_counters(term, offset) when is_tuple(term),
+    do: term |> Tuple.to_list() |> offset_counters(offset) |> List.to_tuple()
+
+  defp offset_counters(list, offset) when is_list(list),
+    do: Enum.map(list, &offset_counters(&1, offset))
+
+  defp offset_counters(term, _offset), do: term
+
+  # Compiled without `:line_coverage`, which would instrument the forms
+  # again, a module with a template still says it carries the counters: so
+  # `instrument/1` leaves it as it is, and Mimic, which compiles its copies
+  # with the module's own options, counts in them.
+  defp counted_info({~c"CInf", binary}) do
+    info = :erlang.binary_to_term(binary)
+    options = Enum.uniq([:line_coverage | :proplists.get_value(:options, info, [])])
+    {~c"CInf", :erlang.term_to_binary(List.keystore(info, :options, 0, {:options, options}))}
+  end
+
+  defp counted_info(chunk), do: chunk
+
   # The module's own options, less those that tell the Erlang compiler its
   # input is Elixir's Core Erlang: the counters are added to the abstract code.
   defp native_options(info) do
-    options = Enum.reject(info[:options] || [], &(&1 in [:from_core, :no_core_prepare, :binary]))
-    [:binary, :line_coverage, :debug_info, {:source, info[:source]} | options]
+    options =
+      Enum.reject(
+        info[:options] || [],
+        &(&1 in [:from_core, :no_core_prepare, :binary, :line_coverage])
+      )
+
+    [:binary, :debug_info, {:source, info[:source]} | options]
   end
 
   @doc """
@@ -448,9 +680,10 @@ defmodule TuistEx.Analytics.Coverage do
     end)
   end
 
-  # The module's source and the line each of its function clauses starts at,
-  # read off its build: a module cover-compiled from a binary, as Mimic's
-  # copies are, names no source of its own.
+  # The module's files, its source as 0 and the files `included_files/1`
+  # numbers, and where each of its own function clauses starts, read off its
+  # build: a module cover-compiled from a binary, as Mimic's copies are,
+  # names no source of its own.
   defp build_info(module) do
     with path when is_list(path) <- :code.where_is_file(~c"#{module}.beam"),
          {:ok, {_module, chunks}} <-
@@ -461,24 +694,58 @@ defmodule TuistEx.Analytics.Coverage do
           _ -> nil
         end
 
-      {source, clause_starts(chunks[:abstract_code])}
+      forms =
+        case chunks[:abstract_code] do
+          {:raw_abstract_v1, forms} -> forms
+          _ -> []
+        end
+
+      included = included_files(forms)
+      files = Map.new(included, fn {file, index} -> {index, to_string(file)} end)
+      {Map.put(files, 0, source), clause_starts(forms, included)}
     else
-      _ -> {nil, []}
+      _ -> {%{}, []}
     end
   end
 
   # Each clause's head line, which is where its function is said to start,
   # and the line of its first expression, which runs once per call that
-  # takes the clause.
-  defp clause_starts({:raw_abstract_v1, forms}) do
-    for {:function, _anno, name, arity, clauses} <- forms,
-        {:clause, anno, _args, _guards, [first | _]} <- clauses,
-        line = :erl_anno.line(anno),
-        line > 0,
-        do: {line, :erl_anno.line(elem(first, 1)), {name, arity}}
+  # takes the clause. Only the module's own: a template's function has no
+  # head line in the template (Phoenix's is generated, EEx's is the line
+  # that compiles it), so a template's lines belong to no function.
+  defp clause_starts(forms, included) do
+    forms
+    |> Enum.flat_map_reduce(true, fn
+      {:attribute, _anno, :file, {file, _line}}, _own? ->
+        {[], not Map.has_key?(included, file)}
+
+      {:function, _anno, name, arity, clauses}, true ->
+        starts =
+          for {:clause, anno, _args, _guards, [first | _]} <- clauses,
+              line = :erl_anno.line(anno),
+              line > 0,
+              do: {line, :erl_anno.line(elem(first, 1)), {name, arity}}
+
+        {starts, true}
+
+      _form, own? ->
+        {[], own?}
+    end)
+    |> elem(0)
   end
 
-  defp clause_starts(_abstract_code), do: []
+  # The files other than its own a module's forms say code comes from,
+  # numbered from 1 in the order they first appear. The first `-file` names
+  # the module's own source.
+  defp included_files(forms) do
+    case for({:attribute, _anno, :file, {file, _line}} <- forms, do: file) do
+      [own | files] ->
+        files |> Enum.reject(&(&1 == own)) |> Enum.uniq() |> Enum.with_index(1) |> Map.new()
+
+      [] ->
+        %{}
+    end
+  end
 
   # Each executable line belongs to the function whose clause head starts
   # closest above it, including the anonymous functions inside it, whichever
