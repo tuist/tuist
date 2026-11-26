@@ -3606,6 +3606,49 @@ fn mcp_servers_are_listed_changed_and_signed_in_to_per_list() {
 }
 
 #[test]
+fn an_mcp_sign_in_survives_another_profiles_mcp_operations() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    let one = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let two = login(&mut c, &mut h, "https://two.test", 2, i64::MAX);
+    let id = "0192f0a0-0000-7000-8000-000000000001";
+
+    call(&mut c, &mut h, "switch_profile", json!({"id":one}));
+    h.responses
+        .push_back((200, json!({"url":"https://auth.example/authorize?state=s"})));
+    call(&mut c, &mut h, "authorize_mcp_server", json!({"id":id}));
+
+    // The other profile can't complete it, and listing its servers keeps it.
+    call(&mut c, &mut h, "switch_profile", json!({"id":two}));
+    let elsewhere = call(
+        &mut c,
+        &mut h,
+        "complete_mcp_server",
+        json!({"url":"luft://mcp-callback?state=s&code=c"}),
+    );
+    assert!(elsewhere["error"].is_string());
+    h.responses.push_back((200, json!({"servers":[]})));
+    call(&mut c, &mut h, "mcp_servers", json!({}));
+
+    call(&mut c, &mut h, "switch_profile", json!({"id":one}));
+    h.responses
+        .push_back((200, json!({"server":{"id":id,"connected":true}})));
+    let completed = call(
+        &mut c,
+        &mut h,
+        "complete_mcp_server",
+        json!({"url":"luft://mcp-callback?state=s&code=c"}),
+    );
+    assert_eq!(
+        completed["data"]["server"]["connected"], true,
+        "{completed}"
+    );
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        "https://one.test/api/me/mcp-servers/complete"
+    );
+}
+
+#[test]
 fn live_diffs_merge_into_the_store_and_queued_replies_stay_unsent_until_the_server_has_them() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);

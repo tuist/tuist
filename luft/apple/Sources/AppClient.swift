@@ -298,6 +298,11 @@ private final class PresenceSocket: @unchecked Sendable {
     }
 }
 
+@MainActor
+private final class ResumeFlag {
+    var value = false
+}
+
 @MainActor @Observable
 final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding {
     /// The app's one client. The app delegate boots it too, because iOS can
@@ -438,20 +443,30 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
             throw AppClientError(message: String(localized: "Sign-in could not be started."))
         }
         let callback: URL? = try await withCheckedThrowingContinuation { continuation in
+            // The handler may also run when start() fails, so only the first
+            // outcome resumes.
+            let resumed = ResumeFlag()
+            let finish: @MainActor (Result<URL?, Error>) -> Void = { result in
+                guard !resumed.value else { return }
+                resumed.value = true
+                continuation.resume(with: result)
+            }
             let session = ASWebAuthenticationSession(url: url, callbackURLScheme: "luft") { url, error in
-                if let url {
-                    continuation.resume(returning: url)
-                } else if let error, (error as? ASWebAuthenticationSessionError)?.code != .canceledLogin {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: nil)
+                Task { @MainActor in
+                    if let url {
+                        finish(.success(url))
+                    } else if let error, (error as? ASWebAuthenticationSessionError)?.code != .canceledLogin {
+                        finish(.failure(error))
+                    } else {
+                        finish(.success(nil))
+                    }
                 }
             }
             session.presentationContextProvider = self
             session.prefersEphemeralWebBrowserSession = true
             mcpBrowser = session
             if !session.start() {
-                continuation.resume(throwing: AppClientError(message: String(localized: "Sign-in could not be started.")))
+                finish(.failure(AppClientError(message: String(localized: "Sign-in could not be started."))))
             }
         }
         mcpBrowser = nil

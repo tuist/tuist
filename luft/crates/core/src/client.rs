@@ -1292,14 +1292,17 @@ impl MobileClient {
     }
 
     /// MCP servers (`crate::mcp_servers`) with the active profile's session. A
-    /// sign-in started in another profile can't complete in this one.
+    /// sign-in started in another profile can't complete in this one, and
+    /// stays pending for that profile unless this one starts its own.
     fn mcp_servers(&mut self, op: &str, args: &Value, host: &mut dyn Host) -> Result<Value> {
         let index = self.active()?;
         let profile = self.vault.profiles[index].id.clone();
         let server = server_url(&self.vault.profiles[index].server)?;
-        let mut pending = match self.mcp_authorization.take() {
-            Some((owner, list)) if owner == profile => Some(list),
-            _ => None,
+        let mine = matches!(&self.mcp_authorization, Some((owner, _)) if *owner == profile);
+        let mut pending = if mine {
+            self.mcp_authorization.take().map(|(_, list)| list)
+        } else {
+            None
         };
         let result = crate::mcp_servers::call(
             &server,
@@ -1312,7 +1315,9 @@ impl MobileClient {
                 host,
             },
         );
-        self.mcp_authorization = pending.map(|list| (profile, list));
+        if mine || pending.is_some() {
+            self.mcp_authorization = pending.map(|list| (profile, list));
+        }
         result
     }
 

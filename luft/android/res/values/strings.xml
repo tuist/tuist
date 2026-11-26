@@ -182,4 +182,5 @@
     <string name="mcp_server_name_hint">"Name (optional)"</string>
     <string name="mcp_sign_in">"Sign in"</string>
     <string name="mcp_remove">"Remove"</string>
+    <string name="mcp_sign_in_failed">"Signing in to the MCP server failed. Try again."</string>
 </resources>

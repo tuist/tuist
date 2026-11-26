@@ -251,7 +251,9 @@ class MainActivity : Activity() {
         intent.removeExtra("navigate")
         intentConsumed = true
         if (uri?.scheme == "luft" && uri.host == "mcp-callback" && uri.path.isNullOrEmpty()) {
-            call("complete_mcp_server", JSONObject().put("url", uri.toString()), onFailure = { render() }) {
+            call("complete_mcp_server", JSONObject().put("url", uri.toString()), onFailure = {
+                toast(R.string.mcp_sign_in_failed); render()
+            }) {
                 refreshMcpServers()
             }
             return true
