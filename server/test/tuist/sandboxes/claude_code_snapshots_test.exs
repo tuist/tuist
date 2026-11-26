@@ -238,13 +238,17 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert command =~ ~S|state="$HOME/.tuist-sync/|
     assert command =~ "git rev-parse HEAD > \"$state/commit\""
 
-    # Its script signs in with read access to the account's cache while the
-    # build runs, and the build removes the session before saving.
+    # Its script signs in with the CI preset on the account's cache while the
+    # build runs, so its compilation cache publishes, and the build removes
+    # the session before saving.
     stub(Tuist.FeatureFlags, :sandboxes_enabled?, fn _account -> true end)
     assert {:ok, %{sandbox_command: claims}} = CommandCredentials.claims(start.env["TUIST_OIDC_TOKEN"])
     assert {:ok, %{id: account_id}, grant} = CommandCredentials.account_grant(claims)
     assert account_id == account.id
-    assert grant == %{"all_projects" => true, "scopes" => ["account:cache:read", "project:cache:read"]}
+    assert grant == %{"all_projects" => true, "scopes" => ["ci"]}
+    # It drains the compilation cache's publications before stopping the
+    # proxy, and fails when a record remains.
+    assert command =~ ~r/tuist-cas-proxy.* --drain .*exit 1\n  fi\ndone\nlaunchctl bootout/s
     assert command =~ ~S|rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"|
     # It keeps DerivedData, compilation cache included, and flushes it to
     # disk once the cache's writers have exited.

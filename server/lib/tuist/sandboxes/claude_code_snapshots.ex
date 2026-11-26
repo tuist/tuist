@@ -27,10 +27,11 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   for that repository, in the command's environment, unset before the
   script runs. The script gets the Tuist environment
   (`Sandboxes.tuist_env/2`), which holds none, so the snapshot holds none.
-  A Mac build's script also gets an identity token with read access to the
+  A Mac build's script also gets an identity token with the CI preset on the
   account's cache (`Tuist.Sandboxes.CommandCredentials`), valid only while
   the build's command runs, so its `tuist generate` writes the project a
-  signed-in session's does and the session's build reuses the snapshot's;
+  signed-in session's does, the session's build reuses the snapshot's, and
+  the compilation cache publishes what the build compiled;
   the build deletes the session the CLI stored from it before the disks are
   saved.
 
@@ -106,7 +107,13 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # (`SandboxSync` in the CLI): the manifest of the commit's files, named by
   # its Git hash, and their paths, under the clone's resolved path. The
   # tracked files the script changed go back to the commit first, so the
-  # record describes the copy. Before that it stops the cache proxy and the
+  # record describes the copy. Before that it waits for the compilation
+  # cache's publications to reach the remote cache (`tuist-cas-proxy
+  # --drain`, as CI runners' `drain_cas_publications` does) and fails the
+  # build when any record remains: the store's associations name objects
+  # only the remote can restore, and a snapshot saved over a builder that
+  # could not publish (read-only, 2026-11) failed every session build with
+  # "CAS error: missing object". Then it stops the cache proxy and the
   # build service that write the compilation cache, waits for them to exit,
   # and flushes each file in DerivedData, the compilation cache and the
   # build products, with `F_FULLFSYNC` (51). The cache store writes through
@@ -140,6 +147,15 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   image_devices=$(devices)
   /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
   derived_data="$HOME/Library/Developer/Xcode/DerivedData"
+  cas_client=$(command -v tuist-cas-proxy 2>/dev/null || echo /opt/tuist/tuist-cas-proxy)
+  for spool in $(find "$derived_data/CompilationCache.noindex" -type d -name tuist-spool 2>/dev/null); do
+    env -u TUIST_CAS_REMOTE_GRPC_URL "$cas_client" --drain "$(dirname "$spool")" --socket "$HOME/.local/state/tuist/cas-proxy.sock" --timeout-ms 300000 || true
+    owed=$(find "$spool" -type f ! -name '*.tags' | wc -l | tr -d ' ')
+    if [ "$owed" -gt 0 ]; then
+      echo "$owed compilation cache publications in $spool did not reach the remote cache" >&2
+      exit 1
+    fi
+  done
   launchctl bootout "gui/$(id -u)/tuist.cas-proxy" >/dev/null 2>&1 || true
   killall -TERM SWBBuildService XCBBuildService >/dev/null 2>&1 || true
   i=0
@@ -449,7 +465,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
       |> Map.put("GIT_TERMINAL_PROMPT", "0")
 
     # A Mac build's script signs in to Tuist as a session's does
-    # (`CommandCredentials`, read access to the account's cache).
+    # (`CommandCredentials`, the CI preset on the account's cache).
     started_by = if mac_build?(build, agent_environment), do: :snapshot_build
 
     case Commands.start(sandbox, %{
