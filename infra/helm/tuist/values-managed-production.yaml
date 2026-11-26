@@ -2702,6 +2702,9 @@ sandboxes:
   # Memory bursting: guests return the memory they free (and, once idle,
   # their page cache) to the host, and pauses punch zeros out of images.
   balloonFreePageReporting: true
+  # Pauses of a VM restored from its own memory image write only the pages
+  # it changed, merged onto a clone of that image.
+  diffSnapshots: true
   # What the daemons were started with, so raising maxCpu (read by the
   # server) restarts none of them.
   daemonMaxCpu: "250m"
