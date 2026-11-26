@@ -259,7 +259,9 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     # It keeps DerivedData, compilation cache included, and flushes it to
     # disk once the cache's writers, and whatever `lsof` still finds in it,
     # have exited.
-    assert command =~ ~r/pgrep -x XCBBuildService.*lsof -n -w -t \+D "\$store".*find "\$derived_data" -type f -exec perl .*fcntl\(\$f, 51, 0\)/s
+    assert command =~
+             ~r/pgrep -x XCBBuildService.*lsof -n -w -t \+D "\$store".*find "\$derived_data" -type f -exec perl .*fcntl\(\$f, 51, 0\)/s
+
     refute command =~ "rm -rf \"$derived_data\""
     assert command =~ "unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_TERMINAL_PROMPT\n"
     # It deletes the simulators the script created and keeps the image's,
