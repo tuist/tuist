@@ -120,6 +120,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
+  @doc "Lists every KuraInstance in the cluster that serves `region`, whichever region it belongs to."
+  def list_instances(%Regions{} = region) do
+    Client.list_kura_instances(@namespace, Keyword.put(kubernetes_client_opts(region), :timeout, 5_000))
+  end
+
   @doc "Synchronize only stable DNS intent, independently of image rollouts and archival."
   def sync_stable_endpoint(%Server{} = server, region, claimed \\ nil) do
     name = server.provisioner_node_ref

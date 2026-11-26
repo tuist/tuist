@@ -12,6 +12,7 @@ defmodule Tuist.Kura.ReconcilerTest do
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Identity
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Server
   alias Tuist.Kura.Workers.AwaitActivationWorker
@@ -30,6 +31,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     # the kill-switch fallback now that orchestration is on by default.
     stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> false end)
     stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+    stub(KubernetesController, :list_instances, fn _region -> {:ok, []} end)
     :ok
   end
 
@@ -1180,6 +1182,60 @@ defmodule Tuist.Kura.ReconcilerTest do
     server
   end
 
+  describe "orphaned instances" do
+    setup do
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      stub(Provisioner, :rollout, fn _server, _inputs -> :ok end)
+      :ok
+    end
+
+    test "deletes only server-applied instances past the grace period that no live server owns" do
+      {_account, live, _deployment} = create_server()
+      other_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      {:ok, destroyed} =
+        %{
+          account_id: other_account.id,
+          region: "local-controller",
+          provisioner_node_ref: "kura-destroyed-local-controller"
+        }
+        |> Server.create_changeset()
+        |> Repo.insert()
+
+      {:ok, destroyed} = Kura.destroy_server(destroyed)
+      {:ok, _} = Kura.mark_destroyed(destroyed)
+
+      old = DateTime.utc_now() |> DateTime.add(-16 * 60, :second) |> DateTime.to_iso8601()
+      fresh = DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.to_iso8601()
+
+      stub(KubernetesController, :list_instances, fn _region ->
+        {:ok,
+         [
+           kura_instance(live.provisioner_node_ref, created: old),
+           kura_instance("kura-deleted-account-local-controller", created: old),
+           kura_instance(destroyed.provisioner_node_ref, created: old),
+           kura_instance("kura-just-applied-local-controller", created: fresh),
+           kura_instance("kura-helm-local-controller", created: old, manager: "helm"),
+           kura_instance("kura-other-region-1", created: old, region: "eu-west"),
+           kura_instance("kura-deleting-local-controller", created: old, deleting: true)
+         ]}
+      end)
+
+      test_pid = self()
+
+      stub(KubernetesController, :destroy, fn name, region ->
+        send(test_pid, {:destroyed, name, region.id})
+        :ok
+      end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert_received {:destroyed, "kura-deleted-account-local-controller", "local-controller"}
+      assert_received {:destroyed, "kura-destroyed-local-controller", "local-controller"}
+      refute_received {:destroyed, _name, _region}
+    end
+  end
+
   describe "reconcile_server/1" do
     test "applies one server's open deployment without waiting for the tick" do
       {_account, server, deployment} = create_server()
@@ -1269,6 +1325,20 @@ defmodule Tuist.Kura.ReconcilerTest do
       })
 
     {account, server, List.first(server.deployments)}
+  end
+
+  defp kura_instance(name, opts) do
+    metadata = %{
+      "name" => name,
+      "labels" => %{"tuist.dev/region" => Keyword.get(opts, :region, "local-controller")},
+      "creationTimestamp" => Keyword.fetch!(opts, :created),
+      "managedFields" => [%{"manager" => Keyword.get(opts, :manager, "tuist-server"), "operation" => "Apply"}]
+    }
+
+    metadata =
+      if Keyword.get(opts, :deleting), do: Map.put(metadata, "deletionTimestamp", opts[:created]), else: metadata
+
+    %{"metadata" => metadata}
   end
 
   defp mark_deployment_succeeded(deployment) do

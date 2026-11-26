@@ -14,14 +14,16 @@ defmodule Tuist.Kura.Reconciler do
     1. schedule runtime-image drift for active servers,
     2. schedule teardown for servers stranded in retired regions,
     3. finalise destroys after the custom resource disappears,
-    4. drain the source of completed moves,
-    5. apply open deployments (the rollout fast path), and
-    6. project every other present-intent server: observe the backing
+    4. delete `KuraInstance`s no live server owns (see
+       `reap_orphaned_instances/0`),
+    5. drain the source of completed moves,
+    6. apply open deployments (the rollout fast path), and
+    7. project every other present-intent server: observe the backing
        `KuraInstance`, record the observation (`observed_image_tag` /
        `last_observed_at`), and re-derive `status` from
        `(latest deployment intent, observed image, endpoint readiness)`.
 
-  Because step 6 re-derives `status` from observation every tick,
+  Because step 7 re-derives `status` from observation every tick,
   `:failed` is never a sticky terminal sink: a server whose backing
   resource recovers and reports the intended image with a serving
   endpoint heals back to `:active` in place, with no new deployment row
@@ -61,6 +63,7 @@ defmodule Tuist.Kura.Reconciler do
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Lifecycle
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
   alias Tuist.Kura.RunnerCache
   alias Tuist.Kura.Server
@@ -104,6 +107,7 @@ defmodule Tuist.Kura.Reconciler do
       StableEndpoint.reconcile()
       reconcile_retired_region_servers()
       reconcile_destroying_servers()
+      reap_orphaned_instances()
       reconcile_moving_out_servers()
       handled = reconcile_deployments()
       reconcile_observed_servers(handled)
@@ -347,6 +351,90 @@ defmodule Tuist.Kura.Reconciler do
       {:error, reason} ->
         Logger.warning("[Kura.Reconciler] could not observe destroying server #{server.id}: #{inspect(reason)}")
         :ok
+    end
+  end
+
+  # A KuraInstance outlives its intent when the `kura_servers` row goes away
+  # without the instance: account deletion cascades the rows, and a rollout this
+  # same tick loaded before the deletion can still apply the instance after
+  # teardown found nothing to delete. Nothing else would ever reach it, and it
+  # runs unready forever because the control plane no longer knows its tenant.
+  #
+  # Only instances this server applied are candidates (a Helm-rendered instance
+  # has another field manager), and only once they are older than the grace
+  # period, which covers a row and its first apply that have not committed yet.
+  # Deletions per tick are capped so a query or label regression cannot sweep
+  # a whole cluster at once.
+  @orphan_grace_seconds 15 * 60
+  @orphan_reap_limit 10
+
+  defp reap_orphaned_instances do
+    Server
+    |> distinct(true)
+    |> select([s], s.region)
+    |> Repo.all()
+    |> Enum.map(&Regions.get/1)
+    |> Enum.filter(&match?(%Regions{provisioner: KubernetesController}, &1))
+    |> Enum.group_by(&Map.get(&1.provisioner_config, :kubernetes_client, []))
+    |> Enum.each(fn {_client, regions} -> reap_orphaned_instances(regions) end)
+  end
+
+  defp reap_orphaned_instances([region | _] = regions) do
+    case KubernetesController.list_instances(region) do
+      {:ok, instances} ->
+        candidates = orphan_candidates(instances, regions)
+
+        owned =
+          Server
+          |> where([s], s.status != :destroyed)
+          |> where([s], s.provisioner_node_ref in ^Enum.map(candidates, &elem(&1, 0)))
+          |> select([s], s.provisioner_node_ref)
+          |> Repo.all()
+          |> MapSet.new()
+
+        candidates
+        |> Enum.reject(fn {name, _region} -> MapSet.member?(owned, name) end)
+        |> Enum.take(@orphan_reap_limit)
+        |> Enum.each(fn {name, region} -> reap_orphaned_instance(name, region) end)
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not list instances for orphan reaping: #{inspect(reason)}")
+    end
+  end
+
+  # `{name, region}` for every listed instance of `regions` that is old enough
+  # and was applied by this server, whether or not a server still owns it.
+  defp orphan_candidates(instances, regions) do
+    regions_by_id = Map.new(regions, &{&1.id, &1})
+    cutoff = DateTime.add(DateTime.utc_now(), -@orphan_grace_seconds, :second)
+
+    for instance <- instances,
+        reapable_instance?(instance, cutoff),
+        %Regions{} = region <- [regions_by_id[get_in(instance, ["metadata", "labels", "tuist.dev/region"])]],
+        do: {instance["metadata"]["name"], region}
+  end
+
+  defp reapable_instance?(%{"metadata" => metadata}, cutoff) do
+    applied_by_server? = Enum.any?(metadata["managedFields"] || [], &(&1["manager"] == "tuist-server"))
+
+    created_before_cutoff? =
+      case DateTime.from_iso8601(metadata["creationTimestamp"] || "") do
+        {:ok, created_at, _offset} -> DateTime.before?(created_at, cutoff)
+        _ -> false
+      end
+
+    is_nil(metadata["deletionTimestamp"]) and applied_by_server? and created_before_cutoff?
+  end
+
+  defp reapable_instance?(_instance, _cutoff), do: false
+
+  defp reap_orphaned_instance(name, region) do
+    case KubernetesController.destroy(name, region) do
+      :ok ->
+        Logger.warning("[Kura.Reconciler] deleted orphaned instance #{name} in #{region.id}: no live server owns it")
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not delete orphaned instance #{name}: #{inspect(reason)}")
     end
   end
 

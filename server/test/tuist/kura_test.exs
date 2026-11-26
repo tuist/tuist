@@ -1672,6 +1672,40 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "destroy_servers_for_account/1" do
+    test "tears down and marks destroyed every server, including one still provisioning" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, provisioning} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      {:ok, active} =
+        %{account_id: account.id, region: "eu-west", provisioner_node_ref: "kura-teardown-eu-west-1"}
+        |> Server.create_changeset()
+        |> Repo.insert()
+
+      {:ok, active} =
+        active
+        |> Server.status_changeset(%{status: :active, url: "https://x", current_image_tag: "0.5.2"})
+        |> Repo.update()
+
+      test_pid = self()
+
+      expect(Provisioner, :destroy, 2, fn server ->
+        send(test_pid, {:destroyed, server.id})
+        :ok
+      end)
+
+      assert :ok = Kura.destroy_servers_for_account(account.id)
+
+      assert_received {:destroyed, id} when id == provisioning.id
+      assert_received {:destroyed, id} when id == active.id
+      assert Repo.get!(Server, provisioning.id).status == :destroyed
+      assert Repo.get!(Server, active.id).status == :destroyed
+    end
+  end
+
   describe "destroy_server/1" do
     test "marks destroying, which stops the account resolving it" do
       user = AccountsFixtures.user_fixture()
