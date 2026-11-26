@@ -296,8 +296,18 @@ defmodule Tuist.GitHub.ClientTest do
       assert Client.list_workflow_run_jobs(%{installation_id: "installation-id"}, "tuist/tuist", 42) ==
                {:ok,
                 [
-                  %{id: 1, status: "in_progress", runner_name: "runner-a"},
-                  %{id: 2, status: "queued", runner_name: nil}
+                  %{
+                    id: 1,
+                    status: "in_progress",
+                    runner_name: "runner-a",
+                    job: %{"id" => 1, "status" => "in_progress", "runner_name" => "runner-a", "name" => "build"}
+                  },
+                  %{
+                    id: 2,
+                    status: "queued",
+                    runner_name: nil,
+                    job: %{"id" => 2, "status" => "queued", "runner_name" => nil}
+                  }
                 ]}
     end
 

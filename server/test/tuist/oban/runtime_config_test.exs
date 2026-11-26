@@ -23,6 +23,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Runners.Workers.ConcurrencySizingWorker
   alias Tuist.Runners.Workers.ExpireInteractiveSessionsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
+  alias Tuist.Runners.Workers.LostQueuedJobsWorker
   alias Tuist.Runners.Workers.PruneArchivedLogsWorker
   alias Tuist.Runners.Workers.StaleQueuedJobsWorker
   alias Tuist.Sandboxes.Workers.RetentionWorker
@@ -194,6 +195,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute KuraReconciler in workers
         refute ClaimSizingWorker in workers
         refute StaleQueuedJobsWorker in workers
+        refute LostQueuedJobsWorker in workers
         refute FlushJobTransitionEventsWorker in workers
       end
     end
@@ -340,6 +342,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert KuraReconciler in workers
         assert ClaimSizingWorker in workers
         assert StaleQueuedJobsWorker in workers
+        assert LostQueuedJobsWorker in workers
         assert FlushJobTransitionEventsWorker in workers
       end
     end

@@ -625,7 +625,8 @@ defmodule Tuist.GitHub.Client do
   @doc """
   Lists the jobs of a workflow run's latest attempt with their GitHub-side
   `status` and the `runner_name` GitHub placed each one on. Returns at most
-  100 jobs, the API's page size.
+  100 jobs, the API's page size. `job` is the job object as the API returns
+  it, the shape a `workflow_job` webhook carries.
 
   See: https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run
   """
@@ -638,7 +639,7 @@ defmodule Tuist.GitHub.Client do
       {:ok, %{"jobs" => jobs}} when is_list(jobs) ->
         {:ok,
          for %{"id" => id, "status" => status} = job <- jobs, is_integer(id) do
-           %{id: id, status: status, runner_name: Map.get(job, "runner_name")}
+           %{id: id, status: status, runner_name: Map.get(job, "runner_name"), job: job}
          end}
 
       {:ok, _body} ->
