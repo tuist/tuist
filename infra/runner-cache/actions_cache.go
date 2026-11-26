@@ -43,6 +43,9 @@ const (
 	// The health check waits this long for the server to say whether the
 	// caller's account uses the mirror, inside the node shim's 150 ms probe.
 	actionsEnabledWait = 100 * time.Millisecond
+	// A staged entry its job restored stays on the host this long after its
+	// last read once the copy ended, so a restore in progress can finish.
+	actionsStagedGrace = 5 * time.Minute
 )
 
 // ActionsCaller is the runner Pod a request came from.
@@ -110,6 +113,7 @@ type ActionsCache struct {
 	proxy     *httputil.ReverseProxy
 	mu        sync.Mutex
 	saves     map[actionsSave]actionsPending
+	staged    map[string]*actionsStaged
 	remote    map[string]actionsRemote
 	enabled   map[string]*actionsEnabled
 	copies    chan actionsCopy
@@ -121,6 +125,18 @@ type actionsSave struct{ pod, key, version string }
 type actionsPending struct {
 	id    string
 	since time.Time
+}
+
+// actionsStaged is a finalized save still on this host. Until its copy ends
+// the server cannot match it, so this host answers its own job's restores of
+// it: the job saved it under its own ref, which every lookup reads first.
+type actionsStaged struct {
+	pod, key, version string
+	size              int64
+	copying           bool
+	readers           int
+	// used is when the job was last given or read the entry; zero if never.
+	used time.Time
 }
 
 type actionsRemote struct {
@@ -160,6 +176,7 @@ func (c *ActionsCache) init() {
 			FlushInterval: -1,
 		}
 		c.saves = map[actionsSave]actionsPending{}
+		c.staged = map[string]*actionsStaged{}
 		c.remote = map[string]actionsRemote{}
 		c.enabled = map[string]*actionsEnabled{}
 		c.copies = make(chan actionsCopy, 256)
@@ -191,6 +208,7 @@ func (c *ActionsCache) Run(ctx context.Context) {
 	defer ticker.Stop()
 	for {
 		c.probe(ctx)
+		c.sweepStaged()
 		select {
 		case <-ctx.Done():
 			return
@@ -297,6 +315,16 @@ func (c *ActionsCache) serveTwirp(w http.ResponseWriter, r *http.Request, method
 
 func (c *ActionsCache) lookup(ctx context.Context, r *http.Request, caller ActionsCaller, key string, restoreKeys []string, version string, answer map[string]any) {
 	start := time.Now()
+	// The job's own save of this exact key is what the server will answer
+	// once it commits: nothing else in the job's ref holds the key (a second
+	// reservation is refused) and that ref is read first.
+	if id := c.stagedFor(caller, key, version); id != "" {
+		c.record("lookup", "staged", 0, start)
+		answer["ok"] = true
+		answer["signed_download_url"] = c.blobURL(r, "d", id, caller)
+		answer["matched_key"] = key
+		return
+	}
 	entry, err := c.Index.Lookup(ctx, caller, key, restoreKeys, version)
 	switch {
 	case err != nil:
@@ -368,11 +396,18 @@ func (c *ActionsCache) finalize(ctx context.Context, caller ActionsCaller, key, 
 		c.fail("finalize", start, err)
 		return
 	}
-	// The copy runs after the answer: a job does not wait for it, and its entry
-	// becomes restorable once the store holds it.
+	// The copy runs after the answer: a job does not wait for it. Its entry
+	// becomes restorable once the store holds it; until then only this job
+	// restores it, from here.
+	c.mu.Lock()
+	c.staged[pending.id] = &actionsStaged{pod: caller.PodUID, key: key, version: version, size: size, copying: true}
+	c.mu.Unlock()
 	select {
 	case c.copies <- actionsCopy{id: pending.id, sha256: sum, size: size}:
 	default:
+		c.mu.Lock()
+		delete(c.staged, pending.id)
+		c.mu.Unlock()
 		c.Store.Remove(pending.id)
 		c.record("finalize", "busy", 0, start)
 		return
@@ -551,6 +586,9 @@ func (c *ActionsCache) serveDownload(w http.ResponseWriter, r *http.Request, id 
 		r.Header.Set("Range", r.Header.Get("x-ms-range"))
 	}
 	start := time.Now()
+	if c.serveStaged(w, r, id, start) {
+		return
+	}
 	c.mu.Lock()
 	remote, ok := c.remote[id]
 	c.mu.Unlock()
@@ -597,9 +635,9 @@ func (c *ActionsCache) serveDownload(w http.ResponseWriter, r *http.Request, id 
 }
 
 // copyOut copies a finished upload to the entry's store and commits it. The
-// staged upload goes either way.
+// staged upload goes either way, once its job no longer reads it.
 func (c *ActionsCache) copyOut(ctx context.Context, job actionsCopy) {
-	defer c.Store.Remove(job.id)
+	defer c.copied(job.id)
 	start := time.Now()
 	err := func() error {
 		indexed, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -629,6 +667,96 @@ func (c *ActionsCache) copyOut(ctx context.Context, job actionsCopy) {
 		return
 	}
 	c.record("store", "ok", job.size, start)
+}
+
+// stagedFor returns the entry the caller's job saved under key and version
+// that is still being copied, or "".
+func (c *ActionsCache) stagedFor(caller ActionsCaller, key, version string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for id, staged := range c.staged {
+		if staged.copying && staged.pod == caller.PodUID && staged.key == key && staged.version == version {
+			staged.used = time.Now()
+			return id
+		}
+	}
+	return ""
+}
+
+// serveStaged answers a read of entry id from this host while it is staged
+// here, and reports whether it did.
+func (c *ActionsCache) serveStaged(w http.ResponseWriter, r *http.Request, id string, start time.Time) bool {
+	c.mu.Lock()
+	staged, ok := c.staged[id]
+	if ok {
+		staged.readers++
+	}
+	c.mu.Unlock()
+	if !ok {
+		return false
+	}
+	defer func() {
+		c.mu.Lock()
+		staged.readers--
+		staged.used = time.Now()
+		c.mu.Unlock()
+	}()
+	content, err := c.Store.Open(id)
+	if err != nil || content.Size() != staged.size {
+		if err == nil {
+			content.Close()
+			err = ErrActionsUpload
+		}
+		c.fail("download", start, err)
+		http.Error(w, "BlobNotFound", http.StatusNotFound)
+		return true
+	}
+	defer content.Close()
+	counted := &countingReadSeeker{ReadSeeker: content}
+	http.ServeContent(w, r, "", time.Time{}, counted)
+	c.record("download", "staged", counted.n, start)
+	return true
+}
+
+// copied drops entry id's staged upload once its copy ended, unless its job
+// was given it: then sweepStaged drops it once the job stopped reading.
+func (c *ActionsCache) copied(id string) {
+	c.mu.Lock()
+	staged, ok := c.staged[id]
+	if ok && !staged.used.IsZero() {
+		staged.copying = false
+		c.mu.Unlock()
+		return
+	}
+	delete(c.staged, id)
+	c.mu.Unlock()
+	c.Store.Remove(id)
+}
+
+func (c *ActionsCache) sweepStaged() {
+	var done []string
+	c.mu.Lock()
+	for id, staged := range c.staged {
+		if !staged.copying && staged.readers == 0 && time.Since(staged.used) > actionsStagedGrace {
+			delete(c.staged, id)
+			done = append(done, id)
+		}
+	}
+	c.mu.Unlock()
+	for _, id := range done {
+		c.Store.Remove(id)
+	}
+}
+
+type countingReadSeeker struct {
+	io.ReadSeeker
+	n int64
+}
+
+func (r *countingReadSeeker) Read(p []byte) (int, error) {
+	n, err := r.ReadSeeker.Read(p)
+	r.n += int64(n)
+	return n, err
 }
 
 func (c *ActionsCache) put(ctx context.Context, job actionsCopy, upload ActionsUpload) error {

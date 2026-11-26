@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,7 +37,7 @@ const (
 // ActionsStore stages GitHub Actions cache uploads on this host's cache
 // filesystem, `uploads/<id>/`, until they are copied to the entry's store.
 // Staging never takes the filesystem below Reserve, and nothing is kept once
-// the copy finished or failed.
+// the copy finished or failed, except while its job still reads it.
 type ActionsStore struct {
 	Root      string
 	Reserve   uint64
@@ -116,7 +117,10 @@ func (s *ActionsStore) CommitBlocks(ctx context.Context, id string, blocks []str
 		}
 	}
 	sum := sha256.New()
-	content := &partsReader{paths: paths}
+	content, err := openParts(paths)
+	if err != nil {
+		return err
+	}
 	defer content.Close()
 	if _, err := io.Copy(sum, readerWithContext{ctx, content}); err != nil {
 		return err
@@ -158,8 +162,9 @@ func (s *ActionsStore) Seal(id string, size int64) (string, error) {
 	return string(sum), nil
 }
 
-// Open opens the sealed upload of entry id for copying to its store.
-func (s *ActionsStore) Open(id string) (io.ReadCloser, error) {
+// Open opens the sealed upload of entry id, to copy it to its store or serve
+// it to the job that saved it until then.
+func (s *ActionsStore) Open(id string) (*partsReader, error) {
 	if !actionsEntryID.MatchString(id) || s.uploading(id) {
 		return nil, os.ErrNotExist
 	}
@@ -167,7 +172,7 @@ func (s *ActionsStore) Open(id string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &partsReader{paths: paths}, nil
+	return openParts(paths)
 }
 
 // content lists the files holding entry id in order: its single-request blob,
@@ -227,40 +232,89 @@ func (s *ActionsStore) blockPath(id, block string) string {
 
 func (s *ActionsStore) parts(id string) string { return filepath.Join(s.upload(id), "parts") }
 
-// partsReader reads files one after another, holding one open at a time: a
-// block list can name 50,000 blocks.
+// partsReader reads files one after another as one seekable stream, holding
+// one open at a time: a block list can name 50,000 blocks.
 type partsReader struct {
 	paths []string
-	file  *os.File
+	// ends holds each file's end offset in the stream.
+	ends   []int64
+	offset int64
+	file   *os.File
+	index  int
+}
+
+func openParts(paths []string) (*partsReader, error) {
+	ends := make([]int64, len(paths))
+	var total int64
+	for i, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			return nil, err
+		}
+		total += info.Size()
+		ends[i] = total
+	}
+	return &partsReader{paths: paths, ends: ends}, nil
+}
+
+// Size is the stream's length.
+func (r *partsReader) Size() int64 {
+	if len(r.ends) == 0 {
+		return 0
+	}
+	return r.ends[len(r.ends)-1]
 }
 
 func (r *partsReader) Read(p []byte) (int, error) {
-	for {
-		if r.file == nil {
-			if len(r.paths) == 0 {
-				return 0, io.EOF
-			}
-			file, err := os.Open(r.paths[0])
-			if err != nil {
-				return 0, err
-			}
-			r.file, r.paths = file, r.paths[1:]
-		}
-		n, err := r.file.Read(p)
-		if err == io.EOF {
+	if r.offset >= r.Size() {
+		return 0, io.EOF
+	}
+	i := sort.Search(len(r.ends), func(i int) bool { return r.ends[i] > r.offset })
+	if r.file == nil || r.index != i {
+		if r.file != nil {
 			r.file.Close()
 			r.file = nil
-			if n == 0 {
-				continue
-			}
-			err = nil
 		}
-		return n, err
+		file, err := os.Open(r.paths[i])
+		if err != nil {
+			return 0, err
+		}
+		r.file, r.index = file, i
 	}
+	start := int64(0)
+	if i > 0 {
+		start = r.ends[i-1]
+	}
+	if remaining := r.ends[i] - r.offset; int64(len(p)) > remaining {
+		p = p[:remaining]
+	}
+	n, err := r.file.ReadAt(p, r.offset-start)
+	r.offset += int64(n)
+	if err == io.EOF {
+		// A file shorter than it was when opened.
+		err = nil
+		if n == 0 {
+			err = io.ErrUnexpectedEOF
+		}
+	}
+	return n, err
+}
+
+func (r *partsReader) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekCurrent:
+		offset += r.offset
+	case io.SeekEnd:
+		offset += r.Size()
+	}
+	if offset < 0 {
+		return 0, errors.New("negative position")
+	}
+	r.offset = offset
+	return offset, nil
 }
 
 func (r *partsReader) Close() error {
-	r.paths = nil
 	if r.file == nil {
 		return nil
 	}

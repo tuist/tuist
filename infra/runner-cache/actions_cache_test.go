@@ -27,12 +27,33 @@ type fakeObjectStore struct {
 	mu      sync.Mutex
 	objects map[string][]byte
 	status  int
-	server  *httptest.Server
+	// hold, while set, keeps PUTs waiting until it is closed.
+	hold   chan struct{}
+	server *httptest.Server
+}
+
+// holdPuts keeps PUTs waiting until the returned function, or the test's end,
+// releases them.
+func (s *fakeObjectStore) holdPuts(t *testing.T) func() {
+	hold := make(chan struct{})
+	s.mu.Lock()
+	s.hold = hold
+	s.mu.Unlock()
+	var once sync.Once
+	release := func() { once.Do(func() { close(hold) }) }
+	t.Cleanup(release)
+	return release
 }
 
 func newFakeObjectStore(t *testing.T) *fakeObjectStore {
 	store := &fakeObjectStore{objects: map[string][]byte{}}
 	store.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		store.mu.Lock()
+		hold := store.hold
+		store.mu.Unlock()
+		if hold != nil && r.Method == http.MethodPut {
+			<-hold
+		}
 		store.mu.Lock()
 		defer store.mu.Unlock()
 		if store.status != 0 {
@@ -250,6 +271,14 @@ func (h *actionsHarness) do(method, target string, body []byte, header map[strin
 
 func (h *actionsHarness) save(key string, content []byte) string {
 	h.t.Helper()
+	upload := h.stage(key, content)
+	h.settle()
+	return upload
+}
+
+// stage saves an entry without waiting for its copy to the store.
+func (h *actionsHarness) stage(key string, content []byte) string {
+	h.t.Helper()
 	created := h.twirp("CreateCacheEntry", map[string]any{"key": key, "version": "v1"})
 	if created["ok"] != true {
 		h.t.Fatalf("reserve refused: %v", created)
@@ -262,7 +291,6 @@ func (h *actionsHarness) save(key string, content []byte) string {
 	if finalized["ok"] != true {
 		h.t.Fatalf("finalize refused: %v", finalized)
 	}
-	h.settle()
 	return upload
 }
 
@@ -293,6 +321,71 @@ func TestActionsCacheSavesAndRestoresAnEntry(t *testing.T) {
 	if uploads, _ := os.ReadDir(filepath.Join(h.cache.Store.Root, "uploads")); len(uploads) != 0 {
 		t.Fatalf("kept %d staged uploads after the copy", len(uploads))
 	}
+}
+
+// runnersbench saves an entry and restores it in the same job at once, before
+// the store holds it and the server can match it.
+func TestActionsCacheRestoresAJobsSaveBeforeItsCopyEnds(t *testing.T) {
+	h := newActionsHarness(t)
+	release := h.store.holdPuts(t)
+
+	created := h.twirp("CreateCacheEntry", map[string]any{"key": "bench-1", "version": "v1"})
+	upload := created["signed_upload_url"].(string)
+	first, second := base64.StdEncoding.EncodeToString([]byte("block-1")), base64.StdEncoding.EncodeToString([]byte("block-2"))
+	h.do(http.MethodPut, upload+"&comp=block&blockid="+url.QueryEscape(first), []byte("hello "), nil)
+	h.do(http.MethodPut, upload+"&comp=block&blockid="+url.QueryEscape(second), []byte("world"), nil)
+	list := fmt.Sprintf(`<BlockList><Latest>%s</Latest><Latest>%s</Latest></BlockList>`, first, second)
+	h.do(http.MethodPut, upload+"&comp=blocklist", []byte(list), nil)
+	if answer := h.twirp("FinalizeCacheEntryUpload", map[string]any{"key": "bench-1", "version": "v1", "size_bytes": 11}); answer["ok"] != true {
+		t.Fatalf("finalize refused: %v", answer)
+	}
+
+	if status, data := h.restore("bench-1", nil); status != http.StatusOK || string(data) != "hello world" {
+		t.Fatalf("restored %d %q right after the save", status, data)
+	}
+	if status, data := h.restore("bench-1", map[string]string{"x-ms-range": "bytes=4-7"}); status != http.StatusPartialContent || string(data) != "o wo" {
+		t.Fatalf("ranged restore across blocks answered %d %q", status, data)
+	}
+	if h.index.committed("bench-1") {
+		t.Fatal("the copy ended before the restore; the test proves nothing")
+	}
+	// Only the job that saved it reads it before the server places it.
+	if answer := h.twirp("GetCacheEntryDownloadURL", map[string]any{"key": "bench-1", "version": "v2"}); answer["ok"] != false {
+		t.Fatalf("restored another version: %v", answer)
+	}
+	h.caller = ActionsCaller{PodName: "other", PodUID: "uid-2"}
+	if answer := h.twirp("GetCacheEntryDownloadURL", map[string]any{"key": "bench-1", "version": "v1"}); answer["ok"] != false {
+		t.Fatalf("another job restored an uncommitted entry: %v", answer)
+	}
+	h.caller = ActionsCaller{PodName: "pod", PodUID: "uid-1"}
+
+	release()
+	deadline := time.Now().Add(5 * time.Second)
+	for !h.index.committed("bench-1") && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if status, data := h.restore("bench-1", nil); !h.index.committed("bench-1") || status != http.StatusOK || string(data) != "hello world" {
+		t.Fatalf("after the copy restored %d %q", status, data)
+	}
+
+	// A save the store then refuses is dropped, as without the early restore.
+	release = h.store.holdPuts(t)
+	h.stage("bench-2", []byte("payload"))
+	if _, data := h.restore("bench-2", nil); string(data) != "payload" {
+		t.Fatalf("restored %q right after the save", data)
+	}
+	h.store.mu.Lock()
+	h.store.status = http.StatusForbidden
+	h.store.mu.Unlock()
+	release()
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if answer := h.twirp("GetCacheEntryDownloadURL", map[string]any{"key": "bench-2", "version": "v1"}); answer["ok"] == false {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("still restored a save the store refused")
 }
 
 func TestActionsCacheAssemblesStagedBlocksInListOrder(t *testing.T) {
