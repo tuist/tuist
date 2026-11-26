@@ -418,15 +418,22 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 				}
 			}
 			res, err = m.warmCreate(ctx, sb, src, args.WorkspaceGB, uid, log)
+			sb.mu.Lock()
+			memoryLoaded := !sb.memoryPending
+			sb.mu.Unlock()
 			// A guest that never answers after its memory loaded would
-			// fail every restore the same way; synced disks hold its files
-			// without the memory, so they cold boot instead, unless that
-			// guest's Firecracker did not die and may still write them: the
-			// create then fails and leaves the archive to a later restore.
-			if err == nil || !header.DisksSynced || !errors.Is(err, vsock.ErrAgentNotReady) || errors.Is(err, ErrVMNotKilled) || ctx.Err() != nil {
+			// fail every restore the same way, so its disks cold boot
+			// instead. Synced disks hold its files without the memory.
+			// Unsynced ones do so only once all of its memory was on the
+			// node, so the guest hung rather than waited on its pages: the
+			// boot is then a power cut that loses what it had not written
+			// back, as on a local resume of such an image. Neither boots
+			// when that guest's Firecracker did not die and may still write
+			// the disks: the create fails and leaves the archive.
+			if err == nil || !errors.Is(err, vsock.ErrAgentNotReady) || errors.Is(err, ErrVMNotKilled) || ctx.Err() != nil || (!header.DisksSynced && !memoryLoaded) {
 				return res, err
 			}
-			log.Warn("archived memory did not resume; cold booting the disks", "error", err)
+			log.Warn("archived memory did not resume; cold booting the disks", "error", err, "disks_synced", header.DisksSynced)
 			return m.coldCreateAfterWarm(ctx, sb, log)
 		}
 		// Its disks miss what the guest had not synced; only the memory

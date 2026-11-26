@@ -230,9 +230,12 @@ memory image until they cold boot.
   `memory_pending`, and emits `memory_loaded` once every chunk is
   installed (or a pause wrote the memory locally). A chunk that cannot be
   fetched kills the VM. Elsewhere it cold boots the disks, and so does a
-  warm restore of synced disks whose guest agent never answers (`agent not
-  ready`): the memory image is dropped, processes are lost, and lazy disks
-  keep arriving through their mounts. When that guest's Firecracker does not
+  warm restore whose guest agent never answers (`agent not ready`), of
+  synced disks, or of unsynced ones once every chunk was installed (the
+  guest hung rather than waited on its memory; the boot is a power cut that
+  loses what it had not written back): the memory image is dropped,
+  processes are lost, and lazy disks keep arriving through their mounts.
+  When that guest's Firecracker does not
   die, the create fails instead (`firecracker did not die`), leaving the
   archive for a later restore. With
   `lazy_disks` (`internal/lazydisk`, `internal/sandbox/lazydisks.go`) each
