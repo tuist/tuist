@@ -1161,6 +1161,29 @@ defmodule Tuist.Kura.Regions do
   def replica_spread_topology_key(%__MODULE__{provisioner_config: config}), do: config[:replica_spread_topology_key]
   def replica_spread_topology_key(_), do: nil
 
+  @doc """
+  The node label `account`'s replicas in the region must each hold a different
+  value of: the region's own, or the hostname for an account on the
+  `kura_replica_spread` flag in a region that co-locates, so one host loss
+  leaves a copy. `nil` when they co-locate.
+  """
+  def replica_spread_topology_key(region, account) do
+    cond do
+      key = replica_spread_topology_key(region) -> key
+      host_spread?(region, account) -> "kubernetes.io/hostname"
+      true -> nil
+    end
+  end
+
+  @doc """
+  Whether `account` spreads its replicas one per host only because of the
+  `kura_replica_spread` flag, in a region that would otherwise co-locate them.
+  """
+  def host_spread?(region, account) do
+    is_nil(replica_spread_topology_key(region)) and not is_nil(account) and
+      Tuist.FeatureFlags.kura_replica_spread_enabled?(account)
+  end
+
   @doc "The region with the given ID in the current runtime, or `nil` if unavailable."
   def available_region(id) when is_binary(id), do: Enum.find(available(), &(&1.id == id))
   def available_region(_), do: nil

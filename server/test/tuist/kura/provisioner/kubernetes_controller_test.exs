@@ -17,6 +17,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   setup do
     stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn _account -> false end)
+    stub(Tuist.FeatureFlags, :kura_replica_spread_enabled?, fn _account -> false end)
     stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> false end)
     stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
     stub(Tuist.FeatureFlags, :kura_learned_memory_floor_enabled?, fn _account -> false end)
@@ -132,6 +133,22 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert after_manifest["metadata"]["annotations"][revision] ==
                before["metadata"]["annotations"][revision] <> "+positive-fence-v1"
+    end
+
+    test "host spread is opt-in per account and changes the manifest revision" do
+      account = %{name: "tuist"}
+      before = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
+      refute Map.has_key?(before["spec"], "replicaSpreadTopologyKey")
+      stub(Tuist.FeatureFlags, :kura_replica_spread_enabled?, fn ^account -> true end)
+      after_manifest = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
+      assert after_manifest["spec"]["replicaSpreadTopologyKey"] == "kubernetes.io/hostname"
+      revision = "tuist.dev/kura-manifest-revision"
+
+      assert after_manifest["metadata"]["annotations"][revision] ==
+               before["metadata"]["annotations"][revision] <> "+host-spread"
+
+      assert KubernetesController.manifest_revision(%Server{account: account}, eu_region()) ==
+               after_manifest["metadata"]["annotations"][revision]
     end
 
     test "renders a KuraInstance without a per-account compute spec" do

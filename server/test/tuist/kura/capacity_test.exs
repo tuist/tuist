@@ -148,6 +148,43 @@ defmodule Tuist.Kura.CapacityTest do
     end
   end
 
+  describe "an account spreading its replicas across hosts in a co-locating region" do
+    setup do
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, fun -> fun.() end)
+      spread = placement_account()
+      stub(Tuist.FeatureFlags, :kura_replica_spread_enabled?, fn account -> account.id == spread.id end)
+      %{spread: spread}
+    end
+
+    test "places a new instance only when two hosts each take one replica", %{spread: spread} do
+      # One box holds both replicas of a co-located account, never a spread one's.
+      stub_pool([disk_box("box-a", 1000, [])])
+      assert Capacity.placeable?(region(), claim(placement_account(), "50Gi")) == true
+      assert Capacity.placeable?(region(), claim(spread, "50Gi")) == false
+      assert Capacity.room_for?(@region, :air) == true
+      assert Capacity.room_for?(@region, :air, spread) == false
+
+      stub_pool([disk_box("box-a", 100, []), disk_box("box-b", 100, [])])
+      assert Capacity.placeable?(region(), claim(spread, "50Gi")) == true
+      assert Capacity.room_for?(@region, :air, spread) == true
+    end
+
+    test "rebuilds a grown replica away from its sibling's host", %{spread: spread} do
+      at_a = kura_pod(spread, 50, ordinal: 0)
+      at_b = kura_pod(spread, 50, ordinal: 1)
+
+      # box-a cannot hold its replica at 80Gi; box-b could hold both, but the
+      # rebuilt one may not land beside its sibling.
+      stub_pool([disk_box("box-a", 70, [at_a]), disk_box("box-b", 1000, [at_b])])
+      stub_data_volumes(%{data_claim(spread, 0) => "50Gi", data_claim(spread, 1) => "50Gi"})
+      assert Capacity.placeable?(region(), claim(spread, "80Gi")) == false
+
+      stub_pool([disk_box("box-a", 200, [at_a]), disk_box("box-b", 200, [at_b])])
+      stub_data_volumes(%{data_claim(spread, 0) => "50Gi", data_claim(spread, 1) => "50Gi"})
+      assert Capacity.placeable?(region(), claim(spread, "80Gi")) == true
+    end
+  end
+
   describe "thin volume accounting" do
     # diskReservation in infra/kura-controller/controllers/disk_resource.go,
     # evaluated for each claim.

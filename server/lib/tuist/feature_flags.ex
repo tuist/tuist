@@ -99,6 +99,18 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Default-off account opt-in to one Kura replica per host in regions that
+  otherwise co-locate an account's replicas, so the cache survives a host loss.
+  """
+  def kura_replica_spread_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :kura_replica_spread,
+      account,
+      flag_enabled?(:kura_replica_spread, account, flags)
+    )
+  end
+
+  @doc """
   Default-off account opt-in to placement reading what each region served, not
   only where runs report from. Off, placement decides exactly as it did before.
   """
