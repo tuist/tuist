@@ -405,7 +405,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       self_hosted_peers(account, region, entitlements),
       entitlements,
       effective_egress(account, region, entitlements)
-    ) <> endpoint_identity_revision(account) <> serving_revision(account) <> storage_revision(region, account)
+    ) <>
+      endpoint_identity_revision(account) <>
+      serving_revision(account) <> storage_revision(region, account) <> host_spread_revision(region, account)
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
@@ -457,7 +459,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       manifest_revision_string(region, claim, external_peers, entitlements, egress) <>
         endpoint_identity_revision(account) <>
         serving_revision(account) <>
-        storage_revision(region, account)
+        storage_revision(region, account) <>
+        host_spread_revision(region, account)
 
     annotations = %{@manifest_revision_annotation => revision}
 
@@ -518,7 +521,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "storageSize" => claim,
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
-          "replicaSpreadTopologyKey" => Regions.replica_spread_topology_key(region),
+          "replicaSpreadTopologyKey" => Regions.replica_spread_topology_key(region, account),
           "tolerations" => tolerations(region),
           "extraEnv" => auth_env(region, claim, entitlements)
         }
@@ -545,6 +548,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       |> Enum.sort()
 
     if hosts == [], do: nil, else: hosts
+  end
+
+  # Empty unless the flag alone spreads the account, so a region that spreads
+  # on its own (its `+spread` suffix) and every unflagged account keep their
+  # revision.
+  defp host_spread_revision(region, account) do
+    if Regions.host_spread?(region, account), do: "+host-spread", else: ""
   end
 
   defp serving_revision(account) do
