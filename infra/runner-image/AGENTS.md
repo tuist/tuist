@@ -185,7 +185,7 @@ claim path. It does not export `DEVELOPER_DIR`, which would override a
 workflow's own `xcode-select -s` (setup-xcode, fastlane). A version the image
 lacks logs `WARNING no Xcode` and keeps the image's selection. After the first
 idle poll, `select-xcode.sh warm` launches each Xcode once (`xcodebuild
--version`, `xcrun --find swift`, `swift --version`, plus the boot's first
+-version` and `-showsdks`, `xcrun --find swift`, `swift --version`, plus the boot's first
 `sudo`/`xcode-select`) and stops at the claim marker: every Xcode in an image
 with up to three, otherwise the default and `TUIST_RUNNER_WARM_XCODE` from the
 Pod env, which no pool sets until multi-Xcode images exist (about 360 MB of

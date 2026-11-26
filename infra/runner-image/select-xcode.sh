@@ -10,8 +10,9 @@
 #     when the image has no such Xcode.
 #
 #   select-xcode.sh warm [<preferred-version>]
-#     Launches each Xcode once while the VM is idle, so a job's first
-#     `xcodebuild` takes about 0.1 s instead of about 8 s on a cold boot.
+#     Launches each Xcode once while the VM is idle (`xcodebuild -version`
+#     and `-showsdks`, `xcrun swift`), so a job's first `xcodebuild` takes
+#     about 0.1 s instead of about 8 s on a cold boot.
 #     Warms every Xcode in an image with up to XCODE_WARM_ALL_MAX (3) of
 #     them, and otherwise only the image's default and <preferred-version>:
 #     each extra warmed Xcode keeps about 360 MB of clean file cache. Stops
@@ -89,9 +90,14 @@ select_xcode() {
 }
 
 # warm_one launches one Xcode's tools the way a job's first build does.
+# `-showsdks` loads the SDK and platform metadata a build reads first: on a
+# cold larch Mac it brought `xcodebuild test` to its first suite in 1.13 to
+# 1.17 s, as on a warm Mac, against 1.55 s after `-version` alone and 2.2 to
+# 2.6 s without a warm-up.
 warm_one() {
   local developer="$1/Contents/Developer"
   DEVELOPER_DIR="${developer}" xcodebuild -version >/dev/null 2>&1
+  DEVELOPER_DIR="${developer}" xcodebuild -showsdks >/dev/null 2>&1
   DEVELOPER_DIR="${developer}" xcrun --find swift >/dev/null 2>&1
   DEVELOPER_DIR="${developer}" xcrun swift --version >/dev/null 2>&1
 }

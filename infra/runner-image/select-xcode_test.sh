@@ -28,7 +28,7 @@ xcode-select() {
 }
 
 xcodebuild() {
-  echo "xcodebuild ${DEVELOPER_DIR}" >>"${work}/calls"
+  echo "xcodebuild $* ${DEVELOPER_DIR}" >>"${work}/calls"
   if [ -n "${STOP_AFTER_FIRST:-}" ]; then : >"${XCODE_WARM_STOP_FILE}"; fi
 }
 xcrun() { echo "xcrun $* ${DEVELOPER_DIR}" >>"${work}/calls"; }
@@ -116,9 +116,10 @@ test_up_to_three_xcodes_are_all_warmed_once() {
   : >"${work}/calls"
   warm_xcodes >/dev/null
   eq "sudo xcode-select -p" "$(head -1 "${work}/calls")"
-  eq 3 "$(grep -c '^xcodebuild' "${work}/calls")"
+  eq 3 "$(grep -c '^xcodebuild -version' "${work}/calls")"
   for v in 26.4.1 27.1 27.2; do
-    grep -qx "xcodebuild ${XCODE_APPS_DIR}/Xcode_${v}.app/Contents/Developer" "${work}/calls" || fail "did not warm ${v}"
+    grep -qx "xcodebuild -version ${XCODE_APPS_DIR}/Xcode_${v}.app/Contents/Developer" "${work}/calls" || fail "did not warm ${v}"
+    grep -qx "xcodebuild -showsdks ${XCODE_APPS_DIR}/Xcode_${v}.app/Contents/Developer" "${work}/calls" || fail "no SDKs for ${v}"
     grep -qx "xcrun swift --version ${XCODE_APPS_DIR}/Xcode_${v}.app/Contents/Developer" "${work}/calls" || fail "no swift for ${v}"
   done
   [[ "$(calls)" != *"xcode-select -s"* ]] || fail "warm-up changed the selection"
@@ -132,8 +133,8 @@ test_more_than_three_xcodes_warm_the_default_and_the_preferred() {
   ln -s "${XCODE_APPS_DIR}/Xcode_26.6.app" "${XCODE_APPS_DIR}/Xcode.app"
   printf '%s' "${XCODE_APPS_DIR}/Xcode.app" >"${work}/selected"
   warm_xcodes 26.3 >/dev/null
-  eq "xcodebuild ${XCODE_APPS_DIR}/Xcode_26.6.app/Contents/Developer
-xcodebuild ${XCODE_APPS_DIR}/Xcode_26.3.app/Contents/Developer" "$(grep '^xcodebuild' "${work}/calls")"
+  eq "xcodebuild -version ${XCODE_APPS_DIR}/Xcode_26.6.app/Contents/Developer
+xcodebuild -version ${XCODE_APPS_DIR}/Xcode_26.3.app/Contents/Developer" "$(grep '^xcodebuild -version' "${work}/calls")"
 }
 
 test_more_than_three_xcodes_without_a_preference_warm_the_default() {
@@ -141,7 +142,7 @@ test_more_than_three_xcodes_without_a_preference_warm_the_default() {
   for v in 26.3 26.5 26.6 27.0; do install_xcode "$v"; done
   printf '%s' "${XCODE_APPS_DIR}/Xcode_26.5.app" >"${work}/selected"
   warm_xcodes 26.5 >/dev/null
-  eq "xcodebuild ${XCODE_APPS_DIR}/Xcode_26.5.app/Contents/Developer" "$(grep '^xcodebuild' "${work}/calls")"
+  eq "xcodebuild -version ${XCODE_APPS_DIR}/Xcode_26.5.app/Contents/Developer" "$(grep '^xcodebuild -version' "${work}/calls")"
 }
 
 test_the_warm_up_stops_at_the_claim() {
@@ -150,7 +151,7 @@ test_the_warm_up_stops_at_the_claim() {
   install_xcode 27.2
   STOP_AFTER_FIRST=1
   out=$(warm_xcodes)
-  eq 1 "$(grep -c '^xcodebuild' "${work}/calls")"
+  eq 1 "$(grep -c '^xcodebuild -version' "${work}/calls")"
   [[ "${out}" == *"warm-up stopped: claimed"* ]] || fail "unexpected output: ${out}"
 }
 
