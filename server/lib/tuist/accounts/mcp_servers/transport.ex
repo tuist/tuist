@@ -6,6 +6,8 @@ defmodule Tuist.Accounts.MCPServers.Transport do
   alias Tuist.OAuth2.PinnedHTTP
   alias Tuist.OAuth2.SSRFGuard
 
+  require Logger
+
   @version "2025-06-18"
   @versions [@version, "2025-03-26"]
   @body_limit 262_144
@@ -78,8 +80,12 @@ defmodule Tuist.Accounts.MCPServers.Transport do
          {:ok, _, state} <- rpc(%{state | version: version}, "notifications/initialized", %{}, true) do
       {:ok, state}
     else
-      {:error, _} = error -> error
-      _ -> {:error, :mcp_invalid_response}
+      {:error, _} = error ->
+        error
+
+      _ ->
+        log_failure(state, "initialize unsupported protocol version or no tools capability")
+        {:error, :mcp_invalid_response}
     end
   end
 
@@ -104,8 +110,12 @@ defmodule Tuist.Accounts.MCPServers.Transport do
           {:error, :mcp_invalid_response}
       end
     else
-      {:error, _} = error -> error
-      _ -> {:error, :mcp_invalid_response}
+      {:error, _} = error ->
+        error
+
+      _ ->
+        log_failure(state, "tools/list returned an invalid or oversized catalog")
+        {:error, :mcp_invalid_response}
     end
   end
 
@@ -120,21 +130,31 @@ defmodule Tuist.Accounts.MCPServers.Transport do
     end
   end
 
+  # Each step is tagged so a failure logs which check refused, while callers
+  # keep seeing the one category they always did.
   defp prepare(state) do
-    with {:ok, %{url: url, access_token: token} = credentials} <- MCPServers.credentials(state.user, state.id),
-         true <- is_binary(token) and byte_size(token) in 1..65_536 and Regex.match?(~r/\A[\x21-\x7E]+\z/, token),
-         true <- fingerprint(url) == state.endpoint,
-         {:ok, _} <- OAuth.https_uri(url),
-         {:ok, pinned, host} <- SSRFGuard.pin(url),
-         true <- state.authorized?.() do
+    with {:credentials, {:ok, %{url: url, access_token: token} = credentials}} <-
+           {:credentials, MCPServers.credentials(state.user, state.id)},
+         {:token, true} <-
+           {:token, is_binary(token) and byte_size(token) in 1..65_536 and Regex.match?(~r/\A[\x21-\x7E]+\z/, token)},
+         {:endpoint, true} <- {:endpoint, fingerprint(url) == state.endpoint},
+         {:https, {:ok, _}} <- {:https, OAuth.https_uri(url)},
+         {:pin, {:ok, pinned, host}} <- {:pin, SSRFGuard.pin(url)},
+         {:authorized, true} <- {:authorized, state.authorized?.()} do
       {:ok, credentials, pinned, host}
     else
-      _ -> {:error, :mcp_not_connected}
+      {step, result} ->
+        log_failure(state, "#{step} #{describe(result)}")
+        {:error, :mcp_not_connected}
     end
   rescue
-    _ -> {:error, :mcp_unavailable}
+    error ->
+      log_failure(state, "prepare raised #{inspect(error.__struct__)}")
+      {:error, :mcp_unavailable}
   catch
-    :exit, _ -> {:error, :mcp_unavailable}
+    :exit, _ ->
+      log_failure(state, "prepare exited")
+      {:error, :mcp_unavailable}
   end
 
   defp dispatch(state, credentials, pinned, host, envelope, notification) do
@@ -167,14 +187,32 @@ defmodule Tuist.Accounts.MCPServers.Transport do
          true <- bounded?(result, 24, 200_000, max_body) do
       {:ok, redact(result, credentials.access_token), %{state | session: session, next_id: state.next_id + 1}}
     else
-      {:error, :mcp_tool_failed} = error -> error
-      _ -> {:error, :mcp_unavailable}
+      {:error, :mcp_tool_failed} = error ->
+        error
+
+      failure ->
+        log_failure(state, "#{envelope.method} #{describe(failure)}")
+        {:error, :mcp_unavailable}
     end
   rescue
-    _ -> {:error, :mcp_unavailable}
+    error ->
+      log_failure(state, "#{envelope.method} raised #{inspect(error.__struct__)}")
+      {:error, :mcp_unavailable}
   catch
-    :exit, _ -> {:error, :mcp_unavailable}
+    :exit, _ ->
+      log_failure(state, "#{envelope.method} exited")
+      {:error, :mcp_unavailable}
   end
+
+  # Only the failure's category: error terms can hold URLs, headers or bodies.
+  defp log_failure(state, reason), do: Logger.warning("MCP server #{state.id} of user #{state.user.id} failed: #{reason}")
+
+  defp describe({:error, {:unexpected_status, status}}) when is_integer(status), do: "status #{status}"
+  defp describe({:error, %{__struct__: module, reason: reason}}) when is_atom(reason), do: "#{inspect(module)} #{reason}"
+  defp describe({:error, %{__struct__: module}}), do: inspect(module)
+  defp describe({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
+  defp describe(false), do: "refused"
+  defp describe(_), do: "invalid"
 
   defp collector(id, limit) do
     fn {:data, chunk}, {request, response} ->
