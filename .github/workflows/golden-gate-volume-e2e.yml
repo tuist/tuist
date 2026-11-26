@@ -1,6 +1,7 @@
-# Temporary: tells whether files written to a Tuist cache volume on a
-# Golden Gate (macOS 27) guest read back intact, and whether the xcresult NIF
-# builds there, on the volume and on the guest's own disk, against Tahoe.
+# Temporary: finds which write path corrupts files on a Tuist cache volume
+# on a Golden Gate (macOS 27) guest. Round 1 showed plain shell writes read
+# back intact while SwiftPM's registry downloads came back corrupt, only on
+# Golden Gate with a volume (local disk and Tahoe pass).
 name: Golden Gate volume e2e
 
 on:
@@ -27,7 +28,6 @@ jobs:
         run: |
           sw_vers
           xcodebuild -version
-          df -h "$HOME"
       - if: matrix.storage == 'volume'
         uses: tuist/cache-volume@v1
         with:
@@ -39,40 +39,63 @@ jobs:
           root="$HOME/.cache/tuist-ci/golden-gate-e2e"
           mkdir -p "$root"
           echo "E2E_ROOT=$root" >> "$GITHUB_ENV"
-          ls -la "$HOME/.cache/tuist-ci/"
-          echo "resolved: $(cd "$root" && pwd -P)"
-          mount | grep -iE 'tuist|cache' || true
-      # Writes files the way a build does (many small ones, a few large ones,
-      # write-then-rename, write from a child process and read right away),
-      # then reads each back and compares content and size.
-      - name: Write and read back files
+          echo "E2E_REAL=$(cd "$root" && pwd -P)" >> "$GITHUB_ENV"
+          mount | grep -iE 'tuist' || true
+      # Each write path Foundation and SwiftPM use, through the symlinked
+      # path and through the resolved one, read back after 2 s.
+      - name: Write paths
         run: |
-          set -euo pipefail
-          dir="$E2E_ROOT/io"
-          rm -rf "$dir"; mkdir -p "$dir/small" "$dir/large" "$dir/renamed"
-          manifest="$(mktemp)"
-          for i in $(seq 1 2000); do
-            head -c $((RANDOM % 8192 + 1)) /dev/urandom > "$dir/small/$i"
-          done
-          for i in $(seq 1 8); do
-            head -c 67108864 /dev/urandom > "$dir/large/$i"
-          done
-          for i in $(seq 1 500); do
-            head -c 4096 /dev/urandom > "$dir/renamed/.tmp-$i"
-            mv "$dir/renamed/.tmp-$i" "$dir/renamed/$i"
-          done
-          (cd "$dir" && find . -type f -print0 | xargs -0 shasum -a 256) > "$manifest"
-          sleep 5
-          bad=0
-          (cd "$dir" && shasum -a 256 -c "$manifest" --quiet) || bad=1
-          empty=$(find "$dir" -type f -size 0 | wc -l | tr -d ' ')
-          echo "files=$(wc -l < "$manifest" | tr -d ' ') empty=$empty checksum_mismatch=$bad"
-          [ "$bad" -eq 0 ] && [ "$empty" -eq 0 ]
+          set -uo pipefail
+          cat > /tmp/writes.swift <<'EOF'
+          import Foundation
+          let dir = URL(fileURLWithPath: CommandLine.arguments[1])
+          let fm = FileManager.default
+          try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+          var results: [(String, URL, Data)] = []
+          func payload(_ n: Int) -> Data { Data((0..<n).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ 7) }) }
+          for i in 0..<50 {
+            let d = payload(200 + i * 97)
+            let plain = dir.appendingPathComponent("plain-\(i)")
+            try! d.write(to: plain); results.append(("Data.write", plain, d))
+            let atomic = dir.appendingPathComponent("atomic-\(i)")
+            try! d.write(to: atomic, options: .atomic); results.append(("Data.write(.atomic)", atomic, d))
+            let target = dir.appendingPathComponent("replaced-\(i)")
+            try! Data("old".utf8).write(to: target)
+            let tmpDir = try! fm.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: target, create: true)
+            let tmp = tmpDir.appendingPathComponent("new")
+            try! d.write(to: tmp)
+            _ = try! fm.replaceItemAt(target, withItemAt: tmp)
+            results.append(("FileManager.replaceItemAt", target, d))
+            let copied = dir.appendingPathComponent("copied-\(i)")
+            try! fm.copyItem(at: plain, to: copied); results.append(("FileManager.copyItem (clonefile)", copied, d))
+            let moved = dir.appendingPathComponent("moved-\(i)")
+            let src = dir.appendingPathComponent("tomove-\(i)")
+            try! d.write(to: src); try! fm.moveItem(at: src, to: moved); results.append(("FileManager.moveItem", moved, d))
+            let h = FileHandle(forWritingAtPath: { let p = dir.appendingPathComponent("handle-\(i)").path; fm.createFile(atPath: p, contents: nil); return p }())!
+            h.write(d); try! h.synchronize(); try! h.close()
+            results.append(("FileHandle.write", dir.appendingPathComponent("handle-\(i)"), d))
+          }
+          Thread.sleep(forTimeInterval: 2)
+          var counts: [String: (Int, Int)] = [:]
+          for (kind, url, expected) in results {
+            let got = (try? Data(contentsOf: url)) ?? Data()
+            var c = counts[kind] ?? (0, 0); c.0 += 1
+            if got != expected { c.1 += 1; if c.1 == 1 { print("BAD \(kind) \(url.path): \(got.count) of \(expected.count) bytes") } }
+            counts[kind] = c
+          }
+          for (k, c) in counts.sorted(by: { $0.key < $1.key }) { print("\(k): \(c.1) bad of \(c.0)") }
+          EOF
+          swiftc -O /tmp/writes.swift -o /tmp/writes
+          echo "== through the symlinked path"; /tmp/writes "$E2E_ROOT/writes-link"
+          echo "== through the resolved path"; /tmp/writes "$E2E_REAL/writes-real"
+          ls -la "$E2E_REAL" "$E2E_REAL/.." 2>/dev/null | head -30
+          find "$(dirname "$E2E_REAL")" -maxdepth 2 -name '.TemporaryItems' -print 2>/dev/null
       - uses: ./.github/actions/mise-install
         with:
           install: "erlang elixir"
           working-directory: server
       - name: Build the xcresult NIF
+        id: build
         working-directory: server
         env:
           TUIST_NIF_BUILD_ROOT: ${{ env.E2E_ROOT }}/nif
@@ -82,7 +105,14 @@ jobs:
           start=$(date +%s)
           ./native/xcresult_nif/build.sh
           echo "built in $(( $(date +%s) - start )) s"
-      - name: Empty files in the build root
+      - name: Inspect corrupt registry files
         if: always()
         run: |
-          find "$E2E_ROOT" -type f -size 0 -not -path '*/io/*' 2>/dev/null | head -20 || true
+          set +e
+          d="$E2E_ROOT/nif/xcresult_nif/registry/downloads"
+          find "$d" -name '.registry-metadata' -o -name 'Package.swift' -maxdepth 6 2>/dev/null | while read -r f; do
+            s=$(stat -f %z "$f"); first=$(head -c 1 "$f" | xxd -p)
+            if [ "$s" = 0 ] || [ "$first" != "7b" -a "$(basename "$f")" = .registry-metadata ]; then
+              echo "== $f size=$s"; ls -la@ "$f"; xxd "$f" | head -4
+            fi
+          done | head -60
