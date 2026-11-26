@@ -672,17 +672,14 @@ runnersFleet:
   macosVersions:
     - osVersion: "macos-26"
       productVersion: "26.6.2"
+      default: true
     # macOS 27 Golden Gate, which accounts asked for (Qonto and Roze,
     # 2026-11). Every Xcode above has its Golden Gate image
     # (runner-image@0.67.0). Its beta pools are named `-b`
     # (`<release>-runner-pool-macos-ber1-27-3-b-macos-27-16vcpu-48gb`) to stay
     # within the 63 characters a label value takes (`tuist.macosPoolTag`).
-    # The default since 2026-11-26: new accounts' protected `macos` profile
-    # and new profiles get it. Existing profiles keep the release they store
-    # (Tahoe for every row saved before then), so moving it moves no one.
     - osVersion: "macos-27"
       productVersion: "27.2"
-      default: true
 
 # KVM is a standard managed Linux runner capability. Disable defaultEnabled
 # to roll pools back to the stock kernel while leaving host preparation intact.
