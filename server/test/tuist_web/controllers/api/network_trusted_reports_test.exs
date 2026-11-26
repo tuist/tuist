@@ -81,8 +81,8 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
     assert Map.has_key?(payload, :otp_version)
     assert Map.has_key?(payload, :mix_env)
     assert Map.has_key?(payload, :custom_metadata)
-    # The earlier client's unsigned transport already removed origins, but retained runtime metadata.
-    payload = Map.delete(payload, :git_remote_url_origin)
+    # The earlier client's unsigned transport already removed origins and coverage fields, but retained runtime metadata.
+    payload = Map.drop(payload, [:git_remote_url_origin, :coverage_enabled])
 
     for version <- [nil, "99.future"] do
       body = if version, do: Map.put(payload, :contract_version, version), else: Map.delete(payload, :contract_version)

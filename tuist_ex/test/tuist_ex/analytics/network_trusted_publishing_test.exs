@@ -352,6 +352,7 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
       refute Enum.any?(headers, fn {key, _} -> key == "authorization" end)
       refute Map.has_key?(body, :git_history)
       refute Map.has_key?(body, :coverage)
+      refute Map.has_key?(body, :coverage_enabled)
       refute Map.has_key?(body, :git_remote_url_origin)
       {:ok, 200, %{"id" => "unsigned"}}
     end)
@@ -360,7 +361,12 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
              AnalyticsHTTP.project_request(
                :post,
                "/tests",
-               %{git_history: %{}, coverage: %{}, git_remote_url_origin: "private-origin"},
+               %{
+                 git_history: %{},
+                 coverage: %{},
+                 coverage_enabled: true,
+                 git_remote_url_origin: "private-origin"
+               },
                opts
              )
   end

@@ -123,7 +123,9 @@ uncompressed size is past the server's inline threshold is uploaded first,
 compressed (`/tests/coverage/uploads`): the server holds a run's body to its
 limit after inflating it. So is coverage the rest of the report leaves no
 room for (`Coverage.attach/4`'s budget). Retries never carry
-`--cover`. `mix tuist.coverage.complete` signals the commit's coverage
+`--cover`. Every test report carries `coverage_enabled` (`--cover` or not), which the
+server reads to tell a run selection emptied from one without coverage; unsigned
+reports drop it with the other coverage fields. `mix tuist.coverage.complete` signals the commit's coverage
 complete, as `tuist coverage complete` does. Tests that start or stop `cover`
 must leave a running cover server alone: under `mix test --cover` it is Mix's.
 `Env.git_commit_sha/2` reports the checkout's HEAD, as the command line tool

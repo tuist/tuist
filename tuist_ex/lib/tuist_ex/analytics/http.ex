@@ -122,7 +122,7 @@ defmodule TuistEx.Analytics.HTTP do
               git_remote_url_origin coverage_evidence enumerated_tests changed_files base_branch
               merge_base_sha is_pull_request pull_request_number git_object_format history_source
               history_fallback_reason git_dirty only_test_identifiers skip_test_identifiers
-              test_impact_run_id)a
+              test_impact_run_id coverage_enabled)a
     # Earlier network-publishing servers reject test runtime metadata they do not store.
     # Keep unsigned tests on their common contract, without changing build or signed metadata.
     keys =
