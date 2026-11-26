@@ -128,6 +128,7 @@
     "download_my_slack_file": "Reads the caller's personal mailbox or Slack through their own OAuth grant; workflows must not act on one person's private messages.",
     "list_signals": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "get_tuist_kura_rollout": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
+    "get_tuist_acquisition_funnel": "Remote production database reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
     "get_time_off_overview": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "describe_tuist_postgres_table": "Remote arbitrary-query execution is outside bounded local domain actions.",
     "run_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",

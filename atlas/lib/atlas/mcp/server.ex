@@ -187,6 +187,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetTimeOffOverview
   alias Atlas.MCP.Tools.GetTuistAccount
   alias Atlas.MCP.Tools.GetTuistAccountPlan
+  alias Atlas.MCP.Tools.GetTuistAcquisitionFunnel
   alias Atlas.MCP.Tools.GetTuistFeatureFlag
   alias Atlas.MCP.Tools.GetTuistKuraRollout
   alias Atlas.MCP.Tools.GetTuistRunnerBilling
@@ -622,7 +623,8 @@ defmodule Atlas.MCP.Server do
     GetTuistRunnerBilling,
     ActivateTuistRunnerPrepaidPool,
     UpdateTuistRunnerTrial,
-    GetTuistKuraRollout
+    GetTuistKuraRollout,
+    GetTuistAcquisitionFunnel
   ]
   # Tuist account tools (runner limits, plans) share the flag tools' scopes and Slack/interface rules.
   @feature_flag_read_tools [
@@ -931,6 +933,7 @@ defmodule Atlas.MCP.Server do
     ActivateTuistRunnerPrepaidPool,
     UpdateTuistRunnerTrial,
     GetTuistKuraRollout,
+    GetTuistAcquisitionFunnel,
     ListAssets,
     GetAsset,
     ListAssetFinancings,
