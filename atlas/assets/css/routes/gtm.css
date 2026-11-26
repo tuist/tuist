@@ -1303,6 +1303,7 @@
   }
 
   & [data-part="activity-kind-field"],
+  & [data-part="activity-channel-field"],
   & [data-part="detail-row"] {
     display: flex;
     flex-direction: column;

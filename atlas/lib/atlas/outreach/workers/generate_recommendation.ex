@@ -14,7 +14,9 @@ defmodule Atlas.Outreach.Workers.GenerateRecommendation do
     Audit.with_context(
       %{interface: "worker", metadata: %{"trigger" => Map.get(args, "source", "system")}},
       fn ->
-        case Outreach.generate_recommendation(contact_id) do
+        opts = [sender_id: args["sender_id"], channel: args["channel"]]
+
+        case Outreach.generate_recommendation(contact_id, opts) do
           {:ok, _recommendation} -> :ok
           {:error, :not_found} -> {:cancel, :contact_not_found}
           {:error, :llm_not_configured} -> {:cancel, :llm_not_configured}

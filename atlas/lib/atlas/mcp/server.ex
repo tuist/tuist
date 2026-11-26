@@ -169,6 +169,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetNudgeAnalyticsStatus
   alias Atlas.MCP.Tools.GetOutreachContact
   alias Atlas.MCP.Tools.GetOutreachNextStep
+  alias Atlas.MCP.Tools.GetOutreachResults
   alias Atlas.MCP.Tools.GetPOC
   alias Atlas.MCP.Tools.GetPostmortem
   alias Atlas.MCP.Tools.GetPostmortemActionItem
@@ -284,7 +285,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RecordAssetWarrantyExtension
   alias Atlas.MCP.Tools.RecordFeatureInterest
   alias Atlas.MCP.Tools.RecordInsuranceClaim
-  alias Atlas.MCP.Tools.RecordOutreachEvent
+  alias Atlas.MCP.Tools.RecordOutreachEventV2
   alias Atlas.MCP.Tools.RecoverAsset
   alias Atlas.MCP.Tools.RejectOutreachCandidate
   alias Atlas.MCP.Tools.ReleaseNudge
@@ -870,12 +871,13 @@ defmodule Atlas.MCP.Server do
     EnrollOutreachCandidate,
     RejectOutreachCandidate,
     ListOutreachContacts,
+    GetOutreachResults,
     GetOutreachContact,
     GetOutreachNextStep,
     GenerateOutreachNextStep,
     CompleteOutreachNextStep,
     DismissOutreachNextStep,
-    RecordOutreachEvent,
+    RecordOutreachEventV2,
     RecordFeatureInterest,
     UpdateFeatureInterestAccountContext,
     RunGTMSignalSearch,

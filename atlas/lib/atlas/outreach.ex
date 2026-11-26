@@ -34,7 +34,7 @@ defmodule Atlas.Outreach do
   defdelegate list_recommendations(contact_or_id, opts \\ []), to: Recommendations, as: :list
   defdelegate get_recommendation(id), to: Recommendations, as: :get
   defdelegate current_recommendation(contact_or_id), to: Recommendations, as: :current
-  defdelegate generate_recommendation(contact_id), to: Recommendations, as: :generate
+  defdelegate generate_recommendation(contact_id, opts \\ []), to: Recommendations, as: :generate
 
   defdelegate request_recommendation_generation(contact_or_id, actor \\ nil, source \\ "dashboard"),
     to: Recommendations,
@@ -265,12 +265,14 @@ defmodule Atlas.Outreach do
     occurred_at = normalize_occurred_at(attr(attrs, "occurred_at", :occurred_at))
     response_outcome = normalize_optional_text(attr(attrs, "response_outcome", :response_outcome))
     recommendation_id = normalize_optional_text(attr(attrs, "recommendation_id", :recommendation_id))
+    channel = normalize_optional_text(attr(attrs, "channel", :channel)) || "linkedin"
+    sender_id = normalize_optional_text(attr(attrs, "sender_id", :sender_id)) || actor_id(actor)
 
     changeset =
       %Event{account_id: contact.account_id, contact_id: contact.id, author_id: actor_id(actor)}
       |> Event.changeset(%{
         external_id: "outreach:#{Ecto.UUID.generate()}",
-        source: event_source(kind),
+        source: event_source(kind, channel),
         kind: kind,
         title: event_title(kind),
         body: body,
@@ -280,18 +282,28 @@ defmodule Atlas.Outreach do
             "outreach_status" => status_after(kind, contact.outreach_status, response_outcome),
             "response_outcome" => response_outcome,
             "recommendation_id" => recommendation_id,
-            "subject" => subject
+            "subject" => subject,
+            "channel" => channel,
+            "sender_id" => sender_id
           }
           |> Enum.reject(fn {_key, value} -> is_nil(value) end)
           |> Map.new()
       })
       |> validate_event(kind, body, response_outcome)
+      |> validate_channel(channel)
 
     Repo.transaction(fn ->
       with {:ok, event} <- Repo.insert(changeset),
            {:ok, updated_contact} <-
              update_contact_after_event(contact, kind, occurred_at, response_outcome),
-           {:ok, message_attempt} <- MessageAttempts.track(updated_contact, event, attrs) do
+           {:ok, message_attempt} <-
+             MessageAttempts.track(updated_contact, event, %{
+               "recommendation_id" => recommendation_id,
+               "subject" => subject,
+               "response_outcome" => response_outcome,
+               "channel" => channel,
+               "sender_id" => sender_id
+             }) do
         {updated_contact, event, message_attempt}
       else
         {:error, error} -> Repo.rollback(error)
@@ -676,6 +688,12 @@ defmodule Atlas.Outreach do
   defp maybe_put_last_outreach_at(attrs, "message_received", _occurred_at), do: attrs
   defp maybe_put_last_outreach_at(attrs, _kind, occurred_at), do: Map.put(attrs, :last_outreach_at, occurred_at)
 
+  defp validate_channel(changeset, channel) do
+    if channel in MessageAttempt.channels(),
+      do: changeset,
+      else: Ecto.Changeset.add_error(changeset, :source, "is not a supported outreach channel")
+  end
+
   defp validate_event(changeset, kind, body, response_outcome) do
     changeset =
       if kind in @event_kinds do
@@ -704,6 +722,8 @@ defmodule Atlas.Outreach do
   defp status_after(kind, current, response_outcome)
 
   defp status_after(_kind, "not_interested", _response_outcome), do: "not_interested"
+  defp status_after(_kind, "meeting_booked", _response_outcome), do: "meeting_booked"
+  defp status_after("message_received", _current, "meeting_booked"), do: "meeting_booked"
   defp status_after("message_received", _current, "positive_reply"), do: "interested"
   defp status_after("message_received", _current, "not_interested"), do: "not_interested"
 
@@ -726,10 +746,11 @@ defmodule Atlas.Outreach do
   defp stage_rank("replied"), do: 4
   defp stage_rank("interested"), do: 5
   defp stage_rank("not_interested"), do: 6
+  defp stage_rank("meeting_booked"), do: 7
   defp stage_rank(_stage), do: 0
 
-  defp event_source("note"), do: "atlas"
-  defp event_source(_kind), do: "linkedin"
+  defp event_source("note", _channel), do: "atlas"
+  defp event_source(_kind, channel), do: channel
 
   defp event_title("connection_requested"), do: "Connection request sent"
   defp event_title("connection_accepted"), do: "Connection accepted"

@@ -10,6 +10,7 @@ defmodule Atlas.OutreachTest do
   alias Atlas.Outreach
   alias Atlas.Outreach.Candidate
   alias Atlas.Outreach.MessageAttempt
+  alias Atlas.Outreach.MessageAttempts
   alias Atlas.Users.User
 
   test "searches Apollo into Atlas-owned candidates without creating contacts or accounts" do
@@ -292,6 +293,89 @@ defmodule Atlas.OutreachTest do
     assert contact.outreach_status == "not_interested"
   end
 
+  test "attributes messages to the teammate who sent them, on LinkedIn or X, through to a booked meeting" do
+    logger = insert_user!("Logger")
+    founder = insert_user!("Founder")
+    {:ok, linkedin_contact} = Outreach.enroll_opportunity_contact(insert_suggestion!(), logger)
+    {:ok, x_contact} = Outreach.enroll_opportunity_contact(insert_suggestion!(), logger)
+    sent_at = DateTime.add(DateTime.utc_now(), -2, :day)
+
+    assert {:ok, linkedin_sent, _contact} =
+             Outreach.record_event(linkedin_contact, %{kind: "message_sent", body: "Hi", occurred_at: sent_at}, logger)
+
+    assert {:ok, x_sent, x_contact} =
+             Outreach.record_event(
+               x_contact,
+               %{kind: "message_sent", body: "Hey", channel: "x", sender_id: founder.id, occurred_at: sent_at},
+               logger
+             )
+
+    assert x_sent.source == "x"
+    assert x_sent.author_id == logger.id
+    assert Repo.get_by!(MessageAttempt, sent_event_id: linkedin_sent.id).sender_id == logger.id
+    x_attempt = Repo.get_by!(MessageAttempt, sent_event_id: x_sent.id)
+    assert {x_attempt.sender_id, x_attempt.channel} == {founder.id, "x"}
+
+    reply_at = DateTime.add(sent_at, 1, :hour)
+
+    assert {:ok, _reply, x_contact} =
+             Outreach.record_event(
+               x_contact,
+               %{
+                 kind: "message_received",
+                 body: "Sure",
+                 channel: "x",
+                 response_outcome: "positive_reply",
+                 occurred_at: reply_at
+               },
+               logger
+             )
+
+    assert {:ok, _meeting, x_contact} =
+             Outreach.record_event(
+               x_contact,
+               %{
+                 kind: "message_received",
+                 body: "Booked for Tuesday",
+                 channel: "x",
+                 response_outcome: "meeting_booked",
+                 occurred_at: DateTime.add(reply_at, 1, :hour)
+               },
+               logger
+             )
+
+    assert x_contact.outreach_status == "meeting_booked"
+    assert Repo.get!(MessageAttempt, x_attempt.id).outcome == "meeting_booked"
+
+    assert {:error, changeset} =
+             Outreach.record_event(x_contact, %{kind: "message_sent", body: "Hey", channel: "email"}, logger)
+
+    assert %{source: [_]} = errors_on(changeset)
+
+    assert Enum.sort_by(MessageAttempts.summary(days: 30), & &1.sender) == [
+             %{
+               sender: "Founder",
+               channel: "x",
+               sent: 1,
+               replies: 1,
+               positive_replies: 1,
+               meetings: 1,
+               reply_rate: 1.0,
+               meeting_rate: 1.0
+             },
+             %{
+               sender: "Logger",
+               channel: "linkedin",
+               sent: 1,
+               replies: 0,
+               positive_replies: 0,
+               meetings: 0,
+               reply_rate: 0.0,
+               meeting_rate: 0.0
+             }
+           ]
+  end
+
   test "requires message text and lists enrolled contacts through Flop pagination" do
     suggestion = insert_suggestion!()
     {:ok, contact} = Outreach.enroll_opportunity_contact(suggestion)
@@ -333,11 +417,11 @@ defmodule Atlas.OutreachTest do
     |> Repo.insert!()
   end
 
-  defp insert_user! do
+  defp insert_user!(name \\ "Outreach User") do
     %User{}
     |> User.changeset(%{
       email: "outreach-#{System.unique_integer([:positive])}@tuist.dev",
-      name: "Outreach User"
+      name: name
     })
     |> Repo.insert!()
   end

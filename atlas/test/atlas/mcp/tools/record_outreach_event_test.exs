@@ -2,7 +2,7 @@ defmodule Atlas.MCP.Tools.RecordOutreachEventTest do
   use Atlas.MCP.ToolCase
 
   alias Atlas.Accounts.Contact
-  alias Atlas.MCP.Tools.RecordOutreachEvent
+  alias Atlas.MCP.Tools.RecordOutreachEventV2
 
   test "records a message and advances the contact stage" do
     user = insert_user!()
@@ -10,7 +10,7 @@ defmodule Atlas.MCP.Tools.RecordOutreachEventTest do
     contact = insert_contact!(account, %{outreach_enrolled_at: ~U[2026-07-01 09:00:00Z]})
 
     assert {:ok, payload} =
-             execute_tool(RecordOutreachEvent, mcp_conn(user), %{
+             execute_tool(RecordOutreachEventV2, mcp_conn(user), %{
                "contact_id" => contact.id,
                "kind" => "message_sent",
                "body" => "What has been difficult about the build feedback loop?",
@@ -29,7 +29,7 @@ defmodule Atlas.MCP.Tools.RecordOutreachEventTest do
     contact = insert_contact!(account, %{outreach_enrolled_at: ~U[2026-07-01 09:00:00Z]})
 
     assert {:ok, _payload} =
-             execute_tool(RecordOutreachEvent, mcp_conn(user), %{
+             execute_tool(RecordOutreachEventV2, mcp_conn(user), %{
                "contact_id" => contact.id,
                "kind" => "message_sent",
                "body" => "How is build feedback working for your team?",
@@ -37,7 +37,7 @@ defmodule Atlas.MCP.Tools.RecordOutreachEventTest do
              })
 
     assert {:ok, payload} =
-             execute_tool(RecordOutreachEvent, mcp_conn(user), %{
+             execute_tool(RecordOutreachEventV2, mcp_conn(user), %{
                "contact_id" => contact.id,
                "kind" => "message_received",
                "body" => "It is timely. I would like to learn more.",

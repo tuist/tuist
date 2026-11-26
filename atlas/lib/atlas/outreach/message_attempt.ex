@@ -7,13 +7,15 @@ defmodule Atlas.Outreach.MessageAttempt do
   alias Atlas.Accounts.Contact
   alias Atlas.Accounts.Event
   alias Atlas.Outreach.Recommendation
+  alias Atlas.Users.User
 
   @message_kinds ~w(inmail message reply follow_up manual)
   @message_intents ~w(understand_problem deepen_context offer_help propose_evaluation)
   @personalization_sources ~w(recipient_message public_work account_signal role_context)
   @calls_to_action ~w(question resource_offer meeting none)
-  @outcomes ~w(pending replied positive_reply objection not_interested no_reply)
-  @response_outcomes ~w(replied positive_reply objection not_interested)
+  @channels ~w(linkedin x)
+  @outcomes ~w(pending replied positive_reply meeting_booked objection not_interested no_reply)
+  @response_outcomes ~w(replied positive_reply meeting_booked objection not_interested)
 
   schema "outreach_message_attempts" do
     field :channel, :string, default: "linkedin"
@@ -34,10 +36,13 @@ defmodule Atlas.Outreach.MessageAttempt do
     belongs_to :recommendation, Recommendation
     belongs_to :sent_event, Event
     belongs_to :response_event, Event
+    # The teammate whose own account sent it; the event's author only logged it.
+    belongs_to :sender, User
 
     timestamps()
   end
 
+  def channels, do: @channels
   def message_kinds, do: @message_kinds
   def message_intents, do: @message_intents
   def personalization_sources, do: @personalization_sources
@@ -71,7 +76,7 @@ defmodule Atlas.Outreach.MessageAttempt do
       :outcome,
       :sent_at
     ])
-    |> validate_inclusion(:channel, ["linkedin"])
+    |> validate_inclusion(:channel, @channels)
     |> validate_inclusion(:message_kind, @message_kinds)
     |> validate_optional_inclusion(:message_intent, @message_intents)
     |> validate_optional_inclusion(:personalization_source, @personalization_sources)
@@ -85,6 +90,7 @@ defmodule Atlas.Outreach.MessageAttempt do
     |> foreign_key_constraint(:account_id)
     |> foreign_key_constraint(:recommendation_id)
     |> foreign_key_constraint(:sent_event_id)
+    |> foreign_key_constraint(:sender_id)
     |> unique_constraint(:sent_event_id)
     |> check_constraint(:channel, name: :outreach_message_attempts_channel_check)
     |> check_constraint(:message_kind, name: :outreach_message_attempts_kind_check)
