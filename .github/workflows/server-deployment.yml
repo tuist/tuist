@@ -946,6 +946,7 @@ jobs:
           # Full history + tags so k8s:install-platform can resolve the
           # stable-egress-controller@<semver> image tag reachable from this commit.
           fetch-depth: 0
+          filter: blob:none
       # The versions k8s:install-platform runs with: infra/mise.toml pins its own
       # Helm. The task then runs with --skip-tools, so mise does not first
       # install the rest of the root toolset.
@@ -1077,6 +1078,7 @@ jobs:
           # Full history + tags so the version-resolution step below can
           # read every `<component>@<semver>` release tag.
           fetch-depth: 0
+          filter: blob:none
       - name: Resolve fleet and runtime image versions from git tags
         # The version of each fleet/runtime image (xcresult-processor, CAPI
         # provider, runners-controller, egress-tree-agent, Kura runtime,
