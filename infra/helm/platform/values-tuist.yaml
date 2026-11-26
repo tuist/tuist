@@ -88,6 +88,29 @@ grpc-ingress-nginx:
         load-balancer.hetzner.cloud/location: fsn1
         load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
 
+# The remote execution gateway's ingress, on the OVH Gravelines runner hosts
+# that also run the workers and the gateway Pods. Host network, like the
+# eu-west Kura gateway: OVH has no load balancer, so every host answers on its
+# own address, and reportNodeInternalIp publishes those addresses for
+# execution.tuist.dev. Clients connect directly, so no PROXY header.
+execution-eu-west-ingress-nginx:
+  enabled: true
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: runners-linux
+    tolerations:
+      - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
+
 # Dedicated Kura ingress dataplanes. These are shared per region, not
 # per customer: customer-specific hosts route through the regional
 # ingress class and then to the selected Kura pod. Keep the controller

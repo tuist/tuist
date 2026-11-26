@@ -6,9 +6,17 @@ enabled: true
 serverURL: http://tuist-tuist-server.tuist.svc.cluster.local:80
 serverNamespace: tuist
 gateway:
+  # Beside the workers and eu-west Kura, all in OVH Gravelines, instead of
+  # the general fsn1 pool: clients there, the gateway's Kura reads and its
+  # claims on leased VMs then stay in one data center.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: runners-linux
+  tolerations:
+    - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}
   ingress:
     enabled: true
     host: execution.tuist.dev
+    className: execution-eu-west
 workers:
   # Six slots' rootfs clones, 30 GiB workspaces and memory images (277 GiB of
   # ceilings) plus the 20 GiB input blob cache, which comes out of this budget.

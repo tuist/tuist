@@ -10,6 +10,12 @@ gateway:
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: "1", memory: 512Mi}
+  # Where the gateways run. Put them beside the workers and the Kura region
+  # their clients use: each action reads its inputs from Kura and claims a
+  # leased VM on a worker node, so a gateway in another data center adds a
+  # round trip to both.
+  nodeSelector: {}
+  tolerations: []
   # gRPC ingress for Bazel clients. The gateway speaks plaintext HTTP/2, so
   # TLS ends at the dedicated gRPC controller; execution streams last up to
   # 15 minutes.
