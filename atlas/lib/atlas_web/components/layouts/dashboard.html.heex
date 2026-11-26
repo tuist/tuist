@@ -129,8 +129,15 @@
             navigate={~p"/commercial/gtm/social"}
             selected={
               String.starts_with?(@current_path, "/commercial/gtm/social") and
-                not String.starts_with?(@current_path, "/commercial/gtm/social/performance")
+                not String.starts_with?(@current_path, "/commercial/gtm/social/performance") and
+                not String.starts_with?(@current_path, "/commercial/gtm/social/publishing")
             }
+          />
+          <.sidebar_item
+            label={gettext("Publishing")}
+            icon="calendar_week"
+            navigate={~p"/commercial/gtm/social/publishing"}
+            selected={String.starts_with?(@current_path, "/commercial/gtm/social/publishing")}
           />
           <.sidebar_item
             label={gettext("Post performance")}

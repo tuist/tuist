@@ -258,7 +258,12 @@
     "generate_leadership_brief": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "get_tuist_feature_flag": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
     "finalize_letter_document_upload": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
-    "reply_to_support_thread": "External delivery/outbox requires its own idempotency, approval and ambiguous-outcome conformance tests before workflow enablement."
+    "reply_to_support_thread": "External delivery/outbox requires its own idempotency, approval and ambiguous-outcome conformance tests before workflow enablement.",
+    "create_social_media_upload": "Publishing to X is an external, billed and irreversible effect that needs a person's approval of the exact post on the dashboard; it is not a workflow step.",
+    "finalize_social_media_upload": "Publishing to X is an external, billed and irreversible effect that needs a person's approval of the exact post on the dashboard; it is not a workflow step.",
+    "save_social_publication": "Publishing to X is an external, billed and irreversible effect that needs a person's approval of the exact post on the dashboard; it is not a workflow step.",
+    "cancel_social_publication": "Publishing to X is an external, billed and irreversible effect that needs a person's approval of the exact post on the dashboard; it is not a workflow step.",
+    "list_social_publications": "Social publications are shared drafts awaiting a person's approval; workflows that act on them need a dedicated, versioned adapter."
   },
   "operations": [
     {

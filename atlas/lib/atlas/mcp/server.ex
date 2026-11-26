@@ -33,6 +33,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CancelChatGPTProviderLogin
   alias Atlas.MCP.Tools.CancelHoliday
   alias Atlas.MCP.Tools.CancelInsurancePolicy
+  alias Atlas.MCP.Tools.CancelSocialPublication
   alias Atlas.MCP.Tools.CategorizeFinanceTransaction
   alias Atlas.MCP.Tools.CheckLetterDelivery
   alias Atlas.MCP.Tools.CheckOutAirGappedLicense
@@ -70,6 +71,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreatePostmortem
   alias Atlas.MCP.Tools.CreatePostmortemActionItem
   alias Atlas.MCP.Tools.CreateSocialChannelIdea
+  alias Atlas.MCP.Tools.CreateSocialMediaUpload
   alias Atlas.MCP.Tools.CreateSocialPostRevision
   alias Atlas.MCP.Tools.CreateSpec
   alias Atlas.MCP.Tools.CreateStripeDraftInvoice
@@ -125,6 +127,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ExtendLicense
   alias Atlas.MCP.Tools.FinalizeDocumentUpload
   alias Atlas.MCP.Tools.FinalizeLetterDocumentUpload
+  alias Atlas.MCP.Tools.FinalizeSocialMediaUpload
   alias Atlas.MCP.Tools.FinanceAddTransactionAttachment
   alias Atlas.MCP.Tools.FinanceCreateTransferRequest
   alias Atlas.MCP.Tools.FinanceDeleteTransactionAttachment
@@ -251,6 +254,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListSocialChannelIdeas
   alias Atlas.MCP.Tools.ListSocialPostPerformance
   alias Atlas.MCP.Tools.ListSocialPostRevisions
+  alias Atlas.MCP.Tools.ListSocialPublications
   alias Atlas.MCP.Tools.ListSpecComments
   alias Atlas.MCP.Tools.ListSpecs
   alias Atlas.MCP.Tools.ListSupportThreads
@@ -310,6 +314,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SaveMemory
   alias Atlas.MCP.Tools.SaveMyGmailAttachment
   alias Atlas.MCP.Tools.SaveOVHInvoice
+  alias Atlas.MCP.Tools.SaveSocialPublication
   alias Atlas.MCP.Tools.SearchApolloOutreach
   alias Atlas.MCP.Tools.SearchAtlas
   alias Atlas.MCP.Tools.SearchDocuments
@@ -847,6 +852,11 @@ defmodule Atlas.MCP.Server do
     ListSocialChannelIdeas,
     ListSocialPostPerformance,
     SyncSocialPosts,
+    CancelSocialPublication,
+    CreateSocialMediaUpload,
+    FinalizeSocialMediaUpload,
+    ListSocialPublications,
+    SaveSocialPublication,
     GetSocialChannelIdea,
     CreateSocialChannelIdea,
     UpdateSocialChannelIdea,

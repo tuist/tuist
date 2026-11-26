@@ -48,12 +48,14 @@ defmodule Atlas.Connections.Provider do
     # Not a personal connection: Atlas.GTM.SocialAccounts holds X grants for
     # post tracking and reuses this config to exchange and refresh them. Access
     # tokens last two hours; offline.access adds a rotating refresh token.
+    # tweet.write and media.write publish only posts a person approved
+    # (Atlas.GTM.SocialPublishing); accounts connected before must reconnect.
     "x" => %{
       name: "X",
       authorize_url: "https://x.com/i/oauth2/authorize",
       token_url: "https://api.x.com/2/oauth2/token",
       profile_url: "https://api.x.com/2/users/me",
-      scopes: ~w(tweet.read users.read offline.access)
+      scopes: ~w(tweet.read tweet.write users.read media.write offline.access)
     },
     # Also not a personal connection: Atlas.GTM.SocialAccounts holds the grant
     # of a LinkedIn Page administrator and reads that Page's posts and their

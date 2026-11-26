@@ -28,7 +28,7 @@ defmodule AtlasWeb.SocialAccountControllerTest do
     authorize = get(conn, ~p"/commercial/gtm/social/accounts/connect/personal")
     params = authorize |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
     assert params["redirect_uri"] =~ "/connections/x/callback"
-    assert params["scope"] == "tweet.read users.read offline.access"
+    assert params["scope"] == "tweet.read tweet.write users.read media.write offline.access"
     assert params["code_challenge_method"] == "S256"
 
     callback = get(recycle(authorize), "/connections/x/callback", %{"code" => "code", "state" => params["state"]})

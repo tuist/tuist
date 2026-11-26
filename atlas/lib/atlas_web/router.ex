@@ -455,6 +455,9 @@ defmodule AtlasWeb.Router do
       live "/commercial/gtm/content/:id", GTMLive, :idea
       live "/commercial/gtm/social", GTMLive, :social
       live "/commercial/gtm/social/performance", SocialPerformanceLive, :index
+      live "/commercial/gtm/social/publishing", SocialPublishingLive, :index
+      live "/commercial/gtm/social/publishing/new", SocialPublishingLive, :new
+      live "/commercial/gtm/social/publishing/:id", SocialPublishingLive, :show
       live "/commercial/gtm/social/:id", GTMLive, :social_idea
       live "/commercial/gtm/outreach", OutreachContactsLive, :index
       live "/commercial/gtm/outreach/:id", OutreachContactsLive, :show
