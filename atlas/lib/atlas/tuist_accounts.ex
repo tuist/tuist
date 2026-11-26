@@ -4,7 +4,8 @@ defmodule Atlas.TuistAccounts do
   to the Tuist account ID that feature flag gates, runner limits and plans are
   keyed by, reading or changing the account's runner concurrency limits,
   reading or changing its billing plan, and starting or cancelling its runner
-  trial, as the ops account page does.
+  trial, as the ops account page does, or adding the runner items a paid
+  subscription lacks.
 
   These are rollout controls alongside `Atlas.TuistFeatureFlags`, so they use
   the same `feature_flags:read`/`feature_flags:write` scopes and the same
@@ -97,7 +98,7 @@ defmodule Atlas.TuistAccounts do
     "type" => "object",
     "properties" => %{
       "account_id" => @account_id,
-      "operation" => %{"type" => "string", "enum" => ~w(start cancel)},
+      "operation" => %{"type" => "string", "enum" => ~w(start cancel add_runner_items)},
       # Only for cancel, when the account has no paid plan and so falls back to Air's caps.
       "confirm_air_limits" => %{"type" => "boolean"},
       "expected_revision" => %{"type" => "string", "minLength" => 1},

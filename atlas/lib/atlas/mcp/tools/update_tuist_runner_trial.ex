@@ -1,5 +1,5 @@
 defmodule Atlas.MCP.Tools.UpdateTuistRunnerTrial do
-  @moduledoc "Starts or cancels a Tuist account's runner trial through the audited internal API, as the ops account page does."
+  @moduledoc "Starts or cancels a Tuist account's runner trial through the audited internal API, as the ops account page does, or adds the runner items a paid subscription lacks."
 
   use Atlas.MCP.Tool,
     name: "update_tuist_runner_trial",
@@ -20,6 +20,10 @@ defmodule Atlas.MCP.Tools.UpdateTuistRunnerTrial do
       "An account with no paid plan has no subscription to add them to, so cancelling falls back to Air's caps " <>
       "and leaves runner usage unbilled; that is refused (paid_plan_required) unless confirm_air_limits is true. " <>
       "Get the account onto Pro or Enterprise first when it should keep using runners pay as you go. " <>
+      "operation: add_runner_items is for a Pro or Enterprise account that is not on a trial but whose subscription " <>
+      "lacks the runner items, such as one that subscribed before runner pricing existed: it adds them without " <>
+      "proration, so runner usage is billable from then on and earlier usage stays free. It is refused with " <>
+      "on_trial (cancel the trial instead), paid_plan_required, or runner_items_present when there is nothing to add. " <>
       "Requires feature_flags:write. Read get_tuist_runner_billing first and supply its revision as expected_revision, " <>
       "a reason and a unique change_id UUID. A stale revision is rejected (409): re-read before deciding again. Writes " <>
       "never retry automatically; after an ambiguous failure, re-read the billing state and repeat with the SAME " <>
