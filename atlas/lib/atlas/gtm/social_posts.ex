@@ -2,25 +2,22 @@ defmodule Atlas.GTM.SocialPosts do
   @moduledoc """
   Tracks how posts on connected social accounts perform.
 
-  Each person who connects X at /settings/connections contributes that
-  account's posts. A daily sync reads them with the connection's own token,
-  stores the latest metrics on `social_posts` and one `social_post_snapshots`
-  row per post and day. The metrics are shared with everyone who can read GTM;
-  tokens never leave `Atlas.Connections`.
+  Accounts are held by Atlas (`Atlas.GTM.SocialAccounts`), not by people. A
+  daily sync reads each account's recent posts with its own token, stores the
+  latest metrics on `social_posts` and one `social_post_snapshots` row per post
+  and day. Tokens never leave `Atlas.GTM.SocialAccounts`.
   """
 
   import Ecto.Query
 
   alias Atlas.Audit
-  alias Atlas.Connections
-  alias Atlas.Connections.Connection
+  alias Atlas.GTM.SocialAccount
+  alias Atlas.GTM.SocialAccounts
   alias Atlas.GTM.SocialPost
   alias Atlas.GTM.SocialPostSnapshot
   alias Atlas.Repo
-  alias Atlas.Users
 
   @api "https://api.x.com/2"
-  @scopes ["tweet.read"]
   # Posts gain nearly all their engagement in the first two weeks; older posts
   # keep the numbers of their last sync. X returns clicks for 30 days, so one
   # read covers both public and non-public metrics.
@@ -32,6 +29,8 @@ defmodule Atlas.GTM.SocialPosts do
     since = DateTime.add(DateTime.utc_now(), -Keyword.get(opts, :days, 90) * 86_400, :second)
 
     SocialPost
+    |> join(:left, [p], a in SocialAccount, on: a.platform == p.platform and a.external_id == p.account_id)
+    |> select_merge([_p, a], %{kind: a.kind})
     |> where([p], p.posted_at >= ^since)
     |> maybe_account(Keyword.get(opts, :account))
     |> order_by([p], desc: p.posted_at)
@@ -43,12 +42,13 @@ defmodule Atlas.GTM.SocialPosts do
   defp maybe_account(query, handle), do: where(query, [p], p.account_handle == ^handle)
 
   @doc """
-  Median impressions, engagements and engagement rate per account and per
-  format, for posts in `posts`. Medians, because a single launch post would
+  Median impressions, engagements and engagement rate per account kind (brand
+  or personal), per account and per format, for posts in `posts`. Medians, because a single launch post would
   otherwise dominate an average.
   """
   def summarize(posts) do
     %{
+      by_kind: group_summary(posts, &(&1.kind || "disconnected")),
       by_account: group_summary(posts, & &1.account_handle),
       by_format: group_summary(posts, &format_label/1)
     }
@@ -85,39 +85,29 @@ defmodule Atlas.GTM.SocialPosts do
       else: (Enum.at(sorted, middle - 1) + Enum.at(sorted, middle)) / 2
   end
 
-  @doc "Syncs every connected X account. Returns the number of accounts synced."
+  @doc "Syncs every connected social account. Returns the number of accounts synced."
   def sync_all do
-    from(c in Connection, where: c.provider == "x" and not c.needs_authorization, select: c.user_id)
+    from(a in SocialAccount, where: not a.needs_authorization)
     |> Repo.all()
-    |> Enum.count(fn user_id ->
-      user_id
-      |> Users.get_user()
-      |> sync_x()
-      |> case do
-        {:ok, _count} -> true
-        _ -> false
-      end
-    end)
+    |> Enum.count(&match?({:ok, _}, sync_account(&1)))
   end
 
-  @doc "Reads the connected X account's posts and stores today's metrics."
-  def sync_x(user, interface \\ "worker")
-
-  def sync_x(nil, _interface), do: {:error, :not_connected}
-
-  def sync_x(user, interface) do
+  @doc "Reads one account's recent posts and stores today's metrics."
+  def sync_account(%SocialAccount{} = account, opts \\ []) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    with {:ok, me} <- with_token(user, &get(&1, "/users/me", [])),
+    with {:ok, me} <- SocialAccounts.with_token(account, &get(&1, "/users/me", [])),
          %{"id" => account_id, "username" => username} <- me["data"] || {:error, :invalid_response},
-         {:ok, posts} <- fetch(user, account_id, DateTime.add(now, -@window_days * 86_400, :second)) do
+         {:ok, posts} <- fetch(account, account_id, DateTime.add(now, -@window_days * 86_400, :second)) do
       rows = build_rows(posts, account_id, username, now)
       Enum.each(rows, &store(&1, DateTime.to_date(now)))
+      SocialAccounts.mark_synced(account)
 
       Audit.record(
         "social_posts.synced",
         %{
           target_type: "social_account",
+          target_id: account.id,
           target_label: "@" <> username,
           metadata: %{
             "platform" => "x",
@@ -125,8 +115,7 @@ defmodule Atlas.GTM.SocialPosts do
             "dashboard_path" => "/commercial/gtm/social/performance"
           }
         },
-        actor: user,
-        interface: interface
+        Keyword.take(opts, [:actor, :interface]) |> Keyword.put_new(:interface, "worker")
       )
 
       {:ok, length(rows)}
@@ -137,7 +126,7 @@ defmodule Atlas.GTM.SocialPosts do
   end
 
   # Own posts including self-replies (so threads can be detected), excluding reposts.
-  defp fetch(user, account_id, start_time) do
+  defp fetch(account, account_id, start_time) do
     fields =
       ~w(created_at public_metrics non_public_metrics attachments referenced_tweets conversation_id in_reply_to_user_id)
 
@@ -150,20 +139,20 @@ defmodule Atlas.GTM.SocialPosts do
       "media.fields": "type"
     ]
 
-    paginate(user, "/users/#{account_id}/tweets", params, nil, [], [], 0)
+    paginate(account, "/users/#{account_id}/tweets", params, nil, [], [], 0)
   end
 
-  defp paginate(_user, _path, _params, _token, posts, media, @max_pages), do: {:ok, attach_media(posts, media)}
+  defp paginate(_account, _path, _params, _token, posts, media, @max_pages), do: {:ok, attach_media(posts, media)}
 
-  defp paginate(user, path, params, page_token, posts, media, page) do
+  defp paginate(account, path, params, page_token, posts, media, page) do
     params = if page_token, do: Keyword.put(params, :pagination_token, page_token), else: params
 
-    with {:ok, body} <- with_token(user, &get(&1, path, params)) do
+    with {:ok, body} <- SocialAccounts.with_token(account, &get(&1, path, params)) do
       posts = posts ++ (body["data"] || [])
       media = media ++ (get_in(body, ["includes", "media"]) || [])
 
       case get_in(body, ["meta", "next_token"]) do
-        next when is_binary(next) -> paginate(user, path, params, next, posts, media, page + 1)
+        next when is_binary(next) -> paginate(account, path, params, next, posts, media, page + 1)
         _ -> {:ok, attach_media(posts, media)}
       end
     end
@@ -263,18 +252,6 @@ defmodule Atlas.GTM.SocialPosts do
         conflict_target: [:social_post_id, :captured_on]
       )
     end)
-  end
-
-  defp with_token(user, fun) do
-    with {:ok, token} <- Connections.access_token(user, "x", @scopes) do
-      case fun.(token) do
-        {:error, {:http, 401, _detail}} ->
-          with {:ok, refreshed} <- Connections.refresh_access_token(user, "x", @scopes, token), do: fun.(refreshed)
-
-        result ->
-          result
-      end
-    end
   end
 
   defp get(token, path, params) do

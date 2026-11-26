@@ -35,7 +35,7 @@ defmodule Atlas.Connections.Connection do
       :needs_authorization
     ])
     |> validate_required([:user_id, :provider, :provider_user_id, :account_name, :access_token])
-    |> validate_inclusion(:provider, ~w(github slack google qonto x))
+    |> validate_inclusion(:provider, ~w(github slack google qonto))
     |> unique_constraint([:user_id, :provider])
   end
 

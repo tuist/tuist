@@ -45,9 +45,9 @@ defmodule Atlas.Connections.Provider do
       profile_url: "https://thirdparty.qonto.com/v2/membership",
       scopes: ~w(offline_access membership.read request_transfers.write)
     },
-    # Read-only: the connected account's posts and their metrics, synced into
-    # Social for the team. Access tokens last two hours; offline.access adds a
-    # rotating refresh token.
+    # Not a personal connection: Atlas.GTM.SocialAccounts holds X grants for
+    # post tracking and reuses this config to exchange and refresh them. Access
+    # tokens last two hours; offline.access adds a rotating refresh token.
     "x" => %{
       name: "X",
       authorize_url: "https://x.com/i/oauth2/authorize",
@@ -65,7 +65,7 @@ defmodule Atlas.Connections.Provider do
     "compose" => "https://www.googleapis.com/auth/gmail.compose"
   }
 
-  def providers, do: ~w(github slack google qonto x)
+  def providers, do: ~w(github slack google qonto)
 
   @doc "Scopes for the requested Gmail consents (`read`, `compose`); unknown names request nothing."
   def gmail_scopes(consents) when is_list(consents) do

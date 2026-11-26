@@ -411,6 +411,9 @@ defmodule AtlasWeb.Router do
     pipe_through [:browser, :require_auth]
 
     get "/operations/labels/:id/jobs/:jobId/preview", LabelsController, :image, log: false
+    get "/commercial/gtm/social/accounts/connect/:kind", SocialAccountController, :authorize, log: false
+    # The X app's registered callback; X grants belong to Atlas social accounts.
+    get "/connections/x/callback", SocialAccountController, :callback, log: false
     get "/connections/:provider/authorize", ConnectionController, :authorize, log: false
     get "/connections/:provider/callback", ConnectionController, :callback, log: false
 

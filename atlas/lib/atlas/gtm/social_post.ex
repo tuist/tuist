@@ -32,6 +32,8 @@ defmodule Atlas.GTM.SocialPost do
     field :url_clicks, :integer
     field :profile_clicks, :integer
     field :metrics_updated_at, :utc_datetime
+    # brand or personal, from the account's row; nil once it is disconnected.
+    field :kind, :string, virtual: true
 
     timestamps()
   end

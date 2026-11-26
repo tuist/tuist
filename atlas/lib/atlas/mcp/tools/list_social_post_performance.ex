@@ -1,7 +1,7 @@
 defmodule Atlas.MCP.Tools.ListSocialPostPerformance do
   @moduledoc """
   Lists published posts from connected social accounts with their metrics, plus
-  medians by account and format.
+  medians by account kind, account and format.
   """
 
   use Atlas.MCP.Tool,
@@ -16,8 +16,21 @@ defmodule Atlas.MCP.Tools.ListSocialPostPerformance do
     },
     output_schema: %{
       "type" => "object",
-      "required" => ["posts", "by_account", "by_format"],
+      "required" => ["posts", "by_kind", "by_account", "by_format"],
       "properties" => %{
+        "by_kind" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "group" => %{"type" => "string"},
+              "posts" => %{"type" => "integer"},
+              "median_impressions" => %{"type" => ["number", "null"]},
+              "median_engagements" => %{"type" => ["number", "null"]},
+              "median_engagement_rate" => %{"type" => ["number", "null"]}
+            }
+          }
+        },
         "by_account" => %{
           "type" => "array",
           "items" => %{
@@ -51,6 +64,7 @@ defmodule Atlas.MCP.Tools.ListSocialPostPerformance do
             "properties" => %{
               "platform" => %{"type" => "string"},
               "account" => %{"type" => "string"},
+              "kind" => %{"type" => ["string", "null"]},
               "url" => %{"type" => "string"},
               "text" => %{"type" => "string"},
               "format" => %{"type" => "string"},
@@ -73,7 +87,7 @@ defmodule Atlas.MCP.Tools.ListSocialPostPerformance do
   @impl EMCP.Tool
   def description,
     do:
-      "List posts from connected X accounts in the last `days` days (default 30) with impressions, engagements, engagement rate and clicks, plus medians by account and by format (text, image, video, link, quote, with or without a thread). Metrics refresh daily."
+      "List posts from connected X accounts in the last `days` days (default 30) with impressions, engagements, engagement rate and clicks, plus medians by account kind (brand or personal), by account and by format (text, image, video, link, quote, with or without a thread). Metrics refresh daily."
 
   def execute(_conn, args) do
     posts = SocialPosts.list_posts(days: args["days"] || 30, account: args["account"])
@@ -81,6 +95,7 @@ defmodule Atlas.MCP.Tools.ListSocialPostPerformance do
 
     {:ok,
      %{
+       by_kind: summary.by_kind,
        by_account: summary.by_account,
        by_format: summary.by_format,
        posts:
@@ -88,6 +103,7 @@ defmodule Atlas.MCP.Tools.ListSocialPostPerformance do
            %{
              platform: post.platform,
              account: post.account_handle,
+             kind: post.kind,
              url: post.url,
              text: post.text,
              format: post.format,

@@ -30,7 +30,7 @@ defmodule AtlasWeb.ConnectionController do
   def prepare(conn, %{"provider" => provider}) do
     with %{"state" => state} when map_size(conn.body_params) == 1 <- conn.body_params,
          true <- native_state?(state),
-         {:ok, _} <- Provider.config(provider),
+         true <- provider in Provider.providers(),
          origin when is_binary(origin) <- Config.origin() do
       ticket =
         Phoenix.Token.sign(conn, @native_salt, %{
@@ -51,8 +51,10 @@ defmodule AtlasWeb.ConnectionController do
   def authorize(conn, %{"provider" => provider} = params) do
     # A ticket binds the native caller to an already authenticated browser user.
     # It is never a browser sign-in credential or a provider OAuth state.
-    case native_context(conn, params, provider) do
-      {:ok, native} -> begin_authorization(conn, provider, native)
+    with true <- provider in Provider.providers(),
+         {:ok, native} <- native_context(conn, params, provider) do
+      begin_authorization(conn, provider, native)
+    else
       _ -> fail(delete_session(conn, :account_connection), gettext("Could not connect your account. Please try again."))
     end
   end

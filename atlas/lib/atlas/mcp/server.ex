@@ -328,8 +328,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SetPOCContext
   alias Atlas.MCP.Tools.StartChatGPTProviderLogin
   alias Atlas.MCP.Tools.SuggestMoodboardResource
-  alias Atlas.MCP.Tools.SyncMySocialPosts
   alias Atlas.MCP.Tools.SyncPublicHolidays
+  alias Atlas.MCP.Tools.SyncSocialPosts
   alias Atlas.MCP.Tools.TerminateFinancing
   alias Atlas.MCP.Tools.UnlinkAssetFromInsuranceClaim
   alias Atlas.MCP.Tools.UnlinkProjectDomain
@@ -845,7 +845,7 @@ defmodule Atlas.MCP.Server do
     CreateBlogPostIdeaComment,
     ListSocialChannelIdeas,
     ListSocialPostPerformance,
-    SyncMySocialPosts,
+    SyncSocialPosts,
     GetSocialChannelIdea,
     CreateSocialChannelIdea,
     UpdateSocialChannelIdea,
@@ -1136,7 +1136,7 @@ defmodule Atlas.MCP.Server do
               ReadMySlackConversation,
               DownloadMySlackFile,
               PostMySlackMessage,
-              SyncMySocialPosts
+              SyncSocialPosts
             ], do: ManageAccountConnections.allowed_context?(conn)
 
   defp personal_connection_tool_allowed?(conn, module)

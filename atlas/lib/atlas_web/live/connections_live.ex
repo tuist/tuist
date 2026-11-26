@@ -162,7 +162,7 @@ defmodule AtlasWeb.ConnectionsLive do
       </div>
       <p data-part="footnote">
         {gettext(
-          "Credentials are encrypted and never shown to agents. Your connections are only used for your own requests: other people and shared Pip threads cannot use them. The exception is X, whose post metrics are shared with the team in Social. Disconnecting removes stored credentials; revoke app access in your provider settings to invalidate the grant there too. Gmail monitoring starts only after you configure and enable a signal source."
+          "Credentials are encrypted and never shown to agents. Your connections are only used for your own requests: other people and shared Pip threads cannot use them. Disconnecting removes stored credentials; revoke app access in your provider settings to invalidate the grant there too. Gmail monitoring starts only after you configure and enable a signal source."
         )}
       </p>
     </section>
@@ -188,12 +188,6 @@ defmodule AtlasWeb.ConnectionsLive do
     do:
       gettext(
         "Prepare vendor payments as transfer requests in Qonto from Atlas tools (finance_create_transfer_request). Nothing is paid until someone with review rights approves the request in Qonto."
-      )
-
-  defp description("x"),
-    do:
-      gettext(
-        "Connect a brand or personal X account to track its posts. Atlas reads the account's posts and their impressions, engagements and clicks once a day and shows them to the team in Social. It never posts."
       )
 
   defp description(_provider), do: nil

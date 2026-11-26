@@ -366,7 +366,8 @@ msgstr ""
 #: lib/atlas_web/live/sales_live.ex:95
 #: lib/atlas_web/live/sales_live.ex:200
 #: lib/atlas_web/live/sales_live.ex:268
-#: lib/atlas_web/live/social_performance_live.ex:59
+#: lib/atlas_web/live/social_performance_live.ex:97
+#: lib/atlas_web/live/social_performance_live.ex:165
 #: lib/atlas_web/live/support_live.ex:827
 #: lib/atlas_web/live/tasks_live.ex:203
 #: lib/atlas_web/live/tasks_live.ex:279
@@ -391,6 +392,7 @@ msgstr ""
 #: lib/atlas_web/live/accounts_live.ex:214
 #: lib/atlas_web/live/finance_live.ex:430
 #: lib/atlas_web/live/licenses_live.ex:273
+#: lib/atlas_web/live/social_performance_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Accounts"
 msgstr ""
@@ -1213,6 +1215,7 @@ msgstr ""
 #: lib/atlas_web/live/postal_live.ex:513
 #: lib/atlas_web/live/project_live/alerts.ex:122
 #: lib/atlas_web/live/sales_live.ex:302
+#: lib/atlas_web/live/social_performance_live.ex:103
 #: lib/atlas_web/live/support_live.ex:399
 #: lib/atlas_web/live/support_live.ex:815
 #, elixir-autogen, elixir-format
@@ -1393,9 +1396,10 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:225
+#: lib/atlas_web/live/connections_live.ex:219
 #: lib/atlas_web/live/mcp_live.ex:503
 #: lib/atlas_web/live/outreach_contacts_live.ex:1405
+#: lib/atlas_web/live/social_performance_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "Connected"
 msgstr ""
@@ -1443,7 +1447,7 @@ msgstr ""
 msgid "None"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:227
+#: lib/atlas_web/live/connections_live.ex:221
 #: lib/atlas_web/live/mcp_live.ex:505
 #: lib/atlas_web/live/overview_live.ex:355
 #, elixir-autogen, elixir-format
@@ -1699,6 +1703,7 @@ msgid "Continue to ChatGPT"
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:95
+#: lib/atlas_web/live/social_performance_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Could not disconnect the account."
 msgstr ""
@@ -1721,6 +1726,7 @@ msgstr ""
 #: lib/atlas_web/live/connections_live.ex:121
 #: lib/atlas_web/live/llm_provider_settings_live.ex:362
 #: lib/atlas_web/live/llm_provider_settings_live.ex:403
+#: lib/atlas_web/live/social_performance_live.ex:123
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr ""
@@ -6532,6 +6538,9 @@ msgstr ""
 #: lib/atlas_web/live/finance_live/filters.ex:62
 #: lib/atlas_web/live/financing_show_live.ex:354
 #: lib/atlas_web/live/insurance_show_live.ex:153
+#: lib/atlas_web/live/social_performance_live.ex:100
+#: lib/atlas_web/live/social_performance_live.ex:155
+#: lib/atlas_web/live/social_performance_live.ex:187
 #, elixir-autogen, elixir-format
 msgid "Kind"
 msgstr ""
@@ -7442,7 +7451,7 @@ msgstr ""
 
 #: lib/atlas_web/components/automation_analytics.ex:106
 #: lib/atlas_web/components/automation_analytics.ex:141
-#: lib/atlas_web/live/social_performance_live.ex:141
+#: lib/atlas_web/live/social_performance_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "No data yet"
 msgstr ""
@@ -8029,6 +8038,7 @@ msgid "Not used by Atlas"
 msgstr ""
 
 #: lib/atlas_web/live/gtm_email_live.ex:1569
+#: lib/atlas_web/live/social_performance_live.ex:262
 #, elixir-autogen, elixir-format
 msgid "Not yet"
 msgstr ""
@@ -12478,7 +12488,7 @@ msgstr ""
 msgid "Access will be sent to"
 msgstr ""
 
-#: lib/atlas_web/controllers/connection_controller.ex:144
+#: lib/atlas_web/controllers/connection_controller.ex:146
 #, elixir-autogen, elixir-format
 msgid "Account connected."
 msgstr ""
@@ -12606,8 +12616,8 @@ msgstr ""
 msgid "Cooldown (minutes)"
 msgstr ""
 
-#: lib/atlas_web/controllers/connection_controller.ex:56
-#: lib/atlas_web/controllers/connection_controller.ex:148
+#: lib/atlas_web/controllers/connection_controller.ex:58
+#: lib/atlas_web/controllers/connection_controller.ex:150
 #, elixir-autogen, elixir-format
 msgid "Could not connect your account. Please try again."
 msgstr ""
@@ -12787,7 +12797,8 @@ msgstr ""
 msgid "Read access granted"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:226
+#: lib/atlas_web/live/connections_live.ex:220
+#: lib/atlas_web/live/social_performance_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Reconnect needed"
 msgstr ""
@@ -12918,116 +12929,96 @@ msgstr ""
 msgid "Search and read the messages, channels, DMs and files you can see in Slack, and post as you once you approve each message, from Atlas tools (search_my_slack, read_my_slack_conversation, download_my_slack_file, post_my_slack_message). This is separate from the Atlas bot."
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:42
+#: lib/atlas_web/live/social_performance_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "30 days"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:42
+#: lib/atlas_web/live/social_performance_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "90 days"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:54
+#: lib/atlas_web/live/social_performance_live.ex:160
 #, elixir-autogen, elixir-format
 msgid "By account"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:64
+#: lib/atlas_web/live/social_performance_live.ex:170
 #, elixir-autogen, elixir-format
 msgid "By format"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:195
-#, elixir-autogen, elixir-format
-msgid "Connect a brand or personal X account to track its posts. Atlas reads the account's posts and their impressions, engagements and clicks once a day and shows them to the team in Social. It never posts."
-msgstr ""
-
-#: lib/atlas_web/live/social_performance_live.ex:108
-#, elixir-autogen, elixir-format
-msgid "Connect an X account in Settings → Connections. Posts appear after the next daily sync."
-msgstr ""
-
-#: lib/atlas_web/live/connections_live.ex:164
-#, elixir-autogen, elixir-format
-msgid "Credentials are encrypted and never shown to agents. Your connections are only used for your own requests: other people and shared Pip threads cannot use them. The exception is X, whose post metrics are shared with the team in Social. Disconnecting removes stored credentials; revoke app access in your provider settings to invalidate the grant there too. Gmail monitoring starts only after you configure and enable a signal source."
-msgstr ""
-
-#: lib/atlas_web/live/social_performance_live.ex:94
+#: lib/atlas_web/live/social_performance_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Engagements"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:66
-#: lib/atlas_web/live/social_performance_live.ex:81
+#: lib/atlas_web/live/social_performance_live.ex:172
+#: lib/atlas_web/live/social_performance_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Format"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:91
+#: lib/atlas_web/live/social_performance_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "Impressions"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:100
+#: lib/atlas_web/live/social_performance_live.ex:209
 #, elixir-autogen, elixir-format
 msgid "Link clicks"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:134
+#: lib/atlas_web/live/social_performance_live.ex:241
 #, elixir-autogen, elixir-format
 msgid "Median engagements"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:131
+#: lib/atlas_web/live/social_performance_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "Median impressions"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:137
+#: lib/atlas_web/live/social_performance_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Median rate"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:106
+#: lib/atlas_web/live/social_performance_live.ex:215
 #, elixir-autogen, elixir-format
 msgid "No posts yet"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:40
+#: lib/atlas_web/live/social_performance_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Period"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:73
+#: lib/atlas_web/live/social_performance_live.ex:179
 #, elixir-autogen, elixir-format
 msgid "Post"
 msgstr ""
 
 #: lib/atlas_web/components/layouts/dashboard.html.heex:136
-#: lib/atlas_web/live/social_performance_live.ex:13
-#: lib/atlas_web/live/social_performance_live.ex:32
+#: lib/atlas_web/live/social_performance_live.ex:17
+#: lib/atlas_web/live/social_performance_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "Post performance"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:88
+#: lib/atlas_web/live/social_performance_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Posted"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:70
-#: lib/atlas_web/live/social_performance_live.ex:130
+#: lib/atlas_web/live/social_performance_live.ex:176
+#: lib/atlas_web/live/social_performance_live.ex:237
 #, elixir-autogen, elixir-format
 msgid "Posts"
 msgstr ""
 
-#: lib/atlas_web/live/social_performance_live.ex:34
-#, elixir-autogen, elixir-format
-msgid "Posts from connected X accounts, refreshed daily. Engagements are likes, reposts, quotes, replies and bookmarks. Connect an account in Settings → Connections."
-msgstr ""
-
-#: lib/atlas_web/live/social_performance_live.ex:97
+#: lib/atlas_web/live/social_performance_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "Rate"
 msgstr ""
@@ -13055,4 +13046,89 @@ msgstr ""
 #: lib/atlas_web/live/approvals_live.ex:237
 #, elixir-autogen, elixir-format
 msgid "— downloaded from Slack as %{name}"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:254
+#, elixir-autogen, elixir-format
+msgid "Brand"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:150
+#, elixir-autogen, elixir-format
+msgid "Brand vs personal"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:217
+#, elixir-autogen, elixir-format
+msgid "Connect an X account above. Posts appear after the next daily sync."
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:83
+#, elixir-autogen, elixir-format
+msgid "Connect brand account"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:90
+#, elixir-autogen, elixir-format
+msgid "Connect personal account"
+msgstr ""
+
+#: lib/atlas_web/controllers/social_account_controller.ex:50
+#, elixir-autogen, elixir-format
+msgid "Connected %{handle}."
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:114
+#, elixir-autogen, elixir-format
+msgid "Connected by"
+msgstr ""
+
+#: lib/atlas_web/controllers/social_account_controller.ex:76
+#, elixir-autogen, elixir-format
+msgid "Could not connect the X account. Please try again."
+msgstr ""
+
+#: lib/atlas_web/live/connections_live.ex:164
+#, elixir-autogen, elixir-format
+msgid "Credentials are encrypted and never shown to agents. Your connections are only used for your own requests: other people and shared Pip threads cannot use them. Disconnecting removes stored credentials; revoke app access in your provider settings to invalidate the grant there too. Gmail monitoring starts only after you configure and enable a signal source."
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:256
+#, elixir-autogen, elixir-format
+msgid "Disconnected"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:43
+#, elixir-autogen, elixir-format
+msgid "Disconnected %{handle}. Its posts stay."
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:117
+#, elixir-autogen, elixir-format
+msgid "Last synced"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:138
+#, elixir-autogen, elixir-format
+msgid "No accounts connected"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:255
+#, elixir-autogen, elixir-format
+msgid "Personal"
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:58
+#, elixir-autogen, elixir-format
+msgid "Posts from the X accounts Atlas holds, refreshed daily. Engagements are likes, reposts, quotes, replies and bookmarks."
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:140
+#, elixir-autogen, elixir-format
+msgid "Someone with GTM write access signs in to X as the account and connects it here. The grant stays with Atlas, not with them."
+msgstr ""
+
+#: lib/atlas_web/live/social_performance_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "Stop syncing this account? Its stored posts stay; Atlas removes its X grant."
 msgstr ""
