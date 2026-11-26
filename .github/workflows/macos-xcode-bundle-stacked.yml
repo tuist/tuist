@@ -1,0 +1,168 @@
+name: macOS Xcode bundle stacked experiment
+
+# Throwaway experiment (branch exp/xcode-bundle-tahoe-27 only): the same
+# 27.0 + 27.1 + 27.2 bundle as macos-xcode-bundle-experiment.yml, but each added
+# Xcode is a stacked (ASIF overlay) clone of the previous step instead of a full
+# copy. Pushes `exp-stack-*` tags of macos-tahoe-xcode that no pool names, and
+# measures overlay size, what a host already holding the previous step pulls,
+# and boot time with one and two extra layers. Lines start with BUNDLE-EXP.
+
+on:
+  push:
+    branches: [exp/xcode-bundle-tahoe-27]
+    paths: [.github/workflows/macos-xcode-bundle-stacked.yml]
+
+concurrency:
+  group: macos-xcode-bundle-stacked
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REPO: ghcr.io/tuist/macos-tahoe-xcode
+  BASE_TAG: "27-0"
+  TAG_A: exp-stack-27-0-27-1
+  TAG_B: exp-stack-27-0-27-1-27-2
+  TART_REGISTRY_HOSTNAME: ghcr.io
+  TART_REGISTRY_USERNAME: tuist-bot
+  TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  stacked:
+    # Stacked clone and run need macOS 27 and Tart 2.36 or newer.
+    runs-on: [self-hosted, macos, bare-metal, macos-27, vm-image-builder]
+    timeout-minutes: 600
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull Xcode .xips from mirror
+        id: xips
+        run: |
+          set -euo pipefail
+          printf '%s' "$TART_REGISTRY_PASSWORD" | oras login ghcr.io --username tuist-bot --password-stdin
+          for v in 27.1 27.2; do
+            d="${RUNNER_TEMP}/xip-${v}"; rm -rf "$d"; mkdir -p "$d"
+            oras pull "ghcr.io/tuist/xcode-xips:${v}" --output "$d"
+            echo "x${v//./_}=$(ls "$d"/*.xip | head -n1)" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Initialize Packer
+        working-directory: infra/macos-xcode-image/experiments
+        run: |
+          packer init -upgrade bundle.pkr.hcl
+          packer init -upgrade measure.pkr.hcl
+
+      - uses: ./.github/actions/reclaim-tart-disk
+        with:
+          free-floor-gb: "200"
+          keep: |
+            ghcr.io/tuist/macos-tahoe-xcode:27-0
+
+      - name: Pull base and time a single-layer boot
+        run: |
+          set -euo pipefail
+          t0=$(date +%s); tart pull "$REPO:$BASE_TAG"; echo "BUNDLE-EXP pull 27-0 s: $(( $(date +%s) - t0 ))"
+          export PATH="$PWD/infra/runner-image/stacked-tart:$PATH"
+          tart delete exp-boot-0 2>/dev/null || true
+          t0=$(date +%s); tart clone "$REPO:$BASE_TAG" exp-boot-0; echo "BUNDLE-EXP stacked clone 27-0 s: $(( $(date +%s) - t0 ))"
+          t0=$(date +%s); tart run --no-graphics exp-boot-0 & pid=$!
+          tart ip --wait 600 exp-boot-0 >/dev/null
+          echo "BUNDLE-EXP boot to IP, base only s: $(( $(date +%s) - t0 ))"
+          tart stop exp-boot-0 || kill $pid || true; wait $pid || true
+          tart delete exp-boot-0 || true
+
+      - name: Add Xcode 27.1 as an overlay
+        working-directory: infra/macos-xcode-image/experiments
+        run: |
+          set -euo pipefail
+          export PATH="$GITHUB_WORKSPACE/infra/runner-image/stacked-tart:$PATH"
+          t0=$(date +%s)
+          env -u GITHUB_TOKEN packer build -var "base_image=$REPO:$BASE_TAG" -var output_image=exp-stack-a \
+            -var stacked=true -var disk_size_gb=200 \
+            -var "xcode_xip_path=${{ steps.xips.outputs.x27_1 }}" -var xcode_version=27.1 bundle.pkr.hcl
+          echo "BUNDLE-EXP build overlay 27.1 s: $(( $(date +%s) - t0 ))"
+
+      - name: Add Xcode 27.2 as an overlay on the 27.1 step
+        working-directory: infra/macos-xcode-image/experiments
+        run: |
+          set -euo pipefail
+          export PATH="$GITHUB_WORKSPACE/infra/runner-image/stacked-tart:$PATH"
+          t0=$(date +%s)
+          env -u GITHUB_TOKEN packer build -var base_image=exp-stack-a -var output_image=exp-stack-b \
+            -var stacked=true -var disk_size_gb=200 \
+            -var "xcode_xip_path=${{ steps.xips.outputs.x27_2 }}" -var xcode_version=27.2 bundle.pkr.hcl
+          echo "BUNDLE-EXP build overlay 27.2 s: $(( $(date +%s) - t0 ))"
+
+      - name: Restore nvram.bin if missing
+        run: |
+          set -euo pipefail
+          for vm in exp-stack-a exp-stack-b; do
+            b="$HOME/.tart/vms/$vm"; ls -la "$b"
+            if [ ! -f "$b/nvram.bin" ]; then
+              tart delete nvram-restore 2>/dev/null || true
+              tart clone "$REPO:$BASE_TAG" nvram-restore
+              cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$b/nvram.bin"
+              tart delete nvram-restore
+            fi
+          done
+
+      - name: Boot and measure the three-layer bundle
+        working-directory: infra/macos-xcode-image/experiments
+        run: |
+          set -euo pipefail
+          export PATH="$GITHUB_WORKSPACE/infra/runner-image/stacked-tart:$PATH"
+          tart delete exp-boot-b 2>/dev/null || true
+          t0=$(date +%s); tart clone exp-stack-b exp-boot-b; echo "BUNDLE-EXP stacked clone bundle s: $(( $(date +%s) - t0 ))"
+          t0=$(date +%s); tart run --no-graphics exp-boot-b & pid=$!
+          tart ip --wait 600 exp-boot-b >/dev/null
+          echo "BUNDLE-EXP boot to IP, base + 2 overlays s: $(( $(date +%s) - t0 ))"
+          tart stop exp-boot-b || kill $pid || true; wait $pid || true
+          tart delete exp-boot-b || true
+          env -u GITHUB_TOKEN packer build -var base_image=exp-stack-b -var output_image=exp-measure -var stacked=true measure.pkr.hcl || true
+          tart delete exp-measure || true
+
+      - name: Push the 27.1 step
+        timeout-minutes: 150
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: exp-stack-a
+          remote-names: ghcr.io/tuist/macos-tahoe-xcode:exp-stack-27-0-27-1
+
+      - name: Push the 27.2 step
+        timeout-minutes: 150
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: exp-stack-b
+          remote-names: ghcr.io/tuist/macos-tahoe-xcode:exp-stack-27-0-27-1-27-2
+
+      - name: Overlay sizes and layer reuse
+        run: |
+          set -euo pipefail
+          echo "$TART_REGISTRY_PASSWORD" | crane auth login --username tuist-bot --password-stdin ghcr.io
+          for t in "$BASE_TAG" "$TAG_A" "$TAG_B"; do
+            crane manifest "$REPO:$t" | jq -r '.layers[] | "\(.digest) \(.size)"' | sort -u > "${RUNNER_TEMP}/S_$t"
+            echo "BUNDLE-EXP $t compressed GB (all layers): $(awk '{s+=$2} END {printf "%.1f", s/1e9}' "${RUNNER_TEMP}/S_$t")"
+          done
+          new() { join -v2 "${RUNNER_TEMP}/S_$1" "${RUNNER_TEMP}/S_$2" | awk '{s+=$2} END {printf "%.1f", s/1e9}'; }
+          echo "BUNDLE-EXP new GB $BASE_TAG -> $TAG_A: $(new "$BASE_TAG" "$TAG_A")"
+          echo "BUNDLE-EXP new GB $TAG_A -> $TAG_B: $(new "$TAG_A" "$TAG_B")"
+
+      - name: Pull as a host holding the previous step
+        run: |
+          set -euo pipefail
+          for vm in exp-stack-a exp-stack-b; do tart delete "$vm" 2>/dev/null || true; done
+          export TART_HOME="${RUNNER_TEMP}/tart-host"
+          rm -rf "$TART_HOME"; mkdir -p "$TART_HOME"
+          t0=$(date +%s); tart pull "$REPO:$BASE_TAG"; echo "BUNDLE-EXP host pull 27-0 (cold) s: $(( $(date +%s) - t0 ))"
+          t0=$(date +%s); tart pull "$REPO:$TAG_A"; echo "BUNDLE-EXP host pull $TAG_A holding 27-0 s: $(( $(date +%s) - t0 ))"
+          t0=$(date +%s); tart pull "$REPO:$TAG_B"; echo "BUNDLE-EXP host pull $TAG_B holding $TAG_A s: $(( $(date +%s) - t0 ))"
+          echo "BUNDLE-EXP host store GB with all three: $(du -sk "$TART_HOME" | awk '{printf "%.1f", $1/1e6}')"
+          rm -rf "$TART_HOME"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          for vm in exp-stack-a exp-stack-b exp-boot-0 exp-boot-b exp-measure nvram-restore; do tart delete "$vm" 2>/dev/null || true; done
+          rm -rf "${RUNNER_TEMP}/tart-host" "${RUNNER_TEMP}"/xip-*

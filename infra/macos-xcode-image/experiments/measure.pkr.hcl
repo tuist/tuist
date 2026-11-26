@@ -10,6 +10,10 @@ packer {
 }
 
 variable "base_image" { type = string }
+variable "stacked" {
+  type    = bool
+  default = false
+}
 variable "output_image" { type = string }
 
 source "tart-cli" "measure" {
@@ -21,6 +25,8 @@ source "tart-cli" "measure" {
   ssh_password = "admin"
   ssh_timeout  = "300s"
   headless     = true
+  # A stacked VM has no disk.img for the plugin to edit (see infra/runner-image/runner.pkr.hcl).
+  recovery_partition = var.stacked ? "keep" : "delete"
 }
 
 build {

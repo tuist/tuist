@@ -11,6 +11,10 @@ packer {
 }
 
 variable "base_image" { type = string }
+variable "stacked" {
+  type    = bool
+  default = false
+}
 variable "output_image" { type = string }
 variable "xcode_xip_path" { type = string }
 variable "xcode_version" { type = string }
@@ -29,6 +33,8 @@ source "tart-cli" "bundle" {
   ssh_password = "admin"
   ssh_timeout  = "120s"
   headless     = true
+  # A stacked VM has no disk.img for the plugin to edit (see infra/runner-image/runner.pkr.hcl).
+  recovery_partition = var.stacked ? "keep" : "delete"
 }
 
 build {
