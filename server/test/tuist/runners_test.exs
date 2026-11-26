@@ -9,6 +9,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Buildkite
@@ -17,11 +18,13 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.PodDispatch
   alias Tuist.Runners.Profile
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Sites
@@ -229,12 +232,150 @@ defmodule Tuist.RunnersTest do
     end
   end
 
+  # Threat model: a tenant job runs inside the same Kata guest as the poller,
+  # metrics and shell sidecars, and can reach guest root through the privileged
+  # dind sidecar, so assume it reads the Pod's projected dispatch token. The
+  # token is pool-scoped, so its one cross-tenant use is claiming another
+  # account's queued job. These tests hand the attacker that token and replay
+  # it after its own dispatch, with the Pod's labels kept in an Agent so the
+  # replay sees exactly what the first dispatch wrote to the Pod.
+  describe "dispatch_for_sa/2 replay of a leaked dispatch token" do
+    setup do
+      {:ok, pod_labels} = Agent.start_link(fn -> %{} end)
+      attacker = account_fixture()
+      victim = account_fixture()
+      %{pod_labels: pod_labels, attacker: attacker, victim: victim}
+    end
+
+    test "refuses the replay through the account label the first dispatch wrote", %{
+      pod_labels: pod_labels,
+      attacker: attacker,
+      victim: victim
+    } do
+      stub_dispatch_path(attacker, candidate_with_label(attacker, "tuist-default"), self())
+      record_pod_label_patches(pod_labels)
+
+      assert {:ok, %{account: %{id: attacker_id}}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert attacker_id == attacker.id
+      assert Agent.get(pod_labels, & &1)["tuist.dev/runner-account"] == Integer.to_string(attacker.id)
+
+      # The replay: the same SA token, now in the tenant's hands, while a
+      # victim's job is queued on the pool. The Pod is read back with the
+      # labels the first dispatch wrote.
+      test_pid = self()
+      victim_job = candidate_with_label(victim, "tuist-default", workflow_job_id: 90_002)
+
+      stub(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      stub(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, put_in(pod_with_image("pod-1", "img"), ["metadata", "labels"], Agent.get(pod_labels, & &1))}
+      end)
+
+      stub(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+
+      stub(Jobs, :pick_queued_top_k, fn "fleet-a", _, _, _, _ ->
+        send(test_pid, :victim_job_offered)
+        {:ok, [victim_job]}
+      end)
+
+      stub(Claims, :attempt, fn job_id, _account_id, _fleet, _pod, _resources, _site ->
+        send(test_pid, {:claim_attempted, job_id})
+        {:ok, %{claimed_at: DateTime.utc_now()}}
+      end)
+
+      assert {:error, :pod_committed} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      refute_received :victim_job_offered
+      refute_received {:claim_attempted, _}
+    end
+
+    test "refuses the replay even when the commit label was never written and the claim is gone", %{
+      attacker: attacker,
+      victim: victim
+    } do
+      # The label is stamped best effort, so an apiserver failure during the
+      # first dispatch leaves the Pod looking uncommitted. stub_dispatch_path/4
+      # stubs Claims.attempt/6, so no claim row is left either: the state once
+      # the attacker's job completed and Claims.complete/1 deleted the claim,
+      # while the Pod's ServiceAccount, and so the token, still exists.
+      stub_dispatch_path(attacker, candidate_with_label(attacker, "tuist-default"), self())
+      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:error, :unavailable} end)
+
+      assert {:ok, %{account: %{id: attacker_id}}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert attacker_id == attacker.id
+      refute Repo.get(Claim, "pod-1")
+
+      test_pid = self()
+      victim_job = candidate_with_label(victim, "tuist-default", workflow_job_id: 90_002)
+
+      stub(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      stub(K8sClient, :get_pod, fn "tuist-runners", "pod-1" -> {:ok, pod_with_image("pod-1", "img")} end)
+      stub(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+      stub(Jobs, :pick_queued_top_k, fn "fleet-a", _, _, _, _ -> {:ok, [victim_job]} end)
+
+      # The replay reaches the real claim, which decides from Postgres alone.
+      stub(Claims, :attempt, fn job_id, account_id, fleet, pod, resources, site ->
+        Mimic.call_original(Claims, :attempt, [job_id, account_id, fleet, pod, resources, site])
+      end)
+
+      stub(Jobs, :record_claimed, fn candidate, _pod, _claimed_at ->
+        send(test_pid, {:claimed, candidate.workflow_job_id})
+        {:error, :completed}
+      end)
+
+      result = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      refute_received {:claimed, _}
+      assert {:error, :pod_committed} = result
+      refute Repo.get(Claim, "pod-1")
+    end
+
+    test "a dispatch that fails after the mint records nothing, so the Pod can poll again", %{attacker: account} do
+      stub_dispatch_path(account, candidate_with_label(account, "tuist-default"), self(), record_running_raises: true)
+      test_pid = self()
+
+      stub(Claims, :release, fn workflow_job_id, _claimed_at ->
+        send(test_pid, {:released, workflow_job_id})
+        :ok
+      end)
+
+      assert {:error, :record_running_failed} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_received {:released, 90_001}
+      refute Repo.get(PodDispatch, "pod-1")
+    end
+
+    test "withholds the credential and releases the claim when the record cannot be written", %{attacker: account} do
+      stub_dispatch_path(account, candidate_with_label(account, "tuist-default"), self())
+      test_pid = self()
+
+      stub(Claims, :record_dispatch, fn "pod-1", _account_id, 90_001 -> {:error, :pod_dispatch_not_recorded} end)
+
+      stub(Claims, :release, fn workflow_job_id, _claimed_at ->
+        send(test_pid, {:released, workflow_job_id})
+        :ok
+      end)
+
+      assert {:error, :pod_dispatch_not_recorded} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_received {:released, 90_001}
+    end
+  end
+
+  defp record_pod_label_patches(pod_labels) do
+    stub(K8sClient, :patch_pod, fn "tuist-runners", "pod-1", %{"metadata" => %{"labels" => labels}} ->
+      Agent.update(pod_labels, &Map.merge(&1, labels))
+      {:ok, %{}}
+    end)
+  end
+
   describe "dispatch_for_sa/2 site exclusivity" do
     setup do
       prefix = Tuist.Environment.runners_macos_pool_name_prefix()
       account = organization_fixture(preload: [:account]).account
 
-      Tuist.Repo.insert!(%Profile{
+      Repo.insert!(%Profile{
         account_id: account.id,
         name: "site-exclusive",
         platform: :macos,
@@ -286,7 +427,7 @@ defmodule Tuist.RunnersTest do
       reject(&Claims.attempt/5)
 
       assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-      assert Tuist.Repo.get!(WorkflowJob, 940_001).fleet_name == "#{prefix}-ber1-26-6"
+      assert Repo.get!(WorkflowJob, 940_001).fleet_name == "#{prefix}-ber1-26-6"
     end
   end
 
@@ -404,6 +545,7 @@ defmodule Tuist.RunnersTest do
       expect(Jobs, :record_running, fn ^workflow_job_id, runner_name ->
         assert String.starts_with?(runner_name, runner_name_prefix)
         assert byte_size(runner_name) <= 64
+        if Keyword.get(opts, :record_running_raises, false), do: raise("ClickHouse unavailable")
         :ok
       end)
     end
@@ -1045,6 +1187,11 @@ defmodule Tuist.RunnersTest do
       )
 
       assert {:ok, %{workflow_job_id: 90_102}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      # The failed mint released its claim and the same poll carried on, so the
+      # Pod is recorded for the job whose credential it received, not before.
+      assert %PodDispatch{workflow_job_id: 90_102, account_id: account_id} = Repo.get(PodDispatch, "pod-1")
+      assert account_id == eligible_account.id
     end
 
     test "holds an account whose GitHub App permission prevents minting instead of re-claiming it on the next poll" do

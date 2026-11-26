@@ -11,6 +11,7 @@ defmodule Tuist.Runners.ClaimsTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.PodDispatch
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
 
@@ -262,6 +263,44 @@ defmodule Tuist.Runners.ClaimsTest do
       row = Repo.get!(WorkflowJob, 1502)
       assert row.status == "claimed"
       assert row.runner_name == nil
+    end
+  end
+
+  describe "record_dispatch/3" do
+    test "refuses the Pod's next claim after its claim row is deleted" do
+      account = pro_account_fixture()
+      {:ok, _claim} = Claims.attempt(1600, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert :ok = Claims.record_dispatch("pod-1", account.id, 1600)
+      :ok = Claims.complete(1600)
+
+      other_account = pro_account_fixture()
+
+      assert {:error, :pod_committed} =
+               Claims.attempt(1601, other_account.id, "fleet-a", "pod-1", @linux_resources)
+
+      refute Repo.get(Claim, "pod-1")
+      assert {:ok, _claim} = Claims.attempt(1601, other_account.id, "fleet-a", "pod-2", @linux_resources)
+    end
+
+    test "a Pod whose dispatch failed before the record can claim again" do
+      account = pro_account_fixture()
+      {:ok, claim} = Claims.attempt(1610, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.release(1610, claim.claimed_at)
+
+      assert {:ok, _claim} = Claims.attempt(1611, account.id, "fleet-a", "pod-1", @linux_resources)
+    end
+
+    test "the record survives deleting the account that ran the job" do
+      account = pro_account_fixture()
+      {:ok, _claim} = Claims.attempt(1630, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.record_dispatch("pod-1", account.id, 1630)
+
+      Repo.delete!(account)
+
+      refute Repo.get(Claim, "pod-1")
+      assert %PodDispatch{workflow_job_id: 1630} = Repo.get(PodDispatch, "pod-1")
+      victim = pro_account_fixture()
+      assert {:error, :pod_committed} = Claims.attempt(1631, victim.id, "fleet-a", "pod-1", @linux_resources)
     end
   end
 

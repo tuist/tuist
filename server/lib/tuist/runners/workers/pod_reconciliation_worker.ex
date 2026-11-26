@@ -1,7 +1,8 @@
 defmodule Tuist.Runners.Workers.PodReconciliationWorker do
   @moduledoc """
   Failsafe. Releases `runner_claims` and closes `runner_sessions` whose
-  Pod no longer exists.
+  Pod no longer exists, and deletes the `runner_pod_dispatches` records of
+  Pods that are gone.
 
   Both are reservations held by a Pod, and both are normally cleared on
   an edge: `reapRunner` reports the stop before it deletes, the
@@ -46,6 +47,18 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
 
   Closed sessions resolve their `ended_at` from the job's terminal
   completion where there is one; see `RunnerSessions.close_pod_missing/3`.
+
+  ## Dispatch records
+
+  A dispatch record refuses its Pod's token any further claim
+  (`Claims.attempt/6`), so it must last as long as the token does, and no
+  deadline bounds how long a dispatched Pod lives. A projected token is
+  bound to its Pod and stops authenticating once the Pod is deleted, so a
+  record is deleted only when its Pod is missing from a complete read. The
+  same guards apply: a failed or empty read deletes nothing, and records
+  younger than the grace window are left alone. Deleting too early would
+  reopen a replay, but deleting too late costs nothing, so there is no
+  per-tick cap.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
@@ -79,11 +92,12 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
 
       claims = Claims.list_for_pod_reconciliation(DateTime.add(now, -@grace_seconds, :second))
       sessions = RunnerSessions.list_open_for_pod_reconciliation(DateTime.add(now, -@session_absence_seconds, :second))
+      dispatched_pods = Claims.list_dispatched_pod_names(DateTime.add(now, -@grace_seconds, :second))
 
-      if claims == [] and sessions == [] do
+      if claims == [] and sessions == [] and dispatched_pods == [] do
         :ok
       else
-        reconcile(claims, sessions, now)
+        reconcile(claims, sessions, dispatched_pods, now)
       end
     end
   end
@@ -98,7 +112,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
         FunWithFlags.enabled?(:runner_pod_reconciliation_paused)
       )
 
-  defp reconcile(claims, sessions, now) do
+  defp reconcile(claims, sessions, dispatched_pods, now) do
     case observed_pod_names() do
       {:ok, pod_names} ->
         if MapSet.size(pod_names) == 0 do
@@ -106,13 +120,15 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
           # selector, wrong namespace, or an empty page.
           Logger.error("runners: pod reconciliation read returned no Pods while rows are open; skipping",
             claims: length(claims),
-            sessions: length(sessions)
+            sessions: length(sessions),
+            dispatched_pods: length(dispatched_pods)
           )
 
           :ok
         else
           reconcile_claims(claims, pod_names, now)
           reconcile_sessions(sessions, pod_names, now)
+          reconcile_dispatches(dispatched_pods, pod_names)
           :ok
         end
 
@@ -229,6 +245,22 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
         eligible: length(missing),
         closed: count,
         cap: @max_closes_per_tick
+      )
+    end
+
+    :ok
+  end
+
+  defp reconcile_dispatches(dispatched_pods, pod_names) do
+    deleted =
+      dispatched_pods
+      |> Enum.reject(&MapSet.member?(pod_names, &1))
+      |> Claims.delete_dispatches()
+
+    if deleted > 0 do
+      Logger.info("runners: deleted dispatch records of Pods that are gone",
+        count: deleted,
+        observed_pods: MapSet.size(pod_names)
       )
     end
 

@@ -9,6 +9,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.PodDispatch
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.PodReconciliationWorker
@@ -92,6 +93,71 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     })
 
     :ok
+  end
+
+  defp dispatch_fixture(account, pod_name, opts \\ []) do
+    :ok = Claims.record_dispatch(pod_name, account.id, System.unique_integer([:positive]))
+    dispatched_at = DateTime.add(DateTime.utc_now(), -Keyword.get(opts, :age_seconds, 3600), :second)
+    Repo.update_all(from(d in PodDispatch, where: d.pod_name == ^pod_name), set: [dispatched_at: dispatched_at])
+  end
+
+  defp dispatched?(pod_name), do: Repo.get(PodDispatch, pod_name) != nil
+
+  # A dispatch record refuses its Pod's token any further claim, so deleting
+  # one early reopens a replay. Only a Pod missing from a complete read loses it.
+  describe "dispatch record arm" do
+    test "deletes the records of Pods that are gone and keeps the rest, with no claim or session open" do
+      account = pro_account_fixture()
+      dispatch_fixture(account, "pod-gone")
+      dispatch_fixture(account, "pod-live")
+
+      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
+
+      assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
+      refute dispatched?("pod-gone")
+      assert dispatched?("pod-live")
+    end
+
+    test "keeps every record when the cluster read fails" do
+      account = pro_account_fixture()
+      dispatch_fixture(account, "pod-1")
+
+      expect(K8sClient, :list_pods, fn _ns, @selector -> {:error, :timeout} end)
+
+      assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
+      assert dispatched?("pod-1")
+    end
+
+    test "keeps every record when the read returns no pods at all" do
+      account = pro_account_fixture()
+      dispatch_fixture(account, "pod-1")
+
+      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, []} end)
+
+      assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
+      assert dispatched?("pod-1")
+    end
+
+    test "ignores records inside the grace window, without reading the cluster" do
+      account = pro_account_fixture()
+      dispatch_fixture(account, "pod-young", age_seconds: 30)
+
+      reject(&K8sClient.list_pods/2)
+
+      assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
+      assert dispatched?("pod-young")
+    end
+
+    test "keeps every record while paused" do
+      account = pro_account_fixture()
+      dispatch_fixture(account, "pod-gone")
+
+      stub(FunWithFlags, :enabled?, fn :runner_pod_reconciliation_paused -> true end)
+      reject(&K8sClient.list_pods/2)
+
+      assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
+      assert dispatched?("pod-gone")
+    end
   end
 
   describe "claim arm: guards" do
