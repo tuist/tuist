@@ -1373,6 +1373,13 @@ defmodule LuftServer.Threads do
     end)
   end
 
+  def record_notice(run, body) do
+    with_attempt(run, fn thread, _ ->
+      append!(thread, %{kind: "notice", body: body})
+      :ok
+    end)
+  end
+
   def record_client_tool(run, name, result) do
     with_attempt(run, fn thread, _ ->
       append!(thread, %{
@@ -1455,11 +1462,6 @@ defmodule LuftServer.Threads do
             {:ok, text} = result
             {reply, suggestions, icons} = Agent.decode_reply(text)
             {"idle", reply, suggestions, icons}
-
-          result == {:error, :mcp_discovery_failed} ->
-            {"failed",
-             "The run could not start because one of your MCP servers did not respond. Reconnect or remove it under MCP servers in your Tuist AI settings, then send a new message to retry.",
-             [], %{}}
 
           true ->
             {"failed",

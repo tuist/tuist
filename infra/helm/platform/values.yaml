@@ -133,7 +133,10 @@ ingress-nginx:
       # real_ip reads the header in nginx's post-read phase, before any
       # more_set_input_headers runs, so a client that sends it sets
       # $remote_addr. Turning `use-forwarded-headers` off makes real_ip read
-      # the PROXY header itself, which closes that; the staging overlay does.
+      # the PROXY header itself, which closes that; the managed overlays do.
+      # k8s:install-platform also sets proxy-real-ip-cidr to the load
+      # balancer, so a client reaching a NodePort directly cannot write the
+      # PROXY header either.
       # Earlier controllers read the PROXY header directly and only forward
       # this header upstream, where nothing reads it.
       http-snippet: 'more_set_input_headers "X-Forwarded-For-Proxy-Protocol: $proxy_protocol_addr";'
@@ -148,7 +151,10 @@ ingress-nginx:
     # Name the PROXY address itself, not $remote_addr. The http-snippet above
     # keeps them equal, but this header must not become forgeable if that
     # snippet is dropped: without it, controller v1.13+ sets $remote_addr
-    # from whatever a direct client writes in X-Forwarded-For.
+    # from whatever a direct client writes in X-Forwarded-For. The managed
+    # overlays turn forwarded headers off and trust the PROXY header only
+    # from the load balancer, and there $remote_addr is the stricter choice:
+    # they name it instead.
     proxySetHeaders:
       X-Tuist-Edge-Address: "$proxy_protocol_addr"
     metrics:
@@ -283,9 +289,12 @@ kura-eu-west-ingress-nginx:
       # Nginx otherwise drops build.bazel.remote.execution.v2.requestmetadata-bin,
       # leaving successful cache operations without Mix/Bazel analytics attribution.
       ignore-invalid-headers: "false"
-      use-forwarded-headers: "true"
+      # Clients connect to the gateways directly, never through a proxy of
+      # ours, so an X-Forwarded-For they send is theirs to write: with it on,
+      # it chose $remote_addr in the access log. The address comes from the
+      # PROXY header where a load balancer sends one, else the connection.
+      use-forwarded-headers: "false"
       use-proxy-protocol: "true"
-      compute-full-forwarded-for: "true"
       upstream-keepalive-timeout: "10"
       # Requests one client connection may carry, HTTP/2 included, before nginx
       # closes it. Its default of 1000 made the us-west gateway close a Bazel

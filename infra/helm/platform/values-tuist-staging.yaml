@@ -52,8 +52,17 @@ ingress-nginx:
     # on Ingresses with `cloudflareOnly`. Upstreams then get X-Forwarded-For
     # set to that single address; the client's own header still arrives as
     # X-Original-Forwarded-For. Staging first, then canary and production.
+    # k8s:install-platform sets proxy-real-ip-cidr to the load balancer, so a
+    # client reaching a NodePort directly cannot write the PROXY header.
     config:
       use-forwarded-headers: "false"
+    # $proxy_protocol_addr is whatever PROXY header arrived, including one a
+    # client wrote on a NodePort. $remote_addr is that address only when the
+    # load balancer sent it (proxy-real-ip-cidr), and the connecting address
+    # otherwise, so the server cannot be told a direct client is Cloudflare.
+    # Only safe with forwarded headers off, where nothing else sets it.
+    proxySetHeaders:
+      X-Tuist-Edge-Address: "$remote_addr"
     service:
       annotations:
         load-balancer.hetzner.cloud/location: fsn1

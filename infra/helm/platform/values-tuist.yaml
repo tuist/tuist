@@ -72,6 +72,9 @@ ingress-nginx:
     # server, X-Tuist-Edge-Address; neither changes.
     config:
       use-forwarded-headers: "false"
+    # Only the load balancer's PROXY address; see the staging overlay.
+    proxySetHeaders:
+      X-Tuist-Edge-Address: "$remote_addr"
     service:
       annotations:
         load-balancer.hetzner.cloud/location: fsn1

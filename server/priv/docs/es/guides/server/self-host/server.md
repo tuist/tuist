@@ -10,63 +10,63 @@
 Ofrecemos una versión autoalojada del servidor de Tuist para organizaciones que requieren más control sobre su infraestructura. Esta versión te permite alojar Tuist en tu propia infraestructura, garantizando que tus datos permanezcan seguros y privados.
 
 > [!WARNING]
-> **Licencia requerida**
+> **Licencia obligatoria**
 >
-> El autoalojamiento de Tuist requiere una licencia de pago legalmente válida. La versión on-premise de Tuist está disponible solo para organizaciones en el plan Enterprise. Si estás interesado en esta versión, ponte en contacto con [contact@tuist.dev](mailto:contact@tuist.dev).
+> El autoalojamiento de Tuist requiere una licencia de pago legalmente válida. La versión on-premise de Tuist está disponible únicamente para organizaciones en el plan Enterprise. Si te interesa esta versión, ponte en contacto con [contact@tuist.dev](mailto:contact@tuist.dev).
 
 > [!WARNING]
 > **Servicio de caché heredado**
 >
-> La antigua tecnología de nodos de caché autoalojados está obsoleta para nuevas instalaciones. Usa la <.localized_link href="/guides/features/cache/self-hosting">guía de caché autoalojado</.localized_link> para la infraestructura de caché autoalojada actual.
+> La antigua tecnología de nodos de caché autoalojados está obsoleta para nuevas instalaciones. Consulta la <.localized_link href="/guides/features/cache/self-hosting">guía de caché autoalojado</.localized_link> para la infraestructura de caché autoalojado actual.
 >
-> Los despliegues existentes aún pueden consultar la documentación fuente heredada en el visor de markdown de GitHub: [nodos de caché](https://github.com/tuist/tuist/blob/main/server/priv/docs/en/guides/cache/self-host.md) y [arquitectura de caché](https://github.com/tuist/tuist/blob/main/server/priv/docs/en/guides/cache/architecture.md).
+> Los despliegues existentes aún pueden consultar la documentación fuente heredada en el visor de Markdown de GitHub: [nodos de caché](https://github.com/tuist/tuist/blob/main/server/priv/docs/en/guides/cache/self-host.md) y [arquitectura de caché](https://github.com/tuist/tuist/blob/main/server/priv/docs/en/guides/cache/architecture.md).
 
 ## Cadencia de lanzamientos {#release-cadence}
 
-El servidor de Tuist y el servidor de caché Kura se distribuyen a través de tres canales de imágenes GHCR: **canary** (cada commit en `main`), **candidato a lanzamiento** (generado cada lunes, en pruebas durante una semana) y **estable** (promovido el lunes siguiente). Solo los lanzamientos estables mueven `:latest` y se resuelven por defecto; las versiones canary y candidatas a lanzamiento son prereleases de GitHub a las que te suscribes fijando su etiqueta. El servidor y Kura siguen el mismo tren semanal, al unísono con el <.localized_link href="/cli/release/channels">calendario de lanzamientos de la CLI de Tuist</.localized_link>.
+El servidor de Tuist y el servidor de caché Kura se distribuyen a través de tres canales de imágenes GHCR: **canary** (cada commit a `main`), **candidato a lanzamiento** (generado cada lunes, en prueba durante una semana) y **estable** (promovido el lunes siguiente). Solo los lanzamientos estables mueven `:latest` y se resuelven por defecto; las versiones canary y candidatas son prereleases de GitHub a las que te suscribes fijando su etiqueta. El servidor y Kura siguen el mismo tren semanal, al unísono con el <.localized_link href="/cli/release/channels">calendario de lanzamientos de la CLI de Tuist</.localized_link>.
 
-Seguimos el [versionado semántico](https://semver.org/) para garantizar un versionado predecible y compatibilidad. El componente mayor se utiliza para señalar cambios incompatibles en el servidor de Tuist que requerirán coordinación con los usuarios autoalojados; no deberías esperar que lo usemos, y en caso de que fuera necesario, ten la seguridad de que trabajaremos contigo para hacer la transición sin problemas.
+Seguimos el [versionado semántico](https://semver.org/) para garantizar un versionado predecible y la compatibilidad. El componente mayor se usa para señalar cambios incompatibles en el servidor de Tuist que requerirán coordinación con usuarios autoalojados; no deberías esperar que lo usemos y, si fuera necesario, ten la seguridad de que trabajaremos contigo para que la transición sea fluida.
 
-Consulta la página de <.localized_link href="/guides/server/self-host/release/channels">Canales de lanzamiento</.localized_link> para saber cómo se genera cada canal, cómo fijar uno en tu despliegue y la estrategia recomendada para mantener la producción en una línea estable de movimientos lentos mientras un entorno de staging prueba el próximo lanzamiento.
+Consulta la página de <.localized_link href="/guides/server/self-host/release/channels">Canales de lanzamiento</.localized_link> para saber cómo se genera cada canal, cómo fijar uno en tu despliegue y la estrategia recomendada para mantener la producción en una línea estable de cambios lentos mientras un entorno de staging prueba el próximo lanzamiento.
 
-## Actualización de sesión del navegador {#browser-session-upgrade}
+## Actualización de sesiones del navegador {#browser-session-upgrade}
 
-Las sesiones del navegador caducan después de siete días sin solicitudes de página autenticadas o interacción con LiveView, y a más tardar 30 días después de la autenticación. "Recordarme" restaura la misma sesión del lado del servidor y no puede extender ninguno de los plazos. La actividad se registra una vez por minuto, por lo que una sesión inactiva puede caducar hasta 59 segundos antes. Los latidos de WebSocket, las reconexiones automáticas y las actualizaciones en segundo plano no renuevan la actividad. Estos plazos no cambian las credenciales de máquina ni la vida útil de los tokens de API.
+Las sesiones del navegador expiran tras siete días sin solicitudes de páginas autenticadas ni interacción con LiveView, y a más tardar 30 días después de la autenticación. «Recuérdame» restaura la misma sesión del lado del servidor y no puede ampliar ninguno de los plazos. La actividad se registra cada minuto, por lo que una sesión inactiva puede expirar hasta 59 segundos antes. Los latidos de WebSocket, las reconexiones automáticas y las actualizaciones en segundo plano no renuevan la actividad. Estos plazos no modifican las credenciales de máquina ni la vida útil de los tokens de API.
 
-Ejecuta la migración aditiva `users_tokens` antes de iniciar los procesos de aplicación actualizados. Las filas existentes no se rellenan retroactivamente: su tiempo de creación limita la inactividad y la expiración absoluta, y deben autenticarse de nuevo antes de acceder a una organización con SSO obligatorio. El proveedor de la callback, el emisor o Workspace verificado, y la conexión SSO personalizada se almacenan en el servidor y se comparan con la configuración actual de la organización. Una cuenta vinculada no es prueba de autenticación de sesión.
+Ejecuta la migración aditiva `users_tokens` antes de iniciar los procesos de aplicación actualizados. Las filas existentes no se rellenan retroactivamente: su hora de creación acota la inactividad y la expiración absoluta, y deben autenticarse de nuevo antes de acceder a una organización con SSO obligatorio. El proveedor del callback, el emisor o Workspace verificado y la conexión SSO personalizada se almacenan en el servidor y se comparan con la configuración actual de la organización. Una cuenta vinculada no es prueba de autenticación de sesión.
 
-Actualiza cada réplica web que sirva tráfico antes de considerar la política como aplicada. Los binarios antiguos aún pueden aceptar sus antiguas sesiones de 60 días y no aplican el nuevo límite de LiveView; las versiones mixtas son compatibles en esquema pero no equivalentes en política. Espera que los usuarios inicien sesión de nuevo. El rollback a binarios anteriores debilita estos controles; si es necesario hacer rollback del esquema, detén todos los binarios que leen los nuevos campos antes de eliminarlos. Nunca extiendas sesiones antiguas ni infieras procedencia para evitar la reautenticación.
+Actualiza todas las réplicas web que sirven tráfico antes de considerar la política como aplicada. Los binarios antiguos aún pueden aceptar sus antiguas sesiones de 60 días y no aplican el nuevo límite de LiveView; las versiones mixtas son compatibles en esquema pero no equivalentes en política. Espera que los usuarios vuelvan a iniciar sesión. Revertir a binarios anteriores debilita estos controles; si es necesario revertir el esquema, detén todos los binarios que lean los nuevos campos antes de eliminarlos. Nunca amplíes sesiones antiguas ni infieras procedencia para evitar la reautenticación.
 
 ## MFA con app autenticadora {#authenticator-app-mfa}
 
-El servidor incluye autenticación nativa de dos factores con app autenticadora (TOTP). El dashboard aún no enlaza con ella; un lanzamiento posterior añadirá el punto de entrada en la configuración. No requiere bandera de activación, dependencia de servicio alojado ni credenciales de proveedor de identidad: solo PostgreSQL, la migración siguiente, un autenticador TOTP y una clave de cifrado estable compartida por todas las réplicas que sirven tráfico (`TUIST_SECRET_KEY_ENCRYPTION`, con fallback a `TUIST_SECRET_KEY_BASE`). Mantén sincronizados los relojes del servidor y del autenticador. La verificación MFA y su presupuesto compartido de cinco códigos fallidos cada cinco minutos utilizan bloqueos de fila de PostgreSQL, no Redis.
+El servidor incluye autenticación nativa de dos factores con app autenticadora (TOTP). El panel aún no enlaza a ella; un lanzamiento posterior añadirá el punto de entrada de configuración. No requiere bandera de activación, dependencia de servicio alojado ni credenciales de proveedor de identidad: solo PostgreSQL, la migración indicada más abajo, un autenticador TOTP y una clave de cifrado estable compartida por todas las réplicas que sirven tráfico (`TUIST_SECRET_KEY_ENCRYPTION`, con fallback a `TUIST_SECRET_KEY_BASE`). Mantén sincronizados los relojes del servidor y del autenticador. La verificación MFA y su presupuesto compartido de cinco códigos fallidos cada cinco minutos usan bloqueos de fila de PostgreSQL, no Redis.
 
-La configuración requiere un inicio de sesión en los últimos cinco minutos, introducir la clave de configuración en una app autenticadora TOTP y confirmar un código generado por la app. Se muestran diez códigos de recuperación de un solo uso una única vez; guárdalos de forma segura. Deshabilitar el factor también requiere un inicio de sesión reciente y un autenticador o código de recuperación sin usar. Los cambios de factor revocan otras sesiones del navegador. Los restablecimientos de contraseña no eliminan el MFA, y esta implementación no proporciona un bypass solo por correo electrónico o administrativo para un factor perdido.
+La configuración requiere un inicio de sesión en los últimos cinco minutos, introducir la clave de configuración en una app autenticadora TOTP y confirmar un código generado por la app. Se muestran una sola vez diez códigos de recuperación de un solo uso; guárdalos de forma segura. Deshabilitar el factor también requiere un inicio de sesión reciente y un autenticador o código de recuperación sin usar. Los cambios de factor revocan otras sesiones del navegador. Los restablecimientos de contraseña no eliminan el MFA y esta implementación no ofrece un bypass solo por correo electrónico ni administrativo para un factor perdido.
 
-Una vez inscrito, cada nuevo inicio de sesión en el navegador, incluido el inicio de sesión federado, requiere el segundo factor nativo antes de recibir una sesión o completar la autorización de CLI/dispositivo basada en navegador. El inicio de sesión directo con contraseña y Apple API rechaza a los usuarios inscritos y les indica que usen el inicio de sesión en el navegador. Las nuevas reclamaciones de agente de correo para usuarios inscritos requieren una sesión de navegador verificada por MFA; las reclamaciones heredadas solo de buzón se rechazan. Los tokens de API existentes, las credenciales de máquina, las identidades de carga de trabajo y sus reglas de renovación no cambian. Esto es soporte opcional por usuario, no un mandato de MFA para toda la organización, ni la verificación de la propia política MFA de un proveedor de identidad. El SSO de la organización aún requiere el proveedor/emisor configurado correctamente además del factor nativo.
+Una vez inscrito, cada nuevo inicio de sesión desde el navegador —incluido el inicio de sesión federado— requiere el segundo factor nativo antes de recibir una sesión o completar la autorización de CLI/dispositivo basada en navegador. El inicio directo con contraseña y mediante la API de Apple rechaza a los usuarios inscritos y les indica que usen el inicio de sesión desde el navegador. Las nuevas reclamaciones de agente de correo para usuarios inscritos requieren una sesión de navegador verificada por MFA; las reclamaciones heredadas solo de buzón se rechazan. Los tokens de API existentes, las credenciales de máquina, las identidades de carga de trabajo y sus reglas de renovación permanecen sin cambios. Esto es soporte opcional por usuario, no un mandato de MFA para toda la organización, ni una verificación de la política MFA propia de un proveedor de identidad. El SSO de la organización sigue requiriendo el proveedor/emisor configurado correcto además del factor nativo.
 
-No se requiere correo electrónico para la inscripción, el inicio de sesión, el uso de códigos de recuperación o la deshabilitación del MFA. Las notificaciones de cambio de factor son de mejor esfuerzo; un fallo en la entrega no deshace un cambio completado.
+No se requiere correo electrónico para la inscripción, el inicio de sesión, el uso de códigos de recuperación o la desactivación del MFA. Las notificaciones de cambio de factor son de mejor esfuerzo; un fallo de entrega no deshace un cambio completado.
 
-Ejecuta la migración aditiva separada `user_mfa`/`users_tokens.mfa_verified_at` antes del nuevo binario. El secreto TOTP utiliza la clave de cifrado Vault existente; conserva esa clave y sus copias de seguridad. Completa la actualización de **todas las réplicas que sirven autenticación antes de permitir la inscripción en MFA**. Los binarios anteriores pueden omitir el MFA nativo, por lo que no son un objetivo de rollback compatible con la política después de la inscripción. Eliminar el esquema de MFA destruye el estado de inscripción y recuperación; detén primero los lectores y conserva una copia de seguridad cifrada. La compatibilidad de esquemas de versiones mixtas no es prueba de que se apliquen los controles de MFA o de sesión del navegador.
+Ejecuta la migración aditiva por separado `user_mfa`/`users_tokens.mfa_verified_at` antes del nuevo binario. El secreto TOTP utiliza la clave de cifrado de Vault existente; conserva esa clave y sus copias de seguridad. Completa la actualización de **todas las réplicas que sirven autenticación antes de permitir la inscripción en MFA**. Los binarios anteriores pueden omitir el MFA nativo, por lo que no son un objetivo de rollback compatible con la política después de la inscripción. Eliminar el esquema de MFA destruye el estado de inscripción y recuperación; detén primero los lectores y conserva una copia de seguridad cifrada. La compatibilidad de esquemas entre versiones mixtas no es prueba de que se apliquen los controles de MFA o de sesión del navegador.
 
 ## Límite de actualización y rollback de OAuth {#oauth-upgrade-and-rollback-boundary}
 
-La eliminación de la caché de entidades OAuth requiere una actualización por etapas para las instalaciones existentes. Antes de desplegar una versión que detiene las invalidaciones de la caché OAuth, despliega primero la versión de compatibilidad de lectura autoritativa de [#14040](https://github.com/tuist/tuist/pull/14040) en **cada lector y escritor de OAuth**. Esta etapa de compatibilidad aparece por primera vez en la línea de lanzamiento **1.355**: `ghcr.io/tuist/tuist:1.355.0-rc.1` la contiene; los despliegues en producción deben usar una versión estable `1.355.x` una vez promovida. Las instalaciones en 1.354 o anteriores deben completar esta etapa antes de actualizar a una versión posterior que contenga la eliminación. Mantén la línea 1.355 solo para compatibilidad: no hagas backport de la eliminación de invalidaciones a ella.
+La eliminación de la caché de entidades de OAuth requiere una actualización por etapas para las instalaciones existentes. Antes de desplegar una versión que detiene las invalidaciones de caché de OAuth, despliega primero la release de compatibilidad de lectura autoritativa de [#14040](https://github.com/tuist/tuist/pull/14040) en **cada lector y escritor de OAuth**. Esta etapa de compatibilidad aparece por primera vez en la línea de release **1.355**: `ghcr.io/tuist/tuist:1.355.0-rc.1` la contiene; los despliegues de producción deben usar una release estable `1.355.x` una vez promovida. Las instalaciones en 1.354 o anteriores deben completar esta etapa antes de actualizar a una release posterior que contenga la eliminación. Mantén la línea 1.355 solo para compatibilidad: no hagas backport de la eliminación de invalidaciones a ella.
 
-El commit de compatibilidad original también está disponible como `ghcr.io/tuist/tuist:sha-c8e54471a425`. Otra imagen es adecuada como etapa de compatibilidad solo si preserva las lecturas autoritativas **y mantiene las invalidaciones heredadas** mientras permanecen consumidores antiguos. Ejecuta las migraciones normales de base de datos de esa etapa antes de servir tráfico, incluido el índice de búsqueda de tokens de actualización.
+El commit de compatibilidad original también está disponible como `ghcr.io/tuist/tuist:sha-c8e54471a425`. Otra imagen es adecuada como etapa de compatibilidad solo si preserva las lecturas autoritativas **y mantiene las invalidaciones heredadas** mientras permanecen los consumidores antiguos. Ejecuta las migraciones de base de datos normales de esa etapa antes de servir tráfico, incluido el índice de búsqueda de tokens de actualización.
 
 Comprueba todas las réplicas web, workers en segundo plano, trabajos programados e imágenes de procesador fijadas por separado en cada entorno. Espera a que finalice el despliegue de compatibilidad y verifica que no queden binarios que lean la caché antes de eliminar las invalidaciones. No permitas que una etiqueta de imagen flotante omita esta etapa durante una actualización automatizada. Las instalaciones nuevas sin consumidores antiguos no necesitan un despliegue intermedio.
 
 > [!WARNING]
 > **Mantén un objetivo de rollback de lectura autoritativa**
 >
-> Después de eliminar las invalidaciones, un rollback rodante ordinario debe dirigirse a #14040 u otra versión de lectura autoritativa. Las entradas de caché OAuth retenidas pueden estar obsoletas incluso después de que todos los procesos sin invalidación se hayan detenido, y una réplica que lee la caché reiniciada puede importarlas de sus pares.
+> Después de eliminar las invalidaciones, un rolling rollback ordinario debe apuntar a #14040 u otra versión de lectura autoritativa. Las entradas de caché de OAuth retenidas pueden estar obsoletas incluso después de que todos los procesos sin invalidación se hayan detenido, y una réplica que lee la caché reiniciada puede importarlas de sus pares.
 >
-> Un rollback más profundo requiere detener y drenar **todos** los consumidores de OAuth sin invalidación, luego limpiar o reemplazar **cada** participante de la caché Boruta retenido antes de iniciar cualquier consumidor que lea la caché. Impide que los participantes retenidos se vuelvan a unir. Drenar solo el ingress o reiniciar solo las réplicas web es insuficiente; coordina esta recuperación con tu contacto de soporte de Tuist en lugar de limpiar cachés o hacer rollback de migraciones de base de datos automáticamente.
+> Un rollback más profundo requiere detener y drenar **todos** los consumidores de OAuth sin invalidación, luego limpiar o reemplazar **cada** participante de la caché Boruta retenido antes de iniciar cualquier consumidor que lea la caché. Evita que los participantes retenidos vuelvan a unirse. Drenar solo el ingress o reiniciar solo las réplicas web es insuficiente; coordina esta recuperación con tu contacto de soporte de Tuist en lugar de limpiar cachés o hacer rollback de migraciones de base de datos automáticamente.
 
-## Clustering de múltiples réplicas {#multi-replica-clustering}
+## Clústeres de múltiples réplicas {#multi-replica-clustering}
 
-Los despliegues web de múltiples réplicas compatibles requieren clustering de Erlang para notificaciones Phoenix PubSub y Oban PG entre réplicas, no como autoridad para la autenticación. El chart rechaza múltiples réplicas, incluido un autoscaler que pueda crecer más allá de una réplica, cuando `server.cluster.enabled` es falso. Los despliegues sin clustering aceptados anteriormente deben planificar esta actualización en lugar de omitir la protección. Completa la <.localized_link href="/guides/server/self-host/server#oauth-upgrade-and-rollback-boundary">secuencia de actualización de OAuth</.localized_link>, incluida la eliminación de invalidaciones, antes de cambiar la membresía.
+Los despliegues web de múltiples réplicas admitidos requieren clústeres de Erlang para las notificaciones de Phoenix PubSub y Oban PG entre réplicas, no como autoridad para la autenticación. El chart rechaza múltiples réplicas, incluido un autoscaler que pueda crecer más allá de una réplica, cuando `server.cluster.enabled` es falso. Los despliegues sin clúster aceptados anteriormente deben planificar esta actualización en lugar de omitir la protección. Completa la <.localized_link href="/guides/server/self-host/server#oauth-upgrade-and-rollback-boundary">secuencia de actualización de OAuth</.localized_link>, incluida la eliminación de invalidaciones, antes de cambiar la membresía.
 
 Crea un Secret privado de cookie en el namespace de release usando tu gestor de secretos, luego configura su nombre y clave:
 
@@ -80,13 +80,13 @@ server:
     cookieExistingSecretKey: release-cookie
 ```
 
-La cookie debe tener alta entropía y ser compartida por todas las réplicas web participantes. Nunca uses la cookie incrustada en una imagen publicada: poseer una cookie de distribución concede ejecución remota en sus nodos. El inicio de releases distribuidos ahora rechaza una `RELEASE_COOKIE` privada faltante o un puerto inválido, incluyendo `RELEASE_DISTRIBUTION=name` o `sname` configurados explícitamente sin descubrimiento DNS. Los despliegues sin chart también deben configurar `TUIST_CLUSTER_DNS_SERVICE`, `TUIST_CLUSTER_APP_NAME` y la IP del pod/nombre del nodo de forma consistente. El descubrimiento utiliza actualmente registros A IPv4.
+La cookie debe tener alta entropía y ser compartida por todas las réplicas web participantes. Nunca uses la cookie incrustada en una imagen publicada: la posesión de una cookie de distribución otorga ejecución remota en sus nodos. El inicio de releases distribuidas ahora rechaza una `RELEASE_COOKIE` privada faltante o un puerto inválido, incluyendo `RELEASE_DISTRIBUTION=name` configurado explícitamente o `sname` sin descubrimiento DNS. Los despliegues fuera del chart también deben configurar `TUIST_CLUSTER_DNS_SERVICE`, `TUIST_CLUSTER_APP_NAME` y la IP del pod/nombre del nodo de forma consistente. El descubrimiento actualmente usa registros A de IPv4.
 
-Con un `helm upgrade` conectado al servidor ordinario, dejar `cookieExistingSecret` vacío crea un Secret de cookie y reutiliza su valor actual en actualizaciones posteriores. `helm template` offline, Argo CD y otros renderizadores GitOps sin búsqueda de Secrets en vivo no pueden preservar ese valor generado; deben usar `cookieExistingSecret` respaldado por un Secret estable gestionado por separado. No cambies la clave de la cookie para rotar implícitamente un cluster en vivo. La rotación de cookies necesita una migración/reinicio coordinado de cada participante; actualizar solo un Secret no actualiza los procesos existentes.
+Con un `helm upgrade` conectado al servidor ordinario, dejar `cookieExistingSecret` vacío crea un Secret de cookie y reutiliza su valor actual en actualizaciones posteriores. `helm template` offline, Argo CD y otros renderizadores de GitOps sin búsqueda de Secrets en vivo no pueden preservar ese valor generado; deben usar `cookieExistingSecret` respaldado por un Secret estable gestionado por separado. No cambies la clave de la cookie para rotar implícitamente un clúster en vivo. La rotación de cookies necesita una migración/reinicio coordinado de cada participante; actualizar solo un Secret no actualiza los procesos existentes.
 
-El primer despliegue desde cookies integradas en la imagen forma islas de membresía antiguas/nuevas separadas hasta que todas las réplicas web usen el Secret privado. Planifica una ventana de migración para actualizaciones en tiempo real. Los despliegues rodantes posteriores forman clusters de versiones mixtas, así que califica PubSub, notificaciones de Oban y reemplazo de pares entre las versiones antiguas/nuevas reales. Estas notificaciones no son garantías de entrega duradera. Mantén una imagen de rollback de lectura autoritativa y conserva la misma cookie privada al hacer rollback a una versión compatible.
+El primer despliegue desde cookies incrustadas en la imagen forma islas de membresía antiguas/nuevas separadas hasta que todas las réplicas web usen el Secret privado. Planifica una ventana de migración para actualizaciones en tiempo real. Los despliegues rolling posteriores forman clústeres de versiones mixtas, así que califica PubSub, notificaciones de Oban y reemplazo de pares entre las versiones antiguas/nuevas reales. Estas notificaciones no son garantías de entrega duradera. Mantén una imagen de rollback de lectura autoritativa y conserva la misma cookie privada al hacer rollback a una versión compatible.
 
-Permite EPMD (TCP 4369) y el puerto de distribución configurado solo entre pares de servidor de confianza, nunca desde cargas de trabajo de inquilinos o la red pública. Verifica el aislamiento real de ingress/egress en tu entorno; renderizar una NetworkPolicy no prueba su aplicación ni la accesibilidad del backend. Un canary de dos réplicas bajo carga continua debe superar la unión, el reemplazo rodante y el fallo/recuperación antes de la promoción. DNS se usa para descubrir pares, no para desconectar nodos saludables ante una respuesta fallida o parcial transitoria; la pérdida real de nodos y la prevención de particiones OTP siguen aplicándose. libcluster puede registrar aún una operación "desconectada" exitosa para la callback de retención sin cerrar una conexión; establece la membresía real a partir de eventos de subida/bajada de nodos o `Node.list()`, no solo de esa línea de log.
+Permite EPMD (TCP 4369) y el puerto de distribución configurado solo entre pares de servidor de confianza, nunca desde cargas de trabajo de inquilinos o la red pública. Verifica el aislamiento real de ingress/egress en tu entorno; renderizar una NetworkPolicy no prueba la aplicación ni la alcanzabilidad del backend. Un canary de dos réplicas bajo carga continua debe pasar la unión, el reemplazo rolling y el fallo/recuperación antes de la promoción. DNS se usa para descubrir pares, no para desconectar nodos saludables ante una respuesta fallida o parcial transitoria; la pérdida real de nodos y la prevención de particiones OTP siguen aplicándose. libcluster aún puede registrar una operación "desconectada" exitosa para el callback de retención sin cerrar una conexión; establece la membresía real a partir de eventos de nodo arriba/abajo o `Node.list()`, no solo de esa línea de log.
 
 ## Despliegue continuo {#continuous-deployment}
 
@@ -115,7 +115,7 @@ jobs:
 <span id="network-trusted-report-publishing"></span>
 <span id="network-trusted-cache-access"></span>
 
-## Acceso de confianza de red {#network-trusted-access}
+## Acceso de red de confianza {#network-trusted-access}
 
 Las instalaciones autoalojadas pueden permitir a los desarrolladores en una red de confianza enviar análisis, usar la caché o ambas cosas sin iniciar sesión. El panel de control y la administración siguen requiriendo autenticación.
 
@@ -124,38 +124,38 @@ Habilita solo las capacidades que necesites:
 | Variable de entorno del servidor | Permite sin iniciar sesión |
 | --- | --- |
 | `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS=true` | Enviar análisis de compilación y tests |
-| `TUIST_NETWORK_TRUSTED_CACHE_ACCESS=true` | Leer y escribir resultados de compilación en caché |
+| `TUIST_NETWORK_TRUSTED_CACHE_ACCESS=true` | Leer y escribir resultados de compilación almacenados en caché |
 
-Ambas configuraciones están **desactivadas por defecto**, son independientes y se aplican a toda la instancia en todas las cuentas y proyectos, incluidos los privados. No están disponibles en Tuist alojado y no sustituyen la licencia de autoalojamiento.
+Ambas configuraciones están **desactivadas por defecto**, son independientes y se aplican a toda la instancia en todas las cuentas y proyectos, incluidos los proyectos privados. No están disponibles en Tuist alojado y no sustituyen la licencia de autoalojamiento.
 
-El nombre anterior `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING` permanece como alternativa de compatibilidad cuando `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS` no está definido.
+El nombre anterior `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING` permanece como alternativa de compatibilidad cuando `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS` no está establecido.
 
 > [!WARNING]
-> Habilita estas configuraciones únicamente detrás de un límite impuesto por la red de la oficina o una VPN. Cualquier persona que pueda alcanzar un endpoint habilitado puede enviar informes o, si el acceso a la caché está habilitado, leer y sobrescribir resultados almacenados en caché. Esto permite telemetría falsificada, envenenamiento de la caché y agotamiento de la capacidad. Las respuestas de los informes también pueden revelar identificadores de proyectos privados y sistemas de compilación. Tuist no verifica la pertenencia a la VPN ni confía en las cabeceras IP reenviadas como prueba de pertenencia.
+> Habilita estas configuraciones únicamente detrás de un límite impuesto de red de oficina o VPN. Cualquier persona que pueda alcanzar un endpoint habilitado puede enviar informes o, con el acceso a caché habilitado, leer y sobrescribir resultados almacenados en caché. Esto permite telemetría falsificada, envenenamiento de caché y agotamiento de capacidad. Las respuestas de los informes también pueden revelar identificadores de proyectos privados y sistemas de compilación. Tuist no verifica la pertenencia a la VPN ni confía en las cabeceras IP reenviadas como prueba de pertenencia.
 
 ### Configurar la instancia {#network-trusted-instance-configuration}
 
 1. Restringe el servidor de Tuist, cada listener HTTP/gRPC de Kura y cualquier entrada Bazel BES a tu red de confianza mediante un firewall o una entrada privada.
-2. Actualiza cada réplica del servidor y de Kura antes de actualizar los clientes. Mantén habilitada la autenticación de Kura con `KURA_AUTH_TUIST_URL` y sus credenciales del plano de control; deshabilitarla omite estas restricciones. Configura tu endpoint de caché usando la <.localized_link href="/guides/features/cache/self-hosting">guía de caché autoalojada</.localized_link>.
-3. Establece las variables deseadas anteriores en cada réplica relevante del servidor de Tuist y luego reinícialas o vuelvelas a desplegar. Solo el valor exacto `true` habilita una configuración. No hay ningún interruptor en el panel de control ni ninguna flag separada de Kura.
+2. Actualiza cada réplica del servidor y de Kura antes de actualizar los clientes. Mantén la autenticación de Kura habilitada con `KURA_AUTH_TUIST_URL` y sus credenciales del plano de control; deshabilitarla omite estas restricciones. Configura tu endpoint de caché usando la <.localized_link href="/guides/features/cache/self-hosting">guía de caché autoalojada</.localized_link>.
+3. Establece las variables deseadas anteriores en cada réplica relevante del servidor de Tuist y luego reinícialas o vuelve a desplegarlas. Solo el valor exacto `true` habilita una configuración. No hay ningún interruptor en el panel de control ni ninguna bandera separada de Kura.
 
 ### Configurar los clientes {#network-trusted-client-configuration}
 
-Configura la URL final del servidor autoalojado y el proyecto en cada cliente compatible. Los clientes descubren automáticamente qué capacidades están habilitadas cuando faltan las credenciales; no es necesaria ninguna opción explícita del cliente. El descubrimiento no sigue redirecciones. Las credenciales existentes siguen en uso, y las credenciales inválidas o con fallo de actualización provocan un error en lugar de recurrir al acceso anónimo. Vuelve a iniciar sesión o cierra sesión explícitamente para recuperarte.
+Configura la URL final del servidor autoalojado y el proyecto en cada cliente compatible. Los clientes descubren automáticamente qué capacidades están habilitadas cuando faltan las credenciales; no es necesario optar por ello en el cliente. El descubrimiento no sigue redirecciones. Las credenciales existentes siguen en uso y las credenciales inválidas o con fallo de actualización provocan un error en lugar de recurrir al acceso anónimo. Vuelve a iniciar sesión o cierra sesión explícitamente para recuperarlo.
 
-Antes de habilitar el acceso a los análisis, actualiza todas las herramientas que comparten credenciales a versiones que conserven credenciales corruptas o rechazadas, rechacen directorios de credenciales ilegibles y omitan los orígenes Git de los informes sin firmar. Las herramientas antiguas pueden eliminar credenciales y permitir involuntariamente el recurso al acceso anónimo; una actualización solo del servidor no puede solucionar esto. Si al servidor le falta soporte de descubrimiento o se hace rollback a una versión anterior, los clientes deben autenticarse. La antigua configuración de cliente `TUIST_NETWORK_TRUSTED_PUBLISHING` ya no se aplica.
+Antes de habilitar el acceso a los análisis, actualiza todas las herramientas que comparten credenciales a versiones que preserven credenciales corruptas o rechazadas, rechacen directorios de credenciales ilegibles y omitan los orígenes de Git de los informes sin firmar. Las herramientas antiguas pueden eliminar credenciales y permitir involuntariamente el recurso al acceso anónimo; una actualización solo del servidor no puede solucionar esto. Si al servidor le falta soporte de descubrimiento o se hace rollback a una versión anterior, los clientes deben autenticarse. La antigua configuración de cliente `TUIST_NETWORK_TRUSTED_PUBLISHING` ya no se aplica.
 
-- **Análisis:** Envía solo informes completados de Xcode, Gradle, Elixir/Mix y Bazel, sin acceso a archivos, adjuntos, cobertura, planificación de shards ni a informes existentes. Las afirmaciones de actor no están verificadas; la telemetría sin firma no impulsa evidencia de test de confianza ni automatización. Consulta las guías de <.localized_link href="/guides/features/build-insights/xcode#network-trusted-publishing">Xcode</.localized_link>, <.localized_link href="/guides/features/build-insights/gradle#network-trusted-publishing">Gradle</.localized_link> y <.localized_link href="/guides/features/build-insights/elixir#network-trusted-publishing">Elixir</.localized_link> para conocer la configuración del cliente y los detalles de privacidad.
-- **Caché:** Compatible con caché de compilación/módulos de CLI, caché de Bazel y caché de tareas de Gradle. Las purgas de caché y las descargas de Remote Asset siguen requiriendo credenciales. Los clientes sin soporte deben seguir autenticándose.
+- **Análisis:** Envía solo informes completados de Xcode, Gradle, Elixir/Mix y Bazel, sin acceso a archivos, adjuntos, cobertura, planificación de shards o informes existentes. Las reclamaciones de actor no están verificadas; la telemetría sin firmar no impulsa evidencia de tests de confianza ni automatización. Consulta las guías de <.localized_link href="/guides/features/build-insights/xcode#network-trusted-publishing">Xcode</.localized_link>, <.localized_link href="/guides/features/build-insights/gradle#network-trusted-publishing">Gradle</.localized_link> y <.localized_link href="/guides/features/build-insights/elixir#network-trusted-publishing">Elixir</.localized_link> para obtener detalles sobre la configuración del cliente y la privacidad.
+- **Caché:** Soporta caché de compilación/módulos de CLI, caché de Bazel y caché de tareas de Gradle. Las purgas de caché y las descargas de Remote Asset siguen requiriendo credenciales. Los clientes sin soporte deben seguir autenticándose.
 - **Bazel:** Los informes requieren un `TUIST_BAZEL_BES_BACKEND` explícito y un Kura compatible. Las opciones de caché e informes se habilitan de forma independiente. Vuelve a ejecutar `tuist bazel setup` después de cambiar las credenciales o cualquiera de las configuraciones; vuelve a ejecutar `tuist cache config` para cambios en la configuración de la caché de compilación.
 
 Las solicitudes de informes están limitadas a 8 MB, 60 solicitudes por minuto y 10.000 por día por proyecto. Configura Valkey compartido para cuotas en todo el despliegue con múltiples réplicas; de lo contrario, los límites son por proceso. Si un backend de cuota compartida configurado no está disponible, se rechazan los informes sin firmar. Añade también límites de conexión de entrada, cuerpo y tasa.
 
-### Desactivar el acceso de confianza de red {#disable-network-trusted-publishing}
+### Deshabilitar el acceso de red de confianza {#disable-network-trusted-publishing}
 
-Establece la variable relevante en `false` y luego reinicia **cada réplica del servidor relevante**. Las réplicas antiguas pueden seguir aceptando solicitudes sin credenciales hasta que sean reemplazadas. El acceso a la caché se detiene para nuevas solicitudes dentro de los 60 segundos posteriores al cambio de la última réplica; las transferencias en curso no se cancelan. Bloquea el tráfico en la entrada primero si se requiere una revocación inmediata. Los informes existentes conservan su visibilidad y retención habituales, y los clientes autenticados siguen funcionando.
+Establece la variable relevante en `false` y luego reinicia **cada réplica de servidor relevante**. Las réplicas antiguas pueden seguir aceptando solicitudes sin credenciales hasta que sean reemplazadas. El acceso a la caché se detiene para nuevas solicitudes dentro de los 60 segundos posteriores al cambio de la última réplica; las transferencias en curso no se cancelan. Bloquea el tráfico en la entrada primero si se requiere una revocación inmediata. Los informes existentes conservan su visibilidad y retención habituales, y los clientes autenticados siguen funcionando.
 
-## Requisitos de runtime {#runtime-requirements}
+## Requisitos de ejecución {#runtime-requirements}
 
 Esta sección describe los requisitos para alojar el servidor de Tuist en tu infraestructura.
 
@@ -172,42 +172,42 @@ El servidor de Tuist ha sido probado y es compatible con las siguientes versione
 
 Distribuimos el servidor como una imagen de [Docker](https://www.docker.com/) a través del [Registro de Contenedores de GitHub](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
-Para ejecutarlo, tu infraestructura debe soportar la ejecución de imágenes Docker. Ten en cuenta que la mayoría de los proveedores de infraestructura lo admiten porque se ha convertido en el contenedor estándar para distribuir y ejecutar software en entornos de producción.
+Para ejecutarlo, tu infraestructura debe soportar la ejecución de imágenes de Docker. Ten en cuenta que la mayoría de los proveedores de infraestructura lo soportan porque se ha convertido en el contenedor estándar para distribuir y ejecutar software en entornos de producción.
 
 ### Base de datos Postgres {#postgres-database}
 
-Además de ejecutar las imágenes Docker, necesitarás una [base de datos Postgres](https://www.postgresql.org/) para almacenar datos relacionales. La mayoría de los proveedores de infraestructura incluyen bases de datos Postgres en su oferta (por ejemplo, [AWS](https://aws.amazon.com/rds/postgresql/) y [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
+Además de ejecutar las imágenes de Docker, necesitarás una [base de datos Postgres](https://www.postgresql.org/) para almacenar datos relacionales. La mayoría de los proveedores de infraestructura incluyen bases de datos Postgres en su oferta (por ejemplo, [AWS](https://aws.amazon.com/rds/postgresql/) y [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
 
 > [!NOTE]
 > **Migraciones**
 >
-> El punto de entrada de la imagen Docker ejecuta automáticamente cualquier migración de esquema pendiente antes de iniciar el servicio.
+> El punto de entrada de la imagen de Docker ejecuta automáticamente cualquier migración de esquema pendiente antes de iniciar el servicio.
 
 
 ### Base de datos ClickHouse {#clickhouse-database}
 
-Tuist utiliza [ClickHouse](https://clickhouse.com/) para almacenar y consultar grandes cantidades de datos analíticos. ClickHouse es **necesario** para funcionalidades como los análisis de compilaciones. Puedes elegir si alojar ClickHouse tú mismo o usar su servicio alojado.
+Tuist utiliza [ClickHouse](https://clickhouse.com/) para almacenar y consultar grandes cantidades de datos analíticos. ClickHouse es **necesario** para funcionalidades como los análisis de compilaciones. Puedes elegir si alojar ClickHouse tú mismo o utilizar su servicio alojado.
 
 > [!NOTE]
 > **Migraciones**
 >
-> El punto de entrada de la imagen Docker ejecuta automáticamente cualquier migración de esquema de ClickHouse pendiente antes de iniciar el servicio.
+> El punto de entrada de la imagen de Docker ejecuta automáticamente cualquier migración de esquema de ClickHouse pendiente antes de iniciar el servicio.
 
-Las configuraciones embebidas de Docker Compose y Helm incluidas reducen el nivel de registro de texto de ClickHouse desde el valor predeterminado `trace` de la imagen hasta `information`, que es de donde proviene la mayor parte del volumen de `system.text_log`. Ambas también pueden limitar las tablas de registros operativos `system.*` propias de ClickHouse, que de otro modo son ilimitadas, pero esto está desactivado por defecto; consulta más abajo. Los despliegues externos de ClickHouse deben configurar estos registros operativos directamente en su servicio de ClickHouse.
+Las configuraciones integradas de Docker Compose y Helm para ClickHouse reducen el nivel de registro de texto de ClickHouse desde el valor predeterminado `trace` de la imagen hasta `information`, que es de donde proviene la mayor parte del volumen de `system.text_log`. Ambas también pueden limitar las tablas de registros operativos `system.*` propias de ClickHouse, que de otro modo serían ilimitadas, pero esto está desactivado por defecto; consulta más abajo. Los despliegues externos de ClickHouse deben configurar estos registros operativos directamente en su servicio de ClickHouse.
 
 #### Topología de replicación de ClickHouse {#clickhouse-replication-topology}
 
-ClickHouse con múltiples réplicas detrás de Tuist solo se admite en ClickHouse Cloud. El ClickHouse autogestionado es de una sola réplica.
+ClickHouse con múltiples réplicas detrás de Tuist solo se admite en ClickHouse Cloud. ClickHouse autogestionado es de una sola réplica.
 
-Las migraciones de ingesta generan un motor `MergeTree` simple. En Cloud, esto se convierte transparentemente en un `SharedMergeTree`, por lo que las escrituras se almacenan en almacenamiento de objetos compartido y funciona cualquier número de réplicas. En ClickHouse autogestionado, `MergeTree` escribe en el disco local de una sola réplica; una configuración con múltiples réplicas dividirá la ingesta silenciosamente entre las réplicas o rechazará la creación con `UNKNOWN_STORAGE: Only tables with a Replicated engine or tables which do not store data on disk are allowed in a Replicated database.` dependiendo de cómo esté configurado `database_replicated_allow_only_replicated_engine` para el usuario de conexión.
+Las migraciones de ingesta emiten un motor `MergeTree` simple. En Cloud, esto se convierte transparentemente en un `SharedMergeTree`, por lo que las escrituras se almacenan en almacenamiento de objetos compartido y funciona cualquier número de réplicas. En ClickHouse autogestionado, `MergeTree` escribe en el disco local de una sola réplica; una configuración de múltiples réplicas dividirá la ingesta silenciosamente entre las réplicas o rechazará el CREATE con `UNKNOWN_STORAGE: Only tables with a Replicated engine or tables which do not store data on disk are allowed in a Replicated database.` dependiendo de cómo esté configurado `database_replicated_allow_only_replicated_engine` para el usuario de conexión.
 
-Ejecuta un único shard con una réplica en ClickHouse autogestionado y realiza copias de seguridad periódicas del directorio de datos de ClickHouse. No hay una segunda réplica a la que recurrir si se pierde el nodo.
+Ejecuta un shard con una réplica en ClickHouse autogestionado y realiza copias de seguridad regulares del directorio de datos de ClickHouse. No hay una segunda réplica a la que recurrir si se pierde el nodo.
 
 #### Limitar la retención de registros operativos {#capping-operational-log-retention}
 
 La retención se puede aplicar a `system.text_log`, `system.query_log`, `system.query_thread_log`, `system.query_views_log`, `system.trace_log`, `system.metric_log`, `system.asynchronous_metric_log` y `system.part_log`.
 
-Activarlo es un paso único e irreversible en una instancia que ya tiene datos, por lo que ninguno de los paquetes lo hace por ti. Cualquier ventana de retención hace que esas definiciones de tabla dejen de coincidir con su configuración, por lo que ClickHouse renombra cada una y crea una tabla nueva, como se describe en [tablas de registros sustituidas](#superseded-log-tables). La generación que queda atrás contiene todo lo acumulado hasta ese momento y no tiene su propia retención, por lo que, a menos que la recuperes en el mismo paso, permanecerá en el disco permanentemente y la nueva ventana solo limitará las filas escritas a partir de entonces. Activa ambas opciones juntas:
+Activarlo es un paso único e irreversible en una instancia que ya tiene datos, por lo que ninguno de los paquetes lo hace por ti. Cualquier ventana de retención hace que esas definiciones de tabla dejen de coincidir con su configuración, por lo que ClickHouse renombra cada una y crea una tabla nueva, como se describe en [tablas de registros sustituidas](#superseded-log-tables). La generación que queda atrás contiene todo lo acumulado hasta el momento y no tiene su propia retención, por lo que, a menos que la recuperes en el mismo paso, permanecerá en el disco permanentemente y la nueva ventana solo limitará las filas escritas a partir de entonces. Activa ambas juntas:
 
 ```yaml
 clickhouse:
@@ -217,9 +217,9 @@ clickhouse:
       supersededTables: delete
 ```
 
-Ese único `helm upgrade` es autosuficiente, porque cambiar `ttlDays` de vacío a establecido añade el montaje drop-in y reinicia el pod de ClickHouse: se reinicia, sustituye las tablas y el Job posterior a la actualización las elimina después. Despliega con `helm upgrade --wait` para que el pod se reinicie antes de que se ejecute el Job; de lo contrario, las generaciones aparecen después de que haya comprobado, y el siguiente `helm upgrade` las recuperará en su lugar.
+Ese único `helm upgrade` es autosuficiente, porque cambiar `ttlDays` de vacío a establecido añade el montaje drop-in y reinicia el pod de ClickHouse: se reinicia, sustituye las tablas y el Job posterior a la actualización las elimina luego. Despliega con `helm upgrade --wait` para que el pod se reinicie antes de que se ejecute el Job; de lo contrario, las generaciones aparecerán después de que haya buscado, y la siguiente `helm upgrade` las recuperará en su lugar.
 
-Con Docker Compose, descomenta el volumen `clickhouse-log-ttl.xml` en el servicio `clickhouse` de `docker-compose.yml` y establece ambas variables en `.env`:
+Con Docker Compose, descomenta el volumen `clickhouse-log-ttl.xml` en el servicio `clickhouse` en `docker-compose.yml` y establece ambas variables en `.env`:
 
 ```bash
 CLICKHOUSE_SYSTEM_LOG_TTL_DAYS=14
@@ -230,9 +230,9 @@ Una vez recuperado el espacio, puedes volver a establecer `supersededTables`/`CL
 
 #### Tablas de registros sustituidas {#superseded-log-tables}
 
-ClickHouse comprueba al inicio si cada tabla de registros del sistema sigue coincidiendo con su configuración. Cuando no coincide, renombra la tabla existente a `system.<name>_0`, luego a `_1`, `_2` y así sucesivamente, y crea una nueva. Esto ocurre cuando cambias la ventana de retención y en cualquier actualización de ClickHouse que modifique el esquema de un registro del sistema.
+ClickHouse comprueba al inicio si cada tabla de registro del sistema sigue coincidiendo con su configuración. Cuando no coincide, renombra la tabla existente a `system.<name>_0`, luego a `_1`, `_2`, y así sucesivamente, y crea una nueva. Esto ocurre cuando cambias la ventana de retención y en cualquier actualización de ClickHouse que cambie el esquema de un registro del sistema.
 
-Renombrar una tabla no copia sus datos, por lo que no consume espacio adicional en disco. Lo que ocurre con la tabla sustituida después depende de la tabla de origen, porque conserva la retención que tenía la tabla activa en el momento de ser sustituida. La primera vez que activas la retención, la tabla que se va a sustituir no tiene ninguna, por lo que conserva todo el historial acumulado hasta ese momento indefinidamente. Un cambio posterior en la ventana sustituye una tabla que ya tiene un TTL, por lo que esas expiran por sí solas y dejan una tabla vacía. ClickHouse nunca elimina las tablas en sí, por lo que en una instancia de larga duración se acumulan de todos modos.
+Renombrar una tabla no copia sus datos, por lo que no consume disco adicional. Lo que ocurre con la tabla sustituida después depende de la tabla de la que provino, porque mantiene la retención que tenía la tabla activa en el momento en que fue sustituida. La primera vez que activas la retención, la tabla que se está sustituyendo no tiene ninguna, por lo que conserva todo el historial acumulado hasta el momento indefinidamente. Un cambio posterior en la ventana sustituye a una tabla que ya tiene un TTL, por lo que estas expiran por sí solas y dejan una tabla vacía. ClickHouse nunca elimina las tablas en sí, por lo que en una instancia de larga duración se acumulan de todas formas.
 
 Las tablas sustituidas se conservan por defecto, para que una actualización nunca descarte el historial operativo por sí misma. Establece la política en `delete` para eliminarlas en su lugar, lo cual ocurre en `docker compose up` y en cada `helm upgrade`:
 
@@ -249,7 +249,7 @@ clickhouse:
       supersededTables: delete
 ```
 
-Eliminar una tabla sustituida recupera su espacio en disco. La tabla activa nunca se modifica, ni tampoco las filas escritas desde que fue sustituida.
+Eliminar una tabla sustituida recupera su espacio en disco. La tabla activa nunca se toca, ni tampoco las filas escritas desde que fue sustituida.
 
 Para recuperar el espacio una vez sin cambiar la política, elimina las tablas manualmente:
 
@@ -258,7 +258,7 @@ SELECT name FROM system.tables WHERE database = 'system' AND match(name, '_log_[
 DROP TABLE IF EXISTS system.text_log_0 SYNC;
 ```
 
-La base de datos `system` utiliza el motor `Atomic`, que aplaza un `DROP TABLE` simple mediante `database_atomic_delay_before_drop_table_sec` (ocho minutos por defecto). `SYNC` elimina los datos inmediatamente, que es lo que deseas cuando las eliminas porque el disco está lleno.
+La base de datos `system` utiliza el motor `Atomic`, que aplaza un `DROP TABLE` simple mediante `database_atomic_delay_before_drop_table_sec` (ocho minutos por defecto). `SYNC` elimina los datos inmediatamente, que es lo que deseas cuando estás eliminando estas porque el disco está lleno.
 
 
 ### Almacenamiento {#storage}
@@ -268,7 +268,7 @@ También necesitarás una solución para almacenar archivos (por ejemplo, binari
 > [!TIP]
 > **Caché optimizada**
 >
-> Si tu objetivo principal es reducir la latencia de la caché, es posible que no necesites alojar todo el servidor tú mismo. Puedes desplegar nodos Kura autoalojados cerca de tu red de CI o de desarrolladores y conectarlos al servidor de Tuist alojado o a tu servidor autoalojado.
+> Si tu objetivo es principalmente reducir la latencia de la caché, es posible que no necesites alojar todo el servidor tú mismo. Puedes desplegar nodos Kura autoalojados cerca de tu red de CI o de desarrolladores y conectarlos al servidor de Tuist alojado o a tu servidor autoalojado.
 >
 > Consulta la <.localized_link href="/guides/cache/self-host">guía de caché autoalojada</.localized_link>.
 
@@ -279,11 +279,11 @@ Para usar nodos Kura autoalojados con un servidor de Tuist autoalojado:
 
 1. Configura `KURA_CONTROL_PLANE_CLIENT_ID` y `KURA_CONTROL_PLANE_CLIENT_SECRET` en el servidor de Tuist. El ID de cliente **debe ser un UUID**. Genera el UUID y un secreto aleatorio usando los comandos de la <.localized_link href="/guides/cache/self-host#control-plane-client">guía de caché autoalojada</.localized_link> y guárdalos en los secretos de tu despliegue.
 2. Despliega los nodos Kura siguiendo la <.localized_link href="/guides/cache/self-host">guía de caché autoalojada</.localized_link>, utilizando la misma credencial del plano de control.
-3. Configura cada nodo Kura con `KURA_REGISTRATION_URL` y `KURA_ADVERTISED_HTTP_URL`. Los latidos de registro indican al servidor qué extremos de Kura listos y orientados al cliente puede anunciar a la CLI.
+3. Configura cada nodo Kura con `KURA_REGISTRATION_URL` y `KURA_ADVERTISED_HTTP_URL`. Los latidos de registro indican al servidor qué puntos finales de Kura listos y orientados al cliente puede anunciar a la CLI.
 
 ## Configuración {#configuration}
 
-La configuración del servicio se realiza en tiempo de ejecución mediante variables de entorno. Dada la naturaleza sensible de estas variables, recomendamos cifrarlas y almacenarlas en soluciones seguras de gestión de contraseñas. Ten la seguridad de que Tuist maneja estas variables con sumo cuidado, garantizando que nunca se muestren en los registros.
+La configuración del servicio se realiza en tiempo de ejecución mediante variables de entorno. Dada la naturaleza sensible de estas variables, recomendamos cifrarlas y almacenarlas en soluciones seguras de gestión de contraseñas. Ten la seguridad de que Tuist maneja estas variables con sumo cuidado, asegurando que nunca se muestren en los registros.
 
 > [!NOTE]
 > **Comprobaciones de inicio**
@@ -293,7 +293,7 @@ La configuración del servicio se realiza en tiempo de ejecución mediante varia
 
 ### Configuración de la licencia {#license-configuration}
 
-Como usuario on-premise, recibirás una licencia que deberás exponer como variable de entorno. La licencia se utiliza para validar el despliegue y garantizar que el servicio funciona dentro de los términos del acuerdo.
+Como usuario on-premise, recibirás una licencia que deberás exponer como variable de entorno. La licencia se utiliza para validar el despliegue y garantizar que el servicio se ejecuta dentro de los términos del acuerdo.
 
 | Variable de entorno | Descripción | Requerida | Por defecto | Ejemplo |
 | --- | --- | --- | --- | --- |
@@ -310,30 +310,36 @@ Como usuario on-premise, recibirás una licencia que deberás exponer como varia
 | Variable de entorno | Descripción | Requerida | Por defecto | Ejemplo |
 | --- | --- | --- | --- | --- |
 | `TUIST_APP_URL` | La URL base para acceder a la instancia desde Internet | Sí | | https://tuist.dev |
-| `TUIST_SECRET_KEY_BASE` | La clave que se utilizará para cifrar información (por ejemplo, sesiones en una cookie) | Sí | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
+| `TUIST_SECRET_KEY_BASE` | La clave que se debe utilizar para cifrar información (por ejemplo, sesiones en una cookie) | Sí | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
 | `TUIST_SECRET_KEY_PASSWORD` | Sal para generar contraseñas hasheadas | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_TOKENS` | Clave secreta para generar tokens aleatorios | No | `$TUIST_SECRET_KEY_BASE` | |
-| `TUIST_SECRET_KEY_TOKENS_PREVIOUS` | La `TUIST_SECRET_KEY_TOKENS` anterior, que aún verifica los tokens emitidos antes de una rotación. Elimínala una vez que hayan caducado (30 días) | No | | |
+| `TUIST_SECRET_KEY_TOKENS_PREVIOUS` | El `TUIST_SECRET_KEY_TOKENS` anterior, que aún verifica los tokens emitidos antes de una rotación. Elimínalo una vez que hayan caducado (30 días) | No | | |
 | `TUIST_SECRET_KEY_ENCRYPTION` | Clave para el cifrado AES-GCM de datos sensibles. Los valores superiores a 32 bytes se recortan a sus primeros 32 bytes; prefiere `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | Claves de cifrado `id:base64` separadas por comas, cada una de 32 bytes (`openssl rand -base64 32`). La primera cifra los nuevos datos; las demás y `TUIST_SECRET_KEY_ENCRYPTION` (id `V1`) siguen descifrando los datos existentes. Mueve los datos existentes a la clave actual con `bin/tuist eval 'Tuist.Release.reencrypt_vault("<id>")'` | No | | `k2:3q2+7w...` |
 | `TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY` | Id de la clave que cifra los nuevos datos, cuando no debe ser la primera de `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | No | | `V1` |
 | `TUIST_USE_IPV6` | Cuando es `1` configura la aplicación para usar direcciones IPv6 | No | `0` | `1`|
-| `TUIST_LOG_LEVEL` | El nivel de registro que se utilizará para la aplicación | No | `info` | [Niveles de registro](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
+| `TUIST_LOG_LEVEL` | El nivel de registro que debe usar la aplicación | No | `info` | [Niveles de registro](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
 | `TUIST_GITHUB_APP_NAME` | El slug de tu aplicación de GitHub, obtenido de `https://github.com/apps/<slug>`. Necesario para instalar la aplicación. Consulta <.localized_link href="/guides/server/self-host/server#platform-github">GitHub</.localized_link> | No | | `my-app` |
 | `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | La clave privada codificada en base64 utilizada por la aplicación de GitHub para desbloquear funcionalidades adicionales, como publicar comentarios automáticos en las PR | No | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` | |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | La clave privada utilizada por la aplicación de GitHub para desbloquear funcionalidades adicionales, como publicar comentarios automáticos en las PR. **Recomendamos usar la versión codificada en base64 para evitar problemas con caracteres especiales** | No | `-----BEGIN RSA...` | |
-| `TUIST_OPERATOR_EMAIL_DOMAIN` | Los usuarios cuya dirección de correo electrónico termine en `@<this-domain>` y que hayan demostrado su control pueden acceder a las URL de operaciones (`/ops/*`). Si no está configurado, nadie puede acceder a ellas. Consulta [Operaciones](#operations) | No | | `example.com` |
+| `TUIST_OPERATOR_EMAIL_DOMAIN` | Los usuarios cuya dirección de correo electrónico termina en `@<this-domain>` y que han demostrado controlarla pueden acceder a las URL de operaciones (`/ops/*`). Si no está configurado, nadie puede acceder a ellas. Consulta [Operaciones](#operations) | No | | `example.com` |
 | `TUIST_SERVER_VERSION_IDENTIFIER` | Una etiqueta que se muestra como distintivo en la barra de navegación del panel para identificar la instancia del servidor (por ejemplo, un número de versión o el nombre de una rama) | No | Rama de Git en desarrollo | `v1.2.3` |
-| `TUIST_WEB` | Habilita el endpoint del servidor web | No | `1` | `1` o `0` |
-| `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS` | Permite enviar análisis de compilación y tests sin iniciar sesión. Consulta [Acceso de confianza de red](#network-trusted-access) para conocer los requisitos de configuración y seguridad. | No | `false` | `true` |
-| `TUIST_NETWORK_TRUSTED_CACHE_ACCESS` | Permite lecturas y escrituras en caché sin iniciar sesión. Consulta [Acceso de confianza de red](#network-trusted-access) para conocer los requisitos de configuración y seguridad. | No | `false` | `true` |
-| `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | El endpoint gRPC de un recopilador de OpenTelemetry al que enviar trazas | No | | `http://localhost:4317` |
-| `TUIST_LOKI_URL` | La URL base de un endpoint compatible con Loki al que enviar registros (por ejemplo, Grafana Alloy o Loki) | No | | `http://localhost:3100` |
+| `TUIST_WEB` | Habilitar el endpoint del servidor web | No | `1` | `1` o `0` |
+| `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS` | Permitir enviar análisis de compilación y tests sin iniciar sesión. Consulta [Acceso de confianza de red](#network-trusted-access) para conocer los requisitos de configuración y seguridad. | No | `false` | `true` |
+| `TUIST_NETWORK_TRUSTED_CACHE_ACCESS` | Permitir lecturas y escrituras en caché sin iniciar sesión. Consulta [Acceso de confianza de red](#network-trusted-access) para conocer los requisitos de configuración y seguridad. | No | `false` | `true` |
+| `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | El endpoint gRPC de un OpenTelemetry Collector al que enviar trazas | No | | `http://localhost:4317` |
+| `TUIST_LOKI_URL` | La URL base de un endpoint compatible con Loki para enviar registros (por ejemplo, Grafana Alloy o Loki) | No | | `http://localhost:3100` |
 
 > [!WARNING]
-> **Sirve la aplicación mediante HTTPS**
+> **Servir la aplicación mediante HTTPS**
 >
-> Las cookies de sesión están marcadas como `Secure`, por lo que los navegadores las descartan sobre `http://` simple y los usuarios no pueden iniciar sesión. Finaliza TLS frente al servidor (un proxy inverso con un certificado de tu CA interna es suficiente) y configura `TUIST_APP_URL` con la URL `https://`, incluso para despliegues internos o exclusivos de VPN.
+> Las cookies de sesión están marcadas como `Secure`, por lo que los navegadores las descartan sobre `http://` simple y los usuarios no pueden iniciar sesión. Termina TLS frente al servidor (un proxy inverso con un certificado de tu CA interna es suficiente) y establece `TUIST_APP_URL` con la URL `https://`, incluso para despliegues internos o solo por VPN.
+
+#### Direcciones de cliente detrás de un proxy inverso {#client-addresses-behind-a-reverse-proxy}
+
+El servidor gestiona el inicio de sesión y los límites de tasa de la API, y registra las solicitudes, por dirección de cliente. Detrás de un proxy inverso lee esa dirección desde `X-Forwarded-For` y solo confía en lo escrito por un proxy en una red privada (RFC 1918, NAT de grado operador, loopback, direcciones link-local o direcciones locales únicas IPv6): toma la dirección pública más a la derecha en la cabecera, de modo que un cliente no pueda elegir su propia dirección enviando la cabecera. También se leen entradas con puerto, como `203.0.113.7:51234`.
+
+Si el proxy se conecta al servidor desde una dirección pública, el servidor ignora la cabecera y cada solicitud cuenta como procedente del proxy, por lo que todos los clientes comparten un único presupuesto de límite de tasa. Conecta el proxy al servidor a través de una red privada para mantener límites por cliente. Las versiones anteriores tomaban la entrada `X-Forwarded-For` más a la izquierda de cualquier conexión.
 
 ### Configuración de la base de datos {#database-configuration}
 
@@ -342,25 +348,25 @@ Las siguientes variables de entorno se utilizan para configurar la conexión a l
 | Variable de entorno | Descripción | Requerida | Por defecto | Ejemplo |
 | --- | --- | --- | --- | --- |
 | `DATABASE_URL` | La URL para acceder a la base de datos Postgres. Ten en cuenta que la URL debe contener la información de autenticación | Sí | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_DATABASE_SCHEMA` | Esquema de PostgreSQL utilizado por las tablas de la aplicación de Tuist. Configúralo cuando tu política de base de datos no permita usar el esquema `public`. El nombre del esquema debe ser un identificador de PostgreSQL sin comillas. | No | `public` | `tuist` |
-| `TUIST_MIGRATION_DATABASE_URL` | URL opcional de Postgres utilizada solo por `Tuist.Release.migrate`. Configúrala con la URL de un rol propietario cuando `DATABASE_URL` apunte a un rol de ejecución con menos privilegios. | No | `DATABASE_URL` | `postgres://owner:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_DATABASE_RUNTIME_ROLE` | Rol de ejecución de Postgres al que las migraciones deben conceder privilegios sobre las tablas de la aplicación una vez finalizadas. Úsalo junto con `TUIST_MIGRATION_DATABASE_URL` cuando el servidor web no deba conectarse como propietario del esquema. | No | | `tuist_web` |
+| `TUIST_DATABASE_SCHEMA` | Esquema PostgreSQL utilizado por las tablas de la aplicación de Tuist. Configúralo cuando tu política de base de datos no permita usar el esquema `public`. El nombre del esquema debe ser un identificador PostgreSQL sin comillas. | No | `public` | `tuist` |
+| `TUIST_MIGRATION_DATABASE_URL` | URL de Postgres opcional utilizada únicamente por `Tuist.Release.migrate`. Configúrala como una URL de rol propietario cuando `DATABASE_URL` apunte a un rol de runtime con menos permisos. | No | `DATABASE_URL` | `postgres://owner:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_DATABASE_RUNTIME_ROLE` | Rol de Postgres en runtime al que las migraciones deben otorgar privilegios sobre las tablas de la aplicación una vez finalizadas. Úsalo junto con `TUIST_MIGRATION_DATABASE_URL` cuando el servidor web no deba conectarse como propietario del esquema. | No | | `tuist_web` |
 | `TUIST_CLICKHOUSE_URL` | La URL para acceder a la base de datos ClickHouse. Ten en cuenta que la URL debe contener la información de autenticación | No | | `http://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_USE_SSL_FOR_DATABASE` | Cuando es verdadero, utiliza [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) para conectarse a la base de datos. El certificado del servidor no se verifica a menos que `TUIST_DATABASE_SSL_VERIFY` esté habilitado | No | `1` | `1` |
-| `TUIST_DATABASE_SSL_VERIFY` | Cuando es verdadero, el certificado del servidor de la base de datos debe encadenar a una CA de confianza y coincidir con el host de `DATABASE_URL`. Requiere `TUIST_USE_SSL_FOR_DATABASE`. Recomendamos habilitarlo. | No | `0` | `1` |
-| `TUIST_DATABASE_SSL_CA_CERT_FILE` | Ruta a un archivo PEM con los certificados de CA utilizados para verificar el servidor de la base de datos. Cuando no está configurado, se utiliza el almacén de confianza del sistema operativo. | No | | `/etc/tuist/rds-global-bundle.pem` |
-| `TUIST_DATABASE_POOL_SIZE` | El número de conexiones que se mantienen abiertas en el grupo de conexiones | No | `10` | `10` |
+| `TUIST_USE_SSL_FOR_DATABASE` | Cuando es true, utiliza [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) para conectarse a la base de datos. El certificado del servidor no se verifica a menos que `TUIST_DATABASE_SSL_VERIFY` esté habilitado | No | `1` | `1` |
+| `TUIST_DATABASE_SSL_VERIFY` | Cuando es true, el certificado del servidor de base de datos debe encadenarse a una CA de confianza y coincidir con el host de `DATABASE_URL`. Requiere `TUIST_USE_SSL_FOR_DATABASE`. Recomendamos habilitarlo | No | `0` | `1` |
+| `TUIST_DATABASE_SSL_CA_CERT_FILE` | Ruta a un archivo PEM con los certificados de CA utilizados para verificar el servidor de base de datos. Cuando no está configurado, se utiliza el almacén de confianza del sistema operativo | No | | `/etc/tuist/rds-global-bundle.pem` |
+| `TUIST_DATABASE_POOL_SIZE` | El número de conexiones que se mantienen abiertas en el pool de conexiones | No | `10` | `10` |
 | `TUIST_DATABASE_QUEUE_TARGET` | El intervalo (en milisegundos) para comprobar si todas las conexiones obtenidas del pool tardaron más que el intervalo de cola [(Más información)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |
 | `TUIST_DATABASE_QUEUE_INTERVAL` | El tiempo umbral (en milisegundos) en la cola que el pool utiliza para determinar si debe empezar a descartar nuevas conexiones [(Más información)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `1000` | `1000` |
-| `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Intervalo de tiempo en milisegundos entre los vaciados del búfer de ClickHouse | No | `5000` | `5000` |
-| `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE` | Tamaño máximo del búfer de ClickHouse en bytes antes de forzar un vaciado | No | `1000000` | `1000000` |
-| `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE` | Número de procesos de búfer de ClickHouse a ejecutar | No | `5` | `5` |
+| `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Intervalo de tiempo en milisegundos entre vaciados del buffer de ClickHouse | No | `5000` | `5000` |
+| `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE` | Tamaño máximo del buffer de ClickHouse en bytes antes de forzar un vaciado | No | `1000000` | `1000000` |
+| `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE` | Número de procesos de buffer de ClickHouse a ejecutar | No | `5` | `5` |
 
-Por defecto, Tuist cifra la conexión a la base de datos pero no verifica el certificado del servidor, por lo que un atacante en la ruta de red puede hacerse pasar por la base de datos. Configura `TUIST_DATABASE_SSL_VERIFY=1` para verificarlo. Si tu proveedor firma certificados con su propia CA, como hacen Amazon RDS y Google Cloud SQL, descarga su paquete de CA, móntalo en el contenedor y apunta `TUIST_DATABASE_SSL_CA_CERT_FILE` hacia él. El host en `DATABASE_URL` debe coincidir con un nombre o dirección IP del certificado. Con la verificación habilitada, un certificado que falle estas comprobaciones hará que todas las conexiones a la base de datos fallen, así que revisa los registros del servidor buscando `Bad Certificate` o `Unknown CA` después de habilitarla.
+Por defecto, Tuist cifra la conexión a la base de datos pero no verifica el certificado del servidor, por lo que un atacante en la ruta de red podría hacerse pasar por la base de datos. Establece `TUIST_DATABASE_SSL_VERIFY=1` para verificarlo. Si tu proveedor firma certificados con su propia CA, como hacen Amazon RDS y Google Cloud SQL, descarga su paquete de CA, móntalo en el contenedor y apunta `TUIST_DATABASE_SSL_CA_CERT_FILE` hacia él. El host en `DATABASE_URL` debe coincidir con un nombre o dirección IP del certificado. Con la verificación habilitada, un certificado que falle estas comprobaciones hará que todas las conexiones a la base de datos fallen, así que revisa los registros del servidor buscando `Bad Certificate` o `Unknown CA` después de habilitarla.
 
 Cuando `TUIST_DATABASE_SCHEMA` no es `public`, las migraciones de release crean el esquema si aún no existe antes de ejecutar la cadena de migraciones de Ecto. Si el rol de migración no puede crear esquemas, crea el esquema previamente y haz que el rol de migración sea su propietario.
 
-Tuist dirige la conexión al esquema personalizado estableciendo el `search_path` de la sesión. Algunas configuraciones de Postgres con pooling o proxy (por ejemplo, PgBouncer o bases de datos gestionadas que restringen los parámetros de inicio) no aplican esto y la sesión vuelve a `public`, lo que se manifiesta durante las migraciones como `permission denied for schema public`. Al conectarse a través de dicha configuración, fija el esquema en el propio rol para que cada sesión comience en él independientemente del proxy:
+Tuist dirige la conexión al esquema personalizado estableciendo el `search_path` de sesión. Algunas configuraciones de Postgres con pool o proxy (por ejemplo PgBouncer, o bases de datos gestionadas que restringen parámetros de inicio) no aplican esto y la sesión vuelve a `public`, lo cual se manifiesta durante las migraciones como `permission denied for schema public`. Al conectar a través de una configuración de este tipo, fija el esquema en el propio rol para que cada sesión comience en él independientemente del proxy:
 
 ```sql
 CREATE SCHEMA IF NOT EXISTS tuist AUTHORIZATION <migration_role>;
@@ -371,41 +377,41 @@ ALTER ROLE <runtime_role> IN DATABASE <database> SET search_path = tuist;
 
 ### Configuración del entorno de autenticación {#authentication-environment-configuration}
 
-Facilitamos la autenticación a través de [proveedores de identidad (IdP)](https://en.wikipedia.org/wiki/Identity_provider). Para utilizarla, asegúrate de que todas las variables de entorno necesarias para el proveedor elegido estén presentes en el entorno del servidor. Las **variables faltantes** harán que Tuist omita ese proveedor.
+Facilitamos la autenticación a través de [proveedores de identidad (IdP)](https://en.wikipedia.org/wiki/Identity_provider). Para utilizarla, asegúrate de que todas las variables de entorno necesarias para el proveedor elegido estén presentes en el entorno del servidor. La **falta de variables** hará que Tuist omita ese proveedor.
 
 #### Correo electrónico y contraseña {#email-and-password}
 
-El inicio de sesión con correo electrónico y contraseña y el registro autoservicio están integrados y habilitados por defecto. En una instancia donde quieras requerir un proveedor de identidad (por ejemplo, al imponer SSO), puedes desactivarlos por completo. Esto elimina el formulario de correo/contraseña, el enlace de registro y el flujo de restablecimiento de contraseña de la experiencia de inicio de sesión, y cierra todos los endpoints del servidor correspondientes, incluido el endpoint de correo/contraseña que usa la CLI (`tuist auth`).
+El inicio de sesión con correo electrónico y contraseña y el registro autoservicio están integrados y habilitados por defecto. En una instancia donde quieras exigir un proveedor de identidad (por ejemplo, al imponer SSO), puedes desactivarlos por completo. Esto elimina el formulario de correo/contraseña, el enlace de registro y el flujo de restablecimiento de contraseña de la experiencia de inicio de sesión, y cierra todos los endpoints del servidor correspondientes, incluido el endpoint de correo/contraseña que usa la CLI (`tuist auth`).
 
 | Variable de entorno | Descripción | Requerida | Por defecto | Ejemplo |
 | --- | --- | --- | --- | --- |
-| `TUIST_EMAIL_AUTH_ENABLED` | Indica si se puede usar el correo electrónico y la contraseña para iniciar sesión y registrarse. Configúralo como `0` para eliminar el formulario de correo/contraseña, el enlace de registro y el flujo de restablecimiento de contraseña de la página de inicio de sesión y cerrar los endpoints del servidor correspondientes. | No | `1` | `0` |
+| `TUIST_EMAIL_AUTH_ENABLED` | Indica si el correo electrónico y la contraseña pueden usarse para iniciar sesión y registrarse. Establece en `0` para eliminar el formulario de correo/contraseña, el enlace de registro y el flujo de restablecimiento de contraseña de la página de inicio de sesión y cerrar los endpoints del servidor correspondientes | No | `1` | `0` |
 
 #### Desactivar un proveedor de identidad configurado {#disabling-a-configured-identity-provider}
 
-Por defecto, un proveedor aparece como opción de inicio de sesión siempre que esté configurado. Para mantener un proveedor configurado (sus credenciales permanecen establecidas) mientras lo eliminas de las páginas de inicio de sesión y registro, configura la palanca correspondiente a `0`. Para GitHub, Google y Apple, esto también cierra la llamada de retorno de inicio de sesión, por lo que el método queda completamente inhabilitado.
+Por defecto, un proveedor aparece como opción de inicio de sesión siempre que esté configurado. Para mantener un proveedor configurado (sus credenciales siguen establecidas) mientras lo eliminas de las páginas de inicio de sesión y registro, establece el interruptor correspondiente en `0`. Para GitHub, Google y Apple esto también cierra la callback de inicio de sesión, por lo que el método queda completamente inhabilitado.
 
 | Variable de entorno | Descripción | Requerida | Por defecto | Ejemplo |
 | --- | --- | --- | --- | --- |
-| `TUIST_GITHUB_AUTH_ENABLED` | Indica si se puede usar GitHub para iniciar sesión (consulta la sección [GitHub](#github) para saber por qué la App comparte sus credenciales con el inicio de sesión) | No | `1` | `0` |
-| `TUIST_GOOGLE_AUTH_ENABLED` | Indica si se puede usar Google para iniciar sesión | No | `1` | `0` |
+| `TUIST_GITHUB_AUTH_ENABLED` | Indica si GitHub puede usarse para iniciar sesión (consulta la sección [GitHub](#github) para saber por qué la App comparte sus credenciales con el inicio de sesión) | No | `1` | `0` |
+| `TUIST_GOOGLE_AUTH_ENABLED` | Indica si Google puede usarse para iniciar sesión | No | `1` | `0` |
 | `TUIST_OKTA_AUTH_ENABLED` | Indica si el proveedor de Okta configurado aparece como opción de inicio de sesión | No | `1` | `0` |
-| `TUIST_APPLE_AUTH_ENABLED` | Indica si se puede usar Apple para iniciar sesión | No | `1` | `0` |
+| `TUIST_APPLE_AUTH_ENABLED` | Indica si Apple puede usarse para iniciar sesión | No | `1` | `0` |
 
 #### GitHub {#github}
 
-Recomendamos autenticarse mediante una [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps), pero también puedes usar la [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Asegúrate de incluir todas las variables de entorno esenciales especificadas por GitHub en el entorno del servidor. La ausencia de estas variables hará que Tuist ignore la autenticación de GitHub. Para configurar correctamente la app de GitHub:
+Recomendamos autenticarse mediante una [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps), pero también puedes usar la [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Asegúrate de incluir todas las variables de entorno esenciales especificadas por GitHub en el entorno del servidor. La ausencia de estas variables hará que Tuist omita la autenticación de GitHub. Para configurar correctamente la app de GitHub:
 - En la configuración general de la app de GitHub:
-    - Copia el `Client ID` y configúralo como `TUIST_GITHUB_APP_CLIENT_ID`
-    - Crea y copia un nuevo `client secret` y configúralo como `TUIST_GITHUB_APP_CLIENT_SECRET`
-    - Configura la `Callback URL` como `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` también puede ser la dirección IP de tu servidor.
+    - Copia el `Client ID` y establécelo como `TUIST_GITHUB_APP_CLIENT_ID`
+    - Crea y copia un nuevo `client secret` y establécelo como `TUIST_GITHUB_APP_CLIENT_SECRET`
+    - Establece la `Callback URL` como `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` también puede ser la dirección IP de tu servidor.
 - Se requieren los siguientes permisos:
   - Repositorios:
     - Pull requests: Lectura y escritura
   - Cuentas:
     - Direcciones de correo electrónico: Solo lectura
 
-En la sección `Account permissions` de `Permissions and events`, configura el permiso `Email addresses` como `Read-only`.
+En la sección `Account permissions` de `Permissions and events`, establece el permiso `Email addresses` en `Read-only`.
 
 A continuación, deberás exponer las siguientes variables de entorno en el entorno donde se ejecuta el servidor de Tuist:
 
@@ -413,11 +419,11 @@ A continuación, deberás exponer las siguientes variables de entorno en el ento
 | --- | --- | --- | --- | --- |
 | `TUIST_GITHUB_APP_CLIENT_ID` | El ID de cliente de la aplicación de GitHub | Sí | | `Iv1.a629723000043722` |
 | `TUIST_GITHUB_APP_CLIENT_SECRET` | El secreto de cliente de la aplicación | Sí | | `232f972951033b89799b0fd24566a04d83f44ccc` |
-| `TUIST_GITHUB_AUTH_ENABLED` | Indica si se puede usar GitHub para iniciar sesión. La GitHub App que configures para integraciones de plataforma (comentarios de PR, etc.) comparte sus credenciales de cliente con el inicio de sesión, por lo que de otro modo aparecería como opción de inicio de sesión. Configúralo como `0` para mantener la App mientras eliminas GitHub de la página de inicio de sesión | No | `1` | `0` |
+| `TUIST_GITHUB_AUTH_ENABLED` | Indica si GitHub puede usarse para iniciar sesión. La GitHub App que configures para integraciones de plataforma (comentarios de PR, etc.) comparte sus credenciales de cliente con el inicio de sesión, por lo que de otro modo aparecería como opción de inicio de sesión. Establece en `0` para mantener la App mientras eliminas GitHub de la página de inicio de sesión | No | `1` | `0` |
 
 #### Google {#google}
 
-Puedes configurar la autenticación con Google usando [OAuth 2](https://developers.google.com/identity/protocols/oauth2). Para ello, necesitarás crear una nueva credencial de tipo ID de cliente OAuth. Al crear las credenciales, selecciona "Aplicación web" como tipo de aplicación, nómbrala `Tuist` y establece el URI de redirección a `{base_url}/users/auth/google/callback`, donde `base_url` es la URL en la que se ejecuta tu servicio alojado. Una vez creada la app, copia el ID de cliente y el secreto, y configúralos como variables de entorno `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` respectivamente.
+Puedes configurar la autenticación con Google mediante [OAuth 2](https://developers.google.com/identity/protocols/oauth2). Para ello, necesitarás crear una nueva credencial de tipo ID de cliente OAuth. Al crear las credenciales, selecciona "Aplicación web" como tipo de aplicación, asígnale el nombre `Tuist` y establece el URI de redirección en `{base_url}/users/auth/google/callback`, donde `base_url` es la URL en la que se ejecuta tu servicio alojado. Una vez creada la app, copia el ID de cliente y el secreto y establécelos como variables de entorno `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` respectivamente.
 
 > [!NOTE]
 > **Ámbitos de la pantalla de consentimiento**
@@ -427,22 +433,22 @@ Puedes configurar la autenticación con Google usando [OAuth 2](https://develope
 
 #### Okta {#okta}
 
-Puedes habilitar la autenticación con Okta a través del protocolo [OAuth 2.0](https://oauth.net/2/). Tendrás que [crear una app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) en Okta siguiendo <.localized_link href="/guides/integrations/authentication/sso#okta">estas instrucciones</.localized_link>.
+Puedes habilitar la autenticación con Okta mediante el protocolo [OAuth 2.0](https://oauth.net/2/). Deberás [crear una app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) en Okta siguiendo <.localized_link href="/guides/integrations/authentication/sso#okta">estas instrucciones</.localized_link>.
 
-Deberás configurar las siguientes variables de entorno una vez que obtengas el ID de cliente y el secreto durante la configuración de la aplicación de Okta:
+Deberás establecer las siguientes variables de entorno una vez que obtengas el ID de cliente y el secreto durante la configuración de la aplicación de Okta:
 
 | Variable de entorno | Descripción | Requerida | Por defecto | Ejemplo |
 | --- | --- | --- | --- | --- |
 | `TUIST_OKTA_1_CLIENT_ID` | El ID de cliente para autenticarse contra Okta. El número debe ser el ID de tu organización | Sí | | |
 | `TUIST_OKTA_1_CLIENT_SECRET` | El secreto de cliente para autenticarse contra Okta | Sí | | |
 
-El número `1` debe reemplazarse con el ID de tu organización. Normalmente será 1, pero compruébalo en tu base de datos.
+El número `1` debe reemplazarse por el ID de tu organización. Normalmente será 1, pero compruébalo en tu base de datos.
 
 ### Configuración del entorno de almacenamiento {#storage-environment-configuration}
 
- Tuist necesita almacenamiento para guardar los artefactos subidos a través de la API. Es **esencial configurar una de las soluciones de almacenamiento admitidas** para que Tuist funcione correctamente.
+ Tuist necesita almacenamiento para alojar los artefactos subidos a través de la API. Es **esencial configurar una de las soluciones de almacenamiento admitidas** para que Tuist funcione correctamente.
 
-Configura `TUIST_OBJECT_STORAGE_PROVIDER` para elegir el backend de almacenamiento de artefactos del servidor:
+Establece `TUIST_OBJECT_STORAGE_PROVIDER` para elegir el backend de artefactos del servidor:
 
 | Variable de entorno | Descripción | Requerida | Por defecto | Ejemplo |
 | --- | --- | --- | --- | --- |
@@ -459,28 +465,28 @@ Puedes usar cualquier proveedor de almacenamiento compatible con S3 para almacen
 | `TUIST_S3_REGION` o `AWS_REGION` | La región donde se encuentra el bucket | No | `auto` | `us-west-2` |
 | `TUIST_S3_ENDPOINT` o `AWS_ENDPOINT` | El endpoint del proveedor de almacenamiento | Sí | | `https://s3.us-west-2.amazonaws.com` |
 | `TUIST_S3_BUCKET_NAME` | El nombre del bucket donde se almacenarán los artefactos | Sí | | `tuist-artifacts` |
-| `TUIST_S3_CA_CERT_PEM` | Certificado de CA codificado en PEM para verificar las conexiones HTTPS de S3. Útil para entornos aislados con certificados autofirmados o autoridades de certificación internas. | No | Paquete de CA del sistema | `-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----` |
+| `TUIST_S3_CA_CERT_PEM` | Certificado CA codificado en PEM para verificar las conexiones HTTPS de S3. Útil para entornos aislados con certificados autofirmados o autoridades de certificación internas. | No | Paquete CA del sistema | `-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----` |
 | `TUIST_S3_CONNECT_TIMEOUT` | El tiempo de espera (en milisegundos) para establecer una conexión con el proveedor de almacenamiento | No | `3000` | `3000` |
 | `TUIST_S3_RECEIVE_TIMEOUT` | El tiempo de espera (en milisegundos) para recibir datos del proveedor de almacenamiento | No | `5000` | `5000` |
-| `TUIST_S3_POOL_TIMEOUT` | El tiempo de espera (en milisegundos) para el grupo de conexiones al proveedor de almacenamiento. Usa `infinity` para no tener tiempo de espera | No | `5000` | `5000` |
-| `TUIST_S3_POOL_MAX_IDLE_TIME` | El tiempo máximo de inactividad (en milisegundos) para las conexiones en el grupo. Usa `infinity` para mantener las conexiones activas indefinidamente | No | `infinity` | `60000` |
-| `TUIST_S3_POOL_SIZE` | El número máximo de conexiones por grupo | No | `500` | `500` |
-| `TUIST_S3_POOL_COUNT` | El número de grupos de conexiones a usar | No | Número de planificadores del sistema | `4` |
+| `TUIST_S3_POOL_TIMEOUT` | El tiempo de espera (en milisegundos) para el pool de conexiones al proveedor de almacenamiento. Usa `infinity` para no tener tiempo de espera | No | `5000` | `5000` |
+| `TUIST_S3_POOL_MAX_IDLE_TIME` | El tiempo máximo de inactividad (en milisegundos) para las conexiones en el pool. Usa `infinity` para mantener las conexiones activas indefinidamente | No | `infinity` | `60000` |
+| `TUIST_S3_POOL_SIZE` | El número máximo de conexiones por pool | No | `500` | `500` |
+| `TUIST_S3_POOL_COUNT` | El número de pools de conexiones a usar | No | Número de planificadores del sistema | `4` |
 | `TUIST_S3_PROTOCOL` | El protocolo a usar al conectarse al proveedor de almacenamiento (`http1` o `http2`) | No | `http1` | `http1` |
 | `TUIST_S3_VIRTUAL_HOST` | Si la URL debe construirse con el nombre del bucket como subdominio (host virtual) | No | `false` | `1` |
 
 > [!NOTE]
 > **Autenticación de identidad web de AWS desde variables de entorno**
 >
-> Si tu proveedor de almacenamiento es AWS y quieres autenticarte usando un token de identidad web, puedes configurar la variable de entorno `TUIST_S3_AUTHENTICATION_METHOD` a `aws_web_identity_token_from_env_vars`, y Tuist usará ese método utilizando las variables de entorno convencionales de AWS.
+> Si tu proveedor de almacenamiento es AWS y quieres autenticarte usando un token de identidad web, puedes establecer la variable de entorno `TUIST_S3_AUTHENTICATION_METHOD` a `aws_web_identity_token_from_env_vars`, y Tuist usará ese método mediante las variables de entorno convencionales de AWS.
 
 
 #### Google Cloud Storage {#google-cloud-storage}
-Para Google Cloud Storage, sigue [esta documentación](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) para obtener el par `AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY`. El `AWS_ENDPOINT` debe configurarse como `https://storage.googleapis.com`. Las demás variables de entorno son las mismas que para cualquier otro almacenamiento compatible con S3.
+Para Google Cloud Storage, sigue [esta documentación](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) para obtener el par `AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY`. El `AWS_ENDPOINT` debe establecerse a `https://storage.googleapis.com`. Las demás variables de entorno son las mismas que para cualquier otro almacenamiento compatible con S3.
 
 #### Azure Blob Storage {#azure-blob-storage}
 
-Para Azure Blob Storage, configura `TUIST_OBJECT_STORAGE_PROVIDER=azure_blob` y las credenciales de la cuenta de almacenamiento de Azure:
+Para Azure Blob Storage, establece `TUIST_OBJECT_STORAGE_PROVIDER=azure_blob` y configura las credenciales de la cuenta de almacenamiento de Azure:
 
 | Variable de entorno | Descripción | Requerida | Por defecto | Ejemplo |
 | --- | --- | --- | --- | --- |
@@ -490,11 +496,11 @@ Para Azure Blob Storage, configura `TUIST_OBJECT_STORAGE_PROVIDER=azure_blob` y 
 | `TUIST_AZURE_BLOB_ENDPOINT` | Endpoint del servicio Blob. Omítelo para usar `https://<account>.blob.core.windows.net` | No | Derivado del nombre de la cuenta | `https://tuiststorage.blob.core.windows.net` |
 | `TUIST_AZURE_BLOB_SERVICE_VERSION` | Versión de la API REST de Azure Blob usada para solicitudes firmadas y URLs SAS | No | `2020-12-06` | `2020-12-06` |
 
-Al usar el chart de Helm, configura `server.storage.provider=azure_blob` y completa `server.azureBlob.*`. La configuración de nivel superior `objectStorage` del chart sigue siendo compatible con S3 porque las cargas de trabajo opcionales de caché y espejo de registro aún esperan almacenamiento compatible con S3. Si esas cargas de trabajo están deshabilitadas y el servidor usa Azure Blob, configura `objectStorage.mode=external` y deja vacíos el endpoint y las credenciales del almacenamiento de objetos externo para evitar desplegar el servicio MinIO embebido.
+Al usar el chart de Helm, establece `server.storage.provider=azure_blob` y completa `server.azureBlob.*`. La configuración de nivel superior `objectStorage` del chart sigue siendo compatible con S3 porque las cargas de trabajo opcionales de caché y espejo de registro aún esperan almacenamiento compatible con S3. Si esas cargas de trabajo están deshabilitadas y el servidor usa Azure Blob, establece `objectStorage.mode=external` y deja vacíos el endpoint y las credenciales del almacenamiento de objetos externo para evitar desplegar el servicio MinIO integrado.
 
 #### Retención de artefactos {#artifact-retention}
 
-La limpieza de artefactos está deshabilitada por defecto en instancias autoalojadas. Cada tipo de artefacto soportado tiene su propia variable de entorno. Configura una variable con un número entero positivo de días para habilitar la limpieza para ese tipo de artefacto. Dejar una variable sin configurar o en blanco deshabilita la limpieza solo para su tipo de artefacto.
+La limpieza de artefactos está deshabilitada por defecto en las instancias autoalojadas. Cada tipo de artefacto soportado tiene su propia variable de entorno. Establece una variable a un número entero positivo de días para habilitar la limpieza para ese tipo de artefacto. Dejar una variable sin establecer o en blanco deshabilita la limpieza solo para su tipo de artefacto.
 
 ```bash
 TUIST_CACHE_ARTIFACT_RETENTION_DAYS=30
@@ -518,20 +524,20 @@ server:
     shardBundles: 14
 ```
 
-Las seis claves son opcionales. Este ejemplo habilita cada tipo de artefacto soportado con una ventana de retención independiente. Omite una clave o deja su valor en blanco para mantener la limpieza deshabilitada para ese tipo de artefacto. Las ventanas de retención autoalojadas no tienen un máximo de 30 días. Los valores configurados que no sean enteros positivos provocan que el servidor falle al iniciar.
+Las seis claves son opcionales. Este ejemplo habilita cada tipo de artefacto soportado con una ventana de retención independiente. Omite una clave o deja su valor en blanco para mantener la limpieza deshabilitada para ese tipo de artefacto. Las ventanas de retención autoalojadas no tienen un máximo de 30 días. Los valores configurados que no son enteros positivos hacen que el servidor falle al iniciarse.
 
-Reinicia el servidor después de cambiar una variable de retención. Cada lote de limpieza autoalojada en cola verifica la configuración actual antes de eliminar archivos, por lo que desconfigurar o dejar en blanco una variable, o aumentar su ventana, también protege los archivos de trabajos pendientes después del reinicio.
+Reinicia el servidor después de cambiar una variable de retención. Cada lote de limpieza autoalojada en cola verifica la configuración actual antes de eliminar archivos, por lo que desestablecer o dejar en blanco una variable, o aumentar su ventana, también protege los archivos de trabajos pendientes después del reinicio.
 
 | Variable de entorno | Archivos de artefactos eliminados del almacenamiento de objetos |
 | --- | --- |
-| `TUIST_CACHE_ARTIFACT_RETENTION_DAYS` | Caché de Xcode, caché heredada de almacenamiento direccionable por contenido, caché de módulos y archivos de caché de Gradle |
+| `TUIST_CACHE_ARTIFACT_RETENTION_DAYS` | Caché de Xcode, caché de almacenamiento direccionable por contenido heredado, caché de módulos y archivos de caché de Gradle |
 | `TUIST_APP_PREVIEW_RETENTION_DAYS` | Compilaciones e iconos de previsualización de apps |
 | `TUIST_BUILD_ARCHIVE_RETENTION_DAYS` | Archivos de compilación actuales y heredados |
-| `TUIST_RUN_ARTIFACT_RETENTION_DAYS` | Todos los objetos almacenados bajo el prefijo de artefactos de una ejecución expirada, incluidos paquetes de resultados, registros de invocación y archivos de sesión |
-| `TUIST_TEST_ATTACHMENT_RETENTION_DAYS` | Adjuntos de ejecuciones de tests |
-| `TUIST_SHARD_BUNDLE_RETENTION_DAYS` | Paquetes de shards de tests |
+| `TUIST_RUN_ARTIFACT_RETENTION_DAYS` | Todos los objetos almacenados bajo el prefijo de artefactos de una ejecución expirada, incluyendo paquetes de resultados, registros de invocación y archivos de sesión |
+| `TUIST_TEST_ATTACHMENT_RETENTION_DAYS` | Adjuntos de ejecución de tests |
+| `TUIST_SHARD_BUNDLE_RETENTION_DAYS` | Paquetes de fragmentos de test |
 
-La limpieza programada elimina solo los blobs de artefactos. Conserva las filas correspondientes de PostgreSQL y ClickHouse, por lo que los metadatos de compilación, test, ejecución, previsualización y shard pueden permanecer visibles en los dashboards después de que expiren sus descargas. Esta configuración no cambia las reglas de retención de las tablas de ClickHouse.
+La limpieza programada elimina solo los blobs de artefactos. Conserva las filas correspondientes de PostgreSQL y ClickHouse, por lo que los metadatos de compilación, test, ejecución, previsualización y fragmentos pueden permanecer visibles en los dashboards después de que expiren sus descargas. Esta configuración no cambia las reglas de retención de las tablas de ClickHouse.
 
 ### Configuración de correo electrónico {#email-configuration}
 
@@ -539,32 +545,32 @@ Tuist requiere funcionalidad de correo electrónico para la autenticación de us
 
 | Variable de entorno | Descripción | Requerida | Por defecto | Ejemplo |
 | --- | --- | --- | --- | --- |
-| `TUIST_MAILGUN_API_KEY` | La clave de API para autenticarse con Mailgun | Sí* | | `key-1234567890abcdef` |
+| `TUIST_MAILGUN_API_KEY` | La clave API para autenticarse con Mailgun | Sí* | | `key-1234567890abcdef` |
 | `TUIST_MAILING_DOMAIN` | El dominio desde el cual se enviarán los correos electrónicos | Sí* | | `mg.tuist.io` |
 | `TUIST_MAILING_FROM_ADDRESS` | La dirección de correo electrónico que aparecerá en el campo "De" | Sí* | | `noreply@tuist.io` |
-| `TUIST_MAILING_REPLY_TO_ADDRESS` | Dirección de respuesta opcional para respuestas de usuarios | No | | `support@tuist.dev` |
-| `TUIST_SKIP_EMAIL_CONFIRMATION` | Omitir la confirmación por correo electrónico para nuevos registros de usuarios. Cuando está habilitado, los usuarios se confirman automáticamente y pueden iniciar sesión inmediatamente después del registro | No | `true` si el correo no está configurado, `false` si el correo está configurado | `true`, `false`, `1`, `0` |
+| `TUIST_MAILING_REPLY_TO_ADDRESS` | Dirección de respuesta opcional para las respuestas de los usuarios | No | | `support@tuist.dev` |
+| `TUIST_SKIP_EMAIL_CONFIRMATION` | Omitir la confirmación por correo electrónico para nuevos registros de usuarios. Cuando está habilitado, los usuarios se confirman automáticamente y pueden iniciar sesión inmediatamente después del registro | No | `true` si el correo electrónico no está configurado, `false` si el correo electrónico está configurado | `true`, `false`, `1`, `0` |
 
-\* Las variables de configuración de correo electrónico son requeridas solo si deseas enviar correos electrónicos. Si no están configuradas, la confirmación por correo electrónico se omite automáticamente
+\* Las variables de configuración de correo electrónico son necesarias solo si deseas enviar correos electrónicos. Si no se configuran, la confirmación por correo electrónico se omite automáticamente.
 
 > [!NOTE]
-> **Soporte SMTP**
+> **Compatibilidad con SMTP**
 >
-> El soporte genérico de SMTP no está disponible actualmente. Si necesitas soporte SMTP para tu despliegue on-premise, contacta a [contact@tuist.dev](mailto:contact@tuist.dev) para analizar tus requisitos.
+> La compatibilidad genérica con SMTP no está disponible actualmente. Si necesitas compatibilidad con SMTP para tu despliegue on-premise, ponte en contacto con [contact@tuist.dev](mailto:contact@tuist.dev) para analizar tus requisitos.
 
 
 > [!NOTE]
 > **Despliegues aislados de red**
 >
-> Para instalaciones on-premise sin acceso a Internet ni configuración de proveedor de correo electrónico, la confirmación por correo electrónico se omite automáticamente por defecto. Los usuarios pueden iniciar sesión inmediatamente después del registro. Si tienes el correo configurado pero aún deseas omitir la confirmación, establece `TUIST_SKIP_EMAIL_CONFIRMATION=true`. Para requerir confirmación por correo cuando el correo está configurado, establece `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
+> Para instalaciones on-premise sin acceso a Internet o sin configuración de proveedor de correo electrónico, la confirmación por correo electrónico se omite automáticamente de forma predeterminada. Los usuarios pueden iniciar sesión inmediatamente después del registro. Si tienes el correo electrónico configurado pero aún deseas omitir la confirmación, establece `TUIST_SKIP_EMAIL_CONFIRMATION=true`. Para requerir la confirmación por correo electrónico cuando el correo electrónico está configurado, establece `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
 
 > [!NOTE]
-> **Cuotas de correo y enlaces de restablecimiento de contraseña**
+> **Cuotas de correo electrónico y enlaces de restablecimiento de contraseña**
 >
-> Cuando el correo está configurado, los correos de invitación (creados, masivos o reenviados) están limitados a uno por destinatario cada cinco minutos, y a ráfagas de 50 que se recargan a 50 por hora por organización y por invitador. Cancelar una invitación no restaura el presupuesto, y la API de invitaciones responde a un presupuesto agotado con `429` y `Retry-After`. Con múltiples réplicas, configura Valkey compartido para cuotas en todo el despliegue; si está configurado pero no disponible, los correos de invitación son rechazados. Los enlaces de restablecimiento de contraseña caducan después de 15 minutos.
+> Cuando el correo electrónico está configurado, los correos electrónicos de invitación (creados, masivos o reenviados) están limitados a uno por destinatario cada cinco minutos, y a ráfagas de 50 que se reponen a razón de 50 por hora por organización y por invitador. Cancelar una invitación no restaura el presupuesto, y la API de invitaciones responde a un presupuesto agotado con `429` y `Retry-After`. Con varias réplicas, configura Valkey compartido para las cuotas de todo el despliegue; si está configurado pero no disponible, los correos electrónicos de invitación son rechazados. Los enlaces de restablecimiento de contraseña caducan después de 15 minutos.
 
 
-### Configuración de plataforma Git {#git-platform-configuration}
+### Configuración de la plataforma Git {#git-platform-configuration}
 
 Tuist puede <.localized_link href="/guides/server/authentication">integrarse con plataformas Git</.localized_link> para proporcionar funcionalidades adicionales, como publicar comentarios automáticamente en tus pull requests.
 
@@ -598,13 +604,13 @@ Otorga también el permiso de organización **Miembros: solo lectura**. Durante 
 
 Suscribe la App a los eventos `Check run`, `Pull request` y `Issue comment`.
 
-Mantén deshabilitada la opción **Solicitar autorización de usuario (OAuth) durante la instalación** para que GitHub envíe a los instaladores a la URL de configuración. Tuist inicia un paso de autorización separado utilizando el callback adicional `/integrations/github/authorize` para verificar la propiedad de la instalación. Cuando la instalación comienza en GitHub, el instalador selecciona entonces una organización de Tuist. Las instalaciones en una organización de GitHub siempre muestran esta opción; las instalaciones iniciadas en Tuist conservan su organización.
+Mantén deshabilitada la opción **Solicitar autorización de usuario (OAuth) durante la instalación** para que GitHub envíe a los instaladores a la URL de configuración. Tuist inicia un paso de autorización separado utilizando el callback adicional `/integrations/github/authorize` para verificar la propiedad de la instalación. Cuando la instalación comienza en GitHub, el instalador selecciona entonces una organización de Tuist. Las instalaciones en una organización de GitHub siempre muestran esta elección; las instalaciones iniciadas en Tuist conservan su organización.
 
 ##### Configuración del servidor {#platform-github-configuring-the-server}
 
 Establece las siguientes variables de entorno y luego reinicia el servidor:
 
-| Variable de entorno | Descripción | Requerido | Predeterminado | Ejemplo |
+| Variable de entorno | Descripción | Requerida | Predeterminado | Ejemplo |
 | --- | --- | --- | --- | --- |
 | `TUIST_GITHUB_APP_NAME` | El slug de la App, que es el último componente de la ruta de su URL de página pública `https://github.com/apps/<slug>` | Sí | | `my-company-tuist` |
 | `TUIST_GITHUB_APP_ID` | El ID numérico de la App, utilizado para verificar la propiedad de la instalación | Sí | | `123456` |
@@ -616,9 +622,9 @@ Establece las siguientes variables de entorno y luego reinicia el servidor:
 > [!IMPORTANT]
 > **Configura todas las credenciales requeridas de la App**
 >
-> El botón **Instalar GitHub App** en la página de integraciones de la organización permanece deshabilitado hasta que se establezcan `TUIST_GITHUB_APP_NAME`, `TUIST_GITHUB_APP_CLIENT_ID`, `TUIST_GITHUB_APP_CLIENT_SECRET` y la clave privada. El ID numérico `TUIST_GITHUB_APP_ID` también es necesario para verificar la propiedad de la instalación. La URL de instalación incluye el slug de la App, por lo que la falta de `TUIST_GITHUB_APP_NAME` en particular produce un enlace al que GitHub responde con un 404.
+> El botón **Instalar GitHub App** en la página de integraciones de la organización permanece deshabilitado hasta que se establezcan `TUIST_GITHUB_APP_NAME`, `TUIST_GITHUB_APP_CLIENT_ID`, `TUIST_GITHUB_APP_CLIENT_SECRET` y la clave privada. El ID numérico `TUIST_GITHUB_APP_ID` también es necesario para verificar la propiedad de la instalación. La URL de instalación incluye el slug de la App, por lo que la ausencia de `TUIST_GITHUB_APP_NAME` en particular produce un enlace al que GitHub responde con un 404.
 
-Una vez que el servidor se reinicia, los administradores de la organización instalan la App y conectan los repositorios a los proyectos siguiendo la <.localized_link href="/guides/integrations/gitforge/github">guía de integración de GitHub</.localized_link>.
+Una vez que el servidor se reinicie, los administradores de la organización instalan la App y conectan los repositorios a los proyectos siguiendo la <.localized_link href="/guides/integrations/gitforge/github">guía de integración de GitHub</.localized_link>.
 
 ##### La autenticación OIDC depende de esto {#platform-github-oidc}
 
@@ -634,7 +640,7 @@ Tu servidor Tuist también necesita acceso saliente al emisor OIDC de tu proveed
 
 ##### GitHub Enterprise Server {#platform-github-enterprise-server}
 
-Las variables de entorno anteriores solo configuran la App de github.com de Tuist. Para integrar Tuist con una instancia de GitHub Enterprise Server (GHES) en su lugar, los administradores de la organización cambian a la pestaña **Servidor empresarial** en la página de integraciones e introducen la URL base de GHES; Tuist los guía a través del [flujo de manifiesto de App](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest) de GitHub para registrar una nueva App de Tuist en su instancia de GHES. Las credenciales de la nueva App se almacenan cifradas por instalación; no se necesitan variables de entorno adicionales de `TUIST_GITHUB_APP_*`.
+Las variables de entorno anteriores solo configuran la App de github.com de Tuist. Para integrar Tuist con una instancia de GitHub Enterprise Server (GHES) en su lugar, los administradores de la organización cambian a la pestaña **Servidor empresarial** en la página de integraciones e introducen la URL base de GHES; Tuist les guía a través del [flujo de manifiesto de App](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest) de GitHub para registrar una nueva App de Tuist en su instancia de GHES. Las credenciales de la nueva App se almacenan cifradas por instalación; no se necesitan variables de entorno `TUIST_GITHUB_APP_*` adicionales.
 
 #### Origin {#platform-origin}
 
@@ -642,7 +648,7 @@ Un servidor Tuist autoalojado necesita su propia app de Origin, configurada con 
 
 ##### Registro de la App {#platform-origin-registering-the-app}
 
-1. Genera un par de claves de firma Ed25519 utilizando OpenSSL con soporte para Ed25519:
+1. Genera un par de claves de firma Ed25519 usando OpenSSL con soporte para Ed25519:
 
    ```sh
    umask 077
@@ -650,7 +656,7 @@ Un servidor Tuist autoalojado necesita su propia app de Origin, configurada con 
    openssl pkey -in origin-app-private.pem -pubout -out origin-app-public.pem
    ```
 
-2. Crea una app en la [configuración de apps de Origin](https://cursor.com/codebase/settings/apps). Registra el contenido de `origin-app-public.pem` como su clave pública de firma. Mantén `origin-app-private.pem` en secreto; lo proporcionarás al servidor Tuist, no lo subirás a Cursor.
+2. Crea una app en la [configuración de apps de Origin](https://cursor.com/codebase/settings/apps). Registra el contenido de `origin-app-public.pem` como su clave pública de firma. Mantén `origin-app-private.pem` en secreto; se lo proporcionarás al servidor Tuist, no lo subirás a Cursor.
 3. Configura los siguientes ajustes, reemplazando `YOUR_APP_URL` con la URL base HTTPS de tu despliegue de Tuist:
 
    | Ajuste | Valor |
@@ -667,15 +673,15 @@ Tuist solicita los siguientes permisos durante la instalación:
 | --- | --- |
 | `repository:pull_requests:read` | Encontrar pull requests y su commit head actual. |
 | `repository:pull_requests:reviews:write` | Leer, publicar y actualizar comentarios de informes. Origin incluye el permiso correspondiente de lectura de revisiones. |
-| `repository:metadata:read` | Descubrir repositorios y leer sus ramas predeterminadas. Concedido automáticamente por Origin. |
+| `repository:metadata:read` | Descubrir repositorios y leer sus ramas predeterminadas. Otorgado automáticamente por Origin. |
 
-Deja sin seleccionar los eventos opcionales de webhook del repositorio. Las notificaciones del ciclo de vida de la instalación son suficientes; no se requieren acceso al código fuente, permisos de merge ni permisos de check-run.
+Deja sin seleccionar los eventos opcionales de webhook del repositorio. Las notificaciones del ciclo de vida de la instalación son suficientes; no se requiere acceso al código fuente, permisos de merge ni permisos de check-run.
 
 ##### Configuración del servidor {#platform-origin-configuring-the-server}
 
 Establece las siguientes variables de entorno y luego reinicia el servidor:
 
-| Variable de entorno | Descripción | Requerida | Predeterminado | Ejemplo |
+| Variable de entorno | Descripción | Requerido | Predeterminado | Ejemplo |
 | --- | --- | --- | --- | --- |
 | `TUIST_ORIGIN_APP_ID` | El ID de la App copiado desde la configuración de apps de Origin. | Sí | | `app_...` |
 | `TUIST_ORIGIN_APP_PRIVATE_KEY` | El contenido completo de `origin-app-private.pem`, incluidas las líneas `BEGIN PRIVATE KEY` y `END PRIVATE KEY` y todos los saltos de línea. | Sí | | `-----BEGIN PRIVATE KEY-----...` |
@@ -686,17 +692,17 @@ Tu servidor Tuist necesita acceso HTTPS saliente a `api.cursor.com`. Cursor debe
 
 ##### Instalación de la App {#platform-origin-installing-the-app}
 
-Una vez que el servidor se reinicie, un administrador abre **Configuración → Integraciones**, elige **Conectar** bajo Origin y aprueba el acceso de la app a la cuenta y los repositorios de Origin adecuados. La organización de Tuist se mantiene durante todo este flujo. Las instalaciones iniciadas directamente desde Origin, en cambio, solicitan al administrador que inicie sesión y seleccione la organización de Tuist para conectar. Luego eligen **Agregar nueva conexión de proyecto** para vincular un proyecto de Tuist a un repositorio nativo.
+Una vez que el servidor se reinicie, un administrador abre **Configuración → Integraciones**, elige **Conectar** bajo Origin y aprueba el acceso de la app a la cuenta y los repositorios de Origin adecuados. La organización de Tuist se mantiene durante todo este flujo. Las instalaciones iniciadas directamente desde Origin, en cambio, solicitan al administrador que inicie sesión y seleccione la organización de Tuist a conectar. Luego eligen **Agregar nueva conexión de proyecto** para vincular un proyecto de Tuist a un repositorio nativo.
 
-Sigue la <.localized_link href="/guides/integrations/gitforge/origin">guía de integración de Origin</.localized_link> para las conexiones de proyectos y los requisitos de carga de resultados. Instalar la app no inicia flujos de trabajo de compilación o pruebas; esos flujos continúan informando resultados a tu servidor Tuist.
+Sigue la <.localized_link href="/guides/integrations/gitforge/origin">guía de integración de Origin</.localized_link> para las conexiones de proyectos y los requisitos de subida de resultados. Instalar la app no inicia los flujos de trabajo de compilación o pruebas; esos flujos continúan reportando resultados a tu servidor Tuist.
 
 #### Entire {#platform-entire}
 
-Un servidor Tuist autoalojado necesita su propio plugin de Entire, configurado con las URLs y la clave de firma de tu despliegue. Los plugins de Entire requieren registro como socio, así que contacta con Entire antes de comenzar. Registra un plugin separado, o al menos una clave de firma separada, para cada entorno de Tuist para que las instalaciones y las credenciales permanezcan independientes.
+Un servidor Tuist autoalojado necesita su propio plugin de Entire, configurado con las URLs y la clave de firma de tu despliegue. Los plugins de Entire requieren registro de partner, así que contacta a Entire antes de comenzar. Registra un plugin separado, o al menos una clave de firma separada, para cada entorno de Tuist para que las instalaciones y las credenciales permanezcan independientes.
 
 ##### Registro del plugin {#platform-entire-registering-the-plugin}
 
-1. Genera un par de claves de firma Ed25519 utilizando OpenSSL con soporte para Ed25519:
+1. Genera un par de claves de firma Ed25519 usando OpenSSL con soporte para Ed25519:
 
    ```sh
    umask 077
@@ -704,7 +710,7 @@ Un servidor Tuist autoalojado necesita su propio plugin de Entire, configurado c
    openssl pkey -in entire-plugin-private.pem -pubout -out entire-plugin-public.pem
    ```
 
-2. Registra el plugin siguiendo la [guía de registro de plugins](https://docs.entire.com/guides/api/plugins/register) de Entire. Comparte el contenido de `entire-plugin-public.pem`, o una URL JWKS que lo publique, como clave de firma del plugin. Mantén `entire-plugin-private.pem` en secreto; lo proporcionarás al servidor Tuist, no a Entire.
+2. Registra el plugin siguiendo la [guía de registro de plugins](https://docs.entire.com/guides/api/plugins/register) de Entire. Comparte el contenido de `entire-plugin-public.pem`, o una URL JWKS que lo publique, como la clave de firma del plugin. Mantén `entire-plugin-private.pem` en secreto; se lo proporcionarás al servidor Tuist, no a Entire.
 3. Configura las siguientes URLs, reemplazando `YOUR_APP_URL` con la URL base HTTPS de tu despliegue de Tuist:
 
    | Ajuste | Valor |
@@ -712,58 +718,58 @@ Un servidor Tuist autoalojado necesita su propio plugin de Entire, configurado c
    | URL posterior a la instalación | `YOUR_APP_URL/integrations/entire/callback` |
    | URL del webhook | `YOUR_APP_URL/webhooks/entire` |
 
-4. Toma nota del slug del plugin que confirma Entire y de la URL de la clave de firma del webhook que proporciona.
+4. Toma nota del slug del plugin que Entire confirma y de la URL de la clave de firma del webhook que proporciona.
 
 Solicita los siguientes permisos:
 
 | Permiso | Utilizado para |
 | --- | --- |
-| `contents:read` | Recibir eventos de Trail y encontrar Trails abiertos y en borrador con sus commits head. |
-| `checks:write` | Publicar la gate de Tuist. |
-| `findings:write` | Publicar y resolver hallazgos de tests fallidos e intermitentes. |
-| `discussions:write` | Publicar y actualizar el comentario resumen. Las instalaciones que no lo hayan concedido siguen recibiendo la gate y los hallazgos. |
+| `contents:read` | Recibir eventos de Trail y encontrar Trails abiertos y en borrador con sus commits principales. |
+| `checks:write` | Publicar la puerta de Tuist. |
+| `findings:write` | Publicar y resolver hallazgos de tests fallidos e inestables. |
+| `discussions:write` | Publicar y actualizar el comentario resumen. Las instalaciones que no lo hayan concedido siguen recibiendo la puerta y los hallazgos. |
 
-No se requiere acceso de escritura al repositorio. Si añades permisos a un registro existente, solicita a Entire que lo actualice y confirma que las instalaciones concedan los nuevos permisos. Consulta los contratos de [Checks](https://docs.entire.com/guides/api/plugins/report-checks), [Findings](https://docs.entire.com/guides/api/plugins/trail-findings) y [Trail comments](https://docs.entire.com/guides/api/plugins/trail-comments.md) de Entire.
+No se requiere acceso de escritura al repositorio. Si añades permisos a un registro existente, pide a Entire que lo actualice y confirma que las instalaciones concedan los nuevos permisos. Consulta los contratos de [Checks](https://docs.entire.com/guides/api/plugins/report-checks), [Findings](https://docs.entire.com/guides/api/plugins/trail-findings) y [comentarios de Trail](https://docs.entire.com/guides/api/plugins/trail-comments.md) de Entire.
 
 ##### Configuración del servidor {#platform-entire-configuring-the-server}
 
 Establece las siguientes variables de entorno y luego reinicia el servidor:
 
-| Variable de entorno | Descripción | Requerido | Predeterminado | Ejemplo |
+| Variable de entorno | Descripción | Requerida | Predeterminado | Ejemplo |
 | --- | --- | --- | --- | --- |
 | `TUIST_ENTIRE_PLUGIN_SLUG` | El slug del plugin confirmado por Entire. | Sí | | `tuist` |
 | `TUIST_ENTIRE_PLUGIN_PRIVATE_KEY` | El contenido completo de `entire-plugin-private.pem`, incluidas las líneas `BEGIN PRIVATE KEY` y `END PRIVATE KEY` y todos los saltos de línea. | Sí | | `-----BEGIN PRIVATE KEY-----...` |
 | `TUIST_ENTIRE_DELIVERY_JWKS_URL` | La URL de la clave de firma del webhook proporcionada por Entire durante el registro. | Sí | | |
-| `TUIST_ENTIRE_PLUGIN_KEY_ID` | El ID de clave, cuando registraste la clave de firma a través de una JWKS. | No | | |
+| `TUIST_ENTIRE_PLUGIN_KEY_ID` | El ID de clave, cuando registraste la clave de firma a través de un JWKS. | No | | |
 | `TUIST_ENTIRE_CORE_URL` | La URL de Entire Core utilizada para las solicitudes de instalación. | No | `https://eu.auth.entire.io` | |
 
-Almacena la clave privada en el gestor de secretos de tu despliegue y conserva su formato PEM multilínea. Nunca confirmes la clave en el control de código fuente ni la expongas en los registros. Con el chart de Helm de Tuist, puedes almacenar el PEM en tu bóveda de 1Password como `ENTIRE_PLUGIN/private_key` y habilitar `server.config.entirePluginKey.enabled` junto con `server.config.managedSecrets`; los nombres del elemento y del campo son configurables mediante `server.config.entirePluginKey.item` y `.field`. Este mapeo no establece el slug ni la URL de la clave de firma del webhook.
+Guarda la clave privada en el gestor de secretos de tu despliegue y conserva su formato PEM multilínea. Nunca envíes la clave al control de código fuente ni la expongas en los registros. Con el chart Helm de Tuist, puedes almacenar el PEM en tu bóveda de 1Password como `ENTIRE_PLUGIN/private_key` y habilitar `server.config.entirePluginKey.enabled` junto con `server.config.managedSecrets`; los nombres del elemento y del campo son configurables mediante `server.config.entirePluginKey.item` y `.field`. Este mapeo no establece el slug ni la URL de la clave de firma del webhook.
 
-Tu servidor Tuist necesita acceso HTTPS saliente a Entire Core y a los hosts regionales de la API de Entire que sirven tus repositorios, todos bajo `entire.io` o `entire.com`. Tuist verifica los recibos de instalación y las firmas de webhook, genera tokens de corta duración con alcance de repositorio y nunca incrusta tokens en los enlaces de informes.
+Tu servidor Tuist necesita acceso HTTPS saliente a Entire Core y a los hosts regionales de la API de Entire que sirven tus repositorios, todos bajo `entire.io` o `entire.com`. Tuist verifica los recibos de instalación y las firmas de webhook, genera tokens de corta duración con ámbito de repositorio y nunca incrusta tokens en los enlaces de informes.
 
 ##### Habilitación de la integración {#platform-entire-enabling-the-integration}
 
-Aplica las migraciones del servidor antes de desplegar la aplicación y luego habilita la feature flag `entire_trails` globalmente para ofrecer la integración a todas las cuentas, o solo a las seleccionadas. Habilitar la flag no cambia quién puede instalar el plugin en Entire; para ofrecerlo fuera del proyecto de Entire propietario del plugin, solicita a tu contacto en Entire que lo permita. La integración es independiente de la configuración de ejecución de CI de Tuist.
+Aplica las migraciones del servidor antes de desplegar la aplicación, luego habilita la bandera de característica `entire_trails` globalmente para ofrecer la integración a todas las cuentas, o a cuentas seleccionadas. Habilitar la bandera no cambia quién puede instalar el plugin en Entire; para ofrecerlo fuera del proyecto de Entire propietario del plugin, pide a tu contacto en Entire que lo permita. La integración es independiente de la configuración de ejecución de CI de Tuist.
 
-Si reviertes la aplicación, mantén la tabla `entire_trail_reports` para que una actualización posterior pueda recuperar las publicaciones que estaban en progreso.
+Si reviertes la aplicación, mantén la tabla `entire_trail_reports` para que una actualización posterior pueda recuperar publicaciones que estaban en progreso.
 
-Los administradores instalan entonces el plugin y conectan los repositorios a los proyectos siguiendo la <.localized_link href="/guides/integrations/gitforge/entire">guía de integración de Entire</.localized_link>. Instalar el plugin no inicia flujos de trabajo de compilación o pruebas; esos flujos continúan informando resultados a tu servidor Tuist.
+Los administradores instalan entonces el plugin y conectan repositorios a proyectos siguiendo la <.localized_link href="/guides/integrations/gitforge/entire">guía de integración de Entire</.localized_link>. Instalar el plugin no inicia los flujos de trabajo de compilación o pruebas; esos flujos continúan reportando resultados a tu servidor Tuist.
 
 ## Pruebas locales {#testing-locally}
 
 Proporcionamos una configuración completa de Docker Compose que incluye todas las dependencias necesarias para probar el servidor Tuist en tu máquina local antes de desplegarlo en tu infraestructura:
 
 - PostgreSQL 15
-- ClickHouse 26.5 para análisis
+- ClickHouse 26.5 para analítica
 - ClickHouse Keeper para coordinación
 - MinIO para almacenamiento compatible con S3
-- Kura para pruebas locales de caché autoalojada
+- Kura para pruebas locales de caché autoalojado
 - pgweb para administración de bases de datos
 
 > [!CAUTION]
 > **Licencia requerida**
 >
-> Es legalmente obligatorio disponer de una variable de entorno `TUIST_LICENSE` válida para ejecutar el servidor Tuist, incluidas las instancias de desarrollo local. Si necesitas una licencia, ponte en contacto con [contact@tuist.dev](mailto:contact@tuist.dev).
+> Es legalmente obligatorio disponer de una variable de entorno `TUIST_LICENSE` válida para ejecutar el servidor Tuist, incluidas las instancias de desarrollo local. Si necesitas una licencia, contacta con [contact@tuist.dev](mailto:contact@tuist.dev).
 
 
 **Inicio rápido:**
@@ -784,13 +790,13 @@ Proporcionamos una configuración completa de Docker Compose que incluye todas l
    # Edit .env and add your TUIST_LICENSE, TUIST_SECRET_KEY_BASE, and authentication credentials
    ```
 
-   El servicio ClickHouse incluido acepta estos controles opcionales de registros operativos:
+   El servicio ClickHouse incluido acepta estos controles opcionales de registro operativo:
 
    | Variable de entorno | Descripción | Predeterminado | Ejemplo |
    | --- | --- | --- | --- |
-   | `CLICKHOUSE_SYSTEM_LOG_TTL_DAYS` | Ventana de retención, en días, para las tablas de registros `system.*` de ClickHouse, como `text_log`, `query_log`, `trace_log`, `metric_log` y `part_log` | `14` | `7` |
+   | `CLICKHOUSE_SYSTEM_LOG_TTL_DAYS` | Ventana de retención, en días, para las tablas de registro `system.*` de ClickHouse como `text_log`, `query_log`, `trace_log`, `metric_log` y `part_log` | `14` | `7` |
    | `CLICKHOUSE_TEXT_LOG_LEVEL` | Registrador del servidor ClickHouse y nivel de `system.text_log` | `information` | `warning` |
-   | `CLICKHOUSE_SUPERSEDED_LOG_TABLES` | Qué hacer con las tablas `<name>_N` que ClickHouse deja atrás cuando reemplaza una tabla de registros del sistema. `ignore` las mantiene, `delete` las elimina | `ignore` | `delete` |
+   | `CLICKHOUSE_SUPERSEDED_LOG_TABLES` | Qué hacer con las tablas `<name>_N` que ClickHouse deja atrás cuando sustituye una tabla de registro del sistema. `ignore` las mantiene, `delete` las elimina | `ignore` | `delete` |
 
 3. Inicia todos los servicios:
    ```bash
@@ -801,11 +807,11 @@ Proporcionamos una configuración completa de Docker Compose que incluye todas l
 
    En Apple Silicon, Docker Desktop descarga automáticamente las variantes `linux/arm64` de las imágenes de Tuist y sus dependencias. Para forzar la emulación amd64 para depuración, ejecuta Compose con `DOCKER_DEFAULT_PLATFORM=linux/amd64`.
 
-   El archivo compose incluido utiliza volúmenes Docker con nombre para los datos persistentes. Si los reemplazas con montajes bind del host, crea primero los directorios del host y hazlos escribibles por los usuarios del contenedor, especialmente los directorios de datos de ClickHouse y ClickHouse Keeper.
+   El archivo compose incluido utiliza volúmenes Docker con nombre para datos persistentes. Si los reemplazas con montajes bind del host, crea primero los directorios del host y hazlos escribibles por los usuarios del contenedor, especialmente los directorios de datos de ClickHouse y ClickHouse Keeper.
 
 4. Accede al servidor en http://localhost:8080
 
-**Puntos de servicio:**
+**Endpoints de servicio:**
 - Servidor Tuist: http://localhost:8080
 - Caché Kura (HTTP + REAPI gRPC en un solo puerto): http://localhost:4000
 - Consola MinIO: http://localhost:9003 (credenciales: `tuist` / `tuist_dev_password`)
@@ -845,7 +851,7 @@ docker compose down -v
 
 ## Kubernetes con Helm {#kubernetes-with-helm}
 
-Tuist proporciona un chart oficial de Helm para el despliegue en Kubernetes. El chart incluye el servidor y el servicio de caché de Tuist, junto con dependencias de infraestructura integradas que puedes sustituir por proveedores externos según sea necesario.
+Tuist proporciona un chart oficial de Helm para desplegar en Kubernetes. El chart empaqueta el servidor Tuist y el servicio de caché, junto con dependencias de infraestructura integradas que puedes intercambiar por proveedores externos según sea necesario.
 
 ### Instalación del chart {#installing-the-chart}
 
@@ -878,13 +884,13 @@ server:
       certificateBase64: ""
 ```
 
-La entrada bajo `existingSecretKeys.key` nombra el campo en tu Secret que contiene el valor de la licencia, que puede ser la clave de licencia o, para instalaciones aisladas de red, el certificado de licencia codificado en Base64. Cada entrada bajo `existingSecretKeys` tiene como predeterminado el nombre de clave propio del chart, así que establece las entradas que tu Secret no contiene como una cadena vacía, como se hace con `certificateBase64` arriba. De lo contrario, los pods hacen referencia a claves que no existen y fallan al iniciarse. Crea el Secret en el namespace de la release antes de instalar o actualizar el chart.
+La entrada bajo `existingSecretKeys.key` nombra el campo en tu Secret que contiene el valor de la licencia, que puede ser la clave de licencia o, para instalaciones aisladas de red, el certificado de licencia codificado en Base64. Cada entrada bajo `existingSecretKeys` toma por defecto el nombre de clave propio del chart, así que establece las entradas que tu Secret no contiene como una cadena vacía, como se hace con `certificateBase64` arriba. De lo contrario, los pods referencian claves que no existen y fallan al iniciarse. Crea el Secret en el namespace de la release antes de instalar o actualizar el chart.
 
 Configura la licencia a través de una única fuente: `server.license.key` o `server.license.existingSecret`. El chart falla al renderizarse si no se establece ninguna o si se combinan fuentes. Una licencia pasada a través de `server.extraEnv` no cuenta como fuente, así que usa `existingSecret` en su lugar.
 
 ### Dependencias de infraestructura {#helm-infrastructure-dependencies}
 
-El chart gestiona tres dependencias de infraestructura: `postgresql`, `clickhouse` y `objectStorage`. Cada una tiene por defecto el modo **embedded**, lo que significa que el chart las despliega dentro del clúster. Para apuntar a tus propias instancias externas en su lugar, establece el `mode` de la dependencia a `external` y completa los detalles de conexión en tu `values.yaml`. Por ejemplo, para usar una base de datos PostgreSQL externa:
+El chart gestiona tres dependencias de infraestructura: `postgresql`, `clickhouse` y `objectStorage`. Cada una tiene por defecto el modo **embedded**, lo que significa que el chart las despliega dentro del clúster. Para apuntar a tus propias instancias externas en su lugar, establece el `mode` de la dependencia en `external` y completa los detalles de conexión en tu `values.yaml`. Por ejemplo, para usar una base de datos PostgreSQL externa:
 
 ```yaml
 # values.yaml
@@ -914,13 +920,13 @@ postgresql:
       password: password
 ```
 
-El chart lee el host, el nombre de usuario y la contraseña del Secret y construye `DATABASE_URL` mediante la sustitución de variables de entorno de Kubernetes, por lo que la contraseña no se renderiza en el manifiesto de Helm. El valor de la contraseña del Secret debe ser seguro para URL porque se interpola en una URL de base de datos.
+El chart lee el host, el nombre de usuario y la contraseña del Secret y compone `DATABASE_URL` mediante la sustitución de variables de entorno de Kubernetes, por lo que la contraseña no se renderiza en el manifiesto de Helm. El valor de la contraseña del Secret debe ser seguro para URL porque se interpola en una URL de base de datos.
 
 El mismo patrón se aplica a `clickhouse` y `objectStorage`. Consulta el bloque `external` bajo cada sección en el `values.yaml` del chart para ver el conjunto completo de campos configurables.
 
 ### Programación compartida y etiquetas {#helm-shared-scheduling-and-labels}
 
-El chart expone un pequeño conjunto de configuraciones de pod compartidas bajo `global` para que los operadores puedan adaptar el despliegue a su clúster sin repetir los mismos valores para cada carga de trabajo:
+El chart expone un pequeño conjunto de configuraciones compartidas de pods bajo `global` para que los operadores puedan adaptar el despliegue a su clúster sin repetir los mismos valores para cada carga de trabajo:
 
 ```yaml
 global:
@@ -946,12 +952,12 @@ Usa estas configuraciones cuando necesites:
 
 ### Identidad de carga de trabajo y cuentas de servicio {#helm-workload-identity}
 
-El chart define el alcance de las cuentas de servicio por carga de trabajo de aplicación para que puedas conceder identidad solo donde sea necesario:
+El chart limita las cuentas de servicio por carga de trabajo de aplicación para que puedas conceder identidad solo donde sea necesario:
 
-- `server.serviceAccount` se aplica al despliegue del servidor de Tuist y al job de migración
+- `server.serviceAccount` se aplica al despliegue del servidor Tuist y al job de migración
 - `cache.serviceAccount` se aplica al despliegue de la caché
 
-Por ejemplo, cuando la caché usa un bucket S3 externo en EKS, puedes habilitar IRSA para la carga de trabajo de la caché sin adjuntar también el mismo rol IAM a las bases de datos embebidas:
+Por ejemplo, cuando la caché usa un bucket S3 externo en EKS, puedes habilitar IRSA para la carga de trabajo de la caché sin adjuntar también el mismo rol IAM a las bases de datos integradas:
 
 ```yaml
 cache:
@@ -963,7 +969,7 @@ cache:
 
 ### Anulaciones de compatibilidad {#helm-compatibility-overrides}
 
-El chart mantiene las personalizaciones específicas de almacenamiento y malla como opt-in para que los valores predeterminados sigan siendo portables:
+El chart mantiene las personalizaciones específicas de almacenamiento y malla como opcionales para que los valores predeterminados sigan siendo portables:
 
 ```yaml
 cache:
@@ -984,14 +990,14 @@ Usa estas anulaciones solo cuando tu clúster las requiera:
 
 - `cache.podSecurityContext` está vacío por defecto. Establece `fsGroup` si tu clase de almacenamiento o controlador CSI necesita propiedad de grupo compartida en volúmenes montados.
 - `clickhouse.embedded.service.nativePort` tiene por defecto el puerto de servicio nativo estándar `9000` de ClickHouse y puede cambiarse cuando una malla de servicios o una reserva de plataforma entra en conflicto con ese puerto.
-- `clickhouse.embedded.systemLogs.ttlDays` está vacío por defecto, dejando la retención ilimitada de ClickHouse en las tablas de logs internas embebidas como `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log` y `system.part_log`. Establecerlo sobrescribe esas tablas una vez, así que adóptalo junto con `supersededTables: delete` — consulta <.localized_link href="/guides/server/self-host/server#capping-operational-log-retention">limitar la retención de logs operativos</.localized_link>.
-- `clickhouse.embedded.systemLogs.level` tiene por defecto `information` para el logger del servidor ClickHouse embebido y `system.text_log`. A diferencia de `ttlDays`, no forma parte de ninguna definición de tabla, por lo que cambiarlo nunca sobrescribe una tabla.
-- `clickhouse.embedded.systemLogs.supersededTables` tiene por defecto `ignore` y decide qué ocurre con las tablas `<name>_N` que ClickHouse deja atrás cuando sobrescribe una tabla de log del sistema. Establécelo en `delete` para eliminarlas en cada `helm upgrade`.
-- Las ediciones en `ttlDays` y `level` llegan al pod de ClickHouse la próxima vez que se reinicie, ya que ambos son montajes `subPath` y el chart no realiza un rollout del StatefulSet cuando cambia su ConfigMap.
+- `clickhouse.embedded.systemLogs.ttlDays` está vacío por defecto, dejando la retención ilimitada de ClickHouse en las tablas de registro internas integradas como `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log` y `system.part_log`. Establecerlo anula esas tablas una vez, así que adóptalo junto con `supersededTables: delete` — consulta <.localized_link href="/guides/server/self-host/server#capping-operational-log-retention">limitar la retención de registros operativos</.localized_link>.
+- `clickhouse.embedded.systemLogs.level` tiene por defecto `information` para el logger del servidor ClickHouse integrado y `system.text_log`. A diferencia de `ttlDays`, no forma parte de ninguna definición de tabla, por lo que cambiarlo nunca anula una tabla.
+- `clickhouse.embedded.systemLogs.supersededTables` tiene por defecto `ignore` y decide qué ocurre con las tablas `<name>_N` que ClickHouse deja atrás cuando anula una tabla de registro del sistema. Establécelo en `delete` para eliminarlas en cada `helm upgrade`.
+- Los cambios en `ttlDays` y `level` llegan al pod de ClickHouse la próxima vez que se reinicie, ya que ambos son montajes `subPath` y el chart no realiza un rolling update del StatefulSet cuando cambia su ConfigMap.
 
 ### Observabilidad {#helm-observability}
 
-El chart incluye una pila de observabilidad opcional (OpenTelemetry Collector, Prometheus, Grafana, Loki y Tempo). Está **deshabilitada por defecto**. Para habilitarla en tu `values.yaml`:
+El chart incluye un stack de observabilidad opcional (OpenTelemetry Collector, Prometheus, Grafana, Loki y Tempo). Está **deshabilitado por defecto**. Para habilitarlo en tu `values.yaml`:
 
 ```yaml
 # values.yaml
@@ -999,7 +1005,7 @@ observability:
   enabled: true
 ```
 
-Cuando está habilitada, Grafana está disponible con desgloses preconfigurados de Logs, Traces y Metrics. Para observabilidad externa, mantén esto deshabilitado y configura los endpoints a través de `server.extraEnv`:
+Cuando está habilitado, Grafana está disponible con desgloses preconfigurados de Logs, Traces y Metrics. Para observabilidad externa, mantén esto deshabilitado y configura los endpoints a través de `server.extraEnv`:
 
 ```yaml
 # values.yaml
@@ -1022,7 +1028,7 @@ La imagen oficial de Docker de Tuist está disponible en:
 ghcr.io/tuist/tuist
 ```
 
-La imagen publicada incluye procesamiento de compilación Linux embebido para archivos `.xcactivitylog`, por lo que los despliegues autohospedados pueden procesar compilaciones sin ejecutar ningún servicio adicional — el job Oban `ProcessBuildWorker` se ejecuta en proceso en cada pod del servidor. Si quieres descargar el procesamiento de compilaciones a un conjunto de réplicas dedicado (por ejemplo, para escalar el throughput de análisis independientemente de la capa web), establece `processor.enabled: true` en el chart de Helm: el chart despliega la misma imagen como consumidor exclusivo de cola (`TUIST_PROCESSOR_MODE=true`). Consulta [`values.yaml`](https://github.com/tuist/tuist/blob/main/infra/helm/tuist/values.yaml) para ver el conjunto completo de parámetros.
+La imagen publicada incluye el procesamiento de compilaciones Linux integrado para archivos `.xcactivitylog`, por lo que los despliegues autohospedados pueden procesar compilaciones sin ejecutar ningún servicio adicional — el job Oban `ProcessBuildWorker` se ejecuta en proceso en cada pod del servidor. Si quieres descargar el procesamiento de compilaciones a un conjunto de réplicas dedicado (por ejemplo, para escalar el rendimiento de análisis independientemente de la capa web), establece `processor.enabled: true` en el chart de Helm: el chart despliega la misma imagen como un consumidor exclusivo de cola (`TUIST_PROCESSOR_MODE=true`). Consulta [`values.yaml`](https://github.com/tuist/tuist/blob/main/infra/helm/tuist/values.yaml) para ver el conjunto completo de parámetros.
 
 > [!NOTE]
 > El análisis de `.xcresult` depende de `xcresulttool` de Xcode, por lo que solo puede ejecutarse en macOS. La CLI maneja esto de forma transparente para despliegues autohospedados: `tuist test` tiene por defecto el modo de procesamiento **local** contra cualquier servidor que no sea `tuist.dev`, analizando el xcresult en la máquina del desarrollador (que ya tiene Xcode para la propia compilación) y subiendo los resultados estructurados. Los resultados de los tests se ingieren sin ninguna infraestructura adicional.
@@ -1106,7 +1112,7 @@ kill_timeout = "5s"
   url_prefix = "/"
 ```
 
-Luego puedes ejecutar `fly launch --local-only --no-deploy` para lanzar la aplicación. En despliegues posteriores, en lugar de ejecutar `fly launch --local-only`, tendrás que ejecutar `fly deploy --local-only`. Fly.io no permite extraer imágenes Docker privadas, por eso necesitamos usar la bandera `--local-only`.
+Luego puedes ejecutar `fly launch --local-only --no-deploy` para lanzar la aplicación. En despliegues posteriores, en lugar de ejecutar `fly launch --local-only`, tendrás que ejecutar `fly deploy --local-only`. Fly.io no permite extraer imágenes Docker privadas, por lo que necesitamos usar la flag `--local-only`.
 
 
 ## Métricas de Prometheus {#prometheus-metrics}
@@ -1127,10 +1133,10 @@ Tuist utiliza [Finch](https://github.com/sneako/finch) como su cliente HTTP y ex
   - Etiquetas: `finch_name`, `method`, `scheme`, `host`, `port`, `kind`, `reason`
 
 #### Métricas de la cola del pool de conexiones
-- `tuist_prom_ex_finch_queue_duration_milliseconds` - Tiempo esperando en la cola del pool de conexiones (histograma)
+- `tuist_prom_ex_finch_queue_duration_milliseconds` - Tiempo de espera en la cola del pool de conexiones (histograma)
   - Etiquetas: `finch_name`, `scheme`, `host`, `port`, `pool`
   - Intervalos: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
-- `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Tiempo que la conexión permaneció inactiva antes de ser usada (histograma)
+- `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Tiempo que la conexión permaneció inactiva antes de ser utilizada (histograma)
   - Etiquetas: `finch_name`, `scheme`, `host`, `port`, `pool`
   - Intervalos: 10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s, 10s
 - `tuist_prom_ex_finch_queue_exception_count_total` - Número total de excepciones en la cola de Finch (contador)
@@ -1157,26 +1163,26 @@ Todas las métricas de histograma proporcionan variantes `_bucket`, `_sum` y `_c
 
 Además de las métricas de Finch, Tuist expone métricas para:
 - Rendimiento de la máquina virtual BEAM
-- Métricas de lógica de negocio personalizada (almacenamiento, cuentas, proyectos, etc.)
-- Rendimiento de la base de datos (cuando se usa la infraestructura alojada por Tuist)
+- Métricas personalizadas de lógica de negocio (almacenamiento, cuentas, proyectos, etc.)
+- Rendimiento de la base de datos (al usar infraestructura alojada por Tuist)
 
 ## Operaciones {#operations}
 
-Tuist ofrece un conjunto de utilidades en `/ops/` que puedes usar para gestionar tu instancia.
+Tuist ofrece un conjunto de utilidades bajo `/ops/` que puedes usar para gestionar tu instancia.
 
 > [!WARNING]
 > **Autorización**
 >
-> Solo los usuarios cuyo dominio de correo electrónico coincida con `TUIST_OPERATOR_EMAIL_DOMAIN` pueden acceder a los endpoints de `/ops/`. Si la variable no está configurada, nadie puede acceder a ellos. Configúrala con un dominio cuyos buzones de correo controles.
+> Solo los usuarios cuyo dominio de correo electrónico coincida con `TUIST_OPERATOR_EMAIL_DOMAIN` pueden acceder a los endpoints de `/ops/`. Si la variable no está configurada, nadie puede acceder a ellos. Configúrala con un dominio cuyos buzones controles.
 >
-> Un usuario también debe haber demostrado el control de su dirección: siguiendo un correo de confirmación o de restablecimiento de contraseña, iniciando sesión con Google, GitHub o Apple, o introduciendo el código de un solo uso o presentando el correo electrónico verificado de un inicio de sesión mediante agente. Las cuentas que se confirmaron automáticamente, que es el comportamiento predeterminado sin un proveedor de correo, no cumplen este requisito hasta que lo hagan. Tras crear la cuenta, la prueba se registra solo mientras la dirección esté en `TUIST_OPERATOR_EMAIL_DOMAIN`, así que después de configurar o cambiar la variable, los operadores que no hayan demostrado su dirección bajo ella deben hacerlo de nuevo. Las cuentas creadas iniciando sesión con uno de esos proveedores o mediante un inicio de sesión de agente conservan la prueba desde su creación. Sin un proveedor de correo, una cuenta registrada con contraseña no puede vincular uno de esos proveedores, así que crea cuentas de operador iniciando sesión con Google, GitHub o Apple, o configura un proveedor de correo.
+> El usuario también debe haber demostrado el control de su dirección: siguiendo un correo de confirmación o de restablecimiento de contraseña, iniciando sesión con Google, GitHub o Apple, o introduciendo el código de un solo uso o presentando el correo verificado de un inicio de sesión mediante agente. Las cuentas confirmadas automáticamente, que es el comportamiento predeterminado sin un proveedor de correo, no cumplen este requisito hasta que lo hagan. Tras crear la cuenta, se registra una prueba solo mientras la dirección esté en `TUIST_OPERATOR_EMAIL_DOMAIN`, así que, después de configurar o cambiar la variable, los operadores que no hayan demostrado su dirección bajo ella deben hacerlo de nuevo. Las cuentas creadas iniciando sesión con uno de esos proveedores o mediante un inicio de sesión de agente llevan la prueba desde su creación. Sin un proveedor de correo, una cuenta registrada con contraseña no puede vincular uno de esos proveedores, así que crea cuentas de operador iniciando sesión con Google, GitHub o Apple, o configura un proveedor de correo.
 >
-> Las cuentas creadas antes de que existiera esta comprobación aún no han registrado esa prueba, por lo que un operador existente recupera el acceso tras restablecer su contraseña o iniciar sesión una vez con uno de esos proveedores.
+> Las cuentas creadas antes de que existiera esta comprobación aún no han registrado esa prueba, por lo que un operador existente recupera el acceso tras restablecer su contraseña o iniciar sesión con uno de esos proveedores una vez.
 >
-> La primera vez que una cuenta del dominio de operadores sin esa prueba demuestra su dirección de ese modo, Tuist elimina su contraseña, passkeys y enlaces a proveedores de inicio de sesión único (SSO) de la organización, y cierra su sesión en el navegador y en la CLI, porque quien registró la dirección podría no ser su propietario. Un restablecimiento de contraseña en dicha cuenta hace lo mismo, salvo establecer la nueva contraseña. La aplicación de autenticación configurada en la cuenta se mantiene; si no pertenece al propietario, elimínala por él. Las cuentas confirmadas fuera del dominio de operadores conservan sus credenciales. El propietario sigue iniciando sesión con el proveedor o establece una nueva contraseña mediante un restablecimiento.
+> La primera vez que una cuenta del dominio de operadores sin esa prueba demuestra su dirección de ese modo, Tuist elimina su contraseña, sus passkeys y los enlaces a proveedores de inicio de sesión único (SSO) de la organización, y cierra su sesión en el navegador y en la CLI, porque quien registró la dirección podría no ser su propietario. Un restablecimiento de contraseña en una cuenta de este tipo hace lo mismo, aparte de establecer la nueva contraseña. Una aplicación de autenticación configurada en la cuenta permanece; si no es del propietario, elimínala por él. Las cuentas confirmadas fuera del dominio de operadores conservan sus credenciales. El propietario sigue iniciando sesión con el proveedor o establece una nueva contraseña mediante un restablecimiento.
 >
 > Las cuentas que el aprovisionamiento SCIM crea o renombra no tienen prueba hasta que su propietario la proporcione.
 
 
 - **Errores (`/ops/errors`):** Puedes ver errores inesperados que ocurrieron en la aplicación. Esto resulta útil para depurar y entender qué salió mal, y podríamos pedirte que compartas esta información con nosotros si tienes problemas.
-- **Panel de control (`/ops/dashboard`):** Puedes ver un panel de control que ofrece información sobre el rendimiento y el estado de la aplicación (por ejemplo, consumo de memoria, procesos en ejecución, número de peticiones). Este panel puede ser muy útil para saber si el hardware que usas es suficiente para manejar la carga.
+- **Panel de control (`/ops/dashboard`):** Puedes ver un panel de control que ofrece información sobre el rendimiento y el estado de la aplicación (por ejemplo, consumo de memoria, procesos en ejecución, número de peticiones). Este panel puede ser muy útil para saber si el hardware que utilizas es suficiente para manejar la carga.

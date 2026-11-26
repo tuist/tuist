@@ -94,7 +94,7 @@ defmodule LuftServer.Threads.MCPTest do
       end
     end)
 
-    assert {:ok, [tool]} = MCP.discover(ctx.thread, ctx.message, ctx.run)
+    assert {:ok, [tool], []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
     {:env, env} = :erlang.fun_info(tool.call, :env)
     refute inspect(env, limit: :infinity) =~ "author-token"
     assert {:ok, output} = Condukt.Tool.execute(tool, %{}, %{})
@@ -144,7 +144,7 @@ defmodule LuftServer.Threads.MCPTest do
       end
     end)
 
-    assert {:ok, [tool]} = MCP.discover(ctx.thread, ctx.message, ctx.run)
+    assert {:ok, [tool], []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
     assert {:error, :tool_outcome_unknown} = Condukt.Tool.execute(tool, %{}, %{})
     assert_received :effect
     assert [%{status: "executing"}] = Repo.all(ToolCall)
@@ -159,12 +159,38 @@ defmodule LuftServer.Threads.MCPTest do
         else: Req.Test.json(conn, %{tools: [definition()]})
     end)
 
-    assert {:ok, [tool]} = MCP.discover(ctx.thread, ctx.message, ctx.run)
+    assert {:ok, [tool], []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
     # The exact persisted message remains authoritative, not the struct the
     # host originally handed discovery.
     Repo.update!(Ecto.Changeset.change(ctx.message, author_session_id: nil))
     assert {:error, _} = Condukt.Tool.execute(tool, %{}, %{})
     refute Repo.exists?(from c in ToolCall, where: c.status == "completed")
+  end
+
+  test "a server whose discovery fails is skipped and named, keeping the others' tools", ctx do
+    broken = "019a50ec-f33b-7000-8000-000000000002"
+
+    upstream(fn conn ->
+      cond do
+        conn.request_path == @base ->
+          Req.Test.json(conn, %{
+            servers: [
+              %{id: broken, name: "Broken", connected: true, endpoint: @endpoint},
+              %{id: @server, name: "Profile", connected: true, endpoint: @endpoint}
+            ],
+            builtin_mcp_allowed: true
+          })
+
+        conn.request_path == @base <> "/" <> broken <> "/tools" ->
+          conn |> put_status(403) |> Req.Test.json(%{error: %{code: "mcp_unavailable"}})
+
+        conn.request_path == @base <> "/" <> @server <> "/tools" ->
+          Req.Test.json(conn, %{tools: [definition()]})
+      end
+    end)
+
+    assert {:ok, [tool], ["Broken"]} = MCP.discover(ctx.thread, ctx.message, ctx.run)
+    assert tool.description =~ "read"
   end
 
   test "large profile catalogs offer searchable tools rather than silently dropping entries",
@@ -179,7 +205,7 @@ defmodule LuftServer.Threads.MCPTest do
             })
       end)
 
-      assert {:ok, [search, call]} = MCP.discover(ctx.thread, ctx.message, ctx.run)
+      assert {:ok, [search, call], []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
       assert search.name == "mcp_search_tools" and call.name == "mcp_call_tool"
       assert {:ok, output} = Condukt.Tool.execute(search, %{"query" => "read_#{count}"}, %{})
       assert [%{"description" => description}] = Jason.decode!(output)["tools"]

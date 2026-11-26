@@ -79,6 +79,75 @@ if [ -n "$EGRESS_CONTROLLER_TAG" ]; then
   log "Resolved stable-egress-controller image tag: $EGRESS_CONTROLLER_TAG"
   HELM_SET_ARGS+=(--set "ciliumEgressGateway.server.failoverController.image.tag=$EGRESS_CONTROLLER_TAG")
 fi
+
+# The Hetzner load balancers in front of the main and gRPC ingress controllers
+# reach them through NodePorts on the nodes' public addresses, which any client
+# can reach too and send its own PROXY header, claiming a Cloudflare address to
+# pass `cloudflareOnly` or any address to dodge a per-address rate limit. A
+# load balancer connects from its own address, so each controller believes the
+# PROXY header only from its load balancer (`proxy-real-ip-cidr`). The address
+# is read from the Service rather than typed per environment, and checked again
+# after the upgrade, which is what can replace a load balancer.
+# Values key and Service of each controller that sits behind one.
+PROXY_CONTROLLERS=(
+  "ingress-nginx platform-ingress-nginx-controller"
+  "grpc-ingress-nginx platform-grpc-ingress-nginx-controller"
+)
+
+# Prints the IPv4 address of a Service's load balancer, nothing when the
+# Service does not exist (a first install, or a controller this cluster does
+# not run). Fails when the Service exists without an IPv4 address or cannot be
+# read: running on without the setting would silently trust every peer again.
+load_balancer_ip() {
+  local service=$1 out name ip
+  if ! out="$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get service "$service" --ignore-not-found \
+    -o jsonpath='{.metadata.name} {.status.loadBalancer.ingress[0].ip}')"; then
+    echo "ERROR: could not read Service platform/$service" >&2
+    return 1
+  fi
+  read -r name ip <<<"$out" || true
+  [ -z "$name" ] && return 0
+  if [[ ! "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "ERROR: Service platform/$service has no IPv4 load balancer address (got '${ip:-}')" >&2
+    return 1
+  fi
+  echo "$ip"
+}
+
+# Fills PROXY_SET_ARGS with each existing controller's load balancer address.
+resolve_proxy_set_args() {
+  local entry key service ip
+  PROXY_SET_ARGS=()
+  for entry in "${PROXY_CONTROLLERS[@]}"; do
+    read -r key service <<<"$entry"
+    ip="$(load_balancer_ip "$service")" || exit 1
+    if [ -n "$ip" ]; then
+      log "$key trusts PROXY headers only from its load balancer $ip"
+      PROXY_SET_ARGS+=(--set-string "$key.controller.config.proxy-real-ip-cidr=$ip/32")
+    fi
+  done
+}
+
+# Whether every controller with a load balancer already trusts exactly it.
+# Read errors exit rather than return: this runs as an `if` condition, where
+# `set -e` does not apply.
+proxy_trust_current() {
+  local entry key service ip trusted
+  for entry in "${PROXY_CONTROLLERS[@]}"; do
+    read -r key service <<<"$entry"
+    ip="$(load_balancer_ip "$service")" || exit 1
+    [ -z "$ip" ] && continue
+    trusted="$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get configmap "$service" \
+      -o jsonpath='{.data.proxy-real-ip-cidr}')" || exit 1
+    if [ "$trusted" != "$ip/32" ]; then
+      log "$key trusts '${trusted:-any peer}', but its load balancer is $ip"
+      return 1
+    fi
+  done
+}
+
+resolve_proxy_set_args
+
 HELM_VALUES_ARGS=(-f "$CHART_PATH/values-hetzner.yaml")
 CLUSTER_VALUES_FILE="$CHART_PATH/values-${CLUSTER_NAME}.yaml"
 
@@ -233,23 +302,41 @@ dump_diagnostics() {
 }
 trap dump_diagnostics EXIT
 
-HELM_CMD=(
-  helm upgrade --install platform "$CHART_PATH"
-  --namespace platform
-  "${HELM_VALUES_ARGS[@]}"
-  "${HELM_SET_ARGS[@]}"
-)
+upgrade_platform() {
+  local cmd=(
+    helm upgrade --install platform "$CHART_PATH"
+    --namespace platform
+    "${HELM_VALUES_ARGS[@]}"
+    "${HELM_SET_ARGS[@]}"
+  )
+  if [ "${#PROXY_SET_ARGS[@]}" -gt 0 ]; then
+    cmd+=("${PROXY_SET_ARGS[@]}")
+  fi
+  if [ "${#HELM_EXTRA_ARGS[@]}" -gt 0 ]; then
+    cmd+=("${HELM_EXTRA_ARGS[@]}")
+  fi
+  cmd+=(
+    --wait
+    --timeout "$HELM_TIMEOUT"
+  )
+  KUBECONFIG="$WL_KUBECONFIG" "${cmd[@]}"
+}
 
-if [ "${#HELM_EXTRA_ARGS[@]}" -gt 0 ]; then
-  HELM_CMD+=("${HELM_EXTRA_ARGS[@]}")
+upgrade_platform
+
+# A first install creates the load balancers, and an upgrade can replace one.
+# Either way the controller must trust the address the Service has now, or a
+# `cloudflareOnly` host answers 403 to everyone (a stale address) or trusts
+# every peer (none). Upgrade once more with the current addresses, then fail
+# loudly if they still disagree.
+if ! proxy_trust_current; then
+  resolve_proxy_set_args
+  upgrade_platform
+  if ! proxy_trust_current; then
+    echo "ERROR: ingress controllers do not trust their load balancers' current addresses" >&2
+    exit 1
+  fi
 fi
-
-HELM_CMD+=(
-  --wait
-  --timeout "$HELM_TIMEOUT"
-)
-
-KUBECONFIG="$WL_KUBECONFIG" "${HELM_CMD[@]}"
 
 # The Kura gateways on rack nodes (infra/helm/rack-cache-gateways), from the
 # same values, as a release nothing waits on. A rack is down for days at a
