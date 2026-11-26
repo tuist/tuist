@@ -83,6 +83,7 @@ func main() {
 		customCacheNamespace string
 		customCacheSA        string
 		customCacheMaxGB     int
+		blockCacheVolumes    bool
 		runnerCacheBudgetGiB int
 		imageMirrors         imageMirrorList
 		imageMirrorSync      time.Duration
@@ -150,6 +151,7 @@ func main() {
 			"measure against it below the volume's quota, so it can change without recreating the volume. "+
 			"0 (default) leaves the quota as the bound.")
 	flag.StringVar(&customCacheURL, "custom-cache-url", envOr("TART_KUBELET_CUSTOM_CACHE_URL", ""), "Opt-in server /api/internal/runners/cache-volumes URL")
+	flag.BoolVar(&blockCacheVolumes, "block-cache-volumes", false, "Serve the custom cache volumes guests ask for as USB disks Tart hot-plugs (needs a Tart built from infra/tart-build)")
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Runner namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Trusted cache agent service account")
 	flag.IntVar(&customCacheMaxGB, "custom-cache-max-volume-gb", envIntOr("TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB", 100),
@@ -433,6 +435,17 @@ func main() {
 		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Space: space, MaxVolumeBytes: int64(customCacheMaxGB) * 1_000_000_000,
 			// Checkout masters share the custom volumes' filesystem, admission and agent.
 			Checkouts: &cachevolumes.Checkouts{Root: checkoutsRoot, Images: &cachevolumes.APFSCheckoutImages{}, Tools: podagent.GitLFS(checkoutsRoot, nil)}}
+		if blockCacheVolumes {
+			// The switch is fleet-wide but only our Tart builds accept
+			// --usb-disk-requests; upstream Tart would refuse every runner VM.
+			// A host on upstream Tart keeps share-backed volumes, which macOS 27
+			// guests decline, so their jobs run cold.
+			if version, err := tartClient.Version(context.Background()); err == nil && strings.Contains(version, "-tuist.") {
+				customVolumes.Block = &podagent.BlockVolumes{Root: filepath.Join(runnerCacheRoot, "block")}
+			} else {
+				setupLog.Info("block cache volumes need a Tart built from infra/tart-build; leaving them off", "tart", version, "error", err)
+			}
+		}
 		if err := mgr.Add(customVolumes); err != nil {
 			setupLog.Error(err, "add custom volumes")
 			os.Exit(1)
