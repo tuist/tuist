@@ -63,10 +63,12 @@ func (r *KuraInstanceReconciler) holdRolloutForResize(ctx context.Context, insta
 	if sts.DeletionTimestamp != nil {
 		return false, nil
 	}
-	// An in-place CPU resize's hold becomes the resize's, so it is released
-	// with the resize rather than abandoned while the rebuild replaces pods.
+	// An in-place CPU resize's or a primary handoff's hold becomes the
+	// resize's, so it is released with the resize rather than abandoned while
+	// the rebuild replaces pods.
 	_, cpuHeld := sts.Annotations[cpuResizeHoldAnnotation]
-	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType && !cpuHeld {
+	_, handoffHeld := sts.Annotations[primaryHandoffRolloutAnnotation]
+	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType && !cpuHeld && !handoffHeld {
 		return true, nil
 	}
 	if rollingPartitioned(sts) {
@@ -79,6 +81,7 @@ func (r *KuraInstanceReconciler) holdRolloutForResize(ctx context.Context, insta
 		sts.Annotations = map[string]string{}
 	}
 	delete(sts.Annotations, cpuResizeHoldAnnotation)
+	delete(sts.Annotations, primaryHandoffRolloutAnnotation)
 	sts.Annotations[resizeRolloutHoldAnnotation] = "true"
 	if err := r.Patch(ctx, sts, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})); err != nil {
 		return false, err
@@ -155,12 +158,10 @@ func (r *KuraInstanceReconciler) releaseResizeRolloutHold(ctx context.Context, i
 	}
 
 	before := sts.DeepCopy()
-	delete(sts.Annotations, resizeRolloutHoldAnnotation)
 	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
-		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
-			Type:          appsv1.RollingUpdateStatefulSetStrategyType,
-			RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{Partition: ptr(int32(0))},
-		}
+		releaseControllerRolloutHold(instance, sts)
+	} else {
+		delete(sts.Annotations, resizeRolloutHoldAnnotation)
 	}
 	if err := r.Patch(ctx, sts, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})); err != nil {
 		return err
@@ -226,13 +227,15 @@ func rollingPartitioned(sts *appsv1.StatefulSet) bool {
 }
 
 // rolloutPausedByOperator reports an update strategy an operator chose to
-// stop rollouts with. The resize's and the CPU resize's holds are not one: the
-// controller placed them and replaces pods under them itself.
+// stop rollouts with. The resize's, the CPU resize's and the primary handoff's
+// holds are not one: the controller placed them and replaces pods under them
+// itself.
 func rolloutPausedByOperator(sts *appsv1.StatefulSet) bool {
 	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
 		_, resizeHeld := sts.Annotations[resizeRolloutHoldAnnotation]
 		_, cpuHeld := sts.Annotations[cpuResizeHoldAnnotation]
-		return !resizeHeld && !cpuHeld
+		_, handoffHeld := sts.Annotations[primaryHandoffRolloutAnnotation]
+		return !resizeHeld && !cpuHeld && !handoffHeld
 	}
 	return rollingPartitioned(sts)
 }

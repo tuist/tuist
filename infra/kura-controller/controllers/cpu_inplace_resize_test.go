@@ -197,6 +197,19 @@ func assertCPUResizeReleased(t *testing.T, sts *appsv1.StatefulSet) {
 	}
 }
 
+// assertCPUResizeFellBackToPrimaryHandoff checks that a resize the pods could
+// not take in place rolls them through the primary handoff, not through a
+// RollingUpdate that would delete the routed primary unannounced.
+func assertCPUResizeFellBackToPrimaryHandoff(t *testing.T, sts *appsv1.StatefulSet) {
+	t.Helper()
+	if !primaryHandoffHeld(sts) {
+		t.Fatalf("update strategy = %+v, annotations %v; want the primary handoff's OnDelete hold", sts.Spec.UpdateStrategy, sts.Annotations)
+	}
+	if _, held := sts.Annotations[cpuResizeHoldAnnotation]; held {
+		t.Fatal("CPU resize hold annotation kept after the fallback")
+	}
+}
+
 // The incident this exists for: a band change re-templated the StatefulSet
 // and rolled both pods, draining clients mid-upload.
 func TestReconcileHoldsACPURequestChangeInsteadOfRollingThePods(t *testing.T) {
@@ -322,7 +335,7 @@ func TestCPUResizeHoldRollsARevisionThatChangesMoreThanTheRequest(t *testing.T) 
 	if len(*resizes) != 0 {
 		t.Fatalf("resized %+v, want an image change left to the rolling update", *resizes)
 	}
-	assertCPUResizeReleased(t, getStatefulSet(t, r, f))
+	assertCPUResizeFellBackToPrimaryHandoff(t, getStatefulSet(t, r, f))
 }
 
 // A resize the API refuses outright, such as one that would change the pod's
@@ -342,7 +355,7 @@ func TestCPUResizeHoldRollsWhenTheResizeIsRefused(t *testing.T) {
 	if err := r.reconcileCPUResizeHold(ctx, f.instance, f.now); err != nil {
 		t.Fatal(err)
 	}
-	assertCPUResizeReleased(t, getStatefulSet(t, r, f))
+	assertCPUResizeFellBackToPrimaryHandoff(t, getStatefulSet(t, r, f))
 }
 
 func TestCPUResizeHoldRollsWhenTheResizeStalls(t *testing.T) {
@@ -360,7 +373,7 @@ func TestCPUResizeHoldRollsWhenTheResizeStalls(t *testing.T) {
 	if len(*resizes) != 0 {
 		t.Fatalf("resized %+v after the stall timeout", *resizes)
 	}
-	assertCPUResizeReleased(t, getStatefulSet(t, r, f))
+	assertCPUResizeFellBackToPrimaryHandoff(t, getStatefulSet(t, r, f))
 }
 
 // Until the StatefulSet controller has observed the held template, its update

@@ -34,6 +34,7 @@ func (r *KuraInstanceReconciler) holdRecoveryRollout(ctx context.Context, instan
 	sts.Annotations[recoveryRolloutHold] = "true"
 	delete(sts.Annotations, resizeRolloutHoldAnnotation)
 	delete(sts.Annotations, cpuResizeHoldAnnotation)
+	delete(sts.Annotations, primaryHandoffRolloutAnnotation)
 	sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
 	// A controller crash or an unrelated StatefulSet deletion must not collect
 	// the survivor's claim while this journal is in flight.
