@@ -863,6 +863,99 @@ func (m *Manager) HoldBalloons(ctx context.Context) {
 	}
 }
 
+// BurstCapInterval is how often CapBursts recomputes each bursting VM's
+// memory.high. A guest faulting memory in at a few GiB/s must not outrun
+// the cap's view of the container's headroom by more than burstMarginBytes.
+const BurstCapInterval = 250 * time.Millisecond
+
+// burstMarginBytes of the container's headroom no burst may take: the
+// daemon's own allocations and VMs at or under their request draw on it.
+// vmOverheadBytes is what the server charges a VM beyond its guest memory.
+const (
+	burstMarginBytes = 512 << 20
+	vmOverheadBytes  = 64 << 20
+)
+
+// burstHigh is the memory.high of a bursting VM holding current bytes:
+// its share of the container's headroom past the margin on top of what it
+// holds, so the bursts together never fill the carve-out, and never below
+// floor, its request and overhead, which the server has placed for it.
+func burstHigh(current, headroom uint64, share int, floor uint64) uint64 {
+	room := headroom - min(headroom, burstMarginBytes)
+	return max(floor, current+room/uint64(max(share, 1))) //nolint:gosec // share is positive.
+}
+
+// CapBursts keeps every running bursting guest within the container's
+// memory: its cgroup's memory.high follows the headroom the carve-out has
+// left (burstHigh), so a burst throttles before the container's limit
+// would OOM-kill a VM. The guest's balloon already lets it use up to its
+// boot size; this decides how much of that the host can give it now. When
+// a VM reaches its cap, pressed asks the server for a report sooner, whose
+// use readings grow the carve-out, at most every few seconds.
+func (m *Manager) CapBursts(ctx context.Context, pressed func()) {
+	if m.cgroups == nil {
+		return
+	}
+	ticker := time.NewTicker(BurstCapInterval)
+	defer ticker.Stop()
+	written := map[string]uint64{}
+	var lastPressed time.Time
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		headroom, ok := hostinfo.MemoryHeadroom()
+		if !ok {
+			continue
+		}
+		type burst struct {
+			id      string
+			floor   uint64
+			current uint64
+		}
+		var bursts []burst
+		m.mu.Lock()
+		for _, sb := range m.sandboxes {
+			sb.mu.Lock()
+			meta, running := sb.meta, sb.inst != nil && sb.meta.State == protocol.StateRunning
+			sb.mu.Unlock()
+			if !running || meta.BalloonTargetMiB() <= 0 {
+				continue
+			}
+			if current, ok := m.cgroups.MemoryCurrent(meta.ID); ok {
+				bursts = append(bursts, burst{meta.ID, uint64(meta.RequestMB())<<20 + vmOverheadBytes, current}) //nolint:gosec // Shapes are positive.
+			}
+		}
+		m.mu.Unlock()
+		capped := false
+		seen := make(map[string]uint64, len(bursts))
+		for _, b := range bursts {
+			high := burstHigh(b.current, headroom, len(bursts), b.floor)
+			seen[b.id] = high
+			if b.current > b.floor && b.current+burstMarginBytes/2 >= high {
+				capped = true
+			}
+			// Rewriting an unchanged cap costs a syscall per VM four times a
+			// second; skip changes under the margin's sixteenth.
+			if last, ok := written[b.id]; ok && max(last, high)-min(last, high) < burstMarginBytes/16 {
+				seen[b.id] = last
+				continue
+			}
+			if err := m.cgroups.SetMemoryHigh(b.id, high); err != nil {
+				m.log.Warn("capping a bursting guest's memory failed", "sandbox", b.id, "memory_high", high, "error", err)
+				delete(seen, b.id)
+			}
+		}
+		written = seen
+		if capped && pressed != nil && time.Since(lastPressed) >= 5*time.Second {
+			lastPressed = time.Now()
+			pressed()
+		}
+	}
+}
+
 // watch turns an unexpected Firecracker exit into the error state.
 func (m *Manager) watch(sb *Sandbox, inst vm.Instance, epoch uint64) {
 	<-inst.Done()

@@ -192,8 +192,68 @@ func (c *VMCgroups) Open(id string, guaranteeMilli, lowBytes uint64) (*os.File, 
 		if err := os.WriteFile(filepath.Join(dir, "memory.low"), []byte(strconv.FormatUint(lowBytes, 10)), 0o644); err != nil {
 			return nil, fmt.Errorf("protecting the memory of %s: %w", filepath.Base(dir), err)
 		}
+		// A reused cgroup must not keep a previous run's burst cap.
+		if err := c.SetMemoryHigh(id, 0); err != nil {
+			return nil, err
+		}
 	}
 	return os.Open(dir)
+}
+
+// SetMemoryHigh caps the VM's cgroup at bytes (memory.high), zero for no
+// cap. Above it the kernel reclaims the VM's page cache and throttles its
+// faults instead of letting it fill the container, whose limit OOM-kills.
+// A no-op without per-VM memory accounting.
+func (c *VMCgroups) SetMemoryHigh(id string, bytes uint64) error {
+	if c == nil || !c.memory {
+		return nil
+	}
+	value := "max"
+	if bytes > 0 {
+		value = strconv.FormatUint(bytes, 10)
+	}
+	if err := os.WriteFile(filepath.Join(c.dir, vmCgroupPrefix+id, "memory.high"), []byte(value), 0o644); err != nil {
+		return fmt.Errorf("capping the memory of %s: %w", vmCgroupPrefix+id, err)
+	}
+	return nil
+}
+
+// MemoryHeadroom is how much more the container's cgroup can hold before
+// its limit OOM-kills: the limit less what it holds, counting its page
+// cache (inactive and active file pages) as free, since the kernel drops
+// that first. False without a container cgroup or a limit.
+func MemoryHeadroom() (uint64, bool) {
+	path, ok := ownCgroup()
+	if !ok {
+		return 0, false
+	}
+	return memoryHeadroom(cgroupRoot, path)
+}
+
+func memoryHeadroom(root, path string) (uint64, bool) {
+	limit, ok := ReadCgroupValue(root, path, "memory.max", true)
+	if !ok {
+		return 0, false
+	}
+	current, ok := ReadCgroupValue(root, path, "memory.current", false)
+	if !ok {
+		return 0, false
+	}
+	var cache uint64
+	if data, err := os.ReadFile(filepath.Join(root, path, "memory.stat")); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			key, value, _ := strings.Cut(line, " ")
+			if key == "inactive_file" || key == "active_file" {
+				n, _ := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+				cache += n
+			}
+		}
+	}
+	held := current - min(cache, current)
+	if held >= limit {
+		return 0, true
+	}
+	return limit - held, true
 }
 
 // MemoryCurrent is everything charged to the VM's cgroup (memory.current):

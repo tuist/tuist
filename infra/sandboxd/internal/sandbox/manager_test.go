@@ -1803,3 +1803,26 @@ func TestBurstingGuestIsHeldToItsMemoryRequest(t *testing.T) {
 		t.Fatalf("balloon targets without a burst %v", got)
 	}
 }
+
+// A bursting VM may grow by its share of the container's headroom past
+// the margin, never pushing the bursts together past the carve-out, and is
+// never capped below its request.
+func TestBurstHigh(t *testing.T) {
+	const gib = 1 << 30
+	floor := uint64(4*gib + vmOverheadBytes)
+	for _, tc := range []struct {
+		name              string
+		current, headroom uint64
+		share             int
+		want              uint64
+	}{
+		{"alone, room to grow", 5 * gib, 3 * gib, 1, 5*gib + 3*gib - burstMarginBytes},
+		{"two bursts split the room", 5 * gib, 3 * gib, 2, 5*gib + (3*gib-burstMarginBytes)/2},
+		{"carve-out full: held where it is", 6 * gib, burstMarginBytes / 2, 1, 6 * gib},
+		{"under its request: the floor", 1 * gib, 0, 1, floor},
+	} {
+		if got := burstHigh(tc.current, tc.headroom, tc.share, floor); got != tc.want {
+			t.Errorf("%s: burstHigh = %d MiB, want %d MiB", tc.name, got>>20, tc.want>>20)
+		}
+	}
+}

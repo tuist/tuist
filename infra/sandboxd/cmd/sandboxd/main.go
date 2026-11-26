@@ -625,6 +625,13 @@ func main() {
 	}
 
 	go manager.HoldBalloons(ctx)
+	// A burst at its cap reports its use now, so the server grows the
+	// carve-out within seconds instead of at the next report.
+	go manager.CapBursts(ctx, func() {
+		if serverClient != nil {
+			serverClient.ReportNow()
+		}
+	})
 	if followCurrent {
 		go followTemplate(ctx, logger, store, builder, manager, templateName, prebuild, keepTag != "", pruneTemplateTags, func() {
 			if serverClient != nil {
