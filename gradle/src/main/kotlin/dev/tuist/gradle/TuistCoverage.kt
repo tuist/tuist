@@ -34,6 +34,8 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.TreeMap
+import java.util.jar.Manifest
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import javax.inject.Inject
 
@@ -284,7 +286,7 @@ internal object TestTaskCoverage {
         entry.isDirectory -> entry.walkTopDown().filter { it.isFile && it.name.endsWith(".class") }
             .map { it.relativeTo(entry).invariantSeparatorsPath.removeSuffix(".class") }.toList()
         entry.isFile && entry.name.endsWith(".jar") -> try {
-            ZipFile(entry).use { zip -> zip.entries().asSequence().map { it.name }.filter { it.endsWith(".class") }.map { it.removeSuffix(".class") }.toList() }
+            ZipFile(entry).use { zip -> ClassIndex.jarClasses(zip).map { it.first }.toList() }
         } catch (_: Exception) {
             emptyList()
         }
@@ -657,9 +659,7 @@ internal class ClassIndex(roots: List<File>) {
                 }
                 root.isFile && root.name.endsWith(".jar") -> try {
                     ZipFile(root).use { zip ->
-                        zip.entries().asSequence()
-                            .filter { !it.isDirectory && it.name.endsWith(".class") && !it.name.startsWith("META-INF/") }
-                            .forEach { add(root, it.name.removeSuffix(".class"), zip.getInputStream(it).use(InputStream::readBytes)) }
+                        jarClasses(zip).forEach { (name, entry) -> add(root, name, zip.getInputStream(entry).use(InputStream::readBytes)) }
                     }
                 } catch (_: Exception) {
                     // Not a readable jar: nothing of it is measured.
@@ -667,6 +667,29 @@ internal class ClassIndex(roots: List<File>) {
             }
         }
         byName = entries
+    }
+
+    companion object {
+        private val versioned = Regex("META-INF/versions/\\d+/(.+)")
+
+        /**
+         * A jar's class files by class name. Other `META-INF/` entries are not loaded as classes,
+         * except a multi-release jar's `META-INF/versions/N/` ones: a JVM of release N or later
+         * loads one instead of the root's class of that name, so each is another class of its name.
+         */
+        fun jarClasses(zip: ZipFile): Sequence<Pair<String, ZipEntry>> {
+            val multiRelease = zip.getEntry("META-INF/MANIFEST.MF")
+                ?.let { manifest -> zip.getInputStream(manifest).use { Manifest(it) }.mainAttributes.getValue("Multi-Release") }
+                .equals("true", ignoreCase = true)
+            return zip.entries().asSequence().filter { !it.isDirectory && it.name.endsWith(".class") }.mapNotNull { entry ->
+                val name = entry.name.removeSuffix(".class")
+                when {
+                    !name.startsWith("META-INF/") -> name
+                    multiRelease -> versioned.matchEntire(name)?.groupValues?.get(1)
+                    else -> null
+                }?.let { it to entry }
+            }
+        }
     }
 }
 

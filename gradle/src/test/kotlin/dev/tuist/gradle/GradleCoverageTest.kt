@@ -265,6 +265,127 @@ class GradleCoverageTest {
     }
 
     @Test
+    fun `execution data of a multi-release jar's versioned class counts for that class's own source file`() {
+        fun classBytes(name: String, line: Int): ByteArray {
+            val writer = ClassWriter(0)
+            writer.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, name, null, "java/lang/Object", null)
+            writer.visitSource("RecordJsonAdapter.java", null)
+            writer.visitMethod(Opcodes.ACC_PUBLIC or Opcodes.ACC_STATIC, "run", "()V", null, null).apply {
+                visitCode()
+                val start = Label()
+                visitLabel(start)
+                visitLineNumber(line, start)
+                visitInsn(Opcodes.RETURN)
+                visitMaxs(0, 0)
+                visitEnd()
+            }
+            writer.visitEnd()
+            return writer.toByteArray()
+        }
+        val adapter = "dev/tuist/demo/RecordJsonAdapter"
+        val binding = "dev/tuist/demo/RecordJsonAdapter\$ComponentBinding"
+        // A Java 8 stub at the jar's root, and the real class, with a nested class only it has,
+        // compiled from `src/main/java16` for the JVMs that read `META-INF/versions/16`.
+        val stub = classBytes(adapter, 3)
+        val real = classBytes(adapter, 10)
+        val realBinding = classBytes(binding, 20)
+        val mainClasses = File(tempDir, "core/build/classes/java/main")
+        val java16Classes = File(tempDir, "core/build/classes/java/java16")
+        File(mainClasses, "$adapter.class").apply { parentFile.mkdirs() }.writeBytes(stub)
+        File(java16Classes, "$adapter.class").apply { parentFile.mkdirs() }.writeBytes(real)
+        File(java16Classes, "$binding.class").writeBytes(realBinding)
+        fun jar(multiRelease: Boolean): File {
+            val jar = File(tempDir, "core/build/libs/core-${if (multiRelease) "mr" else "plain"}.jar").apply { parentFile.mkdirs() }
+            val manifest = java.util.jar.Manifest().apply {
+                mainAttributes[java.util.jar.Attributes.Name.MANIFEST_VERSION] = "1.0"
+                if (multiRelease) mainAttributes[java.util.jar.Attributes.Name.MULTI_RELEASE] = "true"
+            }
+            java.util.jar.JarOutputStream(jar.outputStream(), manifest).use { zip ->
+                for ((name, bytes) in listOf(
+                    "$adapter.class" to stub,
+                    "META-INF/versions/16/$adapter.class" to real,
+                    "META-INF/versions/16/$binding.class" to realBinding
+                )) {
+                    zip.putNextEntry(java.util.zip.ZipEntry(name))
+                    zip.write(bytes)
+                    zip.closeEntry()
+                }
+            }
+            return jar
+        }
+        val stubSource = "core/src/main/java/dev/tuist/demo/RecordJsonAdapter.java"
+        val realSource = "core/src/main/java16/dev/tuist/demo/RecordJsonAdapter.java"
+        fun build(jar: File, adapterId: Long): CoverageResult {
+            val exec = File(tempDir, "core.exec")
+            exec.outputStream().use { output ->
+                org.jacoco.core.data.ExecutionDataWriter(output).apply {
+                    visitClassExecution(ExecutionData(adapterId, adapter, booleanArrayOf(true)))
+                    visitClassExecution(ExecutionData(CRC64.classId(realBinding), binding, booleanArrayOf(true)))
+                }
+            }
+            return GradleCoverage(
+                repository = CoverageRepository(tempDir, listOf(stubSource, realSource)) { emptyMap() },
+                moduleDirectories = mapOf(":core" to "core"),
+                records = listOf(record(":core:test", ":core").copy(execFile = exec, classpath = listOf(jar))),
+                outcomes = mapOf(":core:test" to CoverageTaskOutcome.EXECUTED),
+                compiledSources = mapOf(
+                    mainClasses.absoluteFile to setOf(File(tempDir, stubSource)),
+                    java16Classes.absoluteFile to setOf(File(tempDir, realSource))
+                ),
+                testTasks = mapOf(":core:test" to ":core"),
+                excludedTaskNames = emptyList(),
+                executedTests = emptyList(),
+                modulesWithFailures = emptySet(),
+                sharded = false
+            ).build()
+        }
+
+        // A JDK 17 test JVM loaded the versioned class.
+        val result = build(jar(multiRelease = true), CRC64.classId(real))
+
+        assertEquals(emptyList(), result.partialReasons)
+        assertFalse(result.coverage.partial)
+        val files = result.coverage.files.orEmpty().associateBy { it.path }
+        assertEquals(listOf(10, 20), files[realSource]?.lineNumbers)
+        assertEquals(listOf(1, 1), files[realSource]?.executionCounts)
+        // The stub keeps its own lines, none of which ran.
+        assertEquals(listOf(3), files[stubSource]?.lineNumbers)
+        assertEquals(listOf(0), files[stubSource]?.executionCounts)
+
+        // Data that matches no version of the class is still stale.
+        val stale = build(jar(multiRelease = true), 99L)
+        assertTrue(stale.coverage.partial)
+        assertTrue(stale.partialReasons.single().contains("dev.tuist.demo.RecordJsonAdapter"), stale.partialReasons.toString())
+
+        // A jar without `Multi-Release: true` never loads its `META-INF/versions` classes.
+        assertTrue(build(jar(multiRelease = false), CRC64.classId(real)).coverage.partial)
+    }
+
+    @Test
+    fun `includes name the packages of a multi-release jar's versioned classes`() {
+        File(tempDir, ".git").mkdirs()
+        val jar = File(tempDir, "core/build/libs/core.jar").apply { parentFile.mkdirs() }
+        val manifest = java.util.jar.Manifest().apply {
+            mainAttributes[java.util.jar.Attributes.Name.MANIFEST_VERSION] = "1.0"
+            mainAttributes[java.util.jar.Attributes.Name.MULTI_RELEASE] = "true"
+        }
+        java.util.jar.JarOutputStream(jar.outputStream(), manifest).use { zip ->
+            for (name in listOf(
+                "dev/tuist/demo/RecordJsonAdapter.class",
+                "META-INF/versions/16/dev/tuist/demo/RecordJsonAdapter.class",
+                "META-INF/versions/16/dev/tuist/records/Binding.class",
+                "META-INF/versions/9/module-info.class",
+                "META-INF/proguard/Ignored.class"
+            )) {
+                zip.putNextEntry(java.util.zip.ZipEntry(name))
+                zip.closeEntry()
+            }
+        }
+
+        assertEquals(listOf("dev.tuist.demo.*", "dev.tuist.records.*"), TestTaskCoverage.repositoryIncludes(tempDir, listOf(jar)))
+    }
+
+    @Test
     fun `includes name the repository's classes one by one in packages a dependency shares`() {
         File(tempDir, ".git").mkdirs()
         val classes = File(tempDir, "support/build/classes").apply { mkdirs() }
