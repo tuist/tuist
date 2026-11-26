@@ -391,6 +391,30 @@ func TestRemoveStaleTagsKeepsCurrentAndInUseTags(t *testing.T) {
 	}
 }
 
+func TestResolveWithoutTagFollowsTheInstallersPointer(t *testing.T) {
+	dir := t.TempDir()
+	store := &Store{Dir: dir}
+	seedTemplate(t, dir, "ci", "sha-old")
+	if tmpl, err := store.Resolve("ci", ""); err != nil || tmpl.Tag != "sha-old" {
+		t.Fatalf("only tag: got %q, %v", tmpl.Tag, err)
+	}
+	// An upgrade installs a second tag; without a pointer the name is ambiguous.
+	seedTemplate(t, dir, "ci", "sha-new")
+	if _, err := store.Resolve("ci", ""); err == nil {
+		t.Fatal("expected two tags without a pointer to be ambiguous")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ci", CurrentFile), []byte("sha-new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if tmpl, err := store.Resolve("ci", ""); err != nil || tmpl.Tag != "sha-new" {
+		t.Fatalf("got %q, %v, want sha-new", tmpl.Tag, err)
+	}
+	// An explicit tag still wins over the pointer.
+	if tmpl, err := store.Resolve("ci", "sha-old"); err != nil || tmpl.Tag != "sha-old" {
+		t.Fatalf("got %q, %v, want sha-old", tmpl.Tag, err)
+	}
+}
+
 func TestCurrentTagReadsTheInstallersPointer(t *testing.T) {
 	dir := t.TempDir()
 	store := &Store{Dir: dir}

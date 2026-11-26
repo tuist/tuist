@@ -204,6 +204,31 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_tag }}
+      # The CI-parity template: the Linux runner image pinned in
+      # ci-guest-image, through the shared guest contract. The pin is part of
+      # the template's source, so bumping it publishes a new tag; a published
+      # tag never changes, since nodes keep a tag they already installed.
+      - name: Reuse published ci template
+        id: existing-ci
+        env:
+          IMAGE_TAG: ${{ steps.version.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          exists=$(bash .github/scripts/sandbox-image-exists.sh "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG-ci")
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+          echo "guest_image=$(tr -d '[:space:]' < infra/sandbox-image/ci-guest-image)" >> "$GITHUB_OUTPUT"
+      - name: Publish ci template
+        if: steps.existing-ci.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_tag }}-ci
+          build-args: |
+            GUEST_IMAGE=${{ steps.existing-ci.outputs.guest_image }}
+            TEMPLATE_NAME=ci
       - name: Reuse published execution gateway
         id: existing-gateway
         env:

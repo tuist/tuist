@@ -151,10 +151,15 @@ so.
    sandboxd's image tag now follows `runner-cache/sparse` and
    `runner-cache/go.mod` too (`sandboxd-image-version.sh`), so a change
    there restarts sandboxd on every node like any daemon change.
-3. **CI-parity sandbox template** (needs a decision). A sandboxd template
-   whose content is the runner image plus the sandbox guest binaries, so an
-   agent can reproduce a CI job in the same environment. Open questions:
-   template size (the Android SDK) and how sessions choose it. The sandbox
+3. **CI-parity sandbox template.** The `ci` template is the runner image
+   pinned in `sandbox-image/ci-guest-image` plus the sandbox guest binaries,
+   through the shared guest contract, so an agent can reproduce a CI job in
+   the same environment. Decided: it keeps the Android SDK, runs as
+   `runner`/1000 (`user` is a second name for the same account), sessions opt
+   in with `template: "ci"` (the default template is unchanged), and it has
+   no Docker yet. `sandbox-image.yml` publishes it as the template image's
+   `<tag>-ci`; `sandboxes.ciTemplate.enabled` installs it beside the default,
+   and sandboxd serves its current tag and prunes its older ones. The sandbox
    `user` is UID/GID 1000 like the runner's `runner`, so CI-written caches
    and checkouts keep their ownership in sandboxes; REAPI actions run as
    `builder` (2000). Runner Pods' token holders (poller, metrics, shell)
