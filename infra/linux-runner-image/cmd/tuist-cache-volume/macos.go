@@ -271,7 +271,7 @@ func acquireMacAt(ctx context.Context, key string, size int64, share, mountRoot 
 // Only clean detach marks a branch eligible. A force-detach, failed job,
 // cancellation or abrupt VM shutdown leaves it disposable.
 func detachMac() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // 30 s of it may go to waiting for a hot-plugged volume's release
 	defer cancel()
 	return detachMacAt(macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) }, measureMac, func(base string, kill bool) { releaseMac(ctx, base, kill) }, func() {
 		select {
@@ -397,9 +397,26 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			failures = append(failures, err)
 			continue
 		}
+		// The host keeps a hot-plugged volume's writes only once Tart has let go
+		// of its disk, which needs this VM running: wait for its word. Without it
+		// the job's writes are dropped, which never fails the job.
+		if _, statErr := os.Stat(filepath.Join(share, dir.Name(), ".block")); statErr == nil && !waitForRelease(filepath.Join(share, dir.Name(), ".released"), id, pause, 30) {
+			fmt.Fprintln(os.Stderr, "warning: the host did not release the cache volume in time, so this job's writes are not saved")
+		}
 		_ = os.Remove(baselinePath(mountRoot, dir.Name()))
 	}
 	return errors.Join(failures...)
+}
+
+// waitForRelease waits up to attempts pauses for the host to write id to path.
+func waitForRelease(path string, id []byte, pause func(), attempts int) bool {
+	for attempt := 0; attempt < attempts; attempt++ {
+		if released, err := os.ReadFile(path); err == nil && string(released) == string(id) {
+			return true
+		}
+		pause()
+	}
+	return false
 }
 
 func attachMac(key string, targets []string, root string, size int64) error {

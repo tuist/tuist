@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
@@ -13,9 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// fakeTart answers every attach request the way Tart does: it creates the
-// overlay it was asked for and publishes `<id>.attached`.
-func fakeTart(t *testing.T, ctx context.Context, dir string) {
+// fakeTart answers attach requests the way Tart does: it creates the overlay
+// it was asked for and publishes `<id>.attached`. With release it also answers
+// detach requests with `<id>.detached`.
+func fakeTart(t *testing.T, ctx context.Context, dir string, release bool) {
 	t.Helper()
 	go func() {
 		for ctx.Err() == nil {
@@ -27,6 +29,10 @@ func fakeTart(t *testing.T, ctx context.Context, dir string) {
 					_ = os.WriteFile(overlay, []byte("overlay"), 0600)
 					_ = os.Remove(filepath.Join(dir, entry.Name()))
 					_ = os.WriteFile(filepath.Join(dir, id+".attached"), []byte("{}"), 0600)
+				}
+				if id, ok := strings.CutSuffix(entry.Name(), ".detach"); ok && release {
+					_ = os.Remove(filepath.Join(dir, entry.Name()))
+					_ = os.WriteFile(filepath.Join(dir, id+".detached"), []byte("{}"), 0600)
 				}
 			}
 		}
@@ -50,10 +56,10 @@ func TestBlockVolumeKeepsOnlyACleanOverlayOnTheStackItWasMadeOn(t *testing.T) {
 	pod := func(uid string) *corev1.Pod {
 		return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "runner-" + uid, UID: types.UID(uid)}}
 	}
-	attach := func(uid, id string) {
+	attach := func(uid, id string, release bool) {
 		t.Helper()
 		requests, _ := block.RequestDir(pod(uid))
-		fakeTart(t, ctx, requests)
+		fakeTart(t, ctx, requests, release)
 		response, err := block.Acquire(ctx, pod(uid), filepath.Join(share, uid), cachevolumes.Identity{ID: id, Scope: scope})
 		if err != nil {
 			t.Fatal(err)
@@ -62,8 +68,17 @@ func TestBlockVolumeKeepsOnlyACleanOverlayOnTheStackItWasMadeOn(t *testing.T) {
 			t.Fatal("no volume name for the guest")
 		}
 	}
+	// The guest's clean detach, then the second it waits for Tart's release.
 	detachCleanly := func(uid, id string) {
+		t.Helper()
 		_ = os.WriteFile(filepath.Join(share, uid, scope, ".detached"), []byte(id), 0644)
+		for range 50 {
+			block.Settle()
+			if released, _ := os.ReadFile(filepath.Join(share, uid, scope, ".released")); string(released) == id {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
 	}
 	var ended []string
 	end := func(_ context.Context, id string) { ended = append(ended, id) }
@@ -72,14 +87,19 @@ func TestBlockVolumeKeepsOnlyACleanOverlayOnTheStackItWasMadeOn(t *testing.T) {
 	// Two jobs on the same stack: both detach cleanly, but only the first to
 	// end can become the next layer; the second was made on a stack that has
 	// since moved.
-	attach("pod-1", "use-1")
-	attach("pod-2", "use-2")
+	attach("pod-1", "use-1", true)
+	attach("pod-2", "use-2", true)
 	detachCleanly("pod-1", "use-1")
 	detachCleanly("pod-2", "use-2")
 	block.Reconcile(ctx, func(name, _ string) (bool, error) { return name == "runner-pod-1", nil }, end)
 	block.Reconcile(ctx, gone, end)
 	// A third job never detaches cleanly, as when it failed or was cancelled.
-	attach("pod-3", "use-3")
+	attach("pod-3", "use-3", true)
+	block.Reconcile(ctx, gone, end)
+	// A fourth detaches cleanly, but its VM stops before Tart lets go of the
+	// disk, so its overlay may be incomplete.
+	attach("pod-4", "use-4", false)
+	detachCleanly("pod-4", "use-4")
 	block.Reconcile(ctx, gone, end)
 
 	manifest, err := readBlockManifest(block.volumeDir(scope))
@@ -89,12 +109,12 @@ func TestBlockVolumeKeepsOnlyACleanOverlayOnTheStackItWasMadeOn(t *testing.T) {
 	if len(manifest.Layers) != 2 || !strings.HasSuffix(manifest.Layers[1], "layer-use-1.asif") {
 		t.Fatalf("layers = %v, want the base and use-1's overlay", manifest.Layers)
 	}
-	for _, id := range []string{"use-2", "use-3"} {
+	for _, id := range []string{"use-2", "use-3", "use-4"} {
 		if _, err := os.Stat(filepath.Join(block.volumeDir(scope), "jobs", id+".asif")); !os.IsNotExist(err) {
 			t.Errorf("%s's overlay was left behind: %v", id, err)
 		}
 	}
-	if strings.Join(ended, ",") != "use-1,use-2,use-3" {
+	if strings.Join(ended, ",") != "use-1,use-2,use-3,use-4" {
 		t.Errorf("ended uses = %v", ended)
 	}
 }
