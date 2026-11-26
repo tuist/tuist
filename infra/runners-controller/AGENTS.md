@@ -385,6 +385,17 @@ cancellable and leaves the reserve intact. See
     boxes, one reservation is already a large share of it, which is why
     the cap stays at one and why `healthyNodes` floors it.
 
+    A Pod no queued job waits for (warm spare: the pool's `queued` does not
+    exceed its bound idle Pods, `reservationBacked`) reserves only a host
+    that clears at once, and never counts a sibling's idle Pod of its own
+    size or larger as clearable. Waiting out a job would hold the fleet's
+    one reservation while the pool's next real job cannot reserve, and a
+    same-size sibling's warm runner also took a whole host, so retiring it
+    only moves the cold start (2026-11-25: a 16 vCPU spare held b05 for
+    13.5 minutes and the next job waited 472 s; the two rack 16 vCPU pools
+    retired each other's warm runner all day). Unknown demand (no signals
+    client, or a failed fetch) counts as queued.
+
     A timed-out release rests the host for `reservationCooldown` (15m)
     via a `tuist.dev/reservation-cooldown-until` annotation. Without it
     the timeout does nothing: `starvedPod` measures a Pod's own age, so

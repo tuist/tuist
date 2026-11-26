@@ -22,6 +22,11 @@ import (
 func sandboxAllocationClient(t *testing.T) *scaling.Client {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/" && req.Header.Get("Authorization") == "Bearer test-token" {
+			// The pool's demand: a reservation is for a queued job.
+			_ = json.NewEncoder(w).Encode(scaling.Signals{Queued: 1})
+			return
+		}
 		if req.URL.Path != "/api/internal/sandboxes/allocation" || req.Header.Get("Authorization") != "Bearer test-token" {
 			t.Error("wrong allocation path or authentication")
 		}

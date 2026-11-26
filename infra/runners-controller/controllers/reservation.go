@@ -262,7 +262,8 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		return nil
 	}
 
-	target, clearsAtOnce, err := r.pickReservationTarget(ctx, pool, fresh, pods, now)
+	backed := r.reservationBacked(ctx, pool, pods)
+	target, clearsAtOnce, err := r.pickReservationTarget(ctx, pool, fresh, pods, now, backed)
 	if err != nil {
 		return err
 	}
@@ -275,6 +276,14 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 	// Before reservationGrace, only a host that clears at once is worth
 	// taking. A host that would have to wait out a job keeps the full grace.
 	if !starved && !clearsAtOnce {
+		return nil
+	}
+	// A Pod no queued job is waiting for (warm spare) may take only a host
+	// that clears at once. Waiting out a job holds the fleet's one
+	// reservation for up to reservationTimeout, and a job that arrives
+	// meanwhile cannot reserve at all: 2026-11-25 12:12, a 16 vCPU warm
+	// spare held b05 for 13.5 minutes and the pool's next job waited 472 s.
+	if !backed && !clearsAtOnce {
 		return nil
 	}
 	if starvedFor < idleHostReservationGrace {
@@ -291,6 +300,29 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		"node", target.Name, "pool", pool.Name,
 		"pod", unplacedPodName(pods), "starvedFor", starvedFor.String())
 	return r.reserveNode(ctx, target, value, now)
+}
+
+// reservationBacked reports whether the pool's unplaced Pods are waiting on
+// dispatchable queued jobs that its own bound idle Pods cannot absorb, or
+// whether they are warm spare. Without signals the answer is unknown, and it
+// is read as backed so a reservation behaves as it did before this check.
+func (r *RunnerPoolReconciler) reservationBacked(ctx context.Context, pool *tuistv1.RunnerPool, pods []corev1.Pod) bool {
+	if r.SignalsClient == nil {
+		return true
+	}
+	signals, err := r.SignalsClient.Signals(ctx, pool.Name)
+	if err != nil {
+		log.FromContext(ctx).Info("reservation demand unknown; treating it as queued", "pool", pool.Name, "error", err.Error())
+		return true
+	}
+	var idleBound int32
+	for i := range pods {
+		pod := &pods[i]
+		if isAlive(pod) && pod.Spec.NodeName != "" && isIdle(pod) {
+			idleBound++
+		}
+	}
+	return signals.Queued > idleBound
 }
 
 // canFastReserve only accelerates an otherwise idle-clearing reservation.
@@ -585,10 +617,28 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 	nodes []corev1.Node,
 	pods []corev1.Pod,
 	now time.Time,
+	backed bool,
 ) (*corev1.Node, bool, error) {
 	shape := podShape{cpuMilli: pool.Spec.PodCPUMilli, memoryMB: pool.Spec.PodMemoryMB}
 	if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
 		return nil, false, nil
+	}
+	// A warm spare must not take a sibling's warm runner of its own size or
+	// larger: that runner also needed a whole host, so retiring it only moves
+	// the cold start to the sibling's next job. On 2026-11-25 the two rack
+	// 16 vCPU pools retired each other's only warm runner this way all day.
+	protected := map[string]bool{}
+	if !backed {
+		var pools tuistv1.RunnerPoolList
+		if err := r.List(ctx, &pools, client.InNamespace(pool.Namespace)); err != nil {
+			return nil, false, fmt.Errorf("list runner pools for reservation target: %w", err)
+		}
+		for i := range pools.Items {
+			sibling := &pools.Items[i]
+			if sibling.Name != pool.Name && sibling.Spec.PodCPUMilli >= shape.cpuMilli {
+				protected[sibling.Name] = true
+			}
+		}
 	}
 	daemons, err := r.reservationSandboxDaemons(ctx, pool)
 	if err != nil {
@@ -631,7 +681,7 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 			addResources(kept, pod.Spec.NodeName, podFootprint(pod))
 			continue
 		}
-		if !isIdle(pod) || seatInFlight(pod, now) {
+		if !isIdle(pod) || seatInFlight(pod, now) || protected[pod.Labels["tuist.dev/runner-pool"]] {
 			owned[pod.Spec.NodeName]++
 			addResources(kept, pod.Spec.NodeName, podFootprint(pod))
 			continue
