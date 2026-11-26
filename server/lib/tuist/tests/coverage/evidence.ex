@@ -37,7 +37,6 @@ defmodule Tuist.Tests.Coverage.Evidence do
   alias Tuist.ClickHouse.Inserts
   alias Tuist.IngestRepo
   alias Tuist.Projects
-  alias Tuist.Storage
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.Workers.PublishCoverageWorker
