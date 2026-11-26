@@ -543,10 +543,11 @@ defmodule Tuist.RemoteExecution.Scheduler do
   end
 
   # Queued operations take ready VMs first; leases get the rest of the
-  # default size, the only one the gateway leases.
+  # account's default size, the only one leased. The gateway runs an action
+  # without `tuist-memory-gb` on it, or one that asks for its size.
   defp grant_leases(state) do
     with {:value, waiter} <- :queue.peek(state.lease_waiters),
-         %{} = vm <- ready_vm(state, Settings.default_memory_gb()) do
+         %{} = vm <- ready_vm(state, Settings.default_memory_gb(state.settings)) do
       grant_leases(grant(%{state | lease_waiters: :queue.drop(state.lease_waiters)}, waiter, vm))
     else
       _ -> reconcile(state)
@@ -581,6 +582,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
              nonce: Base.encode64(nonce),
              image: vm.sandbox.template_tag,
              cas_endpoint: state.settings.cas_endpoint,
+             memory_gb: vm.memory_gb,
              expires_in_ms: VMs.claim_timeout_ms() - @lease_margin_ms
            }}
         )
@@ -781,7 +783,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   defp reconcile(state) do
     settings = state.settings
-    default = Settings.default_memory_gb()
+    default = Settings.default_memory_gb(settings)
     {warm, state} = warm_target(state, now_ms())
     # Sizes of the queued work, oldest first; lease waiters take default VMs.
     queued = queued_sizes(state) ++ List.duplicate(default, :queue.len(state.lease_waiters))
