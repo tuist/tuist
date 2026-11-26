@@ -863,7 +863,7 @@ returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`
 ### Process model
 
 With `sandboxes.vmm.enabled` (step 2a of seamless daemon restarts; in-place
-upgrades, step 2b, on staging only so far), the Pod has a second container, `vmm` (`cmd/vmm`, the same
+upgrades, step 2b), the Pod has a second container, `vmm` (`cmd/vmm`, the same
 image), that spawns the VMs so they sit in its cgroup instead of the
 daemon's container's. The server resizes `vmm`, not `sandboxd`, whose own
 resources are fixed (`Tuist.Kubernetes.Client.sandbox_vm_container/1`; the
@@ -910,6 +910,16 @@ node: the daemon then unregisters it from the userfaultfd
 drops, as the daemon did.
 `vmm.image.tag` pins vmm (and Firecracker) separately; the deploy keeps the
 live one unless the values set it.
+
+Remote execution workers (`infra/helm/remote-execution`,
+`workers.vmm.{enabled,inPlaceUpgrades,tag}`) use the same layout and
+updater, with `workers.vmm.tag` always pinned. What a handed-over VM
+depends on stays in the Pod's environment, so changing it replaces the
+worker: `TEMPLATE_TAG` (the `template` init container installs it) and
+`JAIL_UID_BASE`. An in-place restart keeps the workers' VMs but not an
+action executing in one (`exec` ends with the daemon's connection), nor the
+blob cache, which startup empties. Their deploy waits for a replaced worker
+to hold no VM (`SANDBOXD_UPGRADE_REPLACE_IDLE_SECONDS`).
 
 The jailer parent exits as soon as it has forked Firecracker into the new
 pid namespace, so the daemon sets itself as child subreaper, reads the pid
