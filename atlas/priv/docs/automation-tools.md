@@ -173,7 +173,7 @@ changed bank details, confirm them with the vendor through a channel you already
 trust and make the first payment directly in Qonto. Once it settles and syncs,
 the tool accepts that IBAN.
 
-Each transfer is capped at 25,000 EUR. Make larger payments directly in Qonto.
+Each transfer is capped at 80,000 EUR. Make larger payments directly in Qonto.
 
 Nothing is paid until someone with review rights approves the request in Qonto
 with strong customer authentication. The request is made with your own Qonto

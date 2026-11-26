@@ -427,7 +427,7 @@ defmodule Atlas.MCP.Server do
   Atlas settings. It refuses IBANs Tuist has never paid; never work around that
   by retrying with other details. Tell the user to confirm new or changed bank
   details with the vendor and make the first payment in Qonto directly. Each
-  transfer is capped at 25,000 EUR; larger payments are made in Qonto directly.
+  transfer is capped at 80,000 EUR; larger payments are made in Qonto directly.
 
   For any request to create, draft, prepare, generate, or fill an order form, enterprise contract, Master Services Agreement, or contract package:
   1. Call `generate_enterprise_contract` with `document_scope` set to `order_form` or `contract_package`. Follow the workflow it returns.
