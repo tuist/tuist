@@ -17,6 +17,7 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   measure:
@@ -30,9 +31,12 @@ jobs:
         run: packer init -upgrade measure.pkr.hcl
 
       - name: Pull the bundle
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tart logout ghcr.io || true
           t0=$(date +%s); tart pull ghcr.io/tuist/macos-tahoe-xcode:exp-bundle-27-0-27-1-27-2
           echo "BUNDLE-EXP pull bundle s: $(( $(date +%s) - t0 ))"
 
