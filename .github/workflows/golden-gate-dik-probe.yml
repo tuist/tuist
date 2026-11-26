@@ -1,0 +1,21 @@
+# Temporary, never merged: probes DiskImageKit's file locking on a macOS 27 guest.
+name: Golden Gate DiskImageKit probe
+
+on:
+  push:
+    branches: [golden-gate-block-e2e]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    if: ${{ !contains(github.event.head_commit.message, '[e2e]') }}
+    runs-on: tuist-staging-golden-gate
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: |
+          sw_vers -productVersion
+          swiftc -O .github/e2e/dik-probe.swift -o /tmp/dik-probe
+          /tmp/dik-probe
