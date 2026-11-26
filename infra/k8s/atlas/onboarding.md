@@ -271,10 +271,9 @@ GHCR pull secret block. Adding a new app secret means: add an item in
 | `atlas-tuist-gmbh`                | `sender_name`, `sender_street`, `sender_postal_code`, `sender_city`, `sender_country` | Tuist GmbH sender profile for tax-certificate requests |
 | `atlas-tuist-gmbh`                | `tax_id`, `vat_id`, `signatory_title`, `foundation_date`, `legal_form`, `signing_location` | Tuist GmbH company details for tax-certificate requests |
 | `atlas-tuist-gmbh`                | `tax_office_name`, `tax_office_street`, `tax_office_postal_code`, `tax_office_city` | Default German tax-office recipient for tax-certificate requests |
-| `atlas-ghcr-pull`                 | `notesPlain`    | base64 of `~/.docker/config.json` for `ghcr.io` (see below)          |
 
-These map 1:1 to `externalSecrets.items` / `postgres.backup.externalSecret` /
-`externalSecrets.pullSecret` in `infra/helm/atlas/values.yaml`. If you add a
+These map 1:1 to `externalSecrets.items` / `postgres.backup.externalSecret`
+in `infra/helm/atlas/values.yaml`. If you add a
 new app secret, add it both there and here.
 
 To rotate any of these, update the field in 1P. ESO re-syncs on the
@@ -347,19 +346,8 @@ references, runtime/migration Secret inheritance, lack of environment shadowing,
 and standalone/demo isolation without credentials. It does not verify 1Password
 field existence, provider registrations or real-account consent.
 
-Generate the GHCR pull-secret payload:
-
-```bash
-# Create a GitHub Personal Access Token (classic) with `read:packages`,
-# scoped to the `tuist` org. Store the token itself in 1P too if you
-# want — only the dockerconfigjson is referenced by the chart.
-USER='<your-gh-username>'
-PAT='<the-pat>'
-AUTH=$(printf '%s:%s' "$USER" "$PAT" | base64)
-DCJ=$(printf '{"auths":{"ghcr.io":{"auth":"%s"}}}' "$AUTH" | base64)
-echo "$DCJ"
-# Paste into the `notesPlain` field of `atlas-ghcr-pull` in 1P.
-```
+The image `ghcr.io/tuist/atlas` is public, so the cluster pulls it without
+a pull secret or token.
 
 ## 6. Hetzner Object Storage bucket
 

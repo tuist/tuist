@@ -10,8 +10,9 @@
 #   - Every app secret is its own item in the `atlas-k8s-production`
 #     1Password vault. ESO syncs them all into a single `atlas-app`
 #     Secret which the Deployment + migration Job consume via envFrom.
-#   - Operator-level credentials the app never sees (CNPG backup creds,
-#     GHCR pull token) are also synced via ESO from their own 1P items.
+#   - Operator-level credentials the app never sees (CNPG backup creds)
+#     are also synced via ESO from their own 1P items.
+#   - The image ghcr.io/tuist/atlas is public, so pulls need no secret.
 
 nameOverride: ""
 fullnameOverride: "atlas"
@@ -50,9 +51,6 @@ image:
   # Tag is set per-deploy by the GitHub Actions workflow (`--set image.tag=…`).
   tag: ""
   pullPolicy: IfNotPresent
-  # Pull secret synced by ESO. Created in the namespace by the chart,
-  # populated from a GHCR PAT in 1Password.
-  pullSecretName: ghcr-pull
 
 # Two interchangeable application replicas share PostgreSQL and object storage.
 # Oban coordinates through PostgreSQL; local PubSub plus periodic database
@@ -360,12 +358,6 @@ externalSecrets:
       remoteRef: "atlas-tuist-gmbh/tax_office_city"
     ATLAS_TAX_CERTIFICATE_SIGNATURE_JPEG_BASE64:
       remoteRef: "atlas-tuist-gmbh/signature_jpeg_base64"
-  # Image pull secret (private GHCR). The 1P item's notesPlain holds
-  # base64 of a `~/.docker/config.json` snippet for `ghcr.io`.
-  pullSecret:
-    enabled: true
-    item: "atlas-ghcr-pull"
-    field: "notesPlain"
 
 # Retain legacy objects for a non-destructive upgrade, with no agent RBAC or
 # Kubernetes API token mount. Disable only after deploying namespace retention
