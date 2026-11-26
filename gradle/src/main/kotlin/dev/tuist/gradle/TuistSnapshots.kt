@@ -209,7 +209,10 @@ abstract class TuistUploadSnapshots : DefaultTask() {
                 if (failOnChanges.get()) throw GradleException(message) else logger.warn(message)
             }
             "failed" -> throw GradleException("Tuist: The snapshot comparison failed. See ${result.url}")
-            "processing" -> logger.warn("Tuist: The snapshot comparison is still running. See ${result.url}")
+            // Passing without a verdict would let unreviewed changes through.
+            "processing" -> throw GradleException(
+                "Tuist: The snapshot comparison didn't finish in time, so these snapshots have no verdict. See ${result.url}"
+            )
             else -> logger.lifecycle("Tuist: Snapshots ${result.status} ($summary): ${result.url}")
         }
     }
