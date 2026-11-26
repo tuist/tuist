@@ -60,6 +60,12 @@ public struct ShardService: ShardServicing {
     /// The most shard artifacts downloading at once, each over `FileClient.parallelRangeLanes` connections.
     static let artifactDownloadsAhead = 3
 
+    private static func seconds(_ duration: Duration) -> String {
+        let components = duration.components
+        let value = Double(components.seconds) + Double(components.attoseconds) / 1e18
+        return String(format: "%.2fs", value)
+    }
+
     private let getShardService: GetShardServicing
     private let ciController: CIControlling
     private let fileClient: FileClienting
@@ -137,6 +143,12 @@ public struct ShardService: ShardServicing {
                 }
                 return downloadURL
             }
+            let clock = ContinuousClock()
+            let fetchStart = clock.now
+            var waitedForDownloads = Duration.zero
+            var extracting = Duration.zero
+            var downloadsFinished = fetchStart
+            var archiveBytes: Int64 = 0
             try await fileSystem.runInTemporaryDirectory(prefix: "tuist-shard-downloads") { downloadedArtifactsPath in
                 // The shard's products are split across artifacts (a shared bundle plus one per module
                 // assigned to the shard), extracted into a single merged directory. Downloads run ahead of
@@ -164,16 +176,27 @@ public struct ShardService: ShardServicing {
                     }
                     var downloaded = Set<Int>()
                     for index in downloadURLs.indices {
+                        let waitStart = clock.now
                         while !downloaded.contains(index), let finished = try await group.next() {
                             downloaded.insert(finished)
-                            if started < downloadURLs.count { startDownload() }
+                            downloadsFinished = clock.now
+                            if started < downloadURLs.count {
+                                startDownload()
+                            }
                         }
+                        waitedForDownloads += waitStart.duration(to: clock.now)
+                        archiveBytes += Int64((try? await fileSystem.fileMetadata(at: archivePaths[index]))?.size ?? 0)
+                        let extractStart = clock.now
                         try await appleArchiver.decompress(archive: archivePaths[index], to: extractedTestProductsPath)
+                        extracting += extractStart.duration(to: clock.now)
                         try? await fileSystem.remove(archivePaths[index])
                     }
                 }
             }
-            Logger.current.debug("Downloaded \(shard.download_urls.count) test products artifact(s).")
+            // Whatever follows this line until xcodebuild reports the tests starting is xcodebuild's own startup.
+            Logger.current.notice(
+                "Fetched \(downloadURLs.count) test products artifact(s), \(archiveBytes / 1_000_000) MB, in \(Self.seconds(fetchStart.duration(to: clock.now))): downloads finished after \(Self.seconds(fetchStart.duration(to: downloadsFinished))), \(Self.seconds(extracting)) extracting, \(Self.seconds(waitedForDownloads)) waiting for downloads"
+            )
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
             Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
         }
