@@ -2444,6 +2444,9 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
+      # Link-local (cloud metadata) and CGNAT (tailnet).
+      - "169.254.0.0/16"
+      - "100.64.0.0/10"
   # Shape catalog. Overrides the common baseline to add the 16 vCPU shape.
   # Helm replaces lists rather than merging, so the default shape is
   # restated here.

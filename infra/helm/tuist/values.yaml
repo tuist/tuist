@@ -3001,6 +3001,9 @@ sandboxes:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
+      # Link-local (cloud metadata) and CGNAT (tailnet).
+      - "169.254.0.0/16"
+      - "100.64.0.0/10"
     # Let guests reach in-cluster Kura cache pods on :4000.
     kuraEgress: true
     # Let the daemon reach the in-rack archive store (the shard-storage
