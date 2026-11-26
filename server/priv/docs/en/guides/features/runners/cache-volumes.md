@@ -21,6 +21,11 @@ runners that are not Tuist runners they do nothing, and a cache problem never
 fails the job: the step logs a warning and the job continues with an empty
 cache.
 
+> [!NOTE]
+> Runners on macOS 27 don't attach cache volumes or cached checkouts yet. Their
+> cache steps log a warning and the job continues with an empty cache, and
+> `actions/checkout` clones the repository as usual.
+
 ## Managed caches {#managed-caches}
 
 The steps only decide where the caches live. Keep your existing cache setup:
