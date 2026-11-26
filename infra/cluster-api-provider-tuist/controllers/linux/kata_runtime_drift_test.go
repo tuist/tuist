@@ -234,7 +234,7 @@ func TestRenderKataRuntimeRepairScript(t *testing.T) {
 
 	for _, want := range []string{
 		// Installs the runtime and registers the handler.
-		"kata-static-" + kataVersion + "-amd64.tar.zst",
+		"kata-go-static-" + kataVersion + "-amd64.tar.zst",
 		`runtime_path = "/opt/kata/bin/containerd-shim-kata-v2"`,
 		// Re-renders the kubelet unit so a future re-registration keeps the labels.
 		"tee /etc/systemd/system/kubelet.service > /dev/null <<'TUIST_EOF'",

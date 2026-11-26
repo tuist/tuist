@@ -906,7 +906,7 @@ MachineDeployment creates an OVHDedicatedMachine
         ▼
 cluster-api-provider-tuist claims the named box and runs the Linux
 self-join over SSH as `ubuntu`: containerd, kubelet, `kubeadm join`.
-`machine.kataRuntime: true` adds kata-static 3.30.0 under /opt/kata
+`machine.kataRuntime: true` adds kata-go-static 4.4.0 under /opt/kata
 (bundles qemu-system-x86_64), the kata-qemu handler in
 /etc/containerd/config.toml (`SystemdCgroup = true`), and a /dev/shm
 ceiling of MemTotal for virtio-fs guest memory

@@ -64,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           . infra/kata-kvm-kernel/release.env
-          curl -fsSL -o /tmp/kata.tar.zst "https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.zst"
+          curl -fsSL -o /tmp/kata.tar.zst "https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-go-static-${KATA_VERSION}-amd64.tar.zst"
           sudo tar --zstd -xf /tmp/kata.tar.zst -C /
           sudo install -m 0644 "out/${{ needs.build.outputs.name }}" /opt/kata/share/kata-containers/vmlinux-tuist-kvm.container
           sudo ln -sf /opt/kata/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2

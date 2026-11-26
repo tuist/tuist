@@ -1091,7 +1091,14 @@ func dataKubeletMount(sudo string) string {
 // Pods actually boot. Keep it in lockstep with the Hetzner bare-metal worker
 // (`infra/k8s/clusters/bare-metal.yaml`), which pre-bakes the same version, so a
 // job behaves the same whichever fleet it lands on.
-const kataVersion = "3.30.0"
+//
+// From 4.0 the release's kata-static tarball carries only the Rust runtime
+// (runtime-rs); the Go runtime, which every drop-in here configures, ships as
+// kata-go-static with 3.x's layout (/opt/kata/bin/containerd-shim-kata-v2,
+// configuration-qemu.toml). 4.x is needed for the guest kernel: 3.x's 6.18.15
+// oopses when a virtiofs submount is unmounted with FUSE releases in flight
+// (CVE-2026-53381, fixed in 6.18.37), which wedged runner teardown on staging.
+const kataVersion = "4.4.0"
 
 // kataVersionStampPath records which kata release the box has unpacked, so the
 // install block above is a no-op on a box that already carries it.
@@ -1122,7 +1129,7 @@ func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing bool) string {
 	if !enabled {
 		return ""
 	}
-	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo) + kataNeedrestartSetup(sudo)
+	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo) + kataGuestEmptyDirSetup(sudo) + kataNeedrestartSetup(sudo)
 	if staticSandboxSizing {
 		dropIns += kataStaticSandboxSetup(sudo)
 	}
@@ -1133,14 +1140,14 @@ func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing bool) string {
 %[1]sgrep -q '^version = 3' /etc/containerd/config.toml || { echo "tuist: containerd config is not version 3; the kata-qemu handler would be ignored. Refusing to join a runner node that cannot run microVM Pods." >&2; exit 1; }
 %[5]s
 apt_retry %[2]sapt-get install -y zstd
-# kata-static expands with a top-level opt/, so extracting at / lands the shim
+# kata-go-static expands with a top-level opt/, so extracting at / lands the shim
 # and its bundled qemu under /opt/kata/{bin,libexec,share}. Guarded on a version
 # stamp so a re-run costs nothing: the repair loop re-runs this block on every
 # retry against a box whose verification keeps failing, and an unguarded pull
-# would drag ~250 MiB off GitHub each time. Stamping the version (rather than
+# would drag ~1.3 GiB off GitHub each time. Stamping the version (rather than
 # just testing for the shim) keeps a kataVersion bump reinstalling.
 if [ "$(cat %[4]s 2>/dev/null)" != "%[3]s" ]; then
-  curl -fsSL -o /tmp/kata.tar.zst "https://github.com/kata-containers/kata-containers/releases/download/%[3]s/kata-static-%[3]s-amd64.tar.zst"
+  curl -fsSL -o /tmp/kata.tar.zst "https://github.com/kata-containers/kata-containers/releases/download/%[3]s/kata-go-static-%[3]s-amd64.tar.zst"
   %[1]star --zstd -xf /tmp/kata.tar.zst -C /
   rm -f /tmp/kata.tar.zst
   printf '%%s' "%[3]s" | %[1]stee %[4]s > /dev/null

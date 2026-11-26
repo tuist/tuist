@@ -41,6 +41,32 @@ TUIST_KATA_SANDBOX_CGROUP
 `, sudo, "/opt/kata/share/defaults/kata-containers/config.d", kataSandboxCgroupDropInPath, kataSandboxCgroupDropIn)
 }
 
+// Kata 4.0 flipped disable_guest_empty_dir to true (upstream a3e91d9ed), which
+// shares the kubelet's host emptyDir directory over virtiofs. Runner Pods keep
+// their work directory, Docker disk image and sockets in emptyDirs. false has
+// the agent create them in the pause container's rootfs, as on 3.x; true would
+// move them into the kubelet's pod directory, where the kubelet counts them
+// against ephemeral storage and can evict the Pod mid-job. Pinning 3.x's
+// default keeps the 4.x upgrade from moving where job files live.
+//
+// Written at bootstrap only, like the static-sizing drop-in: hosts still on 3.x
+// already default to false.
+const kataGuestEmptyDirDropInPath = "/opt/kata/share/defaults/kata-containers/config.d/50-tuist-guest-empty-dir.toml"
+
+const kataGuestEmptyDirDropIn = `[runtime]
+disable_guest_empty_dir = false
+`
+
+func kataGuestEmptyDirSetup(sudo string) string {
+	return fmt.Sprintf(`%sbash -s <<'TUIST_KATA_GUEST_EMPTY_DIR'
+set -euo pipefail
+install -d %s
+cat > %s <<'TUIST_KATA_GUEST_EMPTY_DIR_DROPIN'
+%sTUIST_KATA_GUEST_EMPTY_DIR_DROPIN
+TUIST_KATA_GUEST_EMPTY_DIR
+`, sudo, "/opt/kata/share/defaults/kata-containers/config.d", kataGuestEmptyDirDropInPath, kataGuestEmptyDirDropIn)
+}
+
 // With static_sandbox_resource_mgmt Kata sizes the VM once, at sandbox
 // creation, from the sandbox resources the kubelet passes: the Pod-level
 // `.spec.resources` budget when the Pod has one, otherwise the sum of its

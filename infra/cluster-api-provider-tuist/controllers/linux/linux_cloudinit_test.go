@@ -421,7 +421,7 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 	withKata := renderLinuxBootstrapScript(optsKata)
 
 	for _, want := range []string{
-		"kata-static-" + kataVersion + "-amd64.tar.zst",
+		"kata-go-static-" + kataVersion + "-amd64.tar.zst",
 		"runtime_path = \"/opt/kata/bin/containerd-shim-kata-v2\"",
 		"katacontainers.io/kata-runtime=true",
 		"tuist.dev/kata-runtime=true",
@@ -429,6 +429,8 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 		kataSharedMemoryUnit,
 		kataVirtiofsSysctl,
 		kataVirtiofsDropIn,
+		// Kata 4.x defaults to host emptyDirs over virtiofs.
+		"disable_guest_empty_dir = false",
 		kataNeedrestartConf,
 		// Set on the handler itself: the earlier rewrite only touches what the
 		// generated default emitted, and this block is appended after it.
