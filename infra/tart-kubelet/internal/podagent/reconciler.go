@@ -639,9 +639,15 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
 	sharedDirs := []string{"env:" + envDir + ":ro"}
+	var usbDiskRequests string
 	if r.CustomVolumes != nil && pod.Labels[runnerPodLabel] == "true" {
 		if share, e := r.CustomVolumes.Share(pod); e == nil {
 			sharedDirs = append(sharedDirs, "custom-cache:"+share)
+		}
+		if r.CustomVolumes.Block != nil {
+			if dir, e := r.CustomVolumes.Block.RequestDir(pod); e == nil {
+				usbDiskRequests = dir
+			}
 		}
 	}
 	statusDir := StatusDirForPod(r.Tart, pod, vmName)
@@ -668,8 +674,9 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	r.Store.Put(pod.Namespace, pod.Name, entry)
 
 	handle, err := r.Tart.RunWithOptions(ctx, vmName, tart.RunOptions{
-		SharedDirs: sharedDirs,
-		VNC:        vncCapableRunnerPod(pod),
+		SharedDirs:      sharedDirs,
+		VNC:             vncCapableRunnerPod(pod),
+		USBDiskRequests: usbDiskRequests,
 	})
 	if err != nil {
 		// Roll back the Store entry — the VM either never started
