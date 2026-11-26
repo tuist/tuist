@@ -1214,8 +1214,10 @@ sentryPulse:
 # Enable once the rotator image is published (set image.tag), then turn on
 # useInWorkloads after the first run has created the Secret.
 s3KeyRotation:
-  enabled: false
+  enabled: true
   useInWorkloads: false
+  image:
+    tag: sha-4602da6823da
   keyPrefix: tuist-staging-platform-
   adminCredentials:
     externalSecret:
