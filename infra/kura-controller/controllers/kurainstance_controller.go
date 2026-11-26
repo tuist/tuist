@@ -721,6 +721,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 	}
+	handoffRollout, err := r.reconcilePrimaryHandoffRollout(ctx, desired, primaryPod)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.replacePendingPodsForStorageDecrease(ctx, desired); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -775,6 +779,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
+	// A held rollout advances on runtime catch-up and endpoint changes, which
+	// raise no pod event, so it is polled rather than left to the resync.
+	if handoffRollout {
+		return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
+	}
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
@@ -2393,6 +2402,20 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(
 		// Do not substitute an unverified destination during a storage handoff.
 		return current, evacuating, nil
 	}
+	// A held rollout replaces the routed primary last, and only after both
+	// roles have moved to an updated, caught-up replica.
+	sts := &appsv1.StatefulSet{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); {
+	case err == nil:
+		for name := range primaryHandoffDemotions(sts, pods) {
+			if evacuating == nil {
+				evacuating = map[string]bool{}
+			}
+			evacuating[name] = true
+		}
+	case !apierrors.IsNotFound(err):
+		return "", nil, err
+	}
 	demoteEvacuatingPods(pods, health, caughtUp, evacuating)
 	return choosePrimaryPod(current, instance.Name, pods, health), evacuating, nil
 }
@@ -3578,8 +3601,10 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
 			sts.Spec.PersistentVolumeClaimRetentionPolicy.WhenDeleted = appsv1.RetainPersistentVolumeClaimRetentionPolicyType
 			delete(sts.Annotations, cpuResizeHoldAnnotation)
+			delete(sts.Annotations, primaryHandoffRolloutAnnotation)
 		}
 		holdCPURequestChange(sts, previousTemplate, time.Now())
+		holdTemplateChangeForPrimaryHandoff(instance, sts)
 		return nil
 	})
 	return err
