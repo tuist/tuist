@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs_on: [tuist-macos-golden-gate, tuist-macos]
-        storage: [volume]
+        runs_on: [tuist-macos-golden-gate]
+        storage: [volume, local]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Report the guest
@@ -73,6 +73,7 @@ jobs:
             local dir="$1" label="$2"
             rm -rf "$dir/cp" "$dir/cc"; mkdir -p "$dir/cp"
             cp "$src"/f* "$dir/cp/"; check "$dir/cp" "$label cp"
+            sync; sudo -n purge 2>/dev/null; check "$dir/cp" "$label cp after purge"
             /tmp/xcopy "$src" "$dir/cc"; check "$dir/cc" "$label concurrent copyItem"
             sync; sudo -n purge 2>/dev/null; check "$dir/cc" "$label concurrent copyItem after purge"
           }
@@ -93,17 +94,33 @@ jobs:
             run_into "$mnt" "$label on share"
             hdiutil detach "$mnt" -force -quiet || diskutil unmount force "$mnt" || true
           }
+          grown() {
+            local label="$1" file="$2" grow="$3"
+            local mnt="$HOME/xmnt-$label"; mkdir -p "$mnt"
+            [ "$grow" = yes ] && hdiutil resize -sectors $((16*1024*1024*1024/512)) -imageonly "$file"
+            local out; out=$(hdiutil attach "$file" -owners off -nobrowse -nomount -plist | plutil -convert json -o - -)
+            local vol; vol=$(echo "$out" | jq -r '[."system-entities"[]|select(."volume-kind"=="apfs")][0]."dev-entry"')
+            local whole; whole=$(echo "$out" | jq -r '."system-entities"[0]."dev-entry"')
+            local ctr; ctr=$(echo "$vol" | sed -E 's#/dev/(disk[0-9]+)s[0-9]+#\1#')
+            [ "$grow" = yes ] && diskutil apfs resizeContainer "$ctr" 0 >/dev/null && echo "$label: grew $ctr"
+            diskutil mount nobrowse -mountPoint "$mnt" "$vol" >/dev/null || { echo "$label: mount failed"; return; }
+            run_into "$mnt" "$label on share"
+            hdiutil detach "$whole" -force -quiet || true
+          }
           hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s1.sparseimage"
-          try_image sparse-hdiutil "$img/s1.sparseimage" hdiutil
-          cp -c "$img/s1.sparseimage" "$img/s2.sparseimage" 2>/dev/null || hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s2.sparseimage"
-          try_image sparse-nocache "$img/s2.sparseimage" hdiutil -nocache
+          try_image fresh-4g "$img/s1.sparseimage" hdiutil
+          hdiutil create -size 100g -fs APFS -volname T -type SPARSE -quiet "$img/s2.sparseimage"
+          try_image fresh-100g "$img/s2.sparseimage" hdiutil
           hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s3.sparseimage"
-          try_image sparse-diskutil "$img/s3.sparseimage" diskutil
-          hdiutil create -size 4g -fs APFS -volname T -type SPARSEBUNDLE -quiet "$img/b.sparsebundle"
-          try_image sparsebundle "$img/b.sparsebundle" hdiutil
-          hdiutil create -size 4g -fs APFS -volname T -type UDIF -quiet "$img/u.dmg"
-          try_image udif "$img/u.dmg" hdiutil
-          if diskutil image create blank --fs APFS --format ASIF --size 4G --volumeName T "$img/a.asif" >/tmp/asif.err 2>&1; then try_image asif "$img/a.asif" diskutil; else echo "asif: create failed: $(cat /tmp/asif.err)"; fi
+          grown nomount-path "$img/s3.sparseimage" no
+          hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s4.sparseimage"
+          grown resized-and-grown "$img/s4.sparseimage" yes
+          hdiutil create -size 8g -fs APFS -volname T -type SPARSE -quiet "$img/s5.sparseimage"
+          m="$HOME/xmnt-prefill"; mkdir -p "$m"; hdiutil attach "$img/s5.sparseimage" -owners off -nobrowse -mountpoint "$m" -quiet
+          for i in $(seq 1 3000); do head -c 4000 /dev/urandom > "$m/p$i"; done; hdiutil detach "$m" -quiet
+          try_image prefilled-reattached "$img/s5.sparseimage" hdiutil
+          echo "== checkout volume again"; run_into "$GITHUB_WORKSPACE/.xtest2" "cached checkout volume (2)"
+          run_into "$HOME/xroot2" "root disk (2)"
           rm -rf "$img"
           exit 0
       - uses: ./.github/actions/mise-install
