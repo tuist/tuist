@@ -11,6 +11,7 @@ use crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
 use crate::metrics::Metrics;
 
 mod cgroup;
+mod demand;
 mod pools;
 mod pressure;
 mod reservation;
@@ -21,6 +22,7 @@ pub use cgroup::{
     ContainerMemoryPressureSample, ContainerMemorySnapshot, container_memory_pressure_sample,
     container_memory_protection, container_memory_snapshot,
 };
+pub use demand::FloorDemandSnapshot;
 pub use pressure::MemoryPressure;
 pub use reservation::{
     ForegroundAdmissionTimeout, ForegroundMemoryReservation, MemoryPermit, MmapMemoryPermit,
@@ -28,6 +30,7 @@ pub use reservation::{
     ResponseStreamMemoryPermit, ResponseTransportGuard, TransientMemoryReservation,
 };
 
+use demand::FloorDemand;
 use pools::MemoryPools;
 use pressure::transition;
 use reservation::{
@@ -92,6 +95,7 @@ struct MemoryControllerInner {
     working_set_state: AtomicU8,
     observation_sequence: AtomicU64,
     foreground_waiters: AtomicU64,
+    floor_demand: FloorDemand,
     response_stream_waiters: AtomicU64,
     #[cfg(test)]
     response_stream_notify_without_waiters: AtomicBool,
@@ -219,6 +223,7 @@ impl MemoryController {
                 working_set_state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 observation_sequence: AtomicU64::new(0),
                 foreground_waiters: AtomicU64::new(0),
+                floor_demand: FloorDemand::new(),
                 response_stream_waiters: AtomicU64::new(0),
                 #[cfg(test)]
                 response_stream_notify_without_waiters: AtomicBool::new(false),
@@ -420,6 +425,12 @@ impl MemoryController {
 
     pub fn transient_reserved_bytes(&self) -> u64 {
         self.inner.pools.transient_reserved_bytes() as u64
+    }
+
+    /// Foreground demand on the floor pool, which `/status/rollout` reports
+    /// so the orchestrator can size the floor from it.
+    pub fn floor_demand(&self) -> FloorDemandSnapshot {
+        self.inner.floor_demand.snapshot()
     }
 
     pub fn elastic_transient_capacity_bytes(&self) -> u64 {
@@ -632,13 +643,13 @@ impl MemoryController {
             .record_memory_action("response_materialization_admission_wait");
         // Registering as a waiter is what stops a later arrival from taking the
         // headroom this one is queued for.
-        let _waiter = ForegroundWaiter::new(self.inner.clone());
+        let _waiter = ForegroundWaiter::new(self.inner.clone(), requested_bytes as u64);
         let transient = timeout(
             RESPONSE_MATERIALIZATION_ADMISSION_TIMEOUT,
             self.reserve_transient(requested_bytes as u64, AdmissionClass::Foreground),
         )
         .await
-        .map_err(|_| ())??;
+        .map_err(|_| self.inner.floor_demand.record_timeout())??;
         Ok(Some(MemoryPermit {
             _transient: transient,
         }))
@@ -806,7 +817,7 @@ impl MemoryController {
                 self.inner
                     .metrics
                     .record_memory_action("foreground_upload_admission_wait");
-                let _waiter = ForegroundWaiter::new(self.inner.clone());
+                let _waiter = ForegroundWaiter::new(self.inner.clone(), requested_bytes);
                 match timeout(
                     FOREGROUND_ADMISSION_TIMEOUT,
                     self.reserve_transient(requested_bytes, AdmissionClass::Foreground),
@@ -817,6 +828,7 @@ impl MemoryController {
                         Ok((ForegroundMemoryReservation::new(reservation), true))
                     }
                     Ok(Err(())) | Err(_) => {
+                        self.inner.floor_demand.record_timeout();
                         self.inner
                             .metrics
                             .record_memory_action("foreground_upload_admission_timeout");
@@ -1147,6 +1159,14 @@ impl MemoryController {
             self.wait_until_admission_allowed(class).await;
             let permit = self.inner.pools.acquire_transient(permits).await?;
             if self.allow_transient_admission(class) {
+                if class == AdmissionClass::Foreground {
+                    // A foreground caller waits here inside a ForegroundWaiter,
+                    // so its bytes are still queued: count them once.
+                    self.inner.floor_demand.record_admitted(
+                        self.transient_reserved_bytes()
+                            .saturating_sub(requested_bytes),
+                    );
+                }
                 return Ok(TransientMemoryReservation {
                     controller: self.clone(),
                     permit: Some(permit),
@@ -1198,7 +1218,14 @@ impl MemoryController {
         let permits = u32::try_from(requested_bytes).map_err(|_| ())?;
         let mut reservation = self.empty_transient(elasticity);
         match self.inner.pools.try_acquire_transient(permits) {
-            Ok(permit) => reservation.permit = Some(permit),
+            Ok(permit) => {
+                reservation.permit = Some(permit);
+                if class == AdmissionClass::Foreground {
+                    self.inner
+                        .floor_demand
+                        .record_admitted(self.transient_reserved_bytes());
+                }
+            }
             Err(()) if borrows => {
                 reservation.elastic_permit = Some(self.try_acquire_elastic_transient(permits)?)
             }
@@ -2687,6 +2714,12 @@ mod tests {
                 .is_err()
         );
         assert!(started_at.elapsed() >= RESPONSE_MATERIALIZATION_ADMISSION_TIMEOUT);
+
+        // The floor is sized from this: the shed response's bytes count as
+        // demand above the full pool, not just as a pool at capacity.
+        let demand = controller.floor_demand();
+        assert_eq!(demand.recent_peak_bytes, anon_budget + 2 * 4096);
+        assert_eq!((demand.waits, demand.timeouts), (1, 1));
     }
 
     #[tokio::test]
