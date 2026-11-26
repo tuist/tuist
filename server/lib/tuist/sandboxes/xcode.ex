@@ -24,6 +24,18 @@ defmodule Tuist.Sandboxes.Xcode do
   def template(version) when is_binary(version), do: "macos-xcode-" <> String.replace(version, ".", "-")
 
   @doc """
+  The served Xcode a template boots: the version whose `template/1` it is, or
+  the default for `macos`. `nil` for any other template, or when this server
+  serves only the `macos` template and so knows no version.
+  """
+  def version(template) do
+    case {versions(), template} do
+      {[default | _], @default_template} -> default
+      {served, _} -> Enum.find(served, &(template(&1) == template))
+    end
+  end
+
+  @doc """
   Validates `:xcode_version`: only a macOS platform takes one, and it must be
   served.
   """

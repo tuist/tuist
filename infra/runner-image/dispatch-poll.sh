@@ -16,8 +16,10 @@
 #       plus `buildkite_job_uuid`, and the agent launched below is chosen
 #       on which is present.
 #     200 with body { encoded_jit_config: "...", pool: "...", owner: "...",
-#                      cache_endpoint_url?: "...", cache_signing_grant?: "..." }
-#       -> export TUIST_CACHE_ENDPOINT when cache_endpoint_url is present,
+#                      cache_endpoint_url?: "...", cache_signing_grant?: "...",
+#                      xcode_version?: "..." }
+#       -> select xcode_version (select-xcode.sh) when present,
+#          export TUIST_CACHE_ENDPOINT when cache_endpoint_url is present,
 #          export TUIST_CACHE_SIGNING_GRANT when cache_signing_grant is present,
 #          then exec ./run.sh --jitconfig <jit> --disableupdate
 #     204  -> no work yet, keep polling
@@ -1071,6 +1073,12 @@ fi
 LOGD_WEDGED_MARKER=/tmp/tuist-logd-wedged
 [ -d "${STATUS_SHARE}" ] && LOGD_WEDGED_MARKER="${STATUS_SHARE}/logd-wedged"
 
+# Selects the claimed job's Xcode and warms the image's Xcodes while idle
+# (select-xcode.sh). TUIST_RUNNER_WARM_XCODE, from the Pod env, names the Xcode
+# an image with more than three should warm besides its default.
+XCODE_TOOL=/opt/tuist/select-xcode.sh
+xcode_warmed=0
+
 while true; do
   attempt=$((attempt + 1))
   if [ -e "${LOGD_WEDGED_MARKER}" ]; then
@@ -1156,6 +1164,14 @@ while true; do
       # so the loop stops beating here by design and the state — not the
       # age — is what tells the host this Pod is no longer warm.
       report_heartbeat "${HEARTBEAT_CLAIMED}"
+      # The runner profile's Xcode, selected system-wide before any agent
+      # starts, so every provider's job runs on it. On a single-Xcode image
+      # it is the one installed and the switch is a no-op. A pool on a
+      # hand-picked image sends none and keeps the image's selection.
+      xcode_version=$("${JQ}" -r '.xcode_version // empty' /tmp/dispatch.json 2>/dev/null)
+      if [ -n "${xcode_version}" ] && [ -x "${XCODE_TOOL}" ]; then
+        "${XCODE_TOOL}" select "${xcode_version}" || true
+      fi
       # Optional: route the job's Tuist cache at the account's private
       # runner-cache Kura node (in-cluster, near this runner) when the
       # server includes it. Exported here so the GitHub Actions runner —
@@ -1624,6 +1640,13 @@ AGENT_CONFIG
       if [ "${clock_checked}" = "0" ]; then
         step_clock_to_server "${DISPATCH_HEADERS}"
         clock_checked=1
+      fi
+      # Warm the image's Xcodes once the runner is idle, never ahead of a job
+      # the first poll already found. A claim stops it before its next Xcode
+      # (the claim marker), and it never changes the selection.
+      if [ "${xcode_warmed}" = "0" ] && [ -x "${XCODE_TOOL}" ]; then
+        XCODE_WARM_STOP_FILE="${SHELL_CLAIM_MARKER}" "${XCODE_TOOL}" warm "${TUIST_RUNNER_WARM_XCODE:-}" &
+        xcode_warmed=1
       fi
       sleep "${interval}"
       ;;

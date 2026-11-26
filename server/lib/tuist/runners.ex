@@ -122,6 +122,8 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.LearnedWarmFloors
   alias Tuist.Runners.MacosSandboxWarmPools
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Sites
   alias Tuist.Runners.Telemetry
@@ -1461,6 +1463,7 @@ defmodule Tuist.Runners do
              fleet_on_cluster_network: Catalog.fleet_on_cluster_network?(fleet_name),
              fleet_platform: Catalog.fleet_platform(fleet_name),
              fleet_site: Map.get(context, :site),
+             xcode_version: job_xcode_version(candidate, resources, pool),
              # Per-account cache-signing grant — trusted jobs only. nil for an
              # untrusted (fork) job or when minting is unconfigured; the runner
              # then falls back to the MAC default (machine-local), so an
@@ -1490,6 +1493,21 @@ defmodule Tuist.Runners do
         {:error, :unknown_account}
     end
   end
+
+  # The Xcode the guest selects as the job's default before the runner starts
+  # (`infra/runner-image/select-xcode.sh`): the one the job's profile names, so
+  # a pool whose image holds several Xcodes runs each job on its own. It is a
+  # default, not a pin: a workflow that switches Xcode itself is respected. A
+  # job routed to a legacy pool, or whose profile is gone, gets the pool's
+  # Xcode, and a pool on a hand-picked image has none, which keeps the image's.
+  defp job_xcode_version(candidate, %{platform: :macos}, pool) do
+    case Profiles.get_for_dispatch_label(candidate.account_id, Map.get(candidate, :requested_dispatch_label)) do
+      %Profile{platform: :macos, xcode_version: version} when is_binary(version) and version != "" -> version
+      _ -> Map.get(pool, :xcode_version)
+    end
+  end
+
+  defp job_xcode_version(_candidate, _resources, _pool), do: nil
 
   defp runner_grant_site(fleet_name, context) do
     case Catalog.fleet_platform(fleet_name) do

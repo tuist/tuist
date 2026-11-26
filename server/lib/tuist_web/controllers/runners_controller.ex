@@ -46,6 +46,7 @@ defmodule TuistWeb.RunnersController do
           Map.get(dispatched, :fleet_site),
           Map.get(dispatched, :cache_signing_grant)
         )
+        |> put_xcode_version(Map.get(dispatched, :xcode_version))
         |> Map.merge(setup_info_fields(credential, account, Map.get(dispatched, :runner_name)))
 
       json(conn, response)
@@ -209,6 +210,13 @@ defmodule TuistWeb.RunnersController do
       _ -> base
     end
   end
+
+  # The macOS guest selects this Xcode before the runner starts
+  # (`infra/runner-image/select-xcode.sh`); absent, it keeps its image's.
+  defp put_xcode_version(response, version) when is_binary(version) and version != "",
+    do: Map.put(response, :xcode_version, version)
+
+  defp put_xcode_version(response, _version), do: response
 
   # The VM branches on which of these two key sets it receives, so the
   # response stays a single shape per provider rather than a discriminator

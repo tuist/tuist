@@ -56,6 +56,7 @@ packer {
 #   /Users/runner/work/<owner>/<repo>           <- workspace, set via JIT work_folder
 #   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
+#   /opt/tuist/select-xcode.sh                  <- selects the claim's Xcode, warms Xcodes while idle
 #   /opt/tuist/tcc-approvals.sh                 <- seeds/checks runner's standing TCC approvals
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/logd-watchdog.sh                 <- restarts a wedged logd (root LaunchDaemon)
@@ -645,6 +646,11 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/select-xcode.sh"
+    destination = "/tmp/select-xcode.sh"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/metrics-poll.sh"
     destination = "/tmp/metrics-poll.sh"
   }
@@ -711,6 +717,7 @@ build {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/select-xcode.sh /opt/tuist/select-xcode.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/logd-watchdog.sh /opt/tuist/logd-watchdog.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",

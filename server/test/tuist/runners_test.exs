@@ -999,7 +999,7 @@ defmodule Tuist.RunnersTest do
       assert runner_name != pod_name
     end
 
-    test "names a catalog macOS runner after the guest's macOS version, the pool's Xcode version and the shape" do
+    test "names a catalog macOS runner after the guest's macOS version, the pool's Xcode version and the shape, and hands the guest that Xcode" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
       pod_name = "tuist-tuist-runner-pool-macos-ber1-27-0-runner-aea5f25e"
@@ -1015,11 +1015,39 @@ defmodule Tuist.RunnersTest do
         }
       )
 
-      assert {:ok, %{runner_name: runner_name}} =
+      assert {:ok, %{runner_name: runner_name, xcode_version: "27.0"}} =
                Runners.dispatch_for_sa("tuist-runners", pod_name, %{os_version: "26.6"})
 
       assert_receive {:jit_runner_name, ^runner_name}
       assert runner_name =~ ~r/\Atuist-macos-26\.6-xcode-27\.0-6vcpu-14gb-[0-9a-f]{12}\z/
+    end
+
+    test "hands the guest the job's profile Xcode, not the pool's, so a pool serving several Xcodes runs each job on its own" do
+      account = account_fixture()
+
+      Tuist.Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "pinned-27-1",
+        platform: :macos,
+        xcode_version: "27.1",
+        vcpus: 6,
+        memory_gb: 14
+      })
+
+      candidate =
+        candidate_with_label(account, Profile.prefix() <> "pinned-27-1", platform: "macos", vcpus: 6, memory_gb: 14)
+
+      stub_dispatch_path(account, candidate, self(),
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14},
+        runner_name_prefix: "tuist-macos-xcode-27.2-6vcpu-14gb-",
+        pool_summary: %{
+          dispatch_label: "shape-macos-27-2",
+          runner_labels: ["self-hosted", "macOS", "ARM64"],
+          xcode_version: "27.2"
+        }
+      )
+
+      assert {:ok, %{xcode_version: "27.1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
     test "leaves the macOS version out of the name when the guest reports none" do
@@ -1053,7 +1081,7 @@ defmodule Tuist.RunnersTest do
         }
       )
 
-      assert {:ok, %{runner_name: runner_name}} =
+      assert {:ok, %{runner_name: runner_name, xcode_version: nil}} =
                Runners.dispatch_for_sa("tuist-runners", "pod-1", %{os_version: "26.6"})
 
       assert runner_name =~ ~r/\Apod-1-[0-9a-f]{8}\z/

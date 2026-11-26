@@ -231,6 +231,54 @@ func TestClaimReusesTheWorkspaceVolumeOnlyAtItsSize(t *testing.T) {
 	}
 }
 
+// A claim selects the Xcode the sandbox asked for in the guest, passing the
+// version as an argument rather than splicing it into the script, and a
+// sandbox that named none runs no guest command.
+func TestClaimSelectsTheSandboxXcode(t *testing.T) {
+	for _, xcode := range []string{"27.3-beta", ""} {
+		t.Run("xcode="+xcode, func(t *testing.T) {
+			dir := t.TempDir()
+			binary := filepath.Join(dir, "tart")
+			if err := os.WriteFile(binary, []byte("#!/bin/sh\n[ \"$1\" = exec ] && printf '%s\\n' \"$@\" >> \"$TART_HOME/exec.log\"\nexit 0\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			runtime := &TartRuntime{Client: &tart.Client{Binary: binary, HomeDir: dir}}
+			r := &Record{VM: "sbw-xcode", WorkspaceVolumeGB: 30}
+			r.SandboxID, r.WorkspaceGB, r.XcodeVersion = uuid.NewString(), 30, xcode
+			vm := runtime.directory(r)
+			if err := os.MkdirAll(vm, 0700); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			go func() { // The runtime answers its status call.
+				for ctx.Err() == nil {
+					var request struct{ ID string }
+					if data, err := os.ReadFile(filepath.Join(vm, "sandbox-request.json")); err == nil && json.Unmarshal(data, &request) == nil {
+						reply, _ := json.Marshal(map[string]any{"id": request.ID, "action": "status", "instance": uuid.NewString(), "pid": 1, "state": "running"})
+						_ = os.WriteFile(filepath.Join(vm, "sandbox-reply.json"), reply, 0600)
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+			}()
+			if err := runtime.Claim(ctx, r); err != nil {
+				t.Fatal(err)
+			}
+			log, _ := os.ReadFile(filepath.Join(dir, "exec.log"))
+			if xcode == "" {
+				if len(log) != 0 {
+					t.Fatalf("a sandbox without an Xcode ran a guest command: %s", log)
+				}
+				return
+			}
+			args := strings.Split(strings.TrimSuffix(string(log), "\n"), "\n")
+			if len(args) != 7 || args[2] != "/bin/sh" || !strings.Contains(args[4], "/opt/tuist/select-xcode.sh select \"$1\"") || args[6] != xcode {
+				t.Fatalf("the claim did not select Xcode %s: %q", xcode, args)
+			}
+		})
+	}
+}
+
 // A host stops advertising itself for warm Pods while its sandbox service is
 // not ready or its disk has no room for another VM, so the scheduler places
 // them elsewhere instead of on a host that refuses each one.

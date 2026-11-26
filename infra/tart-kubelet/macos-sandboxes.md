@@ -90,6 +90,12 @@ the default moves. Callers pick one with an exact `xcode_version`
 - **Warm VMs.** A warm VM boots the template its Pod's image names. A create
   claims it when the image and shape match, under either name of the default.
   Only the default keeps warm VMs; another Xcode cold-creates.
+- **Selection.** The server sends the template's Xcode as the create's
+  `xcode_version` (`Tuist.Sandboxes.Xcode.version/1`, the default's for
+  `macos`), and the claim runs `/opt/tuist/select-xcode.sh select` in the guest
+  (`TartRuntime.selectXcode`), as a CI runner does at its claim
+  (`infra/runner-image/AGENTS.md`). The selection lives on the VM's disk. An
+  image without the script or the Xcode keeps its own, logged, not failed.
 - **Lifetime.** A sandbox keeps its template, and a resume reads only the VM's
   own disks. Dropping an Xcode from the list stops new creates on it; its
   sandboxes keep running and resuming. Templates no longer configured are not

@@ -734,6 +734,7 @@ defmodule Tuist.Sandboxes do
       cpu_guarantee_milli: Sandbox.guaranteed_cpu_milli(sandbox)
     }
 
+    args = with_xcode_version(args, sandbox)
     args = with_cache(args, sandbox, source, cache)
 
     deadline = System.monotonic_time(:millisecond) + capacity_wait_ms
@@ -921,6 +922,18 @@ defmodule Tuist.Sandboxes do
     do: Map.put(args, :cache, cache)
 
   defp with_cache(args, _sandbox, _source, _cache), do: args
+
+  # The host selects a macOS sandbox's Xcode in the guest before handing it
+  # over, as a CI runner does at its claim. The template names it, so a create
+  # that named only a template, such as an Amp Orb type, selects it too.
+  defp with_xcode_version(args, %Sandbox{platform: :darwin, template: template}) do
+    case Xcode.version(template) do
+      nil -> args
+      version -> Map.put(args, :xcode_version, version)
+    end
+  end
+
+  defp with_xcode_version(args, _sandbox), do: args
 
   # A disk snapshot clone that failed fell back to its archive or the template.
   defp boot_source({:archive, _source}, _data), do: "archive"
