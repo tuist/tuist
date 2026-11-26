@@ -3330,6 +3330,7 @@ defmodule Tuist.Accounts do
          provider_organization_id: sso_organization_id,
          client_id: client_id,
          client_authentication: client_authentication,
+         fallback_client_secret: fallback_client_secret(organization),
          authorize_url: authorize_url,
          token_url: token_url,
          user_info_url: user_info_url
@@ -3348,6 +3349,35 @@ defmodule Tuist.Accounts do
     do: {:ok, {:client_secret_basic, secret}}
 
   defp oauth2_client_authentication(_organization), do: {:error, :oauth2_not_configured}
+
+  # The secret an organization stored before switching to `private_key_jwt`,
+  # used only when its provider rejects Tuist's key, until the key first works.
+  defp fallback_client_secret(%Organization{
+         oauth2_client_authentication_method: :private_key_jwt,
+         oauth2_encrypted_client_secret: secret
+       })
+       when is_binary(secret), do: secret
+
+  defp fallback_client_secret(_organization), do: nil
+
+  @doc """
+  Deletes the client secret an organization kept after switching to
+  `private_key_jwt`, once its provider has accepted Tuist's key. Does nothing
+  if the organization switched back to a client secret in the meantime.
+  """
+  def delete_oauth2_client_secret_after_key_sign_in(%Organization{id: id}) do
+    {count, _} =
+      Repo.update_all(
+        from(o in Organization,
+          where:
+            o.id == ^id and o.oauth2_client_authentication_method == :private_key_jwt and
+              not is_nil(o.oauth2_encrypted_client_secret)
+        ),
+        set: [oauth2_encrypted_client_secret: nil, updated_at: NaiveDateTime.utc_now()]
+      )
+
+    count
+  end
 
   def okta_authorize_url(domain), do: "https://#{domain}#{@okta_authorize_path}"
   def okta_token_url(domain), do: "https://#{domain}#{@okta_token_path}"

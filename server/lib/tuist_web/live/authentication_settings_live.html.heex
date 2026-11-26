@@ -37,7 +37,7 @@
     description={
       dgettext(
         "dashboard_account",
-        "Tuist stores your identity provider's client secret to sign your members in. Register Tuist's public key with your provider instead, and Tuist deletes the secret and keeps nothing that could be used to sign in to your provider."
+        "Tuist stores your identity provider's client secret to sign your members in. Register Tuist's public key with your provider instead. After the first sign-in with the key succeeds, Tuist deletes the secret and keeps nothing that could be used to sign in to your provider."
       )
     }
   >
@@ -860,6 +860,25 @@
           </span>
         </div>
         <div data-part="field">
+          <.alert
+            :if={@organization && @organization.oauth2_encrypted_client_secret}
+            id="sso-client-secret-pending-deletion"
+            type="secondary"
+            status="warning"
+            size="large"
+            title={
+              dgettext(
+                "dashboard_account",
+                "Register these keys with your provider before you save"
+              )
+            }
+            description={
+              dgettext(
+                "dashboard_account",
+                "Until a sign-in with the key succeeds, Tuist keeps your client secret and uses it if your provider rejects the key. After that sign-in, Tuist deletes the secret."
+              )
+            }
+          />
           <.copyable_value
             id="sso-client-jwks-url"
             value={@sso_client_jwks_url}

@@ -13,9 +13,10 @@ defmodule Tuist.OAuth2.SSOClientAssertion do
   logged and treated as no keys, so `private_key_jwt` is unavailable and
   client-secret organizations keep working.
 
-  Once an organization switches to `private_key_jwt`, its client secret is
-  deleted, so releases older than this one cannot sign its members in. Do not
-  roll back past this release after any organization has switched.
+  An organization that switches keeps its old client secret as a fallback until
+  the first sign-in with the key succeeds; that sign-in deletes the secret, so
+  releases older than this one cannot sign its members in afterwards. Do not
+  roll back past this release after any organization has signed in with a key.
 
   Each key also has a self-signed X.509 certificate, because Entra ID cannot
   fetch a JWKS and needs a certificate uploaded instead. The certificate is
@@ -205,7 +206,8 @@ defmodule Tuist.OAuth2.SSOClientAssertion do
     |> Enum.map(fn entry ->
       case :public_key.pem_entry_decode(entry) do
         {:RSAPrivateKey, _, modulus, _, _, _, _, _, _, _, _} = private_key ->
-          if bit_size(:binary.encode_unsigned(modulus)) < @minimum_rsa_bits do
+          # A modulus below 2^(n-1) has fewer than n bits.
+          if modulus < Bitwise.bsl(1, @minimum_rsa_bits - 1) do
             raise ArgumentError, "SSO client assertion keys must be RSA keys of at least #{@minimum_rsa_bits} bits"
           end
 

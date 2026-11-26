@@ -434,7 +434,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: "pkjwt-client",
-          oauth2_client_secret: UUIDv7.generate()
+          oauth2_client_secret: "pkjwt-old-secret"
         )
 
       {:ok, organization} =
@@ -464,6 +464,58 @@ defmodule TuistWeb.AuthControllerTest do
         |> get("/users/auth/okta/callback?code=auth-code&state=expected-state")
 
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
+      # The provider accepted Tuist's key, so the secret kept from before the switch is deleted.
+      {:ok, organization} = Accounts.get_organization_by_id(organization.id)
+      assert is_nil(organization.oauth2_encrypted_client_secret)
+    end
+
+    test "falls back to the kept client secret when the provider rejects Tuist's key", %{conn: conn} do
+      private_key_pem = 2048 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem()
+      stub(Environment, :sso_client_assertion_private_keys, fn -> private_key_pem end)
+      existing_user = AccountsFixtures.user_fixture(email: "existing-okta-fallback@authctl-example.com")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: existing_user,
+          sso_provider: :okta,
+          sso_organization_id: "dev-fallback",
+          sso_login_domain: "authctl-example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          oauth2_client_id: "fallback-client",
+          oauth2_client_secret: "fallback-secret"
+        )
+
+      {:ok, organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_authentication_method: :private_key_jwt
+        })
+
+      expect(SSOClient, :exchange_token, 2, fn
+        _token_url, "auth-code", _redirect_uri, "fallback-client", :private_key_jwt ->
+          {:error, {:token_exchange_failed, 401, ~s({"error":"invalid_client"})}}
+
+        _token_url, "auth-code", _redirect_uri, "fallback-client", {:client_secret_basic, "fallback-secret"} ->
+          {:ok, %{"access_token" => "access-token", "token_type" => "Bearer"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "okta-fallback-user", "email" => existing_user.email, "name" => "Existing User"}}
+      end)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :okta
+        })
+        |> get("/users/auth/okta/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) =~ "/#{existing_user.account.name}"
+      # The key never worked, so the secret stays.
+      {:ok, organization} = Accounts.get_organization_by_id(organization.id)
+      assert organization.oauth2_encrypted_client_secret == "fallback-secret"
     end
 
     test "raises unauthorized error when organization is not configured for SSO", %{conn: conn} do

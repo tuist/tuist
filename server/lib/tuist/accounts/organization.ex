@@ -241,10 +241,12 @@ defmodule Tuist.Accounts.Organization do
 
   defp validate_oauth2_client_secret(changeset) do
     case get_field(changeset, :oauth2_client_authentication_method) do
-      # Switching to `private_key_jwt` drops the stored secret, so moving off a
-      # secret actually stops Tuist from holding it.
+      # `private_key_jwt` needs no secret. A secret stored before the switch is
+      # kept as a fallback until the first sign-in with the key succeeds
+      # (`Tuist.Accounts.delete_oauth2_client_secret_after_key_sign_in/1`), so an
+      # organization that saves before registering the key is not locked out.
       :private_key_jwt ->
-        put_change(changeset, :oauth2_encrypted_client_secret, nil)
+        changeset
 
       _ ->
         if is_nil(get_field(changeset, :oauth2_encrypted_client_secret)) do

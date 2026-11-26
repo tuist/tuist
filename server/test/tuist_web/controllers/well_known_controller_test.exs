@@ -553,6 +553,11 @@ defmodule TuistWeb.WellKnownControllerTest do
       certificate_conn = get(conn, "/.well-known/sso-client-certificates/#{next_jwk["kid"]}.pem")
 
       assert response(certificate_conn, 200) =~ "-----BEGIN CERTIFICATE-----"
+
+      assert get_resp_header(certificate_conn, "content-disposition") == [
+               ~s(attachment; filename="tuist-sso-client-#{String.slice(next_jwk["kid"], 0, 8)}.pem")
+             ]
+
       certificate = X509.Certificate.from_pem!(certificate_conn.resp_body)
       assert X509.Certificate.public_key(certificate) == X509.PublicKey.derive(next_key)
     end

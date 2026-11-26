@@ -267,11 +267,17 @@ defmodule TuistWeb.WellKnownController do
   certificate instead of a JWKS.
   """
   def sso_client_certificate(conn, %{"kid" => kid}) do
-    case SSOClientAssertion.certificate_pem(String.trim_trailing(kid, ".pem")) do
+    kid = String.trim_trailing(kid, ".pem")
+
+    case SSOClientAssertion.certificate_pem(kid) do
       {:ok, pem} ->
+        # The key ID prefix matches the one the settings page shows, so admins can
+        # tell the certificates of a rotation apart.
+        filename = "tuist-sso-client-#{String.slice(kid, 0, 8)}.pem"
+
         conn
         |> put_resp_content_type("application/x-pem-file")
-        |> put_resp_header("content-disposition", ~s(attachment; filename="tuist-sso-client.pem"))
+        |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename}"))
         |> put_resp_header("cache-control", "public, max-age=3600")
         |> send_resp(:ok, pem)
 

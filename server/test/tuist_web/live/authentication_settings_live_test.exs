@@ -682,14 +682,22 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       render_click(lv, "switch_to_private_key_jwt")
 
       assert has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+      assert has_element?(lv, "#sso-client-secret-pending-deletion")
       refute has_element?(lv, ~s(input[name="sso[oauth2_client_secret]"]))
 
       lv |> form("#sso-form", %{}) |> render_submit()
 
       refute has_element?(lv, "#sso-client-secret-banner")
+      # The secret stays until the first sign-in with the key succeeds.
+      assert has_element?(lv, "#sso-client-secret-pending-deletion")
       {:ok, organization} = Accounts.get_organization_by_id(organization.id)
       assert organization.oauth2_client_authentication_method == :private_key_jwt
-      assert is_nil(organization.oauth2_encrypted_client_secret)
+      assert organization.oauth2_encrypted_client_secret == "test_client_secret"
+
+      Accounts.delete_oauth2_client_secret_after_key_sign_in(organization)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+      assert has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+      refute has_element?(lv, "#sso-client-secret-pending-deletion")
     end
 
     test "still renders for every organization when the signing keys are unusable", %{

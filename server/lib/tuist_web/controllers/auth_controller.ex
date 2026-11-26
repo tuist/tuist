@@ -244,7 +244,7 @@ defmodule TuistWeb.AuthController do
 
         with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
              {:ok, config} <- Accounts.oauth2_config_for_organization(organization),
-             {:ok, auth} <- sso_auth(conn, config, organization.sso_provider, route_provider) do
+             {:ok, auth} <- sso_auth(conn, organization, config, route_provider) do
           conn
           |> delete_session(:sso_organization_id)
           |> delete_session(:sso_state)
@@ -830,24 +830,47 @@ defmodule TuistWeb.AuthController do
     end
   end
 
-  defp sso_auth(conn, config, sso_provider, route_provider) do
+  defp sso_auth(conn, organization, config, route_provider) do
     with :ok <- validate_sso_urls(config),
-         {:ok, token_body} <-
-           SSOClient.exchange_token(
-             config.token_url,
-             conn.params["code"],
-             sso_callback_url(route_provider),
-             config.client_id,
-             config.client_authentication
-           ),
+         {:ok, token_body} <- exchange_sso_token(organization, config, conn.params["code"], route_provider),
          {:ok, userinfo} <- SSOClient.fetch_userinfo(config.user_info_url, token_body["access_token"]),
          {:ok, uid, email} <- validate_sso_userinfo(userinfo) do
-      {:ok, build_sso_auth(token_body, userinfo, uid, email, sso_provider, config.provider_organization_id)}
+      {:ok, build_sso_auth(token_body, userinfo, uid, email, organization.sso_provider, config.provider_organization_id)}
     else
       {:error, reason} -> {:error, reason}
       error -> {:error, error}
     end
   end
+
+  # An organization that switched to `private_key_jwt` keeps its old secret
+  # until its provider first accepts Tuist's key. Until then a rejected key falls
+  # back to the secret, so saving before registering the key locks nobody out.
+  # A failed client authentication does not redeem the code (RFC 6749 §5.2), so
+  # the retry can still use it.
+  defp exchange_sso_token(organization, config, code, route_provider) do
+    exchange = &SSOClient.exchange_token(config.token_url, code, sso_callback_url(route_provider), config.client_id, &1)
+
+    case {exchange.(config.client_authentication), config.fallback_client_secret} do
+      {{:ok, token_body}, fallback_client_secret} ->
+        if fallback_client_secret, do: Accounts.delete_oauth2_client_secret_after_key_sign_in(organization)
+        {:ok, token_body}
+
+      {{:error, reason}, fallback_client_secret} when is_binary(fallback_client_secret) ->
+        log(
+          :warning,
+          "SSO token exchange with Tuist's key failed for organization #{organization.id} " <>
+            "(#{sso_token_error_summary(reason)}); falling back to its stored client secret"
+        )
+
+        exchange.({:client_secret_basic, fallback_client_secret})
+
+      {error, _} ->
+        error
+    end
+  end
+
+  defp sso_token_error_summary({:token_exchange_failed, status, _body}), do: "HTTP #{status}"
+  defp sso_token_error_summary(reason), do: inspect(reason)
 
   # The IdP can redirect back to our callback without a `code` (RFC 6749 §4.1.2.1):
   # the user can deny consent, the IdP can refuse the request, the request can

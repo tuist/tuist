@@ -142,6 +142,8 @@ defmodule Tuist.OAuth2.SSOClientAssertionTest do
     unusable = %{
       "an EC key" => :secp256r1 |> X509.PrivateKey.new_ec() |> X509.PrivateKey.to_pem(),
       "a short RSA key" => 1024 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem(),
+      # One bit short, yet the same 256 bytes as a 2048-bit modulus.
+      "a 2047-bit RSA key" => 2047 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem(),
       "an encrypted key" => 2048 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem(password: "secret"),
       "a truncated key" => String.slice(rsa_pem, 0, 200),
       "a public key" => 2048 |> X509.PrivateKey.new_rsa() |> X509.PublicKey.derive() |> X509.PublicKey.to_pem(),

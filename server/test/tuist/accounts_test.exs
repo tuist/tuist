@@ -1031,7 +1031,7 @@ defmodule Tuist.AccountsTest do
       assert reloaded_org.oauth2_encrypted_client_secret == plain_secret
     end
 
-    test "switching to private_key_jwt drops the stored client secret" do
+    test "switching to private_key_jwt keeps the stored client secret as a fallback until the key first works" do
       stub(Environment, :sso_client_assertion_private_keys, fn -> rsa_private_key_pem() end)
       user = AccountsFixtures.user_fixture()
 
@@ -1051,8 +1051,45 @@ defmodule Tuist.AccountsTest do
 
       {:ok, reloaded_org} = Accounts.get_organization_by_id(updated_org.id)
       assert reloaded_org.oauth2_client_authentication_method == :private_key_jwt
+
+      assert {:ok, %{client_authentication: :private_key_jwt, fallback_client_secret: "old_secret"}} =
+               Accounts.oauth2_config_for_organization(reloaded_org)
+
+      assert Accounts.delete_oauth2_client_secret_after_key_sign_in(reloaded_org) == 1
+      {:ok, reloaded_org} = Accounts.get_organization_by_id(updated_org.id)
       assert is_nil(reloaded_org.oauth2_encrypted_client_secret)
-      assert {:ok, %{client_authentication: :private_key_jwt}} = Accounts.oauth2_config_for_organization(reloaded_org)
+
+      assert {:ok, %{client_authentication: :private_key_jwt, fallback_client_secret: nil}} =
+               Accounts.oauth2_config_for_organization(reloaded_org)
+    end
+
+    test "keeps the client secret of an organization that switched back before its key first worked" do
+      stub(Environment, :sso_client_assertion_private_keys, fn -> rsa_private_key_pem() end)
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :okta,
+          sso_organization_id: "test.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "old_secret"
+        )
+
+      {:ok, switched} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{oauth2_client_authentication_method: :private_key_jwt})
+
+      {:ok, _} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_authentication_method: :client_secret_basic
+        })
+
+      # A sign-in that started before the admin switched back must not delete the secret.
+      assert Accounts.delete_oauth2_client_secret_after_key_sign_in(switched) == 0
+      {:ok, reloaded_org} = Accounts.get_organization_by_id(organization.id)
+
+      assert {:ok, %{client_authentication: {:client_secret_basic, "old_secret"}, fallback_client_secret: nil}} =
+               Accounts.oauth2_config_for_organization(reloaded_org)
     end
 
     test "configures private_key_jwt without a client secret" do
