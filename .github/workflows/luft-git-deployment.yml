@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
   HELM_CHART_PATH: infra/helm/luft-git
   HELM_RELEASE_NAME: luft-git
