@@ -111,6 +111,7 @@ func main() {
 		tartKubeletGuestCapacity     int
 		runnerCacheVolumeGiB         int
 		customCacheURL               string
+		blockCacheVolumes            bool
 		customCacheNamespace         string
 		customCacheSA                string
 		tartKubeletMaxUpdateAttempts int
@@ -299,6 +300,7 @@ func main() {
 			"that keeps cache volumes from ever starving the VM image path. 0 (default) leaves the feature "+
 			"off. Flows from the chart's macosFleet.runnerCacheVolume.gib.")
 	flag.StringVar(&customCacheURL, "custom-cache-url", "", "Opt-in server URL for macOS custom cache volumes")
+	flag.BoolVar(&blockCacheVolumes, "block-cache-volumes", false, "Serve macOS custom cache volumes as USB disks Tart hot-plugs (needs a Tart built from infra/tart-build)")
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Custom cache agent namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Custom cache agent service account")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
@@ -663,6 +665,7 @@ func main() {
 		CustomCacheURL:            customCacheURL,
 		CustomCacheNamespace:      customCacheNamespace,
 		CustomCacheServiceAccount: customCacheSA,
+		BlockCacheVolumes:         blockCacheVolumes,
 		VNCRelayPort:              vncRelayPort,
 	}
 	hostConfigHash := bootstrap.HostConfigHash(fleetConfig)
