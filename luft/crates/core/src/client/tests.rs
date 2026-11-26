@@ -3522,3 +3522,27 @@ fn live_diffs_merge_into_the_store_and_queued_replies_stay_unsent_until_the_serv
     let join: Value = serde_json::from_str(plan["data"]["join"].as_str().unwrap()).unwrap();
     assert_eq!(join[4]["since"], Value::Null);
 }
+
+#[test]
+fn live_refreshes_reach_the_edge_while_refresh_tokens_stay_scrubbed() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    call(
+        &mut c,
+        &mut h,
+        "live_connect",
+        json!({"id":"inbox","socket":"i"}),
+    );
+    let frame = json!([null, null, "threads:ana:inbox", "snapshot", {"revision": 7}]);
+    let out = call(
+        &mut c,
+        &mut h,
+        "live_receive",
+        json!({"socket":"i","id":"inbox","message":frame.to_string()}),
+    );
+    assert_eq!(out["data"]["refresh"], true, "{out}");
+    let profile = &out["view"]["profiles"][0];
+    assert!(profile.is_object(), "{out}");
+    assert!(profile.get("refresh").is_none() && profile.get("access").is_none());
+    assert!(!out.to_string().contains("refresh-1"));
+}

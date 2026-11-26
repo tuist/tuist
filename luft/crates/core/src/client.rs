@@ -1810,11 +1810,12 @@ fn validate_filters(data: &Value, args: &Value) -> Result<()> {
 fn scrub(value: &mut Value, profiles: &[Profile]) {
     match value {
         Value::Object(map) => {
-            map.retain(|k, _| {
-                !matches!(
-                    k.as_str(),
-                    "access_token" | "refresh_token" | "access" | "refresh" | "code_verifier"
-                )
+            map.retain(|k, v| match k.as_str() {
+                "access_token" | "refresh_token" | "access" | "code_verifier" => false,
+                // A credential is a string; `live_receive`'s boolean
+                // `refresh` asks the edge to reload and must reach it.
+                "refresh" => v.is_boolean(),
+                _ => true,
             });
             for value in map.values_mut() {
                 scrub(value, profiles);
