@@ -3846,6 +3846,10 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	// replica already rebuilt and coming back, or with nothing serving a second
 	// rebuild would discard the copy that could have recovered first.
 	for _, volume := range replacements {
+		if volume.held {
+			log.FromContext(ctx).Info("holding a Kura data volume rebuild until a node can take it", "pvc", volume.claim.Name, "reason", volume.reason)
+			continue
+		}
 		if !serving[volume.ordinal] && othersSettled(volume.ordinal, true) {
 			allowed, err := r.lvmMigrationAllowed(ctx, instance, volume)
 			if err != nil {
@@ -3862,7 +3866,7 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	// also what makes a rebuilt pod's backfill worth anything: it has a serving
 	// sibling to read from.
 	for _, volume := range replacements {
-		if serving[volume.ordinal] && othersSettled(volume.ordinal, false) {
+		if !volume.held && serving[volume.ordinal] && othersSettled(volume.ordinal, false) {
 			allowed, err := r.lvmMigrationAllowed(ctx, instance, volume)
 			if err != nil {
 				return true, err
@@ -3910,6 +3914,9 @@ type dataVolumeReplacement struct {
 	ordinal int32
 	claim   *corev1.PersistentVolumeClaim
 	reason  string
+	// held keeps the resize in flight, and so the rollout on OnDelete,
+	// without rebuilding this volume yet.
+	held bool
 }
 
 // A shrunk claim's volume is rebuilt only when the surplus is worth emptying a
@@ -4071,6 +4078,9 @@ func (r *KuraInstanceReconciler) colocatedVolumes(ctx context.Context, instance 
 	// matches the instance's selector and holds a value of the label no
 	// replica occupies. Otherwise emptying it leaves its replacement Pending
 	// beside the primary's volume, and a one-host region loses its standby.
+	// The move is still reported, held, so the resize keeps the StatefulSet on
+	// OnDelete: rolling either pod onto the template's required spread would
+	// strand it Pending beside its sibling just the same.
 	nodes := &corev1.NodeList{}
 	if err := r.List(ctx, nodes); err != nil {
 		return nil, err
@@ -4085,9 +4095,7 @@ func (r *KuraInstanceReconciler) colocatedVolumes(ctx context.Context, instance 
 			occupied[node.Name] = true
 		}
 	}
-	if !hasLandingNode(nodes.Items, occupied, nodeSelector(instance)) {
-		return nil, nil
-	}
+	held := !hasLandingNode(nodes.Items, occupied, nodeSelector(instance))
 	var colocated []dataVolumeReplacement
 	for _, value := range values {
 		group := byValue[value]
@@ -4105,6 +4113,7 @@ func (r *KuraInstanceReconciler) colocatedVolumes(ctx context.Context, instance 
 				colocated = append(colocated, dataVolumeReplacement{
 					ordinal: member.ordinal, claim: member.claim,
 					reason: fmt.Sprintf("shares %s=%s with a sibling while spread is required", key, value),
+					held:   held,
 				})
 			}
 		}
