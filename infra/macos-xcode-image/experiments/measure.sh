@@ -6,9 +6,9 @@ set -uo pipefail
 source ~/.zprofile 2>/dev/null || true
 
 now() { python3 -c 'import time; print(f"{time.time():.1f}")' 2>/dev/null || date +%s; }
-boot=$(sysctl -n kern.boottime | sed -E 's/.*sec = ([0-9]+).*/\1/')
+boot=$(sysctl -n kern.boottime | sed -E 's/^\{ sec = ([0-9]+),.*/\1/')
 echo "BUNDLE-EXP guest seconds from kernel boot to first command: $(( $(date +%s) - boot ))"
-echo "BUNDLE-EXP disk used KiB: $(df -k / | awk 'NR==2 {print $3}')"
+echo "BUNDLE-EXP disk used KiB: $(df -k /System/Volumes/Data | awk 'NR==2 {print $3}')"
 
 for app in $(ls -d /Applications/Xcode_*.app | sort); do
   [ -L "$app" ] && continue
@@ -30,8 +30,8 @@ for app in $(ls -d /Applications/Xcode_*.app | sort); do
 
   sdk=$(xcrun --sdk iphonesimulator --show-sdk-version 2>/dev/null)
   runtime=$(xcrun simctl list runtimes -j | jq -r --arg v "$sdk" '[.runtimes[] | select(.platform == "iOS" and .isAvailable and (.version | startswith($v)))][0].identifier // empty')
-  dtype=$(xcrun simctl list devicetypes -j | jq -r '[.devicetypes[] | select(.productFamily == "iPhone")][-1].identifier')
-  if [ -z "$runtime" ]; then
+  dtype=$(xcrun simctl list runtimes -j | jq -r --arg r "$runtime" '[.runtimes[] | select(.identifier == $r) | .supportedDeviceTypes[] | select(.productFamily == "iPhone")][-1].identifier // empty')
+  if [ -z "$runtime" ] || [ -z "$dtype" ]; then
     echo "BUNDLE-EXP $v simulator: no iOS $sdk runtime"
     continue
   fi

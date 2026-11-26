@@ -1,0 +1,48 @@
+name: macOS Xcode bundle measure
+
+# Throwaway experiment (branch exp/xcode-bundle-tahoe-27 only): pulls the
+# three-Xcode bundle the bundle experiment pushed and re-runs only
+# infra/macos-xcode-image/experiments/measure.sh in a clone of it.
+
+on:
+  push:
+    branches: [exp/xcode-bundle-tahoe-27]
+    paths:
+      - .github/workflows/macos-xcode-bundle-measure.yml
+      - infra/macos-xcode-image/experiments/measure.sh
+
+concurrency:
+  group: macos-xcode-bundle-measure
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize Packer
+        working-directory: infra/macos-xcode-image/experiments
+        run: packer init -upgrade measure.pkr.hcl
+
+      - name: Pull the bundle
+        run: |
+          set -euo pipefail
+          tart logout ghcr.io || true
+          t0=$(date +%s); tart pull ghcr.io/tuist/macos-tahoe-xcode:exp-bundle-27-0-27-1-27-2
+          echo "BUNDLE-EXP pull bundle s: $(( $(date +%s) - t0 ))"
+
+      - name: Measure
+        working-directory: infra/macos-xcode-image/experiments
+        run: |
+          env -u GITHUB_TOKEN packer build \
+            -var base_image=ghcr.io/tuist/macos-tahoe-xcode:exp-bundle-27-0-27-1-27-2 \
+            -var output_image=exp-measure measure.pkr.hcl
+
+      - name: Cleanup
+        if: always()
+        run: tart delete exp-measure 2>/dev/null || true
