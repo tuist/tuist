@@ -100,6 +100,8 @@ func imagesOnShareLoseWrites(ctx context.Context) bool {
 // mountMacBlockVolume mounts the APFS volume named volume at mountPoint once the
 // USB disk the host hot-plugged appears. Disk Arbitration mounts a new USB
 // volume under /Volumes first, so it is unmounted and mounted again, hidden.
+// The host may have enlarged the image, so the container grows to fill it
+// before the volume mounts again.
 func mountMacBlockVolume(ctx context.Context, volume, mountPoint string, run macRunner) error {
 	var device string
 	for device == "" {
@@ -121,6 +123,7 @@ func mountMacBlockVolume(ctx context.Context, volume, mountPoint string, run mac
 		}
 	}
 	_, _ = run(ctx, nil, "diskutil", "unmount", device)
+	growMacContainer(ctx, run, apfsContainer("/dev/"+device))
 	_, err := run(ctx, nil, "diskutil", "mount", "nobrowse", "-mountPoint", mountPoint, device)
 	return err
 }

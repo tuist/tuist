@@ -531,3 +531,91 @@ func TestAPFSCheckoutCloneAdmitsOnItsGrowthBudget(t *testing.T) {
 		})
 	}
 }
+
+type testDisks struct {
+	attached map[string]string
+	released bool
+}
+
+func (d *testDisks) Attach(_ context.Context, slot Slot, image string) error {
+	d.attached[slot.ID] = image
+	return nil
+}
+func (d *testDisks) Released(Slot) bool { return d.released }
+
+// An ASIF volume is a hot-plugged disk, never an image in the share, but it is
+// published, installed and cloned as any master, so it persists across hosts
+// and admission evicts it like the others.
+func TestAPFSDiskVolumesPublishOnlyOnceReleased(t *testing.T) {
+	b, remote := newAPFS(t)
+	disks := &testDisks{attached: map[string]string{}}
+	b.Disks = disks
+	b.Create = func(context.Context, string, int64) error {
+		t.Fatal("formatted a sparse image for a disk volume")
+		return nil
+	}
+	b.Verify = func(string) (int64, error) { t.Fatal("verified a disk volume as a sparse image"); return 0, nil }
+	b.CreateDisk = func(_ context.Context, _ Slot, path string, _ int64) error {
+		return os.WriteFile(path, []byte("empty ASIF"), 0600)
+	}
+	b.VerifyDisk = func(string) (int64, error) { return 1 << 40, nil }
+	b.Grow = func(context.Context, string, int64) error {
+		t.Fatal("resized a disk volume as a sparse image")
+		return nil
+	}
+	var grown int64
+	b.GrowDisk = func(_ context.Context, _ string, bytes int64) error { grown = bytes; return nil }
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	slot.Format = FormatASIF
+	path := apfsPath(t, b, slot)
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if disks.attached[slot.ID] != b.image(slot) {
+		t.Fatalf("attached %q, want the private image", disks.attached[slot.ID])
+	}
+	if _, err := os.Lstat(filepath.Join(path, SharedImageName)); !os.IsNotExist(err) {
+		t.Fatal("disk volume exposed in the share")
+	}
+	if err := os.WriteFile(b.image(slot), []byte("job's writes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	detached(t, path, slot.ID)
+	if err := b.Seal(slot, path); !errors.Is(err, ErrUnreleased) || !errors.Is(err, ErrPoisoned) {
+		t.Fatalf("sealed an unreleased disk: %v", err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("uploaded an unreleased disk")
+	}
+	disks.released = true
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	masters, _ := filepath.Glob(filepath.Join(b.Root, "masters", "*", "*.img"))
+	if remote.uploads != 1 || len(masters) != 1 {
+		t.Fatal(remote.uploads, masters)
+	}
+	next := slot
+	next.ID, next.PodUID, next.BaseGeneration = second, "next", 1
+	next.ImageDigest = strings.Repeat("b", 40)
+	next.ContentDigest = strings.TrimSuffix(strings.SplitN(filepath.Base(masters[0]), "-", 2)[1], ".img")
+	next.VolumeBytes = 50_000_000_000
+	if err := b.Attach(context.Background(), next, apfsPath(t, b, next)); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(disks.attached[second]); string(data) != "job's writes" {
+		t.Fatalf("next job got %q", data)
+	}
+	if grown != next.VolumeBytes {
+		t.Fatal("disk copy not grown to its allocated size", grown)
+	}
+}
+
+func TestAPFSDiskVolumesNeedAHostThatAttachesDisks(t *testing.T) {
+	b, _ := newAPFS(t)
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	slot.Format = FormatASIF
+	if err := b.Attach(context.Background(), slot, apfsPath(t, b, slot)); err == nil {
+		t.Fatal("attached a disk volume without a disk attacher")
+	}
+}

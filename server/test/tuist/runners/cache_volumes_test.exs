@@ -270,10 +270,10 @@ defmodule Tuist.Runners.CacheVolumesTest do
              CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("xcode"), :key, "tuist-xcode"))
   end
 
-  test "Linux allocation remains idempotent with the platform conflict target", %{job: job} do
+  test "Linux allocation remains idempotent with the format conflict target", %{job: job} do
     {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     volume = Repo.get!(Volume, Repo.get!(Usage, use.id).volume_id)
-    fields = [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :architecture, :uid]
+    fields = [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :format, :architecture, :uid]
 
     row =
       volume
@@ -377,6 +377,17 @@ defmodule Tuist.Runners.CacheVolumesTest do
     expect(Environment, :runner_cache_volumes_enabled?, fn :macos -> true end)
     assert {:ok, use} = CacheVolumes.allocate(params)
     assert Repo.get!(Volume, Repo.get!(Usage, use.id).volume_id).platform == "macos"
+    assert use.format == nil
+
+    # A macOS 27 guest's volume is an ASIF disk: its own lineage, never the
+    # share image's HEAD.
+    expect(Environment, :runner_cache_volumes_enabled?, 2, fn :macos -> true end)
+    assert {:ok, disk} = CacheVolumes.allocate(Map.put(params, "format", "asif"))
+    assert disk.format == "asif"
+    refute disk.scope == use.scope
+    assert Repo.get!(Volume, Repo.get!(Usage, disk.id).volume_id).format == "asif"
+    assert {:error, :unavailable} = CacheVolumes.allocate(Map.put(params, "format", "qcow2"))
+
     Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.utc_now()))
     assert {:error, :unavailable} = CacheVolumes.allocate(params)
   end

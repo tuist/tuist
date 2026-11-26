@@ -18,6 +18,15 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   Require clean guest detach, API absence AND stopped Tart VM before verifying
   and publishing. Never mount guest-written APFS on the host; use an unmounted read-only device
   and userspace fsck. Validate lease-bound guest usage separately from admission.
+- `Identity.Format` `asif` (set by the host, never a guest) is a macOS 27
+  guest's volume: an ASIF image that keeps its private name and that
+  `APFSImages.Disks` hot-plugs into the VM as a USB disk, because those guests
+  lose writes to images on their share. Everything else is the same Store:
+  journal, admission, eviction, publication and restores on other hosts. `Seal`
+  also requires `Disks.Released` (the hypervisor detached the disk after the
+  guest's clean detach; else `ErrUnreleased`) and verifies with `VerifyDisk`.
+  The server keeps an `asif` lineage per volume beside the `sparse` one, so
+  their masters never stand in for each other.
 - Only accepted publication becomes a master. Failed upload retries and restart
   recovery retain the same journal identity. Clear conflicts discard the branch.
 - Default custom capacity is 20 decimal GB; the server may choose 1 to 100 GB

@@ -644,8 +644,8 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		if share, e := r.CustomVolumes.Share(pod); e == nil {
 			sharedDirs = append(sharedDirs, "custom-cache:"+share)
 		}
-		if r.CustomVolumes.Block != nil {
-			if dir, e := r.CustomVolumes.Block.RequestDir(pod); e == nil {
+		if r.CustomVolumes.Disks != nil {
+			if dir, e := r.CustomVolumes.Disks.RequestDir(pod); e == nil {
 				usbDiskRequests = dir
 			}
 		}

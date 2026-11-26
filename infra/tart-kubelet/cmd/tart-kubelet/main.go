@@ -441,7 +441,7 @@ func main() {
 			// A host on upstream Tart keeps share-backed volumes, which macOS 27
 			// guests decline, so their jobs run cold.
 			if version, err := tartClient.Version(context.Background()); err == nil && strings.Contains(version, "-tuist.") {
-				customVolumes.Block = &podagent.BlockVolumes{Root: filepath.Join(runnerCacheRoot, "block")}
+				customVolumes.Disks = &podagent.USBDisks{Root: filepath.Join(runnerCacheRoot, "block"), Shares: customVolumes.Root}
 			} else {
 				setupLog.Info("block cache volumes need a Tart built from infra/tart-build; leaving them off", "tart", version, "error", err)
 			}

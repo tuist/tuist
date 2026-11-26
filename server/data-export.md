@@ -1071,7 +1071,8 @@ The archive contains everything needed to understand the account's complete data
 
 - **Volume identities** (`runner_cache_volumes`, PostgreSQL): UUID, account ID,
   provider, provider instance, immutable scope ID, optional numeric repository/project ID,
-  repository or pipeline display name, user-chosen key, platform (Linux or macOS), architecture,
+  repository or pipeline display name, user-chosen key, platform (Linux or macOS), image format
+  (`sparse`, or `asif` for a macOS volume attached as a USB disk), architecture,
   execution UID, generation, published head use UUID,
   a legacy additional writer branch list that is no longer read (empty for every volume),
   the repository's default branch as last reported by GitHub (nullable),
@@ -1079,7 +1080,7 @@ The archive contains everything needed to understand the account's complete data
   the path spellings the published head's `.tuist-paths` manifest records, as the host
   reported them when publishing it (at most 16 of at most 256 bytes; nullable when unknown),
   last use, logical deletion and creation/update timestamps. Identity is unique
-  per account/provider/instance/scope/key/platform/architecture/UID. GitHub uses github.com
+  per account/provider/instance/scope/key/platform/format/architecture/UID. GitHub uses github.com
   and repository ID; Buildkite uses organization UUID plus pipeline UUID and a
   SHA-256 repository-URL digest; GitLab uses a canonical instance-URL digest and
   project ID. Digests encode identity, not anonymization. Kept until account deletion.

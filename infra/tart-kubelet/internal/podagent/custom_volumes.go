@@ -59,8 +59,9 @@ type CustomVolumes struct {
 	spareScope string
 	// images is the backend run() serves; nil until then.
 	images *cachevolumes.APFSImages
-	// Block, when set, serves the volumes a guest asks for as block devices.
-	Block *BlockVolumes
+	// Disks, when set, serves the volumes a guest asks for as block devices as
+	// ASIF images Tart hot-plugs into the VM (cachevolumes.FormatASIF).
+	Disks *USBDisks
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
@@ -165,6 +166,9 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		Displace:         c.displaceSpare,
 		Log:              customCacheLog(),
 	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection, Grow: growCustomImage}
+	if c.Disks != nil {
+		backend.Disks, backend.CreateDisk, backend.VerifyDisk, backend.GrowDisk = c.Disks, createCustomDisk, verifyCustomDisk, growCustomDisk
+	}
 	if c.Checkouts != nil {
 		backend.Seed = c.Checkouts.Seed
 		c.Checkouts.Room = c.reserveCheckout
@@ -278,8 +282,8 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 			reconcile()
 		case <-requests:
 			c.notePressure(ctx)
-			if c.Block != nil {
-				c.Block.Settle()
+			if c.Disks != nil {
+				c.Disks.Settle()
 			}
 			listCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 			pods, err := c.Kube.CoreV1().Pods(c.Namespace).List(listCtx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + c.Node})
@@ -409,10 +413,6 @@ func (c *CustomVolumes) reconcile(ctx context.Context) error {
 	if err := c.Store.Reconcile(c.gone, c.report); err != nil {
 		return err
 	}
-	// Before CleanPods removes the shares that hold the guests' detach markers.
-	if c.Block != nil {
-		c.Block.Reconcile(ctx, c.gone, c.endUse)
-	}
 	c.Checkouts.Maintain()
 	err := c.Store.CleanPods(func(uid string) (bool, error) {
 		name, err := os.ReadFile(filepath.Join(c.Root, "owners", uid))
@@ -427,6 +427,25 @@ func (c *CustomVolumes) reconcile(ctx context.Context) error {
 	})
 	if err != nil {
 		return err
+	}
+	if c.Disks != nil {
+		slots, err := c.Store.Snapshot()
+		if err != nil {
+			return err
+		}
+		// Before the owners below go: a pod whose owner record is already gone
+		// had its share cleaned, so it is gone.
+		if err := c.Disks.Clean(slots, func(uid string) (bool, error) {
+			name, err := os.ReadFile(filepath.Join(c.Root, "owners", uid))
+			if os.IsNotExist(err) {
+				return true, nil
+			} else if err != nil {
+				return false, err
+			}
+			return c.gone(string(name), uid)
+		}); err != nil {
+			return err
+		}
 	}
 	c.shareMu.Lock()
 	defer c.shareMu.Unlock()
@@ -546,6 +565,19 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		if input.Requested > 0 {
 			body["requested_volume_bytes"] = int64(input.Requested)
 		}
+		if input.Block {
+			if c.Disks == nil {
+				cancel()
+				data, _ := json.Marshal(map[string]any{"error": "unavailable", "reason": "denied"})
+				if published, err := publishResponse(root, name+".response", data); err != nil {
+					return err
+				} else if published {
+					log.FromContext(ctx).Info("block cache volume asked of a host that attaches no USB disks; job continues cold", "pod", pod.Name)
+				}
+				continue
+			}
+			body["format"] = cachevolumes.FormatASIF
+		}
 		status, err := c.request(acquireCtx, "authorize", body, &identity)
 		// 425 means GitHub has not yet reported which job this runner executes.
 		if status == http.StatusTooEarly {
@@ -579,22 +611,19 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			log.FromContext(ctx).Info("custom cache volume larger than this host holds; job continues cold", "pod", pod.Name)
 		} else if err != nil {
 			log.FromContext(ctx).Info("custom cache volume not authorized; job continues cold", "pod", pod.Name, "error", err.Error())
-		} else if input.Block {
-			var block map[string]any
-			err := errors.New("this host serves no block volumes")
-			if c.Block != nil {
-				block, err = c.Block.Acquire(acquireCtx, pod, filepath.Join(c.Root, "pods", string(pod.UID)), identity)
-			}
-			if err == nil {
-				response = block
-			} else {
-				c.endUse(ctx, identity.ID)
-				log.FromContext(ctx).Info("block cache volume unavailable; job continues cold", "pod", pod.Name, "use", identity.ID, "error", err.Error())
-			}
+		} else if input.Block != (identity.Format == cachevolumes.FormatASIF) {
+			// A server that ignored the format would hand an ASIF disk the
+			// lineage of share images, or the reverse: neither may publish into it.
+			c.endUse(ctx, identity.ID)
+			log.FromContext(ctx).Info("custom cache volume allocated in another format; job continues cold", "pod", pod.Name, "use", identity.ID, "format", identity.Format)
 		} else {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
 				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm}
+				if identity.Format == cachevolumes.FormatASIF {
+					// The guest finds the hot-plugged disk by its volume's name.
+					response["volume"] = cachevolumes.DiskVolumeName(identity.Scope)
+				}
 				// A job that mounted an older generation leaves its HEAD to the background.
 				c.prefetch.Load().start(identity, true)
 			} else {

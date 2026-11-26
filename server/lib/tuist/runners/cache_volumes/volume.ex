@@ -13,6 +13,8 @@ defmodule Tuist.Runners.CacheVolumes.Volume do
     field(:default_branch, :string)
     field(:key, :string)
     field(:platform, :string, default: "linux")
+    # `asif` for a macOS volume the host hot-plugs as a USB disk, `sparse` otherwise.
+    field(:format, :string, default: "sparse")
     field(:architecture, :string)
     field(:uid, :integer)
     field(:generation, :integer, default: 1)
