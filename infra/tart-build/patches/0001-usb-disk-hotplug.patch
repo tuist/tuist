@@ -1,15 +1,15 @@
-From 9f0b58ebea4c1d7af1df0c3979f7ed860e04274f Mon Sep 17 00:00:00 2001
+From 25abc9eee159a6133f115f9b5822c4305bbd089d Mon Sep 17 00:00:00 2001
 From: amp <a@b>
 Date: Thu, 26 Nov 2026 14:32:49 +0000
-Subject: [PATCH] Hot-plug USB disks backed by DiskImageKit stacks on request
+Subject: [PATCH] Hot-plug USB disks on request
 
-Co-authored-by: Marek Fort <marek@tuist.dev>
 Amp-Thread-ID: https://ampcode.com/threads/T-01a20f7b-ae66-725a-8f49-195b05c3cd6a
+Co-authored-by: Marek Fort <marek@tuist.dev>
 ---
- Sources/tart/Commands/Run.swift   |  16 +++-
- Sources/tart/USBDiskHotplug.swift | 139 ++++++++++++++++++++++++++++++
- Sources/tart/VM.swift             |  14 ++-
- 3 files changed, 165 insertions(+), 4 deletions(-)
+ Sources/tart/Commands/Run.swift   |  16 ++++-
+ Sources/tart/USBDiskHotplug.swift | 102 ++++++++++++++++++++++++++++++
+ Sources/tart/VM.swift             |  14 +++-
+ 3 files changed, 128 insertions(+), 4 deletions(-)
  create mode 100644 Sources/tart/USBDiskHotplug.swift
 
 diff --git a/Sources/tart/Commands/Run.swift b/Sources/tart/Commands/Run.swift
@@ -55,16 +55,12 @@ index 1c965e1..6865d93 100644
          if let vncImpl = vncImpl {
 diff --git a/Sources/tart/USBDiskHotplug.swift b/Sources/tart/USBDiskHotplug.swift
 new file mode 100644
-index 0000000..74acba2
+index 0000000..4eb647f
 --- /dev/null
 +++ b/Sources/tart/USBDiskHotplug.swift
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,102 @@
 +import Foundation
 +import Virtualization
-+
-+#if canImport(DiskImageKit)
-+  import DiskImageKit
-+#endif
 +
 +/// Hot-plugs USB mass storage disks into a running VM on a host process's
 +/// request. The host writes `<id>.attach` (JSON, see `AttachRequest`) or
@@ -72,18 +68,15 @@ index 0000000..74acba2
 +/// and answers with `<id>.attached`, `<id>.detached` or `<id>.error`, each
 +/// published by renaming a complete file into place.
 +///
-+/// An attached disk is a DiskImageKit stack: read-only layers, base first,
-+/// under a private writable ASIF overlay that Tart creates when it is missing.
++/// An attached disk is one read-write disk image (RAW or ASIF) that the host
++/// cloned for this VM. Stacks are not used: on macOS 27.2 a VM did not read a
++/// stack's middle overlay layers.
 +@available(macOS 27.0, *)
 +@MainActor
 +final class USBDiskHotplug {
 +  struct AttachRequest: Decodable {
-+    /// Read-only layers, base (raw or ASIF) first, then ASIF overlays.
-+    let layers: [String]
-+    /// The writable ASIF overlay; created on top of `layers` when missing.
-+    let overlay: String
-+    /// Grows the stack to this many blocks when it is smaller.
-+    let blockCount: Int?
++    /// The disk image to attach read-write; only this VM may use it.
++    let image: String
 +  }
 +
 +  let directory: URL
@@ -146,7 +139,8 @@ index 0000000..74acba2
 +    }
 +
 +    let attachment = try VZDiskImageStorageDeviceAttachment(
-+      diskImage: try stack(request),
++      url: URL(fileURLWithPath: request.image),
++      readOnly: false,
 +      cachingMode: .automatic,
 +      synchronizationMode: .full
 +    )
@@ -165,37 +159,6 @@ index 0000000..74acba2
 +    devices[id] = nil
 +
 +    return [:]
-+  }
-+
-+  private func stack(_ request: AttachRequest) throws -> any StackedImage {
-+    guard let base = request.layers.first else {
-+      throw RuntimeError.Generic("a USB disk needs at least a base layer")
-+    }
-+
-+    var parent: DiskImage = try DiskImage(opening: .open(url: URL(fileURLWithPath: base), mode: .readOnly))
-+    for layer in request.layers.dropFirst() {
-+      let overlay = try DiskImage(opening: .open(url: URL(fileURLWithPath: layer), mode: .readOnly))
-+      parent = try parent.appending(overlay)
-+    }
-+
-+    let overlayURL = URL(fileURLWithPath: request.overlay)
-+    if !FileManager.default.fileExists(atPath: overlayURL.path) {
-+      _ = try parent.appending(.asifLayer(url: overlayURL, type: .overlay))
-+    }
-+    let overlay = try DiskImage(opening: .open(url: overlayURL, mode: .readWrite))
-+    guard overlay.format == .asif else {
-+      throw RuntimeError.Generic("the writable overlay must use ASIF format")
-+    }
-+    let stacked = try parent.appending(overlay)
-+    guard stacked.layers.last?.layerType == .overlay else {
-+      throw RuntimeError.Generic("the writable layer is not an ASIF overlay")
-+    }
-+
-+    if let blockCount = request.blockCount, let top = stacked.layers.last, blockCount > top.blockCount {
-+      try top.truncate(blockCount: blockCount)
-+    }
-+
-+    return stacked
 +  }
 +}
 diff --git a/Sources/tart/VM.swift b/Sources/tart/VM.swift
