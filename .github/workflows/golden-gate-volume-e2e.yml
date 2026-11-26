@@ -1,0 +1,88 @@
+# Temporary: tells whether files written to a Tuist cache volume on a
+# Golden Gate (macOS 27) guest read back intact, and whether the xcresult NIF
+# builds there, on the volume and on the guest's own disk, against Tahoe.
+name: Golden Gate volume e2e
+
+on:
+  push:
+    branches: [golden-gate-volume-e2e]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: ${{ matrix.runs_on }} / ${{ matrix.storage }}
+    runs-on: ${{ matrix.runs_on }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        runs_on: [tuist-macos-golden-gate, tuist-macos]
+        storage: [volume, local]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Report the guest
+        run: |
+          sw_vers
+          xcodebuild -version
+          df -h "$HOME"
+      - if: matrix.storage == 'volume'
+        uses: tuist/cache-volume@v1
+        with:
+          key: golden-gate-e2e-${{ github.run_id }}-${{ strategy.job-index }}
+          path: ~/.cache/tuist-ci/golden-gate-e2e
+      - name: Pick the build root
+        run: |
+          set -euo pipefail
+          root="$HOME/.cache/tuist-ci/golden-gate-e2e"
+          mkdir -p "$root"
+          echo "E2E_ROOT=$root" >> "$GITHUB_ENV"
+          ls -la "$HOME/.cache/tuist-ci/"
+          echo "resolved: $(cd "$root" && pwd -P)"
+          mount | grep -iE 'tuist|cache' || true
+      # Writes files the way a build does (many small ones, a few large ones,
+      # write-then-rename, write from a child process and read right away),
+      # then reads each back and compares content and size.
+      - name: Write and read back files
+        run: |
+          set -euo pipefail
+          dir="$E2E_ROOT/io"
+          rm -rf "$dir"; mkdir -p "$dir/small" "$dir/large" "$dir/renamed"
+          manifest="$(mktemp)"
+          for i in $(seq 1 2000); do
+            head -c $((RANDOM % 8192 + 1)) /dev/urandom > "$dir/small/$i"
+          done
+          for i in $(seq 1 8); do
+            head -c 67108864 /dev/urandom > "$dir/large/$i"
+          done
+          for i in $(seq 1 500); do
+            head -c 4096 /dev/urandom > "$dir/renamed/.tmp-$i"
+            mv "$dir/renamed/.tmp-$i" "$dir/renamed/$i"
+          done
+          (cd "$dir" && find . -type f -print0 | xargs -0 shasum -a 256) > "$manifest"
+          sleep 5
+          bad=0
+          (cd "$dir" && shasum -a 256 -c "$manifest" --quiet) || bad=1
+          empty=$(find "$dir" -type f -size 0 | wc -l | tr -d ' ')
+          echo "files=$(wc -l < "$manifest" | tr -d ' ') empty=$empty checksum_mismatch=$bad"
+          [ "$bad" -eq 0 ] && [ "$empty" -eq 0 ]
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: server
+      - name: Build the xcresult NIF
+        working-directory: server
+        env:
+          TUIST_NIF_BUILD_ROOT: ${{ env.E2E_ROOT }}/nif
+          MACOSX_DEPLOYMENT_TARGET: "14.0"
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          ./native/xcresult_nif/build.sh
+          echo "built in $(( $(date +%s) - start )) s"
+      - name: Empty files in the build root
+        if: always()
+        run: |
+          find "$E2E_ROOT" -type f -size 0 -not -path '*/io/*' 2>/dev/null | head -20 || true
