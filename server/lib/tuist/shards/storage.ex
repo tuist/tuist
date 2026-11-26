@@ -15,19 +15,20 @@ defmodule Tuist.Shards.Storage do
   # `public_storage?` is false unless the uploading client spreads multipart parts
   # over separate connections; older CLIs multiplex every part onto one HTTP/2
   # connection to a public store and upload several times slower than to Tigris.
+  # A Mac's runner entrance is such a store too, so it takes the same gate.
   def select(project, account, grant, public_storage? \\ false) do
     with true <- routable?(project),
          false <- Account.custom_s3_storage_configured?(account) do
-      select_private(project, account, grant) || (public_storage? && select_public(account)) || ""
+      select_private(project, account, grant, public_storage?) || (public_storage? && select_public(account)) || ""
     else
       _ -> ""
     end
   end
 
-  defp select_private(project, account, grant) do
+  defp select_private(project, account, grant, public_storage?) do
     with true <- FeatureFlags.runner_shard_storage_enabled?(account),
          {:ok, platform, site} <- CacheGrant.runner_site(grant, account.id),
-         true <- platform == :macos or project.build_system in [:mix, :cargo] do
+         true <- (platform == :macos and public_storage?) or project.build_system in [:mix, :cargo] do
       Environment.shard_storage_targets()
       |> Enum.sort_by(&elem(&1, 0))
       |> Enum.find_value(fn {id, config} ->

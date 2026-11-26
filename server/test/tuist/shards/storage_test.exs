@@ -89,12 +89,16 @@ defmodule Tuist.Shards.StorageTest do
       true
     end)
 
-    assert ShardStorage.select(xcode, ctx.account, at_larch) == "larch-v1"
+    assert ShardStorage.select(xcode, ctx.account, at_larch, true) == "larch-v1"
+
+    # A CLI that multiplexes multipart parts onto one connection keeps the default store.
+    stub(Storage, :available?, fn target -> flunk("probed #{inspect(target.id)}") end)
+    assert ShardStorage.select(xcode, ctx.account, at_larch) == ""
 
     # Placement stays at the store's own site unless placement_sites lists the
     # other one, whose Macs then place through their own entrance. Linux never does.
     stub(Storage, :available?, fn target -> flunk("probed #{inspect(target.id)}") end)
-    assert ShardStorage.select(xcode, ctx.account, at_ber1) == ""
+    assert ShardStorage.select(xcode, ctx.account, at_ber1, true) == ""
 
     assert Enum.sort_by(ShardStorage.placement_tags(), & &1.store) == [
              %{store: "gra-v1", platform: "linux", site: "gra"},
@@ -108,7 +112,7 @@ defmodule Tuist.Shards.StorageTest do
       true
     end)
 
-    assert ShardStorage.select(xcode, ctx.account, at_ber1) == "larch-v1"
+    assert ShardStorage.select(xcode, ctx.account, at_ber1, true) == "larch-v1"
     assert ShardStorage.select(ctx.project, ctx.account, CacheGrant.mint(42, site: "ber1", platform: :linux)) == ""
 
     assert Enum.sort_by(ShardStorage.placement_tags(), & &1.site) == [
@@ -135,7 +139,7 @@ defmodule Tuist.Shards.StorageTest do
     # An entrance must be HTTPS: a Mac never gets a plaintext URL or a placement.
     plaintext = put_in(larch, ["runner_endpoints", "larch"], "http://s3-larch.example.com")
     stub(Environment, :shard_storage_targets, fn -> %{"larch-v1" => plaintext} end)
-    assert ShardStorage.select(xcode, ctx.account, at_larch) == ""
+    assert ShardStorage.select(xcode, ctx.account, at_larch, true) == ""
     assert {:error, :shard_storage_unavailable} = ShardStorage.resolve_for_request(plan, ctx.account, at_larch)
   end
 
