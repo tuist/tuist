@@ -10,6 +10,8 @@ defmodule LuftServerWeb.AISubscriptionsController do
 
   alias LuftServer.AISubscriptions
 
+  plug LuftServerWeb.Plugs.RequireLuftAccess
+
   @providers %{"claude" => :claude, "chatgpt" => :chatgpt}
 
   def index(conn, _params) do

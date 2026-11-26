@@ -27,9 +27,6 @@ defmodule LuftServer.Repo.Migrations.CreateMCPServers do
       # SHA-256 of the OAuth `state`, so the completion finds its row.
       add :pending_state_hash, :binary
       add :pending_expires_at, :utc_datetime
-      # Sign-ins started in the current window, to bound third-party calls.
-      add :authorization_attempts, :integer, null: false, default: 0
-      add :authorization_window_started_at, :utc_datetime
 
       timestamps()
     end

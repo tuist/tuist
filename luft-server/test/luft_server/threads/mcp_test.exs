@@ -138,9 +138,24 @@ defmodule LuftServer.Threads.MCPTest do
         assert length(offered) == 2
       end)
 
-    assert log =~ "MCP server #{server.id} tool bad?name dropped: name has characters"
-    assert log =~ "tool refs dropped: inputSchema uses $ref"
-    assert log =~ "tool read dropped: description over 4096 bytes"
+    assert log =~ "MCP server #{server.id} dropped 3 tools: bad?name: name has characters"
+    assert log =~ "; refs: inputSchema uses $ref"
+    assert log =~ "; read: description over 4096 bytes"
+  end
+
+  test "a server listing too many tools is skipped before any is checked", ctx do
+    mcp_server("user:12", "Huge")
+    tools = for i <- 1..2001, do: Map.put(definition(), "name", "tool#{i}")
+
+    mcp(fn _conn, _method, _params -> nil end, tools)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:ok, [], ["Huge"]} = MCP.discover(ctx.thread, ctx.message, ctx.run)
+      end)
+
+    assert log =~ "tools/list returned over 2000 tools"
+    refute log =~ "dropped"
   end
 
   test "missing exact author delegation never falls back to owner's or author's other session",

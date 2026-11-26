@@ -9,12 +9,15 @@ defmodule LuftServerWeb.AISubscriptionsChannel do
   use Phoenix.Channel
 
   alias LuftServer.AISubscriptions
+  alias LuftServer.Tuist.Scope
   alias LuftServerWeb.ConversationsSocket
 
   @poll_ms 15_000
 
   def join("ai_subscriptions", _params, socket) do
     with {:ok, session} <- ConversationsSocket.authenticate(socket),
+         # Only while Tuist still lets the person use Luft.
+         {:ok, _scope} <- Scope.load(session, session.handle || ""),
          # Subscribe before reading: a change cannot disappear between the two.
          :ok <- Phoenix.PubSub.subscribe(LuftServer.PubSub, AISubscriptions.topic(session)),
          {:ok, subscriptions} <- AISubscriptions.list(session) do

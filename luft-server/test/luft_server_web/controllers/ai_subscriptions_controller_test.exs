@@ -36,7 +36,25 @@ defmodule LuftServerWeb.AISubscriptionsControllerTest do
       end
     end)
 
+    stub_luft_access(true)
     %{bearer: bearer()}
+  end
+
+  test "people Tuist no longer lets use Luft can neither read nor change subscriptions", %{
+    bearer: bearer
+  } do
+    stub_luft_access(false)
+
+    assert authorized(bearer) |> get("/api/me/ai-subscriptions") |> json_response(403)
+
+    assert authorized(bearer)
+           |> post("/api/me/ai-subscriptions/chatgpt/login")
+           |> json_response(403)
+
+    refute_received {:openai, _, _}
+
+    {:ok, socket} = connect(ConversationsSocket, %{}, connect_info: %{auth_token: bearer})
+    assert {:error, _} = subscribe_and_join(socket, "ai_subscriptions")
   end
 
   test "changes made through Luft are saved and reach the person's open channels at once", %{
@@ -130,9 +148,32 @@ defmodule LuftServerWeb.AISubscriptionsControllerTest do
       authorized(bearer) |> post("/api/me/ai-subscriptions/chatgpt/login") |> json_response(200)
     end
 
+    # Disconnecting drops the subscription row but not the count.
+    authorized(bearer) |> delete("/api/me/ai-subscriptions/chatgpt") |> json_response(200)
+
     assert authorized(bearer)
            |> post("/api/me/ai-subscriptions/chatgpt/login")
            |> json_response(429)
+  end
+
+  # Tuist's personal account context: 404 once the person is deactivated or
+  # loses Luft.
+  defp stub_luft_access(allowed) do
+    Req.Test.stub(LuftServer.Tuist, fn conn ->
+      assert conn.request_path == "/api/accounts/one/luft-context"
+
+      if allowed do
+        Req.Test.json(conn, %{
+          user_id: 1,
+          account_id: 1,
+          organization_id: nil,
+          can_create_threads: true,
+          people: []
+        })
+      else
+        conn |> Plug.Conn.put_status(404) |> Req.Test.json(%{message: "Not found."})
+      end
+    end)
   end
 
   defp poll(bearer, login_id) do

@@ -69,15 +69,26 @@ defmodule LuftServer.Threads.MCP do
 
     case Transport.discover(server.owner, server.id, authorized?) do
       {:ok, definitions, dropped} when length(tools) + length(definitions) <= 2000 ->
-        for {name, rule} <- dropped do
-          Logger.warning("MCP server #{server.id} tool #{name} dropped: #{rule}")
-        end
+        log_dropped(server, dropped)
 
         {:ok, Enum.map(definitions, &{&1["name"], tool(run, server, authorized?, &1)})}
 
       _ ->
         :error
     end
+  end
+
+  # One line per run, with the first few tools and the rule each broke, so a
+  # server listing thousands of invalid tools can't flood the logs.
+  defp log_dropped(_server, []), do: :ok
+
+  defp log_dropped(server, dropped) do
+    shown =
+      dropped |> Enum.take(10) |> Enum.map_join("; ", fn {name, rule} -> "#{name}: #{rule}" end)
+
+    more = if length(dropped) > 10, do: " (and #{length(dropped) - 10} more)", else: ""
+
+    Logger.warning("MCP server #{server.id} dropped #{length(dropped)} tools: #{shown}#{more}")
   end
 
   defp server_name(%{name: name}) when is_binary(name) and name != "",

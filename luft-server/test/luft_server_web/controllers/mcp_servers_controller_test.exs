@@ -101,6 +101,17 @@ defmodule LuftServerWeb.MCPServersControllerTest do
              authorized(bearer) |> get("/api/me/mcp-servers") |> json_response(200)
   end
 
+  test "people Tuist no longer lets use Luft can't add personal servers", %{bearer: bearer} do
+    stub_scope(true, ["1"])
+
+    assert authorized(bearer)
+           |> post("/api/me/mcp-servers", %{url: "https://mcp.example/mcp"})
+           |> json_response(403)
+
+    assert authorized(bearer) |> get("/api/me/mcp-servers") |> json_response(403)
+    assert Repo.all(Server) == []
+  end
+
   test "sign-ins to one server are limited", %{bearer: bearer} do
     %{"server" => %{"id" => id}} =
       authorized(bearer)
@@ -111,20 +122,49 @@ defmodule LuftServerWeb.MCPServersControllerTest do
       authorized(bearer) |> post("/api/me/mcp-servers/#{id}/authorize") |> json_response(200)
     end
 
+    # Removing and adding the server again doesn't reset the count.
+    authorized(bearer) |> delete("/api/me/mcp-servers/#{id}") |> response(204)
+
+    %{"server" => %{"id" => readded}} =
+      authorized(bearer)
+      |> post("/api/me/mcp-servers", %{url: "https://mcp.example/mcp"})
+      |> json_response(200)
+
     assert authorized(bearer)
-           |> post("/api/me/mcp-servers/#{id}/authorize")
+           |> post("/api/me/mcp-servers/#{readded}/authorize")
            |> json_response(429)
   end
 
-  defp stub_scope(admin) do
+  # `team` is an organization; `user-<sub>` is each person's own account,
+  # which Tuist refuses for people in `denied`.
+  defp stub_scope(admin, denied \\ []) do
     Req.Test.stub(LuftServer.Tuist, fn conn ->
-      Req.Test.json(conn, %{
-        user_id: 1,
-        account_id: 100,
-        organization_id: 10,
-        can_create_threads: admin,
-        people: []
-      })
+      ["Bearer upstream-" <> sub] = Plug.Conn.get_req_header(conn, "authorization")
+
+      denied? = sub in denied
+
+      case conn.request_path do
+        "/api/accounts/team/luft-context" ->
+          Req.Test.json(conn, %{
+            user_id: String.to_integer(sub),
+            account_id: 100,
+            organization_id: 10,
+            can_create_threads: admin,
+            people: []
+          })
+
+        "/api/accounts/user-" <> _ when denied? ->
+          conn |> Plug.Conn.put_status(404) |> Req.Test.json(%{})
+
+        "/api/accounts/user-" <> _ ->
+          Req.Test.json(conn, %{
+            user_id: String.to_integer(sub),
+            account_id: 1000 + String.to_integer(sub),
+            organization_id: nil,
+            can_create_threads: true,
+            people: []
+          })
+      end
     end)
   end
 
@@ -193,7 +233,7 @@ defmodule LuftServerWeb.MCPServersControllerTest do
         %{
           claims: %{"sub" => sub, "preferred_username" => "user-" <> sub},
           tokens: %{
-            "access_token" => "upstream-secret",
+            "access_token" => "upstream-" <> sub,
             "refresh_token" => "refresh",
             "expires_in" => 3600
           }

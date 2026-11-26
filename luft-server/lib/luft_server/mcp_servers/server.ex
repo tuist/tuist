@@ -33,8 +33,6 @@ defmodule LuftServer.MCPServers.Server do
     field :pending_authorization, EncryptedBinary, redact: true
     field :pending_state_hash, :binary, redact: true
     field :pending_expires_at, :utc_datetime
-    field :authorization_attempts, :integer, default: 0
-    field :authorization_window_started_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
   end
@@ -57,9 +55,7 @@ defmodule LuftServer.MCPServers.Server do
       :refreshing_until,
       :pending_authorization,
       :pending_state_hash,
-      :pending_expires_at,
-      :authorization_attempts,
-      :authorization_window_started_at
+      :pending_expires_at
     ])
     |> validate_required([:owner, :name, :url])
     |> validate_length(:name, min: 1, max: 64)

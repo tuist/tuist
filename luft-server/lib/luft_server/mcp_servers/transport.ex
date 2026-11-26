@@ -27,7 +27,7 @@ defmodule LuftServer.MCPServers.Transport do
   """
   def discover(owner, id, authorized?) do
     with {:ok, state} <- initialize(state(owner, id, authorized?)),
-         {:ok, tools, dropped, _state} <- list_tools(state, nil, [], [], [], 0) do
+         {:ok, tools, dropped, _state} <- list_tools(state, nil, [], {[], MapSet.new()}, [], 0) do
       {:ok, tools, dropped}
     end
   rescue
@@ -47,7 +47,8 @@ defmodule LuftServer.MCPServers.Transport do
            is_binary(name) and byte_size(name) in 1..128 and is_map(args) and
              bounded?(args, 12, 2000, 65_536),
          {:ok, state} <- initialize(state(owner, id, authorized?)),
-         {:ok, definitions, _dropped, state} <- list_tools(state, nil, [], [], [], 0),
+         {:ok, definitions, _dropped, state} <-
+           list_tools(state, nil, [], {[], MapSet.new()}, [], 0),
          %{} = definition <- Enum.find(definitions, &(&1["name"] == name)),
          {:ok, root} <- JSV.build(definition["inputSchema"], default_meta: draft7()),
          {:ok, _} <- JSV.validate(args, root) do
@@ -152,21 +153,25 @@ defmodule LuftServer.MCPServers.Transport do
     {:error, :mcp_limit_exceeded}
   end
 
-  defp list_tools(state, cursor, seen, tools, dropped, page) do
+  # `kept` holds the valid tools so far, newest first, and their names.
+  defp list_tools(state, cursor, seen, kept, dropped, page) do
     with {:ok, %{"tools" => definitions} = result, state} when is_list(definitions) <-
            rpc(state, "tools/list", if(cursor, do: %{cursor: cursor}, else: %{})),
-         {tools, dropped} = sort_tools(definitions, tools, dropped),
-         true <- length(tools) <= @max_tools do
+         # Checked before any tool is, so a hostile page can't cost more
+         # than the limit's worth of schema compilation.
+         true <- length(elem(kept, 0)) + length(definitions) + length(dropped) <= @max_tools do
+      {kept, dropped} = sort_tools(definitions, kept, dropped)
+
       case result["nextCursor"] do
         nil ->
-          {:ok, tools, Enum.reverse(dropped), state}
+          {:ok, Enum.reverse(elem(kept, 0)), Enum.reverse(dropped), state}
 
         next when is_binary(next) and byte_size(next) in 1..1024 ->
           if next in seen do
             log_failure(state, "tools/list repeated a cursor")
             {:error, :mcp_invalid_response}
           else
-            list_tools(state, next, [next | seen], tools, dropped, page + 1)
+            list_tools(state, next, [next | seen], kept, dropped, page + 1)
           end
 
         _ ->
@@ -188,18 +193,18 @@ defmodule LuftServer.MCPServers.Transport do
   end
 
   # Valid tools are kept in order; a tool reusing a kept name is dropped too.
-  defp sort_tools(definitions, tools, dropped) do
-    Enum.reduce(definitions, {tools, dropped}, fn definition, {tools, dropped} ->
+  defp sort_tools(definitions, kept, dropped) do
+    Enum.reduce(definitions, {kept, dropped}, fn definition, {{tools, names} = kept, dropped} ->
       result =
         with :ok <- check_tool(definition) do
-          if Enum.any?(tools, &(&1["name"] == definition["name"])),
+          if MapSet.member?(names, definition["name"]),
             do: {:error, "name repeats an earlier tool"},
             else: :ok
         end
 
       case result do
-        :ok -> {tools ++ [definition], dropped}
-        {:error, rule} -> {tools, [{label(definition), rule} | dropped]}
+        :ok -> {{[definition | tools], MapSet.put(names, definition["name"])}, dropped}
+        {:error, rule} -> {kept, [{label(definition), rule} | dropped]}
       end
     end)
   end
@@ -238,6 +243,14 @@ defmodule LuftServer.MCPServers.Transport do
         log_failure(state, "#{step} #{describe(result)}")
         {:error, :mcp_not_connected}
     end
+  rescue
+    error ->
+      log_failure(state, "prepare raised #{inspect(error.__struct__)}")
+      {:error, :mcp_unavailable}
+  catch
+    :exit, _ ->
+      log_failure(state, "prepare exited")
+      {:error, :mcp_unavailable}
   end
 
   defp dispatch(state, credentials, envelope, notification) do
@@ -277,6 +290,16 @@ defmodule LuftServer.MCPServers.Transport do
         log_failure(state, "#{envelope.method} #{describe(failure)}")
         {:error, :mcp_unavailable}
     end
+  rescue
+    # A raise after the request went out is still an unknown outcome to
+    # `call/5`, which maps every non-matching reply to `:mcp_outcome_unknown`.
+    error ->
+      log_failure(state, "#{envelope.method} raised #{inspect(error.__struct__)}")
+      {:error, :mcp_unavailable}
+  catch
+    :exit, _ ->
+      log_failure(state, "#{envelope.method} exited")
+      {:error, :mcp_unavailable}
   end
 
   # Only the failure's category: error terms can hold URLs, headers or bodies.

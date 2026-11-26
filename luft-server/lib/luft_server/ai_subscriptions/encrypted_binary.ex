@@ -1,8 +1,9 @@
 defmodule LuftServer.AISubscriptions.EncryptedBinary do
   @moduledoc """
   Authenticated storage for AI subscription credentials, with Luft's endpoint
-  secret and a dedicated salt. Rotating SECRET_KEY_BASE makes the stored
-  credentials unreadable, so people reconnect.
+  secret and a dedicated salt. A value that no longer decrypts, such as after
+  SECRET_KEY_BASE rotates, loads as nil: the credential reads as disconnected
+  and people connect again, instead of every read of the row failing.
   """
   use Ecto.Type
 
@@ -21,7 +22,7 @@ defmodule LuftServer.AISubscriptions.EncryptedBinary do
   def load(value) when is_binary(value) do
     case Plug.Crypto.decrypt(secret(), @salt, value, max_age: :infinity) do
       {:ok, plaintext} when is_binary(plaintext) -> {:ok, plaintext}
-      _ -> :error
+      _ -> {:ok, nil}
     end
   end
 

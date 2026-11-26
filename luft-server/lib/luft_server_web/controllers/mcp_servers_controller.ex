@@ -17,6 +17,8 @@ defmodule LuftServerWeb.MCPServersController do
   alias LuftServer.MCPServers
   alias LuftServer.Tuist.Scope
 
+  plug LuftServerWeb.Plugs.RequireLuftAccess when action != :callback
+
   def index(conn, params) do
     with {:ok, owner} <- owner(conn, params, :read) do
       json(conn, %{servers: Enum.map(MCPServers.list(owner), &summary/1)})

@@ -25,6 +25,7 @@ defmodule LuftServer.AISubscriptions do
   alias LuftServer.AISubscriptions.ChatGPT
   alias LuftServer.AISubscriptions.Subscription
   alias LuftServer.Repo
+  alias LuftServer.SignInLimit
   alias LuftServer.Threads.Provider
 
   @providers [:claude, :chatgpt]
@@ -105,7 +106,10 @@ defmodule LuftServer.AISubscriptions do
   verification page. At most five sign-ins start per person every 5 minutes.
   """
   def start_chatgpt(%{user_sub: user_sub}) do
-    with :ok <- admit_login(user_sub),
+    # Counted before OpenAI is called, and per person, so disconnecting
+    # doesn't reset it. An unconfigured server counts nothing.
+    with {:ok, _client_id} <- ChatGPT.client_id(),
+         :ok <- SignInLimit.hit("chatgpt:" <> user_sub, @login_limit, @login_window),
          {:ok, login} <- ChatGPT.start() do
       login = Map.put(login, "id", Ecto.UUID.generate())
 
@@ -129,30 +133,6 @@ defmodule LuftServer.AISubscriptions do
         end
       end)
     end
-  end
-
-  # Counted on the row before OpenAI is called, so the limit holds across replicas.
-  defp admit_login(user_sub) do
-    locked(user_sub, fn ->
-      subscription = get_or_build(user_sub, :chatgpt)
-      window = subscription.login_window_started_at
-
-      {attempts, started} =
-        if window && DateTime.diff(now(), window) < @login_window,
-          do: {subscription.login_attempts, window},
-          else: {0, now()}
-
-      if attempts >= @login_limit do
-        {:error, :rate_limited}
-      else
-        with {:ok, _} <-
-               save(subscription, %{
-                 login_attempts: attempts + 1,
-                 login_window_started_at: started
-               }),
-             do: :ok
-      end
-    end)
   end
 
   @doc """

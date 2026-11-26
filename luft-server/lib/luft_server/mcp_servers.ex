@@ -27,6 +27,7 @@ defmodule LuftServer.MCPServers do
   alias LuftServer.MCPServers.OAuth
   alias LuftServer.MCPServers.Server
   alias LuftServer.Repo
+  alias LuftServer.SignInLimit
 
   @max_servers 25
   @authorization_lifetime 600
@@ -101,11 +102,14 @@ defmodule LuftServer.MCPServers do
   @doc """
   Discovers the server's authorization server, registers Luft as a client
   when it has not yet, and returns the URL to send the person's browser to.
-  At most ten sign-ins start per server every 5 minutes.
+  At most ten sign-ins start per owner every 5 minutes, counted before any
+  third party is called and apart from the servers, so removing and adding a
+  server again doesn't reset it.
   """
   def start_authorization(owner, server_id, redirect_uri) do
-    with :ok <- admit_authorization(owner, server_id),
-         %Server{} = server <- get(owner, server_id),
+    with %Server{} = server <- get(owner, server_id),
+         :ok <-
+           SignInLimit.hit("mcp:" <> owner, @authorization_limit, @authorization_window),
          {:ok, discovery} <- OAuth.discover(server.url),
          {:ok, client} <- client(server, discovery, redirect_uri) do
       state = 32 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
@@ -126,33 +130,6 @@ defmodule LuftServer.MCPServers do
     else
       nil -> {:error, :not_found}
       {:error, reason} -> {:error, reason}
-    end
-  end
-
-  # Counted on the row before any third party is called, so the limit holds
-  # across replicas.
-  defp admit_authorization(owner, server_id) do
-    locked(owner, fn ->
-      case get_locked(owner, server_id) do
-        %Server{} = server -> count_authorization(server)
-        nil -> {:error, :not_found}
-      end
-    end)
-  end
-
-  defp count_authorization(server) do
-    window = server.authorization_window_started_at
-
-    {attempts, started} =
-      if window && DateTime.diff(now(), window) < @authorization_window,
-        do: {server.authorization_attempts, window},
-        else: {0, now()}
-
-    if attempts >= @authorization_limit do
-      {:error, :rate_limited}
-    else
-      attrs = %{authorization_attempts: attempts + 1, authorization_window_started_at: started}
-      with {:ok, _} <- save(server, attrs), do: :ok
     end
   end
 

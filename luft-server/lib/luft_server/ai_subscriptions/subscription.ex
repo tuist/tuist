@@ -24,8 +24,6 @@ defmodule LuftServer.AISubscriptions.Subscription do
     field :pending_login, EncryptedBinary, redact: true
     field :pending_expires_at, :utc_datetime
     field :next_poll_at, :utc_datetime
-    field :login_attempts, :integer, default: 0
-    field :login_window_started_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
   end
@@ -40,9 +38,7 @@ defmodule LuftServer.AISubscriptions.Subscription do
       :refreshing_until,
       :pending_login,
       :pending_expires_at,
-      :next_poll_at,
-      :login_attempts,
-      :login_window_started_at
+      :next_poll_at
     ])
     |> validate_required([:user_sub, :provider])
     |> unique_constraint([:user_sub, :provider])
