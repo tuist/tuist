@@ -72,7 +72,7 @@ defmodule Tuist.RemoteExecution do
          true <- FeatureFlags.bazel_remote_execution_enabled?(account),
          concurrency when concurrency > 0 <-
            Settings.max_concurrency(account.remote_execution_vcpus_limit, account.remote_execution_memory_gb_limit),
-         image_tag when is_binary(image_tag) <- Capacity.execution_image_tag(),
+         {:image, image_tag} when is_binary(image_tag) <- {:image, Capacity.execution_image_tag()},
          cache_url when is_binary(cache_url) <- Kura.runner_cache_endpoint_url(account, :linux),
          cas_endpoint when is_binary(cas_endpoint) <- cas_endpoint(cache_url) do
       {:ok,
@@ -87,6 +87,9 @@ defmodule Tuist.RemoteExecution do
          burst: FeatureFlags.remote_execution_task_sizing_enabled?(account)
        }}
     else
+      # No execution daemon is connected with a ready template, such as while
+      # the only worker restarts.
+      {:image, nil} -> {:error, :no_execution_image}
       _ -> {:error, :unavailable}
     end
   end

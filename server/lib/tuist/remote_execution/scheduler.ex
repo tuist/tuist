@@ -353,6 +353,14 @@ defmodule Tuist.RemoteExecution.Scheduler do
         Process.send_after(self(), :refresh, @refresh_ms)
         {:noreply, reconcile(%{state | settings: settings})}
 
+      # A worker restart, in place or replaced, leaves no daemon connected
+      # for a moment where it is the only one. Queued actions wait for it
+      # (or the queue timeout) rather than fail with a code Bazel does not
+      # retry.
+      {:error, :no_execution_image} when state.settings != nil ->
+        Process.send_after(self(), :refresh, @refresh_ms)
+        {:noreply, state}
+
       _ ->
         Process.send_after(self(), :refresh, @refresh_ms)
         state = fail_queued(%{state | settings: nil}, 9, "execution disabled")
