@@ -98,21 +98,14 @@ func imagesOnShareLoseWrites(ctx context.Context) bool {
 }
 
 // mountMacBlockVolume mounts the APFS volume named volume at mountPoint once the
-// USB disk the host hot-plugged appears. Disk Arbitration mounts a new USB
-// volume under /Volumes first, so it is unmounted and mounted again, hidden.
-// The host may have enlarged the image, so the container grows to fill it
-// before the volume mounts again.
+// USB disk the host hot-plugged appears. The host may have enlarged the image,
+// so the container first grows to fill it, while mounted. Disk Arbitration
+// mounts a new USB volume under /Volumes, possibly again after the volume is
+// unmounted, so the volume is mounted hidden at mountPoint until it stays there.
 func mountMacBlockVolume(ctx context.Context, volume, mountPoint string, run macRunner) error {
 	var device string
 	for device == "" {
-		if out, err := run(ctx, nil, "diskutil", "info", "-plist", volume); err == nil {
-			var info struct {
-				Device string `json:"DeviceIdentifier"`
-			}
-			if decodePlist(ctx, run, out, &info) == nil {
-				device = info.Device
-			}
-		}
+		device, _ = macMountedVolume(ctx, run, volume)
 		if device != "" {
 			break
 		}
@@ -122,10 +115,45 @@ func mountMacBlockVolume(ctx context.Context, volume, mountPoint string, run mac
 		case <-time.After(250 * time.Millisecond):
 		}
 	}
-	_, _ = run(ctx, nil, "diskutil", "unmount", device)
 	growMacContainer(ctx, run, apfsContainer("/dev/"+device))
-	_, err := run(ctx, nil, "diskutil", "mount", "nobrowse", "-mountPoint", mountPoint, device)
-	return err
+	want, err := filepath.EvalSymlinks(mountPoint)
+	if err != nil {
+		return err
+	}
+	for attempt := 1; ; attempt++ {
+		_, _ = run(ctx, nil, "diskutil", "unmount", device)
+		_, err = run(ctx, nil, "diskutil", "mount", "nobrowse", "-mountPoint", mountPoint, device)
+		_, at := macMountedVolume(ctx, run, device)
+		if err == nil && at == want {
+			return nil
+		}
+		if attempt == 5 {
+			return fmt.Errorf("the cache volume %s is mounted at %q, not %s: %v", volume, at, want, err)
+		}
+		fmt.Fprintf(os.Stderr, "The cache volume was mounted at %q instead of %s; mounting it again\n", at, want)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+// macMountedVolume returns the device of a volume, by name or device, and where
+// it is mounted.
+func macMountedVolume(ctx context.Context, run macRunner, volume string) (device, mountPoint string) {
+	out, err := run(ctx, nil, "diskutil", "info", "-plist", volume)
+	if err != nil {
+		return "", ""
+	}
+	var info struct {
+		Device     string `json:"DeviceIdentifier"`
+		MountPoint string `json:"MountPoint"`
+	}
+	if decodePlist(ctx, run, out, &info) != nil {
+		return "", ""
+	}
+	return info.Device, info.MountPoint
 }
 
 // macRunner runs a macOS tool with optional standard input and returns its
