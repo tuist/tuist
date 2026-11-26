@@ -1,6 +1,6 @@
 const staffTeams = ['company', 'external'];
 // Legacy automation accounts can have GitHub's "User" type.
-const botLogins = new Set(['tuistit']);
+const botLogins = new Set();
 
 async function communityNotification({ github, context, hasTeamToken }) {
   if (context.repo.owner !== 'tuist' || context.repo.repo !== 'tuist') return null;

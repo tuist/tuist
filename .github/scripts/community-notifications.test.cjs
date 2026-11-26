@@ -62,7 +62,6 @@ for (const team of ['company', 'external']) {
 for (const author of [
   { login: 'automation', type: 'Bot' },
   { login: 'dependabot[bot]' },
-  { login: 'TUISTIT' },
 ]) {
   test(`excludes bot ${author.login} without needing credentials or API calls`, async () => {
     const input = fixture(author);
