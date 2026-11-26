@@ -276,6 +276,18 @@ defmodule LuftServer.ThreadsTest do
     assert {:ok, _} = Threads.get(ctx.scope, thread.id)
   end
 
+  test "an MCP discovery failure points to MCP servers, not the AI account", ctx do
+    {run, thread, _} = claimed(ctx)
+
+    assert {:ok, finished} = Threads.finish(run, {:error, :mcp_discovery_failed})
+    assert finished.agent_status == "failed"
+    {:ok, %{messages: messages}} = Threads.get(ctx.scope, thread.id)
+    notice = List.last(messages)
+    assert notice.kind == "notice"
+    assert notice.body =~ "MCP servers"
+    refute notice.body =~ "AI account"
+  end
+
   test "ask-user answers requeue the same run exactly once and bind the answer author", ctx do
     {run, thread, _} = claimed(ctx)
 

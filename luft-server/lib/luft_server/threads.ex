@@ -1456,6 +1456,11 @@ defmodule LuftServer.Threads do
             {reply, suggestions, icons} = Agent.decode_reply(text)
             {"idle", reply, suggestions, icons}
 
+          result == {:error, :mcp_discovery_failed} ->
+            {"failed",
+             "The run could not start because one of your MCP servers did not respond. Reconnect or remove it under MCP servers in your Tuist AI settings, then send a new message to retry.",
+             [], %{}}
+
           true ->
             {"failed",
              "The run could not complete. Check the connected AI account, then send a new message to retry.",

@@ -172,6 +172,7 @@ defmodule LuftServer.Threads.Host do
       Logger.warning("thread #{state.id} session store unavailable")
       {:stop, {:shutdown, :unavailable}, %{state | task: nil, session: nil}}
     else
+      log_failure(state.id, result)
       _ = Threads.finish(state.run, result)
       send(self(), :work)
       {:noreply, %{state | task: nil, session: nil, run: nil}}
@@ -211,6 +212,14 @@ defmodule LuftServer.Threads.Host do
   end
 
   defp store_unavailable?(_), do: false
+
+  # Only atom reasons: other error terms can carry provider responses.
+  defp log_failure(_id, {:ok, _}), do: :ok
+
+  defp log_failure(id, {:error, reason}) when is_atom(reason),
+    do: Logger.warning("thread #{id} run failed: #{reason}")
+
+  defp log_failure(id, _), do: Logger.warning("thread #{id} run failed")
 
   defp execute(run, thread, epoch, host) do
     message = Repo.get!(Message, run.message_id)
