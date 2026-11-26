@@ -41,6 +41,9 @@ annotation=sandboxes.tuist.dev/handover
 lazy_wait_seconds=${SANDBOXD_UPGRADE_LAZY_WAIT_SECONDS:-600}
 # How long a replacement waits for the Pod to hold no sandbox; 0 does not.
 idle_wait_seconds=${SANDBOXD_UPGRADE_REPLACE_IDLE_SECONDS:-0}
+# How long a replacement may take to be scheduled and ready. On a host runner
+# Pods fill, it waits for a job there to end: its priority never preempts.
+ready_wait_seconds=${SANDBOXD_UPGRADE_REPLACE_READY_SECONDS:-600}
 kubectl=${KUBECTL:-kubectl}
 sleep_step=${SANDBOXD_UPGRADE_SLEEP:-5}
 
@@ -129,15 +132,25 @@ replace() {
   wait_idle "$pod"
   echo "Replacing $pod on $node (its sandboxes pause and resume)"
   k delete pod "$pod" --wait=true --timeout=180s
+  # The DaemonSet pins its replacement to the node by affinity; the Pod has
+  # no nodeName until the scheduler finds room for it.
   new=""
   for _ in $(seq 1 60); do
-    new=$(k get pods -l "$selector" --field-selector "spec.nodeName=$node" \
-      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-    [ -n "$new" ] && [ "$new" != "$pod" ] && break
+    new=$(k get pods -l "$selector" -o json | jq -r --arg n "$node" --arg p "$pod" '
+      [.items[] | select(.metadata.name != $p)
+        | select(.spec.nodeName == $n or any(
+            .spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[]?.matchFields[]?;
+            .key == "metadata.name" and any(.values[]; . == $n)))
+        | .metadata.name][0] // ""')
+    [ -n "$new" ] && break
     sleep "$sleep_step"
   done
-  [ -n "$new" ] && [ "$new" != "$pod" ] || { echo "::error::No replacement sandboxd Pod on $node"; return 1; }
-  k wait --for=condition=Ready "pod/$new" --timeout=10m
+  [ -n "$new" ] || { echo "::error::No replacement sandboxd Pod on $node"; return 1; }
+  if ! k wait --for=condition=Ready "pod/$new" --timeout="${ready_wait_seconds}s"; then
+    echo "::error::$new on $node was not ready within ${ready_wait_seconds}s: $(k get pod "$new" \
+      -o jsonpath='{.status.conditions[?(@.type=="PodScheduled")].message}' 2>/dev/null || true)"
+    return 1
+  fi
 }
 
 # upgrade_in_place <pod> <node> <container id> <image to patch in | "" to SIGTERM>
