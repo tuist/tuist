@@ -278,13 +278,15 @@ func TestRenderTartPruneScript_PrunesNothingWithoutAWrapper(t *testing.T) {
 
 func TestValidTartVersion(t *testing.T) {
 	for version, want := range map[string]bool{
-		"2.41.1":      true,
-		"2.32.1":      true,
-		"":            false,
-		"2.41":        false,
-		"2.41.1-beta": false,
-		"../2.41.1":   false,
-		"2.41.1; rm":  false,
+		"2.41.1":         true,
+		"2.32.1":         true,
+		"":               false,
+		"2.41":           false,
+		"2.41.1-beta":    false,
+		"2.41.1-tuist.1": true,
+		"2.41.1-tuist":   false,
+		"../2.41.1":      false,
+		"2.41.1; rm":     false,
 	} {
 		if got := ValidTartVersion(version); got != want {
 			t.Errorf("ValidTartVersion(%q) = %v, want %v", version, got, want)
