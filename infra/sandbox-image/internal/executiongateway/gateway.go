@@ -255,7 +255,7 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 		return err
 	}
 	inputs, action := g.prefetch(s.Context(), account, r.InstanceName, auth, r.ActionDigest)
-	memory, err := g.memory(s.Context(), account, r.InstanceName, auth, r.ActionDigest, action)
+	memory, explicit, err := g.memory(s.Context(), account, r.InstanceName, auth, r.ActionDigest, action)
 	if err != nil {
 		return err
 	}
@@ -279,9 +279,10 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 			}
 		}
 	}
-	// Leases hold VMs of the default size.
-	if memory == worker.DefaultMemoryGB && !g.isSized(account, r.InstanceName, record.sizeKey) {
-		if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs); ok {
+	// Leases hold VMs of the account's default size; take checks the action
+	// fits one.
+	if !g.isSized(account, r.InstanceName, record.sizeKey) {
+		if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs, memory, explicit); ok {
 			path, record.path = "lease", "lease"
 			code, err = g.stream(s, account, r.InstanceName, auth, op, record)
 			return err
@@ -295,6 +296,9 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	// Always sent, so the size does not depend on the server's default
 	// matching this gateway's while either is rolled out.
 	body["memory_gb"] = memory
+	// Without tuist-memory-gb the server picks the size, which task sizing
+	// can take below memory_gb.
+	body["memory_explicit"] = explicit
 	if record.sizeKey != "" {
 		body["size_key"] = record.sizeKey
 	}

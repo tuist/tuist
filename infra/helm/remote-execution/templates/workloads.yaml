@@ -282,7 +282,7 @@ spec:
             # vCPUs that accounts with automatic task sizing burst to. A
             # shape not prebuilt builds its snapshot on its first action.
             - {name: ALLOWED_SHAPES, value: "1x2048,2x4096,4x8192,8x16384,8x2048,8x4096,8x8192"}
-            - {name: PREBUILD_SHAPES, value: "1x2048,2x4096,4x8192,8x4096"}
+            - {name: PREBUILD_SHAPES, value: "1x2048,2x4096,4x8192,8x2048,8x4096"}
             # The workspace every VM gets (Settings.vm_workspace_gb), so
             # creates clone the snapshots' formatted workspace.
             - {name: TEMPLATE_WORKSPACE_GB, value: "30"}
