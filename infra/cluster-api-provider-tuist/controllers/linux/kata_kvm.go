@@ -35,7 +35,7 @@ const (
 
 	// kataKVMKernelRelease is the `kata-kvm-kernel@` release installed. It
 	// must be built from kataVersion's packaging (TestKataKVMKernelMatchesKataVersion).
-	kataKVMKernelRelease = "3.30.0-2"
+	kataKVMKernelRelease = "4.4.0-1"
 	kataKVMKernelDir     = "/opt/kata/share/kata-containers"
 	kataKVMKernelLink    = kataKVMKernelDir + "/vmlinux-tuist-kvm.container"
 	kataKVMDropIn        = "/opt/kata/share/defaults/kata-containers/config.d/50-tuist-kvm.toml"
@@ -60,13 +60,13 @@ func kataKVMKernelURL(asset string) string {
 	return "https://github.com/tuist/tuist/releases/download/kata-kvm-kernel@" + kataKVMKernelRelease + "/" + asset
 }
 
-// The base list is Kata 3.30's default enable_annotations; a drop-in array
+// The base list is Kata 4.4's default enable_annotations; a drop-in array
 // replaces rather than extends it. `kernel` admits the per-Pod kernel path.
 const kataKVMDropInContent = `# Written by the Tuist CAPI provider. Lets a nested-virtualization runner Pod
 # boot the KVM-enabled guest kernel through
 # io.katacontainers.config.hypervisor.kernel.
 [hypervisor.qemu]
-enable_annotations = ["enable_iommu", "virtio_fs_extra_args", "kernel_params", "kernel_verity_params", "kernel"]
+enable_annotations = ["enable_iommu", "kernel_params", "kernel_verity_params", "kernel"]
 `
 
 // kataKVMSetup installs the kernel and the drop-in. It is

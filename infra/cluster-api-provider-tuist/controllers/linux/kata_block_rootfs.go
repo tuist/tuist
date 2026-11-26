@@ -31,7 +31,7 @@ const (
 	kataBlockRootfsDropInPath = "/opt/kata/share/defaults/kata-containers/config.d/50-tuist-block-rootfs.toml"
 )
 
-// Kata 3.30's stock qemu configuration sets disable_block_device_use = true,
+// Kata's stock qemu configuration (3.30 and 4.4) sets disable_block_device_use = true,
 // which makes the shim share even a block-backed rootfs over virtiofs, and
 // block_device_driver = "virtio-scsi". virtio-blk is what the staging
 // measurements used.
