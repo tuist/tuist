@@ -28,8 +28,11 @@ ARG ALPINE_VERSION=3.22
 # that release instead. Keep the version the fleet runs today in the list
 # until no environment selects it, so rolling back is a values change.
 # Before adding a release, read its changelog against the "Tart versions"
-# section of infra/tart-kubelet/AGENTS.md.
-ARG TART_RELEASES="2.32.1:8554ab4f7fc12afe52f9b7e3093a935673cbac737a83973d2db7a0683c814529 2.41.1:e680a734febccfce7d4e910c1f7f13fc3b00f19a181c945e2d746de3214c32c2"
+# section of infra/tart-kubelet/AGENTS.md. A <version>-tuist.<n> release is
+# upstream Tart with the patches in infra/tart-build, published as the
+# tart@<version> release of tuist/tuist; only a Machine annotated
+# tuist.dev/tart-version runs it until a fleet selects it.
+ARG TART_RELEASES="2.32.1:8554ab4f7fc12afe52f9b7e3093a935673cbac737a83973d2db7a0683c814529 2.41.1:e680a734febccfce7d4e910c1f7f13fc3b00f19a181c945e2d746de3214c32c2 2.41.1-tuist.1:a4dfa7046bcd46419470e16e1c6a8fef6f302ac6740fefc819f0fa4dacdf8cec"
 ARG TART_DEFAULT_VERSION=2.32.1
 
 # Tailscale upstream tag to cross-build from. The tailscale-builder
@@ -166,8 +169,11 @@ RUN set -eu; \
     for release in ${TART_RELEASES}; do \
       version="${release%%:*}"; sha="${release#*:}"; \
       mkdir -p "${version}"; \
-      curl -fsSL -o "${version}/tart.tar.gz" \
-        "https://github.com/openai/tart/releases/download/${version}/tart.tar.gz"; \
+      url="https://github.com/openai/tart/releases/download/${version}/tart.tar.gz"; \
+      case "${version}" in *-tuist.*) \
+        url="https://github.com/tuist/tuist/releases/download/tart@${version}/tart.tar.gz";; \
+      esac; \
+      curl -fsSL -o "${version}/tart.tar.gz" "${url}"; \
       echo "${sha}  ${version}/tart.tar.gz" | sha256sum -c -; \
     done; \
     test -s "${TART_DEFAULT_VERSION}/tart.tar.gz"
