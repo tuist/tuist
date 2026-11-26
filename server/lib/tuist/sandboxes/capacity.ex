@@ -119,12 +119,20 @@ defmodule Tuist.Sandboxes.Capacity do
   # How long a node's last confirmed CPU request saves a Kubernetes read.
   @cpu_request_cache_ttl to_timeout(minute: 5)
 
-  # A sandbox is charged its whole guest, the limit it may burst to as well
-  # as its request: until bursts can be throttled and their carve-out grown
-  # (the plan's pressure policy), a guest charged only its request could
-  # fill its daemon's carve-out past its limit and get its VMM OOM-killed.
-  def charge_bytes(%{memory_mb: memory_mb} = sandbox) when is_integer(memory_mb),
-    do: Sandbox.boot_memory_mb(sandbox) * @mib + @vm_overhead_bytes
+  # A sandbox is charged its request and the VMM's overhead, or, bursting
+  # above it, what its VM held (Pss) at the last report, as it is billed.
+  # Its node's daemon caps each burst (`memory.high`) at its share of the
+  # carve-out's headroom, so a burst throttles instead of OOM-killing the
+  # VMM, and `grow_for_bursts/1` grows the carve-out as reports show
+  # bursts using it.
+  def charge_bytes(%{memory_mb: memory_mb} = sandbox) when is_integer(memory_mb) do
+    request = memory_mb * @mib + @vm_overhead_bytes
+
+    case {Map.get(sandbox, :memory_limit_mb), Map.get(sandbox, :metered_memory_bytes)} do
+      {limit, used} when is_integer(limit) and is_integer(used) -> max(request, used)
+      _not_bursting -> request
+    end
+  end
 
   @doc "What a sandbox is billed for at least: its memory request and the VMM's overhead."
   def request_bytes(%{memory_mb: memory_mb}) when is_integer(memory_mb), do: memory_mb * @mib + @vm_overhead_bytes
@@ -483,16 +491,28 @@ defmodule Tuist.Sandboxes.Capacity do
   guest memory.
   """
   def reserved_bytes(node_name) when is_binary(node_name) do
-    {count, memory_mb} =
+    {count, memory_mb, burst_bytes} =
       Repo.one(
         from s in Sandbox,
           where:
             s.node_name == ^node_name and
               (s.state in ^@charged_states or (s.purpose == :remote_execution and s.state == :error)),
-          select: {count(s.id), coalesce(sum(coalesce(s.memory_limit_mb, s.memory_mb)), 0)}
+          select:
+            {count(s.id), coalesce(sum(s.memory_mb), 0),
+             type(
+               fragment(
+                 "COALESCE(SUM(GREATEST(? - ? * 1048576::bigint - ?, 0)) FILTER (WHERE ? IS NOT NULL), 0)::bigint",
+                 s.metered_memory_bytes,
+                 s.memory_mb,
+                 ^@vm_overhead_bytes,
+                 s.memory_limit_mb
+               ),
+               :integer
+             )}
       )
 
-    memory_mb * @mib + count * @vm_overhead_bytes
+    # `charge_bytes/1` of each: the requests, and what bursts hold past them.
+    memory_mb * @mib + count * @vm_overhead_bytes + burst_bytes
   end
 
   def free_bytes(%{name: node_name} = node) do
@@ -1271,6 +1291,25 @@ defmodule Tuist.Sandboxes.Capacity do
   def grow(%{name: _node_name} = node, charge, wait_ms, until \\ :reported)
       when is_integer(charge) and is_integer(wait_ms) and until in [:reported, :applied] do
     timed(node.name, :grow, fn -> do_grow(node, charge, wait_ms, until) end)
+  end
+
+  @doc """
+  Grows a node's carve-out by a step when the bursts its sandboxes'
+  latest reports show (`charge_bytes/1`) leave it less than a step of
+  headroom, within the node's grant and ceiling, without waiting for it to
+  land. The node's daemon throttles bursts to the carve-out meanwhile, and
+  the shrink worker gives the memory back once the bursts end.
+  """
+  def grow_for_bursts(node_name) when is_binary(node_name) do
+    with {:ok, _pid, info} <- Nodes.lookup(node_name),
+         node = Map.put(info, :name, node_name),
+         true <- elastic?(node),
+         current = max(asked_limit(node) || 0, reported_limit(node) || 0),
+         true <- reserved_bytes(node_name) + @daemon_reserve_bytes + @carve_out_step_bytes > current do
+      grow(node, @carve_out_step_bytes, 0, :applied)
+    else
+      _no_growth_needed -> :unchanged
+    end
   end
 
   defp do_grow(node, charge, wait_ms, until) do

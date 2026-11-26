@@ -64,11 +64,16 @@ defmodule Tuist.Sandboxes.CapacityTest do
     test "charges guest memory plus the VMM overhead and keeps a daemon reserve" do
       assert Capacity.charge_bytes(%{memory_mb: 4096}) == 4096 * @mib + 64 * @mib
       assert Capacity.pause_bytes(%{memory_mb: 4096}) == 4096 * @mib
-      # A bursting sandbox holds its whole guest; it is billed from its request.
+      # A bursting sandbox is charged its request until a report shows its
+      # VM holding more, then what it holds; its memory image is the whole guest.
       bursting = %{memory_mb: 4096, memory_limit_mb: 16_384}
-      assert Capacity.charge_bytes(bursting) == 16_384 * @mib + 64 * @mib
+      assert Capacity.charge_bytes(bursting) == 4096 * @mib + 64 * @mib
+      assert Capacity.charge_bytes(Map.put(bursting, :metered_memory_bytes, 1024 * @mib)) == 4096 * @mib + 64 * @mib
+      assert Capacity.charge_bytes(Map.put(bursting, :metered_memory_bytes, 9000 * @mib)) == 9000 * @mib
       assert Capacity.pause_bytes(bursting) == 16_384 * @mib
       assert Capacity.request_bytes(bursting) == 4096 * @mib + 64 * @mib
+      # Without a limit the guest cannot burst: its request bounds it.
+      assert Capacity.charge_bytes(%{memory_mb: 4096, metered_memory_bytes: 9000 * @mib}) == 4096 * @mib + 64 * @mib
       assert Capacity.memory_budget_bytes(%{capacity: %{memory_bytes: 20 * @gib}}) == 20 * @gib - 512 * @mib
       assert Capacity.memory_budget_bytes(%{capacity: %{}}) == :unbounded
     end
@@ -83,6 +88,23 @@ defmodule Tuist.Sandboxes.CapacityTest do
       sandbox_fixture(template: template, state: :running, node_name: node_name(), memory_mb: 8192)
 
       assert Capacity.reserved_bytes(node) == (1024 + 2048 + 4096) * @mib + 3 * 64 * @mib
+    end
+
+    test "reserved_bytes/1 charges bursting sandboxes what they hold past their request", %{template: template} do
+      node = node_name()
+
+      for {limit, used} <- [{16_384, 9000 * @mib}, {16_384, 1024 * @mib}, {16_384, nil}, {nil, 9000 * @mib}] do
+        sandbox_fixture(
+          template: template,
+          node_name: node,
+          memory_mb: 4096,
+          memory_limit_mb: limit,
+          metered_memory_bytes: used
+        )
+      end
+
+      # The first holds 9000 MiB; the rest are charged their 4 GiB request.
+      assert Capacity.reserved_bytes(node) == 9000 * @mib + 3 * (4096 + 64) * @mib
     end
   end
 
@@ -651,6 +673,29 @@ defmodule Tuist.Sandboxes.CapacityTest do
       reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
 
       assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
+    end
+
+    test "grow_for_bursts/1 grows the carve-out by a step once bursts leave it less than one", %{template: template} do
+      node = connect_elastic(template)
+      apply_resizes(node)
+
+      bursting =
+        sandbox_fixture(
+          template: template,
+          node_name: node,
+          memory_mb: 4096,
+          memory_limit_mb: 16_384,
+          metered_memory_bytes: 6 * @gib
+        )
+
+      # 6 GiB + the 512 MiB reserve leave the 8 GiB carve-out more than a step.
+      assert Capacity.grow_for_bursts(node) == :unchanged
+      assert Repo.get(SandboxNode, node).memory_limit_bytes == 8 * @gib
+
+      # At 7 GiB they do not: a step more, rounded up to whole GiB.
+      bursting |> Ecto.Changeset.change(metered_memory_bytes: 7 * @gib) |> Repo.update!()
+      assert {:ok, _node} = Capacity.grow_for_bursts(node)
+      assert Repo.get(SandboxNode, node).memory_limit_bytes == 9 * @gib
     end
 
     test "grows the node a paused sandbox resumes on", %{template: template} do

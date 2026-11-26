@@ -985,6 +985,9 @@ defmodule Tuist.SandboxesTest do
       assert [3112, 3112, 1600, 0] = Enum.map(rows, &div(&1.used, mib))
       assert [0, excess, 0, 0] = Enum.map(rows, & &1.excess)
       assert excess in (1000 * 30_000)..(1000 * 30_100)
+      # Placement charges a bursting sandbox the last reading; a report
+      # without one keeps it.
+      assert Repo.reload!(sandbox).metered_memory_bytes == 1600 * mib
     end
 
     test "queues a pause for a running Orb whose guest has been quiet for ten minutes" do

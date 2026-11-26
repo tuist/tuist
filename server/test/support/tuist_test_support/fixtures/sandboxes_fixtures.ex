@@ -92,6 +92,8 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
       vcpus: Keyword.get(opts, :vcpus, 2),
       memory_mb: Keyword.get(opts, :memory_mb, 4096),
+      memory_limit_mb: Keyword.get(opts, :memory_limit_mb),
+      metered_memory_bytes: Keyword.get(opts, :metered_memory_bytes),
       workspace_gb: Keyword.get(opts, :workspace_gb, 10),
       state: Keyword.get(opts, :state, :running),
       node_name: Keyword.get(opts, :node_name, "node-#{TuistTestSupport.Utilities.unique_integer()}"),
