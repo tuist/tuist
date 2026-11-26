@@ -3,8 +3,10 @@ defmodule LuftServer.Threads.MCP do
   Personal MCP tools delegated through Tuist's credential-owning capability.
   Closures hold persisted identifiers, never access tokens. Every request uses
   the triggering message's exact author session and a fresh account scope.
-  Discovery fails explicitly and atomically; catalogs exceeding the remaining
-  inference tool budget use search without discarding entries.
+  A server whose discovery fails is skipped and named to the caller, so one
+  unreachable server never blocks a run; the server list itself still fails
+  explicitly. Catalogs exceeding the remaining inference tool budget use search
+  without discarding entries.
   """
 
   alias LuftServer.Config
@@ -25,36 +27,53 @@ defmodule LuftServer.Threads.MCP do
     with {:ok, %{"servers" => servers}} when is_list(servers) <-
            request(thread, message, run, :get, @base),
          true <- length(servers) <= 25,
-         {:ok, tools} <- profile_tools(servers, thread, message, run) do
-      offer(builtin ++ tools, run, @max_tools - reserved)
+         {tools, skipped} = profile_tools(servers, thread, message, run),
+         {:ok, offered} <- offer(builtin ++ tools, run, @max_tools - reserved) do
+      {:ok, offered, skipped}
     else
       {:error, _} = error -> error
       _ -> {:error, :mcp_invalid_response}
     end
   end
 
+  # Returns the discovered tools and the names of the connected servers whose
+  # discovery failed.
   defp profile_tools(servers, thread, message, run) do
-    Enum.reduce_while(servers, {:ok, []}, fn server, {:ok, tools} ->
-      if server["connected"] == true do
-        path = @base <> "/" <> URI.encode(server["id"], &URI.char_unreserved?/1) <> "/tools"
-
-        with {:ok, %{"tools" => definitions}} when is_list(definitions) <-
-               request(thread, message, run, :get, path, params: [endpoint: server["endpoint"]]),
-             true <-
-               length(tools) + length(definitions) <= 2000 and
-                 Enum.all?(definitions, &valid_tool?/1) do
-          pairs = Enum.map(definitions, &{&1["name"], tool(thread, message, run, server, &1)})
-          {:cont, {:ok, tools ++ pairs}}
+    {tools, skipped} =
+      Enum.reduce(servers, {[], []}, fn server, {tools, skipped} ->
+        if server["connected"] == true do
+          case server_tools(server, tools, thread, message, run) do
+            {:ok, pairs} -> {tools ++ pairs, skipped}
+            :error -> {tools, [server_name(server) | skipped]}
+          end
         else
-          _ -> {:halt, {:error, :mcp_discovery_failed}}
+          {tools, skipped}
         end
-      else
-        {:cont, {:ok, tools}}
-      end
-    end)
-  rescue
-    _ -> {:error, :mcp_invalid_response}
+      end)
+
+    {tools, Enum.reverse(skipped)}
   end
+
+  defp server_tools(server, tools, thread, message, run) do
+    path = @base <> "/" <> URI.encode(server["id"], &URI.char_unreserved?/1) <> "/tools"
+
+    with {:ok, %{"tools" => definitions}} when is_list(definitions) <-
+           request(thread, message, run, :get, path, params: [endpoint: server["endpoint"]]),
+         true <-
+           length(tools) + length(definitions) <= 2000 and
+             Enum.all?(definitions, &valid_tool?/1) do
+      {:ok, Enum.map(definitions, &{&1["name"], tool(thread, message, run, server, &1)})}
+    else
+      _ -> :error
+    end
+  rescue
+    _ -> :error
+  end
+
+  defp server_name(%{"name" => name}) when is_binary(name) and name != "",
+    do: String.slice(name, 0, 100)
+
+  defp server_name(_), do: "Unnamed server"
 
   defp tool(thread, message, run, server, definition) do
     remote_name = definition["name"]

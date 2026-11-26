@@ -280,8 +280,9 @@ defmodule LuftServer.Threads.Host do
         workspace_tools(run, runtime.context) ++
         client_tools(run, thread, message, runtime.author_id)
 
-    with {:ok, personal_tools} <-
-           MCP.discover(thread, message, run, runtime.builtin, length(reserved)) do
+    with {:ok, personal_tools, skipped} <-
+           MCP.discover(thread, message, run, runtime.builtin, length(reserved)),
+         :ok <- notify_skipped(run, skipped) do
       opts =
         ModelFence.wrap(runtime.client_opts, run, self()) ++
           [
@@ -299,6 +300,20 @@ defmodule LuftServer.Threads.Host do
 
       run_session(run, thread, message, opts, deadline, host)
     end
+  end
+
+  defp notify_skipped(_run, []), do: :ok
+
+  defp notify_skipped(run, names) do
+    quoted = Enum.map_join(names, ", ", &"“#{&1}”")
+    {subject, pronoun} = if length(names) == 1, do: {"server", "it"}, else: {"servers", "them"}
+
+    with {:ok, :ok} <-
+           Threads.record_notice(
+             run,
+             "This run continues without the MCP #{subject} #{quoted}, which did not respond. Reconnect or remove #{pronoun} under MCP servers in your Tuist AI settings."
+           ),
+         do: :ok
   end
 
   defp run_session(run, thread, message, opts, deadline, host) do
