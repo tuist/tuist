@@ -54,5 +54,7 @@ defmodule Tuist.RemoteExecution.Action do
     field :stderr_size, Ch, type: "UInt64"
     field :stderr_truncated, Ch, type: "Bool"
     field :inserted_at, Ch, type: "DateTime64(6)"
+    # Copied from the Struo run the invocation ID names; nil when unknown.
+    field :is_ci, Ch, type: "Nullable(Bool)"
   end
 end
