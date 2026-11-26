@@ -21,6 +21,8 @@ defmodule LuftServer.Threads.Message do
     field :card_source, :string
     field :decision, :map
     field :progress, :map
+    # Set by the database from the thread's revision; see the migration.
+    field :version, :integer, read_after_writes: true
     timestamps(type: :utc_datetime)
   end
 end

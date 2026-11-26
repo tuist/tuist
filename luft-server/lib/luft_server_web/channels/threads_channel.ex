@@ -22,6 +22,8 @@ defmodule LuftServerWeb.ThreadsChannel do
           tools = tools(target, params)
           if tools != [], do: {:ok, _} = Clients.join(target, scope.user_id, tools)
           Process.send_after(self(), :recheck_authority, @recheck_ms)
+          sync = sync_cursor(target, params)
+          if sync != :off, do: send(self(), :threads_changed)
 
           {:ok, snapshot,
            socket
@@ -29,6 +31,7 @@ defmodule LuftServerWeb.ThreadsChannel do
            |> assign(:scope, scope)
            |> assign(:target, target)
            |> assign(:snapshot, snapshot)
+           |> assign(:sync, sync)
            |> assign(:tool_calls, %{})}
 
         _ ->
@@ -57,7 +60,23 @@ defmodule LuftServerWeb.ThreadsChannel do
 
   def handle_in(_event, _payload, socket), do: {:noreply, socket}
 
-  def handle_info(:threads_changed, socket), do: refresh(socket)
+  def handle_info(:threads_changed, %{assigns: %{sync: :off}} = socket), do: refresh(socket)
+
+  # Like a LiveView, but the diff is the thread's changed rows, which the
+  # client keeps. Commits that arrived meanwhile fold into one read.
+  def handle_info(:threads_changed, socket) do
+    drain(:threads_changed)
+
+    with {:ok, _session} <- ConversationsSocket.authenticate(socket),
+         {:ok, change} <-
+           changes(socket.assigns.scope, socket.assigns.target, socket.assigns.sync) do
+      push(socket, "diff", diff(change))
+      {:noreply, assign(socket, :sync, change.cursor)}
+    else
+      :unchanged -> {:noreply, socket}
+      _ -> {:stop, :normal, socket}
+    end
+  end
 
   def handle_info(:recheck_authority, socket) do
     with {:ok, session} <- ConversationsSocket.authenticate(socket),
@@ -105,6 +124,38 @@ defmodule LuftServerWeb.ThreadsChannel do
       _ -> {:stop, :normal, socket}
     end
   end
+
+  defp changes(scope, id, :mount), do: Threads.changes(scope, id, nil)
+  defp changes(scope, id, since), do: Threads.changes(scope, id, since)
+
+  # Only the reset carries the page boundary; a delta leaves the client's own.
+  defp diff(%{reset: reset, cursor: cursor, thread: thread}) do
+    thread = Threads.serialize(thread)
+    thread = if reset, do: thread, else: Map.drop(thread, [:has_more, :next_before])
+    %{reset: reset, cursor: cursor, thread: thread}
+  end
+
+  defp drain(message) do
+    receive do
+      ^message -> drain(message)
+    after
+      0 -> :ok
+    end
+  end
+
+  # Clients that keep the thread send `sync: true` with the revision they
+  # have (`since`, null for none) and receive `diff`s; others receive the
+  # `snapshot` hints and reload.
+  defp sync_cursor(:inbox, _params), do: :off
+
+  defp sync_cursor(_id, %{"sync" => true} = params) do
+    case params["since"] do
+      since when is_integer(since) and since >= 0 -> since
+      _ -> :mount
+    end
+  end
+
+  defp sync_cursor(_id, _params), do: :off
 
   defp target("inbox"), do: {:ok, :inbox}
   defp target(id), do: Ecto.UUID.cast(id)
