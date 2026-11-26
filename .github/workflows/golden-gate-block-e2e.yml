@@ -1,4 +1,4 @@
-# Temporary, never merged: validates layered block cache volumes on staging's
+# Temporary, never merged: validates block cache volumes on staging's
 # Golden Gate (macOS 27) runners. Two jobs share one volume key: the first
 # writes it cold, the second must find the first's data (kept as a layer) and
 # build warm. Each checksums the volume after a cache purge, the step that
@@ -51,7 +51,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$HOME/e2e" && cd "$HOME/e2e"
-          /tmp/tcv --key "$VOLUME_KEY" --path ./vol | tee /tmp/attach.out
+          # Round 2 asks for more room than round 1 saved: the host grows its
+          # copy and the guest grows the container before mounting it.
+          /tmp/tcv --key "$VOLUME_KEY" --path ./vol --size "${{ matrix.round == 1 && '10gb' || '25gb' }}" | tee /tmp/attach.out
           root="$(cd ./vol && pwd -P)"
           echo "VOL=$root" >> "$GITHUB_ENV"
           echo "volume root: $root"
@@ -75,6 +77,10 @@ jobs:
           set -euo pipefail
           test -f "$VOL/manifest.sha256" || { echo "::error::round 1's data is missing: the volume is cold"; exit 1; }
           (cd "$VOL" && shasum -a 256 -c --quiet manifest.sha256) && echo "round 1's $(wc -l < "$VOL/manifest.sha256") files intact"
+          size=$(df -k "$VOL" | awk 'NR==2 {print $2}')
+          echo "container: $((size / 1000000)) GB"
+          test "$size" -gt 20000000 || { echo "::error::the volume was not grown to 25 GB"; exit 1; }
+          grep -q "Grew the cache volume" /tmp/attach.out || { echo "::error::the guest did not grow the container"; exit 1; }
       - uses: ./.github/actions/mise-install
         with:
           install: "erlang elixir"
