@@ -768,6 +768,9 @@ spec:
             - --custom-cache-url={{ .Values.server.appUrl }}/api/internal/runners/cache-volumes
             - --custom-cache-namespace={{ .Values.runnersFleet.namespace | default "tuist-runners" }}
             - --custom-cache-service-account={{ include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") }}
+            {{- if .Values.runnersFleet.customCacheVolumes.block }}
+            - --block-cache-volumes
+            {{- end }}
             {{- end }}
             {{- if .Values.macosFleet.tailscale.enabled }}
             # Tailscale + node_exporter artifact paths. Both are

@@ -3030,6 +3030,10 @@ sandboxes:
 runnersFleet:
   customCacheVolumes:
     enabled: false
+    # Serve the volumes macOS 27 guests ask for as USB disks Tart hot-plugs
+    # (podagent.BlockVolumes). Needs every host on a Tart built from
+    # infra/tart-build (macosFleet.tart.version).
+    block: false
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every macOS pool (a per-pool
   # or per-xcodeOverride `idleTimeoutSeconds` wins). Bounds how long a
