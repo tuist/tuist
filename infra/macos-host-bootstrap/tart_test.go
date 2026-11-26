@@ -283,6 +283,8 @@ func TestValidTartVersion(t *testing.T) {
 		"":            false,
 		"2.41":        false,
 		"2.41.1-beta": false,
+		"2.41.1-tuist.1": true,
+		"2.41.1-tuist": false,
 		"../2.41.1":   false,
 		"2.41.1; rm":  false,
 	} {
