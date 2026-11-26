@@ -4092,6 +4092,27 @@ func (r *KuraInstanceReconciler) colocatedVolumes(ctx context.Context, instance 
 		}
 		byValue[value] = append(byValue[value], placed{ordinal: ordinal, claim: claim})
 	}
+	// A standby moves only where it can land: a Ready, schedulable node that
+	// matches the instance's selector and holds a value of the label no
+	// replica occupies. Otherwise emptying it leaves its replacement Pending
+	// beside the primary's volume, and a one-host region loses its standby.
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		return nil, err
+	}
+	occupied := map[string]bool{}
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
+		value, ok := node.Labels[key]
+		_, taken := byValue[value]
+		_, evacuating := node.Annotations[EvacuateNodeAnnotation]
+		if !ok || taken || evacuating {
+			occupied[node.Name] = true
+		}
+	}
+	if !hasLandingNode(nodes.Items, occupied, nodeSelector(instance)) {
+		return nil, nil
+	}
 	var colocated []dataVolumeReplacement
 	for _, value := range values {
 		group := byValue[value]

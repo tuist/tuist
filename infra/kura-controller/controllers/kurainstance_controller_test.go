@@ -2596,6 +2596,7 @@ func TestReconcileDataStorageResize(t *testing.T) {
 	spread := func() *kurav1alpha1.KuraInstance {
 		instance := instance("40Gi")
 		instance.Spec.ReplicaSpreadTopologyKey = corev1.LabelHostname
+		instance.Spec.NodeSelector = map[string]string{"node.cluster.x-k8s.io/pool": "kura-test"}
 		return instance
 	}
 	boundOn := func(ordinal int, host string) []client.Object {
@@ -2618,16 +2619,44 @@ func TestReconcileDataStorageResize(t *testing.T) {
 			Spec:       corev1.ServiceSpec{Selector: primaryServiceSelector(spread(), fmt.Sprintf("%s-%d", instanceName, ordinal))},
 		}
 	}
-	nodes := []client.Object{
-		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "box-a", Labels: map[string]string{corev1.LabelHostname: "box-a"}}},
-		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "box-b", Labels: map[string]string{corev1.LabelHostname: "box-b"}}},
+	box := func(name string, schedulable bool) *corev1.Node {
+		return &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{corev1.LabelHostname: name, "node.cluster.x-k8s.io/pool": "kura-test"}},
+			Spec:       corev1.NodeSpec{Unschedulable: !schedulable},
+			Status:     corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}},
+		}
 	}
-	spreadFixture := func(instance *kurav1alpha1.KuraInstance, hosts [2]string) client.Client {
+	nodes := []client.Object{box("box-a", true), box("box-b", true)}
+	spreadFixtureOn := func(instance *kurav1alpha1.KuraInstance, hosts [2]string, nodes []client.Object) client.Client {
 		objects := append([]client.Object{instance, sts("40Gi"), pod(0, true), pod(1, true), primaryService(1)}, nodes...)
 		objects = append(objects, boundOn(0, hosts[0])...)
 		objects = append(objects, boundOn(1, hosts[1])...)
 		return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).WithStatusSubresource(&corev1.PersistentVolumeClaim{}).Build()
 	}
+	spreadFixture := func(instance *kurav1alpha1.KuraInstance, hosts [2]string) client.Client {
+		return spreadFixtureOn(instance, hosts, nodes)
+	}
+
+	// A region with one usable host cannot hold two spread replicas. Emptying
+	// the standby there only leaves its replacement Pending beside the
+	// primary's volume, so the pair stays as it is until a host can take it.
+	t.Run("keeps colocated replicas while no other host can take the standby", func(t *testing.T) {
+		c := spreadFixtureOn(spread(), [2]string{"box-a", "box-a"}, []client.Object{box("box-a", true), box("box-b", false)})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), spread())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("a colocated pair with nowhere to move the standby must be left alone")
+		}
+		for ordinal := 0; ordinal < 2; ordinal++ {
+			if !exists(t, c, claim(ordinal, "40Gi")) || !exists(t, c, pod(ordinal, true)) {
+				t.Fatalf("ordinal %d must keep its volume and keep serving", ordinal)
+			}
+		}
+	})
 
 	t.Run("rebuilds the standby's volume off the primary's host when spread is required", func(t *testing.T) {
 		c := spreadFixture(spread(), [2]string{"box-a", "box-a"})
