@@ -259,6 +259,10 @@ func TestLVMEnrollmentKeepsReconcilingUnselectedInstances(t *testing.T) {
 	instance.Spec.StorageClassName = encryptedLocalStorageClass
 	instance.Spec.DiskResource = string(kuraDiskResource)
 	instance.Spec.Image = "ghcr.io/tuist/kura:0.5.3"
+	// Neither replica can move while its storage migration holds, so a spread
+	// requested now must not reach the template either: the colocated pod it
+	// rolls would wait Pending beside its sibling's pinned volume.
+	instance.Spec.ReplicaSpreadTopologyKey = corev1.LabelHostname
 	if err := c.Update(ctx, instance); err != nil {
 		t.Fatal(err)
 	}
@@ -287,6 +291,9 @@ func TestLVMEnrollmentKeepsReconcilingUnselectedInstances(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.Spec.VolumeClaimTemplates, legacy.Spec.VolumeClaimTemplates) || !reflect.DeepEqual(got.Spec.Template.Spec.NodeSelector, legacy.Spec.Template.Spec.NodeSelector) {
 		t.Fatal("held template changed its storage placement")
+	}
+	if !reflect.DeepEqual(got.Spec.Template.Spec.Affinity, legacy.Spec.Template.Spec.Affinity) {
+		t.Fatalf("held template changed its replica placement: %+v", got.Spec.Template.Spec.Affinity)
 	}
 	for i := 0; i < 2; i++ {
 		if err := c.Get(ctx, client.ObjectKeyFromObject(f.claim(i, "32Gi")), &corev1.PersistentVolumeClaim{}); err != nil {
