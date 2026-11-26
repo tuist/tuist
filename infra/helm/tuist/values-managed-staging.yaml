@@ -1056,7 +1056,10 @@ runnersFleetLinux:
     hostPath: /var/lib/kubelet/tuist-runner-cache
     provisioning:
       enabled: true
-      sizeGB: 200
+      # 150 rather than the 200 default: the staging RISE-S /data (412 GB) also
+      # holds the Kata devmapper pool, sandbox and remote-execution templates,
+      # and sandboxd's blob cache stops storing below 20% free.
+      sizeGB: 150
     dockerCache:
       enabled: true
     actionsCache:
