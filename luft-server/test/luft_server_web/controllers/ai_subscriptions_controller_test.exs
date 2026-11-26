@@ -4,61 +4,44 @@ defmodule LuftServerWeb.AISubscriptionsControllerTest do
   import Phoenix.ChannelTest
   import Phoenix.ConnTest, except: [connect: 2, connect: 3]
 
+  alias LuftServer.AISubscriptions.Subscription
   alias LuftServer.NativeAuth
+  alias LuftServer.Repo
   alias LuftServerWeb.ConversationsSocket
 
   @endpoint LuftServerWeb.Endpoint
 
   setup do
     Req.Test.set_req_test_to_shared()
-    {:ok, state} = Agent.start_link(fn -> %{claude: false, chatgpt: false} end)
     pid = self()
 
-    # Tuist's `/api/me/ai-subscriptions`, holding what each provider has saved.
-    Req.Test.stub(LuftServer.Tuist, fn conn ->
-      assert get_req_header(conn, "authorization") == ["Bearer upstream-secret"]
+    # OpenAI's device authorization, approving at once.
+    Req.Test.stub(LuftServer.OpenAI, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
-      send(pid, {:tuist, conn.method, conn.request_path, conn.query_string, body})
+      send(pid, {:openai, conn.request_path, body})
 
-      case {conn.method, conn.request_path} do
-        {"PUT", "/api/me/ai-subscriptions/claude"} ->
-          if Jason.decode!(body)["token"] == "sk-ant-oat01-valid" do
-            Agent.update(state, &%{&1 | claude: true})
-            Req.Test.json(conn, list(state))
-          else
-            conn |> put_status(422) |> Req.Test.json(%{message: "Invalid token."})
-          end
+      case conn.request_path do
+        "/api/accounts/deviceauth/usercode" ->
+          Req.Test.json(conn, %{device_auth_id: "device-1", user_code: "ABCD-EFGH", interval: 5})
 
-        {"POST", "/api/me/ai-subscriptions/chatgpt/login"} ->
+        "/api/accounts/deviceauth/token" ->
+          Req.Test.json(conn, %{authorization_code: "code", code_verifier: "verifier"})
+
+        "/oauth/token" ->
           Req.Test.json(conn, %{
-            login_id: "login-1",
-            user_code: "ABCD-EFGH",
-            verification_url: "https://auth.openai.com/codex/device",
-            interval: 5,
-            expires_at: "2026-11-25T23:00:00Z"
+            access_token: LuftServer.FakeOpenAI.token(),
+            refresh_token: "refresh",
+            expires_in: 3600
           })
-
-        {"POST", "/api/me/ai-subscriptions/chatgpt/login/poll"} ->
-          Agent.update(state, &%{&1 | chatgpt: true})
-          Req.Test.json(conn, %{status: "connected"})
-
-        {"DELETE", "/api/me/ai-subscriptions/chatgpt/login"} ->
-          Plug.Conn.send_resp(conn, 204, "")
-
-        {"DELETE", "/api/me/ai-subscriptions/" <> provider} ->
-          Agent.update(state, &Map.put(&1, String.to_existing_atom(provider), false))
-          Req.Test.json(conn, list(state))
-
-        {"GET", "/api/me/ai-subscriptions"} ->
-          Req.Test.json(conn, list(state))
       end
     end)
 
-    bearer = bearer()
-    %{bearer: bearer, state: state}
+    %{bearer: bearer()}
   end
 
-  test "changes made through Luft reach the person's open channels at once", %{bearer: bearer} do
+  test "changes made through Luft are saved and reach the person's open channels at once", %{
+    bearer: bearer
+  } do
     {:ok, socket} = connect(ConversationsSocket, %{}, connect_info: %{auth_token: bearer})
 
     assert {:ok, %{subscriptions: [%{"connected" => false}, %{"connected" => false}]}, _joined} =
@@ -66,86 +49,103 @@ defmodule LuftServerWeb.AISubscriptionsControllerTest do
 
     conn = authorized(bearer)
 
-    assert %{"message" => "Invalid token."} =
+    assert %{"message" => _} =
              conn
              |> put("/api/me/ai-subscriptions/claude", %{token: "nope"})
              |> json_response(422)
 
     refute_push "snapshot", _
 
+    token = "sk-ant-oat01-" <> String.duplicate("a", 40)
+
     assert %{"subscriptions" => subscriptions} =
              conn
-             |> put("/api/me/ai-subscriptions/claude", %{token: "sk-ant-oat01-valid"})
+             |> put("/api/me/ai-subscriptions/claude", %{token: token})
              |> json_response(200)
 
     # Luft says which subscriptions can run its threads: Claude's can't.
     assert %{"connected" => true, "runs_threads" => false} = provider(subscriptions, "claude")
     assert_push "snapshot", %{subscriptions: pushed}
     assert provider(pushed, "claude")["connected"]
+    # Saved encrypted, never as the token itself.
+    refute raw_columns_contain?(token)
 
-    assert %{"login_id" => "login-1", "user_code" => "ABCD-EFGH"} =
+    assert %{"login_id" => login_id, "user_code" => "ABCD-EFGH"} =
              authorized(bearer)
              |> post("/api/me/ai-subscriptions/chatgpt/login")
              |> json_response(200)
 
-    assert %{"status" => "connected"} =
-             authorized(bearer)
-             |> post("/api/me/ai-subscriptions/chatgpt/login/poll", %{login_id: "login-1"})
-             |> json_response(200)
+    assert_received {:openai, "/api/accounts/deviceauth/usercode", body}
+    assert Jason.decode!(body) == %{"client_id" => "test-chatgpt-client"}
 
+    # OpenAI's polling interval holds back the first poll.
+    assert %{"status" => "pending"} = poll(bearer, login_id)
+    refute_received {:openai, "/api/accounts/deviceauth/token", _}
+
+    Repo.update_all(Subscription,
+      set: [next_poll_at: DateTime.add(DateTime.utc_now(:second), -1)]
+    )
+
+    assert %{"status" => "connected"} = poll(bearer, login_id)
     assert_push "snapshot", %{subscriptions: pushed}
     assert %{"connected" => true, "runs_threads" => true} = provider(pushed, "chatgpt")
 
+    # The sign-in finished, so there is nothing left to cancel.
     assert authorized(bearer)
-           |> delete("/api/me/ai-subscriptions/chatgpt/login?login_id=login-1")
-           |> response(204)
-
-    assert_received {:tuist, "DELETE", "/api/me/ai-subscriptions/chatgpt/login",
-                     "login_id=login-1", _}
+           |> delete("/api/me/ai-subscriptions/chatgpt/login?login_id=#{login_id}")
+           |> json_response(404)
 
     assert %{"subscriptions" => _} =
              authorized(bearer) |> delete("/api/me/ai-subscriptions/claude") |> json_response(200)
 
     assert_push "snapshot", %{subscriptions: pushed}
     refute provider(pushed, "claude")["connected"]
-
-    # Only the two providers, never an arbitrary upstream path.
-    assert authorized(bearer) |> delete("/api/me/ai-subscriptions/other") |> json_response(404)
-    refute_received {:tuist, "DELETE", "/api/me/ai-subscriptions/other", _, _}
-  end
-
-  test "the channel shows changes made elsewhere when it reads Tuist again", %{
-    bearer: bearer,
-    state: state
-  } do
-    {:ok, socket} = connect(ConversationsSocket, %{}, connect_info: %{auth_token: bearer})
-    {:ok, _reply, joined} = subscribe_and_join(socket, "ai_subscriptions")
-
-    # Unchanged: nothing is pushed.
-    send(joined.channel_pid, :poll)
-    refute_push "snapshot", _
-
-    # Connected on Tuist's settings page.
-    Agent.update(state, &%{&1 | chatgpt: true})
-    send(joined.channel_pid, :poll)
-    assert_push "snapshot", %{subscriptions: pushed}
     assert provider(pushed, "chatgpt")["connected"]
+
+    assert authorized(bearer) |> delete("/api/me/ai-subscriptions/other") |> json_response(404)
   end
 
-  defp list(state) do
-    saved = Agent.get(state, & &1)
+  test "a cancelled ChatGPT sign-in can no longer connect", %{bearer: bearer} do
+    assert %{"login_id" => login_id} =
+             authorized(bearer)
+             |> post("/api/me/ai-subscriptions/chatgpt/login")
+             |> json_response(200)
 
-    %{
-      subscriptions:
-        for provider <- [:claude, :chatgpt] do
-          %{
-            provider: provider,
-            connected: saved[provider],
-            updated_at: nil,
-            login_available: true
-          }
-        end
-    }
+    assert authorized(bearer)
+           |> delete("/api/me/ai-subscriptions/chatgpt/login?login_id=#{login_id}")
+           |> response(204)
+
+    assert authorized(bearer)
+           |> post("/api/me/ai-subscriptions/chatgpt/login/poll", %{login_id: login_id})
+           |> json_response(404)
+
+    assert %{"subscriptions" => subscriptions} =
+             authorized(bearer) |> get("/api/me/ai-subscriptions") |> json_response(200)
+
+    refute provider(subscriptions, "chatgpt")["connected"]
+  end
+
+  test "ChatGPT sign-ins are limited per person", %{bearer: bearer} do
+    for _attempt <- 1..5 do
+      authorized(bearer) |> post("/api/me/ai-subscriptions/chatgpt/login") |> json_response(200)
+    end
+
+    assert authorized(bearer)
+           |> post("/api/me/ai-subscriptions/chatgpt/login")
+           |> json_response(429)
+  end
+
+  defp poll(bearer, login_id) do
+    authorized(bearer)
+    |> post("/api/me/ai-subscriptions/chatgpt/login/poll", %{login_id: login_id})
+    |> json_response(200)
+  end
+
+  defp raw_columns_contain?(value) do
+    %{rows: rows} =
+      Repo.query!("SELECT access_token, refresh_token FROM ai_subscriptions")
+
+    rows |> List.flatten() |> Enum.any?(&(is_binary(&1) and String.contains?(&1, value)))
   end
 
   defp provider(subscriptions, name), do: Enum.find(subscriptions, &(&1["provider"] == name))

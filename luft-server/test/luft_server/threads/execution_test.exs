@@ -12,6 +12,8 @@ defmodule LuftServer.Threads.ExecutionTest do
   setup do
     owner = Sandbox.start_owner!(Repo, shared: false)
     on_exit(fn -> Sandbox.stop_owner(owner) end)
+    # Only the owner's subscription is connected; admission must use it.
+    LuftServer.FakeOpenAI.connect(11)
     %{owner: session(11), author: session(12)}
   end
 
@@ -67,6 +69,8 @@ defmodule LuftServer.Threads.ExecutionTest do
   end
 
   defp stub(opts \\ []) do
+    LuftServer.FakeOpenAI.stub(models: ["test-model"])
+
     Req.Test.stub(LuftServer.Tuist, fn conn ->
       ["Bearer " <> token] = get_req_header(conn, "authorization")
 
@@ -84,10 +88,6 @@ defmodule LuftServer.Threads.ExecutionTest do
               %{id: 12, handle: "author", active: true}
             ]
           })
-
-        "/api/me/ai-subscriptions/models" ->
-          assert token == "11"
-          Req.Test.json(conn, %{models: [%{provider: "chatgpt", id: "test-model"}], errors: []})
 
         "/api/accounts/team/workspace-capabilities" ->
           assert token == "11"

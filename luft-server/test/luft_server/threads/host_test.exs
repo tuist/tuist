@@ -22,6 +22,7 @@ defmodule LuftServer.Threads.HostTest do
   setup do
     owner = Sandbox.start_owner!(Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(owner) end)
+    LuftServer.FakeOpenAI.connect(11)
     :ok
   end
 
@@ -76,8 +77,7 @@ defmodule LuftServer.Threads.HostTest do
       end
 
     assert request["model"] == "test-model"
-    assert request["stream"] == false
-    names = Enum.map(request["tools"], & &1["function"]["name"])
+    names = Enum.map(request["tools"], & &1["name"])
 
     for name <-
           ~w(inspect_behaviors validate_behavior_release propose_behavior_release inspect_behavior_releases promote_behavior_release),
@@ -120,7 +120,8 @@ defmodule LuftServer.Threads.HostTest do
     stub_runtime(self())
     replacement = start_supervised!({Host, {thread.id, next_epoch}})
     assert_receive {:inference, resumed}, 5_000
-    assert resumed["messages"] == first["messages"]
+    assert resumed["input"] == first["input"]
+    assert resumed["instructions"] == first["instructions"]
     eventually(fn -> Repo.get!(Run, run.id).status == "succeeded" end, 500)
     assert Repo.get!(Run, run.id).attempt == next_epoch
 
@@ -182,7 +183,7 @@ defmodule LuftServer.Threads.HostTest do
       stub_runtime(self(), false, count - 1)
       host = start_supervised!({Host, {thread.id, epoch}}, id: thread.id)
       assert_receive {:inference, request}, 5_000
-      names = Enum.map(request["tools"], & &1["function"]["name"])
+      names = Enum.map(request["tools"], & &1["name"])
       assert length(names) <= 64
       assert "client_set_theme" in names
 
@@ -304,38 +305,24 @@ defmodule LuftServer.Threads.HostTest do
             end
 
           Req.Test.json(conn, %{jsonrpc: "2.0", id: rpc["id"], result: result})
-
-        "/api/me/ai-subscriptions/chat/completions" ->
-          {:ok, body, conn} = read_body(conn)
-          send(test, {:inference, Jason.decode!(body)})
-
-          if block do
-            send(test, {:blocked_inference, self()})
-
-            receive do
-              :release -> :ok
-            end
-          end
-
-          Req.Test.json(conn, %{
-            id: "answer",
-            choices: [
-              %{
-                message: %{
-                  role: "assistant",
-                  content: Jason.encode!(%{reply: "durable hello", suggestions: []})
-                },
-                finish_reason: "stop",
-                index: 0
-              }
-            ],
-            model: "test-model",
-            object: "chat.completion",
-            created: 1,
-            usage: %{prompt_tokens: 1, completion_tokens: 1}
-          })
       end
     end)
+
+    LuftServer.FakeOpenAI.stub(
+      respond: fn request ->
+        send(test, {:inference, request})
+
+        if block do
+          send(test, {:blocked_inference, self()})
+
+          receive do
+            :release -> :ok
+          end
+        end
+
+        Jason.encode!(%{reply: "durable hello", suggestions: []})
+      end
+    )
   end
 
   defp eventually(fun, tries \\ 100) do

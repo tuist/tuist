@@ -31,5 +31,7 @@ if config_env() == :prod do
     tuist_issuer: System.get_env("TUIST_URL", "https://tuist.dev"),
     public_url: public_url,
     oauth_client_id: fetch!.("LUFT_SERVER_OAUTH_CLIENT_ID"),
-    oauth_client_secret: fetch!.("LUFT_SERVER_OAUTH_CLIENT_SECRET")
+    oauth_client_secret: fetch!.("LUFT_SERVER_OAUTH_CLIENT_SECRET"),
+    # Optional: without it, ChatGPT subscriptions can't be connected.
+    chatgpt_client_id: System.get_env("LUFT_CHATGPT_CLIENT_ID")
 end

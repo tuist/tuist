@@ -5,6 +5,7 @@ defmodule LuftServer.Threads.ProviderTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias LuftServer.Agents.Lease
+  alias LuftServer.FakeOpenAI
   alias LuftServer.Repo
   alias LuftServer.Sessions
   alias LuftServer.Threads.Attachments
@@ -20,36 +21,19 @@ defmodule LuftServer.Threads.ProviderTest do
     :ok
   end
 
-  setup_all do
-    # Exercise the real receiving validator without booting the other Phoenix app.
-    {[{inference, _bytecode}], _diagnostics} =
-      Code.with_diagnostics([log: false], fn ->
-        Code.require_file(
-          "../../../../server/lib/tuist/accounts/ai_subscriptions/inference.ex",
-          __DIR__
-        )
-      end)
-
-    {:ok, inference: inference}
-  end
-
-  test "accepted images cross the buffered provider boundary and Tuist request validation", %{
-    inference: inference
-  } do
+  test "accepted images cross the buffered provider boundary and inference validation" do
     {thread, run} = running()
     test = self()
+    stub_scope()
+    FakeOpenAI.connect(11)
 
-    Req.Test.stub(LuftServer.Tuist, fn conn ->
-      if conn.request_path == "/api/accounts/team/luft-context" do
-        scope(conn, test, 21)
-      else
-        {:ok, body, conn} = read_body(conn, length: 8_388_608)
-        params = Jason.decode!(body)
-        assert :ok = inference.validate_request(params)
+    FakeOpenAI.stub(
+      respond: fn request ->
+        assert length(request["tools"]) == 64
         send(test, :validated)
-        Req.Test.json(conn, %{choices: []})
+        "seen"
       end
-    end)
+    )
 
     for {count, bytes, overhead} <- [{1, 900 * 1024, 10_000}, {4, 1_048_576, 1_048_576}] do
       file = %{
@@ -205,20 +189,14 @@ defmodule LuftServer.Threads.ProviderTest do
     assert {:error, :delegation_unavailable} = Provider.owner(%{thread | account_handle: nil})
   end
 
-  test "generic model catalog uses only the explicit session token" do
+  test "the model catalog is the session's own subscription's" do
     owner = session(11, "owner-token")
-
-    Req.Test.stub(LuftServer.Tuist, fn conn ->
-      assert conn.request_path == "/api/me/ai-subscriptions/models"
-      assert get_req_header(conn, "authorization") == ["Bearer owner-token"]
-
-      Req.Test.json(conn, %{
-        models: [%{provider: "chatgpt", id: "test-model", name: "Test"}],
-        errors: []
-      })
-    end)
+    other = session(12, "other-token")
+    FakeOpenAI.connect(11)
+    FakeOpenAI.stub()
 
     assert :ok = Provider.validate_model(owner, "chatgpt", "test-model")
+    assert {:error, :model_unavailable} = Provider.validate_model(other, "chatgpt", "test-model")
     assert {:error, :model_unavailable} = Provider.validate_model(owner, "chatgpt", "not-listed")
   end
 
@@ -226,33 +204,20 @@ defmodule LuftServer.Threads.ProviderTest do
     {thread, run} = running()
     test = self()
 
-    Req.Test.stub(LuftServer.Tuist, fn conn ->
-      case conn.request_path do
-        "/api/accounts/team/luft-context" ->
-          scope(conn, test, 21)
+    stub_scope()
+    FakeOpenAI.connect(11)
+    # Another person's subscription is never used for this owner's thread.
+    FakeOpenAI.connect(12, "other-person-token")
 
-        "/api/me/ai-subscriptions/chat/completions" ->
-          assert get_req_header(conn, "authorization") == ["Bearer owner-token"]
-          {:ok, body, conn} = read_body(conn)
-          params = Jason.decode!(body)
-          assert params["provider"] == "chatgpt"
-          assert params["model"] == "test-model"
-          assert params["stream"] == false
-          refute Map.has_key?(params, "api_key")
-          send(test, :inferred)
-
-          Req.Test.json(conn, %{
-            id: "answer",
-            choices: [
-              %{message: %{role: "assistant", content: "hello"}, finish_reason: "stop", index: 0}
-            ],
-            model: "test-model",
-            object: "chat.completion",
-            created: 1,
-            usage: %{prompt_tokens: 1, completion_tokens: 1}
-          })
+    FakeOpenAI.stub(
+      respond: fn request ->
+        # The stored model wins over the one the request named.
+        assert request["model"] == "test-model"
+        refute Map.has_key?(request, "api_key")
+        send(test, :inferred)
+        "hello"
       end
-    end)
+    )
 
     conn = completion_conn(thread, run)
     assert conn.status == 200

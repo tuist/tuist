@@ -1,10 +1,10 @@
 defmodule LuftServerWeb.AISubscriptionsChannel do
   @moduledoc """
   The person's AI subscriptions, live: the join replies with them, and the
-  channel pushes `snapshot` with the new list whenever it changes. Changes
-  made through Luft arrive at once (`LuftServer.AISubscriptions.broadcast/2`);
-  the channel also reads Tuist every 15 seconds to show changes made
-  elsewhere, such as on Tuist's settings page, and to recheck the session.
+  channel pushes `snapshot` with the new list whenever it changes
+  (`LuftServer.AISubscriptions.broadcast/1`). Luft stores the subscriptions,
+  so every change goes through it. The channel still rechecks the session
+  every 15 seconds and leaves once it is gone.
   """
   use Phoenix.Channel
 
@@ -37,16 +37,9 @@ defmodule LuftServerWeb.AISubscriptionsChannel do
 
   def handle_info(:poll, socket) do
     case ConversationsSocket.authenticate(socket) do
-      {:ok, session} ->
+      {:ok, _session} ->
         Process.send_after(self(), :poll, @poll_ms)
-
-        case AISubscriptions.list(session) do
-          {:ok, subscriptions} -> {:noreply, show(socket, subscriptions)}
-          # Tuist no longer lets this person manage subscriptions.
-          {:error, status} when status in [401, 403, 404] -> {:stop, :normal, socket}
-          # Unreachable for now: keep what the person sees and read again later.
-          _ -> {:noreply, socket}
-        end
+        {:noreply, socket}
 
       _ ->
         {:stop, :normal, socket}
