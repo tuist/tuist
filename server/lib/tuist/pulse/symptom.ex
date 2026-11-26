@@ -18,6 +18,9 @@ defmodule Tuist.Pulse.Symptom do
     field :seq, :integer
     field :state, Ecto.Enum, values: [:open, :resolved, :merged]
     field :tier, Ecto.Enum, values: [:audit, :board, :page]
+    # The highest tier any applied revision had; the evaluator re-decides
+    # `tier` every window, so a symptom can drop to audit before it resolves.
+    field :max_tier, Ecto.Enum, values: [:audit, :board, :page], default: :audit
 
     field :transition, Ecto.Enum, values: [:opened, :escalated, :deescalated, :merged, :resolved, :reopened, :annotated]
 

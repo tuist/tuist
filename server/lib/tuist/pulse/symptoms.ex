@@ -260,25 +260,38 @@ defmodule Tuist.Pulse.Symptoms do
   # writing cannot race another sync.
   defp apply_revision(account, revision) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
-    current = Repo.one(from(s in Symptom, where: s.id == ^revision.id, select: s.revision))
+    current = Repo.one(from(s in Symptom, where: s.id == ^revision.id, select: {s.revision, s.max_tier}))
 
     result =
-      cond do
-        is_nil(current) ->
+      case current do
+        nil ->
           Repo.insert_all(Symptom, [
-            Map.merge(revision.fields, %{id: revision.id, account_id: account.id, inserted_at: now, updated_at: now})
+            Map.merge(revision.fields, %{
+              id: revision.id,
+              account_id: account.id,
+              max_tier: revision.fields.tier,
+              inserted_at: now,
+              updated_at: now
+            })
           ])
 
           :latest
 
-        current < revision.revision ->
+        {current, max_tier} when current < revision.revision ->
+          fields = Map.merge(revision.fields, %{max_tier: higher_tier(max_tier, revision.fields.tier), updated_at: now})
+
           Symptom
           |> where([s], s.id == ^revision.id)
-          |> Repo.update_all(set: Map.to_list(Map.put(revision.fields, :updated_at, now)))
+          |> Repo.update_all(set: Map.to_list(fields))
 
           :latest
 
-        true ->
+        {_current, max_tier} ->
+          # An older revision still tells which tier the symptom reached.
+          Symptom
+          |> where([s], s.id == ^revision.id)
+          |> Repo.update_all(set: [max_tier: higher_tier(max_tier, revision.fields.tier)])
+
           :superseded
       end
 
@@ -303,6 +316,10 @@ defmodule Tuist.Pulse.Symptoms do
 
     result
   end
+
+  @tier_rank %{audit: 0, board: 1, page: 2}
+
+  defp higher_tier(a, b), do: if(@tier_rank[b] > @tier_rank[a], do: b, else: a)
 
   defp opens?(%{fields: %{transition: transition, tier: tier}}),
     do: transition in [:opened, :reopened] and tier in [:board, :page]
@@ -451,12 +468,17 @@ defmodule Tuist.Pulse.Symptoms do
 
   @doc """
   One page of the account's symptoms. String-keyed params, all optional:
-  `state` (`open`, `resolved` or `merged`), `tier` (`audit`, `board` or
+  `state` (`open` or `resolved`), `tier` (`audit`, `board` or
   `page`), `phenomenon`, `search` (literal, case-insensitive, over title,
   service and entity key), `sort_by` (`revised_at`, the default, `opened_at`,
   `p_degraded` or `impact_rate`), `sort_order` (`desc`, the default, or `asc`;
   missing values sort last) and `page`. Filtering and sorting precede
   pagination.
+
+  Merged symptoms are always left out: their root stands for them. Without a
+  `tier`, symptoms that never reached board or page tier are left out too: the
+  evaluator only logs them. A symptom that reached either keeps showing after
+  it drops back to audit while quieting down.
   """
   def list(user, account, params) do
     with true <- Pulse.authorized?(user, account),
@@ -464,8 +486,11 @@ defmodule Tuist.Pulse.Symptoms do
       query =
         Symptom
         |> where([s], s.account_id == ^account.id)
+        |> where([s], s.state != :merged)
         |> then(&if(opts.state, do: where(&1, [s], s.state == ^opts.state), else: &1))
-        |> then(&if(opts.tier, do: where(&1, [s], s.tier == ^opts.tier), else: &1))
+        |> then(
+          &if(opts.tier, do: where(&1, [s], s.tier == ^opts.tier), else: where(&1, [s], s.max_tier in [:board, :page]))
+        )
         |> then(
           &if(opts.phenomenon,
             do: where(&1, [s], fragment("? @> ?", s.phenomenon_names, ^[opts.phenomenon])),
@@ -510,7 +535,7 @@ defmodule Tuist.Pulse.Symptoms do
   }
 
   defp list_params(params) when is_map(params) do
-    with {:ok, state} <- optional_value(@states, params["state"]),
+    with {:ok, state} <- optional_value(Map.delete(@states, "merged"), params["state"]),
          {:ok, tier} <- optional_value(@tiers, params["tier"]),
          phenomenon when is_nil(phenomenon) or phenomenon in @phenomena <- blank_to_nil(params["phenomenon"]),
          {:ok, sort_by} <- optional_value(@sorts, Map.get(params, "sort_by", "revised_at")),
@@ -601,8 +626,9 @@ defmodule Tuist.Pulse.Symptoms do
   end
 
   @doc """
-  The symptom lifecycle over the window ending now, from revisions: how many
-  symptoms opened or reopened and how many resolved, with the same counts for
+  The symptom lifecycle over the window ending now, from revisions, counting
+  only symptoms that reached board or page tier (from then on, also after
+  dropping back to audit): how many opened and how many resolved, with the same counts for
   the preceding equal window, and how many are open now against the window's
   start. Points are hourly (24h) or daily (7d, 30d), in Unix seconds: counts
   per bucket, and for open symptoms how many were open at the bucket's end.
@@ -627,7 +653,8 @@ defmodule Tuist.Pulse.Symptoms do
   end
 
   # Revisions inside the windows, plus each symptom's last revision before
-  # them so a symptom already open at the start counts as open.
+  # them so a symptom already open at the start counts as open, and the
+  # symptoms that reached board or page tier before them.
   defp revisions_since(account, previous_start) do
     since = DateTime.from_unix!(previous_start)
 
@@ -636,40 +663,55 @@ defmodule Tuist.Pulse.Symptoms do
         where: r.account_id == ^account.id and r.revised_at < ^since,
         distinct: r.symptom_id,
         order_by: [asc: r.symptom_id, desc: r.revision],
-        select: {r.symptom_id, r.revision, r.revised_at, r.state, r.transition}
+        select: {r.symptom_id, r.revision, r.revised_at, r.state, r.tier}
       )
 
     within =
       from(r in SymptomRevision,
         where: r.account_id == ^account.id and r.revised_at >= ^since,
-        select: {r.symptom_id, r.revision, r.revised_at, r.state, r.transition}
+        select: {r.symptom_id, r.revision, r.revised_at, r.state, r.tier}
       )
 
-    Enum.map(Repo.all(earlier) ++ Repo.all(within), fn {id, revision, at, state, transition} ->
-      %{id: id, revision: revision, at: DateTime.to_unix(at), state: state, transition: transition}
-    end)
+    reached_earlier =
+      from(r in SymptomRevision,
+        where: r.account_id == ^account.id and r.revised_at < ^since and r.tier in [:board, :page],
+        distinct: true,
+        select: r.symptom_id
+      )
+
+    revisions =
+      Enum.map(Repo.all(earlier) ++ Repo.all(within), fn {id, revision, at, state, tier} ->
+        %{id: id, revision: revision, at: DateTime.to_unix(at), state: state, tier: tier}
+      end)
+
+    {revisions, MapSet.new(Repo.all(reached_earlier))}
   end
 
-  defp lifecycle(revisions, now, {previous_start, start, finish}, step) do
+  defp lifecycle({revisions, reached_earlier}, now, {previous_start, start, finish}, step) do
     buckets = start..(finish - step)//step
-    timelines = revisions |> Enum.group_by(& &1.id) |> Map.values() |> Enum.map(&Enum.sort_by(&1, fn r -> r.revision end))
+
+    # Like the list, the analytics count only what the evaluator surfaced: a
+    # symptom counts from the first revision at board or page tier on, also
+    # after it drops back to audit while quieting down. It is open while it
+    # is open and has reached either, opens when it becomes so (reopening
+    # included) and resolves when it resolves from there.
+    timelines = surfaced_timelines(revisions, reached_earlier)
 
     in_range = fn times, from, to -> Enum.count(times, &(&1 >= from and &1 < to)) end
 
     # The state at `time` is that of the newest revision made by then.
     open_at = fn time ->
       Enum.count(timelines, fn timeline ->
-        case timeline |> Enum.filter(&(&1.at <= time)) |> List.last() do
-          %{state: :open} -> true
-          _ -> false
-        end
+        match?(%{surfaced: true}, timeline |> Enum.filter(&(&1.at <= time)) |> List.last())
       end)
     end
 
-    times = fn transitions -> for r <- revisions, r.transition in transitions, do: r.at end
+    changes = Enum.flat_map(timelines, fn timeline -> Enum.zip([%{surfaced: false} | timeline], timeline) end)
+    opened = for {previous, r} <- changes, r.surfaced and not previous.surfaced, do: r.at
+    resolved = for {previous, r} <- changes, r.state == :resolved and previous.surfaced, do: r.at
 
     counted =
-      for {id, times} <- [{"opened", times.([:opened, :reopened])}, {"resolved", times.([:resolved])}] do
+      for {id, times} <- [{"opened", opened}, {"resolved", resolved}] do
         %{
           id: id,
           value: in_range.(times, start, finish),
@@ -686,6 +728,22 @@ defmodule Tuist.Pulse.Symptoms do
     }
 
     counted ++ [open]
+  end
+
+  # Each symptom's revisions in order, each marked `surfaced` when the
+  # symptom is open and has reached board or page tier by then.
+  defp surfaced_timelines(revisions, reached_earlier) do
+    revisions
+    |> Enum.group_by(& &1.id)
+    |> Enum.map(fn {id, timeline} ->
+      timeline
+      |> Enum.sort_by(& &1.revision)
+      |> Enum.map_reduce(MapSet.member?(reached_earlier, id), fn r, reached ->
+        reached = reached or r.tier in [:board, :page]
+        {Map.put(r, :surfaced, r.state == :open and reached), reached}
+      end)
+      |> elem(0)
+    end)
   end
 
   ## Human state

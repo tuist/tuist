@@ -1487,7 +1487,7 @@ account Pulse is configured for. They describe Tuist's own services, not
 customer resources.
 
 - `pulse_symptoms` (`Tuist.Pulse.Symptom`): the latest revision of each
-  symptom: its key, state, tier, transition, entity (environment, service,
+  symptom: its key, state, tier, the highest tier it reached, transition, entity (environment, service,
   kind and key), masked title, phenomena with their evidence, score,
   P(degraded), impact, decision, root, suspected change, evidence
   references and masked excerpts, brief reference, outcome, and times.
