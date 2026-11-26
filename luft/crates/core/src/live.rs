@@ -49,6 +49,11 @@ struct Socket {
     failures: u32,
     /// A heartbeat went out and the server hasn't answered it yet.
     awaiting_heartbeat: bool,
+    /// The thread this socket keeps in sync with `diff`s, rather than asking
+    /// for reloads.
+    syncing: Option<String>,
+    /// The server accepted the join and the socket hasn't failed since.
+    joined: bool,
 }
 
 impl Live {
@@ -64,6 +69,7 @@ impl Live {
         };
         // Counted as failed until its join succeeds.
         socket.failures = socket.failures.saturating_add(1);
+        socket.joined = false;
         delay
     }
 
@@ -72,6 +78,12 @@ impl Live {
     /// (never a URL parameter), the join frame to send first, how often to
     /// call `tick`, and the least time between two refreshes (`refresh_ms`):
     /// the edge folds the refreshes asked for meanwhile into one.
+    ///
+    /// `sync` keeps a thread in sync instead: `Some(since)`, the revision the
+    /// caller has stored (`None` for none), joins so that the server pushes
+    /// `diff`s of the rows that changed after it, which `receive` returns for
+    /// the caller to store. `None` keeps the server's `snapshot` hints, each a
+    /// `refresh`. The inbox and AI subscriptions never sync.
     pub fn connect(
         &mut self,
         handle: &str,
@@ -79,19 +91,21 @@ impl Live {
         account: &str,
         id: &str,
         access: &str,
+        sync: Option<Option<u64>>,
     ) -> Result<Value> {
+        let sync = sync.filter(|_| id != INBOX && id != AI_SUBSCRIPTIONS);
         let mut url = endpoint(server, "threads/socket/websocket");
         let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
         url.set_scheme(scheme).map_err(|_| "Invalid server")?;
         url.query_pairs_mut().append_pair("vsn", "2.0.0");
-        self.sockets
-            .entry(handle.to_string())
-            .or_default()
-            .awaiting_heartbeat = false;
+        let socket = self.sockets.entry(handle.to_string()).or_default();
+        socket.awaiting_heartbeat = false;
+        socket.joined = false;
+        socket.syncing = sync.map(|_| id.to_string());
         Ok(json!({
             "url": url.as_str(),
             "protocols": ["phoenix", format!("base64url.bearer.phx.{}", base64(access.as_bytes()))],
-            "join": frame(Some(JOIN_REF), Some(JOIN_REF), &topic(account, id), "phx_join", join_payload(id)),
+            "join": frame(Some(JOIN_REF), Some(JOIN_REF), &topic(account, id), "phx_join", join_payload(id, sync)),
             "tick_ms": HEARTBEAT_MS,
             "refresh_ms": if id == INBOX { INBOX_REFRESH_MS } else { 0 },
         }))
@@ -109,6 +123,14 @@ impl Live {
         socket.awaiting_heartbeat = true;
         let heartbeat = frame(None, Some(HEARTBEAT_REF), "phoenix", "heartbeat", json!({}));
         json!({"send": [heartbeat], "reconnect": false})
+    }
+
+    /// Whether a joined socket keeps thread `id` in sync now, so what the
+    /// caller stored from its diffs is as current as the server.
+    pub fn synced(&self, id: &str) -> bool {
+        self.sockets
+            .values()
+            .any(|s| s.joined && s.syncing.as_deref() == Some(id))
     }
 
     /// Forgets socket `handle` once its screen is gone.
@@ -157,16 +179,22 @@ impl Live {
         }
         match event.as_str() {
             Some("snapshot") => out["refresh"] = json!(true),
-            // Joined: what changed before the join only shows in a fresh load.
+            Some("diff") if socket.syncing.is_some() => out["diff"] = payload.clone(),
+            // Joined: what changed before the join only shows in a fresh
+            // load, or, syncing, in the diff the server sends next.
             Some("phx_reply") if join_ref == JOIN_REF && reference == JOIN_REF => {
                 if payload["status"] == "ok" {
                     socket.failures = 0;
-                    out["refresh"] = json!(true);
+                    socket.joined = true;
+                    out["refresh"] = json!(socket.syncing.is_none());
                 } else {
                     out["reconnect"] = json!(true);
                 }
             }
-            Some("phx_error" | "phx_close") => out["reconnect"] = json!(true),
+            Some("phx_error" | "phx_close") => {
+                socket.joined = false;
+                out["reconnect"] = json!(true);
+            }
             Some("tool_call") => {
                 let call = payload["id"].as_str().ok_or("Invalid message")?;
                 let (mut result, theme) = match payload["name"].as_str() {
@@ -207,12 +235,16 @@ fn topic(account: &str, id: &str) -> String {
 }
 
 /// Only a thread's agent calls the app's tools.
-fn join_payload(id: &str) -> Value {
+fn join_payload(id: &str, sync: Option<Option<u64>>) -> Value {
     if id == AI_SUBSCRIPTIONS {
-        json!({})
-    } else {
-        json!({"tools": client_tools()})
+        return json!({});
     }
+    let mut payload = json!({"tools": client_tools()});
+    if let Some(since) = sync {
+        payload["sync"] = json!(true);
+        payload["since"] = json!(since);
+    }
+    payload
 }
 
 /// A Phoenix V2 frame: `[join_ref, ref, topic, event, payload]`.
@@ -252,7 +284,7 @@ mod tests {
 
     fn connect(live: &mut Live) -> Value {
         let server = Url::parse("https://example.com/tuist/").unwrap();
-        live.connect("socket", &server, "ana", THREAD, "token")
+        live.connect("socket", &server, "ana", THREAD, "token", None)
             .unwrap()
     }
 
@@ -278,7 +310,7 @@ mod tests {
         let server = Url::parse("https://example.com/tuist/").unwrap();
         // "?>" encodes to characters that differ between base64 and base64url.
         let socket = Live::default()
-            .connect("s", &server, "ana", THREAD, "a.b?>")
+            .connect("s", &server, "ana", THREAD, "a.b?>", None)
             .unwrap();
         assert_eq!(
             socket["url"],
@@ -296,7 +328,7 @@ mod tests {
         assert_eq!(join[4]["tools"][0]["name"], "set_theme");
         let loopback = Url::parse("http://localhost:8080").unwrap();
         let local = Live::default()
-            .connect("s", &loopback, "ana", THREAD, "t")
+            .connect("s", &loopback, "ana", THREAD, "t", None)
             .unwrap();
         assert!(
             local["url"]
@@ -420,9 +452,13 @@ mod tests {
     fn the_inbox_joins_its_own_topic_and_refreshes_at_most_every_two_seconds() {
         let server = Url::parse("https://example.com/tuist/").unwrap();
         let mut live = Live::default();
-        let thread = live.connect("t", &server, "ana", THREAD, "token").unwrap();
+        let thread = live
+            .connect("t", &server, "ana", THREAD, "token", None)
+            .unwrap();
         assert_eq!(thread["refresh_ms"], 0);
-        let inbox = live.connect("i", &server, "ana", INBOX, "token").unwrap();
+        let inbox = live
+            .connect("i", &server, "ana", INBOX, "token", None)
+            .unwrap();
         assert_eq!(inbox["refresh_ms"], 2000);
         let join: Value = serde_json::from_str(inbox["join"].as_str().unwrap()).unwrap();
         // The topic the server's inbox channel pushes on.
@@ -442,7 +478,7 @@ mod tests {
         let server = Url::parse("https://example.com/").unwrap();
         let mut live = Live::default();
         let socket = live
-            .connect("a", &server, "ana", AI_SUBSCRIPTIONS, "token")
+            .connect("a", &server, "ana", AI_SUBSCRIPTIONS, "token", None)
             .unwrap();
         let join: Value = serde_json::from_str(socket["join"].as_str().unwrap()).unwrap();
         assert_eq!(join[2], "ai_subscriptions");

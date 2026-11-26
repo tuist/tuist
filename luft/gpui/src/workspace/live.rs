@@ -48,7 +48,7 @@ pub(super) fn follow<T: 'static>(
                         .map_err(|_| "Sign in again to continue")?;
                     let mut guard = lock(&shared);
                     let (live, socket) = &mut *guard;
-                    let plan = live.connect(id, session.server(), &handle, id, &token)?;
+                    let plan = live.connect(id, session.server(), &handle, id, &token, None)?;
                     let url = Url::parse(plan["url"].as_str().unwrap_or_default())
                         .map_err(|_| "Invalid server")?;
                     let protocols: Vec<String> = plan["protocols"]

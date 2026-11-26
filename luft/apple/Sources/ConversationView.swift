@@ -15,6 +15,9 @@ struct AppMessage: Decodable, Identifiable {
     /// Who wrote a prompt, in a thread someone was looped into.
     var author: LoungePerson?
     var attachments: [PromptAttachment]?
+    /// A reply the server doesn't have yet: `offline` until the core sends
+    /// it, or `failed` once the server refused it.
+    var send_state: String?
 
     var createdDate: Date? {
         guard let createdAt else { return nil }
@@ -634,7 +637,7 @@ struct ConversationView: View {
                     : "You can find it under Archived.")
             }
             // The live socket: server changes and the agent's calls to this app's tools.
-            .task(id: id) { await client.live(id) { await reload() } }
+            .task(id: id) { await client.live(id, changed: { await reloadStored() }) { await reload() } }
             // Unaccepted dictation never survives leaving the conversation or the app.
             .onChange(of: scenePhase) { _, phase in
                 // Permission alerts briefly deactivate the scene before their callbacks return.
@@ -727,6 +730,12 @@ struct ConversationView: View {
     /// Loads the conversation again when the server says it changed.
     private func reload() async {
         if let latest = try? await client.conversation("thread", ["id": id]) { show(latest) }
+    }
+
+    /// Shows the conversation as the core stored it from the live socket's
+    /// latest diff, without asking the server.
+    private func reloadStored() async {
+        if let latest = try? await client.conversation("cached_thread", ["id": id]) { show(latest) }
     }
 
     /// Loads the page before the earliest message shown. Only the latest page is kept offline.
@@ -1160,6 +1169,16 @@ struct MessageRow: View {
                             .padding(.vertical, 8)
                             .background(Noora.neutralHover, in: RoundedRectangle(cornerRadius: 12))
                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+                    }
+                    switch message.send_state {
+                    case "offline":
+                        Label("Not sent. Sends when you're back online.", systemImage: "wifi.slash")
+                            .font(.caption).foregroundStyle(Noora.labelSecondary)
+                    case "failed":
+                        Label("Couldn't send", systemImage: "exclamationmark.circle")
+                            .font(.caption).foregroundStyle(Noora.labelDestructive)
+                    default:
+                        EmptyView()
                     }
                 }
                 .accessibilityElement(children: message.attachments?.isEmpty == false ? .contain : .combine)

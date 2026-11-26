@@ -246,7 +246,14 @@ impl MobileClient {
                 let mut view = if op == "cached_threads" {
                     store.inbox(&account)?
                 } else {
-                    store.conversation(text(args, "id")?)?
+                    let id = text(args, "id")?;
+                    let mut view = store.conversation(id)?;
+                    // Its live socket stores every change as it happens.
+                    let resolved = store.resolve(id)?;
+                    if self.live.synced(&resolved) {
+                        view["freshness"] = json!({"state": "live"});
+                    }
+                    view
                 };
                 crate::threads::present_stored(&mut view, now()?);
                 Ok(view)
@@ -279,20 +286,50 @@ impl MobileClient {
                 let server = server_url(&self.vault.profiles[index].server)?;
                 let account = self.account(index).to_string();
                 let access = self.vault.profiles[index].access.clone();
+                // A thread syncs from the revision the store has, so the
+                // server sends only what changed since; without a store it
+                // reloads on each change, as before.
+                let sync = match self.store(index, host) {
+                    Ok(store) if is_uuid(id) => Some(store.revision(id)?),
+                    _ => None,
+                };
                 self.live
-                    .connect(text(args, "socket")?, &server, &account, id, &access)
+                    .connect(text(args, "socket")?, &server, &account, id, &access, sync)
             }
             "live_wait" => Ok(json!({"delay_ms": self.live.wait(text(args, "socket")?)})),
             "live_tick" => Ok(self.live.tick(text(args, "socket")?)),
+            // A `diff` is stored here and never reaches the edge: `changed`
+            // says the stored thread changed, so the edge reads it again.
             "live_receive" => {
                 let index = self.active()?;
                 let account = self.account(index).to_string();
-                self.live.receive(
+                let mut out = self.live.receive(
                     text(args, "socket")?,
                     &account,
                     text(args, "id")?,
                     text(args, "message")?,
-                )
+                )?;
+                let diff = out
+                    .as_object_mut()
+                    .and_then(|o| o.remove("diff"))
+                    .unwrap_or_default();
+                let mut changed = false;
+                if !diff.is_null() {
+                    match self
+                        .store(index, host)
+                        .and_then(|store| store.apply_diff(&diff, now()?))
+                    {
+                        Ok(applied) => changed = applied,
+                        // The server moved past a diff the store doesn't
+                        // have: joining again resends from what it does.
+                        Err(error) => {
+                            log(host, &format!("store: {error}"));
+                            out["reconnect"] = json!(true);
+                        }
+                    }
+                }
+                out["changed"] = json!(changed);
+                Ok(out)
             }
             "live_close" => {
                 self.live.close(text(args, "socket")?);

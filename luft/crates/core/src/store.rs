@@ -267,6 +267,43 @@ impl Store {
     pub fn conversation(&mut self, id: &str) -> Result<Value> {
         let id = self.resolve(id)?;
         let id = id.as_str();
+        let cached = self.cached(id)?;
+        let outbox: Vec<Value> = self
+            .outbox()?
+            .into_iter()
+            .filter(|e| e["thread_id"] == id)
+            .collect();
+        let synced_at = cached.as_ref().map(|(_, at)| *at);
+        let mut thread = match (cached, outbox.first()) {
+            (Some((thread, _)), _) => thread,
+            (None, Some(entry)) if entry["operation"] == "start_thread" => queued_thread(entry),
+            (None, _) => json!({"id": id, "working": false, "messages": []}),
+        };
+        let messages = thread["messages"]
+            .as_array_mut()
+            .expect("messages is an array");
+        // A reply the server already has (a live diff brought it back) shows
+        // once, as the server's, even before its queued entry is settled.
+        let arrived: Vec<Value> = messages
+            .iter()
+            .filter_map(|m| m.get("request_id").cloned())
+            .collect();
+        for entry in outbox
+            .iter()
+            .filter(|e| e["operation"] == "send_message" && !arrived.contains(&e["request_id"]))
+        {
+            messages.push(queued_message(entry));
+        }
+        thread["freshness"] = match synced_at {
+            None if !outbox.is_empty() => json!({"state": "queued"}),
+            synced_at => freshness(synced_at),
+        };
+        Ok(thread)
+    }
+
+    /// A conversation and its messages as the server last said, without the
+    /// outbox, and when that was.
+    fn cached(&self, id: &str) -> Result<Option<(Value, i64)>> {
         let cached: Option<(String, i64)> = self
             .db
             .query_row(
@@ -276,40 +313,89 @@ impl Store {
             )
             .optional()
             .map_err(|_| READ)?;
-        let outbox: Vec<Value> = self
-            .outbox()?
-            .into_iter()
-            .filter(|e| e["thread_id"] == id)
-            .collect();
-        let mut thread = match (&cached, outbox.first()) {
-            (Some((data, _)), _) => {
-                let mut thread: Value = serde_json::from_str(data).map_err(|_| READ)?;
-                thread["messages"] = json!(self.json_rows(
-                    "SELECT data FROM messages WHERE thread_id = ?1 ORDER BY position",
-                    id,
-                )?);
-                thread
-            }
-            (None, Some(entry)) if entry["operation"] == "start_thread" => queued_thread(entry),
-            (None, _) => json!({"id": id, "working": false, "messages": []}),
+        let Some((data, synced_at)) = cached else {
+            return Ok(None);
         };
-        let messages = thread["messages"]
-            .as_array_mut()
-            .expect("messages is an array");
-        for entry in outbox.iter().filter(|e| e["operation"] == "send_message") {
-            messages.push(queued_message(entry));
+        let mut thread: Value = serde_json::from_str(&data).map_err(|_| READ)?;
+        thread["messages"] = json!(self.json_rows(
+            "SELECT data FROM messages WHERE thread_id = ?1 ORDER BY position",
+            id,
+        )?);
+        Ok(Some((thread, synced_at)))
+    }
+
+    /// The revision of thread `id` the store has, which its live socket
+    /// syncs from, or `None` when it was never loaded.
+    pub fn revision(&self, id: &str) -> Result<Option<u64>> {
+        let revision: Option<Option<i64>> = self
+            .db
+            .query_row(
+                "SELECT json_extract(data, '$.revision') FROM conversations WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|_| READ)?;
+        Ok(revision.flatten().and_then(|r| u64::try_from(r).ok()))
+    }
+
+    /// Stores a `diff` the thread's live socket received (`Live::connect`):
+    /// a `reset` is the latest page and replaces the conversation, as a load
+    /// does; otherwise the thread's fields and the messages that changed merge
+    /// into it by ID. Its `cursor` becomes the stored revision. Returns
+    /// whether the conversation changed: not when the store is already past
+    /// the diff. A delta for a conversation it doesn't have is an error.
+    pub fn apply_diff(&mut self, diff: &Value, now: i64) -> Result<bool> {
+        let changes = &diff["thread"];
+        let id = changes["id"].as_str().ok_or("Invalid thread")?;
+        let cursor = diff["cursor"].as_u64().ok_or("Invalid thread")?;
+        if self.revision(id)?.is_some_and(|stored| stored >= cursor) {
+            return Ok(false);
         }
-        thread["freshness"] = match cached {
-            None if !outbox.is_empty() => json!({"state": "queued"}),
-            cached => freshness(cached.map(|(_, at)| at)),
+        let mut thread = if diff["reset"] == true {
+            changes.clone()
+        } else {
+            let Some((mut thread, _)) = self.cached(id)? else {
+                return Err("Thread is not stored");
+            };
+            let mut messages = std::mem::take(&mut thread["messages"])
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            let partial = thread["has_more"] == true;
+            let oldest = messages.iter().filter_map(|m| m["position"].as_i64()).min();
+            for message in changes["messages"].as_array().into_iter().flatten() {
+                match messages.iter_mut().find(|m| m["id"] == message["id"]) {
+                    Some(stored) => *stored = message.clone(),
+                    // An edit to a message before the stored page would leave
+                    // a gap; loading the earlier page brings it with the rest.
+                    None if partial && message["position"].as_i64() < oldest => {}
+                    None => messages.push(message.clone()),
+                }
+            }
+            messages.sort_by_key(|m| m["position"].as_i64());
+            for (key, value) in changes.as_object().ok_or("Invalid thread")? {
+                thread[key] = value.clone();
+            }
+            thread["messages"] = json!(messages);
+            thread
         };
-        Ok(thread)
+        thread["revision"] = json!(cursor);
+        crate::threads::present(&mut thread);
+        self.save_conversation(&thread, now)?;
+        Ok(true)
     }
 
     /// Replaces the conversation and its latest messages with what the
     /// server returned.
+    /// A response older than what a live diff already stored is dropped.
     pub fn save_conversation(&mut self, thread: &Value, now: i64) -> Result<()> {
         let id = thread["id"].as_str().ok_or("Invalid thread")?;
+        if let (Some(stored), Some(incoming)) = (self.revision(id)?, thread["revision"].as_u64())
+            && stored > incoming
+        {
+            return Ok(());
+        }
         let mut data = thread.clone();
         let messages = data
             .as_object_mut()
@@ -594,6 +680,8 @@ fn queued_thread(entry: &Value) -> Value {
     })
 }
 
+/// A reply the server doesn't have yet. Its `send_state` is `offline` until
+/// a flush sends it, or `failed` once the server refused it for good.
 fn queued_message(entry: &Value) -> Value {
     json!({
         "id": entry["request_id"],
@@ -601,5 +689,6 @@ fn queued_message(entry: &Value) -> Value {
         "content": entry["content"],
         "pending": true,
         "failed": entry["failed"],
+        "send_state": if entry["failed"] == true { "failed" } else { "offline" },
     })
 }

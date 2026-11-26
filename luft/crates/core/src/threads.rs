@@ -318,7 +318,7 @@ impl Threads {
 /// Adds what a thread means to the person: `state` from the server's agent
 /// status, its inbox `section`, and whether it is still `working`, which
 /// frontends use to keep an open conversation current.
-fn present(thread: &mut Value) {
+pub(crate) fn present(thread: &mut Value) {
     // A run that ended (`idle`) is ready to review, and one that stopped
     // early (`interrupted`) needs attention like a failure.
     let state = match thread["status"].as_str() {
