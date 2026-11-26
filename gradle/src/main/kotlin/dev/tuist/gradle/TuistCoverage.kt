@@ -34,6 +34,8 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.TreeMap
+import java.util.jar.Manifest
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import javax.inject.Inject
 
@@ -246,32 +248,58 @@ internal object TestTaskCoverage {
      * JaCoCo `includes` patterns for the packages of the repository's own classes on [classpath],
      * so the agent instruments neither dependencies nor the JDK, Gradle and test frameworks, whose
      * coverage is never reported. Empty outside a Git checkout, which instruments everything.
+     * `a.b.*` also matches `a.b.c`, so a package a dependency on [classpath] has classes in, or
+     * under, is named class by class instead: a stand-in such as `android.content.Intent` then
+     * instruments that one class, not the whole framework package Robolectric loads.
      */
     fun repositoryIncludes(directory: File, classpath: Collection<File>): List<String> {
         val root = generateSequence(directory.absoluteFile) { it.parentFile }.firstOrNull { File(it, ".git").exists() }
             ?: return emptyList()
         val repository = CoverageRepository(root, emptyList()) { emptyMap() }
-        val classNames = classpath.filter(repository::isOwnOutput).flatMap { entry ->
-            when {
-                entry.isDirectory -> entry.walkTopDown().filter { it.isFile && it.name.endsWith(".class") }
-                    .map { it.relativeTo(entry).invariantSeparatorsPath }.toList()
-                entry.isFile && entry.name.endsWith(".jar") -> try {
-                    ZipFile(entry).use { zip -> zip.entries().asSequence().map { it.name }.filter { it.endsWith(".class") }.toList() }
-                } catch (_: Exception) {
-                    emptyList()
-                }
-                else -> emptyList()
+        val (own, dependencies) = classpath.partition(repository::isOwnOutput)
+        val classNames = own.flatMap(::classNames).filter { !it.startsWith("META-INF/") && !it.endsWith("module-info") }.distinct()
+        val byPackage = classNames.groupBy { it.substringBeforeLast('/', "") }
+        // Every dependency package and the packages above it: `name.*` reaches a dependency class
+        // exactly when `name` is one of them.
+        val reached = HashSet<String>()
+        for (dependency in dependencies) {
+            for (name in packagesOf(dependency)) {
+                generateSequence(name) { it.substringBeforeLast('/', "").takeIf(String::isNotEmpty) }.takeWhile(reached::add).count()
             }
-        }.map { it.removeSuffix(".class") }.filter { !it.startsWith("META-INF/") && !it.endsWith("module-info") }
-        val packages = classNames.map { it.substringBeforeLast('/', "") }.filter { it.isNotEmpty() }.toSet()
-        // `a.b.*` covers `a.b.c` too, so a package under another one adds nothing.
-        val roots = packages.filter { name ->
-            generateSequence(name.substringBeforeLast('/', "")) { it.substringBeforeLast('/', "") }
-                .takeWhile { it.isNotEmpty() }
-                .none { it in packages }
         }
-        val defaultPackage = classNames.filter { '/' !in it }
-        return (roots.map { "${it.replace('/', '.')}.*" } + defaultPackage).sorted()
+        fun wildcardSafe(name: String) = name !in reached
+        val patterns = mutableListOf<String>()
+        for ((name, members) in byPackage) {
+            val covered = generateSequence(name.substringBeforeLast('/', "")) { it.substringBeforeLast('/', "") }
+                .takeWhile { it.isNotEmpty() }
+                .any { it in byPackage && wildcardSafe(it) }
+            when {
+                covered -> {}
+                name.isNotEmpty() && wildcardSafe(name) -> patterns += "${name.replace('/', '.')}.*"
+                else -> members.mapTo(patterns) { it.replace('/', '.') }
+            }
+        }
+        return patterns.sorted()
+    }
+
+    private fun classNames(entry: File): List<String> = when {
+        entry.isDirectory -> entry.walkTopDown().filter { it.isFile && it.name.endsWith(".class") }
+            .map { it.relativeTo(entry).invariantSeparatorsPath.removeSuffix(".class") }.toList()
+        entry.isFile && entry.name.endsWith(".jar") -> try {
+            ZipFile(entry).use { zip -> ClassIndex.jarClasses(zip).map { it.first }.toList() }
+        } catch (_: Exception) {
+            emptyList()
+        }
+        else -> emptyList()
+    }
+
+    /** A dependency jar's packages, read once per daemon while the jar is unchanged: test tasks share most of them. */
+    private val jarPackages = java.util.concurrent.ConcurrentHashMap<Triple<String, Long, Long>, Set<String>>()
+
+    private fun packagesOf(entry: File): Set<String> {
+        fun read() = classNames(entry).filter { !it.startsWith("META-INF/") }.mapTo(HashSet()) { it.substringBeforeLast('/', "") }
+        if (!entry.isFile) return read()
+        return jarPackages.getOrPut(Triple(entry.absolutePath, entry.length(), entry.lastModified())) { read() }
     }
 }
 
@@ -341,7 +369,9 @@ data class CoverageResult(
     val coverage: CoveragePayload,
     val evidence: CoverageEvidencePayload?,
     val onlyTestIdentifiers: List<String>?,
-    val skipTestIdentifiers: List<String>?
+    val skipTestIdentifiers: List<String>?,
+    /** Why the coverage is partial, empty when it isn't. */
+    val partialReasons: List<String> = emptyList()
 )
 
 /** A test the run executed, by module, class and name, as test insights reports it. */
@@ -384,7 +414,7 @@ internal class GradleCoverage(
         val testRoots = measured.flatMap { it.testClassesDirs }.map { it.absoluteFile }.toSet()
         val classes = ClassIndex(measured.flatMap { it.classpath }.filter(repository::isOwnOutput).distinct())
         val compiled = compiledSources.mapValues { (_, sources) -> sources.mapNotNull(repository::relative).toSet() }
-        val analysis = ClassAnalysis(classes, repository, moduleDirectories, testRoots, compiled)
+        val analysis = ClassAnalysis(classes, repository, moduleDirectories, testRoots, compiled, measured.flatMap { it.classpath }.distinct())
 
         val runStore = ExecutionDataStore()
         for (record in measured) {
@@ -400,7 +430,10 @@ internal class GradleCoverage(
         }
         val files = analysis.measure(runStore)
         if (analysis.mismatchedClasses.isNotEmpty()) {
-            unexplained += "the execution data of ${analysis.mismatchedClasses.size} class(es) does not match the classes on the test classpath"
+            val names = analysis.mismatchedClasses.take(MISMATCHES_NAMED).joinToString(", ") { it.replace('/', '.') }
+            val more = analysis.mismatchedClasses.size - MISMATCHES_NAMED
+            unexplained += "the execution data of ${analysis.mismatchedClasses.size} class(es) does not match the classes on the test classpath: " +
+                names + if (more > 0) " and $more more" else ""
         }
         if (analysis.unreadableClasses.isNotEmpty()) {
             unexplained += "${analysis.unreadableClasses.size} class(es) could not be analyzed"
@@ -444,8 +477,12 @@ internal class GradleCoverage(
             emptyList()
         }
 
-        unexplained.forEach { logger.info("Tuist: The run's coverage is partial: $it.") }
-        val partial = unexplained.isNotEmpty() || narrowed.isNotEmpty() || unselected.isNotEmpty() || excluded.isNotEmpty()
+        val reasons = unexplained +
+            narrowed.sorted().map { "--tests narrowed the tests of $it" } +
+            unselected.sortedBy { it.key }.map { (module, paths) -> "the build did not run the tests of $module (${paths.sorted().joinToString(", ")})" } +
+            excluded.sortedBy { it.key }.map { "-x excluded the tests of ${it.key}" }
+        if (reasons.isNotEmpty()) logger.warn("Tuist: The run's coverage is partial: ${reasons.joinToString("; ")}.")
+        val partial = reasons.isNotEmpty()
 
         return CoverageResult(
             coverage = CoveragePayload(
@@ -456,7 +493,8 @@ internal class GradleCoverage(
             ),
             evidence = evidence(executed, analysis),
             onlyTestIdentifiers = onlyIdentifiers.takeIf { it.isNotEmpty() },
-            skipTestIdentifiers = skipIdentifiers.takeIf { it.isNotEmpty() }
+            skipTestIdentifiers = skipIdentifiers.takeIf { it.isNotEmpty() },
+            partialReasons = reasons
         )
     }
 
@@ -529,6 +567,9 @@ internal class GradleCoverage(
     }
 
     companion object {
+        /** How many mismatched classes the partial reason names. */
+        private const val MISMATCHES_NAMED = 10
+
         /**
          * A test identifier as the server parses it (`Module`, `Module/Suite/test`), each part
          * percent-encoded where it holds a `/` or a `%`, as parameterized test names can.
@@ -618,9 +659,7 @@ internal class ClassIndex(roots: List<File>) {
                 }
                 root.isFile && root.name.endsWith(".jar") -> try {
                     ZipFile(root).use { zip ->
-                        zip.entries().asSequence()
-                            .filter { !it.isDirectory && it.name.endsWith(".class") && !it.name.startsWith("META-INF/") }
-                            .forEach { add(root, it.name.removeSuffix(".class"), zip.getInputStream(it).use(InputStream::readBytes)) }
+                        jarClasses(zip).forEach { (name, entry) -> add(root, name, zip.getInputStream(entry).use(InputStream::readBytes)) }
                     }
                 } catch (_: Exception) {
                     // Not a readable jar: nothing of it is measured.
@@ -628,6 +667,29 @@ internal class ClassIndex(roots: List<File>) {
             }
         }
         byName = entries
+    }
+
+    companion object {
+        private val versioned = Regex("META-INF/versions/\\d+/(.+)")
+
+        /**
+         * A jar's class files by class name. Other `META-INF/` entries are not loaded as classes,
+         * except a multi-release jar's `META-INF/versions/N/` ones: a JVM of release N or later
+         * loads one instead of the root's class of that name, so each is another class of its name.
+         */
+        fun jarClasses(zip: ZipFile): Sequence<Pair<String, ZipEntry>> {
+            val multiRelease = zip.getEntry("META-INF/MANIFEST.MF")
+                ?.let { manifest -> zip.getInputStream(manifest).use { Manifest(it) }.mainAttributes.getValue("Multi-Release") }
+                .equals("true", ignoreCase = true)
+            return zip.entries().asSequence().filter { !it.isDirectory && it.name.endsWith(".class") }.mapNotNull { entry ->
+                val name = entry.name.removeSuffix(".class")
+                when {
+                    !name.startsWith("META-INF/") -> name
+                    multiRelease -> versioned.matchEntire(name)?.groupValues?.get(1)
+                    else -> null
+                }?.let { it to entry }
+            }
+        }
     }
 }
 
@@ -648,7 +710,9 @@ internal class ClassAnalysis(
     private val moduleDirectories: Map<String, String>,
     private val testRoots: Set<File>,
     /** Repository-relative source files by the absolute, normalized directory they were compiled into. */
-    private val compiledSources: Map<File, Set<String>>
+    private val compiledSources: Map<File, Set<String>>,
+    /** The test runtime classpath, whose other classes explain execution data under a repository class's name. */
+    private val dependencies: List<File> = emptyList()
 ) {
     val mismatchedClasses = sortedSetOf<String>()
     val unreadableClasses = sortedSetOf<String>()
@@ -693,12 +757,32 @@ internal class ClassAnalysis(
         // Execution data is lost only when it matches none of the classes of its name: another
         // class of that name, such as a stub module's, a test copy or a test stand-in, is simply
         // not the one a test JVM loaded. Test code counts for nothing, so a mismatch there is moot.
-        for (data in store.contents) {
-            if (data.hasHits() && data.name in productClasses && data.id !in ids[data.name].orEmpty()) {
-                mismatchedClasses += data.name
-            }
-        }
+        // A dependency's class under the name of a repository stand-in (Robolectric loads the
+        // framework's own `android.*` classes, which AGP's `android.jar` lists) is that class's data.
+        val unmatched = store.contents
+            .filter { data -> data.hasHits() && data.name in productClasses && data.id !in ids[data.name].orEmpty() }
+            .map { it.name }.toSet()
+        mismatchedClasses += unmatched - inDependencies(unmatched)
         return files
+    }
+
+    private fun inDependencies(names: Set<String>): Set<String> {
+        if (names.isEmpty()) return emptySet()
+        val found = HashSet<String>()
+        for (entry in dependencies) {
+            // The repository's own classes are what the data failed to match.
+            if (repository.isOwnOutput(entry)) continue
+            when {
+                entry.isDirectory -> names.filterTo(found) { File(entry, "$it.class").isFile }
+                entry.isFile && entry.name.endsWith(".jar") -> try {
+                    ZipFile(entry).use { zip -> names.filterTo(found) { zip.getEntry("$it.class") != null } }
+                } catch (_: Exception) {
+                    // Not a readable jar: it explains nothing.
+                }
+            }
+            if (found.size == names.size) break
+        }
+        return found
     }
 
     /** The lines of each repository file that a scope's execution data covered, by path. */

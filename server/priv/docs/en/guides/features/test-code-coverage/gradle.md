@@ -39,7 +39,9 @@ Test tasks with coverage on and off have separate build cache entries (see [Perf
 
 With coverage on, the plugin applies Gradle's `jacoco` plugin to every JVM project. JaCoCo's agent comes from your project's repositories, as it would if you applied the plugin yourself. A project that already configures JaCoCo keeps its settings, and its own reports keep working.
 
-The plugin only reports coverage of your repository's code, so it limits JaCoCo to it: unless a test task sets JaCoCo's `includes` itself, the agent instruments only the packages of the classes your repository compiles. Dependencies, the Android framework and your test frameworks run uninstrumented, which keeps JaCoCo's data, and the build cache entries of test tasks, small.
+The plugin only reports coverage of your repository's code, so it limits JaCoCo to it: unless a test task sets JaCoCo's `includes` itself, the agent instruments only the packages of the classes your repository compiles. In a package a dependency also has classes in, such as a test stand-in for `android.util.Log`, it instruments only your repository's classes of that package. Dependencies, the Android framework and your test frameworks run uninstrumented, which keeps JaCoCo's data, and the build cache entries of test tasks, small.
+
+When a run's coverage is partial, the plugin logs a warning that says why, such as the projects whose tests the build didn't run. Projects without unit tests, like a JVM library whose `test` task has no test sources or an Android library with only instrumented tests, are never counted as left out.
 
 ### Android projects {#android-projects}
 

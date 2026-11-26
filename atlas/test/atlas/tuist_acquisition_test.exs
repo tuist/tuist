@@ -51,6 +51,8 @@ defmodule Atlas.TuistAcquisitionTest do
     assert {:ok, funnel} = funnel(@landings, @signups)
 
     assert funnel.totals == %{landings: 105, signups: 17, attributed_signups: 7, customers: 3}
+    # Direct signups have no landing, so they stay out of the rate.
+    assert funnel.effectiveness.signup_rate == 7 / 105
 
     assert %{landings: 100, signups: 4, customers: 1} =
              Enum.find(funnel.channels, &(&1.source == "chatgpt.com"))

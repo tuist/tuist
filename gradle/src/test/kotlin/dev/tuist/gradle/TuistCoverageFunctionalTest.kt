@@ -249,6 +249,44 @@ class TuistCoverageFunctionalTest {
     }
 
     @Test
+    fun `a stand-in in a dependency's package instruments only the repository's classes of that package`() {
+        write(
+            "core/src/main/java/org/junit/jupiter/api/Stand.java",
+            "package org.junit.jupiter.api;\n\npublic final class Stand {\n    public static int touch() {\n        return 1;\n    }\n}\n"
+        )
+        write(
+            "core/src/test/java/dev/tuist/fixture/StandTest.java",
+            """
+            package dev.tuist.fixture;
+
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import org.junit.jupiter.api.Stand;
+            import org.junit.jupiter.api.Test;
+
+            public class StandTest {
+                @Test
+                void touches() {
+                    assertEquals(1, Stand.touch());
+                }
+            }
+            """.trimIndent()
+        )
+        fixture.git(projectDir, "add", ".")
+        fixture.git(projectDir, "commit", "-q", "-m", "Add a stand-in")
+
+        val result = runner(":core:test", ":app:test").build()
+
+        val store = org.jacoco.core.data.ExecutionDataStore()
+        GradleCoverage.readExecutionData(File(projectDir, "core/build/jacoco/test.exec").readBytes(), store)
+        val instrumented = store.contents.map { it.name }.toSet()
+        assertTrue("org/junit/jupiter/api/Stand" in instrumented, instrumented.toString())
+        assertTrue("dev/tuist/fixture/Calc" in instrumented, instrumented.toString())
+        assertTrue(instrumented.none { it.startsWith("org/junit/jupiter/api/") && it != "org/junit/jupiter/api/Stand" }, instrumented.toString())
+        assertEquals(false, run(result).getAsJsonObject("coverage").get("partial").asBoolean, result.output)
+    }
+
+    @Test
     fun `test tasks restored from the build cache, or up to date, report the coverage of the run that executed them`() {
         runner("test", "--build-cache").build()
         val executed = run()
@@ -327,10 +365,78 @@ class TuistCoverageFunctionalTest {
 
     @Test
     fun `a run of some projects' tests names the projects it ran`() {
-        val run = run(runner(":core:test").build())
+        val result = runner(":core:test").build()
+        val run = run(result)
 
         assertEquals(true, run.getAsJsonObject("coverage").get("partial").asBoolean)
         assertEquals(listOf(":core"), run.getAsJsonArray("only_test_identifiers").map { it.asString })
+        assertTrue(
+            result.output.contains("Tuist: The run's coverage is partial: the build did not run the tests of :app (:app:test)."),
+            result.output
+        )
+    }
+
+    @Test
+    fun `a project without test sources has no tests a run can leave out`() {
+        File(projectDir, "settings.gradle.kts").appendText("\ninclude(\"lib\")\n")
+        write("lib/build.gradle.kts", File(projectDir, "core/build.gradle.kts").readText())
+        write("lib/src/main/java/dev/tuist/fixture/lib/Util.java", "package dev.tuist.fixture.lib;\n\npublic final class Util {}\n")
+        // Resources alone hold no tests.
+        write("lib/src/test/resources/fixture.txt", "fixture\n")
+        fixture.git(projectDir, "add", ".")
+        fixture.git(projectDir, "commit", "-q", "-m", "Add a project without tests")
+
+        val result = runner(":core:test", ":app:test").build()
+        val run = run(result)
+
+        assertEquals(false, run.getAsJsonObject("coverage").get("partial").asBoolean, result.output)
+        assertFalse(run.has("only_test_identifiers"), run.toString())
+        assertFalse(run.has("skip_test_identifiers"), run.toString())
+    }
+
+    @Test
+    fun `a project whose source model holds no unit test sources has no tests a run can leave out`() {
+        File(projectDir, "settings.gradle.kts").appendText("\ninclude(\"droid\")\n")
+        // The shape of AGP's `android.sourceSets`, which the plugin reads without depending on AGP.
+        write(
+            "droid/build.gradle.kts",
+            """
+            class Directories(private val dirs: Set<File>) {
+                fun getSrcDirs(): Set<File> = dirs
+            }
+
+            class AndroidSourceSet(private val setName: String, private val root: File) {
+                fun getName(): String = setName
+                fun getJava() = Directories(setOf(File(root, "src/${'$'}setName/java")))
+                fun getKotlin() = Directories(setOf(File(root, "src/${'$'}setName/kotlin")))
+            }
+
+            class Android(private val root: File) {
+                fun getSourceSets(): List<AndroidSourceSet> =
+                    listOf("main", "test", "testDebug", "androidTest", "testFixtures").map { AndroidSourceSet(it, root) }
+            }
+
+            extensions.add("android", Android(projectDir))
+            tasks.register<Test>("testDebugUnitTest")
+            """.trimIndent()
+        )
+        write("droid/src/main/kotlin/dev/tuist/droid/Screen.kt", "package dev.tuist.droid\n\nclass Screen\n")
+        write("droid/src/androidTest/kotlin/dev/tuist/droid/ScreenTest.kt", "package dev.tuist.droid\n\nclass ScreenTest\n")
+        write("droid/src/testFixtures/kotlin/dev/tuist/droid/FakeScreen.kt", "package dev.tuist.droid\n\nclass FakeScreen\n")
+        write("droid/src/test/resources/fixture.json", "{}\n")
+        fixture.git(projectDir, "add", ".")
+        fixture.git(projectDir, "commit", "-q", "-m", "Add a project with instrumented tests only")
+
+        val withoutUnitTests = runner(":core:test", ":app:test").build()
+        assertEquals(false, run(withoutUnitTests).getAsJsonObject("coverage").get("partial").asBoolean, withoutUnitTests.output)
+
+        write("droid/src/testDebug/kotlin/dev/tuist/droid/ScreenUnitTest.kt", "package dev.tuist.droid\n\nclass ScreenUnitTest\n")
+        fixture.git(projectDir, "add", ".")
+        fixture.git(projectDir, "commit", "-q", "-m", "Add a unit test")
+
+        val withUnitTests = runner(":core:test", ":app:test").build()
+        assertEquals(true, run(withUnitTests).getAsJsonObject("coverage").get("partial").asBoolean, withUnitTests.output)
+        assertTrue(withUnitTests.output.contains("the build did not run the tests of :droid (:droid:testDebugUnitTest)"), withUnitTests.output)
     }
 
     @Test

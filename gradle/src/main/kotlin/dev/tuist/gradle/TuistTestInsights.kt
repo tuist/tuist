@@ -1025,8 +1025,55 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor(
         project.gradle.projectsEvaluated {
             testTasks.tasks = project.allprojects.flatMap { candidate ->
                 val module = testModuleName(candidate)
-                candidate.tasks.withType(Test::class.java).names.map { candidate.absoluteProjectPath(it) to module }
+                candidate.tasks.withType(Test::class.java).names.filter { hasTestSources(candidate, it) }
+                    .map { candidate.absoluteProjectPath(it) to module }
             }.toMap()
+        }
+    }
+}
+
+/**
+ * Whether the test task [name] has tests a run could leave out: the `java` plugin creates `test` in
+ * every JVM project, and AGP a unit test task per variant, whether or not there are tests. Reads
+ * names and source directories only, so no task is realized.
+ *
+ * A task with a Java source set of its name (`test`, a JVM test suite) has tests when that set holds
+ * more than resources. Any other task is decided by the project's other source models, read through
+ * reflection so the plugin depends on neither: AGP's `android.sourceSets` and Kotlin's
+ * `kotlin.sourceSets`, Multiplatform's included. It has tests when any of their unit test sets
+ * (`test`, `testDebug`, `jvmTest`, `androidUnitTest`; not instrumented `androidTest` or
+ * `testFixtures`) holds a source file. Without either model, it is taken to have tests.
+ */
+private fun hasTestSources(project: Project, name: String): Boolean =
+    try {
+        val sourceSet = project.extensions.findByType(org.gradle.api.tasks.SourceSetContainer::class.java)?.findByName(name)
+        when {
+            sourceSet != null -> !sourceSet.allSource.minus(sourceSet.resources).isEmpty
+            else -> unitTestSourceDirectories(project)?.any { directory ->
+                directory.walkTopDown().any { it.isFile && it.extension in TEST_SOURCE_EXTENSIONS }
+            } ?: true
+        }
+    } catch (_: Exception) {
+        true
+    }
+
+private val TEST_SOURCE_EXTENSIONS = setOf("java", "kt", "groovy", "scala")
+
+/** The source directories of the unit test sets of AGP's and Kotlin's models; null when the project has neither. */
+private fun unitTestSourceDirectories(project: Project): List<File>? {
+    fun call(target: Any, method: String): Any? =
+        target.javaClass.methods.firstOrNull { it.name == method && it.parameterCount == 0 }?.invoke(target)
+    fun isUnitTestSet(setName: String): Boolean {
+        val lower = setName.lowercase()
+        return !lower.startsWith("androidtest") && !lower.contains("instrumentedtest") && !lower.startsWith("testfixtures") &&
+            (setName == "test" || setName.startsWith("test") || setName.endsWith("Test"))
+    }
+    val models = listOf("android", "kotlin").mapNotNull { project.extensions.findByName(it) }
+    val sets = models.flatMap { model -> (call(model, "getSourceSets") as? Iterable<*>)?.filterNotNull().orEmpty() }
+    if (sets.isEmpty()) return null
+    return sets.filter { (call(it, "getName") as? String)?.let(::isUnitTestSet) == true }.flatMap { set ->
+        listOf("getJava", "getKotlin").flatMap { directories ->
+            call(set, directories)?.let { call(it, "getSrcDirs") as? Iterable<*> }?.filterIsInstance<File>().orEmpty()
         }
     }
 }
