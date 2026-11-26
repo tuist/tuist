@@ -71,6 +71,10 @@ pub struct MetricsInner {
     // cascade doing its job; compare against the serve-side presence-gate hit
     // rate, which should trend to zero once the cascade carries the load.
     action_cache_cascade_removed: Counter,
+    // Replicated action results this node declined because it lacks a blob they
+    // reference while it can serve its own: each one is a hit kept that plain
+    // last-writer-wins would have turned into a miss.
+    action_cache_unservable_replica_declined: Counter,
     reapi_chunking_events: Family<ReapiChunkingEventLabels, Counter>,
     reapi_chunking_bytes: Family<ReapiChunkingBytesLabels, Counter>,
     reapi_inline_fallbacks: Counter,
@@ -640,6 +644,7 @@ impl Metrics {
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_fsyncs = Counter::default();
         let action_cache_cascade_removed = Counter::default();
+        let action_cache_unservable_replica_declined = Counter::default();
         let reapi_chunking_events = Family::<ReapiChunkingEventLabels, Counter>::default();
         let reapi_chunking_bytes = Family::<ReapiChunkingBytesLabels, Counter>::default();
         let reapi_inline_fallbacks = Counter::default();
@@ -1047,6 +1052,11 @@ impl Metrics {
             "kura_action_cache_cascade_removed_total",
             "Action-cache entries removed by the eviction cascade when a blob they reference was evicted",
             action_cache_cascade_removed.clone(),
+        );
+        registry.register(
+            "kura_action_cache_unservable_replica_declined_total",
+            "Replicated action-cache entries declined because this node lacks a blob they reference while it holds every blob of its own entry",
+            action_cache_unservable_replica_declined.clone(),
         );
         registry.register(
             "kura_reapi_chunking_events_total",
@@ -1989,6 +1999,7 @@ impl Metrics {
                 artifact_writes,
                 segment_fsyncs,
                 action_cache_cascade_removed,
+                action_cache_unservable_replica_declined,
                 reapi_chunking_events,
                 reapi_chunking_bytes,
                 reapi_inline_fallbacks,
@@ -2509,6 +2520,10 @@ impl Metrics {
             return;
         }
         self.action_cache_cascade_removed.inc_by(removed_entries);
+    }
+
+    pub fn record_action_cache_unservable_replica_declined(&self) {
+        self.action_cache_unservable_replica_declined.inc();
     }
 
     pub fn record_reapi_chunking_event(&self, operation: &str, outcome: &str) {

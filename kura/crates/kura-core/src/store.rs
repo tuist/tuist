@@ -62,7 +62,7 @@ use crate::{
     memory::{MemoryController, MemoryPressure, MmapRegion},
     mmap::{map_file_region, mapped_span_bytes},
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
-    reapi::chunking::{canonical_blob_key, is_recipe_key, recipe_referenced_blob_keys},
+    reapi::chunking::{canonical_blob_key, is_recipe_key, recipe_key, recipe_referenced_blob_keys},
     segment::{
         generation::SegmentGeneration, reader::SegmentReader, reference::SegmentReference,
         state::SegmentState,
@@ -3416,7 +3416,10 @@ impl Store {
         let _write_guard = self.artifact_write_locks[stripe].lock().await;
         let durability = self.acknowledgement_durability(spec.server_stamped);
 
-        let existing = match self.inline_apply_precheck(&artifact_id, &spec).await? {
+        let existing = match self
+            .inline_apply_precheck(&artifact_id, &spec, bytes)
+            .await?
+        {
             InlineApplyPrecheck::Ignored { outcome } => {
                 // The row that decided this may belong to a writer that has
                 // released the locks and is still waiting for its WAL flush;
@@ -3486,6 +3489,7 @@ impl Store {
         &self,
         artifact_id: &str,
         spec: &PersistArtifactSpec<'_>,
+        bytes: &[u8],
     ) -> Result<InlineApplyPrecheck, String> {
         let existing = self.manifest_from_db(artifact_id)?;
         // Widens the read-to-commit window a racing writer would have to hit.
@@ -3494,13 +3498,44 @@ impl Store {
         let version_ms = spec.precheck_version_ms();
         if let Some(existing_manifest) = &existing
             && existing_manifest.inline
-            && self.inline_bytes(artifact_id)?.is_some()
-            && (manifest_version_ms(existing_manifest) >= version_ms || version_ms == 0)
+            && let Some(existing_bytes) = self.inline_bytes(artifact_id)?
         {
-            self.note_artifact_exists(artifact_id);
-            return Ok(InlineApplyPrecheck::Ignored {
-                outcome: PersistArtifactOutcome::ignored(existing_manifest.clone(), version_ms),
-            });
+            if manifest_version_ms(existing_manifest) >= version_ms || version_ms == 0 {
+                self.note_artifact_exists(artifact_id);
+                return Ok(InlineApplyPrecheck::Ignored {
+                    outcome: PersistArtifactOutcome::ignored(existing_manifest.clone(), version_ms),
+                });
+            }
+            // A newer action result from another region loses to the local
+            // one when this node lacks a blob it references while it holds
+            // everything the local one references. Both regions rebuild the
+            // same action, so the results differ blob for blob, and the
+            // region link brings an entry without the blobs it points to:
+            // applied, it is a miss on every read until the presence gate
+            // deletes it, and it replaced a result this node could serve.
+            // The sibling link (no feed row) and client writes keep plain
+            // last-writer-wins.
+            if spec.sync_feed_row
+                && !spec.server_stamped
+                && spec.producer == ArtifactProducer::Reapi
+                && action_cache_manifest_hash(spec.key).is_some()
+                && !self.action_result_outputs_present(spec.namespace_id, bytes)?
+                && self.action_result_outputs_present(spec.namespace_id, &existing_bytes)?
+            {
+                self.note_artifact_exists(artifact_id);
+                self.io
+                    .metrics()
+                    .record_action_cache_unservable_replica_declined();
+                tracing::info!(
+                    namespace_id = spec.namespace_id,
+                    key = spec.key,
+                    origin_region = spec.origin_region,
+                    "kept the local action-cache entry: a replicated one references blobs this node lacks"
+                );
+                return Ok(InlineApplyPrecheck::Ignored {
+                    outcome: PersistArtifactOutcome::ignored(existing_manifest.clone(), version_ms),
+                });
+            }
         }
         if self.namespace_tombstone_blocks(spec.namespace_id, version_ms)? {
             return Ok(InlineApplyPrecheck::Ignored {
@@ -3508,6 +3543,34 @@ impl Store {
             });
         }
         Ok(InlineApplyPrecheck::Proceed { existing })
+    }
+
+    /// Whether this node holds a manifest for every blob an action result
+    /// references directly, a chunked blob counting by its recipe. Metadata
+    /// only, and shallower than the serve path's presence gate: tree leaves
+    /// and recipe chunks are not walked, so a `false` means a blob is surely
+    /// missing while a `true` can still be a dead entry.
+    fn action_result_outputs_present(
+        &self,
+        namespace_id: &str,
+        action_result: &[u8],
+    ) -> Result<bool, String> {
+        for key in referenced_blob_keys(action_result) {
+            if self.artifact_manifest_exists(ArtifactProducer::Reapi, namespace_id, &key)? {
+                continue;
+            }
+            let Some(raw_key) = key.strip_prefix("blob/") else {
+                continue;
+            };
+            if !self.artifact_manifest_exists(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                &recipe_key(raw_key),
+            )? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     /// Stages the manifest/bytes/index mutations of an inline apply into
@@ -7187,8 +7250,9 @@ impl Store {
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         {
             let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
-            if let InlineApplyPrecheck::Ignored { .. } =
-                self.inline_apply_precheck(&artifact_id, &spec).await?
+            if let InlineApplyPrecheck::Ignored { .. } = self
+                .inline_apply_precheck(&artifact_id, &spec, bytes)
+                .await?
             {
                 return Ok(BackfillStageOutcome::Converged);
             }
@@ -7494,7 +7558,7 @@ impl Store {
                 StagedBackfillApply::Inline(staged) => {
                     let spec = staged.spec(feed_rows);
                     match self
-                        .inline_apply_precheck(&staged.artifact_id, &spec)
+                        .inline_apply_precheck(&staged.artifact_id, &spec, &staged.bytes)
                         .await?
                     {
                         InlineApplyPrecheck::Ignored { .. } => {}
@@ -21076,6 +21140,84 @@ mod tests {
                 .push(String::from_utf8(key[prefix.len()..].to_vec()).expect("utf8 recipe id"));
         }
         recipe_ids
+    }
+
+    #[tokio::test]
+    async fn replicated_action_result_without_its_blobs_keeps_the_servable_local_one() {
+        let (_temp_dir, _config, store) = temp_store();
+        let local_blob = reapi_digest(0x11, 5);
+        let present_blob = reapi_digest(0x22, 5);
+        let missing_blob = reapi_digest(0x33, 5);
+        persist_reapi_blob(&store, "acme", &local_blob, b"local").await;
+        persist_reapi_blob(&store, "acme", &present_blob, b"there").await;
+        let local_result = action_result_referencing(&[&local_blob]);
+        let local = persist_action_cache_entry(&store, "acme", 0x01, &local_result, 1_000).await;
+        let key = local.key.clone();
+        let apply = |bytes: Vec<u8>, version_ms: u64| {
+            let store = &store;
+            let key = key.clone();
+            async move {
+                store
+                    .apply_replicated_inline_artifact_from_bytes(
+                        ArtifactProducer::Reapi,
+                        "acme",
+                        &key,
+                        "application/octet-stream",
+                        &bytes,
+                        version_ms,
+                        None,
+                        None,
+                    )
+                    .await
+                    .expect("apply should succeed")
+            }
+        };
+
+        // A newer copy whose blob never arrived loses to the servable local one.
+        assert_eq!(
+            apply(action_result_referencing(&[&missing_blob]), 2_000).await,
+            ArtifactApplyOutcome::IgnoredStale
+        );
+        assert_eq!(
+            store.inline_bytes(&local.artifact_id).unwrap(),
+            Some(local_result.clone())
+        );
+
+        // A newer copy whose blobs are present still wins.
+        let present_result = action_result_referencing(&[&present_blob]);
+        assert_eq!(
+            apply(present_result.clone(), 3_000).await,
+            ArtifactApplyOutcome::Applied
+        );
+        assert_eq!(
+            store.inline_bytes(&local.artifact_id).unwrap(),
+            Some(present_result)
+        );
+
+        // When the local copy is unservable too, last-writer-wins decides.
+        let orphan_key = crate::utils::action_cache_key(&format!("{}/0", "02".repeat(32)));
+        let orphan_result = action_result_referencing(&[&reapi_digest(0x44, 5)]);
+        for (bytes, version_ms) in [
+            (orphan_result, 1_000),
+            (action_result_referencing(&[&missing_blob]), 2_000),
+        ] {
+            assert_eq!(
+                store
+                    .apply_replicated_inline_artifact_from_bytes(
+                        ArtifactProducer::Reapi,
+                        "acme",
+                        &orphan_key,
+                        "application/octet-stream",
+                        &bytes,
+                        version_ms,
+                        None,
+                        None,
+                    )
+                    .await
+                    .expect("apply should succeed"),
+                ArtifactApplyOutcome::Applied
+            );
+        }
     }
 
     #[tokio::test]
