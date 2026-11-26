@@ -1,0 +1,173 @@
+[package]
+name = "gpui"
+version = "0.2.2"
+edition = "2024"
+authors = ["Nathan Sobo <nathan@zed.dev>"]
+description = "Zed's GPU-accelerated UI framework"
+repository = "https://github.com/zed-industries/zed"
+publish = true
+license = "Apache-2.0"
+homepage = "https://gpui.rs"
+readme = "README.md"
+keywords = ["desktop", "gui", "immediate"]
+categories = ["gui"]
+autobenches = false
+
+
+[features]
+default = ["font-kit", "wayland", "x11", "windows-manifest"]
+test-support = [
+    "bench_metrics?/test-support",
+    "collections/test-support",
+    "http_client/test-support",
+    "wayland",
+    "x11",
+    "proptest",
+    "dep:futures-concurrency",
+    "dep:postage",
+    "dep:web-time",
+]
+bench-support = ["profiler", "dep:criterion", "dep:bench_metrics"]
+# Preserve the published feature name while consumers migrate to `bench-support`.
+bench = ["bench-support"]
+inspector = ["gpui_macros/inspector"]
+# Tracks every entity handle so tests can assert nothing leaked. Also enabled
+# by setting `GPUI_LEAK_DETECTION` when building; see `build.rs`.
+leak-detection = []
+font-kit = []
+wayland = []
+x11 = [
+    "scap?/x11",
+]
+screen-capture = [
+    "scap",
+]
+windows-manifest = ["dep:embed-resource"]
+profiler = ["dep:hdrhistogram"]
+stacker = ["dep:stacksafe"]
+hot-reload = [
+    "dep:async-tungstenite",
+    "dep:dioxus-cli-config",
+    "dep:dioxus-devtools-types",
+    "dep:smol",
+    "dep:subsecond",
+]
+
+[lib]
+path = "src/gpui.rs"
+
+[dependencies]
+accesskit = { version = "0.24.0", features = ["enumn"] }
+anyhow = { version = "1.0.86" }
+async-task = { version = "4.7" }
+backtrace = { version = "0.3" }
+bitflags = { version = "2.6.0" }
+
+collections = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216", version = "0.1.0" }
+bench_metrics = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216", optional = true }
+criterion = { version = "0.8.2", features = ["html_reports"], optional = true }
+derive_more = { version = "2.1", features = ["deref", "deref_mut", "from_str", "add", "add_assign", "mul", "mul_assign", "not"] }
+etagere = { version = "0.2" }
+futures = { version = "0.3.34" }
+futures-concurrency = { version = "7.7.1", optional = true }
+gpui_macros = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216" }
+gpui_shared_string = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216" }
+http_client = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216" }
+icu_segmenter = { version = "2.3.0", default-features = false, features = ["compiled_data"] }
+image = { version = "0.25.1", default-features = false, features = ["bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "rayon", "tga", "tiff", "webp"] }
+inventory = { version = "0.3.19" }
+itertools = { version = "0.14.0" }
+log = { version = "0.4", default-features = false, features = ["std"] }
+num_cpus = "1.13"
+parking = "2.0.0"
+parking_lot = { version = "0.12.1" }
+postage = { version = "0.5", default-features = false, features = ["blocking"], optional = true }
+proptest = { version = "1.12.0", features = ["attr-macro"], optional = true }
+chrono = { version = "0.4", features = ["std", "serde"], default-features = true }
+profiling = { version = "1" }
+rand = { version = "0.9", default-features = false, features = ["std", "std_rng", "os_rng", "small_rng", "thread_rng"] }
+raw-window-handle = { version = "0.6" }
+regex = { version = "1.5", features = ["std", "perf"], default-features = true }
+refineable = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216" }
+scheduler = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216" }
+resvg = { version = "0.46.0", default-features = false, features = ["text", "system-fonts", "memmap-fonts", "raster-images"] }
+usvg = { version = "0.46.0", default-features = false }
+ttf-parser = "0.25"
+schemars = { version = "1.0", default-features = false, features = ["std", "indexmap2", "derive"] }
+seahash = "4.1"
+serde = { version = "1.0", features = ["rc", "derive"] }
+serde_json = { version = "1.0.144", features = ["preserve_order", "raw_value"] }
+slotmap = { version = "1.0.6" }
+smallvec = { version = "1.6", features = ["union", "const_new"] }
+stacksafe = { version = "1.0", optional = true }
+strum = { version = "0.28", features = ["derive"] }
+sum_tree = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216" }
+taffy = { version = "=0.15.0", default-features = false, features = [
+    "std",
+    "taffy_tree",
+    "flexbox",
+    "grid",
+    "block_layout",
+    "float_layout",
+    "content_size",
+] }
+thiserror = { version = "2.0.12" }
+unicode-segmentation = { version = "1.10" }
+gpui_util = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216" }
+hdrhistogram = { version = "7", default-features = false, optional = true }
+waker-fn = "1.2.0"
+lyon = "1.0"
+pin-project = "1.1.10"
+spin = { version = "0.10", default-features = false, features = ["mutex", "spin_mutex", "lock_api"] }
+url = { version = "2.2" }
+uuid = { version = "1.1", features = ["serde", "v4"] }
+web-time = { version = "1.1.0", optional = true }
+heapless = { version = "0.9.2" }
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+async-channel = { version = "2.5", default-features = false }
+
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+async-channel = { version = "2.5", default-features = false, features = ["std"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+pollster = { version = "0.4.0" }
+
+[target.'cfg(any(target_os = "macos", target_os = "linux", target_os = "windows", target_os = "ios"))'.dependencies]
+async-tungstenite = { version = "0.33", optional = true }
+dioxus-cli-config = { version = "=0.7.10", optional = true }
+dioxus-devtools-types = { version = "=0.7.10", optional = true }
+smol = { version = "2.0", optional = true }
+subsecond = { version = "=0.7.10", optional = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+getrandom = { version = "0.3.4", features = ["wasm_js"] }
+uuid = { version = "1.1", features = ["serde", "js"] }
+
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+objc2-core-foundation = { version = "=0.3.2", default-features = false }
+objc2-core-video = { version = "=0.3.2", default-features = false, features = ["CVBuffer", "CVImageBuffer", "CVPixelBuffer"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+log = { version = "0.4", default-features = false, features = ["std"] }
+objc2 = { version = "0.6", optional = true }
+objc2-metal = { version = "0.3", optional = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))'.dependencies]
+scap = { git = "https://github.com/zed-industries/scap", rev = "b5c86ec58dd4b6b7732bf6ac8be03d6b1f190a82", default-features = false, package = "zed-scap", version = "0.0.8-zed", optional = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
+libc = { version = "0.2" }
+
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Ole", "Win32_System_Threading", "Win32_System_Variant", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_Shell_PropertiesSystem", "Win32_UI_WindowsAndMessaging", 
+    "Win32_System_Power",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_WindowsProgramming",
+] }
+
+
+[build-dependencies]
+embed-resource = { version = "3.0", optional = true }

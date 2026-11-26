@@ -27,6 +27,14 @@ def main():
     )
     if count != 1:
         raise SystemExit("Could not identify the Cargo workspace members")
+    # Only GPUI crates are patched (vendor/zed); these packages never use them,
+    # and the relative patch paths do not resolve from DEST.
+    manifest = re.sub(
+        r"^(#[^\n]*\n)*\[patch\.[^\n]*\n([^\[\n][^\n]*\n)*",
+        "",
+        manifest,
+        flags=re.MULTILINE,
+    )
     (DEST / "Cargo.toml").write_text(manifest)
     for package in PACKAGES:
         directory = DEST / "crates" / package
