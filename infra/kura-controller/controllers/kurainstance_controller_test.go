@@ -2639,8 +2639,10 @@ func TestReconcileDataStorageResize(t *testing.T) {
 
 	// A region with one usable host cannot hold two spread replicas. Emptying
 	// the standby there only leaves its replacement Pending beside the
-	// primary's volume, so the pair stays as it is until a host can take it.
-	t.Run("keeps colocated replicas while no other host can take the standby", func(t *testing.T) {
+	// primary's volume, and so would rolling either pod onto a template that
+	// requires spreading. The pair keeps serving, held, until a host can take
+	// the standby.
+	t.Run("holds colocated replicas while no other host can take the standby", func(t *testing.T) {
 		c := spreadFixtureOn(spread(), [2]string{"box-a", "box-a"}, []client.Object{box("box-a", true), box("box-b", false)})
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
 
@@ -2648,8 +2650,8 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if inProgress {
-			t.Fatal("a colocated pair with nowhere to move the standby must be left alone")
+		if !inProgress {
+			t.Fatal("a colocated pair with nowhere to move the standby must stay held, or the required spread rolls a pod into Pending")
 		}
 		for ordinal := 0; ordinal < 2; ordinal++ {
 			if !exists(t, c, claim(ordinal, "40Gi")) || !exists(t, c, pod(ordinal, true)) {
