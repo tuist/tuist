@@ -46,7 +46,7 @@ jobs:
       # Find whether the image format or the virtio-fs share behind it matters.
       - name: Attached images
         run: |
-          set -uo pipefail
+          set +e -uo pipefail
           hdiutil info | grep -E "image-path|image-type|/dev/disk" || true
           mount | grep -iE "virtio|tuist" || true
           src="$(mktemp -d "$HOME/xsrc.XXXX")"
@@ -66,7 +66,7 @@ jobs:
           check() {
             local d="$1" label="$2" z=0 bad=0
             for f in "$d"/f*; do [ "$(LC_ALL=C tr -d '\0' < "$f" | wc -c | tr -d ' ')" = 0 ] && z=$((z+1)); done
-            bad=$(cd "$d" && shasum -a 256 -c /tmp/src.sum 2>/dev/null | grep -vc ': OK$')
+            bad=$(cd "$d" && shasum -a 256 -c /tmp/src.sum 2>/dev/null | grep -vc ': OK$' || true)
             echo "$label: all-zero=$z bad=$bad of 400"
           }
           run_into() {
