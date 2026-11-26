@@ -6,6 +6,15 @@ on:
     paths:
       - luft-server/**
       - condukt/**
+      # The GPUI web edge the image builds and serves under /app.
+      - luft/Cargo.toml
+      - luft/Cargo.lock
+      - luft/gpui-web/**
+      - luft/gpui/src/assets.rs
+      - luft/gpui/src/theme/palette.rs
+      - luft/gpui/resources/**
+      - luft/crates/**
+      - luft/vendor/**
       - infra/helm/luft-server/**
       - .github/workflows/luft-server-deployment.yml
   push:
@@ -14,6 +23,15 @@ on:
     paths:
       - luft-server/**
       - condukt/**
+      # The GPUI web edge the image builds and serves under /app.
+      - luft/Cargo.toml
+      - luft/Cargo.lock
+      - luft/gpui-web/**
+      - luft/gpui/src/assets.rs
+      - luft/gpui/src/theme/palette.rs
+      - luft/gpui/resources/**
+      - luft/crates/**
+      - luft/vendor/**
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/pem-store.sh
       - infra/helm/luft-server/**

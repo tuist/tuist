@@ -16,6 +16,10 @@ defmodule LuftServerWeb.Router do
   get "/healthz", LuftServerWeb.HealthController, :show
   get "/.well-known/luft.json", LuftServerWeb.NativeAuthController, :discovery
 
+  # The GPUI web edge's page, for /app and every client-side path under it.
+  get "/app", LuftServerWeb.WebController, :app
+  get "/app/*path", LuftServerWeb.WebController, :app
+
   scope "/oauth2", LuftServerWeb do
     pipe_through :browser_auth
 

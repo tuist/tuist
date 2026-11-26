@@ -27,6 +27,16 @@ defmodule LuftServerWeb.Endpoint do
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
   plug LuftServerWeb.Plugs.SecurityHeaders
 
+  # The GPUI web edge (`../luft/gpui-web`), which the Dockerfile builds into
+  # priv/static/app. Only these files are served; `WebController.app` serves
+  # its page, and the rest of the origin stays headless.
+  plug Plug.Static,
+    at: "/app",
+    from: {:luft_server, "priv/static/app"},
+    gzip: true,
+    only: ~w(main.js luft_gpui_web.js luft_gpui_web_bg.wasm),
+    cache_control_for_etags: "public, no-cache"
+
   plug Plug.Parsers,
     parsers: [:urlencoded, :json],
     pass: ["application/json", "application/x-www-form-urlencoded"],
