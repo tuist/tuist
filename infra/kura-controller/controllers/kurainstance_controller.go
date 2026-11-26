@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -4020,7 +4021,11 @@ func (r *KuraInstanceReconciler) dataVolumesToReplace(ctx context.Context, insta
 	if err != nil {
 		return nil, false, err
 	}
-	for _, volume := range colocated {
+	unselected, err := r.unselectedVolumes(ctx, instance)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, volume := range append(unselected, colocated...) {
 		listed := false
 		for _, replacement := range replacements {
 			listed = listed || replacement.ordinal == volume.ordinal
@@ -4144,6 +4149,89 @@ func (r *KuraInstanceReconciler) colocatedVolumes(ctx context.Context, instance 
 		}
 	}
 	return colocated, nil
+}
+
+// unselectedVolumes returns the data claims bound to a node the instance's node
+// selector no longer matches, as after a region's pool changes or a host leaves
+// it. The pod already there keeps running, since a selector is checked only at
+// scheduling, but its next one must land beside the volume and cannot: the
+// rollout would strand it Pending and leave one copy. Rebuilding the volume
+// lets the scheduler place it on a selected node. Without one to land on, the
+// rebuild is reported held. A claim whose node is gone is the stale-storage
+// path's, a fenced instance moves replicas only through explicit recovery, and
+// an instance without a selector names no pool to leave.
+func (r *KuraInstanceReconciler) unselectedVolumes(ctx context.Context, instance *kurav1alpha1.KuraInstance) ([]dataVolumeReplacement, error) {
+	if len(instance.Spec.NodeSelector) == 0 || fencedServing(instance) || replicas(instance) < 2 {
+		return nil, nil
+	}
+	selector := k8slabels.SelectorFromSet(nodeSelector(instance))
+	key := instance.Spec.ReplicaSpreadTopologyKey
+	siblingValues := map[string]bool{}
+	var unselected []dataVolumeReplacement
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		claim := &corev1.PersistentVolumeClaim{}
+		if err := r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("data-%s-%d", instance.Name, ordinal), Namespace: instance.Namespace}, claim); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		if claim.DeletionTimestamp != nil || claim.Spec.VolumeName == "" {
+			continue
+		}
+		pv := &corev1.PersistentVolume{}
+		if err := r.Get(ctx, types.NamespacedName{Name: claim.Spec.VolumeName}, pv); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		hosts := pvRequiredHostnames(pv)
+		if len(hosts) != 1 {
+			continue
+		}
+		node := &corev1.Node{}
+		if err := r.Get(ctx, types.NamespacedName{Name: hosts[0]}, node); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		if selector.Matches(k8slabels.Set(node.Labels)) {
+			if value, ok := node.Labels[key]; key != "" && ok {
+				siblingValues[value] = true
+			}
+			continue
+		}
+		unselected = append(unselected, dataVolumeReplacement{
+			ordinal: ordinal, claim: claim,
+			reason: fmt.Sprintf("bound to node %s, which the node selector no longer matches", node.Name),
+		})
+	}
+	if len(unselected) == 0 {
+		return nil, nil
+	}
+	// A rebuilt replica lands on a Ready, schedulable, selected node that is
+	// not being evacuated and, under a required spread, holds a label value no
+	// sibling on a selected node occupies.
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		return nil, err
+	}
+	occupied := map[string]bool{}
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
+		_, evacuating := node.Annotations[EvacuateNodeAnnotation]
+		value, ok := node.Labels[key]
+		if evacuating || (key != "" && (!ok || siblingValues[value])) {
+			occupied[node.Name] = true
+		}
+	}
+	held := !hasLandingNode(nodes.Items, occupied, nodeSelector(instance))
+	for i := range unselected {
+		unselected[i].held = held
+	}
+	return unselected, nil
 }
 
 func (r *KuraInstanceReconciler) rebuildDataVolume(ctx context.Context, instance *kurav1alpha1.KuraInstance, volume dataVolumeReplacement, serving bool) error {
