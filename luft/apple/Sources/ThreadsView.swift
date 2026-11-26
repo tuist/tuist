@@ -54,19 +54,6 @@ extension AppClient {
                 .accessibilityAddTraits(selected ? .isSelected : [])
         }
     }
-
-    /// Only the icon where the title wouldn't fit; VoiceOver reads the title either way.
-    private struct SidebarLabelStyle: LabelStyle {
-        let iconOnly: Bool
-
-        @ViewBuilder func makeBody(configuration: Configuration) -> some View {
-            if iconOnly {
-                configuration.icon
-            } else {
-                Label(configuration)
-            }
-        }
-    }
 #endif
 
 /// The threads inbox: Active and Archived, with running threads first and
@@ -82,6 +69,8 @@ struct ThreadsView: View {
     var selection: Binding<String?> = .constant(nil)
     /// Opens a destination from the iPhone's sidebar, which then closes.
     var open: (WorkspaceRoute) -> Void = { _ in }
+    /// Opens the palette from the iPhone sidebar's Search.
+    var search: () -> Void = {}
     @State private var showingArchived = false
 
     private var threads: [AppThread] { inbox.threads }
@@ -101,6 +90,8 @@ struct ThreadsView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @ScaledMetric(relativeTo: .body) private var iconWidth = 20.0
+    /// The sidebar's bottom controls share one height, which grows with Dynamic Type.
+    @ScaledMetric(relativeTo: .body) private var barHeight = 48.0
 
     var body: some View {
         list
@@ -108,7 +99,7 @@ struct ThreadsView: View {
         .listStyle(.inset)
         #else
         .listStyle(.plain)
-        .safeAreaInset(edge: .bottom) { sidebarBar }
+        .bottomGlassBar { sidebarBar }
         #endif
         .scrollContentBackground(.hidden)
         .background(Noora.backgroundPrimary)
@@ -323,37 +314,44 @@ struct ThreadsView: View {
             .sidebarRow(selected: route == .list(client.view.navigation.tab))
         }
 
-        /// Profile and New conversation float under the sidebar, as in Claude.
+        /// Profile, Search and New conversation float over the threads as separate glass
+        /// controls of one height, as in Claude and Notes; the threads scroll under them.
         private var sidebarBar: some View {
-            HStack {
+            HStack(spacing: 12) {
                 Button { open(.list(.profile)) } label: {
                     Text(verbatim: String((client.view.active?.handle ?? client.view.active?.email ?? "?").prefix(1)).uppercased())
-                        .font(.title3.weight(.medium))
+                        .font(.body.weight(.medium))
                         .foregroundStyle(Noora.labelPrimary)
-                        .frame(width: 52, height: 52)
+                        .frame(width: barHeight, height: barHeight)
                         .interactiveGlass(in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Profile")
-                Spacer()
+                Button(action: search) {
+                    Label("Search", systemImage: "magnifyingglass")
+                        .foregroundStyle(Noora.labelSecondary)
+                        .padding(.horizontal, 16)
+                        .frame(maxWidth: .infinity, minHeight: barHeight, alignment: .leading)
+                        .contentShape(Capsule())
+                        .interactiveGlass(in: Capsule())
+                }
+                .buttonStyle(.plain)
                 if available {
                     Button { startConversation() } label: {
-                        Label("New conversation", systemImage: "plus")
-                            .labelStyle(SidebarLabelStyle(iconOnly: dynamicTypeSize.isAccessibilitySize))
+                        Image(systemName: "square.and.pencil")
                             .font(.body.weight(.medium))
-                            .padding(.horizontal, 8)
-                            .frame(height: 40)
+                            .frame(width: barHeight, height: barHeight)
+                            .contentShape(Circle())
                     }
-                    .prominentGlassButtonStyle()
-                    .buttonBorderShape(.capsule)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Noora.primaryLabel)
+                    .tintedInteractiveGlass(Noora.primary, in: Circle())
+                    .accessibilityLabel("New conversation")
                     .keyboardShortcut("n", modifiers: .command)
                 }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            // Threads scroll under the bar, so it hides them like Claude's does.
-            .background(Noora.backgroundPrimary)
-            .overlay(alignment: .top) { Divider() }
         }
     #endif
 

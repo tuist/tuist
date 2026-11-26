@@ -27,6 +27,24 @@ extension View {
         }
     }
 
+    /// A bar of glass controls over a scroll view's bottom edge. On iOS and macOS 26 the content
+    /// scrolls under it and fades with the system's scroll edge effect instead of a rule.
+    @ViewBuilder func bottomGlassBar(@ViewBuilder _ bar: () -> some View) -> some View {
+        if #available(iOS 26, macOS 26, *) {
+            safeAreaBar(edge: .bottom, content: bar)
+        } else {
+            safeAreaInset(edge: .bottom, content: bar)
+        }
+    }
+
+    @ViewBuilder func tintedInteractiveGlass(_ tint: Color, in shape: some Shape) -> some View {
+        if #available(iOS 26, macOS 26, *) {
+            glassEffect(.regular.tint(tint).interactive(), in: shape)
+        } else {
+            background(tint, in: shape)
+        }
+    }
+
     @ViewBuilder func interactiveGlass(in shape: some Shape) -> some View {
         if #available(iOS 26, macOS 26, *) {
             glassEffect(.regular.interactive(), in: shape)
