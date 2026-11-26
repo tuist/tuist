@@ -477,6 +477,27 @@ defmodule TuistWeb.CoverageLiveTest do
       assert labels == ["mix test · clickhouse-current", "mix test"]
     end
 
+    test "lists a run selective testing skipped whole as Partial", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      measured = main_run(project, organization, "a", [file("Sources/A.swift", [1, 0])])
+
+      skipped =
+        main_run(project, organization, "b", [], %{
+          scheme: "Acceptance",
+          coverage_enabled: true,
+          xcode_coverage: nil,
+          recompute: false,
+          complete: false
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+      assert has_element?(lv, "#coverage-recent-run-kind-#{skipped.id}", "Partial")
+      assert has_element?(lv, "#coverage-recent-run-kind-#{measured.id}", "Full")
+    end
+
     test "says when no run named the branch in the period", %{conn: conn, organization: organization, project: project} do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       assert has_element?(lv, "[data-part='empty-runs']", "No run gathered coverage on main in this period")

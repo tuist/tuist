@@ -136,11 +136,12 @@ defmodule Tuist.Tests.Coverage.Query do
   end
 
   @doc """
-  One page of the runs with coverage behind a commit (`git_commit_sha`) or,
+  One page of the runs behind a commit's coverage (`git_commit_sha`) or,
   otherwise, those that named a branch (the project's default branch unless
   `branch` says otherwise), newest first (`Commits.run_cursor_page/3`, as the
-  Test Runs tab reads them). Runs from a dirty checkout are listed, as
-  `discarded`. `scheme` keeps one scheme's runs; `after` and `before` take a
+  Test Runs tab reads them). Runs set up to collect coverage that selective
+  testing skipped whole are listed as `partial`, and runs from a dirty
+  checkout as `discarded`. `scheme` keeps one scheme's runs; `after` and `before` take a
   page's cursors.
   """
   def runs(%Project{} = project, opts \\ []) do

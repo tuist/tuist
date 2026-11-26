@@ -173,17 +173,13 @@ defmodule Tuist.Tests.Coverage.Reported do
   # anything. A commit every scheme was skipped whole on has only these: no
   # coverage to fold, but proof that the test job ran, which is what separates
   # it from a pipeline that died before reaching the tests and must not have a
-  # baseline carried into it. A run not set up to collect coverage, such as
-  # another pipeline's test job on the same commit, says nothing about what
-  # the coverage skipped; a run that didn't report it still counts.
+  # baseline carried into it. Which runs count is `Commits.clean_run_condition/0`.
   defp unmeasured_runs(project_id, sha) do
     ClickHouseRepo.all(
       from(t in Test.query(),
         where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.git_dirty == false,
         group_by: t.id,
-        having:
-          fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) != "network_trusted" and
-            fragment("ifNull(argMax(?, ?), true)", t.coverage_enabled, t.inserted_at),
+        having: ^Commits.clean_run_condition(),
         select: %{
           test_run_id: t.id,
           scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),

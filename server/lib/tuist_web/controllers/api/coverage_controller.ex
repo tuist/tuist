@@ -381,7 +381,7 @@ defmodule TuistWeb.API.CoverageController do
   operation(:list_runs,
     summary: "List the test runs with code coverage behind a commit or a branch.",
     description:
-      "One page of the runs with coverage of a commit (`git_commit_sha`) or, otherwise, of those that named a branch, newest first. Runs from a dirty checkout are listed as `discarded`: their coverage doesn't join the commit's.",
+      "One page of the runs behind the coverage of a commit (`git_commit_sha`) or, otherwise, of those that named a branch, newest first. Runs set up to collect coverage that selective testing skipped whole are listed as `partial`, with no lines. Runs from a dirty checkout are listed as `discarded`: their coverage doesn't join the commit's.",
     operation_id: "listCoverageRuns",
     parameters:
       @path_parameters ++

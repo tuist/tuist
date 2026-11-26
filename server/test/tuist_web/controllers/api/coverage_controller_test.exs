@@ -317,19 +317,29 @@ defmodule TuistWeb.API.CoverageControllerTest do
         scheme: "Other"
       })
 
+      # Selective testing skipped every test of this one, so it measured nothing.
+      CoverageFixtures.run_with_coverage(project, user.account, [], %{
+        git_commit_sha: "b",
+        scheme: "Acceptance",
+        coverage_enabled: true,
+        xcode_coverage: nil,
+        recompute: false
+      })
+
       page = conn |> get(prefix <> "/runs?git_commit_sha=b") |> json_response(:ok)
 
       assert_schema(page, "CoverageRuns", Spec.spec())
 
-      assert page["runs"] |> Enum.map(&{&1["scheme"], &1["status"]}) |> Enum.sort() == [
-               {"App", "full"},
-               {"Other", "discarded"}
+      assert page["runs"] |> Enum.map(&{&1["scheme"], &1["status"], &1["coverage"]}) |> Enum.sort() == [
+               {"Acceptance", "partial", 0.0},
+               {"App", "full", 25.0},
+               {"Other", "discarded", 100.0}
              ]
 
       assert %{"runs" => [%{"scheme" => "App", "git_commit_sha" => "b", "coverage" => 25.0}]} =
                conn |> get(prefix <> "/runs?git_commit_sha=b&scheme=App") |> json_response(:ok)
 
-      assert conn |> get(prefix <> "/runs") |> json_response(:ok) |> Map.fetch!("runs") |> length() == 3
+      assert conn |> get(prefix <> "/runs") |> json_response(:ok) |> Map.fetch!("runs") |> length() == 4
     end
 
     test "a commit's targets are listed a page at a time", %{conn: conn, prefix: prefix} do

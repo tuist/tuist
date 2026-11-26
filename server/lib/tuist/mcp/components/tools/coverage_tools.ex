@@ -285,7 +285,7 @@ defmodule Tuist.MCP.Components.Tools.ListCoverageRuns do
   @impl EMCP.Tool
   def description,
     do:
-      "List the test runs with code coverage behind a commit (git_commit_sha) or a branch (the runs that named it; the default branch unless one is given), newest first, each marked full, partial (it skipped tests on purpose) or discarded (a dirty checkout, whose coverage doesn't join the commit's). Page with the returned cursors."
+      "List the test runs with code coverage behind a commit (git_commit_sha) or a branch (the runs that named it; the default branch unless one is given), newest first, each marked full, partial (it skipped tests on purpose, every test when it measured no lines) or discarded (a dirty checkout, whose coverage doesn't join the commit's). Page with the returned cursors."
 
   def execute(_conn, args, project) do
     CoverageTools.with_coverage(project, fn ->

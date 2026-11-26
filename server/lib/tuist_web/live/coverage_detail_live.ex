@@ -32,6 +32,7 @@ defmodule TuistWeb.CoverageDetailLive do
   @target_sorts ~w(coverage name files)
   @file_sorts ~w(coverage path)
   @page_size 20
+  @run_kinds %{"full" => :full, "partial" => :partial}
   @default_commits_status "measured"
 
   # A run's coverage joins its commit a few seconds after the run lands
@@ -515,9 +516,10 @@ defmodule TuistWeb.CoverageDetailLive do
   # as discarded, so a scheme missing from a figure has its run to show.
   defp assign_runs(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
     search = String.trim(query["runs-search"] || "")
-    available_filters = run_filters(project, run_schemes(socket))
-    filters = Filter.Operations.decode_filters_from_query(query, available_filters)
     period = if subject.kind == :commit, do: [], else: period_opts(socket)
+    schemes = Commits.run_schemes(project.id, run_scope(subject), period ++ [dirty: true])
+    available_filters = run_filters(project, schemes)
+    filters = Filter.Operations.decode_filters_from_query(query, available_filters)
 
     page =
       Commits.run_cursor_page(
@@ -541,20 +543,14 @@ defmodule TuistWeb.CoverageDetailLive do
   defp run_scope(%{kind: :branch, branch: branch}), do: {:branch, branch}
   defp run_scope(%{kind: :pull_request, number: number}), do: {:pull_request, number}
 
-  defp run_schemes(%{assigns: %{selected_project: project, subject: %{kind: kind, branch: branch}}} = socket)
-       when series?(kind), do: History.branch_schemes(project, branch, period_opts(socket))
-
-  defp run_schemes(%{assigns: %{summary: summary}}),
-    do: (summary.schemes ++ summary.partial_schemes) |> Enum.uniq() |> Enum.sort()
-
   defp run_filters(project, schemes) do
     [
       %Filter.Filter{
         id: "run_kind",
-        field: :partial,
+        field: :kind,
         display_name: dgettext("dashboard_tests", "Run"),
         type: :option,
-        options: ["full", "partial"],
+        options: ~w(full partial),
         options_display_names: %{
           "full" => dgettext("dashboard_tests", "Full"),
           "partial" => dgettext("dashboard_tests", "Partial")
@@ -581,8 +577,8 @@ defmodule TuistWeb.CoverageDetailLive do
       %Filter.Filter{value: nil} ->
         []
 
-      %Filter.Filter{field: :partial, operator: operator, value: value} ->
-        [partial: value == "partial" == (operator == :==)]
+      %Filter.Filter{field: :kind, operator: operator, value: value} ->
+        [kind: {operator, Map.fetch!(@run_kinds, value)}]
 
       %Filter.Filter{field: :scheme, operator: operator, value: value} ->
         [scheme: {operator, value}]

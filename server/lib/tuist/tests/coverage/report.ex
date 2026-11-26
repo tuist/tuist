@@ -108,8 +108,9 @@ defmodule Tuist.Tests.Coverage.Report do
 
   @doc """
   A run behind a commit or branch (`Tuist.Tests.Coverage.Commits.run_cursor_page/3`):
-  `full`, `partial` when it skipped tests on purpose, or `discarded` when it
-  ran from a dirty checkout, whose coverage never joins its commit's.
+  `full`, `partial` when it skipped tests on purpose (one that skipped every
+  test measured nothing: no lines, 0%), or `discarded` when it ran from a dirty checkout, whose coverage
+  never joins its commit's.
   """
   def run_row(run) do
     %{
