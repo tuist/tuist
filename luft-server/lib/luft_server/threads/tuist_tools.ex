@@ -113,7 +113,7 @@ defmodule LuftServer.Threads.TuistTools do
              if(cursor, do: %{cursor: cursor}, else: %{})
            ),
          true <-
-           length(tools) + length(definitions) <= 2000 and Enum.all?(tools, &MCP.valid_tool?/1),
+           length(tools) + length(definitions) <= 2000 and Enum.all?(tools, &valid_tool?/1),
          definitions = definitions ++ tools,
          true <- length(Enum.uniq_by(definitions, & &1["name"])) == length(definitions) do
       case result["nextCursor"] do
@@ -228,4 +228,12 @@ defmodule LuftServer.Threads.TuistTools do
       Enum.find_value(headers, fn {key, value} -> if String.downcase(key) == name, do: value end)
 
   defp read_only?(definition), do: get_in(definition, ["annotations", "readOnlyHint"]) == true
+
+  defp valid_tool?(%{"name" => name, "inputSchema" => %{"type" => "object"}} = tool),
+    do:
+      is_binary(name) and byte_size(name) in 1..128 and
+        (is_nil(tool["description"]) or is_binary(tool["description"])) and
+        byte_size(Jason.encode!(tool)) <= 65_536
+
+  defp valid_tool?(_), do: false
 end

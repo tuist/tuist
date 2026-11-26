@@ -33,6 +33,8 @@ defmodule LuftServerWeb.Router do
     post "/token", NativeAuthController, :token
   end
 
+  get "/mcp-servers/callback", LuftServerWeb.MCPServersController, :callback, log: false
+
   get "/:account/:project/previews/:id/:asset", LuftServerWeb.PreviewAssetsController, :show
 
   scope "/auth", LuftServerWeb do
@@ -66,6 +68,14 @@ defmodule LuftServerWeb.Router do
     post "/me/ai-subscriptions/chatgpt/login/poll", AISubscriptionsController, :poll_chatgpt_login
     delete "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :cancel_chatgpt_login
     delete "/me/ai-subscriptions/:provider", AISubscriptionsController, :delete
+
+    for prefix <- ["/me", "/accounts/:account_handle"] do
+      get prefix <> "/mcp-servers", MCPServersController, :index
+      post prefix <> "/mcp-servers", MCPServersController, :create
+      post prefix <> "/mcp-servers/complete", MCPServersController, :complete, log: false
+      post prefix <> "/mcp-servers/:id/authorize", MCPServersController, :authorize
+      delete prefix <> "/mcp-servers/:id", MCPServersController, :delete
+    end
 
     get "/organizations", OrganizationsController, :index
     post "/organizations", OrganizationsController, :create

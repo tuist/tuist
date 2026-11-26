@@ -46,6 +46,8 @@ defmodule LuftServer.MixProject do
       {:jason, "~> 1.4"},
       {:javex, "~> 0.2.0"},
       {:jose, "~> 1.11"},
+      {:jsv, "~> 0.28"},
+      {:mint, "~> 1.8"},
       {:muontrap, "~> 1.8"},
       {:oban, "~> 2.21.0"},
       {:phoenix, "~> 1.8"},

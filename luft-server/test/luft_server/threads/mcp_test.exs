@@ -2,10 +2,12 @@ defmodule LuftServer.Threads.MCPTest do
   use ExUnit.Case, async: true
 
   import Ecto.Query
+
   import Plug.Conn
 
   alias Ecto.Adapters.SQL.Sandbox
   alias LuftServer.Agents.Lease
+  alias LuftServer.MCPServers.Server
   alias LuftServer.Repo
   alias LuftServer.Sessions
   alias LuftServer.Threads.MCP
@@ -66,55 +68,96 @@ defmodule LuftServer.Threads.MCPTest do
     %{thread: thread, message: message, run: run, author: author}
   end
 
-  test "profile discovery and durable calls use persisted author's session, not owner token",
+  test "discovery and durable calls use the server's own credentials, never a session token",
        ctx do
     test = self()
+    server = mcp_server("user:12")
 
-    upstream(fn conn ->
-      assert get_req_header(conn, "authorization") == ["Bearer author-token"]
+    mcp(fn
+      conn, "tools/call", params ->
+        assert get_req_header(conn, "authorization") == ["Bearer mcp-token"]
+        assert params == %{"name" => "read", "arguments" => %{}}
+        send(test, :called)
+        %{content: [%{type: "text", text: "mcp-token"}]}
 
-      case conn.request_path do
-        @base ->
-          Req.Test.json(conn, metadata())
-
-        @base <> "/" <> @server <> "/tools" ->
-          Req.Test.json(conn, %{tools: [definition()]})
-
-        @base <> "/" <> @server <> "/tools/call" ->
-          {:ok, body, conn} = read_body(conn)
-
-          assert Jason.decode!(body) == %{
-                   "endpoint" => @endpoint,
-                   "name" => "read",
-                   "arguments" => %{}
-                 }
-
-          send(test, :called)
-          Req.Test.json(conn, %{result: %{content: [%{type: "text", text: "author-token"}]}})
-      end
+      _conn, _method, _params ->
+        nil
     end)
 
     assert {:ok, [tool], []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
     {:env, env} = :erlang.fun_info(tool.call, :env)
+    refute inspect(env, limit: :infinity) =~ "mcp-token"
     refute inspect(env, limit: :infinity) =~ "author-token"
     assert {:ok, output} = Condukt.Tool.execute(tool, %{}, %{})
     assert output =~ "[REDACTED]"
-    refute output =~ "author-token"
+    refute output =~ "mcp-token"
     assert_received :called
     assert [%{status: "completed"}] = Repo.all(ToolCall)
+    assert server.owner == "user:12"
+  end
+
+  test "only the author's own servers and the thread account's are offered", ctx do
+    mcp_server("user:12", "Mine", "https://mine.example/mcp")
+    mcp_server("account:21", "Team", "https://team.example/mcp")
+    mcp_server("user:11", "Owner's", "https://owner.example/mcp")
+    mcp_server("account:99", "Other team", "https://other.example/mcp")
+    test = self()
+
+    mcp(fn conn, _method, _params ->
+      send(test, {:host, conn.host})
+      nil
+    end)
+
+    assert {:ok, tools, []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
+    assert length(tools) == 2
+    assert_received {:host, "mine.example"}
+    assert_received {:host, "team.example"}
+    refute_received {:host, "owner.example"}
+    refute_received {:host, "other.example"}
+  end
+
+  test "invalid tools are dropped one by one and logged with the rule they broke", ctx do
+    server = mcp_server("user:12")
+
+    tools = [
+      definition(),
+      Map.put(definition(), "name", "bad name"),
+      Map.merge(definition(), %{
+        "name" => "refs",
+        "inputSchema" => %{"type" => "object", "$ref" => "#/x"}
+      }),
+      Map.put(definition(), "description", String.duplicate("d", 5000)),
+      Map.put(definition(), "name", "write")
+    ]
+
+    mcp(fn _conn, _method, _params -> nil end, tools)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:ok, offered, []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
+        assert length(offered) == 2
+      end)
+
+    assert log =~ "MCP server #{server.id} tool bad?name dropped: name has characters"
+    assert log =~ "tool refs dropped: inputSchema uses $ref"
+    assert log =~ "tool read dropped: description over 4096 bytes"
   end
 
   test "missing exact author delegation never falls back to owner's or author's other session",
        ctx do
+    mcp_server("user:12")
     _another = session(12, "another-token")
     Repo.delete!(ctx.author)
     Req.Test.stub(LuftServer.Tuist, fn _ -> flunk("no session means no upstream request") end)
+    Req.Test.stub(LuftServer.MCPServers, fn _ -> flunk("no session means no MCP request") end)
 
-    assert {:error, {:not_dispatched, :delegation_unavailable}} =
-             MCP.discover(ctx.thread, ctx.message, ctx.run)
+    assert {:error, :delegation_unavailable} = MCP.discover(ctx.thread, ctx.message, ctx.run)
   end
 
   test "scope revocation and tenant mismatch fail closed", ctx do
+    mcp_server("user:12")
+    Req.Test.stub(LuftServer.MCPServers, fn _ -> flunk("revoked scope means no MCP request") end)
+
     for account <- [nil, 99] do
       Req.Test.stub(LuftServer.Tuist, fn conn ->
         if is_nil(account),
@@ -122,26 +165,21 @@ defmodule LuftServer.Threads.MCPTest do
           else: scope(conn, account)
       end)
 
-      assert {:error, {:not_dispatched, :delegation_unavailable}} =
-               MCP.discover(ctx.thread, ctx.message, ctx.run)
+      assert {:error, :delegation_unavailable} = MCP.discover(ctx.thread, ctx.message, ctx.run)
     end
   end
 
   test "uncertain external effects remain executing and are never redispatched", ctx do
     test = self()
+    mcp_server("user:12")
 
-    upstream(fn conn ->
-      case conn.request_path do
-        @base ->
-          Req.Test.json(conn, metadata())
+    mcp(fn
+      conn, "tools/call", _params ->
+        send(test, :effect)
+        Req.Test.transport_error(conn, :timeout)
 
-        @base <> "/" <> @server <> "/tools" ->
-          Req.Test.json(conn, %{tools: [definition()]})
-
-        @base <> "/" <> @server <> "/tools/call" ->
-          send(test, :effect)
-          Req.Test.transport_error(conn, :timeout)
-      end
+      _conn, _method, _params ->
+        nil
     end)
 
     assert {:ok, [tool], []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
@@ -153,10 +191,11 @@ defmodule LuftServer.Threads.MCPTest do
   end
 
   test "revocation after discovery completes as a definitive non-effect", ctx do
-    upstream(fn conn ->
-      if conn.request_path == @base,
-        do: Req.Test.json(conn, metadata()),
-        else: Req.Test.json(conn, %{tools: [definition()]})
+    mcp_server("user:12")
+
+    mcp(fn
+      _conn, "tools/call", _params -> flunk("revoked calls are never dispatched")
+      _conn, _method, _params -> nil
     end)
 
     assert {:ok, [tool], []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
@@ -168,25 +207,12 @@ defmodule LuftServer.Threads.MCPTest do
   end
 
   test "a server whose discovery fails is skipped and named, keeping the others' tools", ctx do
-    broken = "019a50ec-f33b-7000-8000-000000000002"
+    mcp_server("user:12", "Broken", "https://broken.example/mcp")
+    mcp_server("user:12", "Profile", "https://profile.example/mcp")
 
-    upstream(fn conn ->
-      cond do
-        conn.request_path == @base ->
-          Req.Test.json(conn, %{
-            servers: [
-              %{id: broken, name: "Broken", connected: true, endpoint: @endpoint},
-              %{id: @server, name: "Profile", connected: true, endpoint: @endpoint}
-            ],
-            builtin_mcp_allowed: true
-          })
-
-        conn.request_path == @base <> "/" <> broken <> "/tools" ->
-          conn |> put_status(403) |> Req.Test.json(%{error: %{code: "mcp_unavailable"}})
-
-        conn.request_path == @base <> "/" <> @server <> "/tools" ->
-          Req.Test.json(conn, %{tools: [definition()]})
-      end
+    mcp(fn conn, method, _params ->
+      if conn.host == "broken.example" and method == "tools/list",
+        do: conn |> put_status(500) |> Req.Test.json(%{})
     end)
 
     assert {:ok, [tool], ["Broken"]} = MCP.discover(ctx.thread, ctx.message, ctx.run)
@@ -195,15 +221,11 @@ defmodule LuftServer.Threads.MCPTest do
 
   test "large profile catalogs offer searchable tools rather than silently dropping entries",
        ctx do
+    mcp_server("user:12")
+
     for count <- [65, 101] do
-      upstream(fn conn ->
-        if conn.request_path == @base,
-          do: Req.Test.json(conn, metadata()),
-          else:
-            Req.Test.json(conn, %{
-              tools: for(n <- 1..count, do: Map.put(definition(), "name", "read_#{n}"))
-            })
-      end)
+      tools = for n <- 1..count, do: Map.put(definition(), "name", "read_#{n}")
+      mcp(fn _conn, _method, _params -> nil end, tools)
 
       assert {:ok, [search, call], []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
       assert search.name == "mcp_search_tools" and call.name == "mcp_call_tool"
@@ -279,6 +301,42 @@ defmodule LuftServer.Threads.MCPTest do
     assert output =~ "done"
     assert_received :tuist_read
     assert [%{status: "completed"}] = Repo.all(ToolCall)
+  end
+
+  defp mcp_server(owner, name \\ "Profile", url \\ "https://mcp.example/mcp") do
+    Repo.insert!(%Server{owner: owner, name: name, url: url, access_token: "mcp-token"})
+  end
+
+  # A Streamable HTTP MCP server listing `tools`. `handler` answers any
+  # method it returns a result or a conn for; nil falls back to the defaults.
+  defp mcp(handler, tools \\ [definition()]) do
+    upstream(&scope(&1, 21))
+
+    Req.Test.stub(LuftServer.MCPServers, fn conn ->
+      {:ok, body, conn} = read_body(conn)
+      rpc = Jason.decode!(body)
+
+      case handler.(conn, rpc["method"], rpc["params"]) do
+        %Plug.Conn{} = answered ->
+          answered
+
+        result ->
+          result =
+            result ||
+              case rpc["method"] do
+                "initialize" ->
+                  %{protocolVersion: "2025-06-18", capabilities: %{tools: %{}}}
+
+                "tools/list" ->
+                  %{tools: tools}
+
+                _ ->
+                  %{}
+              end
+
+          Req.Test.json(conn, %{jsonrpc: "2.0", id: rpc["id"], result: result})
+      end
+    end)
   end
 
   defp upstream(handler) do
