@@ -183,8 +183,8 @@ defmodule Noora.DatePicker do
               {preset.label}
             </button>
           </div>
-          
-    <!-- Mobile: Tab presets -->
+
+          <!-- Mobile: Tab presets -->
           <div data-part="presets" data-device="mobile">
             <button
               :for={preset <- @presets}
@@ -197,8 +197,8 @@ defmodule Noora.DatePicker do
               {preset.label}
             </button>
           </div>
-          
-    <!-- Calendar area -->
+
+          <!-- Calendar area -->
           <div data-part="calendar">
             <div data-part="months">
               <!-- Month 1 -->
@@ -221,15 +221,14 @@ defmodule Noora.DatePicker do
                   <tbody data-part="table-body">
                     <tr :for={_week <- 1..6} data-part="table-row">
                       <td :for={_day <- 1..7} data-part="day-table-cell">
-                        <button type="button" data-part="table-cell-trigger" disabled={@disabled}>
-                        </button>
+                        <button type="button" data-part="table-cell-trigger" disabled={@disabled}></button>
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
-              
-    <!-- Month 2 (Desktop only) -->
+
+              <!-- Month 2 (Desktop only) -->
               <div data-part="month" data-index="1" data-desktop-only>
                 <div data-part="view-control">
                   <button type="button" data-part="prev-trigger" disabled={@disabled}>
@@ -249,8 +248,7 @@ defmodule Noora.DatePicker do
                   <tbody data-part="table-body">
                     <tr :for={_week <- 1..6} data-part="table-row">
                       <td :for={_day <- 1..7} data-part="day-table-cell">
-                        <button type="button" data-part="table-cell-trigger" disabled={@disabled}>
-                        </button>
+                        <button type="button" data-part="table-cell-trigger" disabled={@disabled}></button>
                       </td>
                     </tr>
                   </tbody>

@@ -271,8 +271,7 @@ defmodule Noora.Table do
                         data-part="row-link-overlay"
                         tabindex="-1"
                         aria-hidden="true"
-                      >
-                      </.link>
+                      ></.link>
                     <% true -> %>
                       {render_slot(col, row)}
                   <% end %>
