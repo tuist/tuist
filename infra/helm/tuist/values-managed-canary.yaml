@@ -916,6 +916,11 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
+  # The CI-parity `ci` template beside the default, for sessions that ask
+  # for `template: "ci"`. Canary first; production stays off until a ci
+  # session has run here.
+  ciTemplate:
+    enabled: true
   # Firecracker in its own vmm container (step 2a of seamless daemon
   # restarts), after qualifying on staging.
   vmm:
