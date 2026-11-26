@@ -32,7 +32,7 @@ ARG ALPINE_VERSION=3.22
 # upstream Tart with the patches in infra/tart-build, published as the
 # tart@<version> release of tuist/tuist; only a Machine annotated
 # tuist.dev/tart-version runs it until a fleet selects it.
-ARG TART_RELEASES="2.32.1:8554ab4f7fc12afe52f9b7e3093a935673cbac737a83973d2db7a0683c814529 2.41.1:e680a734febccfce7d4e910c1f7f13fc3b00f19a181c945e2d746de3214c32c2 2.41.1-tuist.1:a4dfa7046bcd46419470e16e1c6a8fef6f302ac6740fefc819f0fa4dacdf8cec 2.41.1-tuist.2:b8265d638d4adc22432367755dd13a969d2ee4fa79017ddb789bfdcc53a880bf"
+ARG TART_RELEASES="2.32.1:8554ab4f7fc12afe52f9b7e3093a935673cbac737a83973d2db7a0683c814529 2.41.1:e680a734febccfce7d4e910c1f7f13fc3b00f19a181c945e2d746de3214c32c2 2.41.1-tuist.1:a4dfa7046bcd46419470e16e1c6a8fef6f302ac6740fefc819f0fa4dacdf8cec 2.41.1-tuist.3:c292635ba4e1d3d20c93675d65f555e2e4285cd464cf68b43e49664bad93eab7"
 ARG TART_DEFAULT_VERSION=2.32.1
 
 # Tailscale upstream tag to cross-build from. The tailscale-builder
