@@ -82,7 +82,17 @@ defmodule TuistEx.Analytics.TestSelectionTest do
       app: app,
       baseline: baseline,
       index: TestSelection.index(files),
-      config: [app: :shop, elixirc_paths: ["lib", "test/support"], test_paths: ["test"]]
+      config: [
+        app: :shop,
+        elixirc_paths: ["lib", "test/support"],
+        test_paths: ["test"],
+        tuist: [
+          selective_testing: [
+            strategy: :coverage,
+            tracked_files: ["priv/gettext/*.pot", "!lib/generated/**"]
+          ]
+        ]
+      ]
     }
   end
 
@@ -213,15 +223,16 @@ defmodule TuistEx.Analytics.TestSelectionTest do
       # No hashing step: every test module is in scope and none is skipped.
       assert body.modules == Enum.map(all, &%{name: &1, skipped: false})
       assert body.changed_files_count == 5
+      # The project's patterns, resolved from its directory to the repository.
+      assert body.tracked_files == ["app/priv/gettext/*.pot", "!app/lib/generated/**"]
 
       assert Map.new(body.changed_files, &{&1.path, &1.affected_modules}) == %{
-               # A test file affects the modules it defines; the project's
-               # code and test support files every test module; anything
-               # else in the project or the repository none.
+               # A test file is the test code of the modules it defines; any
+               # other file selects through evidence or a tracked pattern.
                "app/README.md" => [],
-               "app/lib/cart.ex" => all,
+               "app/lib/cart.ex" => [],
                "app/test/cart_test.exs" => ["CartTest"],
-               "app/test/support/factory.ex" => all,
+               "app/test/support/factory.ex" => [],
                "other/lib/other.ex" => []
              }
 

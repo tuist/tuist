@@ -348,6 +348,10 @@ defmodule TuistEx.Analytics.Evidence do
   a file into a path in the repository, nil outside it. With `lines:
   false`, scopes name their files without lines.
 
+  With `test_files` (`{module, name}` to the test's source file), a test's
+  scope also names its own file, without lines: ExUnit's test files aren't
+  compiled with counters, and a change to one selects the tests it holds.
+
   With `format: :ndjson`, `out` holds what a run uploads instead (see
   `TuistEx.Analytics.Coverage.attach_evidence/5`): one scope per line, its `files` the
   paths themselves. Either way, returns `{:ok, rest}`, `rest` the fields that
@@ -357,6 +361,7 @@ defmodule TuistEx.Analytics.Evidence do
   def write(collected, identities, sources, relative, out, options \\ []) do
     lines? = Keyword.get(options, :lines, true)
     ndjson? = Keyword.get(options, :format, :json) == :ndjson
+    test_files = Keyword.get(options, :test_files, %{})
 
     paths =
       for {module, %{files: files, ids: ids, resources: resources}} <- sources,
@@ -415,7 +420,8 @@ defmodule TuistEx.Analytics.Evidence do
 
                   true ->
                     by_path = by_path(lines, paths, true)
-                    {state, acc} = test_scope(state, acc, identity, module, by_path)
+                    own = own_file(test_files, key, relative)
+                    {state, acc} = test_scope(state, acc, identity, module, by_path, own)
                     {state, acc, ov, module}
                 end
 
@@ -472,8 +478,16 @@ defmodule TuistEx.Analytics.Evidence do
     end
   end
 
-  # A test's scope; what it ran is also its module's.
-  defp test_scope(state, acc, {module, suite, name}, test_module, by_path) do
+  # A test's file, by its path in the repository; nil outside it.
+  defp own_file(test_files, key, relative) do
+    case Map.get(test_files, key) do
+      nil -> nil
+      file -> relative.(file)
+    end
+  end
+
+  # A test's scope, with its own file; what it ran is also its module's.
+  defp test_scope(state, acc, {module, suite, name}, test_module, by_path, own) do
     head = [
       ~s("kind":"test","module":),
       JSON.encode_to_iodata!(module),
@@ -483,7 +497,8 @@ defmodule TuistEx.Analytics.Evidence do
       JSON.encode_to_iodata!(name)
     ]
 
-    {scope(state, head, by_path), accumulate(acc, test_module, by_path)}
+    scoped = if own, do: Map.put_new(by_path, own, []), else: by_path
+    {scope(state, head, scoped), accumulate(acc, test_module, by_path)}
   end
 
   defp target_head(module),

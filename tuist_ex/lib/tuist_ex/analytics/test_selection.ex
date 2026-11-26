@@ -9,7 +9,9 @@ defmodule TuistEx.Analytics.TestSelection do
   #
   # The project opts in with `tuist: [selective_testing: [strategy:
   # :coverage]]`; a run selects only with `--cover`, which keeps the
-  # evidence fresh, and never with `--no-selective-testing`.
+  # evidence fresh, and never with `--no-selective-testing`. Its
+  # `tracked_files` adds files a change to which runs every test
+  # (`tracked_files/3`).
   #
   # Mix has no module hashing, so every test module of the suite is in
   # scope, none skipped, and the server decides every test. The unit is the
@@ -118,6 +120,7 @@ defmodule TuistEx.Analytics.TestSelection do
             ancestor_shas: ancestors,
             modules: index |> modules() |> Enum.map(&%{name: &1, skipped: false}),
             git_branch: Env.git_branch(environment),
+            tracked_files: tracked_files(root, options[:config], options[:dir]),
             mix: context
           }
           |> then(fn body ->
@@ -283,34 +286,50 @@ defmodule TuistEx.Analytics.TestSelection do
 
   @doc """
   Each changed file's `affected_modules`, by its path in the repository at
-  `root`: a test file affects the modules it defines; the project's other
-  code, its `priv` and its test support files, and the code of the path
-  dependencies inside the repository (umbrella siblings included) affect
-  every test module, since none is measured apart from what runs it; any
-  other file, in the project or elsewhere in the repository, affects none.
+  `root`: the test modules a test file defines, none for any other file.
+  The server never skips whole a module that gained a file, so a new test
+  in an existing module runs; any other file selects through the evidence,
+  or through a tracked pattern (`tracked_files/3`).
   """
-  def owner(root, index, config, project_dir) do
-    all = modules(index)
-
+  def owner(root, index, _config, project_dir) do
     test_files =
       Map.new(index.files, fn {file, modules} ->
         {relative(Path.expand(file, project_dir), root), Enum.map(modules, & &1.module)}
       end)
 
-    owned =
-      ((config[:elixirc_paths] || ["lib"]) ++ ["priv" | config[:test_paths] || ["test"]])
-      |> Enum.map(&relative(Path.expand(&1, project_dir), root))
-      |> Enum.concat(path_dependencies(root))
-      |> Enum.reject(&is_nil/1)
-
-    fn path ->
-      cond do
-        Map.has_key?(test_files, path) -> test_files[path]
-        Enum.any?(owned, &within?(path, &1)) -> all
-        true -> []
-      end
-    end
+    &Map.get(test_files, &1, [])
   end
+
+  @doc """
+  The tracked-file patterns the runs request sends, repository-relative: the
+  project's `tuist: [selective_testing: [tracked_files: [...]]]`, written
+  relative to the project's directory (a `!` pattern excludes, Tuist's
+  defaults included), and the code and `priv` of the path dependencies
+  inside the repository, umbrella siblings included, which aren't compiled
+  with counters, so no evidence names them.
+  """
+  def tracked_files(root, config, project_dir) do
+    prefix = relative(Path.expand(project_dir), root)
+
+    configured =
+      for pattern <- get_in(config, [:tuist, :selective_testing, :tracked_files]) || [],
+          is_binary(pattern),
+          pattern = String.trim(pattern),
+          pattern not in ["", "!"] do
+        case pattern do
+          "!" <> glob -> "!" <> in_project(prefix, glob)
+          glob -> in_project(prefix, glob)
+        end
+      end
+
+    dependencies =
+      for dir <- path_dependencies(root), sub <- ["lib", "priv"], do: Path.join([dir, sub, "**"])
+
+    Enum.uniq(dependencies ++ configured)
+  end
+
+  defp in_project(prefix, glob) when prefix in [nil, ""], do: String.trim_leading(glob, "/")
+  defp in_project(prefix, glob), do: Path.join(prefix, String.trim_leading(glob, "/"))
 
   defp path_dependencies(root) do
     deps_dir = Path.expand(Mix.Project.deps_path())

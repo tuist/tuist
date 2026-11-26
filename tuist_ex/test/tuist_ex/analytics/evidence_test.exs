@@ -155,7 +155,9 @@ defmodule TuistEx.Analytics.EvidenceTest do
       n: %{files: %{0 => Path.join(dir, "n.erl"), 2 => Path.join(dir, "n.html.heex")}, ids: TuistEx.Analytics.Coverage.counter_ids(:n), resources: [Path.join(dir, "n.po")]},
       o: %{files: %{0 => Path.join(dir, "o.erl")}, ids: TuistEx.Analytics.Coverage.counter_ids(:o), resources: []}
     }
-    {:ok, _} = TuistEx.Analytics.Evidence.write(collected, identities, sources, &Path.basename/1, out, lines: #{lines?})
+    # SerialTest's tests name their file; the others' files are unknown.
+    test_files = for name <- ["a", "b"], into: %{}, do: {{SerialTest, :"test \#{name}"}, Path.join(dir, "serial_test.exs")}
+    {:ok, _} = TuistEx.Analytics.Evidence.write(collected, identities, sources, &Path.basename/1, out, lines: #{lines?}, test_files: test_files)
     File.rm_rf!(collected.dir)
     IO.puts("RESULT " <> Base.encode64(File.read!(out)))
     """
@@ -179,8 +181,9 @@ defmodule TuistEx.Analytics.EvidenceTest do
     {evidence, scopes} = run_suite(dir, 4, true)
 
     # Line 4 is boot/0's body, 6 a/0's, 8 b/0's, 10 setup/0's, 12 teardown/0's.
-    assert scopes[{"test", "SerialTest", "a"}] == [{"m.erl", [6, 6]}]
-    assert scopes[{"test", "SerialTest", "b"}] == [{"m.erl", [8, 8]}]
+    # A test names its own file, without lines, which its module's target doesn't.
+    assert scopes[{"test", "SerialTest", "a"}] == [{"m.erl", [6, 6]}, {"serial_test.exs", []}]
+    assert scopes[{"test", "SerialTest", "b"}] == [{"m.erl", [8, 8]}, {"serial_test.exs", []}]
     assert scopes[{"test", "SetupAllTest", "inside"}] == [{"m.erl", [6, 6]}]
 
     assert Enum.sort(evidence["overlapped_tests"]) == [
@@ -209,7 +212,7 @@ defmodule TuistEx.Analytics.EvidenceTest do
              [{"n.html.heex", [100_003, 100_004]}, {"n.po", []}]
 
     # A module that didn't run brings no resources.
-    assert scopes[{"test", "SerialTest", "a"}] == [{"m.erl", [6, 6]}]
+    assert scopes[{"test", "SerialTest", "a"}] == [{"m.erl", [6, 6]}, {"serial_test.exs", []}]
 
     # A dependency's code counts in no file: line 4 is own/0's body.
     assert scopes[{"test", "DepTest", "dep"}] == [{"o.erl", [4, 4]}]
@@ -229,7 +232,7 @@ defmodule TuistEx.Analytics.EvidenceTest do
   test "without lines, scopes name their files only", %{dir: dir} do
     {_evidence, scopes} = run_suite(dir, 1, false)
 
-    assert scopes[{"test", "SerialTest", "a"}] == [{"m.erl", nil}]
+    assert scopes[{"test", "SerialTest", "a"}] == [{"m.erl", nil}, {"serial_test.exs", nil}]
     assert scopes[{"target", "SetupAllTest", ""}] == [{"m.erl", nil}]
   end
 

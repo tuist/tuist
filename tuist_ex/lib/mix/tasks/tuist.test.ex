@@ -74,9 +74,13 @@ defmodule Mix.Tasks.Tuist.Test do
   With `--cover`, the task asks Tuist for the closest earlier run of the same
   application that recorded which lines each test executed, sends the files
   that changed since then, and leaves out the test modules and tests the
-  server says the change cannot reach. Until such a run exists, or when a
-  tracked file such as `mix.exs` or `mix.lock` changed, every test runs. A
-  request that fails also runs every test, with a warning. Shards planned by
+  server says the change cannot reach. A changed file no test's coverage
+  includes selects no test. Until such a run exists, or when a tracked file
+  such as `mix.exs`, `mix.lock` or a migration changed, every test runs. Add
+  tracked files, globs relative to the project, with
+  `selective_testing: [tracked_files: ["test/fixtures/**"]]`; a pattern
+  starting with `!` excludes the files it matches, Tuist's defaults
+  included. A request that fails also runs every test, with a warning. Shards planned by
   `mix tuist.test.build` run only what was selected. `--no-selective-testing`
   runs every test and still records evidence for later runs. Umbrella roots
   are not selected.
@@ -869,11 +873,14 @@ defmodule Mix.Tasks.Tuist.Test do
   end
 
   defp write_evidence(
-         %{collected: collected, identities: identities, sources: sources},
+         %{collected: collected, identities: identities, sources: sources} = evidence,
          relative,
          out,
          options
-       ), do: Evidence.write(collected, identities, sources, relative, out, options)
+       ) do
+    options = Keyword.put(options, :test_files, Map.get(evidence, :test_files, %{}))
+    Evidence.write(collected, identities, sources, relative, out, options)
+  end
 
   defp inline_evidence(payload, %{collected: collected} = evidence, relative) do
     out = Path.join(collected.dir, "coverage_evidence.json")

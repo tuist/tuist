@@ -49,6 +49,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
        tests: [],
        evidence?: evidence?,
        identities: %{},
+       test_files: %{},
        quarantine: quarantine,
        excluded_names: Quarantine.excluded_names(quarantine),
        also_excluded: [],
@@ -126,16 +127,19 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
         do: [identity | state.skipped_but_ran],
         else: state.skipped_but_ran
 
-    identities =
+    {identities, test_files} =
       if state.evidence?,
-        do: Map.put(state.identities, {test.module, test.name}, identity),
-        else: state.identities
+        do:
+          {Map.put(state.identities, {test.module, test.name}, identity),
+           put_test_file(state.test_files, test)},
+        else: {state.identities, state.test_files}
 
     {:noreply,
      %{
        state
        | tests: [record | state.tests],
          identities: identities,
+         test_files: test_files,
          skipped_but_ran: skipped_but_ran,
          failures: merge_failures(state.failures, failure_kind(test.state))
      }}
@@ -174,7 +178,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
           payload =
             tests
             |> build_payload(duration_ms, state.ran_at, state.opts)
-            |> put_coverage_snapshot(state.opts)
+            |> put_coverage_snapshot(state)
             |> put_evidence(state)
             |> put_left_out(tests, state)
             |> put_coverage_lines(state.opts)
@@ -252,6 +256,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
         Map.put(payload, :evidence_snapshot, %{
           collected: collected,
           identities: state.identities,
+          test_files: state.test_files,
           sources: Coverage.sources(collected.modules)
         })
     end
@@ -279,14 +284,34 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   # Mix turns them into its own report, and an umbrella restarts `cover` for
   # its next application, only after the formatters are done. The owner turns
   # the snapshot into the run's coverage before sending it.
-  defp put_coverage_snapshot(payload, opts) do
-    with true <- Keyword.get(opts, :coverage, false),
+  #
+  # A test file isn't compiled with counters, so it's added as test code
+  # without lines: what its tests' evidence names (`Evidence.write/6`), so a
+  # change to it selects them.
+  defp put_coverage_snapshot(payload, state) do
+    with true <- Keyword.get(state.opts, :coverage, false),
          snapshot when is_list(snapshot) <- Coverage.snapshot() do
-      Map.put(payload, :coverage_snapshot, snapshot)
+      Map.put(payload, :coverage_snapshot, with_test_files(snapshot, state.test_files))
     else
       _ -> payload
     end
   end
+
+  defp with_test_files(snapshot, test_files) do
+    known = MapSet.new(snapshot, & &1.path)
+
+    added =
+      for file <- test_files |> Map.values() |> Enum.uniq() |> Enum.sort(),
+          not MapSet.member?(known, file),
+          do: %{path: file, app: nil, test?: true, lines: %{}, functions: []}
+
+    snapshot ++ added
+  end
+
+  defp put_test_file(test_files, %{tags: %{file: file}} = test) when is_binary(file),
+    do: Map.put(test_files, {test.module, test.name}, Path.expand(file))
+
+  defp put_test_file(test_files, _test), do: test_files
 
   # What a run with coverage left out, as the other build systems report it,
   # so the commit's coverage says which tests it is missing: a run its own
