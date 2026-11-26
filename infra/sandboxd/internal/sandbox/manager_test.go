@@ -1773,26 +1773,45 @@ func TestBurstingGuestIsHeldToItsMemoryRequest(t *testing.T) {
 		t.Fatalf("re-inflated into memory the guest uses: %v", got)
 	}
 	// Short of memory, the guest gets a step of its balloon back at once
-	// rather than through its own OOM deflation.
-	h.m.deflateBalloon(ctx, inst.API(), meta)
+	// rather than through its own OOM deflation, when its container has
+	// room for it.
+	if given, short := h.m.deflateBalloon(ctx, inst.API(), meta, 4096); given != balloonStepMiB || short {
+		t.Fatalf("deflate with room gave %d MiB, short %v", given, short)
+	}
 	if got := balloonTargets(inst); len(got) != 2 || got[1] != 2500-balloonStepMiB {
 		t.Fatalf("balloon targets for a guest short of memory %v", got)
 	}
+	// Only as much as the container has room for, and the guest asks for
+	// the carve-out to grow; with no room it gets nothing.
+	if given, short := h.m.deflateBalloon(ctx, inst.API(), meta, 300); given != 300 || !short {
+		t.Fatalf("deflate with 300 MiB of room gave %d MiB, short %v", given, short)
+	}
+	if got := balloonTargets(inst); len(got) != 3 || got[2] != 2500-300 {
+		t.Fatalf("balloon targets within the container's room %v", got)
+	}
+	if given, short := h.m.deflateBalloon(ctx, inst.API(), meta, 0); given != 0 || !short {
+		t.Fatalf("deflate without room gave %d MiB, short %v", given, short)
+	}
+	if got := balloonTargets(inst); len(got) != 3 {
+		t.Fatalf("deflated a guest past its container's room: %v", got)
+	}
 	// With room, a guest is left alone.
 	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 3072, ActualMiB: 1000, AvailableMemory: mib(1500)})
-	h.m.deflateBalloon(ctx, inst.API(), meta)
-	if got := balloonTargets(inst); len(got) != 2 {
+	if given, short := h.m.deflateBalloon(ctx, inst.API(), meta, -1); given != 0 || short {
+		t.Fatalf("deflated a guest with room: %d MiB, short %v", given, short)
+	}
+	if got := balloonTargets(inst); len(got) != 3 {
 		t.Fatalf("deflated a guest with room: %v", got)
 	}
 	// Once 1500 MiB is available again it inflates by that, less a margin.
 	h.m.holdBalloon(ctx, inst.API(), meta)
-	if got := balloonTargets(inst); len(got) != 3 || got[2] != 1000+1500-balloonMarginMiB {
+	if got := balloonTargets(inst); len(got) != 4 || got[3] != 1000+1500-balloonMarginMiB {
 		t.Fatalf("balloon targets after the burst ended %v", got)
 	}
 	// And to the whole target when the guest has room for it.
 	inst.SetBalloonStatistics(firecracker.BalloonStatistics{TargetMiB: 1476, ActualMiB: 1476, AvailableMemory: mib(3000)})
 	h.m.holdBalloon(ctx, inst.API(), meta)
-	if got := balloonTargets(inst); len(got) != 4 || got[3] != 3072 {
+	if got := balloonTargets(inst); len(got) != 5 || got[4] != 3072 {
 		t.Fatalf("balloon targets with room %v", got)
 	}
 	// A request equal to the guest is no burst: no balloon target.
@@ -1807,8 +1826,9 @@ func TestBurstingGuestIsHeldToItsMemoryRequest(t *testing.T) {
 // A bursting VM may grow by its share of the container's headroom past
 // the margin, never pushing the bursts together past the carve-out, and is
 // never capped below its request.
-func TestBurstHigh(t *testing.T) {
+func TestBurstCap(t *testing.T) {
 	const gib = 1 << 30
+	const margin = 256 << 20
 	floor := uint64(4*gib + vmOverheadBytes)
 	for _, tc := range []struct {
 		name              string
@@ -1816,13 +1836,27 @@ func TestBurstHigh(t *testing.T) {
 		share             int
 		want              uint64
 	}{
-		{"alone, room to grow", 5 * gib, 3 * gib, 1, 5*gib + 3*gib - burstMarginBytes},
-		{"two bursts split the room", 5 * gib, 3 * gib, 2, 5*gib + (3*gib-burstMarginBytes)/2},
-		{"carve-out full: held where it is", 6 * gib, burstMarginBytes / 2, 1, 6 * gib},
+		{"alone, room to grow", 5 * gib, 3 * gib, 1, 5*gib + 3*gib - margin},
+		{"two bursts split the room", 5 * gib, 3 * gib, 2, 5*gib + (3*gib-margin)/2},
+		{"carve-out full: held where it is", 6 * gib, margin / 2, 1, 6 * gib},
 		{"under its request: the floor", 1 * gib, 0, 1, floor},
 	} {
-		if got := burstHigh(tc.current, tc.headroom, tc.share, floor); got != tc.want {
-			t.Errorf("%s: burstHigh = %d MiB, want %d MiB", tc.name, got>>20, tc.want>>20)
+		if got := burstCap(tc.current, tc.headroom, tc.share, floor, margin); got != tc.want {
+			t.Errorf("%s: burstCap = %d MiB, want %d MiB", tc.name, got>>20, tc.want>>20)
 		}
+	}
+}
+
+// Deflates never give guests the container's last deflateMarginMiB, and
+// are unbounded only when the headroom cannot be read.
+func TestDeflateBudget(t *testing.T) {
+	if got := deflateBudgetMiB(1800<<20, true); got != 1800-deflateMarginMiB {
+		t.Fatalf("budget = %d MiB", got)
+	}
+	if got := deflateBudgetMiB(300<<20, true); got != 0 {
+		t.Fatalf("budget under the margin = %d MiB", got)
+	}
+	if got := deflateBudgetMiB(0, false); got != -1 {
+		t.Fatalf("budget without a reading = %d", got)
 	}
 }

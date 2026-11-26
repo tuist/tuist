@@ -192,8 +192,8 @@ func (c *VMCgroups) Open(id string, guaranteeMilli, lowBytes uint64) (*os.File, 
 		if err := os.WriteFile(filepath.Join(dir, "memory.low"), []byte(strconv.FormatUint(lowBytes, 10)), 0o644); err != nil {
 			return nil, fmt.Errorf("protecting the memory of %s: %w", filepath.Base(dir), err)
 		}
-		// A reused cgroup must not keep a previous run's burst cap.
-		if err := c.SetMemoryHigh(id, 0); err != nil {
+		// A reused cgroup must not keep a previous run's burst caps.
+		if err := errors.Join(c.SetMemoryHigh(id, 0), c.SetMemoryMax(id, 0)); err != nil {
 			return nil, err
 		}
 	}
@@ -205,6 +205,17 @@ func (c *VMCgroups) Open(id string, guaranteeMilli, lowBytes uint64) (*os.File, 
 // faults instead of letting it fill the container, whose limit OOM-kills.
 // A no-op without per-VM memory accounting.
 func (c *VMCgroups) SetMemoryHigh(id string, bytes uint64) error {
+	return c.setMemoryLimit(id, "memory.high", bytes)
+}
+
+// SetMemoryMax limits the VM's cgroup to bytes (memory.max), zero for no
+// limit. Past it the kernel OOM-kills the VM's own process, not the
+// container's. A no-op without per-VM memory accounting.
+func (c *VMCgroups) SetMemoryMax(id string, bytes uint64) error {
+	return c.setMemoryLimit(id, "memory.max", bytes)
+}
+
+func (c *VMCgroups) setMemoryLimit(id, file string, bytes uint64) error {
 	if c == nil || !c.memory {
 		return nil
 	}
@@ -212,16 +223,19 @@ func (c *VMCgroups) SetMemoryHigh(id string, bytes uint64) error {
 	if bytes > 0 {
 		value = strconv.FormatUint(bytes, 10)
 	}
-	if err := os.WriteFile(filepath.Join(c.dir, vmCgroupPrefix+id, "memory.high"), []byte(value), 0o644); err != nil {
-		return fmt.Errorf("capping the memory of %s: %w", vmCgroupPrefix+id, err)
+	if err := os.WriteFile(filepath.Join(c.dir, vmCgroupPrefix+id, file), []byte(value), 0o644); err != nil {
+		return fmt.Errorf("setting %s of %s: %w", file, vmCgroupPrefix+id, err)
 	}
 	return nil
 }
 
 // MemoryHeadroom is how much more the container's cgroup can hold before
 // its limit OOM-kills: the limit less what it holds, counting its page
-// cache (inactive and active file pages) as free, since the kernel drops
-// that first. False without a container cgroup or a limit.
+// cache that no process maps as free, since the kernel drops that first.
+// Mapped file pages, such as a restored guest's memory file, are not: the
+// kernel cannot drop them while the guest uses them, and counting them
+// (1.2 GiB on staging) let a burst OOM-kill the vmm container. False
+// without a container cgroup or a limit.
 func MemoryHeadroom() (uint64, bool) {
 	path, ok := ownCgroup()
 	if !ok {
@@ -239,16 +253,20 @@ func memoryHeadroom(root, path string) (uint64, bool) {
 	if !ok {
 		return 0, false
 	}
-	var cache uint64
+	var cache, mapped uint64
 	if data, err := os.ReadFile(filepath.Join(root, path, "memory.stat")); err == nil {
 		for _, line := range strings.Split(string(data), "\n") {
 			key, value, _ := strings.Cut(line, " ")
-			if key == "inactive_file" || key == "active_file" {
-				n, _ := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+			n, _ := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+			switch key {
+			case "inactive_file", "active_file":
 				cache += n
+			case "file_mapped":
+				mapped += n
 			}
 		}
 	}
+	cache -= min(mapped, cache)
 	held := current - min(cache, current)
 	if held >= limit {
 		return 0, true

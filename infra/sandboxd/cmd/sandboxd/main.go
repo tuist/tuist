@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -651,14 +652,15 @@ func main() {
 		logger.Info("SERVER_URL not set; running admin-only")
 	}
 
-	go manager.HoldBalloons(ctx)
-	// A burst at its cap reports its use now, so the server grows the
+	// A burst short of memory reports its use now, so the server grows the
 	// carve-out within seconds instead of at the next report.
-	go manager.CapBursts(ctx, func() {
+	burstPressed := throttle(2*time.Second, func() {
 		if serverClient != nil {
 			serverClient.ReportNow()
 		}
 	})
+	go manager.HoldBalloons(ctx, burstPressed)
+	go manager.CapBursts(ctx, burstPressed)
 	if followCurrent {
 		go followTemplate(ctx, logger, store, builder, manager, templateName, prebuild, keepTag != "", func(current string) { pruneTemplateTags(templateName, current) }, func() {
 			if serverClient != nil {
@@ -918,5 +920,22 @@ func followTemplate(ctx context.Context, logger *slog.Logger, store *template.St
 		prune(tag)
 		pruned = true
 		report()
+	}
+}
+
+// throttle returns fn run at most once per interval; calls in between are
+// dropped.
+func throttle(interval time.Duration, fn func()) func() {
+	var mu sync.Mutex
+	var last time.Time
+	return func() {
+		mu.Lock()
+		if time.Since(last) < interval {
+			mu.Unlock()
+			return
+		}
+		last = time.Now()
+		mu.Unlock()
+		fn()
 	}
 }
