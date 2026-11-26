@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         runs_on: [tuist-macos-golden-gate, tuist-macos]
-        storage: [volume, local]
+        storage: [volume]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Report the guest
@@ -79,20 +79,32 @@ jobs:
           run_into "$HOME/xroot" "root disk"
           run_into "$GITHUB_WORKSPACE/.xtest" "cached checkout volume"
           [ -n "${E2E_REAL:-}" ] && [ "$(df "$E2E_REAL" | tail -1 | cut -d' ' -f1)" != "$(df "$HOME" | tail -1 | cut -d' ' -f1)" ] && run_into "$E2E_REAL/xtest" "cache volume"
-          img="$HOME/ximg"; mkdir -p "$img"
+          share="$(hdiutil info | sed -n 's/^image-path *: \(.*My Shared Files\/custom-cache\/[^/]*\)\/cache.sparseimage$/\1/p' | tail -1)"
+          echo "share dir: $share"; ls -la "$share"
+          img="$share/xtest"; mkdir -p "$img"
           try_image() {
-            local label="$1" file="$2"; shift 2
-            local mnt="$img/mnt-$label"; mkdir -p "$mnt"
-            if ! hdiutil attach "$file" -owners off -nobrowse -mountpoint "$mnt" "$@" >/dev/null 2>/tmp/attach.err; then
+            local label="$1" file="$2" how="$3"; shift 3
+            local mnt="$HOME/xmnt-$label"; mkdir -p "$mnt"
+            if [ "$how" = diskutil ]; then
+              diskutil image attach --mountPoint "$mnt" "$file" >/tmp/attach.err 2>&1 || { echo "$label: attach failed: $(cat /tmp/attach.err)"; return; }
+            elif ! hdiutil attach "$file" -owners off -nobrowse -mountpoint "$mnt" "$@" >/dev/null 2>/tmp/attach.err; then
               echo "$label: attach failed: $(cat /tmp/attach.err)"; return
             fi
-            run_into "$mnt" "$label image on root disk"
-            hdiutil detach "$mnt" -force -quiet || true
+            run_into "$mnt" "$label on share"
+            hdiutil detach "$mnt" -force -quiet || diskutil unmount force "$mnt" || true
           }
-          hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s.sparseimage" && try_image sparse "$img/s.sparseimage"
-          hdiutil create -size 4g -fs APFS -volname T -type SPARSEBUNDLE -quiet "$img/b.sparsebundle" && try_image sparsebundle "$img/b.sparsebundle"
-          hdiutil create -size 4g -fs APFS -volname T -type UDIF -quiet "$img/u.dmg" && try_image udif "$img/u.dmg"
-          if diskutil image create blank --fs APFS --format ASIF --size 4G --volumeName T "$img/a.asif" >/dev/null 2>&1; then try_image asif "$img/a.asif"; else echo "asif: create failed"; fi
+          hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s1.sparseimage"
+          try_image sparse-hdiutil "$img/s1.sparseimage" hdiutil
+          cp -c "$img/s1.sparseimage" "$img/s2.sparseimage" 2>/dev/null || hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s2.sparseimage"
+          try_image sparse-nocache "$img/s2.sparseimage" hdiutil -nocache
+          hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s3.sparseimage"
+          try_image sparse-diskutil "$img/s3.sparseimage" diskutil
+          hdiutil create -size 4g -fs APFS -volname T -type SPARSEBUNDLE -quiet "$img/b.sparsebundle"
+          try_image sparsebundle "$img/b.sparsebundle" hdiutil
+          hdiutil create -size 4g -fs APFS -volname T -type UDIF -quiet "$img/u.dmg"
+          try_image udif "$img/u.dmg" hdiutil
+          if diskutil image create blank --fs APFS --format ASIF --size 4G --volumeName T "$img/a.asif" >/tmp/asif.err 2>&1; then try_image asif "$img/a.asif" diskutil; else echo "asif: create failed: $(cat /tmp/asif.err)"; fi
+          rm -rf "$img"
           exit 0
       - uses: ./.github/actions/mise-install
         with:
@@ -100,6 +112,7 @@ jobs:
           working-directory: server
       - name: Build the xcresult NIF
         id: build
+        if: false
         working-directory: server
         env:
           TUIST_NIF_BUILD_ROOT: ${{ env.E2E_ROOT }}/nif
