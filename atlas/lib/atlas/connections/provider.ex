@@ -54,6 +54,17 @@ defmodule Atlas.Connections.Provider do
       token_url: "https://api.x.com/2/oauth2/token",
       profile_url: "https://api.x.com/2/users/me",
       scopes: ~w(tweet.read users.read offline.access)
+    },
+    # Also not a personal connection: Atlas.GTM.SocialAccounts holds the grant
+    # of a LinkedIn Page administrator and reads that Page's posts and their
+    # statistics (Community Management API). LinkedIn's standard web flow uses
+    # no PKCE, and the Page is found through the admin's roles, not a profile.
+    "linkedin" => %{
+      name: "LinkedIn",
+      authorize_url: "https://www.linkedin.com/oauth/v2/authorization",
+      token_url: "https://www.linkedin.com/oauth/v2/accessToken",
+      profile_url: nil,
+      scopes: ~w(rw_organization_admin r_organization_social)
     }
   }
 
@@ -110,6 +121,9 @@ defmodule Atlas.Connections.Provider do
           "slack" ->
             Map.put(params, "user_scope", Enum.join(config.scopes, ","))
 
+          "linkedin" ->
+            Map.put(params, "scope", Enum.join(config.scopes, " "))
+
           _ ->
             challenge = :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false)
 
@@ -130,7 +144,7 @@ defmodule Atlas.Connections.Provider do
 
   def exchange(provider, code, redirect_uri, verifier) do
     params = %{"grant_type" => "authorization_code", "code" => code, "redirect_uri" => redirect_uri}
-    params = if provider == "slack", do: params, else: Map.put(params, "code_verifier", verifier)
+    params = if provider in ~w(slack linkedin), do: params, else: Map.put(params, "code_verifier", verifier)
 
     with {:ok, attrs} <- token_request(provider, params),
          {:ok, identity} <- identity(provider, attrs.access_token) do
@@ -180,7 +194,10 @@ defmodule Atlas.Connections.Provider do
 
   defp identity(provider, token) do
     {:ok, config} = config(provider)
+    if config.profile_url, do: profile_identity(provider, config, token), else: {:ok, %{}}
+  end
 
+  defp profile_identity(provider, config, token) do
     with {:ok, body} <- request(:get, config.profile_url, auth: {:bearer, token}) do
       profile(provider, body)
     end

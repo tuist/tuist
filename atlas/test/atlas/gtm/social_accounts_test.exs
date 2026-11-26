@@ -41,7 +41,7 @@ defmodule Atlas.GTM.SocialAccountsTest do
     first = insert_user!(%{scopes: ["gtm:write"]})
     second = insert_user!(%{scopes: ["gtm:write"]})
 
-    assert {:ok, account} = SocialAccounts.connect(first, "brand", "code", "https://atlas.test/cb", "verifier")
+    assert {:ok, account} = SocialAccounts.connect(first, "x", "brand", "code", "https://atlas.test/cb", "verifier")
     assert %{handle: "@tuistdev", kind: "brand", external_id: "1201413677729173505"} = account
 
     # Encrypted at rest.
@@ -50,7 +50,7 @@ defmodule Atlas.GTM.SocialAccountsTest do
 
     refute stored =~ "x-access"
 
-    assert {:ok, again} = SocialAccounts.connect(second, "personal", "code", "https://atlas.test/cb", "verifier")
+    assert {:ok, again} = SocialAccounts.connect(second, "x", "personal", "code", "https://atlas.test/cb", "verifier")
     assert again.id == account.id
     assert %{kind: "personal", connected_by_id: second_id} = again
     assert second_id == second.id
@@ -65,7 +65,7 @@ defmodule Atlas.GTM.SocialAccountsTest do
     reader = insert_user!(%{scopes: ["gtm:read"]})
     account = insert_account!()
 
-    assert {:error, :forbidden} = SocialAccounts.connect(reader, "brand", "code", "https://atlas.test/cb", "v")
+    assert {:error, :forbidden} = SocialAccounts.connect(reader, "x", "brand", "code", "https://atlas.test/cb", "v")
     assert {:error, :forbidden} = SocialAccounts.disconnect(reader, account.id)
     assert Repo.reload(account)
 

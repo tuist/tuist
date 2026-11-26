@@ -10,6 +10,7 @@ defmodule Atlas.GTM.SocialAccounts do
 
   alias Atlas.Audit
   alias Atlas.Connections.Provider
+  alias Atlas.GTM.LinkedIn
   alias Atlas.GTM.SocialAccount
   alias Atlas.Repo
   alias Atlas.Users
@@ -26,14 +27,30 @@ defmodule Atlas.GTM.SocialAccounts do
 
   def can_manage?(user), do: Users.has_scope?(user, "gtm:write")
 
-  @doc "Exchanges an X authorization code and stores the account it belongs to."
-  def connect(%User{} = user, kind, code, redirect_uri, verifier) do
+  @doc """
+  Exchanges an authorization code and stores the account it belongs to: the
+  signed-in X account, or the LinkedIn Page the signed-in member administers.
+  LinkedIn Pages are always brand accounts.
+  """
+  def connect(%User{} = user, platform, kind, code, redirect_uri, verifier) do
     with :ok <- authorize(user),
+         true <- platform in SocialAccount.platforms() || {:error, :invalid_platform},
          true <- kind in SocialAccount.kinds() || {:error, :invalid_kind},
-         {:ok, attrs} <- Provider.exchange("x", code, redirect_uri, verifier),
-         {:ok, account} <- save(user, kind, attrs) do
+         true <- (platform == "x" or kind == "brand") || {:error, :invalid_kind},
+         {:ok, attrs} <- Provider.exchange(platform, code, redirect_uri, verifier),
+         {:ok, attrs} <- identify(platform, attrs),
+         {:ok, account} <- save(user, platform, kind, attrs) do
       audit("social_account.connected", account, user)
       {:ok, account}
+    end
+  end
+
+  defp identify("x", attrs),
+    do: {:ok, Map.merge(attrs, %{external_id: attrs.provider_user_id, handle: attrs.account_name})}
+
+  defp identify("linkedin", attrs) do
+    with {:ok, %{id: id, name: name}} <- LinkedIn.administered_page(attrs.access_token) do
+      {:ok, Map.merge(attrs, %{external_id: id, handle: name})}
     end
   end
 
@@ -119,21 +136,21 @@ defmodule Atlas.GTM.SocialAccounts do
     :needs_authorization
   end
 
-  defp save(user, kind, attrs) do
+  defp save(user, platform, kind, attrs) do
     Repo.transaction(fn ->
       existing =
         Repo.one(
           from a in SocialAccount,
-            where: a.platform == "x" and a.external_id == ^attrs.provider_user_id,
+            where: a.platform == ^platform and a.external_id == ^attrs.external_id,
             lock: "FOR UPDATE"
         )
 
       attrs =
         attrs
-        |> Map.merge(%{handle: attrs.account_name, kind: kind})
+        |> Map.put(:kind, kind)
         |> Map.update!(:refresh_token, &(&1 || (existing && existing.refresh_token)))
 
-      (existing || %SocialAccount{platform: "x", external_id: attrs.provider_user_id})
+      (existing || %SocialAccount{platform: platform, external_id: attrs.external_id})
       |> SocialAccount.changeset(attrs)
       |> Ecto.Changeset.put_change(:connected_by_id, user.id)
       |> Repo.insert_or_update()

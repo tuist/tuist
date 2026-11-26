@@ -11,6 +11,7 @@ defmodule Atlas.GTM.SocialPosts do
   import Ecto.Query
 
   alias Atlas.Audit
+  alias Atlas.GTM.LinkedIn
   alias Atlas.GTM.SocialAccount
   alias Atlas.GTM.SocialAccounts
   alias Atlas.GTM.SocialPost
@@ -85,21 +86,45 @@ defmodule Atlas.GTM.SocialPosts do
       else: (Enum.at(sorted, middle - 1) + Enum.at(sorted, middle)) / 2
   end
 
-  @doc "Syncs every connected social account. Returns the number of accounts synced."
+  @doc """
+  Syncs every connected social account and prunes LinkedIn data past
+  LinkedIn's storage limits. Returns the number of accounts synced.
+  """
   def sync_all do
-    from(a in SocialAccount, where: not a.needs_authorization)
-    |> Repo.all()
-    |> Enum.count(&match?({:ok, _}, sync_account(&1)))
+    synced =
+      from(a in SocialAccount, where: not a.needs_authorization)
+      |> Repo.all()
+      |> Enum.count(&match?({:ok, _}, sync_account(&1)))
+
+    prune_linkedin()
+    synced
+  end
+
+  @doc """
+  LinkedIn's API terms allow keeping a Page's own post content for six months
+  and its reporting data for a year: older posts lose their text, and posts
+  past a year are deleted with their snapshots.
+  """
+  def prune_linkedin(now \\ DateTime.utc_now()) do
+    Repo.delete_all(
+      from p in SocialPost, where: p.platform == "linkedin" and p.posted_at < ^DateTime.add(now, -365, :day)
+    )
+
+    Repo.update_all(
+      from(p in SocialPost,
+        where: p.platform == "linkedin" and p.posted_at < ^DateTime.add(now, -182, :day) and p.text != ""
+      ),
+      set: [text: ""]
+    )
+
+    :ok
   end
 
   @doc "Reads one account's recent posts and stores today's metrics."
   def sync_account(%SocialAccount{} = account, opts \\ []) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    with {:ok, me} <- SocialAccounts.with_token(account, &get(&1, "/users/me", [])),
-         %{"id" => account_id, "username" => username} <- me["data"] || {:error, :invalid_response},
-         {:ok, posts} <- fetch(account, account_id, DateTime.add(now, -@window_days * 86_400, :second)) do
-      rows = build_rows(posts, account_id, username, now)
+    with {:ok, rows} <- fetch_rows(account, DateTime.add(now, -@window_days * 86_400, :second), now) do
       Enum.each(rows, &store(&1, DateTime.to_date(now)))
       SocialAccounts.mark_synced(account)
 
@@ -108,9 +133,9 @@ defmodule Atlas.GTM.SocialPosts do
         %{
           target_type: "social_account",
           target_id: account.id,
-          target_label: "@" <> username,
+          target_label: account.handle,
           metadata: %{
-            "platform" => "x",
+            "platform" => account.platform,
             "posts" => length(rows),
             "dashboard_path" => "/commercial/gtm/social/performance"
           }
@@ -119,6 +144,18 @@ defmodule Atlas.GTM.SocialPosts do
       )
 
       {:ok, length(rows)}
+    end
+  end
+
+  defp fetch_rows(%SocialAccount{platform: "linkedin"} = account, since, now) do
+    SocialAccounts.with_token(account, &LinkedIn.rows(&1, account.external_id, account.handle, since, now))
+  end
+
+  defp fetch_rows(account, since, now) do
+    with {:ok, me} <- SocialAccounts.with_token(account, &get(&1, "/users/me", [])),
+         %{"id" => account_id, "username" => username} <- me["data"] || {:error, :invalid_response},
+         {:ok, posts} <- fetch(account, account_id, since) do
+      {:ok, build_rows(posts, account_id, username, now)}
     else
       {:error, _} = error -> error
       _ -> {:error, :invalid_response}

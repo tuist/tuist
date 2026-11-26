@@ -56,7 +56,7 @@ defmodule AtlasWeb.SocialPerformanceLive do
           <h1 data-part="title">{gettext("Post performance")}</h1>
           <p data-part="description">
             {gettext(
-              "Posts from the X accounts Atlas holds, refreshed daily. Engagements are likes, reposts, quotes, replies and bookmarks."
+              "Posts from the X accounts and LinkedIn pages Atlas holds, refreshed daily. Engagements are likes, reposts, quotes, replies and bookmarks."
             )}
           </p>
         </div>
@@ -80,14 +80,21 @@ defmodule AtlasWeb.SocialPerformanceLive do
             <.button
               id="social-connect-brand"
               href={~p"/commercial/gtm/social/accounts/connect/brand"}
-              label={gettext("Connect brand account")}
+              label={gettext("Connect X brand account")}
               variant="secondary"
               size="medium"
             />
             <.button
               id="social-connect-personal"
               href={~p"/commercial/gtm/social/accounts/connect/personal"}
-              label={gettext("Connect personal account")}
+              label={gettext("Connect X personal account")}
+              variant="secondary"
+              size="medium"
+            />
+            <.button
+              id="social-connect-linkedin"
+              href={~p"/commercial/gtm/social/accounts/connect/brand?platform=linkedin"}
+              label={gettext("Connect LinkedIn page")}
               variant="secondary"
               size="medium"
             />
@@ -96,6 +103,9 @@ defmodule AtlasWeb.SocialPerformanceLive do
             <.table id="social-accounts" rows={@accounts} row_key={& &1.id}>
               <:col :let={account} label={gettext("Account")}>
                 <.text_cell label={account.handle} />
+              </:col>
+              <:col :let={account} label={gettext("Platform")}>
+                <.text_cell label={platform_label(account.platform)} />
               </:col>
               <:col :let={account} label={gettext("Kind")}>
                 <.badge_cell label={kind_label(account.kind)} color="neutral" style="light-fill" />
@@ -127,7 +137,7 @@ defmodule AtlasWeb.SocialPerformanceLive do
                   phx-value-id={account.id}
                   data-confirm={
                     gettext(
-                      "Stop syncing this account? Its stored posts stay; Atlas removes its X grant."
+                      "Stop syncing this account? Its stored posts stay; Atlas removes its grant."
                     )
                   }
                 />
@@ -138,7 +148,7 @@ defmodule AtlasWeb.SocialPerformanceLive do
                   title={gettext("No accounts connected")}
                   subtitle={
                     gettext(
-                      "Someone with GTM write access signs in to X as the account and connects it here. The grant stays with Atlas, not with them."
+                      "Someone with GTM write access signs in to X as the account, or to LinkedIn as a page admin, and connects it here. The grant stays with Atlas, not with them."
                     )
                   }
                 />
@@ -214,7 +224,7 @@ defmodule AtlasWeb.SocialPerformanceLive do
                   icon="message_circle"
                   title={gettext("No posts yet")}
                   subtitle={
-                    gettext("Connect an X account above. Posts appear after the next daily sync.")
+                    gettext("Connect an account above. Posts appear after the next daily sync.")
                   }
                 />
               </:empty_state>
@@ -250,6 +260,9 @@ defmodule AtlasWeb.SocialPerformanceLive do
     </.table>
     """
   end
+
+  defp platform_label("linkedin"), do: "LinkedIn"
+  defp platform_label(_platform), do: "X"
 
   defp kind_label("brand"), do: gettext("Brand")
   defp kind_label("personal"), do: gettext("Personal")

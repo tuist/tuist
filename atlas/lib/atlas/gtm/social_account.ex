@@ -13,8 +13,10 @@ defmodule Atlas.GTM.SocialAccount do
   alias Atlas.Users.User
 
   @kinds ~w(brand personal)
+  @platforms ~w(x linkedin)
 
   def kinds, do: @kinds
+  def platforms, do: @platforms
 
   schema "social_accounts" do
     field :platform, :string
@@ -37,7 +39,7 @@ defmodule Atlas.GTM.SocialAccount do
     account
     |> cast(attrs, [:handle, :kind, :access_token, :refresh_token, :scopes, :expires_at, :needs_authorization])
     |> validate_required([:platform, :external_id, :handle, :kind, :access_token])
-    |> validate_inclusion(:platform, ["x"])
+    |> validate_inclusion(:platform, @platforms)
     |> validate_inclusion(:kind, @kinds)
     |> unique_constraint([:platform, :external_id])
   end

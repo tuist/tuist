@@ -412,8 +412,13 @@ defmodule AtlasWeb.Router do
 
     get "/operations/labels/:id/jobs/:jobId/preview", LabelsController, :image, log: false
     get "/commercial/gtm/social/accounts/connect/:kind", SocialAccountController, :authorize, log: false
-    # The X app's registered callback; X grants belong to Atlas social accounts.
-    get "/connections/x/callback", SocialAccountController, :callback, log: false
+    # The X and LinkedIn apps' registered callbacks; those grants belong to Atlas social accounts.
+    get "/connections/x/callback", SocialAccountController, :callback, log: false, assigns: %{platform: "x"}
+
+    get "/connections/linkedin/callback", SocialAccountController, :callback,
+      log: false,
+      assigns: %{platform: "linkedin"}
+
     get "/connections/:provider/authorize", ConnectionController, :authorize, log: false
     get "/connections/:provider/callback", ConnectionController, :callback, log: false
 

@@ -87,7 +87,7 @@ defmodule Atlas.MCP.Tools.ListSocialPostPerformance do
   @impl EMCP.Tool
   def description,
     do:
-      "List posts from connected X accounts in the last `days` days (default 30) with impressions, engagements, engagement rate and clicks, plus medians by account kind (brand or personal), by account and by format (text, image, video, link, quote, with or without a thread). Metrics refresh daily."
+      "List posts from connected X accounts and LinkedIn pages in the last `days` days (default 30) with impressions, engagements, engagement rate and clicks, plus medians by account kind (brand or personal), by account and by format (text, image, video, link, quote, with or without a thread). Metrics refresh daily."
 
   def execute(_conn, args) do
     posts = SocialPosts.list_posts(days: args["days"] || 30, account: args["account"])

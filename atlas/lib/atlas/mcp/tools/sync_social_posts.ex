@@ -48,7 +48,7 @@ defmodule Atlas.MCP.Tools.SyncSocialPosts do
   @impl EMCP.Tool
   def description,
     do:
-      "Read the posts and metrics of the X accounts connected in Atlas (GTM → Social → Post performance) now, instead of waiting for the daily sync, and return how many posts were stored per account. Pass `account` to sync one handle. Each run is billed by X per post read, so it runs at most #{@limit} times an hour. Requires gtm:write."
+      "Read the posts and metrics of the X accounts and LinkedIn pages connected in Atlas (GTM → Social → Post performance) now, instead of waiting for the daily sync, and return how many posts were stored per account. Pass `account` to sync one handle or page name. Each run is billed by X per post read, so it runs at most #{@limit} times an hour. Requires gtm:write."
 
   def execute(conn, args) do
     with true <- ManageAccountConnections.allowed_context?(conn) || {:error, :shared_identity},
