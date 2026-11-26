@@ -522,6 +522,15 @@ func (c *Client) StartWithOptions(ctx context.Context, name string, opts RunOpti
 	} else {
 		args = append(args, "--no-graphics")
 	}
+	// Without --no-audio (and without --suspendable, which implies it), Tart
+	// bridges the guest's Apple Virtual Sound Device to the host's CoreAudio:
+	// VZHostAudioInputStreamSource (the host microphone) and
+	// VZHostAudioOutputStreamSink. On fleet hosts that made the guest's
+	// AVAudioPlayer.prepareToPlay() block ~270 s in
+	// HALC_ProxyIOContext::_TellServerAboutStreamUsage, while the same image
+	// with Tart's null speaker (sandboxes) prepares in under 0.1 s. Nobody
+	// listens to a datacenter Mac mini, so keep only the null speaker.
+	args = append(args, "--no-audio")
 	args = append(args, "--root-disk-opts", "caching=cached")
 	for _, dir := range opts.SharedDirs {
 		args = append(args, "--dir", dir)
