@@ -157,5 +157,12 @@ func lvmHeldTemplate(instance *kurav1.KuraInstance, sts *appsv1.StatefulSet) *ku
 	if request := kuraDiskRequest(sts.Spec.Template.Spec, kuraDiskResource); !request.IsZero() {
 		held.Spec.DiskResource = string(kuraDiskResource)
 	}
+	// Replica placement is held with the storage: no volume can be rebuilt
+	// while the migration holds, so a spread the template does not already
+	// require cannot move a colocated standby, and requiring it would leave
+	// the next pod it rolls Pending beside its sibling's pinned volume.
+	if affinity := sts.Spec.Template.Spec.Affinity; affinity == nil || affinity.PodAntiAffinity == nil || len(affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) == 0 {
+		held.Spec.ReplicaSpreadTopologyKey = ""
+	}
 	return held
 }
