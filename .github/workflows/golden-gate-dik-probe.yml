@@ -19,3 +19,5 @@ jobs:
           sw_vers -productVersion
           swiftc -O .github/e2e/dik-probe.swift -o /tmp/dik-probe
           /tmp/dik-probe
+          swiftc -O .github/e2e/dik-make.swift -o /tmp/dik-make
+          .github/e2e/dik-chain.sh
