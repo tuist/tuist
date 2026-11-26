@@ -50,6 +50,13 @@ ARG VERSION=dev
 # 74 MB/s. Plain HTTP because the base image has no CA bundle yet; apt
 # verifies the archive signatures either way.
 ARG UBUNTU_MIRROR=http://mirrors.edge.kernel.org/ubuntu
+# What the template boots: the `guest` stage below (the default template), or
+# any linux/amd64 OCI image reference, pinned by digest, such as the Linux
+# runner image. Either way the `agents` stage adds the sandbox guest contract
+# and `rootfs` turns the result into rootfs.ext4. TEMPLATE_NAME is recorded
+# in metadata.json.
+ARG GUEST_IMAGE=guest
+ARG TEMPLATE_NAME=default
 
 FROM ubuntu:24.04 AS elixir-toolchain
 ARG UBUNTU_MIRROR
@@ -259,10 +266,13 @@ RUN locale-gen en_US.UTF-8 && update-locale LANG=C.UTF-8 \
 # sandboxd: interactive shells start in the workspace.
 case "$-" in *i*) cd /workspace 2>/dev/null ;; esac
 EOF
-RUN mkdir -p /workspace /mnt/memory /run /tmp /proc /sys /dev \
-    && chmod 1777 /tmp \
-    && test -x /bin/bash
-
+# The sandbox guest contract, added to whichever image GUEST_IMAGE names: the
+# guest binaries, and the accounts and tools sandboxd and the server rely on
+# (scripts/guest-contract.sh). No package manager runs here, so the same step
+# works on any linux/amd64 image; an image that lacks a required tool fails
+# the build and names it.
+FROM ${GUEST_IMAGE} AS agents
+USER root
 COPY --from=builder /out/sbx-init /sbin/sbx-init
 COPY --from=builder /out/sbx-agent /usr/local/bin/sbx-agent
 COPY --from=builder /out/sbx-worker /usr/local/bin/sbx-worker
@@ -278,15 +288,14 @@ RUN case "$EMBEDDED_EXECUTOR" in \
       *) echo "EMBEDDED_EXECUTOR must be 0 or 1" >&2; exit 1 ;; \
     esac
 
-# REAPI actions run as `builder` (UID/GID 2000, internal/executor.actionUID):
-# it cannot read the root worker's CAS credential or control sockets and,
-# unlike `user`, has no sudo.
-RUN groupadd --gid 2000 builder && useradd --uid 2000 --gid builder --create-home builder
+RUN --mount=type=bind,source=scripts/guest-contract.sh,target=/tmp/guest-contract.sh \
+    sh /tmp/guest-contract.sh
 
 # The rootfs stage runs natively: mkfs.ext4 -d produces the same image on any
 # host, and this keeps the multi-gigabyte populate step off the emulator.
 FROM --platform=$BUILDPLATFORM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS rootfs
 ARG UBUNTU_MIRROR
+ARG TEMPLATE_NAME
 RUN sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${UBUNTU_MIRROR}/#" /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update && apt-get install -y --no-install-recommends e2fsprogs ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
@@ -296,7 +305,7 @@ RUN mkdir -p /out \
     && curl -fsSL --retry 3 -o /out/vmlinux "${KERNEL_URL}" \
     && curl -fsSL --retry 3 -o /out/vmlinux.config "${KERNEL_URL}.config" \
     && if [ -n "${KERNEL_SHA256}" ]; then echo "${KERNEL_SHA256}  /out/vmlinux" | sha256sum -c -; fi
-COPY --from=guest / /rootfs
+COPY --from=agents / /rootfs
 # /etc/hostname, hosts and resolv.conf are bind mounts inside a build
 # container, so their defaults are seeded here where they are plain files.
 # sbx-init rewrites all three at boot.
@@ -315,8 +324,9 @@ RUN mkdir -p /rootfs/dev /rootfs/proc /rootfs/sys /rootfs/run /rootfs/tmp /rootf
     && runner_uid="$(awk -F: '$1 == "user" { print $3 }' /rootfs/etc/passwd)" \
     && runner_gid="$(awk -F: '$1 == "user" { print $4 }' /rootfs/etc/passwd)" \
     && test -n "${runner_uid}" && test -n "${runner_gid}" \
-    && printf '{"name":"default","kernel":"%s","built_at":"%s","runner_uid":%s,"runner_gid":%s}\n' \
-        "${kernel}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${runner_uid}" "${runner_gid}" > /out/metadata.json \
+    && printf '%s' "${TEMPLATE_NAME}" | grep -Eqx '[a-z0-9]([a-z0-9-]*[a-z0-9])?' \
+    && printf '{"name":"%s","kernel":"%s","built_at":"%s","runner_uid":%s,"runner_gid":%s}\n' \
+        "${TEMPLATE_NAME}" "${kernel}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${runner_uid}" "${runner_gid}" > /out/metadata.json \
     && cat /out/metadata.json && ls -la /out && du -h /out/*
 
 # Build with --target execution-gateway for the stateless public REAPI service.
