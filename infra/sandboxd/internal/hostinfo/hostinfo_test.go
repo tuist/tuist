@@ -228,9 +228,18 @@ func TestSetupVMCgroupsWeighsVMsByTheirGuarantee(t *testing.T) {
 	if got := read("vm-four/memory.high"); got != strconv.FormatUint(5<<30, 10) {
 		t.Fatalf("memory.high = %q", got)
 	}
+	if got := read("vm-four/memory.max"); got != "max" {
+		t.Fatalf("memory.max after open = %q", got)
+	}
+	if err := cgroups.SetMemoryMax("four", 6<<30); err != nil {
+		t.Fatal(err)
+	}
+	if got := read("vm-four/memory.max"); got != strconv.FormatUint(6<<30, 10) {
+		t.Fatalf("memory.max = %q", got)
+	}
 	// cgroupfs removes a cgroup's interface files with it; a plain
 	// directory needs them gone first.
-	for _, name := range []string{"cpu.weight", "memory.low", "memory.high", "memory.current"} {
+	for _, name := range []string{"cpu.weight", "memory.low", "memory.high", "memory.max", "memory.current"} {
 		_ = os.Remove(filepath.Join(dir, "vm-four", name))
 	}
 	if err := cgroups.Remove("four"); err != nil {
@@ -338,9 +347,11 @@ func TestMemoryHeadroom(t *testing.T) {
 	}
 	write("memory.max", "max\n")
 	write("memory.current", "9000\n")
-	write("memory.stat", "anon 5000\nfile 4000\ninactive_file 2500\nactive_file 1000\nshmem 500\n")
-	if got, ok := memoryHeadroom(root, "/pod/container"); !ok || got != 10000-(9000-3500) {
-		t.Fatalf("headroom = %d, %v; want %d", got, ok, 10000-(9000-3500))
+	write("memory.stat", "anon 5000\nfile 4000\nfile_mapped 1200\ninactive_file 2500\nactive_file 1000\nshmem 500\n")
+	// 3500 of file pages, 1200 of them mapped (a guest's memory file):
+	// only 2300 can be dropped.
+	if got, ok := memoryHeadroom(root, "/pod/container"); !ok || got != 10000-(9000-2300) {
+		t.Fatalf("headroom = %d, %v; want %d", got, ok, 10000-(9000-2300))
 	}
 	// Past its limit without cache to drop, it has none.
 	write("memory.current", "13000\n")

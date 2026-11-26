@@ -806,27 +806,60 @@ func (m *Manager) holdBalloon(ctx context.Context, api *firecracker.Client, meta
 }
 
 // deflateBalloon lowers a bursting guest's balloon when the guest is short
-// of memory. The guest's own deflate on OOM frees about 1 MiB per OOM
-// notification, which held a 6 GiB burst to about 33 MiB/s on staging;
-// the host lowering the target takes effect at once.
-func (m *Manager) deflateBalloon(ctx context.Context, api *firecracker.Client, meta Metadata) {
+// of memory, by at most budgetMiB, the memory its container has room for
+// (negative: no bound). The guest's own deflate on OOM frees about 1 MiB
+// per OOM notification, which held a 6 GiB burst to about 33 MiB/s on
+// staging; the host lowering the target takes effect at once. Every MiB
+// it gives the guest is host memory the guest can touch, so it never
+// gives more than the container holds free: on staging, a deflate past
+// the carve-out's headroom OOM-killed the vmm container and every VM in
+// it. It returns what it gave and whether the guest needed more than the
+// budget allowed, which asks the server to grow the carve-out.
+func (m *Manager) deflateBalloon(ctx context.Context, api *firecracker.Client, meta Metadata, budgetMiB int) (int, bool) {
 	if meta.BalloonTargetMiB() <= 0 || api == nil {
-		return
+		return 0, false
 	}
 	stats, err := api.GetBalloonStatistics(ctx)
 	if err != nil || stats.AvailableMemory == nil || *stats.AvailableMemory>>20 >= balloonLowMiB || stats.ActualMiB == 0 {
-		return
+		return 0, false
 	}
-	want := max(0, min(stats.ActualMiB, stats.TargetMiB)-balloonStepMiB)
-	if err := api.PatchBalloon(ctx, want); err != nil {
-		m.log.Warn("giving a bursting guest memory back failed", "sandbox", meta.ID, "balloon_mib", want, "error", err)
+	balloon := min(stats.ActualMiB, stats.TargetMiB)
+	step := min(balloonStepMiB, balloon)
+	short := false
+	if budgetMiB >= 0 && budgetMiB < step {
+		step, short = budgetMiB, true
 	}
+	if step <= 0 {
+		return 0, short
+	}
+	if err := api.PatchBalloon(ctx, balloon-step); err != nil {
+		m.log.Warn("giving a bursting guest memory back failed", "sandbox", meta.ID, "balloon_mib", balloon-step, "error", err)
+		return 0, short
+	}
+	return step, short
+}
+
+// deflateMarginMiB of the container's headroom no deflate hands a guest:
+// it absorbs the guest's own deflate on OOM between polls, the VMM's own
+// allocations and host page cache that cannot be dropped at once.
+const deflateMarginMiB = 512
+
+// deflateBudgetMiB is what HoldBalloons may give guests this poll: the
+// container's headroom less deflateMarginMiB, or no bound (-1) when the
+// daemon cannot read it.
+func deflateBudgetMiB(headroom uint64, ok bool) int {
+	if !ok {
+		return -1
+	}
+	return max(0, int(headroom>>20)-deflateMarginMiB) //nolint:gosec // A carve-out is far below 2^63 MiB.
 }
 
 // HoldBalloons deflates every running bursting guest's balloon when the
-// guest runs short each BalloonPollInterval, and re-inflates it toward its
-// target each BalloonInterval.
-func (m *Manager) HoldBalloons(ctx context.Context) {
+// guest runs short each BalloonPollInterval, within the container's
+// headroom (deflateBudgetMiB), and re-inflates it toward its target each
+// BalloonInterval. A guest that needs more than the headroom calls
+// pressed, which reports to the server so it grows the carve-out.
+func (m *Manager) HoldBalloons(ctx context.Context, pressed func()) {
 	ticker := time.NewTicker(BalloonPollInterval)
 	defer ticker.Stop()
 	lastHold := time.Now()
@@ -846,6 +879,8 @@ func (m *Manager) HoldBalloons(ctx context.Context) {
 			all = append(all, sb)
 		}
 		m.mu.Unlock()
+		budget := deflateBudgetMiB(hostinfo.MemoryHeadroom())
+		short := false
 		for _, sb := range all {
 			sb.mu.Lock()
 			meta, inst := sb.meta, sb.inst
@@ -854,52 +889,63 @@ func (m *Manager) HoldBalloons(ctx context.Context) {
 				continue
 			}
 			callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			m.deflateBalloon(callCtx, inst.API(), meta)
+			given, needs := m.deflateBalloon(callCtx, inst.API(), meta, budget)
+			if budget >= 0 {
+				budget -= given
+			}
+			short = short || needs
 			if hold {
 				m.holdBalloon(callCtx, inst.API(), meta)
 			}
 			cancel()
 		}
+		if short && pressed != nil {
+			pressed()
+		}
 	}
 }
 
 // BurstCapInterval is how often CapBursts recomputes each bursting VM's
-// memory.high. A guest faulting memory in at a few GiB/s must not outrun
-// the cap's view of the container's headroom by more than burstMarginBytes.
+// memory.high and memory.max.
 const BurstCapInterval = 250 * time.Millisecond
 
-// burstMarginBytes of the container's headroom no burst may take: the
-// daemon's own allocations and VMs at or under their request draw on it.
+// The balloon (HoldBalloons) is what keeps a burst within the carve-out;
+// these per-VM caps are backstops for what slips past it, such as the
+// guest's own deflate on OOM. memory.high leaves burstHighMarginBytes of
+// the container's headroom: past it the kernel reclaims the VM's page
+// cache and slows its faults, but anonymous guest memory cannot be
+// reclaimed without swap, so it is no bound. memory.max leaves
+// burstMaxMarginBytes: past it the kernel OOM-kills that one VM rather
+// than the container's limit killing the vmm container and every VM in it.
 // vmOverheadBytes is what the server charges a VM beyond its guest memory.
 const (
-	burstMarginBytes = 512 << 20
-	vmOverheadBytes  = 64 << 20
+	burstHighMarginBytes = 256 << 20
+	burstMaxMarginBytes  = 64 << 20
+	vmOverheadBytes      = 64 << 20
 )
 
-// burstHigh is the memory.high of a bursting VM holding current bytes:
-// its share of the container's headroom past the margin on top of what it
-// holds, so the bursts together never fill the carve-out, and never below
-// floor, its request and overhead, which the server has placed for it.
-func burstHigh(current, headroom uint64, share int, floor uint64) uint64 {
-	room := headroom - min(headroom, burstMarginBytes)
+// burstCap is a cap of a bursting VM holding current bytes: its share of
+// the container's headroom past margin on top of what it holds, so the
+// bursts together never fill the carve-out, and never below floor, its
+// request and overhead, which the server has placed for it.
+func burstCap(current, headroom uint64, share int, floor, margin uint64) uint64 {
+	room := headroom - min(headroom, margin)
 	return max(floor, current+room/uint64(max(share, 1))) //nolint:gosec // share is positive.
 }
 
-// CapBursts keeps every running bursting guest within the container's
-// memory: its cgroup's memory.high follows the headroom the carve-out has
-// left (burstHigh), so a burst throttles before the container's limit
-// would OOM-kill a VM. The guest's balloon already lets it use up to its
-// boot size; this decides how much of that the host can give it now. When
-// a VM reaches its cap, pressed asks the server for a report sooner, whose
-// use readings grow the carve-out, at most every few seconds.
+// CapBursts keeps every running bursting guest's cgroup capped at its
+// share of the headroom the carve-out has left (burstCap): memory.high
+// throttles it, memory.max kills only it. When a VM reaches its
+// memory.high, pressed asks the server for a report sooner, whose use
+// readings grow the carve-out.
 func (m *Manager) CapBursts(ctx context.Context, pressed func()) {
 	if m.cgroups == nil {
 		return
 	}
 	ticker := time.NewTicker(BurstCapInterval)
 	defer ticker.Stop()
-	written := map[string]uint64{}
-	var lastPressed time.Time
+	type caps struct{ high, max uint64 }
+	written := map[string]caps{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -930,27 +976,39 @@ func (m *Manager) CapBursts(ctx context.Context, pressed func()) {
 		}
 		m.mu.Unlock()
 		capped := false
-		seen := make(map[string]uint64, len(bursts))
+		seen := make(map[string]caps, len(bursts))
 		for _, b := range bursts {
-			high := burstHigh(b.current, headroom, len(bursts), b.floor)
-			seen[b.id] = high
-			if b.current > b.floor && b.current+burstMarginBytes/2 >= high {
+			want := caps{
+				high: burstCap(b.current, headroom, len(bursts), b.floor, burstHighMarginBytes),
+				max:  burstCap(b.current, headroom, len(bursts), b.floor, burstMaxMarginBytes),
+			}
+			if b.current > b.floor && b.current+burstHighMarginBytes/2 >= want.high {
 				capped = true
 			}
-			// Rewriting an unchanged cap costs a syscall per VM four times a
-			// second; skip changes under the margin's sixteenth.
-			if last, ok := written[b.id]; ok && max(last, high)-min(last, high) < burstMarginBytes/16 {
+			// Rewriting unchanged caps costs syscalls per VM four times a
+			// second; skip changes under 16 MiB. A lower memory.max always
+			// goes: the container's headroom shrank.
+			if last, ok := written[b.id]; ok && want.max >= last.max &&
+				max(last.high, want.high)-min(last.high, want.high) < 16<<20 && want.max-last.max < 16<<20 {
 				seen[b.id] = last
 				continue
 			}
-			if err := m.cgroups.SetMemoryHigh(b.id, high); err != nil {
-				m.log.Warn("capping a bursting guest's memory failed", "sandbox", b.id, "memory_high", high, "error", err)
-				delete(seen, b.id)
+			// Raise memory.max before memory.high and lower it after, so
+			// memory.high never sits above it.
+			var err error
+			if want.max >= written[b.id].max {
+				err = errors.Join(m.cgroups.SetMemoryMax(b.id, want.max), m.cgroups.SetMemoryHigh(b.id, want.high))
+			} else {
+				err = errors.Join(m.cgroups.SetMemoryHigh(b.id, want.high), m.cgroups.SetMemoryMax(b.id, want.max))
 			}
+			if err != nil {
+				m.log.Warn("capping a bursting guest's memory failed", "sandbox", b.id, "memory_high", want.high, "memory_max", want.max, "error", err)
+				continue
+			}
+			seen[b.id] = want
 		}
 		written = seen
-		if capped && pressed != nil && time.Since(lastPressed) >= 5*time.Second {
-			lastPressed = time.Now()
+		if capped && pressed != nil {
 			pressed()
 		}
 	}
