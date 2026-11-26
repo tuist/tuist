@@ -20,6 +20,12 @@ defmodule LuftServer.Threads.Provider do
 
   def default_model(:chatgpt), do: "gpt-6-sol"
 
+  @doc """
+  Whether threads can run on a subscription to `provider`. Tuist refuses
+  Claude subscriptions for inference outside Claude Code, so only ChatGPT runs.
+  """
+  def runs_threads?(provider), do: provider == "chatgpt"
+
   def client_opts(thread) do
     with true <- thread.provider == "chatgpt" and valid_model?(thread.model),
          {:ok, _session, _scope} <- owner(thread) do
