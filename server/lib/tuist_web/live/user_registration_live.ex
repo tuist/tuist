@@ -9,6 +9,7 @@ defmodule TuistWeb.UserRegistrationLive do
   alias Tuist.Accounts
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.Marketing.Attribution
   alias TuistWeb.GoogleOneTap
   alias TuistWeb.SignupProtection
   alias TuistWeb.Turnstile
@@ -121,7 +122,7 @@ defmodule TuistWeb.UserRegistrationLive do
             >
               <.button
                 :if={@github_configured?}
-                href={~p"/users/auth/github"}
+                href={Attribution.with_campaign(~p"/users/auth/github", @campaign_params)}
                 variant="secondary"
                 size="medium"
                 label="GitHub"
@@ -132,7 +133,7 @@ defmodule TuistWeb.UserRegistrationLive do
               </.button>
               <.button
                 :if={@google_configured?}
-                href={~p"/users/auth/google"}
+                href={Attribution.with_campaign(~p"/users/auth/google", @campaign_params)}
                 variant="secondary"
                 size="medium"
                 label="Google"
@@ -143,7 +144,7 @@ defmodule TuistWeb.UserRegistrationLive do
               </.button>
               <.button
                 :if={@okta_configured?}
-                href={~p"/users/auth/okta"}
+                href={Attribution.with_campaign(~p"/users/auth/okta", @campaign_params)}
                 variant="secondary"
                 size="medium"
                 label="Okta"
@@ -154,7 +155,7 @@ defmodule TuistWeb.UserRegistrationLive do
               </.button>
               <.button
                 :if={@apple_configured?}
-                href={~p"/users/auth/apple"}
+                href={Attribution.with_campaign(~p"/users/auth/apple", @campaign_params)}
                 variant="secondary"
                 size="medium"
                 label="Apple"
@@ -238,7 +239,7 @@ defmodule TuistWeb.UserRegistrationLive do
           <div data-part="bottom-link">
             <span>{dgettext("dashboard_auth", "Already have an account?")}</span>
             <.link_button
-              navigate={~p"/users/log_in"}
+              navigate={Attribution.with_campaign(~p"/users/log_in", @campaign_params)}
               variant="primary"
               size="large"
               label={dgettext("dashboard_auth", "Log in")}
@@ -305,7 +306,7 @@ defmodule TuistWeb.UserRegistrationLive do
     end
   end
 
-  def mount(_params, session, socket) do
+  def mount(params, session, socket) do
     if Environment.email_auth_enabled?() do
       form =
         to_form(%{}, as: "user")
@@ -317,6 +318,9 @@ defmodule TuistWeb.UserRegistrationLive do
         |> assign(:success, false)
         |> assign(:errors, %{})
         |> assign(:registration_session_token, Map.get(session, "_csrf_token"))
+        # The campaign rides in the page's URL, so it needs no cookie or session.
+        |> assign(:signup_attribution, Attribution.from_params(params))
+        |> assign(:campaign_params, Attribution.campaign_query(params))
         |> assign(:turnstile_required?, Turnstile.required?())
         |> assign(:turnstile_site_key, Turnstile.site_key())
         |> assign(:turnstile_error, nil)
@@ -449,7 +453,8 @@ defmodule TuistWeb.UserRegistrationLive do
          |> String.trim()
          |> Accounts.create_user(
            password: Map.get(user_params, "password"),
-           handle: user_params |> Map.get("username", "") |> String.trim()
+           handle: user_params |> Map.get("username", "") |> String.trim(),
+           attribution: socket.assigns.signup_attribution
          ) do
       {:ok, user} ->
         if Environment.skip_email_confirmation?() do

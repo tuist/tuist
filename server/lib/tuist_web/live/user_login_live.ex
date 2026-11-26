@@ -8,6 +8,7 @@ defmodule TuistWeb.UserLoginLive do
   alias Phoenix.Flash
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.Marketing.Attribution
   alias TuistWeb.Authentication
   alias TuistWeb.GoogleOneTap
   alias TuistWeb.Turnstile
@@ -21,6 +22,7 @@ defmodule TuistWeb.UserLoginLive do
       |> assign(:head_title, "#{dgettext("dashboard_auth", "Log in")} · Tuist")
       |> assign(:return_to, Authentication.session_return_to(Map.get(params, "return_to", session["user_return_to"])))
       |> assign(:form, form)
+      |> assign(:campaign_params, Attribution.campaign_query(params))
       |> assign(:github_configured?, Environment.github_oauth_configured?() and Environment.github_auth_enabled?())
       |> assign(:google_configured?, Environment.google_oauth_configured?() and Environment.google_auth_enabled?())
       |> assign(:okta_configured?, Environment.okta_oauth_configured?() and Environment.okta_auth_enabled?())
@@ -64,7 +66,11 @@ defmodule TuistWeb.UserLoginLive do
             >
               <.button
                 :if={@github_configured?}
-                href={Authentication.login_path(~p"/users/auth/github", @return_to)}
+                href={
+                  ~p"/users/auth/github"
+                  |> Authentication.login_path(@return_to)
+                  |> Attribution.with_campaign(@campaign_params)
+                }
                 variant="secondary"
                 size="medium"
                 label="GitHub"
@@ -77,7 +83,11 @@ defmodule TuistWeb.UserLoginLive do
               </.button>
               <.button
                 :if={@google_configured?}
-                href={Authentication.login_path(~p"/users/auth/google", @return_to)}
+                href={
+                  ~p"/users/auth/google"
+                  |> Authentication.login_path(@return_to)
+                  |> Attribution.with_campaign(@campaign_params)
+                }
                 variant="secondary"
                 size="medium"
                 label="Google"
@@ -90,7 +100,11 @@ defmodule TuistWeb.UserLoginLive do
               </.button>
               <.button
                 :if={@apple_configured?}
-                href={Authentication.login_path(~p"/users/auth/apple", @return_to)}
+                href={
+                  ~p"/users/auth/apple"
+                  |> Authentication.login_path(@return_to)
+                  |> Attribution.with_campaign(@campaign_params)
+                }
                 variant="secondary"
                 size="medium"
                 label="Apple"
@@ -259,7 +273,7 @@ defmodule TuistWeb.UserLoginLive do
         <div :if={@email_auth_enabled?} data-part="bottom-link">
           <span>{dgettext("dashboard_auth", "Don't have an account?")}</span>
           <.link_button
-            navigate={~p"/users/register"}
+            navigate={Attribution.with_campaign(~p"/users/register", @campaign_params)}
             variant="primary"
             size="large"
             label={dgettext("dashboard_auth", "Sign up")}

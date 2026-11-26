@@ -874,6 +874,39 @@ not copy job arguments or metadata. Bounded exception diagnostics can still
 contain worker-provided details. These changes introduce no new data store or
 retention duration.
 
+### Acquisition attribution
+
+Tuist measures which campaigns and referring sites bring signups and customers,
+for the acquisition funnel in Atlas, from what each request already carries:
+the URL's campaign parameters (`utm_source`, `utm_medium`, `utm_campaign`,
+`utm_content`, `utm_term`, or `ref` as a source shorthand) and the `Referer`
+header. No cookie, session value or device storage is used for it; the
+marketing and documentation scripts and the sign-up pages only carry a landing
+page's campaign parameters along links within the site.
+
+- Signup attribution (`signup_attributions`, PostgreSQL): for a user who signed
+  up in the browser after reaching the sign-up or sign-in page with campaign
+  parameters or from another site, one row with `user_id`, `source`, `medium`,
+  `campaign`, `content`, `term` and `inserted_at`. A visit from another site
+  without campaign parameters stores the site's host (never the full referring
+  URL) as `source` with `referral` as `medium`. Until the account is created,
+  the values ride in the sign-up pages' URLs, never in a cookie or the session;
+  during a GitHub, Google or Apple sign-in they wait for up to an hour in the
+  server's key-value store (Redis), keyed by the OAuth `state` or the pending
+  provider identity, and then expire. The row lives as long as the user and
+  cascades on user deletion. Export with `SELECT source, medium, campaign,
+  content, term, inserted_at FROM signup_attributions WHERE user_id = $1`.
+- Campaign landings (`marketing_landings`, ClickHouse): one row per visit that
+  arrived on a marketing or documentation page from a campaign link on another
+  site or app (no `Referer` from this site), holding the campaign fields, the
+  referring host when one was sent, the landing path and
+  the time. Rows carry no IP address, user agent, cookie, session or account
+  identifier, so they cannot be tied to a person and are not part of a personal
+  export. Rows expire after 730 days.
+
+Atlas reads both through its read-only Tuist database access and joins
+signups with subscriptions; it stores none of this data itself.
+
 ### Website localization analytics
 
 Hosted production marketing, documentation and dashboard pages send pageviews to

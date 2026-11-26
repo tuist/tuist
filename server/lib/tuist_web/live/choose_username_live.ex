@@ -7,6 +7,7 @@ defmodule TuistWeb.ChooseUsernameLive do
 
   alias Tuist.Accounts
   alias Tuist.Ecto.Utils
+  alias Tuist.Marketing.Attribution
   alias TuistWeb.SignupProtection
   alias TuistWeb.Turnstile
 
@@ -31,6 +32,10 @@ defmodule TuistWeb.ChooseUsernameLive do
           |> assign(:email, oauth_data["email"])
           |> assign(:error, nil)
           |> assign(:registration_session_token, Map.get(session, "_csrf_token"))
+          |> assign(
+            :signup_attribution,
+            Attribution.held(["oauth_signup", oauth_data["provider"], oauth_data["uid"]])
+          )
           |> assign(:turnstile_required?, Turnstile.required?())
           |> assign(:turnstile_site_key, Turnstile.site_key())
           |> assign(:turnstile_error, nil)
@@ -214,7 +219,7 @@ defmodule TuistWeb.ChooseUsernameLive do
     username = String.trim(username)
     oauth_data = socket.assigns.oauth_data
 
-    case Accounts.create_user_from_pending_oauth(oauth_data, username) do
+    case Accounts.create_user_from_pending_oauth(oauth_data, username, attribution: socket.assigns.signup_attribution) do
       {:ok, user} ->
         token = generate_signup_completion_token(user.id, oauth_data["oauth_return_url"])
         {:noreply, redirect(socket, to: ~p"/auth/complete-signup?token=#{token}")}

@@ -35,6 +35,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Kura.Server
   alias Tuist.Kura.UsageEvent
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
+  alias Tuist.Marketing.Attribution.SignupAttribution
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -2456,6 +2457,25 @@ defmodule Tuist.AccountsTest do
         assert {:ok, second} = Accounts.create_user("#{local}@second.example.com", password: valid_user_password())
         assert second.account.name == handle <> "2"
       end
+    end
+
+    test "stores a campaign of many-code-point characters, cut to fit its column" do
+      # Each "é" here is two code points: 200 graphemes overflow varchar(255).
+      campaign = String.duplicate("e\u0301", 300)
+      attribution = Tuist.Marketing.Attribution.from_params(%{"utm_source" => "chatgpt.com", "utm_campaign" => campaign})
+
+      assert {:ok, user} = Accounts.create_user(unique_user_email(), attribution: attribution)
+
+      stored = Repo.get!(SignupAttribution, user.id)
+      assert stored.source == "chatgpt.com"
+      assert length(String.codepoints(stored.campaign)) == 200
+    end
+
+    test "signs the user up without an attribution that does not fit its columns" do
+      attribution = %{source: "chatgpt.com", campaign: String.duplicate("a", 256)}
+
+      assert {:ok, user} = Accounts.create_user(unique_user_email(), attribution: attribution)
+      assert Repo.get(SignupAttribution, user.id) == nil
     end
 
     test "still rejects an explicitly requested reserved handle" do

@@ -1,3 +1,5 @@
+import { carryCampaign } from "../campaign-links.mjs";
+
 let library;
 
 function loadGoogleIdentity() {
@@ -60,6 +62,10 @@ export const GoogleOneTap = {
             form.elements._csrf_token.value = csrf_token;
             form.elements.credential.value = credential;
             form.elements.nonce.value = nonce;
+            // One Tap has no OAuth round trip to hold the campaign, so the
+            // page's campaign goes along in the form's URL, as on links.
+            const action = carryCampaign(form.getAttribute("action"), window.location.href);
+            if (action) form.setAttribute("action", action);
             form.requestSubmit();
           } catch {
             // Google invokes this after mounted returns, outside its error handler.

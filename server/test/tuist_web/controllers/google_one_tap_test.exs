@@ -158,6 +158,39 @@ defmodule TuistWeb.GoogleOneTapTest do
     refute challenges(conn)
   end
 
+  test "keeps the campaign its form posted for the new user's username step", %{conn: conn, claims: claims} do
+    claims = Map.merge(claims, %{"sub" => "one-tap-campaign-uid", "email" => "campaign@tuist.dev", "hd" => "tuist.dev"})
+    stub(Google, :verify_identity_token, fn _, _ -> {:ok, claims} end)
+    conn = start(conn)
+    nonce = json_response(conn, 200)["nonce"]
+
+    conn =
+      conn
+      |> recycle()
+      |> post("/auth/google/one-tap?utm_source=ChatGPT.com&utm_campaign=hub&utm_content=ad-7", %{
+        credential: "signed-token",
+        nonce: nonce
+      })
+
+    assert redirected_to(conn) == "/users/choose-username"
+
+    assert %{source: "chatgpt.com", campaign: "hub", content: "ad-7"} =
+             Tuist.Marketing.Attribution.held(["oauth_signup", "google", "one-tap-campaign-uid"])
+  end
+
+  test "carries the campaign to the standard sign-in it falls back to", %{conn: conn, claims: claims} do
+    stub(Google, :verify_identity_token, fn _, _ -> {:ok, Map.put(claims, "email", "person@example.com")} end)
+    conn = start(conn)
+    nonce = json_response(conn, 200)["nonce"]
+
+    conn =
+      conn
+      |> recycle()
+      |> post("/auth/google/one-tap?utm_source=chatgpt.com", %{credential: "signed-token", nonce: nonce})
+
+    assert redirected_to(conn) == "/users/auth/google?utm_source=chatgpt.com"
+  end
+
   test "falls back to standard sign-in before linking a third-party email", %{conn: conn, claims: claims} do
     claims = Map.put(claims, "email", "person@example.com")
     stub(Google, :verify_identity_token, fn _, _ -> {:ok, claims} end)

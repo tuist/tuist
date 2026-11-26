@@ -7,6 +7,7 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
+  alias Tuist.Marketing.Attribution.SignupAttribution
   alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.RateLimit.Registration
   alias TuistWeb.Turnstile
@@ -266,6 +267,28 @@ defmodule TuistWeb.UserRegistrationLiveTest do
       assert {:ok, user} = Tuist.Accounts.get_user_by_email("trimtest@example.com")
       assert user.email == "trimtest@example.com"
       assert user.account.name == "trimuser"
+    end
+
+    test "stores the campaign in the page's URL with the new user and passes it to the login page", %{
+      conn: conn
+    } do
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register?utm_source=ChatGPT.com&utm_campaign=Business-Hub")
+
+      assert has_element?(lv, ~s{a[href="/users/log_in?utm_campaign=Business-Hub&utm_source=ChatGPT.com"]})
+
+      lv
+      |> form("#login_form",
+        user: %{email: "campaign@example.com", password: "StrongP@ssword!2024", username: "campaign"}
+      )
+      |> render_submit()
+
+      assert {:ok, user} = Tuist.Accounts.get_user_by_email("campaign@example.com")
+
+      assert %{source: "chatgpt.com", medium: nil, campaign: "Business-Hub"} =
+               Tuist.Repo.get!(SignupAttribution, user.id)
     end
 
     test "user is auto-confirmed when skip_email_confirmation is enabled" do
