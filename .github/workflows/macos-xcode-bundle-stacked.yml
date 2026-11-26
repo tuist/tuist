@@ -86,21 +86,46 @@ jobs:
             -var "xcode_xip_path=${{ steps.xips.outputs.x27_1 }}" -var xcode_version=27.1 bundle.pkr.hcl
           echo "BUNDLE-EXP build overlay 27.1 s: $(( $(date +%s) - t0 ))"
 
-      - name: Add Xcode 27.2 as an overlay on the 27.1 step
+      - name: Restore nvram.bin of the 27.1 step
+        run: |
+          set -euo pipefail
+          for vm in exp-stack-a; do
+            b="$HOME/.tart/vms/$vm"; ls -la "$b"
+            if [ ! -f "$b/nvram.bin" ]; then
+              tart delete nvram-restore 2>/dev/null || true
+              tart clone "$REPO:$BASE_TAG" nvram-restore
+              cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$b/nvram.bin"
+              tart delete nvram-restore
+            fi
+          done
+
+      - name: Push the 27.1 step
+        timeout-minutes: 150
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: exp-stack-a
+          remote-names: ghcr.io/tuist/macos-tahoe-xcode:exp-stack-27-0-27-1
+
+      - name: Pull the 27.1 step back as a remote image
+        run: |
+          set -euo pipefail
+          t0=$(date +%s); tart pull "$REPO:$TAG_A"; echo "BUNDLE-EXP pull $TAG_A on the builder s: $(( $(date +%s) - t0 ))"
+
+      - name: Add Xcode 27.2 as an overlay on the pushed 27.1 step
         working-directory: infra/macos-xcode-image/experiments
         run: |
           set -euo pipefail
           export PATH="$GITHUB_WORKSPACE/infra/runner-image/stacked-tart:$PATH"
           t0=$(date +%s)
-          env -u GITHUB_TOKEN packer build -var base_image=exp-stack-a -var output_image=exp-stack-b \
+          env -u GITHUB_TOKEN packer build -var "base_image=$REPO:$TAG_A" -var output_image=exp-stack-b \
             -var stacked=true -var disk_size_gb=200 \
             -var "xcode_xip_path=${{ steps.xips.outputs.x27_2 }}" -var xcode_version=27.2 bundle.pkr.hcl
           echo "BUNDLE-EXP build overlay 27.2 s: $(( $(date +%s) - t0 ))"
 
-      - name: Restore nvram.bin if missing
+      - name: Restore nvram.bin of the 27.2 step
         run: |
           set -euo pipefail
-          for vm in exp-stack-a exp-stack-b; do
+          for vm in exp-stack-b; do
             b="$HOME/.tart/vms/$vm"; ls -la "$b"
             if [ ! -f "$b/nvram.bin" ]; then
               tart delete nvram-restore 2>/dev/null || true
@@ -124,13 +149,6 @@ jobs:
           tart delete exp-boot-b || true
           env -u GITHUB_TOKEN packer build -var base_image=exp-stack-b -var output_image=exp-measure -var stacked=true measure.pkr.hcl || true
           tart delete exp-measure || true
-
-      - name: Push the 27.1 step
-        timeout-minutes: 150
-        uses: ./.github/actions/tart-push
-        with:
-          local-name: exp-stack-a
-          remote-names: ghcr.io/tuist/macos-tahoe-xcode:exp-stack-27-0-27-1
 
       - name: Push the 27.2 step
         timeout-minutes: 150
