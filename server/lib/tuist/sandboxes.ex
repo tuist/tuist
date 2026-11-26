@@ -653,8 +653,14 @@ defmodule Tuist.Sandboxes do
   next attempt, and `Tuist.Runners.MacosSandboxWarmPools` counts it as demand.
   A macOS create that fails otherwise is deleted from its host at once and
   keeps its row the same way, without a node (`release_failed_create/1`).
+
+  A platform the account may not create on
+  (`Tuist.FeatureFlags.sandbox_platform_enabled?/2`) answers
+  `{:platform_not_enabled, platform}` before admission, without a row. Every create
+  comes through here (API, CLI, MCP, Amp Orbs, Claude sessions and Mac
+  snapshot builds), so this one check keeps macOS closed while Linux opens.
   """
-  def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
+  def create_sandbox(%Account{id: account_id} = account, attrs \\ %{}, opts \\ []) when is_map(attrs) do
     attrs = Map.drop(attrs, [:purpose, "purpose"])
 
     attrs =
@@ -665,6 +671,9 @@ defmodule Tuist.Sandboxes do
     changeset = Sandbox.create_changeset(%Sandbox{id: Keyword.get(opts, :id)}, attrs)
 
     with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
+         true <-
+           Tuist.FeatureFlags.sandbox_platform_enabled?(account, requested.platform) ||
+             {:error, {:platform_not_enabled, requested.platform}},
          {:ok, sandbox} <- Concurrency.admit(account_id, requested, fn -> Repo.insert(changeset) end) do
       created_at = NaiveDateTime.utc_now()
 

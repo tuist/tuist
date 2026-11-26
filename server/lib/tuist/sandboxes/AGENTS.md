@@ -870,10 +870,15 @@ socket, the poller and the caller share a replica:
   to, WebSocket upgrade to `TuistWeb.SandboxNodeWebSock` with a 120 s
   idle timeout (nodes report every 30 s).
 - `TuistWeb.Plugs.RequireSandboxesPlug` gates both account APIs on
-  `FeatureFlags.sandboxes_enabled?/1` (an explicit `:sandboxes` flag on
-  canary and production), and the poller manager only runs pollers for
-  flagged accounts. Accounts get the shapes in `Sandbox.shapes/0` and
-  workspaces up to 100 GB.
+  `FeatureFlags.sandboxes_enabled?/1` (on canary and production, any of
+  `:sandboxes`, `:linux_sandboxes` or `:macos_sandboxes`), and the poller
+  manager only runs pollers for flagged accounts. Platforms open separately:
+  `Sandboxes.create_sandbox/3` refuses a platform the account lacks
+  (`FeatureFlags.sandbox_platform_enabled?/2`: `:sandboxes` covers both, the
+  others one each) with `platform_not_enabled` (403) before admission, and
+  Amp gets a final 403 for that Orb type. Turning a platform flag's boolean
+  gate on opens that platform to every account. Accounts get the shapes in
+  `Sandbox.shapes/0` and workspaces up to 100 GB.
 - `TuistWeb.API.SandboxesController`: API under
   `/api/accounts/:account_handle/sandboxes` (agent environments,
   including `PATCH agent-environments/:id` for the API key, the federation

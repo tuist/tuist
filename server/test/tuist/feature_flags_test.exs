@@ -21,6 +21,35 @@ defmodule Tuist.FeatureFlagsTest do
     end
   end
 
+  describe "sandbox flags" do
+    test "canary and production open each platform with :sandboxes or its own flag, and the API with any of them" do
+      account = %Account{id: 42}
+
+      for env <- [:can, :prod], on <- [[], [:sandboxes], [:linux_sandboxes], [:macos_sandboxes]] do
+        stub(Environment, :env, fn -> env end)
+        stub(FunWithFlags, :enabled?, fn flag, [for: ^account] -> flag in on end)
+
+        assert FeatureFlags.sandbox_platform_enabled?(account, :linux) ==
+                 (:sandboxes in on or :linux_sandboxes in on)
+
+        assert FeatureFlags.sandbox_platform_enabled?(account, :darwin) ==
+                 (:sandboxes in on or :macos_sandboxes in on)
+
+        assert FeatureFlags.sandboxes_enabled?(account) == (on != [])
+      end
+    end
+
+    test "development, test and staging enable every platform without a flag" do
+      reject(FunWithFlags, :enabled?, 2)
+
+      for env <- [:dev, :test, :stag], platform <- [:linux, :darwin] do
+        stub(Environment, :env, fn -> env end)
+        assert FeatureFlags.sandbox_platform_enabled?(%Account{id: 42}, platform)
+        assert FeatureFlags.sandboxes_enabled?(%Account{id: 42})
+      end
+    end
+  end
+
   describe "pulse_enabled?/1" do
     test "requires explicit account enrollment in every environment" do
       account = %Account{id: 42}

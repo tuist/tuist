@@ -226,6 +226,13 @@ defmodule Tuist.Sandboxes.Query do
       {:too_many_requests, "account_limit",
        "The account is using all of its sandbox CPU or memory. Pause or delete a sandbox it no longer needs, or ask an account admin to raise the limit; retrying does not help until then."}
 
+  defp describe({:platform_not_enabled, platform}) do
+    name = if platform == :darwin, do: "macOS", else: "Linux"
+
+    {:forbidden, "platform_not_enabled",
+     "#{name} sandboxes are not enabled for this account yet. Retrying does not help; request access at contact@tuist.dev."}
+  end
+
   defp describe({:rate_limited, seconds}),
     do:
       {:too_many_requests, "rate_limited",
@@ -351,7 +358,7 @@ defmodule Tuist.Sandboxes.Query do
   @doc "Every code `error/1` answers, for the API and MCP schemas."
   def error_codes,
     do:
-      ~w(invalid_state not_found forbidden invalid_cwd invalid_parameters no_node account_limit rate_limited account_busy sandbox_busy invalid_command stdin_not_attached stdin_closed stdin_offset_mismatch locked no_lifetime command_id_taken fleet_busy host_busy_ci host_busy_full host_busy_no_grant host_not_connected host_replaced archive_unavailable node_not_connected node_disconnected node_timeout snapshot_not_saved devices_unsupported device_not_booted device_not_found app_not_found simulator_failed invalid_request node_rejected internal_error)
+      ~w(invalid_state not_found forbidden invalid_cwd invalid_parameters no_node account_limit platform_not_enabled rate_limited account_busy sandbox_busy invalid_command stdin_not_attached stdin_closed stdin_offset_mismatch locked no_lifetime command_id_taken fleet_busy host_busy_ci host_busy_full host_busy_no_grant host_not_connected host_replaced archive_unavailable node_not_connected node_disconnected node_timeout snapshot_not_saved devices_unsupported device_not_booted device_not_found app_not_found simulator_failed invalid_request node_rejected internal_error)
 
   defp capacity_wait_ms,
     do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:capacity_wait_ms, @capacity_wait_ms)

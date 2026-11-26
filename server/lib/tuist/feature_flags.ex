@@ -155,15 +155,33 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account may use agent sandboxes: the sandbox and agent
-  session API, and the work pollers of its agent environments. Canary and
-  production require an explicit `:sandboxes` FunWithFlags toggle for the
-  account, since every sandbox runs on shared bare-metal nodes.
+  Whether the account may use agent sandboxes on any platform: the sandbox
+  and agent session API, and the work pollers of its agent environments.
+  Canary and production require one of the account's sandbox flags, since
+  every sandbox runs on shared bare-metal nodes: `:sandboxes` (every
+  platform, the early-access flag), `:linux_sandboxes` or `:macos_sandboxes`.
+  Which platforms it may create on is `sandbox_platform_enabled?/2`.
   Development, test, and staging default to enabled.
   """
   def sandboxes_enabled?(account) do
-    not sandboxes_flag_required?() or FunWithFlags.enabled?(:sandboxes, for: account)
+    not sandboxes_flag_required?() or
+      Enum.any?([:sandboxes, :linux_sandboxes, :macos_sandboxes], &FunWithFlags.enabled?(&1, for: account))
   end
+
+  @doc """
+  Whether the account may create sandboxes on `platform` (`:linux` or
+  `:darwin`). Canary and production require `:sandboxes` or the platform's
+  own flag, `:linux_sandboxes` or `:macos_sandboxes`, so one platform can
+  open to every account (the flag's boolean gate) while the other stays
+  per account. Sandboxes the account already has keep running either way.
+  """
+  def sandbox_platform_enabled?(account, platform) when platform in [:linux, :darwin] do
+    not sandboxes_flag_required?() or FunWithFlags.enabled?(:sandboxes, for: account) or
+      FunWithFlags.enabled?(sandbox_platform_flag(platform), for: account)
+  end
+
+  defp sandbox_platform_flag(:linux), do: :linux_sandboxes
+  defp sandbox_platform_flag(:darwin), do: :macos_sandboxes
 
   defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
 
