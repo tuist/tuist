@@ -698,6 +698,48 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert Repo.get(SandboxNode, node).memory_limit_bytes == 9 * @gib
     end
 
+    test "grow_for_bursts/1 pauses idle sandboxes, the most over their request first, when the carve-out cannot grow",
+         %{template: template} do
+      node = connect_elastic(template)
+      # CI holds the rest of the host: the grant refuses any growth.
+      set_grant(node, allocation_memory_bytes: 8 * @gib, allocation_free_bytes: 0)
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+      burst = fn opts -> sandbox_fixture([template: template, node_name: node, memory_mb: 1024] ++ opts) end
+
+      # An active turn bursting: never paused, however far above its request.
+      active = burst.(residency_work_id: "work", memory_limit_mb: 8192, metered_memory_bytes: 2 * @gib)
+      # Idle: at its request (longest idle), and two bursting by 1.5 and 2.5 GiB.
+      at_request = burst.(last_active_at: DateTime.add(DateTime.utc_now(), -3600, :second))
+      small = burst.(memory_limit_mb: 8192, metered_memory_bytes: div(5 * @gib, 2) + 64 * @mib)
+      large = burst.(memory_limit_mb: 8192, metered_memory_bytes: div(7 * @gib, 2) + 64 * @mib)
+
+      paused = :ets.new(:paused, [:public, :bag])
+
+      stub(Nodes, :call, fn ^node, "pause", %{sandbox_id: id}, _opts ->
+        :ets.insert(paused, {id})
+        {:ok, %{}}
+      end)
+
+      # 2 + 1.06 + 2.56 + 3.56 GiB + the reserve and a step need about
+      # 2.7 GiB past the 8 GiB carve-out: pausing the one furthest above its
+      # request frees 3.56 GiB.
+      assert {:relieved, _freed} = Capacity.grow_for_bursts(node)
+      assert paused |> :ets.tab2list() |> Enum.map(&elem(&1, 0)) |> Enum.sort() == [large.id]
+      assert %Sandbox{state: :running} = Repo.reload!(active)
+      assert %Sandbox{state: :running} = Repo.reload!(at_request)
+      assert %Sandbox{state: :running} = Repo.reload!(small)
+      assert Repo.get!(SandboxNode, node).memory_limit_bytes == 8 * @gib
+
+      # With only the active turn left above its request and nothing idle,
+      # the burst waits in its guest.
+      for idle <- [at_request, small],
+          do: idle |> Ecto.Changeset.change(residency_work_id: "w-#{idle.id}") |> Repo.update!()
+
+      active |> Ecto.Changeset.change(metered_memory_bytes: 9 * @gib) |> Repo.update!()
+      assert {:error, :no_capacity} = Capacity.grow_for_bursts(node)
+      assert %Sandbox{state: :running} = Repo.reload!(active)
+    end
+
     test "grows the node a paused sandbox resumes on", %{template: template} do
       node = connect_elastic(template)
       resident(template, node)
