@@ -3,8 +3,8 @@
 # tart.tar.gz layout the CAPI provider image ships (see TART_RELEASES in
 # infra/cluster-api-provider-tuist/Dockerfile), versioned <version>-tuist.<n>.
 #
-# The patches add `tart run --usb-disk-requests`, which hot-plugs DiskImageKit
-# stacks into a running VM as USB disks: the block-device cache volumes in
+# The patches add `tart run --usb-disk-requests`, which hot-plugs a disk image
+# into a running VM as a USB disk: the block-device cache volumes in
 # infra/tart-kubelet/AGENTS.md. The build is signed ad hoc with only the
 # virtualization entitlement: fleet hosts run VMs on NAT networking, which needs
 # no provisioning profile.
@@ -19,6 +19,15 @@ version="${upstream}-tuist.${revision}"
 here="$(cd "$(dirname "$0")" && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
+
+# Tart compiles its stacked-disk support only when the SDK has DiskImageKit
+# (macOS 27). A build against an older SDK runs, but every stacked runner image
+# then fails to clone ("stacked disks require DiskImageKit").
+sdk="$(xcrun --sdk macosx --show-sdk-version)"
+if [ "${sdk%%.*}" -lt 27 ]; then
+  echo "the macOS SDK is $sdk; Tart needs the macOS 27 SDK (Xcode 27) for stacked disks" >&2
+  exit 1
+fi
 
 git clone -q --depth 1 --branch "$upstream" https://github.com/openai/tart "$work/src"
 for patch in "$here"/patches/*.patch; do
