@@ -77,6 +77,10 @@ on:
         type: choice
         options: [seed, verify]
         default: seed
+      audio_playback:
+        description: Time AVAudioPlayer.prepareToPlay() on a 0.1 s silent WAV inside a runner VM (fails above 5 s)
+        type: boolean
+        default: false
       vm_isolation:
         description: Probe, from inside a staging runner VM, that the host, its networks and link-local are unreachable while the internet and the cache carve-outs work
         type: boolean
@@ -532,3 +536,42 @@ jobs:
             echo "::error::the runner VM reached the host or a private network"
             exit 1
           fi
+
+  # A runner VM's sound device must not wait on the host: with Tart's host
+  # audio bridge, prepareToPlay() blocked for minutes in
+  # HALC_ProxyIOContext::_TellServerAboutStreamUsage. tart-kubelet starts VMs
+  # with --no-audio, which leaves an output-only device; on a healthy guest
+  # prepareToPlay() returns in well under a second.
+  audio-playback:
+    if: github.repository == 'tuist/tuist' && inputs.audio_playback
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-macos
+    timeout-minutes: 15
+    steps:
+      - name: Audio devices
+        run: system_profiler SPAudioDataType | grep -E "Device:|Default|Channels" || true
+
+      - name: prepareToPlay returns promptly
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d)
+          python3 -c "import wave,sys; w=wave.open(sys.argv[1],'wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(44100); w.writeframes(b'\0\0'*4410); w.close()" "$work/silent.wav"
+          cat > "$work/probe.swift" <<'SWIFT'
+          import AVFoundation
+          let player = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
+          let start = Date()
+          let prepared = player.prepareToPlay()
+          let elapsed = Date().timeIntervalSince(start)
+          print("prepareToPlay=\(prepared) took \(elapsed)s play=\(player.play())")
+          exit(prepared && elapsed < 5 ? 0 : 1)
+          SWIFT
+          xcrun swiftc -O "$work/probe.swift" -o "$work/probe"
+          "$work/probe" "$work/silent.wav" &
+          pid=$!
+          for _ in $(seq 1 60); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+          if kill -0 "$pid" 2>/dev/null; then
+            sample "$pid" 2 2>/dev/null | grep -E "AudioQueuePrime|_TellServerAboutStreamUsage" | head -5 || true
+            kill -9 "$pid"
+            echo "::error::prepareToPlay() still blocked after 60 s"
+            exit 1
+          fi
+          wait "$pid"
