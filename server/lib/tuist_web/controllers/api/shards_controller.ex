@@ -117,7 +117,7 @@ defmodule TuistWeb.API.ShardsController do
              type: :string,
              format: :uuid,
              description:
-               "The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. For a build system whose plans distribute a selection by module (Mix), the plan balances the modules sent, which should leave out those with nothing selected, and each shard read carries the run's whole `skipped_tests` list and its `test_impact_run_id`. Omit it on fallbacks and default selective testing."
+               "The invocation's impact run, whatever its outcome; omit it only when there is none (default selective testing, or a failed selection request). For a run that selected tests, the plan holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list; any other run plans as without one. For a build system whose plans distribute a selection by module (Mix), the plan balances the modules sent, which should leave out those with nothing selected, and keeps the run: each shard read carries its `test_impact_run_id`, and the run's whole `skipped_tests` list when it selected tests."
            }
          },
          required: [:reference]

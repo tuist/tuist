@@ -550,6 +550,29 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert shard.skipped_tests == skip_list_of(project, run)
       assert length(shard.skipped_tests) == 3
     end
+
+    test "a shard plan keeps a run that fell back, whose shards read the run without a skip list", %{
+      project: project
+    } do
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      {:ok, %{run: run}} = Runs.create(project, mix_params(%{mix: %{scheme: "postgres-16", app: "my_app"}}))
+      assert {run.outcome, run.reason} == {"fallback", "no_baseline"}
+
+      %{plan: plan} =
+        Shards.create_shard_plan(project, %{
+          reference: "mix-fallback-ref",
+          granularity: "module",
+          modules: ["MyApp.CoreTest", "MyApp.MathTest"],
+          shard_total: 1,
+          test_impact_run_id: run.id
+        })
+
+      assert {plan.granularity, plan.test_impact_run_id} == {"module", run.id}
+      assert {:ok, shard} = Shards.get_shard(project, project.account, "mix-fallback-ref", 0)
+      assert Enum.sort(shard.modules) == ["MyApp.CoreTest", "MyApp.MathTest"]
+      assert shard.test_impact_run_id == run.id
+      refute Map.has_key?(shard, :skipped_tests)
+    end
   end
 
   defp skip_list_of(project, run), do: Runs.skipped_tests(project.id, run.id)
