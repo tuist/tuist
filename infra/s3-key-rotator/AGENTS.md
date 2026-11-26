@@ -26,6 +26,10 @@ last rotation, and it was minted more than interval + retention ago. Chart wirin
   Secret.
 - A minted key that fails verification or cannot be stored is deleted in the
   same run; one a crashed run leaves behind is deleted after interval + retention.
+- To replace a key early, such as after a leak, run a Job with `--rotate-now`:
+  `kubectl create job --from=cronjob/<release>-tuist-s3-key-rotator <name> --dry-run=client -o json | jq '.spec.template.spec.containers[0].args += ["--rotate-now"]' | kubectl create -f -`.
+  Cleanup is unchanged, so the replaced key keeps working for the retention;
+  revoke a leaked key in Tigris yourself if it must stop at once.
 - Tigris IAM calls follow Tigris's own SDK (`tigrisdata/storage`, `packages/iam`):
   `https://iam.storageapi.dev`, SigV4 as service `s3`, region `auto`. They are
   tested against a fake server only.

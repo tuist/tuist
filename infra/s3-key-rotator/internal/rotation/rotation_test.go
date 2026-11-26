@@ -173,6 +173,28 @@ func TestRotationKeepsThePreviousKeyForTheRetentionThenDeletesIt(t *testing.T) {
 	assertKeys(t, h.tigris.ids(), "tid_admin", "tid_other", "tid_2")
 }
 
+func TestRotateNowReplacesAFreshKeyAndDeletesNoReplacedKey(t *testing.T) {
+	h := newHarness(t)
+	h.run()
+
+	// Two requested rotations an hour apart, well inside the interval.
+	h.r.Config.RotateNow = true
+	h.now = h.now.Add(time.Hour)
+	h.run()
+	h.now = h.now.Add(time.Hour)
+	h.run()
+
+	secret := h.secret()
+	if got := string(secret.Data[AccessKeyIDField]); got != "tid_3" {
+		t.Fatalf("stored %q", got)
+	}
+	if got := secret.Annotations[previousKeyAnnotation]; got != "tid_2" {
+		t.Fatalf("previous key annotation = %q", got)
+	}
+	// tid_1 is no longer recorded anywhere, but pods may still use it.
+	assertKeys(t, h.tigris.ids(), "tid_admin", "tid_other", "tid_1", "tid_2", "tid_3")
+}
+
 func minted(at time.Time) string { return "tuist-staging-platform-" + at.Format(keyNameTimeLayout) }
 
 func TestDeletesKeysAFailedRunMintedOnceTheyAreOlderThanIntervalPlusRetention(t *testing.T) {

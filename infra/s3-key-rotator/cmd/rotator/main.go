@@ -35,6 +35,7 @@ func run(logger *slog.Logger) error {
 		roles       = flag.String("bucket-roles", "", `JSON list of bucket roles, such as [{"bucket":"b","role":"ReadWrite"}]`)
 		interval    = flag.Duration("interval", 24*time.Hour, "age at which the current key is replaced")
 		retention   = flag.Duration("retention", 13*time.Hour, "how long a replaced key keeps working")
+		rotateNow   = flag.Bool("rotate-now", false, "replace the current key regardless of its age; the replaced key still works for the retention")
 		adminDir    = flag.String("admin-credentials-dir", "/var/run/tigris-admin", "directory with the admin key's access_key_id and secret_access_key")
 		iamEndpoint = flag.String("iam-endpoint", "https://iam.storageapi.dev", "Tigris IAM endpoint")
 		s3Endpoint  = flag.String("s3-endpoint", "https://t3.storage.dev", "Tigris S3 endpoint")
@@ -71,6 +72,7 @@ func run(logger *slog.Logger) error {
 			Roles:         bucketRoles,
 			Interval:      *interval,
 			Retention:     *retention,
+			RotateNow:     *rotateNow,
 			AdminKeyID:    admin.AccessKeyID,
 			VerifyTimeout: 3 * time.Minute,
 			VerifyBackoff: 10 * time.Second,

@@ -84,6 +84,10 @@ type Config struct {
 	Interval time.Duration
 	// Retention is how long a replaced key keeps working.
 	Retention time.Duration
+	// RotateNow replaces the current key regardless of its age, such as after
+	// it leaked. Cleanup keeps its time gates, so the replaced key still works
+	// for Retention.
+	RotateNow bool
 	// AdminKeyID is the key the rotator itself uses, never deleted.
 	AdminKeyID string
 	// VerifyTimeout bounds the wait for a new key to reach its buckets.
@@ -171,6 +175,9 @@ func (r *Rotator) rotationDue(ctx context.Context, secret *corev1.Secret, keys [
 	}
 	if now.Sub(rotatedAt) >= r.Config.Interval {
 		return true, "key is older than the interval"
+	}
+	if r.Config.RotateNow {
+		return true, "rotation requested"
 	}
 	current := string(secret.Data[AccessKeyIDField])
 	for _, key := range keys {
