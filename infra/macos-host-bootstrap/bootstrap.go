@@ -449,6 +449,10 @@ type Config struct {
 	CustomCacheURL            string
 	CustomCacheNamespace      string
 	CustomCacheServiceAccount string
+	// BlockCacheVolumes serves custom cache volumes as USB disks Tart hot-plugs
+	// (podagent.BlockVolumes in tart-kubelet). It needs a Tart built from
+	// infra/tart-build; only staging sets it.
+	BlockCacheVolumes bool
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -1174,6 +1178,9 @@ func renderLaunchdPlist(cfg Config) string {
 		runnerCacheArg += fmt.Sprintf("\n    <string>--runner-cache-budget-gib=%d</string>", cfg.RunnerCacheVolumeGiB)
 		if cfg.CustomCacheURL != "" {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--custom-cache-url=%s</string>\n    <string>--custom-cache-namespace=%s</string>\n    <string>--custom-cache-service-account=%s</string>", xmlEscape(cfg.CustomCacheURL), xmlEscape(cfg.CustomCacheNamespace), xmlEscape(cfg.CustomCacheServiceAccount))
+			if cfg.BlockCacheVolumes {
+				runnerCacheArg += "\n    <string>--block-cache-volumes</string>"
+			}
 		}
 	}
 	imageMirrorArgs := ""
