@@ -222,9 +222,19 @@ func TestSetupVMCgroupsWeighsVMsByTheirGuarantee(t *testing.T) {
 	if _, ok := cgroups.MemoryCurrent("never-opened"); ok {
 		t.Fatal("read the memory of a VM without a cgroup")
 	}
+	// A burst cap is set and lifted; a reopened cgroup starts uncapped.
+	if got := read("vm-four/memory.high"); got != "max" {
+		t.Fatalf("memory.high after open = %q", got)
+	}
+	if err := cgroups.SetMemoryHigh("four", 5<<30); err != nil {
+		t.Fatal(err)
+	}
+	if got := read("vm-four/memory.high"); got != strconv.FormatUint(5<<30, 10) {
+		t.Fatalf("memory.high = %q", got)
+	}
 	// cgroupfs removes a cgroup's interface files with it; a plain
 	// directory needs them gone first.
-	for _, name := range []string{"cpu.weight", "memory.low", "memory.current"} {
+	for _, name := range []string{"cpu.weight", "memory.low", "memory.high", "memory.current"} {
 		_ = os.Remove(filepath.Join(dir, "vm-four", name))
 	}
 	if err := cgroups.Remove("four"); err != nil {
@@ -310,5 +320,36 @@ func TestAdoptVMCgroupsRefusesACgroupWithoutCPU(t *testing.T) {
 	root := fakeCgroup(t, "cpuset cpu io memory pids")
 	if _, err := adoptVMCgroups(root, "/pod/container"); err == nil {
 		t.Fatal("adopted a cgroup that delegates no cpu controller")
+	}
+}
+
+// The container's headroom counts its page cache as free: the kernel drops
+// it before the limit OOM-kills.
+func TestMemoryHeadroom(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "pod", "container")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, value string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(value), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The limit sits on the Pod's cgroup, as the kubelet sets it.
+	if err := os.WriteFile(filepath.Join(root, "pod", "memory.max"), []byte("10000\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	write("memory.max", "max\n")
+	write("memory.current", "9000\n")
+	write("memory.stat", "anon 5000\nfile 4000\ninactive_file 2500\nactive_file 1000\nshmem 500\n")
+	if got, ok := memoryHeadroom(root, "/pod/container"); !ok || got != 10000-(9000-3500) {
+		t.Fatalf("headroom = %d, %v; want %d", got, ok, 10000-(9000-3500))
+	}
+	// Past its limit without cache to drop, it has none.
+	write("memory.current", "13000\n")
+	write("memory.stat", "anon 13000\n")
+	if got, ok := memoryHeadroom(root, "/pod/container"); !ok || got != 0 {
+		t.Fatalf("headroom = %d, %v; want 0", got, ok)
 	}
 }
