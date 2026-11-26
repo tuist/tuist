@@ -2125,14 +2125,14 @@ msgstr ""
 
 #: lib/atlas_web/components/time_off_components.ex:294
 #: lib/atlas_web/live/account_live.ex:3546
-#: lib/atlas_web/live/approvals_live.ex:168
+#: lib/atlas_web/live/approvals_live.ex:175
 #, elixir-autogen, elixir-format
 msgid "Approve"
 msgstr ""
 
 #: lib/atlas_web/components/time_off_components.ex:304
 #: lib/atlas_web/live/account_live.ex:3536
-#: lib/atlas_web/live/approvals_live.ex:159
+#: lib/atlas_web/live/approvals_live.ex:166
 #: lib/atlas_web/live/automation_live.html.heex:962
 #, elixir-autogen, elixir-format
 msgid "Reject"
@@ -13030,4 +13030,29 @@ msgstr ""
 #: lib/atlas_web/live/social_performance_live.ex:97
 #, elixir-autogen, elixir-format
 msgid "Rate"
+msgstr ""
+
+#: lib/atlas_web/live/approvals_live.ex:221
+#, elixir-autogen, elixir-format
+msgid "Atlas could not check who is in this conversation, so it may include people outside Tuist. Reconnect Slack in Settings › Connections to see it."
+msgstr ""
+
+#: lib/atlas_web/live/approvals_live.ex:252
+#, elixir-autogen, elixir-format
+msgid "Direct message with %{name}"
+msgstr ""
+
+#: lib/atlas_web/live/approvals_live.ex:209
+#, elixir-autogen, elixir-format
+msgid "External: people outside Tuist can read this"
+msgstr ""
+
+#: lib/atlas_web/live/approvals_live.ex:255
+#, elixir-autogen, elixir-format
+msgid "Group message %{name}"
+msgstr ""
+
+#: lib/atlas_web/live/approvals_live.ex:237
+#, elixir-autogen, elixir-format
+msgid "— downloaded from Slack as %{name}"
 msgstr ""

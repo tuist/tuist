@@ -211,7 +211,9 @@ defmodule Atlas.MCP.Tools.PostMySlackMessage do
         if files == [], do: approval_args, else: Map.put(approval_args, "files", Enum.map(files, &file_summary/1))
       end)
 
-    case MCPContext.authorize_tool_call(user, @server, @approval_tool, approval_args) do
+    context = fn -> approval_context(user, args["channel_id"], files) end
+
+    case MCPContext.authorize_tool_call(user, @server, @approval_tool, approval_args, context: context) do
       {:ok, _approval} ->
         :ok
 
@@ -224,12 +226,46 @@ defmodule Atlas.MCP.Tools.PostMySlackMessage do
     end
   end
 
+  @preview_chars 2_000
+
+  # What the approver needs to judge the post, looked up once when the request
+  # is filed and kept out of the digest: the conversation's name and whether
+  # people outside the workspace are in it, each file's Slack origin when this
+  # person downloaded it through Atlas, and the start of any text file.
+  defp approval_context(user, channel_id, files) do
+    sources = Slack.downloaded_files(user, Enum.map(files, &sha256(&1.body)))
+
+    %{
+      "channel" => Slack.conversation(user, channel_id),
+      "files" =>
+        Enum.map(files, fn file ->
+          %{"filename" => file.filename, "source" => sources[sha256(file.body)], "preview" => preview(file.body)}
+        end)
+    }
+  end
+
+  defp preview(body) do
+    sample = body |> binary_part(0, min(byte_size(body), @preview_chars * 4)) |> valid_prefix()
+
+    if sample != "" and String.valid?(sample) and not String.contains?(sample, <<0>>),
+      do: String.slice(sample, 0, @preview_chars)
+  end
+
+  # The cut may split a UTF-8 character; drop its leading bytes.
+  defp valid_prefix(sample, dropped \\ 0) do
+    if String.valid?(sample) or dropped == 3 or sample == "",
+      do: sample,
+      else: valid_prefix(binary_part(sample, 0, byte_size(sample) - 1), dropped + 1)
+  end
+
+  defp sha256(body), do: :sha256 |> :crypto.hash(body) |> Base.encode16(case: :lower)
+
   defp file_summary(file) do
     %{
       "filename" => file.filename,
       "title" => file.title,
       "byte_size" => byte_size(file.body),
-      "sha256" => :sha256 |> :crypto.hash(file.body) |> Base.encode16(case: :lower)
+      "sha256" => sha256(file.body)
     }
     |> Map.reject(fn {_key, value} -> is_nil(value) end)
   end

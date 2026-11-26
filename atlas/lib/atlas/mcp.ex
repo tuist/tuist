@@ -444,8 +444,13 @@ defmodule Atlas.MCP do
   two concurrent calls cannot share it. Otherwise returns
   `{:approval_required, approval}` with the pending request a person decides in
   the Atlas web UI, reusing an open request for the same call.
+
+  `opts[:context]` is a function returning what the person needs to decide,
+  such as a Slack conversation's name; it runs only when a new request is
+  filed, and its result is shown with the request but is not part of the
+  digest, so it never changes what the approval covers.
   """
-  def authorize_tool_call(%User{} = user, server_name, tool_name, arguments)
+  def authorize_tool_call(%User{} = user, server_name, tool_name, arguments, opts \\ [])
       when is_binary(server_name) and is_binary(tool_name) and is_map(arguments) do
     digest = arguments_digest(arguments)
     now = DateTime.truncate(DateTime.utc_now(), :second)
@@ -454,7 +459,7 @@ defmodule Atlas.MCP do
     with :approval_required <- consume_tool_approval(matching, now) do
       case Repo.one(from(a in matching, where: a.status == "pending", order_by: [desc: a.inserted_at], limit: 1)) do
         %ToolApproval{} = approval -> {:approval_required, approval}
-        nil -> request_tool_approval(user, server_name, tool_name, arguments, digest, now)
+        nil -> request_tool_approval(user, server_name, tool_name, arguments, digest, now, opts[:context])
       end
     end
   end
@@ -480,7 +485,7 @@ defmodule Atlas.MCP do
     end
   end
 
-  defp request_tool_approval(user, server_name, tool_name, arguments, digest, now) do
+  defp request_tool_approval(user, server_name, tool_name, arguments, digest, now, context) do
     {:ok, approval} =
       %ToolApproval{}
       |> ToolApproval.changeset(%{
@@ -489,6 +494,7 @@ defmodule Atlas.MCP do
         tool_name: tool_name,
         arguments: arguments,
         arguments_digest: digest,
+        context: if(context, do: context.(), else: %{}),
         expires_at: DateTime.add(now, @tool_approval_ttl_seconds, :second)
       })
       |> Repo.insert()
@@ -564,15 +570,24 @@ defmodule Atlas.MCP do
       target_type: "mcp_tool_approval",
       target_id: approval.id,
       target_label: "#{approval.server_name}/#{approval.tool_name}",
-      metadata: %{
-        "path" => "/approvals/#{approval.id}",
-        "server_name" => approval.server_name,
-        "tool_name" => approval.tool_name,
-        "arguments" => audit_approval_arguments(approval),
-        "status" => approval.status
-      }
+      metadata:
+        %{
+          "path" => "/approvals/#{approval.id}",
+          "server_name" => approval.server_name,
+          "tool_name" => approval.tool_name,
+          "arguments" => audit_approval_arguments(approval),
+          "status" => approval.status
+        }
+        |> Map.merge(audit_approval_context(approval))
     })
   end
+
+  # Where a Slack post was going (name, kind, external) is evidence; file
+  # previews are content and stay on the row.
+  defp audit_approval_context(%ToolApproval{server_name: "slack", tool_name: "post-message", context: context}),
+    do: %{"context" => Map.take(context || %{}, ["channel"])}
+
+  defp audit_approval_context(_approval), do: %{}
 
   # A Slack post's text is shown to its approver from the row, but the audit
   # trail keeps only where it goes and which files it carries.

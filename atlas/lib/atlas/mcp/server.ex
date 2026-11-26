@@ -1135,7 +1135,8 @@ defmodule Atlas.MCP.Server do
               SearchMySlack,
               ReadMySlackConversation,
               DownloadMySlackFile,
-              PostMySlackMessage
+              PostMySlackMessage,
+              SyncMySocialPosts
             ], do: ManageAccountConnections.allowed_context?(conn)
 
   defp personal_connection_tool_allowed?(conn, module)
@@ -1267,8 +1268,22 @@ defmodule Atlas.MCP.Server do
     |> Map.put("file_count", length(List.wrap(arguments["files"])))
   end
 
+  # Which Atlas documents went into which draft, and which draft was sent, are
+  # evidence of what left Atlas; recipients, subjects and bodies are not kept.
+  defp audit_arguments(name, arguments)
+       when name in ~w(create_my_gmail_draft update_my_gmail_draft send_my_gmail_draft) and is_map(arguments) do
+    document_ids =
+      for %{"document_id" => id} <- List.wrap(arguments["attachments"]), is_binary(id), uniq: true, do: id
+
+    arguments
+    |> Map.take(["draft_id"])
+    |> then(&if(document_ids == [], do: &1, else: Map.put(&1, "document_ids", document_ids)))
+  end
+
+  defp audit_arguments("download_my_slack_file", arguments) when is_map(arguments), do: Map.take(arguments, ["file_id"])
+
   defp audit_arguments(name, _arguments)
-       when name in ~w(manage_label_session create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message save_my_gmail_attachment get_my_gmail_draft create_my_gmail_draft update_my_gmail_draft send_my_gmail_draft search_my_slack read_my_slack_conversation download_my_slack_file),
+       when name in ~w(manage_label_session create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message save_my_gmail_attachment get_my_gmail_draft search_my_slack read_my_slack_conversation),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

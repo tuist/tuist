@@ -152,6 +152,13 @@ defmodule AtlasWeb.ApprovalsLive do
               </span>
             </div>
             <div data-part="content">
+              <.slack_post_context
+                :if={
+                  approval.server_name == "slack" and approval.tool_name == "post-message" and
+                    approval.context not in [nil, %{}]
+                }
+                approval={approval}
+              />
               <pre id={"tool-approval-arguments-#{approval.id}"} data-part="arguments">{Jason.encode!(approval.arguments, pretty: true)}</pre>
               <div data-part="actions">
                 <.button
@@ -180,4 +187,74 @@ defmodule AtlasWeb.ApprovalsLive do
     </section>
     """
   end
+
+  # What Atlas looked up when the post was requested, so the person sees where
+  # it goes and what the files are, not only ids and digests. None of it is
+  # part of what the approval covers; the arguments below are.
+  defp slack_post_context(assigns) do
+    assigns =
+      assigns
+      |> assign(:channel, assigns.approval.context["channel"] || %{})
+      |> assign(:files, assigns.approval.context["files"] || [])
+
+    ~H"""
+    <div id={"tool-approval-slack-context-#{@approval.id}"} data-part="slack-context">
+      <div data-part="slack-channel">
+        <span id={"tool-approval-slack-channel-#{@approval.id}"}>
+          {conversation_label(@channel)}
+        </span>
+        <.badge
+          :if={@channel["external"] == true}
+          id={"tool-approval-slack-external-#{@approval.id}"}
+          label={gettext("External: people outside Tuist can read this")}
+          color="warning"
+          style="light-fill"
+        />
+      </div>
+      <.alert
+        :if={@channel["unverified"] == true}
+        id={"tool-approval-slack-unverified-#{@approval.id}"}
+        status="warning"
+        type="secondary"
+        size="small"
+        title={
+          gettext(
+            "Atlas could not check who is in this conversation, so it may include people outside Tuist. Reconnect Slack in Settings › Connections to see it."
+          )
+        }
+      />
+      <div
+        :for={{file, index} <- Enum.with_index(@files)}
+        id={"tool-approval-slack-file-#{index}-#{@approval.id}"}
+        data-part="slack-file"
+      >
+        <span data-part="slack-file-name">{file["filename"]}</span>
+        <span
+          :if={file["source"]}
+          id={"tool-approval-slack-file-source-#{index}-#{@approval.id}"}
+          data-part="slack-file-source"
+        >
+          {gettext("— downloaded from Slack as %{name}",
+            name: file["source"]["name"] || file["source"]["id"]
+          )}
+        </span>
+        <pre
+          :if={file["preview"]}
+          id={"tool-approval-slack-file-preview-#{index}-#{@approval.id}"}
+          data-part="arguments"
+        >{file["preview"]}</pre>
+      </div>
+    </div>
+    """
+  end
+
+  defp conversation_label(%{"kind" => "dm", "name" => name}) when is_binary(name),
+    do: gettext("Direct message with %{name}", name: name)
+
+  defp conversation_label(%{"kind" => "group_dm", "name" => name}) when is_binary(name),
+    do: gettext("Group message %{name}", name: name)
+
+  defp conversation_label(%{"name" => name}) when is_binary(name), do: "#" <> name
+  defp conversation_label(%{"id" => id}), do: id
+  defp conversation_label(_channel), do: ""
 end

@@ -9,14 +9,15 @@ defmodule AtlasWeb.SlackFileDownloadController do
 
   use AtlasWeb, :controller
 
+  alias Atlas.Audit
   alias Atlas.Connections.Slack
   alias Atlas.Users
   alias Atlas.Users.User
 
   def show(conn, %{"file_id" => file_id, "token" => token}) when is_binary(token) do
-    with {:ok, %{"user_id" => user_id, "file_id" => ^file_id}} <- Slack.verify_download_token(token),
+    with {:ok, %{"user_id" => user_id, "file_id" => ^file_id} = claims} <- Slack.verify_download_token(token),
          %User{} = user <- Users.get_user(user_id),
-         {:ok, file} <- Slack.download_file(user, file_id) do
+         {:ok, file} <- download(user, file_id, claims) do
       conn
       |> put_resp_content_type(file.mimetype || "application/octet-stream", nil)
       |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename(file)}"))
@@ -44,6 +45,13 @@ defmodule AtlasWeb.SlackFileDownloadController do
   end
 
   def show(conn, _params), do: send_resp(conn, 404, "Not Found")
+
+  # Record the read against the MCP call that minted the link, not as a
+  # system action. Links minted before the claims were signed in carry none.
+  defp download(user, file_id, claims) do
+    context = %{actor: user, interface: claims["interface"] || "system", metadata: claims["metadata"] || %{}}
+    Audit.with_context(context, fn -> Slack.download_file(user, file_id) end)
+  end
 
   defp filename(file) do
     (file.name || file.id || "slack-file") |> String.replace(~r/[^\w.\- ]+/u, "_")

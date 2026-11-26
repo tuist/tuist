@@ -2,8 +2,11 @@ defmodule AtlasWeb.SlackFileDownloadControllerTest do
   use AtlasWeb.ConnCase, async: true
   use Mimic
 
+  alias Atlas.Audit.Activity
   alias Atlas.Connections.Connection
   alias Atlas.Connections.Slack
+  alias Atlas.MCP.Proxy
+  alias Atlas.MCP.Server
   alias Atlas.MCP.ToolCase
   alias Atlas.MCP.Tools.DownloadMySlackFile
   alias Atlas.Repo
@@ -46,6 +49,38 @@ defmodule AtlasWeb.SlackFileDownloadControllerTest do
     assert get_resp_header(conn, "content-type") == ["application/pdf"]
     assert get_resp_header(conn, "content-disposition") == [~s(attachment; filename="Signed DPA.pdf")]
     assert get_resp_header(conn, "cache-control") == ["no-store"]
+  end
+
+  test "the audit trail ties a download to the MCP client and file that asked for it", %{conn: conn, user: user} do
+    stub(Proxy, :call_hoisted_tool, fn _, _, _ -> :not_proxy_tool end)
+
+    slack(fn
+      %{request_path: "/api/files.info"} = conn -> Req.Test.json(conn, %{"ok" => true, "file" => file()})
+      %{host: "files.slack.com"} = conn -> send_resp(conn, 200, @pdf)
+    end)
+
+    tool_conn = %{assigns: %{current_user: user, audit_interface: "mcp", mcp_claims: %{"client_id" => "client-amp"}}}
+
+    response =
+      Server.handle_message(tool_conn, %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "tools/call",
+        "params" => %{"name" => "download_my_slack_file", "arguments" => %{"file_id" => "F0DPA"}}
+      })
+
+    called = Repo.get_by!(Activity, action: "mcp.tool_called", actor_id: user.id)
+    assert called.metadata["arguments"] == %{"file_id" => "F0DPA"}
+
+    %{"download_url" => url} = response["result"]["structuredContent"]
+    %URI{path: path, query: query} = URI.parse(url)
+    assert conn |> get(path <> "?" <> query) |> response(200) == @pdf
+
+    read = Repo.get_by!(Activity, action: "connection.slack_file_read", actor_id: user.id)
+    assert read.interface == "mcp"
+    assert read.metadata["oauth_client_id"] == "client-amp"
+    assert read.metadata["file_id"] == "F0DPA"
+    assert read.metadata["sha256"] == :sha256 |> :crypto.hash(@pdf) |> Base.encode16(case: :lower)
   end
 
   test "a token is bound to its file and expires", %{conn: conn, user: user} do

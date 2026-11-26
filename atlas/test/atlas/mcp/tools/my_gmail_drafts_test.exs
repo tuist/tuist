@@ -625,6 +625,71 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
     end
   end
 
+  test "the audit trail records which Atlas documents went into a draft and the domains it was sent to" do
+    user = insert_google!([Gmail.compose_scope()], %{scopes: ["documents:read"]})
+    stub(Proxy, :call_hoisted_tool, fn _, _, _ -> :not_proxy_tool end)
+
+    {:ok, document} =
+      Documents.create_from_binary("%PDF-1.7 pricing", %{"original_filename" => "Pricing.pdf"}, enqueue?: false)
+
+    gmail(fn
+      "POST", "/upload/gmail/v1/users/me/drafts", conn ->
+        Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-1"}})
+
+      "PUT", "/upload/gmail/v1/users/me/drafts/draft-1", conn ->
+        Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-2"}})
+
+      "GET", "/gmail/v1/users/me/drafts/draft-1", conn ->
+        Req.Test.json(conn, draft_payload("Pricing", "See attached"))
+
+      "POST", "/gmail/v1/users/me/drafts/send", conn ->
+        Req.Test.json(conn, %{"id" => "sent-1", "threadId" => "thread-1"})
+    end)
+
+    call = fn name, arguments ->
+      Server.handle_message(agent_conn(user), %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "tools/call",
+        "params" => %{"name" => name, "arguments" => arguments}
+      })
+    end
+
+    draft = %{"to" => ["anna@example.com"], "subject" => "Pricing", "body" => "See attached"}
+    call.("create_my_gmail_draft", Map.put(draft, "attachments", [%{"document_id" => document.id}]))
+
+    call.(
+      "update_my_gmail_draft",
+      draft |> Map.put("draft_id", "draft-1") |> Map.put("attachments", [%{"document_id" => document.id}])
+    )
+
+    call.("send_my_gmail_draft", %{"draft_id" => "draft-1"})
+
+    created = Repo.get_by!(Activity, action: "connection.gmail_draft_created", actor_id: user.id)
+    assert created.metadata["draft_id"] == "draft-1"
+    assert created.metadata["document_ids"] == [document.id]
+
+    updated = Repo.get_by!(Activity, action: "connection.gmail_draft_updated", actor_id: user.id)
+    assert updated.metadata["document_ids"] == [document.id]
+
+    sent = Repo.get_by!(Activity, action: "connection.gmail_draft_sent", actor_id: user.id)
+    assert sent.metadata["draft_id"] == "draft-1"
+    assert sent.metadata["recipient_domains"] == ["example.com", "example.org"]
+    refute JSON.encode!(sent.metadata) =~ ~r/anna|ben@/
+
+    tool_calls =
+      Activity
+      |> Repo.all()
+      |> Enum.filter(&(&1.action == "mcp.tool_called" and &1.actor_id == user.id))
+      |> Map.new(&{&1.target_id, &1.metadata["arguments"]})
+
+    assert tool_calls == %{
+             "create_my_gmail_draft" => %{"document_ids" => [document.id]},
+             "update_my_gmail_draft" => %{"draft_id" => "draft-1", "document_ids" => [document.id]},
+             "send_my_gmail_draft" => %{"draft_id" => "draft-1"}
+           }
+  end
+
   test "the MCP audit trail never keeps draft recipients or content" do
     user = insert_user!()
     stub(Proxy, :call_hoisted_tool, fn _, _, _ -> :not_proxy_tool end)

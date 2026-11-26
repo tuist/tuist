@@ -9,8 +9,12 @@ defmodule Atlas.Connections.Slack do
   channels.
   """
 
+  import Ecto.Query
+
   alias Atlas.Audit
+  alias Atlas.Audit.Activity
   alias Atlas.Connections
+  alias Atlas.Repo
   alias Atlas.Users.User
   alias AtlasWeb.Endpoint
 
@@ -18,6 +22,7 @@ defmodule Atlas.Connections.Slack do
   @max_results 50
   @max_history 200
   @history_scopes ~w(channels:history groups:history im:history mpim:history)
+  @conversation_scopes ~w(channels:read groups:read im:read mpim:read)
   @max_file_bytes 50 * 1024 * 1024
   @download_salt "slack-file-download"
   @download_max_age 300
@@ -109,9 +114,94 @@ defmodule Atlas.Connections.Slack do
     with {:ok, token} <- Connections.access_token(user, "slack", ["files:read"]),
          {:ok, file} <- fetch_file(token, file_id),
          {:ok, body} <- fetch_bytes(token, file.download_from) do
-      audit(user, "connection.slack_file_read", %{"file_id" => file.id, "byte_size" => byte_size(body)})
+      # The digest lets an approver see that a file about to be posted came from Slack.
+      audit(user, "connection.slack_file_read", %{
+        "file_id" => file.id,
+        "byte_size" => byte_size(body),
+        "sha256" => :sha256 |> :crypto.hash(body) |> Base.encode16(case: :lower)
+      })
+
       {:ok, file |> Map.delete(:download_from) |> Map.put(:body, body)}
     end
+  end
+
+  @doc """
+  Describes a conversation for the person approving a post to it: its name, its
+  kind (`channel`, `private_channel`, `dm` or `group_dm`) and whether people
+  outside the caller's workspace are in it (Slack Connect, or a DM with someone
+  from another workspace). Returns `%{"id" => id, "unverified" => true}` when
+  Slack cannot tell, such as for connections made before Atlas asked for the
+  `*:read` scopes, so the approver is told rather than shown nothing.
+  """
+  def conversation(%User{} = user, channel_id) when is_binary(channel_id) do
+    with {:ok, token} <- Connections.access_token(user, "slack", @conversation_scopes),
+         {:ok, %{"channel" => %{} = channel}} <- request(token, "conversations.info", channel: channel_id),
+         {:ok, described} <- describe_conversation(token, channel) do
+      Map.put(described, "id", channel_id)
+    else
+      _ -> %{"id" => channel_id, "unverified" => true}
+    end
+  end
+
+  defp describe_conversation(token, %{"is_im" => true, "user" => other}) when is_binary(other) do
+    with {:ok, %{"team_id" => own_team}} <- request(token, "auth.test", []),
+         {:ok, %{"user" => %{} = person}} <- request(token, "users.info", user: other) do
+      {:ok,
+       %{
+         "name" => person["real_name"] || person["name"] || other,
+         "kind" => "dm",
+         "external" => person["team_id"] != own_team or person["is_stranger"] == true
+       }}
+    end
+  end
+
+  defp describe_conversation(_token, channel) do
+    kind =
+      cond do
+        channel["is_mpim"] -> "group_dm"
+        channel["is_private"] || channel["is_group"] -> "private_channel"
+        true -> "channel"
+      end
+
+    {:ok,
+     %{
+       "name" => channel["name"],
+       "kind" => kind,
+       "external" => channel["is_ext_shared"] == true or channel["is_pending_ext_shared"] == true
+     }}
+  end
+
+  @doc """
+  The Slack files this person downloaded through Atlas in the last day whose
+  bytes have one of `digests` (SHA-256, lowercase hex), as `%{digest => %{"id",
+  "name"}}`. An approver can then see that a file about to be posted came out
+  of Slack, and under what name.
+  """
+  def downloaded_files(%User{} = _user, []), do: %{}
+
+  def downloaded_files(%User{id: user_id} = user, digests) when is_list(digests) do
+    since = DateTime.add(DateTime.utc_now(), -1, :day)
+
+    ids =
+      Repo.all(
+        from(a in Activity,
+          where: a.actor_id == ^user_id and a.action == "connection.slack_file_read" and a.occurred_at > ^since,
+          where: fragment("?->>'sha256'", a.metadata) in ^digests,
+          order_by: [desc: a.occurred_at],
+          select: {fragment("?->>'sha256'", a.metadata), fragment("?->>'file_id'", a.metadata)}
+        )
+      )
+      |> Enum.uniq_by(&elem(&1, 0))
+
+    Map.new(ids, fn {digest, file_id} ->
+      name =
+        case file_info(user, file_id) do
+          {:ok, file} -> file.name || file.title
+          _ -> nil
+        end
+
+      {digest, %{"id" => file_id, "name" => name}}
+    end)
   end
 
   @doc "Checks the caller's connection can post, and upload when `files?`, before anyone is asked to approve a post."
@@ -259,10 +349,19 @@ defmodule Atlas.Connections.Slack do
   @doc """
   A link that serves the file to whoever presents it for `download_max_age/0`
   seconds, fetched from Slack with `user`'s own token at that moment. Atlas
-  does not store the file.
+  does not store the file. `audit` (the requesting call's interface and claim
+  metadata, from `Audit.context_from_conn/1`) is signed into the link so the
+  download is recorded against the client that asked for it.
   """
-  def download_url(%User{id: user_id}, file_id) do
-    token = Phoenix.Token.sign(Endpoint, @download_salt, %{"user_id" => user_id, "file_id" => file_id})
+  def download_url(%User{id: user_id}, file_id, audit \\ %{}) do
+    claims = %{
+      "user_id" => user_id,
+      "file_id" => file_id,
+      "interface" => audit[:interface],
+      "metadata" => audit[:metadata] || %{}
+    }
+
+    token = Phoenix.Token.sign(Endpoint, @download_salt, claims)
 
     Endpoint.url() <>
       "/connections/slack/files/#{URI.encode_www_form(file_id)}?" <> URI.encode_query(%{"token" => token})
