@@ -1,0 +1,4 @@
+# Render-only references. No connection to an object store or Kubernetes.
+bucket:
+  uri: s3://luft-git-ci/isolated?region=us-east-1
+  existingSecret: luft-git-ci-s3

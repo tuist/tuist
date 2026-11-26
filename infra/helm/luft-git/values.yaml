@@ -1,0 +1,38 @@
+image:
+  repository: ghcr.io/enroute-sh/enroute
+  # Upstream v0.4.1 multi-architecture manifest, verified against GHCR.
+  digest: sha256:b5b0f039eda5a4c71068d700ce7278c255fb3e1575421bbe91c2f615305f4192
+  pullPolicy: IfNotPresent
+
+# One deployment owns one bucket/prefix. Never share it with another Enroute
+# deployment, Tuist, or a development instance. No credentials in the URI.
+bucket:
+  uri: ""
+  existingSecret: ""
+
+externalSecret:
+  enabled: false
+  refreshInterval: "1h"
+  item: LUFT_GIT_S3
+  storeRef:
+    name: onepassword
+    kind: ClusterSecretStore
+
+storage:
+  size: 20Gi
+  className: ""
+
+# The only API caller; both selectors apply in this release's namespace.
+clientPodLabels:
+  app.kubernetes.io/name: luft-server
+  app.kubernetes.io/instance: luft-server
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+nodeSelector: {}

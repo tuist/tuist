@@ -107,6 +107,7 @@ jobs:
             "infra/helm/mdm|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/luft-server|values-ci.yaml"
+            "infra/helm/luft-git|values-ci.yaml"
             "infra/helm/tuist|values-self-hosted-ci.yaml values-ci.yaml"
             "infra/helm/tuist|values-self-hosted-ci.yaml values-cluster-ci.yaml values-ci.yaml"
             "infra/helm/tuist|values-managed-common.yaml values-managed-staging.yaml values-ci.yaml"
@@ -227,6 +228,7 @@ jobs:
             "mdm (production)|infra/helm/mdm|mdm|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
             "luft-server (production)|infra/helm/luft-server|luft-server|values-production.yaml values-ci.yaml"
+            "luft-git (production)|infra/helm/luft-git|luft-git|values-production.yaml values-ci.yaml"
             "remote-execution (production)|infra/helm/remote-execution|remote-execution|values-managed-production.yaml values-ci.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
             "tuist (clustered self-hosted)|infra/helm/tuist|cluster-validation|values-self-hosted-ci.yaml values-cluster-ci.yaml values-ci.yaml"
@@ -293,6 +295,8 @@ jobs:
         run: python3 infra/helm/tuist/test-cluster-cookie.py
       - name: Test Luft realtime clustering and private distribution
         run: python3 infra/helm/luft-server/test-clustering.py
+      - name: Test Luft Git private API and durable storage boundary
+        run: python3 infra/helm/luft-git/test-chart.py
       - name: Test SSO domain verification deployment policy
         run: python3 infra/helm/tuist/test-sso-domain-verification.py
       - name: Test ClickHouse tailnet Service exposure

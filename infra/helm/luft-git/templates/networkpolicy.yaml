@@ -1,0 +1,55 @@
+# Enroute has no API authentication: this same-namespace selector is its boundary.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "luft-git.name" . }}
+  labels:
+    {{- include "luft-git.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "luft-git.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- toYaml .Values.clientPodLabels | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: 50051 }
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports:
+        - { protocol: TCP, port: 443 }
+---
+# Add only the Enroute API destination to Luft's existing egress allowlist.
+# This release does not change the Luft server Deployment or its image.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "luft-git.name" . }}-client
+  labels:
+    {{- include "luft-git.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml .Values.clientPodLabels | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "luft-git.selectorLabels" . | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: 50051 }

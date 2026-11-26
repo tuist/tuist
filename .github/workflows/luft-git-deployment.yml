@@ -1,0 +1,94 @@
+name: Luft Git Deployment
+
+on:
+  # Storage upgrades need an explicit operator decision; never auto-rollback.
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full commit SHA on main to deploy (defaults to github.sha)
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: luft-git-deploy-production
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+  HELM_CHART_PATH: infra/helm/luft-git
+  HELM_RELEASE_NAME: luft-git
+  HELM_DRIVER: configmap
+  NAMESPACE: luft
+
+jobs:
+  guard:
+    name: Guard production source
+    if: github.repository == 'tuist/tuist'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Require main and a commit main contains
+        env:
+          REF: ${{ github.ref }}
+        run: bash .github/scripts/production-source-guard.sh "$REF" "$DEPLOY_SHA"
+
+  deploy:
+    name: Deploy Luft Git to production
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: server-k8s-production
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+      - name: Validate chart without cluster credentials
+        run: |
+          set -euo pipefail
+          helm lint "$HELM_CHART_PATH" -f "$HELM_CHART_PATH/values-production.yaml"
+          python3 "$HELM_CHART_PATH/test-chart.py"
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
+      - name: Load deployment kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-production" \
+            --vault "tuist-k8s-production" --output "$KUBECONFIG"
+      - name: Install Git infrastructure and its ExternalSecret
+        run: |
+          set -euo pipefail
+          # No --atomic: an older binary may not understand upgraded storage.
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            -f "$HELM_CHART_PATH/values-production.yaml" \
+            --wait --timeout 10m
+          kubectl -n "$NAMESPACE" wait --for=condition=Ready \
+            externalsecret/luft-git-s3 --timeout=2m
+          kubectl -n "$NAMESPACE" rollout status \
+            statefulset/"$HELM_RELEASE_NAME" --timeout=2m
+      - name: Nonsecret diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n "$NAMESPACE" get statefulset,svc,pvc,externalsecret,pods \
+            -l app.kubernetes.io/instance="$HELM_RELEASE_NAME" -o wide
+      - name: Remove deployment kubeconfig
+        if: always()
+        run: rm -f "$KUBECONFIG"

@@ -1,0 +1,13 @@
+# Provision the dedicated 1Password item before installation. See README.md.
+bucket:
+  uri: s3://luft-git-production?region=auto&endpoint=https://t3.storage.dev
+  existingSecret: luft-git-s3
+
+externalSecret:
+  enabled: true
+
+storage:
+  className: hcloud-volumes
+
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general
