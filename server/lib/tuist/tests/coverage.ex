@@ -98,8 +98,9 @@ defmodule Tuist.Tests.Coverage do
   @doc """
   Records the targets a run's command event stored (`stored_graph`, from
   `Tuist.Xcode.create_xcode_graph/1`) as an input of the fold of the run's
-  commit (`Tuist.Tests.Coverage.RunInputs`), and refolds the commit when any
-  target was skipped or a repository target came from the binary cache.
+  commit when a fold reads them (`Tuist.Tests.Coverage.RunInputs.event_written/3`),
+  and refolds the commit when any target was skipped or a repository target
+  came from the binary cache.
   Reported coverage reads them to know which targets a run left out and
   whether it ran code without coverage counters. The event usually lands
   after the run, whose fold went without them; the refold waits until every
@@ -107,11 +108,12 @@ defmodule Tuist.Tests.Coverage do
   checkout as its run.
   """
   def refold_after_selective_testing(command_event, xcode_graph, stored_graph) do
-    RunInputs.event_written(command_event, stored_graph)
+    hit? = selective_testing_hit?(xcode_graph) or binary_cache_hit?(xcode_graph)
+    RunInputs.event_written(command_event, stored_graph, hit?)
 
     with %{test_run_id: run_id, git_commit_sha: sha, project_id: project_id}
          when is_binary(run_id) and run_id != "" and is_binary(sha) and sha != "" <- command_event,
-         true <- selective_testing_hit?(xcode_graph) or binary_cache_hit?(xcode_graph),
+         true <- hit?,
          true <- enabled_for_project?(project_id) do
       CommitWorker.enqueue(project_id, sha)
     else

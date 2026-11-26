@@ -4,6 +4,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouse.Insert
   alias Tuist.ClickHouse.Inserts
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
@@ -815,6 +816,40 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
       assert Coverage.refold_after_selective_testing(event(run), remote_package_only, stored()) ==
                :skipped
+    end
+
+    test "declare the event to its commit's fold only when the fold derives anything from its targets", %{
+      project: project,
+      account: account
+    } do
+      measured =
+        CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{recompute: false})
+
+      # A run that tested every target and reported no coverage, as one not set up to collect it does.
+      unmeasured = %{measured | id: UUIDv7.generate()}
+
+      Coverage.refold_after_selective_testing(event(unmeasured), graph("miss"), stored())
+      # Every target skipped: the run reports no coverage, but the fold carries its commit's from the hits.
+      skipped = event(unmeasured)
+      Coverage.refold_after_selective_testing(skipped, graph("local"), stored())
+      # Nothing skipped, but the run's test map records the hash each target ran under.
+      full = event(measured)
+      Coverage.refold_after_selective_testing(full, graph("miss"), stored())
+
+      declared =
+        Repo.all(
+          from(i in Insert,
+            where:
+              i.project_id == ^project.id and i.git_commit_sha == "abc123" and
+                i.clickhouse_table in ["command_events", "xcode_targets"],
+            select: {i.clickhouse_table, i.key}
+          )
+        )
+
+      assert Enum.sort(declared) ==
+               Enum.sort(
+                 for table <- ["command_events", "xcode_targets"], event <- [skipped, full], do: {table, event.id}
+               )
     end
 
     test "schedule nothing when no target was skipped, or the event has no run", %{project: project, account: account} do

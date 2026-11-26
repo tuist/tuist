@@ -18,6 +18,7 @@ defmodule Tuist.ClickHouse.Inserts do
   alias Tuist.Repo
 
   @retention_hours 24
+  @replaced_fields [:project_id, :rows_inserted_at, :row_count, :git_commit_sha, :test_run_id, :synced_at, :inserted_at]
 
   @doc """
   Records that `key`'s rows, sharing `rows_inserted_at`, were inserted into
@@ -25,6 +26,7 @@ defmodule Tuist.ClickHouse.Inserts do
   `inserted_at` but were all inserted at or after it. `sha:` names the
   commit whose fold reads them (`Tuist.Tests.Coverage.RunInputs`), which
   takes a commit's insert recorded without `rows:` as one still being written.
+  `test_run_id:` names the run an insert recorded without `sha:` waits for.
   """
   def record(table, key, project_id, rows_inserted_at, opts \\ []) do
     Repo.insert_all(
@@ -37,11 +39,12 @@ defmodule Tuist.ClickHouse.Inserts do
           rows_inserted_at: utc(rows_inserted_at),
           row_count: Keyword.get(opts, :rows),
           git_commit_sha: Keyword.get(opts, :sha),
+          test_run_id: Keyword.get(opts, :test_run_id),
           synced_at: nil,
           inserted_at: DateTime.utc_now()
         }
       ],
-      on_conflict: {:replace, [:project_id, :rows_inserted_at, :row_count, :git_commit_sha, :synced_at, :inserted_at]},
+      on_conflict: {:replace, @replaced_fields},
       conflict_target: [:clickhouse_table, :key]
     )
 

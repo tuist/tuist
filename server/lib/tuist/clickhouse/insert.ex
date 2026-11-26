@@ -6,7 +6,9 @@ defmodule Tuist.ClickHouse.Insert do
   rows, were all inserted at or after it), and when every replica was seen
   holding them (`synced_at`). `row_count` is how many rows the insert wrote,
   nil while it is declared but not yet written, and `git_commit_sha` the
-  commit whose fold reads them (`Tuist.Tests.Coverage.RunInputs`).
+  commit whose fold reads them (`Tuist.Tests.Coverage.RunInputs`), or nil
+  while a command event's waits under its `test_run_id` for the run's report
+  to name the commit.
   """
   use Ecto.Schema
 
@@ -18,6 +20,7 @@ defmodule Tuist.ClickHouse.Insert do
     field :rows_inserted_at, :utc_datetime_usec
     field :row_count, :integer
     field :git_commit_sha, :string
+    field :test_run_id, Ecto.UUID
     field :synced_at, :utc_datetime_usec
     field :inserted_at, :utc_datetime_usec
   end

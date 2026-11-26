@@ -20,7 +20,8 @@ defmodule Tuist.Tests.Coverage.RunInputs do
   the run's commit, with how many rows to find: the run's report declares
   its rows before it publishes its coverage (`declare/3`) and records them
   once written (`written/4`), and its command event, which usually lands
-  after the run, records its own (`event_written/2`). The commit's fold
+  after the run, records its own (`event_written/3`), under the commit once
+  the fold derives anything from its targets. The commit's fold
   first counts every insert of the commit not seen synced yet on every
   replica (`status/2`), and waits while one is still being written or a
   replica lacks its rows. An insert recorded more than ten minutes ago is
@@ -56,8 +57,10 @@ defmodule Tuist.Tests.Coverage.RunInputs do
       run = %{project_id: test.project_id, sha: sha, key: Coverage.report_key(test.id, shard_index)}
       now = NaiveDateTime.utc_now()
 
-      if Enum.all?(["test_runs", "test_case_runs"], &(record(&1, run.key, run.project_id, now, sha: sha) == :ok)),
-        do: run
+      if Enum.all?(["test_runs", "test_case_runs"], &(record(&1, run.key, run.project_id, now, sha: sha) == :ok)) do
+        attach_events(test.project_id, test.id, sha)
+        run
+      end
     end
   end
 
@@ -73,22 +76,68 @@ defmodule Tuist.Tests.Coverage.RunInputs do
 
   @doc """
   Records the command event of a run and the targets its graph stored
-  (`Tuist.Xcode.create_xcode_graph/1`), which the fold of the run's commit
-  reads.
+  (`Tuist.Xcode.create_xcode_graph/1`), when the fold of the run's commit
+  derives something from them: the targets selective testing skipped or the
+  binary cache provided (`hit?`, a run that skipped every target included),
+  or any target of a run that reported coverage, whose test map records the
+  hash each target ran under. Any other event's run has measured nothing so
+  far, as one not set up to collect coverage never does, so a fold reads
+  none of its targets but hits and may never run for its commit to count
+  them: its inserts are recorded under the run and no commit, and join the
+  commit once a report of the run declares its rows (`declare/3`), which a
+  later shard or the processing of an uploaded bundle can do after the
+  event landed. Each side writes before it reads the other's rows, so
+  whichever comes second finds the first.
   """
-  def event_written(%{test_run_id: run_id, git_commit_sha: sha} = event, %{targets: targets, inserted_at: inserted_at})
+  def event_written(
+        %{test_run_id: run_id, git_commit_sha: sha} = event,
+        %{targets: targets, inserted_at: inserted_at},
+        hit?
+      )
       when is_binary(run_id) and run_id != "" and is_binary(sha) and sha != "" do
     if Coverage.enabled_for_project?(event.project_id) do
       key = to_string(event.id)
+      commit = if hit?, do: sha
+      opts = [sha: commit, test_run_id: run_id]
 
-      with :ok <- record("command_events", key, event.project_id, event.created_at, sha: sha, rows: 1),
-           do: record("xcode_targets", key, event.project_id, inserted_at, sha: sha, rows: targets)
+      with :ok <- record("command_events", key, event.project_id, event.created_at, [rows: 1] ++ opts),
+           :ok <- record("xcode_targets", key, event.project_id, inserted_at, [rows: targets] ++ opts),
+           true <- is_nil(commit) and report_declared?(event.project_id, sha, run_id),
+           do: attach_events(event.project_id, run_id, sha)
     end
 
     :ok
   end
 
-  def event_written(_event, _graph), do: :ok
+  def event_written(_event, _graph, _hit?), do: :ok
+
+  # Whether a shard report of the run declared its rows (`declare/3`).
+  defp report_declared?(project_id, sha, run_id) do
+    Repo.exists?(
+      from(i in Insert,
+        where:
+          i.project_id == ^project_id and i.git_commit_sha == ^sha and i.clickhouse_table == "test_runs" and
+            like(i.key, ^"#{run_id}/%")
+      )
+    )
+  end
+
+  # Puts the run's command event inserts waiting for its report under the
+  # commit, as of when they were recorded: their rows were written then.
+  defp attach_events(project_id, run_id, sha) do
+    Repo.update_all(
+      from(i in Insert,
+        where: i.project_id == ^project_id and i.test_run_id == ^run_id and is_nil(i.git_commit_sha)
+      ),
+      set: [git_commit_sha: sha]
+    )
+
+    :ok
+  rescue
+    error ->
+      Logger.warning("Attaching the command events of run #{run_id} to commit #{sha} failed: #{Exception.message(error)}")
+      :error
+  end
 
   # A record that fails costs only the wait: the fold goes ahead without it,
   # as it did before the gate, rather than the data it describes being lost.
