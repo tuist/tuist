@@ -1310,6 +1310,12 @@ ovhFleets:
     replicas: 6
     endpoint: ovh-us
     nodePool: kura-us-east
+    # Every Machine this fleet creates is annotated
+    # tuist.dev/kura-storage-layout=lvm-v1, so a box prepped ahead of a replicas
+    # bump joins on thin volumes the moment the new Machine adopts it. Without it,
+    # the annotation has to be added by hand between the bump and the prep
+    # rename. Existing hosts already carry it, so this changes none of them.
+    kuraStorageLayout: lvm-v1
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-us-east
       # Substring of the box's commercialRange, so this adopts the Advance-1
@@ -1330,6 +1336,8 @@ ovhFleets:
     replicas: 4
     endpoint: ovh-us
     nodePool: kura-us-west
+    # See us-east.
+    kuraStorageLayout: lvm-v1
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-us-west
       offer: advance-1
@@ -1356,6 +1364,8 @@ ovhFleets:
     # would silently point it at the wrong API.
     endpoint: ovh-us
     nodePool: kura-ap-southeast
+    # See us-east.
+    kuraStorageLayout: lvm-v1
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-ap-southeast
       # Substring of the box's commercialRange, matched case-insensitively, so
