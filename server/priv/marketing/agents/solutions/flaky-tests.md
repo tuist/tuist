@@ -1,6 +1,8 @@
-# Tuist: my tests are flaky
+# Flaky tests: how to detect, quarantine, and fix them in CI
 
-Tuist Test Insights helps developers and agents distinguish intermittent failures from repeatable regressions using shared test history. Start with Tuist's supported test-reporting integration to investigate inconsistent outcomes; supported quarantine workflows can contain known flakes while the team repairs the cause.
+Tuist Test Insights detects flaky tests, tests that pass and fail on the same code without any change, automatically from shared test history, quarantines them so they stop blocking merges, and keeps the evidence developers and coding agents need to fix the cause, for Xcode, Gradle, Bazel, and Elixir.
+
+Start with Tuist's supported test-reporting integration to separate intermittent failures from repeatable regressions; supported quarantine workflows can contain known flakes while the team repairs the cause.
 
 ## Why flaky tests are expensive
 
@@ -18,6 +20,16 @@ Common causes are shared state between tests, timing assumptions and fixed waits
 - **Detection from history.** Tuist marks a test as flaky when it fails and passes on the same code, both within a run's retries and, for supported integrations, across separate CI runs. See [flaky-test detection](/en/docs-markdown/guides/features/test-insights/flaky-tests).
 - **Containment.** Quarantine mutes or skips a known flaky test, manually or through an automation threshold, so it stops blocking merges while it is fixed. Every change is recorded.
 - **Shared evidence.** Developers, reviewers, and authorized coding agents see the same attempts and failure messages, and teams can get [Slack alerts](/en/docs-markdown/guides/integrations/slack) when a test becomes flaky.
+
+## How to detect flaky tests automatically
+
+Detecting flakiness by hand means noticing that a rerun passed and remembering it next time. Automatic detection needs three things, which Tuist records for you:
+
+1. **Every attempt, not only the final result.** When CI retries a failed test and it passes, both outcomes are evidence. Tools that keep only the green rerun lose the signal.
+2. **Results tied to the same code.** A test that fails on one commit and passes on the next may have been fixed. A test that fails and passes on the same commit, scheme, and destination is flaky.
+3. **History across runs and branches.** One flaky run is noise; a test that flips across many runs is a pattern worth fixing first. Tuist records each test's flakiness rate and run counts, so the team can start with the tests that fail most often.
+
+Detection works within a run's retries for every supported integration and across separate CI runs on the same commit where the integration supports it. Pull request comments and [Slack alerts](/en/docs-markdown/guides/integrations/slack) surface a newly flaky test where the team already looks.
 
 ## Diagnose before retrying everything
 
@@ -63,6 +75,10 @@ Ask it to group failure signatures, distinguish shared-environment failures from
 - Related guides: [slow tests](/marketing-markdown/solutions/slow-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and the [Tests feature guide](/marketing-markdown/tests).
 
 ## Frequently asked questions
+
+### What is a flaky test?
+
+A flaky test passes and fails on the same code without any change to the test or the code under test. Common causes are shared state between tests, timing assumptions, test order dependence, unavailable external services, and resource pressure on the CI machine.
 
 ### How does Tuist decide that a test is flaky?
 

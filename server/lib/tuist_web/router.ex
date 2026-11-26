@@ -522,8 +522,9 @@ defmodule TuistWeb.Router do
     redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
     redirect("/case-studies", "/customers", :permanent, preserve_query_string: true)
     redirect("/case-studies/:slug", "/customers/:slug", :permanent, preserve_query_string: true)
-    # The flaky-tests and test-insights pages folded into the tests page.
-    redirect("/flaky-tests", "/tests", :permanent, preserve_query_string: true)
+    # The test-insights page folded into the tests page. /flaky-tests still ranks for
+    # "flaky test" searches, so it points at the guide that answers them.
+    redirect("/flaky-tests", "/solutions/flaky-tests", :permanent, preserve_query_string: true)
     redirect("/test-insights", "/tests", :permanent, preserve_query_string: true)
 
     # The compute page became the runners page, named for what people search.

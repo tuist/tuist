@@ -65,6 +65,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/self-hosted-mac-runners",
                  "/solutions/slow-builds",
                  "/solutions/slow-tests",
+                 "/solutions/speed-up-ios-ci",
                  "/tests"
                ] ++ @comparison_paths ++ @tool_paths ++ @build_system_paths
              )
@@ -163,7 +164,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/flaky-tests",
                  "/solutions/self-hosted-mac-runners",
                  "/solutions/slow-builds",
-                 "/solutions/slow-tests"
+                 "/solutions/slow-tests",
+                 "/solutions/speed-up-ios-ci"
                ] ++ @comparison_paths ++ @tool_paths ++ @build_system_paths
              )
 
@@ -292,7 +294,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
           "ci-costs",
           "bazel-github-actions",
           "bazel-remote-cache",
-          "self-hosted-mac-runners"
+          "self-hosted-mac-runners",
+          "speed-up-ios-ci"
         ] do
       path = "/solutions/" <> slug
       markdown = MarketingMarkdown.get(path)
@@ -469,7 +472,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
               "/solutions/ci-costs",
               "/solutions/bazel-github-actions",
               "/solutions/bazel-remote-cache",
-              "/solutions/self-hosted-mac-runners"
+              "/solutions/self-hosted-mac-runners",
+              "/solutions/speed-up-ios-ci"
             ] do
       markdown = MarketingMarkdown.get(path)
       assert markdown =~ ~r/[Pp]roject (?:optimization )?first/, path
