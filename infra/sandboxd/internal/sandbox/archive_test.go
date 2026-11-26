@@ -506,6 +506,30 @@ func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
 		}
 	}
 
+	// A node with the same key whose KVM refuses the VM state (as 6.8.0-149
+	// refused 6.8.0-151's MSRs) cold boots the synced disks instead of
+	// failing every restore.
+	refusing := node("zen5")
+	refusing.launcher.RefuseSnapshotLoads = true
+	restore.SandboxID = "refused"
+	created, err = refusing.m.Create(ctx, restore)
+	if err != nil {
+		t.Fatalf("restore on a node that refuses the VM state: %v", err)
+	}
+	if created.MemoryPending {
+		t.Fatal("a cold boot after a refused load has no memory pending")
+	}
+	if launched := refusing.launcher.Instances(); len(launched) != 2 {
+		t.Fatalf("want the refused load and a cold boot, launched %d instances", len(launched))
+	}
+	booted := false
+	for _, call := range refusing.launcher.Last().Calls() {
+		booted = booted || call.Path == "/actions"
+	}
+	if !booted {
+		t.Fatal("the disks were not cold booted after the refused load")
+	}
+
 	// A guest that never answers is not cold booted while its Firecracker,
 	// which did not die, may still write the disks.
 	hung := node("zen5")

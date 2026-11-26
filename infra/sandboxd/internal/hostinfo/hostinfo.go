@@ -216,10 +216,15 @@ func ParseResolvConf(text string) []string {
 
 // SnapshotCompat names what a Firecracker memory snapshot taken on this
 // node needs from the node it is restored on: the CPU (vendor, family,
-// model, stepping, model name and the feature flags the host kernel
-// exposes, which also catch microcode and kernel changes), the host
-// kernel's version without its distribution build, and the Firecracker
+// model, stepping, model name, microcode revision and the feature flags the
+// host kernel exposes), the host kernel's full release, and the Firecracker
 // version. Nodes with the same value can restore each other's snapshots.
+//
+// The release keeps its distribution build because KVM changes within one:
+// snapshots taken on Ubuntu's 6.8.0-151 failed to load on 6.8.0-149 nodes
+// ("Failed to set all KVM MSRs"), while the reverse loaded; 6.8.0-150 added
+// save/restore of AMD LBR MSRs. Microcode updates can change MSRs the same
+// way without touching the flags.
 func SnapshotCompat(firecrackerVersion string) string {
 	cpuinfo, _ := os.ReadFile("/proc/cpuinfo")
 	release, _ := os.ReadFile("/proc/sys/kernel/osrelease")
@@ -237,11 +242,10 @@ func ParseSnapshotCompat(cpuinfo, release, firecrackerVersion string) string {
 			fields[strings.TrimSpace(key)] = strings.TrimSpace(value)
 		}
 	}
-	kernel, _, _ := strings.Cut(strings.TrimSpace(release), "-")
 	hash := sha256.New()
 	for _, part := range []string{
 		fields["vendor_id"], fields["cpu family"], fields["model"], fields["stepping"], fields["model name"],
-		fields["flags"], kernel, firecrackerVersion,
+		fields["microcode"], fields["flags"], strings.TrimSpace(release), firecrackerVersion,
 	} {
 		hash.Write([]byte(part))
 		hash.Write([]byte{0})

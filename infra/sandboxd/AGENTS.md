@@ -220,8 +220,9 @@ memory image until they cold boot.
   never touched. With `tail_offset` and `tail_sha256` only the disk stream
   is downloaded and checked; when its memory was written on a node with
   this node's snapshot compatibility (hello `snapshot_compat`: CPU vendor,
-  family, model, stepping, name and flags, host kernel version and
-  Firecracker version) and matches the shape, the VM resumes warm from the
+  family, model, stepping, name, microcode and flags, the host kernel's
+  full release, distribution build included, since KVM's MSR handling
+  changes within one, and Firecracker version) and matches the shape, the VM resumes warm from the
   VM state with a `Uffd` memory backend: `internal/uffd` takes
   Firecracker's userfaultfd on the jail's `mem.sock`, fetches the chunk of
   each first-touched page by ranged GET (checked against the index's
@@ -231,7 +232,9 @@ memory image until they cold boot.
   `memory_pending`, and emits `memory_loaded` once every chunk is
   installed (or a pause wrote the memory locally). A chunk that cannot be
   fetched kills the VM. Elsewhere it cold boots the disks, and so does a
-  warm restore whose guest agent never answers (`agent not ready`), of
+  warm restore of synced disks whose VM state Firecracker refuses to load
+  (a 4xx from `/snapshot/load`, such as `Failed to set all KVM MSRs`: the
+  guest never ran), and one whose guest agent never answers (`agent not ready`), of
   synced disks, or of unsynced ones once every chunk was installed (the
   guest hung rather than waited on its memory; the boot is a power cut that
   loses what it had not written back): the memory image is dropped,
