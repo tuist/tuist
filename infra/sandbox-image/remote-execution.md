@@ -429,7 +429,11 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    In production, `gateway.nodeSelector` places the gateways on the runner hosts
    beside the workers and eu-west Kura. Their Ingress stays on `nginx-grpc`: the
    host-network `execution-eu-west` controller publishes node addresses, which
-   the runners' egress policy (world addresses on 443 only) does not reach;
+   the runners' egress policy (world addresses on 443 only) does not reach.
+   Tuist runners skip the load balancer: with
+   `runnersFleet.remoteExecutionGateway` set in the tuist chart, Linux runner
+   containers get `TUIST_EXECUTION_ENDPOINT` naming the gateway Service and may
+   reach its Pods on 50051;
    `platform-external-dns` publishes its host to Cloudflare (DNS-only), and the
    workflow fails if the host does not resolve within five minutes. The gateway
    must reach the accounts' Kura endpoints to publish action-cache entries.

@@ -197,7 +197,7 @@ const (
 // class the Pod falls back to runc on the host kernel and the
 // privileged container escapes onto the bare-metal host — so refuse
 // to build it rather than ship an unbounded privileged container.
-func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage, sidecarImage, registryMirror, clusterDNSIP, clusterDomain string) (*corev1.Pod, error) {
+func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage, sidecarImage, registryMirror, clusterDNSIP, clusterDomain, executionEndpoint string) (*corev1.Pod, error) {
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
 	if sidecarImage == "" {
 		sidecarImage = pool.Spec.Image
@@ -391,6 +391,12 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
 			{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
 			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: workPath},
+		}
+		// The in-cluster remote execution gateway. Struo connects there
+		// directly instead of through the advertised public endpoint's
+		// load balancer, which can sit in another data center.
+		if executionEndpoint != "" {
+			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "TUIST_EXECUTION_ENDPOINT", Value: executionEndpoint})
 		}
 		volumes = append(volumes,
 			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},

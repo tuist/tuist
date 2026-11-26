@@ -40,7 +40,7 @@ func basePool(os string) *tuistv1.RunnerPool {
 
 func build(t *testing.T, p *tuistv1.RunnerPool) *corev1.Pod {
 	t.Helper()
-	pod, err := Build(p, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", "")
+	pod, err := Build(p, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", "", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestBuild_LinuxTokenHoldersRunTheSidecarImage(t *testing.T) {
 	const sidecar = "ghcr.io/tuist/tuist-linux-runner:test-sidecar"
 	pool := basePool("linux")
 	pool.Spec.Image = "ghcr.io/acme/custom:1"
-	pod, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, sidecar, "", "", "")
+	pod, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, sidecar, "", "", "", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestBuild_ClusterDNSEnvOnMacOSOnly(t *testing.T) {
 	// has a cluster DNS IP; Linux Pods (CNI DNS) never do, and macOS
 	// Pods on a controller without the flag don't either — the env
 	// presence is what makes dispatch-poll.sh write /etc/resolver.
-	macPod, err := Build(basePool("macos"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", "10.128.0.10", "cluster.local")
+	macPod, err := Build(basePool("macos"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", "10.128.0.10", "cluster.local", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestBuild_ClusterDNSEnvOnMacOSOnly(t *testing.T) {
 		t.Errorf("TUIST_CLUSTER_DOMAIN = %q, want %q", got, want)
 	}
 
-	macPodNoDNS, err := Build(basePool("macos"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", "", "cluster.local")
+	macPodNoDNS, err := Build(basePool("macos"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", "", "cluster.local", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestBuild_ClusterDNSEnvOnMacOSOnly(t *testing.T) {
 		t.Errorf("TUIST_CLUSTER_DNS_IP = %q on macOS without --cluster-dns-ip, want absent", got)
 	}
 
-	linuxPod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "10.128.0.10", "cluster.local")
+	linuxPod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "10.128.0.10", "cluster.local", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -363,7 +363,7 @@ func TestBuild_RuntimeClassNameNilWhenUnset(t *testing.T) {
 	// dindImage) is allowed to fall back to the default runtime.
 	pool := basePool("linux")
 	pool.Spec.RuntimeClass = ""
-	pod, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", "", "")
+	pod, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", "", "", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -406,13 +406,13 @@ func TestBuild_LinuxDindWithoutKataFailsClosed(t *testing.T) {
 	// microVM boundary.
 	pool := basePool("linux")
 	pool.Spec.RuntimeClass = ""
-	_, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", "")
+	_, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", "", "")
 	if err == nil {
 		t.Fatal("Build returned nil error; want refusal for Linux+dind without kata-qemu")
 	}
 
 	pool.Spec.RuntimeClass = "some-other-runtime"
-	if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", ""); err == nil {
+	if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", "", ""); err == nil {
 		t.Fatal("Build accepted non-kata runtimeClass for Linux+dind; want refusal")
 	}
 }
@@ -722,7 +722,7 @@ func TestBuild_LinuxDindRegistryMirror(t *testing.T) {
 	// --registry-mirror plus a matching --insecure-registry (the
 	// in-cluster cache is plain http).
 	const mirror = "http://registry-cache.svc:5000"
-	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", mirror, "", "")
+	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", mirror, "", "", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -732,6 +732,23 @@ func TestBuild_LinuxDindRegistryMirror(t *testing.T) {
 	}
 	if !strings.Contains(args, "--insecure-registry=registry-cache.svc:5000") {
 		t.Errorf("dind args missing --insecure-registry for the cache host (scheme must be stripped); got %v", args)
+	}
+}
+
+func TestBuild_LinuxRunnerGetsTheExecutionEndpointOnlyWhenConfigured(t *testing.T) {
+	const endpoint = "grpc://remote-execution-gateway.tuist-sandboxes.svc.cluster.local:50051"
+	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", "", endpoint)
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if got := envValue(containerByName(t, pod, "runner").Env, "TUIST_EXECUTION_ENDPOINT"); got != endpoint {
+		t.Errorf("runner TUIST_EXECUTION_ENDPOINT = %q, want %q", got, endpoint)
+	}
+	pod = build(t, basePool("linux"))
+	for _, e := range containerByName(t, pod, "runner").Env {
+		if e.Name == "TUIST_EXECUTION_ENDPOINT" {
+			t.Errorf("runner carries TUIST_EXECUTION_ENDPOINT=%q with none configured", e.Value)
+		}
 	}
 }
 
@@ -880,13 +897,13 @@ func TestBuild_NestedVirtualizationOutsideKataFailsClosed(t *testing.T) {
 	linux := basePool("linux")
 	linux.Spec.NestedVirtualization = true
 	linux.Spec.RuntimeClass = ""
-	if _, err := Build(linux, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", "", ""); err == nil {
+	if _, err := Build(linux, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", "", "", ""); err == nil {
 		t.Error("Build accepted nested virtualization on a runc Linux pool; want refusal")
 	}
 
 	macos := basePool("darwin")
 	macos.Spec.NestedVirtualization = true
-	if _, err := Build(macos, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", ""); err == nil {
+	if _, err := Build(macos, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", "", ""); err == nil {
 		t.Error("Build accepted nested virtualization on a macOS pool; want refusal")
 	}
 }
@@ -957,7 +974,7 @@ func TestBuild_ExclusiveCPUsFailsClosed(t *testing.T) {
 			pool := basePool("linux")
 			pool.Spec.ExclusiveCPUs = true
 			mutate(pool)
-			if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", ""); err == nil {
+			if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", "", ""); err == nil {
 				t.Error("Build accepted exclusive CPUs; want refusal")
 			}
 		})
@@ -981,7 +998,7 @@ func TestBuild_ExclusiveCPUsAcceptsASizedKataRuntimeClass(t *testing.T) {
 	}
 
 	pool.Spec.RuntimeClass = "kata-qemux"
-	if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", ""); err == nil {
+	if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", "", "", ""); err == nil {
 		t.Error("Build accepted exclusive CPUs under runtimeClass kata-qemux; want refusal")
 	}
 }
@@ -1119,7 +1136,7 @@ func TestBuild_GuestDiskGBOnlyOnMacOSPoolsThatSetIt(t *testing.T) {
 func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
 	// Empty dindImage (macOS-only install) must not produce a
 	// sidecar or DOCKER_HOST env even on a Linux pool.
-	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", "", "")
+	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", "", "", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -1461,7 +1478,7 @@ func TestCacheVolumesArePrivateAndVisibleToDocker(t *testing.T) {
 		}
 	}
 	pool.Spec.RuntimeClass = "runc"
-	if _, err := Build(pool, "p", "sa", "url", "", "", "", "", "", ""); err == nil {
+	if _, err := Build(pool, "p", "sa", "url", "", "", "", "", "", "", ""); err == nil {
 		t.Fatal("accepted cache mounts outside Kata")
 	}
 }
@@ -1653,7 +1670,7 @@ func TestDockerCacheRunsDockerdUnderTheSupervisor(t *testing.T) {
 func TestDockerCacheNeedsCacheVolumes(t *testing.T) {
 	pool := basePool("linux")
 	pool.Spec.DockerCache = true
-	if _, err := Build(pool, "pod", "sa", "http://dispatch", "http://dispatch-internal", "docker:dind", "", "", "10.0.0.10", "cluster.local"); err == nil {
+	if _, err := Build(pool, "pod", "sa", "http://dispatch", "http://dispatch-internal", "docker:dind", "", "", "10.0.0.10", "cluster.local", ""); err == nil {
 		t.Fatal("built a Docker cache pool without cache volumes")
 	}
 }
