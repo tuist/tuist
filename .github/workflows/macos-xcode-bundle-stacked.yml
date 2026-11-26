@@ -10,7 +10,9 @@ name: macOS Xcode bundle stacked experiment
 on:
   push:
     branches: [exp/xcode-bundle-tahoe-27]
-    paths: [.github/workflows/macos-xcode-bundle-stacked.yml]
+    paths:
+      - .github/workflows/macos-xcode-bundle-stacked.yml
+      - infra/macos-xcode-image/experiments/bundle.pkr.hcl
 
 concurrency:
   group: macos-xcode-bundle-stacked

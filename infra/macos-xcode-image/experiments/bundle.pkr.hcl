@@ -71,7 +71,7 @@ build {
       "sudo xcode-select -s /Applications/Xcode_${var.xcode_version}.app",
       "sudo xcodebuild -license accept",
       "sudo xcodebuild -runFirstLaunch",
-      "sudo xcodebuild -downloadAllPlatforms",
+      "for i in 1 2 3 4 5; do sudo xcodebuild -downloadAllPlatforms && break; [ $i -lt 5 ] || exit 1; echo \"downloadAllPlatforms failed, retry $i\" >&2; sleep 60; done",
       "XCODE_BUILD=$(xcodebuild -version | awk '/^Build version/ {print $3}')",
       "INDEX=$(mktemp)",
       "curl -fsSL https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex -o \"$INDEX\"",
