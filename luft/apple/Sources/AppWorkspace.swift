@@ -52,7 +52,11 @@ struct AppWorkspace: View {
 
     var body: some View {
         Group {
-            if client.view.active == nil {
+            if !client.booted {
+                // Saved profiles are still loading; showing the login screen
+                // now would flash it before a signed-in workspace.
+                Color.clear
+            } else if client.view.active == nil {
                 LogInView(client: client)
             } else {
                 #if os(macOS)

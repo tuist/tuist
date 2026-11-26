@@ -306,6 +306,9 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
     static let shared = AppClient()
 
     private(set) var view = AppSessionView()
+    /// Whether `boot` has loaded the saved profiles. Until then an empty `view`
+    /// doesn't mean signed out.
+    private(set) var booted = false
     var error: String?
     private(set) var signingIn = false
     @ObservationIgnored private let host = NativeHost()
@@ -323,6 +326,7 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
         started = true
         // Loads profiles and migrates local stores before any screen reads them.
         await perform("boot")
+        booted = true
         // A notification tap that launched the app opens once the core is up.
         await PushNotifications.shared.attach(self)
         ThreadLiveActivity.shared.attach(self)
