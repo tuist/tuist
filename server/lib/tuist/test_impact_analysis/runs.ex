@@ -105,9 +105,12 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       build_context: BuildSystem.context(params),
       requested_modules: params.decided_modules,
       skipped_modules: Map.new(params.skipped_modules, &{&1, 0}),
+      tracked_files: tracked_files(params),
       rules_version: TestImpactAnalysis.rules_version()
     }
   end
+
+  defp tracked_files(params), do: params |> Map.get(:tracked_files) |> List.wrap() |> Enum.uniq()
 
   defp decide(project, params, commit_sha) do
     baseline_sha = Map.get(params, :baseline_sha)
@@ -200,7 +203,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
 
       skipped_modules = skipped_modules(project, params, baseline)
 
-      case Decision.tracked_path(project, changed_files) do
+      case Decision.tracked_path(project, changed_files, tracked_files(params)) do
         nil ->
           request = %{
             commit_sha: commit_sha,
@@ -208,19 +211,20 @@ defmodule Tuist.TestImpactAnalysis.Runs do
             scheme: BuildSystem.scheme(params),
             platform: Map.get(params, :platform) || "",
             requested_modules: params.decided_modules,
-            coverage_policy: Map.get(params, :coverage_policy),
+            tracked_files: tracked_files(params),
             before: DateTime.utc_now()
           }
 
           {:selected, baseline, Decision.decide(project, request, baseline.checkpoint, changed_files), skipped_modules}
 
         # Default selective testing runs every test of the modules left.
-        path ->
+        %{path: path, pattern: pattern} ->
           extra =
             project
             |> fallback_counts(params, baseline, skipped_modules)
             |> Map.merge(%{
               matched_path: path,
+              matched_pattern: pattern,
               rules_version: TestImpactAnalysis.rules_version(),
               rule_trace: TestImpactAnalysis.tracked_trace()
             })
@@ -388,8 +392,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   @doc """
   The skip list of an unsharded run: the tests in scope not selected, as
   `%{module, suite, name}`, or one `%{module}` for a module none of whose
-  tests is selected. A test the baseline didn't run isn't in scope, so it's
-  never on the list and runs.
+  tests is selected and that gained no file. A test the baseline didn't run
+  isn't in scope, so it's never on the list and runs.
   """
   def skip_entries(tests, selected_ids) do
     tests
@@ -400,7 +404,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
 
       cond do
         skipped == [] -> []
-        selected == [] -> [%{module: module}]
+        selected == [] and not added?(skipped) -> [%{module: module}]
         true -> test_entries(skipped)
       end
     end)
@@ -491,7 +495,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     |> Enum.flat_map(fn {module, tests} ->
       {selected, skipped} = Enum.split_with(tests, &MapSet.member?(selected_ids, &1.test_case_id))
 
-      if selected == [] do
+      if selected == [] and not added?(skipped) do
         if skipped == [], do: [], else: [%{module: module}]
       else
         suites =
@@ -501,6 +505,11 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       end
     end)
   end
+
+  # A skipped test with a matched path is in a module that gained a file
+  # (`Decision.decide/4`): the module is never skipped whole, so a test the
+  # file adds runs.
+  defp added?(skipped), do: Enum.any?(skipped, &(Map.get(&1, :matched_path) not in [nil, ""]))
 
   defp test_entries(tests) do
     tests

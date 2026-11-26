@@ -6,12 +6,10 @@ defmodule Tuist.TestImpactAnalysis.DecisionTest do
   alias Tuist.TestImpactAnalysis.Decision
   alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.TestImpactAnalysis.Snapshots
-  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Reported
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.ShardsFixtures
 
   @sources ~w(Sources/Math.swift Sources/Sub.swift Sources/Strings.swift Sources/Core.swift Sources/Boot.swift)
   @test_file "Tests/MathTests.swift"
@@ -136,7 +134,7 @@ defmodule Tuist.TestImpactAnalysis.DecisionTest do
            }
   end
 
-  test "selects a changed test file's whole suite, a module's target-level evidence and files no evidence includes",
+  test "selects a changed test file's whole suite and a module's target-level evidence, and nothing for a file no evidence includes",
        %{project: project} do
     {_run, result} = decide(project, "c2", [changed(@test_file, "t2")])
     decisions = by_name(project, result)
@@ -149,212 +147,16 @@ defmodule Tuist.TestImpactAnalysis.DecisionTest do
     assert by_name(project, result)["testCore()"] == {:selected, :impacted}
     assert by_name(project, result)["testAdd()"] == {:skipped, :unaffected}
 
+    # Only a tracked pattern makes a file no evidence includes run anything.
     {_run, result} = decide(project, "c4", [changed("Resources/Image.png", "i2", ["CoreTests"])])
-    assert by_name(project, result)["testCore()"] == {:selected, :owned_without_evidence}
-  end
 
-  test "instrumented policy excludes a target only with its checkpoint's complete instrumentation", %{
-    project: project,
-    account: account
-  } do
-    paths = ["Sources/Used.swift", "Sources/Unused.swift", "Tests/Unit.swift"]
-    CoverageFixtures.seed_listing(account, "c1", paths)
-
-    for {scope, extra_modules} <- [
-          {"single-target", []},
-          {"no-evidence", []},
-          {"failed", []},
-          {"multi-target", [%{name: "OtherTests", status: "success", duration: 1, test_cases: []}]}
-        ] do
-      # Give the other module an actual test so its checkpoint cannot be
-      # mistaken for a single-target report.
-      extra_modules =
-        Enum.map(
-          extra_modules,
-          &%{&1 | test_cases: [%{name: "other", test_suite_name: "", status: "success", duration: 1}]}
-        )
-
-      CoverageFixtures.run_with_coverage(
-        project,
-        account,
-        [
-          CoverageFixtures.file(Enum.at(paths, 0), [1]),
-          CoverageFixtures.file(Enum.at(paths, 1), [0]),
-          CoverageFixtures.file(Enum.at(paths, 2), [0], is_test: true)
-        ],
-        %{
-          git_commit_sha: "c1",
-          scheme: scope,
-          test_modules:
-            [
-              %{
-                name: "UnitTests",
-                status: "success",
-                duration: 1,
-                test_cases: [
-                  %{
-                    name: "opaque::unit",
-                    test_suite_name: "",
-                    status: if(scope == "failed", do: "failure", else: "success"),
-                    duration: 1
-                  }
-                ]
-              }
-            ] ++ extra_modules,
-          coverage_evidence: %{
-            paths: paths,
-            scopes:
-              if(scope == "no-evidence",
-                do: [%{kind: "target", module: "UnitTests", files: [0], lines: [[1, 1]]}],
-                else: [%{kind: "test", module: "UnitTests", suite: "", name: "opaque::unit", files: [0], lines: [[1, 1]]}]
-              )
-          }
-        }
-      )
-    end
-
-    request = %{
-      build_system: "xcode",
-      head_sha: "c2",
-      baseline_sha: "c1",
-      modules: [%{name: "UnitTests"}],
-      scope: "single-target",
-      changed_files: [changed("Sources/Unused.swift", "new", ["UnitTests"])]
-    }
-
-    assert {:ok, %{run: %{selected_count: 1}, skipped_tests: []}} = Runs.create(project, request)
-
-    opted_in = Map.put(request, :coverage_policy, "instrumented")
-
-    assert {:ok, %{run: run, skipped_tests: [%{module: "UnitTests"}]}} = Runs.create(project, opted_in)
-    assert run.selected_count == 0
-    assert run.build_context["coverage_policy"] == "instrumented"
-
-    # Instrumentation from another target, another scope, test code or
-    # paths absent from the report never supplies negative evidence.
-    for scope <- ["multi-target", "no-evidence", "failed"] do
-      assert {:ok, %{run: %{selected_count: 1}, skipped_tests: []}} =
-               Runs.create(project, %{opted_in | scope: scope})
-    end
-
-    for path <- ["Sources/Unknown.swift", "Sources/Used.swift", "Tests/Unit.swift"] do
-      assert {:ok, %{run: %{selected_count: 1}, skipped_tests: []}} =
-               Runs.create(project, %{opted_in | changed_files: [changed(path, "new", ["UnitTests"])]})
-    end
-
-    for status <- ["A", "D", "R100"] do
-      files = [%{changed("Sources/Unused.swift", "new", ["UnitTests"]) | status: status}]
-
-      assert {:ok, %{run: %{selected_count: 1}, skipped_tests: []}} =
-               Runs.create(project, %{opted_in | changed_files: files})
-    end
-  end
-
-  test "partial replacement reports cannot prove an omitted file was instrumented", %{
-    project: project,
-    account: account
-  } do
-    paths = ["Sources/Used.swift", "Sources/Unused.swift"]
-    files = [CoverageFixtures.file(hd(paths), [1]), CoverageFixtures.file(List.last(paths), [0])]
-    CoverageFixtures.seed_listing(account, "c1", paths)
-
-    attrs = %{
-      git_commit_sha: "c1",
-      scheme: "replacement",
-      test_modules: [
-        %{
-          name: "UnitTests",
-          status: "success",
-          duration: 1,
-          test_cases: [%{name: "unit", test_suite_name: "", status: "success", duration: 1}]
-        }
-      ],
-      coverage_evidence: %{
-        paths: paths,
-        scopes: [%{kind: "test", module: "UnitTests", suite: "", name: "unit", files: [0], lines: [[1, 1]]}]
-      }
-    }
-
-    run = CoverageFixtures.run_with_coverage(project, account, files, attrs)
-    other = CoverageFixtures.run_with_coverage(project, account, files, attrs)
-    snapshot = Snapshots.at(project.id, "c1", "replacement", "")
-    assert Enum.sort(snapshot.checkpoint.test_run_ids) == Enum.sort([run.id, other.id])
-    changed_files = [changed(List.last(paths), "new", ["UnitTests"])]
-
-    assert [%{reason: :unaffected}] =
-             Candidate.evaluate(project.id, snapshot, changed_files, ["UnitTests"], instrumented: true)
-
-    # A report that omits the changed path must still veto the other run's
-    # zero-hit proof, including a replacement with no file rows at all.
-    for replacement <- [[hd(files)], []] do
-      coverage = Coverage.rows(project.id, %{partial: true, files: replacement, tool: "review", tool_version: "1"})
-      assert :ok = Coverage.publish(run, coverage, nil)
-
-      for opts <- [[], [instrumented: true]] do
-        assert [%{reason: :owned_without_evidence}] =
-                 Candidate.evaluate(project.id, snapshot, changed_files, ["UnitTests"], opts)
-      end
-
-      # Restore complete file rows as well as totals before the next case,
-      # so the empty report cannot inherit a preceding partial row's veto.
-      coverage = Coverage.rows(project.id, %{partial: false, files: files, tool: "review", tool_version: "1"})
-      assert :ok = Coverage.publish(run, coverage, nil)
-
-      assert [%{reason: :unaffected}] =
-               Candidate.evaluate(project.id, snapshot, changed_files, ["UnitTests"], instrumented: true)
-    end
-  end
-
-  test "sharded checkpoints retain ownership fallback after another shard republishes", %{
-    project: project,
-    account: account
-  } do
-    paths = ["Sources/Used.swift", "Sources/Unused.swift"]
-    files = [CoverageFixtures.file(hd(paths), [1]), CoverageFixtures.file(List.last(paths), [0])]
-    CoverageFixtures.seed_listing(account, "c1", paths)
-    plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
-
-    attrs = %{
-      git_commit_sha: "c1",
-      scheme: "sharded-replacement",
-      recompute: false,
-      shard_plan_id: plan.id,
-      shard_index: 0,
-      test_modules: [
-        %{
-          name: "UnitTests",
-          status: "success",
-          duration: 1,
-          test_cases: [%{name: "unit", test_suite_name: "", status: "success", duration: 1}]
-        }
-      ],
-      coverage_evidence: %{
-        paths: paths,
-        scopes: [%{kind: "test", module: "UnitTests", suite: "", name: "unit", files: [0], lines: [[1, 1]]}]
-      }
-    }
-
-    run = CoverageFixtures.run_with_coverage(project, account, files, attrs)
-    complete = Coverage.rows(project.id, %{partial: false, files: files})
-    assert :ok = Coverage.publish(run, complete, 1, 2)
-    CoverageFixtures.recompute_commit(run)
-    snapshot = Snapshots.at(project.id, "c1", "sharded-replacement", "")
-    assert snapshot.checkpoint.test_run_ids == [run.id]
-    changed_files = [changed(List.last(paths), "new", ["UnitTests"])]
-    initial = Candidate.evaluate(project.id, snapshot, changed_files, ["UnitTests"], instrumented: true)
-
-    assert :ok = Coverage.publish(run, Coverage.rows(project.id, %{partial: true, files: []}), 0, 2)
-
-    assert [%{reason: :owned_without_evidence}] =
-             Candidate.evaluate(project.id, snapshot, changed_files, ["UnitTests"], instrumented: true)
-
-    # A complete sibling report must not rehabilitate the empty partial
-    # shard, even though legacy coverage totals can become complete again.
-    assert :ok = Coverage.publish(run, complete, 1, 2)
-
-    for result <- [initial, Candidate.evaluate(project.id, snapshot, changed_files, ["UnitTests"], instrumented: true)] do
-      assert [%{reason: :owned_without_evidence}] = result
-    end
+    assert by_name(project, result) == %{
+             "testAdd()" => {:skipped, :unaffected},
+             "testSub()" => {:skipped, :unaffected},
+             "testUpper()" => {:skipped, :unaffected},
+             "sum()" => {:selected, :no_evidence},
+             "testCore()" => {:skipped, :unaffected}
+           }
   end
 
   # 5,000 paths of 250 bytes are 1.3 MB, ten times what open-source
@@ -422,9 +224,9 @@ defmodule Tuist.TestImpactAnalysis.DecisionTest do
     assert count.("test_impact_snapshot_lines") == 2 * refs
   end
 
-  test "a changed file no evidence includes selects its module's tests whatever the branch's previous run says",
+  test "a changed file no evidence includes selects nothing, so the branch's previous run decides what it ran",
        %{project: project, account: account} do
-    # Both pushes change Math.swift and add an image AppTests' module owns.
+    # Both pushes change Math.swift and add an image no evidence includes.
     changes = [changed("Sources/Math.swift", "m2"), changed("Resources/Image.png", "i1")]
 
     {:ok, %{run: previous_run}} = Runs.create(project, params("c2", changes))
@@ -458,15 +260,14 @@ defmodule Tuist.TestImpactAnalysis.DecisionTest do
     })
 
     {_run, result} = decide(project, "c3", changes)
-    # The branch's previous run is a candidate, and loses to the image.
     assert %{overlay: %{commit_sha: "c2"}} = Snapshots.at(project.id, "c2", "App", "")
 
     assert by_name(project, result) == %{
-             # The previous run ran it with the same Math.swift, but the image is
-             # still unknown to its evidence.
-             "testAdd()" => {:selected, :impacted},
-             "testSub()" => {:selected, :owned_without_evidence},
-             "testUpper()" => {:selected, :owned_without_evidence},
+             # The previous run ran it with the same Math.swift; the image no
+             # evidence includes doesn't select it.
+             "testAdd()" => {:skipped, :unaffected},
+             "testSub()" => {:skipped, :unaffected},
+             "testUpper()" => {:skipped, :unaffected},
              "sum()" => {:selected, :no_evidence},
              "testCore()" => {:skipped, :unaffected}
            }

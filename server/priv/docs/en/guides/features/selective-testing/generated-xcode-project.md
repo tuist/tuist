@@ -111,6 +111,19 @@ With the strategy on, `tuist test` skips the targets whose hash already passed, 
 
 Sometimes coverage isn't applied, and the output says why: every test of the targets whose hash didn't pass runs, as with the default selective testing. That happens without a recent baseline on the same platform, when the change touches more than 5,000 files, or when a file that can affect any test changed, such as `Package.resolved`, `Project.swift`, or an `.xcconfig`. To run every test, pass `--no-selective-testing`.
 
+### Tracked files {#tracked-files}
+
+A changed file that no test's coverage includes, such as a README, selects no test. Some files can still affect tests without showing up in their coverage: a fixture a test reads, a resource loaded at runtime, or a generated file. List them as tracked files, glob patterns relative to the directory of `Tuist.swift`, and a change to any of them runs every test of the targets whose hash didn't pass:
+
+```swift
+selectiveTesting: .selectiveTesting(strategy: .coverage(trackedFiles: [
+    "Tests/Fixtures/**",
+    "!**/project.pbxproj",
+]))
+```
+
+Your patterns add to Tuist's defaults: `Package.resolved`, `Package.swift`, `Project.swift`, `Workspace.swift`, `Tuist.swift`, `Tuist/**`, `*.xcconfig`, `*.xctestplan`, `project.pbxproj`, `Podfile.lock`, `Cartfile.resolved` and `.xcode-version`. A pattern starting with `!` excludes the files it matches, Tuist's defaults included. The Config tab of a run's Selective Testing tab lists every pattern the run used, Tuist's defaults included, and marks the one a changed file matched.
+
 > [!NOTE]
 > **Test coverage**
 >

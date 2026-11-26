@@ -174,6 +174,17 @@ defmodule TuistWeb.TestSelection.Components do
 
   def fallback_description(reason), do: reason
 
+  @doc "The docs on tracked files."
+  def tracked_files_docs_url, do: "https://tuist.dev/en/docs/guides/features/selective-testing#tracked-files"
+
+  @doc "Where a build system's projects configure their tracked files."
+  def tracked_files_config("xcode"), do: "Tuist.swift"
+  def tracked_files_config("mix"), do: "mix.exs"
+  def tracked_files_config("gradle"), do: "build.gradle.kts"
+  def tracked_files_config("cargo"), do: "Cargo.toml"
+  def tracked_files_config("bazel"), do: "tuist.toml"
+  def tracked_files_config(_build_system), do: dgettext("dashboard_tests", "your project's Tuist configuration")
+
   def file_status_label("added"), do: dgettext("dashboard_tests", "Added")
   def file_status_label("deleted"), do: dgettext("dashboard_tests", "Deleted")
   def file_status_label(_status), do: dgettext("dashboard_tests", "Modified")

@@ -291,7 +291,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "#selection-tests-table", "test_refresh()")
     end
 
-    test "shows the modules, changed files, shards and debug tabs", %{
+    test "shows the modules, changed files, config and debug tabs", %{
       conn: conn,
       organization: organization,
       project: project
@@ -320,17 +320,22 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         |> Floki.find("a")
         |> Enum.map(&Floki.text/1)
         |> Enum.map(&String.trim/1)
-        |> Enum.filter(&(&1 =~ ~r/^(Tests|Modules|Changed files|Shards) \(|^Debug$/))
+        |> Enum.filter(&(&1 =~ ~r/^(Tests|Modules|Changed files|Shards) \(|^(Config|Debug)$/))
 
-      assert [tests, modules, files, debug] = tabs
+      assert [tests, modules, files, config, debug] = tabs
       assert tests == "Tests (4)"
       assert modules =~ "Modules"
       assert files =~ "Changed files"
+      assert config == "Config"
       assert debug == "Debug"
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=files")
       assert has_element?(lv, "#selection-files-table", "SearchViewModel.swift")
       assert has_element?(lv, "#selection-files-table", "Tracked")
+
+      {:ok, lv, _html} = live(conn, path <> "&selection-tab=config")
+      assert has_element?(lv, "#selection-tracked-files-table tr", "**/Package.resolved")
+      assert lv |> element("#selection-tracked-files-table tr", "**/Package.resolved") |> render() =~ "Tuist default"
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=modules")
       assert has_element?(lv, "#selection-modules-table", "AuthTests")
@@ -341,7 +346,6 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "[data-part='selection-debug-card']", "Rules version")
       assert has_element?(lv, "#selection-rule-trace-table", "unaffected")
       assert has_element?(lv, "#selection-rule-trace-table", "done")
-      assert has_element?(lv, "#selection-tracked-files", "**/Package.resolved")
       refute has_element?(lv, "#selection-reason")
     end
 
@@ -559,6 +563,42 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         )
 
       assert has_element?(lv, "[data-part='empty-selection-files']", "The changed files expired")
+    end
+
+    test "lists the tracked-file patterns in Config a page at a time, the matched one first", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      fixtures = for index <- 1..25, do: "Tests/Fixtures/#{index}/**"
+
+      %{test_run: test_run} =
+        selection(project,
+          outcome: "fallback",
+          reason: "tracked_file_changed",
+          matched_path: "Tests/Fixtures/25/user.json",
+          matched_pattern: "Tests/Fixtures/25/**",
+          tracked_files: fixtures ++ ["!docs/**"],
+          selected: []
+        )
+
+      path =
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations&selection-tab=config"
+
+      {:ok, lv, _html} = live(conn, path)
+
+      refute has_element?(lv, "#test-selection-fallback")
+      matched = lv |> element("#selection-tracked-files-table tr", "Tests/Fixtures/25/**") |> render()
+      assert matched =~ "Tuist.swift"
+      assert matched =~ "Matched Tests/Fixtures/25/user.json"
+      assert lv |> element("#selection-tracked-files-table tr", "**/Project.swift") |> render() =~ "Tuist default"
+      # 12 defaults, 25 project patterns and an exclude: 38 rows, 20 a page.
+      assert has_element?(lv, ".noora-pagination-group")
+      refute has_element?(lv, "#selection-tracked-files-table tr", "!docs/**")
+
+      {:ok, lv, _html} = live(conn, path <> "&selection-page=2")
+      assert lv |> element("#selection-tracked-files-table tr", "!docs/**") |> render() =~ "Tuist.swift"
+      refute has_element?(lv, "#selection-tracked-files-table tr", "**/Project.swift")
     end
 
     test "shows no Debug card for a fallback without a baseline", %{

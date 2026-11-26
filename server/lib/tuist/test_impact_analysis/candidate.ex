@@ -15,16 +15,13 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
   3. `no_evidence`: it has no evidence of its own, or it's `stale`;
   4. `impacted`: a file it or its suite's setup executed changed, or one its
      module's processes executed outside every test;
-  5. `owned_without_evidence`: a changed file no evidence of the snapshot
-     includes affects its module;
-  6. `unaffected`: skipped.
-  """
-  import Ecto.Query
+  5. `unaffected`: skipped.
 
-  alias Tuist.ClickHouseRepo
+  A changed file no evidence includes selects nothing: unless a tracked
+  pattern matches it, which the diff check catches before (see
+  `Tuist.TestImpactAnalysis.TrackedFiles`), no test is known to execute it.
+  """
   alias Tuist.TestImpactAnalysis.Snapshots
-  alias Tuist.Tests.Coverage
-  alias Tuist.Tests.Test
 
   @files_sql """
   WITH files AS (
@@ -76,23 +73,16 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
   @doc """
   The snapshot's tests, in `modules` when given, each as `%{idx,
   test_case_id, module_name, suite_name, status, layer, reason,
-  matched_path, executed_changed, owned}`, against `changed_files` (`%{path,
-  affected_modules}`). `matched_path` is the changed file that decided a
-  test selected by `test_file_changed`, `impacted` or
-  `owned_without_evidence`, the first in path order, nil otherwise;
-  `executed_changed` when a file the test or its
-  suite's setup executed changed, which is what coverage carry checks, and
-  `owned` when a changed file no evidence includes affects its module,
-  whichever rule decided it first.
+  matched_path, executed_changed}`, against `changed_files` (`%{path}`).
+  `matched_path` is the changed file that decided a test selected by
+  `test_file_changed` or `impacted`, the first in path order, nil
+  otherwise; `executed_changed` when a file the test or its suite's setup
+  executed changed, which is what coverage carry checks, whichever rule
+  decided it first.
   """
   def evaluate(project_id, %{checkpoint: checkpoint} = layers, changed_files, modules \\ nil, opts \\ []) do
     overlay = Map.get(layers, :overlay)
-    instrumented? = Keyword.get(opts, :instrumented, false) and is_nil(overlay)
-    tests = tests(project_id, checkpoint, overlay, if(instrumented?, do: nil, else: modules))
-
-    instrumented = instrumented_paths(project_id, checkpoint, changed_files, tests, modules, instrumented?)
-
-    tests = if modules, do: Map.filter(tests, fn {_idx, test} -> test.module_name in modules end), else: tests
+    tests = tests(project_id, checkpoint, overlay, modules)
     overridden = for {idx, %{layer: :overlay}} <- tests, into: MapSet.new(), do: idx
     hits = hits(project_id, checkpoint, overlay, changed_files, Keyword.get(opts, :matched_paths, false))
     checkpoint_hits = Map.get(hits, checkpoint.id, empty_hits())
@@ -104,110 +94,19 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
         {key, checkpoint_hits |> Map.fetch!(key) |> Map.drop(MapSet.to_list(overridden)) |> Map.merge(overlay_hits[key])}
       end)
 
-    evidenced = MapSet.union(checkpoint_hits.evidenced, overlay_hits.evidenced)
-
-    # Each module a changed file no evidence includes affects, with the first
-    # such file in path order.
-    owned_modules =
-      changed_files
-      |> Enum.reject(&(MapSet.member?(evidenced, &1.path) or MapSet.member?(instrumented, &1.path)))
-      |> Enum.sort_by(& &1.path, :desc)
-      |> Enum.flat_map(fn file -> Enum.map(Map.get(file, :affected_modules) || [], &{&1, file.path}) end)
-      |> Map.new()
-
     tests
     |> Map.values()
     |> Enum.map(fn test ->
-      {reason, matched_path} = reason(test, merged, owned_modules)
+      {reason, matched_path} = reason(test, merged)
       matched_path = if matched_path == "", do: nil, else: matched_path
 
       Map.merge(test, %{
         reason: reason,
         matched_path: matched_path,
-        executed_changed: Map.has_key?(merged.direct, test.idx),
-        owned: Map.has_key?(owned_modules, test.module_name)
+        executed_changed: Map.has_key?(merged.direct, test.idx)
       })
     end)
     |> Enum.sort_by(& &1.idx)
-  end
-
-  defp instrumented_paths(
-         project_id,
-         %{carried_targets: []} = checkpoint,
-         changed_files,
-         tests,
-         [_module] = modules,
-         true
-       ) do
-    if Enum.uniq(Enum.map(Map.values(tests), & &1.module_name)) == modules do
-      instrumented_paths(project_id, checkpoint, changed_files)
-    else
-      MapSet.new()
-    end
-  end
-
-  defp instrumented_paths(_project_id, _checkpoint, _changed_files, _tests, _modules, _instrumented), do: MapSet.new()
-
-  # Only a single-target checkpoint can prove that its zero-hit product
-  # files were instrumented for that target. Aggregate evidence from a
-  # different target, a partial report or test code cannot justify a skip.
-  # Keep the default bitmap-only read unchanged, and bound path parameters
-  # just as hits/5 does. No line layouts are needed for this proof.
-  defp instrumented_paths(project_id, checkpoint, changed_files) do
-    reports = Coverage.report_files_for_runs(project_id, checkpoint.test_run_ids, lines: false)
-
-    # Empty shard reports have no file-row marker. Another shard's report
-    # can therefore make legacy totals look complete again. Until reports
-    # have durable per-shard identity, no sharded run can prove a zero hit.
-    unsharded_runs =
-      from(t in Test,
-        where: t.project_id == ^project_id and t.id in ^checkpoint.test_run_ids,
-        group_by: t.id,
-        having: fragment("countIf(isNotNull(?)) = 0", t.shard_plan_id),
-        select: t.id
-      )
-
-    # Check the whole latest report cohort before narrowing by path: a
-    # partial replacement can omit the changed file, or contain no rows.
-    complete_reports =
-      from(f in reports,
-        group_by: f.test_run_id,
-        having: fragment("countIf(?) = 0", f.partial),
-        select: f.test_run_id
-      )
-
-    complete_runs =
-      from(r in subquery(Coverage.run_totals_query(project_id)),
-        where:
-          r.test_run_id in ^checkpoint.test_run_ids and r.test_run_id in subquery(unsharded_runs) and
-            r.test_run_id in subquery(complete_reports) and not r.partial,
-        select: count()
-      )
-
-    changed_files
-    |> Enum.filter(&(Map.get(&1, :status) == "M"))
-    |> Enum.map(& &1.path)
-    |> Enum.uniq()
-    |> Snapshots.path_chunks()
-    |> Enum.flat_map(fn paths ->
-      ClickHouseRepo.all(
-        from(f in reports,
-          where: subquery(complete_runs) == ^length(checkpoint.test_run_ids) and f.path in ^paths,
-          group_by: f.path,
-          having:
-            fragment(
-              "countIf(? OR NOT ? OR ? OR ? = 0 OR ? > 0) = 0",
-              f.partial,
-              f.in_repository,
-              f.is_test,
-              f.executable_lines,
-              f.covered_lines
-            ),
-          select: f.path
-        )
-      )
-    end)
-    |> MapSet.new()
   end
 
   @doc """
@@ -220,7 +119,7 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
   @doc "Whether the test's files didn't change: it's skipped, or selected only because it failed there."
   def unchanged?(%{reason: reason}), do: reason in [:unaffected, :failed_last_run]
 
-  defp reason(test, hits, owned_modules) do
+  defp reason(test, hits) do
     direct = Map.get(hits.direct, test.idx)
     target = Map.get(hits.target, test.idx)
 
@@ -229,7 +128,6 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
       test.status in ["failed", "flaky"] and is_nil(direct) -> {:failed_last_run, nil}
       test.status in ["no_evidence", "stale"] -> {:no_evidence, nil}
       direct || target -> {:impacted, Enum.min(Enum.reject([direct, target], &is_nil/1))}
-      Map.has_key?(owned_modules, test.module_name) -> {:owned_without_evidence, owned_modules[test.module_name]}
       true -> {:unaffected, nil}
     end
   end

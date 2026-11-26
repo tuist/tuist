@@ -75,6 +75,8 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
         outcome: outcome,
         reason: Keyword.get(attrs, :reason, ""),
         matched_path: Keyword.get(attrs, :matched_path, ""),
+        matched_pattern: Keyword.get(attrs, :matched_pattern, ""),
+        tracked_files: Keyword.get(attrs, :tracked_files, []),
         rules_version: Keyword.get(attrs, :rules_version, "1"),
         rule_trace: Enum.map(rule_trace, &{&1.rule, &1.selected, &1.skipped, &1.verdict}),
         requested_count:

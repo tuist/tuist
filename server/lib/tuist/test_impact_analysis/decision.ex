@@ -18,13 +18,17 @@ defmodule Tuist.TestImpactAnalysis.Decision do
     (`Tuist.GitHistory.changed_files/4`). It's left out when any part is
     missing or truncated, or a tracked file changed.
 
+  A skipped test of a module the client says gained a file (`A` with the
+  module in `affected_modules`) keeps that file as its matched path, so the
+  module's skip list names its tests rather than the module and a test the
+  file adds runs.
+
   A test is decided by the candidate whose evidence of it ran last among
   those where its files are unchanged: skipped when it passed there,
   `failed_last_run` when it didn't; selected with the primary's reason and
   matched path when there's none. A test the branch's overlay doesn't
   replace has its checkpoint's evidence there, as old as that checkpoint. A
-  changed test file's suites and the tests of a module a changed file no
-  evidence includes affects select through the primary's diff whatever the
+  changed test file's suites select through the primary's diff whatever the
   other candidate says.
 
   The decision is stored in `test_impact_run_decisions` (`store/4`), one
@@ -39,9 +43,7 @@ defmodule Tuist.TestImpactAnalysis.Decision do
   alias Tuist.TestImpactAnalysis.Snapshot
   alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.TestImpactAnalysis.Storage
-  alias Tuist.Tests.Coverage.ExcludedPaths
-
-  @final_reasons [:test_file_changed, :owned_without_evidence]
+  alias Tuist.TestImpactAnalysis.TrackedFiles
 
   @store_sql """
   INSERT INTO test_impact_run_decisions (project_id, test_impact_run_id, snapshot_id, evidence_snapshot_id,
@@ -59,19 +61,13 @@ defmodule Tuist.TestImpactAnalysis.Decision do
 
   @doc """
   The first changed file, in path order, that is one of the project's
-  tracked files (its build system's dependency pins and manifests, project
-  and build settings, test plans, toolchain version): a change that can
-  affect any test without showing in coverage. Nil when none is.
+  tracked files (`Tuist.TestImpactAnalysis.TrackedFiles`: its build
+  system's defaults plus the configured `patterns`): a change that can
+  affect any test without showing in coverage. `%{path, pattern, default}`,
+  or nil when none is.
   """
-  def tracked_path(%Project{} = project, changed_files) do
-    case project |> GitHistory.settings() |> Map.get(:tracked_file_globs) |> ExcludedPaths.pattern() do
-      nil ->
-        nil
-
-      pattern ->
-        regex = ExcludedPaths.compile(pattern)
-        changed_files |> Enum.map(& &1.path) |> Enum.sort() |> Enum.find(&Regex.match?(regex, &1))
-    end
+  def tracked_path(%Project{} = project, changed_files, patterns \\ []) do
+    project |> TrackedFiles.matcher(patterns) |> TrackedFiles.first_match(changed_files)
   end
 
   @doc """
@@ -91,17 +87,38 @@ defmodule Tuist.TestImpactAnalysis.Decision do
       snapshot: checkpoint,
       tests:
         project.id
-        |> Candidate.evaluate(%{checkpoint: checkpoint}, changed_files, request.requested_modules,
-          matched_paths: true,
-          instrumented: Map.get(request, :coverage_policy) == "instrumented"
-        )
+        |> Candidate.evaluate(%{checkpoint: checkpoint}, changed_files, request.requested_modules, matched_paths: true)
         |> by_id()
     }
 
     # The primary first: it wins a tie, such as a row the branch's overlay
     # keeps from the same checkpoint.
     candidates = Enum.reject([primary, branch_candidate(project, request, checkpoint, changed_files)], &is_nil/1)
-    combine(primary, candidates)
+    primary |> combine(candidates) |> mark_added(changed_files)
+  end
+
+  # A skipped test of a module that gained a file keeps that file as its
+  # matched path, so its module's skip list names its tests and never the
+  # module: a test the added file defines, which no evidence knows yet, runs.
+  defp mark_added(decisions, changed_files) do
+    added =
+      changed_files
+      |> Enum.filter(&(&1.status == "A"))
+      |> Enum.sort_by(& &1.path, :desc)
+      |> Enum.flat_map(fn file -> Enum.map(Map.get(file, :affected_modules) || [], &{&1, file.path}) end)
+      |> Map.new()
+
+    if added == %{} do
+      decisions
+    else
+      Map.new(decisions, fn
+        {id, %{decision: :skipped, module_name: module} = test} when is_map_key(added, module) ->
+          {id, %{test | matched_path: added[module]}}
+
+        entry ->
+          entry
+      end)
+    end
   end
 
   defp by_id(tests), do: Map.new(tests, &{&1.test_case_id, &1})
@@ -126,7 +143,7 @@ defmodule Tuist.TestImpactAnalysis.Decision do
     end)
   end
 
-  defp final?(test), do: test.reason in @final_reasons or test.owned
+  defp final?(test), do: test.reason == :test_file_changed
 
   defp newest_unchanged(candidates, test_case_id) do
     candidates
@@ -167,7 +184,7 @@ defmodule Tuist.TestImpactAnalysis.Decision do
          between when is_list(between) <- between(checkpoint.repository_id, previous_checkpoint, checkpoint) do
       composed = compose(previous_diff.changed_files, between, changed_files)
 
-      if tracked_path(project, composed) do
+      if tracked_path(project, composed, Map.get(request, :tracked_files, [])) do
         nil
       else
         layers = %{checkpoint: previous_checkpoint, overlay: overlay}

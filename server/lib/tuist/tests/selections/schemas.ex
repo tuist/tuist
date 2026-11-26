@@ -124,6 +124,12 @@ defmodule Tuist.Tests.Selections.Schemas do
           description:
             "Whether it's a tracked file, such as a dependency pin or build setting, whose change makes selection fall back."
         },
+        matched_pattern: %Schema{
+          type: :string,
+          nullable: true,
+          description:
+            "The tracked-file pattern that matches it, a build system default or one the project configured; null when it isn't tracked."
+        },
         selected_tests_count: %Schema{type: :integer, description: "How many tests the file selected."}
       },
       required: [:path, :status, :tracked, :selected_tests_count]

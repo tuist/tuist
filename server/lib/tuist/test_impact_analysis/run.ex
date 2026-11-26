@@ -3,7 +3,10 @@ defmodule Tuist.TestImpactAnalysis.Run do
   The selection coverage-based test selection made for one `tuist test`
   invocation: the commits and diff it used, its scope, the outcome (`selected`,
   or `fallback` when the run continued as default selective testing) and why,
-  the trace of the rules that decided it, and the counts. The counts cover
+  the trace of the rules that decided it, and the counts. `tracked_files`
+  are the patterns the project configured on top of its build system's
+  defaults (`Tuist.TestImpactAnalysis.TrackedFiles`), and `matched_pattern`
+  the one a `tracked_file_changed` fallback's `matched_path` matched. The counts cover
   every test module in scope: `skipped_modules` maps each module the client
   skipped because its hash matched to its number of tests in the baseline,
   and those tests count as requested and skipped. Shard plans and test runs
@@ -32,6 +35,8 @@ defmodule Tuist.TestImpactAnalysis.Run do
     field :outcome, Ch, type: "LowCardinality(String)"
     field :reason, Ch, type: "LowCardinality(String)", default: ""
     field :matched_path, Ch, type: "String", default: ""
+    field :matched_pattern, Ch, type: "String", default: ""
+    field :tracked_files, Ch, type: "Array(String)", default: []
     field :rules_version, Ch, type: "LowCardinality(String)", default: ""
 
     field :rule_trace, Ch,
@@ -72,6 +77,8 @@ defmodule Tuist.TestImpactAnalysis.Run do
       :outcome,
       :reason,
       :matched_path,
+      :matched_pattern,
+      :tracked_files,
       :rules_version,
       :rule_trace,
       :dirty_files,

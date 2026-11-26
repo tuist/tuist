@@ -91,7 +91,26 @@ defmodule Tuist.GitHistory do
       "**/mix.lock",
       "**/config/**",
       "**/test_helper.exs",
+      # A migration changes the schema every database test runs against
+      # without its lines showing in a test's coverage.
       "**/priv/repo/migrations/**",
+      "**/.tool-versions",
+      "**/mise.toml",
+      "**/.mise.toml"
+    ],
+    # The module and workspace files, every package's build file and the
+    # Starlark it loads, the flags and Bazel's own version.
+    bazel: [
+      "MODULE.bazel",
+      "MODULE.bazel.lock",
+      "WORKSPACE",
+      "WORKSPACE.bazel",
+      "WORKSPACE.bzlmod",
+      "**/BUILD",
+      "**/BUILD.bazel",
+      "**/*.bzl",
+      "**/.bazelrc",
+      ".bazelversion",
       "**/.tool-versions",
       "**/mise.toml",
       "**/.mise.toml"
@@ -175,7 +194,9 @@ defmodule Tuist.GitHistory do
   - `tracked_file_globs`: the files, beyond the sources a test compiles, whose
     identity a commit's evidence depends on, read off the commit's file
     listing: any change to one refuses carrying evidence forward at that
-    commit. Chosen by the project's build system, Xcode's when it has none;
+    commit. Chosen by the project's build system, Xcode's when it has none.
+    These are the defaults: a project adds its own, or excludes a default,
+    through `Tuist.TestImpactAnalysis.TrackedFiles`;
   - `commit_file_limit`: how many files of a commit's tree a client lists
     before marking the listing truncated.
   """

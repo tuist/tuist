@@ -20,7 +20,6 @@ defmodule Tuist.Tests.Selections do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.GitHistory
   alias Tuist.Repo
   alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardPlanModule
@@ -29,13 +28,13 @@ defmodule Tuist.Tests.Selections do
   alias Tuist.TestImpactAnalysis.Snapshot
   alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.TestImpactAnalysis.Storage
-  alias Tuist.Tests.Coverage.ExcludedPaths
+  alias Tuist.TestImpactAnalysis.TrackedFiles
   alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.RunSelections
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
 
-  @selected_reasons ~w(test_file_changed failed_last_run no_evidence impacted owned_without_evidence undecided)
+  @selected_reasons ~w(test_file_changed failed_last_run no_evidence impacted undecided)
   @skipped_reasons ~w(unaffected module_skipped)
   @fallback_reasons ~w(no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed dirty_checkout diff_too_large diff_unavailable history_unknown)
 
@@ -365,24 +364,50 @@ defmodule Tuist.Tests.Selections do
     end
   end
 
-  @doc "The project's tracked-file globs: a change to one makes selection fall back."
-  def tracked_file_globs(project), do: GitHistory.settings(project).tracked_file_globs
+  @doc """
+  Whether a `tracked_file_changed` fallback's pattern is one of its build
+  system's defaults rather than one its project configured. Nil when the
+  run recorded no pattern.
+  """
+  def matched_pattern_default?(%Run{matched_pattern: ""}), do: nil
+
+  def matched_pattern_default?(%Run{matched_pattern: pattern, tracked_files: tracked_files}),
+    do: pattern not in tracked_files
 
   @doc """
-  A page of a diff's changed files, each with whether it's a tracked file
-  and how many of the run's selected tests it selected. Options: `:search`
-  (part of the path), `:tracked` (`true` for tracked files only), `:page`
-  and `:page_size`. The files that selected the most tests come first.
+  A page of the run's tracked-file patterns, a change to a file one matches
+  making selection fall back: its build system's defaults and the patterns
+  its project configured, as `%{pattern, default}`, excludes last with their
+  `!`. The pattern a fallback matched comes first. Options: `:page` and
+  `:page_size`.
+  """
+  def tracked_patterns(project, %Run{} = run, opts \\ []) do
+    project
+    |> tracked_matcher(run)
+    |> TrackedFiles.patterns()
+    |> Enum.sort_by(&(&1.pattern != run.matched_pattern))
+    |> paginate_list(opts)
+  end
+
+  @doc """
+  A page of a diff's changed files, each with whether it's a tracked file,
+  the pattern that tracks it (`matched_pattern`, nil when it isn't), and how
+  many of the run's selected tests it selected. Options: `:search` (part of
+  the path), `:tracked` (`true` for tracked files only), `:page` and
+  `:page_size`. The files that selected the most tests come first.
   """
   def changed_files(project, %Run{} = run, diff, opts \\ []) do
-    tracked = tracked_matcher(project)
+    tracked = tracked_matcher(project, run)
     counts = selected_counts_by_path(run)
     search = opts |> Keyword.get(:search, "") |> to_string() |> String.trim() |> String.downcase()
 
     diff.changed_files
     |> Enum.map(fn file ->
+      match = TrackedFiles.match(tracked, file.path)
+
       Map.merge(file, %{
-        tracked: ExcludedPaths.excluded?(tracked, file.path),
+        tracked: not is_nil(match),
+        matched_pattern: match && match.pattern,
         selected_tests_count: Map.get(counts, file.path, 0)
       })
     end)
@@ -402,9 +427,7 @@ defmodule Tuist.Tests.Selections do
     for file <- diff.changed_files, MapSet.member?(paths, file.path), into: %{}, do: {file.path, file}
   end
 
-  defp tracked_matcher(project) do
-    project |> tracked_file_globs() |> ExcludedPaths.pattern() |> ExcludedPaths.compile()
-  end
+  defp tracked_matcher(project, run), do: TrackedFiles.matcher(project, run.tracked_files)
 
   # Read off the decision's bitmaps, keyed by the path that selected them.
   defp selected_counts_by_path(%Run{} = run) do
@@ -518,7 +541,9 @@ defmodule Tuist.Tests.Selections do
           test_idx: fragment("arrayJoin(bitmapToArray(?))", d.tests),
           decision: fragment("toString(?)", d.decision),
           reason: fragment("toString(?)", d.reason),
-          matched_path: d.matched_path
+          # A skipped test's path only marks a module that gained a file
+          # (`Tuist.TestImpactAnalysis.Decision.decide/4`); nothing matched it.
+          matched_path: fragment("if(? = 'skipped', '', ?)", d.decision, d.matched_path)
         }
       )
 

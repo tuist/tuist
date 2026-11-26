@@ -291,6 +291,69 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
       assert {:ok, %{changed_files_count: 3}} = Storage.get_diff(project.id, "head", "base")
     end
 
+    test "falls back when a changed file matches a project's tracked pattern", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      stub(FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> true end)
+
+      repository_id =
+        CoverageFixtures.seed_history(user.account, [
+          CoverageFixtures.commit("base", [], 0),
+          CoverageFixtures.commit("head", ["base"], 1)
+        ])
+
+      TestSelectionFixtures.snapshot_fixture(
+        project_id: project.id,
+        repository_id: repository_id,
+        commit_sha: "base",
+        test_run_ids: [UUIDv7.generate()],
+        tests: [
+          %{
+            test_case_id: UUIDv7.generate(),
+            module_name: "AppTests",
+            suite_name: "LoginTests",
+            name: "testLogin",
+            files: ["App/Sources/Login.swift"]
+          }
+        ]
+      )
+
+      response =
+        conn
+        |> post(
+          ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/runs",
+          Map.put(
+            %{
+              @run_params
+              | head_sha: "head",
+                commit_sha: "head",
+                baseline_sha: "base",
+                changed_files: [%{path: "Fixtures/users.json", status: "M", blob: "b1", affected_modules: []}],
+                changed_files_count: 1
+            },
+            :tracked_files,
+            ["Fixtures/**", "!Fixtures/README.md"]
+          )
+        )
+        |> json_response(:ok)
+
+      assert %{
+               "id" => id,
+               "outcome" => "fallback",
+               "reason" => "tracked_file_changed",
+               "matched_path" => "Fixtures/users.json",
+               "matched_pattern" => "Fixtures/**",
+               "matched_pattern_default" => false
+             } = response
+
+      assert_schema(response, "TestImpactRun", Spec.spec())
+
+      assert {:ok, %{tracked_files: ["Fixtures/**", "!Fixtures/README.md"], matched_pattern: "Fixtures/**"}} =
+               Storage.get_run(project.id, id)
+    end
+
     test "uses and retains the generic scope when deciding a run", %{conn: conn, user: user, project: project} do
       {:ok, project} = Tuist.Projects.update_project(project, %{build_system: :once})
 
@@ -401,7 +464,9 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
           "id" => UUIDv7.generate(),
           "outcome" => "fallback",
           "reason" => "tracked_file_changed",
-          "matched_path" => "Package.resolved"
+          "matched_path" => "Package.resolved",
+          "matched_pattern" => "**/Package.resolved",
+          "matched_pattern_default" => true
         },
         "TestImpactRun",
         Spec.spec()

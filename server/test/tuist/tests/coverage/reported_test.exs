@@ -1671,6 +1671,48 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
   end
 
+  # The tracked files a project configured are part of its configuration at a
+  # commit, sent by that commit's impact runs, whatever a newer run elsewhere
+  # sent.
+  test "a file the commit's own configuration tracks carries nothing once it changed", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    impact_run = fn sha, tracked_files ->
+      {:ok, %{run: run}} =
+        Runs.create(project, %{
+          build_system: "xcode",
+          head_sha: sha,
+          baseline_sha: "base",
+          git_branch: "feature",
+          modules: [%{name: "AppTests", skipped: false}],
+          changed_files: [],
+          tracked_files: tracked_files,
+          xcode: %{scheme: "App"}
+        })
+
+      run
+    end
+
+    head_impact = impact_run.("head", ["Fixtures/**"])
+    head_run(project, account, head_files(), %{test_impact_run_id: head_impact.id})
+    # Newer, at another commit, whose configuration tracks nothing.
+    impact_run.("other", [])
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = fn blob -> [%{path: "Fixtures/data.json", git_blob_id: blob, mode: 0o100644}] end
+    GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
+
+    assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:tracked_file_changed]
+
+    GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
+    assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
+  end
+
   # A monorepo commit lists every toolchain's build files; only the project's
   # own build system's decide whether its evidence still holds.
   test "an Xcode project carries across a commit that changes only Mix's and Gradle's build inputs", %{

@@ -18,9 +18,9 @@
 #     (`test_runs.test_impact_run_id`): the rules select a test whose test
 #     file changed (`test_file_changed`), that failed at the baseline
 #     (`failed_last_run`), that has no evidence (`no_evidence`), whose
-#     evidence executed a changed file (`impacted`) or whose module owns a
-#     changed resource (`owned_without_evidence`), and skip the rest of the
-#     baseline's tests in the requested modules; a changed tracked file and a
+#     evidence executed a changed file (`impacted`), and skip the rest of
+#     the baseline's tests in the requested modules (a changed resource no
+#     evidence includes selects nothing); a changed tracked file and a
 #     few others fall back; some runs are sharded, packed by duration, with a
 #     shard plan that points to the impact run;
 #   - a selected run stores its decision as coverage-based test selection
@@ -55,18 +55,6 @@ defmodule TestSelectionSeed do
 
   def tracked?(path),
     do: path in ["Package.resolved", "Project.swift", "Tuist.swift"] or String.ends_with?(path, ".xcconfig")
-
-  def resource?(path), do: String.ends_with?(path, [".strings", ".xcassets", ".json", ".storyboard", ".xib"])
-
-  # The test target a resource belongs to, by the feature directory it sits
-  # in: `Sources/Features/Search/Resources/…` is `SearchTests`'s.
-  def resource_module(path) do
-    case Path.split(path) do
-      ["Sources", "Features", feature | _rest] -> feature <> "Tests"
-      ["Sources", target | _rest] -> target <> "Tests"
-      _ -> nil
-    end
-  end
 
   # Non-code changes and a test file change, on files the baseline's
   # evidence knows: a feature's strings, a doc, one of the tests' own files
@@ -119,7 +107,7 @@ defmodule TestSelectionSeed do
     packed
   end
 
-  @rules ~w(tracked_files test_file_changed failed_last_run no_evidence impacted owned_without_evidence unaffected)
+  @rules ~w(tracked_files test_file_changed failed_last_run no_evidence impacted unaffected)
 
   # Per rule, in order, how many tests it selected and skipped, and its
   # verdict.
@@ -280,19 +268,13 @@ impact_for = fn head, baseline ->
   changed = MapSet.new(changes, &elem(&1, 0))
   tracked = Enum.find_value(changes, fn {path, _status} -> if TestSelectionSeed.tracked?(path), do: path end)
 
-  resources =
-    for {path, _status} <- changes, TestSelectionSeed.resource?(path), into: %{} do
-      {TestSelectionSeed.resource_module(path), path}
-    end
-
   changed_files =
     Enum.map(changes, fn {path, status} ->
       %{
         path: path,
         status: status,
         blob: Map.get(after_, path, ""),
-        affected_modules:
-          if(TestSelectionSeed.resource?(path), do: List.wrap(TestSelectionSeed.resource_module(path)), else: [])
+        affected_modules: []
       }
     end)
 
@@ -308,7 +290,6 @@ impact_for = fn head, baseline ->
           MapSet.member?(baseline.failed, test.test_case_id) -> {"failed_last_run", ""}
           TestSelectionSeed.h({baseline.sha, test.test_case_id}, 70) == 0 -> {"failed_last_run", ""}
           matched -> {"impacted", matched}
-          Map.has_key?(resources, test.module) -> {"owned_without_evidence", resources[test.module]}
           true -> nil
         end
 

@@ -68,6 +68,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.TestImpactAnalysis.Baselines
   alias Tuist.TestImpactAnalysis.Carry
   alias Tuist.TestImpactAnalysis.Snapshots
+  alias Tuist.TestImpactAnalysis.Storage
+  alias Tuist.TestImpactAnalysis.TrackedFiles
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Evidence
@@ -129,7 +131,10 @@ defmodule Tuist.Tests.Coverage.Reported do
       hits = selective_testing_hits(project.id, repository_id, Enum.uniq(run_ids ++ Enum.map(clean, & &1.test_run_id)))
       {hits, skips} = unexecuted(project.id, runs, hits, runs ++ clean)
 
-      context = %{project: project, repository_id: repository_id, sha: sha}
+      # The patterns the project configured at this commit, which its impact
+      # runs sent from its checkout.
+      tracked = TrackedFiles.matcher(project, Storage.tracked_files(project.id, impact_run_ids(runs ++ clean)))
+      context = %{project: project, repository_id: repository_id, sha: sha, tracked: tracked}
       skipping = skipping(context, {runs, hits, skips, clean})
       skipping = %{skipping | gaps: skipping.gaps ++ uninstrumented(project.id, runs)}
 
@@ -201,6 +206,7 @@ defmodule Tuist.Tests.Coverage.Reported do
       project: project,
       repository_id: repository_id,
       sha: sha,
+      tracked: skipping.tracked,
       hits: hits,
       indexed: skipping.indexed,
       observed: observed,
@@ -1041,18 +1047,18 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # Whether evidence from `sha` holds at the commit as far as the tracked
-  # files go: none of them differs between the two.
-  defp validity(%{project: project, repository_id: repository_id} = context, sha) do
-    case GitHistory.settings(project).tracked_file_globs do
-      [] ->
-        :ok
+  # files go (`Tuist.TestImpactAnalysis.TrackedFiles`, the defaults and the
+  # patterns the project configured at the commit): none of them differs
+  # between the two.
+  defp validity(%{tracked: %{include_pattern: nil}}, _sha), do: :ok
 
-      globs ->
-        case GitHistory.changed_files(repository_id, sha, context.sha, match: ExcludedPaths.pattern(globs)) do
-          [] -> :ok
-          :unknown -> :listing_missing
-          _changed -> :tracked_file_changed
-        end
+  defp validity(%{repository_id: repository_id, tracked: tracked} = context, sha) do
+    case GitHistory.changed_files(repository_id, sha, context.sha, match: tracked.include_pattern) do
+      :unknown ->
+        :listing_missing
+
+      changed ->
+        if TrackedFiles.reject_excluded(tracked, changed) == [], do: :ok, else: :tracked_file_changed
     end
   end
 

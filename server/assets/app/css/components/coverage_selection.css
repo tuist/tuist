@@ -29,6 +29,28 @@
     }
   }
 
+  & [data-part="section-header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & [data-part="section-title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+    }
+
+    & [data-part="section-description"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+
+      & a {
+        color: var(--noora-surface-label-primary);
+        text-decoration: underline;
+      }
+    }
+  }
+
   & [data-part="selection-verdict-section"] {
     display: flex;
     flex-direction: column;

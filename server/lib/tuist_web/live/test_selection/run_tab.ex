@@ -11,12 +11,13 @@ defmodule TuistWeb.TestSelection.RunTab do
     from the baseline run.
   - Modules: the tests per module. The test run page fills it with its
     module-level selective testing table instead when it has one.
-  - Changed files: what changed since the baseline, whether each file is
-    tracked and how many tests it selected.
-  - Debug, for Tuist operators only: the trace of the rules that decided it
-    and the tracked files.
+  - Changed files: what changed since the baseline, the tracked-file
+    pattern that matches each tracked one, and how many tests it selected.
+  - Config: the tracked-file patterns the run used, each with where it
+    comes from.
+  - Debug, for Tuist operators only: the trace of the rules that decided it.
 
-  A fallback shows the outcome and, when it has a baseline, the Debug tab only.
+  A fallback without a baseline shows the outcome and the Config tab only.
 
   Its query parameters are prefixed with `selection-` so they don't clash
   with the test run page's own.
@@ -32,7 +33,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
 
-  @tabs ~w(tests modules files debug)
+  @tabs ~w(tests modules files config debug)
   @sort_fields ~w(decision name shard duration)
 
   @doc "What the tab shows before its data is loaded."
@@ -156,7 +157,7 @@ defmodule TuistWeb.TestSelection.RunTab do
 
   # Debug is for Tuist operators only.
   defp tabs(run, operator?) do
-    tabs = if Selections.selection?(run), do: @tabs, else: []
+    tabs = if Selections.selection?(run), do: @tabs, else: ["config"]
 
     if operator?, do: tabs, else: List.delete(tabs, "debug")
   end
@@ -309,7 +310,7 @@ defmodule TuistWeb.TestSelection.RunTab do
         </.card_section>
       </.card>
 
-      <.tab_menu_horizontal :if={Selections.selection?(@selection_run)}>
+      <.tab_menu_horizontal>
         <.tab_menu_horizontal_item
           :for={tab <- tabs(@selection_run, @operator?)}
           selected={@tab == tab}
@@ -347,6 +348,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   defp tab_card(%{tab: "files"} = assigns), do: files_card(assigns)
   defp tab_card(%{tab: "modules", modules: [_ | _]} = assigns), do: ~H"{render_slot(@modules)}"
   defp tab_card(%{tab: "modules"} = assigns), do: modules_card(assigns)
+  defp tab_card(%{tab: "config"} = assigns), do: config_card(assigns)
   defp tab_card(%{tab: "debug"} = assigns), do: debug_card(assigns)
   defp tab_card(assigns), do: ~H""
 
@@ -578,7 +580,7 @@ defmodule TuistWeb.TestSelection.RunTab do
             <:col :let={file} label={dgettext("dashboard_tests", "Tracked")}>
               <.badge_cell
                 :if={file.tracked}
-                label={dgettext("dashboard_tests", "Tracked")}
+                label={file.matched_pattern}
                 color="warning"
                 style="light-fill"
               />
@@ -722,9 +724,63 @@ defmodule TuistWeb.TestSelection.RunTab do
     """
   end
 
-  defp debug_card(assigns) do
-    assigns = assign(assigns, :tracked_file_globs, Selections.tracked_file_globs(assigns.project))
+  defp config_card(assigns) do
+    page = (assigns.uri.query || "") |> URI.decode_query() |> Map.get("selection-page") |> parse_page()
+    {patterns, meta} = Selections.tracked_patterns(assigns.project, assigns.selection_run, page: page)
+    assigns = assign(assigns, tracked_patterns: patterns, tracked_patterns_meta: meta)
 
+    ~H"""
+    <.card
+      title={dgettext("dashboard_tests", "Config")}
+      icon="settings"
+      data-part="selection-config-card"
+    >
+      <.card_section data-part="selection-table-section">
+        <div data-part="section-header">
+          <h3 data-part="section-title">{dgettext("dashboard_tests", "Tracked files")}</h3>
+          <span data-part="section-description">
+            {dgettext(
+              "dashboard_tests",
+              "A change to a file these patterns match runs every test. A pattern starting with ! excludes the files it matches."
+            )}
+            <.link href={tracked_files_docs_url()} target="_blank">
+              {dgettext("dashboard_tests", "Learn more")}
+            </.link>
+          </span>
+        </div>
+        <div data-part="selection-table">
+          <.table id="selection-tracked-files-table" rows={@tracked_patterns} row_key={& &1.pattern}>
+            <:col :let={tracked} label={dgettext("dashboard_tests", "Pattern")}>
+              <.text_cell label={tracked.pattern} />
+            </:col>
+            <:col :let={tracked} label={dgettext("dashboard_tests", "Source")}>
+              <.text_cell label={tracked_pattern_source(tracked, @selection_run)} />
+            </:col>
+            <:col :let={tracked} label={dgettext("dashboard_tests", "This run")}>
+              <.badge_cell
+                :if={tracked.pattern == @selection_run.matched_pattern}
+                label={
+                  dgettext("dashboard_tests", "Matched %{path}", path: @selection_run.matched_path)
+                }
+                color="warning"
+                style="light-fill"
+              />
+              <.text_cell :if={tracked.pattern != @selection_run.matched_pattern} label="–" />
+            </:col>
+          </.table>
+          <.pagination_group
+            :if={@tracked_patterns_meta.total_pages > 1}
+            current_page={@tracked_patterns_meta.current_page}
+            number_of_pages={@tracked_patterns_meta.total_pages}
+            page_patch={fn page -> "?#{Query.put(@uri.query, "selection-page", page)}" end}
+          />
+        </div>
+      </.card_section>
+    </.card>
+    """
+  end
+
+  defp debug_card(assigns) do
     ~H"""
     <.card
       title={dgettext("dashboard_tests", "Debug")}
@@ -775,9 +831,9 @@ defmodule TuistWeb.TestSelection.RunTab do
             <dt>{dgettext("dashboard_tests", "Matched path")}</dt>
             <dd id="selection-matched-path">{@selection_run.matched_path}</dd>
           </div>
-          <div>
-            <dt>{dgettext("dashboard_tests", "Tracked files")}</dt>
-            <dd id="selection-tracked-files">{Enum.join(@tracked_file_globs, ", ")}</dd>
+          <div :if={@selection_run.matched_pattern != ""}>
+            <dt>{dgettext("dashboard_tests", "Matched pattern")}</dt>
+            <dd id="selection-matched-pattern">{@selection_run.matched_pattern}</dd>
           </div>
         </dl>
       </.card_section>
@@ -800,6 +856,7 @@ defmodule TuistWeb.TestSelection.RunTab do
         count: format_number(assigns.modules_count || length(run.requested_modules) + map_size(run.skipped_modules))
       )
 
+  defp tab_label("config", _assigns), do: dgettext("dashboard_tests", "Config")
   defp tab_label("debug", _assigns), do: dgettext("dashboard_tests", "Debug")
 
   # A test that ran opens its test case run's Selective Testing tab.
@@ -847,6 +904,9 @@ defmodule TuistWeb.TestSelection.RunTab do
 
   defp reason_filter_label("any"), do: dgettext("dashboard_tests", "Any")
   defp reason_filter_label(reason), do: reason_label(reason)
+
+  defp tracked_pattern_source(%{default: true}, _run), do: dgettext("dashboard_tests", "Tuist default")
+  defp tracked_pattern_source(_tracked, run), do: tracked_files_config(run.build_system)
 
   defp tracked_filter_label("true"), do: dgettext("dashboard_tests", "Tracked")
   defp tracked_filter_label(_tracked), do: dgettext("dashboard_tests", "All")

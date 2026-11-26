@@ -33,6 +33,16 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Run do
         type: :string,
         description: "The file that caused the fallback, such as the tracked file that changed."
       },
+      matched_pattern: %Schema{
+        type: :string,
+        description:
+          "On `tracked_file_changed`, the tracked-file pattern `matched_path` matched: one of the build system's defaults or one of the request's `tracked_files`."
+      },
+      matched_pattern_default: %Schema{
+        type: :boolean,
+        description:
+          "Sent with `matched_pattern`: whether it's one of the build system's defaults rather than one of the request's `tracked_files`. A default can be opted out of with a `!` pattern."
+      },
       counts: %Schema{
         type: :object,
         description: "Test counts for the client's output. Present when the outcome is `selected`.",

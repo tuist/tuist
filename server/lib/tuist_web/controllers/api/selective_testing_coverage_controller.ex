@@ -8,6 +8,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
   alias Tuist.TestImpactAnalysis.BuildSystem
   alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.TestImpactAnalysis.Storage
+  alias Tuist.Tests.Selections
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Tests.TestImpact.Baseline
@@ -218,7 +219,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
                    type: :array,
                    items: %Schema{type: :string},
                    description:
-                     "The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it."
+                     "The test modules the file is test code of, from the client's project graph; empty when it's none's. A module that gained a file (status `A`) is never skipped whole, so a test the file adds runs. Selection doesn't otherwise read it: a changed file no coverage evidence includes selects nothing unless it's a tracked file."
                  },
                  dirty: %Schema{
                    type: :boolean,
@@ -266,7 +267,13 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              type: :string,
              enum: ["strict", "instrumented"],
              description:
-               "Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs."
+               "Defaults to strict. Recorded on the impact run's build context. It no longer changes the decision: a changed file no coverage evidence includes selects nothing unless it's a tracked file, whatever the policy."
+           },
+           tracked_files: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Tracked-file patterns the project configured, on top of the build system's defaults: repository-relative globs (`*`, `**`, `?`, `[...]`) a change to a file one matches falls back to every test (`tracked_file_changed`), for files that can affect tests without showing in coverage. A pattern starting with `!` excludes the files it matches, defaults included. The client resolves patterns written relative to the project's root. Recorded on the impact run."
            },
            xcode: @xcode_schema,
            mix: @mix_schema
@@ -307,6 +314,8 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
     %{id: run.id, outcome: run.outcome}
     |> put_present(:reason, run.reason)
     |> put_present(:matched_path, run.matched_path)
+    |> put_present(:matched_pattern, run.matched_pattern)
+    |> put_present(:matched_pattern_default, Selections.matched_pattern_default?(run))
   end
 
   defp put_present(response, _key, value) when value in [nil, ""], do: response

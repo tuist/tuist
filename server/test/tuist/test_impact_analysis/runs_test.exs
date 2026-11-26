@@ -117,7 +117,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert run.commit_sha == "c2"
       assert run.baseline_run_ids == [baseline.id]
       assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 2, 3}
-      assert run.rules_version == "3"
+      assert run.rules_version == "4"
       assert List.last(run.rule_trace).rule == "unaffected"
       assert run.build_context == %{"scheme" => "App"}
 
@@ -320,6 +320,52 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {run.outcome, run.reason, run.matched_path} == {"fallback", "tracked_file_changed", "Package.resolved"}
       assert [%{rule: "tracked_files", verdict: "abort"}] = run.rule_trace
       assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 5, 0}
+      assert run.matched_pattern == "**/Package.resolved"
+    end
+
+    test "falls back on the project's tracked files, and a ! pattern opts out of a default", %{project: project} do
+      readme = %{path: "Docs/Setup.md", status: "M", blob: "new", affected_modules: []}
+      pin = %{path: "Package.resolved", status: "M", blob: "new", affected_modules: []}
+
+      # A file no evidence includes and no pattern tracks selects nothing.
+      assert {:ok, %{run: %{outcome: "selected", tracked_files: []} = run}} =
+               Runs.create(project, params(%{changed_files: [readme]}))
+
+      assert selected(project, run) == [{"AppTests", "SumTests", "sum()", "no_evidence", nil}]
+
+      tracked_files = ["Docs/**", "!**/Package.resolved"]
+
+      assert {:ok, %{run: run}} =
+               Runs.create(project, params(%{changed_files: [pin, readme], tracked_files: tracked_files}))
+
+      assert {run.outcome, run.reason, run.matched_path, run.matched_pattern, run.tracked_files} ==
+               {"fallback", "tracked_file_changed", "Docs/Setup.md", "Docs/**", tracked_files}
+
+      # Excluded, the default pin no longer falls back.
+      assert {:ok, %{run: %{outcome: "selected"}}} =
+               Runs.create(project, params(%{changed_files: [pin], tracked_files: tracked_files}))
+
+      # A ! pattern also wins over the project's own include.
+      assert {:ok, %{run: %{outcome: "selected"}}} =
+               Runs.create(project, params(%{changed_files: [readme], tracked_files: ["Docs/**", "!Docs/*.md"]}))
+    end
+
+    test "never skips whole a module that gained a file, so a test the file adds runs", %{project: project} do
+      new_file = %{path: "Tests/CoreTests/NewTests.swift", status: "A", blob: "new", affected_modules: ["CoreTests"]}
+
+      assert {:ok, %{run: run, skipped_tests: skip}} =
+               Runs.create(project, params(%{changed_files: [new_file | params().changed_files]}))
+
+      # The added file selects nothing.
+      assert {run.selected_count, run.skipped_count} == {2, 3}
+
+      assert skip == [
+               %{module: "AppTests", suite: "MathTests", name: "testSub()"},
+               %{module: "AppTests", suite: "StringTests", name: "testUpper()"},
+               %{module: "CoreTests", suite: "CoreSuite", name: "testCore()"}
+             ]
+
+      assert skip_list_of(project, run) == skip
     end
 
     test "falls back with history_unknown when the history doesn't have the checkout", %{project: project} do
@@ -455,6 +501,27 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
                %{module: "AppTests", suite: "MathTests"},
                %{module: "AppTests", suite: "StringTests", name: "testUpper()"},
                %{module: "CoreTests"}
+             ]
+    end
+
+    test "the catch-all shard names a module that gained a file test by test", %{project: project} do
+      new_file = %{path: "Tests/CoreTests/NewTests.swift", status: "A", blob: "new", affected_modules: ["CoreTests"]}
+      {:ok, %{run: run}} = Runs.create(project, params(%{changed_files: [new_file | params().changed_files]}))
+
+      Shards.create_shard_plan(project, %{
+        reference: "added",
+        granularity: "module",
+        modules: ["AppTests", "CoreTests"],
+        shard_total: 2,
+        test_impact_run_id: run.id
+      })
+
+      assert {:ok, catch_all} = Shards.get_shard(project, project.account, "added", 1, suite_catch_all?: true)
+
+      assert catch_all.skipped_tests == [
+               %{module: "AppTests", suite: "MathTests"},
+               %{module: "AppTests", suite: "StringTests", name: "testUpper()"},
+               %{module: "CoreTests", suite: "CoreSuite", name: "testCore()"}
              ]
     end
 

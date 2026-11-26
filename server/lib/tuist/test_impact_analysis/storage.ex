@@ -136,6 +136,25 @@ defmodule Tuist.TestImpactAnalysis.Storage do
   end
 
   @doc """
+  The tracked-file patterns the project configured at a commit, as the
+  newest of its runs' impact runs `ids` sent them from that checkout; empty
+  when there are none.
+  """
+  def tracked_files(_project_id, []), do: []
+
+  def tracked_files(project_id, ids) do
+    query =
+      from(r in Run,
+        where: r.project_id == ^project_id and r.id in ^ids,
+        order_by: [desc: r.inserted_at],
+        limit: 1,
+        select: r.tracked_files
+      )
+
+    IngestRepo.with_retry(fn -> IngestRepo.one(query) end) || []
+  end
+
+  @doc """
   What the project's impact runs among `ids` skipped, for those that skipped
   anything: `:tests` when their decision skipped single tests, `:modules`
   when only modules hashing found unchanged were skipped. Read off the run's

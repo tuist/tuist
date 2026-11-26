@@ -956,7 +956,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
          baseline_sha when is_binary(baseline_sha) <- impact_run.baseline_sha,
          %Snapshot{} = checkpoint <- checkpoint(project.id, baseline_sha, run.scheme, run.platform),
          id = snapshot_id(["overlay", project.id, impact_run.id, checkpoint.id, run.test_run_id]),
-         {:ok, changed_files} <- whole_diff(project, impact_run.commit_sha, baseline_sha) do
+         {:ok, changed_files} <- whole_diff(project, impact_run, baseline_sha) do
       if !Repo.get(Snapshot, id), do: insert_overlay(project, run, impact_run, checkpoint, id, changed_files)
       id
     else
@@ -1031,10 +1031,12 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # The impact run's diff from its baseline, whole and without a tracked file:
   # only then does a test the run didn't execute hold at its commit unless the
   # diff touches it.
-  defp whole_diff(project, commit_sha, baseline_sha) do
-    with {:ok, diff} <- Storage.get_diff(project.id, commit_sha, baseline_sha),
+  defp whole_diff(project, impact_run, baseline_sha) do
+    with {:ok, diff} <- Storage.get_diff(project.id, impact_run.commit_sha, baseline_sha),
          true <- diff.changed_files_count == length(diff.changed_files) do
-      if Decision.tracked_path(project, diff.changed_files), do: :tracked, else: {:ok, diff.changed_files}
+      if Decision.tracked_path(project, diff.changed_files, impact_run.tracked_files),
+        do: :tracked,
+        else: {:ok, diff.changed_files}
     end
   end
 
