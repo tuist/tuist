@@ -1,8 +1,8 @@
 # Tuist Runners for GitHub Actions: macOS and Linux
 
-Managed macOS and Linux runners for GitHub Actions. Change `runs-on`, keep your workflows, and build next to a shared cache.
+Tuist Runners are managed M5 Pro Mac mini and Linux runners for GitHub Actions. Change `runs-on`, keep your workflows, and build next to a shared cache.
 
-Tuist Runners run GitHub Actions jobs on Tuist's fleet; your workflows and triggers stay on GitHub. Runners only run jobs from repositories owned by a GitHub organization, not a personal account.
+Tuist Runners run GitHub Actions jobs on Tuist's fleet of Apple silicon Mac minis and x86-64 Linux machines, billed per minute, with no runner agent to install. Your workflows and triggers stay on GitHub. Runners only run jobs from repositories owned by a GitHub organization, not a personal account.
 
 ## Switch a job with one line
 
@@ -26,12 +26,27 @@ No runner agent to install. Accounts start with `tuist-macos` and `tuist-linux` 
 - **Directories that survive between jobs.** [Cache volumes](/en/docs-markdown/guides/features/runners/cache-volumes) keep DerivedData and other caches between jobs.
 - **Xcode selected by the profile.** Each profile pins one Xcode version, so workflows drop `xcode-select` steps.
 
+## macOS runner rates compared
+
+Rates checked on **2026-11-26** from GitHub's [runner pricing](https://docs.github.com/en/billing/reference/actions-runner-pricing) and [larger runner](https://docs.github.com/en/actions/reference/runners/larger-runners) references and Tuist's [pricing page](/pricing). The pricing page has the current Tuist rates.
+
+| Runner | CPU and memory | Per minute |
+| --- | --- | --- |
+| GitHub `macos-latest`, `macos-15`, `macos-26` | 3 cores (M1), 7 GB | $0.062 |
+| GitHub `macos-latest-large` | 12 cores (Intel), 30 GB | $0.077 |
+| GitHub `macos-latest-xlarge` | 5 cores (M2 Pro), 14 GB | $0.102 |
+| Tuist macOS | 8 vCPU (M5 Pro), 24 GB | $0.05 |
+| Tuist macOS | 16 vCPU (M5 Pro), 48 GB | $0.10 |
+
+A per-minute rate is only part of the bill. A job that reuses cached outputs runs fewer minutes, so compare what whole jobs cost before and after you switch.
+
 ## Sources and review
 
-Sources checked on **2026-11-13**. Written by Tuist from its own documentation and the provider's public documentation; not an independent benchmark. Primary sources: [GitHub-hosted runners](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners), [dependency caching](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching), and the Tuist [GitHub Actions setup guide](/en/docs-markdown/guides/features/runners/ci-providers/github-actions).
+Sources checked on **2026-11-26**. Written by Tuist from its own documentation and the provider's public documentation; not an independent benchmark. Primary sources: [GitHub-hosted runners](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners), [larger runners](https://docs.github.com/en/actions/reference/runners/larger-runners), [Actions runner pricing](https://docs.github.com/en/billing/reference/actions-runner-pricing), [dependency caching](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching), and the Tuist [GitHub Actions setup guide](/en/docs-markdown/guides/features/runners/ci-providers/github-actions).
 
 ## Further reading
 
+- [Self-hosted macOS runners](/marketing-markdown/solutions/self-hosted-mac-runners) on running your own Mac minis compared with managed runners.
 - [Tuist Runners](/marketing-markdown/runners) for all supported CI providers, machine profiles, and how runners fit with the rest of Tuist.
 - Tuist Runners for [GitLab CI](/marketing-markdown/runners/gitlab-ci) and [Buildkite](/marketing-markdown/runners/buildkite).
 - [Rising CI costs](/marketing-markdown/solutions/ci-costs) on measuring total cost before and after moving jobs.
@@ -56,8 +71,8 @@ Yes. Linux runners expose `/dev/kvm`, so x86_64 Android emulators and Gradle Man
 
 ### Why not stay on GitHub-hosted runners?
 
-[GitHub-hosted runners](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners) give each job a fresh VM, and [`actions/cache`](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) keeps per-repository archives (10 GB by default, evicted after 7 days unused). Tuist Runners add a build cache shared with developer machines and coding agents, cache volumes that keep directories between jobs, and Xcode selected by the profile.
+[GitHub-hosted runners](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners) give each job a fresh VM, and [`actions/cache`](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) keeps per-repository archives (10 GB by default, evicted after 7 days unused). Tuist Runners add a build cache shared with developer machines and coding agents, cache volumes that keep directories between jobs, and Xcode selected by the profile. If you are weighing your own Mac minis instead, see the guide to [self-hosted macOS runners](/marketing-markdown/solutions/self-hosted-mac-runners).
 
 ### How is it priced?
 
-Runners are billed per minute by machine shape. See the [pricing page](/pricing) for current rates, and compare them against the total cost of the job, not only the per-minute price.
+Runners are billed per minute by machine shape. The macOS rates are compared with GitHub's in the table above, and the [pricing page](/pricing) lists current rates for every macOS and Linux machine. Compare what whole jobs cost, not only the per-minute price.

@@ -8,7 +8,7 @@ Compare Swift Package Manager (SPM) and Tuist for a modular Xcode app: what each
 
 ## What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a shared environment where developers, CI, and coding agents build and test. It is not a CI provider, a CI runner, or a coding agent. Many Apple developers first met Tuist through generated projects: you describe projects in Swift [manifests](/en/docs-markdown/guides/features/projects/manifests) such as `Project.swift`, and `tuist generate` produces the Xcode projects and workspace. Generation is one Tuist capability. The Xcode cache, build and test insights, and previews work with the Xcode project you already have.
+Tuist is build infrastructure for engineering teams and coding agents: a shared environment where developers, CI, and coding agents build and test. It is not a CI provider or a coding agent: it works with the CI you already use, and [Tuist Runners](/marketing-markdown/runners) can run those jobs on managed macOS and Linux machines next to the cache. Many Apple developers first met Tuist through generated projects: you describe projects in Swift [manifests](/en/docs-markdown/guides/features/projects/manifests) such as `Project.swift`, and `tuist generate` produces the Xcode projects and workspace. Generation is one Tuist capability. The Xcode cache, build and test insights, and previews work with the Xcode project you already have.
 
 ## Describing modules: Package.swift or Project.swift
 

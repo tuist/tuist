@@ -441,6 +441,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
             "/solutions/slow-tests",
             "/solutions/flaky-tests",
             "/solutions/ci-costs",
+            "/solutions/self-hosted-mac-runners",
             "/runners/github-actions",
             "/runners/buildkite"
           ] do

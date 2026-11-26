@@ -36,6 +36,7 @@ The distinction is **less necessary work versus more execution capacity**. Compu
 | My CI costs are going up | [Measure duplicate work, retries, and total execution cost](/marketing-markdown/solutions/ci-costs) |
 | I need a Bazel remote cache | [Set up a shared cache, measure hits, and choose self-hosted or managed](/marketing-markdown/solutions/bazel-remote-cache) |
 | Bazel is slow on GitHub Actions | [Share a remote cache across ephemeral runners and see where each job spends time](/marketing-markdown/solutions/bazel-github-actions) |
+| Should we self-host Mac runners? | [Compare running your own Mac minis with managed macOS runners](/marketing-markdown/solutions/self-hosted-mac-runners) |
 | Which provider or approach fits? | [Compare Tuist with runner, CI/CD, and build-acceleration providers](/marketing-markdown/compare) |
 
 ## Build systems and Tuist infrastructure

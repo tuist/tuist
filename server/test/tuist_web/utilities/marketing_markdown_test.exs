@@ -62,6 +62,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/bazel-remote-cache",
                  "/solutions/ci-costs",
                  "/solutions/flaky-tests",
+                 "/solutions/self-hosted-mac-runners",
                  "/solutions/slow-builds",
                  "/solutions/slow-tests",
                  "/tests"
@@ -160,6 +161,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/bazel-remote-cache",
                  "/solutions/ci-costs",
                  "/solutions/flaky-tests",
+                 "/solutions/self-hosted-mac-runners",
                  "/solutions/slow-builds",
                  "/solutions/slow-tests"
                ] ++ @comparison_paths ++ @tool_paths ++ @build_system_paths
@@ -283,7 +285,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   test "problem guides connect diagnosis, agent investigation, and experiments" do
     mcp_docs = File.read!(Path.expand("../../../priv/docs/en/guides/features/agentic-coding/mcp.md", __DIR__))
 
-    for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs", "bazel-github-actions", "bazel-remote-cache"] do
+    for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs", "bazel-github-actions", "bazel-remote-cache", "self-hosted-mac-runners"] do
       path = "/solutions/" <> slug
       markdown = MarketingMarkdown.get(path)
       [_heading, introduction | _rest] = String.split(markdown, "\n\n")
@@ -458,7 +460,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
               "/solutions/flaky-tests",
               "/solutions/ci-costs",
               "/solutions/bazel-github-actions",
-              "/solutions/bazel-remote-cache"
+              "/solutions/bazel-remote-cache",
+              "/solutions/self-hosted-mac-runners"
             ] do
       markdown = MarketingMarkdown.get(path)
       assert markdown =~ ~r/[Pp]roject (?:optimization )?first/, path
