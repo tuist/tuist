@@ -97,6 +97,59 @@ defmodule Tuist.Runners.ProfilesTest do
     end
   end
 
+  describe "macOS OS version" do
+    setup do
+      macos_shape = %{vcpus: 8, memory_gb: 24, key: "8vcpu-24gb", default?: true}
+
+      stub(Catalog, :shapes, fn
+        :linux -> @catalog
+        :macos -> [macos_shape]
+      end)
+
+      stub(Catalog, :xcode_versions, fn ->
+        [%{xcode_version: "27.2", tag: "27-2", default?: true}, %{xcode_version: "26.6", tag: "26-6", default?: false}]
+      end)
+
+      tahoe = %{os_version: "macos-26", label: "macOS 26 Tahoe", release: 26, xcode_versions: nil, default?: true}
+      golden_gate = %{os_version: "macos-27", label: "macOS 27 Golden Gate", release: 27, xcode_versions: ["27.2"]}
+      stub(Catalog, :macos_os_versions, fn -> [Map.put(golden_gate, :default?, false), tahoe] end)
+      stub(Catalog, :default_macos_os_version, fn -> tahoe end)
+      :ok
+    end
+
+    test "a macOS profile takes only the Xcodes built for its macOS", %{account: account} do
+      attrs = %{"platform" => "macos", "vcpus" => 8, "memory_gb" => 24, "os_version" => "macos-27"}
+
+      assert {:ok, %Profile{os_version: "macos-27", xcode_version: "27.2"}} =
+               Profiles.create(account, Map.merge(attrs, %{"name" => "gate", "xcode_version" => "27.2"}))
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.create(account, Map.merge(attrs, %{"name" => "gate-old", "xcode_version" => "26.6"}))
+
+      assert {"is not available on this operating system", _} = errors[:xcode_version]
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.create(account, Map.merge(attrs, %{"name" => "gate-next", "os_version" => "macos-28"}))
+
+      assert errors[:os_version]
+    end
+
+    test "a macOS profile without an OS keeps the Tahoe pool through an Xcode change", %{account: account} do
+      profile =
+        Tuist.Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "legacy",
+          platform: :macos,
+          vcpus: 8,
+          memory_gb: 24,
+          xcode_version: "26.6"
+        })
+
+      assert {:ok, %Profile{os_version: nil} = updated} = Profiles.update(profile, %{"xcode_version" => "27.2"})
+      assert Catalog.pool_name(updated) == "#{Environment.runners_macos_pool_name_prefix()}-27-2"
+    end
+  end
+
   describe "Linux OS version" do
     test "a new Linux profile gets the default OS", %{account: account} do
       assert {:ok, %Profile{os_version: "ubuntu-24.04"}} =

@@ -1741,6 +1741,40 @@ it, so a profile can never pick an OS without a pool behind it.
 {{- $result | toJson -}}
 {{- end -}}
 
+{{/*
+The macOS catalog's images, as a JSON array of `{xcodeVersion, default}`: every
+`runnersFleet.xcodeVersions` entry on every `runnersFleet.macosVersions`
+release that builds it (all of them unless the release lists its
+`xcodeVersions`). `xcodeVersion` is the image key a release publishes, its pool
+is named after, and `runnerImageDigests` and `xcodeOverrides` are keyed by: the
+Xcode alone on `macos-26` (Tahoe), which every image ran before profiles could
+pick a macOS, and `<xcode>-<osVersion>` on any other release (`27.2-macos-27`,
+`.github/scripts/runner-image-base.sh`). `default` marks the default Xcode on
+the Tahoe image, whose pool keeps the `tuist.dev/xcode-default` label. Without
+`macosVersions` the catalog is Tahoe alone.
+*/}}
+{{- define "tuist.macosCatalogImages" -}}
+{{- $releases := .Values.runnersFleet.macosVersions | default (list (dict "osVersion" "macos-26" "default" true)) -}}
+{{- $images := list -}}
+{{- range $release := $releases -}}
+{{- $osVersion := required "runnersFleet.macosVersions[].osVersion required" $release.osVersion | toString -}}
+{{- if not (regexMatch "^macos-[0-9]+$" $osVersion) -}}
+{{- fail (printf "runnersFleet.macosVersions[].osVersion must look like macos-27, got %s" $osVersion) -}}
+{{- end -}}
+{{- range $xcode := ($.Values.runnersFleet.xcodeVersions | default list) -}}
+{{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString -}}
+{{- if or (not (hasKey $release "xcodeVersions")) (has $xcodeVersion (default list $release.xcodeVersions)) -}}
+{{- if eq $osVersion "macos-26" -}}
+{{- $images = append $images (dict "xcodeVersion" $xcodeVersion "default" (dig "default" false $xcode)) -}}
+{{- else -}}
+{{- $images = append $images (dict "xcodeVersion" (printf "%s-%s" $xcodeVersion $osVersion) "default" false) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $images | toJson -}}
+{{- end -}}
+
 {{- define "tuist.rackCatalogPools" -}}
 {{- $pools := list -}}
 {{- if .Values.runnersFleet.enabled -}}
@@ -1753,8 +1787,8 @@ it, so a profile can never pick an OS without a pool behind it.
 {{- $fleet := include "tuist.rackFleetName" . -}}
 {{- $prefix := include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") -}}
 {{- $rackShapes := $runners.shapes | default dict -}}
-{{- range $xcode := (.Values.runnersFleet.xcodeVersions | default list) -}}
-{{- $xcodeTag := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString | replace "." "-" -}}
+{{- range $xcode := (include "tuist.macosCatalogImages" . | fromJsonArray) -}}
+{{- $xcodeTag := $xcode.xcodeVersion | toString | replace "." "-" -}}
 {{- $pools = append $pools (dict "name" (printf "%s-%s-%s" $prefix $site $xcodeTag) "site" $site "fleet" $fleet) -}}
 {{- range $shape := ($.Values.runnersFleet.shapes | default list) -}}
 {{- if not $shape.default -}}

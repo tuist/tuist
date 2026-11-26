@@ -21,7 +21,7 @@ On macOS you pick the Xcode, not the image: each Xcode version is its own image,
 
 ## macOS {#macos}
 
-macOS runners are Apple silicon (arm64) virtual machines running **macOS 26 Tahoe**. A runner's name includes the exact macOS version, for example `tuist-macos-26.6-xcode-27.0-8vcpu-24gb-…`, and appears in the job's **Set up job** step.
+macOS runners are Apple silicon (arm64) virtual machines running **macOS 26 Tahoe** or **macOS 27 Golden Gate**, whichever the profile's **Operating system** names. Profiles created before the choice existed run on Tahoe. Each Xcode is built separately for each macOS release, so the Xcode versions a profile can pick depend on its operating system. A runner's name includes the exact macOS version, for example `tuist-macos-26.6-xcode-27.0-8vcpu-24gb-…`, and appears in the job's **Set up job** step.
 
 ### Xcode {#xcode}
 

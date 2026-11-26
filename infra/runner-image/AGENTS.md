@@ -62,6 +62,9 @@ GitHub-hosted images ship:
 the build VM so `runner` auto-logs in, waits for the TCC.db that login
 makes runner's tccd create, seeds the rows into it as `runner`, then
 reboots once more and fails the build unless every row is still there.
+The script writes to the database runner's tccd has open (`lsof`), or
+the one `TUIST_TCC_DB` names, so a guest whose TCC.db moved, such as
+macOS 27, needs no path change; it falls back to the Tahoe path.
 At boot, `dispatch-poll.sh` (`check_tcc_approvals`) only reads them and
 logs `tcc-approvals: all approvals present` or `WARNING tcc-approvals:
 missing …`; for VMs whose log tail reaches Loki, search the
@@ -710,7 +713,19 @@ Beta entries follow the `<major>.<minor>-beta` shape (matching the
 mirror + base image tags `xcode-xips:27.2-beta`,
 `macos-tahoe-xcode:27-2-beta`), so `runs-on: tuist-macos-27-2-beta`
 resolves to a runner pool sized by
-`runnersFleet.xcodeOverrides["27.2-beta"]`. Release candidates use
+`runnersFleet.xcodeOverrides["27.2-beta"]`.
+
+A `<xcode>-macos-<major>` entry, such as `27.2-macos-27`, is that Xcode's
+image for a macOS release newer than Tahoe, which profiles pick as their
+operating system. Its base is `macos-golden-gate-xcode:<dashes>` instead
+of `macos-tahoe-xcode` (`.github/scripts/runner-image-base.sh` maps it,
+and fails on a macOS it does not know). Add the entry once
+`macos-xcode-image.yml -f macos_version=27` has published that base, and
+only then list the Xcode under the release's `xcodeVersions` in
+`runnersFleet.macosVersions` (`values-managed-common.yaml`), which
+renders its pools; the chart places them only on stacked rack
+placements, whose hosts run macOS 27, since a Tart guest cannot be newer
+than its host. Release candidates use
 `rc` (`27.1 Release Candidate` → `27.1-rc`), which is also the
 channel a later `Release Candidate 2` moves. The longer
 `release-candidate` would push the 12 vCPU shape pool's

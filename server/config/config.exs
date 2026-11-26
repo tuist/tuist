@@ -593,6 +593,18 @@ config :tuist, :runner_linux_shapes, [
   %{vcpus: 16, memory_gb: 64}
 ]
 
+# macOS OS catalog: the macOS releases a macOS profile can run on, each
+# with every Xcode above built for it unless `xcode_versions` lists the
+# ones that are. Managed deploys override it at boot from
+# `TUIST_RUNNER_MACOS_OS_VERSIONS`, which Helm renders from
+# `runnersFleet.macosVersions`. `default: true` is the release new
+# profiles get; `macos-26` profiles, and macOS rows without an OS, keep
+# the pools without an OS suffix (`Tuist.Runners.Catalog.macos_os_versions/0`).
+config :tuist, :runner_macos_os_versions, [
+  %{os_version: "macos-27"},
+  %{os_version: "macos-26", default: true}
+]
+
 # macOS shape catalog. Same role as `:runner_linux_shapes`. Managed
 # deploys override at boot from `TUIST_RUNNER_MACOS_SHAPES` (Helm
 # injects from `runnersFleet.shapes`).

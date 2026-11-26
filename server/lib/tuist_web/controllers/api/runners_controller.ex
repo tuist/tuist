@@ -167,7 +167,8 @@ defmodule TuistWeb.API.RunnersController do
       os_version: %Schema{
         type: :string,
         nullable: true,
-        description: "The Ubuntu release of a Linux profile, for example ubuntu-24.04. Null on macOS."
+        description:
+          "The OS release of the profile: an Ubuntu release on Linux, for example ubuntu-24.04, or a macOS release on macOS, for example macos-27. Null on a macOS profile created before macOS releases were selectable, which runs on macos-26."
       },
       protected: %Schema{type: :boolean},
       runs_on_label: %Schema{
@@ -316,7 +317,7 @@ defmodule TuistWeb.API.RunnersController do
     os_version: %Schema{
       type: :string,
       description:
-        "An available Ubuntu release for Linux profiles, for example ubuntu-24.04. Defaults to the catalog default."
+        "An available OS release: an Ubuntu release for Linux profiles, for example ubuntu-24.04, or a macOS release for macOS profiles, for example macos-27, whose xcode_versions the Xcode version must be in. Defaults to the platform's catalog default."
     },
     cache_writer_all_branches: %Schema{
       type: :boolean,
@@ -375,6 +376,21 @@ defmodule TuistWeb.API.RunnersController do
             default: %Schema{type: :boolean}
           },
           required: [:os_version, :label, :default]
+        }
+      },
+      macos_os_versions: %Schema{
+        type: :array,
+        description: "The macOS releases macOS profiles can run on, each with the Xcode versions built for it.",
+        items: %Schema{
+          title: "RunnerMacOSVersion",
+          type: :object,
+          properties: %{
+            os_version: %Schema{type: :string},
+            label: %Schema{type: :string},
+            default: %Schema{type: :boolean},
+            xcode_versions: %Schema{type: :array, items: %Schema{type: :string}}
+          },
+          required: [:os_version, :label, :default, :xcode_versions]
         }
       }
     },

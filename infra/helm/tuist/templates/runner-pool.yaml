@@ -283,8 +283,8 @@ images the sandbox templates are cloned from.
 {{- if .Values.sandboxes.macos.enabled }}
 {{- $sandboxXcodeVersions = include "tuist.macosSandboxXcodeVersions" . | fromJsonArray }}
 {{- end }}
-{{- range $xcode := $xcodeVersions }}
-{{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
+{{- range $xcode := (include "tuist.macosCatalogImages" . | fromJsonArray) }}
+{{- $xcodeVersion := $xcode.xcodeVersion | toString }}
 {{- $xcodeTag := $xcodeVersion | replace "." "-" }}
 {{- $imageOverride := dig $xcodeVersion (dict) $overrides }}
 {{- $image := include "tuist.macosRunnerImage" (dict "root" $ "xcodeVersion" $xcodeVersion) }}
@@ -297,6 +297,17 @@ images the sandbox templates are cloned from.
 {{- with include "tuist.macosRunnerStackedImage" (dict "root" $ "xcodeVersion" $xcodeVersion) }}
 {{- $poolImage = . }}
 {{- end }}
+{{- end }}
+{{- /*
+An image of a macOS release newer than Tahoe (`<xcode>-macos-<major>`,
+`tuist.macosCatalogImages`) needs a host at least that new, since a Tart guest
+cannot be newer than its host. Only a placement running stacked images asserts
+that every one of its hosts runs macOS 27 (`rackFleet.runners.stackedImages`),
+so any other placement fails the render instead of rendering a pool whose
+guests its hosts cannot boot.
+*/}}
+{{- if and (regexMatch "-macos-[0-9]+$" $xcodeVersion) (not $placement.stacked) }}
+{{- fail (printf "runnersFleet.macosVersions puts Xcode image %s on a newer macOS than Tahoe, which only a placement with rackFleet.runners.stackedImages (every host on macOS 27) can run; the %s placement has none" $xcodeVersion $placement.fleet) }}
 {{- end }}
 {{- /*
 Which of the Xcode's catalog images the pool runs, `standalone` or `stacked`,

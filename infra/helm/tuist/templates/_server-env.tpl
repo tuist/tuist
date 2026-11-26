@@ -395,6 +395,13 @@ environment.
             - name: TUIST_RUNNER_MACOS_XCODE_VERSIONS
               value: {{ $serverXcodeVersions | toJson | quote }}
             {{- end }}
+            {{- with .Values.runnersFleet.macosVersions }}
+            # The macOS releases a macOS profile can pick, each with the
+            # Xcodes built for it: the same list `tuist.macosCatalogImages`
+            # renders the pools from.
+            - name: TUIST_RUNNER_MACOS_OS_VERSIONS
+              value: {{ . | toJson | quote }}
+            {{- end }}
             {{- end }}
             {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
             # Namespace of the CNPG Cluster + Backup CRs (this release's

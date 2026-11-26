@@ -95,9 +95,9 @@
                 {dgettext("dashboard_runners", "Operating system")}
               </span>
               <%!--
-                Linux profiles pick the Ubuntu release their pool runs.
-                macOS shows its single, static OS family: the Xcode
-                version below is what selects a macOS pool.
+                Linux profiles pick the Ubuntu release their pool runs,
+                macOS profiles the macOS release, which decides the Xcode
+                versions below.
               --%>
               <.dropdown
                 :if={@form_platform == "linux" and not Enum.empty?(@os_catalog)}
@@ -115,15 +115,20 @@
                 </.dropdown_item>
               </.dropdown>
               <.dropdown
-                :if={@form_platform == "macos"}
+                :if={@form_platform == "macos" and not Enum.empty?(@macos_os_catalog)}
                 id="runner-profile-os-dropdown"
-                label={os_label_for_form(@form_platform)}
+                label={macos_os_version_label(@form_os_version)}
               >
                 <.dropdown_item
-                  value={os_label_for_form(@form_platform)}
-                  label={os_label_for_form(@form_platform)}
+                  :for={os <- @macos_os_catalog}
+                  value={os.os_version}
+                  label={os.label}
+                  description={os.version_label}
+                  size="large"
+                  on_click="select_os_version"
+                  phx-value-data={os.os_version}
                 >
-                  <:right_icon><.check /></:right_icon>
+                  <:right_icon :if={os.os_version == @form_os_version}><.check /></:right_icon>
                 </.dropdown_item>
               </.dropdown>
             </div>
@@ -133,12 +138,12 @@
                 {dgettext("dashboard_runners", "Xcode version")}
               </span>
               <.dropdown
-                :if={not Enum.empty?(@xcode_catalog)}
+                :if={not Enum.empty?(@form_xcode_catalog)}
                 id="runner-profile-xcode-version-dropdown"
                 label={xcode_version_label_for_value(@form_xcode_version)}
               >
                 <.dropdown_item
-                  :for={xcode <- @xcode_catalog}
+                  :for={xcode <- @form_xcode_catalog}
                   value={xcode.xcode_version}
                   label={xcode_version_label_for_value(xcode.xcode_version)}
                   on_click="select_xcode_version"
@@ -150,7 +155,7 @@
                 </.dropdown_item>
               </.dropdown>
 
-              <span :if={Enum.empty?(@xcode_catalog)} data-part="empty-catalog">
+              <span :if={Enum.empty?(@form_xcode_catalog)} data-part="empty-catalog">
                 {dgettext(
                   "dashboard_runners",
                   "No Xcode versions are configured yet. Contact support."

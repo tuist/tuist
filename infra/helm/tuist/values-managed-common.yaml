@@ -631,6 +631,20 @@ observability:
 # macos-xcode-image build moves the channel tag and the next
 # runner-image release rebuilds against it. Runbook: "Promoting an
 # Xcode beta" in `infra/macos-xcode-image/AGENTS.md`.
+#
+# `macosVersions` are the macOS releases a profile picks next to its Xcode
+# ("Operating system" in the dashboard). Each Xcode is its own image per
+# release: on Tahoe (`macos-26`) the image and pool keep the Xcode's name,
+# on any other release they carry the release (`27.2-macos-27`, built on
+# `ghcr.io/tuist/macos-golden-gate-xcode`, `.github/scripts/runner-image-base.sh`).
+# A release that lists `xcodeVersions` offers only those, which must each
+# have that release's image in `infra/runner-image/profiles.json` before it
+# is listed here, or the deploy waits on pools with no image. Without the
+# list it offers every Xcode. `default: true` is the release new profiles
+# get; profiles saved before the choice existed stay on Tahoe. A Tart guest
+# cannot be newer than its host, so a release newer than Tahoe renders only
+# on the rack (`rackFleet.runners.stackedImages`, every host on macOS 27) and
+# fails the render of any env that rents macOS hosts.
 runnersFleet:
   shapes:
     - vcpus: 8
@@ -652,6 +666,13 @@ runnersFleet:
     - xcodeVersion: "26.3"
     - xcodeVersion: "26.1.1"
     - xcodeVersion: "26.0.1"
+  macosVersions:
+    - osVersion: "macos-26"
+      default: true
+    # macOS 27 Golden Gate, which accounts asked for (Qonto and Roze,
+    # 2026-11). Every Xcode above has its Golden Gate image
+    # (runner-image@0.67.0).
+    - osVersion: "macos-27"
 
 # KVM is a standard managed Linux runner capability. Disable defaultEnabled
 # to roll pools back to the stock kernel while leaving host preparation intact.

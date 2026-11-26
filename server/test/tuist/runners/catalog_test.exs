@@ -117,6 +117,31 @@ defmodule Tuist.Runners.CatalogTest do
     end
   end
 
+  describe "macOS releases in pool names" do
+    test "a macOS release other than Tahoe goes between the Xcode and the shape" do
+      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+      shape = non_default_macos_shape()
+      profile = %{platform: :macos, xcode_version: "27.2", vcpus: shape.vcpus, memory_gb: shape.memory_gb}
+
+      assert Catalog.pool_name(Map.put(profile, :os_version, "macos-27")) ==
+               "#{prefix}-27-2-macos-27-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+
+      assert Catalog.pool_name(Map.put(profile, :os_version, "macos-26")) ==
+               "#{prefix}-27-2-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+
+      assert Catalog.pool_name(Map.put(profile, :os_version, nil)) ==
+               "#{prefix}-27-2-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+    end
+
+    test "Tahoe stands in for a profile without a macOS release" do
+      assert [%{os_version: "macos-27", label: "Golden Gate"}, %{os_version: "macos-26", label: "Tahoe", default?: true}] =
+               Catalog.macos_os_versions()
+
+      assert Catalog.xcode_versions_for_macos(nil) == Catalog.xcode_versions_for_macos("macos-26")
+      assert Catalog.xcode_versions_for_macos("macos-28") == []
+    end
+  end
+
   describe "os_versions/0 and Linux pool names" do
     # The test config lists ubuntu-24.04 (default) and ubuntu-22.04.
     test "lists Ubuntu releases newest first with display labels" do
