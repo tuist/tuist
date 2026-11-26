@@ -6,9 +6,17 @@ enabled: true
 serverURL: http://tuist-tuist-server.tuist.svc.cluster.local:80
 serverNamespace: tuist
 gateway:
+  # Beside the workers and eu-west Kura, all in OVH Gravelines, instead of
+  # the general fsn1 pool: clients there, the gateway's Kura reads and its
+  # claims on leased VMs then stay in one data center.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: runners-linux
+  tolerations:
+    - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}
   ingress:
     enabled: true
     host: execution.tuist.dev
+    className: execution-eu-west
 workers:
   # Six slots' rootfs clones, 30 GiB workspaces and memory images (277 GiB of
   # ceilings) plus the 20 GiB input blob cache, which comes out of this budget.
@@ -33,3 +41,14 @@ workers:
     ceilingSlots: 6
     tolerations:
       - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}
+  # Firecracker in its own vmm container and in-place daemon upgrades,
+  # qualified on staging and canary: the deploy restarts only the daemon
+  # container and the workers' VMs survive (infra/sandbox-image/
+  # remote-execution.md, "Worker upgrades"). Turning it on replaces each
+  # worker once, after it drains.
+  vmm:
+    enabled: true
+    inPlaceUpgrades: true
+    # vmm holds Firecracker under the running VMs; moving it replaces every
+    # worker, so it moves only on purpose.
+    tag: sha-70ff16fcc8b8

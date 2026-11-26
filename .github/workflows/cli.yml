@@ -72,8 +72,7 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-  TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
@@ -103,13 +102,25 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # TuistCacheEE is private: a read-only Tuist CI App token checks out
+      # this repository and clones the submodule. Forks get no secrets and skip both.
+      - id: ee-token
+        if: github.event.pull_request.head.repo.fork != true
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.TUIST_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TUIST_CI_APP_PRIVATE_KEY }}
+          repositories: tuist,TuistCacheEE
+          permission-contents: read
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+          token: ${{ steps.ee-token.outputs.token || github.token }}
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
+        env:
+          TUIST_GITHUB_TOKEN: ${{ steps.ee-token.outputs.token }}
         run: bash mise/tasks/cli/ee.sh
       - uses: ./.github/actions/mise
         with:

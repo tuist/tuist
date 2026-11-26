@@ -884,7 +884,7 @@ msgstr "无法验证通行密钥。请重试。"
 msgid "This passkey is already registered."
 msgstr "此通行密钥已注册。"
 
-#: lib/tuist_web/authentication.ex:867
+#: lib/tuist_web/authentication.ex:904
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "你的每个组织都需要各自的单点登录配置，因此当前会话无法登录 Tuist CLI、应用或 MCP 客户端。请联系组织管理员寻求帮助。"
@@ -1428,3 +1428,8 @@ msgstr "已登录为"
 #, elixir-autogen, elixir-format
 msgid "Unnamed application"
 msgstr "未命名应用"
+
+#: lib/tuist_web/authentication.ex:926
+#, elixir-autogen, elixir-format
+msgid "%{organization} requires two-factor authentication. Set up an authenticator app, or sign in again with a passkey, to continue."
+msgstr "%{organization} 要求使用双因素认证。请设置身份验证器应用，或使用通行密钥重新登录以继续。"

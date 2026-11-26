@@ -4,11 +4,19 @@ defmodule Tuist.Accounts.Dormancy do
 
   Implements the inactivity thresholds in the Access control policy:
   disable at 180 days without authenticating, scrub the identity at 365.
-  The scope is deliberately narrow — only Tuist operator accounts,
-  identified by the operator email domain — because the control this
-  satisfies is a workforce access-lifecycle control. Customer accounts are
-  deprovisioned by their own identity provider through SCIM, which is both
-  faster and their call to make, so they are never touched here.
+  The scope is workforce accounts only, because the control this satisfies
+  is a workforce access-lifecycle control:
+
+    * accounts on the operator email domain, and
+    * every member of an organization Tuist owns
+      (`Tuist.Environment.internal_organization_handles/0`), whatever their
+      email domain. Bot, test and contractor accounts live there, and a
+      dormant one without a second factor is exactly the entry point of
+      Bitrise's November 2026 incident.
+
+  Customer accounts are deprovisioned by their own identity provider through
+  SCIM, which is both faster and their call to make, so they are never
+  touched here.
 
   ## Why "scrub" and not "delete"
 
@@ -48,18 +56,29 @@ defmodule Tuist.Accounts.Dormancy do
 
   `last_sign_in_at` was only populated from the point
   `Tuist.Accounts.touch_last_sign_in/1` shipped, so accounts that have not
-  authenticated since then carry `nil`. Those are reported by `sweep/1` under
-  `:unknown_activity` and never actioned automatically: treating "no data" as
-  "infinitely dormant" would disable every operator on the first run. They are
-  picked up by the quarterly manual inactivity check until natural traffic
-  fills the column in.
+  authenticated since then carry `nil`. Treating "no data" as "infinitely
+  dormant" would disable every such account on the first run, and ignoring
+  them would leave a never-used bot account outside the control forever.
+
+  Instead a `nil` is read as "last active no later than when tracking began,
+  or when the account was created if that is later"
+  (`activity_tracking_started_at/0`). Every authentication since tracking
+  began writes the column, so an account still at `nil` provably has not
+  authenticated since then. Such accounts age from that floor: the oldest
+  ones reach the disable threshold 180 days after tracking began, and an
+  account created and never used is disabled 180 days after its creation.
+  `sweep/1` still lists them under `:unknown_activity` so the evidence record
+  shows which accounts were judged on the floor rather than a sign-in.
   """
 
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Changeset
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
   alias Tuist.Environment
   alias Tuist.Repo
@@ -71,11 +90,32 @@ defmodule Tuist.Accounts.Dormancy do
   @disabled_grace_days 180
   @max_actions_per_run 100
   @tombstone_domain "invalid"
+  # A margin after `touch_last_sign_in/1` shipped (commit 0153512ccc,
+  # 2026-08-20) and reached production, so no account that authenticated
+  # before it is mistaken for one that never did.
+  @activity_tracking_started_at ~N[2026-09-01 00:00:00]
 
   def disable_after_days, do: @disable_after_days
   def scrub_after_days, do: @scrub_after_days
   def disabled_grace_days, do: @disabled_grace_days
   def max_actions_per_run, do: @max_actions_per_run
+  def activity_tracking_started_at, do: @activity_tracking_started_at
+
+  # The instant an account was last seen active: its recorded sign-in, or for
+  # an account with none, the later of its creation and the start of tracking.
+  # See "Accounts with no recorded activity" in the moduledoc.
+  defmacrop last_activity(user) do
+    floor = Macro.escape(@activity_tracking_started_at)
+
+    quote do
+      fragment(
+        "COALESCE(?, GREATEST(?, ?))",
+        unquote(user).last_sign_in_at,
+        unquote(user).created_at,
+        type(^unquote(floor), :naive_datetime)
+      )
+    end
+  end
 
   @doc """
   Applies both inactivity thresholds and returns what was actioned.
@@ -87,6 +127,11 @@ defmodule Tuist.Accounts.Dormancy do
   def sweep(opts \\ []) do
     now = Keyword.get_lazy(opts, :now, &Tuist.Time.naive_utc_now/0)
     domain = Keyword.get_lazy(opts, :operator_email_domain, &Environment.operator_email_domain/0)
+
+    handles =
+      Keyword.get_lazy(opts, :internal_organization_handles, &Environment.internal_organization_handles/0)
+
+    scope = {domain, handles}
     limit = Keyword.get(opts, :limit, @max_actions_per_run)
 
     # Both candidate sets are resolved before anything is mutated. Disabling
@@ -94,20 +139,20 @@ defmodule Tuist.Accounts.Dormancy do
     # the scrub query in the same pass. The `disabled_at` gate below already
     # rules that out, but ordering the reads this way means the guarantee does
     # not rest on a single condition.
-    disable_candidates = list_disable_candidates(now, domain, limit)
-    scrub_candidates = list_scrub_candidates(now, domain, limit)
+    disable_candidates = list_disable_candidates(now, scope, limit)
+    scrub_candidates = list_scrub_candidates(now, scope, limit)
 
     # Both the disable and the scrub re-assert eligibility in the WHERE clause
     # of the write itself, so a candidate that signs in between being selected
     # and being actioned is skipped rather than locked out. Selecting and then
     # writing unconditionally would let a sweep disable someone who came back
     # while it was running.
-    clock_candidates = list_disabled_without_clock(domain, limit)
+    clock_candidates = list_disabled_without_clock(scope, limit)
 
     disabled = Enum.flat_map(disable_candidates, &disable_if_still_dormant(&1, now))
     scrubbed = Enum.flat_map(scrub_candidates, &scrub_if_still_eligible(&1, now))
     clock_started = Enum.map(clock_candidates, &start_disabled_clock(&1, now))
-    unknown = list_unknown_activity(domain)
+    unknown = list_unknown_activity(scope)
 
     result = %{
       disabled: Enum.map(disabled, & &1.id),
@@ -125,22 +170,22 @@ defmodule Tuist.Accounts.Dormancy do
   end
 
   @doc """
-  Operator accounts that are still active but have not authenticated for
-  #{@disable_after_days} days.
+  Workforce accounts that are still active but have not authenticated for
+  #{@disable_after_days} days. `scope` is `{operator_email_domain,
+  internal_organization_handles}`.
   """
-  def list_disable_candidates(now, domain, limit \\ @max_actions_per_run) do
+  def list_disable_candidates(now, scope, limit \\ @max_actions_per_run) do
     Repo.all(
-      from(u in operator_scope(domain),
+      from(u in workforce_scope(scope),
         where: u.active == true,
-        where: not is_nil(u.last_sign_in_at),
-        where: u.last_sign_in_at <= ^cutoff(now, @disable_after_days),
+        where: last_activity(u) <= ^cutoff(now, @disable_after_days),
         limit: ^limit
       )
     )
   end
 
   @doc """
-  Operator accounts eligible for identity scrubbing: inactive for
+  Workforce accounts eligible for identity scrubbing: inactive for
   #{@scrub_after_days} days, and disabled for at least
   #{@disabled_grace_days} days.
 
@@ -156,12 +201,11 @@ defmodule Tuist.Accounts.Dormancy do
   carry no timestamp and are excluded until `start_disabled_clock/2` gives
   them one.
   """
-  def list_scrub_candidates(now, domain, limit \\ @max_actions_per_run) do
+  def list_scrub_candidates(now, scope, limit \\ @max_actions_per_run) do
     Repo.all(
-      from(u in operator_scope(domain),
+      from(u in workforce_scope(scope),
         where: u.active == false,
-        where: not is_nil(u.last_sign_in_at),
-        where: u.last_sign_in_at <= ^cutoff(now, @scrub_after_days),
+        where: last_activity(u) <= ^cutoff(now, @scrub_after_days),
         where: not is_nil(u.disabled_at),
         where: u.disabled_at <= ^utc_cutoff(now, @disabled_grace_days),
         limit: ^limit
@@ -170,16 +214,16 @@ defmodule Tuist.Accounts.Dormancy do
   end
 
   @doc """
-  Disabled operator accounts with no record of when they were disabled.
+  Disabled workforce accounts with no record of when they were disabled.
 
   Nothing is scrubbed on a missing timestamp, so these would otherwise sit
   outside the control forever. `start_disabled_clock/2` stamps them, which
   starts the checkpoint from the moment we first observed the account
   disabled rather than inventing a date we cannot support.
   """
-  def list_disabled_without_clock(domain, limit \\ @max_actions_per_run) do
+  def list_disabled_without_clock(scope, limit \\ @max_actions_per_run) do
     Repo.all(
-      from(u in operator_scope(domain),
+      from(u in workforce_scope(scope),
         where: u.active == false,
         where: is_nil(u.disabled_at),
         limit: ^limit
@@ -188,11 +232,11 @@ defmodule Tuist.Accounts.Dormancy do
   end
 
   @doc """
-  Operator accounts with no recorded authentication, which cannot be
-  assessed against either threshold.
+  Workforce accounts with no recorded authentication, which are assessed
+  against the activity-tracking floor rather than a sign-in.
   """
-  def list_unknown_activity(domain) do
-    Repo.all(from(u in operator_scope(domain), where: is_nil(u.last_sign_in_at)))
+  def list_unknown_activity(scope) do
+    Repo.all(from(u in workforce_scope(scope), where: is_nil(u.last_sign_in_at)))
   end
 
   @doc """
@@ -260,8 +304,7 @@ defmodule Tuist.Accounts.Dormancy do
         from(u in User,
           where: u.id == ^user.id,
           where: u.active == true,
-          where: not is_nil(u.last_sign_in_at),
-          where: u.last_sign_in_at <= ^cutoff(now, @disable_after_days)
+          where: last_activity(u) <= ^cutoff(now, @disable_after_days)
         ),
         set: [active: false, disabled_at: as_utc(now), updated_at: naive(now)]
       )
@@ -286,8 +329,7 @@ defmodule Tuist.Accounts.Dormancy do
             from(u in User,
               where: u.id == ^user.id,
               where: u.active == false,
-              where: not is_nil(u.last_sign_in_at),
-              where: u.last_sign_in_at <= ^cutoff(now, @scrub_after_days),
+              where: last_activity(u) <= ^cutoff(now, @scrub_after_days),
               where: not is_nil(u.disabled_at),
               where: u.disabled_at <= ^utc_cutoff(now, @disabled_grace_days)
             ),
@@ -321,17 +363,33 @@ defmodule Tuist.Accounts.Dormancy do
   defp naive(nil), do: NaiveDateTime.truncate(Tuist.Time.naive_utc_now(), :second)
   defp naive(%NaiveDateTime{} = now), do: NaiveDateTime.truncate(now, :second)
 
-  defp operator_scope(domain) do
+  defp workforce_scope({domain, handles}) do
     # Anyone holding an address on the operator domain is workforce, so the
     # filter is deliberately broader than `Accounts.tuist_operator?/1`, which
     # additionally proves Google Workspace membership before granting
     # privileges. Here the safe direction is to catch more staff accounts,
-    # not fewer. Already-scrubbed rows fall out for free: their tombstone
-    # address is on `.invalid`, so it no longer matches the operator domain.
+    # not fewer. So is anyone holding a role in an organization Tuist owns,
+    # which is where bot, test and contractor accounts on other domains live.
+    #
+    # Scrubbed rows are excluded by their tombstone address. On the operator
+    # domain that alone would do, but a scrubbed member of an internal
+    # organization keeps its role row, so it has to be excluded explicitly.
     suffix = "%@" <> domain
+    tombstone = "%@" <> @tombstone_domain
+
+    internal_member_ids =
+      from(ur in UserRole,
+        join: r in Role,
+        on: r.id == ur.role_id and r.resource_type == "Organization",
+        join: a in Account,
+        on: a.organization_id == r.resource_id,
+        where: fragment("lower(?)", a.name) in ^handles,
+        select: ur.user_id
+      )
 
     from(u in User,
-      where: like(u.email, ^suffix),
+      where: like(u.email, ^suffix) or u.id in subquery(internal_member_ids),
+      where: not like(u.email, ^tombstone),
       order_by: [asc: u.id]
     )
   end
@@ -382,7 +440,7 @@ defmodule Tuist.Accounts.Dormancy do
   defp log_sweep(%{disabled: [], scrubbed: [], clock_started: [], unknown_activity: []}), do: :ok
 
   defp log_sweep(result) do
-    Logger.info("dormant operator account sweep",
+    Logger.info("dormant workforce account sweep",
       disabled_user_ids: result.disabled,
       scrubbed_user_ids: result.scrubbed,
       disabled_clock_started_user_ids: result.clock_started,

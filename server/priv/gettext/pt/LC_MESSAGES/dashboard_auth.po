@@ -884,7 +884,7 @@ msgstr "Não foi possível verificar a chave de acesso. Tente novamente."
 msgid "This passkey is already registered."
 msgstr "Esta chave de acesso já está registrada."
 
-#: lib/tuist_web/authentication.ex:867
+#: lib/tuist_web/authentication.ex:904
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "Cada uma das suas organizações exige seu próprio single sign-on, por isso esta sessão não pode fazer login na CLI do Tuist, no app ou em clientes MCP. Peça ajuda a um administrador da organização."
@@ -1428,3 +1428,8 @@ msgstr "Conectado como"
 #, elixir-autogen, elixir-format
 msgid "Unnamed application"
 msgstr "Aplicativo sem nome"
+
+#: lib/tuist_web/authentication.ex:926
+#, elixir-autogen, elixir-format
+msgid "%{organization} requires two-factor authentication. Set up an authenticator app, or sign in again with a passkey, to continue."
+msgstr "%{organization} exige autenticação de dois fatores. Configure um aplicativo autenticador ou faça login novamente com uma chave de acesso para continuar."

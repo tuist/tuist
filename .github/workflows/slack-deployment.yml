@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/slack
   HELM_CHART_PATH: infra/helm/slack

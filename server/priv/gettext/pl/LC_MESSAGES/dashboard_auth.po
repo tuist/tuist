@@ -884,7 +884,7 @@ msgstr "Nie udało się zweryfikować klucza dostępu. Spróbuj ponownie."
 msgid "This passkey is already registered."
 msgstr "Ten klucz dostępu jest już zarejestrowany."
 
-#: lib/tuist_web/authentication.ex:867
+#: lib/tuist_web/authentication.ex:904
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "Twoje organizacje wymagają osobnych konfiguracji logowania jednokrotnego (SSO), więc ta sesja nie może zalogować się do CLI Tuist, aplikacji ani klientów MCP. Poproś administratora organizacji o pomoc."
@@ -1428,3 +1428,8 @@ msgstr "Zalogowano jako"
 #, elixir-autogen, elixir-format
 msgid "Unnamed application"
 msgstr "Nienazwana aplikacja"
+
+#: lib/tuist_web/authentication.ex:926
+#, elixir-autogen, elixir-format
+msgid "%{organization} requires two-factor authentication. Set up an authenticator app, or sign in again with a passkey, to continue."
+msgstr "Organizacja %{organization} wymaga uwierzytelniania dwuskładnikowego. Skonfiguruj aplikację uwierzytelniającą lub zaloguj się ponownie za pomocą klucza dostępu, aby kontynuować."

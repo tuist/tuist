@@ -223,7 +223,7 @@ commits determine subsequent versions: fixes and maintenance get patch releases,
 features get minor releases, and breaking changes get major releases. Unrelated
 changes and retries with no unreleased changes do not publish new versions.
 
-The release job checks `TUIST_RELEASE_GITHUB_TOKEN` access to `tuist/install`,
+The release job mints a Tuist Automation GitHub App token for `tuist/install` (contents write),
 packages the tested source, and atomically pushes distribution `main`, the
 immutable full-version tag (for example `v1.0.0`), and the moving major alias
 (`v1`). It then records a GitHub Release and `install-action@1.0.0` tag in the

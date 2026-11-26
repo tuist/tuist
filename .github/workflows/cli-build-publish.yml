@@ -39,8 +39,8 @@ on:
 # Top-level env does not cross the workflow_call boundary, so it is redeclared
 # here rather than inherited from the caller.
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
-  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ github.token }}
   TUIST_ENABLE_CACHING: "true"
   MISE_GITHUB_ATTESTATIONS: 0
 
@@ -58,13 +58,20 @@ jobs:
       pull-requests: read
       statuses: write
       packages: write
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
+      # TuistCacheEE is private: a read-only Tuist CI App token checks out
+      # this repository and clones the submodule.
+      - id: ee-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.TUIST_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TUIST_CI_APP_PRIVATE_KEY }}
+          repositories: tuist,TuistCacheEE
+          permission-contents: read
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          token: ${{ steps.ee-token.outputs.token }}
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
@@ -91,7 +98,7 @@ jobs:
         run: tuist install --force-resolved-versions
       - name: Initialize TuistCacheEE submodule
         env:
-          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          TUIST_GITHUB_TOKEN: ${{ steps.ee-token.outputs.token }}
         run: mise run --no-deps --skip-tools cli:ee
       - name: Stamp the release version
         run: |
@@ -137,7 +144,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       # The bundler comes from this workflow's revision rather than inputs.ref:
       # the matrix cross-compiles aarch64 on amd64 hosts, which release lines
       # cut before the bundler took TUIST_LINUX_ARCH cannot do. Their bundler
@@ -229,7 +235,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    # Do not expose the workflow-level release token to the signing action.
+    # Pinned here so no privileged token set at workflow level reaches the
+    # signing action.
     env:
       GITHUB_TOKEN: ${{ github.token }}
       MISE_GITHUB_TOKEN: ${{ github.token }}
@@ -297,19 +304,33 @@ jobs:
     needs: [release-cli, release-cli-linux, sign-cli]
     runs-on: tuist-linux
     timeout-minutes: 15
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff"
+          install_args: "--locked git-cliff 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      # From this workflow's revision: the checked-out source can be a release
+      # branch cut before this action existed.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          path: .github-app-token
+          sparse-checkout: .github/actions/github-app-token
+          persist-credentials: false
+      # The release's tag points at inputs.ref, which can be a release-branch
+      # commit whose workflow files differ from main's. Creating that tag needs
+      # the workflows permission, which GITHUB_TOKEN never has.
+      - id: release-token
+        uses: ./.github-app-token/.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
       - name: Get release notes
         id: release-notes
         working-directory: cli
@@ -375,8 +396,8 @@ jobs:
           # reached it and every release was cut with github.token. GitHub answers
           # 403 "Resource not accessible by integration" to that token when the
           # tag it has to create points at the soaked release-branch commit rather
-          # than the tip of main, so the release token is passed explicitly.
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          # than the tip of main, so the App token is passed explicitly.
+          token: ${{ steps.release-token.outputs.token }}
           # Pin the tag to the exact commit that was built, passed in as a
           # resolved SHA. github.sha would resolve to the caller's triggering
           # commit under workflow_call (main HEAD for a backport), not the
@@ -401,12 +422,22 @@ jobs:
             build/ProjectDescription.xcframework.zip
             build/tuist.spec.json
             build/packslip.sigstore.json
-      - name: Trigger Homebrew Formula Update
+      - name: Mint a homebrew-tuist dispatch token
         # Skipped only for canary/RC prereleases (update_homebrew=false). Stable
         # releases and backports both publish the per-version formula; the
         # homebrew-tuist aliases task is semver-aware, so brew install tuist
         # always resolves to the highest stable version regardless of order.
         if: ${{ inputs.update_homebrew }}
+        uses: ./.github-app-token/.github/actions/github-app-token
+        id: homebrew-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          repositories: homebrew-tuist
+          permission-actions: write
+      - name: Dispatch the Homebrew formula workflow
+        if: ${{ inputs.update_homebrew }}
+        env:
+          HOMEBREW_TOKEN: ${{ steps.homebrew-token.outputs.token }}
         run: |
           SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
-          mise run --no-deps --skip-tools cli:release:homebrew-formula --version "${{ inputs.version }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
+          mise run --no-deps --skip-tools cli:release:homebrew-formula --version "${{ inputs.version }}" --github-token "$HOMEBREW_TOKEN" --sha256 "$SHA256"

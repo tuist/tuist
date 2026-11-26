@@ -24,7 +24,7 @@ concurrency:
 
 env:
   MISE_GITHUB_TOKEN: ${{ github.token }}
-  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
   check:
@@ -161,5 +161,3 @@ jobs:
             hex.pm: https://hex.pm/packages/noora/${{ needs.check.outputs.next-version-number }}
 
             ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}

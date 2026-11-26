@@ -89,11 +89,8 @@ for server rollout surge, host anti-affinity and a single worker failure. Removi
 Pulse alone does not establish that the HA backend fits on the smaller pool.
 
 `tuist-pentest`, the fixed-duration security-assessment cluster, is retired.
-Its manifest is removed; the **Pentest Cluster Retirement** workflow deletes
-the Cluster resource, its managed infrastructure and its ingress load balancer.
-Before running it, delete every DNS record pointing at the cluster's load
-balancers: the run frees their IPs, and a reassigned IP would take over the
-hostname (see `../onboarding.md` §9).
+Its manifest is removed, the live cluster was deleted on 2026-10-21, and its
+workflows and values files were removed afterwards.
 
 The `md-egress` pool is the HA (≥2 node) stable-egress gateway: the
 production Phoenix server's public egress is SNAT'd through the active

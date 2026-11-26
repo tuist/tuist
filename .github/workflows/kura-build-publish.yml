@@ -52,8 +52,8 @@ on:
         default: false
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
-  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ github.token }}
   MISE_GITHUB_ATTESTATIONS: 0
 
 jobs:
@@ -70,7 +70,6 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: ./.github/actions/mise-install
         with:
           install: "git-cliff rust"
@@ -313,13 +312,31 @@ jobs:
     permissions:
       contents: write
       packages: read
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref }}
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked 1password-cli"
+          cache: "false"
+      # From this workflow's revision: the checked-out source can be a release
+      # branch cut before this action existed.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          path: .github-app-token
+          sparse-checkout: .github/actions/github-app-token
+          persist-credentials: false
+      # The release's tag points at inputs.ref, which can be a release-branch
+      # commit whose workflow files differ from main's. Creating that tag needs
+      # the workflows permission, which GITHUB_TOKEN never has.
+      - id: release-token
+        uses: ./.github-app-token/.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
 
       - name: Download Kura Linux x86_64 artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -387,7 +404,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          token: ${{ steps.release-token.outputs.token }}
           target_commitish: ${{ inputs.ref }}
           make_latest: ${{ inputs.make_latest }}
           prerelease: ${{ inputs.prerelease }}

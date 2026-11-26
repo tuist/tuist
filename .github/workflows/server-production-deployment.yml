@@ -83,8 +83,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
-  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ github.token }}
   TUIST_ENABLE_CACHING: "true"
   MISE_GITHUB_ATTESTATIONS: 0
   # Skip mise's SLSA provenance verification for github-backend tools only.
@@ -883,13 +883,10 @@ jobs:
     concurrency:
       group: publish-releases-${{ github.run_id }}
       cancel-in-progress: false
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
       - uses: ./.github/actions/mise
         with:
@@ -1052,16 +1049,28 @@ jobs:
       stable-egress-controller-tagged: ${{ steps.tag.outputs.stable-egress-controller-tagged }}
       egress-tree-agent-tagged: ${{ steps.tag.outputs.egress-tree-agent-tagged }}
       xcresult-processor-image-tagged: ${{ steps.tag.outputs.xcresult-processor-image-tagged }}
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           filter: blob:none
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked 1password-cli"
+          cache: "false"
+      # The tags point at github.sha, which main may have moved past; tagging a
+      # commit whose workflow files differ from main's needs the workflows
+      # permission, which GITHUB_TOKEN never has.
+      - id: release-token
+        uses: ./.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
       - name: Create and push fleet/runtime component tags
         id: tag
+        env:
+          APP_TOKEN: ${{ steps.release-token.outputs.token }}
         # server-deployment.yml resolves each image version from these
         # tags at deploy time, so they must exist on origin before the
         # deploy is dispatched. Idempotent: skip a tag that already exists.
@@ -1120,7 +1129,9 @@ jobs:
               echo "Tag $tag already exists on origin"
             else
               git tag "$tag"
-              git push origin "refs/tags/$tag"
+              # Without the checkout's GITHUB_TOKEN header, so the App token authenticates.
+              git -c http.https://github.com/.extraheader= push \
+                "https://x-access-token:${APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$tag"
               echo "Pushed $tag"
             fi
             tagged=true
@@ -1565,10 +1576,19 @@ jobs:
     env:
       TUIST_DEV_INSTANCE: "1"
     steps:
+      # TuistCacheEE is private: a read-only Tuist CI App token checks out
+      # this repository and clones the submodule.
+      - id: ee-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.TUIST_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TUIST_CI_APP_PRIVATE_KEY }}
+          repositories: tuist,TuistCacheEE
+          permission-contents: read
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
-          token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
+          token: ${{ steps.ee-token.outputs.token }}
           submodules: recursive
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
@@ -1586,7 +1606,7 @@ jobs:
       # --skip-tools so mise does not install the rest of the root toolset.
       - uses: ./.github/actions/mise
         with:
-          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          github_token: ${{ github.token }}
           install_args: "--locked tuist"
           cache: "false"
       # Every Tuist pin bump would otherwise leave another release on the
@@ -1606,7 +1626,7 @@ jobs:
           cache-key: server-deploy-acceptance-workspace
       - name: Initialize TuistCacheEE submodule
         env:
-          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
+          TUIST_GITHUB_TOKEN: ${{ steps.ee-token.outputs.token }}
         run: mise run --skip-tools cli:ee
       # The Xcode compilation-cache acceptance test loads the cas-plugin dylib
       # inside xcodebuild's compilers and routes it to the proxy over a unix
@@ -1615,7 +1635,7 @@ jobs:
       # honours.
       - uses: ./.github/actions/mise
         with:
-          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          github_token: ${{ github.token }}
           install_args: rust
           working_directory: cas-plugin
           cache: "false"
@@ -1727,7 +1747,7 @@ jobs:
           echo "Minimum supported CLI: ${min_version}; testing backward-compat with: ${version}"
       - uses: ./.github/actions/mise
         with:
-          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          github_token: ${{ github.token }}
           install_args: "--locked bats"
       - name: Install backward-compatibility tuist
         run: mise install "tuist@${BACKWARD_COMPAT_TUIST_VERSION}"

@@ -884,7 +884,7 @@ msgstr "لم يتمكن النظام من التحقق من مفتاح المر�
 msgid "This passkey is already registered."
 msgstr "مفتاح المرور هذا مسجل بالفعل."
 
-#: lib/tuist_web/authentication.ex:867
+#: lib/tuist_web/authentication.ex:904
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "تتطلب كل من مؤسساتك نظام تسجيل دخول فردي خاصًا بها، لذا لا يمكن لهذه الجلسة تسجيل الدخول إلى واجهة سطر الأوامر لـ Tuist أو التطبيق أو عملاء MCP. اطلب المساعدة من مسؤول المؤسسة."
@@ -1428,3 +1428,8 @@ msgstr "مسجّل الدخول كـ"
 #, elixir-autogen, elixir-format
 msgid "Unnamed application"
 msgstr "تطبيق بدون اسم"
+
+#: lib/tuist_web/authentication.ex:926
+#, elixir-autogen, elixir-format
+msgid "%{organization} requires two-factor authentication. Set up an authenticator app, or sign in again with a passkey, to continue."
+msgstr "تتطلب %{organization} المصادقة الثنائية. اضبط تطبيق مصادقة، أو سجّل الدخول مجددًا باستخدام مفتاح مرور للمتابعة."

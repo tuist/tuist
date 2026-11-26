@@ -615,5 +615,6 @@ baseline. Release notes are generated from scoped commits using `cliff.toml`.
 Publication uses Hex Workload Identity: the package's workload identity on
 hex.pm trusts `tuist/tuist`, workflow `tuist-ex-release.yml` and environment
 `hex-publish`, and the job exchanges its GitHub OIDC token for a short-lived
-token that can publish only `tuist_ex`. No Hex key is stored. `TUIST_RELEASE_GITHUB_TOKEN` is used for GitHub
-releases when available, with the workflow token as the fallback.
+token that can publish only `tuist_ex`. No Hex key is stored. The GitHub
+release is created with a short-lived Tuist Automation GitHub App token, which
+can tag a patch release's off-main commit.

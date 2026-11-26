@@ -884,7 +884,7 @@ msgstr "Şifre anahtarı doğrulanamadı. Tekrar deneyin."
 msgid "This passkey is already registered."
 msgstr "Bu şifre anahtarı zaten kayıtlı."
 
-#: lib/tuist_web/authentication.ex:867
+#: lib/tuist_web/authentication.ex:904
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "Organizasyonlarınızın her biri kendi tek oturum açma (SSO) sistemini gerektirdiği için bu oturum Tuist CLI, uygulama veya MCP istemcilerinde oturum açamaz. Yardım için bir organizasyon yöneticisine başvurun."
@@ -1428,3 +1428,8 @@ msgstr "Şu kullanıcı olarak giriş yapıldı:"
 #, elixir-autogen, elixir-format
 msgid "Unnamed application"
 msgstr "İsimsiz uygulama"
+
+#: lib/tuist_web/authentication.ex:926
+#, elixir-autogen, elixir-format
+msgid "%{organization} requires two-factor authentication. Set up an authenticator app, or sign in again with a passkey, to continue."
+msgstr "%{organization} iki faktörlü kimlik doğrulamayı gerektiriyor. Devam etmek için bir kimlik doğrulama uygulaması ayarlayın veya bir passkey ile tekrar oturum açın."

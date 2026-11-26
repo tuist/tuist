@@ -74,15 +74,23 @@ jobs:
       contents: read
       id-token: write
     env:
-      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-      TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
+      MISE_GITHUB_TOKEN: ${{ github.token }}
       TUIST_EE: "1"
       MISE_LOCKED: 1
     steps:
+      # TuistCacheEE is private: a read-only Tuist CI App token checks out
+      # this repository and clones the submodule.
+      - id: ee-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.TUIST_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TUIST_CI_APP_PRIVATE_KEY }}
+          repositories: tuist,TuistCacheEE
+          permission-contents: read
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.commit.outputs.sha }}
-          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+          token: ${{ steps.ee-token.outputs.token }}
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
@@ -99,6 +107,8 @@ jobs:
           # shellcheck disable=SC2086
           git update-index --skip-worktree $files
       - name: Initialize TuistCacheEE submodule
+        env:
+          TUIST_GITHUB_TOKEN: ${{ steps.ee-token.outputs.token }}
         run: bash mise/tasks/cli/ee.sh
       - uses: actions/cache/restore@v4
         with:
@@ -152,7 +162,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+      MISE_GITHUB_TOKEN: ${{ github.token }}
       MISE_LOCKED: 1
     steps:
       - uses: actions/checkout@v4
@@ -208,7 +218,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      MISE_GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:

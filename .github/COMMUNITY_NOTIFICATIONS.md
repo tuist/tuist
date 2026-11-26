@@ -37,9 +37,10 @@ branch. The temporary setup workflow was removed after verification.
    The webhook determines the destination and the app's display identity.
 2. Store the webhook URL in the repository Actions secret
    `COMMUNITY_SLACK_WEBHOOK_URL`. Do not commit it or put it in an issue/PR.
-3. Verify the existing `TUIST_APP_GITHUB_TOKEN` secret can list members of both
-   teams. It needs organization **Members: read** permission; the repository's
-   default `GITHUB_TOKEN` cannot provide that access.
+3. Verify the Tuist CI GitHub App (`vars.TUIST_CI_APP_CLIENT_ID`,
+   `secrets.TUIST_CI_APP_PRIVATE_KEY`) can list members of both teams. It needs
+   organization **Members: read** permission; the repository's default
+   `GITHUB_TOKEN` cannot provide that access.
 4. Merge the workflow into the default branch. Check repository/organization
    Actions event policies permit this `pull_request_target` workflow; GitHub
    may block that event by default. Retain protections on other workflows.

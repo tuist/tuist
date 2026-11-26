@@ -10,11 +10,14 @@ defmodule TuistWeb.APIController do
       end
 
     # The token acts for the user in every account, so a session that skipped
-    # an organization's enforced single sign-on does not get one.
+    # an organization's enforced single sign-on or required second factor does
+    # not get one.
     user = conn.assigns[:current_user]
+    session = conn.assigns[:current_user_session]
 
     bearer_token =
-      if user && Tuist.Accounts.sso_requirement(user, conn.assigns[:current_user_session]) == :ok do
+      if user && Tuist.Accounts.sso_requirement(user, session) == :ok &&
+           Tuist.Accounts.mfa_requirement(user, session) == :ok do
         {:ok, access_token, _opts} =
           Tuist.Authentication.encode_and_sign(user, %{},
             token_type: :access,

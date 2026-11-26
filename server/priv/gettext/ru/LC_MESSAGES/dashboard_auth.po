@@ -884,7 +884,7 @@ msgstr "Не удалось проверить пасскей. Попробуй�
 msgid "This passkey is already registered."
 msgstr "Этот пасскей уже зарегистрирован."
 
-#: lib/tuist_web/authentication.ex:867
+#: lib/tuist_web/authentication.ex:904
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "Каждая из ваших организаций требует собственного единого входа (SSO), поэтому эта сессия не может войти в CLI Tuist, приложение или клиенты MCP. Обратитесь за помощью к администратору организации."
@@ -1428,3 +1428,8 @@ msgstr "Вы вошли как"
 #, elixir-autogen, elixir-format
 msgid "Unnamed application"
 msgstr "Безымянное приложение"
+
+#: lib/tuist_web/authentication.ex:926
+#, elixir-autogen, elixir-format
+msgid "%{organization} requires two-factor authentication. Set up an authenticator app, or sign in again with a passkey, to continue."
+msgstr "%{organization} требует двухфакторную аутентификацию. Настройте приложение-аутентификатор или войдите снова с помощью passkey, чтобы продолжить."

@@ -425,7 +425,11 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    (`ghcr.io/tuist/tuist-remote-execution`, both under the sandbox image's
    source-derived tag) and sandboxd unless given published tags,
    then installs the release into `tuist-sandboxes`. The gateway's Ingress uses
-   the dedicated `nginx-grpc` controller with TLS and a 16-minute proxy timeout;
+   a dedicated gRPC controller with TLS and a 16-minute proxy timeout: the
+   `nginx-grpc` load balancer by default, and in production the host-network
+   `execution-eu-west` controller on the runner hosts, where `gateway.nodeSelector`
+   also places the gateways, so clients, gateways, workers and eu-west Kura share
+   one data center;
    `platform-external-dns` publishes its host to Cloudflare (DNS-only), and the
    workflow fails if the host does not resolve within five minutes. The gateway
    must reach the accounts' Kura endpoints to publish action-cache entries.

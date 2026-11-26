@@ -1073,6 +1073,24 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
+  The GitHub workflow runs with a job enqueued after `enqueued_after`, one
+  `%{account_id, repository, workflow_run_id}` per run, feeding
+  `LostQueuedJobsWorker`. Rows enqueued before the run id was recorded
+  carry `0` and address no run.
+  """
+  def list_recent_github_runs(%DateTime{} = enqueued_after) do
+    Repo.all(
+      from(j in WorkflowJob,
+        where:
+          j.provider == "github" and j.enqueued_at > ^enqueued_after and j.workflow_run_id > 0 and
+            j.repository != "",
+        distinct: true,
+        select: %{account_id: j.account_id, repository: j.repository, workflow_run_id: j.workflow_run_id}
+      )
+    )
+  end
+
+  @doc """
   Decodes a transition event's JSONB payload back into the ClickHouse
   `runner_jobs` insert row: string keys to atoms, ISO-8601 datetimes
   to `DateTime` promoted to microsecond precision for

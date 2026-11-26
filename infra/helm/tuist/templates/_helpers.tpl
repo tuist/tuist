@@ -977,11 +977,6 @@ from cache.existingSecretKeys when set, else the app-secrets defaults.
     secretKeyRef:
       name: {{ $secret | quote }}
       key: token-update-package-releases
-- name: TUIST_GITHUB_TOKEN_UPDATE_PACKAGES
-  valueFrom:
-    secretKeyRef:
-      name: {{ $secret | quote }}
-      key: token-update-packages
 {{- end }}
 {{- end -}}
 

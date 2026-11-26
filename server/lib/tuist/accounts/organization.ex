@@ -60,6 +60,8 @@ defmodule Tuist.Accounts.Organization do
     field :oauth2_user_info_url, :string
     # The user profile in Tuist's Claude organization that this organization links for billing.
     field :anthropic_user_profile_id, :string
+    # See `mfa_required?/2`.
+    field :mfa_required_at, :utc_datetime
 
     has_one(:account, Account, foreign_key: :organization_id, on_delete: :delete_all)
     has_many(:invitations, Invitation)
@@ -106,6 +108,26 @@ defmodule Tuist.Accounts.Organization do
   def update_changeset(organization, attrs) do
     update_changeset(organization, attrs, @sso_update_fields)
   end
+
+  @doc """
+  Sets when the organization starts requiring two-factor authentication from
+  its members, or stops requiring it with `nil`. An instant in the future is
+  the grace period members have to enroll.
+  """
+  def mfa_requirement_changeset(organization, required_at) do
+    change(organization, mfa_required_at: required_at && DateTime.truncate(required_at, :second))
+  end
+
+  @doc """
+  Whether the organization requires two-factor authentication from its
+  members at `now`.
+  """
+  def mfa_required?(organization, now \\ Tuist.Time.utc_now())
+
+  def mfa_required?(%__MODULE__{mfa_required_at: %DateTime{} = required_at}, now),
+    do: DateTime.compare(required_at, now) != :gt
+
+  def mfa_required?(_organization, _now), do: false
 
   def sso_configuration_changeset(organization, attrs, opts \\ []) do
     update_changeset(organization, attrs, @sso_update_fields ++ @sso_verification_fields, opts)

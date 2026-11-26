@@ -47,8 +47,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
-  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ github.token }}
   TUIST_ENABLE_CACHING: "true"
   MISE_GITHUB_ATTESTATIONS: 0
 
@@ -103,15 +103,12 @@ jobs:
       pull-requests: read
       statuses: write
       packages: write
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     outputs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.check-releases.outputs.source-sha }}
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
@@ -224,8 +221,6 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - name: Skip Xcode Macro Fingerprint Validation
@@ -277,8 +272,6 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
       - uses: ./.github/actions/mise
         with:
@@ -330,17 +323,14 @@ jobs:
        (needs.release-ios.result == 'success' && needs.release-android.result == 'success'))
     runs-on: tuist-linux
     timeout-minutes: 15
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           ref: ${{ needs.check-releases.outputs.source-sha }}
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff"
+          install_args: "--locked git-cliff 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Get release notes
@@ -374,6 +364,23 @@ jobs:
         run: |
           sha256sum --check SHASUMS256.txt
           sha512sum --check SHASUMS512.txt
+      # From this workflow's revision: the checked-out source can be a release
+      # branch cut before this action existed.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          path: .github-app-token
+          sparse-checkout: .github/actions/github-app-token
+          persist-credentials: false
+      # The release's tag points at the built source-sha, which can be a release-branch
+      # commit whose workflow files differ from main's. Creating that tag needs
+      # the workflows permission, which GITHUB_TOKEN never has.
+      - id: release-token
+        uses: ./.github-app-token/.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
       - name: Revalidate merged hotfix source and tag
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -397,7 +404,7 @@ jobs:
           draft: false
           repository: tuist/tuist
           # Override the action's github.token default for off-main release tags.
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          token: ${{ steps.release-token.outputs.token }}
           # Pin the tag to the commit this run built (see cli-release.yml).
           target_commitish: ${{ needs.check-releases.outputs.source-sha }}
           name: App ${{ needs.check-releases.outputs.app-next-version-number }}
@@ -429,7 +436,16 @@ jobs:
             the release pipeline on every app release. Not a product release.
           files: |
             app/appcast.xml
+      - name: Mint a homebrew-tuist dispatch token
+        id: homebrew-token
+        uses: ./.github-app-token/.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          repositories: homebrew-tuist
+          permission-actions: write
       - name: Trigger Homebrew Cask Update
+        env:
+          HOMEBREW_TOKEN: ${{ steps.homebrew-token.outputs.token }}
         run: |
           SHA256=$(cat app/build/artifacts/SHASUMS256.txt | grep Tuist.dmg | awk '{print $1}')
-          mise run --no-deps --skip-tools app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
+          mise run --no-deps --skip-tools app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "$HOMEBREW_TOKEN" --sha256 "$SHA256"

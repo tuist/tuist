@@ -6983,6 +6983,63 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "mfa_requirement/2" do
+    setup do
+      %{user: AccountsFixtures.user_fixture()}
+    end
+
+    test "is satisfied when no organization requires a second factor yet", %{user: user} do
+      later = DateTime.add(Tuist.Time.utc_now(), 7, :day)
+      member_of(user, mfa_required_at: DateTime.truncate(later, :second))
+
+      # The grace period has not ended, so even a sign-in without one passes.
+      assert Accounts.mfa_requirement(user, nil) == :ok
+      assert Accounts.mfa_requirement(user, session(user, %{auth_method: :password})) == :ok
+    end
+
+    test "names the organization whose requirement the session doesn't meet", %{user: user} do
+      earlier = DateTime.truncate(DateTime.add(Tuist.Time.utc_now(), -1, :day), :second)
+      organization = member_of(user, mfa_required_at: earlier)
+      organization_id = organization.id
+
+      assert {:mfa_required, %{id: ^organization_id}} =
+               Accounts.mfa_requirement(user, session(user, %{auth_method: :password}))
+
+      # Password API sign-ins prove no factor at all.
+      assert {:mfa_required, %{id: ^organization_id}} = Accounts.mfa_requirement(user, nil)
+
+      # A passkey sign-in or a passed challenge does.
+      verified = %{auth_method: :passkey, mfa_verified_at: DateTime.truncate(Tuist.Time.utc_now(), :second)}
+      assert Accounts.mfa_requirement(user, session(user, verified)) == :ok
+    end
+
+    test "accepts a sign-in through the provider of an organization enforcing SSO", %{user: user} do
+      earlier = DateTime.truncate(DateTime.add(Tuist.Time.utc_now(), -1, :day), :second)
+
+      organization =
+        member_of(user,
+          mfa_required_at: earlier,
+          sso_enforced: true,
+          sso_provider: :google,
+          sso_organization_id: "example.com"
+        )
+
+      assert Accounts.mfa_requirement(user, session(user, sso_auth(organization))) == :ok
+
+      # The same provider sign-in without enforcement leaves the second factor
+      # to Tuist, so it doesn't count.
+      Repo.update!(Ecto.Changeset.change(organization, sso_enforced: false))
+      assert {:mfa_required, _} = Accounts.mfa_requirement(user, session(user, sso_auth(organization)))
+    end
+
+    test "ignores organizations the user does not belong to", %{user: user} do
+      earlier = DateTime.truncate(DateTime.add(Tuist.Time.utc_now(), -1, :day), :second)
+      member_of(AccountsFixtures.user_fixture(), mfa_required_at: earlier)
+
+      assert Accounts.mfa_requirement(user, nil) == :ok
+    end
+  end
+
   describe "sso_enforced_for_email?/1" do
     test "returns true when the existing user belongs to an SSO-enforced organization" do
       email = AccountsFixtures.unique_user_email()

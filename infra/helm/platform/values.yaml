@@ -214,6 +214,38 @@ grpc-ingress-nginx:
           prometheus.io/port: "10254"
           prometheus.io/path: /metrics
 
+# Ingress for the remote execution gateway in the data center of its workers,
+# so a client there reaches the gateway without leaving it. Separate from the
+# regional Kura controllers on purpose: their 32-stream cap bounds Kura's
+# upload buffers, but an Execute stream stays open for the whole action, so
+# that cap would also cap a client's actions in flight. Environment overlays
+# place it (see values-tuist.yaml).
+execution-eu-west-ingress-nginx:
+  enabled: false
+  controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
+    electionID: execution-eu-west-ingress-nginx-leader
+    ingressClass: execution-eu-west
+    ingressClassResource:
+      name: execution-eu-west
+      controllerValue: k8s.io/execution-eu-west-ingress-nginx
+    admissionWebhooks:
+      enabled: false
+    config:
+      # Preserve dotted REAPI metadata headers, as on the Kura gateways.
+      ignore-invalid-headers: "false"
+      # Any value above zero keeps ingress-nginx from sending the
+      # `Connection` header HTTP/2 backends reject (see grpc-ingress-nginx).
+      upstream-keepalive-connections: "320"
+      upstream-keepalive-timeout: "10"
+      # A build holds one connection for all of its actions; see the Kura
+      # gateways' keep-alive-requests below.
+      keep-alive-requests: "100000"
+      ssl-reject-handshake: "true"
+    metrics:
+      enabled: true
+
 kura-eu-west-ingress-nginx:
   enabled: false
   controller:

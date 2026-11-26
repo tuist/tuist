@@ -763,6 +763,66 @@ defmodule TuistWeb.AuthenticationTest do
     end
   end
 
+  describe "require_sso_authentication/2 with a two-factor requirement" do
+    setup %{user: user} do
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      earlier = DateTime.add(Tuist.Time.utc_now(), -1, :day)
+      {:ok, organization} = Accounts.update_organization_mfa_requirement(organization, earlier)
+      %{organization: organization}
+    end
+
+    defp account_request(conn, organization, user, session) do
+      %{
+        conn
+        | params: %{"account_handle" => organization.account.name},
+          path_info: [organization.account.name, "runners"],
+          query_string: ""
+      }
+      |> Phoenix.ConnTest.init_test_session(%{})
+      |> fetch_flash()
+      |> assign(:current_user, user)
+      |> assign(:current_user_session, session)
+      |> Authentication.require_sso_authentication([])
+    end
+
+    test "sends a member whose session passed no second factor to set one up", %{
+      conn: conn,
+      user: user,
+      organization: organization
+    } do
+      session = user |> Accounts.generate_user_session_token() |> Accounts.get_user_session()
+
+      conn = account_request(conn, organization, user, session)
+
+      assert conn.halted
+      assert redirected_to(conn) == ~p"/users/settings/mfa"
+      assert get_session(conn, :user_return_to) == "/#{organization.account.name}/runners"
+    end
+
+    test "lets a member through whose session passed a second factor", %{
+      conn: conn,
+      user: user,
+      organization: organization
+    } do
+      session =
+        user
+        |> Accounts.generate_user_session_token(%{
+          auth_method: :passkey,
+          mfa_verified_at: DateTime.truncate(Tuist.Time.utc_now(), :second)
+        })
+        |> Accounts.get_user_session()
+
+      refute account_request(conn, organization, user, session).halted
+    end
+
+    test "does not hold non-members to the requirement", %{conn: conn, organization: organization} do
+      outsider = AccountsFixtures.user_fixture(preload: [:account])
+      session = outsider |> Accounts.generate_user_session_token() |> Accounts.get_user_session()
+
+      refute account_request(conn, organization, outsider, session).halted
+    end
+  end
+
   describe "require_sso_authentication/2" do
     test "does not redirect an anonymous visitor when the account is public and enforces SSO", %{conn: conn, user: user} do
       # Given

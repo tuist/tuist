@@ -99,7 +99,7 @@ jobs:
       packages: write
       id-token: write
     env:
-      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      MISE_GITHUB_TOKEN: ${{ github.token }}
     runs-on: tuist-linux
     timeout-minutes: 60
     steps:

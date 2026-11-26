@@ -884,7 +884,7 @@ msgstr "პასკეის ვერიფიკაცია ვერ მო
 msgid "This passkey is already registered."
 msgstr "ეს პასკეი უკვე რეგისტრირებულია."
 
-#: lib/tuist_web/authentication.ex:867
+#: lib/tuist_web/authentication.ex:904
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "თქვენს თითოეულ ორგანიზაციას საჭიროებს საკუთარ ერთჯერად შესვლას (SSO), ამიტომ ეს სესია ვერ შეძლებს Tuist CLI-ში, აპში ან MCP კლიენტებში შესვლას. დახმარებისთვის მიმართეთ ორგანიზაციის ადმინისტრატორს."
@@ -1428,3 +1428,8 @@ msgstr "შესული ხართ როგორც"
 #, elixir-autogen, elixir-format
 msgid "Unnamed application"
 msgstr "უსახელო აპლიკაცია"
+
+#: lib/tuist_web/authentication.ex:926
+#, elixir-autogen, elixir-format
+msgid "%{organization} requires two-factor authentication. Set up an authenticator app, or sign in again with a passkey, to continue."
+msgstr "%{organization} მოითხოვს ორფაქტორიან აუთენტიკაციას. გააგრძელეთ, დააყენეთ აუთენტიკატორის აპლიკაცია ან ისევ შედით პასკით."

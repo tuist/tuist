@@ -66,7 +66,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
   checks:

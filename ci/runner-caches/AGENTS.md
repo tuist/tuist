@@ -31,5 +31,6 @@ and `gitlab/`. The GitHub actions live in `../../.github/actions/<cache>/`.
   `prepare-release.sh` packages them, recovering an incomplete release from its
   original `SOURCE_COMMIT` first, and `ci/cache-volume/publish.sh` pushes each
   with an immutable `vX.Y.Z` tag and a moving major tag. Each repository needs a
-  `main` branch and write access for `TUIST_RELEASE_GITHUB_TOKEN`. Run
+  `main` branch and the Tuist Automation GitHub App installed with contents
+  write; the release job mints a token for exactly these repositories. Run
   `prepare-release_test.sh` and `release_check_test.sh` here when changing this.

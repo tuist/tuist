@@ -995,6 +995,27 @@ defmodule Tuist.Environment do
     [:operator_email_domain] |> get(secrets, default_value: "tuist.dev") |> String.trim() |> String.downcase()
   end
 
+  @doc """
+  Handles of the organizations Tuist itself owns, such as `tuist`. Their
+  members, whatever their email domain, are workforce for the dormant-account
+  sweep (`Tuist.Accounts.Dormancy`). Comma-separated in
+  `TUIST_INTERNAL_ORGANIZATION_HANDLES`; matched case-insensitively. Empty by
+  default, so self-hosted instances, where a `tuist` handle can belong to
+  anyone, are not affected.
+  """
+  def internal_organization_handles(secrets \\ secrets()) do
+    case get([:internal_organization_handles], secrets) do
+      handles when is_binary(handles) ->
+        handles
+        |> String.split(",", trim: true)
+        |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+        |> Enum.reject(&(&1 == ""))
+
+      _ ->
+        []
+    end
+  end
+
   @doc "Whether the operator email domain is set explicitly instead of using the `tuist.dev` default."
   def operator_email_domain_configured?(secrets \\ secrets()) do
     case get([:operator_email_domain], secrets) do
@@ -1394,11 +1415,6 @@ defmodule Tuist.Environment do
   def github_token_update_package_releases(secrets \\ secrets()) do
     System.get_env("TUIST_GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES") ||
       get([:github, :token, :update_package_releases], secrets)
-  end
-
-  def github_token_update_packages(secrets \\ secrets()) do
-    System.get_env("TUIST_GITHUB_TOKEN_UPDATE_PACKAGES") ||
-      get([:github, :token, :update_packages], secrets)
   end
 
   def github_app_name(secrets \\ secrets()) do

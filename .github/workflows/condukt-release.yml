@@ -177,9 +177,24 @@ jobs:
           # Build, but do not commit generated version/checksum/changelog files.
           # The tag always identifies the tested, immutable event SHA.
           mix hex.build
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked 1password-cli"
+          cache: "false"
+          # Only for the App token below; keep this job's toolchain env.
+          env: "false"
+      # The tag points at the event SHA, which main may have moved past by
+      # now; tagging a commit whose workflow files differ from main's needs the
+      # workflows permission, which GITHUB_TOKEN never has.
+      - id: release-token
+        uses: ./.github/actions/github-app-token
+        with:
+          op_service_account_token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          permission-contents: write
+          permission-workflows: write
       - name: Publish native downloads before Hex
         env:
-          GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
         run: bash ../.github/scripts/condukt-publish.sh
       - name: Publish package to Hex
         run: bash ../.github/scripts/condukt-hex.sh
