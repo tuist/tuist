@@ -8,14 +8,14 @@
     protocol TargetImportsScanning {
         func imports(
             for target: XcodeGraph.Target,
-            reachableModules: Set<String>?
+            unreachableModules: Set<String>?
         ) async throws -> Set<String>
     }
 
     extension TargetImportsScanning {
         /// Convenience that scans without `canImport` awareness.
         func imports(for target: XcodeGraph.Target) async throws -> Set<String> {
-            try await imports(for: target, reachableModules: nil)
+            try await imports(for: target, unreachableModules: nil)
         }
     }
 
@@ -54,7 +54,7 @@
 
         func imports(
             for target: XcodeGraph.Target,
-            reachableModules: Set<String>?
+            unreachableModules: Set<String>?
         ) async throws -> Set<String> {
             var filesToScan = target.sources.map(\.path) + target.buildableFolders.flatMap(\.resolvedFiles).map(\.path)
                 .filter { Target.validSourceExtensions.contains($0.extension ?? "") }
@@ -65,7 +65,10 @@
             }
             var imports = Set(
                 try await filesToScan.concurrentMap(maxConcurrentTasks: maxConcurrentFileScans) { file in
-                    ImportSourceCodeScanner.imports(in: try await scannedImports(at: file), reachableModules: reachableModules)
+                    ImportSourceCodeScanner.imports(
+                        in: try await scannedImports(at: file),
+                        unreachableModules: unreachableModules
+                    )
                 }
                 .flatMap { $0 }
             )
