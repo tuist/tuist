@@ -103,48 +103,10 @@ struct ThreadsView: View {
         #endif
         .scrollContentBackground(.hidden)
         .background(Noora.backgroundPrimary)
-        // Overlays center in the content area; list rows would stack at the top.
-        .overlay {
-            if error == nil {
-                if !loaded {
-                    ProgressView()
-                } else if signInRequired {
-                    ContentUnavailableView {
-                        Label("Sign in again to use threads", systemImage: "person.badge.key")
-                    } description: {
-                        Text("Your session is from an earlier version of Luft.")
-                    } actions: {
-                        if let server = client.view.active?.server {
-                            Button("Sign In Again") { Task { await client.signIn(server: server, provider: "tuist") } }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(client.signingIn)
-                        }
-                    }
-                } else if !available {
-                    ContentUnavailableView(
-                        "Threads aren't available yet",
-                        systemImage: "bubble.left.and.bubble.right",
-                        description: Text("Threads aren't enabled for this account or server.")
-                    )
-                } else if visible.isEmpty, nextCursor == nil {
-                    if showingArchived {
-                        ContentUnavailableView(
-                            "All clear, nothing archived",
-                            systemImage: "archivebox",
-                            description: Text("Archived threads will live here. You can come back to them anytime.")
-                        )
-                    } else {
-                        ContentUnavailableView {
-                            Label("Big things start here", systemImage: "bubble.left.and.bubble.right")
-                        } description: {
-                            Text("Ask a question, explore an idea, or solve a problem with Tuist.")
-                        } actions: {
-                            Button("Start conversation") { startConversation() }.prominentGlassButtonStyle()
-                        }
-                    }
-                }
-            }
-        }
+        #if os(macOS)
+            // The list holds only threads here, so the state centers in the column.
+            .overlay { placeholder }
+        #endif
         #if os(iOS)
             // A small name in the corner instead of a large title, so the threads start near the top.
             .toolbar(.hidden, for: .navigationBar)
@@ -267,6 +229,13 @@ struct ThreadsView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
             }
+            // A row under the destinations and the picker: centered over the whole sidebar,
+            // it would cover them.
+            placeholder
+                .frame(maxWidth: .infinity)
+                .padding(.top, 24)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
         #endif
         if let error {
             Section {
@@ -284,6 +253,49 @@ struct ThreadsView: View {
         }
         if nextCursor != nil {
             Button("Load more threads") { Task { await loadMore() } }.disabled(loading != nil)
+        }
+    }
+
+    /// Loading, empty and unavailable states, in place of the threads.
+    @ViewBuilder private var placeholder: some View {
+        if error == nil {
+            if !loaded {
+                ProgressView()
+            } else if signInRequired {
+                ContentUnavailableView {
+                    Label("Sign in again to use threads", systemImage: "person.badge.key")
+                } description: {
+                    Text("Your session is from an earlier version of Luft.")
+                } actions: {
+                    if let server = client.view.active?.server {
+                        Button("Sign In Again") { Task { await client.signIn(server: server, provider: "tuist") } }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(client.signingIn)
+                    }
+                }
+            } else if !available {
+                ContentUnavailableView(
+                    "Threads aren't available yet",
+                    systemImage: "bubble.left.and.bubble.right",
+                    description: Text("Threads aren't enabled for this account or server.")
+                )
+            } else if visible.isEmpty, nextCursor == nil {
+                if showingArchived {
+                    ContentUnavailableView(
+                        "All clear, nothing archived",
+                        systemImage: "archivebox",
+                        description: Text("Archived threads will live here. You can come back to them anytime.")
+                    )
+                } else {
+                    ContentUnavailableView {
+                        Label("Big things start here", systemImage: "bubble.left.and.bubble.right")
+                    } description: {
+                        Text("Ask a question, explore an idea, or solve a problem with Tuist.")
+                    } actions: {
+                        Button("Start conversation") { startConversation() }.prominentGlassButtonStyle()
+                    }
+                }
+            }
         }
     }
 
