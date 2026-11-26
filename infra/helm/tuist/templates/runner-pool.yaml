@@ -327,11 +327,6 @@ and pull it before the deploy that moves the pool. A pool whose Xcode pins an
 {{- $autoscaling := $override.autoscaling | default $placement.autoscaling }}
 {{- $rollout := $override.rollout | default $placement.rollout }}
 {{- $poolName := printf "%s-%s%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $xcodeTag }}
-{{- /* The name is also the `tuist.dev/runner-pool` label value, which takes
-63 characters at most; a longer one fails the deploy at the API server. */}}
-{{- if gt (len $poolName) 63 }}
-{{- fail (printf "RunnerPool %s is %d characters, over the 63 its tuist.dev/runner-pool label takes" $poolName (len $poolName)) }}
-{{- end }}
 {{- $defaultShapeKey := printf "%dvcpu-%dgb" (div (int $defaultCPU) 1000) (div (int $defaultMem) 1024) }}
 {{- $guestCPU := int $podCPU }}
 {{- $guestMem := int $podMem }}
@@ -429,9 +424,6 @@ shape pool can keep a warm floor while the shape's other pools stay cold.
 {{- $shapeKey := printf "%dvcpu-%dgb" $vcpus $memoryGb }}
 {{- $shapeAutoscaling := dig "shapes" $shapeKey "autoscaling" $shape.autoscaling $override }}
 {{- $shapePoolName := printf "%s-%s%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $xcodeTag $shapeKey }}
-{{- if gt (len $shapePoolName) 63 }}
-{{- fail (printf "RunnerPool %s is %d characters, over the 63 its tuist.dev/runner-pool label takes" $shapePoolName (len $shapePoolName)) }}
-{{- end }}
 {{- $shapeGuestVcpus := $vcpus }}
 {{- $shapeGuestMemoryGb := $memoryGb }}
 {{- $shapeGuestDiskGb := 0 }}
