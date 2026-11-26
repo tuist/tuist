@@ -52,7 +52,11 @@ defmodule TuistWeb.TestRunTestCaseLive do
   end
 
   def handle_event("search-selection-files", %{"search" => search}, socket) do
-    {:noreply, push_patch(socket, to: "?" <> TestCaseRunTab.search_query(socket.assigns.uri, search), replace: true)}
+    {:noreply,
+     push_patch(socket,
+       to: socket.assigns.current_path <> "?" <> TestCaseRunTab.search_query(socket.assigns.uri, search),
+       replace: true
+     )}
   end
 
   def render(assigns) do
