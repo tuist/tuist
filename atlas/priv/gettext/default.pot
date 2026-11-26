@@ -4830,7 +4830,7 @@ msgid "Custody intervals appear here after the asset is assigned to a person."
 msgstr ""
 
 #: lib/atlas_web/components/automation_analytics.ex:40
-#: lib/atlas_web/live/acquisition_live.ex:856
+#: lib/atlas_web/live/acquisition_live.ex:860
 #: lib/atlas_web/live/admin/inference_helpers.ex:275
 #: lib/atlas_web/live/admin/roles_live.ex:249
 #: lib/atlas_web/live/errors_live/index.ex:438
@@ -13505,7 +13505,7 @@ msgstr ""
 msgid "Customers"
 msgstr ""
 
-#: lib/atlas_web/live/acquisition_live.ex:818
+#: lib/atlas_web/live/acquisition_live.ex:822
 #, elixir-autogen, elixir-format
 msgid "Direct or unknown"
 msgstr ""
@@ -13622,12 +13622,12 @@ msgstr ""
 msgid "Signups"
 msgstr ""
 
-#: lib/atlas_web/live/acquisition_live.ex:809
+#: lib/atlas_web/live/acquisition_live.ex:813
 #, elixir-autogen, elixir-format
 msgid "Signups from the selected range whose account, or an organization they administer, now pays for Pro or Enterprise."
 msgstr ""
 
-#: lib/atlas_web/live/acquisition_live.ex:803
+#: lib/atlas_web/live/acquisition_live.ex:807
 #, elixir-autogen, elixir-format
 msgid "Signups whose visit to the sign-up page carried a campaign, or came from another site. The first touch counts."
 msgstr ""
@@ -13667,11 +13667,6 @@ msgstr ""
 msgid "Top source"
 msgstr ""
 
-#: lib/atlas_web/live/acquisition_live.ex:799
-#, elixir-autogen, elixir-format
-msgid "Users who signed up in the selected range, attributed or not."
-msgstr ""
-
 #: lib/atlas_web/live/acquisition_live.ex:434
 #, elixir-autogen, elixir-format
 msgid "Visits from links tagged with utm_source (or ref) and signups that came from them show up here."
@@ -13680,4 +13675,9 @@ msgstr ""
 #: lib/atlas_web/live/acquisition_live.ex:797
 #, elixir-autogen, elixir-format
 msgid "Visits that arrived from a link tagged with utm_source (or ref) on another site."
+msgstr ""
+
+#: lib/atlas_web/live/acquisition_live.ex:801
+#, elixir-autogen, elixir-format
+msgid "People who signed up on their own in the selected range, attributed or not. Teammates joining an existing organization don't count."
 msgstr ""
