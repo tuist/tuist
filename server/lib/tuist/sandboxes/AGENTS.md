@@ -492,16 +492,22 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   (measured, 2026-11). `Query.run(:create)` starts booting the image's newest
   Pro iPhone on a prepared Mac as a sandbox command
   (`Devices.boot_in_background/1`), so it is ready by the time the session's
-  first build ends instead of booting cold after it. Before that it stops the cache
-  proxy and build service, waits for them to exit, and flushes every file
-  in DerivedData, including `CompilationCache.noindex`, with `F_FULLFSYNC`.
-  The cache store writes through shared mappings that `sync` does not wait
-  for: restored without the flush,
-  `data.v1` came back with a zeroed header or missing objects, and session
-  compiles failed with "not a IncludeFileList node kind" or "specified
-  header offset (16) does not match existing config (0)"; with it, a
-  restored Mac built from the kept store without a miss (measured, 2026-11).
-  The build ends with `sync`. The snapshot's key hashes the build script with the macOS setup script, so changing either rebuilds it.
+  first build ends instead of booting cold after it. Before that it stops
+  every `tuist.*` launch agent and the build service and waits for each to
+  exit (`launchctl bootout` returns first, as CI's `stop_tuist_launch_agents`
+  notes), ends whatever `lsof` still finds in `CompilationCache.noindex`,
+  and flushes every file in DerivedData with `F_FULLFSYNC`. The build ends
+  with `sync`, and the save shuts the builder's guest down cleanly
+  (`save_disks` with `shutdown`) instead of checkpointing it, so the
+  snapshot holds unmounted file systems; nothing resumes a builder.
+  Disks a running guest had only synced and flushed were not enough:
+  restored Macs read `data.v1` with a zeroed header or missing objects
+  ("not a IncludeFileList node kind", "specified header offset (16) does
+  not match existing config (0)"), or an index whose trie crashed
+  `tuist-cas-proxy` in `OnDiskTrieRawHashMap::insertLazy` on the session's
+  first cache writes, so every later build failed with "The Xcode build
+  system has crashed" (measured, 2026-11). A host that predates `shutdown`
+  ignores it and evicts the builder as before. The snapshot's key hashes the build script with the macOS setup script, so changing either rebuilds it.
   `ClaudeCodeRunners` creates a session's sandbox
   from the repository's snapshot; a new session without one starts on the
   template and, after its worker started, requests a build. Nothing runs

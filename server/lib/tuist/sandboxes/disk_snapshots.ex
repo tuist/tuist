@@ -207,7 +207,8 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
                setup_sha256: build.setup_sha256,
                commit_sha: build.commit_sha
              },
-             releases: sandbox
+             releases: sandbox,
+             shutdown: true
            ) do
       Repo.delete_all(from(s in DiskSnapshot, where: s.id == ^build.id))
       {:ok, ready}
@@ -244,7 +245,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
 
   def save(%Sandbox{state: state}, _amp_snapshot_id), do: {:error, {:invalid_state, state}}
 
-  defp do_save(%Sandbox{node_name: node_name} = sandbox, key, reserve_opts \\ []) do
+  defp do_save(%Sandbox{node_name: node_name} = sandbox, key, opts \\ []) do
     attrs = %{
       account_id: sandbox.account_id,
       source_sandbox_id: sandbox.id,
@@ -260,8 +261,8 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     insert = fn -> %DiskSnapshot{} |> DiskSnapshot.create_changeset(attrs) |> Repo.insert() end
 
     with {:ok, node} <- connected_node(node_name),
-         {:ok, snapshot} <- reserve_disk(sandbox, node, attrs, insert, reserve_opts) do
-      case Nodes.call(node_name, "save_disks", save_args(sandbox, snapshot), timeout: @save_timeout) do
+         {:ok, snapshot} <- reserve_disk(sandbox, node, attrs, insert, opts) do
+      case Nodes.call(node_name, "save_disks", save_args(sandbox, snapshot, opts), timeout: @save_timeout) do
         {:ok, data} ->
           {:ok, ready} =
             snapshot
@@ -999,10 +1000,17 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   end
 
   # A macOS host runs only commands that name its current incarnation.
-  defp save_args(%Sandbox{platform: :darwin} = sandbox, snapshot),
-    do: %{sandbox_id: sandbox.id, snapshot_id: snapshot.id, node_uid: sandbox.node_uid}
+  # A build's builder is shut down cleanly instead of checkpointed
+  # (`shutdown`): a Mac booted from disks a running guest only synced read a
+  # compilation cache store that crashed `tuist-cas-proxy` on its first
+  # writes (2026-11). Nothing resumes the builder, which the caller deletes
+  # next. A host that predates the option evicts the builder as before.
+  defp save_args(%Sandbox{platform: :darwin} = sandbox, snapshot, opts) do
+    args = %{sandbox_id: sandbox.id, snapshot_id: snapshot.id, node_uid: sandbox.node_uid}
+    if opts[:shutdown], do: Map.put(args, :shutdown, true), else: args
+  end
 
-  defp save_args(sandbox, snapshot), do: %{sandbox_id: sandbox.id, snapshot_id: snapshot.id}
+  defp save_args(sandbox, snapshot, _opts), do: %{sandbox_id: sandbox.id, snapshot_id: snapshot.id}
 
   defp connected_node(node_name) do
     case Enum.find(Nodes.connected_nodes(), &(&1.name == node_name)) do

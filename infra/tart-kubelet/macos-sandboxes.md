@@ -346,6 +346,13 @@ Amp Orb project snapshots (`ORB_SNAPSHOT_ID`) are saved and booted on the host
   is an APFS volume inside the root disk, so it comes along with its quota.
   It answers `bytes`, the overlay's allocated size. Saving an existing ID
   answers it unchanged. Startup empties `snapshots.tmp`.
+- `save_disks {..., shutdown: true}` stops a resident VM with a clean guest
+  shutdown instead of the eviction: it resumes it, runs `sudo -n
+  /sbin/shutdown -h now` in the guest and waits up to 75 s for the VM process
+  to exit, never forcing it off, so the saved disks hold unmounted file
+  systems rather than a running guest's synced ones. The record keeps no
+  checkpoint (`shut_down`), so a resume fails and a host restart finds the VM
+  lost. Only repository snapshot builders, which are deleted next, ask for it.
 - `delete_disks {snapshot_id}` removes it; an absent one succeeds.
 - `create {from_disk_snapshot}` clones `sbs-<id>`, runs the snapshot's image tag,
   sets shape and identity, boots, then mounts the existing `TuistSandboxWorkspace`
@@ -369,7 +376,8 @@ host could take as long as a CI job.
 Claude Code repository snapshots (`Tuist.Sandboxes.ClaudeCodeSnapshots`) are
 built as on Linux: a builder VM with the build's id clones the repository and
 runs the environment's setup script as `runner` for up to an hour, then pauses
-with synced disks and is saved like an Orb. A builder serves no session, so
+with synced disks and is saved like an Orb, except that the save shuts its
+guest down cleanly (`shutdown`) instead of checkpointing it. A builder serves no session, so
 `MacosCapacity` places it only where it leaves a granted slot free: no other VM
 on the host and a grant of two slots. While CI or sessions hold a slot it waits
 and retries every minute, and once it runs, CI waits for it like any VM.

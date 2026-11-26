@@ -39,6 +39,9 @@ type Runtime interface {
 	Resume(context.Context, *Record) error
 	Pause(context.Context, *Record) error
 	Save(context.Context, *Record) error
+	// Shutdown resumes a resident paused VM, shuts its guest down cleanly
+	// and waits for its process to exit, leaving no checkpoint.
+	Shutdown(context.Context, *Record) error
 	// SaveDisks copies a fenced VM's disks into a disk snapshot, which
 	// creates with FromDiskSnapshot clone; DeleteDisks removes one.
 	SaveDisks(context.Context, *Record, string) (protocol.DiskSnapshotInfo, error)
@@ -115,6 +118,9 @@ type Record struct {
 	// archive carries no checkpoint, so only such a sandbox is archived, and only
 	// such a sandbox is saved as a disk snapshot.
 	DisksSynced bool `json:"disks_synced,omitempty"`
+	// ShutDown: a disk snapshot save shut the guest down (SaveDisks with
+	// shutdown), so the VM has no checkpoint and the sandbox cannot resume.
+	ShutDown bool `json:"shut_down,omitempty"`
 }
 
 // Warm VMs carry their own prefix: a host restart deletes the unclaimed ones
@@ -458,6 +464,9 @@ func (m *Manager) resume(ctx context.Context, r *Record) error {
 	if r.Operation != "" || r.State == "error" {
 		return errors.New("sandbox requires reconciliation")
 	}
+	if r.ShutDown {
+		return errors.New("sandbox was shut down for a disk snapshot and cannot resume")
+	}
 	// A running VM already holds its charge; only a paused one asks for it.
 	if r.State == "running" {
 		return nil
@@ -518,8 +527,11 @@ func (m *Manager) Pause(ctx context.Context, id string) error {
 
 // SaveDisks saves a paused sandbox's disks as disk snapshot snapshotID. The
 // pause must have synced them. A resident VM is evicted first: Tart copies
-// only a stopped VM's disks, and its process may still hold writes.
-func (m *Manager) SaveDisks(ctx context.Context, sandboxID, snapshotID string) (protocol.DiskSnapshotInfo, error) {
+// only a stopped VM's disks, and its process may still hold writes. With
+// shutdown, a resident VM's guest is shut down cleanly instead, so the saved
+// disks hold unmounted file systems rather than ones a running guest synced;
+// the sandbox cannot resume afterwards.
+func (m *Manager) SaveDisks(ctx context.Context, sandboxID, snapshotID string, shutdown bool) (protocol.DiskSnapshotInfo, error) {
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
 	r, err := m.get(sandboxID)
@@ -533,7 +545,11 @@ func (m *Manager) SaveDisks(ctx context.Context, sandboxID, snapshotID string) (
 		return protocol.DiskSnapshotInfo{}, errors.New("sandbox is not paused with synced disks")
 	}
 	if r.Resident {
-		if err = m.evict(ctx, r); err != nil {
+		stop := m.evict
+		if shutdown {
+			stop = m.shutdown
+		}
+		if err = stop(ctx, r); err != nil {
 			return protocol.DiskSnapshotInfo{}, err
 		}
 		if r.Resident {
@@ -541,6 +557,29 @@ func (m *Manager) SaveDisks(ctx context.Context, sandboxID, snapshotID string) (
 		}
 	}
 	return m.Runtime.SaveDisks(ctx, r, snapshotID)
+}
+
+// shutdown stops a resident paused VM as evict does, but through a clean
+// guest shutdown and without a checkpoint, for SaveDisks.
+func (m *Manager) shutdown(ctx context.Context, r *Record) error {
+	if r.WorkerID != "" || r.HoldID != "" || m.active[r.SandboxID] > 0 {
+		return nil
+	}
+	if err := m.begin(r, "shutdown"); err != nil {
+		return err
+	}
+	if err := m.Runtime.Shutdown(ctx, r); err != nil {
+		return m.finish(r, err)
+	}
+	m.collectCheckout(r)
+	r.Resident = false
+	r.ShutDown = true
+	r.PID = 0
+	r.Instance = ""
+	if err := m.finish(r, nil); err != nil {
+		return err
+	}
+	return m.Capacity.Release(ctx, r)
 }
 
 // DeleteDisks removes a disk snapshot, waiting out a create cloning it.

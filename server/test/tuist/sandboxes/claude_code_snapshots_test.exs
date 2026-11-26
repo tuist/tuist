@@ -127,6 +127,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert :ok = advance(build)
     assert [{:pause, _pause}, {:save_disks, save}, {:delete, delete}] = node_calls()
     assert save.sandbox_id == build.id
+    refute Map.has_key?(save, :shutdown)
     assert delete.sandbox_id == build.id
 
     assert %DiskSnapshot{state: :ready, repository: "acme/app", template_tag: "sha-new", node_name: "node-a"} =
@@ -182,6 +183,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert List.keymember?(calls, :delete, 0)
     assert pause.sync_disks
     assert save.sandbox_id == build.id
+    # A Mac builder is shut down cleanly instead of checkpointed.
+    assert save.shutdown
 
     assert %DiskSnapshot{state: :ready, platform: :darwin, repository: "acme/app"} =
              snapshot = Repo.get!(DiskSnapshot, save.snapshot_id)
@@ -249,13 +252,14 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert {:ok, %{id: account_id}, grant} = CommandCredentials.account_grant(claims)
     assert account_id == account.id
     assert grant == %{"all_projects" => true, "scopes" => ["ci"]}
-    # It drains the compilation cache's publications before stopping the
-    # proxy, and fails when a record remains.
-    assert command =~ ~r/tuist-cas-proxy.* --drain .*exit 1\n  fi\ndone\nlaunchctl bootout/s
+    # It drains the compilation cache's publications before stopping every
+    # Tuist launch agent, and fails when a record remains.
+    assert command =~ ~r/tuist-cas-proxy.* --drain .*exit 1\n  fi\ndone\nagents=\$\(launchctl list/s
     assert command =~ ~S|rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"|
     # It keeps DerivedData, compilation cache included, and flushes it to
-    # disk once the cache's writers have exited.
-    assert command =~ ~r/pgrep -x XCBBuildService.*find "\$derived_data" -type f -exec perl .*fcntl\(\$f, 51, 0\)/s
+    # disk once the cache's writers, and whatever `lsof` still finds in it,
+    # have exited.
+    assert command =~ ~r/pgrep -x XCBBuildService.*lsof -n -w -t \+D "\$store".*find "\$derived_data" -type f -exec perl .*fcntl\(\$f, 51, 0\)/s
     refute command =~ "rm -rf \"$derived_data\""
     assert command =~ "unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_TERMINAL_PROMPT\n"
     # It deletes the simulators the script created and keeps the image's,

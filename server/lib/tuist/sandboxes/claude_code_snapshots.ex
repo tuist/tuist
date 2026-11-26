@@ -128,16 +128,20 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # build when any record remains: the store's associations name objects
   # only the remote can restore, and a snapshot saved over a builder that
   # could not publish (read-only, 2026-11) failed every session build with
-  # "CAS error: missing object". Then it stops the cache proxy and the
-  # build service that write the compilation cache, waits for them to exit,
-  # and flushes each file in DerivedData, the compilation cache and the
-  # build products, with `F_FULLFSYNC` (51). The cache store writes through
-  # shared mappings, and `sync` returns before their pages reach the disk:
-  # a Mac booted from disks saved after `sync` alone read `data.v1` with a
-  # zeroed header ("specified header offset (16) does not match existing
-  # config (0)") or with missing objects ("not a IncludeFileList node
-  # kind"), and one saved after the flush built from the kept store without
-  # a miss (measured 2026-11). It also drops
+  # "CAS error: missing object". Then it stops what writes the compilation
+  # cache, as CI's teardown does (`stop_tuist_launch_agents`): it boots out
+  # every `tuist.*` launch agent and waits for each process to exit, since
+  # `launchctl bootout` returns first, stops the build service, and ends any
+  # process `lsof` still finds in the store. It flushes each file in
+  # DerivedData, the compilation cache and the build products, with
+  # `F_FULLFSYNC` (51), for a host that evicts the builder instead of
+  # shutting it down; the save shuts the guest down cleanly
+  # (`DiskSnapshots.save_build/2`). Disks a running guest only synced were
+  # not enough: Macs booted from them read `data.v1` with a zeroed header
+  # ("specified header offset (16) does not match existing config (0)"),
+  # with missing objects ("not a IncludeFileList node kind"), or, after the
+  # flush, with an index whose trie crashed `tuist-cas-proxy` on its first
+  # writes (`OnDiskTrieRawHashMap::insertLazy`, measured 2026-11). It also drops
   # the session the CLI stored from the build's identity token, and the
   # simulators the script created, and stops the simulator services: a Mac
   # booted from the disks mounts the simulator runtimes at new paths, and the
@@ -171,11 +175,26 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
       exit 1
     fi
   done
-  launchctl bootout "gui/$(id -u)/tuist.cas-proxy" >/dev/null 2>&1 || true
+  agents=$(launchctl list 2>/dev/null | awk 'NR > 1 && $3 ~ /^tuist\\./ { print $1, $3 }')
+  echo "$agents" | while read -r pid label; do
+    [ -n "$label" ] || continue
+    launchctl bootout "gui/$(id -u)/$label" >/dev/null 2>&1 || true
+    case "$pid" in ''|*[!0-9]*) continue ;; esac
+    i=0
+    while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 50 ]; do i=$((i + 1)); sleep 0.2; done
+  done
   killall -TERM SWBBuildService XCBBuildService >/dev/null 2>&1 || true
   i=0
   while pgrep -x SWBBuildService >/dev/null || pgrep -x XCBBuildService >/dev/null; do
     i=$((i + 1)); [ "$i" -gt 30 ] && break; sleep 1
+  done
+  store="$derived_data/CompilationCache.noindex"
+  for signal in TERM KILL; do
+    holders=$(lsof -n -w -t +D "$store" 2>/dev/null | sort -u | tr '\\n' ' ')
+    [ -n "$holders" ] || break
+    echo "ending $holders, which still hold $store (SIG$signal)" >&2
+    kill "-$signal" $holders 2>/dev/null || true
+    sleep 2
   done
   if [ -d "$derived_data" ]; then
     find "$derived_data" -type f -exec perl -e 'for (@ARGV) { open my $f, "<", $_ or die "$_: $!"; fcntl($f, 51, 0) or die "$_: $!" }' {} +

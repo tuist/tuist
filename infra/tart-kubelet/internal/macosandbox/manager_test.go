@@ -25,6 +25,7 @@ type fakeRuntime struct {
 	saveErr, errorRecovery   error
 	createErr                error
 	saveStarted, saveRelease chan struct{}
+	shutdowns                int
 	creates, warms, recovers int
 	claimedVolumeGB          int
 	// unflushed fails the guest flush before a pause; archiveStarted, when
@@ -101,6 +102,16 @@ func (f *fakeRuntime) Save(ctx context.Context, r *Record) error {
 		r.DisksSynced = !f.unflushed
 	}
 	f.states[r.SandboxID] = "evicted"
+	return nil
+}
+
+// A shut-down VM is stopped like an evicted one, but keeps no checkpoint.
+func (f *fakeRuntime) Shutdown(_ context.Context, r *Record) error {
+	if f.states[r.SandboxID] != "paused" {
+		return errors.New("not paused")
+	}
+	f.states[r.SandboxID] = "evicted"
+	f.shutdowns++
 	return nil
 }
 func (f *fakeRuntime) Delete(_ context.Context, r *Record) error {
@@ -745,7 +756,7 @@ func TestSaveDisksRequiresSyncedPauseAndEvictsFirst(t *testing.T) {
 	if err := m.Pause(ctx, a.SandboxID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.SaveDisks(ctx, a.SandboxID, snapshot); err == nil {
+	if _, err := m.SaveDisks(ctx, a.SandboxID, snapshot, false); err == nil {
 		t.Fatal("saved the disks of a pause that did not sync them")
 	}
 	if err := m.Resume(ctx, a.SandboxID); err != nil {
@@ -755,7 +766,7 @@ func TestSaveDisksRequiresSyncedPauseAndEvictsFirst(t *testing.T) {
 	if err := m.Pause(ctx, a.SandboxID); err != nil {
 		t.Fatal(err)
 	}
-	info, err := m.SaveDisks(ctx, a.SandboxID, snapshot)
+	info, err := m.SaveDisks(ctx, a.SandboxID, snapshot, false)
 	if err != nil || info.ID != snapshot {
 		t.Fatalf("save: %+v %v", info, err)
 	}
@@ -791,5 +802,34 @@ func TestSaveDisksRequiresSyncedPauseAndEvictsFirst(t *testing.T) {
 	}
 	if got := m.DiskSnapshots(); len(got) != 0 {
 		t.Fatalf("deleted snapshot still reported: %+v", got)
+	}
+}
+
+// A save that asks for a shutdown stops the guest cleanly instead of
+// checkpointing it, gives the slot back, and the sandbox never resumes.
+func TestSaveDisksWithShutdownStopsTheGuestAndRefusesResume(t *testing.T) {
+	m, r, c, a := harness(t)
+	ctx := t.Context()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Pause(ctx, a.SandboxID); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := uuid.NewString()
+	if info, err := m.SaveDisks(ctx, a.SandboxID, snapshot, true); err != nil || info.ID != snapshot {
+		t.Fatalf("save: %+v %v", info, err)
+	}
+	if r.shutdowns != 1 {
+		t.Fatalf("saved without shutting the guest down: %d shutdowns", r.shutdowns)
+	}
+	if rec := m.records[a.SandboxID]; rec.Resident || !rec.ShutDown || c.held[a.SandboxID] {
+		t.Fatalf("saved without giving the slot back: %+v held=%v", rec, c.held)
+	}
+	if err := m.Resume(ctx, a.SandboxID); err == nil {
+		t.Fatal("resumed a sandbox whose guest was shut down")
+	}
+	if err := m.Delete(ctx, a.SandboxID); err != nil {
+		t.Fatal(err)
 	}
 }
