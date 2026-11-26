@@ -384,9 +384,14 @@ jobs:
       - name: Read environment file
         run: test "${TUIST_ACCEPTANCE_ENV:-}" = "round-trip-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
+  # Runs beside the native and container probes rather than after them: they
+  # only read the Docker cache (the canary host agent logs every one of their
+  # attachments as `publish ... unchanged`), so they never move the head the
+  # cold job's snapshot must publish over, and waiting for them cost the deploy
+  # about two minutes.
   docker-cold:
     name: Linux Docker cache cold
-    needs: [plan, linux, linux-container]
+    needs: [plan]
     if: inputs.environment == 'canary'
     uses: ./.github/workflows/runners-docker-cache-probe.yml
     with:

@@ -633,7 +633,8 @@ covered only by the production schedule.
   `node --test .github/scripts/runners-acceptance/acceptance.test.cjs` after
   `npm ci --ignore-scripts` at the repository root.
 - Canary also runs three sequential Docker-cache phases through
-  `runners-docker-cache-probe.yml` after both ordinary Linux probes: cold (which
+  `runners-docker-cache-probe.yml` beside the ordinary Linux probes, which only
+  read the Docker cache (they publish `unchanged`): cold (which
   also builds the changed source in-job), same-size write and final reuse. Each
   publication wait costs the deploy about 2.5 minutes, so the gate keeps only the
   cross-job transitions: the next job reads the cold job's mutable marker, and
