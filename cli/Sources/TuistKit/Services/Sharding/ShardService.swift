@@ -57,6 +57,9 @@ public enum ShardServiceError: LocalizedError, Equatable {
 }
 
 public struct ShardService: ShardServicing {
+    /// The most shard artifacts downloading at once, each over `FileClient.parallelRangeLanes` connections.
+    static let artifactDownloadsAhead = 3
+
     private let getShardService: GetShardServicing
     private let ciController: CIControlling
     private let fileClient: FileClienting
@@ -128,20 +131,46 @@ public struct ShardService: ShardServicing {
             Logger.current.debug("Extracted local shard archive to \(resolvedTestProductsPath.pathString)")
         } else {
             let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+            let downloadURLs = try shard.download_urls.map { downloadURLString in
+                guard let downloadURL = URL(string: downloadURLString) else {
+                    throw ShardServiceError.invalidDownloadURL(downloadURLString)
+                }
+                return downloadURL
+            }
             try await fileSystem.runInTemporaryDirectory(prefix: "tuist-shard-downloads") { downloadedArtifactsPath in
                 // The shard's products are split across artifacts (a shared bundle plus one per module
-                // assigned to the shard); download each and extract them into a single merged directory.
-                for (downloadIndex, downloadURLString) in shard.download_urls.enumerated() {
-                    guard let downloadURL = URL(string: downloadURLString) else {
-                        throw ShardServiceError.invalidDownloadURL(downloadURLString)
+                // assigned to the shard), extracted into a single merged directory. Downloads run ahead of
+                // extraction, so the network stays busy while an artifact decompresses, and extraction still
+                // applies the artifacts in plan order.
+                let archivePaths = downloadURLs.indices.map {
+                    downloadedArtifactsPath.appending(component: "artifact-\($0).aar")
+                }
+                try await withThrowingTaskGroup(of: Int.self) { group in
+                    let fileClient = fileClient
+                    let retryProvider = retryProvider
+                    var started = 0
+                    func startDownload() {
+                        let index = started
+                        started += 1
+                        group.addTask {
+                            try await retryProvider.runWithRetries {
+                                try await fileClient.downloadInParallel(url: downloadURLs[index], to: archivePaths[index])
+                            }
+                            return index
+                        }
                     }
-                    let shardArchiveDestinationPath = downloadedArtifactsPath
-                        .appending(component: "artifact-\(downloadIndex).aar")
-                    try await retryProvider.runWithRetries {
-                        try await fileClient.downloadInParallel(url: downloadURL, to: shardArchiveDestinationPath)
+                    while started < min(Self.artifactDownloadsAhead, downloadURLs.count) {
+                        startDownload()
                     }
-                    try await appleArchiver.decompress(archive: shardArchiveDestinationPath, to: extractedTestProductsPath)
-                    try? await fileSystem.remove(shardArchiveDestinationPath)
+                    var downloaded = Set<Int>()
+                    for index in downloadURLs.indices {
+                        while !downloaded.contains(index), let finished = try await group.next() {
+                            downloaded.insert(finished)
+                            if started < downloadURLs.count { startDownload() }
+                        }
+                        try await appleArchiver.decompress(archive: archivePaths[index], to: extractedTestProductsPath)
+                        try? await fileSystem.remove(archivePaths[index])
+                    }
                 }
             }
             Logger.current.debug("Downloaded \(shard.download_urls.count) test products artifact(s).")
