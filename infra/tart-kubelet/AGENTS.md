@@ -480,6 +480,12 @@ What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
 - `clone` refuses an existing destination without `--overwrite` from 2.40.1,
   even one too incomplete for `tart delete` to remove, and older releases reject
   the flag. `CloneFrom` retries with it only after that refusal.
+- `run --no-audio` (both releases) gives the guest only Tart's null speaker.
+  Without it, a non-suspendable VM's sound device is bridged to the host's
+  CoreAudio (`VZHostAudioInputStreamSource`/`OutputStreamSink`), and runner
+  guests' `AVAudioPlayer.prepareToPlay()` blocked about 270 s in
+  `_TellServerAboutStreamUsage` (Speechify, 2026-11-26). Sandboxes never had the
+  bridge, because `--suspendable` drops it.
 - `pull --insecure` and image references naming a `host:port` registry, which
   the rack's image cache needs, behave the same.
 

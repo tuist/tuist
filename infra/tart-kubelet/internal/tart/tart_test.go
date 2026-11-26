@@ -461,7 +461,7 @@ func TestRunWithOptionsAddsVNCGraphicsFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(body)
-	for _, want := range []string{"run\n", "test-vm\n", "--vnc-experimental\n", "--graphics\n", "--root-disk-opts\n", "caching=cached\n", "--dir\n", "env:/tmp/env:ro\n", "CI=1\n"} {
+	for _, want := range []string{"run\n", "test-vm\n", "--vnc-experimental\n", "--graphics\n", "--no-audio\n", "--root-disk-opts\n", "caching=cached\n", "--dir\n", "env:/tmp/env:ro\n", "CI=1\n"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("args missing %q in:\n%s", want, got)
 		}
