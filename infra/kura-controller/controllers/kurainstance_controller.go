@@ -4009,7 +4009,111 @@ func (r *KuraInstanceReconciler) dataVolumesToReplace(ctx context.Context, insta
 			})
 		}
 	}
+	colocated, err := r.colocatedVolumes(ctx, instance)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, volume := range colocated {
+		listed := false
+		for _, replacement := range replacements {
+			listed = listed || replacement.ordinal == volume.ordinal
+		}
+		if !listed {
+			replacements = append(replacements, volume)
+		}
+	}
+	sort.Slice(replacements, func(i, j int) bool { return replacements[i].ordinal < replacements[j].ordinal })
 	return replacements, false, nil
+}
+
+// colocatedVolumes returns the data claims to rebuild so that no two replicas
+// share a value of spec.replicaSpreadTopologyKey. A bound local volume cannot
+// move, so a replica placed beside a sibling before spreading was required
+// stays there, and the required anti-affinity would strand its next pod;
+// rebuilding its volume lets the scheduler place it apart. The primary's
+// volume is kept, so the copy serving clients is never the one emptied;
+// without a known primary the lowest ordinal's is. A claim whose node is gone
+// is the stale-storage path's, and a fenced instance moves replicas only
+// through explicit recovery.
+func (r *KuraInstanceReconciler) colocatedVolumes(ctx context.Context, instance *kurav1alpha1.KuraInstance) ([]dataVolumeReplacement, error) {
+	key := instance.Spec.ReplicaSpreadTopologyKey
+	if key == "" || fencedServing(instance) || replicas(instance) < 2 {
+		return nil, nil
+	}
+	primary := ""
+	service := &corev1.Service{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
+	case err == nil:
+		primary = service.Spec.Selector[podNameLabel]
+	case !apierrors.IsNotFound(err):
+		return nil, err
+	}
+	type placed struct {
+		ordinal int32
+		claim   *corev1.PersistentVolumeClaim
+	}
+	byValue := map[string][]placed{}
+	var values []string
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		claim := &corev1.PersistentVolumeClaim{}
+		if err := r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("data-%s-%d", instance.Name, ordinal), Namespace: instance.Namespace}, claim); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		if claim.DeletionTimestamp != nil || claim.Spec.VolumeName == "" {
+			continue
+		}
+		pv := &corev1.PersistentVolume{}
+		if err := r.Get(ctx, types.NamespacedName{Name: claim.Spec.VolumeName}, pv); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		hosts := pvRequiredHostnames(pv)
+		if len(hosts) != 1 {
+			continue
+		}
+		node := &corev1.Node{}
+		if err := r.Get(ctx, types.NamespacedName{Name: hosts[0]}, node); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		value, ok := node.Labels[key]
+		if !ok {
+			continue
+		}
+		if _, seen := byValue[value]; !seen {
+			values = append(values, value)
+		}
+		byValue[value] = append(byValue[value], placed{ordinal: ordinal, claim: claim})
+	}
+	var colocated []dataVolumeReplacement
+	for _, value := range values {
+		group := byValue[value]
+		if len(group) < 2 {
+			continue
+		}
+		keep := group[0].ordinal
+		for _, member := range group {
+			if fmt.Sprintf("%s-%d", instance.Name, member.ordinal) == primary {
+				keep = member.ordinal
+			}
+		}
+		for _, member := range group {
+			if member.ordinal != keep {
+				colocated = append(colocated, dataVolumeReplacement{
+					ordinal: member.ordinal, claim: member.claim,
+					reason: fmt.Sprintf("shares %s=%s with a sibling while spread is required", key, value),
+				})
+			}
+		}
+	}
+	return colocated, nil
 }
 
 func (r *KuraInstanceReconciler) rebuildDataVolume(ctx context.Context, instance *kurav1alpha1.KuraInstance, volume dataVolumeReplacement, serving bool) error {
