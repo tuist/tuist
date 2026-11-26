@@ -111,6 +111,16 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Default-off account opt-in to a Kura memory floor the kura-controller raises,
+  up to the plan's `floor_max_mib`, when the instance's reads shed for want of
+  admission memory. Requires a kura-controller and CRD that know
+  `memoryFloorMaxMib`.
+  """
+  def kura_learned_memory_floor_enabled?(account) do
+    FunWithFlags.enabled?(:kura_learned_memory_floor, for: account)
+  end
+
+  @doc """
   Default-off account opt-in to Kura data volumes encrypted at rest
   (`kura-encrypted-nvme`) in regions on the node-local NVMe class.
   """

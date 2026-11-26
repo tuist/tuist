@@ -1087,7 +1087,10 @@ defmodule Tuist.Kura.Capacity do
   end
 
   # One replica's requests, as the controller renders them for the plan in this
-  # region.
+  # region. Only a replica with nothing placed is sized here, and it starts on
+  # the plan floor; a floor the controller has since raised
+  # (`memory_autosize.go`) is on the live pods, which the node reservations
+  # and `grows?/6` read instead.
   defp pod_request(%Regions{} = region, plan, pool, thin) do
     memory = memory_profile(region, plan)
     disk = if thin, do: @kura_disk, else: Regions.disk_resource(region)

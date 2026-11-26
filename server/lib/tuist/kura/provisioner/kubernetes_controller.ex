@@ -510,6 +510,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "egressGuaranteedMbps" => egress.floor_mbps,
           "memoryFloorMib" => entitlements.memory && entitlements.memory.floor_mib,
           "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
+          "memoryFloorMaxMib" => entitlements.memory_floor_max_mib,
           "cpuCeilingMilli" => entitlements.cpu_ceiling_milli,
           "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
           "storageClassName" => storage_class(region, account),
@@ -718,10 +719,21 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       allowed_features: allowed_features,
       egress_guaranteed_mbps: egress_guaranteed_mbps,
       memory: memory,
+      memory_floor_max_mib: memory_floor_max_mib(account, memory),
       cpu_ceiling_milli: cpu_ceiling_milli,
       replication_pull: mesh_enabled?(region)
     }
   end
+
+  # Only above the plan floor, so a plan with a fixed floor sends nothing. Off
+  # by default per account: the field reaches a CRD that predates it only as a
+  # pruned unknown, and the flag is how an account opts into restarts on growth.
+  defp memory_floor_max_mib(account, %{floor_mib: floor_mib, floor_max_mib: floor_max_mib})
+       when floor_max_mib > floor_mib do
+    if FeatureFlags.kura_learned_memory_floor_enabled?(account), do: floor_max_mib
+  end
+
+  defp memory_floor_max_mib(_account, _memory), do: nil
 
   defp maybe_request_entitlement(features, true, feature), do: [feature | features]
   defp maybe_request_entitlement(features, false, _feature), do: features
@@ -837,6 +849,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       case entitlements do
         %{memory: %{floor_mib: floor_mib, ceiling_mib: ceiling_mib}} -> "+mem#{floor_mib}-#{ceiling_mib}"
         _ -> ""
+      end
+
+    # Its own marker, so turning the flag on or off re-applies the instance.
+    profile =
+      case entitlements do
+        %{memory_floor_max_mib: max} when is_integer(max) -> profile <> "-max#{max}"
+        _ -> profile
       end
 
     if Regions.memory_ceiling_bin_packed?(region), do: profile <> "+binpack", else: profile

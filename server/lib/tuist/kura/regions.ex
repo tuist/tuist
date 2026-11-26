@@ -127,6 +127,14 @@ defmodule Tuist.Kura.Regions do
   # from, from the floor, so Pro keeps the floor that pool was sized on.
   @pro_memory_floor_mib 512
   @paid_memory_ceiling_mib 4096
+  # How far the kura-controller may raise a paid plan's floor when the
+  # instance's reads queue on the admission pool Kura sizes from it and shed
+  # (`memory_autosize.go`). Replaying production's demand through it, the one
+  # enterprise account that sheds needed 3072 MiB; the rest stayed on the plan
+  # floor. Each MiB of raise also raises the ceiling by four, since Kura's pool
+  # cannot exceed a quarter of it. Air keeps a fixed floor.
+  @enterprise_memory_floor_max_mib 4096
+  @pro_memory_floor_max_mib 2048
   # Air, and the fallback for any plan without its own profile.
   @standard_memory_floor_mib 256
   @standard_memory_ceiling_mib 768
@@ -761,7 +769,9 @@ defmodule Tuist.Kura.Regions do
   def mesh?(_), do: false
 
   @doc """
-  The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.
+  The `%{floor_mib:, ceiling_mib:, floor_max_mib:}` memory profile for a
+  billing plan. `floor_max_mib` bounds the floor the kura-controller learns from
+  the instance's demand; a value equal to the floor keeps it fixed.
 
   Every plan gets a profile, so this is a sizing decision rather than a feature
   grant. The paid plans share the larger ceiling, which sets how large a burst
@@ -769,11 +779,26 @@ defmodule Tuist.Kura.Regions do
   than `:enterprise` and `:pro`, `:air` included, takes the smallest profile.
   Unknown plans fall there too, which is the safe side on a shared box.
   """
-  def memory_profile(:enterprise), do: %{floor_mib: @enterprise_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
+  def memory_profile(:enterprise),
+    do: %{
+      floor_mib: @enterprise_memory_floor_mib,
+      ceiling_mib: @paid_memory_ceiling_mib,
+      floor_max_mib: @enterprise_memory_floor_max_mib
+    }
 
-  def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
+  def memory_profile(:pro),
+    do: %{
+      floor_mib: @pro_memory_floor_mib,
+      ceiling_mib: @paid_memory_ceiling_mib,
+      floor_max_mib: @pro_memory_floor_max_mib
+    }
 
-  def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
+  def memory_profile(_plan),
+    do: %{
+      floor_mib: @standard_memory_floor_mib,
+      ceiling_mib: @standard_memory_ceiling_mib,
+      floor_max_mib: @standard_memory_floor_mib
+    }
 
   @doc """
   The `limits.cpu` in millicores for a billing plan.

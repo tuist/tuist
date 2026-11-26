@@ -300,6 +300,14 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.memory_profile(:pro).ceiling_mib == Regions.memory_profile(:enterprise).ceiling_mib
       assert Regions.memory_profile(:air).ceiling_mib < Regions.memory_profile(:pro).ceiling_mib
 
+      # A learned floor starts at the plan floor and only grows from there.
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        %{floor_mib: floor_mib, floor_max_mib: floor_max_mib} = Regions.memory_profile(plan)
+        assert floor_max_mib >= floor_mib
+      end
+
+      assert Regions.memory_profile(:air).floor_max_mib == Regions.memory_profile(:air).floor_mib
+
       # Each ceiling has to clear its plan's measured peak by more than the
       # runtime's 0.9x recovery hysteresis, or a burst that trips shedding stays
       # shedding. Peaks: ~1220 MiB for the busiest pro instance, ~150 MiB for air.
