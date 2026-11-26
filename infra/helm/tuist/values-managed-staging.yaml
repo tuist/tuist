@@ -1215,9 +1215,9 @@ sentryPulse:
 # useInWorkloads after the first run has created the Secret.
 s3KeyRotation:
   enabled: true
-  useInWorkloads: false
+  useInWorkloads: true
   image:
-    tag: sha-4602da6823da
+    tag: sha-7d328a57e90a
   keyPrefix: tuist-staging-platform-
   adminCredentials:
     externalSecret:
