@@ -14,8 +14,6 @@ defmodule TuistWeb.API.SandboxesController do
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.SandboxError, as: Error
 
-  require Logger
-
   plug(TuistWeb.Plugs.LoaderPlug)
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -1101,23 +1099,14 @@ defmodule TuistWeb.API.SandboxesController do
 
   defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message, code: "not_found"})
 
-  # Neither an exec nor a command row stores its caller, so the log records
-  # who ran something in which sandbox (never the command, which may carry
-  # secrets).
   defp log_guest_command(conn, sandbox, kind) do
-    Logger.info(
-      "sandboxes: #{kind} in #{sandbox.id} of account #{sandbox.account_id} by #{actor(TuistWeb.Authentication.authenticated_subject(conn))}"
+    Sandboxes.log_guest_action(
+      sandbox,
+      kind,
+      TuistWeb.Authentication.authenticated_subject(conn),
+      TuistWeb.Authentication.get_authorization_token_from_conn(conn)
     )
   end
-
-  defp actor(%Tuist.Accounts.User{id: id}), do: "user #{id}"
-
-  defp actor(%Tuist.Accounts.AuthenticatedAccount{} = subject),
-    do:
-      "account token #{subject.token_id || "(exchanged)"} of account #{subject.account.id}" <>
-        if(subject.issued_by, do: " issued by user #{subject.issued_by.id}", else: "")
-
-  defp actor(subject), do: inspect(subject.__struct__)
 
   # A sandbox that serves an agent environment, an Amp Orb, a provider
   # environment or remote execution runs someone's session: its guest holds

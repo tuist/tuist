@@ -25,18 +25,41 @@ defmodule Tuist.MCP.Components.Tools.SandboxTools do
     end
   end
 
-  defp guest_access(action, conn, account, %{"sandbox_id" => id}) when action in @guest_actions do
+  # A guest action is logged like the API's exec, in the same format, before it
+  # runs: nothing else records who reached inside which sandbox.
+  defp guest_access(action, conn, account, %{"sandbox_id" => id} = args) when action in @guest_actions do
     with {:ok, id} <- Ecto.UUID.cast(id),
-         {:ok, sandbox} <- Sandboxes.get_sandbox(account, id),
-         false <- Sandboxes.member_sandbox?(sandbox),
-         {:error, _} <- MCPTool.authorize_account(conn.assigns, account, :update, :account) do
-      {:error, error_text(Query.error(:integration_sandbox))}
+         {:ok, sandbox} <- Sandboxes.get_sandbox(account, id) do
+      if Sandboxes.member_sandbox?(sandbox) or
+           match?({:ok, _}, MCPTool.authorize_account(conn.assigns, account, :update, :account)) do
+        Sandboxes.log_guest_action(
+          sandbox,
+          guest_kind(action, args),
+          MCPTool.authenticated_subject(conn.assigns),
+          bearer(conn)
+        )
+
+        :ok
+      else
+        {:error, error_text(Query.error(:integration_sandbox))}
+      end
     else
       _ -> :ok
     end
   end
 
   defp guest_access(_action, _conn, _account, _args), do: :ok
+
+  # Only the action, never its device, path, bundle ID or URL.
+  defp guest_kind(:screenshot, %{"target" => "screen"}), do: "mcp screenshot of the screen"
+  defp guest_kind(action, _args), do: "mcp #{action}"
+
+  defp bearer(conn) do
+    case Plug.Conn.get_req_header(conn, "authorization") do
+      ["Bearer " <> token] -> token
+      _ -> nil
+    end
+  end
 
   # The code leads the text, so an agent branches on it as it would on the
   # API's `code`; the message after it says what to do.

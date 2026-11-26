@@ -536,6 +536,39 @@ defmodule Tuist.Sandboxes do
         is_nil(sandbox.provider_environment_id) and sandbox.purpose == :agent
 
   @doc """
+  Logs who acted inside a sandbox's guest, through the API's exec and
+  commands or the MCP device tools. No row stores the caller, so this line is
+  the only record of who ran what kind of action in which sandbox. `kind`
+  names the action only: never pass its command, URL, path or other
+  arguments, which may carry secrets. `bearer` is the request's already
+  authenticated access token, read only for the OAuth client it was issued
+  to.
+  """
+  def log_guest_action(%Sandbox{} = sandbox, kind, subject, bearer \\ nil) do
+    Logger.info("sandboxes: #{kind} in #{sandbox.id} of account #{sandbox.account_id} by #{guest_actor(subject, bearer)}")
+  end
+
+  defp guest_actor(%User{id: id}, _bearer), do: "user #{id}"
+
+  defp guest_actor(%Tuist.Accounts.AuthenticatedAccount{} = subject, bearer) do
+    "account token #{subject.token_id || "(exchanged)"} of account #{subject.account.id}" <>
+      if(subject.issued_by, do: " issued by user #{subject.issued_by.id}", else: "") <>
+      if(subject.agent_registration_id, do: " through registration #{subject.agent_registration_id}", else: "") <>
+      oauth_client(subject, bearer)
+  end
+
+  defp guest_actor(subject, _bearer), do: inspect(subject.__struct__)
+
+  defp oauth_client(%{issued_by: %User{}}, bearer) when is_binary(bearer) do
+    case Tuist.Guardian.peek(bearer) do
+      %{claims: %{"client_id" => client_id}} when is_binary(client_id) -> " through OAuth client #{client_id}"
+      _ -> ""
+    end
+  end
+
+  defp oauth_client(_subject, _bearer), do: ""
+
+  @doc """
   A query condition that leaves out legacy Tuist threads' sandboxes (provider
   environment `threads/<id>`). Each belongs to its owner's private thread,
   retained for offline conversation export: the account's sandbox list,

@@ -16,7 +16,6 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Sandboxes.Workers.DeleteUploadWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistWeb.API.SandboxesController
   alias TuistWeb.Authentication
 
   setup %{conn: conn} do
@@ -1119,8 +1118,8 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       user: user
     } do
       {_environment, [session, _orb]} = integration_sandboxes(account)
-      Logger.put_module_level(SandboxesController, :info)
-      on_exit(fn -> Logger.delete_module_level(SandboxesController) end)
+      Logger.put_module_level(Sandboxes, :info)
+      on_exit(fn -> Logger.delete_module_level(Sandboxes) end)
 
       expect(Nodes, :call, fn "node-a", "exec", %{cmd: ["/bin/bash", "-lc", "echo secret"]}, _opts ->
         {:ok, %{"exit_code" => 0}}

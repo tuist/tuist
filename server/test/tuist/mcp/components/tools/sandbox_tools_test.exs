@@ -2,8 +2,10 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.FeatureFlags
   alias Tuist.MCP.Components.Tools.ArchiveSandbox
   alias Tuist.MCP.Components.Tools.BootSandboxDevice
@@ -15,6 +17,7 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
   alias Tuist.MCP.Components.Tools.LaunchSandboxApp
   alias Tuist.MCP.Components.Tools.ListSandboxDevices
   alias Tuist.MCP.Components.Tools.ListSandboxes
+  alias Tuist.MCP.Components.Tools.OpenSandboxURL
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
@@ -226,9 +229,16 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
 
   describe "simulator tools" do
     setup %{account: account} do
-      stub(Tuist.Authorization, :authorize, fn _action, :subject, _account -> :ok end)
+      user = AccountsFixtures.user_fixture()
+      stub(Tuist.Authorization, :authorize, fn _action, %Tuist.Accounts.User{}, _account -> :ok end)
       sandbox = sandbox_fixture(account: account, platform: :darwin, template: "macos")
-      %{args: %{"account_handle" => account.name, "sandbox_id" => sandbox.id}, sandbox_id: sandbox.id}
+
+      %{
+        conn: %Plug.Conn{assigns: %{current_user: user}},
+        user: user,
+        args: %{"account_handle" => account.name, "sandbox_id" => sandbox.id},
+        sandbox_id: sandbox.id
+      }
     end
 
     test "a screenshot comes back as an image with its size", %{conn: conn, args: args, sandbox_id: id} do
@@ -297,6 +307,66 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
 
       assert %{"isError" => true, "content" => [%{"text" => "code: forbidden\n" <> _}]} =
                GetSandboxScreenshot.call(conn, %{"account_handle" => account.name, "sandbox_id" => orb.id})
+    end
+
+    test "the log names who launched, opened or captured what kind of thing in which sandbox, and nothing else", %{
+      conn: conn,
+      user: user,
+      account: account,
+      args: args,
+      sandbox_id: id
+    } do
+      Logger.put_module_level(Sandboxes, :info)
+      on_exit(fn -> Logger.delete_module_level(Sandboxes) end)
+      stub(Sandboxes, :exec, fn _sandbox, _cmd, _opts -> {:ok, %{exit_code: 0, stdout: "dev.tuist.App", stderr: ""}} end)
+      app_path = "/Users/runner/secret-checkout/App.app"
+      url = "myapp://callback?token=url-secret-1"
+
+      log =
+        capture_log([level: :info], fn ->
+          LaunchSandboxApp.call(conn, Map.merge(args, %{"app_path" => app_path, "app_id" => "dev.tuist.Private"}))
+          OpenSandboxURL.call(conn, Map.put(args, "url", url))
+          GetSandboxScreenshot.call(conn, Map.put(args, "target", "screen"))
+        end)
+
+      for kind <- ["mcp launch_app", "mcp open_url", "mcp screenshot of the screen"] do
+        assert log =~ "sandboxes: #{kind} in #{id} of account #{account.id} by user #{user.id}"
+      end
+
+      refute log =~ "secret-checkout"
+      refute log =~ "dev.tuist.Private"
+      refute log =~ "url-secret-1"
+      refute log =~ "myapp://"
+    end
+
+    test "the log names the OAuth client and issuer of the token, never the token", %{account: account, args: args} do
+      Logger.put_module_level(Sandboxes, :info)
+      on_exit(fn -> Logger.delete_module_level(Sandboxes) end)
+      issuer = AccountsFixtures.user_fixture()
+      client_id = Ecto.UUID.generate()
+      {:ok, bearer, _claims} = Tuist.Guardian.encode_and_sign(issuer, %{"client_id" => client_id})
+
+      subject = %AuthenticatedAccount{
+        account: account,
+        scopes: ["mcp"],
+        all_projects: true,
+        issued_by: issuer
+      }
+
+      conn = %Plug.Conn{
+        assigns: %{current_subject: subject},
+        req_headers: [{"authorization", "Bearer " <> bearer}]
+      }
+
+      stub(Tuist.Authorization, :authorize, fn _action, %AuthenticatedAccount{}, _account -> :ok end)
+      stub(Sandboxes, :exec, fn _sandbox, _cmd, _opts -> {:ok, %{exit_code: 0, stdout: "", stderr: ""}} end)
+
+      log = capture_log([level: :info], fn -> OpenSandboxURL.call(conn, Map.put(args, "url", "https://tuist.dev")) end)
+
+      assert log =~
+               "sandboxes: mcp open_url in #{args["sandbox_id"]} of account #{account.id} by account token (exchanged) of account #{account.id} issued by user #{issuer.id} through OAuth client #{client_id}"
+
+      refute log =~ bearer
     end
 
     test "lists the devices simctl reports and launches a built app", %{conn: conn, args: args} do
