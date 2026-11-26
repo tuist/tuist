@@ -530,6 +530,37 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       end
     end
 
+    test "creates a Linux sandbox that bursts to a memory limit and refuses limits it cannot have", %{
+      conn: conn,
+      account: account
+    } do
+      stub(Capacity, :place, fn %{platform: :linux} -> {:ok, "node-a"} end)
+
+      # The guest boots at the limit; the node holds it at the request.
+      expect(Nodes, :call, fn "node-a", "create", %{memory_mb: 16_384, memory_request_mb: 4096}, _opts ->
+        {:ok, %{"template_tag" => "sha-1"}}
+      end)
+
+      assert %{"memory_mb" => 4096, "memory_limit_mb" => 16_384} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes", %{
+                 vcpus: 2,
+                 memory_mb: 4096,
+                 memory_limit_mb: 16_384
+               })
+               |> json_response(:created)
+
+      for body <- [
+            %{vcpus: 4, memory_mb: 8192, memory_limit_mb: 4096},
+            %{platform: "darwin", vcpus: 8, memory_mb: 8192, memory_limit_mb: 16_384}
+          ] do
+        assert %{"message" => message} =
+                 conn |> post(~p"/api/accounts/#{account.name}/sandboxes", body) |> json_response(:bad_request)
+
+        assert message =~ "memory_limit_mb"
+      end
+    end
+
     test "creates, inspects, runs commands in, pauses, resumes and deletes a sandbox", %{conn: conn, account: account} do
       stub(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
 
