@@ -285,7 +285,7 @@ images the sandbox templates are cloned from.
 {{- end }}
 {{- range $xcode := (include "tuist.macosCatalogImages" . | fromJsonArray) }}
 {{- $xcodeVersion := $xcode.xcodeVersion | toString }}
-{{- $xcodeTag := $xcodeVersion | replace "." "-" }}
+{{- $xcodeTag := include "tuist.macosPoolTag" $xcodeVersion }}
 {{- $imageOverride := dig $xcodeVersion (dict) $overrides }}
 {{- $image := include "tuist.macosRunnerImage" (dict "root" $ "xcodeVersion" $xcodeVersion) }}
 {{- $runnerLabels := dig "runnerLabels" $defaultRunnerLabels $imageOverride }}

@@ -363,8 +363,13 @@ defmodule Tuist.Runners.Catalog do
   def pool_name(%{platform: :macos, xcode_version: xcode_version} = profile)
       when is_binary(xcode_version) and xcode_version != "" do
     base =
-      "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{xcode_version_tag(xcode_version)}" <>
-        macos_os_suffix(Map.get(profile, :os_version))
+      case macos_os_suffix(Map.get(profile, :os_version)) do
+        "" ->
+          "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{xcode_version_tag(xcode_version)}"
+
+        os_suffix ->
+          "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{macos_release_xcode_tag(xcode_version)}#{os_suffix}"
+      end
 
     case macos_shape_suffix(profile) do
       nil -> base
@@ -400,6 +405,15 @@ defmodule Tuist.Runners.Catalog do
     do: "-#{os_version}"
 
   defp macos_os_suffix(_), do: ""
+
+  # A beta channel's tag shortens to `-b` in front of a macOS release
+  # (`27-3-b-macos-27`): with the site and the largest shape,
+  # `tuist-tuist-runner-pool-macos-ber1-27-3-beta-macos-27-16vcpu-48gb` is
+  # 65 characters, over the 63 a Kubernetes label value takes, so Helm
+  # could not create the pool. Tahoe pools keep `-beta`, the names queued
+  # rows already carry. `tuist.macosPoolTag` in the chart applies the same
+  # rule.
+  defp macos_release_xcode_tag(version), do: String.replace(xcode_version_tag(version), ~r/-beta$/, "-b")
 
   # Same rule for the Linux OS dimension: the default OS version's pools
   # keep the shape-only names every Linux pool had before profiles could
