@@ -858,7 +858,6 @@ defmodule TuistWeb.Router do
     get "/claude/start", ClaudeLinkedBillingController, :start
     # The queries carry authorization codes and state; keep them out of request logs.
     get "/claude/callback", ClaudeLinkedBillingController, :callback, log: false
-    get "/mcp/callback", MCPServerOAuthController, :callback, log: false
   end
 
   scope "/integrations", TuistWeb do
@@ -1437,16 +1436,6 @@ defmodule TuistWeb.Router do
     get "/me/feature-flags", FeatureFlagsController, :index
     post "/me/luft-notifications", LuftNotificationsController, :create, log: false
     get "/me/mcp-servers/transport", MCPTransportController, :index, log: false
-    get "/me/mcp-servers/transport/:server_id/tools", MCPTransportController, :discover, log: false
-    post "/me/mcp-servers/transport/:server_id/tools/call", MCPTransportController, :invoke, log: false
-    get "/me/ai-subscriptions", AISubscriptionsController, :index
-    get "/me/ai-subscriptions/models", AIInferenceController, :models, log: false
-    post "/me/ai-subscriptions/chat/completions", AIInferenceController, :complete, log: false
-    put "/me/ai-subscriptions/claude", AISubscriptionsController, :connect_claude
-    post "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :start_chatgpt_login
-    post "/me/ai-subscriptions/chatgpt/login/poll", AISubscriptionsController, :poll_chatgpt_login
-    delete "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :cancel_chatgpt_login
-    delete "/me/ai-subscriptions/:provider", AISubscriptionsController, :delete
   end
 
   scope "/api" do
@@ -2057,7 +2046,6 @@ defmodule TuistWeb.Router do
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive
       live "/settings/authentication/workload-identities", AuthenticationSettingsLive, :workload_identities
-      live "/settings/ai", AISubscriptionsSettingsLive
       live "/settings/ai/routing", OrganizationAISettingsLive
     end
   end

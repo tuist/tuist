@@ -149,15 +149,6 @@ defmodule Tuist.MCP.ServerTest do
       refute server.instructions =~ "Bazel"
     end
 
-    test "keeps AI subscription credentials and sign-ins off the connector" do
-      tool_names = Map.keys(Server.server().tools)
-
-      for name <-
-            ~w(list_ai_subscriptions connect_claude_subscription start_chatgpt_subscription_login poll_chatgpt_subscription_login cancel_chatgpt_subscription_login disconnect_ai_subscription) do
-        refute name in tool_names
-      end
-    end
-
     test "offers search_tuist only on the Tuist-hosted installation" do
       stub(Environment, :tuist_hosted?, fn -> true end)
       assert "search_tuist" in Map.keys(Server.server().tools)

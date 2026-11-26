@@ -1,11 +1,15 @@
 defmodule TuistWeb.API.MCPTransportController do
+  @moduledoc """
+  Tells Luft whether a session may use Tuist's own MCP tools: only a grant
+  that actually holds the `mcp` scope does. MCP servers people connect are
+  kept by Luft.
+  """
   use TuistWeb, :controller
 
   alias Boruta.Oauth.Token, as: OAuthToken
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.MCPServers.Transport
   alias Tuist.Accounts.User
   alias Tuist.FeatureFlags
   alias TuistWeb.Authentication
@@ -14,36 +18,10 @@ defmodule TuistWeb.API.MCPTransportController do
     conn = put_resp_header(conn, "cache-control", "no-store")
 
     case admitted(conn) do
-      {:ok, user} -> json(conn, %{servers: Transport.connections(user), builtin_mcp_allowed: builtin_allowed?(conn)})
+      # MCP servers live in Luft now; `servers` stays empty for Luft replicas
+      # that still read it.
+      {:ok, _user} -> json(conn, %{servers: [], builtin_mcp_allowed: builtin_allowed?(conn)})
       _ -> error(conn, 403, :forbidden)
-    end
-  end
-
-  def discover(conn, %{"server_id" => id, "endpoint" => endpoint}) do
-    conn = put_resp_header(conn, "cache-control", "no-store")
-
-    with {:ok, user} <- admitted(conn),
-         true <- valid_endpoint?(endpoint),
-         {:ok, tools} <- Transport.discover(user, id, endpoint, fn -> authorized?(conn, user.id) end) do
-      json(conn, %{tools: tools})
-    else
-      _ -> error(conn, 403, :mcp_unavailable)
-    end
-  end
-
-  def discover(conn, _), do: error(conn, 400, :invalid_arguments)
-
-  def invoke(conn, %{"server_id" => id}) do
-    conn = put_resp_header(conn, "cache-control", "no-store")
-
-    with {:ok, user} <- admitted(conn),
-         %{"endpoint" => endpoint, "name" => name, "arguments" => args} <- conn.body_params,
-         true <- valid_endpoint?(endpoint),
-         {:ok, result} <- Transport.call(user, id, endpoint, name, args, fn -> authorized?(conn, user.id) end) do
-      json(conn, %{result: result})
-    else
-      {:error, :mcp_outcome_unknown} -> error(conn, 502, :mcp_outcome_unknown)
-      _ -> error(conn, 403, :mcp_not_dispatched)
     end
   end
 
@@ -53,9 +31,6 @@ defmodule TuistWeb.API.MCPTransportController do
          true <- FeatureFlags.luft_enabled?(user),
          do: {:ok, user}
   end
-
-  defp authorized?(conn, id), do: match?({:ok, %User{id: ^id}}, admitted(conn))
-  defp valid_endpoint?(endpoint), do: is_binary(endpoint) and Regex.match?(~r/\A[0-9a-f]{64}\z/, endpoint)
 
   # A personal app grant is not an MCP grant. Never offer built-ins just
   # because app_user associates an OAuth credential with a person.
