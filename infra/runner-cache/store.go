@@ -37,6 +37,10 @@ type Identity struct {
 	// ManagedKey is set by the host from the request when the key names a
 	// Tuist-managed cache (see ManagedKey), never by the server or a guest.
 	ManagedKey string `json:"managed_key,omitempty"`
+	// Format is set by the host, never by a guest: FormatASIF for a volume its
+	// VM gets as a hot-plugged USB disk (APFSImages.Disks), "" for an APFS
+	// sparse image in the VM's share. The server keeps a lineage per format.
+	Format string `json:"format,omitempty"`
 	// VolumeBytes is the capacity the server chose for this use. Zero from a
 	// server that predates per-volume sizes.
 	VolumeBytes int64 `json:"volume_bytes"`
@@ -111,6 +115,10 @@ func (i Identity) RestoreBytes(defaultBytes int64) int64 {
 }
 
 const KindCheckout = "checkout"
+
+// FormatASIF is a custom volume kept as an ASIF image, which Tart hot-plugs into
+// its VM as a USB disk (see APFSImages.Disks).
+const FormatASIF = "asif"
 
 // CheckoutGrowthBytes is what a checkout clone is admitted with: it shares the
 // master's blocks, so only the job's writes to its workspace take new space.
@@ -236,6 +244,9 @@ func valid(identity Identity, pod, uid string, maxVolumeBytes int64) bool {
 	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= kindMaxVolumeBytes(identity, maxVolumeBytes) && identity.HeadSizeBytes >= 0 && validHead(identity) && validKind(identity)
 }
 func validKind(identity Identity) bool {
+	if identity.Format != "" && (identity.Format != FormatASIF || identity.Kind != "") {
+		return false
+	}
 	switch identity.Kind {
 	case "":
 		return identity.Generation == 0

@@ -116,6 +116,8 @@ func (f *fakeMacTools) run(_ context.Context, stdin []byte, name string, args ..
 	switch {
 	case strings.HasPrefix(call, "hdiutil attach"):
 		return []byte(`{"system-entities":[{"dev-entry":"/dev/disk6","content-hint":"GUID_partition_scheme"},{"dev-entry":"/dev/disk6s1","content-hint":"EFI"},{"dev-entry":"/dev/disk6s2","content-hint":"Apple_APFS"},{"dev-entry":"/dev/disk7s1","content-hint":"41504653-0000-11AA-AA11-00306543ECAC","volume-kind":"apfs"},{"dev-entry":"/dev/disk7","content-hint":"EF57347C-0000-11AA-AA11-00306543ECAC"}]}`), nil
+	case strings.HasPrefix(call, "diskutil info -plist TuistCache-"):
+		return []byte(`{"DeviceIdentifier":"disk7s1"}`), nil
 	case strings.HasPrefix(call, "diskutil apfs resizeContainer disk7 limits"):
 		return []byte(f.limits), nil
 	}
@@ -132,6 +134,23 @@ func TestMacAttachGrowsTheContainerBeforeMounting(t *testing.T) {
 		"diskutil apfs resizeContainer disk7 limits -plist",
 		"diskutil apfs resizeContainer disk7 0",
 		"diskutil mount nobrowse -mountPoint /mount /dev/disk7s1",
+	}
+	if fmt.Sprint(tools.calls) != fmt.Sprint(want) {
+		t.Fatalf("calls = %q", tools.calls)
+	}
+}
+
+func TestMacBlockVolumeGrowsTheContainerBeforeMountingItHidden(t *testing.T) {
+	tools := &fakeMacTools{limits: `{"CurrentSize":19999997952,"MaximumSize":49999998976}`}
+	if err := mountMacBlockVolume(context.Background(), "TuistCache-0123456789ab", "/mount", tools.run); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"diskutil info -plist TuistCache-0123456789ab",
+		"diskutil unmount disk7s1",
+		"diskutil apfs resizeContainer disk7 limits -plist",
+		"diskutil apfs resizeContainer disk7 0",
+		"diskutil mount nobrowse -mountPoint /mount disk7s1",
 	}
 	if fmt.Sprint(tools.calls) != fmt.Sprint(want) {
 		t.Fatalf("calls = %q", tools.calls)

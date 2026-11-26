@@ -27,7 +27,36 @@ type APFSImages struct {
 	// sees it, never shrinking it and never attaching its filesystem. The guest
 	// grows the APFS container. Nil leaves copies at their saved size.
 	Grow func(context.Context, string, int64) error
+	// Disks hot-plugs FormatASIF branches into their VMs as USB disks. Nil
+	// refuses them, so their jobs run cold.
+	Disks Disks
+	// CreateDisk formats an empty ASIF image of the given size (FormatASIF)
+	// holding one APFS volume named DiskVolumeName(slot.Scope).
+	CreateDisk func(ctx context.Context, slot Slot, path string, bytes int64) error
+	// VerifyDisk is Verify for a detached ASIF branch.
+	VerifyDisk func(string) (int64, error)
+	// GrowDisk is Grow for an ASIF copy; its guest grows the container when
+	// the disk appears. Nil leaves ASIF copies at their saved size.
+	GrowDisk func(context.Context, string, int64) error
 }
+
+// Disks attaches a FormatASIF branch image, which keeps its private name, to
+// its running VM as a USB disk. macOS 27 guests lose writes to a disk image
+// whose file is on their virtio-fs share, so these never go through the share.
+type Disks interface {
+	Attach(ctx context.Context, slot Slot, image string) error
+	// Released reports whether the VM's hypervisor detached the slot's disk
+	// after the guest's clean detach. A disk still attached when its VM
+	// stopped can be missing writes, so only a released branch may publish.
+	Released(slot Slot) bool
+}
+
+// DiskVolumeName is the APFS volume an ASIF volume of scope holds, by which its
+// guest finds the hot-plugged disk. It never changes within a lineage.
+func DiskVolumeName(scope string) string { return "TuistCache-" + scope[:12] }
+
+// ErrUnreleased poisons an ASIF branch whose disk the hypervisor never let go of.
+var ErrUnreleased = fmt.Errorf("%w: disk not released by the hypervisor", ErrPoisoned)
 
 func (b *APFSImages) Init() error {
 	for _, dir := range []string{"images", "masters"} {
@@ -57,6 +86,10 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	ctx = WithSubject(ctx, SubjectOf(slot))
 	if err = ctx.Err(); err != nil {
 		return err
+	}
+	disk := slot.Format == FormatASIF
+	if disk && (b.Disks == nil || b.CreateDisk == nil || b.VerifyDisk == nil) {
+		return errors.New("this host attaches no USB disks")
 	}
 	image := b.image(slot)
 	_, statErr := os.Lstat(image)
@@ -106,9 +139,13 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			if err != nil {
 				return err
 			}
-			if !cold && b.Grow != nil && slot.VolumeBytes > 0 {
+			grow := b.Grow
+			if disk {
+				grow = b.GrowDisk
+			}
+			if !cold && grow != nil && slot.VolumeBytes > 0 {
 				// A copy that cannot grow stays warm at its saved size.
-				_ = b.operation(slot, "grow", "image", func() error { return b.Grow(ctx, tmp, slot.VolumeBytes) })
+				_ = b.operation(slot, "grow", "image", func() error { return grow(ctx, tmp, slot.VolumeBytes) })
 			}
 		}
 		if cold && slot.Kind == KindCheckout {
@@ -121,7 +158,12 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 				return err
 			}
 		} else if cold {
-			if err = b.operation(slot, "format", "empty", func() error { return b.Create(ctx, tmp, b.volumeBytes(slot)) }); err != nil {
+			if err = b.operation(slot, "format", "empty", func() error {
+				if disk {
+					return b.CreateDisk(ctx, slot, tmp, b.volumeBytes(slot))
+				}
+				return b.Create(ctx, tmp, b.volumeBytes(slot))
+			}); err != nil {
 				return err
 			}
 		}
@@ -139,6 +181,10 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	}
 	if err = ctx.Err(); err != nil {
 		return err
+	}
+	if disk {
+		// The image keeps its private name: the hypervisor opens it, not the guest.
+		return b.Disks.Attach(ctx, slot, image)
 	}
 	return b.expose(slot, path)
 }
@@ -332,8 +378,12 @@ const incompleteSlackBytes = 32 << 20
 
 // verifyHolds verifies a detached branch image and checks that it holds what
 // the guest measured.
-func (b *APFSImages) verifyHolds(image string, usage GuestUsage) error {
-	held, err := b.Verify(image)
+func (b *APFSImages) verifyHolds(slot Slot, image string, usage GuestUsage) error {
+	verify := b.Verify
+	if slot.Format == FormatASIF {
+		verify = b.VerifyDisk
+	}
+	held, err := verify(image)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrPoisoned, err)
 	}
@@ -392,7 +442,11 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	if b.Cold(slot) && !slot.PublishCold {
 		return ErrWithheld
 	}
-	if err := b.claim(slot, path); err != nil {
+	if slot.Format == FormatASIF {
+		if b.Disks == nil || b.VerifyDisk == nil || !b.Disks.Released(slot) {
+			return ErrUnreleased
+		}
+	} else if err := b.claim(slot, path); err != nil {
 		return err
 	}
 	usage, err := APFSUsage(path, slot.ID, b.maxVolumeBytes())
@@ -403,7 +457,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 		return ErrFull
 	}
 	if !usage.Changed {
-		b.keepUnchanged(slot, func() error { return b.verifyHolds(image, usage) })
+		b.keepUnchanged(slot, func() error { return b.verifyHolds(slot, image, usage) })
 		return ErrUnchanged
 	}
 	if _, err := os.Stat(image + ".checking"); err == nil {
@@ -421,7 +475,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 		if err = syncFile(filepath.Dir(image)); err != nil {
 			return err
 		}
-		if err := b.verifyHolds(image, usage); err != nil {
+		if err := b.verifyHolds(slot, image, usage); err != nil {
 			return err
 		}
 		metrics, _ := json.Marshal([2]int64{usage.Used, usage.Capacity})

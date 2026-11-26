@@ -5,131 +5,106 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
-// fakeTart answers attach requests the way Tart does, publishing
-// `<id>.attached`, and stands in for the job by writing its ID into the clone
-// it attached. With release it also answers detach requests with
-// `<id>.detached`.
-func fakeTart(t *testing.T, ctx context.Context, dir string, release bool) {
-	t.Helper()
+// fakeTart answers requests the way Tart does: it removes each request it
+// reads and publishes `<id>.attached`, or `<id>.detached` when release is set.
+// It counts the detach requests it read.
+func fakeTart(ctx context.Context, dir string, release bool, detaches *atomic.Int32) {
 	go func() {
 		for ctx.Err() == nil {
 			entries, _ := os.ReadDir(dir)
 			for _, entry := range entries {
 				if id, ok := strings.CutSuffix(entry.Name(), ".attach"); ok {
-					data, _ := os.ReadFile(filepath.Join(dir, entry.Name()))
-					image := between(string(data), `"image":"`, `"`)
-					if _, err := os.Stat(image); err != nil {
-						t.Errorf("attach of a clone that does not exist: %s", image)
-					}
-					_ = os.WriteFile(image, []byte("written by "+id), 0600)
 					_ = os.Remove(filepath.Join(dir, entry.Name()))
 					_ = os.WriteFile(filepath.Join(dir, id+".attached"), []byte("{}"), 0600)
 				}
-				if id, ok := strings.CutSuffix(entry.Name(), ".detach"); ok && release {
+				if id, ok := strings.CutSuffix(entry.Name(), ".detach"); ok {
 					_ = os.Remove(filepath.Join(dir, entry.Name()))
-					_ = os.WriteFile(filepath.Join(dir, id+".detached"), []byte("{}"), 0600)
+					detaches.Add(1)
+					if release {
+						_ = os.WriteFile(filepath.Join(dir, id+".detached"), []byte("{}"), 0600)
+					}
 				}
 			}
+			time.Sleep(5 * time.Millisecond)
 		}
 	}()
 }
 
-func between(s, start, end string) string {
-	_, after, _ := strings.Cut(s, start)
-	value, _, _ := strings.Cut(after, end)
-	return value
+func TestUSBDisksReleaseOnlyAfterTheGuestsCleanDetach(t *testing.T) {
+	for _, release := range []bool{true, false} {
+		t.Run(map[bool]string{true: "tart releases", false: "tart never releases"}[release], func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			shares := t.TempDir()
+			disks := &USBDisks{Root: t.TempDir(), Shares: shares}
+			slot := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "use-1", Scope: strings.Repeat("a", 64)}, PodUID: "pod-1"}
+			share := filepath.Join(shares, "pods", slot.PodUID, slot.Scope)
+			if err := os.MkdirAll(share, 0755); err != nil {
+				t.Fatal(err)
+			}
+			dir := filepath.Join(disks.Root, "requests", slot.PodUID)
+			_ = os.MkdirAll(dir, 0700)
+			var detaches atomic.Int32
+			fakeTart(ctx, dir, release, &detaches)
+
+			attachCtx, stop := context.WithTimeout(ctx, 5*time.Second)
+			defer stop()
+			if err := disks.Attach(attachCtx, slot, "/private/volume.img"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(filepath.Join(share, ".block")); err != nil {
+				t.Fatal("the guest is not told its volume is a disk")
+			}
+			// Without the guest's clean detach the disk stays attached.
+			for range 5 {
+				disks.Settle()
+				time.Sleep(10 * time.Millisecond)
+			}
+			if detaches.Load() != 0 || disks.Released(slot) {
+				t.Fatal("detached before the guest detached cleanly")
+			}
+			// A marker naming another use does not count either.
+			_ = os.WriteFile(filepath.Join(share, ".detached"), []byte("use-2"), 0644)
+			disks.Settle()
+			time.Sleep(50 * time.Millisecond)
+			if detaches.Load() != 0 {
+				t.Fatal("detached on another use's marker")
+			}
+			_ = os.WriteFile(filepath.Join(share, ".detached"), []byte(slot.ID), 0644)
+			for range 40 {
+				disks.Settle()
+				time.Sleep(10 * time.Millisecond)
+			}
+			if detaches.Load() != 1 {
+				t.Fatalf("asked Tart to detach %d times, want once", detaches.Load())
+			}
+			released, _ := os.ReadFile(filepath.Join(share, ".released"))
+			if disks.Released(slot) != release || (string(released) == slot.ID) != release {
+				t.Fatalf("released = %v, guest told %q, want %v", disks.Released(slot), released, release)
+			}
+		})
+	}
 }
 
-func TestBlockVolumeKeepsOnlyACleanReleasedCloneOfTheCurrentVolume(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	root, share := t.TempDir(), t.TempDir()
-	block := &BlockVolumes{Root: root, Run: func(_ context.Context, name string, args ...string) error {
-		if name == "cp" {
-			data, err := os.ReadFile(args[len(args)-2])
-			if err != nil {
-				return err
-			}
-			return os.WriteFile(args[len(args)-1], data, 0600)
-		}
-		return os.WriteFile(args[len(args)-1], []byte("empty"), 0600)
-	}}
-	scope := strings.Repeat("a", 64)
-	pod := func(uid string) *corev1.Pod {
-		return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "runner-" + uid, UID: types.UID(uid)}}
+func TestUSBDisksCleanKeepsRequestsOfPodsHoldingVolumes(t *testing.T) {
+	disks := &USBDisks{Root: t.TempDir()}
+	for _, uid := range []string{"held", "running", "done"} {
+		_ = os.MkdirAll(filepath.Join(disks.Root, "requests", uid), 0700)
 	}
-	attach := func(uid, id string, release, warm bool) {
-		t.Helper()
-		requests, _ := block.RequestDir(pod(uid))
-		fakeTart(t, ctx, requests, release)
-		response, err := block.Acquire(ctx, pod(uid), filepath.Join(share, uid), cachevolumes.Identity{ID: id, Scope: scope})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if response["volume"] == "" {
-			t.Fatal("no volume name for the guest")
-		}
-		if response["warm"] != warm {
-			t.Errorf("%s warm = %v, want %v", id, response["warm"], warm)
-		}
-	}
-	// The guest's clean detach, then the second it waits for Tart's release.
-	detachCleanly := func(uid, id string) {
-		t.Helper()
-		_ = os.WriteFile(filepath.Join(share, uid, scope, ".detached"), []byte(id), 0644)
-		for range 50 {
-			block.Settle()
-			if released, _ := os.ReadFile(filepath.Join(share, uid, scope, ".released")); string(released) == id {
-				return
-			}
-			time.Sleep(20 * time.Millisecond)
-		}
-	}
-	var ended []string
-	end := func(_ context.Context, id string) { ended = append(ended, id) }
-	gone := func(string, string) (bool, error) { return true, nil }
-
-	// Two jobs clone the same volume: both detach cleanly, but only the first
-	// to end replaces it; the second was cloned from a volume that has since
-	// moved on.
-	attach("pod-1", "use-1", true, false)
-	attach("pod-2", "use-2", true, false)
-	detachCleanly("pod-1", "use-1")
-	detachCleanly("pod-2", "use-2")
-	block.Reconcile(ctx, func(name, _ string) (bool, error) { return name == "runner-pod-1", nil }, end)
-	block.Reconcile(ctx, gone, end)
-	// A third job never detaches cleanly, as when it failed or was cancelled.
-	attach("pod-3", "use-3", true, true)
-	block.Reconcile(ctx, gone, end)
-	// A fourth detaches cleanly, but its VM stops before Tart lets go of the
-	// disk, so its clone may be missing writes.
-	attach("pod-4", "use-4", false, true)
-	detachCleanly("pod-4", "use-4")
-	block.Reconcile(ctx, gone, end)
-
-	manifest, err := readBlockManifest(block.volumeDir(scope))
-	if err != nil {
+	slots := []cachevolumes.Slot{{PodUID: "held", State: "active"}, {PodUID: "done", State: "sealed"}}
+	if err := disks.Clean(slots, func(uid string) (bool, error) { return uid != "running", nil }); err != nil {
 		t.Fatal(err)
 	}
-	volume, _ := os.ReadFile(volumeImage(block.volumeDir(scope)))
-	if manifest.Generation != 1 || string(volume) != "written by use-1" {
-		t.Fatalf("volume = %q at generation %d, want use-1's writes at generation 1", volume, manifest.Generation)
-	}
-	for _, id := range []string{"use-2", "use-3", "use-4"} {
-		if _, err := os.Stat(filepath.Join(block.volumeDir(scope), "jobs", id+".asif")); !os.IsNotExist(err) {
-			t.Errorf("%s's clone was left behind: %v", id, err)
+	for uid, kept := range map[string]bool{"held": true, "running": true, "done": false} {
+		if _, err := os.Stat(filepath.Join(disks.Root, "requests", uid)); (err == nil) != kept {
+			t.Errorf("%s kept = %v, want %v", uid, err == nil, kept)
 		}
-	}
-	if strings.Join(ended, ",") != "use-1,use-2,use-3,use-4" {
-		t.Errorf("ended uses = %v", ended)
 	}
 }

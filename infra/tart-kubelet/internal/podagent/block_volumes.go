@@ -6,91 +6,139 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// BlockVolumes serves custom cache volumes as USB disks that Tart hot-plugs
-// into the running VM (`tart run --usb-disk-requests`, infra/tart-build), in
-// place of sparse images in the guest's virtio-fs share: a macOS 27 guest's
-// disk image driver loses writes to an image whose file is on the share.
+// USBDisks hot-plugs custom cache volumes kept as ASIF images
+// (cachevolumes.FormatASIF) into running VMs as USB disks, through Tart's
+// `run --usb-disk-requests` (infra/tart-build). macOS 27 guests lose writes to
+// a disk image whose file is on their virtio-fs share, so these volumes never
+// go through it. Everything else, admission, eviction, publication and
+// restores on other hosts, is the shared custom-volume Store's.
 //
-// A volume is one ASIF image on this host. Each job gets an APFS clone of it
-// (`cp -c`, copy-on-write, no data copied), attached read-write on its own, and
-// the clone replaces the volume once the guest detached it cleanly, Tart let go
-// of it and no other job's clone replaced the volume first. DiskImageKit stacks
-// (read-only layers under a job overlay) were tried and dropped: on macOS 27.2 a
-// VM did not read a stack's middle layers. Nothing is uploaded yet, so a volume
-// is warm only on the host whose jobs wrote it, and each use is ended on the
-// server as a cold one.
-type BlockVolumes struct {
+// All state is in host-only files under Root, so a restart neither loses a
+// release nor trusts the guest: requests/<pod UID>/<use>.use names the use's
+// share directory, Tart answers <use>.attached and, after the detach this
+// asks for once the guest's clean detach marker names the use, <use>.detached.
+type USBDisks struct {
 	// Root is host-only: guests never see it.
 	Root string
-	// Run runs a host tool; nil runs it directly.
-	Run  func(ctx context.Context, name string, args ...string) error
-	mu   sync.Mutex
-	uses map[string]*blockUse
+	// Shares is the custom volumes' root, whose pods/<pod UID>/<scope> the
+	// guest writes its markers into.
+	Shares string
 }
 
-type blockManifest struct {
-	Volume string `json:"volume"`
-	// Generation counts the jobs whose writes the volume image holds; 0 is the
-	// empty volume.
-	Generation int `json:"generation"`
-}
-
-type blockUse struct {
-	ID, PodName, PodUID, Scope, Clone, Share string
-	// Generation is the volume's the clone was made from; the clone replaces
-	// the volume only while it is still that generation.
-	Generation int
-	Clean      bool
-	// Released is Tart's word that it detached the disk and let go of the
-	// clone. Tart exits as soon as its VM stops, so a clone still attached then
-	// can be missing writes: only a released one is kept.
-	Released bool
-}
-
-func (b *BlockVolumes) run(ctx context.Context, name string, args ...string) error {
-	if b.Run != nil {
-		return b.Run(ctx, name, args...)
-	}
-	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s: %w (%s)", name, err, strings.TrimSpace(string(out)))
-	}
-	return nil
+type usbDiskUse struct {
+	Scope string `json:"scope"`
 }
 
 // RequestDir is the directory Tart reads the pod's USB disk requests from.
-func (b *BlockVolumes) RequestDir(pod *corev1.Pod) (string, error) {
-	dir := filepath.Join(b.Root, "requests", string(pod.UID))
+func (d *USBDisks) RequestDir(pod *corev1.Pod) (string, error) {
+	dir := filepath.Join(d.Root, "requests", string(pod.UID))
 	return dir, os.MkdirAll(dir, 0700)
 }
 
-func (b *BlockVolumes) volumeDir(scope string) string {
-	return filepath.Join(b.Root, "volumes", scope)
+func (d *USBDisks) share(uid, scope string) string {
+	return filepath.Join(d.Shares, "pods", uid, scope)
 }
 
-func volumeImage(dir string) string {
-	return filepath.Join(dir, "volume.asif")
-}
-
-func readBlockManifest(dir string) (blockManifest, error) {
-	var manifest blockManifest
-	data, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
-	if err != nil {
-		return manifest, err
+// Attach asks Tart to hot-plug image into the slot's VM and waits for its
+// answer. A retried attach of the same use returns at once.
+func (d *USBDisks) Attach(ctx context.Context, slot cachevolumes.Slot, image string) error {
+	dir := filepath.Join(d.Root, "requests", slot.PodUID)
+	if _, err := os.Stat(filepath.Join(dir, slot.ID+".attached")); err == nil {
+		return nil
 	}
-	return manifest, json.Unmarshal(data, &manifest)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	share := d.share(slot.PodUID, slot.Scope)
+	// Tells the guest's detach there is no image in the share to flush.
+	if err := os.WriteFile(filepath.Join(share, ".block"), nil, 0644); err != nil {
+		return err
+	}
+	_ = os.Remove(filepath.Join(share, ".released"))
+	if err := writeJSONAtomically(filepath.Join(dir, slot.ID+".use"), usbDiskUse{Scope: slot.Scope}); err != nil {
+		return err
+	}
+	_ = os.Remove(filepath.Join(dir, slot.ID+".error"))
+	if err := writeJSONAtomically(filepath.Join(dir, slot.ID+".attach"), map[string]any{"image": image}); err != nil {
+		return err
+	}
+	return waitForTartReply(ctx, dir, slot.ID, "attached")
+}
+
+// Released reports whether Tart detached the slot's disk at the host's request.
+func (d *USBDisks) Released(slot cachevolumes.Slot) bool {
+	_, err := os.Stat(filepath.Join(d.Root, "requests", slot.PodUID, slot.ID+".detached"))
+	return err == nil
+}
+
+// Settle asks Tart to detach each disk whose guest wrote its clean detach
+// marker, and tells the guest (`.released` beside its marker) once Tart has,
+// so the guest keeps its VM running until then. It runs every second.
+func (d *USBDisks) Settle() {
+	uses, _ := filepath.Glob(filepath.Join(d.Root, "requests", "*", "*.use"))
+	for _, path := range uses {
+		dir, id := filepath.Dir(path), strings.TrimSuffix(filepath.Base(path), ".use")
+		var use usbDiskUse
+		if data, err := os.ReadFile(path); err != nil || json.Unmarshal(data, &use) != nil || use.Scope == "" {
+			continue
+		}
+		share := d.share(filepath.Base(dir), use.Scope)
+		if _, err := os.Stat(filepath.Join(dir, id+".attached")); err != nil {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, id+".detached")); err == nil {
+			_ = os.WriteFile(filepath.Join(share, ".released"), []byte(id), 0644)
+			continue
+		}
+		// Tart removes a request once it reads it, so the host keeps its own
+		// record that it asked, and asks once.
+		if _, err := os.Stat(filepath.Join(dir, id+".detach-requested")); err == nil {
+			continue
+		}
+		if cachevolumes.APFSMarker(share, ".detached", id) {
+			if os.WriteFile(filepath.Join(dir, id+".detach-requested"), nil, 0600) == nil {
+				_ = writeJSONAtomically(filepath.Join(dir, id+".detach"), map[string]any{})
+			}
+		}
+	}
+}
+
+// Clean removes the request directories of pods that hold no allocated or
+// active volume and are gone, as Store.CleanPods does for their shares.
+func (d *USBDisks) Clean(slots []cachevolumes.Slot, gone func(string) (bool, error)) error {
+	held := map[string]bool{}
+	for _, slot := range slots {
+		if slot.State == "active" || slot.State == "allocated" {
+			held[slot.PodUID] = true
+		}
+	}
+	dirs, err := os.ReadDir(filepath.Join(d.Root, "requests"))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var failures []error
+	for _, dir := range dirs {
+		if held[dir.Name()] {
+			continue
+		}
+		if done, err := gone(dir.Name()); err != nil {
+			failures = append(failures, err)
+		} else if done {
+			failures = append(failures, os.RemoveAll(filepath.Join(d.Root, "requests", dir.Name())))
+		}
+	}
+	return errors.Join(failures...)
 }
 
 func writeJSONAtomically(path string, value any) error {
@@ -103,81 +151,6 @@ func writeJSONAtomically(path string, value any) error {
 		return err
 	}
 	return os.Rename(temporary, path)
-}
-
-// Acquire hot-plugs the volume into the pod's VM and returns the guest's
-// response: the volume name the guest mounts, and whether earlier jobs left
-// content in it.
-func (b *BlockVolumes) Acquire(ctx context.Context, pod *corev1.Pod, share string, identity cachevolumes.Identity) (map[string]any, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.uses == nil {
-		b.uses = map[string]*blockUse{}
-	}
-	if len(identity.Scope) != 64 || strings.ContainsAny(identity.Scope, "./") || identity.ID == "" || strings.ContainsAny(identity.ID, "./") {
-		return nil, errors.New("invalid volume identity")
-	}
-	dir := b.volumeDir(identity.Scope)
-	manifest, err := readBlockManifest(dir)
-	if _, statErr := os.Stat(volumeImage(dir)); os.IsNotExist(err) || os.IsNotExist(statErr) {
-		manifest, err = b.create(ctx, dir, identity)
-	}
-	if err != nil {
-		return nil, err
-	}
-	requests, err := b.RequestDir(pod)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.MkdirAll(filepath.Join(dir, "jobs"), 0700); err != nil {
-		return nil, err
-	}
-	clone := filepath.Join(dir, "jobs", identity.ID+".asif")
-	_ = os.Remove(clone)
-	if err := b.run(ctx, "cp", "-c", volumeImage(dir), clone); err != nil {
-		return nil, err
-	}
-	if err := writeJSONAtomically(filepath.Join(requests, identity.ID+".attach"), map[string]any{"image": clone}); err != nil {
-		_ = os.Remove(clone)
-		return nil, err
-	}
-	if err := waitForTartReply(ctx, requests, identity.ID, "attached"); err != nil {
-		_ = os.Remove(clone)
-		return nil, err
-	}
-	// The guest records its clean detach beside the volume, as for share volumes.
-	markers := filepath.Join(share, identity.Scope)
-	if err := os.MkdirAll(markers, 0777); err != nil {
-		return nil, err
-	}
-	_ = os.Chmod(markers, 0777)
-	_ = os.Remove(filepath.Join(markers, ".detached"))
-	_ = os.Remove(filepath.Join(markers, ".released"))
-	// Tells the guest's detach there is no image in the share to flush.
-	if err := os.WriteFile(filepath.Join(markers, ".block"), nil, 0644); err != nil {
-		return nil, err
-	}
-	b.uses[identity.ID] = &blockUse{ID: identity.ID, PodName: pod.Name, PodUID: string(pod.UID), Scope: identity.Scope, Clone: clone, Share: markers, Generation: manifest.Generation}
-	return map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": manifest.Generation > 0, "volume": manifest.Volume}, nil
-}
-
-// create makes the empty volume: an APFS volume in an ASIF image of the
-// capacity the server chose. The host formats it and never mounts it again.
-func (b *BlockVolumes) create(ctx context.Context, dir string, identity cachevolumes.Identity) (blockManifest, error) {
-	capacity := identity.VolumeBytes
-	if capacity <= 0 {
-		capacity = 20_000_000_000
-	}
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return blockManifest{}, err
-	}
-	manifest := blockManifest{Volume: "TuistCache-" + identity.Scope[:12]}
-	_ = os.Remove(volumeImage(dir))
-	size := fmt.Sprintf("%dG", (capacity+999_999_999)/1_000_000_000)
-	if err := b.run(ctx, "diskutil", "image", "create", "blank", "--fs", "APFS", "--format", "ASIF", "--size", size, "--volumeName", manifest.Volume, volumeImage(dir)); err != nil {
-		return blockManifest{}, err
-	}
-	return manifest, writeJSONAtomically(filepath.Join(dir, "manifest.json"), manifest)
 }
 
 // waitForTartReply waits for Tart's answer to request id.
@@ -195,81 +168,4 @@ func waitForTartReply(ctx context.Context, dir, id, reply string) error {
 		case <-time.After(200 * time.Millisecond):
 		}
 	}
-}
-
-// Settle asks Tart to detach each disk the guest has cleanly detached, and
-// tells the guest (`.released` beside its marker) once Tart has, so the guest
-// keeps its VM running until then. It runs every second beside the mailboxes
-// and skips a round while an attach holds the lock.
-func (b *BlockVolumes) Settle() {
-	if !b.mu.TryLock() {
-		return
-	}
-	defer b.mu.Unlock()
-	b.settle()
-}
-
-func (b *BlockVolumes) settle() {
-	for id, use := range b.uses {
-		requests := filepath.Join(b.Root, "requests", use.PodUID)
-		if !use.Clean {
-			if marker, err := os.ReadFile(filepath.Join(use.Share, ".detached")); err == nil && string(marker) == id {
-				use.Clean = true
-				_ = writeJSONAtomically(filepath.Join(requests, id+".detach"), map[string]any{})
-			}
-		}
-		if use.Clean && !use.Released {
-			if _, err := os.Stat(filepath.Join(requests, id+".detached")); err == nil {
-				use.Released = true
-				_ = os.WriteFile(filepath.Join(use.Share, ".released"), []byte(id), 0644)
-			}
-		}
-	}
-}
-
-// Reconcile settles every use, and once a pod's VM is gone makes its clone the
-// volume, or deletes it when the guest did not detach it cleanly, Tart did not
-// release it, or another job's clone replaced the volume first.
-func (b *BlockVolumes) Reconcile(ctx context.Context, gone func(name, uid string) (bool, error), end func(context.Context, string)) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	logger := log.FromContext(ctx).WithName("block-cache-volumes")
-	b.settle()
-	for id, use := range b.uses {
-		requests := filepath.Join(b.Root, "requests", use.PodUID)
-		done, err := gone(use.PodName, use.PodUID)
-		if err != nil || !done {
-			continue
-		}
-		kept := b.keep(use)
-		logger.Info("block cache volume use ended", "use", id, "scope", use.Scope, "clean", use.Clean, "released", use.Released, "kept", kept)
-		end(ctx, id)
-		delete(b.uses, id)
-		if !slices.ContainsFunc(valuesOf(b.uses), func(other *blockUse) bool { return other.PodUID == use.PodUID }) {
-			_ = os.RemoveAll(requests)
-		}
-	}
-}
-
-func (b *BlockVolumes) keep(use *blockUse) bool {
-	dir := b.volumeDir(use.Scope)
-	manifest, err := readBlockManifest(dir)
-	if err != nil || !use.Clean || !use.Released || manifest.Generation != use.Generation {
-		_ = os.Remove(use.Clone)
-		return false
-	}
-	if err := os.Rename(use.Clone, volumeImage(dir)); err != nil {
-		_ = os.Remove(use.Clone)
-		return false
-	}
-	manifest.Generation++
-	return writeJSONAtomically(filepath.Join(dir, "manifest.json"), manifest) == nil
-}
-
-func valuesOf(uses map[string]*blockUse) []*blockUse {
-	values := make([]*blockUse, 0, len(uses))
-	for _, use := range uses {
-		values = append(values, use)
-	}
-	return values
 }
