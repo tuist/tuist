@@ -30,7 +30,7 @@ func TestMacRealAttachAndCleanDetach(t *testing.T) {
 	respondMac(t, share, data)
 	mount := filepath.Join(mountRoot, response.Directory)
 	t.Cleanup(func() { _ = command("detach", mount, "-quiet") })
-	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mountRoot, realAttach); err != nil {
+	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mountRoot, realAttach, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(mount, "dependency"), []byte("retained"), 0644); err != nil {
@@ -69,7 +69,7 @@ func TestMacRealDetachEndsAProcessRunningFromTheVolume(t *testing.T) {
 	respondMac(t, share, data)
 	mount := filepath.Join(mountRoot, response.Directory)
 	t.Cleanup(func() { _ = command("detach", mount, "-force", "-quiet") })
-	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mountRoot, realAttach); err != nil {
+	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mountRoot, realAttach, nil); err != nil {
 		t.Fatal(err)
 	}
 	source := t.TempDir()
@@ -142,7 +142,7 @@ func TestMacRealAttachGrowsTheContainerToTheEnlargedImage(t *testing.T) {
 	respondMac(t, share, data)
 	mount := filepath.Join(mountRoot, response.Directory)
 	t.Cleanup(func() { _ = command("detach", mount, "-force", "-quiet") })
-	if _, _, _, err := acquireMacAt(context.Background(), "key", 300_000_000, share, mountRoot, realAttach); err != nil {
+	if _, _, _, err := acquireMacAt(context.Background(), "key", 300_000_000, share, mountRoot, realAttach, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, capacity, err := measureMac(mount); err != nil || capacity < 250_000_000 {

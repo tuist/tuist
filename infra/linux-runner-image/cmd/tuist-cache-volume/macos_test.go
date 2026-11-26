@@ -46,7 +46,7 @@ func TestMacAttachAndDetach(t *testing.T) {
 		}
 		return nil
 	}
-	dir, id, warm, err := acquireMacAt(context.Background(), "key", 0, share, mount, attachImage)
+	dir, id, warm, err := acquireMacAt(context.Background(), "key", 0, share, mount, attachImage, nil)
 	if err != nil || dir != response.Directory || id != "lease" || !warm {
 		t.Fatal(dir, id, warm, err)
 	}
@@ -84,7 +84,7 @@ func TestMacRequestCarriesTheRequestedSizeOnlyWhenGiven(t *testing.T) {
 				time.Sleep(time.Millisecond)
 			}
 		}()
-		if _, _, _, err := acquireMacAt(context.Background(), "key", size, share, mount, func(string, string) error { return nil }); err == nil {
+		if _, _, _, err := acquireMacAt(context.Background(), "key", size, share, mount, func(string, string) error { return nil }, nil); err == nil {
 			t.Fatal("unavailable volume attached")
 		}
 		<-done
@@ -192,7 +192,7 @@ func TestMacCancelledAcquisitionNeverMountsLateResponse(t *testing.T) {
 	_, _, _, err := acquireMacAt(ctx, "key", 0, share, mount, func(string, string) error {
 		t.Fatal("mounted after cancellation")
 		return nil
-	})
+	}, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestMacRetryIgnoresStaleResponseAndCleansMailbox(t *testing.T) {
 	respondMac(t, share, data)
 	for range 2 {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		_, _, warm, err := acquireMacAt(ctx, "key", 0, share, mount, func(string, string) error { return nil })
+		_, _, warm, err := acquireMacAt(ctx, "key", 0, share, mount, func(string, string) error { return nil }, nil)
 		cancel()
 		if err != nil || !warm {
 			t.Fatal(warm, err)
@@ -455,7 +455,7 @@ func TestMacUnavailableExplainsTheHostReason(t *testing.T) {
 		_, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, func(string, string) error {
 			t.Fatal("mounted an unavailable volume")
 			return nil
-		})
+		}, nil)
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatal(reason, err)
 		}
