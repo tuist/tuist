@@ -26,14 +26,8 @@ var sandboxAllocationMu sync.Mutex
 // Sandboxes and queued CI compete for uncommitted capacity. Host reservations
 // still protect a waiting CI shape; a queue elsewhere does not revoke all grants.
 func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, pool *tuistv1.RunnerPool, fleet *fleetAllocation) error {
-	if (pool.Spec.OS != "linux" && pool.Spec.OS != "darwin") || r.SandboxesNamespace == "" || fleet == nil {
+	if !r.reportsSandboxAllocations(pool, fleet) {
 		return nil
-	}
-	// One reporter per fleet; all members still compute the same CI decision.
-	for name := range fleet.members {
-		if name < pool.Name {
-			return nil
-		}
 	}
 	sandboxAllocationMu.Lock()
 	defer sandboxAllocationMu.Unlock()
@@ -80,6 +74,21 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 		}
 	}
 	return nil
+}
+
+// reportsSandboxAllocations is whether this pool publishes its fleet's
+// sandbox grants: one reporter per fleet, the alphabetically first member,
+// while all members still compute the same CI decision.
+func (r *AutoscalerReconciler) reportsSandboxAllocations(pool *tuistv1.RunnerPool, fleet *fleetAllocation) bool {
+	if (pool.Spec.OS != "linux" && pool.Spec.OS != "darwin") || r.SandboxesNamespace == "" || fleet == nil {
+		return false
+	}
+	for name := range fleet.members {
+		if name < pool.Name {
+			return false
+		}
+	}
+	return true
 }
 
 func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev1.Pod, fleet *fleetAllocation) scaling.SandboxAllocation {

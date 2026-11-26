@@ -7,10 +7,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/priorityqueue"
 	"testing"
 	"time"
 )
@@ -108,6 +110,29 @@ func TestMacosGrantConflictRecomputesFromTheFreshNodeAndKeepsPublishing(t *testi
 		if grant.Allow != want {
 			t.Fatalf("%s allow = %v, want %v", name, grant.Allow, want)
 		}
+	}
+}
+
+// The fleet's grants are renewed only when its reporter reconciles. On
+// 2026-11-24 and 11-25 the autoscaler kept 25 to 41 pools queued for an hour
+// at a time, the reporter waited its turn behind them, and every macOS host's
+// grant went stale together. Its requeue must come out of the queue first,
+// and a pool that stops reporting must not keep that place.
+func TestTheGrantReporterLeavesTheQueueAheadOfItsQueuedSiblings(t *testing.T) {
+	r, _ := sandboxFixture(t, macosFleetPool("macos-a", "rack", 1, 1, 9), macosFleetPool("macos-b", "rack", 1, 1, 9), macosNode("mac-1", "rack"))
+	reporter := reconcileOnce(t, r, "macos-a")
+	sibling := reconcileOnce(t, r, "macos-b")
+
+	queue := priorityqueue.New[string]("autoscaler")
+	defer queue.ShutDown()
+	// controller-runtime keeps the request's last priority when a result
+	// sets none; assume the sibling reported before the reporter existed.
+	for _, name := range []string{"macos-b", "macos-c", "macos-d", "macos-e"} {
+		queue.AddWithOpts(priorityqueue.AddOpts{Priority: new(ptr.Deref(sibling.Priority, sandboxReporterPriority))}, name)
+	}
+	queue.AddWithOpts(priorityqueue.AddOpts{Priority: reporter.Priority}, "macos-a")
+	if first, _, _ := queue.GetWithPriority(); first != "macos-a" {
+		t.Fatalf("first out of the queue = %s, want the reporter macos-a (priorities: reporter %v, sibling %v)", first, ptr.Deref(reporter.Priority, -1), ptr.Deref(sibling.Priority, -1))
 	}
 }
 

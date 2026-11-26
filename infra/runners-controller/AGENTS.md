@@ -56,8 +56,10 @@ cancellable and leaves the reserve intact. See
   and per-pool writes from deterministic plans, so it does not need the
   RunnerPool reconciler's single worker. Keep each pool's tick near
   5 seconds (average reconcile time times the pool count, divided by the
-  workers): one pool's tick renews the macOS sandbox grants, which expire
-  after 15 seconds.
+  workers). The fleet's first pool renews its sandbox grants, which expire
+  after 15 seconds, so its requeues carry `sandboxReporterPriority` and skip
+  the queue; every requeue sets its priority, because the queue keeps an
+  item's last one.
 
   The server also learns a floor per pool (`learned_warm_floor`,
   `Tuist.Runners.LearnedWarmFloors`): the burst its jobs arrive in, while
