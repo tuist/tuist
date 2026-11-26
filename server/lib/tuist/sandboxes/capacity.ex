@@ -1297,18 +1297,57 @@ defmodule Tuist.Sandboxes.Capacity do
   Grows a node's carve-out by a step when the bursts its sandboxes'
   latest reports show (`charge_bytes/1`) leave it less than a step of
   headroom, within the node's grant and ceiling, without waiting for it to
-  land. The node's daemon throttles bursts to the carve-out meanwhile, and
-  the shrink worker gives the memory back once the bursts end.
+  land. The node's daemon gives a bursting guest only memory the carve-out
+  holds (its balloon), and the shrink worker gives the memory back once
+  the bursts end.
+
+  When the grant or the ceiling refuses the growth, it makes the step of
+  room by pausing idle sandboxes instead (`relieve_bursts/3`). A sandbox
+  with an active turn or running commands is never paused: a burst that
+  still finds no room waits inside its guest, whose balloon the daemon
+  deflates only as far as the carve-out has room, rather than the host
+  OOM-killing a VM. A growth the kubelet defers pauses nothing: the
+  runners controller retires idle runners to make the room.
   """
   def grow_for_bursts(node_name) when is_binary(node_name) do
     with {:ok, _pid, info} <- Nodes.lookup(node_name),
          node = Map.put(info, :name, node_name),
          true <- elastic?(node),
          current = max(asked_limit(node) || 0, reported_limit(node) || 0),
-         true <- reserved_bytes(node_name) + @daemon_reserve_bytes + @carve_out_step_bytes > current do
-      grow(node, @carve_out_step_bytes, 0, :applied)
+         short = reserved_bytes(node_name) + @daemon_reserve_bytes + @carve_out_step_bytes - current,
+         true <- short > 0 do
+      case grow(node, @carve_out_step_bytes, 0, :applied) do
+        {:error, :no_capacity} -> relieve_bursts(node, short)
+        result -> result
+      end
     else
       _no_growth_needed -> :unchanged
+    end
+  end
+
+  # Pauses idle sandboxes on the node until `needed` bytes are free: first
+  # those bursting above their request, most above it first, since they
+  # hold the memory the bursts need and are billed for it; then the other
+  # idle ones, longest idle first. `reclaimable/1` and `Sandboxes.pause_idle/2`
+  # leave any sandbox with a residency or running commands alone.
+  defp relieve_bursts(node, needed) do
+    freed =
+      node.name
+      |> reclaimable()
+      |> Enum.sort_by(&(request_bytes(&1) - charge_bytes(&1)))
+      |> Enum.reduce_while(0, fn sandbox, freed ->
+        if freed >= needed, do: {:halt, freed}, else: {:cont, freed + reclaim_one(node, sandbox)}
+      end)
+
+    if freed >= needed do
+      {:relieved, freed}
+    else
+      Logger.info("sandboxes: bursts are short of memory and nothing idle is left to pause",
+        node: node.name,
+        memory_bytes: needed - freed
+      )
+
+      {:error, :no_capacity}
     end
   end
 

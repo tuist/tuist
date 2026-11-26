@@ -166,7 +166,14 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   the template's or the VM's own memory file. `Analytics.compute/2` sums those rows
   for bursting sessions and counts other sessions' vCPUs (macOS, and Linux
   runs from before metering, up to their first metered report).
-  `Concurrency` counts guarantees. The API's analytics report guaranteed
+  `Concurrency` counts guarantees.
+  Memory bursting (`memory_limit_mb`): placement charges a bursting sandbox
+  max(request, its last reported Pss, `metered_memory_bytes`), and a report
+  showing a burst calls `Capacity.grow_for_bursts/1`, which grows the
+  carve-out a step. When the grant or ceiling refuses, it pauses idle
+  sandboxes, those most above their request first; never one with a
+  residency or running commands. A burst with no room left waits in its
+  guest, whose balloon sandboxd deflates only into the carve-out's headroom. The API's analytics report guaranteed
   vCPUs rounded up, since released CLIs decode them as integers.
 - `Tuist.Sandboxes.Nodes`: cluster-wide view of the connected nodes
   (`connected_nodes/0`) read from
