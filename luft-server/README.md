@@ -1,6 +1,6 @@
 # Luft server
 
-Headless server at `https://luft.work` for Luft's native clients. It brokers Tuist OpenID Connect sign-in, issues Luft credentials and owns threads, lounges, DMs, runners, execution journals and conversation realtime in its own PostgreSQL database. Tuist owns accounts, organizations, provider credentials and sandbox infrastructure, exposed through scoped capabilities. This server serves no HTML shell, Vite proxy or static frontend assets. The standalone sources in `../luft/web/` remain available for future work, outside this release and deployment.
+Headless server at `https://luft.work` for Luft's native clients. It brokers Tuist OpenID Connect sign-in, issues Luft credentials and owns threads, lounges, DMs, runners, execution journals and conversation realtime in its own PostgreSQL database. Tuist owns accounts, organizations, provider credentials and sandbox infrastructure, exposed through scoped capabilities. `/` is a server-rendered homepage (`lib/luft_server_web/pages/home.html`, scripts disallowed), and the GPUI web edge (`../luft/gpui-web/`) runs under `/app/`; every other path stays headless. The standalone sources in `../luft/web/` remain outside this release and deployment.
 
 ## The contract
 
@@ -92,7 +92,7 @@ mix phx.server
 
 ## Release image
 
-The image contains the Elixir release, database migrations and native card compiler/kit, with no web build or Docker `site` context. Unmatched paths return JSON 404s, including `/`, `/index.html` and `/assets/*`, even if a local web build exists. `.github/workflows/luft-server-deployment.yml` builds this image without Struo, Rust, Node or wasm-bindgen. Build from the repository root:
+The image contains the Elixir release, database migrations, the native card compiler/kit and the GPUI web edge. A `luft-web` stage compiles `luft-gpui-web` to wasm with Luft's pinned Rust and wasm-bindgen, without Struo or Node, and the release serves the output from `priv/static/app`: `/app` redirects to `/app/`, `/app/` and its client-side paths return the page, and only `main.js`, `luft_gpui_web.js` and `luft_gpui_web_bg.wasm` (gzip-compressed when accepted) are served as files, under a content security policy for that app alone. Unmatched paths return JSON 404s, including `/index.html`, `/assets/*` and other files under `/app/`. `.github/workflows/luft-server-deployment.yml` also redeploys when the Luft sources this build reads change. Build from the repository root:
 
 ```sh
 docker build -f luft-server/Dockerfile .

@@ -120,19 +120,35 @@ jobs:
         working-directory: .
         run: struo auth login --provider tuist --no-browser
 
+      # Authenticated builds run their actions on Tuist remote execution, so
+      # every push and same-repository pull request shows up as a run on the
+      # tuist/atlas Remote execution page. Forks build locally.
       - name: Build
         working-directory: .
-        run: struo build atlas/mix_application_test
+        run: |
+          if [ "$STRUO_CACHE_PROVIDER" = tuist ]; then
+            struo build --remote --compute tuist atlas/mix_application_test
+          else
+            struo build atlas/mix_application_test
+          fi
         env:
           STRUO_CACHE_PROVIDER: ${{ steps.struo-auth.outcome == 'success' && 'tuist' || 'local' }}
 
       # Struo persists the compiler's stderr as a build output, so this also
       # catches warnings replayed from a cached compilation. Lines from mise's
-      # tool shims land there too and are not compiler warnings.
+      # tool shims land there too and are not compiler warnings. Outputs sit
+      # under the build configuration's `cfg-<hash>` directory; a missing log
+      # fails rather than passing unchecked.
       - name: Fail on compiler warnings
         working-directory: .
         run: |
-          warnings=$(grep -v -E '^(mise |hint: .*mise)' .struo/out/atlas/mix_application_test/mix-project-warnings.log || true)
+          shopt -s nullglob
+          logs=(.struo/out/atlas/mix_application_test/cfg-*/mix-project-warnings.log)
+          if [ ${#logs[@]} -eq 0 ]; then
+            echo "::error::Struo produced no mix-project-warnings.log for atlas/mix_application_test"
+            exit 1
+          fi
+          warnings=$(cat "${logs[@]}" | grep -v -E '^(mise |hint: .*mise)' || true)
           if [ -n "$warnings" ]; then
             echo "$warnings"
             exit 1

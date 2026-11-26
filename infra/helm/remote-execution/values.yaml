@@ -38,6 +38,23 @@ workers:
   # reports the rest as the sandboxes' budget) and also leaves 20% of the data
   # filesystem free. 0 disables it.
   blobCacheGiB: 20
+  # Firecracker in its own container, so the daemon restarts without its VMs
+  # (infra/sandboxd/AGENTS.md, "Process model"). Turning it on, or changing
+  # vmm.tag, changes the Pod layout: each worker must be drained and replaced
+  # once (infra/sandbox-image/remote-execution.md).
+  vmm:
+    enabled: false
+    # The deploy upgrades the daemon container in place and the running VMs
+    # stay in vmm (.github/scripts/sandboxd-upgrade.sh). Needs vmm.tag.
+    inPlaceUpgrades: false
+    # vmm's own sandboxd image tag, pinned apart from workers.tag once
+    # upgrades are in place. Empty: workers.tag.
+    tag: ""
+    # The daemon container's own, fixed resources; the VMs' capacity is
+    # vmm's.
+    daemonResources:
+      requests: {cpu: 250m, memory: 512Mi}
+      limits: {memory: 2Gi}
   # These hosts must be excluded from every CI RunnerPool. The dedicated
   # NoSchedule taint and this label are provisioned with the host pool.
   nodeSelector:

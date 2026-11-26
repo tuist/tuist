@@ -9,7 +9,12 @@ defmodule Atlas.MCP.Tools.ListOutreachContacts do
       "type" => "object",
       "properties" => %{
         "query" => %{"type" => "string"},
-        "status" => %{"type" => "string", "enum" => Atlas.Accounts.Contact.outreach_statuses()},
+        # Frozen as gtm.outreach.contacts.list@1; get_outreach_results reports booked meetings.
+        "status" => %{
+          "type" => "string",
+          "enum" =>
+            ~w(not_contacted connection_requested connected conversation_started replied interested not_interested)
+        },
         "limit" => %{"type" => "integer", "minimum" => 1, "maximum" => 100}
       }
     },

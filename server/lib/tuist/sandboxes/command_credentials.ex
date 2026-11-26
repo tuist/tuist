@@ -22,10 +22,13 @@ defmodule Tuist.Sandboxes.CommandCredentials do
 
   A macOS repository snapshot's build (`Tuist.Sandboxes.ClaudeCodeSnapshots`)
   starts its command as `:snapshot_build` in its builder, which is no member
-  sandbox: while the build runs, the command gets read access to the
+  sandbox: while the build runs, the command gets the CI preset on the
   account's cache, so the script's `tuist generate` writes the same project
-  as a signed-in session's and Xcode reuses what the build compiled. The
-  build removes the session the CLI stored before its disks are saved.
+  as a signed-in session's and Xcode reuses what the build compiled, and the
+  compilation cache's publications reach the remote cache before the build
+  saves its disks: a Mac booted from the snapshot can only fetch an object
+  its store lacks from there. The build removes the session the CLI stored
+  before its disks are saved.
   """
 
   import Ecto.Query
@@ -79,7 +82,7 @@ defmodule Tuist.Sandboxes.CommandCredentials do
           )
         )
 
-  defp grant(:snapshot_build, _account), do: %{"all_projects" => true, "scopes" => @read_scopes}
+  defp grant(:snapshot_build, _account), do: %{"all_projects" => true, "scopes" => [AccountToken.ci_scope()]}
 
   defp grant(subject, %Account{} = account) do
     cond do

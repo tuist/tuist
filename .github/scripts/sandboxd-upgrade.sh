@@ -24,6 +24,13 @@ set -euo pipefail
 # still streams its disks or memory from the archive: such a sandbox cannot
 # pause, and a daemon stopped under it leaves it in error.
 #
+# Remote execution workers (SANDBOXD_UPGRADE_REPLACE_IDLE_SECONDS) also wait
+# before a replacement until the worker holds no VM, which happens about a
+# minute after its last action: a replaced worker fails the actions it runs,
+# and Bazel retries them. Past that wait it is replaced anyway. An in-place
+# upgrade does not wait: its VMs survive, but an action executing in one
+# fails as with a replacement (`exec` ends with the daemon's connection).
+#
 # Usage: sandboxd-upgrade.sh <namespace> <daemonset>
 namespace=$1
 daemonset=$2
@@ -32,6 +39,8 @@ annotation=sandboxes.tuist.dev/handover
 # How long the updater waits for restores to stop receiving their disks or
 # memory before it upgrades anyway (those sandboxes then pause and resume).
 lazy_wait_seconds=${SANDBOXD_UPGRADE_LAZY_WAIT_SECONDS:-600}
+# How long a replacement waits for the Pod to hold no sandbox; 0 does not.
+idle_wait_seconds=${SANDBOXD_UPGRADE_REPLACE_IDLE_SECONDS:-0}
 kubectl=${KUBECTL:-kubectl}
 sleep_step=${SANDBOXD_UPGRADE_SLEEP:-5}
 
@@ -82,6 +91,25 @@ wait_lazy() {
   done
 }
 
+# Three reads in a row without a sandbox, so one between two actions does
+# not count. A daemon that reports none (unreachable) counts as busy.
+wait_idle() {
+  local pod=$1 held quiet=0
+  [ "$idle_wait_seconds" -gt 0 ] || return 0
+  for _ in $(seq 1 $((idle_wait_seconds / sleep_step))); do
+    held=$(metrics "$pod" | awk '/^sandboxd_sandboxes\{/ {n += $2; seen = 1} END {if (seen) print n + 0}')
+    if [ "$held" = 0 ]; then
+      quiet=$((quiet + 1))
+      [ "$quiet" -ge 3 ] && { echo "$pod holds no sandboxes"; return 0; }
+    else
+      quiet=0
+      echo "$pod holds ${held:-unknown} sandboxes; waiting for it to drain"
+    fi
+    sleep "$sleep_step"
+  done
+  echo "::warning::$pod did not drain within ${idle_wait_seconds}s; replacing it anyway (its actions fail and are retried)"
+}
+
 wait_ready() {
   local pod=$1 old_id=$2
   for _ in $(seq 1 120); do
@@ -98,6 +126,7 @@ wait_ready() {
 replace() {
   local pod=$1 node=$2
   wait_lazy "$pod"
+  wait_idle "$pod"
   echo "Replacing $pod on $node (its sandboxes pause and resume)"
   k delete pod "$pod" --wait=true --timeout=180s
   new=""

@@ -3,6 +3,7 @@ defmodule AtlasWeb.SocialPerformanceLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Atlas.GTM.SocialAccount
   alias Atlas.GTM.SocialPost
   alias Atlas.MCP.Tools.ListSocialPostPerformance
 
@@ -43,5 +44,33 @@ defmodule AtlasWeb.SocialPerformanceLiveTest do
 
     {:ok, payload} = ListSocialPostPerformance.execute(nil, %{"account" => video.account_handle})
     assert [%{format: "video", thread: true, impressions: 12_345, engagements: 100, url_clicks: 9}] = payload.posts
+  end
+
+  test "lists Atlas-held accounts, splits brand from personal, and lets GTM writers disconnect", %{conn: conn} do
+    {reader_conn, _} = log_in_user(conn)
+    {writer_conn, writer} = log_in_user(conn, %{scopes: ["gtm:write"], name: "Connector"})
+
+    account =
+      %SocialAccount{platform: "x", external_id: "brand-acct", connected_by_id: writer.id}
+      |> SocialAccount.changeset(%{handle: "@brandperf", kind: "brand", access_token: "secret-token"})
+      |> Atlas.Repo.insert!()
+
+    insert_post!(%{account_id: "brand-acct", account_handle: "@brandperf", impressions: 500})
+    insert_post!(%{account_id: "gone", account_handle: "@gone"})
+
+    {:ok, view, html} = live(reader_conn, ~p"/commercial/gtm/social/performance")
+    refute html =~ "secret-token"
+    assert view |> element("#social-accounts", "@brandperf") |> has_element?()
+    assert view |> element("#social-accounts", "Connector") |> has_element?()
+    assert view |> element("#social-by-kind", "Brand") |> has_element?()
+    assert view |> element("#social-by-kind", "Disconnected") |> has_element?()
+    refute has_element?(view, "#social-connect-brand")
+    refute has_element?(view, "#social-disconnect-#{account.id}")
+
+    {:ok, view, _html} = live(writer_conn, ~p"/commercial/gtm/social/performance")
+    assert has_element?(view, "#social-connect-personal")
+    view |> element("#social-disconnect-#{account.id}") |> render_click()
+    refute view |> element("#social-accounts", "@brandperf") |> has_element?()
+    refute Atlas.Repo.reload(account)
   end
 end

@@ -56,8 +56,10 @@ cancellable and leaves the reserve intact. See
   and per-pool writes from deterministic plans, so it does not need the
   RunnerPool reconciler's single worker. Keep each pool's tick near
   5 seconds (average reconcile time times the pool count, divided by the
-  workers): one pool's tick renews the macOS sandbox grants, which expire
-  after 15 seconds.
+  workers). The fleet's first pool renews its sandbox grants, which expire
+  after 15 seconds, so its requeues carry `sandboxReporterPriority` and skip
+  the queue; every requeue sets its priority, because the queue keeps an
+  item's last one.
 
   The server also learns a floor per pool (`learned_warm_floor`,
   `Tuist.Runners.LearnedWarmFloors`): the burst its jobs arrive in, while
@@ -384,6 +386,17 @@ cancellable and leaves the reserve intact. See
     converges. On the production Linux fleet, a handful of bare-metal
     boxes, one reservation is already a large share of it, which is why
     the cap stays at one and why `healthyNodes` floors it.
+
+    A Pod no queued job waits for (warm spare: the pool's `queued` does not
+    exceed its bound idle Pods, `reservationBacked`) reserves only a host
+    that clears at once, and never counts a sibling's idle Pod of its own
+    size or larger as clearable. Waiting out a job would hold the fleet's
+    one reservation while the pool's next real job cannot reserve, and a
+    same-size sibling's warm runner also took a whole host, so retiring it
+    only moves the cold start (2026-11-25: a 16 vCPU spare held b05 for
+    13.5 minutes and the next job waited 472 s; the two rack 16 vCPU pools
+    retired each other's warm runner all day). Unknown demand (no signals
+    client, or a failed fetch) counts as queued.
 
     A timed-out release rests the host for `reservationCooldown` (15m)
     via a `tuist.dev/reservation-cooldown-until` annotation. Without it
@@ -893,7 +906,7 @@ MachineDeployment creates an OVHDedicatedMachine
         ▼
 cluster-api-provider-tuist claims the named box and runs the Linux
 self-join over SSH as `ubuntu`: containerd, kubelet, `kubeadm join`.
-`machine.kataRuntime: true` adds kata-static 3.30.0 under /opt/kata
+`machine.kataRuntime: true` adds kata-go-static 4.4.0 under /opt/kata
 (bundles qemu-system-x86_64), the kata-qemu handler in
 /etc/containerd/config.toml (`SystemdCgroup = true`), and a /dev/shm
 ceiling of MemTotal for virtio-fs guest memory

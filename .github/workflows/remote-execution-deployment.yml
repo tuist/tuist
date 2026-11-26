@@ -6,10 +6,14 @@ name: Remote Execution Deployment
 # controller are deployed; it can also be dispatched by hand. It does nothing
 # while the environment's values file says `enabled: false`. Accounts pin the
 # template tag in their settings (see infra/sandbox-image/remote-execution.md).
-# Workers roll out OnDelete; an upgrade replaces gateways and never kills
-# running VMs. `replace_workers` (the canary leg of the cascade) then deletes
-# the workers not on the new spec, so canary runs the new images before
-# production; production workers are replaced by an operator after draining.
+# Workers roll out OnDelete and the deploy rolls them itself. Where the
+# environment's values enable `workers.vmm.inPlaceUpgrades`, every environment
+# rolls them with .github/scripts/sandboxd-upgrade.sh: a daemon image or
+# configuration change restarts only the daemon container and the VMs stay in
+# vmm; any other change (the template tag, the vmm image) replaces the worker
+# once it holds no VM, or after five minutes. Elsewhere `replace_workers` (the
+# canary leg of the cascade) replaces the workers not on the new spec, and
+# workers stay stale until an operator replaces them.
 
 on:
   workflow_dispatch:
@@ -32,7 +36,7 @@ on:
         required: false
         type: string
       replace_workers:
-        description: Replace workers not on the new spec (fails their running actions; canary only)
+        description: Replace workers not on the new spec without in-place upgrades (fails their running actions; not production)
         required: false
         type: boolean
         default: false
@@ -119,9 +123,10 @@ jobs:
     needs: [guard, build-template, build-sandboxd]
     if: always() && needs.guard.result == 'success' && needs.guard.outputs.enabled == 'true' && (needs.build-template.result == 'success' || needs.build-template.result == 'skipped') && (needs.build-sandboxd.result == 'success' || needs.build-sandboxd.result == 'skipped')
     runs-on: ubuntu-latest
-    # Allow time for the gateway rollout, rollback, replacing workers and DNS
+    # Allow time for the gateway rollout, rollback, rolling workers (each
+    # replacement may wait five minutes for its worker to drain) and DNS
     # publication.
-    timeout-minutes: 55
+    timeout-minutes: 120
     environment:
       name: server-k8s-${{ inputs.environment }}
     env:
@@ -173,6 +178,13 @@ jobs:
             | .metadata.managedFields[]?
             | select(.manager != "helm" and .manager != "kube-controller-manager")
             | "::warning::\($object) has fields set by \(.manager) at \(.time); this deploy takes back the ones the chart renders"'
+      - name: Read the workers' upgrade mode
+        run: |
+          set -euo pipefail
+          in_place=$(yq ea '. as $i ireduce ({}; . * $i) | (.workers.vmm.enabled and .workers.vmm.inPlaceUpgrades) // false' \
+            "$HELM_CHART_PATH/values.yaml" "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml")
+          echo "WORKERS_IN_PLACE=$in_place" >> "$GITHUB_ENV"
+          echo "in-place worker upgrades in ${{ inputs.environment }}: $in_place"
       - name: helm upgrade --install
         # Helm 4's watcher waits for updated workers even with OnDelete.
         # Legacy waits for the gateway but leaves worker replacement to a drain.
@@ -191,12 +203,30 @@ jobs:
             --set workers.tag="$SANDBOXD_IMAGE_TAG" \
             --force-conflicts \
             --atomic --timeout 20m --wait=legacy
+      # The chart's vmm container holds the VMs while the daemon container
+      # restarts (infra/sandboxd/AGENTS.md, "Process model"). Pods whose only
+      # difference is the daemon's image or configuration are upgraded in
+      # place; an action executing at that moment fails and Bazel retries it,
+      # the worker's other VMs survive. Any other difference replaces the
+      # worker once it has held no VM for three reads, or after five minutes.
+      - name: Roll workers
+        if: env.WORKERS_IN_PLACE == 'true'
+        env:
+          SANDBOXD_UPGRADE_REPLACE_IDLE_SECONDS: "300"
+        run: |
+          set -euo pipefail
+          bash .github/scripts/sandboxd-upgrade.sh "$NAMESPACE" "$HELM_RELEASE_NAME-workers"
+          # Replaced workers build the template; an upgraded daemon lists the
+          # shapes it finds ready at startup.
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l "app=$HELM_RELEASE_NAME-workers" -o jsonpath='{.items[*].metadata.name}'); do
+            bash .github/scripts/remote-execution-worker-templates.sh "$NAMESPACE" "$pod" "$TEMPLATE_IMAGE_TAG"
+          done
       # OnDelete leaves running workers on the old images. Replace them one at
       # a time and wait for the new sandboxd to build the bazel template, so a
       # broken image fails here instead of in production. Their in-flight
       # actions fail and Bazel retries them; production never takes this path.
       - name: Replace workers not on the new spec
-        if: inputs.replace_workers && inputs.environment != 'production'
+        if: env.WORKERS_IN_PLACE != 'true' && inputs.replace_workers && inputs.environment != 'production'
         run: |
           set -euo pipefail
           want_image="$(yq '.workers.image // "ghcr.io/tuist/sandboxd"' "$HELM_CHART_PATH/values.yaml"):$SANDBOXD_IMAGE_TAG"
@@ -219,28 +249,7 @@ jobs:
             done
             [ -n "$new" ] && [ "$new" != "$pod" ] || { echo "::error::No replacement worker on $node"; exit 1; }
             kubectl -n "$NAMESPACE" wait --for=condition=Ready "pod/$new" --timeout=10m
-            # Both prebuilt VM shapes (PREBUILD_SHAPES) must be ready: built now
-            # (`template ready`) or already on the host from an earlier run
-            # (`default template` at startup lists them in ready_shapes).
-            for _ in $(seq 1 120); do
-              log=$(kubectl -n "$NAMESPACE" logs "$new" -c sandboxd 2>/dev/null || true)
-              failed=$(jq -Rr --arg tag "$TEMPLATE_IMAGE_TAG" \
-                'fromjson? | select(.tag == $tag and .msg == "template build failed") | "\(.shape): \(.error)"' <<< "$log")
-              if [ -n "$failed" ]; then
-                echo "::error::$new failed to build template $TEMPLATE_IMAGE_TAG: $failed"
-                exit 1
-              fi
-              ready=$(jq -Rr --arg tag "$TEMPLATE_IMAGE_TAG" '
-                fromjson? | select(.tag == $tag)
-                | if .msg == "template ready" then 1
-                  elif .msg == "default template" then (.ready_shapes | length)
-                  else empty end' <<< "$log" | awk '{n += $1} END {print n + 0}')
-              [ "$ready" -ge 2 ] && { echo "$new has its templates ready"; continue 2; }
-              sleep 5
-            done
-            echo "::error::$new did not report its templates ready within ten minutes"
-            kubectl -n "$NAMESPACE" logs "$new" -c sandboxd --tail=80 || true
-            exit 1
+            bash .github/scripts/remote-execution-worker-templates.sh "$NAMESPACE" "$new" "$TEMPLATE_IMAGE_TAG"
           done <<< "$stale"
       # platform-external-dns publishes the gateway Ingress host to Cloudflare
       # (DNS-only) within about a minute of the Ingress existing.

@@ -264,6 +264,9 @@ defmodule Tuist.RemoteExecution.RunAnalytics do
     filter_environment(query, Keyword.get(opts, :environment))
   end
 
-  # Records do not carry the environment; every run is included.
+  # `is_ci` is copied from the run at ingestion; records whose run was not
+  # known then (and records from before the column) match neither environment.
+  defp filter_environment(query, "ci"), do: where(query, [a], a.is_ci == true)
+  defp filter_environment(query, "local"), do: where(query, [a], a.is_ci == false)
   defp filter_environment(query, _environment), do: query
 end

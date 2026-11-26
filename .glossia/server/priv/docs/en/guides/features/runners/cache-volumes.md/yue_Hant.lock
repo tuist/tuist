@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "6b1c4774ffd6fbfede25e011fc7f35cc2b0e6bf13461c197d4aa1fda4c4539f2",
+  "hash": "931e32487fb86beb0b5b11739500263aaf4f95cc750d6efec7b380c697e2a957",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Cache volumes {#cache-volumes}": {
-                  "content_hash": "967fbd2921cdc62154f2bb2210154fd30fcbafcc2e73046672e69d41b8f36b19"
+                  "content_hash": "4fce9b3401689fc524a0957771f1d4c8be9aee51b45420878fdf1827eec3b719"
                 },
                 "## Capacity and retention {#capacity-and-retention}": {
                   "content_hash": "136324c17707ad5a37df630f23dd957fb9e7ae0e49eff826b226ebcc19fd4bb4"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "dc05f7a1bef4c5376f3a86b08ab058ddeee2dfd61c5ce87a7c65797f9ee4d4cf",
+          "hash": "d038a0603cd1737744d5de9650d374dc152ee0741c3994a703e6befeb7ed75fe",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
           "metadata": {
-            "content_hash": "afaac8ae0bddf1181311ddb29096dc194084285a846fa0f2fb9ac390b6d38da8"
+            "content_hash": "938ad59acee535659f259311bd6fa5c82e6f0343c1814dddf9e3b5ab258d8cea"
           }
         },
         {
@@ -260,14 +260,14 @@
         }
       ],
       "details": {},
-      "hash": "6b1c4774ffd6fbfede25e011fc7f35cc2b0e6bf13461c197d4aa1fda4c4539f2",
+      "hash": "931e32487fb86beb0b5b11739500263aaf4f95cc750d6efec7b380c697e2a957",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ca635b9b10f228627b1fc5ed8ccf458b4a6d70cbc5466d1b8317d6fef76325e6",
+  "output_hash": "25a165ba19aa1e75971b2afe8afd6aaa55f2d724c52255a78f13cd3d29538d11",
   "output_path": "server/priv/docs/yue_Hant/guides/features/runners/cache-volumes.md",
   "protection_state": "recorded",
   "provider": "",
@@ -289,8 +289,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4d1eae76e8509d2e47d055b634370600fb9fc22f",
+  "source_commit_sha": "d71a2f755cf1ff8a5181a75934f267659e783fdf",
   "source_path": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
-  "translated_at": "2026-11-19T13:51:00.488622Z",
-  "translation_session_id": "01a1f40e-a426-7f4d-a86a-63d5d1dc2fa3"
+  "translated_at": "2026-11-26T14:16:28.562077Z",
+  "translation_session_id": "01a21833-2870-732a-9449-6d49fe1f157a"
 }

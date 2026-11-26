@@ -1,6 +1,7 @@
 defmodule LuftServerWeb.ConversationsTest do
   use LuftServerWeb.ConnCase, async: false
 
+  import Ecto.Query
   import Phoenix.ChannelTest
   import Phoenix.ConnTest, only: []
 
@@ -8,6 +9,7 @@ defmodule LuftServerWeb.ConversationsTest do
   alias LuftServer.NativeAuth
   alias LuftServer.Repo
   alias LuftServer.Threads
+  alias LuftServer.Threads.Message
   alias LuftServer.Threads.Thread
   alias LuftServerWeb.ConversationsSocket
 
@@ -60,6 +62,92 @@ defmodule LuftServerWeb.ConversationsTest do
     refute_push "snapshot", _
   end
 
+  test "a syncing client receives the latest page, then only the rows each commit changed", %{
+    bearer: bearer,
+    session: session
+  } do
+    thread = thread(session)
+    commit(thread, fn -> message(thread, 1, "first") end)
+    commit(thread, fn -> message(thread, 2, "second") end)
+    {:ok, socket} = connect(ConversationsSocket, %{}, connect_info: %{auth_token: bearer})
+
+    assert {:ok, %{revision: 2}, _joined} =
+             subscribe_and_join(socket, "threads:team:#{thread.id}", %{
+               "sync" => true,
+               "since" => nil
+             })
+
+    assert_push "diff", %{reset: true, cursor: 2, thread: mounted}
+    assert Enum.map(mounted.messages, & &1.content) == ["first", "second"]
+    assert Map.has_key?(mounted, :has_more)
+
+    # An edit to an older row and an append in one commit: only those come.
+    commit(thread, fn ->
+      Repo.update!(
+        Ecto.Changeset.change(Repo.get_by!(Message, body: "first"), tool_state: "done")
+      )
+
+      message(thread, 3, "third")
+    end)
+
+    Phoenix.PubSub.broadcast(LuftServer.PubSub, Threads.topic(1, 100), :threads_changed)
+    Phoenix.PubSub.broadcast(LuftServer.PubSub, Threads.topic(1, 100), :threads_changed)
+    assert_push "diff", %{reset: false, cursor: 3, thread: delta}
+
+    assert Enum.map(delta.messages, &{&1.content, &1.toolStatus}) == [
+             {"first", "done"},
+             {"third", nil}
+           ]
+
+    refute Map.has_key?(delta, :has_more)
+    # Both notifications folded into that one read.
+    refute_push "diff", _
+
+    # A client returning with its cursor gets only what it missed.
+    {:ok, again} = connect(ConversationsSocket, %{}, connect_info: %{auth_token: bearer})
+    commit(thread, fn -> message(thread, 4, "while away") end)
+
+    assert {:ok, _, _} =
+             subscribe_and_join(again, "threads:team:#{thread.id}", %{
+               "sync" => true,
+               "since" => 3
+             })
+
+    assert_push "diff", %{
+      reset: false,
+      cursor: 4,
+      thread: %{messages: [%{content: "while away"}]}
+    }
+
+    {:ok, current} = connect(ConversationsSocket, %{}, connect_info: %{auth_token: bearer})
+
+    assert {:ok, _, _} =
+             subscribe_and_join(current, "threads:team:#{thread.id}", %{
+               "sync" => true,
+               "since" => 4
+             })
+
+    refute_push "diff", _
+
+    # Ending a session clears it from its messages without resending them.
+    versions = fn -> Repo.all(from m in Message, order_by: m.position, select: m.version) end
+    before = versions.()
+    Repo.update_all(Message, set: [author_session_id: nil])
+    assert versions.() == before
+
+    # A client too far behind for one delta receives the latest page instead.
+    commit(thread, fn -> Enum.each(10..210, &message(thread, &1, "bulk #{&1}")) end)
+    {:ok, behind} = connect(ConversationsSocket, %{}, connect_info: %{auth_token: bearer})
+
+    assert {:ok, _, _} =
+             subscribe_and_join(behind, "threads:team:#{thread.id}", %{
+               "sync" => true,
+               "since" => 4
+             })
+
+    assert_push "diff", %{reset: true, cursor: 5, thread: %{has_more: true}}
+  end
+
   test "presence is Luft-local and membership revocation closes the channel", %{bearer: bearer} do
     {:ok, socket} = connect(ConversationsSocket, %{}, connect_info: %{auth_token: bearer})
     assert {:ok, %{}, joined} = subscribe_and_join(socket, "presence:team")
@@ -95,6 +183,20 @@ defmodule LuftServerWeb.ConversationsTest do
       })
     end)
   end
+
+  # A thread write as the context makes it: the thread's revision goes up in
+  # the same transaction as the rows it changes.
+  defp commit(thread, fun) do
+    Repo.transaction(fn ->
+      fun.()
+      fresh = Repo.reload!(thread)
+      Repo.update!(Ecto.Changeset.change(fresh, revision: fresh.revision + 1))
+    end)
+  end
+
+  defp message(thread, position, body),
+    do:
+      Repo.insert!(%Message{thread_id: thread.id, position: position, kind: "agent", body: body})
 
   defp thread(session, attrs \\ []) do
     %Thread{

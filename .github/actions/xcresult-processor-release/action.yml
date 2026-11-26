@@ -52,9 +52,15 @@ runs:
       with:
         key: xcresult-processor-release-mix
         path: ~/.cache/tuist-ci/xcresult-processor-release/mix
+    # The Swift build's incremental state is only valid on the macOS that
+    # wrote it: a Golden Gate (macOS 27) guest restoring a Tahoe build
+    # crashed the linker and lost its .dia files. One volume per release.
+    - id: guest
+      shell: bash
+      run: echo "macos_major=$(sw_vers -productVersion | cut -d. -f1)" >> "$GITHUB_OUTPUT"
     - uses: tuist/cache-volume@v1
       with:
-        key: xcresult-processor-release-nif
+        key: xcresult-processor-release-nif-macos-${{ steps.guest.outputs.macos_major }}
         path: ~/.cache/tuist-ci/xcresult-processor-release/nif
     # The deployment target keeps the C and Swift native code loadable on a
     # guest older than the runner. It matches the NIF packages' minimum.

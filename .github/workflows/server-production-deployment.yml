@@ -164,6 +164,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+          # Blobless, like every full-history checkout on the deploy path:
+          # they read history, tags, and paths, not old file contents, and a
+          # full-history fetch costs ~60s on the warm runner workspace against
+          # ~7s blobless.
+          filter: blob:none
       # Every deploy leg needs this job, so a version collision from two
       # PRs merged independently stops before canary migrates.
       - name: Check migration versions are unique
@@ -1053,6 +1058,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+          filter: blob:none
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - name: Create and push fleet/runtime component tags
         id: tag
@@ -1761,6 +1767,7 @@ jobs:
           # Full history + tags to resolve the same kura@ canary tag the
           # canary deploy pinned.
           fetch-depth: 0
+          filter: blob:none
       - name: Wait for the canary Kura rollout to complete
         run: |
           set -euo pipefail

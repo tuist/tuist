@@ -131,3 +131,128 @@ func TestOperatorCannotReachCredentialsOutsideItsNamespace(t *testing.T) {
 	_ = admin.Delete(ctx, rb("tuist-runners", "Role", "", ""))
 	check("bind a node Role to the operator", false, oc.Create(ctx, rb("tuist-runners", "Role", "tart-kubelet-m1-pod-refs", "tuist-tuist-capi-scaleway-applesilicon")))
 }
+
+// TestOperatorCannotMintANodeIdentityThatReadsEverySecret runs the chart's
+// operator RBAC and admission policy on an API server authorizing as
+// production's does (Node,RBAC with NodeRestriction). The Node authorizer and
+// NodeRestriction scope only system:node:<name> users in system:nodes; a
+// ServiceAccount bound to the system:node ClusterRole falls through to RBAC,
+// which grants get/list/watch on every Secret. So the operator must not be
+// able to hand itself one: with macosFleet.linuxNodeCertificates the Linux
+// kubelets join as system:node:<name>, and the operator can no longer bind
+// system:node at all.
+func TestOperatorCannotMintANodeIdentityThatReadsEverySecret(t *testing.T) {
+	helm, err := exec.LookPath("helm")
+	if err != nil || os.Getenv("KUBEBUILDER_ASSETS") == "" {
+		t.Skip("needs helm and KUBEBUILDER_ASSETS")
+	}
+	_, file, _, _ := runtime.Caller(0)
+	chart := filepath.Join(filepath.Dir(file), "..", "..", "..", "helm", "tuist")
+	b, err := exec.Command(helm, "template", "tuist", chart, "-n", "tuist",
+		"-f", filepath.Join(chart, "values-managed-common.yaml"),
+		"-f", filepath.Join(chart, "values-managed-production.yaml"),
+		"-f", filepath.Join(chart, "values-ci.yaml"),
+		"--set", "macosFleet.linuxNodeCertificates=true",
+		"--show-only", "templates/capi-scaleway-applesilicon.yaml").Output()
+	if err != nil {
+		t.Fatalf("helm template: %v", err)
+	}
+	env := &envtest.Environment{}
+	api := env.ControlPlane.GetAPIServer()
+	api.Configure().Set("authorization-mode", "Node,RBAC")
+	api.Configure().Set("enable-admission-plugins", "NodeRestriction")
+	cfg, err := env.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer env.Stop()
+	ctx := context.Background()
+	admin, _ := client.New(cfg, client.Options{Scheme: clientgoscheme.Scheme})
+	for _, ns := range []string{"tuist", "onepassword", "tailscale-operator", "tuist-runners", "tuist-sandboxes"} {
+		_ = admin.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	}
+	r := yamlutil.NewYAMLReader(bufio.NewReader(bytes.NewReader(b)))
+	for {
+		doc, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		u := &unstructured.Unstructured{}
+		if err := yamlutil.Unmarshal(doc, &u.Object); err != nil || len(u.Object) == 0 {
+			continue
+		}
+		switch u.GetKind() {
+		case "ClusterRole", "ClusterRoleBinding", "Role", "RoleBinding", "ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding", "ServiceAccount":
+			if u.GetNamespace() == "" && (u.GetKind() == "Role" || u.GetKind() == "RoleBinding" || u.GetKind() == "ServiceAccount") {
+				u.SetNamespace("tuist")
+			}
+			if err := admin.Create(ctx, u); err != nil {
+				t.Fatalf("%s %s: %v", u.GetKind(), u.GetName(), err)
+			}
+		}
+	}
+	for _, s := range []*corev1.Secret{
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "onepassword", Name: "onepassword-sa-token"}},
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "tuist", Name: "tuist-tuist-server-secrets"}},
+	} {
+		if err := admin.Create(ctx, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(3 * time.Second) // the policy's informer sync
+	op := rest.CopyConfig(cfg)
+	op.Impersonate = rest.ImpersonationConfig{UserName: "system:serviceaccount:tuist:tuist-tuist-capi-scaleway-applesilicon",
+		Groups: []string{"system:serviceaccounts", "system:serviceaccounts:tuist", "system:authenticated"}}
+	oc, _ := client.New(op, client.Options{Scheme: clientgoscheme.Scheme})
+
+	// The chain the admission policy admitted as a Linux node identity
+	// before: a tart-kubelet- ServiceAccount, bound to system:node, and its
+	// token. Before the fix every step went through and the token read and
+	// listed every Secret, the 1Password service account token included.
+	const sa = "tart-kubelet-not-a-machine"
+	if err := oc.Create(ctx, &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: "tuist", Name: sa}}); err != nil {
+		t.Fatalf("the operator creating a node ServiceAccount: %v", err)
+	}
+	crb := func(role string) *rbacv1.ClusterRoleBinding {
+		return &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: sa},
+			RoleRef:  rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: role},
+			Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Namespace: "tuist", Name: sa}}}
+	}
+	if err := oc.Create(ctx, crb("system:node")); err == nil {
+		t.Error("the operator bound system:node to a ServiceAccount")
+	}
+	// A node joined before the flag keeps its binding until the drift loop
+	// moves it; revoking it is a delete, which must still go through.
+	legacy := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "tart-kubelet-legacy-node"},
+		RoleRef:  rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: "system:node"},
+		Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Namespace: "tuist", Name: "tart-kubelet-legacy-node"}}}
+	if err := admin.Create(ctx, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if err := oc.Delete(ctx, legacy); err != nil {
+		t.Errorf("the operator revoking a node's old system:node binding: %v", err)
+	}
+	if err := oc.Create(ctx, crb("tuist-tuist-tart-kubelet")); err != nil {
+		t.Errorf("the operator binding a macOS host identity: %v", err)
+	}
+	rb := &rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Namespace: "onepassword", Name: sa},
+		RoleRef:  rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: "system:node"},
+		Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Namespace: "tuist", Name: sa}}}
+	if err := oc.Create(ctx, rb); err == nil {
+		t.Error("the operator bound system:node into the onepassword namespace")
+	}
+	req := &authenticationv1.TokenRequest{}
+	if err := oc.SubResource("token").Create(ctx, &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: "tuist", Name: sa}}, req); err != nil {
+		t.Fatalf("the operator minting the host's token: %v", err)
+	}
+	nodeCfg := rest.AnonymousClientConfig(cfg)
+	nodeCfg.BearerToken = req.Status.Token
+	nc, _ := client.New(nodeCfg, client.Options{Scheme: clientgoscheme.Scheme})
+	time.Sleep(time.Second) // RBAC cache
+	if err := nc.Get(ctx, client.ObjectKey{Namespace: "onepassword", Name: "onepassword-sa-token"}, &corev1.Secret{}); err == nil {
+		t.Error("a token the operator minted read the 1Password service account token")
+	}
+	if err := nc.List(ctx, &corev1.SecretList{}); err == nil {
+		t.Error("a token the operator minted listed every Secret")
+	}
+}

@@ -15,9 +15,17 @@
 {{- if ge (int .Values.workers.blobCacheGiB) (int .Values.workers.diskGiB) }}
 {{- fail "workers.blobCacheGiB comes out of workers.diskGiB and must be below it" }}
 {{- end }}
-{{- range $tag := list .Values.gateway.tag .Values.workers.tag .Values.workers.templateTag }}
+{{- /* Firecracker in its own vmm container, and in-place daemon upgrades:
+infra/sandboxd/AGENTS.md, "Process model". */}}
+{{- $vmm := .Values.workers.vmm.enabled }}
+{{- $inPlace := and $vmm .Values.workers.vmm.inPlaceUpgrades }}
+{{- if and $inPlace (not .Values.workers.vmm.tag) }}
+{{- fail "workers.vmm.tag is required with workers.vmm.inPlaceUpgrades: vmm holds Firecracker under the running VMs, so a daemon upgrade must not move it." }}
+{{- end }}
+{{- $vmmTag := .Values.workers.vmm.tag | default .Values.workers.tag }}
+{{- range $tag := list .Values.gateway.tag .Values.workers.tag .Values.workers.templateTag $vmmTag }}
 {{- if not (regexMatch "^sha-[a-f0-9]{12,40}$" $tag) }}
-{{- fail "gateway, daemon and template images must have immutable sha-<commit> tags" }}
+{{- fail "gateway, daemon, vmm and template images must have immutable sha-<commit> tags" }}
 {{- end }}
 {{- end }}
 {{- if $shared.enabled }}
@@ -33,6 +41,8 @@
 {{- /* Whole GiB for the guests' 4160 MiB each plus the daemon's 512 MiB. */}}
 {{- $floorGiB := div (add 512 (mul $floor 4160) 1023) 1024 }}
 {{- $ceilingGiB := div (add 512 (mul $slots 4160) 1023) 1024 }}
+{{- /* The VMs' container: sandboxd, or vmm when it holds Firecracker. */}}
+{{- $vmResources := dict "shared" $shared.enabled "floor" $floor "slots" $slots "floorGiB" $floorGiB }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -96,6 +106,42 @@ preemptionPolicy: Never
 globalDefault: false
 description: "Remote execution workers on shared runner hosts: scheduled ahead of runner Pods, never preempt them."
 {{- end }}
+{{- $configData := "" }}
+{{- if $vmm }}
+{{- /*
+With vmm, the daemon's deploy-varying configuration is a ConfigMap file both
+containers read (SANDBOXD_CONFIG), so an in-place upgrade can restart the
+daemon with new configuration; a Pod's environment cannot change. What a
+running VM depends on stays in the Pod's environment, so changing it replaces
+the Pod: TEMPLATE_TAG (the template init container installs that tag) and
+JAIL_UID_BASE (the jails of handed-over VMs keep their UIDs).
+*/}}
+{{- $config := dict
+  "SERVER_URL" $server
+  "TEMPLATE_NAME" "bazel"
+  "EXECUTION_SLOTS" ($slots | toString)
+  "NETWORK_BACKEND" (.Values.workers.networkBackend | toString)
+  "ALLOWED_SHAPES" "1x2048,2x4096,4x8192,8x16384,8x2048,8x4096,8x8192"
+  "PREBUILD_SHAPES" "1x2048,2x4096,4x8192,8x4096"
+  "TEMPLATE_WORKSPACE_GB" "30"
+  "DISK_BUDGET_GIB" (.Values.workers.diskGiB | toString)
+  "BLOB_CACHE_GIB" (.Values.workers.blobCacheGiB | toString) }}
+{{- if $shared.enabled }}
+{{- $_ := set $config "MEMORY_FLOOR_GIB" ($floorGiB | toString) }}
+{{- $_ := set $config "MEMORY_CEILING_GIB" ($ceilingGiB | toString) }}
+{{- end }}
+{{- range $key, $value := $config }}
+{{- $configData = printf "%s%s=%s\n" $configData $key $value }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-workers-config
+data:
+  config.env: |
+    {{- $configData | nindent 4 }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -103,6 +149,10 @@ metadata:
   name: {{ .Release.Name }}-workers
 spec:
   # A rollout must drain execution first; never kill active VMs automatically.
+  # With in-place upgrades the deploy rolls the Pods itself
+  # (.github/scripts/sandboxd-upgrade.sh): a daemon image change restarts only
+  # the sandboxd container and the VMs stay in vmm; any other change, such as
+  # the template tag, replaces the Pod after draining it.
   updateStrategy: {type: OnDelete}
   selector:
     matchLabels: {app: "{{ .Release.Name }}-workers"}
@@ -120,9 +170,18 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9090"
         prometheus.io/path: /metrics
+        {{- /* In place, the kubelet refreshes the mounted ConfigMap and the
+        restarted daemon reads it; no checksum marks the Pods stale. */}}
+        {{- if and $vmm (not $inPlace) }}
+        checksum/config: {{ $configData | sha256sum }}
+        {{- end }}
     spec:
       serviceAccountName: {{ .Release.Name }}-workers
       automountServiceAccountToken: false
+      {{- if $vmm }}
+      # The daemon reads the VMs' /proc and signals them; vmm spawns them.
+      shareProcessNamespace: true
+      {{- end }}
       terminationGracePeriodSeconds: 60
       {{- if $shared.enabled }}
       priorityClassName: {{ .Release.Name }}-workers
@@ -151,6 +210,41 @@ spec:
           image: "{{ .Values.workers.image }}:{{ .Values.workers.tag }}"
           securityContext: {privileged: true}
           env:
+            {{- if $vmm }}
+            # Only what differs per Pod or must not change under running VMs;
+            # the rest is in the ConfigMap (SANDBOXD_CONFIG), which an
+            # in-place upgrade picks up.
+            {{- if $shared.enabled }}
+            - name: K8S_NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+            - {name: NODE_NAME, value: "$(K8S_NODE_NAME).remote-execution"}
+            {{- else }}
+            - name: NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+            {{- end }}
+            # The Pod the server resizes, and the handover's own name.
+            - name: POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+            # Jail UIDs apart from the agent daemon's (10000 + slot). Handed-
+            # over VMs keep theirs, so changing it replaces the Pod.
+            - {name: JAIL_UID_BASE, value: "30000"}
+            - name: POD_IP
+              valueFrom: {fieldRef: {fieldPath: status.podIP}}
+            - {name: TOKEN_PATH, value: /var/run/secrets/tuist/token}
+            - {name: DATA_DIR, value: /data/sandboxes}
+            # The tag the template init container installed: a change
+            # replaces the Pod.
+            - {name: TEMPLATE_TAG, value: {{ .Values.workers.templateTag | quote }}}
+            - {name: METRICS_ADDR, value: "$(POD_IP):9090"}
+            - {name: DIRECT_EXEC_ADDR, value: "$(POD_IP):7071"}
+            - {name: SANDBOXD_CONFIG, value: /etc/sandboxd/config.env}
+            - {name: VMM_SOCKET, value: /run/vmm/vmm.sock}
+            {{- if $inPlace }}
+            # The deploy annotates the Pod to arm the handover before it
+            # patches the daemon image (sandboxd-upgrade.sh).
+            - {name: HANDOVER_FILE, value: /etc/podinfo/annotations}
+            {{- end }}
+            {{- else }}
             {{- if $shared.enabled }}
             # The host's agent sandbox daemon connects as the node itself.
             - name: K8S_NODE_NAME
@@ -190,18 +284,14 @@ spec:
             - {name: BLOB_CACHE_GIB, value: {{ .Values.workers.blobCacheGiB | quote }}}
             - {name: METRICS_ADDR, value: "$(POD_IP):9090"}
             - {name: DIRECT_EXEC_ADDR, value: "$(POD_IP):7071"}
-          {{- if $shared.enabled }}
-          # The floor's CPU is reserved; guests above it run on idle cores.
-          resizePolicy:
-            - {resourceName: memory, restartPolicy: NotRequired}
-            - {resourceName: cpu, restartPolicy: NotRequired}
-          resources:
-            requests: {cpu: {{ mul $floor 2 | quote }}, memory: "{{ $floorGiB }}Gi"}
-            limits: {memory: "{{ $floorGiB }}Gi"}
+            {{- end }}
+          {{- if $vmm }}
+          # The VMs sit in the vmm container's cgroup, which carries the
+          # worker's capacity (and the server resizes); the daemon's own
+          # memory is fixed.
+          resources: {{ toYaml .Values.workers.vmm.daemonResources | nindent 12 }}
           {{- else }}
-          resources:
-            requests: {cpu: {{ mul $slots 2 | quote }}, memory: "{{ add 512 (mul $slots 4160) }}Mi"}
-            limits: {cpu: {{ mul $slots 2 | quote }}, memory: "{{ add 512 (mul $slots 4160) }}Mi"}
+          {{- include "remote-execution.vmResources" $vmResources | trim | nindent 10 }}
           {{- end }}
           ports: [{name: metrics, containerPort: 9090}, {name: direct-exec, containerPort: 7071}]
           volumeMounts:
@@ -209,6 +299,32 @@ spec:
             - {name: kvm, mountPath: /dev/kvm}
             - {name: tun, mountPath: /dev/net/tun}
             - {name: token, mountPath: /var/run/secrets/tuist, readOnly: true}
+            {{- if $vmm }}
+            - {name: vmm, mountPath: /run/vmm}
+            - {name: config, mountPath: /etc/sandboxd, readOnly: true}
+            {{- if $inPlace }}
+            - {name: podinfo, mountPath: /etc/podinfo, readOnly: true}
+            {{- end }}
+            {{- end }}
+        {{- if $vmm }}
+        # Spawns the daemon's Firecracker VMs, which sit in this container's
+        # cgroup, so the daemon can restart without them. Its image is pinned
+        # apart from the daemon's (workers.vmm.tag): changing it replaces the
+        # Pod. See infra/sandboxd/AGENTS.md, "Process model".
+        - name: vmm
+          image: "{{ .Values.workers.image }}:{{ $vmmTag }}"
+          command: ["/usr/local/bin/vmm"]
+          env:
+            - {name: SANDBOXD_CONFIG, value: /etc/sandboxd/config.env}
+            - {name: VMM_SOCKET, value: /run/vmm/vmm.sock}
+          securityContext: {privileged: true}
+          {{- include "remote-execution.vmResources" $vmResources | trim | nindent 10 }}
+          volumeMounts:
+            # Firecracker's log and the jail roots.
+            - {name: data, mountPath: /data/sandboxes}
+            - {name: vmm, mountPath: /run/vmm}
+            - {name: config, mountPath: /etc/sandboxd, readOnly: true}
+        {{- end }}
       volumes:
         - name: data
           hostPath: {path: /data/remote-execution, type: DirectoryOrCreate}
@@ -221,4 +337,32 @@ spec:
             defaultMode: 0400
             sources:
               - serviceAccountToken: {audience: tuist-sandboxes, expirationSeconds: 3600, path: token}
+        {{- if $vmm }}
+        - name: vmm
+          emptyDir: {medium: Memory, sizeLimit: 1Mi}
+        - name: config
+          configMap: {name: {{ .Release.Name }}-workers-config}
+        {{- if $inPlace }}
+        - name: podinfo
+          downwardAPI:
+            items:
+              - {path: annotations, fieldRef: {fieldPath: metadata.annotations}}
+        {{- end }}
+        {{- end }}
+{{- end }}
+{{- define "remote-execution.vmResources" }}
+{{- if .shared }}
+# Resized in place by the server from the floor toward the ceiling; the
+# floor's CPU is reserved and guests above it run on idle cores.
+resizePolicy:
+  - {resourceName: memory, restartPolicy: NotRequired}
+  - {resourceName: cpu, restartPolicy: NotRequired}
+resources:
+  requests: {cpu: {{ mul .floor 2 | quote }}, memory: "{{ .floorGiB }}Gi"}
+  limits: {memory: "{{ .floorGiB }}Gi"}
+{{- else }}
+resources:
+  requests: {cpu: {{ mul .slots 2 | quote }}, memory: "{{ add 512 (mul .slots 4160) }}Mi"}
+  limits: {cpu: {{ mul .slots 2 | quote }}, memory: "{{ add 512 (mul .slots 4160) }}Mi"}
+{{- end }}
 {{- end }}

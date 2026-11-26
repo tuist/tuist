@@ -1,6 +1,7 @@
 defmodule Atlas.MCP.Tools.RecordOutreachEvent do
   @moduledoc """
-  Records a LinkedIn connection, message, or internal note for a contact.
+  Frozen `gtm.outreach.events.record@1` adapter for published automation workflows.
+  The MCP server registers `RecordOutreachEventV2`, which also accepts a channel, a sender and booked meetings.
   """
 
   use Atlas.MCP.Tool,
@@ -10,7 +11,10 @@ defmodule Atlas.MCP.Tools.RecordOutreachEvent do
       "required" => ["contact_id", "kind"],
       "properties" => %{
         "contact_id" => %{"type" => "string"},
-        "kind" => %{"type" => "string", "enum" => Atlas.Outreach.event_kinds()},
+        "kind" => %{
+          "type" => "string",
+          "enum" => ["connection_requested", "connection_accepted", "message_sent", "message_received", "note"]
+        },
         "subject" => %{
           "type" => "string",
           "maxLength" => 120,
@@ -19,7 +23,7 @@ defmodule Atlas.MCP.Tools.RecordOutreachEvent do
         "body" => %{"type" => "string"},
         "response_outcome" => %{
           "type" => "string",
-          "enum" => Atlas.Outreach.response_outcomes(),
+          "enum" => ["replied", "positive_reply", "objection", "not_interested"],
           "description" => "Classification to use when kind is message_received."
         },
         "occurred_at" => %{"type" => "string", "format" => "date-time"}
@@ -27,30 +31,12 @@ defmodule Atlas.MCP.Tools.RecordOutreachEvent do
     },
     output_schema: Atlas.MCP.Serializers.Outreach.full_contact_schema()
 
-  alias Atlas.MCP.Serializers.Outreach, as: OutreachSerializer
-  alias Atlas.MCP.Tool
-  alias Atlas.Outreach
+  alias Atlas.MCP.Tools.RecordOutreachEventV2
 
   @impl EMCP.Tool
   def description,
     do:
       "Record a connection request, accepted connection, sent or received message, or internal note in a contact's outreach history."
 
-  def execute(conn, %{"contact_id" => id} = args) do
-    attrs = Map.take(args, ["kind", "subject", "body", "response_outcome", "occurred_at"])
-
-    case Outreach.record_event(id, attrs, Tool.current_user(conn)) do
-      {:ok, _event, contact} ->
-        {:ok, OutreachSerializer.full_contact(contact)}
-
-      {:error, :not_found} ->
-        {:error, "Outreach contact not found: #{id}"}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:error, "Could not record outreach event: #{Tool.format_changeset_errors(changeset)}"}
-
-      {:error, reason} ->
-        {:error, "Could not record outreach event: #{inspect(reason)}"}
-    end
-  end
+  def execute(conn, args), do: RecordOutreachEventV2.execute(conn, args)
 end

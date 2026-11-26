@@ -1128,14 +1128,23 @@ func (f *fakeOps) DeleteDisks(ctx context.Context, id string) error {
 }
 func (f *fakeOps) Archive(ctx context.Context, args protocol.ArchiveArgs) (protocol.ArchiveResult, error) {
 	f.calls = append(f.calls, fmt.Sprintf("archive %s parts=%d", args.SandboxID, len(args.PartURLs)))
+	if ctx.Err() != nil {
+		return protocol.ArchiveResult{}, ctx.Err()
+	}
 	return protocol.ArchiveResult{Bytes: 3}, nil
 }
 func (f *fakeOps) ArchiveDisks(ctx context.Context, args protocol.ArchiveDisksArgs) (protocol.ArchiveResult, error) {
 	f.calls = append(f.calls, fmt.Sprintf("archive_disks %s parts=%d", args.SnapshotID, len(args.PartURLs)))
+	if ctx.Err() != nil {
+		return protocol.ArchiveResult{}, ctx.Err()
+	}
 	return protocol.ArchiveResult{Bytes: 3}, nil
 }
 func (f *fakeOps) CopyDisks(ctx context.Context, args protocol.CopyDisksArgs) (protocol.SaveDisksResult, error) {
 	f.calls = append(f.calls, "copy_disks "+args.SnapshotID)
+	if ctx.Err() != nil {
+		return protocol.SaveDisksResult{}, ctx.Err()
+	}
 	return protocol.SaveDisksResult{DurationMs: 9}, nil
 }
 func (f *fakeOps) Delete(ctx context.Context, id string) error {
@@ -1257,9 +1266,23 @@ func TestLifecycleOpsRunDetachedFromCommandContext(t *testing.T) {
 	if !res.OK {
 		t.Fatalf("lifecycle op should not see the cancelled context: %+v", res)
 	}
+	res = Dispatch(ctx, ops, protocol.Command{ID: "c", Op: "copy_disks", Args: json.RawMessage(`{"snapshot_id":"snap1"}`)}, nil)
+	if !res.OK {
+		t.Fatalf("copy_disks fills a snapshot on the node and should not see the cancelled context: %+v", res)
+	}
 	res = Dispatch(ctx, ops, protocol.Command{ID: "c", Op: "exec", Args: json.RawMessage(`{"sandbox_id":"s1","cmd":["ls"]}`)}, nil)
 	if res.OK {
 		t.Fatalf("exec should see the cancelled context: %+v", res)
+	}
+	// The server aborts the multipart upload of an archive whose
+	// connection ended, so the upload stops with it.
+	res = Dispatch(ctx, ops, protocol.Command{ID: "c", Op: "archive", Args: json.RawMessage(`{"sandbox_id":"s1","part_size":1,"part_urls":["u"]}`)}, nil)
+	if res.OK {
+		t.Fatalf("archive should see the cancelled context: %+v", res)
+	}
+	res = Dispatch(ctx, ops, protocol.Command{ID: "c", Op: "archive_disks", Args: json.RawMessage(`{"snapshot_id":"snap1","part_size":1,"part_urls":["u"]}`)}, nil)
+	if res.OK {
+		t.Fatalf("archive_disks should see the cancelled context: %+v", res)
 	}
 }
 

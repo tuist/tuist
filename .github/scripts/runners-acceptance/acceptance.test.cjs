@@ -246,7 +246,7 @@ test('watchdog fails and cancels when only the Linux container probe never start
 });
 
 test('Docker phases are sequential, canary-only, and use one immutable workflow revision', () => {
-  let previous = 'linux-container';
+  let previous = 'plan';
   for (const phase of dockerPhases) {
     const job = workflow.jobs[`docker-${phase}`];
     assert.equal(job.name, `Linux Docker cache ${phase}`);
@@ -258,7 +258,6 @@ test('Docker phases are sequential, canary-only, and use one immutable workflow 
     assert.notEqual(job['continue-on-error'], true);
     previous = `docker-${phase}`;
   }
-  assert.ok(workflow.jobs['docker-cold'].needs.includes('linux'));
   assert.equal(workflow.concurrency['cancel-in-progress'], false);
 });
 

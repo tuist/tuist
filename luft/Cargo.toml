@@ -1,8 +1,8 @@
 # Standalone workspace so the monorepo's other Cargo projects are never resolved
 # here. Each member is a separate Struo action: the leaf crates compile in
-# parallel, and only `gpui` depends on gpui.
+# parallel, and only `gpui` and `gpui-web` depend on gpui.
 [workspace]
-members = ["gpui", "crates/*"]
+members = ["gpui", "gpui-web", "crates/*"]
 resolver = "3"
 
 [workspace.package]
@@ -17,7 +17,7 @@ base64 = "0.22"
 getrandom = "0.3"
 # Pin the UI and native AccessKit adapters together, rather than tracking main.
 gpui = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216", version = "=0.2.2" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216", features = ["font-kit", "runtime_shaders", "wayland", "x11"] }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "b5cd310b3b54dfc659fcc06453e6358843dfe216", default-features = false, features = ["font-kit", "runtime_shaders", "wayland", "x11"] }
 # gpui's own HTTP stack (a reqwest fork); `blocking` keeps the auth crates free
 # of an async runtime, and callers run them on background threads.
 reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["blocking", "rustls-tls-native-roots"] }
@@ -33,3 +33,10 @@ tuist-navigation = { path = "crates/navigation" }
 tuist-oauth = { path = "crates/oauth" }
 tuist-session = { path = "crates/session" }
 tuist-updater = { path = "crates/updater" }
+
+# Spike: GPUI accessibility in the browser. gpui stops gating its AccessKit
+# tree off on wasm, and gpui_web mirrors that tree into transparent ARIA
+# elements over the canvas (vendor/zed/crates/gpui_web/src/a11y.rs).
+[patch."https://github.com/zed-industries/zed"]
+gpui = { path = "vendor/zed/crates/gpui" }
+gpui_web = { path = "vendor/zed/crates/gpui_web" }

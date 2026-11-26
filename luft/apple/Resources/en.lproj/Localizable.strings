@@ -323,6 +323,8 @@
 "Dismissed" = "Dismissed";
 "Dismiss" = "Dismiss";
 "You can also type your answer in the composer." = "You can also type your answer in the composer.";
+"Not sent. Sends when you're back online." = "Not sent. Sends when you're back online.";
+"Couldn't send" = "Couldn't send";
 "AI Subscriptions" = "AI Subscriptions";
 "Threads run on your ChatGPT subscription. Claude subscriptions can be saved, but Claude doesn't allow them to run Luft threads yet." = "Threads run on your ChatGPT subscription. Claude subscriptions can be saved, but Claude doesn't allow them to run Luft threads yet.";
 "AI subscriptions are not available for this account." = "AI subscriptions are not available for this account.";

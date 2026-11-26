@@ -411,6 +411,14 @@ defmodule AtlasWeb.Router do
     pipe_through [:browser, :require_auth]
 
     get "/operations/labels/:id/jobs/:jobId/preview", LabelsController, :image, log: false
+    get "/commercial/gtm/social/accounts/connect/:kind", SocialAccountController, :authorize, log: false
+    # The X and LinkedIn apps' registered callbacks; those grants belong to Atlas social accounts.
+    get "/connections/x/callback", SocialAccountController, :callback, log: false, assigns: %{platform: "x"}
+
+    get "/connections/linkedin/callback", SocialAccountController, :callback,
+      log: false,
+      assigns: %{platform: "linkedin"}
+
     get "/connections/:provider/authorize", ConnectionController, :authorize, log: false
     get "/connections/:provider/callback", ConnectionController, :callback, log: false
 
@@ -447,6 +455,9 @@ defmodule AtlasWeb.Router do
       live "/commercial/gtm/content/:id", GTMLive, :idea
       live "/commercial/gtm/social", GTMLive, :social
       live "/commercial/gtm/social/performance", SocialPerformanceLive, :index
+      live "/commercial/gtm/social/publishing", SocialPublishingLive, :index
+      live "/commercial/gtm/social/publishing/new", SocialPublishingLive, :new
+      live "/commercial/gtm/social/publishing/:id", SocialPublishingLive, :show
       live "/commercial/gtm/social/:id", GTMLive, :social_idea
       live "/commercial/gtm/outreach", OutreachContactsLive, :index
       live "/commercial/gtm/outreach/:id", OutreachContactsLive, :show

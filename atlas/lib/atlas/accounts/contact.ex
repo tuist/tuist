@@ -8,7 +8,7 @@ defmodule Atlas.Accounts.Contact do
   alias Atlas.Outreach.MessageAttempt
   alias Atlas.Outreach.Recommendation
 
-  @outreach_statuses ~w(not_contacted connection_requested connected conversation_started replied interested not_interested)
+  @outreach_statuses ~w(not_contacted connection_requested connected conversation_started replied interested meeting_booked not_interested)
 
   @derive {
     Flop.Schema,

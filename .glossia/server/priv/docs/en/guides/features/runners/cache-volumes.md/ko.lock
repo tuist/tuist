@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "207681c8056112783aae0ff1ae5ba7533bf543cfdf60dc086f7a4d5436ae3e55",
+  "hash": "e61ea48503c0d467d256587f0cec4785396f446c2468aad47bfcb768fa5559a8",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Cache volumes {#cache-volumes}": {
-                  "content_hash": "967fbd2921cdc62154f2bb2210154fd30fcbafcc2e73046672e69d41b8f36b19"
+                  "content_hash": "4fce9b3401689fc524a0957771f1d4c8be9aee51b45420878fdf1827eec3b719"
                 },
                 "## Capacity and retention {#capacity-and-retention}": {
                   "content_hash": "136324c17707ad5a37df630f23dd957fb9e7ae0e49eff826b226ebcc19fd4bb4"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "dc05f7a1bef4c5376f3a86b08ab058ddeee2dfd61c5ce87a7c65797f9ee4d4cf",
+          "hash": "d038a0603cd1737744d5de9650d374dc152ee0741c3994a703e6befeb7ed75fe",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
           "metadata": {
-            "content_hash": "afaac8ae0bddf1181311ddb29096dc194084285a846fa0f2fb9ac390b6d38da8"
+            "content_hash": "938ad59acee535659f259311bd6fa5c82e6f0343c1814dddf9e3b5ab258d8cea"
           }
         },
         {
@@ -266,14 +266,14 @@
         }
       ],
       "details": {},
-      "hash": "207681c8056112783aae0ff1ae5ba7533bf543cfdf60dc086f7a4d5436ae3e55",
+      "hash": "e61ea48503c0d467d256587f0cec4785396f446c2468aad47bfcb768fa5559a8",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9696513b04178b599380e70c3c98172bc3ab415564dedf4d1940b105e4868ef6",
+  "output_hash": "24cd370ce8eaf164e2a41e00e63da0a56a25fb95b9ad276d410646dace84ac9c",
   "output_path": "server/priv/docs/ko/guides/features/runners/cache-volumes.md",
   "protection_state": "recorded",
   "provider": "",
@@ -295,8 +295,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4d1eae76e8509d2e47d055b634370600fb9fc22f",
+  "source_commit_sha": "d71a2f755cf1ff8a5181a75934f267659e783fdf",
   "source_path": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
-  "translated_at": "2026-11-19T13:50:11.187738Z",
-  "translation_session_id": "01a1f40e-a426-7f4d-a86a-63d5d1dc2fa3"
+  "translated_at": "2026-11-26T14:14:55.284281Z",
+  "translation_session_id": "01a21833-2870-732a-9449-6d49fe1f157a"
 }

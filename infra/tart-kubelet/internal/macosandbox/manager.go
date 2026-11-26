@@ -384,13 +384,22 @@ func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 	if err := m.Capacity.Reserve(ctx, r); err != nil {
 		// No runtime side effect has happened yet. A failed reservation can be
 		// released without touching a VM, so queued CI is never blocked by it.
-		releaseErr := m.Capacity.Release(ctx, r)
-		r.State = "error"
-		r.Operation = ""
-		if releaseErr != nil {
+		if releaseErr := m.Capacity.Release(ctx, r); releaseErr != nil {
+			r.State = "error"
 			r.Operation = "release"
+			return m.finish(r, errors.Join(err, releaseErr))
 		}
-		return m.finish(r, errors.Join(err, releaseErr))
+		// Released, the refused create leaves nothing behind: the server's
+		// capacity wait places the same sandbox again, often on this host, and
+		// that create must start afresh instead of meeting this record.
+		if removeErr := removeJournal(filepath.Join(m.Root, a.SandboxID+".json")); removeErr != nil {
+			r.State = "error"
+			r.Operation = ""
+			return m.finish(r, errors.Join(err, removeErr))
+		}
+		delete(m.records, a.SandboxID)
+		m.publish()
+		return err
 	}
 	r.Resident = true // An uncertain start must retain its reservation.
 	if err := m.persist(r); err != nil {

@@ -419,9 +419,9 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    start stops on canary. The cascade calls it again after every production or
    hotfix deploy (a hotfix skips canary), so the runners controller that
    recognises remote execution workers is always deployed first. Both reuse the
-   template and sandboxd tags that run published. Production workers are not
-   replaced automatically. Dispatch it by hand for staging or to pin other
-   tags. It publishes the guest template and the execution gateway
+   template and sandboxd tags that run published. Dispatch it by hand for
+   staging or to pin other tags. How it rolls workers is under "Worker
+   upgrades" below. It publishes the guest template and the execution gateway
    (`ghcr.io/tuist/tuist-remote-execution`, both under the sandbox image's
    source-derived tag) and sandboxd unless given published tags,
    then installs the release into `tuist-sandboxes`. The gateway's Ingress uses
@@ -429,7 +429,7 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    `platform-external-dns` publishes its host to Cloudflare (DNS-only), and the
    workflow fails if the host does not resolve within five minutes. The gateway
    must reach the accounts' Kura endpoints to publish action-cache entries.
-   Upgrades replace gateways; workers roll out `OnDelete` (see Rollback). The
+   Upgrades replace gateways; workers roll out `OnDelete`. The
    server's network policy admits pods labelled `tuist.dev/remote-execution`
    from the sandbox namespace.
 4. Confirm hosts report `execution_deadlines: true`, `execution_slots > 0`, and a
@@ -447,8 +447,8 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
      daemons are configured with (`TEMPLATE_TAG`) and have ready. Daemons keep
      older tags ready so they take work mid-rollout; those count only for a
      daemon whose own tag is not ready yet. Workers roll out `OnDelete`, so it
-     changes only when an operator replaces them, and while they are replaced
-     the majority wins.
+     changes as the deploy replaces them, and while they are replaced the
+     majority wins.
    - **CAS:** the account's Linux runner cache
      (`Tuist.Kura.runner_cache_endpoint_url/2`), the Kura instance a Linux CI
      job of the account uploads into, as `grpc(s)://` on the same port. The
@@ -478,6 +478,50 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    `exec_properties = {"tuist-memory-gb": "8"}`; Bazel 8 and later merge it
    with the default properties when the platform has none. Re-running setup without `--remote-execution`
    opts the workspace out.
+
+### Worker upgrades
+
+With `workers.vmm.enabled` and `workers.vmm.inPlaceUpgrades` in the
+environment's values, a worker Pod has the agent daemon's layout
+(`infra/sandboxd/AGENTS.md`, "Process model"): Firecracker runs in a `vmm`
+container on its own pinned image (`workers.vmm.tag`), and the daemon reads
+its deploy-wide settings from the `<release>-workers-config` ConfigMap. The
+deploy then rolls workers in every environment, production included, with
+`.github/scripts/sandboxd-upgrade.sh`:
+
+- A new sandboxd image or ConfigMap restarts only the daemon container. Its
+  VMs stay in `vmm` and the new daemon re-attaches them, so warm VMs survive
+  and the account's pool does not refill. An action executing at that moment
+  fails (`exec` ends with the daemon's connection), and Bazel retries it. The
+  node blob cache starts empty, since daemon startup clears it. Where one
+  worker is the environment's only execution daemon (staging, canary), no
+  daemon is connected for the second or two of the restart. Queued actions
+  wait through it: the scheduler keeps its settings while no daemon reports
+  an image, instead of failing them with `FAILED_PRECONDITION`, which Bazel
+  does not retry.
+- Any other change replaces the worker: a new template tag (the `template`
+  init container installs it, and `TEMPLATE_TAG` stays in the Pod's
+  environment), the vmm image, `JAIL_UID_BASE`, or the Pod layout. The deploy
+  first waits until the worker holds no VM for three reads in a row, at most
+  five minutes. A worker still busy after that is replaced anyway, and its
+  actions fail and are retried. The deploy then waits for each worker's
+  `bazel` shapes to be ready.
+- The server resizes `vmm`, which holds the floor-to-ceiling carve-out on
+  shared hosts, instead of `sandboxd`, whose resources are fixed
+  (`workers.vmm.daemonResources`). `Tuist.Kubernetes.Client.sandbox_vm_container/1`
+  picks the container, so the server needs no change.
+
+Without in-place upgrades, `replace_workers` (the canary leg) replaces the
+workers not on the new spec, and production workers stay on their old images
+until an operator replaces them.
+
+Turning on the layout changes every worker's Pod spec, so it is itself a
+replacement: each environment takes one drained roll when its values first
+enable it. Enable it one environment at a time (staging, canary,
+production), each in its own deploy, preferably when the environment has no
+remote execution traffic, and check that every worker reports
+`sandboxd_config_info` and has both containers ready before the next
+environment. Moving `workers.vmm.tag` later is a replacement roll too.
 
 ## Observability
 
@@ -519,9 +563,11 @@ does not provision them.
 Disable the account flag. The scheduler fails queued
 actions, retires idle VMs and lets running actions finish. Wait until the
 account has no `sandboxes` rows with `purpose = remote_execution`; an unreachable
-host is not evidence that its VMs stopped. The workers use `OnDelete` rollout:
-update images only after draining, then replace daemon Pods through the
-authorized deployment workflow. Keep the additive migration during a code
+host is not evidence that its VMs stopped. To roll back worker images,
+redeploy the previous tags through the deployment workflow, which rolls the
+workers as in "Worker upgrades". To leave the vmm layout, set
+`workers.vmm.enabled: false`: that is another drained replacement of every
+worker. Keep the additive migration during a code
 rollback. Do not drop its table or columns while server replicas or executor VMs
 use them.
 

@@ -21,6 +21,7 @@ defmodule Atlas.Outreach.Recommendations do
   alias Atlas.Outreach.Workers.NotifyRecommendation
   alias Atlas.Repo
   alias Atlas.Users
+  alias Atlas.Users.User
 
   @agent_name "outreach_recommendation_agent"
   @minimum_confidence Decimal.new("0.70")
@@ -66,15 +67,20 @@ defmodule Atlas.Outreach.Recommendations do
 
   def current(_contact_id), do: nil
 
-  def generate(contact_id) when is_binary(contact_id) do
-    case context(contact_id) do
+  @doc """
+  Drafts one next step. `:sender_id` names the teammate who will send it from
+  their own account, so the draft is written as them; `:channel` is
+  `linkedin` (default) or `x`.
+  """
+  def generate(contact_id, opts \\ []) when is_binary(contact_id) do
+    case context(contact_id, opts) do
       nil ->
         {:error, :not_found}
 
       context ->
         case RecommendationAgent.recommend(context) do
           {:ok, result} ->
-            case context(contact_id) do
+            case context(contact_id, opts) do
               nil -> {:error, :not_found}
               refreshed_context -> persist_generated(refreshed_context, result)
             end
@@ -95,7 +101,7 @@ defmodule Atlas.Outreach.Recommendations do
         {:error, :not_found}
 
       contact ->
-        case enqueue_generation(contact.id, source, force?: true) do
+        case enqueue_generation(contact.id, source, force?: true, sender_id: actor && actor.id) do
           {:ok, %Oban.Job{conflict?: true} = job} ->
             # Uniqueness collapsed this into a job that is already queued, so no
             # new work was requested and there is nothing to audit as a request.
@@ -243,6 +249,7 @@ defmodule Atlas.Outreach.Recommendations do
     force? = Keyword.get(opts, :force?, false)
 
     %{contact_id: contact_id, source: source, force: force?}
+    |> Map.merge(Map.new(Keyword.take(opts, [:sender_id, :channel])))
     |> GenerateRecommendation.new(
       unique: [
         period: 60,
@@ -338,7 +345,7 @@ defmodule Atlas.Outreach.Recommendations do
     end
   end
 
-  defp context(contact_id) do
+  defp context(contact_id, opts) do
     case Repo.get(Contact, contact_id) do
       nil ->
         nil
@@ -368,10 +375,15 @@ defmodule Atlas.Outreach.Recommendations do
           contact: contact,
           events: events,
           recommendations: recommendations,
-          message_learning: MessageLearning.context(contact)
+          message_learning: MessageLearning.context(contact),
+          sender: sender(Keyword.get(opts, :sender_id)),
+          channel: if(Keyword.get(opts, :channel) in MessageAttempt.channels(), do: opts[:channel], else: "linkedin")
         }
     end
   end
+
+  defp sender(nil), do: nil
+  defp sender(sender_id), do: Repo.get(User, sender_id)
 
   defp persist_generated(context, result) do
     raw = result |> generated_recommendations() |> List.first()
@@ -435,7 +447,9 @@ defmodule Atlas.Outreach.Recommendations do
              "personalization_basis" => normalize_generated_text(raw["personalization_basis"]),
              "risks" => raw["risks"] |> normalize_string_list() |> Enum.map(&normalize_generated_text/1),
              "message_strategy" => message_strategy(action_type, raw),
-             "learning_sample_size" => context.message_learning.total_evaluated
+             "learning_sample_size" => context.message_learning.total_evaluated,
+             "sender_id" => context.sender && context.sender.id,
+             "channel" => context.channel
            }
            |> Enum.reject(fn {_key, value} -> value in [nil, %{}] end)
            |> Map.new()
@@ -593,8 +607,12 @@ defmodule Atlas.Outreach.Recommendations do
     |> Repo.update()
   end
 
+  # The draft's sender sends it; drafts generated for nobody in particular are
+  # sent by whoever completes them.
   defp record_completion(recommendation, completion, actor) do
     attrs = %{
+      sender_id: recommendation.metadata["sender_id"] || (actor && actor.id),
+      channel: recommendation.metadata["channel"],
       kind: recommendation.recommended_event_kind || "note",
       subject: completion.subject,
       body: completion_body(recommendation, completion.message),

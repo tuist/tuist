@@ -33,6 +33,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CancelChatGPTProviderLogin
   alias Atlas.MCP.Tools.CancelHoliday
   alias Atlas.MCP.Tools.CancelInsurancePolicy
+  alias Atlas.MCP.Tools.CancelSocialPublication
   alias Atlas.MCP.Tools.CategorizeFinanceTransaction
   alias Atlas.MCP.Tools.CheckLetterDelivery
   alias Atlas.MCP.Tools.CheckOutAirGappedLicense
@@ -70,6 +71,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreatePostmortem
   alias Atlas.MCP.Tools.CreatePostmortemActionItem
   alias Atlas.MCP.Tools.CreateSocialChannelIdea
+  alias Atlas.MCP.Tools.CreateSocialMediaUpload
   alias Atlas.MCP.Tools.CreateSocialPostRevision
   alias Atlas.MCP.Tools.CreateSpec
   alias Atlas.MCP.Tools.CreateStripeDraftInvoice
@@ -125,6 +127,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ExtendLicense
   alias Atlas.MCP.Tools.FinalizeDocumentUpload
   alias Atlas.MCP.Tools.FinalizeLetterDocumentUpload
+  alias Atlas.MCP.Tools.FinalizeSocialMediaUpload
   alias Atlas.MCP.Tools.FinanceAddTransactionAttachment
   alias Atlas.MCP.Tools.FinanceCreateTransferRequest
   alias Atlas.MCP.Tools.FinanceDeleteTransactionAttachment
@@ -169,6 +172,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetNudgeAnalyticsStatus
   alias Atlas.MCP.Tools.GetOutreachContact
   alias Atlas.MCP.Tools.GetOutreachNextStep
+  alias Atlas.MCP.Tools.GetOutreachResults
   alias Atlas.MCP.Tools.GetPOC
   alias Atlas.MCP.Tools.GetPostmortem
   alias Atlas.MCP.Tools.GetPostmortemActionItem
@@ -250,6 +254,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListSocialChannelIdeas
   alias Atlas.MCP.Tools.ListSocialPostPerformance
   alias Atlas.MCP.Tools.ListSocialPostRevisions
+  alias Atlas.MCP.Tools.ListSocialPublications
   alias Atlas.MCP.Tools.ListSpecComments
   alias Atlas.MCP.Tools.ListSpecs
   alias Atlas.MCP.Tools.ListSupportThreads
@@ -284,7 +289,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RecordAssetWarrantyExtension
   alias Atlas.MCP.Tools.RecordFeatureInterest
   alias Atlas.MCP.Tools.RecordInsuranceClaim
-  alias Atlas.MCP.Tools.RecordOutreachEvent
+  alias Atlas.MCP.Tools.RecordOutreachEventV2
   alias Atlas.MCP.Tools.RecoverAsset
   alias Atlas.MCP.Tools.RejectOutreachCandidate
   alias Atlas.MCP.Tools.ReleaseNudge
@@ -309,6 +314,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SaveMemory
   alias Atlas.MCP.Tools.SaveMyGmailAttachment
   alias Atlas.MCP.Tools.SaveOVHInvoice
+  alias Atlas.MCP.Tools.SaveSocialPublication
   alias Atlas.MCP.Tools.SearchApolloOutreach
   alias Atlas.MCP.Tools.SearchAtlas
   alias Atlas.MCP.Tools.SearchDocuments
@@ -328,8 +334,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SetPOCContext
   alias Atlas.MCP.Tools.StartChatGPTProviderLogin
   alias Atlas.MCP.Tools.SuggestMoodboardResource
-  alias Atlas.MCP.Tools.SyncMySocialPosts
   alias Atlas.MCP.Tools.SyncPublicHolidays
+  alias Atlas.MCP.Tools.SyncSocialPosts
   alias Atlas.MCP.Tools.TerminateFinancing
   alias Atlas.MCP.Tools.UnlinkAssetFromInsuranceClaim
   alias Atlas.MCP.Tools.UnlinkProjectDomain
@@ -845,7 +851,12 @@ defmodule Atlas.MCP.Server do
     CreateBlogPostIdeaComment,
     ListSocialChannelIdeas,
     ListSocialPostPerformance,
-    SyncMySocialPosts,
+    SyncSocialPosts,
+    CancelSocialPublication,
+    CreateSocialMediaUpload,
+    FinalizeSocialMediaUpload,
+    ListSocialPublications,
+    SaveSocialPublication,
     GetSocialChannelIdea,
     CreateSocialChannelIdea,
     UpdateSocialChannelIdea,
@@ -870,12 +881,13 @@ defmodule Atlas.MCP.Server do
     EnrollOutreachCandidate,
     RejectOutreachCandidate,
     ListOutreachContacts,
+    GetOutreachResults,
     GetOutreachContact,
     GetOutreachNextStep,
     GenerateOutreachNextStep,
     CompleteOutreachNextStep,
     DismissOutreachNextStep,
-    RecordOutreachEvent,
+    RecordOutreachEventV2,
     RecordFeatureInterest,
     UpdateFeatureInterestAccountContext,
     RunGTMSignalSearch,
@@ -1136,7 +1148,7 @@ defmodule Atlas.MCP.Server do
               ReadMySlackConversation,
               DownloadMySlackFile,
               PostMySlackMessage,
-              SyncMySocialPosts
+              SyncSocialPosts
             ], do: ManageAccountConnections.allowed_context?(conn)
 
   defp personal_connection_tool_allowed?(conn, module)

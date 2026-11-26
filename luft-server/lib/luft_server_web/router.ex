@@ -13,8 +13,15 @@ defmodule LuftServerWeb.Router do
     plug Plugs.Authenticate
   end
 
+  # Server-rendered marketing pages.
+  get "/", LuftServerWeb.HomeController, :show
+
   get "/healthz", LuftServerWeb.HealthController, :show
   get "/.well-known/luft.json", LuftServerWeb.NativeAuthController, :discovery
+
+  # The GPUI web edge's page, for /app and every client-side path under it.
+  get "/app", LuftServerWeb.WebController, :app
+  get "/app/*path", LuftServerWeb.WebController, :app
 
   scope "/oauth2", LuftServerWeb do
     pipe_through :browser_auth

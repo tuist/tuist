@@ -10,12 +10,18 @@ extension AppClient {
     /// to heartbeat, when a silent socket must be reopened, and what each
     /// frame means. The server's changes call `refresh`, and the agent's calls
     /// to the tools Luft offers, such as `set_theme`, are applied here before
-    /// the core's answer goes back.
-    func live(_ id: String, refresh: @escaping @MainActor () async -> Void) async {
+    /// the core's answer goes back. A thread's socket instead keeps the core's
+    /// store in sync with the server's diffs, and calls `changed` after each
+    /// one it stored, to read the thread from the store again.
+    func live(
+        _ id: String,
+        changed: (@MainActor () async -> Void)? = nil,
+        refresh: @escaping @MainActor () async -> Void
+    ) async {
         let socket = UUID().uuidString
         while !Task.isCancelled {
             do {
-                try await liveOnce(id, socket: socket, refresh: refresh)
+                try await liveOnce(id, socket: socket, changed: changed, refresh: refresh)
             } catch {
                 // Offline, refused, silent or closed: connect again after the
                 // core's delay. The conversation still polls meanwhile.
@@ -24,7 +30,12 @@ extension AppClient {
         _ = try? await call("live_close", ["socket": socket])
     }
 
-    private func liveOnce(_ id: String, socket: String, refresh: @escaping @MainActor () async -> Void) async throws {
+    private func liveOnce(
+        _ id: String,
+        socket: String,
+        changed: (@MainActor () async -> Void)?,
+        refresh: @escaping @MainActor () async -> Void
+    ) async throws {
         // Every attempt waits as the core says first, so failures back off
         // whether connecting, joining or a live socket failed.
         let wait = try await call("live_wait", ["socket": socket])
@@ -84,6 +95,8 @@ extension AppClient {
                     try await task.send(.string(reply))
                 }
                 if frame["refresh"] as? Bool == true { request.yield() }
+                // A local read, so it runs at once rather than spaced like a load.
+                if frame["changed"] as? Bool == true { await changed?() }
                 if frame["reconnect"] as? Bool == true { throw Reconnect() }
             }
         } onCancel: {

@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -25,6 +26,7 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -364,17 +366,132 @@ func TestHostIdentityIsScopedToItsOwnNodeOnARealAPIServer(t *testing.T) {
 		t.Error("host A minted host B's identity token")
 	}
 
-	// The macOS sandbox service's reservation (macosandbox.capacity) still
-	// passes; a Pod naming a Secret does not.
-	reservation := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Namespace: scopeSandboxes, Name: "reservation"},
-		Spec: corev1.PodSpec{NodeName: hostA, RestartPolicy: corev1.RestartPolicyNever, AutomountServiceAccountToken: ptr.To(false),
-			Containers: []corev1.Container{{Name: "sandbox", Image: "tuist-macos-sandbox-reservation"}}},
+	// The macOS sandbox service's reservation (macosandbox.capacity Hold)
+	// still passes; a Pod naming a Secret, carrying another selector's
+	// labels or exposing a port does not.
+	resources := corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4"), corev1.ResourceMemory: resource.MustParse("8Gi")}
+	reservation := func(name string, labels map[string]string, ports []corev1.ContainerPort) *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Namespace: scopeSandboxes, Name: name, Labels: labels,
+				Annotations: map[string]string{"tuist.dev/sandbox-node-uid": "uid-a"},
+				Finalizers:  []string{"tuist.dev/macos-sandbox-fence"}},
+			Spec: corev1.PodSpec{NodeName: hostA, RestartPolicy: corev1.RestartPolicyNever, AutomountServiceAccountToken: ptr.To(false),
+				Containers: []corev1.Container{{Name: "sandbox", Image: "tuist-macos-sandbox-reservation", Ports: ports,
+					Resources: corev1.ResourceRequirements{Requests: resources, Limits: resources}}}},
+		}
 	}
-	if err := a.Create(ctx, reservation); err != nil {
+	execution := map[string]string{"tuist.dev/macos-sandbox-role": "execution", "tuist.dev/sandbox-id": "sbx-1"}
+	if err := a.Create(ctx, reservation("reservation", execution, nil)); err != nil {
 		t.Errorf("sandbox reservation: %v", err)
 	}
 	if err := denied(a.Create(ctx, pod(scopeSandboxes, "grab", hostA, "", darwin, secretRef("server-secrets"))), "may reference no Secret"); err != nil {
 		t.Errorf("host A created a Pod naming a Secret: %v", err)
+	}
+	for i, tc := range []struct {
+		name   string
+		labels map[string]string
+		ports  []corev1.ContainerPort
+	}{
+		{"behind sandboxd's admin Service", map[string]string{"app.kubernetes.io/name": "sandboxd", "app.kubernetes.io/instance": "tuist"}, nil},
+		{"with a reservation's labels plus the admin Service's", map[string]string{
+			"tuist.dev/macos-sandbox-role": "execution", "tuist.dev/sandbox-id": "sbx-2",
+			"app.kubernetes.io/name": "sandboxd", "app.kubernetes.io/instance": "tuist"}, nil},
+		{"under a control DaemonSet's selector", map[string]string{"tuist.dev/macos-sandbox-role": "control", "tuist.dev/macos-sandbox-fleet": "default"}, nil},
+		{"as a control-role reservation", map[string]string{"tuist.dev/macos-sandbox-role": "control", "tuist.dev/sandbox-id": "sbx-3"}, nil},
+		{"with no labels", nil, nil},
+		{"exposing an admin port", execution, []corev1.ContainerPort{{Name: "admin", ContainerPort: 9091}}},
+	} {
+		forged := reservation(fmt.Sprintf("forged-%d", i), tc.labels, tc.ports)
+		if err := denied(a.Create(ctx, forged), "only the sandbox reservation labels"); err != nil {
+			t.Errorf("host A created a Pod %s: %v", tc.name, err)
+		}
+	}
+	scraped := reservation("scraped", execution, nil)
+	scraped.Annotations["prometheus.io/scrape"] = "true"
+	if err := denied(a.Create(ctx, scraped), "only the sandbox reservation labels"); err != nil {
+		t.Errorf("host A created a Pod for the metrics scraper to discover: %v", err)
+	}
+
+	// Pods on other Nodes are out of reach: no relabelling across Service
+	// and NetworkPolicy selectors, no deletes, no sandboxd handover
+	// annotation, no status writes.
+	linuxServer := pod(scopeNamespace, "server-linux", "general-1", "server", nil, nil)
+	linuxServer.Labels = map[string]string{"app.kubernetes.io/component": "server"}
+	sandboxd := pod(scopeSandboxes, "sandboxd-linux", "general-1", "", nil, nil)
+	mustCreate(linuxServer, sandboxd, pod(scopeRunners, "runner-b", hostB, "runner", darwin, nil))
+	patchPod := func(c client.Client, namespace, name string, mutate func(*corev1.Pod)) error {
+		p := &corev1.Pod{}
+		if err := admin.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, p); err != nil {
+			return err
+		}
+		before := p.DeepCopy()
+		mutate(p)
+		return c.Patch(ctx, p, client.MergeFrom(before))
+	}
+	for _, tc := range []struct {
+		name, message string
+		err           func() error
+	}{
+		{"relabel the server's Pod", "only Pods bound to its own Node", func() error {
+			return patchPod(a, scopeNamespace, "server-linux", func(p *corev1.Pod) { p.Labels["app.kubernetes.io/component"] = "kura" })
+		}},
+		{"arm sandboxd's in-place upgrade handover", "only Pods bound to its own Node", func() error {
+			return patchPod(a, scopeSandboxes, "sandboxd-linux", func(p *corev1.Pod) {
+				p.Annotations = map[string]string{"sandboxes.tuist.dev/handover": `{"container":"x","expires":"2099-01-01T00:00:00Z"}`}
+			})
+		}},
+		{"delete host B's runner", "only Pods bound to its own Node", func() error {
+			return a.Delete(ctx, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: scopeRunners, Name: "runner-b"}})
+		}},
+		{"delete the server's Pod", "only Pods bound to its own Node", func() error {
+			return a.Delete(ctx, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: scopeNamespace, Name: "server-linux"}})
+		}},
+		{"write the server Pod's status", "only Pods bound to its own Node", func() error {
+			p := &corev1.Pod{}
+			if err := admin.Get(ctx, types.NamespacedName{Namespace: scopeNamespace, Name: "server-linux"}, p); err != nil {
+				return err
+			}
+			p.Status.PodIP = "100.64.0.9"
+			return a.Status().Update(ctx, p)
+		}},
+		{"relabel its own runner", "may not change a Pod's labels", func() error {
+			return patchPod(a, scopeRunners, "runner-a", func(p *corev1.Pod) { p.Labels = map[string]string{"app.kubernetes.io/component": "server"} })
+		}},
+		{"point the metrics scraper at its own runner", "only the VNC relay and runner heartbeat annotations", func() error {
+			return patchPod(a, scopeRunners, "runner-a", func(p *corev1.Pod) {
+				p.Annotations = map[string]string{"prometheus.io/scrape": "true", "prometheus.io/path": "/api/internal"}
+			})
+		}},
+		{"mark its own runner preempted to hide its capacity", "only the VNC relay and runner heartbeat annotations", func() error {
+			return patchPod(a, scopeRunners, "runner-a", func(p *corev1.Pod) {
+				p.Annotations = map[string]string{"tuist.dev/preempted-for": "x"}
+			})
+		}},
+	} {
+		if err := denied(tc.err(), tc.message); err != nil {
+			t.Errorf("host A could %s: %v", tc.name, err)
+		}
+	}
+	// What tart-kubelet does to its own Pods still goes through: the
+	// finalizer, VNC and heartbeat annotations, status, and the final delete.
+	if err := patchPod(a, scopeRunners, "runner-a", func(p *corev1.Pod) {
+		p.Finalizers = append(p.Finalizers, "tuist.dev/tart-vm")
+		p.Annotations = map[string]string{"tuist.dev/runner-heartbeat-state": "polling"}
+	}); err != nil {
+		t.Errorf("host A annotating its own runner: %v", err)
+	}
+	own := &corev1.Pod{}
+	if err := a.Get(ctx, types.NamespacedName{Namespace: scopeRunners, Name: "runner-a"}, own); err != nil {
+		t.Fatal(err)
+	}
+	own.Status.Phase = corev1.PodRunning
+	if err := a.Status().Update(ctx, own); err != nil {
+		t.Errorf("host A reporting its own runner's status: %v", err)
+	}
+	if err := patchPod(a, scopeRunners, "runner-a", func(p *corev1.Pod) { p.Finalizers = nil }); err != nil {
+		t.Errorf("host A removing its own finalizer: %v", err)
+	}
+	if err := a.Delete(ctx, own, client.GracePeriodSeconds(0)); err != nil {
+		t.Errorf("host A deleting its own runner: %v", err)
 	}
 }

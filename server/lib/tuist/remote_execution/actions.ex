@@ -27,10 +27,12 @@ defmodule Tuist.RemoteExecution.Actions do
   alias Tuist.Accounts.Account
   alias Tuist.ClickHouseRepo
   alias Tuist.FeatureFlags
+  alias Tuist.OnceEvents.Run
   alias Tuist.Projects.Project
   alias Tuist.RemoteExecution.Action
   alias Tuist.RemoteExecution.Settings
   alias Tuist.RemoteExecution.TaskSizes
+  alias Tuist.Repo
   alias Tuist.Storage
 
   @max_records 100
@@ -93,6 +95,7 @@ defmodule Tuist.RemoteExecution.Actions do
   def ingest(%Project{} = project, records) when is_list(records) and length(records) <= @max_records do
     now = NaiveDateTime.utc_now()
     rows = for record <- records, row = row(project, record, now), do: row
+    rows = with_environment(project, rows)
 
     if rows != [], do: Action.Buffer.insert_all(rows)
     TaskSizes.record(project, records)
@@ -100,6 +103,26 @@ defmodule Tuist.RemoteExecution.Actions do
   end
 
   def ingest(_project, _records), do: {:error, :invalid_request}
+
+  # Struo names its run in the invocation ID, and the run's start event
+  # normally reaches the server before its first action finishes, so the run
+  # already says whether it is on CI. Action records carry no environment of their own; an action
+  # whose run is not known (yet) stays nil and matches neither environment.
+  # Bazel's environment lives on its invocation, read when filtering.
+  defp with_environment(%Project{} = project, rows) do
+    if rows != [] and Project.once_project?(project) do
+      run_ids = rows |> Enum.map(& &1.invocation_id) |> Enum.uniq()
+
+      environments =
+        from(r in Run, where: r.project_id == ^project.id and r.run_id in ^run_ids, select: {r.run_id, r.is_ci})
+        |> Repo.all()
+        |> Map.new()
+
+      Enum.map(rows, &Map.put(&1, :is_ci, Map.get(environments, &1.invocation_id)))
+    else
+      Enum.map(rows, &Map.put(&1, :is_ci, nil))
+    end
+  end
 
   defp row(project, %{} = record, now) do
     with id when is_binary(id) <- record["operation_id"],

@@ -15,24 +15,25 @@ defmodule Tuist.Shards.Storage do
   # `public_storage?` is false unless the uploading client spreads multipart parts
   # over separate connections; older CLIs multiplex every part onto one HTTP/2
   # connection to a public store and upload several times slower than to Tigris.
+  # A Mac's runner entrance is such a store too, so it takes the same gate.
   def select(project, account, grant, public_storage? \\ false) do
     with true <- routable?(project),
          false <- Account.custom_s3_storage_configured?(account) do
-      select_private(project, account, grant) || (public_storage? && select_public(account)) || ""
+      select_private(project, account, grant, public_storage?) || (public_storage? && select_public(account)) || ""
     else
       _ -> ""
     end
   end
 
-  defp select_private(project, account, grant) do
+  defp select_private(project, account, grant, public_storage?) do
     with true <- FeatureFlags.runner_shard_storage_enabled?(account),
          {:ok, platform, site} <- CacheGrant.runner_site(grant, account.id),
-         true <- platform == :macos or project.build_system in [:mix, :cargo] do
+         true <- (platform == :macos and public_storage?) or project.build_system in [:mix, :cargo] do
       Environment.shard_storage_targets()
       |> Enum.sort_by(&elem(&1, 0))
       |> Enum.find_value(fn {id, config} ->
         with true <- is_map(config),
-             true <- config["enabled"] == true and config["site"] == site,
+             true <- config["enabled"] == true and site in placement_sites(platform, config),
              {:ok, target} <- placement_target(platform, id, config, site),
              true <- Storage.available?(target) do
           id
@@ -55,6 +56,31 @@ defmodule Tuist.Shards.Storage do
   end
 
   defp placement_target(:macos, id, config, site), do: runner_entrance_target(id, config, site)
+
+  # A Linux runner places only at the store's own site. A Mac may also place
+  # from each site in `placement_sites`, through that site's entrance.
+  defp placement_sites(:linux, config), do: [config["site"]]
+
+  defp placement_sites(:macos, config) do
+    case config["placement_sites"] do
+      sites when is_list(sites) -> sites
+      _ -> [config["site"]]
+    end
+  end
+
+  @doc """
+  The metric tags of every private placement the configuration allows, so the
+  plans counter publishes each series at zero before its first plan.
+  """
+  def placement_tags do
+    for {id, %{"enabled" => true} = config} <- Environment.shard_storage_targets(),
+        platform <- [:linux, :macos],
+        site <- placement_sites(platform, config),
+        is_binary(site),
+        match?({:ok, _}, placement_target(platform, id, config, site)) do
+      %{store: id, platform: Atom.to_string(platform), site: site}
+    end
+  end
 
   defp select_public(account) do
     if FeatureFlags.public_shard_storage_enabled?(account) do

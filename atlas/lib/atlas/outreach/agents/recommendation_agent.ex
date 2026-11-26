@@ -269,6 +269,9 @@ defmodule Atlas.Outreach.Agents.RecommendationAgent do
     """
     Recommend the single best next step for this outreach contact.
 
+    Sender:
+    #{sender_context(context)}
+
     Contact and account:
     #{contact_context(context.contact)}
 
@@ -281,6 +284,19 @@ defmodule Atlas.Outreach.Agents.RecommendationAgent do
     Account and contact timeline, newest first:
     #{events_context(context.events)}
     """
+  end
+
+  # Drafts go out from the sender's own account, so they are written as that person.
+  defp sender_context(context) do
+    channel = if Map.get(context, :channel) == "x", do: "X (a direct message, at most 280 characters)", else: "LinkedIn"
+
+    case Map.get(context, :sender) do
+      %{name: name} when is_binary(name) and name != "" ->
+        "- #{name} sends this personally from their own #{channel} account. Write the draft in the first person as #{name}, not as the company."
+
+      _ ->
+        "- A Tuist teammate sends this personally from their own #{channel} account. Write the draft in the first person."
+    end
   end
 
   defp contact_context(contact) do

@@ -133,12 +133,38 @@ defmodule Tuist.Runners.CatalogTest do
                "#{prefix}-27-2-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
     end
 
+    test "a beta channel shortens to -b only in front of a macOS release, matching the chart" do
+      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+      shape = non_default_macos_shape()
+      profile = %{platform: :macos, xcode_version: "27.3-beta", vcpus: shape.vcpus, memory_gb: shape.memory_gb}
+
+      assert Catalog.pool_name(Map.put(profile, :os_version, "macos-27")) ==
+               "#{prefix}-27-3-b-macos-27-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+
+      assert Catalog.pool_name(Map.put(profile, :os_version, "macos-26")) ==
+               "#{prefix}-27-3-beta-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "27.3-beta", os_version: "macos-27"}) ==
+               "#{prefix}-27-3-b-macos-27"
+    end
+
     test "Tahoe stands in for a profile without a macOS release" do
       assert [%{os_version: "macos-27", label: "Golden Gate"}, %{os_version: "macos-26", label: "Tahoe", default?: true}] =
                Catalog.macos_os_versions()
 
       assert Catalog.xcode_versions_for_macos(nil) == Catalog.xcode_versions_for_macos("macos-26")
       assert Catalog.xcode_versions_for_macos("macos-28") == []
+    end
+
+    test "the version label names the point release the images run when Helm passes one" do
+      assert [%{product_version: "27.2"}, %{os_version: "macos-26"} = tahoe] =
+               Catalog.parse_macos_os_versions_json(
+                 ~s([{"osVersion":"macos-27","productVersion":"27.2"},{"osVersion":"macos-26","default":true}])
+               )
+
+      refute Map.has_key?(tahoe, :product_version)
+
+      assert [%{version_label: "macOS 27.2"}, %{version_label: "macOS 26.6.2"}] = Catalog.macos_os_versions()
     end
   end
 

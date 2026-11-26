@@ -17,6 +17,23 @@ kind = "tuist"
 account = "tuist"
 project = "atlas"
 
+# `struo build --remote` runs Atlas's actions on Tuist remote execution, in the
+# image the service advertises, as tuist/atlas. Builds without `--remote` stay
+# local. The paths are the worker image's toolchain
+# (`infra/sandbox-image/Dockerfile`, `elixir-toolchain`), which pins the same
+# Erlang and Elixir as the root mise.toml.
+[infrastructure.execution]
+provider = "tuist"
+
+[infrastructure.execution.properties.elixir]
+schema_version = 1
+os = "linux"
+arch = "x86_64"
+elixir_bin = "/opt/elixir/bin"
+erlang_bin = "/opt/erlang/bin"
+mix_home = "/opt/mix"
+rebar3 = "/opt/mix/rebar3"
+
 # The Atlas image has its own project so its layer snapshots and insights stay
 # separate from the Mix build. Select it with `STRUO_CACHE_PROVIDER=tuist-oci`.
 [infrastructures.tuist-oci]

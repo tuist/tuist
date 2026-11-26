@@ -255,6 +255,16 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
     assert has_element?(view, "#remote-execution-queue", "2.0s")
     assert has_element?(view, "#remote-execution-activity", "struo build atlas/mix_application_test")
     assert has_element?(view, "#remote-execution-activity a[href$='/once/runs/#{run_id}']")
+
+    # The run reported a local environment.
+    {:ok, view, _} = live(conn, path <> "?analytics-environment=local")
+    render_async(view, 5000)
+    assert has_element?(view, "#remote-execution-environment-label-portal", "Local")
+    assert has_element?(view, "#remote-execution-activity a[href$='/once/runs/#{run_id}']")
+
+    {:ok, view, _} = live(conn, path <> "?analytics-environment=ci")
+    render_async(view, 5000)
+    refute has_element?(view, "#remote-execution-activity a[href$='/once/runs/#{run_id}']")
   end
 
   test "empty projects stay discoverable while unsupported and private projects stay protected", %{

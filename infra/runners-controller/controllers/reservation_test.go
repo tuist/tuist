@@ -1748,3 +1748,61 @@ func TestExclusiveCPURunnerCountsItsPodLevelBudget(t *testing.T) {
 		t.Errorf("fleetNodeSelector reserves hosts without %s", podtemplate.PodLevelResourceManagersNodeLabel)
 	}
 }
+
+// A warm spare (no queued job behind it) must not hold the fleet's one
+// reservation while it waits out a job, and must not take a sibling's warm
+// runner of its own size. A Pod a queued job is waiting for still does both.
+func TestReservation_WarmSpareTakesOnlyAHostThatClearsWithoutCost(t *testing.T) {
+	sibling := largePool()
+	sibling.Name = "macos-27-1-12vcpu-28gb"
+	for _, tc := range []struct {
+		name    string
+		queued  int32
+		m4Pod   *corev1.Pod
+		want    bool
+		retired string
+	}{
+		{name: "spare does not wait out a job", m4Pod: placedPod("small-busy", "macos-26-6", "m4-0", "acme")},
+		{name: "queued job waits out a job", queued: 1, m4Pod: placedPod("small-busy", "macos-26-6", "m4-0", "acme"), want: true},
+		{name: "spare leaves a same-size warm runner", m4Pod: bootedMacOSPod("large-warm", sibling.Name, "m4-0", reservationNow.Add(-time.Hour))},
+		{name: "queued job takes a same-size warm runner", queued: 1, m4Pod: bootedMacOSPod("large-warm", sibling.Name, "m4-0", reservationNow.Add(-time.Hour)), want: true, retired: "large-warm"},
+		{name: "spare takes smaller idle runners", m4Pod: bootedMacOSPod("small-warm", "macos-26-6", "m4-0", reservationNow.Add(-time.Hour)), want: true, retired: "small-warm"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := largePool()
+			starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+			r := reservationReconciler(pool, sibling, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved, tc.m4Pod,
+				placedPod("small-1", "macos-26-6", "m4-1", "acme"),
+				placedPod("small-2", "macos-26-6", "m4-1", "acme"),
+			)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				_ = json.NewEncoder(w).Encode(scaling.Signals{Queued: tc.queued})
+			}))
+			defer server.Close()
+			token := filepath.Join(t.TempDir(), "token")
+			if err := os.WriteFile(token, []byte("test-token"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			r.SignalsClient = scaling.NewClient(server.URL)
+			r.SignalsClient.TokenPath = token
+
+			for range 2 { // reserve, then clear the held host
+				if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+					t.Fatalf("reconcileReservation: %v", err)
+				}
+			}
+			if got := isReserved(nodeByName(t, r, "m4-0")); got != tc.want {
+				t.Errorf("m4-0 reserved = %v, want %v", got, tc.want)
+			}
+			if isReserved(nodeByName(t, r, "m4-1")) {
+				t.Error("m4-1 runs two jobs and must not be reserved")
+			}
+			if tc.retired != "" && remainingPodNames(t, r)[tc.retired] {
+				t.Errorf("%s should have been retired to clear the host", tc.retired)
+			}
+			if !tc.want && !remainingPodNames(t, r)[tc.m4Pod.Name] {
+				t.Errorf("%s must survive", tc.m4Pod.Name)
+			}
+		})
+	}
+}

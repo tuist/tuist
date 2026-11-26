@@ -744,6 +744,20 @@ defmodule AtlasWeb.OutreachContactsLive do
                     </.select>
                   </div>
 
+                  <div data-part="activity-channel-field">
+                    <.label label={gettext("Channel")} />
+                    <.select
+                      id="outreach-event-channel"
+                      name="event[channel]"
+                      label={gettext("LinkedIn")}
+                      value="linkedin"
+                      hint={gettext("Where you sent or received it, from your own account.")}
+                    >
+                      <:item value="linkedin" label={gettext("LinkedIn")} />
+                      <:item value="x" label={gettext("X")} />
+                    </.select>
+                  </div>
+
                   <div data-part="activity-outcome-field">
                     <.label label={gettext("Response outcome")} />
                     <.select
@@ -1406,11 +1420,13 @@ defmodule AtlasWeb.OutreachContactsLive do
   defp outreach_status_label("conversation_started"), do: gettext("Conversation started")
   defp outreach_status_label("replied"), do: gettext("Replied")
   defp outreach_status_label("interested"), do: gettext("Interested")
+  defp outreach_status_label("meeting_booked"), do: gettext("Meeting booked")
   defp outreach_status_label("not_interested"), do: gettext("Not interested")
   defp outreach_status_label(_status), do: gettext("Unknown")
 
   defp outreach_status_color("replied"), do: "success"
   defp outreach_status_color("interested"), do: "success"
+  defp outreach_status_color("meeting_booked"), do: "success"
   defp outreach_status_color("conversation_started"), do: "information"
   defp outreach_status_color("connected"), do: "focus"
   defp outreach_status_color("connection_requested"), do: "warning"
@@ -1425,6 +1441,7 @@ defmodule AtlasWeb.OutreachContactsLive do
 
   defp response_outcome_label("replied"), do: gettext("Reply, unclear intent")
   defp response_outcome_label("positive_reply"), do: gettext("Positive reply")
+  defp response_outcome_label("meeting_booked"), do: gettext("Meeting booked")
   defp response_outcome_label("objection"), do: gettext("Objection")
   defp response_outcome_label("not_interested"), do: gettext("Not interested")
 
@@ -1433,6 +1450,7 @@ defmodule AtlasWeb.OutreachContactsLive do
   defp source_label(source), do: source
 
   defp event_source_label("linkedin", _author), do: "LinkedIn"
+  defp event_source_label("x", _author), do: "X"
   defp event_source_label("apollo", _author), do: "Apollo"
   defp event_source_label("web", _author), do: gettext("Public web")
   defp event_source_label(_source, %{name: name}) when is_binary(name) and name != "", do: name

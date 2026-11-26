@@ -26,8 +26,16 @@ type linuxCloudInitOptions struct {
 	NodeName string
 
 	// KubeconfigYAML is the rendered kubelet kubeconfig (token-based, from
-	// kubeconfig.Builder).
+	// kubeconfig.Builder). Empty with NodeCertificates.
 	KubeconfigYAML string
+
+	// NodeCertificates joins the kubelet as system:node:<NodeName> with a
+	// client certificate it requests with BootstrapKubeconfigYAML (a one-hour
+	// kubeadm bootstrap token) and rotates, instead of a ServiceAccount bound
+	// to system:node. The Node authorizer and NodeRestriction scope only that
+	// identity; a ServiceAccount bound to system:node reads every Secret.
+	NodeCertificates        bool
+	BootstrapKubeconfigYAML string
 
 	// ClusterCAPEM is the cluster CA bundle (PEM). When set, the bootstrap
 	// writes it to kubeletClientCAPath and points the kubelet's
@@ -378,7 +386,7 @@ func kubeletCPUSetupFor(sudo string, opts linuxCloudInitOptions) string {
 	if !opts.KataRuntime {
 		return ""
 	}
-	return kubeletCPUManagerSetup(sudo, kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, false))
+	return kubeletCPUManagerSetup(sudo, opts.kubeletConfig(opts.ClusterDNS, false))
 }
 
 // kubeletConfigContent renders the KubeletConfiguration for the self-join
@@ -448,10 +456,32 @@ func clientCAFilePath(opts linuxCloudInitOptions) string {
 	return kubeletClientCAPath
 }
 
+// kubeletConfig renders config.yaml for these options. With NodeCertificates
+// the kubelet rotates its client certificate; every writer of config.yaml goes
+// through here, so none drops the rotation and lets the certificate lapse.
+func (opts linuxCloudInitOptions) kubeletConfig(clusterDNS string, exclusiveCPUs bool) string {
+	return kubeletConfigContent(clusterDNS, clientCAFilePath(opts), opts.K8sMinor, exclusiveCPUs) + kubeletIdentityConfig(opts.NodeCertificates)
+}
+
+func kubeletIdentityConfig(certificates bool) string {
+	if !certificates {
+		return ""
+	}
+	return "rotateCertificates: true\n"
+}
+
+// kubeletBootstrapKubeconfigPath is where a certificate-joined kubelet finds
+// the bootstrap token it requests its first client certificate with.
+const kubeletBootstrapKubeconfigPath = "/var/lib/kubelet/bootstrap-kubeconfig"
+
 // kubeletUnitContent renders the kubelet systemd unit with the node's
 // hostname-override, any register-with-taints argument, and the
 // node.cluster.x-k8s.io/instance-type label (provider-specific).
-func kubeletUnitContent(nodeName, taintArg, instanceType, extraNodeLabels string) string {
+func kubeletUnitContent(nodeName, taintArg, instanceType, extraNodeLabels string, certificates bool) string {
+	bootstrapArg := ""
+	if certificates {
+		bootstrapArg = "  --bootstrap-kubeconfig=" + kubeletBootstrapKubeconfigPath + " \\\n"
+	}
 	return fmt.Sprintf(`[Unit]
 Description=kubelet (tuist runner-cache node)
 After=containerd.service network-online.target
@@ -459,15 +489,15 @@ Wants=containerd.service network-online.target
 [Service]
 ExecStart=/usr/bin/kubelet \
   --kubeconfig=/var/lib/kubelet/kubeconfig \
-  --config=/var/lib/kubelet/config.yaml \
+%[5]s  --config=/var/lib/kubelet/config.yaml \
   --container-runtime-endpoint=unix:///run/containerd/containerd.sock \
-  --hostname-override=%s \
-  %s--node-labels=node.cluster.x-k8s.io/instance-type=%s%s
+  --hostname-override=%[1]s \
+  %[2]s--node-labels=node.cluster.x-k8s.io/instance-type=%[3]s%[4]s
 Restart=always
 RestartSec=5
 [Install]
 WantedBy=multi-user.target
-`, nodeName, taintArg, instanceType, extraNodeLabels)
+`, nodeName, taintArg, instanceType, extraNodeLabels, bootstrapArg)
 }
 
 // instanceTypeOrDefault keeps the Scaleway kinds rendering the original
@@ -697,8 +727,8 @@ runcmd:
 		kubelet,
 		indent(modulesLoadContent, "      "),
 		indent(sysctlContent, "      "),
-		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime, podLevel)), "      "),
-		indent(kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, opts.KataRuntime), "      "),
+		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime, podLevel), opts.NodeCertificates), "      "),
+		indent(opts.kubeletConfig(opts.ClusterDNS, opts.KataRuntime), "      "),
 		body,
 		caEntry,
 	)
@@ -743,19 +773,18 @@ set -euxo pipefail
 # the mount lands (which left the kubelet crash-looping on a missing config).
 %[9]s
 %[2]s
-%[1]schmod 0600 /var/lib/kubelet/kubeconfig
 %[10]s%[3]s
 %[4]s
 %[5]s
 %[6]s
 %[7]s
-%[13]s`,
+%[15]s%[13]s`,
 		sudo,
-		heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML),
+		kubeletCredentialWrite(sudo, opts, heredoc),
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
 		heredoc("/etc/sysctl.d/99-k8s.conf", sysctlContent),
-		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime, podLevel))),
-		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, opts.KataRuntime)),
+		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime, podLevel), opts.NodeCertificates)),
+		heredoc("/var/lib/kubelet/config.yaml", opts.kubeletConfig(opts.ClusterDNS, opts.KataRuntime)),
 		body,
 		nopasswdSetup(opts.BootstrapUser, opts.SudoPassword),
 		dataKubeletMount(sudo),
@@ -764,8 +793,53 @@ set -euxo pipefail
 		joinedGuard(sudo, opts.NodeName),
 		joinedMarker(sudo, opts.NodeName),
 		kuraLVMSetup(sudo, opts.KuraLVM && hostsKuraLVMVolumes(opts.Taints)),
+		kubeletCertificateWait(sudo, opts.NodeCertificates),
 	)
 }
+
+// kubeletCredentialWrite writes what a joining kubelet authenticates with:
+// the operator's ServiceAccount kubeconfig, or with NodeCertificates the
+// bootstrap kubeconfig. A certificate join drops whatever identity the box
+// holds unless it already joined under this name: a ServiceAccount kubeconfig
+// (the kubelet would keep using it) or a certificate for another node name (a
+// box re-adopted without a wipe, which NodeRestriction would refuse), with
+// the serving certificate it generated for that name.
+func kubeletCredentialWrite(sudo string, opts linuxCloudInitOptions, heredoc func(path, content string) string) string {
+	if !opts.NodeCertificates {
+		return heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML) + "\n" + sudo + "chmod 0600 /var/lib/kubelet/kubeconfig"
+	}
+	return fmt.Sprintf(`if [ "$(%[1]scat %[4]s 2>/dev/null || true)" != %[5]s ]; then
+  %[1]ssh -c 'rm -f /var/lib/kubelet/kubeconfig /var/lib/kubelet/pki/kubelet-client-* /var/lib/kubelet/pki/kubelet.crt /var/lib/kubelet/pki/kubelet.key'
+elif %[1]stest -f /var/lib/kubelet/kubeconfig && ! %[1]sgrep -q client-certificate /var/lib/kubelet/kubeconfig; then
+  %[1]srm -f /var/lib/kubelet/kubeconfig
+fi
+%[2]s
+%[1]schmod 0600 %[3]s`, sudo, heredoc(kubeletBootstrapKubeconfigPath, opts.BootstrapKubeconfigYAML), kubeletBootstrapKubeconfigPath,
+		joinedMarkerPath, shellSingleQuote(opts.NodeName))
+}
+
+// kubeletCertificateWait holds the script until the kubelet holds its client
+// certificate and runs on it, so the caller can delete the bootstrap token
+// right after, and fails the script with kubeletNoCertificateExit when none
+// came in two minutes (no CSR approval).
+func kubeletCertificateWait(sudo string, certificates bool) string {
+	if !certificates {
+		return ""
+	}
+	return fmt.Sprintf(`tuist_certified() { %[1]stest -s /var/lib/kubelet/pki/kubelet-client-current.pem && %[1]sgrep -qs client-certificate /var/lib/kubelet/kubeconfig; }
+for _ in $(seq 1 60); do tuist_certified && break; sleep 2; done
+if ! tuist_certified; then
+  echo "the kubelet got no client certificate; is its CSR approved?" >&2
+  exit %[3]d
+fi
+%[1]srm -f %[2]s
+`, sudo, kubeletBootstrapKubeconfigPath, kubeletNoCertificateExit)
+}
+
+// kubeletNoCertificateExit is the script's exit status when the kubelet got
+// no certificate, which the drift loop backs off on; any other failure, such
+// as a dropped SSH session, retries at the next resync.
+const kubeletNoCertificateExit = 75
 
 // joinedMarkerPath records the node name a completed self-join registered as.
 const joinedMarkerPath = "/var/lib/tuist/joined-node"
@@ -1017,7 +1091,14 @@ func dataKubeletMount(sudo string) string {
 // Pods actually boot. Keep it in lockstep with the Hetzner bare-metal worker
 // (`infra/k8s/clusters/bare-metal.yaml`), which pre-bakes the same version, so a
 // job behaves the same whichever fleet it lands on.
-const kataVersion = "3.30.0"
+//
+// From 4.0 the release's kata-static tarball carries only the Rust runtime
+// (runtime-rs); the Go runtime, which every drop-in here configures, ships as
+// kata-go-static with 3.x's layout (/opt/kata/bin/containerd-shim-kata-v2,
+// configuration-qemu.toml). 4.x is needed for the guest kernel: 3.x's 6.18.15
+// oopses when a virtiofs submount is unmounted with FUSE releases in flight
+// (CVE-2026-53381, fixed in 6.18.37), which wedged runner teardown on staging.
+const kataVersion = "4.4.0"
 
 // kataVersionStampPath records which kata release the box has unpacked, so the
 // install block above is a no-op on a box that already carries it.
@@ -1048,7 +1129,7 @@ func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing bool) string {
 	if !enabled {
 		return ""
 	}
-	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo) + kataNeedrestartSetup(sudo)
+	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo) + kataGuestEmptyDirSetup(sudo) + kataNeedrestartSetup(sudo)
 	if staticSandboxSizing {
 		dropIns += kataStaticSandboxSetup(sudo)
 	}
@@ -1059,14 +1140,14 @@ func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing bool) string {
 %[1]sgrep -q '^version = 3' /etc/containerd/config.toml || { echo "tuist: containerd config is not version 3; the kata-qemu handler would be ignored. Refusing to join a runner node that cannot run microVM Pods." >&2; exit 1; }
 %[5]s
 apt_retry %[2]sapt-get install -y zstd
-# kata-static expands with a top-level opt/, so extracting at / lands the shim
+# kata-go-static expands with a top-level opt/, so extracting at / lands the shim
 # and its bundled qemu under /opt/kata/{bin,libexec,share}. Guarded on a version
 # stamp so a re-run costs nothing: the repair loop re-runs this block on every
 # retry against a box whose verification keeps failing, and an unguarded pull
-# would drag ~250 MiB off GitHub each time. Stamping the version (rather than
+# would drag ~1.3 GiB off GitHub each time. Stamping the version (rather than
 # just testing for the shim) keeps a kataVersion bump reinstalling.
 if [ "$(cat %[4]s 2>/dev/null)" != "%[3]s" ]; then
-  curl -fsSL -o /tmp/kata.tar.zst "https://github.com/kata-containers/kata-containers/releases/download/%[3]s/kata-static-%[3]s-amd64.tar.zst"
+  curl -fsSL -o /tmp/kata.tar.zst "https://github.com/kata-containers/kata-containers/releases/download/%[3]s/kata-go-static-%[3]s-amd64.tar.zst"
   %[1]star --zstd -xf /tmp/kata.tar.zst -C /
   rm -f /tmp/kata.tar.zst
   printf '%%s' "%[3]s" | %[1]stee %[4]s > /dev/null

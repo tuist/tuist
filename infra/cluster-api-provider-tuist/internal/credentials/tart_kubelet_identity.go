@@ -135,15 +135,24 @@ func (m *Manager) EnsureTartKubeletIdentity(ctx context.Context, node, fleet str
 		return nil, errors.New("token request returned no token")
 	}
 
-	ca := m.ClusterCA
-	if len(ca) == 0 {
-		data, err := os.ReadFile(serviceAccountCAPath)
-		if err != nil {
-			return nil, fmt.Errorf("read cluster CA: %w", err)
-		}
-		ca = data
+	ca, err := m.ClusterCABundle()
+	if err != nil {
+		return nil, err
 	}
 	return &NodeIdentity{Token: []byte(req.Status.Token), CA: ca}, nil
+}
+
+// ClusterCABundle is the CA a node's kubeconfig trusts: ClusterCA, or the
+// operator Pod's service-account CA.
+func (m *Manager) ClusterCABundle() ([]byte, error) {
+	if len(m.ClusterCA) > 0 {
+		return m.ClusterCA, nil
+	}
+	data, err := os.ReadFile(serviceAccountCAPath)
+	if err != nil {
+		return nil, fmt.Errorf("read cluster CA: %w", err)
+	}
+	return data, nil
 }
 
 // EnsureNodeIdentityRoles grants node's ServiceAccount what every macOS

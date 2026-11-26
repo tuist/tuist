@@ -12,7 +12,7 @@ defmodule Atlas.Outreach.MessageLearning do
   @minimum_sample_size 5
   @attempt_limit 250
   @no_reply_after_days 14
-  @dimensions ~w(message_kind message_intent personalization_source call_to_action)a
+  @dimensions ~w(channel message_kind message_intent personalization_source call_to_action)a
 
   def context(%Contact{}) do
     cutoff = DateTime.utc_now() |> DateTime.add(-@no_reply_after_days, :day) |> DateTime.truncate(:second)
@@ -64,8 +64,10 @@ defmodule Atlas.Outreach.MessageLearning do
       dimension: Atom.to_string(dimension),
       value: value,
       sent: length(attempts),
-      replies: Enum.count(attempts, &(&1.outcome in ~w(replied positive_reply objection not_interested))),
-      positive_replies: Enum.count(attempts, &(&1.outcome == "positive_reply")),
+      replies:
+        Enum.count(attempts, &(&1.outcome in ~w(replied positive_reply meeting_booked objection not_interested))),
+      positive_replies: Enum.count(attempts, &(&1.outcome in ~w(positive_reply meeting_booked))),
+      meetings: Enum.count(attempts, &(&1.outcome == "meeting_booked")),
       negative_replies: Enum.count(attempts, &(&1.outcome in ~w(objection not_interested))),
       no_replies: Enum.count(attempts, &(&1.outcome == "no_reply"))
     }

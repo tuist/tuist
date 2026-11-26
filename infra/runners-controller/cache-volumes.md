@@ -719,8 +719,9 @@ only for its default `2vcpu-8gb` pool, using a bounded 200 GB host store with th
 probe fails if authorization or a profile opt-out prevents mounting. Do not
 bypass that failure.
 
-The normal production cascade runs native and actual job-container Linux probes,
-then three separate jobs on that canary pool: cold (which also builds the changed
+The normal production cascade runs native and actual job-container Linux probes
+and, beside them (they only read the Docker cache), three separate jobs on that
+canary pool: cold (which also builds the changed
 source within the job), same-size write, and final reuse. Each job checks both the embedded Docker driver
 and a stable-key docker-container builder, sequentially in one snapshot to avoid
 their seed jobs overwriting each other's state. An experiment key is unique to

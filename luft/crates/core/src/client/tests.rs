@@ -3384,3 +3384,165 @@ fn ai_subscriptions_connect_claude_and_sign_in_to_chatgpt() {
     let unavailable = call(&mut c, &mut h, "ai_subscriptions", json!({}));
     assert_eq!(unavailable["error"], AI_SUBSCRIPTIONS_UNAVAILABLE);
 }
+
+#[test]
+fn live_diffs_merge_into_the_store_and_queued_replies_stay_unsent_until_the_server_has_them() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let message = |id: &str, position: u64, role: &str, content: &str| json!({"id":id,"position":position,"role":role,"content":content});
+    let mut loaded = server_thread(json!([
+        message("m1", 1, "assistant", "first"),
+        message("m2", 2, "assistant", "second"),
+    ]));
+    loaded["revision"] = json!(2);
+    loaded["has_more"] = json!(true);
+    loaded["next_before"] = json!(1);
+    h.responses.push_back((200, loaded.clone()));
+    call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+
+    // The socket resumes from the stored revision.
+    let plan = call(
+        &mut c,
+        &mut h,
+        "live_connect",
+        json!({"id":SERVER_ID,"socket":"s"}),
+    );
+    let join: Value = serde_json::from_str(plan["data"]["join"].as_str().unwrap()).unwrap();
+    assert_eq!(join[4]["sync"], true);
+    assert_eq!(join[4]["since"], 2);
+
+    h.offline = true;
+    let queued = call(
+        &mut c,
+        &mut h,
+        "send_message",
+        json!({"id":SERVER_ID,"content":"Ship it"}),
+    );
+    let unsent = queued["data"]["messages"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap()
+        .clone();
+    assert_eq!(unsent["send_state"], "offline", "{queued}");
+    h.offline = false;
+
+    let receive = |c: &mut MobileClient, h: &mut Fake, event: &str, payload: Value| {
+        let frame = json!(["1", "1", format!("threads:ana:{SERVER_ID}"), event, payload]);
+        let out = call(
+            c,
+            h,
+            "live_receive",
+            json!({"socket":"s","id":SERVER_ID,"message":frame.to_string()}),
+        );
+        assert!(out.get("error").is_none(), "{out}");
+        out["data"].clone()
+    };
+    let joined = receive(
+        &mut c,
+        &mut h,
+        "phx_reply",
+        json!({"status":"ok","response":{}}),
+    );
+    assert_eq!(joined["changed"], false, "{joined}");
+
+    // An edit to a stored message, the queued reply as the server stored it,
+    // and an edit to a message before the stored page.
+    let mut reply = message("m3", 4, "user", "Ship it");
+    reply["request_id"] = unsent["id"].clone();
+    let diff = json!({"reset":false,"cursor":4,"thread":{
+        "id":SERVER_ID,"status":"running","archive_status":"active","revision":4,
+        "messages":[message("m0", 0, "assistant", "older"), message("m1", 1, "assistant", "edited"), reply]
+    }});
+    let out = receive(&mut c, &mut h, "diff", diff.clone());
+    assert_eq!(out["changed"], true, "{out}");
+    assert!(out.get("diff").is_none());
+
+    let cached = call(&mut c, &mut h, "cached_thread", json!({"id":SERVER_ID}))["data"].clone();
+    let contents: Vec<_> = cached["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["content"].clone())
+        .collect();
+    assert_eq!(
+        contents,
+        [json!("edited"), json!("second"), json!("Ship it")],
+        "{cached}"
+    );
+    assert!(cached["messages"][2].get("send_state").is_none());
+    assert_eq!(cached["freshness"]["state"], "live");
+    assert_eq!(cached["working"], true);
+    assert_eq!(cached["has_more"], true);
+    assert_eq!(cached["next_before"], 1);
+
+    // A repeated diff and a slower load of an older revision change nothing.
+    assert_eq!(receive(&mut c, &mut h, "diff", diff)["changed"], false);
+    h.responses.push_back((200, loaded));
+    let load = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    assert_eq!(load["data"]["messages"][0]["content"], "edited", "{load}");
+
+    let plan = call(
+        &mut c,
+        &mut h,
+        "live_connect",
+        json!({"id":SERVER_ID,"socket":"s"}),
+    );
+    let join: Value = serde_json::from_str(plan["data"]["join"].as_str().unwrap()).unwrap();
+    assert_eq!(join[4]["since"], 4);
+
+    // A delta the store can't apply (the conversation was dropped since the
+    // join) reconnects, and the next join asks for the latest page.
+    let directory = h.directory.clone().unwrap();
+    let file = std::fs::read_dir(&directory)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.extension().is_some_and(|e| e == "sqlite3"))
+        .unwrap();
+    rusqlite::Connection::open(file)
+        .unwrap()
+        .execute("DELETE FROM conversations WHERE id = ?1", [SERVER_ID])
+        .unwrap();
+    let out = receive(
+        &mut c,
+        &mut h,
+        "diff",
+        json!({"reset":false,"cursor":5,"thread":{"id":SERVER_ID,"messages":[]}}),
+    );
+    assert_eq!(
+        (out["changed"].clone(), out["reconnect"].clone()),
+        (json!(false), json!(true))
+    );
+    let plan = call(
+        &mut c,
+        &mut h,
+        "live_connect",
+        json!({"id":SERVER_ID,"socket":"s"}),
+    );
+    let join: Value = serde_json::from_str(plan["data"]["join"].as_str().unwrap()).unwrap();
+    assert_eq!(join[4]["since"], Value::Null);
+}
+
+#[test]
+fn live_refreshes_reach_the_edge_while_refresh_tokens_stay_scrubbed() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    call(
+        &mut c,
+        &mut h,
+        "live_connect",
+        json!({"id":"inbox","socket":"i"}),
+    );
+    let frame = json!([null, null, "threads:ana:inbox", "snapshot", {"revision": 7}]);
+    let out = call(
+        &mut c,
+        &mut h,
+        "live_receive",
+        json!({"socket":"i","id":"inbox","message":frame.to_string()}),
+    );
+    assert_eq!(out["data"]["refresh"], true, "{out}");
+    let profile = &out["view"]["profiles"][0];
+    assert!(profile.is_object(), "{out}");
+    assert!(profile.get("refresh").is_none() && profile.get("access").is_none());
+    assert!(!out.to_string().contains("refresh-1"));
+}

@@ -741,6 +741,52 @@ defmodule LuftServer.Threads do
     end
   end
 
+  @sync_page 200
+
+  @doc """
+  What changed in a thread since revision `since`, for a client that keeps it.
+  Without a cursor, the latest page, as `get/3` returns it, replaces what the
+  client has (`reset`), and so does it for a client too far behind for one
+  delta. Otherwise the thread's fields and the messages whose version is
+  above `since`; `:unchanged` when the thread's revision isn't. Rows the
+  client already has may come again; applying them is idempotent.
+  """
+  def changes(scope, id, since) do
+    with {:ok, id} <- uuid(id),
+         %Thread{} = thread <- Repo.get_by(Thread, id: id, account_id: scope.account_id),
+         :ok <- access(scope, thread) do
+      rows =
+        if since && thread.revision > since,
+          do:
+            Repo.all(
+              from m in Message,
+                where: m.thread_id == ^thread.id and m.version > ^since,
+                order_by: m.position,
+                limit: ^(@sync_page + 1)
+            ),
+          else: []
+
+      cond do
+        is_nil(since) or length(rows) > @sync_page ->
+          {:ok, %{reset: true, cursor: thread.revision, thread: history(thread, scope)}}
+
+        thread.revision <= since ->
+          :unchanged
+
+        true ->
+          {:ok,
+           %{
+             reset: false,
+             cursor: thread.revision,
+             thread: people(%{thread | messages: rows}, scope)
+           }}
+      end
+    else
+      nil -> {:error, :not_found}
+      error -> error
+    end
+  end
+
   @doc "Runtime compatibility: reads through the persisted owner's exact delegation."
   def history(thread) do
     with session when not is_nil(session) <- Sessions.get_by_id(thread.owner_session_id),
@@ -868,6 +914,12 @@ defmodule LuftServer.Threads do
         ),
       createdAt: DateTime.to_iso8601(message.inserted_at)
     }
+
+    # A client that queued this prompt offline recognizes it by its key.
+    value =
+      if message.kind == "human" and message.request_id,
+        do: Map.put(value, :request_id, message.request_id),
+        else: value
 
     if message.kind == "tool" and is_map(message.progress),
       do: Map.put(value, :build, message.progress),
@@ -1403,6 +1455,11 @@ defmodule LuftServer.Threads do
             {:ok, text} = result
             {reply, suggestions, icons} = Agent.decode_reply(text)
             {"idle", reply, suggestions, icons}
+
+          result == {:error, :mcp_discovery_failed} ->
+            {"failed",
+             "The run could not start because one of your MCP servers did not respond. Reconnect or remove it under MCP servers in your Tuist AI settings, then send a new message to retry.",
+             [], %{}}
 
           true ->
             {"failed",

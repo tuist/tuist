@@ -1742,6 +1742,20 @@ it, so a profile can never pick an OS without a pool behind it.
 {{- end -}}
 
 {{/*
+The part of a macOS pool name a catalog image key contributes: the key with
+dots as dashes (`26.4.1` → `26-4-1`, `27.2-macos-27` → `27-2-macos-27`), except
+that a beta channel in front of a macOS release shortens to `-b`
+(`27.3-beta-macos-27` → `27-3-b-macos-27`). Spelled out, the site pool
+`tuist-tuist-runner-pool-macos-ber1-27-3-beta-macos-27-16vcpu-48gb` is 65
+characters, over the 63 a label value takes. Tahoe pools keep `-beta`, the
+names queued jobs already carry. The server's `Catalog.pool_name/1` applies the
+same rule.
+*/}}
+{{- define "tuist.macosPoolTag" -}}
+{{- regexReplaceAll "-beta-(macos-[0-9]+)$" (replace "." "-" .) "-b-${1}" -}}
+{{- end -}}
+
+{{/*
 The macOS catalog's images, as a JSON array of `{xcodeVersion, default}`: every
 `runnersFleet.xcodeVersions` entry on every `runnersFleet.macosVersions`
 release that builds it (all of them unless the release lists its
@@ -1788,7 +1802,7 @@ the Tahoe image, whose pool keeps the `tuist.dev/xcode-default` label. Without
 {{- $prefix := include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") -}}
 {{- $rackShapes := $runners.shapes | default dict -}}
 {{- range $xcode := (include "tuist.macosCatalogImages" . | fromJsonArray) -}}
-{{- $xcodeTag := $xcode.xcodeVersion | toString | replace "." "-" -}}
+{{- $xcodeTag := include "tuist.macosPoolTag" ($xcode.xcodeVersion | toString) -}}
 {{- $pools = append $pools (dict "name" (printf "%s-%s-%s" $prefix $site $xcodeTag) "site" $site "fleet" $fleet) -}}
 {{- range $shape := ($.Values.runnersFleet.shapes | default list) -}}
 {{- if not $shape.default -}}

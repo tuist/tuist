@@ -8,6 +8,29 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 FROM scratch AS certificate-trust
 COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /
 
+# The GPUI web edge served under /app: Luft's luft-gpui-web crate compiled to
+# wasm with Luft's pinned Rust (luft/mise.toml) and bound for the browser.
+# Single-threaded, so it builds on stable Rust and needs no cross-origin
+# isolation. Its SQLite compiles with clang.
+FROM rust:1.98.1-slim-trixie AS luft-web
+
+RUN apt-get update -y && apt-get install -y clang llvm ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
+    && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
+
+# Must match the wasm-bindgen crate in luft/Cargo.lock.
+RUN rustup target add wasm32-unknown-unknown \
+    && cargo install --locked wasm-bindgen-cli --version 0.2.130
+
+WORKDIR /luft
+COPY luft ./
+RUN cargo build --locked --release --target wasm32-unknown-unknown -p luft-gpui-web \
+    && wasm-bindgen --target web --no-typescript --out-dir /out target/wasm32-unknown-unknown/release/luft_gpui_web.wasm \
+    && cp gpui-web/index.html gpui-web/main.js /out/ \
+    && gzip -9 -k /out/luft_gpui_web_bg.wasm /out/luft_gpui_web.js
+
 FROM ${BUILDER_IMAGE} AS builder
 
 RUN apt-get update -y && apt-get install -y build-essential git curl ca-certificates \
@@ -17,7 +40,7 @@ RUN apt-get update -y && apt-get install -y build-essential git curl ca-certific
 RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 # Match the native SDK's NSH version. Only this checksum-verified compiler
-# ships; the release remains headless and contains no web frontend.
+# ships alongside the release.
 ARG TARGETARCH
 RUN set -eu; \
     case "$TARGETARCH" in \
@@ -50,12 +73,14 @@ COPY luft-server/config/config.exs luft-server/config/${MIX_ENV}.exs config/
 RUN mix deps.get --only $MIX_ENV
 RUN mix deps.compile --skip-local-deps
 
-# Only migrations and the trusted native card kit; never a frontend/static shell.
+# Only migrations, the trusted native card kit and the GPUI web edge under
+# /app; never a frontend shell at the root.
 COPY condukt/lib /app/condukt/lib
 COPY condukt/priv /app/condukt/priv
 COPY luft-server/priv/repo priv/repo
 COPY luft-server/priv/threads priv/threads
 COPY luft-server/lib lib
+COPY --from=luft-web /out priv/static/app
 RUN mix compile --warnings-as-errors
 
 COPY luft-server/config/runtime.exs config/

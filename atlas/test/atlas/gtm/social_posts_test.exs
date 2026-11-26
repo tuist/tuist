@@ -2,36 +2,37 @@ defmodule Atlas.GTM.SocialPostsTest do
   use Atlas.DataCase, async: true
   use Mimic
 
-  import Atlas.MCP.ToolCase, only: [insert_user!: 0, mcp_conn: 1]
+  import Atlas.MCP.ToolCase, only: [insert_user!: 1, mcp_conn: 1]
 
-  alias Atlas.Connections.Connection
+  alias Atlas.GTM.SocialAccount
   alias Atlas.GTM.SocialPost
   alias Atlas.GTM.SocialPosts
   alias Atlas.GTM.SocialPostSnapshot
-  alias Atlas.MCP.Tools.SyncMySocialPosts
+  alias Atlas.MCP.Tools.SyncSocialPosts
 
   setup do
-    user = insert_user!()
+    user = insert_user!(%{scopes: ["gtm:write"]})
     n = System.unique_integer([:positive])
     account_id = "acct#{n}"
 
-    %Connection{user_id: user.id, provider: "x"}
-    |> Connection.changeset(%{
-      provider_user_id: account_id,
-      account_name: "@brand#{n}",
-      access_token: "x-access",
-      refresh_token: "x-refresh",
-      scopes: ["tweet.read", "users.read", "offline.access"],
-      expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
-    })
-    |> Repo.insert!()
+    account =
+      %SocialAccount{platform: "x", external_id: account_id}
+      |> SocialAccount.changeset(%{
+        handle: "@brand#{n}",
+        kind: "personal",
+        access_token: "x-access",
+        refresh_token: "x-refresh",
+        scopes: ["tweet.read", "users.read", "offline.access"],
+        expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
+      })
+      |> Repo.insert!()
 
     ids =
       for suffix <- ~w(video thread child reply mention link),
           into: %{},
           do: {suffix, "#{n}#{byte_size(suffix)}#{suffix}"}
 
-    %{user: user, account_id: account_id, username: "brand#{n}", ids: ids}
+    %{user: user, account: account, account_id: account_id, username: "brand#{n}", ids: ids}
   end
 
   defp posts(ctx, likes) do
@@ -126,7 +127,7 @@ defmodule Atlas.GTM.SocialPostsTest do
 
   test "stores the account's own posts with format, thread and click metrics", ctx do
     stub_x(ctx, 5)
-    assert {:ok, 3} = SocialPosts.sync_x(ctx.user)
+    assert {:ok, 3} = SocialPosts.sync_account(ctx.account)
 
     by_id = SocialPost |> where(account_id: ^ctx.account_id) |> Repo.all() |> Map.new(&{&1.external_id, &1})
     assert Map.keys(by_id) |> Enum.sort() == Enum.sort([ctx.ids["video"], ctx.ids["thread"], ctx.ids["link"]])
@@ -145,35 +146,43 @@ defmodule Atlas.GTM.SocialPostsTest do
 
   test "a second sync on the same day updates that day's snapshot instead of adding one", ctx do
     stub_x(ctx, 5)
-    {:ok, _} = SocialPosts.sync_x(ctx.user)
+    {:ok, _} = SocialPosts.sync_account(ctx.account)
     stub_x(ctx, 8)
-    {:ok, _} = SocialPosts.sync_x(ctx.user)
+    {:ok, _} = SocialPosts.sync_account(ctx.account)
 
     post = Repo.get_by!(SocialPost, platform: "x", external_id: ctx.ids["video"])
     assert post.likes == 8
     assert [%SocialPostSnapshot{likes: 8}] = Repo.all(from s in SocialPostSnapshot, where: s.social_post_id == ^post.id)
   end
 
-  test "the on-demand sync tool syncs the caller's account and reports X's reason when X rejects it", ctx do
+  test "the on-demand sync tool syncs the account and reports X's reason when X rejects it", ctx do
     stub_x(ctx, 5)
-    assert {:ok, %{posts: 3}} = SyncMySocialPosts.execute(mcp_conn(ctx.user), %{})
+    handle = ctx.account.handle
+
+    assert {:ok, %{accounts: [%{account: ^handle, kind: "personal", posts: 3}]}} =
+             SyncSocialPosts.execute(mcp_conn(ctx.user), %{"account" => handle})
+
+    assert Repo.reload!(ctx.account).last_synced_at
 
     stub(Req, :request, fn _opts ->
       {:ok, %Req.Response{status: 402, body: %{"title" => "CreditsDepleted", "detail" => "Add credits to continue."}}}
     end)
 
-    assert {:error, message} = SyncMySocialPosts.execute(mcp_conn(ctx.user), %{})
+    assert {:ok, %{accounts: [%{error: message}]}} =
+             SyncSocialPosts.execute(mcp_conn(ctx.user), %{"account" => handle})
+
     assert message =~ "402"
     assert message =~ "Add credits to continue."
   end
 
-  test "summaries use medians per account and label threads separately", ctx do
+  test "summaries use medians per account kind and account, and label threads separately", ctx do
     stub_x(ctx, 5)
-    {:ok, _} = SocialPosts.sync_x(ctx.user)
+    {:ok, _} = SocialPosts.sync_account(ctx.account)
 
     summary = SocialPosts.summarize(SocialPosts.list_posts(account: "@" <> ctx.username))
 
     assert [%{group: handle, posts: 3, median_impressions: 400}] = summary.by_account
+    assert [%{group: "personal", posts: 3}] = summary.by_kind
     assert handle == "@" <> ctx.username
     assert summary.by_format |> Enum.map(& &1.group) |> Enum.sort() == ["link", "text thread", "video"]
   end

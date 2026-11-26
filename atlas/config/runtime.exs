@@ -340,6 +340,10 @@ config :atlas, :account_connections, %{
   "x" => %{
     client_id: System.get_env("ATLAS_X_CLIENT_ID"),
     client_secret: System.get_env("ATLAS_X_CLIENT_SECRET")
+  },
+  "linkedin" => %{
+    client_id: System.get_env("ATLAS_LINKEDIN_CLIENT_ID"),
+    client_secret: System.get_env("ATLAS_LINKEDIN_CLIENT_SECRET")
   }
 }
 

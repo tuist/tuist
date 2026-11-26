@@ -483,6 +483,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err := r.cleanupLegacyAccountPublicPeerService(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
+		if err := r.cleanupAccountPeerService(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
 		// The StatefulSet's Delete retention policy drops the data PVCs when the
 		// StatefulSet is garbage-collected with the instance, but the default
 		// hcloud-volumes StorageClass retains the underlying Hetzner volume. Flip
@@ -1597,6 +1600,44 @@ func (r *KuraInstanceReconciler) cleanupLegacyAccountPublicPeerService(
 	}
 
 	return r.Delete(ctx, service)
+}
+
+// cleanupAccountPeerService deletes the account's headless peer Service with
+// the account's last instance. Every region of an account shares it, so it has
+// no owner reference, and without this it outlives the account forever. A
+// sibling created after the list re-creates it on its own reconcile.
+func (r *KuraInstanceReconciler) cleanupAccountPeerService(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+) error {
+	name := accountPeerServiceName(instance)
+	service := &corev1.Service{}
+	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, service); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	labels := service.GetLabels()
+	if labels["app.kubernetes.io/managed-by"] != "kura-controller" || labels["tuist.dev/account"] != instance.Spec.AccountHandle {
+		return nil
+	}
+
+	instances := &kurav1alpha1.KuraInstanceList{}
+	if err := r.List(ctx, instances, client.InNamespace(instance.Namespace)); err != nil {
+		return err
+	}
+	for i := range instances.Items {
+		sibling := &instances.Items[i]
+		if sibling.Name != instance.Name && sibling.DeletionTimestamp.IsZero() && accountPeerServiceName(sibling) == name {
+			return nil
+		}
+	}
+
+	if err := r.Delete(ctx, service, client.Preconditions{UID: &service.UID}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
 }
 
 func legacyPeerServiceMatchesHost(service *corev1.Service, host string) bool {

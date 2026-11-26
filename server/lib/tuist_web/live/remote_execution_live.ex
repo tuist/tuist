@@ -70,9 +70,10 @@ defmodule TuistWeb.RemoteExecutionLive do
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
     filters = Filter.Operations.convert_filters_to_flop(active_filters)
     page = Query.positive_integer(params["page"])
-    cohort = period
+    environment = environment_param(params["analytics-environment"])
+    cohort = {period, environment}
     project = socket.assigns.selected_project
-    opts = DatePicker.period_opts(period)
+    opts = analytics_opts(period, environment)
 
     socket =
       socket
@@ -80,6 +81,7 @@ defmodule TuistWeb.RemoteExecutionLive do
       |> assign(:preset, preset)
       |> assign(:period, period)
       |> assign(:trend_label, analytics_trend_label(preset))
+      |> assign(:environment, environment)
       |> assign(:search, search)
       |> assign(:sort_by, sort_by)
       |> assign(:sort_order, sort_order)
@@ -104,7 +106,8 @@ defmodule TuistWeb.RemoteExecutionLive do
          }}
       end)
 
-    # Search, pagination and widget selection do not change the usage.
+    # Search, pagination, widget and environment selection do not change the
+    # usage: the execution ledger does not know which runs are on CI.
     socket =
       if socket.assigns[:usage_period] == period and is_nil(socket.assigns.usage.failed) do
         socket
@@ -122,7 +125,7 @@ defmodule TuistWeb.RemoteExecutionLive do
         assign_async(socket, [:summary, :series], fn ->
           {:ok,
            %{
-             summary: summary_with_trends(analytics(once?), project.id, period),
+             summary: summary_with_trends(analytics(once?), project.id, period, environment),
              series: analytics(once?).time_series(project.id, opts)
            }}
         end)
@@ -197,6 +200,21 @@ defmodule TuistWeb.RemoteExecutionLive do
     ~H"""
     <div id="remote-execution" class="bazel-invocations">
       <div data-part="filters">
+        <.dropdown
+          id="remote-execution-environment"
+          label={environment_label(@environment)}
+          secondary_text={dgettext("dashboard_projects", "Environment:")}
+        >
+          <.dropdown_item
+            :for={{value, label} <- environment_options()}
+            value={value}
+            label={label}
+            patch={"?#{Query.drop(Query.put(@uri.query, "analytics-environment", value), "page")}"}
+            data-selected={@environment == value}
+          >
+            <:right_icon :if={@environment == value}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
         <.date_picker
           id="remote-execution-period"
           name="analytics-date-range"
@@ -609,13 +627,13 @@ defmodule TuistWeb.RemoteExecutionLive do
     """
   end
 
-  defp summary_with_trends(analytics, project_id, {start_datetime, end_datetime} = period) do
-    summary = analytics.summary(project_id, DatePicker.period_opts(period))
+  defp summary_with_trends(analytics, project_id, {start_datetime, end_datetime} = period, environment) do
+    summary = analytics.summary(project_id, analytics_opts(period, environment))
 
     previous =
       start_datetime
       |> previous_period(end_datetime)
-      |> DatePicker.period_opts()
+      |> analytics_opts(environment)
       |> then(&analytics.summary(project_id, &1))
 
     trends =
@@ -700,6 +718,26 @@ defmodule TuistWeb.RemoteExecutionLive do
 
   defp sort_order(%{sort_by: column, sort_order: order}, column), do: order
   defp sort_order(_assigns, _column), do: nil
+
+  defp environment_param(environment) when environment in ["ci", "local"], do: environment
+  defp environment_param(_environment), do: "any"
+
+  defp environment_label("ci"), do: dgettext("dashboard_projects", "CI")
+  defp environment_label("local"), do: dgettext("dashboard_projects", "Local")
+  defp environment_label(_environment), do: dgettext("dashboard_projects", "Any")
+
+  defp environment_options do
+    [
+      {"any", dgettext("dashboard_projects", "Any")},
+      {"ci", dgettext("dashboard_projects", "CI")},
+      {"local", dgettext("dashboard_projects", "Local")}
+    ]
+  end
+
+  # Both analytics modules take the environment of the runs: Bazel's from its
+  # invocations, Struo's from the runs its action records were stored with.
+  defp analytics_opts(period, "any"), do: DatePicker.period_opts(period)
+  defp analytics_opts(period, environment), do: Keyword.put(DatePicker.period_opts(period), :environment, environment)
 
   defp available_filters do
     [
@@ -798,7 +836,11 @@ defmodule TuistWeb.RemoteExecutionLive do
   # Running invocations lead the first page of the unfiltered table. The
   # table's search and filters match finished invocations' fields, so they
   # hide running ones.
-  defp running_rows(%AsyncResult{ok?: true, result: running}, 1 = _page, %{search: "", active_filters: []}), do: running
+  defp running_rows(%AsyncResult{ok?: true, result: running}, 1 = _page, %{
+         search: "",
+         active_filters: [],
+         environment: "any"
+       }), do: running
 
   defp running_rows(_running, _page, _assigns), do: []
 

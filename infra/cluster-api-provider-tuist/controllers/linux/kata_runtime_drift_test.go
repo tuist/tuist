@@ -66,7 +66,7 @@ func newKataHarness(t *testing.T, kataRuntime bool, nodeLabels map[string]string
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
 		Name:        machine.Name,
 		Labels:      nodeLabels,
-		Annotations: map[string]string{kubeletConfigHashAnnotation: desiredKubeletConfigHash(ca, "v1.34", kataRuntime)},
+		Annotations: map[string]string{kubeletConfigHashAnnotation: desiredKubeletConfigHash(ca, "v1.34", kataRuntime, false)},
 	}}
 	node.Status.Conditions = []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}
 
@@ -234,7 +234,7 @@ func TestRenderKataRuntimeRepairScript(t *testing.T) {
 
 	for _, want := range []string{
 		// Installs the runtime and registers the handler.
-		"kata-static-" + kataVersion + "-amd64.tar.zst",
+		"kata-go-static-" + kataVersion + "-amd64.tar.zst",
 		`runtime_path = "/opt/kata/bin/containerd-shim-kata-v2"`,
 		// Re-renders the kubelet unit so a future re-registration keeps the labels.
 		"tee /etc/systemd/system/kubelet.service > /dev/null <<'TUIST_EOF'",

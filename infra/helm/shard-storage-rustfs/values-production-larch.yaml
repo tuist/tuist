@@ -2,9 +2,9 @@
 # XFS /data), beside larch's minis. Macs reach no cluster network, only their
 # site's storage node on 443, so the store has no public host: each rack
 # site's gateway publishes it on that site's machines segment
-# (runnerEntrances), and the server reaches it in-cluster. Macs at larch place
-# plans here; Macs at either site read them, ber1's through its own gateway
-# over the cluster link between the sites.
+# (runnerEntrances), and the server reaches it in-cluster. Macs at either site
+# place and read plans here, ber1's through its own gateway over the cluster
+# link between the sites.
 enabled: true
 namespace: rustfs-larch
 generateCredentials: true
@@ -16,6 +16,9 @@ target:
   # each site should get a RustFS answer (403 without a signature) from its
   # entrance name: curl -sS -o /dev/null -w '%{http_code}' https://<host>/shards/
   runnerEntrancesReady: true
+  # ber1's Macs place here too, through their own entrance: their reads
+  # already take ~40 ms a range there, and the alternative is rustfs-gra.
+  placementSites: [ber1]
 privateNetwork:
   enabled: true
   # Only the server: Linux runners never place here (target.site is larch).

@@ -461,11 +461,17 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   from source, so they relinked and their dependents rebuilt after any cold
   boot; with the macros taken from the binary cache (Xcode 27.2, 2026-11) it
   reaches only `ExtractAppIntentsMetadata` of targets that rebuild anyway. A Mac build's command starts as `:snapshot_build`, so its
-  script gets a `TUIST_OIDC_TOKEN` with read access to the account's cache
+  script gets a `TUIST_OIDC_TOKEN` with the CI preset on the account's cache
   that exchanges only while the build runs (`CommandCredentials`): an
   unauthenticated `tuist generate` skips the cache setup and writes other
   build settings than a session's, and the session's first build then
-  recompiled everything (measured, 2026-11). The script runs without the
+  recompiled everything (measured, 2026-11). Write access, not read, because
+  the compilation cache's associations name objects a restored Mac can only
+  fetch from the remote: a read-only builder left its publications in the
+  spool, and a snapshot that also lacked one locally failed every session
+  build with `CAS error: missing object` (2026-11). After the script the
+  build drains the publications (`tuist-cas-proxy --drain`, as CI's
+  `drain_cas_publications`) and fails when a record remains. The script runs without the
   clone's `GIT_TERMINAL_PROMPT`, since Tuist keys its package-manifest cache
   on the environment and a session's commands lack it. After the script the build
   deletes the CLI's stored session (`~/.config/tuist/credentials`) and the

@@ -195,7 +195,8 @@ memory image until they cold boot.
   `tail_sha256`, the node's `compat`, `memory_bytes` and `lazy_disks`.
   Hello's `lazy_disks` says the daemon restores such archives. The sandbox stays paused on the node;
   the server deletes it once the upload is complete. A `resume` or `delete`
-  cancels an archive in flight instead of waiting for it. Transport errors
+  cancels an archive in flight instead of waiting for it, and so does the end
+  of the connection that carried it: the server then aborts the upload. Transport errors
   never carry the signed URL.
 - `archive_disks {snapshot_id, part_size, part_urls}`: upload a disk
   snapshot's kernel, rootfs and workspace in the same archive format and
@@ -862,7 +863,7 @@ returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`
 ### Process model
 
 With `sandboxes.vmm.enabled` (step 2a of seamless daemon restarts; in-place
-upgrades, step 2b, on staging only so far), the Pod has a second container, `vmm` (`cmd/vmm`, the same
+upgrades, step 2b), the Pod has a second container, `vmm` (`cmd/vmm`, the same
 image), that spawns the VMs so they sit in its cgroup instead of the
 daemon's container's. The server resizes `vmm`, not `sandboxd`, whose own
 resources are fixed (`Tuist.Kubernetes.Client.sandbox_vm_container/1`; the
@@ -909,6 +910,16 @@ node: the daemon then unregisters it from the userfaultfd
 drops, as the daemon did.
 `vmm.image.tag` pins vmm (and Firecracker) separately; the deploy keeps the
 live one unless the values set it.
+
+Remote execution workers (`infra/helm/remote-execution`,
+`workers.vmm.{enabled,inPlaceUpgrades,tag}`) use the same layout and
+updater, with `workers.vmm.tag` always pinned. What a handed-over VM
+depends on stays in the Pod's environment, so changing it replaces the
+worker: `TEMPLATE_TAG` (the `template` init container installs it) and
+`JAIL_UID_BASE`. An in-place restart keeps the workers' VMs but not an
+action executing in one (`exec` ends with the daemon's connection), nor the
+blob cache, which startup empties. Their deploy waits for a replaced worker
+to hold no VM (`SANDBOXD_UPGRADE_REPLACE_IDLE_SECONDS`).
 
 The jailer parent exits as soon as it has forked Firecracker into the new
 pid namespace, so the daemon sets itself as child subreaper, reads the pid
@@ -977,7 +988,9 @@ Lifecycle commands (`create`, `resume`, `pause`, `delete`) run detached
 from the WebSocket that delivered them, with their own timeouts, so a
 dropped connection cannot abort a snapshot half-way; `exec` is cancelled
 with the connection (its output has nowhere to go), which kills the guest
-process. Events that cannot be delivered are queued (bounded) for the next
+process, and so are `archive` and `archive_disks`, whose multipart upload
+the server aborts once their connection ends (`copy_disks` keeps running:
+its snapshot stays on the node). Events that cannot be delivered are queued (bounded) for the next
 connection. The read loop does not wait for in-flight commands when a
 connection ends, so a long snapshot or template build never keeps the node
 from reconnecting or from draining on shutdown; a result that outlives its

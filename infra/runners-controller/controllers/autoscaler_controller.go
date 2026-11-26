@@ -195,6 +195,12 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// short-lived grant, so sandbox admission fails closed independently.
 		logger.Error(err, "publish sandbox capacity allocation")
 	}
+	// Set explicitly on every requeue: the queue keeps an item's last
+	// priority, so a pool that stops reporting must give it up.
+	requeue := ctrl.Result{RequeueAfter: r.pollInterval(), Priority: new(0)}
+	if r.reportsSandboxAllocations(pool, fleet) {
+		requeue.Priority = new(sandboxReporterPriority)
+	}
 
 	current := pool.Spec.Replicas
 	now := r.now()
@@ -207,7 +213,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "retire idle runners for a sandbox growth; will retry")
 	}
 	if preempted {
-		return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+		return requeue, nil
 	}
 
 	switch {
@@ -237,13 +243,13 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					logger.Error(err, "preempt idle runners for starved siblings; will retry")
 				}
 				if preempted {
-					return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+					return requeue, nil
 				}
 				logger.V(1).Info("scale-down deferred by cooldown",
 					"elapsed", elapsed.String(),
 					"cooldown", cooldown.String(),
 					"from", current, "to", desired)
-				return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+				return requeue, nil
 			}
 		}
 
@@ -267,7 +273,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			"signals", signals, "minWarm", knobs.MinWarmPoolFloor)
 	}
 
-	return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+	return requeue, nil
 }
 
 // policyKnobs reads a pool's autoscaling knobs from its spec.
@@ -980,6 +986,14 @@ func (r *AutoscalerReconciler) now() time.Time {
 // same way. Grant publication keeps its own lock, and host reservations stay
 // in the RunnerPool reconciler's single worker.
 const autoscalerWorkers = 4
+
+// sandboxReporterPriority puts the pool that renews its fleet's sandbox
+// grants ahead of the other pools in the queue, so the renewal waits for a
+// free worker, not for every queued pool. Four workers did not stay ahead: on
+// 2026-11-24 and 11-25 41 pools at 0.4 to 1.1 s each kept 25 to 41 pools
+// queued for an hour at a time, each waited 4 to 10 s, and every macOS host's
+// grant went stale together for many creates.
+const sandboxReporterPriority = 100
 
 func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	b := ctrl.NewControllerManagedBy(mgr).

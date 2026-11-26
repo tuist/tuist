@@ -140,7 +140,14 @@ rules:
 #
 # - Pods: the only ones tart-kubelet creates are the macOS sandbox service's
 #   reservations, in the sandbox namespace, on its own Node, referencing
-#   nothing.
+#   nothing, labelled only with the reservation's role and sandbox ID and
+#   exposing no port, so a host cannot stand up a Pod behind another
+#   Service or controller selector. It updates, deletes and writes the
+#   status of only Pods bound to its own Node, and changes none of their
+#   labels and only its VNC relay and heartbeat annotations: RBAC grants
+#   Pod writes cluster-wide, and without this a host could relabel any Pod across
+#   Service and NetworkPolicy selectors, delete it, or arm sandboxd's
+#   in-place upgrade handover annotation.
 # - Nodes: it writes only its own. It may set the labels tart-kubelet owns
 #   (`kubernetes.io/os` must stay darwin, `kubernetes.io/hostname` its own
 #   name, and `tuist.dev/*`, with `tuist.dev/fleet` only a fleet the
@@ -174,7 +181,15 @@ spec:
       - apiGroups: [""]
         apiVersions: ["v1"]
         operations: ["CREATE"]
-        resources: ["pods", "serviceaccounts/token"]
+        resources: ["serviceaccounts/token"]
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["pods"]
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["UPDATE"]
+        resources: ["pods/status"]
       - apiGroups: [""]
         apiVersions: ["v1"]
         operations: ["CREATE", "UPDATE"]
@@ -190,9 +205,14 @@ spec:
         request.userInfo.username.substring({{ len (printf "system:serviceaccount:%s:tart-kubelet-" .Release.Namespace) }})
     - name: isNode
       expression: request.resource.resource == "nodes"
+    - name: isPod
+      expression: request.resource.resource == "pods"
+    # pods/status is matched only on UPDATE, so a CREATE is the Pod itself.
+    - name: podCreate
+      expression: variables.isPod && request.operation == "CREATE"
     - name: containers
       expression: >-
-        request.resource.resource == "pods" ?
+        variables.podCreate ?
         object.spec.containers
           + (has(object.spec.initContainers) ? object.spec.initContainers : [])
           + (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers : []) : []
@@ -202,6 +222,11 @@ spec:
     - name: oldLabels
       expression: >-
         variables.isNode && oldObject != null && has(oldObject.metadata.labels) ? oldObject.metadata.labels : {}
+    # The Pod annotations tart-kubelet's podagent writes.
+    - name: hostAnnotations
+      expression: >-
+        ["tuist.dev/vnc-state", "tuist.dev/vnc-relay-host", "tuist.dev/vnc-relay-port",
+         "tuist.dev/vnc-relay-ready-at", "tuist.dev/runner-heartbeat-state", "tuist.dev/runner-heartbeat-at"]
     - name: hostLabels
       expression: '["kubernetes.io/os", "kubernetes.io/arch", "kubernetes.io/hostname"]'
     - name: taints
@@ -218,12 +243,36 @@ spec:
         ["tuist.dev/macos", "tuist.dev/prewarming"]
   validations:
     - expression: >-
-        request.resource.resource != "pods" ||
+        !variables.podCreate ||
         (request.namespace == {{ $sandboxNamespace | quote }} &&
          has(object.spec.nodeName) && object.spec.nodeName == variables.node)
       message: A macOS host may create Pods only in the sandbox namespace, on its own Node.
+    # A Pod's Node never changes once bound, so the old object decides.
     - expression: >-
-        request.resource.resource != "pods" ||
+        !variables.isPod || variables.podCreate ||
+        (has(oldObject.spec.nodeName) && oldObject.spec.nodeName == variables.node)
+      message: A macOS host may change or delete only Pods bound to its own Node.
+    # Labels are what Services and NetworkPolicies select on; tart-kubelet
+    # writes only finalizers, annotations and status.
+    - expression: >-
+        !variables.isPod || request.operation != "UPDATE" ||
+        (has(object.metadata.labels) ? object.metadata.labels : {}) ==
+        (has(oldObject.metadata.labels) ? oldObject.metadata.labels : {})
+      message: A macOS host may not change a Pod's labels.
+    # Annotations steer other readers too: Alloy scrapes any Pod IP and path
+    # its prometheus.io/* annotations name, and the runners controller trusts
+    # its own tuist.dev/preempted-* and revision annotations. tart-kubelet
+    # writes only the VNC relay and runner heartbeat keys.
+    - expression: >-
+        !variables.isPod || request.operation != "UPDATE" ||
+        ((has(object.metadata.annotations) ? object.metadata.annotations : {}).all(k, k in variables.hostAnnotations ||
+           (has(oldObject.metadata.annotations) && k in oldObject.metadata.annotations &&
+            oldObject.metadata.annotations[k] == object.metadata.annotations[k])) &&
+         (has(oldObject.metadata.annotations) ? oldObject.metadata.annotations : {}).all(k, k in variables.hostAnnotations ||
+           (has(object.metadata.annotations) && k in object.metadata.annotations)))
+      message: A macOS host may change only the VNC relay and runner heartbeat annotations of a Pod.
+    - expression: >-
+        !variables.podCreate ||
         (!has(object.spec.volumes) || size(object.spec.volumes) == 0) &&
         (!has(object.spec.imagePullSecrets) || size(object.spec.imagePullSecrets) == 0) &&
         (has(object.spec.automountServiceAccountToken) && object.spec.automountServiceAccountToken == false) &&
@@ -232,6 +281,19 @@ spec:
           (!has(c.envFrom) || size(c.envFrom) == 0) &&
           (!has(c.env) || c.env.all(e, !has(e.valueFrom))))
       message: A Pod a macOS host creates may reference no Secret, ConfigMap, volume or ServiceAccount token.
+    # A reservation carries only its role and sandbox ID, so the Pod matches
+    # no Service (such as sandboxd's admin API), NetworkPolicy peer or
+    # controller selector (the control DaemonSets), only its Node's UID as an
+    # annotation, so no scraper discovers it, and it exposes no port.
+    - expression: >-
+        !variables.podCreate ||
+        (has(object.metadata.labels) &&
+         (!has(object.metadata.annotations) || object.metadata.annotations.all(k, k == "tuist.dev/sandbox-node-uid")) &&
+         object.metadata.labels.all(k, k in ["tuist.dev/macos-sandbox-role", "tuist.dev/sandbox-id"]) &&
+         "tuist.dev/macos-sandbox-role" in object.metadata.labels &&
+         object.metadata.labels["tuist.dev/macos-sandbox-role"] == "execution" &&
+         variables.containers.all(c, !has(c.ports) || size(c.ports) == 0))
+      message: A Pod a macOS host creates may carry only the sandbox reservation labels and annotation and expose no port.
     - expression: >-
         request.resource.resource != "serviceaccounts" ||
         (request.namespace == {{ .Release.Namespace | quote }} && request.name == "tart-kubelet-" + variables.node) ||

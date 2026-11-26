@@ -213,7 +213,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
   end
 
   test "records connection progress and messages from the contact page", %{conn: conn} do
-    {conn, _user} = log_in_user(conn, %{email: "outreach-events@tuist.dev"})
+    {conn, user} = log_in_user(conn, %{email: "outreach-events@tuist.dev"})
     contact = insert_contact!()
 
     {:ok, view, _html} = live(conn, ~p"/commercial/gtm/outreach/#{contact.id}")
@@ -229,6 +229,7 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     |> form("#outreach-event-form", %{
       "event" => %{
         "kind" => "message_sent",
+        "channel" => "x",
         "body" => "I liked your point about build feedback. What made that difficult?"
       }
     })
@@ -237,6 +238,9 @@ defmodule AtlasWeb.OutreachContactsLiveTest do
     assert has_element?(view, "#outreach-contact-events", "Message sent")
     assert has_element?(view, "#outreach-contact-events", "What made that difficult?")
     assert Repo.get!(Contact, contact.id).outreach_status == "conversation_started"
+
+    attempt = Repo.get_by!(MessageAttempt, contact_id: contact.id)
+    assert {attempt.channel, attempt.sender_id} == {"x", user.id}
   end
 
   test "automatically records contact context from a pasted screenshot", %{conn: conn} do

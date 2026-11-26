@@ -1752,12 +1752,15 @@ defmodule Tuist.Kura do
     :ok
   end
 
+  # `:destroyed` is reachable only from `:destroying`, so the row passes through
+  # it first; marking a `:provisioning` or `:active` row destroyed directly is
+  # rejected and would abort the account's remaining servers.
   defp destroy_server_in_cluster(%Server{} = server) do
-    case Provisioner.destroy(server) do
-      :ok ->
-        mark_destroyed(server)
-        :ok
-
+    with {:ok, server} <- destroy_server(server),
+         :ok <- Provisioner.destroy(server) do
+      mark_destroyed(server)
+      :ok
+    else
       {:error, reason} ->
         Logger.warning("[Kura] destroy failed for server #{server.id} on account deletion: #{inspect(reason)}")
 

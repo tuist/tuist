@@ -49,6 +49,18 @@
 {{- $_ := set $endpoints .site (printf "https://%s" .host) }}
 {{- end }}
 {{- $_ := set $config "runner_endpoints" $endpoints }}
+{{- with .Values.target.placementSites }}
+{{- $sites := list $.Values.target.site }}
+{{- range . }}
+{{- if not (hasKey $endpoints .) }}
+{{- fail (printf "target.placementSites: %s has no runnerEntrances entry" .) }}
+{{- end }}
+{{- if ne . $.Values.target.site }}
+{{- $sites = append $sites . }}
+{{- end }}
+{{- end }}
+{{- $_ := set $config "placement_sites" $sites }}
+{{- end }}
 {{- end }}
 {{- $targets := dict .Values.target.id $config }}
 {{- range .Values.target.aliases }}

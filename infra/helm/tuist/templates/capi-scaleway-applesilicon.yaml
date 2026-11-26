@@ -211,7 +211,12 @@ rules:
     resources: [clusterroles]
     resourceNames:
       - {{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+      {{- if not .Values.macosFleet.linuxNodeCertificates }}
+      # Until the Linux kubelets join with certificates: a ServiceAccount bound
+      # to system:node reads every Secret (the Node authorizer scopes only
+      # system:node:<name> users), so this is the operator's widest grant.
       - system:node
+      {{- end }}
     verbs: [bind]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
@@ -354,8 +359,10 @@ subjects:
 ---
 # What RBAC cannot say by name. The operator may write a ClusterRoleBinding
 # only as a node identity: named tart-kubelet-<machine>, binding the chart's
-# tart-kubelet role or system:node to the one ServiceAccount of the same name
-# in this namespace. Without this, `create clusterrolebindings` plus `bind` on
+# tart-kubelet role (or system:node, until macosFleet.linuxNodeCertificates
+# moves the Linux kubelets onto certificates) to the one ServiceAccount of the
+# same name in this namespace. Deleting one stays open, which revoking a
+# migrated node's old identity needs. Without this, `create clusterrolebindings` plus `bind` on
 # system:node would let the operator bind system:node, which reads every
 # Secret, to any subject, its own ServiceAccount included. RoleBindings (the
 # node access controller's) likewise bind only Roles to tart-kubelet-<node>,
@@ -411,7 +418,7 @@ spec:
         (variables.obj.metadata.name.startsWith('tart-kubelet-') &&
          (request.operation == 'DELETE' ||
           (object.roleRef.kind == 'ClusterRole' &&
-         object.roleRef.name in [{{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") | quote }}, 'system:node'] &&
+         object.roleRef.name in [{{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") | quote }}{{ if not .Values.macosFleet.linuxNodeCertificates }}, 'system:node'{{ end }}] &&
          variables.nodeIdentitySubject &&
          object.subjects[0].name == object.metadata.name)))
       message: The CAPI operator writes only tart-kubelet-<machine> node-identity ClusterRoleBindings.
@@ -892,6 +899,9 @@ spec:
             {{- if .Values.macosFleet.orphanReclaim.activeReclaim }}
             - --orphan-reclaim-claim-name-prefix={{ include "tuist.fullname" . }}-
             {{- end }}
+            {{- end }}
+            {{- if .Values.macosFleet.linuxNodeCertificates }}
+            - --linux-node-certificates
             {{- end }}
             {{- if .Values.macosFleet.nodeIdentitySweep.revoke }}
             # Revoke node identities whose machine, lease and Node are gone

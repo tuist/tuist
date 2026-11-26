@@ -193,7 +193,9 @@ gtm gtm:read gtm.email.outbox.list list_email_outbox read
 gtm gtm:read gtm.email.sent.get get_sent_email read
 gtm gtm:read gtm.outreach.contacts.list list_outreach_contacts read
 gtm gtm:read gtm.outreach.contacts.get get_outreach_contact read
+gtm gtm:write gtm.outreach.events.record record_outreach_event@1 write
 gtm gtm:write gtm.outreach.events.record record_outreach_event write
+gtm gtm:read gtm.outreach.results.get get_outreach_results read
 gtm gtm:read gtm.outreach.candidates.list list_outreach_candidates read
 gtm gtm:write gtm.outreach.candidates.reject reject_outreach_candidate write
 gtm gtm:read gtm.outreach.next_step.get get_outreach_next_step read
@@ -215,13 +217,15 @@ engineering engineering:read product.traces.list list_product_traces read
 """
 
 tools = Map.new(Server.static_tools(), &{&1.name(), &1})
+# Published versions whose current MCP tool has since grown; they stay pinned to a frozen adapter.
+frozen = %{"record_outreach_event@1" => Atlas.MCP.Tools.RecordOutreachEvent}
 
 {entries, rejected} =
   spec
   |> String.split("\n", trim: true)
   |> Enum.map(&String.split/1)
   |> Enum.reduce({[], %{}}, fn [domain, scope, name, tool, effect], {entries, rejected} ->
-    module = Map.fetch!(tools, tool)
+    module = Map.get(frozen, tool) || Map.fetch!(tools, tool)
     input = Map.put(module.input_schema(), "additionalProperties", false)
     output = module.output_schema()
     permissions = if scope == "authenticated", do: [], else: [scope]
@@ -229,9 +233,14 @@ tools = Map.new(Server.static_tools(), &{&1.name(), &1})
 
     entry = %{
       "name" => name,
-      "version" => if(name == "tasks.create", do: 2, else: 1),
+      "version" =>
+        cond do
+          Map.has_key?(frozen, tool) -> 1
+          name in ~w(tasks.create gtm.outreach.events.record) -> 2
+          true -> 1
+        end,
       "handler" => Atom.to_string(module),
-      "source_tool" => tool,
+      "source_tool" => module.name(),
       "domain" => domain,
       "permissions" => permissions,
       "effect" => if(effect == "read", do: "read", else: "write"),

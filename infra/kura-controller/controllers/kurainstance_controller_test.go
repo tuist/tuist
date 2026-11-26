@@ -2729,6 +2729,72 @@ func TestKuraInstanceDeletionKeepsLegacyPeerServiceForSurvivingSibling(t *testin
 	}
 }
 
+func TestKuraInstanceDeletionRemovesAccountPeerServiceWithLastInstance(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		withSibling bool
+		wantDeleted bool
+	}{
+		{name: "last instance of the account", wantDeleted: true},
+		{name: "another region of the account survives", withSibling: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			scheme := runtime.NewScheme()
+			if err := clientgoscheme.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+			if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+
+			now := metav1.Now()
+			instance := &kurav1alpha1.KuraInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "kura-acme-eu-1",
+					Namespace:         "kura",
+					Finalizers:        []string{KuraInstanceFinalizer},
+					DeletionTimestamp: &now,
+				},
+				Spec: kurav1alpha1.KuraInstanceSpec{AccountHandle: "acme", Region: "eu", Mesh: true},
+			}
+			peers := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+				Name:      accountPeerServiceName(instance),
+				Namespace: "kura",
+				Labels: map[string]string{
+					"app.kubernetes.io/name":       "kura",
+					"app.kubernetes.io/managed-by": "kura-controller",
+					"tuist.dev/account":            "acme",
+				},
+			}}
+			objects := []client.Object{instance, peers}
+			if tc.withSibling {
+				sibling := instance.DeepCopy()
+				sibling.Name = "kura-acme-us-1"
+				sibling.Spec.Region = "us"
+				sibling.DeletionTimestamp = nil
+				sibling.Finalizers = nil
+				objects = append(objects, sibling)
+			}
+			reconciler := &KuraInstanceReconciler{
+				Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build(),
+				Scheme: scheme,
+			}
+
+			if err := reconciler.cleanupAccountPeerService(ctx, instance); err != nil {
+				t.Fatal(err)
+			}
+			err := reconciler.Get(ctx, client.ObjectKeyFromObject(peers), &corev1.Service{})
+			if tc.wantDeleted && !apierrors.IsNotFound(err) {
+				t.Fatalf("expected the account peer Service to be deleted, got %v", err)
+			}
+			if !tc.wantDeleted && err != nil {
+				t.Fatalf("expected the account peer Service to survive for the sibling: %v", err)
+			}
+		})
+	}
+}
+
 func TestKuraInstanceDeletionDoesNotRemoveLegacyPeerServiceForAnotherHost(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()

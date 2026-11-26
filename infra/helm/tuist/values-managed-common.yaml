@@ -641,7 +641,10 @@ observability:
 # have that release's image in `infra/runner-image/profiles.json` before it
 # is listed here, or the deploy waits on pools with no image. Without the
 # list it offers every Xcode. `default: true` is the release new profiles
-# get; profiles saved before the choice existed stay on Tahoe. A Tart guest
+# get; profiles saved before the choice existed stay on Tahoe.
+# `productVersion` is the point release the images run (`sw_vers` in the
+# runner-image build log), shown under the release's name in the dashboard;
+# update it when a rebuilt base moves the guest's point release. A Tart guest
 # cannot be newer than its host, so a release newer than Tahoe renders only
 # on the rack (`rackFleet.runners.stackedImages`, every host on macOS 27) and
 # fails the render of any env that rents macOS hosts.
@@ -668,11 +671,15 @@ runnersFleet:
     - xcodeVersion: "26.0.1"
   macosVersions:
     - osVersion: "macos-26"
+      productVersion: "26.6.2"
       default: true
     # macOS 27 Golden Gate, which accounts asked for (Qonto and Roze,
     # 2026-11). Every Xcode above has its Golden Gate image
-    # (runner-image@0.67.0).
+    # (runner-image@0.67.0). Its beta pools are named `-b`
+    # (`<release>-runner-pool-macos-ber1-27-3-b-macos-27-16vcpu-48gb`) to stay
+    # within the 63 characters a label value takes (`tuist.macosPoolTag`).
     - osVersion: "macos-27"
+      productVersion: "27.2"
 
 # KVM is a standard managed Linux runner capability. Disable defaultEnabled
 # to roll pools back to the stock kernel while leaving host preparation intact.

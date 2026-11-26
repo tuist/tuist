@@ -396,6 +396,30 @@ defmodule Tuist.RemoteExecutionTest do
     assert id == warm.id
   end
 
+  test "a queued action survives a refresh while no execution daemon is connected", %{project: project} do
+    nodes = Nodes.connected_nodes()
+    stub(Capacity, :place_execution, fn _sandbox, _tag, _on_grow -> {:error, :no_capacity} end)
+    stub_node()
+    assert {:ok, %{done: false, state: "queued", id: id}} = submit(project, %{}, wait: 100)
+
+    # The only worker restarts: its daemon is disconnected when the
+    # scheduler refreshes the account's settings.
+    stub(Nodes, :connected_nodes, fn -> [] end)
+    pid = Scheduler.whereis(project.account_id)
+    send(pid, :refresh)
+    :sys.get_state(pid)
+
+    stub(Nodes, :connected_nodes, fn -> nodes end)
+
+    stub(Capacity, :place_execution, fn sandbox, tag, on_grow ->
+      Mimic.call_original(Capacity, :place_execution, [sandbox, tag, on_grow])
+    end)
+
+    send(pid, {:remote_execution_room, "reserved-linux"})
+    assert {:ok, %{id: ^id}} = RemoteExecution.await(project, id, "queued", wait: 3_000)
+    assert {:ok, %{id: ^id, done: true, code: 0}} = RemoteExecution.await(project, id, "executing", wait: 3_000)
+  end
+
   test "an unavailable account cannot submit", %{project: project} do
     stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> false end)
     assert {:error, :unavailable} = submit(project)
@@ -421,7 +445,7 @@ defmodule Tuist.RemoteExecutionTest do
 
     stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "https://cache.example" end)
     stub(Nodes, :connected_nodes, fn -> [] end)
-    assert {:error, :unavailable} = RemoteExecution.available_settings(account.id)
+    assert {:error, :no_execution_image} = RemoteExecution.available_settings(account.id)
   end
 
   test "the scarcer of the vCPU and memory limits bounds the account's VMs", %{project: project} do

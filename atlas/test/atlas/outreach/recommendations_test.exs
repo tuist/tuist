@@ -223,6 +223,26 @@ defmodule Atlas.Outreach.RecommendationsTest do
     refute contact.id in Outreach.list_recommendation_candidate_ids()
   end
 
+  test "drafts for a named sender and channel, and attributes the sent message to that sender" do
+    founder = insert_user!()
+    reviewer = insert_user!()
+    {contact, event} = insert_contact_with_event!()
+
+    expect(RecommendationAgent, :recommend, fn context ->
+      assert {context.sender.id, context.channel} == {founder.id, "x"}
+      {:ok, generated_result(event)}
+    end)
+
+    assert {:ok, recommendation} = Outreach.generate_recommendation(contact.id, sender_id: founder.id, channel: "x")
+    assert {recommendation.metadata["sender_id"], recommendation.metadata["channel"]} == {founder.id, "x"}
+
+    assert {:ok, %{event: completion}} = Outreach.complete_recommendation(recommendation, reviewer)
+    assert completion.source == "x"
+
+    attempt = Repo.get_by!(MessageAttempt, sent_event_id: completion.id)
+    assert {attempt.sender_id, attempt.channel} == {founder.id, "x"}
+  end
+
   test "completing a message suggestion records its draft and schedules another review" do
     actor = insert_user!()
     {contact, event} = insert_contact_with_event!()

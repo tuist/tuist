@@ -53,6 +53,9 @@ func macUnavailable(reason string) error {
 func acquireMac(key string, size int64) (string, string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	if imagesOnShareLoseWrites(ctx) {
+		return "", "", false, errors.New("macOS 27 loses data written to cache volumes, so this job runs with an empty cache")
+	}
 	return acquireMacAt(ctx, key, size, macShare, macMountRoot, func(image, mountPoint string) error {
 		return attachMacVolume(ctx, image, mountPoint, macRun, func(args ...string) error { return macCommandContext(ctx, args...) })
 	})
@@ -73,6 +76,20 @@ func macCommandContext(ctx context.Context, args ...string) error {
 		return fmt.Errorf("hdiutil %s: %w (%s)", args[0], err, output)
 	}
 	return nil
+}
+
+// imagesOnShareLoseWrites reports whether this guest's disk image driver loses
+// writes to an image whose file is on the VM's virtio-fs share, as every cache
+// volume and cached checkout is. macOS 27 guests do: files written to such an
+// image read back zeroed or stale once the guest evicts its cache, while raw
+// files on the share and images on the guest's own disk stay intact, and macOS
+// 26 guests on the same hosts never lost a write
+// (.github/workflows/golden-gate-volume-e2e.yml on 2026-11-26). They ask for no
+// volume until volumes reach guests another way.
+func imagesOnShareLoseWrites(ctx context.Context) bool {
+	out, err := macRun(ctx, nil, "sw_vers", "-productVersion")
+	major, convErr := strconv.Atoi(strings.SplitN(strings.TrimSpace(string(out)), ".", 2)[0])
+	return err == nil && convErr == nil && major >= 27
 }
 
 // macRunner runs a macOS tool with optional standard input and returns its
@@ -478,6 +495,9 @@ func exchangeMac(ctx context.Context, share string, request map[string]any) (mac
 func checkoutMac(workspace string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	if imagesOnShareLoseWrites(ctx) {
+		return "skipped (macOS 27 loses data written to cached checkouts)"
+	}
 	return checkoutMacAt(ctx, workspace, macShare, checkoutStatePath, func(args ...string) error { return macCommandContext(ctx, args...) })
 }
 

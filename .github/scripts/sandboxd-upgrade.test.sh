@@ -29,7 +29,8 @@ template() {
 # DaemonSet always wants daemon sha-new and vmm sha-vmm. POD_IMAGE overrides
 # the Pod's daemon image, IMAGE_ID the image it runs (default
 # $repo@$digest), LAZY how many restores the daemon reports streaming disks
-# (one fewer on each read).
+# (one fewer on each read), BUSY how many sandboxes it holds (one fewer on
+# each read) and IDLE_WAIT the replacement's wait for none.
 scenario() {
   state="$scratch/state"
   rm -rf "$state"
@@ -49,6 +50,7 @@ scenario() {
      status: {containerStatuses: [{name: "sandboxd", containerID: $id, ready: true, image: $t.spec.containers[0].image, imageID: $iid}]}}]}' > "$state/pods.json"
   echo "${LAZY:-0}" > "$state/lazy"
   echo "${LOADING:-0}" > "$state/loading"
+  echo "${BUSY:-0}" > "$state/busy"
   jq -n --arg c "$config" '{data: {"config.env": $c}}' > "$state/cm.json"
   [ "$3" = yes ] && touch "$state/arms"
   echo "${4:-$config_sum}" > "$state/loaded"
@@ -98,6 +100,10 @@ case "$1 $2" in
       echo 'sandboxd_handover_blocked{reason="memory_served"} 3'
       [ "$lazy" -gt 0 ] && echo $((lazy - 1)) > "$state/lazy"
       echo "sandboxd_config_info{sha256=\"$(cat "$state/loaded")\"} 1"
+      busy=$(cat "$state/busy")
+      echo "sandboxd_sandboxes{state=\"running\"} $busy"
+      echo 'sandboxd_sandboxes{state="paused"} 0'
+      [ "$busy" -gt 0 ] && echo $((busy - 1)) > "$state/busy"
     fi ;;
   *) ;;
 esac
@@ -105,6 +111,7 @@ EOF
   printf '#!/bin/sh\n' > "$state/bin/sleep"
   chmod +x "$state/bin/kubectl" "$state/bin/sleep"
   PATH="$state/bin:$PATH" KUBECTL="$state/bin/kubectl" SANDBOXD_UPGRADE_SLEEP=1 SANDBOXD_UPGRADE_LAZY_WAIT_SECONDS=3 \
+    SANDBOXD_UPGRADE_REPLACE_IDLE_SECONDS="${IDLE_WAIT:-0}" \
     bash "$script" tuist-sandboxes sandboxd > "$state/out" 2>&1 || { echo "script failed:"; cat "$state/out"; return 1; }
 }
 
@@ -172,5 +179,24 @@ LAZY=1 LOADING=1 scenario sha-old sha-vmm yes
 check "an in-place upgrade waits for memory still loading too, not for an old daemon's served memory" \
   'grep -q "2 sandboxes still receive their disks or memory" "$state/out" && grep -q "1 sandboxes still receive" "$state/out" &&
    [ "$(cat "$state/loading")" = 0 ] && [ -e "$state/patched" ]'
+
+# The lazy-disk wait reads the metrics first, which drops BUSY to 2.
+IDLE_WAIT=20 BUSY=3 scenario sha-old sha-oldvmm yes
+check "a remote execution worker is replaced only once it holds no sandbox" \
+  'grep -q "holds 2 sandboxes" "$state/out" && grep -q "holds 1 sandboxes" "$state/out" && [ "$(cat "$state/busy")" = 0 ] &&
+   ! grep -q "did not drain" "$state/out" &&
+   [ "$(grep -n "holds 1 sandboxes" "$state/out" | cut -d: -f1)" -lt "$(grep -n "^Replacing" "$state/out" | cut -d: -f1)" ]'
+
+IDLE_WAIT=3 BUSY=9 scenario sha-old sha-oldvmm yes
+check "a worker that does not drain in time is replaced anyway" \
+  'grep -q "did not drain within 3s" "$state/out" && grep -q "^delete pod sandboxd-x" "$state/calls"'
+
+BUSY=2 scenario sha-old sha-oldvmm yes
+check "agent sandbox Pods are replaced without waiting for their sandboxes" \
+  '! grep -q "holds" "$state/out" && [ "$(grep -c "^exec" "$state/calls")" = 1 ] && grep -q "^delete pod sandboxd-x" "$state/calls"'
+
+IDLE_WAIT=20 BUSY=2 scenario sha-old sha-vmm yes
+check "an in-place upgrade does not wait for the worker to drain" \
+  '! grep -q "holds" "$state/out" && [ -e "$state/patched" ]'
 
 [ "$failures" -eq 0 ] || { echo "$failures failures"; exit 1; }

@@ -85,6 +85,16 @@ defmodule Tuist.Kubernetes.Client do
     delete("/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances/#{name}", opts)
   end
 
+  def list_kura_instances(namespace, opts \\ []) do
+    case request(:get, "/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances",
+           opts: opts,
+           timeout: opts[:timeout]
+         ) do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
+    end
+  end
+
   # ----- Runner dispatch helpers -----
 
   # Audience the runner-issued SA token must claim AND the

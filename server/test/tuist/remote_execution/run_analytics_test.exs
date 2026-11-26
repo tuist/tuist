@@ -82,4 +82,50 @@ defmodule Tuist.RemoteExecution.RunAnalyticsTest do
     series = RunAnalytics.time_series(project.id, opts)
     assert Enum.sum(series.actions) == 3
   end
+
+  test "filters runs by the environment their run reported when the records arrived" do
+    project = ProjectsFixtures.project_fixture(build_system: :once)
+    now_us = System.os_time(:microsecond) - 60_000_000
+
+    for {run_id, is_ci} <- [{"run-ci", true}, {"run-local", false}] do
+      {:ok, _} =
+        OnceEvents.upsert_run(%{
+          project_id: project.id,
+          run_id: run_id,
+          kind: "build",
+          is_ci: is_ci,
+          started_at: DateTime.utc_now()
+        })
+    end
+
+    {:ok, 4} =
+      Actions.ingest(project, [
+        record("run-ci", now_us, 1_000, 2_000),
+        record("run-ci", now_us, 1_000, 2_000),
+        record("run-local", now_us, 1_000, 2_000),
+        # No run was reported for it, so its environment is unknown.
+        record("run-unknown", now_us, 1_000, 2_000)
+      ])
+
+    opts = [
+      since: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+      until: NaiveDateTime.add(NaiveDateTime.utc_now(), 60)
+    ]
+
+    ids = fn environment ->
+      opts
+      |> Keyword.put(:environment, environment)
+      |> then(&RunAnalytics.activity(project.id, &1))
+      |> Map.fetch!(:rows)
+      |> Enum.map(& &1.invocation_id)
+      |> Enum.sort()
+    end
+
+    assert ids.("ci") == ["run-ci"]
+    assert ids.("local") == ["run-local"]
+    assert ids.(nil) == ["run-ci", "run-local", "run-unknown"]
+
+    assert %{invocations: 1, actions: 2} = RunAnalytics.summary(project.id, Keyword.put(opts, :environment, "ci"))
+    assert Enum.sum(RunAnalytics.time_series(project.id, Keyword.put(opts, :environment, "local")).actions) == 1
+  end
 end
