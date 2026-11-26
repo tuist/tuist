@@ -1,8 +1,8 @@
 name: macOS Xcode bundle measure
 
-# Throwaway experiment (branch exp/xcode-bundle-tahoe-27 only): pulls the
-# three-Xcode bundle the bundle experiment pushed and re-runs only
-# infra/macos-xcode-image/experiments/measure.sh in a clone of it.
+# Throwaway experiment (branch exp/xcode-bundle-tahoe-27 only): boots fresh
+# clones of the single-Xcode 27-0 image and the three-Xcode bundle, cold and
+# after a warm-up, and runs infra/macos-xcode-image/experiments/measure.sh.
 
 on:
   push:
@@ -10,6 +10,7 @@ on:
     paths:
       - .github/workflows/macos-xcode-bundle-measure.yml
       - infra/macos-xcode-image/experiments/measure.sh
+      - infra/macos-xcode-image/experiments/measure.pkr.hcl
 
 concurrency:
   group: macos-xcode-bundle-measure
@@ -19,10 +20,13 @@ permissions:
   contents: read
   packages: read
 
+env:
+  REPO: ghcr.io/tuist/macos-tahoe-xcode
+
 jobs:
   measure:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 120
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -30,22 +34,31 @@ jobs:
         working-directory: infra/macos-xcode-image/experiments
         run: packer init -upgrade measure.pkr.hcl
 
-      - name: Pull the bundle
+      - name: Pull both images
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          t0=$(date +%s); tart pull ghcr.io/tuist/macos-tahoe-xcode:exp-bundle-27-0-27-1-27-2
-          echo "BUNDLE-EXP pull bundle s: $(( $(date +%s) - t0 ))"
+          for tag in 27-0 exp-bundle-27-0-27-1-27-2; do
+            t0=$(date +%s); tart pull "$REPO:$tag"
+            echo "BUNDLE-EXP pull $tag s: $(( $(date +%s) - t0 ))"
+          done
 
       - name: Measure
         working-directory: infra/macos-xcode-image/experiments
         run: |
-          env -u GITHUB_TOKEN packer build \
-            -var base_image=ghcr.io/tuist/macos-tahoe-xcode:exp-bundle-27-0-27-1-27-2 \
-            -var output_image=exp-measure measure.pkr.hcl
+          set -uo pipefail
+          for img in single:27-0 bundle:exp-bundle-27-0-27-1-27-2; do
+            for mode in cold warm; do
+              tart delete exp-measure 2>/dev/null || true
+              env -u GITHUB_TOKEN packer build \
+                -var "base_image=$REPO:${img#*:}" -var output_image=exp-measure \
+                -var "mode=$mode" -var "image_label=${img%%:*}" measure.pkr.hcl \
+                || echo "BUNDLE-EXP [${img%%:*} $mode] packer failed"
+            done
+          done
 
       - name: Cleanup
         if: always()

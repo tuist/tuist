@@ -15,6 +15,14 @@ variable "stacked" {
   default = false
 }
 variable "output_image" { type = string }
+variable "mode" {
+  type    = string
+  default = "cold"
+}
+variable "image_label" {
+  type    = string
+  default = "image"
+}
 
 source "tart-cli" "measure" {
   vm_base_name = var.base_image
@@ -38,6 +46,7 @@ build {
   }
 
   provisioner "shell" {
-    inline = ["bash /tmp/measure.sh"]
+    environment_vars = ["MODE=${var.mode}", "IMAGE=${var.image_label}"]
+    inline           = ["bash /tmp/measure.sh"]
   }
 }
