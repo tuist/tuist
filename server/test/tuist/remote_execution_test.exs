@@ -791,11 +791,15 @@ defmodule Tuist.RemoteExecutionTest do
       assert_received {:node, "exec",
                        %{
                          cmd: ["/usr/local/bin/sbx-executor"],
-                         sandbox_id: ^id,
+                         sandbox_id: exec_id,
                          env: %{"SBX_EXECUTION_REQUEST" => request}
                        }}
 
       assert %{"memory_gb" => 2} = JSON.decode!(request)
+
+      # The warm pool refills while the lease is out, so a warm VM may take the
+      # action and the returned one be trimmed; either way it is a 2 GB VM.
+      if exec_id != id, do: assert_received({:node, "create", %{sandbox_id: ^exec_id, memory_mb: 2048}})
     end
 
     test "scheduled and claimed leased actions record the node-measured execution time", %{project: project} do
