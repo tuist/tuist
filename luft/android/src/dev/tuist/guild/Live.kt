@@ -7,16 +7,18 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 
 /**
- * Follows the inbox's live socket on its own thread until [stop], so the threads list
- * changes as soon as a thread starts working, answers or finishes. The core decides
+ * Follows one live socket on its own thread until [stop]: the inbox's ([INBOX]), so the
+ * threads list changes as soon as a thread starts working, answers or finishes, or the
+ * person's AI subscriptions' ([AI_SUBSCRIPTIONS]), so Profile shows a subscription
+ * connected anywhere else at once. The core decides
  * everything about it (`live_wait`, `live_connect`, `live_tick`, `live_receive`): when to
  * connect, heartbeat and reconnect, and how often the list may reload (`refresh_ms`).
  * [refresh] is called on this thread; refreshes asked for meanwhile fold into one.
  */
-class InboxLive(private val host: AppHost, private val refresh: () -> Unit) {
+class Live(private val host: AppHost, private val id: String, private val refresh: () -> Unit) {
     @Volatile private var running = true
     private val socket = UUID.randomUUID().toString()
-    private val thread = Thread({ run() }, "LuftInboxLive").apply { isDaemon = true; start() }
+    private val thread = Thread({ run() }, "LuftLive").apply { isDaemon = true; start() }
 
     fun stop() {
         running = false
@@ -29,7 +31,7 @@ class InboxLive(private val host: AppHost, private val refresh: () -> Unit) {
         try {
             while (running) {
                 Thread.sleep(call("live_wait")?.optLong("delay_ms") ?: 0)
-                val plan = call("live_connect", JSONObject().put("id", INBOX)) ?: continue
+                val plan = call("live_connect", JSONObject().put("id", id)) ?: continue
                 val connection = try {
                     WebSocket.connect(plan.getString("url"), plan.getJSONArray("protocols").strings())
                 } catch (_: Exception) { continue }
@@ -42,7 +44,7 @@ class InboxLive(private val host: AppHost, private val refresh: () -> Unit) {
                         Thread.sleep(READ_MS)
                         val (frames, closed) = connection.read()
                         for (frame in frames) {
-                            val out = call("live_receive", JSONObject().put("id", INBOX).put("message", frame)) ?: continue
+                            val out = call("live_receive", JSONObject().put("id", id).put("message", frame)) ?: continue
                             out.optJSONArray("replies").strings().forEach(connection::send)
                             if (out.optBoolean("refresh")) pending = true
                             if (out.optBoolean("reconnect")) break@connected
@@ -81,11 +83,13 @@ class InboxLive(private val host: AppHost, private val refresh: () -> Unit) {
         return result?.optJSONObject("data")
     }
 
-    private companion object {
+    companion object {
         /** The core's ID for the whole inbox rather than one thread. */
         const val INBOX = "inbox"
+        /** The core's ID for the person's AI subscriptions, the same in every account. */
+        const val AI_SUBSCRIPTIONS = "ai_subscriptions"
         /** How often frames are read; the socket buffers them meanwhile. */
-        const val READ_MS = 250L
+        private const val READ_MS = 250L
     }
 }
 

@@ -7,12 +7,11 @@ use gpui::{
 };
 use serde_json::{Value, json};
 use tuist_app_core::navigation::Destination;
-use tuist_app_core::{INBOX, Live, Socket, Threads, Transport};
+use tuist_app_core::{INBOX, Threads, Transport};
 use tuist_navigation::{Navigation, Route};
 use tuist_session::Session;
 use url::Url;
 
-use super::socket::WebSocket;
 use crate::components::{Button, Variant, composer, message};
 use crate::input::{Submitted, TextInput};
 use crate::theme::Theme;
@@ -85,15 +84,6 @@ pub struct ThreadsPanel {
     inbox: Option<Task<()>>,
     _activation: Subscription,
     _submitted: [Subscription; 3],
-}
-
-/// How often the inbox socket's frames are read; its thread buffers them meanwhile.
-const LIVE_READ: Duration = Duration::from_millis(250);
-
-fn lock(state: &Mutex<(Live, WebSocket)>) -> std::sync::MutexGuard<'_, (Live, WebSocket)> {
-    state
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 impl ThreadsPanel {
@@ -186,109 +176,21 @@ impl ThreadsPanel {
         let (Some(handle), session) = (self.handle.clone(), self.session.clone()) else {
             return;
         };
-        let state = Arc::new(Mutex::new((Live::default(), WebSocket::default())));
-        self.inbox = Some(cx.spawn(async move |this, cx| {
-            let mut refreshed: Option<std::time::Instant> = None;
-            let mut pending = false;
-            loop {
-                let delay = lock(&state).0.wait(INBOX);
-                cx.background_executor()
-                    .timer(Duration::from_millis(delay))
-                    .await;
-                let (shared, session, account) = (state.clone(), session.clone(), handle.clone());
-                let plan = cx
-                    .background_executor()
-                    .spawn(async move {
-                        let token = session
-                            .access_token()
-                            .map_err(|_| "Sign in again to continue")?;
-                        let mut guard = lock(&shared);
-                        let (live, socket) = &mut *guard;
-                        let plan =
-                            live.connect(INBOX, session.server(), &account, INBOX, &token)?;
-                        let url = Url::parse(plan["url"].as_str().unwrap_or_default())
-                            .map_err(|_| "Invalid server")?;
-                        let protocols: Vec<String> = plan["protocols"]
-                            .as_array()
-                            .into_iter()
-                            .flatten()
-                            .filter_map(|p| p.as_str().map(str::to_owned))
-                            .collect();
-                        socket.open(&url, &protocols)?;
-                        socket.send(plan["join"].as_str().unwrap_or_default())?;
-                        Ok::<_, &'static str>(plan)
-                    })
-                    .await;
-                let Ok(plan) = plan else { continue };
-                let tick = Duration::from_millis(plan["tick_ms"].as_u64().unwrap_or(30_000));
-                let spacing = Duration::from_millis(plan["refresh_ms"].as_u64().unwrap_or(0));
-                let mut ticked = std::time::Instant::now();
-                loop {
-                    cx.background_executor().timer(LIVE_READ).await;
-                    let (shared, account) = (state.clone(), handle.clone());
-                    let (refresh, reconnect) = cx
-                        .background_executor()
-                        .spawn(async move {
-                            let mut guard = lock(&shared);
-                            let (live, socket) = &mut *guard;
-                            let Ok((frames, closed)) = socket.read() else {
-                                return (false, true);
-                            };
-                            let mut refresh = false;
-                            for frame in frames {
-                                let Ok(out) = live.receive(INBOX, &account, INBOX, &frame) else {
-                                    continue;
-                                };
-                                for reply in out["replies"].as_array().into_iter().flatten() {
-                                    let _ = socket.send(reply.as_str().unwrap_or_default());
-                                }
-                                refresh |= out["refresh"] == true;
-                                if out["reconnect"] == true {
-                                    return (refresh, true);
-                                }
-                            }
-                            if ticked.elapsed() >= tick {
-                                let out = live.tick(INBOX);
-                                for frame in out["send"].as_array().into_iter().flatten() {
-                                    if socket.send(frame.as_str().unwrap_or_default()).is_err() {
-                                        return (refresh, true);
-                                    }
-                                }
-                                if out["reconnect"] == true {
-                                    return (refresh, true);
-                                }
-                            }
-                            (refresh, closed)
-                        })
-                        .await;
-                    if ticked.elapsed() >= tick {
-                        ticked = std::time::Instant::now();
-                    }
-                    pending |= refresh;
-                    if pending && refreshed.is_none_or(|at| at.elapsed() >= spacing) {
-                        let reloaded = this
-                            .update(cx, |this, cx| {
-                                // A request in flight shows the latest anyway, or is the
-                                // person's own; try again on the next read.
-                                if this.busy || this.route_id.is_some() {
-                                    return false;
-                                }
-                                this.request("threads", json!({}), cx);
-                                true
-                            })
-                            .unwrap_or(false);
-                        if reloaded {
-                            pending = false;
-                            refreshed = Some(std::time::Instant::now());
-                        }
-                    }
-                    if reconnect {
-                        lock(&state).1.close();
-                        break;
-                    }
+        self.inbox = Some(super::live::follow(
+            session,
+            handle,
+            INBOX,
+            cx,
+            |this, cx| {
+                // A request in flight shows the latest anyway, or is the
+                // person's own; try again on the next read.
+                if this.busy || this.route_id.is_some() {
+                    return false;
                 }
-            }
-        }));
+                this.request("threads", json!({}), cx);
+                true
+            },
+        ));
     }
 
     fn navigate(&mut self, destination: Destination, cx: &mut Context<Self>) {

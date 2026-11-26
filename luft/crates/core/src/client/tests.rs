@@ -1,5 +1,6 @@
 use super::*;
 use crate::THREADS_UNAVAILABLE;
+use crate::ai_subscriptions::{CLAUDE_TOKEN_REFUSED, UNAVAILABLE as AI_SUBSCRIPTIONS_UNAVAILABLE};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use std::collections::VecDeque;
 
@@ -3262,4 +3263,124 @@ fn a_refreshed_first_page_keeps_the_pages_loaded_after_it() {
     let whole = call(&mut c, &mut h, "threads", json!({}));
     assert_eq!(ids(&whole), ["d", "a"]);
     assert_eq!(whole["data"]["next_cursor"], Value::Null);
+}
+
+#[test]
+fn ai_subscriptions_connect_claude_and_sign_in_to_chatgpt() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let list = |claude: bool| {
+        json!({"subscriptions":[
+            {"provider":"claude","connected":claude,"updated_at":null,"login_available":true,"runs_threads":false},
+            {"provider":"chatgpt","connected":false,"updated_at":null,"login_available":true,"runs_threads":true}]})
+    };
+
+    h.responses.push_back((200, list(false)));
+    let listed = call(&mut c, &mut h, "ai_subscriptions", json!({}));
+    assert_eq!(listed["data"], list(false));
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        "https://one.test/api/me/ai-subscriptions"
+    );
+
+    // An API key instead of the setup token: Tuist refuses it, and the person hears why.
+    h.responses
+        .push_back((422, json!({"message":"Provide the subscription token"})));
+    let refused = call(
+        &mut c,
+        &mut h,
+        "connect_claude",
+        json!({"token":"sk-ant-api03"}),
+    );
+    assert_eq!(refused["error"], CLAUDE_TOKEN_REFUSED);
+
+    h.responses.push_back((200, list(true)));
+    let connected = call(
+        &mut c,
+        &mut h,
+        "connect_claude",
+        json!({"token":"  sk-ant-oat01-x \n"}),
+    );
+    assert_eq!(connected["data"], list(true));
+    let request = h.actions.last().unwrap();
+    assert_eq!(request["method"], "PUT");
+    assert_eq!(
+        request["url"],
+        "https://one.test/api/me/ai-subscriptions/claude"
+    );
+    // Pasted tokens keep no surrounding whitespace.
+    assert_eq!(sent_body(&h), json!({"token":"sk-ant-oat01-x"}));
+    // The token never reaches a view or the vault.
+    assert!(!connected.to_string().contains("sk-ant-oat01-x"));
+    assert!(!h.vault.as_ref().unwrap().contains("sk-ant-oat01-x"));
+
+    h.responses.push_back((
+        200,
+        json!({"login_id":"l&1","user_code":"ABCD-EFGH","verification_url":"https://auth.openai.com/codex/device","interval":5,"expires_at":"2026-11-25T23:00:00Z"}),
+    ));
+    let started = call(&mut c, &mut h, "start_chatgpt_login", json!({}));
+    assert_eq!(started["data"]["user_code"], "ABCD-EFGH");
+
+    h.responses.push_back((200, json!({"status":"pending"})));
+    let pending = call(
+        &mut c,
+        &mut h,
+        "poll_chatgpt_login",
+        json!({"login_id":"l&1"}),
+    );
+    assert_eq!(pending["data"]["status"], "pending");
+    assert_eq!(sent_body(&h), json!({"login_id":"l&1"}));
+
+    h.responses.push_back((410, json!({"message":"expired"})));
+    let expired = call(
+        &mut c,
+        &mut h,
+        "poll_chatgpt_login",
+        json!({"login_id":"l&1"}),
+    );
+    assert_eq!(expired["data"]["status"], "failed");
+
+    // Cancelling a sign-in the server already forgot is done.
+    h.responses
+        .push_back((404, json!({"message":"Not found."})));
+    let cancelled = call(
+        &mut c,
+        &mut h,
+        "cancel_chatgpt_login",
+        json!({"login_id":"l&1"}),
+    );
+    assert!(cancelled.get("error").is_none(), "{cancelled}");
+    let request = h.actions.last().unwrap();
+    assert_eq!(request["method"], "DELETE");
+    assert_eq!(
+        request["url"],
+        "https://one.test/api/me/ai-subscriptions/chatgpt/login?login_id=l%261"
+    );
+
+    h.responses.push_back((200, list(false)));
+    call(
+        &mut c,
+        &mut h,
+        "disconnect_ai_subscription",
+        json!({"provider":"claude"}),
+    );
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        "https://one.test/api/me/ai-subscriptions/claude"
+    );
+    let requests = h.actions.len();
+    let unknown = call(
+        &mut c,
+        &mut h,
+        "disconnect_ai_subscription",
+        json!({"provider":"../x"}),
+    );
+    assert!(unknown["error"].is_string());
+    assert_eq!(h.actions.len(), requests);
+
+    // A server or account without the feature.
+    h.responses
+        .push_back((404, json!({"message":"Not found."})));
+    let unavailable = call(&mut c, &mut h, "ai_subscriptions", json!({}));
+    assert_eq!(unavailable["error"], AI_SUBSCRIPTIONS_UNAVAILABLE);
 }

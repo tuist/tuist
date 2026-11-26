@@ -589,6 +589,10 @@ private struct ProfileView: View {
                     ? String(account.server.dropLast()) : account.server)
             }
 
+            if !account.rejected {
+                AISubscriptionsSection(client: client)
+            }
+
             // Builds without a push entitlement can't receive notifications, so they don't offer them.
             if PushNotifications.environment != nil {
                 NotificationsSection(client: client)

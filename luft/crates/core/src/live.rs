@@ -27,6 +27,11 @@ const INBOX_REFRESH_MS: u64 = 2_000;
 /// The `id` that follows the account's whole inbox rather than one thread.
 pub const INBOX: &str = "inbox";
 
+/// The `id` that follows the person's AI subscriptions (topic
+/// `ai_subscriptions`, the same in every account): the server pushes
+/// `snapshot` whenever one connects or disconnects, wherever that happened.
+pub const AI_SUBSCRIPTIONS: &str = "ai_subscriptions";
+
 /// The tools Luft offers the thread's agent. They change only this device.
 pub fn client_tools() -> Value {
     json!([crate::theme::tool()])
@@ -86,7 +91,7 @@ impl Live {
         Ok(json!({
             "url": url.as_str(),
             "protocols": ["phoenix", format!("base64url.bearer.phx.{}", base64(access.as_bytes()))],
-            "join": frame(Some(JOIN_REF), Some(JOIN_REF), &topic(account, id), "phx_join", json!({"tools": client_tools()})),
+            "join": frame(Some(JOIN_REF), Some(JOIN_REF), &topic(account, id), "phx_join", join_payload(id)),
             "tick_ms": HEARTBEAT_MS,
             "refresh_ms": if id == INBOX { INBOX_REFRESH_MS } else { 0 },
         }))
@@ -194,7 +199,20 @@ impl Live {
 }
 
 fn topic(account: &str, id: &str) -> String {
-    format!("threads:{account}:{id}")
+    if id == AI_SUBSCRIPTIONS {
+        AI_SUBSCRIPTIONS.to_string()
+    } else {
+        format!("threads:{account}:{id}")
+    }
+}
+
+/// Only a thread's agent calls the app's tools.
+fn join_payload(id: &str) -> Value {
+    if id == AI_SUBSCRIPTIONS {
+        json!({})
+    } else {
+        json!({"tools": client_tools()})
+    }
 }
 
 /// A Phoenix V2 frame: `[join_ref, ref, topic, event, payload]`.
@@ -412,6 +430,27 @@ mod tests {
         let snapshot = json!([null, null, "threads:ana:inbox", "snapshot", {"revision": 7}]);
         let out = live
             .receive("i", "ana", INBOX, &snapshot.to_string())
+            .unwrap();
+        assert_eq!(
+            (&out["refresh"], &out["reconnect"]),
+            (&json!(true), &json!(false))
+        );
+    }
+
+    #[test]
+    fn ai_subscriptions_follow_the_person_in_every_account() {
+        let server = Url::parse("https://example.com/").unwrap();
+        let mut live = Live::default();
+        let socket = live
+            .connect("a", &server, "ana", AI_SUBSCRIPTIONS, "token")
+            .unwrap();
+        let join: Value = serde_json::from_str(socket["join"].as_str().unwrap()).unwrap();
+        assert_eq!(join[2], "ai_subscriptions");
+        assert_eq!(join[4], json!({}));
+        let snapshot = json!([null, null, "ai_subscriptions", "snapshot", {"subscriptions": []}]);
+        // The topic names no account, so switching accounts keeps the socket.
+        let out = live
+            .receive("a", "acme", AI_SUBSCRIPTIONS, &snapshot.to_string())
             .unwrap();
         assert_eq!(
             (&out["refresh"], &out["reconnect"]),

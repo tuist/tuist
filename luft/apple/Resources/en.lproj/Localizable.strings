@@ -322,3 +322,17 @@
 "Dismissed" = "Dismissed";
 "Dismiss" = "Dismiss";
 "You can also type your answer in the composer." = "You can also type your answer in the composer.";
+"AI Subscriptions" = "AI Subscriptions";
+"Threads run on your ChatGPT subscription. Claude subscriptions can be saved, but Claude doesn't allow them to run Luft threads yet." = "Threads run on your ChatGPT subscription. Claude subscriptions can be saved, but Claude doesn't allow them to run Luft threads yet.";
+"AI subscriptions are not available for this account." = "AI subscriptions are not available for this account.";
+"Not connected" = "Not connected";
+"Unavailable" = "Unavailable";
+"Connect Claude" = "Connect Claude";
+"Subscription token" = "Subscription token";
+"Run `claude setup-token` in a terminal, sign in, and paste the token it prints. It is not an Anthropic API key." = "Run `claude setup-token` in a terminal, sign in, and paste the token it prints. It is not an Anthropic API key.";
+"Connect ChatGPT" = "Connect ChatGPT";
+"Copy Code" = "Copy Code";
+"Open OpenAI" = "Open OpenAI";
+"Open OpenAI, sign in with your ChatGPT account and enter this code. Luft connects as soon as you approve it." = "Open OpenAI, sign in with your ChatGPT account and enter this code. Luft connects as soon as you approve it.";
+"Waiting for approval" = "Waiting for approval";
+"The sign-in expired or was refused. Cancel and connect again." = "The sign-in expired or was refused. Cancel and connect again.";

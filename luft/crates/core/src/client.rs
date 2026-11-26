@@ -272,7 +272,7 @@ impl MobileClient {
                 let id = text(args, "id")?;
                 // `inbox` follows the whole inbox: the server pushes when any
                 // of the person's threads in the account changes.
-                if id != crate::live::INBOX && !is_uuid(id) {
+                if id != crate::live::INBOX && id != crate::live::AI_SUBSCRIPTIONS && !is_uuid(id) {
                     return Err("Invalid thread ID");
                 }
                 self.refresh(index, host)?;
@@ -445,6 +445,12 @@ impl MobileClient {
             "preview_update" => self.preview_update(args, host),
             "push_register" => self.push_register(args, host),
             op @ ("runners" | "register_runner" | "remove_runner") => self.runners(op, args, host),
+            op @ ("ai_subscriptions"
+            | "connect_claude"
+            | "start_chatgpt_login"
+            | "poll_chatgpt_login"
+            | "cancel_chatgpt_login"
+            | "disconnect_ai_subscription") => self.ai_subscriptions(op, args, host),
             "push_enable" => self.push_enable(args, host),
             "live_activity_register" => self.live_activity_register(args, host),
             "live_activity_unregister" => self.live_activity_unregister(args, host),
@@ -1071,6 +1077,23 @@ impl MobileClient {
                 successful(self.send(index, "DELETE", url, None, host)?).map(|_| Value::Null)
             }
         }
+    }
+
+    /// The person's AI subscriptions (`crate::ai_subscriptions`) with the
+    /// active profile's session.
+    fn ai_subscriptions(&mut self, op: &str, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let index = self.active()?;
+        let server = server_url(&self.vault.profiles[index].server)?;
+        crate::ai_subscriptions::call(
+            &server,
+            op,
+            args,
+            &mut Authorized {
+                client: self,
+                index,
+                host,
+            },
+        )
     }
 
     /// Registers this device's push token for the active profile at

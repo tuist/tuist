@@ -2,6 +2,8 @@ package dev.tuist.guild
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
@@ -14,6 +16,7 @@ import android.os.Looper
 import android.text.Editable
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.InputType
 import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
 import android.text.style.TtsSpan
@@ -84,8 +87,15 @@ class MainActivity : Activity() {
     private var keepBottomOffset = false
     private var presence: Runnable? = null
     /** The inbox's live socket while the threads list shows, and the profile and generation it follows. */
-    private var inboxLive: InboxLive? = null
+    private var inboxLive: Live? = null
     private var inboxLiveKey: String? = null
+    /** The person's AI subscriptions while Profile shows, kept live by their own socket. */
+    private var subscriptions: List<JSONObject>? = null
+    private var subscriptionsUnavailable = false
+    private var subscriptionsLive: Live? = null
+    private var subscriptionsLiveKey: String? = null
+    /** The pending ChatGPT sign-in's next poll. */
+    private var chatGPTPoll: Runnable? = null
     private var visible = false
     private var update: JSONObject? = null
     private val searchInputId = View.generateViewId()
@@ -124,7 +134,7 @@ class MainActivity : Activity() {
         if (room != null) { markRead(); schedulePoll() }
         schedulePresence(0)
         // Changes made while away show when the socket joins.
-        syncInboxLive()
+        syncLive()
     }
 
     // Lounges are only polled, and the person only shows online, while someone can see them.
@@ -132,7 +142,7 @@ class MainActivity : Activity() {
         visible = false
         poll?.let(handler::removeCallbacks)
         presence?.let(handler::removeCallbacks)
-        syncInboxLive()
+        syncLive()
         // Recreation resumes right away and keeps the connection.
         if (!isChangingConfigurations) AppCore.submit("presence_disconnect", JSONObject(), host) { }
         super.onPause()
@@ -197,6 +207,8 @@ class MainActivity : Activity() {
         ticket++
         inboxLive?.stop()
         inboxLive = null
+        subscriptionsLive?.stop()
+        subscriptionsLive = null
         handler.removeCallbacksAndMessages(null)
         if (browserPending && isFinishing && !isChangingConfigurations) {
             AppCore.submit("cancel_sign_in", JSONObject(), host) { }
@@ -291,6 +303,7 @@ class MainActivity : Activity() {
         projects = emptyList(); previews.clear(); tracks = null; detail = null
         threads = emptyList(); threadsSignInRequired = false; threadsAvailable = true; conversation = null; reply = ""
         lounges = null; room = null; readSent = 0; older = emptyList(); olderBefore = null
+        subscriptions = null; subscriptionsUnavailable = false
     }
 
     /** Loads the current screen's data. */
@@ -316,7 +329,7 @@ class MainActivity : Activity() {
         // Dark status bar icons, except over the login screen's dark artwork.
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = if (if (login) night else dark) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-        if (login) { setContentView(loginScreen(night)); syncInboxLive(); return }
+        if (login) { setContentView(loginScreen(night)); syncLive(); return }
         // Rendering rebuilds the screen; keep typing in the search or reply field going.
         val focusedInput = (currentFocus as? EditText)?.takeIf { it.id == searchInputId || it.id == replyInputId }
         val selection = focusedInput?.selectionStart ?: -1
@@ -363,7 +376,7 @@ class MainActivity : Activity() {
             previous != null -> scroll.post { scroll.scrollTo(0, previousY) }
         }
         scrollToLatest = false; keepBottomOffset = false
-        syncInboxLive()
+        syncLive()
         lastScroll = scroll
         scrolledPlace = place
         if (selection >= 0) findViewById<EditText>(focusedInput!!.id)?.let {
@@ -460,6 +473,7 @@ class MainActivity : Activity() {
             text(profile.optString("email"))
             text(profile.optString("server"))
             if (profile.optBoolean("rejected")) text(getString(R.string.sign_in_required))
+            else subscriptionsSection()
         } ?: text(getString(R.string.sign_in_required))
         if (!browserPending) button(R.string.switch_account) { chooseProfile() }
         button(getString(R.string.theme_value, AppCore.themes.firstOrNull { it.first == themeId }?.second.orEmpty())) {
@@ -749,16 +763,169 @@ class MainActivity : Activity() {
 
     /**
      * Follows the inbox while its list shows and the app is in front, where threads are on
-     * and the session can use them; another profile or account follows its own.
+     * and the session can use them, and the AI subscriptions while Profile shows; another
+     * profile or account follows its own.
      */
-    private fun syncInboxLive() {
+    private fun syncLive() {
+        // Profile follows the person's AI subscriptions; a rejected session can't read them.
+        val subscriptionsKey = if (visible && !isDestroyed && !addingProfile && screen == "profile" &&
+            active()?.optBoolean("rejected") == false
+        ) "${view.optString("active_profile_id")}/${view.optLong("generation", -1)}" else null
+        if (subscriptionsKey != subscriptionsLiveKey) {
+            subscriptionsLive?.stop()
+            subscriptionsLiveKey = subscriptionsKey
+            subscriptionsLive = subscriptionsKey?.let {
+                Live(host, Live.AI_SUBSCRIPTIONS) { runOnUiThread(::refreshSubscriptions) }
+            }
+        }
         val key = if (visible && !isDestroyed && active() != null && !addingProfile && screen == "threads" &&
             threadId == null && threadsAvailable && !threadsSignInRequired
         ) "${view.optString("active_profile_id")}/${view.optLong("generation", -1)}" else null
         if (key == inboxLiveKey) return
         inboxLive?.stop()
         inboxLiveKey = key
-        inboxLive = key?.let { InboxLive(host) { runOnUiThread(::refreshThreads) } }
+        inboxLive = key?.let { Live(host, Live.INBOX) { runOnUiThread(::refreshThreads) } }
+    }
+
+    /**
+     * Reloads the AI subscriptions beside screen requests, as the socket asks when it joins
+     * and whenever one connects or disconnects, here or anywhere else.
+     */
+    private fun refreshSubscriptions() {
+        if (isDestroyed || screen != "profile") return
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        AppCore.submit("ai_subscriptions", JSONObject(), host) { result ->
+            runOnUiThread {
+                if (isDestroyed || screen != "profile" ||
+                    generation != view.optLong("generation", -1) || profile != view.optString("active_profile_id")
+                ) return@runOnUiThread
+                val data = result.optJSONObject("data")
+                if (data != null) {
+                    subscriptions = data.optJSONArray("subscriptions").objects()
+                    subscriptionsUnavailable = false
+                } else if (subscriptions == null) subscriptionsUnavailable = true
+                if (!busy) render()
+            }
+        }
+    }
+
+    /** Takes the list a connect or disconnect answered with. */
+    private fun showSubscriptions(data: Any?) {
+        (data as? JSONObject)?.optJSONArray("subscriptions")?.let { subscriptions = it.objects() }
+        render()
+    }
+
+    /** Profile's AI subscriptions, which threads run on. */
+    private fun subscriptionsSection() {
+        text(getString(R.string.ai_subscriptions), 20f)
+        val list = subscriptions
+        when {
+            list != null -> list.forEach { item ->
+                val provider = item.optString("provider")
+                val name = subscriptionName(provider)
+                val connected = item.optBoolean("connected")
+                val state = getString(when {
+                    connected -> R.string.subscription_connected
+                    !item.optBoolean("login_available", true) -> R.string.subscription_unavailable
+                    else -> R.string.subscription_not_connected
+                })
+                button("$name · $state") {
+                    when {
+                        connected -> confirmDisconnect(provider, name)
+                        !item.optBoolean("login_available", true) -> Unit
+                        provider == "claude" -> connectClaude()
+                        provider == "chatgpt" -> connectChatGPT()
+                    }
+                }
+            }
+            subscriptionsUnavailable -> text(getString(R.string.ai_subscriptions_unavailable))
+            else -> text(getString(R.string.loading))
+        }
+        text(getString(R.string.ai_subscriptions_footer), 13f)
+    }
+
+    private fun subscriptionName(provider: String): String = when (provider) {
+        "claude" -> "Claude"
+        "chatgpt" -> "ChatGPT"
+        else -> provider
+    }
+
+    private fun confirmDisconnect(provider: String, name: String) {
+        AlertDialog.Builder(this).setTitle(getString(R.string.disconnect_subscription, name))
+            .setPositiveButton(R.string.disconnect) { _, _ ->
+                call("disconnect_ai_subscription", JSONObject().put("provider", provider)) { showSubscriptions(it) }
+            }.setNegativeButton(R.string.cancel, null).show()
+    }
+
+    /** Saves the token `claude setup-token` prints. */
+    private fun connectClaude() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.claude_token_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        AlertDialog.Builder(this).setTitle(R.string.connect_claude)
+            .setMessage(R.string.claude_token_help)
+            .setView(input)
+            .setPositiveButton(R.string.connect) { _, _ ->
+                val token = input.text.toString()
+                if (token.isBlank()) return@setPositiveButton
+                call("connect_claude", JSONObject().put("token", token), onFailure = {
+                    toast(R.string.claude_token_refused); render()
+                }) { showSubscriptions(it) }
+            }.setNegativeButton(R.string.cancel, null).show()
+    }
+
+    /** Starts an OpenAI device sign-in, shows its code, and polls until it connects. */
+    private fun connectChatGPT() {
+        call("start_chatgpt_login", onFailure = { toast(R.string.chatgpt_login_failed); render() }) { data ->
+            render()
+            val login = data as? JSONObject ?: return@call
+            val id = login.optString("login_id").ifBlank { return@call }
+            val code = login.optString("user_code")
+            val url = login.optString("verification_url")
+            val interval = login.optLong("interval", 5).coerceAtLeast(1) * 1000
+            val dialog = AlertDialog.Builder(this).setTitle(R.string.connect_chatgpt)
+                .setMessage(getString(R.string.chatgpt_login_help, code))
+                .setPositiveButton(R.string.open_openai, null)
+                .setNeutralButton(R.string.copy_code, null)
+                .setNegativeButton(R.string.cancel, null)
+                .create()
+            dialog.setOnShowListener {
+                // Opening OpenAI or copying the code keeps the dialog, which closes once connected.
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { open(url) }
+                dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                    getSystemService(ClipboardManager::class.java)
+                        .setPrimaryClip(ClipData.newPlainText(getString(R.string.connect_chatgpt), code))
+                    Toast.makeText(this, R.string.code_copied, Toast.LENGTH_SHORT).show()
+                }
+            }
+            var finished = false
+            dialog.setOnDismissListener {
+                chatGPTPoll?.let(handler::removeCallbacks)
+                chatGPTPoll = null
+                if (!finished) AppCore.submit("cancel_chatgpt_login", JSONObject().put("login_id", id), host) { }
+            }
+            val poll = object : Runnable {
+                override fun run() {
+                    AppCore.submit("poll_chatgpt_login", JSONObject().put("login_id", id), host) { result ->
+                        runOnUiThread {
+                            if (chatGPTPoll !== this || isDestroyed) return@runOnUiThread
+                            when (result.optJSONObject("data")?.optString("status")) {
+                                "connected" -> { finished = true; dialog.dismiss(); refreshSubscriptions() }
+                                "failed" -> { finished = true; dialog.dismiss(); toast(R.string.chatgpt_login_ended) }
+                                // Pending, or offline for a moment: ask again.
+                                else -> handler.postDelayed(this, interval)
+                            }
+                        }
+                    }
+                }
+            }
+            chatGPTPoll?.let(handler::removeCallbacks)
+            chatGPTPoll = poll
+            dialog.show()
+            handler.postDelayed(poll, interval)
+        }
     }
 
     /** Reloads the threads list beside screen requests, like the lounge poll, so it never cancels them. */
