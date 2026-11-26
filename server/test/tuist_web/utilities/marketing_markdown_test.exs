@@ -285,7 +285,15 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   test "problem guides connect diagnosis, agent investigation, and experiments" do
     mcp_docs = File.read!(Path.expand("../../../priv/docs/en/guides/features/agentic-coding/mcp.md", __DIR__))
 
-    for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs", "bazel-github-actions", "bazel-remote-cache", "self-hosted-mac-runners"] do
+    for slug <- [
+          "slow-builds",
+          "flaky-tests",
+          "slow-tests",
+          "ci-costs",
+          "bazel-github-actions",
+          "bazel-remote-cache",
+          "self-hosted-mac-runners"
+        ] do
       path = "/solutions/" <> slug
       markdown = MarketingMarkdown.get(path)
       [_heading, introduction | _rest] = String.split(markdown, "\n\n")
