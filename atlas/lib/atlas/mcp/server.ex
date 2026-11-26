@@ -78,6 +78,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateTask
   alias Atlas.MCP.Tools.CreateTimeOffLocation
   alias Atlas.MCP.Tools.DecommissionDataCenter
+  alias Atlas.MCP.Tools.DeleteAccountInvoice
   alias Atlas.MCP.Tools.DeleteAccountTerm
   alias Atlas.MCP.Tools.DeleteAsset
   alias Atlas.MCP.Tools.DeleteDataCenter
@@ -271,6 +272,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.MarkAssetRepaired
   alias Atlas.MCP.Tools.MarkAssetReturnedToLessor
   alias Atlas.MCP.Tools.MarkFinancingPaidOff
+  alias Atlas.MCP.Tools.MarkStripeInvoicePaid
   alias Atlas.MCP.Tools.MatchFinancingPayment
   alias Atlas.MCP.Tools.NotifyGTMOpportunity
   alias Atlas.MCP.Tools.PlaceAssetInService
@@ -343,6 +345,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UnpublishPOC
   alias Atlas.MCP.Tools.UnsubscribeEmailAudienceSubscriber
   alias Atlas.MCP.Tools.UpdateAccount
+  alias Atlas.MCP.Tools.UpdateAccountInvoice
   alias Atlas.MCP.Tools.UpdateAccountTerm
   alias Atlas.MCP.Tools.UpdateCodingRepositorySettings
   alias Atlas.MCP.Tools.UpdateContact
@@ -471,6 +474,9 @@ defmodule Atlas.MCP.Server do
     ListAccountInvoices,
     CreateStripeDraftInvoice,
     EditStripeDraftInvoice,
+    MarkStripeInvoicePaid,
+    UpdateAccountInvoice,
+    DeleteAccountInvoice,
     FinanceGetTransaction,
     FinanceListTransactionAttachments,
     CategorizeFinanceTransaction,
@@ -814,6 +820,9 @@ defmodule Atlas.MCP.Server do
     ListAccountInvoices,
     CreateStripeDraftInvoice,
     EditStripeDraftInvoice,
+    MarkStripeInvoicePaid,
+    UpdateAccountInvoice,
+    DeleteAccountInvoice,
     ClaimNudge,
     DismissNudge,
     ReleaseNudge,

@@ -210,6 +210,43 @@ defmodule Atlas.Stripe do
   end
 
   @doc """
+  Marks an open Stripe invoice as paid outside Stripe (`paid_out_of_band`),
+  for example after a bank wire. Stripe charges nothing.
+
+  Returns `{:ok, %Invoice{}}` with the paid invoice, `{:error, reason}` on
+  transport or HTTP error, or `:disabled` when `STRIPE_API_KEY` is not
+  configured.
+  """
+  def pay_invoice_out_of_band(invoice_id, opts \\ []) when is_binary(invoice_id) do
+    case api_key(opts) do
+      nil ->
+        :disabled
+
+      key ->
+        request =
+          Req.new(
+            url: endpoint_url(opts, ["invoices", invoice_id, "pay"]),
+            auth: {:bearer, key},
+            receive_timeout: receive_timeout(opts)
+          )
+          |> Req.merge(form: [paid_out_of_band: true])
+
+        case post_fun(opts).(request) do
+          {:ok, %Req.Response{status: 200, body: %{} = invoice}} ->
+            {:ok, decode_invoice(invoice)}
+
+          {:ok, %Req.Response{status: status, body: body}} ->
+            Logger.warning("Stripe pay_invoice_out_of_band failed: status=#{status} body=#{inspect(body)}")
+            {:error, {:http, status}}
+
+          {:error, reason} ->
+            Logger.warning("Stripe pay_invoice_out_of_band transport error: #{inspect(reason)}")
+            {:error, reason}
+        end
+    end
+  end
+
+  @doc """
   Fetches a Stripe invoice by id.
 
   Returns `{:ok, %Invoice{}}` on success, `{:error, reason}` on transport or

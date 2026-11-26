@@ -65,6 +65,9 @@ defmodule Atlas.Accounts do
 
   defdelegate edit_stripe_draft_invoice(account_or_id, invoice_id, edit_attrs \\ %{}, opts \\ []), to: Invoices
 
+  defdelegate mark_stripe_invoice_paid_out_of_band(account, invoice_id, opts \\ []), to: Invoices
+  defdelegate update_imported_invoice(invoice_id, attrs), to: Invoices
+  defdelegate delete_imported_invoice(invoice_id), to: Invoices
   defdelegate reconcile_stripe_invoices(account), to: Invoices
   defdelegate reconciled_stripe_invoices(account), to: Invoices
   defdelegate refresh_overview_summary(account_id, opts \\ []), to: OverviewSummary, as: :refresh

@@ -15,6 +15,8 @@ defmodule Atlas.TestSupport.StripeClient do
   def put_add_invoice_items(response), do: ProcessRegistry.put({__MODULE__, :add_invoice_items}, response)
   def put_update_invoice(response), do: ProcessRegistry.put({__MODULE__, :update_invoice}, response)
   def put_get_invoice(response), do: ProcessRegistry.put({__MODULE__, :get_invoice}, response)
+
+  def put_pay_invoice_out_of_band(response), do: ProcessRegistry.put({__MODULE__, :pay_invoice_out_of_band}, response)
   def put_get_customer(response), do: ProcessRegistry.put({__MODULE__, :get_customer}, response)
   def put_update_customer(response), do: ProcessRegistry.put({__MODULE__, :update_customer}, response)
   def put_search_customers(response), do: ProcessRegistry.put({__MODULE__, :search_customers}, response)
@@ -84,6 +86,10 @@ defmodule Atlas.TestSupport.StripeClient do
 
   def get_invoice(invoice_id, opts \\ []) do
     resolve(:get_invoice, {invoice_id, opts})
+  end
+
+  def pay_invoice_out_of_band(invoice_id, opts \\ []) do
+    resolve(:pay_invoice_out_of_band, {invoice_id, opts})
   end
 
   def get_customer(customer_id, opts \\ []) do
