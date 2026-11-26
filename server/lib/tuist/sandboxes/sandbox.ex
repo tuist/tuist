@@ -92,6 +92,10 @@ defmodule Tuist.Sandboxes.Sandbox do
     # metering); cleared with `guest_cpu_ms` when the sandbox pauses.
     field :metered_cpu_ms, :integer
     field :metered_at, :utc_datetime_usec
+    # The memory (Pss) the VM held at the last report, kept across a pause:
+    # placement charges a bursting sandbox the larger of it and its request
+    # (`Capacity.charge_bytes/1`), and a resume brings that memory back.
+    field :metered_memory_bytes, :integer
     field :paused_at, :utc_datetime
     field :error_message, :string
     # When a delete was asked for; kept on a row whose delete failed so a

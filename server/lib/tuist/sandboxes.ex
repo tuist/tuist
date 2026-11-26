@@ -2563,14 +2563,22 @@ defmodule Tuist.Sandboxes do
     {attrs, usage} = meter(attrs, sandbox, reported)
 
     if Enum.any?(attrs, fn {key, value} -> Map.get(sandbox, key) != value end) and
-         apply_report(sandbox, attrs) == :updated and usage do
-      UsageEvent.Buffer.insert(usage)
+         apply_report(sandbox, attrs) == :updated do
+      if usage, do: UsageEvent.Buffer.insert(usage)
+      if bursting?(sandbox, attrs), do: Tasks.run_async(fn -> Capacity.grow_for_bursts(node_name) end)
     end
 
     if idle_orb?(sandbox, attrs), do: enqueue_idle_orb_pause(sandbox)
 
     :ok
   end
+
+  # A sandbox whose VM holds more than its request, which may need its
+  # node's carve-out to grow.
+  defp bursting?(sandbox, %{metered_memory_bytes: used}) when is_integer(sandbox.memory_limit_mb),
+    do: used > Capacity.request_bytes(sandbox)
+
+  defp bursting?(_sandbox, _attrs), do: false
 
   # Reports run on the socket, which cannot take the lifecycle lock.
   # Never let a report read before a resume, delete or new turn overwrite
@@ -2620,7 +2628,10 @@ defmodule Tuist.Sandboxes do
        )
        when is_integer(cpu_ms) and cpu_ms >= 0 do
     at = DateTime.utc_now()
-    {Map.merge(attrs, %{metered_cpu_ms: cpu_ms, metered_at: at}), usage(sandbox, cpu_ms, at, resident_bytes(reported))}
+    memory_bytes = resident_bytes(reported)
+
+    {attrs |> Map.merge(%{metered_cpu_ms: cpu_ms, metered_at: at}) |> maybe_put(:metered_memory_bytes, memory_bytes),
+     usage(sandbox, cpu_ms, at, memory_bytes)}
   end
 
   # Daemons before the paused reading, and a VM the daemon lost rather than
