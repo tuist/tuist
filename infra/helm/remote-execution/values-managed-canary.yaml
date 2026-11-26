@@ -26,3 +26,13 @@ workers:
     ceilingSlots: 4
     tolerations:
       - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}
+  # Firecracker in its own vmm container and in-place daemon upgrades,
+  # qualified on staging: the deploy restarts only the daemon container and
+  # the worker's VMs survive (infra/sandbox-image/remote-execution.md,
+  # "Worker upgrades"). Turning it on replaces the worker once.
+  vmm:
+    enabled: true
+    inPlaceUpgrades: true
+    # vmm holds Firecracker under the running VMs; moving it replaces the
+    # worker, so it moves only on purpose.
+    tag: sha-70ff16fcc8b8
