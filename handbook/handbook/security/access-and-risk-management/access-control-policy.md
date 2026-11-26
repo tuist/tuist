@@ -116,6 +116,19 @@ results documented. Quarterly checks are sufficient to enforce a 180-day thresho
 proportionate to the size of the team.
 - Each inactivity check shall record the systems examined, the accounts disabled, the accounts deleted, and any
 documented exceptions.
+- Every member of the `tuist` organization on the Tuist server shall use a `@tuist.dev` email address, so that the
+server's automatic dormancy sweep and Google Workspace offboarding cover them. Bot, test, and contractor accounts on
+other domains are not allowed there. Each quarterly inactivity check shall run the following read-only query against
+the production database and remove any member it returns:
+
+  ```sql
+  SELECT u.id, u.email, r.name AS role, u.last_sign_in_at, u.disabled_at
+  FROM accounts a
+  JOIN roles r ON r.resource_type = 'Organization' AND r.resource_id = a.organization_id
+  JOIN users_roles ur ON ur.role_id = r.id
+  JOIN users u ON u.id = ur.user_id
+  WHERE a.name = 'tuist' AND lower(u.email) NOT LIKE '%@tuist.dev';
+  ```
 
 ## User access provisioning
 
