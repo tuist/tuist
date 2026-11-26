@@ -70,6 +70,13 @@ func Dispatch(ctx context.Context, ops Operations, cmd protocol.Command, stream 
 	detached := func(timeout time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	}
+	// An upload ends with its connection: the server drops the result of a
+	// command whose connection ended and aborts its multipart upload, so
+	// the parts still to come would only answer 404. Stopping leaves the
+	// sandbox paused and the snapshot in place for the next attempt.
+	withConnection := func(timeout time.Duration) (context.Context, context.CancelFunc) {
+		return context.WithTimeout(ctx, timeout)
+	}
 	switch cmd.Op {
 	case protocol.OpCreate:
 		var args protocol.CreateArgs
@@ -202,7 +209,7 @@ func Dispatch(ctx context.Context, ops Operations, cmd protocol.Command, stream 
 		if err := decode(&args); err != nil {
 			return protocol.ErrorResult(cmd.ID, err)
 		}
-		opCtx, cancel := detached(archiveTimeout)
+		opCtx, cancel := withConnection(archiveTimeout)
 		defer cancel()
 		res, err := ops.Archive(opCtx, args)
 		if err != nil {
@@ -214,7 +221,7 @@ func Dispatch(ctx context.Context, ops Operations, cmd protocol.Command, stream 
 		if err := decode(&args); err != nil {
 			return protocol.ErrorResult(cmd.ID, err)
 		}
-		opCtx, cancel := detached(archiveTimeout)
+		opCtx, cancel := withConnection(archiveTimeout)
 		defer cancel()
 		res, err := ops.ArchiveDisks(opCtx, args)
 		if err != nil {

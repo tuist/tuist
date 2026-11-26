@@ -195,7 +195,8 @@ memory image until they cold boot.
   `tail_sha256`, the node's `compat`, `memory_bytes` and `lazy_disks`.
   Hello's `lazy_disks` says the daemon restores such archives. The sandbox stays paused on the node;
   the server deletes it once the upload is complete. A `resume` or `delete`
-  cancels an archive in flight instead of waiting for it. Transport errors
+  cancels an archive in flight instead of waiting for it, and so does the end
+  of the connection that carried it: the server then aborts the upload. Transport errors
   never carry the signed URL.
 - `archive_disks {snapshot_id, part_size, part_urls}`: upload a disk
   snapshot's kernel, rootfs and workspace in the same archive format and
@@ -977,7 +978,9 @@ Lifecycle commands (`create`, `resume`, `pause`, `delete`) run detached
 from the WebSocket that delivered them, with their own timeouts, so a
 dropped connection cannot abort a snapshot half-way; `exec` is cancelled
 with the connection (its output has nowhere to go), which kills the guest
-process. Events that cannot be delivered are queued (bounded) for the next
+process, and so are `archive` and `archive_disks`, whose multipart upload
+the server aborts once their connection ends (`copy_disks` keeps running:
+its snapshot stays on the node). Events that cannot be delivered are queued (bounded) for the next
 connection. The read loop does not wait for in-flight commands when a
 connection ends, so a long snapshot or template build never keeps the node
 from reconnecting or from draining on shutdown; a result that outlives its
