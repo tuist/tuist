@@ -4171,6 +4171,47 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		}
 	})
 
+	// With replicas on separate hosts, losing one host must not take the
+	// survivor's copy with it: only the lost ordinal's claim and pod go, and
+	// the StatefulSet recreates that one replica, which refills from the
+	// survivor. A full recreate here would turn a host loss the spread was
+	// meant to survive into an empty cache.
+	t.Run("replaces only the replica whose node is gone when a sibling survives", func(t *testing.T) {
+		two := newInstance()
+		two.Spec.Replicas = ptr(int32(2))
+		claimOn := func(ordinal int, volume string) *corev1.PersistentVolumeClaim {
+			claim := boundPVC("scw-local-nvme", volume)
+			claim.Name = fmt.Sprintf("data-%s-%d", instanceName, ordinal)
+			return claim
+		}
+		podNamed := func(ordinal int) *corev1.Pod {
+			return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("%s-%d", instanceName, ordinal), Namespace: namespace}}
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			two, newSTS(),
+			claimOn(0, "pv-0"), pvPinnedTo("pv-0", "dead-node"), podNamed(0),
+			claimOn(1, "pv-1"), pvPinnedTo("pv-1", "live-node"), node("live-node"), podNamed(1),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), two)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the lost replica's replacement to be in progress")
+		}
+		if exists(t, c, claimOn(0, "pv-0")) || exists(t, c, podNamed(0)) {
+			t.Fatal("expected the lost replica's claim and pod deleted")
+		}
+		if !exists(t, c, claimOn(1, "pv-1")) || !exists(t, c, podNamed(1)) {
+			t.Fatal("the surviving replica's claim and pod must be kept")
+		}
+		if !exists(t, c, newSTS()) {
+			t.Fatal("the StatefulSet must be kept so it recreates only the lost replica")
+		}
+	})
+
 	t.Run("ignores an unbound PVC on the correct storage class", func(t *testing.T) {
 		pending := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace},

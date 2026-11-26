@@ -4164,6 +4164,32 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 		log.FromContext(ctx).Info("holding Kura storage recovery; explicit fenced replica recovery required", "reason", reason)
 		return true, r.holdRecoveryRollout(ctx, instance)
 	}
+	// A replica on a host that is gone, beside a sibling whose host is not, is
+	// one lost copy rather than a broken instance: replace that one replica and
+	// let it refill from the survivor, which keeps serving throughout.
+	lost, survivor, err := r.replicasOnMissingNodes(ctx, instance)
+	if err != nil {
+		return false, err
+	}
+	if len(lost) > 0 && survivor {
+		for _, volume := range lost {
+			log.FromContext(ctx).Info("replacing a Kura replica whose node is gone", "pvc", volume.claim.Name, "reason", volume.reason)
+			if err := r.reclaimDataVolume(ctx, volume.claim); err != nil {
+				return false, err
+			}
+			if err := r.Delete(ctx, volume.claim); err != nil && !apierrors.IsNotFound(err) {
+				return false, err
+			}
+			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%d", instance.Name, volume.ordinal),
+				Namespace: instance.Namespace,
+			}}
+			if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+				return false, err
+			}
+		}
+		return true, nil
+	}
 	log.FromContext(ctx).Info("recreating Kura StatefulSet for stale data storage", "reason", reason)
 
 	// Reap the backing volumes rather than strand them: the default
@@ -4302,6 +4328,39 @@ func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, ins
 		}
 	}
 	return "", nil
+}
+
+// replicasOnMissingNodes returns the bound data claims whose volume is pinned
+// to a node that no longer exists, and whether another replica's claim is bound
+// to a node that still does and is not being deleted. A lost claim stays lost
+// while it terminates, so the passes that wait for its pod to go keep the
+// one-replica replacement instead of reading it as a whole-instance teardown.
+func (r *KuraInstanceReconciler) replicasOnMissingNodes(ctx context.Context, instance *kurav1alpha1.KuraInstance) ([]dataVolumeReplacement, bool, error) {
+	var lost []dataVolumeReplacement
+	survivor := false
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		claim := &corev1.PersistentVolumeClaim{}
+		if err := r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("data-%s-%d", instance.Name, ordinal), Namespace: instance.Namespace}, claim); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, false, err
+		}
+		if claim.Status.Phase != corev1.ClaimBound || claim.Spec.VolumeName == "" {
+			continue
+		}
+		missing, err := r.pvMissingPinnedNode(ctx, claim.Spec.VolumeName)
+		if err != nil {
+			return nil, false, err
+		}
+		switch {
+		case missing != "":
+			lost = append(lost, dataVolumeReplacement{ordinal: ordinal, claim: claim, reason: fmt.Sprintf("node %q is gone", missing)})
+		case claim.DeletionTimestamp == nil:
+			survivor = true
+		}
+	}
+	return lost, survivor, nil
 }
 
 // pvMissingPinnedNode returns the hostname a PV's required node affinity pins it
