@@ -278,6 +278,33 @@ func TestReportsListASandboxWhileItsCreateWaitsForCapacity(t *testing.T) {
 	}
 }
 
+// The server places a create the host refused for capacity again after a
+// short wait, under the same sandbox id and often on the same host. Once CI
+// frees the slot, that create boots instead of failing as a duplicate.
+func TestCreateRefusedForCapacitySucceedsWhenRetriedOnTheSameHost(t *testing.T) {
+	m, r, c, a := harness(t)
+	ctx := context.Background()
+	c.allow = false
+	if err := m.Create(ctx, a); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("refused create: %v", err)
+	}
+	c.allow = true
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatalf("retried create: %v", err)
+	}
+	if r.creates != 1 || len(m.Snapshot()) != 1 || m.Snapshot()[0].State != "running" {
+		t.Fatalf("retried create did not boot: creates=%d %+v", r.creates, m.Snapshot())
+	}
+	// The retried sandbox survives a host restart like any other.
+	recovered := &Manager{Root: m.Root, NodeUID: m.NodeUID, Runtime: r, Capacity: c}
+	if err := recovered.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if s := recovered.Snapshot(); len(s) != 1 || s[0].State != "running" {
+		t.Fatalf("after restart: %+v", s)
+	}
+}
+
 func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 	m, r, c, a := harness(t)
 	m.Grace = time.Nanosecond
