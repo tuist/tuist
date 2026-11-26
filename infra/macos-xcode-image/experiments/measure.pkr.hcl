@@ -15,9 +15,9 @@ variable "stacked" {
   default = false
 }
 variable "output_image" { type = string }
-variable "mode" {
+variable "warm" {
   type    = string
-  default = "cold"
+  default = "none"
 }
 variable "image_label" {
   type    = string
@@ -46,7 +46,7 @@ build {
   }
 
   provisioner "shell" {
-    environment_vars = ["MODE=${var.mode}", "IMAGE=${var.image_label}"]
+    environment_vars = ["WARM=${var.warm}", "IMAGE=${var.image_label}"]
     inline           = ["bash /tmp/measure.sh"]
   }
 }

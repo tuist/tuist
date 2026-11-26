@@ -1,61 +1,55 @@
 #!/bin/bash
-# Experiment: on a freshly booted clone, time what a job pays to use each
-# installed Xcode. MODE=cold measures straight after boot; MODE=warm first
-# runs the warm-up an idle warm runner would run, then measures. Prints
-# BUNDLE-EXP lines prefixed with IMAGE and MODE.
+# Experiment: what the idle Xcode warm-up costs in memory. On a freshly
+# booted clone, prints guest memory at three checkpoints: after boot, after
+# the warm-up (WARM=none|one|all) and after a job-like swift build on the
+# first Xcode. Each checkpoint holds for HOLD seconds so the host-side
+# sampler in the workflow can read the VM's memory. Prints BUNDLE-EXP lines.
 set -uo pipefail
 source ~/.zprofile 2>/dev/null || true
-MODE=${MODE:-cold}
+WARM=${WARM:-none}
 IMAGE=${IMAGE:-image}
-p="BUNDLE-EXP [$IMAGE $MODE]"
-
-now() { perl -MTime::HiRes=time -e 'printf "%.3f\n", time' 2>/dev/null || python3 -c 'import time; print(f"{time.time():.3f}")'; }
-since() { echo "$(now) - $1" | bc; }
-
-boot=$(sysctl -n kern.boottime | sed -E 's/^\{ sec = ([0-9]+),.*/\1/')
-echo "$p seconds from kernel boot to first command: $(( $(date +%s) - boot ))"
-t0=$(now); echo "$p timer overhead s: $(since "$t0")"
+HOLD=${HOLD:-30}
+p="BUNDLE-EXP [$IMAGE warm=$WARM]"
 
 apps=$(for a in /Applications/Xcode_*.app; do [ -L "$a" ] || echo "$a"; done | sort)
-echo "$p Xcodes: $(echo $apps)"
+first=$(echo "$apps" | head -1)
 
-# The switch a claim would do: select, point Xcode.app at it, export DEVELOPER_DIR.
-switch() {
-  sudo -n xcode-select -s "$1"
-  sudo -n ln -sfn "$1" /Applications/Xcode.app
-  export DEVELOPER_DIR="$1/Contents/Developer"
+guest_mem() {
+  local page; page=$(sysctl -n hw.pagesize)
+  vm_stat | awk -v pg="$page" -v tag="$1" -v p="$p" '
+    /File-backed pages/ {fb=$3} /Pages free/ {fr=$3} /Pages active/ {ac=$3}
+    /Pages wired down/ {wi=$4} /Anonymous pages/ {an=$3}
+    END {mb=pg/1048576; printf "%s guest %s MB: file-backed %d, anonymous %d, active %d, wired %d, free %d\n", p, tag, fb*mb, an*mb, ac*mb, wi*mb, fr*mb}'
 }
 
-if [ "$MODE" = warm ]; then
-  t0=$(now)
-  for app in $apps; do
-    DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version >/dev/null
-    DEVELOPER_DIR="$app/Contents/Developer" xcrun swift --version >/dev/null 2>&1
-    DEVELOPER_DIR="$app/Contents/Developer" xcrun clang --version >/dev/null 2>&1
-  done
-  xcrun simctl list runtimes >/dev/null 2>&1
-  echo "$p warm-up of all Xcodes s: $(since "$t0")"
-fi
+checkpoint() {
+  sleep 5
+  guest_mem "$1"
+  echo "$p CHECKPOINT $1 start"
+  sleep "$HOLD"
+  echo "$p CHECKPOINT $1 end"
+}
 
-for app in $apps; do
-  v=$(basename "$app" .app | sed 's/^Xcode_//')
+sleep 20
+checkpoint boot
 
-  t0=$(now); switch "$app"; echo "$p $v switch only s: $(since "$t0")"
-  t0=$(now); xcodebuild -version >/dev/null; echo "$p $v first xcodebuild -version s: $(since "$t0")"
-  t0=$(now); xcodebuild -version >/dev/null; echo "$p $v second xcodebuild -version s: $(since "$t0")"
+warm() {
+  DEVELOPER_DIR="$1/Contents/Developer" xcodebuild -version >/dev/null
+  DEVELOPER_DIR="$1/Contents/Developer" xcrun swift --version >/dev/null 2>&1
+  DEVELOPER_DIR="$1/Contents/Developer" xcrun clang --version >/dev/null 2>&1
+}
+case "$WARM" in
+  one) warm "$first" ;;
+  all) for app in $apps; do warm "$app"; done ;;
+esac
+sudo -n xcode-select -s "$first"
+xcrun simctl list runtimes >/dev/null 2>&1
+checkpoint warm
 
-  dir=$(mktemp -d)
-  (cd "$dir" && swift package init --type executable --name Hello >/dev/null 2>&1)
-  t0=$(now)
-  (cd "$dir" && swift build >/dev/null 2>&1) && ok=ok || ok=failed
-  echo "$p $v first swift build s: $(since "$t0") ($ok)"
-  rm -rf "$dir"
-done
-
-# Switching back and forth once everything has run, the steady-state cost.
-for app in $apps; do
-  v=$(basename "$app" .app | sed 's/^Xcode_//')
-  t0=$(now); switch "$app"; xcodebuild -version >/dev/null
-  echo "$p $v re-switch plus xcodebuild -version s: $(since "$t0")"
-done
+export DEVELOPER_DIR="$first/Contents/Developer"
+dir=$(mktemp -d)
+(cd "$dir" && swift package init --type executable --name Hello >/dev/null 2>&1 && swift build >/dev/null 2>&1) && ok=ok || ok=failed
+echo "$p swift build on $(basename "$first"): $ok"
+rm -rf "$dir"
+checkpoint job
 exit 0

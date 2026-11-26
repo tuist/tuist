@@ -1,8 +1,8 @@
 name: macOS Xcode bundle measure
 
 # Throwaway experiment (branch exp/xcode-bundle-tahoe-27 only): boots fresh
-# clones of the single-Xcode 27-0 image and the three-Xcode bundle, cold and
-# after a warm-up, and runs infra/macos-xcode-image/experiments/measure.sh.
+# clones of the single-Xcode 27-0 image and the three-Xcode bundle with
+# different idle warm-ups, samples the VM memory on the host, and runs infra/macos-xcode-image/experiments/measure.sh.
 
 on:
   push:
@@ -50,15 +50,30 @@ jobs:
         working-directory: infra/macos-xcode-image/experiments
         run: |
           set -uo pipefail
-          for img in single:27-0 bundle:exp-bundle-27-0-27-1-27-2; do
-            for mode in cold warm; do
-              tart delete exp-measure 2>/dev/null || true
-              env -u GITHUB_TOKEN packer build \
-                -var "base_image=$REPO:${img#*:}" -var output_image=exp-measure \
-                -var "mode=$mode" -var "image_label=${img%%:*}" measure.pkr.hcl \
-                || echo "BUNDLE-EXP [${img%%:*} $mode] packer failed"
+          # Host-side sampler: every 5 s, the memory of the VM's
+          # Virtualization process (guest RAM it has touched) and of tart.
+          (
+            while true; do
+              for pid in $(pgrep -f 'com.apple.Virtualization.VirtualMachine' || true); do
+                rss=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
+                fp=$(footprint "$pid" 2>/dev/null | awk '/Footprint:/ {print $2, $3; exit}')
+                echo "BUNDLE-EXP HOSTMEM pid $pid rss_mb $(( ${rss:-0} / 1024 )) footprint ${fp:-n/a}"
+              done
+              sleep 5
             done
+          ) &
+          sampler=$!
+          for c in single:27-0:none single:27-0:all bundle:exp-bundle-27-0-27-1-27-2:one bundle:exp-bundle-27-0-27-1-27-2:all; do
+            IFS=: read -r label tag warm <<<"$c"
+            tart delete exp-measure 2>/dev/null || true
+            echo "BUNDLE-EXP CASE $label warm=$warm begin"
+            env -u GITHUB_TOKEN packer build \
+              -var "base_image=$REPO:$tag" -var output_image=exp-measure \
+              -var "warm=$warm" -var "image_label=$label" measure.pkr.hcl \
+              || echo "BUNDLE-EXP [$label warm=$warm] packer failed"
+            echo "BUNDLE-EXP CASE $label warm=$warm end"
           done
+          kill "$sampler" 2>/dev/null || true
 
       - name: Cleanup
         if: always()
