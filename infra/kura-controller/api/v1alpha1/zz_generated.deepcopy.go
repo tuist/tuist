@@ -171,6 +171,9 @@ func (in *KuraInstanceStatus) DeepCopyInto(out *KuraInstanceStatus) {
 	if in.CPUAutosize != nil {
 		out.CPUAutosize = in.CPUAutosize.DeepCopy()
 	}
+	if in.MemoryAutosize != nil {
+		out.MemoryAutosize = in.MemoryAutosize.DeepCopy()
+	}
 }
 
 func (in *KuraInstanceStatus) DeepCopy() *KuraInstanceStatus {
@@ -208,6 +211,33 @@ func (in *KuraInstanceCPUAutosize) DeepCopy() *KuraInstanceCPUAutosize {
 		return nil
 	}
 	out := new(KuraInstanceCPUAutosize)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *KuraInstanceMemoryAutosize) DeepCopyInto(out *KuraInstanceMemoryAutosize) {
+	*out = *in
+	if in.BucketStartedAt != nil {
+		out.BucketStartedAt = in.BucketStartedAt.DeepCopy()
+	}
+	if in.BucketFloorsMib != nil {
+		out.BucketFloorsMib = make([]int32, len(in.BucketFloorsMib))
+		copy(out.BucketFloorsMib, in.BucketFloorsMib)
+	}
+	if in.PodTimeouts != nil {
+		out.PodTimeouts = make([]KuraInstanceMemoryPodCounter, len(in.PodTimeouts))
+		copy(out.PodTimeouts, in.PodTimeouts)
+	}
+	if in.ScheduleCapSetAt != nil {
+		out.ScheduleCapSetAt = in.ScheduleCapSetAt.DeepCopy()
+	}
+}
+
+func (in *KuraInstanceMemoryAutosize) DeepCopy() *KuraInstanceMemoryAutosize {
+	if in == nil {
+		return nil
+	}
+	out := new(KuraInstanceMemoryAutosize)
 	in.DeepCopyInto(out)
 	return out
 }

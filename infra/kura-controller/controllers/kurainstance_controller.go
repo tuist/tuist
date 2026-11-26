@@ -277,6 +277,13 @@ type runtimeStatus struct {
 	// GatewayGRPCPort is the gRPC-only listener the process has bound, zero
 	// when it has none. It is the evidence the gRPC Ingress switches on.
 	GatewayGRPCPort int32 `json:"gateway_grpc_port"`
+	// The floor-derived admission pool and the peak foreground demand on it
+	// over the last one to two minutes, which memory autosizing learns the
+	// floor from. Nil from a release that predates them: no reading, never
+	// a reading of zero.
+	FloorPoolCapacityBytes          *uint64 `json:"floor_pool_capacity_bytes"`
+	FloorPoolRecentPeakDemandBytes  *uint64 `json:"floor_pool_recent_peak_demand_bytes"`
+	FloorPoolAdmissionTimeoutsTotal *uint64 `json:"floor_pool_admission_timeouts_total"`
 }
 
 // podRuntimeSample is one pod's last observed /status/rollout report plus
@@ -542,6 +549,8 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
 	r.observeSteadyCPUUsage(ctx, instance, pods, samples)
 	applyScheduleCap(instance, pods, time.Now())
+	r.observeMemoryDemand(ctx, instance, pods, samples, time.Now())
+	applyMemoryScheduleCap(instance, pods, time.Now())
 	// A single-copy LVM migration runs a temporary standby (lvm_standby.go).
 	// Roles and the storage lifecycle count it; spec and status writes keep the
 	// declared instance.
@@ -4865,20 +4874,9 @@ const (
 // peaks at, so raising it in step would exhaust a box's schedulable memory
 // without serving a single extra byte.
 func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) corev1.ResourceRequirements {
-	floorMib := instance.Spec.MemoryFloorMib
-	if floorMib <= 0 {
-		floorMib = defaultMemoryFloorMib
-	}
-	ceilingMib := instance.Spec.MemoryCeilingMib
-	if ceilingMib <= 0 {
-		ceilingMib = defaultMemoryCeilingMib
-	}
-	// The API rejects a limit below its request, so a profile that inverts the
-	// two would make every pod of the instance unadmittable. Clamping keeps the
-	// floor authoritative: a reservation is a promise, a ceiling is headroom.
-	if ceilingMib < floorMib {
-		ceilingMib = floorMib
-	}
+	// The plan's profile, raised where the instance's admission pool demand
+	// has outgrown it (see memory_autosize.go).
+	floorMib, ceilingMib := memoryProfileMib(instance)
 
 	// The request is observed per instance (see cpu_autosize.go); the ceiling
 	// is the plan's, and bounds it because the API rejects a limit under its

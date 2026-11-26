@@ -151,6 +151,15 @@ type KuraInstanceSpec struct {
 	// clamped up to it, since a limit under the request is rejected by the API.
 	MemoryCeilingMib int32 `json:"memoryCeilingMib,omitempty"`
 
+	// MemoryFloorMaxMib lets the controller raise the floor above
+	// MemoryFloorMib, up to this value, when the instance's foreground
+	// requests outgrow the admission pool Kura derives from the floor (see
+	// memory_autosize.go). MemoryFloorMib becomes the minimum. A raised floor
+	// raises the ceiling by four times as much, since the pool cannot exceed a
+	// quarter of the ceiling. Zero, or a value not above the floor, keeps the
+	// floor fixed at MemoryFloorMib.
+	MemoryFloorMaxMib int32 `json:"memoryFloorMaxMib,omitempty"`
+
 	// CPUCeilingMilli is the CPU, in millicores, this instance may reach at
 	// peak. It becomes `limits.cpu`. There is no matching floor field because
 	// `requests.cpu` is observed per instance rather than granted per plan
@@ -394,6 +403,11 @@ type KuraInstanceStatus struct {
 	// outlive a controller restart.
 	CPUAutosize *KuraInstanceCPUAutosize `json:"cpuAutosize,omitempty"`
 
+	// MemoryAutosize carries the floor-pool observation behind a floor
+	// raised above spec.memoryFloorMib. Status for the same reasons as
+	// CPUAutosize.
+	MemoryAutosize *KuraInstanceMemoryAutosize `json:"memoryAutosize,omitempty"`
+
 	// NodePort exposure (spec.exposeNodePort): the address clients
 	// outside the pod network dial. NodeAddress is the
 	// `tuist.dev/pn-ipv4` label of the node hosting the primary pod —
@@ -441,6 +455,38 @@ type KuraInstanceCPUAutosize struct {
 	BucketPeaksMilli []int32      `json:"bucketPeaksMilli,omitempty"`
 	ScheduleCapMilli int32        `json:"scheduleCapMilli,omitempty"`
 	ScheduleCapSetAt *metav1.Time `json:"scheduleCapSetAt,omitempty"`
+}
+
+// KuraInstanceMemoryAutosize retains, for each of a ring of fixed-length
+// windows (oldest first, BucketStartedAt the start of the last), the largest
+// floor any replica's admission pool demand asked for. A window that closed
+// with no reading holds -1. FloorMib is the floor the ring justifies, before
+// the spec's bounds and ScheduleCapMib apply.
+//
+// BucketWantedMib and BucketTimeouts accumulate the current window: its
+// largest requested floor counts only once the window has shed enough
+// requests. PodTimeouts holds each pod's last admission-timeout counter, so
+// the window's count survives a controller restart.
+//
+// ScheduleCapMib bounds the floor at what the scheduler has shown it will
+// admit, and expires so a box that has since freed up is retried.
+type KuraInstanceMemoryAutosize struct {
+	FloorMib        int32        `json:"floorMib,omitempty"`
+	BucketStartedAt *metav1.Time `json:"bucketStartedAt,omitempty"`
+	// +kubebuilder:validation:MaxItems=28
+	BucketFloorsMib  []int32                        `json:"bucketFloorsMib,omitempty"`
+	BucketWantedMib  int32                          `json:"bucketWantedMib,omitempty"`
+	BucketTimeouts   int64                          `json:"bucketTimeouts,omitempty"`
+	PodTimeouts      []KuraInstanceMemoryPodCounter `json:"podTimeouts,omitempty"`
+	ScheduleCapMib   int32                          `json:"scheduleCapMib,omitempty"`
+	ScheduleCapSetAt *metav1.Time                   `json:"scheduleCapSetAt,omitempty"`
+}
+
+// KuraInstanceMemoryPodCounter is a pod's last observed
+// floor_pool_admission_timeouts_total.
+type KuraInstanceMemoryPodCounter struct {
+	Pod      string `json:"pod"`
+	Timeouts int64  `json:"timeouts"`
 }
 
 // +kubebuilder:object:root=true
