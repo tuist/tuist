@@ -122,9 +122,15 @@ struct ReplyComposer: View {
                         Button("Files", systemImage: "doc") { pickingFiles = true }
                     }
                 } label: {
-                    Image(systemName: "plus").font(.system(size: 18)).frame(width: 20, height: 20)
+                    Image(systemName: "plus").font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(Noora.labelPrimary)
+                        .frame(width: Self.target, height: Self.target)
+                        .contentShape(Circle())
                 }
-                .glassButtonStyle().buttonBorderShape(.circle).controlSize(.large)
+                .menuStyle(.button).buttonStyle(.plain)
+                // Matches the field's height; the tap target stays 44 points.
+                .background { Color.clear.frame(width: Self.field, height: Self.field).glass(in: Circle()) }
+                .padding(-2)
                 .accessibilityLabel("Add attachments")
                 .disabled(sending || importing || attachments.wrappedValue.count >= 4)
             }
@@ -132,16 +138,16 @@ struct ReplyComposer: View {
                 Group {
                     if voice.phase == .requesting {
                         Text("Waiting for permission…").font(.callout).foregroundStyle(Noora.labelSecondary)
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .frame(maxWidth: .infinity, minHeight: Self.field, alignment: .leading)
                     } else if voice.phase == .recording {
                         HStack(alignment: .center, spacing: 3) {
                             ForEach(voice.levels.indices, id: \.self) { index in
                                 Capsule().fill(Noora.primary)
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 4 + voice.levels[index] * 24)
+                                    .frame(height: 4 + voice.levels[index] * 22)
                             }
                         }
-                        .frame(height: 44)
+                        .frame(height: Self.field)
                         .animation(reduceMotion ? nil : .linear(duration: 0.05), value: voice.levels)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Recording on this device")
@@ -152,57 +158,84 @@ struct ReplyComposer: View {
                             // Keep the conversation above the keyboard at accessibility sizes.
                             .lineLimit(1 ... (dynamicTypeSize.isAccessibilitySize ? 2 : 6))
                             .textFieldStyle(.plain)
-                            .padding(.vertical, 11).padding(.leading, 12)
+                            .padding(.vertical, 9)
                             // Typing stays open while the agent works; only sending waits for it.
                             .disabled(sending)
                             .onSubmit { if canSend { send() } }
                     }
                 }
-                .padding(.leading, recording ? 52 : 0).padding(.trailing, recording ? 8 : 44)
+                // Leaves room for the overlaid microphone or send button.
+                .padding(.leading, recording ? Self.field : 14).padding(.trailing, recording ? 0 : Self.field)
                 if recording {
                     Button { voice.cancel() } label: {
-                        Image(systemName: "xmark").font(.system(size: 18)).frame(width: 44, height: 44)
+                        Image(systemName: "xmark").font(.system(size: 15, weight: .medium))
+                            .frame(width: Self.target, height: Self.target)
                             .foregroundStyle(Noora.labelSecondary)
-                            .background { Circle().fill(.quaternary).padding(4) }
+                            .background { Circle().fill(.quaternary).padding(Self.inset) }
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .padding(-2)
                     .accessibilityLabel("Discard dictation")
                     .accessibilityHint("Keeps your typed reply unchanged.")
                 }
             }
+            .frame(minHeight: Self.field)
             .overlay(alignment: recording ? .bottomLeading : .bottomTrailing) {
-                // Keep the native touch target alive while a held microphone moves.
-                MicrophoneButton(
-                    active: recording,
-                    start: { voice.begin() },
-                    stop: { voice.finish { reply = VoiceInput.appending($0, to: reply) } },
-                    cancel: { voice.cancel() }
-                )
-                .disabled(sending && !voice.busy)
-            }
-            .padding(4)
-            .foregroundStyle(Noora.labelPrimary)
-            .interactiveGlass(in: RoundedRectangle(cornerRadius: 26))
-            if !recording {
-                Button(action: send) {
-                    Group {
-                        if sending {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "arrow.up").font(.system(size: 18, weight: .bold))
-                        }
+                // Like iMessage, one button: the microphone while there is nothing to send, then Send.
+                Group {
+                    if showsSend {
+                        sendButton
+                    } else {
+                        // Keep the native touch target alive while a held microphone moves.
+                        MicrophoneButton(
+                            active: recording,
+                            start: { voice.begin() },
+                            stop: { voice.finish { reply = VoiceInput.appending($0, to: reply) } },
+                            cancel: { voice.cancel() }
+                        )
+                        .disabled(sending && !voice.busy)
                     }
-                    .frame(width: 20, height: 20)
                 }
-                .prominentGlassButtonStyle().tint(Noora.primary)
-                .buttonBorderShape(.circle).controlSize(.large)
-                .disabled(!canSend)
-                .keyboardShortcut(.return, modifiers: .command)
-                .accessibilityLabel("Send")
+                // The 44-point target overhangs the 40-point field so the visible circle sits 4 points in.
+                .padding(-2)
             }
+            .foregroundStyle(Noora.labelPrimary)
+            .interactiveGlass(in: RoundedRectangle(cornerRadius: Self.field / 2))
         }
     }
+
+    private var showsSend: Bool {
+        !recording && (sending || !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachments?.wrappedValue.isEmpty == false)
+    }
+
+    private var sendButton: some View {
+        Button(action: send) {
+            ZStack {
+                Circle().fill(Noora.primary).padding(Self.inset)
+                if sending {
+                    ProgressView().controlSize(.small).tint(Noora.primaryLabel)
+                } else {
+                    Image(systemName: "arrow.up").font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Noora.primaryLabel)
+                }
+            }
+            .frame(width: Self.target, height: Self.target)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSend)
+        .opacity(canSend || sending ? 1 : 0.4)
+        .keyboardShortcut(.return, modifiers: .command)
+        .accessibilityLabel("Send")
+    }
+
+    /// The field's minimum height; it grows with multi-line text.
+    static let field: CGFloat = 40
+    /// The tap target of the buttons in and beside the field.
+    static let target: CGFloat = 44
+    /// Insets a 32-point circle in the tap target.
+    static let inset: CGFloat = 6
 
     private func importFiles(_ load: @escaping @Sendable () async throws -> [PromptAttachment]) {
         guard !importing, !sending else { return }
@@ -237,17 +270,17 @@ private struct MicrophoneButton: View {
     var body: some View {
         ZStack {
             if active {
-                Circle().fill(Color.red.opacity(0.12)).padding(4)
+                Circle().fill(Color.red.opacity(0.12)).padding(ReplyComposer.inset)
             } else {
-                Circle().fill(.quaternary).padding(4)
+                Circle().fill(.quaternary).padding(ReplyComposer.inset)
             }
             Image(systemName: active ? "stop.fill" : "mic.fill")
-                .font(.system(size: 17, weight: .medium))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(active ? Color.red : Noora.labelSecondary)
                 .accessibilityHidden(true)
             MicrophoneTouchTarget(active: active, enabled: enabled, start: start, stop: stop, cancel: cancel)
         }
-        .frame(width: 44, height: 44)
+        .frame(width: ReplyComposer.target, height: ReplyComposer.target)
         .opacity(enabled ? 1 : 0.4)
     }
 }

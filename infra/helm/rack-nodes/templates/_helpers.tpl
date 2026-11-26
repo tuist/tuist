@@ -41,15 +41,26 @@ deploy, which resolves it) an Xcode without an override is skipped.
 {{- define "rackNodes.imageCachePrewarmTags" -}}
 {{- $tags := list -}}
 {{- $catalog := list -}}
-{{- range (.Values.runnersFleet.xcodeVersions | default list) -}}
-{{- $catalog = append $catalog (.xcodeVersion | toString) -}}
+{{- /* The tuist chart's `tuist.macosCatalogImages` keys: the Xcode on Tahoe, `<xcode>-<osVersion>` on a newer macOS. */ -}}
+{{- $releases := .Values.runnersFleet.macosVersions | default (list (dict "osVersion" "macos-26")) -}}
+{{- range $release := $releases -}}
+{{- range $x := ($.Values.runnersFleet.xcodeVersions | default list) -}}
+{{- $xcodeVersion := $x.xcodeVersion | toString -}}
+{{- if or (not (hasKey $release "xcodeVersions")) (has $xcodeVersion (default list $release.xcodeVersions)) -}}
+{{- if eq (toString $release.osVersion) "macos-26" -}}
+{{- $catalog = append $catalog $xcodeVersion -}}
+{{- else -}}
+{{- $catalog = append $catalog (printf "%s-%s" $xcodeVersion $release.osVersion) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- $overrides := .Values.runnersFleet.xcodeOverrides | default dict -}}
 {{- $stacked := dig "stackedImages" false (.Values.rackFleet.runners | default dict) -}}
 {{- range $xcode := (.Values.rackFleet.imageCache.prewarm | default list) -}}
 {{- $xcode = $xcode | toString -}}
 {{- if not (has $xcode $catalog) -}}
-{{- fail (printf "rackFleet.imageCache.prewarm names Xcode %s, which is not in runnersFleet.xcodeVersions" $xcode) -}}
+{{- fail (printf "rackFleet.imageCache.prewarm names Xcode %s, which is not in the macOS catalog (runnersFleet.xcodeVersions on runnersFleet.macosVersions)" $xcode) -}}
 {{- end -}}
 {{- $tag := dig $xcode "imageTag" "" $overrides -}}
 {{- if and (not $tag) $.Values.runnersFleet.runnerImageSemver -}}

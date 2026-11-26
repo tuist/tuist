@@ -117,7 +117,12 @@ defmodule Atlas.Connections.Gmail do
       with_token(user, [@compose_scope], "draft_create", fn token ->
         with {:ok, reply} <- reply(token, fields.reply_to_message_id),
              {:ok, created} <- write_draft(:post, "/drafts", token, %{}, fields, reply, fields.attachments) do
-          audit(user, "connection.gmail_draft_created", %{"draft_id" => created["id"], "reply" => reply != nil})
+          audit(
+            user,
+            "connection.gmail_draft_created",
+            with_documents(%{"draft_id" => created["id"], "reply" => reply != nil}, attrs)
+          )
+
           {:ok, written(created, fields, reply, fields.attachments)}
         end
       end)
@@ -142,7 +147,7 @@ defmodule Atlas.Connections.Gmail do
              attachments = kept ++ fields.attachments,
              :ok <- attachments_fit(attachment_bytes(attachments)),
              {:ok, updated} <- write_draft(:put, "/drafts/" <> id, token, %{"id" => id}, fields, reply, attachments) do
-          audit(user, "connection.gmail_draft_updated", %{"draft_id" => id})
+          audit(user, "connection.gmail_draft_updated", with_documents(%{"draft_id" => id}, attrs))
           {:ok, written(updated, fields, reply, attachments)}
         end
       end)
@@ -169,7 +174,8 @@ defmodule Atlas.Connections.Gmail do
         audit(user, "connection.gmail_draft_sent", %{
           "draft_id" => id,
           "message_id" => sent["id"],
-          "recipient_count" => length(draft.recipients)
+          "recipient_count" => length(draft.recipients),
+          "recipient_domains" => recipient_domains(draft.recipients)
         })
 
         {:ok, %{draft_id: id, message_id: sent["id"], thread_id: sent["threadId"]}}
@@ -884,6 +890,25 @@ defmodule Atlas.Connections.Gmail do
   end
 
   defp error_reason(_body), do: "unknown"
+
+  # Which Atlas documents a draft carries (set by the MCP tools after resolving
+  # `document_id` attachments), so a later send can be traced back to them.
+  defp with_documents(metadata, %{"document_ids" => [_ | _] = ids}), do: Map.put(metadata, "document_ids", ids)
+  defp with_documents(metadata, _attrs), do: metadata
+
+  # Where a message went, without who: domains show whether it left the
+  # company, and addresses stay out of the audit trail.
+  defp recipient_domains(recipients) do
+    recipients
+    |> Enum.flat_map(fn recipient ->
+      case Regex.run(~r/@([^\s<>@,]+?)>?\s*\z/, recipient) do
+        [_, domain] -> [String.downcase(domain)]
+        _ -> []
+      end
+    end)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
 
   # Never record queries or message content: the audit trail shows that the
   # caller used their own mailbox, not what it contains.

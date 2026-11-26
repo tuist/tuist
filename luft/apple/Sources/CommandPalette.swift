@@ -65,7 +65,8 @@ struct CommandPalette: View {
                 }
             }
         }
-        .frame(width: 580)
+        // Full width less the margins on iPhone, where Search in the sidebar opens it.
+        .frame(maxWidth: 580)
         .background(Noora.backgroundPrimary, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Noora.border))
         .shadow(color: .black.opacity(0.25), radius: 30, y: 12)

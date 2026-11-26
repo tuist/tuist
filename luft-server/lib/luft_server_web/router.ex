@@ -52,6 +52,14 @@ defmodule LuftServerWeb.Router do
     delete "/me/thread-live-activity-starter", NotificationsController, :delete_starter,
       log: false
 
+    get "/me/ai-subscriptions", AISubscriptionsController, :index
+    # The body carries a subscription token: never log it.
+    put "/me/ai-subscriptions/claude", AISubscriptionsController, :connect_claude, log: false
+    post "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :start_chatgpt_login
+    post "/me/ai-subscriptions/chatgpt/login/poll", AISubscriptionsController, :poll_chatgpt_login
+    delete "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :cancel_chatgpt_login
+    delete "/me/ai-subscriptions/:provider", AISubscriptionsController, :delete
+
     get "/organizations", OrganizationsController, :index
     post "/organizations", OrganizationsController, :create
 

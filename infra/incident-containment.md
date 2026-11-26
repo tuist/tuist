@@ -126,6 +126,22 @@ reach the clusters' load balancers directly. So both layers are needed:
 - Undo: scale back to the replica counts in the platform chart values, or
   re-run the platform install (`k8s:install-platform`), which restores them.
 
+**Turning Cloudflare off for a host.** The Ingresses with `cloudflareOnly: true`
+(`tuist.dev`, `registry.tuist.dev`, `canary.tuist.dev`, `staging.tuist.dev`)
+refuse every client outside Cloudflare's published ranges with 403. So
+setting such a record to DNS only, for example to route around a Cloudflare
+outage, blocks every user unless the allowlist goes first:
+
+1. Set `cloudflareOnly: false` for the host in
+   `infra/helm/tuist/values-managed-<env>.yaml` and deploy. When git and CI
+   are too slow, remove the annotation directly:
+   `kubectl -n <namespace> annotate ingress <name> nginx.ingress.kubernetes.io/whitelist-source-range-`
+   on the server, Faro and registry Ingresses (canary and production need an
+   elevation; see `infra/AGENTS.md`). The next deploy puts it back,
+   so the values change has to follow.
+2. Only then set the record to DNS only in Cloudflare.
+3. When the record is proxied again, set `cloudflareOnly: true` again.
+
 **Application workloads** (per env, namespace `tuist` / `tuist-<env>`, release
 `tuist`):
 

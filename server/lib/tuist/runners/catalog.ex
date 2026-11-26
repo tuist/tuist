@@ -35,6 +35,11 @@ defmodule Tuist.Runners.Catalog do
 
   @platforms [:linux, :macos]
 
+  # The macOS release whose images and pools carry no OS suffix; see
+  # `macos_os_versions/0`.
+  @macos_unsuffixed_os_version "macos-26"
+  @macos_release_names %{26 => "Tahoe", 27 => "Golden Gate"}
+
   @doc """
   True when `platform` is a known runner platform and `vcpus`/`memory_gb`
   are positive integers. Shared by the billing and session-tracking paths
@@ -228,6 +233,68 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
+  The macOS releases macOS profiles can run on, newest first, from
+  `:runner_macos_os_versions`. Each entry carries the `os_version`
+  profiles store (`macos-27`), the display `label`, the release's name
+  (`Golden Gate`), its `version_label` (`macOS 27`), the `xcode_versions` built for it (`nil` for every Xcode in
+  the catalog), and `default?`, which is the release new profiles get.
+
+  Every Xcode image is built once per macOS release, and a profile
+  picks both. `macos-26` (Tahoe) is the release every image ran on
+  before profiles could pick one: its pools and images carry no OS
+  suffix, and a profile without an OS (every row written before the
+  choice existed) runs on it, whichever release is the default. Every
+  other release suffixes them with its `os_version`
+  (`tuist-runner-pool-macos-27-2-macos-27`, image `macos-27-2-macos-27-<semver>`).
+  """
+  def macos_os_versions do
+    raw =
+      case Application.get_env(:tuist, :runner_macos_os_versions, []) do
+        list when is_list(list) -> list
+        _ -> []
+      end
+
+    raw
+    |> Enum.map(&normalize_macos_os_version/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(& &1.os_version)
+    |> Enum.sort_by(& &1.release, :desc)
+  end
+
+  @doc """
+  Look up a macOS release in the catalog. `nil` resolves to the
+  release unsuffixed images run (`macos-26`). Returns `nil` if absent.
+  """
+  def find_macos_os_version(nil), do: find_macos_os_version(@macos_unsuffixed_os_version)
+
+  def find_macos_os_version(os_version) when is_binary(os_version) do
+    Enum.find(macos_os_versions(), &(&1.os_version == os_version))
+  end
+
+  def find_macos_os_version(_), do: nil
+
+  @doc """
+  The macOS release tagged `default: true`: what new macOS profiles
+  get. Returns `nil` if none.
+  """
+  def default_macos_os_version do
+    Enum.find(macos_os_versions(), & &1.default?)
+  end
+
+  @doc """
+  The Xcode catalog entries built for a macOS release (`nil` is
+  Tahoe), in `xcode_versions/0` order. `[]` for a release the catalog
+  does not list.
+  """
+  def xcode_versions_for_macos(os_version) do
+    case find_macos_os_version(os_version) do
+      nil -> []
+      %{xcode_versions: nil} -> xcode_versions()
+      %{xcode_versions: built} -> Enum.filter(xcode_versions(), &(&1.xcode_version in built))
+    end
+  end
+
+  @doc """
   The Ubuntu releases Linux profiles can run on, newest first, from
   `:runner_linux_os_versions`. Each entry carries the `os_version`
   profiles store (`ubuntu-24.04`), the `tag` that suffixes its pool
@@ -294,7 +361,9 @@ defmodule Tuist.Runners.Catalog do
 
   def pool_name(%{platform: :macos, xcode_version: xcode_version} = profile)
       when is_binary(xcode_version) and xcode_version != "" do
-    base = "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{xcode_version_tag(xcode_version)}"
+    base =
+      "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{xcode_version_tag(xcode_version)}" <>
+        macos_os_suffix(Map.get(profile, :os_version))
 
     case macos_shape_suffix(profile) do
       nil -> base
@@ -320,6 +389,16 @@ defmodule Tuist.Runners.Catalog do
   end
 
   defp macos_shape_suffix(_), do: nil
+
+  # The OS comes between the Xcode and the shape, so the shape suffix
+  # stays last, which `resources_for_fleet/1` matches on. Tahoe keeps the
+  # names every macOS pool had before profiles could pick an OS
+  # (`macos_os_versions/0`), and `templates/runner-pool.yaml` renders
+  # pool names by the same rule.
+  defp macos_os_suffix(os_version) when is_binary(os_version) and os_version != @macos_unsuffixed_os_version,
+    do: "-#{os_version}"
+
+  defp macos_os_suffix(_), do: ""
 
   # Same rule for the Linux OS dimension: the default OS version's pools
   # keep the shape-only names every Linux pool had before profiles could
@@ -642,6 +721,32 @@ defmodule Tuist.Runners.Catalog do
 
   def parse_os_versions_json(_), do: :error
 
+  @doc """
+  Decode the JSON wire form of the macOS OS catalog into the
+  `:runner_macos_os_versions` config shape (`osVersion` →
+  `:os_version`, `xcodeVersions` → `:xcode_versions`), which Helm
+  renders from `runnersFleet.macosVersions`.
+  """
+  def parse_macos_os_versions_json(json) when is_binary(json) do
+    case JSON.decode(json) do
+      {:ok, list} when is_list(list) ->
+        Enum.map(list, fn entry ->
+          base = %{os_version: entry["osVersion"]}
+          base = if entry["default"] == true, do: Map.put(base, :default, true), else: base
+
+          case entry["xcodeVersions"] do
+            versions when is_list(versions) -> Map.put(base, :xcode_versions, versions)
+            _ -> base
+          end
+        end)
+
+      _ ->
+        :error
+    end
+  end
+
+  def parse_macos_os_versions_json(_), do: :error
+
   defp shapes_config_key(:linux), do: :runner_linux_shapes
   defp shapes_config_key(:macos), do: :runner_macos_shapes
 
@@ -693,6 +798,27 @@ defmodule Tuist.Runners.Catalog do
   end
 
   defp normalize_os_version(_), do: nil
+
+  defp normalize_macos_os_version(%{os_version: os_version} = entry) when is_binary(os_version) do
+    case Regex.run(~r/^macos-(\d+)$/, os_version) do
+      [_, major] ->
+        release = String.to_integer(major)
+
+        %{
+          os_version: os_version,
+          label: Map.get(@macos_release_names, release, "macOS #{release}"),
+          version_label: "macOS #{release}",
+          release: release,
+          xcode_versions: Map.get(entry, :xcode_versions),
+          default?: Map.get(entry, :default, false)
+        }
+
+      nil ->
+        nil
+    end
+  end
+
+  defp normalize_macos_os_version(_), do: nil
 
   # `ubuntu-22.04` → `ubuntu-22-04`, the suffix on its pool names and on
   # the `ghcr.io/tuist/tuist-linux-runner:<semver>-<tag>` image tags.

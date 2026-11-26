@@ -35,6 +35,7 @@ defmodule TuistWeb.RunnerProfilesLive do
      |> assign(:macos_catalog, Catalog.shapes(:macos))
      |> assign(:xcode_catalog, Catalog.xcode_versions())
      |> assign(:os_catalog, Catalog.os_versions())
+     |> assign(:macos_os_catalog, Catalog.macos_os_versions())
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)
@@ -65,6 +66,7 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_memory_gb, profile.memory_gb)
          |> assign(:form_xcode_version, profile.xcode_version)
          |> assign(:form_os_version, profile.os_version || default_os_version(socket.assigns.os_catalog, profile))
+         |> assign(:form_xcode_catalog, xcode_catalog_for(profile.os_version || default_os_version(nil, profile)))
          |> assign(:form_cache_writer_all_branches, profile.cache_writer_all_branches)
          |> assign(:form_cache_writer_default_branch, profile.cache_writer_default_branch)
          |> assign(:form_cache_writer_branches, profile.cache_writer_branches || [])
@@ -191,6 +193,23 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   def handle_event("select_os_version", params, socket) do
     case shape_key_from_params(params) do
+      version when is_binary(version) and version != "" and socket.assigns.form_platform == "macos" ->
+        # Each macOS release offers the Xcodes built for it, so a pick
+        # that release lacks moves to its default Xcode.
+        xcode_catalog = xcode_catalog_for(version)
+
+        xcode_version =
+          if Enum.any?(xcode_catalog, &(&1.xcode_version == socket.assigns.form_xcode_version)),
+            do: socket.assigns.form_xcode_version,
+            else: xcode_catalog |> pick_default() |> then(&(&1 && &1.xcode_version))
+
+        {:noreply,
+         socket
+         |> assign(:form_os_version, version)
+         |> assign(:form_xcode_catalog, xcode_catalog)
+         |> assign(:form_xcode_version, xcode_version)
+         |> assign(:form_error, nil)}
+
       version when is_binary(version) and version != "" ->
         {:noreply,
          socket
@@ -215,8 +234,11 @@ defmodule TuistWeb.RunnerProfilesLive do
 
     attrs =
       case assigns.form_platform do
-        "macos" -> Map.put(attrs, "xcode_version", assigns.form_xcode_version)
-        _ -> Map.put(attrs, "os_version", assigns.form_os_version)
+        "macos" ->
+          Map.merge(attrs, %{"xcode_version" => assigns.form_xcode_version, "os_version" => assigns.form_os_version})
+
+        _ ->
+          Map.put(attrs, "os_version", assigns.form_os_version)
       end
 
     attrs =
@@ -364,24 +386,29 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_memory_gb, default_shape && default_shape.memory_gb)
     |> assign(:form_xcode_version, nil)
     |> assign(:form_os_version, default_os_version(socket.assigns.os_catalog, nil))
+    |> assign(:form_xcode_catalog, [])
     |> assign(:form_error, nil)
   end
 
   defp set_platform_defaults(socket, "macos") do
     default_shape = pick_default(socket.assigns.macos_catalog)
-    default_xcode = pick_default(socket.assigns.xcode_catalog)
+    default_os = pick_default(socket.assigns.macos_os_catalog)
+    os_version = default_os && default_os.os_version
+    xcode_catalog = if os_version, do: xcode_catalog_for(os_version), else: socket.assigns.xcode_catalog
+    default_xcode = pick_default(xcode_catalog)
 
     socket
     |> assign(:form_platform, "macos")
     |> assign(:form_vcpus, default_shape && default_shape.vcpus)
     |> assign(:form_memory_gb, default_shape && default_shape.memory_gb)
     |> assign(:form_xcode_version, default_xcode && default_xcode.xcode_version)
-    |> assign(:form_os_version, nil)
+    |> assign(:form_os_version, os_version)
+    |> assign(:form_xcode_catalog, xcode_catalog)
     |> assign(:form_error, nil)
   end
 
-  # A Linux row an older replica wrote has no OS and runs on the default.
-  defp default_os_version(_os_catalog, %Profile{platform: :macos}), do: nil
+  # A macOS row written before profiles could pick a macOS runs on Tahoe.
+  defp default_os_version(_os_catalog, %Profile{platform: :macos}), do: "macos-26"
 
   defp default_os_version(os_catalog, _profile) do
     case pick_default(os_catalog) do
@@ -389,6 +416,8 @@ defmodule TuistWeb.RunnerProfilesLive do
       default -> default.os_version
     end
   end
+
+  defp xcode_catalog_for(os_version), do: Catalog.xcode_versions_for_macos(os_version)
 
   defp pick_default(list) when is_list(list) do
     Enum.find(list, & &1.default?) || List.first(list)
@@ -487,22 +516,23 @@ defmodule TuistWeb.RunnerProfilesLive do
     ]
 
   @doc """
-  Operating system label for the macOS form field, which is static: the
-  macOS image builds on a floating Tahoe base and the Mac minis hosting it
-  adopt on the family rather than a point release, both by design —
-  Scaleway retires point releases without notice, and pinning one stranded
-  the staging fleet in Aug 2026. So the label names the family only.
-  Linux profiles pick an Ubuntu release instead (`os_version_label/1`).
-  """
-  def os_label_for_form("macos"), do: dgettext("dashboard_runners", "Tahoe")
-  def os_label_for_form(_), do: ""
-
-  @doc """
   OS label for a persisted `%Profile{}`, for the table column: the Linux
-  profile's Ubuntu release, or macOS's family.
+  profile's Ubuntu release, or the macOS profile's release.
   """
   def os_label(%Profile{platform: :linux, os_version: os_version}), do: os_version_label(os_version)
-  def os_label(%Profile{platform: :macos}), do: os_label_for_form("macos")
+  def os_label(%Profile{platform: :macos, os_version: os_version}), do: macos_os_version_label(os_version)
+
+  @doc """
+  Display label for a macOS `os_version` (`macos-27` → `Golden Gate`), from the catalog. The release names the family only: the
+  images build on a floating base of it, and the hosts move point
+  releases without notice. A profile without one runs on Tahoe.
+  """
+  def macos_os_version_label(os_version) do
+    case Catalog.find_macos_os_version(os_version) do
+      nil -> os_version || ""
+      entry -> entry.label
+    end
+  end
 
   @doc """
   Display label for a Linux `os_version` (`ubuntu-24.04` → `Ubuntu 24.04`),

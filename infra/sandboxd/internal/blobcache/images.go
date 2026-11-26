@@ -53,7 +53,7 @@ type imageState struct {
 // if one is built, and starts a rebuild in the background when the scope's
 // hot blobs changed since the last one.
 func (c *Cache) Image(s Scope, workspaceBytes int64) (string, bool) {
-	ns := s.key()
+	ns := s.Key()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.images == nil {

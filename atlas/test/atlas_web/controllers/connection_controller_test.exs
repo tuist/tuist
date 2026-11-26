@@ -43,7 +43,7 @@ defmodule AtlasWeb.ConnectionControllerTest do
 
       if provider == "slack" do
         assert params["user_scope"] ==
-                 "search:read,chat:write,channels:history,groups:history,im:history,mpim:history,files:read,files:write"
+                 "search:read,chat:write,channels:history,groups:history,im:history,mpim:history,files:read,files:write,channels:read,groups:read,im:read,mpim:read,users:read"
 
         refute Map.has_key?(params, "scope")
       else

@@ -25,8 +25,7 @@ defmodule Noora.ButtonGroup do
   def button_group(assigns) do
     ~H"""
     <div class="noora-button-group" data-size={@size} {@rest}>
-      <noora-button-group-indicator data-part="indicator" aria-hidden="true">
-      </noora-button-group-indicator>
+      <noora-button-group-indicator data-part="indicator" aria-hidden="true"></noora-button-group-indicator>
       {render_slot(@inner_block)}
     </div>
     """

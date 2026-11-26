@@ -1,0 +1,97 @@
+# Checks that a macOS runner's iOS simulator runtimes are registered as disk
+# images, not cryptexes, and that parallel simulator clones right after the
+# runtime's first mount succeed.
+#
+# Xcode 27 base images register their runtimes as cryptexes personalized for
+# the VM that built them. Every runner VM has its own identity, so on boot
+# simdiskimaged mounts them as disk images and remounts them as cryptexes
+# 20-60 s later, and a clone during that switch fails with "Unable to clone
+# device due to missing runtime bundle". The runner image re-registers them
+# as disk images (`infra/runner-image/runner.pkr.hcl`). This job fails when a
+# runtime is still a cryptex, when one is mounted through cryptexd, or when
+# any of four staggered parallel `xcodebuild test` runs hits a clone error.
+name: macOS Simulator Clone Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs_on:
+        description: "Runner label, e.g. tuist-macos"
+        required: true
+        default: tuist-macos
+
+permissions:
+  contents: read
+
+jobs:
+  clone:
+    name: macOS simulator clones (${{ inputs.runs_on }})
+    runs-on: ${{ inputs.runs_on }}
+    timeout-minutes: 30
+    steps:
+      - name: Report the guest
+        run: |
+          sw_vers
+          xcodebuild -version
+          sysctl -n kern.boottime
+          date
+      - name: Check the runtime registrations
+        run: |
+          set -euo pipefail
+          plist=/Library/Developer/CoreSimulator/Images/images.plist
+          sudo plutil -p "$plist" | grep -E 'SimRuntime|mount' || true
+          if sudo plutil -p "$plist" | grep -q personalizeAndMountAsCryptex; then
+            echo "::error::a simulator runtime is registered as a cryptex"
+            exit 1
+          fi
+      - name: Run four staggered parallel simulator test runs
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/p/Sources/Lib /tmp/p/Tests/LibTests
+          cat > /tmp/p/Package.swift <<'EOF'
+          // swift-tools-version:5.9
+          import PackageDescription
+          let package = Package(
+            name: "Lib",
+            platforms: [.iOS(.v17)],
+            products: [.library(name: "Lib", targets: ["Lib"])],
+            targets: [.target(name: "Lib"), .testTarget(name: "LibTests", dependencies: ["Lib"])]
+          )
+          EOF
+          echo 'public func one() -> Int { 1 }' > /tmp/p/Sources/Lib/Lib.swift
+          cat > /tmp/p/Tests/LibTests/LibTests.swift <<'EOF'
+          import XCTest
+          @testable import Lib
+          final class ATests: XCTestCase { func testA() { XCTAssertEqual(one(), 1) } }
+          final class BTests: XCTestCase { func testB() { XCTAssertEqual(one(), 1) } }
+          EOF
+          runtime=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable and .platform == "iOS")] | last | .identifier')
+          devicetype=$(xcrun simctl list runtimes -j | jq -r --arg r "$runtime" '.runtimes[] | select(.identifier == $r) | [.supportedDeviceTypes[] | select(.productFamily == "iPhone")] | first | .identifier')
+          echo "runtime $runtime, device type $devicetype"
+          # The first simulator call mounts the runtime; the runs start in
+          # the window where an unfixed image switches its mount.
+          udid=$(xcrun simctl create Smoke "$devicetype" "$runtime")
+          ( for i in $(seq 1 90); do echo "$(date +%T) $(mount | grep -iE 'SimRuntime|iOS_' | awk '{print $3}' | tr '\n' ' ')"; sleep 1; done ) > /tmp/mounts.log &
+          for k in 0 1 2 3; do
+            cp -R /tmp/p "/tmp/p$k"
+            ( sleep $((k * 6)); cd "/tmp/p$k" && xcodebuild test -scheme Lib -destination "id=$udid" \
+                -parallel-testing-enabled YES -parallel-testing-worker-count 2 \
+                -derivedDataPath "/tmp/dd$k" > "/tmp/x$k.log" 2>&1 ) &
+          done
+          wait
+          cat /tmp/mounts.log | sort -u -k2 | head -20
+          failed=0
+          for k in 0 1 2 3; do
+            echo "== run $k"
+            grep -hE 'Failed to clone|runtime bundle|TEST (SUCCEEDED|FAILED)|xcodebuild: error' "/tmp/x$k.log" || true
+            if ! grep -q 'TEST SUCCEEDED' "/tmp/x$k.log" || grep -qE 'Failed to clone|runtime bundle' "/tmp/x$k.log"; then
+              failed=$((failed + 1))
+              tail -40 "/tmp/x$k.log"
+            fi
+          done
+          if mount | grep -iE 'SimRuntime|iOS_' | grep -q cryptexd; then
+            echo "::error::a simulator runtime is mounted through cryptexd"
+            failed=$((failed + 1))
+          fi
+          echo "$failed of 4 runs failed"
+          [ "$failed" -eq 0 ]

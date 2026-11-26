@@ -11,12 +11,15 @@ use crate::keyboard::KeyboardControl;
 use crate::theme::{Theme, ThemeState};
 use tuist_app_core::theme as theme_catalog;
 
+mod live;
 mod lounges;
 mod preview;
 mod socket;
+mod subscriptions;
 mod threads;
 
 use lounges::{LoungesPanel, Scope};
+use subscriptions::SubscriptionsPanel;
 use threads::ThreadsPanel;
 
 actions!(
@@ -107,6 +110,7 @@ pub struct Workspace {
     threads: Entity<ThreadsPanel>,
     lounges: Entity<LoungesPanel>,
     dms: Entity<LoungesPanel>,
+    subscriptions: Entity<SubscriptionsPanel>,
     /// One per destination, so closing a preview can return focus to the sidebar.
     destination_focus: [FocusHandle; Destination::ALL.len()],
     _appearance: Subscription,
@@ -132,10 +136,15 @@ impl Workspace {
                 LoungesPanel::new(tab, session.clone(), scope.clone(), navigation.clone(), cx)
             })
         });
+        let subscriptions = cx.new(|cx| SubscriptionsPanel::new(session.clone(), window, cx));
         let threads =
             cx.new(|cx| ThreadsPanel::new(session, handle, navigation.clone(), window, cx));
-        let observer = cx.observe(&navigation, |_, _, cx| cx.notify());
-        Self {
+        // Profile follows the AI subscriptions' live socket only while it shows.
+        let observer = cx.observe(&navigation, |this: &mut Self, _, cx| {
+            this.sync_subscriptions(cx);
+            cx.notify();
+        });
+        let mut workspace = Self {
             navigation,
             account,
             server,
@@ -143,11 +152,21 @@ impl Workspace {
             threads,
             lounges,
             dms,
+            subscriptions,
             destination_focus: Destination::ALL.map(|_| cx.focus_handle().tab_stop(true)),
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
             _navigation: observer,
             _theme: cx.observe_global::<crate::theme::ThemeState>(|_, cx| cx.notify()),
-        }
+        };
+        workspace.sync_subscriptions(cx);
+        workspace
+    }
+
+    fn sync_subscriptions(&mut self, cx: &mut Context<Self>) {
+        let navigation = self.navigation.read(cx);
+        let visible = navigation.tab == Destination::Profile && navigation.preview.is_none();
+        self.subscriptions
+            .update(cx, |panel, cx| panel.set_visible(visible, cx));
     }
 
     /// Selects a destination from the keyboard and focuses its dock row, so
@@ -347,6 +366,8 @@ impl Workspace {
                 email.unwrap_or_else(|| "Not provided".into()),
             ))
             .child(value("server", "Server", self.server.to_string()))
+            .child(section("AI subscriptions"))
+            .child(self.subscriptions.clone())
             .child(section("Theme"))
             .child(themes)
             .child(section("Legal"))

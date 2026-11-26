@@ -725,6 +725,13 @@ defmodule Tuist.RemoteExecutionTest do
       assert env["SBX_EXECUTION_TOKEN"] == "scoped-credential"
       refute Map.has_key?(env, "SBX_EXECUTION_REQUEST")
       assert claim.env == "SBX_EXECUTION_REQUEST"
+      # The gateway writes the request; the node holds it to the project's own CAS.
+      assert claim.scope == %{
+               endpoint: "grpcs://cache.example:443",
+               account: project.account.name,
+               instance: project.name
+             }
+
       assert claim.nonce_sha256 == Base.encode16(:crypto.hash(:sha256, Base.decode64!(lease.nonce)), case: :lower)
 
       send(node_call, {:claim, {:ok, %{"exit_code" => 0}}})

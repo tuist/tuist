@@ -70,7 +70,7 @@ defmodule Tuist.Runners.Profiles do
   """
   def create(%{id: account_id}, attrs) do
     attrs = Map.put(stringify_keys(attrs), "account_id", account_id)
-    attrs = if parse_platform(attrs) == :linux, do: put_default_os_version(attrs), else: attrs
+    attrs = put_default_os_version(attrs, parse_platform(attrs))
 
     if count_for_account(account_id) >= @max_per_account do
       {:error, :max_profiles_reached}
@@ -121,7 +121,7 @@ defmodule Tuist.Runners.Profiles do
           "protected" => true
         }
 
-        attrs = put_default_os_version(attrs)
+        attrs = put_default_os_version(attrs, :linux)
 
         %Profile{}
         |> Profile.changeset(attrs, catalog_opts_for(:linux))
@@ -155,6 +155,8 @@ defmodule Tuist.Runners.Profiles do
         "xcode_version" => default_xcode.xcode_version,
         "protected" => true
       }
+
+      attrs = put_default_os_version(attrs, :macos)
 
       %Profile{}
       |> Profile.changeset(attrs, catalog_opts_for(:macos))
@@ -190,7 +192,7 @@ defmodule Tuist.Runners.Profiles do
         # A Linux row an older replica wrote without an OS runs on the
         # default; a resource edit records that rather than failing.
         attrs =
-          if platform == :linux and is_nil(profile.os_version), do: put_default_os_version(attrs), else: attrs
+          if platform == :linux and is_nil(profile.os_version), do: put_default_os_version(attrs, :linux), else: attrs
 
         Profile.changeset(profile, attrs, catalog_opts_for(platform))
       else
@@ -242,7 +244,8 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
-  The runner catalog: the shapes, Xcode versions and Linux OS versions a profile can use, for API and agent clients.
+  The runner catalog: the shapes, Xcode versions, Linux OS versions and macOS releases a profile can use, for API
+  and agent clients. A macOS release lists the Xcode versions built for it.
   """
   def catalog do
     %{
@@ -251,7 +254,17 @@ defmodule Tuist.Runners.Profiles do
           %{platform: to_string(platform), vcpus: shape.vcpus, memory_gb: shape.memory_gb, default: shape.default?}
         end,
       xcode_versions: Enum.map(Catalog.xcode_versions(), &%{xcode_version: &1.xcode_version, default: &1.default?}),
-      os_versions: Enum.map(Catalog.os_versions(), &%{os_version: &1.os_version, label: &1.label, default: &1.default?})
+      os_versions: Enum.map(Catalog.os_versions(), &%{os_version: &1.os_version, label: &1.label, default: &1.default?}),
+      macos_os_versions:
+        Enum.map(
+          Catalog.macos_os_versions(),
+          &%{
+            os_version: &1.os_version,
+            label: &1.label,
+            default: &1.default?,
+            xcode_versions: Enum.map(Catalog.xcode_versions_for_macos(&1.os_version), fn x -> x.xcode_version end)
+          }
+        )
     }
   end
 
@@ -268,20 +281,27 @@ defmodule Tuist.Runners.Profiles do
   def error_message(%Ecto.Changeset{errors: errors} = changeset) do
     platform = Ecto.Changeset.get_field(changeset, :platform)
 
+    os_version = Ecto.Changeset.get_field(changeset, :os_version)
+
     errors
-    |> Enum.map(&describe_error(&1, platform))
+    |> Enum.map(&describe_error(&1, platform, os_version))
     |> Enum.uniq()
     |> Enum.join(" ")
   end
 
-  defp describe_error({field, {message, opts}}, platform) do
+  defp describe_error({field, {message, opts}}, platform, os_version) do
     cond do
       opts[:validation] == :shape ->
         shapes = Enum.map_join(Catalog.shapes(platform), ", ", &"#{&1.vcpus} vCPU / #{&1.memory_gb} GB")
         "vcpus and memory_gb must match an available #{platform} shape: #{shapes}."
 
       opts[:validation] == :os_version ->
-        "os_version must be one of: #{Enum.map_join(Catalog.os_versions(), ", ", & &1.os_version)}."
+        os_versions = if platform == :macos, do: Catalog.macos_os_versions(), else: Catalog.os_versions()
+        "os_version must be one of: #{Enum.map_join(os_versions, ", ", & &1.os_version)}."
+
+      opts[:validation] == :xcode_version_for_os ->
+        xcodes = os_version |> Catalog.xcode_versions_for_macos() |> Enum.map_join(", ", & &1.xcode_version)
+        "xcode_version must be one of the versions built for #{os_version}: #{xcodes}."
 
       opts[:validation] == :xcode_version ->
         "xcode_version must be one of: #{Enum.map_join(Catalog.xcode_versions(), ", ", & &1.xcode_version)}."
@@ -372,11 +392,18 @@ defmodule Tuist.Runners.Profiles do
 
   defp catalog_opts_for(:linux), do: [shapes: Catalog.shapes(:linux), os_versions: Catalog.os_versions()]
 
-  defp catalog_opts_for(:macos), do: [shapes: Catalog.shapes(:macos), xcode_versions: Catalog.xcode_versions()]
+  defp catalog_opts_for(:macos),
+    do: [
+      shapes: Catalog.shapes(:macos),
+      xcode_versions: Catalog.xcode_versions(),
+      os_versions: Catalog.macos_os_versions()
+    ]
 
-  # A Linux profile that names no OS gets the catalog default.
-  defp put_default_os_version(attrs) do
-    case {Map.get(attrs, "os_version"), Catalog.default_os_version()} do
+  # A new profile that names no OS gets its platform's catalog default.
+  defp put_default_os_version(attrs, platform) do
+    default = if platform == :macos, do: Catalog.default_macos_os_version(), else: Catalog.default_os_version()
+
+    case {Map.get(attrs, "os_version"), default} do
       {os_version, _} when is_binary(os_version) and os_version != "" -> attrs
       {_, nil} -> attrs
       {_, default} -> Map.put(attrs, "os_version", default.os_version)

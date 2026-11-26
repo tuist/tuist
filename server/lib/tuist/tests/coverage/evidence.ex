@@ -40,7 +40,6 @@ defmodule Tuist.Tests.Coverage.Evidence do
   alias Tuist.Storage
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CoverageFile
-  alias Tuist.Tests.Workers.PublishCoverageWorker
   alias TuistCommon.Ingestion.Bufferable
 
   require Logger
@@ -55,8 +54,13 @@ defmodule Tuist.Tests.Coverage.Evidence do
   # file's evidence keeps only that the scope ran it.
   @line_budget 10_000_000
   # An uploaded file is read inside the request that creates the run: at
-  # most this much inflated, no scope larger than the whole inline request
-  # may be, and no more paths or scopes than the inline form accepts.
+  # most this much compressed (the signed URL takes any size, so an object
+  # past it is refused before it is fetched), at most this much inflated, no
+  # scope larger than the whole inline request may be, and no more paths or
+  # scopes than the inline form accepts. Evidence compresses at least 4x even
+  # with unrelated paths in every scope, so a file within the inflated limit
+  # is within the compressed one.
+  @upload_max_compressed_bytes 250_000_000
   @upload_max_inflated_bytes 1_000_000_000
   @upload_max_line_bytes 50_000_000
   @upload_max_paths 200_000
@@ -134,14 +138,17 @@ defmodule Tuist.Tests.Coverage.Evidence do
   storage first when the client uploaded it (`storage_key`, see
   `Tuist.Tests.Coverage.evidence_storage_key/2`) rather than sending `paths`
   and `scopes` inline. The upload is DEFLATE-compressed NDJSON, one scope per
-  line naming its files by path. It is inflated to a temporary file, which a
-  first pass reads for the paths and the scopes then stream from, file indices
-  in place of paths, so `record/4` and `test_states/2` see the inline shape
-  without the scopes ever sitting in memory whole. The file is removed once
-  `fun` returns.
+  line naming its files by path. It is downloaded to a temporary file and
+  inflated as it is read, once for the paths and again as the scopes stream
+  from it, file indices in place of paths, so `record/4` and `test_states/2`
+  see the inline shape without the scopes ever sitting in memory, or on disk,
+  whole. The file is removed once `fun` returns.
 
-  The file is held to the inline form's limits: an upload that inflates past
-  #{div(@upload_max_inflated_bytes, 1_000_000)} MB, has a scope larger than
+  An upload over #{div(@upload_max_compressed_bytes, 1_000_000)} MB is not
+  downloaded, and the download stops there should the object have been
+  replaced since its size was read, so a run costs the request no more disk
+  than that. The file is held to the inline form's limits: an upload that
+  inflates past #{div(@upload_max_inflated_bytes, 1_000_000)} MB, has a scope larger than
   #{div(@upload_max_line_bytes, 1_000_000)} MB, or names more paths or scopes
   than the inline form accepts isn't read.
 
@@ -164,18 +171,15 @@ defmodule Tuist.Tests.Coverage.Evidence do
   end
 
   defp read_uploaded(attrs, evidence, key, fun) do
-    unique = System.unique_integer([:positive])
-    compressed = Path.join(System.tmp_dir!(), "coverage_evidence_#{unique}.deflate")
-    inflated = Path.join(System.tmp_dir!(), "coverage_evidence_#{unique}.ndjson")
+    compressed = Path.join(System.tmp_dir!(), "coverage_evidence_#{System.unique_integer([:positive])}.deflate")
     evidence = Map.delete(evidence, :storage_key)
 
     try do
       evidence =
         with %{account: account} <- Projects.get_project_by_id(Map.get(attrs, :project_id)),
-             {:ok, _} <- Storage.download_to_file(key, compressed, account),
-             :ok <- PublishCoverageWorker.inflate(compressed, inflated, @upload_max_inflated_bytes),
-             {:ok, paths} <- uploaded_paths(inflated) do
-          Map.merge(evidence, %{paths: paths, scopes: uploaded_scopes(inflated, paths)})
+             :ok <- download(key, compressed, account),
+             {:ok, paths} <- uploaded_paths(compressed) do
+          Map.merge(evidence, %{paths: paths, scopes: uploaded_scopes(compressed, paths)})
         else
           problem ->
             Logger.warning(
@@ -188,7 +192,40 @@ defmodule Tuist.Tests.Coverage.Evidence do
       fun.(Map.put(attrs, :coverage_evidence, evidence))
     after
       File.rm(compressed)
-      File.rm(inflated)
+    end
+  end
+
+  # Sized first, so an object past the limit is never fetched, then fetched
+  # no further than the limit, in case it was replaced since: the signed URL
+  # stays valid for an hour.
+  defp download(key, destination, account) do
+    with {:ok, size} <- Storage.get_object_size(key, account),
+         :ok <- if(size > @upload_max_compressed_bytes, do: {:error, {:upload_too_large, size}}, else: :ok) do
+      stream = Storage.stream_object(key, account)
+
+      case File.open!(
+             destination,
+             [:write, :binary],
+             &Enum.reduce_while(stream, {&1, 0}, fn chunk, acc -> write_chunk(chunk, acc) end)
+           ) do
+        {:error, reason} -> {:error, reason}
+        _written -> :ok
+      end
+    end
+  rescue
+    error -> {:error, error}
+  catch
+    :exit, reason -> {:error, reason}
+  end
+
+  defp write_chunk(chunk, {file, size}) do
+    size = size + byte_size(chunk)
+
+    if size > @upload_max_compressed_bytes do
+      {:halt, {:error, :upload_too_large}}
+    else
+      IO.binwrite(file, chunk)
+      {:cont, {file, size}}
     end
   end
 
@@ -198,8 +235,8 @@ defmodule Tuist.Tests.Coverage.Evidence do
     path
     |> uploaded_lines()
     |> Enum.reduce_while({%{}, [], 0}, fn
-      :too_long, _acc ->
-        {:halt, {:error, :scope_too_large}}
+      {:error, reason}, _acc ->
+        {:halt, {:error, reason}}
 
       _line, {_seen, _paths, @upload_max_scopes} ->
         {:halt, {:error, :too_many_scopes}}
@@ -245,17 +282,66 @@ defmodule Tuist.Tests.Coverage.Evidence do
     end)
   end
 
-  # The file's non-empty lines, read in fixed-size chunks so that a line
-  # past `@upload_max_line_bytes` is `:too_long`, which ends the stream,
-  # rather than a binary that size.
+  # The upload's non-empty lines, inflated a chunk at a time on each pass
+  # rather than to disk. `{:error, reason}` ends the stream when the upload
+  # isn't whole DEFLATE, inflates past `@upload_max_inflated_bytes`, or has a
+  # line past `@upload_max_line_bytes`, which is never held as one binary.
   defp uploaded_lines(path) do
     path
-    |> File.stream!(65_536)
+    |> inflated_chunks()
     |> Stream.transform(fn -> {[], 0} end, &split_lines/2, &last_line/1, fn _acc -> :ok end)
     |> Stream.reject(&(&1 == ""))
   end
 
-  defp split_lines(_chunk, :too_long), do: {:halt, :too_long}
+  defp inflated_chunks(path) do
+    Stream.resource(
+      fn ->
+        z = :zlib.open()
+        :ok = :zlib.inflateInit(z, -15)
+        %{z: z, file: File.open!(path, [:read, :binary]), size: 0, continue: false, done: false}
+      end,
+      &next_inflated/1,
+      fn %{z: z, file: file} ->
+        File.close(file)
+        :zlib.close(z)
+      end
+    )
+  end
+
+  defp next_inflated(%{done: true} = state), do: {:halt, state}
+
+  # One `safeInflate` output at a time, so that a chunk inflating to far more
+  # than itself is never in memory whole.
+  defp next_inflated(%{z: z} = state) do
+    case inflate_step(state) do
+      :eof ->
+        # `inflateEnd` is what fails on a stream that was cut off.
+        :zlib.inflateEnd(z)
+        {:halt, state}
+
+      {status, output} ->
+        output = IO.iodata_to_binary(output)
+        size = state.size + byte_size(output)
+
+        if size > @upload_max_inflated_bytes,
+          do: {[{:error, :inflates_too_large}], %{state | done: true}},
+          else: {[output], %{state | size: size, continue: status == :continue}}
+    end
+  rescue
+    ErlangError -> {[{:error, :invalid_deflate}], %{state | done: true}}
+  end
+
+  defp inflate_step(%{continue: true, z: z}), do: :zlib.safeInflate(z, [])
+
+  defp inflate_step(%{z: z, file: file}) do
+    case IO.binread(file, 65_536) do
+      data when is_binary(data) -> :zlib.safeInflate(z, data)
+      _eof -> :eof
+    end
+  end
+
+  defp split_lines(_chunk, :ended), do: {:halt, :ended}
+  defp split_lines({:error, _reason} = error, _acc), do: {[error], :ended}
 
   defp split_lines(chunk, {parts, size}) do
     case :binary.split(chunk, "\n", [:global]) do
@@ -266,18 +352,18 @@ defmodule Tuist.Tests.Coverage.Evidence do
         {complete, [partial]} = Enum.split(rest, -1)
 
         if size + byte_size(first) > @upload_max_line_bytes,
-          do: {[:too_long], :too_long},
+          do: {[{:error, :scope_too_large}], :ended},
           else: pending([], 0, partial, [IO.iodata_to_binary(Enum.reverse([first | parts])) | complete])
     end
   end
 
   defp pending(parts, size, partial, lines) do
     if size + byte_size(partial) > @upload_max_line_bytes,
-      do: {lines ++ [:too_long], :too_long},
+      do: {lines ++ [{:error, :scope_too_large}], :ended},
       else: {lines, {[partial | parts], size + byte_size(partial)}}
   end
 
-  defp last_line(:too_long), do: {[], :too_long}
+  defp last_line(:ended), do: {[], :ended}
   defp last_line({parts, _size}), do: {[IO.iodata_to_binary(Enum.reverse(parts))], {[], 0}}
 
   @doc """

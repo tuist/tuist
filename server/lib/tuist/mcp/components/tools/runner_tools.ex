@@ -160,7 +160,8 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "xcode_version" => %{"type" => ["string", "null"]},
         "os_version" => %{
           "type" => ["string", "null"],
-          "description" => "The Ubuntu release of a Linux profile, for example ubuntu-24.04. Null on macOS."
+          "description" =>
+            "The OS release of the profile: an Ubuntu release on Linux, for example ubuntu-24.04, or a macOS release on macOS, for example macos-27. Null on a macOS profile created before macOS releases were selectable, which runs on macos-26."
         },
         "protected" => %{"type" => "boolean"},
         "runs_on_label" => %{
@@ -352,7 +353,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       "os_version" => %{
         "type" => "string",
         "description" =>
-          "An available Ubuntu release for Linux profiles, for example ubuntu-24.04. Defaults to the catalog default."
+          "An available OS release: an Ubuntu release for Linux profiles, for example ubuntu-24.04, or a macOS release for macOS profiles, for example macos-27, whose xcode_versions the Xcode version must be in. Defaults to the platform's catalog default."
       }
     }
   end
@@ -418,9 +419,23 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
             "required" => ["os_version", "label", "default"],
             "additionalProperties" => false
           }
+        },
+        "macos_os_versions" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "os_version" => %{"type" => "string"},
+              "label" => %{"type" => "string"},
+              "default" => %{"type" => "boolean"},
+              "xcode_versions" => %{"type" => "array", "items" => %{"type" => "string"}}
+            },
+            "required" => ["os_version", "label", "default", "xcode_versions"],
+            "additionalProperties" => false
+          }
         }
       },
-      "required" => ["shapes", "xcode_versions", "os_versions"],
+      "required" => ["shapes", "xcode_versions", "os_versions", "macos_os_versions"],
       "additionalProperties" => false
     }
   end

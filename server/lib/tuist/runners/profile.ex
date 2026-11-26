@@ -12,10 +12,11 @@ defmodule Tuist.Runners.Profile do
     * `:linux` — `(vcpus, memory_gb)` plus an `os_version`, picked from
       `Tuist.Runners.Catalog.shapes(:linux)` and `Catalog.os_versions/0`.
       The pool is keyed on both, like macOS's Xcode version.
-    * `:macos` — `(vcpus, memory_gb)` plus an `xcode_version`,
-      picked from `Catalog.shapes(:macos)` and
-      `Catalog.xcode_versions/0`. The pool is keyed on both, so a
-      profile resolves to the pool running that shape on that Xcode.
+    * `:macos` — `(vcpus, memory_gb)` plus an `xcode_version` and an
+      `os_version`, picked from `Catalog.shapes(:macos)`,
+      `Catalog.xcode_versions/0` and `Catalog.macos_os_versions/0`. The
+      pool is keyed on all three, so a profile resolves to the pool
+      running that shape with that Xcode on that macOS.
       The Xcode version pins the runner image's
       `:macos-<dashes>-<semver>` tag.
 
@@ -57,9 +58,12 @@ defmodule Tuist.Runners.Profile do
     field :vcpus, :integer
     field :memory_gb, :integer
     field :xcode_version, :string
-    # Linux only: the Ubuntu release the profile's pool runs, from
-    # `Catalog.os_versions/0` (`ubuntu-24.04`). NULL on macOS, and on Linux
-    # rows written before the column existed, which run on the default.
+    # The OS release the profile's pool runs: an Ubuntu release from
+    # `Catalog.os_versions/0` (`ubuntu-24.04`) on Linux, a macOS release
+    # from `Catalog.macos_os_versions/0` (`macos-27`) on macOS. NULL on
+    # Linux rows written before the column existed, which run on the
+    # default, and on macOS rows written before macOS profiles could pick
+    # one, which run on Tahoe (`macos-26`).
     field :os_version, :string
     field :protected, :boolean, default: false
     # Every branch of the repository saves. Forks and pull_request_target never
@@ -96,8 +100,9 @@ defmodule Tuist.Runners.Profile do
       platform*. Required.
     * `:xcode_versions` — list of supported Xcode versions. Only
       consulted for macOS profiles; ignored for Linux.
-    * `:os_versions` — list of supported Linux OS versions. Only
-      consulted for Linux profiles; ignored for macOS.
+    * `:os_versions` — the platform's OS catalog: Ubuntu releases
+      (`Catalog.os_versions/0`) for Linux, macOS releases
+      (`Catalog.macos_os_versions/0`) for macOS.
   """
   def changeset(profile, attrs, opts \\ []) when is_list(opts) do
     shapes = Keyword.get(opts, :shapes, [])
@@ -152,10 +157,10 @@ defmodule Tuist.Runners.Profile do
 
       :macos ->
         changeset
-        |> put_change(:os_version, nil)
         |> validate_required([:xcode_version])
         |> validate_shape(shapes)
         |> validate_xcode_version(xcode_versions)
+        |> validate_macos_os_version(os_versions)
 
       _ ->
         changeset
@@ -256,6 +261,32 @@ defmodule Tuist.Runners.Profile do
 
       true ->
         add_error(changeset, :xcode_version, "must match one of the available Xcode versions", validation: :xcode_version)
+    end
+  end
+
+  # A macOS row without an OS runs on Tahoe (`Catalog.macos_os_versions/0`).
+  # A release that lists the Xcodes built for it only takes those.
+  defp validate_macos_os_version(changeset, catalog) do
+    os_version = get_field(changeset, :os_version)
+    xcode_version = get_field(changeset, :xcode_version)
+
+    case is_nil(os_version) or Enum.find(catalog, &(&1.os_version == os_version)) do
+      true ->
+        changeset
+
+      nil ->
+        add_error(changeset, :os_version, "must match one of the available operating systems", validation: :os_version)
+
+      %{xcode_versions: built} when is_list(built) and is_binary(xcode_version) ->
+        if xcode_version in built,
+          do: changeset,
+          else:
+            add_error(changeset, :xcode_version, "is not available on this operating system",
+              validation: :xcode_version_for_os
+            )
+
+      _ ->
+        changeset
     end
   end
 

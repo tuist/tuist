@@ -61,8 +61,7 @@ defmodule Noora.Banner do
         phx-update="ignore"
         aria-hidden="true"
         data-colors="--noora-banner-dither-shallow,--noora-banner-dither-deep"
-      >
-      </canvas>
+      ></canvas>
       <.icon status={@status} icon={@icon} />
       <span data-part="title">{@title}</span>
       <span :if={@description} data-part="dot">•</span>

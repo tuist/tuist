@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "cfbc5c80e7f860ef883413a742f2a6c78096c34a7f118bdcc95c67ed3b873e9d",
+  "hash": "9885b2881a075db545e8e89214b199b7dd61ab1aee7a0314b4e05901fcc21d9b",
   "hash_tree": {
     "root": {
       "children": [
@@ -23,7 +23,7 @@
                   "content_hash": "eb4a96e720d3d20d08202eba0a6e6131f5bb80e47e9b76f34351b7d14876765d"
                 },
                 "## macOS {#macos}": {
-                  "content_hash": "0838458e976d835f7a050791ec333404000061a74b1d6548f7aec954630fb0ff"
+                  "content_hash": "2e503966c08dd5316a12d207e0a2cd9619f4611bf0c7159337fe6dbeba6066dc"
                 },
                 "### Environment {#linux-environment}": {
                   "content_hash": "8c92073376d87b949dbc5fe0d53f5aae8e0b17fb4a66ca5ce8a38fb9fe420e6b"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "db33c04cd078cd2868a9805c4b6c0a5b74d6c2be3f66d211b94d79550e36c2bd",
+          "hash": "64cd0032f7cabf98081443f4ec9f56cd08498c847fd4e78902e2f3aeaee4eacd",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/images.md",
           "metadata": {
-            "content_hash": "70333b1af9bd9c2615d43f8a6eb8f04ef445e752a9d777685ea44d22d0b6169e"
+            "content_hash": "021eb8e299f4e09e0dacd384aa6f101b9fcfca2a77dea6a44f8e092a4fa1b4d9"
           }
         },
         {
@@ -254,14 +254,14 @@
         }
       ],
       "details": {},
-      "hash": "cfbc5c80e7f860ef883413a742f2a6c78096c34a7f118bdcc95c67ed3b873e9d",
+      "hash": "9885b2881a075db545e8e89214b199b7dd61ab1aee7a0314b4e05901fcc21d9b",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/images.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "3a0061495b56d6297a63ae18bd19617d9423ed691d3865f87ce66cba7f958611",
+  "output_hash": "f419f1129adc64539a160854893f84ea2018357065b025a3da02f00239701a19",
   "output_path": "server/priv/docs/tr/guides/features/runners/images.md",
   "protection_state": "recorded",
   "provider": "",
@@ -282,8 +282,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "dbfae0101ffd2dd8769a350fa2b8667437dc4f3f",
+  "source_commit_sha": "811032005d6613961e020153b064b1dcbf23162f",
   "source_path": "server/priv/docs/en/guides/features/runners/images.md",
-  "translated_at": "2026-11-23T16:08:54.864357Z",
-  "translation_session_id": "01a20927-30a6-78cb-bad4-838410725413"
+  "translated_at": "2026-11-26T08:33:44.428697Z",
+  "translation_session_id": "01a216fb-d3f1-7558-9b0f-e0f96a9e0773"
 }

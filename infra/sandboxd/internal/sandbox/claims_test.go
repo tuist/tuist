@@ -110,3 +110,27 @@ func TestClaimedExecNeedsClaimSupport(t *testing.T) {
 		t.Fatalf("result %+v", res)
 	}
 }
+
+func TestClaimOutsideThePinnedScopeDoesNotRun(t *testing.T) {
+	ops := &claimOps{claims: NewClaims()}
+	digest := sha256.Sum256([]byte("nonce"))
+	args, _ := json.Marshal(protocol.ExecArgs{
+		SandboxID: "s1", Cmd: []string{executorPath}, Env: map[string]string{"SBX_EXECUTION_TOKEN": "t"}, TimeoutMs: 1000,
+		Claim: &protocol.ClaimArgs{
+			NonceSHA256: hex.EncodeToString(digest[:]), Env: "SBX_EXECUTION_REQUEST", TimeoutMs: 5000,
+			Scope: &protocol.ExecutionScope{Endpoint: "grpcs://cas:443", Account: "attacker", Instance: "app"},
+		},
+	})
+	results := make(chan protocol.Result, 1)
+	go func() {
+		results <- Dispatch(context.Background(), ops, protocol.Command{ID: "c1", Op: protocol.OpExec, Args: args}, nil)
+	}()
+
+	outcome, err := ops.claims.Claim(context.Background(), "s1", []byte("nonce"), `{"endpoint":"grpcs://cas:443","account":"victim","instance":"app"}`, time.Second)
+	if err != nil || outcome.Err == nil {
+		t.Fatalf("claim %v outcome %+v", err, outcome)
+	}
+	if res := <-results; res.OK || len(ops.calls) != 0 {
+		t.Fatalf("result %+v calls %v", res, ops.calls)
+	}
+}

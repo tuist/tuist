@@ -558,6 +558,12 @@ defmodule Tuist.RemoteExecution.Scheduler do
         project_id = waiter.attrs.project_id
         token = cached_token(state, project_id)
 
+        scope = %{
+          endpoint: state.settings.cas_endpoint,
+          account: waiter.attrs.account_name,
+          instance: waiter.attrs.project_name
+        }
+
         GenServer.reply(
           waiter.from,
           {:ok,
@@ -573,7 +579,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
         %{state | arrivals: :queue.in(now_ms(), state.arrivals)}
         |> put_vm(%{vm | state: :leased})
-        |> start_task({:lease, vm.id, project_id}, fn -> VMs.lease(vm.sandbox, digest, project_id, token) end)
+        |> start_task({:lease, vm.id, project_id}, fn -> VMs.lease(vm.sandbox, digest, project_id, token, scope) end)
     end
   end
 

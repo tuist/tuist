@@ -19,6 +19,9 @@ defmodule Atlas.MCP.ToolApproval do
     field :tool_name, :string
     field :arguments, :map, default: %{}
     field :arguments_digest, :string
+    # What Atlas looked up to help the person decide, such as a Slack post's
+    # conversation and file previews. Not part of the digest.
+    field :context, :map, default: %{}
     field :status, :string, default: "pending"
     field :decided_at, :utc_datetime
     field :consumed_at, :utc_datetime
@@ -31,7 +34,7 @@ defmodule Atlas.MCP.ToolApproval do
 
   def changeset(approval, attrs) do
     approval
-    |> cast(attrs, [:user_id, :server_name, :tool_name, :arguments, :arguments_digest, :status, :expires_at])
+    |> cast(attrs, [:user_id, :server_name, :tool_name, :arguments, :arguments_digest, :context, :status, :expires_at])
     |> validate_required([:user_id, :server_name, :tool_name, :arguments_digest, :status, :expires_at])
     |> validate_inclusion(:status, @statuses)
   end

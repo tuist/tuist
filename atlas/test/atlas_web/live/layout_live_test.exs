@@ -3,13 +3,20 @@ defmodule AtlasWeb.LayoutLiveTest do
   use Mimic
 
   alias Atlas.Demo
+  alias Atlas.Engineering.Domains
   alias Atlas.Users
   alias AtlasWeb.AccountsLive
   alias AtlasWeb.Endpoint
   alias AtlasWeb.LayoutLive
   alias AtlasWeb.Router
+  alias Phoenix.Channel.Server
+  alias Phoenix.LiveView.Channel
   alias Phoenix.LiveView.Lifecycle
   alias Phoenix.LiveView.Socket
+  alias Phoenix.Socket.Message
+  alias Phoenix.Socket.Reply
+
+  require Phoenix.ChannelTest
 
   setup :verify_on_exit!
 
@@ -79,6 +86,59 @@ defmodule AtlasWeb.LayoutLiveTest do
     for scope <- ~w(accounts:write finance:write notes:write documents:read admin:read admin:write) do
       refute Users.has_scope?(socket.assigns.current_user, scope)
     end
+  end
+
+  # GHSA-v4p7-3pm2-wq6c: before phoenix_live_view 1.1.34 a phx_join without a
+  # "url" key mounted a router LiveView without its live_session on_mount hooks,
+  # so a user removed after the page loaded could keep using its session token.
+  test "a socket join without a url is refused instead of skipping the live_session hooks", %{conn: conn} do
+    {conn, user} = log_in_user(conn)
+    conn = get(conn, ~p"/engineering/domains")
+    cookie_session = get_session(conn)
+    {id, session_token, static_token} = main_live_view(html_response(conn, 200))
+
+    {:ok, _user} = Users.delete_user(user)
+
+    socket = Phoenix.ChannelTest.socket(Socket, nil, %{}, [])
+    # A real websocket stores the cookie session here when it connects.
+    socket = put_in(socket.private[:connect_info], %{session: cookie_session})
+
+    join_params = %{
+      "session" => session_token,
+      "static" => static_token,
+      "params" => %{"_csrf_token" => cookie_session["_csrf_token"], "_mounts" => 0}
+    }
+
+    result = join_live_view(socket, "lv:" <> id, join_params)
+
+    with {:ok, _reply, pid} <- result do
+      send(pid, %Message{
+        topic: "lv:" <> id,
+        event: "event",
+        ref: "1",
+        payload: %{"type" => "form", "event" => "save", "value" => "domain[name]=Revoked&domain[visibility]=public"}
+      })
+
+      assert_receive %Reply{ref: "1", status: :ok}
+    end
+
+    refute Enum.any?(Domains.list_domains(), &(&1.name == "Revoked"))
+    assert {:error, %{reason: "unauthorized"}} = result
+  end
+
+  # Phoenix.ChannelTest.join/4 asks the channel for its socket afterwards, a
+  # call LiveView channels don't answer, so join through the server directly.
+  defp join_live_view(%{private: %{phoenix_test_supervisor: sup}} = socket, topic, payload) do
+    message = %Message{event: "phx_join", topic: topic, payload: payload, ref: "0"}
+    starter = fn _, _, spec -> Supervisor.start_child(sup, %{spec | id: make_ref()}) end
+    Server.join(socket, Channel, message, starter: starter)
+  end
+
+  defp main_live_view(html) do
+    [main] = html |> LazyHTML.from_document() |> LazyHTML.query("[data-phx-main]") |> Enum.to_list()
+
+    {hd(LazyHTML.attribute(main, "id")), hd(LazyHTML.attribute(main, "data-phx-session")),
+     hd(LazyHTML.attribute(main, "data-phx-static"))}
   end
 
   defp socket do

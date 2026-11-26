@@ -162,7 +162,8 @@ defmodule Atlas.MCP.Tools.GmailSerializers do
 
   @doc """
   Replaces `document_id` attachments with the stored file's bytes, so Gmail
-  receives only filename, content type and Base64 content. Attaching a
+  receives only filename, content type and Base64 content, and lists the
+  documents under `"document_ids"` for the draft's audit event. Attaching a
   document needs the same `documents:read` scope as reading it, and documents
   larger than a draft can hold are refused before their bytes are fetched.
   """
@@ -172,7 +173,10 @@ defmodule Atlas.MCP.Tools.GmailSerializers do
            {:ok, documents} <- attachment_documents(attachments),
            :ok <- documents_fit(documents),
            {:ok, resolved} <- resolve_attachments(attachments, documents) do
-        {:ok, %{args | "attachments" => resolved}}
+        # Validation has already refused unknown keys, so only this resolver
+        # sets document_ids, which Gmail records with the draft's audit event.
+        document_ids = for %{"document_id" => id} <- attachments, uniq: true, do: id
+        {:ok, %{args | "attachments" => resolved} |> Map.put("document_ids", document_ids)}
       end
     else
       {:ok, args}

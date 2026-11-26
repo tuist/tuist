@@ -61,13 +61,11 @@ defmodule SlackWeb.Admin.InvitationsLive do
                 :if={invitation.status == :pending}
                 id={"invitation-#{invitation.id}-status"}
                 label="pending"
-                type="secondary"
               />
               <.tag
                 :if={invitation.status == :accepted}
                 id={"invitation-#{invitation.id}-status"}
                 label="accepted"
-                type="primary"
               />
               <.button
                 :if={invitation.status == :pending}

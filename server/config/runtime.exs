@@ -215,6 +215,24 @@ case System.get_env("TUIST_RUNNER_MACOS_XCODE_VERSIONS") do
     end
 end
 
+case System.get_env("TUIST_RUNNER_MACOS_OS_VERSIONS") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_macos_os_versions_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_OS_VERSIONS is set but is not a valid JSON array " <>
+                "(Helm renders it from runnersFleet.macosVersions via toJson). Got: #{inspect(json)}"
+
+      os_versions ->
+        config :tuist, :runner_macos_os_versions, os_versions
+    end
+end
+
 # Outside releases the endpoint binds only under `mix phx.server`.
 if config_env() == :prod and Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true

@@ -30,6 +30,7 @@ defmodule Atlas.MCP.Tools.DownloadMySlackFile do
       "additionalProperties" => false
     }
 
+  alias Atlas.Audit
   alias Atlas.Connections.Slack
   alias Atlas.MCP.Tool
   alias Atlas.MCP.Tools.ManageAccountConnections
@@ -51,7 +52,13 @@ defmodule Atlas.MCP.Tools.DownloadMySlackFile do
          user = Tool.current_user(conn),
          {:ok, file} <- Slack.file_info(user, file_id) do
       expires_at = DateTime.utc_now() |> DateTime.add(Slack.download_max_age(), :second) |> DateTime.truncate(:second)
-      {:ok, %{file: file, download_url: Slack.download_url(user, file_id), expires_at: DateTime.to_iso8601(expires_at)}}
+
+      {:ok,
+       %{
+         file: file,
+         download_url: Slack.download_url(user, file_id, Audit.context_from_conn(conn)),
+         expires_at: DateTime.to_iso8601(expires_at)
+       }}
     else
       {:error, :shared_identity} -> {:error, "Personal Slack reads are unavailable to shared Slack identities."}
       {:error, message} when is_binary(message) -> {:error, message}

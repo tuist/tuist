@@ -315,8 +315,13 @@ struct AppWorkspace: View {
                     // while offscreen. Start conversation is the chat screen behind it, never a sheet.
                     NavigationStack {
                         ThreadsView(
-                            client: client, starting: .constant(false), inbox: inboxes.threads(client.view.generation)
-                        ) { open($0) }
+                            client: client, starting: .constant(false), inbox: inboxes.threads(client.view.generation),
+                            open: { open($0) },
+                            search: {
+                                setSidebar(open: false)
+                                showingPalette = true
+                            }
+                        )
                     }
                     .frame(width: width)
                     .background(Noora.backgroundPrimary.ignoresSafeArea())
@@ -587,6 +592,10 @@ private struct ProfileView: View {
                 LabeledContent("Email", value: account.email ?? "")
                 LabeledContent("Server", value: account.server.hasSuffix("/")
                     ? String(account.server.dropLast()) : account.server)
+            }
+
+            if !account.rejected {
+                AISubscriptionsSection(client: client)
             }
 
             // Builds without a push entitlement can't receive notifications, so they don't offer them.

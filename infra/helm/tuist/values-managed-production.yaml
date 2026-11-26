@@ -6,6 +6,10 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+dataNetworkPolicy:
+  # Live on staging and canary since 2026-11-25 with no drops.
+  enabled: true
+
 # Sweeps this env's abandoned tailnet devices only; canary and staging run their
 # own. Starts in dry-run -- read a run's logs, then set dryRun: false.
 tailscaleDeviceReaper:
@@ -34,6 +38,8 @@ registry:
   ingress:
     host: registry.tuist.dev
     tlsSecretName: registry-tls
+    # Cloudflare proxies this host; the origin refuses everyone else.
+    cloudflareOnly: true
     annotations:
       external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
   podDisruptionBudget:
@@ -432,6 +438,9 @@ server:
     className: nginx
     host: tuist.dev
     tlsSecretName: tuist-tls-cloudflare-origin
+    # Cloudflare proxies this host; the origin refuses everyone else. The
+    # events.tuist.dev gRPC host is DNS-only and stays open.
+    cloudflareOnly: true
     annotations:
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
@@ -1525,7 +1534,9 @@ rackFleet:
   # host of both racks is routed. A pull the cache fails falls back to ghcr.io.
   #
   # 1 TiB holds the prewarmed set through a release (each image is 55-62 GB,
-  # a release beside its predecessor ~578 GB) plus a fetch's staging. Memory
+  # a release beside its predecessor ~578 GB for six images; the seventh,
+  # 27.2 on macOS 27, brings it to an estimated ~675 GB) plus a fetch's
+  # staging. Memory
   # is larch-store-a's tight resource (12.2 GiB allocatable, ~10.5 GiB already
   # requested by Kura), so the limit is half the chart's default.
   imageCache:
@@ -1535,7 +1546,7 @@ rackFleet:
       - name: larch-store-a
         address: 100.66.71.20
     sizeGi: 1024
-    prewarm: ["27.2", "27.1", "27.0", "26.6", "26.3", "26.0.1"]
+    prewarm: ["27.2", "27.2-macos-27", "27.1", "27.0", "26.6", "26.3", "26.0.1"]
     resources:
       requests:
         cpu: 500m
@@ -1818,7 +1829,8 @@ rackFleet:
     runnerCacheVolumeGiB: 512
   # The catalog on the rack: one pool per Xcode on the 8 vCPU / 24 GB shape,
   # and the 16 vCPU / 48 GB shape, for accounts on the `runner_site` flag.
-  # Every catalog image is a macOS 26 guest, which fits the hosts' macOS 27.
+  # Every catalog image is a macOS 26 guest, which fits the hosts' macOS 27,
+  # except the `-macos-27` entries, which need it.
   # Production rents no macOS hosts, so a job waits for a rack slot rather
   # than spilling over.
   #
@@ -1883,6 +1895,40 @@ rackFleet:
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 16
           maxReplicas: 52
+      # Golden Gate (`-macos-27`) pools take their Tahoe twin's settings, so
+      # an account that moves its profile to Golden Gate gets the same warm
+      # runners it had: 27.2 keeps one runner and learns up to sixteen
+      # (Qonto's fan-outs, p90 8, p99 11, up to 14); 26.6 keeps one; 27.1
+      # learns up to eleven; 27.0's 16 vCPU pool learns up to three; the rest
+      # take the rack default above. Learned floors follow each pool's own
+      # jobs, and every floor yields to queued jobs, so a pool nobody picks
+      # costs at most the runner it keeps.
+      "27.2-macos-27":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxLearnedWarmPoolFloor: 16
+          maxReplicas: 52
+      "26.6-macos-27":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxLearnedWarmPoolFloor: 8
+          maxReplicas: 52
+      "27.1-macos-27":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 0
+          maxLearnedWarmPoolFloor: 11
+          maxReplicas: 52
+      "27.0-macos-27":
+        shapes:
+          16vcpu-48gb:
+            autoscaling:
+              enabled: true
+              minWarmPoolFloor: 0
+              maxLearnedWarmPoolFloor: 3
+              maxReplicas: 26
       # 27.1's fan-outs outgrow eight: its p90 burst was 11 in the 14 days to
       # 2026-11-13, and eight left 14% of its jobs on a cold runner. Funded
       # first while it is the most recently used pool, so on a full rack the
@@ -2407,6 +2453,9 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
+      # Link-local (cloud metadata) and CGNAT (tailnet).
+      - "169.254.0.0/16"
+      - "100.64.0.0/10"
   # Shape catalog. Overrides the common baseline to add the 16 vCPU shape.
   # Helm replaces lists rather than merging, so the default shape is
   # restated here.
@@ -2653,6 +2702,9 @@ sandboxes:
   # Memory bursting: guests return the memory they free (and, once idle,
   # their page cache) to the host, and pauses punch zeros out of images.
   balloonFreePageReporting: true
+  # Pauses of a VM restored from its own memory image write only the pages
+  # it changed, merged onto a clone of that image.
+  diffSnapshots: true
   # What the daemons were started with, so raising maxCpu (read by the
   # server) restarts none of them.
   daemonMaxCpu: "250m"

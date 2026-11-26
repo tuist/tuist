@@ -6,6 +6,7 @@ defmodule LuftServerWeb.ConversationsSocket do
 
   channel "threads:*", LuftServerWeb.ThreadsChannel
   channel "presence:*", LuftServerWeb.PresenceChannel
+  channel "ai_subscriptions", LuftServerWeb.AISubscriptionsChannel
 
   def connect(_params, socket, %{auth_token: bearer}) when is_binary(bearer) do
     case NativeAuth.resolve_bearer(bearer) do

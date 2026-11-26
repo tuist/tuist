@@ -1,5 +1,6 @@
 use core::ffi::{c_char, c_void};
 
+pub mod ai_subscriptions;
 mod bridge;
 mod client;
 pub mod compose;
@@ -14,7 +15,7 @@ mod threads;
 mod updates;
 pub use bridge::{tuist_app_call, tuist_app_free};
 pub use client::{Host, MobileClient};
-pub use live::{INBOX, Live};
+pub use live::{AI_SUBSCRIPTIONS, INBOX, Live};
 pub use lounges::{Lounges, organizations};
 pub use presence::{Presence, Socket};
 pub use threads::{THREADS_UNAVAILABLE, Threads, Transport};

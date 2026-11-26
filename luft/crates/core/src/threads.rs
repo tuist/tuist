@@ -108,7 +108,7 @@ impl Threads {
                                 && m["id"].as_str().is_some_and(|v| !v.is_empty())
                         })
                     })
-                    .ok_or("Connect a ChatGPT subscription in your Tuist account settings to start conversations")?;
+                    .ok_or("Connect a ChatGPT subscription in Profile to start conversations")?;
                 let runner = runner_id(args)?;
                 let mut body = json!({
                     "request_id": self.request_id(args, server, handle, runner.unwrap_or(""), content)?,
