@@ -22,7 +22,7 @@ msgid "%{selective_test_effectiveness}%"
 msgstr "%{selective_test_effectiveness}%"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:1195
-#: lib/tuist_web/live/test_run_live.html.heex:2130
+#: lib/tuist_web/live/test_run_live.html.heex:2131
 #, elixir-autogen, elixir-format
 msgid "All tests passed!"
 msgstr "所有测试均已通过！"
@@ -49,9 +49,9 @@ msgstr "分析数据"
 #: lib/tuist_web/live/test_cases_live.ex:395
 #: lib/tuist_web/live/test_cases_live.html.heex:10
 #: lib/tuist_web/live/test_runs_live.ex:372
-#: lib/tuist_web/live/test_selection/run_tab.ex:814
 #: lib/tuist_web/live/test_selection/run_tab.ex:817
 #: lib/tuist_web/live/test_selection/run_tab.ex:820
+#: lib/tuist_web/live/test_selection/run_tab.ex:823
 #: lib/tuist_web/live/tests_live.ex:436
 #: lib/tuist_web/live/tests_live.ex:454
 #: lib/tuist_web/live/tests_live.html.heex:18
@@ -113,8 +113,8 @@ msgid "Average duration of test runs during a given period."
 msgstr "给定时间段内测试运行的平均耗时。"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:164
-#: lib/tuist_web/live/test_run_live.ex:1312
-#: lib/tuist_web/live/test_run_live.ex:1369
+#: lib/tuist_web/live/test_run_live.ex:1316
+#: lib/tuist_web/live/test_run_live.ex:1373
 #: lib/tuist_web/live/test_run_live.html.heex:418
 #: lib/tuist_web/live/test_run_live.html.heex:1422
 #: lib/tuist_web/live/test_run_live.html.heex:1451
@@ -259,7 +259,7 @@ msgstr "提交"
 #: lib/tuist_web/helpers/attachment_helpers.ex:28
 #: lib/tuist_web/live/test_case_run_live.html.heex:533
 #: lib/tuist_web/live/test_run_live.html.heex:909
-#: lib/tuist_web/live/test_run_live.html.heex:2054
+#: lib/tuist_web/live/test_run_live.html.heex:2055
 #, elixir-autogen, elixir-format
 msgid "Crash Report"
 msgstr "崩溃报告"
@@ -295,9 +295,9 @@ msgstr "下载结果"
 #: lib/tuist_web/live/test_case_live.html.heex:958
 #: lib/tuist_web/live/test_case_live.html.heex:1034
 #: lib/tuist_web/live/test_case_run_live.html.heex:175
-#: lib/tuist_web/live/test_run_live.ex:1258
-#: lib/tuist_web/live/test_run_live.ex:1320
-#: lib/tuist_web/live/test_run_live.ex:1377
+#: lib/tuist_web/live/test_run_live.ex:1262
+#: lib/tuist_web/live/test_run_live.ex:1324
+#: lib/tuist_web/live/test_run_live.ex:1381
 #: lib/tuist_web/live/test_run_live.html.heex:309
 #: lib/tuist_web/live/test_run_live.html.heex:578
 #: lib/tuist_web/live/test_run_live.html.heex:1222
@@ -336,7 +336,7 @@ msgstr "当测试用例状态发生变化时，事件将在此处显示。"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:557
 #: lib/tuist_web/live/test_run_live.html.heex:929
-#: lib/tuist_web/live/test_run_live.html.heex:2073
+#: lib/tuist_web/live/test_run_live.html.heex:2074
 #, elixir-autogen, elixir-format
 msgid "Exception"
 msgstr "异常"
@@ -390,9 +390,9 @@ msgstr "期望失败：%{message}"
 #: lib/tuist_web/live/test_case_run_live.html.heex:1135
 #: lib/tuist_web/live/test_cases_live.ex:50
 #: lib/tuist_web/live/test_cases_live.html.heex:739
-#: lib/tuist_web/live/test_run_live.ex:1271
-#: lib/tuist_web/live/test_run_live.ex:1333
-#: lib/tuist_web/live/test_run_live.ex:1390
+#: lib/tuist_web/live/test_run_live.ex:1275
+#: lib/tuist_web/live/test_run_live.ex:1337
+#: lib/tuist_web/live/test_run_live.ex:1394
 #: lib/tuist_web/live/test_run_live.html.heex:275
 #: lib/tuist_web/live/test_run_live.html.heex:602
 #: lib/tuist_web/live/test_run_live.html.heex:743
@@ -403,9 +403,9 @@ msgstr "期望失败：%{message}"
 #: lib/tuist_web/live/test_run_live.html.heex:1362
 #: lib/tuist_web/live/test_run_live.html.heex:1549
 #: lib/tuist_web/live/test_run_live.html.heex:1776
-#: lib/tuist_web/live/test_run_live.html.heex:2004
-#: lib/tuist_web/live/test_run_live.html.heex:2243
-#: lib/tuist_web/live/test_run_live.html.heex:2288
+#: lib/tuist_web/live/test_run_live.html.heex:2005
+#: lib/tuist_web/live/test_run_live.html.heex:2244
+#: lib/tuist_web/live/test_run_live.html.heex:2289
 #: lib/tuist_web/live/test_runs_live.ex:50
 #: lib/tuist_web/live/test_runs_live.html.heex:496
 #: lib/tuist_web/live/tests_live.ex:518
@@ -469,8 +469,8 @@ msgstr "失败"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:29
 #: lib/tuist_web/live/coverage/components.ex:667
-#: lib/tuist_web/live/coverage_detail_live.ex:504
-#: lib/tuist_web/live/test_selection/run_tab.ex:556
+#: lib/tuist_web/live/coverage_detail_live.ex:505
+#: lib/tuist_web/live/test_selection/run_tab.ex:557
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:200
 #, elixir-autogen, elixir-format
 msgid "File"
@@ -510,7 +510,7 @@ msgstr "不稳定性比率"
 #: lib/tuist_web/live/test_case_run_live.html.heex:45
 #: lib/tuist_web/live/test_cases_live.ex:79
 #: lib/tuist_web/live/test_cases_live.html.heex:608
-#: lib/tuist_web/live/test_run_live.ex:1285
+#: lib/tuist_web/live/test_run_live.ex:1289
 #: lib/tuist_web/live/test_run_live.html.heex:52
 #: lib/tuist_web/live/test_run_live.html.heex:1280
 #: lib/tuist_web/live/test_run_live.html.heex:1492
@@ -525,8 +525,8 @@ msgstr "不稳定"
 #: lib/tuist_web/live/test_run_live.html.heex:241
 #: lib/tuist_web/live/test_run_live.html.heex:994
 #: lib/tuist_web/live/test_run_live.html.heex:1001
-#: lib/tuist_web/live/test_run_live.html.heex:2147
-#: lib/tuist_web/live/test_run_live.html.heex:2154
+#: lib/tuist_web/live/test_run_live.html.heex:2148
+#: lib/tuist_web/live/test_run_live.html.heex:2155
 #, elixir-autogen, elixir-format
 msgid "Flaky Runs"
 msgstr "不稳定运行"
@@ -566,7 +566,7 @@ msgid "Hash"
 msgstr "哈希"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:157
-#: lib/tuist_web/live/test_run_live.ex:1456
+#: lib/tuist_web/live/test_run_live.ex:1460
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "命中"
@@ -688,8 +688,8 @@ msgstr "最后状态"
 msgid "Load more"
 msgstr "加载更多"
 
-#: lib/tuist_web/live/test_case_run_live.ex:270
-#: lib/tuist_web/live/test_run_live.ex:1623
+#: lib/tuist_web/live/test_case_run_live.ex:274
+#: lib/tuist_web/live/test_run_live.ex:1627
 #, elixir-autogen, elixir-format
 msgid "Loading..."
 msgstr "加载中..."
@@ -700,7 +700,7 @@ msgstr "加载中..."
 #: lib/tuist_web/live/once_runs_live.ex:1348
 #: lib/tuist_web/live/test_cases_live.ex:396
 #: lib/tuist_web/live/test_cases_live.html.heex:18
-#: lib/tuist_web/live/test_run_live.ex:1461
+#: lib/tuist_web/live/test_run_live.ex:1465
 #: lib/tuist_web/live/test_runs_live.ex:370
 #: lib/tuist_web/live/tests_live.ex:437
 #: lib/tuist_web/live/tests_live.ex:440
@@ -735,7 +735,7 @@ msgid "Marked as flaky"
 msgstr "已标记为不稳定"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:172
-#: lib/tuist_web/live/test_run_live.ex:1462
+#: lib/tuist_web/live/test_run_live.ex:1466
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr "未命中"
@@ -744,8 +744,8 @@ msgstr "未命中"
 #: lib/tuist_web/helpers/test_labels.ex:17
 #: lib/tuist_web/helpers/test_labels.ex:52
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:48
-#: lib/tuist_web/live/test_selection/run_tab.ex:637
-#: lib/tuist_web/live/test_selection/run_tab.ex:686
+#: lib/tuist_web/live/test_selection/run_tab.ex:638
+#: lib/tuist_web/live/test_selection/run_tab.ex:687
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr "模块"
@@ -758,8 +758,8 @@ msgstr "模块缓存"
 #: lib/tuist_web/helpers/test_labels.ex:21
 #: lib/tuist_web/helpers/test_labels.ex:57
 #: lib/tuist_web/live/test_run_live.html.heex:572
-#: lib/tuist_web/live/test_run_live.html.heex:1852
-#: lib/tuist_web/live/test_selection/run_tab.ex:621
+#: lib/tuist_web/live/test_run_live.html.heex:1853
+#: lib/tuist_web/live/test_selection/run_tab.ex:622
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr "模块"
@@ -770,7 +770,7 @@ msgid "Most occurring flaky tests"
 msgstr "出现频率最高的不稳定测试"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:52
-#: lib/tuist_web/live/test_run_live.ex:1284
+#: lib/tuist_web/live/test_run_live.ex:1288
 #: lib/tuist_web/live/test_run_live.html.heex:1287
 #, elixir-autogen, elixir-format
 msgid "New"
@@ -804,7 +804,7 @@ msgstr "暂无数据"
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:161
 #: lib/tuist_web/live/test_case_run_live.html.heex:1194
-#: lib/tuist_web/live/test_run_live.html.heex:2129
+#: lib/tuist_web/live/test_run_live.html.heex:2130
 #, elixir-autogen, elixir-format
 msgid "No failures detected"
 msgstr "未检测到失败"
@@ -865,7 +865,7 @@ msgstr "失败的测试用例数量。"
 msgid "Other"
 msgstr "其他"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:628
+#: lib/tuist_web/live/coverage_detail_live.ex:624
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:59
 #: lib/tuist_web/live/test_case_live.html.heex:151
 #: lib/tuist_web/live/test_case_run_live.html.heex:101
@@ -901,9 +901,9 @@ msgstr "概览"
 #: lib/tuist_web/live/test_case_run_live.html.heex:1128
 #: lib/tuist_web/live/test_cases_live.ex:49
 #: lib/tuist_web/live/test_cases_live.html.heex:734
-#: lib/tuist_web/live/test_run_live.ex:1270
-#: lib/tuist_web/live/test_run_live.ex:1332
-#: lib/tuist_web/live/test_run_live.ex:1389
+#: lib/tuist_web/live/test_run_live.ex:1274
+#: lib/tuist_web/live/test_run_live.ex:1336
+#: lib/tuist_web/live/test_run_live.ex:1393
 #: lib/tuist_web/live/test_run_live.html.heex:268
 #: lib/tuist_web/live/test_run_live.html.heex:597
 #: lib/tuist_web/live/test_run_live.html.heex:795
@@ -913,9 +913,9 @@ msgstr "概览"
 #: lib/tuist_web/live/test_run_live.html.heex:1357
 #: lib/tuist_web/live/test_run_live.html.heex:1544
 #: lib/tuist_web/live/test_run_live.html.heex:1771
-#: lib/tuist_web/live/test_run_live.html.heex:1997
-#: lib/tuist_web/live/test_run_live.html.heex:2236
-#: lib/tuist_web/live/test_run_live.html.heex:2281
+#: lib/tuist_web/live/test_run_live.html.heex:1998
+#: lib/tuist_web/live/test_run_live.html.heex:2237
+#: lib/tuist_web/live/test_run_live.html.heex:2282
 #: lib/tuist_web/live/test_runs_live.ex:49
 #: lib/tuist_web/live/test_runs_live.html.heex:491
 #: lib/tuist_web/live/tests_live.ex:517
@@ -940,8 +940,8 @@ msgstr "项目"
 #: lib/tuist_web/live/test_run_live.html.heex:692
 #: lib/tuist_web/live/test_run_live.html.heex:1038
 #: lib/tuist_web/live/test_run_live.html.heex:1305
-#: lib/tuist_web/live/test_run_live.html.heex:1947
-#: lib/tuist_web/live/test_run_live.html.heex:2184
+#: lib/tuist_web/live/test_run_live.html.heex:1948
+#: lib/tuist_web/live/test_run_live.html.heex:2185
 #, elixir-autogen, elixir-format
 msgid "Quarantined"
 msgstr "隔离"
@@ -966,7 +966,7 @@ msgid "Quarantined tests"
 msgstr "已隔离测试"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:560
-#: lib/tuist_web/live/coverage_live.html.heex:157
+#: lib/tuist_web/live/coverage_live.html.heex:163
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:124
 #: lib/tuist_web/live/once_test_run_live.html.heex:109
 #: lib/tuist_web/live/once_tests_live.html.heex:525
@@ -1002,7 +1002,7 @@ msgid "Recent Test Runs"
 msgstr "近期测试运行"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:160
-#: lib/tuist_web/live/test_run_live.ex:1460
+#: lib/tuist_web/live/test_run_live.ex:1464
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr "远程"
@@ -1035,7 +1035,7 @@ msgstr "Scheme"
 #: lib/tuist_web/live/test_run_live.html.heex:1405
 #: lib/tuist_web/live/test_run_live.html.heex:1610
 #: lib/tuist_web/live/test_runs_live.html.heex:456
-#: lib/tuist_web/live/test_selection/run_tab.ex:371
+#: lib/tuist_web/live/test_selection/run_tab.ex:372
 #: lib/tuist_web/live/tests_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Search..."
@@ -1045,6 +1045,7 @@ msgstr "搜索..."
 #: lib/tuist_web/live/test_case_run_live.html.heex:114
 #: lib/tuist_web/live/test_run_live.html.heex:220
 #: lib/tuist_web/live/test_run_live.html.heex:478
+#: lib/tuist_web/live/test_run_test_case_live.ex:129
 #: lib/tuist_web/live/tests_live.html.heex:659
 #, elixir-autogen, elixir-format
 msgid "Selective Testing"
@@ -1082,7 +1083,7 @@ msgstr "选择性测试：暂无数据"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:564
 #: lib/tuist_web/live/test_run_live.html.heex:939
-#: lib/tuist_web/live/test_run_live.html.heex:2082
+#: lib/tuist_web/live/test_run_live.html.heex:2083
 #, elixir-autogen, elixir-format
 msgid "Signal"
 msgstr "信号"
@@ -1105,15 +1106,15 @@ msgstr "信号"
 #: lib/tuist_web/live/test_cases_live.ex:81
 #: lib/tuist_web/live/test_cases_live.html.heex:622
 #: lib/tuist_web/live/test_cases_live.html.heex:744
-#: lib/tuist_web/live/test_run_live.ex:1272
-#: lib/tuist_web/live/test_run_live.ex:1334
+#: lib/tuist_web/live/test_run_live.ex:1276
+#: lib/tuist_web/live/test_run_live.ex:1338
 #: lib/tuist_web/live/test_run_live.html.heex:289
 #: lib/tuist_web/live/test_run_live.html.heex:1367
 #: lib/tuist_web/live/test_run_live.html.heex:1554
 #: lib/tuist_web/live/test_runs_live.ex:51
 #: lib/tuist_web/live/test_runs_live.html.heex:501
 #: lib/tuist_web/live/test_selection/components.ex:42
-#: lib/tuist_web/live/test_selection/run_tab.ex:721
+#: lib/tuist_web/live/test_selection/run_tab.ex:722
 #: lib/tuist_web/live/test_selections_live.ex:158
 #: lib/tuist_web/live/test_selections_live.html.heex:87
 #: lib/tuist_web/live/tests_live.html.heex:998
@@ -1152,9 +1153,9 @@ msgstr "排序方式："
 #: lib/tuist_web/live/test_case_live.html.heex:1002
 #: lib/tuist_web/live/test_case_run_live.html.heex:145
 #: lib/tuist_web/live/test_case_run_live.html.heex:936
-#: lib/tuist_web/live/test_run_live.ex:1266
-#: lib/tuist_web/live/test_run_live.ex:1328
-#: lib/tuist_web/live/test_run_live.ex:1385
+#: lib/tuist_web/live/test_run_live.ex:1270
+#: lib/tuist_web/live/test_run_live.ex:1332
+#: lib/tuist_web/live/test_run_live.ex:1389
 #: lib/tuist_web/live/test_run_live.html.heex:265
 #: lib/tuist_web/live/test_run_live.html.heex:594
 #: lib/tuist_web/live/test_run_live.html.heex:1541
@@ -1167,7 +1168,7 @@ msgstr "状态"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:571
 #: lib/tuist_web/live/test_run_live.html.heex:946
-#: lib/tuist_web/live/test_run_live.html.heex:2089
+#: lib/tuist_web/live/test_run_live.html.heex:2090
 #, elixir-autogen, elixir-format
 msgid "Subtype"
 msgstr "子类型"
@@ -1191,7 +1192,7 @@ msgstr "摘要"
 #: lib/tuist_web/live/test_cases_live.html.heex:523
 #: lib/tuist_web/live/test_cases_live.html.heex:543
 #: lib/tuist_web/live/test_cases_live.html.heex:595
-#: lib/tuist_web/live/test_run_live.ex:1280
+#: lib/tuist_web/live/test_run_live.ex:1284
 #, elixir-autogen, elixir-format
 msgid "Test Case"
 msgstr "测试用例"
@@ -1202,6 +1203,7 @@ msgid "Test Case Runs"
 msgstr "测试用例运行次数"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:70
+#: lib/tuist_web/live/test_run_test_case_live.ex:101
 #, elixir-autogen, elixir-format
 msgid "Test Case: %{name}"
 msgstr "测试用例：%{name}"
@@ -1251,11 +1253,12 @@ msgstr "测试模块"
 #: lib/tuist_web/live/test_case_run_live.html.heex:238
 #: lib/tuist_web/live/test_run_live.ex:106
 #: lib/tuist_web/live/test_run_live.ex:130
+#: lib/tuist_web/live/test_run_test_case_live.ex:71
 #, elixir-autogen, elixir-format
 msgid "Test Run"
 msgstr "测试运行"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:632
+#: lib/tuist_web/live/coverage_detail_live.ex:628
 #: lib/tuist_web/live/coverage_detail_live.html.heex:495
 #: lib/tuist_web/live/once_test_run_live.html.heex:3
 #: lib/tuist_web/live/test_run_live.html.heex:3
@@ -1288,6 +1291,7 @@ msgstr "测试用例"
 
 #: lib/tuist_web/live/test_case_live.ex:41
 #: lib/tuist_web/live/test_case_live.ex:46
+#: lib/tuist_web/live/test_run_test_case_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Test case not found."
 msgstr "未找到测试用例。"
@@ -1314,8 +1318,8 @@ msgstr "测试用例运行次数表示在给定时间段内单个测试用例执
 #: lib/tuist_web/live/once_test_run_live.html.heex:289
 #: lib/tuist_web/live/test_cases_live.ex:334
 #: lib/tuist_web/live/test_cases_live.html.heex:232
-#: lib/tuist_web/live/test_run_live.ex:1304
-#: lib/tuist_web/live/test_run_live.ex:1361
+#: lib/tuist_web/live/test_run_live.ex:1308
+#: lib/tuist_web/live/test_run_live.ex:1365
 #: lib/tuist_web/live/test_run_live.html.heex:395
 #: lib/tuist_web/live/test_run_live.html.heex:1419
 #: lib/tuist_web/live/test_run_live.html.heex:1443
@@ -1368,7 +1372,7 @@ msgstr "测试运行"
 #: lib/tuist_web/live/once_tests_live.ex:29
 #: lib/tuist_web/live/quarantined_tests_live.ex:30
 #: lib/tuist_web/live/shards_live.ex:28
-#: lib/tuist_web/live/test_selection/run_tab.ex:355
+#: lib/tuist_web/live/test_selection/run_tab.ex:356
 #: lib/tuist_web/live/tests_live.ex:27
 #: lib/tuist_web/live/tests_live.ex:31
 #, elixir-autogen, elixir-format
@@ -1658,8 +1662,8 @@ msgstr "自昨天以来"
 
 #: lib/tuist_web/live/test_run_live.html.heex:660
 #: lib/tuist_web/live/test_run_live.html.heex:1004
-#: lib/tuist_web/live/test_run_live.html.heex:1921
-#: lib/tuist_web/live/test_run_live.html.heex:2157
+#: lib/tuist_web/live/test_run_live.html.heex:1922
+#: lib/tuist_web/live/test_run_live.html.heex:2158
 #, elixir-autogen, elixir-format
 msgid "•"
 msgstr "•"
@@ -1687,7 +1691,7 @@ msgid "How evenly test duration is distributed across shards. 100% means perfect
 msgstr "测试时长在各分片间的分布均匀程度。100% 表示完全均衡。"
 
 #: lib/tuist_web/live/coverage/components.ex:432
-#: lib/tuist_web/live/coverage_detail_live.ex:378
+#: lib/tuist_web/live/coverage_detail_live.ex:379
 #: lib/tuist_web/live/once_test_run_live.html.heex:103
 #: lib/tuist_web/live/shards_live.ex:41
 #: lib/tuist_web/live/shards_live.html.heex:591
@@ -1720,24 +1724,24 @@ msgid "Pending"
 msgstr "等待中"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:223
-#: lib/tuist_web/live/test_run_live.ex:1423
+#: lib/tuist_web/live/test_run_live.ex:1427
 #: lib/tuist_web/live/test_run_live.html.heex:556
 #: lib/tuist_web/live/test_run_live.html.heex:1330
 #: lib/tuist_web/live/test_run_live.html.heex:1504
 #: lib/tuist_web/live/test_run_live.html.heex:1720
-#: lib/tuist_web/live/test_selection/run_tab.ex:462
+#: lib/tuist_web/live/test_selection/run_tab.ex:463
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:152
 #, elixir-autogen, elixir-format
 msgid "Shard"
 msgstr "分片"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:227
-#: lib/tuist_web/live/test_run_live.ex:1417
+#: lib/tuist_web/live/test_run_live.ex:1421
 #: lib/tuist_web/live/test_run_live.html.heex:558
 #: lib/tuist_web/live/test_run_live.html.heex:1333
 #: lib/tuist_web/live/test_run_live.html.heex:1507
 #: lib/tuist_web/live/test_run_live.html.heex:1723
-#: lib/tuist_web/live/test_selection/run_tab.ex:818
+#: lib/tuist_web/live/test_selection/run_tab.ex:821
 #, elixir-autogen, elixir-format
 msgid "Shard %{index}"
 msgstr "分片 %{index}"
@@ -1966,7 +1970,7 @@ msgstr "周期结束时处于隔离状态的测试用例数量。包含被静默
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:114
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:219
 #: lib/tuist_web/live/test_run_live.html.heex:503
-#: lib/tuist_web/live/test_selection/run_tab.ex:243
+#: lib/tuist_web/live/test_selection/run_tab.ex:244
 #, elixir-autogen, elixir-format
 msgid "Skipped tests"
 msgstr "跳过的测试"
@@ -1989,8 +1993,8 @@ msgstr "运行错误"
 #: lib/tuist_web/live/test_run_live.html.heex:234
 #: lib/tuist_web/live/test_run_live.html.heex:650
 #: lib/tuist_web/live/test_run_live.html.heex:657
-#: lib/tuist_web/live/test_run_live.html.heex:1911
-#: lib/tuist_web/live/test_run_live.html.heex:1918
+#: lib/tuist_web/live/test_run_live.html.heex:1912
+#: lib/tuist_web/live/test_run_live.html.heex:1919
 #, elixir-autogen, elixir-format
 msgid "Test Failures"
 msgstr "测试失败"
@@ -2064,7 +2068,7 @@ msgid "Successful"
 msgstr "成功"
 
 #: lib/tuist_web/live/test_case_live.html.heex:293
-#: lib/tuist_web/live/test_selection/run_tab.ex:824
+#: lib/tuist_web/live/test_selection/run_tab.ex:827
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "全部"
@@ -2085,7 +2089,7 @@ msgstr "你无权更新此测试用例。"
 msgid "Logs"
 msgstr "日志"
 
-#: lib/tuist_web/live/test_run_live.html.heex:2336
+#: lib/tuist_web/live/test_run_live.html.heex:2337
 #, elixir-autogen, elixir-format
 msgid "No logs were captured for this Bazel invocation."
 msgstr "未捕获此 Bazel 调用的日志。"
@@ -2115,7 +2119,7 @@ msgid "%{count} repetition"
 msgid_plural "%{count} repetitions"
 msgstr[0] "%{count} 次重复"
 
-#: lib/tuist_web/live/test_case_run_live.ex:135
+#: lib/tuist_web/live/test_case_run_live.ex:139
 #, elixir-autogen, elixir-format
 msgid "%{count} repetition passed"
 msgid_plural "All %{count} repetitions passed"
@@ -2181,8 +2185,8 @@ msgstr "此目标的运行器未生成 test.xml，因此无法提供每个测试
 #: lib/tuist_web/live/coverage/components.ex:781
 #: lib/tuist_web/live/coverage/components.ex:952
 #: lib/tuist_web/live/coverage_commits_live.html.heex:3
-#: lib/tuist_web/live/coverage_detail_live.ex:52
-#: lib/tuist_web/live/coverage_detail_live.ex:132
+#: lib/tuist_web/live/coverage_detail_live.ex:53
+#: lib/tuist_web/live/coverage_detail_live.ex:133
 #: lib/tuist_web/live/coverage_detail_live.html.heex:125
 #: lib/tuist_web/live/coverage_file_live.ex:242
 #: lib/tuist_web/live/coverage_live.ex:52
@@ -2191,14 +2195,12 @@ msgid "Code Coverage"
 msgstr "代码覆盖率"
 
 #: lib/tuist_web/live/coverage_commits_live.html.heex:40
-#: lib/tuist_web/live/coverage_detail_live.ex:469
+#: lib/tuist_web/live/coverage_detail_live.ex:470
 #: lib/tuist_web/live/coverage_detail_live.html.heex:228
 #: lib/tuist_web/live/coverage_detail_live.html.heex:442
-#: lib/tuist_web/live/coverage_detail_live.html.heex:550
 #: lib/tuist_web/live/coverage_file_live.ex:204
 #: lib/tuist_web/live/coverage_file_live.html.heex:180
 #: lib/tuist_web/live/coverage_live.html.heex:96
-#: lib/tuist_web/live/coverage_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Coverage"
 msgstr "覆盖率"
@@ -2232,8 +2234,8 @@ msgid "Executions"
 msgstr "执行次数"
 
 #: lib/tuist_web/live/coverage/components.ex:103
-#: lib/tuist_web/live/coverage_detail_live.ex:470
-#: lib/tuist_web/live/coverage_detail_live.ex:631
+#: lib/tuist_web/live/coverage_detail_live.ex:471
+#: lib/tuist_web/live/coverage_detail_live.ex:627
 #: lib/tuist_web/live/coverage_detail_live.html.heex:252
 #: lib/tuist_web/live/coverage_detail_live.html.heex:288
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:175
@@ -2294,13 +2296,13 @@ msgid "Unavailable"
 msgstr "不可用"
 
 #: lib/tuist_web/live/coverage/components.ex:283
-#: lib/tuist_web/live/coverage_detail_live.ex:559
+#: lib/tuist_web/live/coverage_detail_live.ex:555
 #, elixir-autogen, elixir-format
 msgid "Full"
 msgstr "完整"
 
 #: lib/tuist_web/live/coverage/components.ex:282
-#: lib/tuist_web/live/coverage_detail_live.ex:560
+#: lib/tuist_web/live/coverage_detail_live.ex:556
 #, elixir-autogen, elixir-format
 msgid "Partial"
 msgstr "部分"
@@ -2336,8 +2338,9 @@ msgid "Number of test cases that both passed and failed."
 msgstr "同时通过和失败的测试用例数量。"
 
 #: lib/tuist_web/helpers/test_labels.ex:44
-#: lib/tuist_web/live/coverage_detail_live.ex:555
+#: lib/tuist_web/live/coverage_detail_live.ex:551
 #: lib/tuist_web/live/coverage_detail_live.html.heex:553
+#: lib/tuist_web/live/coverage_live.html.heex:157
 #: lib/tuist_web/live/once_tests_live.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Run"
@@ -2375,7 +2378,7 @@ msgid_plural "%{count} files"
 msgstr[0] "%{count} 个文件"
 
 #: lib/tuist_web/live/coverage/components.ex:347
-#: lib/tuist_web/live/coverage_detail_live.ex:613
+#: lib/tuist_web/live/coverage_detail_live.ex:609
 #, elixir-autogen, elixir-format
 msgid "Branch %{name}"
 msgstr "分支 %{name}"
@@ -2387,13 +2390,13 @@ msgstr "分支："
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:450
 #: lib/tuist_web/live/coverage_live.html.heex:99
-#: lib/tuist_web/live/test_selection/run_tab.ex:562
+#: lib/tuist_web/live/test_selection/run_tab.ex:563
 #, elixir-autogen, elixir-format
 msgid "Change"
 msgstr "更改"
 
 #: lib/tuist_web/live/coverage/components.ex:349
-#: lib/tuist_web/live/coverage_detail_live.ex:611
+#: lib/tuist_web/live/coverage_detail_live.ex:607
 #: lib/tuist_web/live/coverage_file_live.ex:235
 #, elixir-autogen, elixir-format
 msgid "Commit %{name}"
@@ -2404,7 +2407,7 @@ msgstr "提交 %{name}"
 msgid "Commit %{sha} has no coverage for this file"
 msgstr "提交 %{sha} 未覆盖此文件"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:629
+#: lib/tuist_web/live/coverage_detail_live.ex:625
 #: lib/tuist_web/live/coverage_detail_live.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "Commits"
@@ -2418,7 +2421,7 @@ msgid "Committed"
 msgstr "已提交"
 
 #: lib/tuist_web/live/coverage/components.ex:434
-#: lib/tuist_web/live/coverage_detail_live.ex:376
+#: lib/tuist_web/live/coverage_detail_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Complete"
 msgstr "完成"
@@ -2439,7 +2442,7 @@ msgid "Every test of the run's scheme ran, so it measured the scheme in full."
 msgstr "本次运行方案中的所有测试均已执行，因此完整测量了该方案。"
 
 #: lib/tuist_web/live/coverage/components.ex:678
-#: lib/tuist_web/live/coverage_detail_live.ex:504
+#: lib/tuist_web/live/coverage_detail_live.ex:505
 #, elixir-autogen, elixir-format
 msgid "File coverage"
 msgstr "文件覆盖率"
@@ -2506,7 +2509,7 @@ msgstr "没有函数匹配此搜索"
 msgid "No run gathered coverage here"
 msgstr "此处没有任何运行收集覆盖率"
 
-#: lib/tuist_web/live/coverage_live.html.heex:165
+#: lib/tuist_web/live/coverage_live.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage on %{branch} in this period"
 msgstr "此期间内，%{branch} 分支上没有任何运行收集覆盖率"
@@ -2516,7 +2519,7 @@ msgstr "此期间内，%{branch} 分支上没有任何运行收集覆盖率"
 msgid "No run matches these filters"
 msgstr "没有运行匹配这些筛选条件"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:252
+#: lib/tuist_web/live/coverage_detail_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "No run of commit %{sha} gathered coverage."
 msgstr "提交 %{sha} 的任何运行均未收集覆盖率。"
@@ -2526,7 +2529,7 @@ msgstr "提交 %{sha} 的任何运行均未收集覆盖率。"
 msgid "No run of this commit gathered coverage, so it has no figure of its own."
 msgstr "此提交的任何运行均未收集覆盖率，因此它没有自己的数值。"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:267
+#: lib/tuist_web/live/coverage_detail_live.ex:268
 #, elixir-autogen, elixir-format
 msgid "No run on branch %{branch} gathered coverage."
 msgstr "%{branch} 分支上的任何运行均未收集覆盖率。"
@@ -2542,7 +2545,7 @@ msgid "No target was measured at this commit"
 msgstr "此提交未测量任何目标"
 
 #: lib/tuist_web/live/coverage/components.ex:431
-#: lib/tuist_web/live/coverage_detail_live.ex:379
+#: lib/tuist_web/live/coverage_detail_live.ex:380
 #: lib/tuist_web/live/coverage_detail_live.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "Not measured"
@@ -2554,11 +2557,6 @@ msgstr "未测量"
 #, elixir-autogen, elixir-format
 msgid "Recent Commits"
 msgstr "最近提交"
-
-#: lib/tuist_web/live/coverage/components.ex:289
-#, elixir-autogen, elixir-format
-msgid "Selective testing, or a filter, left some of the run's tests out, so it measured part of the scheme."
-msgstr "选择性测试或筛选条件排除了部分测试，因此仅测量了方案的一部分。"
 
 #: lib/tuist_web/live/coverage/components.ex:783
 #, elixir-autogen, elixir-format
@@ -2575,7 +2573,7 @@ msgstr "在 %{schemes} 中，至少有一次测试运行执行过的可执行代
 msgid "Status:"
 msgstr "状态："
 
-#: lib/tuist_web/live/coverage_detail_live.ex:445
+#: lib/tuist_web/live/coverage_detail_live.ex:446
 #, elixir-autogen, elixir-format
 msgid "Target name"
 msgstr "目标名称"
@@ -2608,7 +2606,7 @@ msgid "over the period"
 msgstr "在此时段内"
 
 #: lib/tuist_web/live/coverage/components.ex:433
-#: lib/tuist_web/live/coverage_detail_live.ex:377
+#: lib/tuist_web/live/coverage_detail_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "Incomplete"
 msgstr "不完整"
@@ -2659,7 +2657,7 @@ msgstr "该测试运行来自包含未提交更改的检出分支，因此它测
 msgid "Application"
 msgstr "应用"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:442
+#: lib/tuist_web/live/coverage_detail_live.ex:443
 #, elixir-autogen, elixir-format
 msgid "Application name"
 msgstr "应用名称"
@@ -2696,7 +2694,7 @@ msgstr "此期间 %{branch} 上没有完整的提交"
 msgid "Reported name"
 msgstr "报告名称"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:375
+#: lib/tuist_web/live/coverage_detail_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Measured"
 msgstr "已测量"
@@ -2748,7 +2746,7 @@ msgstr "某个可能影响任何测试但未在覆盖率中显示的文件发生
 msgid "Added"
 msgstr "已添加"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:290
+#: lib/tuist_web/live/test_selection/run_tab.ex:291
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:134
 #, elixir-autogen, elixir-format
 msgid "Baseline"
@@ -2759,12 +2757,12 @@ msgstr "基线"
 msgid "Baseline too far back"
 msgstr "基线时间过久"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:501
+#: lib/tuist_web/live/test_selection/run_tab.ex:502
 #, elixir-autogen, elixir-format
 msgid "Changed files"
 msgstr "变更文件"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:767
+#: lib/tuist_web/live/test_selection/run_tab.ex:768
 #, elixir-autogen, elixir-format
 msgid "Changed files (%{count})"
 msgstr "变更文件（%{count}）"
@@ -2779,18 +2777,18 @@ msgstr "已执行的变更文件"
 msgid "Commit unknown"
 msgstr "未知提交"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:189
+#: lib/tuist_web/live/test_selection/run_tab.ex:190
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:107
 #, elixir-autogen, elixir-format
 msgid "Coverage selection"
 msgstr "覆盖率选择"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:450
+#: lib/tuist_web/live/test_selection/run_tab.ex:451
 #, elixir-autogen, elixir-format
 msgid "Decision"
 msgstr "决策"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:380
+#: lib/tuist_web/live/test_selection/run_tab.ex:381
 #, elixir-autogen, elixir-format
 msgid "Decision:"
 msgstr "决策："
@@ -2810,15 +2808,15 @@ msgstr "差异过大"
 msgid "Diff unavailable"
 msgstr "差异不可用"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:472
+#: lib/tuist_web/live/test_selection/run_tab.ex:473
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:156
 #, elixir-autogen, elixir-format
 msgid "Est. duration"
 msgstr "预计时长"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:221
-#: lib/tuist_web/live/test_selection/run_tab.ex:273
-#: lib/tuist_web/live/test_selection/run_tab.ex:651
+#: lib/tuist_web/live/test_selection/run_tab.ex:274
+#: lib/tuist_web/live/test_selection/run_tab.ex:652
 #, elixir-autogen, elixir-format
 msgid "Est. time saved"
 msgstr "预计节省时间"
@@ -2828,12 +2826,12 @@ msgstr "预计节省时间"
 msgid "Failed last run"
 msgstr "上次运行失败"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:526
+#: lib/tuist_web/live/test_selection/run_tab.ex:527
 #, elixir-autogen, elixir-format
 msgid "Files:"
 msgstr "文件："
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:666
+#: lib/tuist_web/live/test_selection/run_tab.ex:667
 #, elixir-autogen, elixir-format
 msgid "Hashing left no module to decide"
 msgstr "哈希计算后无需决策的模块"
@@ -2863,7 +2861,7 @@ msgstr "证据显示它执行了 %{path}，但该路径此后已更改，因此�
 msgid "Its newest run in the evidence window failed or flaked, so a past pass can't vouch for it."
 msgstr "证据窗口中最近的运行失败或不稳定，因此过去的通过记录无法为其背书。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:749
+#: lib/tuist_web/live/test_selection/run_tab.ex:750
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:148
 #, elixir-autogen, elixir-format
 msgid "Matched path"
@@ -2874,7 +2872,7 @@ msgstr "匹配的路径"
 msgid "Modified"
 msgstr "已修改"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:773
+#: lib/tuist_web/live/test_selection/run_tab.ex:774
 #, elixir-autogen, elixir-format
 msgid "Modules (%{count})"
 msgstr "模块 (%{count})"
@@ -2899,7 +2897,7 @@ msgstr "无基线"
 msgid "No baseline evidence"
 msgstr "无基线证据"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:594
+#: lib/tuist_web/live/test_selection/run_tab.ex:595
 #, elixir-autogen, elixir-format
 msgid "No baseline to diff against"
 msgstr "没有可对比的基线"
@@ -2914,7 +2912,7 @@ msgstr "无证据"
 msgid "No executed file changed"
 msgstr "未执行文件发生变更"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:593
+#: lib/tuist_web/live/test_selection/run_tab.ex:594
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:231
 #, elixir-autogen, elixir-format
 msgid "No file matches"
@@ -2925,7 +2923,7 @@ msgstr "无匹配文件"
 msgid "No rule decided it, so it runs: selection only skips what a rule proves unaffected."
 msgstr "没有规则判定其状态，因此直接运行：选择性测试仅跳过被规则证明不受影响的部分。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:735
+#: lib/tuist_web/live/test_selection/run_tab.ex:736
 #, elixir-autogen, elixir-format
 msgid "No rule ran"
 msgstr "未运行任何规则"
@@ -2940,7 +2938,7 @@ msgstr "该时段内无选择性测试运行"
 msgid "No selection runs yet"
 msgstr "尚无选择性测试运行"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:489
+#: lib/tuist_web/live/test_selection/run_tab.ex:490
 #, elixir-autogen, elixir-format
 msgid "No test matches"
 msgstr "无匹配测试"
@@ -2950,13 +2948,13 @@ msgstr "无匹配测试"
 msgid "None"
 msgstr "无"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:456
-#: lib/tuist_web/live/test_selection/run_tab.ex:743
+#: lib/tuist_web/live/test_selection/run_tab.ex:457
+#: lib/tuist_web/live/test_selection/run_tab.ex:744
 #, elixir-autogen, elixir-format
 msgid "Reason"
 msgstr "原因"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:395
+#: lib/tuist_web/live/test_selection/run_tab.ex:396
 #, elixir-autogen, elixir-format
 msgid "Reason:"
 msgstr "原因："
@@ -2966,7 +2964,7 @@ msgstr "原因："
 msgid "Requested tests the period's selection runs had to execute: their evidence executed a changed file, their target changed, they failed at the baseline or they had no evidence."
 msgstr "所选时段的选择性测试必须执行请求的测试，因为它们的证据涉及已更改的文件、其目标发生更改、它们在基线中失败或缺乏证据。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:715
+#: lib/tuist_web/live/test_selection/run_tab.ex:716
 #, elixir-autogen, elixir-format
 msgid "Rule"
 msgstr "规则"
@@ -2976,7 +2974,7 @@ msgstr "规则"
 msgid "Search by commit, branch or scheme..."
 msgstr "按提交、分支或方案搜索..."
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:517
+#: lib/tuist_web/live/test_selection/run_tab.ex:518
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:191
 #, elixir-autogen, elixir-format
 msgid "Search by path..."
@@ -2984,8 +2982,8 @@ msgstr "按路径搜索..."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:185
 #: lib/tuist_web/live/test_selection/components.ex:41
-#: lib/tuist_web/live/test_selection/run_tab.ex:640
-#: lib/tuist_web/live/test_selection/run_tab.ex:718
+#: lib/tuist_web/live/test_selection/run_tab.ex:641
+#: lib/tuist_web/live/test_selection/run_tab.ex:719
 #: lib/tuist_web/live/test_selections_live.ex:157
 #: lib/tuist_web/live/test_selections_live.html.heex:67
 #: lib/tuist_web/live/test_selections_live.html.heex:257
@@ -3005,12 +3003,12 @@ msgstr "选择于"
 msgid "Selection runs"
 msgstr "选中运行"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:411
+#: lib/tuist_web/live/test_selection/run_tab.ex:412
 #, elixir-autogen, elixir-format
 msgid "Shard:"
 msgstr "分片："
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:547
+#: lib/tuist_web/live/test_selection/run_tab.ex:548
 #, elixir-autogen, elixir-format
 msgid "Showing the first %{shown} of %{total} changed files"
 msgstr "显示前 %{shown} 个变更文件（共 %{total} 个）"
@@ -3022,8 +3020,8 @@ msgstr "自基线以来"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:197
 #: lib/tuist_web/live/test_run_live.html.heex:507
-#: lib/tuist_web/live/test_selection/run_tab.ex:254
-#: lib/tuist_web/live/test_selection/run_tab.ex:643
+#: lib/tuist_web/live/test_selection/run_tab.ex:255
+#: lib/tuist_web/live/test_selection/run_tab.ex:644
 #: lib/tuist_web/live/test_selections_live.ex:145
 #: lib/tuist_web/live/test_selections_live.html.heex:106
 #: lib/tuist_web/live/test_selections_live.html.heex:272
@@ -3031,7 +3029,7 @@ msgstr "自基线以来"
 msgid "Skip rate"
 msgstr "跳过率"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:442
+#: lib/tuist_web/live/test_selection/run_tab.ex:443
 #, elixir-autogen, elixir-format
 msgid "Test"
 msgstr "测试"
@@ -3047,17 +3045,17 @@ msgstr "测试选择"
 msgid "Test selection is not enabled for this project."
 msgstr "此项目未启用测试选择。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:763
+#: lib/tuist_web/live/test_selection/run_tab.ex:764
 #, elixir-autogen, elixir-format
 msgid "Tests (%{count})"
 msgstr "测试（%{count}）"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:577
+#: lib/tuist_web/live/test_selection/run_tab.ex:578
 #, elixir-autogen, elixir-format
 msgid "Tests it selected"
 msgstr "已选择的测试"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:689
+#: lib/tuist_web/live/test_selection/run_tab.ex:690
 #, elixir-autogen, elixir-format
 msgid "Tests skipped"
 msgstr "跳过的测试"
@@ -3077,12 +3075,12 @@ msgstr "基线未记录任何文件"
 msgid "The changed files since the baseline couldn't be read."
 msgstr "无法读取自基线以来的变更文件。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:334
+#: lib/tuist_web/live/test_selection/run_tab.ex:335
 #, elixir-autogen, elixir-format
 msgid "The coverage selection's details expired"
 msgstr "覆盖率选择的详情已过期"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:667
+#: lib/tuist_web/live/test_selection/run_tab.ex:668
 #, elixir-autogen, elixir-format
 msgid "The invocation requested no tests"
 msgstr "该次调用未请求任何测试"
@@ -3092,14 +3090,14 @@ msgstr "该次调用未请求任何测试"
 msgid "The nearest baseline is more than 20 measured commits back."
 msgstr "最近的基线位于超过 20 个已测量提交之前。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:336
+#: lib/tuist_web/live/test_selection/run_tab.ex:337
 #, elixir-autogen, elixir-format
 msgid "This test run used coverage-based test selection, but its impact run is past retention."
 msgstr "此测试运行使用了基于覆盖率的测试选择，但其影响运行已超出保留期。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:568
-#: lib/tuist_web/live/test_selection/run_tab.ex:571
-#: lib/tuist_web/live/test_selection/run_tab.ex:823
+#: lib/tuist_web/live/test_selection/run_tab.ex:569
+#: lib/tuist_web/live/test_selection/run_tab.ex:572
+#: lib/tuist_web/live/test_selection/run_tab.ex:826
 #, elixir-autogen, elixir-format
 msgid "Tracked"
 msgstr "已跟踪"
@@ -3109,7 +3107,7 @@ msgstr "已跟踪"
 msgid "Tracked file changed"
 msgstr "跟踪的文件已变更"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:753
+#: lib/tuist_web/live/test_selection/run_tab.ex:754
 #, elixir-autogen, elixir-format
 msgid "Tracked files"
 msgstr "跟踪的文件"
@@ -3124,7 +3122,7 @@ msgstr "Tuist 的提交历史中既没有当前检出的提交，也没有其父
 msgid "Undecided"
 msgstr "未决定"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:724
+#: lib/tuist_web/live/test_selection/run_tab.ex:725
 #, elixir-autogen, elixir-format
 msgid "Verdict"
 msgstr "判定结果"
@@ -3136,46 +3134,46 @@ msgid "View selection"
 msgstr "查看选择"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:209
-#: lib/tuist_web/live/test_selection/run_tab.ex:646
+#: lib/tuist_web/live/test_selection/run_tab.ex:647
 #, elixir-autogen, elixir-format
 msgid "Why it runs"
 msgstr "运行原因"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:704
-#: lib/tuist_web/live/test_selection/run_tab.ex:777
+#: lib/tuist_web/live/test_selection/run_tab.ex:705
+#: lib/tuist_web/live/test_selection/run_tab.ex:778
 #, elixir-autogen, elixir-format
 msgid "Debug"
 msgstr "调试"
 
 #: lib/tuist_web/live/test_run_live.html.heex:494
-#: lib/tuist_web/live/test_selection/run_tab.ex:232
+#: lib/tuist_web/live/test_selection/run_tab.ex:233
 #, elixir-autogen, elixir-format
 msgid "Selected tests"
 msgstr "选定的测试"
 
 #: lib/tuist_web/live/test_run_live.html.heex:511
-#: lib/tuist_web/live/test_selection/run_tab.ex:262
-#: lib/tuist_web/live/test_selection/run_tab.ex:675
+#: lib/tuist_web/live/test_selection/run_tab.ex:263
+#: lib/tuist_web/live/test_selection/run_tab.ex:676
 #, elixir-autogen, elixir-format
 msgid "Skipped modules"
 msgstr "跳过的模块"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:245
+#: lib/tuist_web/live/test_selection/run_tab.ex:246
 #, elixir-autogen, elixir-format
 msgid "Tests skipped out of all requested: those in skipped modules and those the changes since the baseline don't reach."
 msgstr "在所有请求的测试中，被跳过的测试：包括位于跳过模块中的测试，以及自基线以来未受变更影响的测试。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:234
+#: lib/tuist_web/live/test_selection/run_tab.ex:235
 #, elixir-autogen, elixir-format
 msgid "Tests the selection kept, out of all requested, including those in skipped modules."
 msgstr "在所有请求的测试中，被选择保留执行的测试，包括位于跳过模块中的测试。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:256
+#: lib/tuist_web/live/test_selection/run_tab.ex:257
 #, elixir-autogen, elixir-format
 msgid "The share of requested tests that were skipped."
 msgstr "被跳过的测试占所有请求测试的比例。"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:275
+#: lib/tuist_web/live/test_selection/run_tab.ex:276
 #, elixir-autogen, elixir-format
 msgid "The skipped tests' durations in the baseline run, one after another."
 msgstr "在基线运行中，被跳过测试的持续时间（按顺序累加）。"
@@ -3205,7 +3203,7 @@ msgstr "选择性测试发现该模块自上次通过以来未发生变更，因
 msgid "Test file changed"
 msgstr "测试文件已变更"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:264
+#: lib/tuist_web/live/test_selection/run_tab.ex:265
 #, elixir-autogen, elixir-format
 msgid "Test modules selective testing found not changed and skipped whole, out of all requested modules."
 msgstr "在所有请求的模块中，选择性测试发现部分测试模块未发生变更并整体跳过。"
@@ -3230,12 +3228,12 @@ msgstr "%{ran} / %{total} 个模块"
 msgid "%{skipped} of %{total} modules"
 msgstr "%{skipped} / %{total} 个模块"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:203
+#: lib/tuist_web/live/test_selection/run_tab.ex:204
 #, elixir-autogen, elixir-format
 msgid "Coverage not applied: %{reason}"
 msgstr "未应用覆盖率：%{reason}"
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:212
+#: lib/tuist_web/live/test_selection/run_tab.ex:213
 #, elixir-autogen, elixir-format
 msgid "Every test in the modules selective testing left ran."
 msgstr "已运行选择性测试剩余的模块中的所有测试。"
@@ -3250,7 +3248,7 @@ msgstr "该周期内各次运行的跳过率平均值。没有基线的运行会
 msgid "Package"
 msgstr "软件包"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:443
+#: lib/tuist_web/live/coverage_detail_live.ex:444
 #, elixir-autogen, elixir-format
 msgid "Package name"
 msgstr "软件包名称"
@@ -3260,37 +3258,37 @@ msgstr "软件包名称"
 msgid "Packages"
 msgstr "软件包"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:444
+#: lib/tuist_web/live/coverage_detail_live.ex:445
 #, elixir-autogen, elixir-format
 msgid "Module name"
 msgstr "模块名称"
 
 #: lib/tuist_web/live/coverage_commits_live.ex:30
-#: lib/tuist_web/live/coverage_detail_live.ex:47
+#: lib/tuist_web/live/coverage_detail_live.ex:48
 #: lib/tuist_web/live/coverage_file_live.ex:33
 #: lib/tuist_web/live/coverage_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Code coverage isn't available for this project's build system."
 msgstr "此项目的构建系统不支持代码覆盖率。"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:290
+#: lib/tuist_web/live/coverage_detail_live.ex:291
 #, elixir-autogen, elixir-format
 msgid "No run of pull request #%{number} gathered coverage."
 msgstr "拉取请求 #%{number} 的任何运行均未收集覆盖率。"
 
 #: lib/tuist_web/live/coverage/components.ex:350
 #: lib/tuist_web/live/coverage_commits_live.ex:101
-#: lib/tuist_web/live/coverage_detail_live.ex:616
+#: lib/tuist_web/live/coverage_detail_live.ex:612
 #, elixir-autogen, elixir-format
 msgid "Pull request #%{number}"
 msgstr "拉取请求 #%{number}"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:284
+#: lib/tuist_web/live/coverage_detail_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Pull request not found."
 msgstr "未找到拉取请求。"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:620
+#: lib/tuist_web/live/coverage_detail_live.ex:616
 #, elixir-autogen, elixir-format
 msgid "pull request #%{number}"
 msgstr "拉取请求 #%{number}"
@@ -3349,3 +3347,14 @@ msgstr "证据窗口中的任何运行都未为其记录自身的覆盖率证据
 #, elixir-autogen, elixir-format
 msgid "Some of the runs' data couldn't be read in time, so their coverage may be missing and the actual coverage may be higher."
 msgstr "部分运行数据未能及时读取，因此覆盖率可能缺失，实际覆盖率可能更高。"
+
+#: lib/tuist_web/live/coverage_detail_live.html.heex:550
+#: lib/tuist_web/live/coverage_live.html.heex:154
+#, elixir-autogen, elixir-format
+msgid "Run coverage"
+msgstr "运行覆盖率"
+
+#: lib/tuist_web/live/coverage/components.ex:289
+#, elixir-autogen, elixir-format
+msgid "Selective testing, or a filter, left some or all of the run's tests out, so it measured part of the scheme or none of it. Its coverage is only what it ran; the commit's figure carries what it skipped from earlier runs."
+msgstr "选择性测试或筛选器导致本次运行的部分或全部测试未执行，因此仅测量了方案的一部分或完全未测量。其覆盖率仅反映已执行的测试；提交的统计数据包含了从之前运行中跳过的测试。"

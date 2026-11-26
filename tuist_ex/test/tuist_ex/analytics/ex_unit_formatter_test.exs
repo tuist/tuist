@@ -504,6 +504,10 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     payload = run.([])
     refute Map.has_key?(payload, :skip_test_identifiers)
     refute Map.has_key?(payload, :only_test_identifiers)
+
+    # Only a run without `--cover` says it wasn't set up to collect coverage.
+    assert run.(coverage: true).coverage_enabled == true
+    assert payload.coverage_enabled == false
   end
 
   test "a run coverage selected names its impact run, and not the tests selection left out" do

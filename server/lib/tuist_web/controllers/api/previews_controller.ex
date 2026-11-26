@@ -211,7 +211,7 @@ defmodule TuistWeb.API.PreviewsController do
     binary_id = Map.get(body_params, :binary_id)
     build_version = Map.get(body_params, :build_version)
 
-    case AppBuilds.create_app_build(%{
+    case AppBuilds.start_app_build(%{
            preview_id: preview.id,
            project_id: selected_project.id,
            type: type,

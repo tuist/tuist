@@ -492,14 +492,15 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   average durations (`test_cases.avg_duration`; a test without one counts as
   the median of those with one). `{:ok, %{run_id, granularity: "suite",
   durations}}`, or `{:error, :not_selected}` when the run doesn't exist or
-  fell back. A build system whose plans distribute a selection by module
-  (`BuildSystem.shard_granularity/1`) gets `{:ok, %{run_id, granularity:
-  "module"}}`: its plan balances the modules the client sends, as without a
-  selection.
+  stored no decision (a fallback). A build system whose plans distribute a
+  selection by module (`BuildSystem.shard_granularity/1`) gets `{:ok,
+  %{run_id, granularity: "module"}}` for any run, whatever its outcome: its
+  plan balances the modules the client sends, as without a selection, and
+  its shards, which learn the run only from the plan, report it.
   """
   def shard_units(project_id, run_id) do
     case Storage.get_run(project_id, run_id) do
-      {:ok, %{outcome: "selected", build_system: build_system}} ->
+      {:ok, %{build_system: build_system}} ->
         case BuildSystem.shard_granularity(build_system) do
           "module" -> {:ok, %{run_id: run_id, granularity: "module"}}
           "suite" -> suite_units(project_id, run_id)

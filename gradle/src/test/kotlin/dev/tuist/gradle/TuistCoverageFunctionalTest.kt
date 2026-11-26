@@ -48,6 +48,12 @@ class TuistCoverageFunctionalTest {
     @Volatile
     private var inlineThreshold = 5_000_000
 
+    /** Whether the server hands out an upload for the run's evidence too, as servers since it was added do. */
+    @Volatile
+    private var evidenceUploads = false
+
+    private val uploads = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+
     @Volatile
     private var shardPlanId = "00000000-0000-0000-0000-000000000001"
 
@@ -57,7 +63,9 @@ class TuistCoverageFunctionalTest {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.path.orEmpty()
-                requests += path to request.body.readUtf8()
+                val body = request.body.readByteArray()
+                requests += path to String(body, Charsets.UTF_8)
+                if (path.startsWith("/storage/")) uploads[path] = body
                 return when {
                     path == "/.well-known/tuist.json" ->
                         MockResponse().setResponseCode(200).setBody("""{"network_trusted_report_publishing":true}""")
@@ -68,10 +76,17 @@ class TuistCoverageFunctionalTest {
                         MockResponse().setResponseCode(200).setBody("""{"id":"run-1","url":null}""")
                     path == "$apiPath/coverage/settings" ->
                         MockResponse().setResponseCode(200).setBody("""{"inline_threshold_bytes":$inlineThreshold}""")
-                    path == "$apiPath/coverage/uploads" ->
+                    path == "$apiPath/coverage/uploads" -> {
+                        val evidence = if (evidenceUploads) {
+                            ""","evidence_storage_key":"runs/run-1/coverage_evidence.ndjson.deflate",""" +
+                                """"evidence_upload_url":"${server.url("/storage/evidence")}""""
+                        } else {
+                            ""
+                        }
                         MockResponse().setResponseCode(200).setBody(
-                            """{"storage_key":"runs/run-1/coverage.ndjson.deflate","upload_url":"${server.url("/storage/put")}"}"""
+                            """{"storage_key":"runs/run-1/coverage.ndjson.deflate","upload_url":"${server.url("/storage/put")}"$evidence}"""
                         )
+                    }
                     path == "$apiPath/git-history/settings" ->
                         MockResponse().setResponseCode(200).setBody(
                             """{"window_days":365,"window_commits":5000,"deepen_budget_seconds":5,"upload_batch_size":500,"commit_file_limit":50000}"""
@@ -470,6 +485,40 @@ class TuistCoverageFunctionalTest {
         assertFalse(coverage.has("files"), coverage.toString())
         assertEquals("runs/run-1/coverage.ndjson.deflate", coverage.get("storage_key")?.asString, result.output)
         assertTrue(requests.any { it.first == "/storage/put" }, requests.map { it.first }.toString())
+    }
+
+    @Test
+    fun `evidence past the inline threshold is uploaded with its lines, and stays inline for servers without evidence uploads`() {
+        fun scopes(evidence: JsonObject): Set<JsonObject> {
+            val paths = evidence.getAsJsonArray("paths").map { it.asString }
+            return evidence.getAsJsonArray("scopes").map { it.asJsonObject.deepCopy() }.onEach { scope ->
+                scope.add("files", JsonArray().apply { scope.getAsJsonArray("files").forEach { add(paths[it.asInt]) } })
+            }.toSet()
+        }
+        val baseline = run(runner("test").build()).getAsJsonObject("coverage_evidence")
+        assertTrue(baseline.getAsJsonArray("scopes").size() > 0, baseline.toString())
+
+        // A server that predates evidence uploads still takes it inline.
+        inlineThreshold = 1
+        val older = run(runner("cleanTest", "test").build()).getAsJsonObject("coverage_evidence")
+        assertEquals(scopes(baseline), scopes(older))
+        assertFalse(uploads.containsKey("/storage/evidence"))
+
+        evidenceUploads = true
+        val result = runner("cleanTest", "test").build()
+        val evidence = run(result).getAsJsonObject("coverage_evidence")
+
+        assertEquals("runs/run-1/coverage_evidence.ndjson.deflate", evidence.get("storage_key")?.asString, result.output)
+        assertFalse(evidence.has("paths"), evidence.toString())
+        assertFalse(evidence.has("scopes"), evidence.toString())
+        assertEquals("collected", evidence.get("status").asString)
+        assertEquals(0, evidence.getAsJsonArray("overlapped_tests").size())
+        // One scope per line, shaped as an inline scope but naming its files by path.
+        val inflated = java.util.zip.InflaterInputStream(uploads.getValue("/storage/evidence").inputStream(), java.util.zip.Inflater(true))
+            .readBytes().toString(Charsets.UTF_8)
+        val uploaded = inflated.lines().filter { it.isNotEmpty() }.map { JsonParser.parseString(it).asJsonObject }
+        assertEquals(scopes(baseline), uploaded.toSet())
+        assertEquals(uploaded.size, uploaded.toSet().size)
     }
 
     @Test

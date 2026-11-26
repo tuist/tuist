@@ -482,6 +482,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.initCommand.targetName),
@@ -1868,6 +1869,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.server.targetName),
+                    .external(name: "ArgumentParser"),
                 ]
             case .testCommand:
                 [

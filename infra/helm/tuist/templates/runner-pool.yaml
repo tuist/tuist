@@ -415,9 +415,11 @@ shape pool can keep a warm floor while the shape's other pools stay cold.
 {{- $shapePoolName := printf "%s-%s%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $xcodeTag $shapeKey }}
 {{- $shapeGuestVcpus := $vcpus }}
 {{- $shapeGuestMemoryGb := $memoryGb }}
+{{- $shapeGuestDiskGb := 0 }}
 {{- with get $placement.guestShapes $shapeKey }}
 {{- $shapeGuestVcpus = int (required (printf "rackFleet.runners.guestShapes.%s.vcpus required" $shapeKey) .vcpus) }}
 {{- $shapeGuestMemoryGb = int (required (printf "rackFleet.runners.guestShapes.%s.memoryGb required" $shapeKey) .memoryGb) }}
+{{- $shapeGuestDiskGb = int (.diskGb | default 0) }}
 {{- if or (lt $shapeGuestVcpus $vcpus) (lt $shapeGuestMemoryGb $memoryGb) }}
 {{- fail (printf "rackFleet.runners.guestShapes.%s is smaller than the shape it serves; a guest must be at least %d vCPU / %d GB" $shapeKey $vcpus $memoryGb) }}
 {{- end }}
@@ -465,6 +467,9 @@ spec:
     {{- end }}
   podCPUMilli: {{ mul $shapeGuestVcpus 1000 }}
   podMemoryMB: {{ mul $shapeGuestMemoryGb 1024 }}
+  {{- if gt $shapeGuestDiskGb 0 }}
+  podDiskGB: {{ $shapeGuestDiskGb }}
+  {{- end }}
   {{- $shapeIdleTimeout := dig "idleTimeoutSeconds" ($.Values.runnersFleet.idleTimeoutSeconds | default 0) $shape }}
   {{- if gt (int $shapeIdleTimeout) 0 }}
   idleTimeoutSeconds: {{ $shapeIdleTimeout }}

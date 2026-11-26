@@ -581,6 +581,38 @@ func TestUnsyncedPauseArchivesOnlyWithItsMemory(t *testing.T) {
 	if len(store.object()) == 0 {
 		t.Fatal("a refused restore must leave the archive")
 	}
+
+	// Its memory image, taken while the guest hung, never answers once
+	// loaded, so a compatible node cold boots the disks instead of failing
+	// every restore.
+	if !fakevm.UserfaultfdSupported() {
+		t.Skip("this kernel has no unprivileged userfaultfd")
+	}
+	hung := node("zen5")
+	hung.m.cfg.BootTimeout = 300 * time.Millisecond
+	hung.launcher.HungRestores = true
+	restore.SandboxID = "hung"
+	created, err := hung.m.Create(ctx, restore)
+	if err != nil {
+		t.Fatalf("restore of an unsynced archive whose guest hung: %v", err)
+	}
+	if created.MemoryPending {
+		t.Fatal("a cold boot has no memory pending")
+	}
+	launched := hung.launcher.Instances()
+	if len(launched) != 2 {
+		t.Fatalf("want the warm restore, then a cold boot; launched %d instances", len(launched))
+	}
+	booted := false
+	for _, call := range launched[1].Calls() {
+		booted = booted || call.Path == "/actions"
+	}
+	if !booted {
+		t.Fatal("the second instance did not boot the kernel")
+	}
+	if st, err := hung.m.Status(ctx, "hung"); err != nil || st.State != protocol.StateRunning {
+		t.Fatalf("after the cold boot: %+v, %v", st, err)
+	}
 }
 
 func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {

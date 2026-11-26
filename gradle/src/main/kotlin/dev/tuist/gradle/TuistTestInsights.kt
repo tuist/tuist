@@ -612,7 +612,10 @@ abstract class TuistTestInsightsService :
             configurationProvider = configurationProvider,
             httpClients = httpClients,
             connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000
+            // The CLI's per-request inactivity timeout. The report's body is buffered and sent
+            // whole before the response is read, so this is how long the server may take to answer
+            // a large run.
+            readTimeoutMs = 120_000
         )
     }
 
@@ -682,7 +685,7 @@ abstract class TuistTestInsightsService :
                 historySource = null, historyFallbackReason = null,
                 coverageEnabled = null, gitDirty = null, coverage = null, coverageEvidence = null,
                 onlyTestIdentifiers = null, skipTestIdentifiers = null
-            ) else report.copy(coverage = report.coverage?.let { attachCoverage(it, report.id, config) })
+            ) else attachCoverage(report, config)
             // Every attempt sends the same report id, and the server stores a replayed id only once
             // (a server that does not deduplicate by id stores the replay as another run).
             httpClient.retrying("Test insights request", replaySafe = true) {
@@ -788,14 +791,47 @@ abstract class TuistTestInsightsService :
             MeasuredCoverage(null, false)
         }
 
-    private fun attachCoverage(coverage: CoveragePayload, testRunId: String, config: CacheConfiguration): CoveragePayload? =
-        try {
-            CoverageUploader(httpClient, httpClients, parameters.url.get(), parameters.projectDir.asFile.get())
-                .attach(coverage, testRunId, config)
+    /**
+     * Puts the run's coverage, then its evidence, into the report, each inline when it fits what
+     * the report's body limit leaves it and uploaded otherwise, as tuist_ex does. Evidence that
+     * cannot be uploaded stays inline: without lines when it does not fit with them (carried
+     * coverage then cannot use it), and left out when it does not fit at all.
+     */
+    private fun attachCoverage(report: TestReport, config: CacheConfiguration): TestReport {
+        val uploader = CoverageUploader(httpClient, httpClients, parameters.url.get(), parameters.projectDir.asFile.get())
+        val gson = Gson()
+        fun budget(report: TestReport) = CoverageUploader.REPORT_LIMIT - gson.toJson(report).toByteArray(Charsets.UTF_8).size
+
+        val coverage = report.coverage?.let {
+            try {
+                uploader.attach(it, report.id, config, budget(report.copy(coverage = null, coverageEvidence = null)))
+            } catch (e: Exception) {
+                logger.warn("Tuist: The run's coverage could not be uploaded: ${e.message}")
+                null
+            }
+        }
+        val withCoverage = report.copy(coverage = coverage, coverageEvidence = null)
+        val evidence = report.coverageEvidence ?: return withCoverage
+        val uploaded = try {
+            uploader.attachEvidence(evidence, report.id, config, budget(withCoverage))
         } catch (e: Exception) {
-            logger.warn("Tuist: The run's coverage could not be uploaded: ${e.message}")
+            logger.info("Tuist: The run's coverage evidence could not be uploaded: ${e.message}")
             null
         }
+        if (uploaded != null) return withCoverage.copy(coverageEvidence = uploaded)
+
+        if (budget(withCoverage.copy(coverageEvidence = evidence)) >= 0) return withCoverage.copy(coverageEvidence = evidence)
+        val withoutLines = evidence.copy(scopes = evidence.scopes?.map { it.copy(lines = null) })
+        if (budget(withCoverage.copy(coverageEvidence = withoutLines)) < 0) {
+            logger.warn("Tuist: The run's coverage evidence is too large to send, so test selection cannot use this run.")
+            return withCoverage
+        }
+        logger.warn(
+            "Tuist: The run's coverage evidence is too large to send with lines, so carried coverage cannot use it; " +
+                "shard the run to keep them."
+        )
+        return withCoverage.copy(coverageEvidence = withoutLines)
+    }
 
     private fun uploadCommitListing(gitHistory: CollectedGitHistory?) {
         try {

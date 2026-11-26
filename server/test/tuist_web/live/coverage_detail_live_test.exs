@@ -384,6 +384,54 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "#coverage-runs-table", "No run matches these filters")
   end
 
+  test "lists the runs selective testing skipped whole as Partial, on the commit and on its branch, and not those with coverage off",
+       %{
+         conn: conn,
+         base: base,
+         organization: organization,
+         project: project,
+         run: run
+       } do
+    # Selective testing hit every target, so the run measured nothing and has no coverage row.
+    unmeasured = fn attrs ->
+      CoverageFixtures.run_with_coverage(
+        project,
+        organization.account,
+        [],
+        Map.merge(%{git_commit_sha: "b", xcode_coverage: nil, recompute: false}, attrs)
+      )
+    end
+
+    skipped = unmeasured.(%{scheme: "Acceptance", coverage_enabled: true})
+    # Another pipeline's job, not set up to collect coverage, is not the coverage's.
+    off = unmeasured.(%{scheme: "Deploy", coverage_enabled: false})
+    href = fn run -> "#coverage-runs-table a[href$='/tests/test-runs/#{run.id}']" end
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs")
+    assert has_element?(lv, "#coverage-run-kind-#{skipped.id}", "Partial")
+    assert has_element?(lv, "#coverage-run-kind-#{run.id}", "Full")
+    # The run's own coverage, not the commit's: it measured nothing.
+    assert has_element?(lv, "#coverage-runs-table thead", "Run coverage")
+    assert lv |> element("#coverage-runs-table tr", "Acceptance") |> render() =~ "0.0%"
+    refute has_element?(lv, href.(off))
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs&filter_run_kind_op=%3D%3D&filter_run_kind_val=partial")
+    assert has_element?(lv, href.(skipped))
+    refute has_element?(lv, href.(run))
+
+    # The Scheme filter offers a skipped run's scheme.
+    {:ok, lv, _html} =
+      live(conn, base <> "/commits/b?tab=runs&filter_run_scheme_op=%3D%3D&filter_run_scheme_val=Acceptance")
+
+    assert has_element?(lv, href.(skipped))
+    refute has_element?(lv, href.(run))
+
+    {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=runs")
+    assert has_element?(lv, "#coverage-run-kind-#{skipped.id}", "Partial")
+    assert has_element?(lv, href.(run))
+    refute has_element?(lv, href.(off))
+  end
+
   test "names Mix runs and their Command filter options after the command", %{
     conn: conn,
     organization: organization,

@@ -255,9 +255,9 @@ defmodule TuistWeb.Coverage.Components do
   attr :dirty, :boolean, default: false
 
   @doc """
-  Whether a run measured every test (Full) or selective testing left some out
-  (Partial), or, for a run from a dirty checkout, that its coverage was
-  discarded;
+  Whether a run measured every test (Full) or selective testing left some or
+  all of them out (Partial), or, for a run from a dirty checkout, that its
+  coverage was discarded;
   nil for no run.
   """
   def run_kind_cell(assigns) do
@@ -288,7 +288,7 @@ defmodule TuistWeb.Coverage.Components do
           do:
             dgettext(
               "dashboard_tests",
-              "Selective testing, or a filter, left some of the run's tests out, so it measured part of the scheme."
+              "Selective testing, or a filter, left some or all of the run's tests out, so it measured part of the scheme or none of it. Its coverage is only what it ran; the commit's figure carries what it skipped from earlier runs."
             ),
           else:
             dgettext(

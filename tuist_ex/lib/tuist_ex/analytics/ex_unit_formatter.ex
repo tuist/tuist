@@ -656,6 +656,10 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       shard_index: Keyword.get(opts, :shard_index),
       test_impact_run_id: Keyword.get(opts, :test_impact_run_id),
       scheme: Keyword.get(opts, :scheme),
+      # Whether the run was set up to collect coverage, even when selection
+      # left every test out and nothing was measured: what tells such a run
+      # apart from one without `--cover` on the same commit.
+      coverage_enabled: Keyword.get(opts, :coverage, false) == true,
       custom_metadata: Metadata.collect(opts),
       test_modules: modules
     }

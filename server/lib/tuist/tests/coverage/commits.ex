@@ -525,19 +525,34 @@ defmodule Tuist.Tests.Coverage.Commits do
     |> Map.merge(place(repository_id, sha, utc(newest.ran_at)))
   end
 
+  @doc """
+  The `having` condition a run of `test_runs`, grouped by id, meets when it
+  belongs to its commit's coverage whether or not it measured anything: from
+  a clean checkout, not a network-trusted submission, and set up to collect
+  coverage, or not saying. A run not set up to collect it, such as another
+  pipeline's test job on the same commit, says nothing about what the
+  coverage skipped. `Reported` reads a scheme skipped whole by it;
+  `run_cursor_page/3` lists a run that measured nothing only when it also
+  said it was set up to collect coverage.
+  """
+  def clean_run_condition do
+    dynamic(
+      [t],
+      fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false and
+        fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) != "network_trusted" and
+        fragment("ifNull(argMax(?, ?), true)", t.coverage_enabled, t.inserted_at)
+    )
+  end
+
   # A commit's runs from a clean checkout, measured or not, oldest first, with
   # what they reported about where the commit is: what labels a commit whose
-  # every scheme was skipped whole and moves its refs. Runs not set up to
-  # collect coverage are left out, as `Reported` leaves them out.
+  # every scheme was skipped whole and moves its refs.
   defp clean_runs(project_id, sha) do
     ClickHouseRepo.all(
       from(t in Test.query(),
         where: t.project_id == ^project_id and t.git_commit_sha == ^sha,
         group_by: t.id,
-        having:
-          fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false and
-            fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) != "network_trusted" and
-            fragment("ifNull(argMax(?, ?), true)", t.coverage_enabled, t.inserted_at),
+        having: ^clean_run_condition(),
         order_by: [asc: min(t.ran_at)],
         select: %{
           test_run_id: t.id,
@@ -1046,15 +1061,21 @@ defmodule Tuist.Tests.Coverage.Commits do
   @newest_run_first [desc: :ran_at, desc: :id]
 
   @doc """
-  One page of the runs with coverage of a subject, newest first: a commit's
+  One page of the runs behind a subject's coverage, newest first: a commit's
   (`{:commit, sha}`), or those that named a branch (`{:branch, name}`) or a
   pull request (`{:pull_request, number}`), run between `since` and `until`.
-  Runs from a dirty checkout are left out, as `runs/2` does, unless
-  `dirty: true` lists them too, with `git_dirty` set, to show why a scheme
-  is missing from a figure.
+  These are the runs that gathered coverage and the unmeasured ones
+  (`partial: true` with no lines): a run of the commit's coverage
+  (`clean_run_condition/0`) that gathered none because selective testing
+  skipped every test, which it says by reporting `coverage_enabled` true; a
+  run with coverage off, or that didn't say, is left out. Runs from a dirty
+  checkout are left out, as `runs/2` does, unless `dirty: true` lists the
+  ones that gathered coverage too, with `git_dirty` set, to show why a
+  scheme is missing from a figure.
 
   `search` keeps the schemes containing it, ignoring case; `scheme` as
-  `{:== | :!=, name}` and `partial` as a boolean narrow them further. Pages
+  `{:== | :!=, name}` and `kind` as `{:== | :!=, :full | :partial}` narrow
+  them further, an unmeasured run being partial. Pages
   are read from a cursor (`after`, `before`) of `page_size` runs (20 by
   default) along the order `test_runs` is stored in, so a page costs the same
   however long the period.
@@ -1105,46 +1126,94 @@ defmodule Tuist.Tests.Coverage.Commits do
     )
   end
 
-  # One row per run, however many times it was written; the period and the
-  # subject narrow the rows before they are grouped, along the table's order.
-  defp run_page_query(project_id, scope, opts) do
-    from(t in Test.query(),
-      where: t.project_id == ^project_id and t.id in subquery(covered_runs_query(project_id, scope, opts)),
-      group_by: t.id,
-      select: %{id: t.id, ran_at: min(t.ran_at), git_dirty: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at)}
+  @doc """
+  The schemes of the runs `run_cursor_page/3` lists for the subject with the
+  same `since`, `until` and `dirty`, whatever the search and filters, sorted:
+  what its Scheme filter offers, the schemes of runs skipped whole included.
+  """
+  def run_schemes(project_id, scope, opts \\ []) do
+    query = run_page_query(project_id, scope, Keyword.drop(opts, [:search, :scheme, :kind]))
+
+    ClickHouseRepo.all(
+      from(r in subquery(query), where: r.scheme != "", distinct: true, select: r.scheme, order_by: r.scheme),
+      settings: [select_sequential_consistency: 1]
     )
-    |> run_dirty(Keyword.get(opts, :dirty, false))
-    |> run_scope(scope)
-    |> run_period(opts)
-    |> run_scheme(Keyword.get(opts, :search, ""), Keyword.get(opts, :scheme))
   end
 
-  # The runs whose coverage counts: the ones that gathered coverage
-  # (`Coverage.gathered_runs_query/1`, the rule `runs/2` reads them by),
-  # published no earlier than the period starts, since a run's coverage
-  # lands after it.
-  defp covered_runs_query(project_id, scope, opts) do
+  # One row per run, however many times it was written; the period and the
+  # subject narrow the rows before they are grouped, along the table's order.
+  # A run is listed when it gathered coverage or, measured or not, when it
+  # belongs to its commit's coverage (`clean_run_condition/0`) and said it
+  # collected coverage: a run selective testing skipped whole has no coverage
+  # row at all, and only its `coverage_enabled` tells it from a run with
+  # coverage off. That condition reads the grouped run, so it is selected
+  # and filtered on above the grouping, where the set the run is in can be
+  # read too.
+  defp run_page_query(project_id, scope, opts) do
+    gathered = gathered_run_ids(project_id, scope, opts)
+
+    runs =
+      from(t in Test.query(),
+        where: t.project_id == ^project_id,
+        group_by: t.id,
+        select: %{
+          id: t.id,
+          ran_at: min(t.ran_at),
+          git_dirty: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at),
+          scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),
+          build_system: fragment("any(?)", t.build_system),
+          git_commit_sha: fragment("any(?)", t.git_commit_sha)
+        }
+      )
+      |> select_merge(^%{collecting: collecting_run_condition()})
+      |> run_kind(gathered, Keyword.get(opts, :kind))
+      |> run_scope(scope)
+      |> run_period(opts)
+      |> run_scheme(Keyword.get(opts, :search, ""), Keyword.get(opts, :scheme))
+
+    from(r in subquery(runs), where: ^listed_run(gathered, Keyword.get(opts, :dirty, false)))
+  end
+
+  # The runs that gathered coverage (`Coverage.gathered_runs_query/1`, the
+  # rule `runs/2` reads them by), published no earlier than the period
+  # starts, since a run's coverage lands after it.
+  defp gathered_run_ids(project_id, scope, opts) do
     query = project_id |> Coverage.gathered_runs_query() |> select([c], c.test_run_id)
 
-    query =
-      case {scope, Keyword.get(opts, :since)} do
-        {{:commit, sha}, _since} -> where(query, [c], c.git_commit_sha == ^sha)
-        {_scope, nil} -> query
-        {_scope, since} -> where(query, [c], c.inserted_at >= ^since)
-      end
-
-    case Keyword.get(opts, :partial) do
-      nil -> query
-      partial -> having(query, [c], fragment("argMax(?, ?)", c.partial, c.version) == ^partial)
+    case {scope, Keyword.get(opts, :since)} do
+      {{:commit, sha}, _since} -> where(query, [c], c.git_commit_sha == ^sha)
+      {_scope, nil} -> query
+      {_scope, since} -> where(query, [c], c.inserted_at >= ^since)
     end
+  end
+
+  defp collecting_run_condition do
+    dynamic(
+      [t],
+      ^clean_run_condition() and fragment("ifNull(argMax(?, ?), false)", t.coverage_enabled, t.inserted_at)
+    )
+  end
+
+  defp listed_run(gathered, true), do: dynamic([r], r.collecting or r.id in subquery(gathered))
+
+  defp listed_run(gathered, false),
+    do: dynamic([r], r.collecting or (r.id in subquery(gathered) and r.git_dirty == false))
+
+  # A listed run is full when its totals say so and partial otherwise, an
+  # unmeasured run included, so both kinds read the one set of full runs.
+  defp run_kind(query, _gathered, nil), do: query
+
+  defp run_kind(query, gathered, {operator, kind}) do
+    full = having(gathered, [c], fragment("argMax(?, ?)", c.partial, c.version) == false)
+
+    if operator == :== == (kind == :full),
+      do: where(query, [t], t.id in subquery(full)),
+      else: where(query, [t], t.id not in subquery(full))
   end
 
   defp run_scope(query, {:commit, sha}), do: where(query, [t], t.git_commit_sha == ^sha)
   defp run_scope(query, {:branch, branch}), do: where(query, [t], t.git_branch == ^branch)
   defp run_scope(query, {:pull_request, number}), do: where(query, [t], t.pull_request_number == ^number)
-
-  defp run_dirty(query, true), do: query
-  defp run_dirty(query, false), do: having(query, [t], fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false)
 
   defp run_period(query, opts) do
     query = if since = Keyword.get(opts, :since), do: where(query, [t], t.ran_at >= ^since), else: query
@@ -1191,7 +1260,8 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   # The page's runs with their totals, read by run id along the totals'
-  # order.
+  # order. A run without totals gathered no coverage: selective testing
+  # skipped every test, so it is unmeasured and partial.
   defp with_run_totals(_project_id, []), do: []
 
   defp with_run_totals(project_id, rows) do
@@ -1204,10 +1274,15 @@ defmodule Tuist.Tests.Coverage.Commits do
       |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
       |> Map.new(&{&1.test_run_id, &1})
 
-    Enum.flat_map(rows, fn row ->
+    Enum.map(rows, fn row ->
       case Map.get(totals, row.id) do
-        nil -> []
-        total -> [Map.merge(total, %{ran_at: row.ran_at, git_dirty: row.git_dirty})]
+        nil ->
+          row
+          |> Map.take([:scheme, :build_system, :git_commit_sha, :ran_at, :git_dirty])
+          |> Map.merge(%{test_run_id: row.id, covered_lines: 0, executable_lines: 0, partial: true})
+
+        total ->
+          Map.merge(total, %{ran_at: row.ran_at, git_dirty: row.git_dirty})
       end
     end)
   end

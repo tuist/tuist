@@ -749,21 +749,6 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   @doc """
-  The schemes that measured the branch's commits in the period, by the runs
-  that named the branch: the schemes its Test Runs tab filters by.
-  """
-  def branch_schemes(%Project{} = project, branch, opts \\ []) do
-    CoverageCommit
-    |> where([c], c.project_id == ^project.id)
-    |> labelled(branch)
-    |> ran_in(opts)
-    |> select([c], fragment("unnest(? || ?)", c.schemes, c.partial_schemes))
-    |> distinct(true)
-    |> Repo.all()
-    |> Enum.sort()
-  end
-
-  @doc """
   The branches whose runs never named a pull request, the most recently
   measured first, at most `limit` of them (100 by default): the branches the
   Code Coverage page picks its analytics from, those with a commit a list

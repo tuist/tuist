@@ -13,6 +13,7 @@ on:
       - CLI Canary Release
       - CLI Promote to Stable
       - CLI Release Candidate
+      - Cloudflare IP Ranges
       - CNPG Restore Drill
       - Gradle
       - Gradle Cache Acceptance

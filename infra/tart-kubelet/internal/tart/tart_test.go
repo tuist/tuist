@@ -159,6 +159,31 @@ func TestRegenerateIdentityRunsRandomSerial(t *testing.T) {
 	}
 }
 
+// TestResizeDiskRunsDiskSize pins `tart set --disk-size`, whose unit is
+// decimal GB, the unit RunnerPoolSpec.PodDiskGB is in.
+func TestResizeDiskRunsDiskSize(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args.txt")
+	script := filepath.Join(dir, "faketart")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + argsPath + "'\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{Binary: script}
+	if err := c.ResizeDisk(context.Background(), "vm-1", 400); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "set\nvm-1\n--disk-size\n400\n"; string(got) != want {
+		t.Fatalf("tart args = %q, want %q", string(got), want)
+	}
+}
+
 func TestStageEnvFile(t *testing.T) {
 	dir := t.TempDir()
 	c := &Client{UserDataDir: dir}

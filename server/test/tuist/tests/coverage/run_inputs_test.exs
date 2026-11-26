@@ -11,6 +11,7 @@ defmodule Tuist.Tests.Coverage.RunInputsTest do
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.RunInputs
   alias Tuist.Tests.Coverage.Workers.CommitWorker
+  alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -189,7 +190,7 @@ defmodule Tuist.Tests.Coverage.RunInputsTest do
       created_at: ~N[2026-11-24 10:00:06.000001]
     }
 
-    assert :ok = RunInputs.event_written(event, %{targets: 2, inserted_at: targets_at})
+    assert :ok = RunInputs.event_written(event, %{targets: 2, inserted_at: targets_at}, true)
     insert_rows("command_events", [%{id: event_id, project_id: project.id, name: "test"}])
 
     insert_rows("xcode_targets", [
@@ -202,6 +203,31 @@ defmodule Tuist.Tests.Coverage.RunInputsTest do
 
     insert_rows("xcode_targets", [%{id: UUIDv7.generate(), command_event_id: event_id, inserted_at: targets_at}])
     assert RunInputs.status(project.id, "c1") == :ready
+  end
+
+  test "a command event that landed before its run's report declared the run joins the commit with that report", %{
+    project: project
+  } do
+    # A shard that reported no coverage sent this event, without a hit; a later shard reports coverage.
+    run = %Test{id: UUIDv7.generate(), project_id: project.id, git_commit_sha: "c1"}
+
+    event = %{
+      id: UUIDv7.generate(),
+      project_id: project.id,
+      test_run_id: run.id,
+      git_commit_sha: "c1",
+      created_at: NaiveDateTime.utc_now()
+    }
+
+    assert :ok = RunInputs.event_written(event, %{targets: 2, inserted_at: NaiveDateTime.utc_now()}, false)
+    assert manifest(project, "c1") == %{}
+
+    RunInputs.declare(run, 1, %{})
+
+    assert %{"command_events" => %{key: key, row_count: 1}, "xcode_targets" => %{row_count: 2}} =
+             manifest(project, "c1")
+
+    assert key == event.id
   end
 
   test "a fold snoozes, writing nothing, until its runs' inputs are stored", %{account: account, project: project} do

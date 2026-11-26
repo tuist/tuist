@@ -272,7 +272,7 @@ defmodule Tuist.Tests.Coverage.Schemas do
         status: %Schema{
           type: :string,
           description:
-            "`full`: the run measured everything it was asked to. `partial`: it skipped tests on purpose, such as through selective testing, so it measured only what it ran. `discarded`: it ran from a dirty checkout, so its coverage doesn't join its commit's. More values can be added."
+            "`full`: the run measured everything it was asked to. `partial`: it skipped tests on purpose, such as through selective testing, so it measured only what it ran. A run selective testing skipped whole is `partial` with no lines and a `coverage` of 0. `discarded`: it ran from a dirty checkout, so its coverage doesn't join its commit's. More values can be added."
         },
         covered_lines: %Schema{type: :integer},
         executable_lines: %Schema{type: :integer},
@@ -287,7 +287,8 @@ defmodule Tuist.Tests.Coverage.Schemas do
     %Schema{
       title: "CoverageRuns",
       type: :object,
-      description: "A page of the test runs with coverage behind a commit or a branch, newest first.",
+      description:
+        "A page of the test runs behind the coverage of a commit or a branch, newest first: those that gathered coverage and those set up to collect it that selective testing skipped whole.",
       properties: %{
         runs: %Schema{type: :array, items: run_row()},
         pagination: cursor_pagination()

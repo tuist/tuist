@@ -7,9 +7,8 @@ metadata:
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: registry
-  {{- with .Values.registry.ingress.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
+  {{- with include "tuist.ingressAnnotations" (dict "root" . "annotations" .Values.registry.ingress.annotations "cloudflareOnly" .Values.registry.ingress.cloudflareOnly) }}
+  {{- . | trim | nindent 2 }}
   {{- end }}
 spec:
   {{- with .Values.registry.ingress.className }}

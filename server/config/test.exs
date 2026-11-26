@@ -52,6 +52,10 @@ config :tuist, Tuist.IngestRepo,
   pool_size: System.schedulers_online() * 2,
   queue_target: 5000,
   queue_interval: 1000,
+  # Same headroom as Tuist.Repo: on oversubscribed CI runners ClickHouse can
+  # stall a single insert past the 15s default, which drops the connection and
+  # its sandbox transaction, so retries cannot recover the test.
+  timeout: 60_000,
   sync_writes: true,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201

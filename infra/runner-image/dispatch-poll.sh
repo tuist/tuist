@@ -315,8 +315,53 @@ check_tcc_approvals() {
   return 0
 }
 
+# grow_disk_container claims, before the first poll, the space the host
+# added to the VM's disk (tart-kubelet's `tart set --disk-size`, for pools
+# with `podDiskGB`). The image's container already fills the image's
+# disk, so on every other VM nothing is unclaimed and this returns at
+# once. Same judgement as the image build's resize in runner.pkr.hcl: the
+# live resize intermittently fails with -69606 and rolls itself back, so
+# each attempt is judged by the sizes afterwards, and space outside the
+# container up to 10 GB (the macOS 27 base keeps about 5.9 GB there) is
+# not worth claiming. Best-effort: a VM that cannot grow still serves its
+# job on the image's disk, so this never stops the poll loop.
+grow_disk_container() {
+  local store disk unclaimed attempt i sum s
+  store=$(diskutil info / 2>/dev/null | awk -F': *' '/APFS Physical Store/ { print $2 }')
+  [ -n "${store}" ] || return 0
+  disk="${store%s*}"
+  disk_size() { diskutil info -plist "$1" | plutil -extract TotalSize raw - 2>/dev/null; }
+  partitioned() {
+    i=0
+    sum=0
+    while s=$(diskutil list -plist "${disk}" | plutil -extract "AllDisksAndPartitions.0.Partitions.${i}.Size" raw - 2>/dev/null); do
+      sum=$((sum + s))
+      i=$((i + 1))
+    done
+    echo "${sum}"
+  }
+  unclaimed=$(($(disk_size "${disk}") - $(partitioned)))
+  [ "${unclaimed}" -gt 10000000000 ] || return 0
+  echo "$(date -u +%FT%TZ) dispatch-poll: disk: ${unclaimed} bytes of ${disk} are outside the APFS container, growing it"
+  # The host grew the disk while the VM was stopped, so the GPT's backup
+  # header still sits at the old end; repairDisk moves it there.
+  printf 'y\n' | sudo diskutil repairDisk "${disk}" >/dev/null 2>&1 || true
+  for attempt in 1 2 3 4 5; do
+    sudo diskutil apfs resizeContainer "${store}" 0 >/dev/null 2>&1 || true
+    unclaimed=$(($(disk_size "${disk}") - $(partitioned)))
+    if [ "${unclaimed}" -le 10000000000 ]; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: disk: container is $(disk_size "${store}") bytes after attempt ${attempt}"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "$(date -u +%FT%TZ) dispatch-poll: WARNING disk: ${unclaimed} bytes of ${disk} are still outside the APFS container; the job keeps the image's disk"
+  return 0
+}
+
 stream_tcc_log
 check_tcc_approvals
+grow_disk_container
 
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in

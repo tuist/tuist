@@ -129,8 +129,13 @@ ingress-nginx:
       # proxy-real-ip-cidr (0.0.0.0/0 by default), and with the load
       # balancer's own address when that header is absent. The http-snippet
       # renders after the controller's own more_set_input_headers, so this
-      # value wins. Earlier controllers read the PROXY header directly and
-      # only forward this header upstream, where nothing reads it.
+      # value wins, but only for requests that arrive without the header:
+      # real_ip reads the header in nginx's post-read phase, before any
+      # more_set_input_headers runs, so a client that sends it sets
+      # $remote_addr. Turning `use-forwarded-headers` off makes real_ip read
+      # the PROXY header itself, which closes that; the staging overlay does.
+      # Earlier controllers read the PROXY header directly and only forward
+      # this header upstream, where nothing reads it.
       http-snippet: 'more_set_input_headers "X-Forwarded-For-Proxy-Protocol: $proxy_protocol_addr";'
     # The address of the edge that opened this connection, which the
     # application needs and cannot otherwise see: the address the load

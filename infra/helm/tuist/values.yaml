@@ -8,6 +8,34 @@ global:
   nodeSelector: {}
   tolerations: []
 
+# Cloudflare's edge address ranges (https://api.cloudflare.com/client/v4/ips).
+# An Ingress with `cloudflareOnly: true` admits only these client addresses,
+# so a request sent straight to the origin load balancer gets a 403 instead
+# of skipping Cloudflare's WAF, bot management and rate limits. Only set
+# `cloudflareOnly` on hosts Cloudflare proxies: on a DNS-only host it blocks
+# every client. Requires ingress-nginx to take the client address only from
+# the PROXY protocol header (`use-proxy-protocol` on, `use-forwarded-headers`
+# off, as in the platform chart's staging overlay). With forwarded headers on,
+# a client that sends `X-Forwarded-For-Proxy-Protocol` picks the address the
+# allowlist checks. `.github/workflows/cloudflare-ip-ranges.yml` fails when
+# Cloudflare's published list stops matching this one.
+cloudflareIPRanges: []
+
+# Ingress NetworkPolicies on the managed data plane (CNPG instances and
+# pooler, managed ClickHouse and Keeper) that admit only the chart's own
+# database clients, the CNPG operator, the metrics collector, and the
+# Tailscale proxies of the tailnet Services. See
+# templates/data-networkpolicy.yaml.
+dataNetworkPolicy:
+  enabled: false
+  cnpgOperatorNamespace: platform
+  observabilityNamespace: observability
+  # The collector pods in `observabilityNamespace` that scrape the metrics
+  # ports (k8s-monitoring's alloy-metrics).
+  metricsPodLabels:
+    app.kubernetes.io/name: alloy-metrics
+  tailscaleNamespace: tailscale-operator
+
 # Grace-period garbage collector for orphaned Hetzner block volumes (PVs left
 # Released by CNPG rebuilds, StatefulSet teardowns, etc. under the hcloud-volumes
 # Retain default). Ships to every cluster the chart is applied to. Safe to leave
@@ -1138,6 +1166,9 @@ server:
     # cert-manager annotations on the Ingress.
     tlsSecretName: ""
     annotations: {}
+    # Admit only `cloudflareIPRanges` on this host, including the browser
+    # RUM collector path. See `cloudflareIPRanges`.
+    cloudflareOnly: false
     # extraPaths is merged before the default "/" path so cert-manager
     # HTTP01 solvers (and similar) can inject their own route.
     extraPaths: []
@@ -1469,6 +1500,8 @@ registry:
     host: ""
     tlsSecretName: ""
     annotations: {}
+    # Admit only `cloudflareIPRanges` on this host. See `cloudflareIPRanges`.
+    cloudflareOnly: false
   serviceAccount:
     create: true
     name: ""
@@ -2113,9 +2146,12 @@ rackFleet:
     # against concurrency limits at the shape; only its Pods grow. Size the
     # hosts' `machine` for the guests, and keep memory per vCPU the same across
     # this fleet's guests so memory binds guest count where CPU does. A guest
-    # smaller than its shape fails the render.
+    # smaller than its shape fails the render. `diskGb` (non-default shapes
+    # only) grows the guest's disk past the image's `disk_size_gb` before it
+    # boots; count it in the hosts' disk plan.
     guestShapes: {}
     #   8vcpu-24gb: { vcpus: 10, memoryGb: 30 }
+    #   16vcpu-48gb: { vcpus: 16, memoryGb: 48, diskGb: 400 }
     # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
     # each with its `autoscaling` (and optional `rollout`). A shape not named
     # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit

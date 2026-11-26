@@ -139,6 +139,7 @@ defmodule Tuist.Shards do
   # A build system whose plans distribute a selection by module (Mix) sends
   # only the modules with something to run, so its plan balances them as
   # without one and keeps the run, and each shard reads the run's skip list.
+  # It keeps a fallback too, whose shards read the run without a skip list.
   defp plan_inputs(project, params) do
     with run_id when is_binary(run_id) <- Map.get(params, :test_impact_run_id),
          {:ok, selection} <- TestImpactAnalysis.Runs.shard_units(project.id, run_id) do

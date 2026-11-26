@@ -1,0 +1,190 @@
+{{- /*
+Ingress allowlists for the managed data plane: the CNPG Postgres instances,
+their PgBouncer pooler, ClickHouse, and ClickHouse Keeper. Without them any
+pod in the cluster can open a connection to the databases, and the only
+control left is the database password.
+
+The client list comes from the chart's own consumers and from Hubble flows
+into these pods on staging. Tailnet clients (the macOS fleet's
+xcresult-processor) arrive through the Tailscale operator's proxy for that
+one Service, never through the cluster subnet router. Kubelet probes come
+from the local host, which Cilium admits without a rule.
+
+Ingress rules use the pods' named ports, which resolve against the selected
+pod itself (see pentest-data-networkpolicy.yaml for why egress rules cannot).
+*/}}
+{{- if .Values.dataNetworkPolicy.enabled }}
+{{- $np := .Values.dataNetworkPolicy }}
+{{- $ns := .Release.Namespace }}
+{{- $metricsFrom := dict "namespaceSelector" (dict "matchLabels" (dict "kubernetes.io/metadata.name" $np.observabilityNamespace)) "podSelector" (dict "matchLabels" $np.metricsPodLabels) }}
+{{- $postgresClients := list "server" "server-migration" "processor" "xcresult-processor" "swift-registry-sync" "cache" "pdc-agent" }}
+{{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
+{{- $cluster := include "tuist.cnpgClusterName" . }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-instance-ingress") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pg-instance-ingress
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ $cluster }}
+      cnpg.io/podRole: instance
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range $postgresClients }}
+        - podSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" $ "component" .) | nindent 14 }}
+        {{- end }}
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ $cluster }}
+      ports:
+        - protocol: TCP
+          port: postgresql
+    - from:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ $cluster }}
+              cnpg.io/podRole: instance
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $np.cnpgOperatorNamespace | quote }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudnative-pg
+      ports:
+        - protocol: TCP
+          port: status
+    - from:
+        - {{- toYaml $metricsFrom | nindent 10 }}
+      ports:
+        - protocol: TCP
+          port: metrics
+{{- if .Values.postgresql.cnpg.pooler.enabled }}
+{{- $pooler := include "tuist.cnpgServicePooler" . }}
+{{- $tailscale := .Values.postgresql.cnpg.pooler.tailscale }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-pooler-ingress") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pg-pooler-ingress
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/poolerName: {{ $pooler }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range $postgresClients }}
+        - podSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" $ "component" .) | nindent 14 }}
+        {{- end }}
+        {{- if $tailscale.enabled }}
+        {{- include "tuist.dataTailnetProxies" (dict "namespace" $np.tailscaleNamespace "releaseNamespace" $ns "service" $pooler "proxyGroup" $tailscale.proxyGroup) | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: pgbouncer
+    - from:
+        - {{- toYaml $metricsFrom | nindent 10 }}
+      ports:
+        - protocol: TCP
+          port: metrics
+{{- end }}
+{{- end }}
+{{- if .Values.clickhouse.managed.enabled }}
+{{- $tailscale := .Values.clickhouse.managed.tailscale }}
+{{- $chName := include "tuist.componentName" (dict "root" . "component" "clickhouse") }}
+{{- $clickhouse := include "tuist.componentLabels" (dict "root" . "component" "clickhouse") }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse-managed-ingress") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-managed-ingress
+spec:
+  podSelector:
+    matchLabels:
+      {{- $clickhouse | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range list "server" "server-migration" "processor" "xcresult-processor" "swift-registry-sync" "pdc-agent" }}
+        - podSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" $ "component" .) | nindent 14 }}
+        {{- end }}
+        {{- if $tailscale.enabled }}
+        {{- include "tuist.dataTailnetProxies" (dict "namespace" $np.tailscaleNamespace "releaseNamespace" $ns "service" (printf "%s-tailnet" $chName) "proxyGroup" $tailscale.proxyGroup) | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: http
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-backup") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- $clickhouse | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: native
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $clickhouse | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: interserver
+    - from:
+        - {{- toYaml $metricsFrom | nindent 10 }}
+      ports:
+        - protocol: TCP
+          port: metrics
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse-keeper-ingress") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-keeper-ingress
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-keeper") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $clickhouse | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: client
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-keeper") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: raft
+    - from:
+        - {{- toYaml $metricsFrom | nindent 10 }}
+      ports:
+        - protocol: TCP
+          port: metrics
+{{- end }}
+{{- end }}

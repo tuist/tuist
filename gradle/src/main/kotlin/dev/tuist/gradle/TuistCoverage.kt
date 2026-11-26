@@ -305,20 +305,33 @@ data class CoverageFunctionPayload(
     @SerializedName("executable_lines") val executableLines: Int
 )
 
+/** Uploaded evidence names its `storage_key` instead of carrying `paths` and `scopes`. */
 data class CoverageEvidencePayload(
-    val paths: List<String>,
-    val scopes: List<CoverageEvidenceScope>,
+    val paths: List<String>?,
+    val scopes: List<CoverageEvidenceScope>?,
     @SerializedName("overlapped_tests") val overlappedTests: List<CoverageOverlappedTest>,
-    val status: String
+    val status: String,
+    @SerializedName("storage_key") val storageKey: String? = null
 )
 
+/** `lines` is null when the evidence is too large for the report's body with them. */
 data class CoverageEvidenceScope(
     val kind: String,
     val module: String,
     val suite: String,
     val name: String,
     val files: List<Int>,
-    val lines: List<List<Int>>
+    val lines: List<List<Int>>?
+)
+
+/** An uploaded evidence line: an inline scope that names its files by path. */
+private data class CoverageEvidenceUploadScope(
+    val kind: String,
+    val module: String,
+    val suite: String,
+    val name: String,
+    val files: List<String>,
+    val lines: List<List<Int>>?
 )
 
 data class CoverageOverlappedTest(val module: String, val suite: String, val name: String)
@@ -919,18 +932,56 @@ internal class CoverageUploader(
 ) {
     private val gson = com.google.gson.Gson()
 
-    fun attach(coverage: CoveragePayload, testRunId: String, config: CacheConfiguration): CoveragePayload {
+    private var threshold: Int? = null
+
+    /**
+     * Inline when the coverage's uncompressed size is within the server's threshold and within
+     * [budget], what the report's body limit leaves it.
+     */
+    fun attach(coverage: CoveragePayload, testRunId: String, config: CacheConfiguration, budget: Long): CoveragePayload {
         val files = coverage.files ?: return coverage
         val ndjson = files.joinToString("\n") { gson.toJson(it) }.toByteArray(Charsets.UTF_8)
         // The server holds an inline run to its body limit after inflating it, and coverage
         // compresses tenfold or more, so the inline decision reads the uncompressed size.
-        if (ndjson.size <= inlineThreshold(config)) return coverage
-        val compressed = deflate(ndjson)
+        if (ndjson.size <= minOf(inlineThreshold(config).toLong(), budget)) return coverage
 
         val upload = request(config, "POST", "uploads", mapOf("test_run_id" to testRunId))
         val storageKey = upload?.get("storage_key")?.asString ?: throw java.io.IOException("the server returned no storage key")
         val uploadUrl = upload.get("upload_url")?.asString ?: throw java.io.IOException("the server returned no upload URL")
-        httpClient.retrying("Coverage upload", replaySafe = true) {
+        put("Coverage upload", uploadUrl, deflate(ndjson))
+        return coverage.copy(files = null, storageKey = storageKey)
+    }
+
+    /**
+     * Uploads the run's per-test evidence, one scope per line naming its files by path, when its
+     * uncompressed size is past the server's threshold or [budget], what the report's body limit
+     * leaves it once the coverage is in. Null when it stays inline: it is small enough, or the
+     * server predates evidence uploads. Throws when the upload failed.
+     */
+    fun attachEvidence(evidence: CoverageEvidencePayload, testRunId: String, config: CacheConfiguration, budget: Long): CoverageEvidencePayload? {
+        val paths = evidence.paths ?: return null
+        val scopes = evidence.scopes ?: return null
+        val ndjson = java.io.ByteArrayOutputStream()
+        java.io.OutputStreamWriter(ndjson, Charsets.UTF_8).use { writer ->
+            scopes.forEach { scope ->
+                gson.toJson(
+                    CoverageEvidenceUploadScope(scope.kind, scope.module, scope.suite, scope.name, scope.files.map { paths[it] }, scope.lines),
+                    writer
+                )
+                writer.write("\n")
+            }
+        }
+        if (ndjson.size() <= minOf(inlineThreshold(config).toLong(), budget)) return null
+
+        val upload = request(config, "POST", "uploads", mapOf("test_run_id" to testRunId))
+        val storageKey = upload?.get("evidence_storage_key")?.asString ?: return null
+        val uploadUrl = upload.get("evidence_upload_url")?.asString ?: return null
+        put("Coverage evidence upload", uploadUrl, deflate(ndjson.toByteArray()))
+        return evidence.copy(paths = null, scopes = null, storageKey = storageKey)
+    }
+
+    private fun put(operation: String, uploadUrl: String, compressed: ByteArray) {
+        httpClient.retrying(operation, replaySafe = true) {
             val connection = httpClients.openConnection(java.net.URI(uploadUrl), readTimeoutMs = 120_000)
             try {
                 connection.requestMethod = "PUT"
@@ -939,21 +990,21 @@ internal class CoverageUploader(
                 connection.outputStream.use { it.write(compressed) }
                 val status = connection.responseCode
                 if (status !in 200..299) {
-                    throw TuistRetry.statusFailure(connection, status) { java.io.IOException("the coverage upload failed with HTTP $status") }
+                    throw TuistRetry.statusFailure(connection, status) { java.io.IOException("the upload failed with HTTP $status") }
                 }
             } finally {
                 connection.disconnect()
             }
         }
-        return coverage.copy(files = null, storageKey = storageKey)
     }
 
+    // Asked once: coverage and evidence share it.
     private fun inlineThreshold(config: CacheConfiguration): Int =
-        try {
+        threshold ?: try {
             request(config, "GET", "settings", null)?.get("inline_threshold_bytes")?.asInt ?: DEFAULT_INLINE_THRESHOLD
         } catch (_: Exception) {
             DEFAULT_INLINE_THRESHOLD
-        }
+        }.also { threshold = it }
 
     private fun request(config: CacheConfiguration, method: String, path: String, body: Any?): com.google.gson.JsonObject? {
         val baseUrl = ServerUrlResolver.resolve(serverUrl, projectDir).trimEnd('/')
@@ -985,6 +1036,9 @@ internal class CoverageUploader(
 
     companion object {
         private const val DEFAULT_INLINE_THRESHOLD = 5_000_000
+
+        /** The server's 50 MB report body limit, less room for what the estimate leaves out. */
+        const val REPORT_LIMIT = 50_000_000L - 1_000_000L
 
         /** Raw DEFLATE, which the server inflates. */
         fun deflate(data: ByteArray): ByteArray {

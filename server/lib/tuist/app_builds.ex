@@ -9,6 +9,9 @@ defmodule Tuist.AppBuilds do
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
+  # Longer than a `tuist share` upload of the largest preview takes.
+  @abandoned_upload_seconds 3600
+
   @preview_install_salt "preview_install"
   @preview_install_token_ttl_seconds 24 * 60 * 60
   @preview_icon_salt "preview_icon"
@@ -172,6 +175,66 @@ defmodule Tuist.AppBuilds do
     %AppBuild{}
     |> AppBuild.create_changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Inserts the app build a `tuist share` upload starts, not completed until
+  `mark_upload_completed/1`. When an earlier upload of the same binary
+  (`binary_id` and `build_version`) in the same project never completed, the
+  upload takes over that build instead of conflicting with it, so a share that
+  failed or was cancelled midway can be retried: at once when it is the same
+  share again (same preview and type, so the same artifact under the same
+  key), otherwise once nothing has started it for
+  `#{div(@abandoned_upload_seconds, 60)}` minutes. An upload that may still be
+  running for another preview keeps its build, and the start conflicts.
+  """
+  def start_app_build(attrs) do
+    attrs = Map.put(attrs, :upload_completed, false)
+
+    case create_app_build(attrs) do
+      {:error, %Ecto.Changeset{errors: errors}} = error ->
+        if Keyword.has_key?(errors, :binary_id), do: take_over_unfinished_app_build(attrs, error), else: error
+
+      result ->
+        result
+    end
+  end
+
+  # The row is locked, so a complete or another takeover that commits first
+  # is seen: PostgreSQL rechecks the conditions on the locked row.
+  defp take_over_unfinished_app_build(attrs, conflict) do
+    now = DateTime.utc_now(:second)
+    abandoned_before = DateTime.add(now, -@abandoned_upload_seconds, :second)
+    project_previews = from(p in Preview, where: p.project_id == ^attrs.project_id, select: p.id)
+
+    Repo.transaction(fn ->
+      unfinished =
+        Repo.one(
+          from(ab in AppBuild,
+            where: ab.binary_id == ^attrs.binary_id and ab.build_version == ^attrs.build_version,
+            where: ab.type != :apk and not ab.upload_completed and ab.preview_id in subquery(project_previews),
+            where: (ab.preview_id == ^attrs.preview_id and ab.type == ^attrs.type) or ab.updated_at < ^abandoned_before,
+            lock: "FOR UPDATE"
+          )
+        )
+
+      with %AppBuild{} = app_build <- unfinished,
+           # A new upload starts its own retention window, which retention
+           # reads from `inserted_at`.
+           {:ok, app_build} <-
+             app_build
+             |> AppBuild.create_changeset(
+               attrs
+               |> Map.take([:preview_id, :type, :supported_platforms, :supported_architectures])
+               |> Map.put(:inserted_at, now)
+             )
+             |> Repo.update(force: true) do
+        app_build
+      else
+        nil -> conflict |> elem(1) |> Repo.rollback()
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
   end
 
   def mark_upload_completed(%AppBuild{upload_completed: true} = app_build), do: {:ok, app_build}

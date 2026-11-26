@@ -11,10 +11,11 @@ generateCredentials: true
 target:
   id: rustfs-larch-production-v1
   site: larch
-  # Flip once a Mac at each site gets a RustFS answer (403 without a
-  # signature) from its entrance name: curl -sS -o /dev/null -w '%{http_code}'
-  # https://<host>/shards/
-  runnerEntrancesReady: false
+  # Published for the tuist account first: runner_shard_storage is on only
+  # there, and the first Mac plans are the entrances' end-to-end check. A Mac at
+  # each site should get a RustFS answer (403 without a signature) from its
+  # entrance name: curl -sS -o /dev/null -w '%{http_code}' https://<host>/shards/
+  runnerEntrancesReady: true
 privateNetwork:
   enabled: true
   # Only the server: Linux runners never place here (target.site is larch).

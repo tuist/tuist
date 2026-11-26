@@ -44,6 +44,13 @@ ciliumEgressGateway:
 
 ingress-nginx:
   controller:
+    # Take the client address only from the PROXY header, which a client
+    # cannot write. See the staging overlay and the base http-snippet for
+    # why: with forwarded headers on, a direct client that sends
+    # X-Forwarded-For-Proxy-Protocol chooses $remote_addr and passes the
+    # Cloudflare allowlist on Ingresses with `cloudflareOnly`.
+    config:
+      use-forwarded-headers: "false"
     service:
       annotations:
         load-balancer.hetzner.cloud/location: fsn1
