@@ -204,7 +204,8 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
              %{
                agent_environment_id: build.agent_environment_id,
                repository: build.repository,
-               setup_sha256: build.setup_sha256
+               setup_sha256: build.setup_sha256,
+               commit_sha: build.commit_sha
              },
              releases: sandbox
            ) do

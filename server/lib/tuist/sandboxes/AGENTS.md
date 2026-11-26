@@ -440,7 +440,17 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `tuist generate` takes more targets from the binary cache as it fills in
   after a push, which changes their dependents' build settings, and a
   session's first build recompiled 302 files of the Tuist app a few hours
-  after its snapshot (measured, 2026-11).
+  after its snapshot (measured, 2026-11). A build records the default
+  branch's head it cloned (`commit_sha`, from GitHub through the account's
+  installation), and `RefreshMacSnapshotsWorker` (every ten minutes,
+  `refresh_mac_snapshots/0`) rebuilds a snapshot of the current script that
+  is at least half an hour old once the head moved, while Macs were created
+  for its repository on its template in the last day, so sessions boot from
+  a recent head instead of waiting out the six hours. A builder whose create
+  or command failed for the infrastructure (no room, a host that
+  disconnected or timed out, CI taking the slot) is replaced on the next
+  step; only a script that exits non-zero, or a builder that dies after its
+  command started, fails the build and holds the key for an hour.
   Such a Mac records the repository (`sandboxes.repository`): the Macs
   created for it on the snapshot's template in 24 hours, except creates that
   failed (`error`), are the snapshot's spawns, which make it popular and so copied out like an Orb snapshot (the
