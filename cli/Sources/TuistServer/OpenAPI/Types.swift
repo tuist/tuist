@@ -16000,6 +16000,10 @@ public enum Components {
         public struct SelectiveTestingChangedFiles: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SelectiveTestingChangedFiles/changed_filesPayload`.
             public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
+                /// The tracked-file pattern that matches it, a build system default or one the project configured; null when it isn't tracked.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SelectiveTestingChangedFiles/changed_filesPayload/matched_pattern`.
+                public var matched_pattern: Swift.String?
                 /// The file's path, relative to the repository's root.
                 ///
                 /// - Remark: Generated from `#/components/schemas/SelectiveTestingChangedFiles/changed_filesPayload/path`.
@@ -16019,22 +16023,26 @@ public enum Components {
                 /// Creates a new `changed_filesPayloadPayload`.
                 ///
                 /// - Parameters:
+                ///   - matched_pattern: The tracked-file pattern that matches it, a build system default or one the project configured; null when it isn't tracked.
                 ///   - path: The file's path, relative to the repository's root.
                 ///   - selected_tests_count: How many tests the file selected.
                 ///   - status: The change, as `git diff --raw` reports it.
                 ///   - tracked: Whether it's a tracked file, such as a dependency pin or build setting, whose change makes selection fall back.
                 public init(
+                    matched_pattern: Swift.String? = nil,
                     path: Swift.String,
                     selected_tests_count: Swift.Int,
                     status: Swift.String,
                     tracked: Swift.Bool
                 ) {
+                    self.matched_pattern = matched_pattern
                     self.path = path
                     self.selected_tests_count = selected_tests_count
                     self.status = status
                     self.tracked = tracked
                 }
                 public enum CodingKeys: String, CodingKey {
+                    case matched_pattern
                     case path
                     case selected_tests_count
                     case status
@@ -31281,6 +31289,10 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/SelectiveTestingChangedFile`.
         public struct SelectiveTestingChangedFile: Codable, Hashable, Sendable {
+            /// The tracked-file pattern that matches it, a build system default or one the project configured; null when it isn't tracked.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SelectiveTestingChangedFile/matched_pattern`.
+            public var matched_pattern: Swift.String?
             /// The file's path, relative to the repository's root.
             ///
             /// - Remark: Generated from `#/components/schemas/SelectiveTestingChangedFile/path`.
@@ -31300,22 +31312,26 @@ public enum Components {
             /// Creates a new `SelectiveTestingChangedFile`.
             ///
             /// - Parameters:
+            ///   - matched_pattern: The tracked-file pattern that matches it, a build system default or one the project configured; null when it isn't tracked.
             ///   - path: The file's path, relative to the repository's root.
             ///   - selected_tests_count: How many tests the file selected.
             ///   - status: The change, as `git diff --raw` reports it.
             ///   - tracked: Whether it's a tracked file, such as a dependency pin or build setting, whose change makes selection fall back.
             public init(
+                matched_pattern: Swift.String? = nil,
                 path: Swift.String,
                 selected_tests_count: Swift.Int,
                 status: Swift.String,
                 tracked: Swift.Bool
             ) {
+                self.matched_pattern = matched_pattern
                 self.path = path
                 self.selected_tests_count = selected_tests_count
                 self.status = status
                 self.tracked = tracked
             }
             public enum CodingKeys: String, CodingKey {
+                case matched_pattern
                 case path
                 case selected_tests_count
                 case status
@@ -32054,6 +32070,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/matched_path`.
             public var matched_path: Swift.String?
+            /// On `tracked_file_changed`, the tracked-file pattern `matched_path` matched: one of the build system's defaults or one of the request's `tracked_files`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/matched_pattern`.
+            public var matched_pattern: Swift.String?
+            /// Sent with `matched_pattern`: whether it's one of the build system's defaults rather than one of the request's `tracked_files`. A default can be opted out of with a `!` pattern.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/matched_pattern_default`.
+            public var matched_pattern_default: Swift.Bool?
             /// `selected` or `fallback`. On `fallback` the client runs default selective testing: the tests in the modules hashing left. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/outcome`.
@@ -32072,6 +32096,8 @@ public enum Components {
             ///   - counts: Test counts for the client's output. Present when the outcome is `selected`.
             ///   - id: The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
             ///   - matched_path: The file that caused the fallback, such as the tracked file that changed.
+            ///   - matched_pattern: On `tracked_file_changed`, the tracked-file pattern `matched_path` matched: one of the build system's defaults or one of the request's `tracked_files`.
+            ///   - matched_pattern_default: Sent with `matched_pattern`: whether it's one of the build system's defaults rather than one of the request's `tracked_files`. A default can be opted out of with a `!` pattern.
             ///   - outcome: `selected` or `fallback`. On `fallback` the client runs default selective testing: the tests in the modules hashing left. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
             ///   - reason: Why coverage evidence wasn't applied: set on a fallback, and on a selection of nothing whose baseline wasn't confirmed. One of `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, `tracked_file_changed`, or `dirty_checkout`.
             ///   - skipped_tests: The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
@@ -32079,6 +32105,8 @@ public enum Components {
                 counts: Components.Schemas.TestImpactRun.countsPayload? = nil,
                 id: Swift.String,
                 matched_path: Swift.String? = nil,
+                matched_pattern: Swift.String? = nil,
+                matched_pattern_default: Swift.Bool? = nil,
                 outcome: Swift.String,
                 reason: Swift.String? = nil,
                 skipped_tests: [Components.Schemas.SkippedTest]? = nil
@@ -32086,6 +32114,8 @@ public enum Components {
                 self.counts = counts
                 self.id = id
                 self.matched_path = matched_path
+                self.matched_pattern = matched_pattern
+                self.matched_pattern_default = matched_pattern_default
                 self.outcome = outcome
                 self.reason = reason
                 self.skipped_tests = skipped_tests
@@ -32094,6 +32124,8 @@ public enum Components {
                 case counts
                 case id
                 case matched_path
+                case matched_pattern
+                case matched_pattern_default
                 case outcome
                 case reason
                 case skipped_tests
@@ -39038,7 +39070,7 @@ public enum Components {
             public var build_system: Swift.String
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload`.
             public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
-                /// The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                /// The test modules the file is test code of, from the client's project graph; empty when it's none's. A module that gained a file (status `A`) is never skipped whole, so a test the file adds runs. Selection doesn't otherwise read it: a changed file no coverage evidence includes selects nothing unless it's a tracked file.
                 ///
                 /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/affected_modules`.
                 public var affected_modules: [Swift.String]?
@@ -39061,7 +39093,7 @@ public enum Components {
                 /// Creates a new `changed_filesPayloadPayload`.
                 ///
                 /// - Parameters:
-                ///   - affected_modules: The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                ///   - affected_modules: The test modules the file is test code of, from the client's project graph; empty when it's none's. A module that gained a file (status `A`) is never skipped whole, so a test the file adds runs. Selection doesn't otherwise read it: a changed file no coverage evidence includes selects nothing unless it's a tracked file.
                 ///   - blob: The file's blob in the checkout. Required except for deleted files.
                 ///   - dirty: Whether the change is uncommitted: the working tree differs from the checked-out commit for this tracked file. A dirty checkout's run keeps these files to show them. Absent from older clients, which don't tell.
                 ///   - path: The repository-relative path.
@@ -39103,14 +39135,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/commit_sha`.
             public var commit_sha: Swift.String?
-            /// Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+            /// Defaults to strict. Recorded on the impact run's build context. It no longer changes the decision: a changed file no coverage evidence includes selects nothing unless it's a tracked file, whatever the policy.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/coverage_policy`.
             @frozen public enum coverage_policyPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case strict = "strict"
                 case instrumented = "instrumented"
             }
-            /// Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+            /// Defaults to strict. Recorded on the impact run's build context. It no longer changes the decision: a changed file no coverage evidence includes selects nothing unless it's a tracked file, whatever the policy.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/coverage_policy`.
             public var coverage_policy: Components.Schemas.CreateTestImpactRunParams.coverage_policyPayload?
@@ -39210,6 +39242,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/scope`.
             public var scope: Swift.String?
+            /// Tracked-file patterns the project configured, on top of the build system's defaults: repository-relative globs (`*`, `**`, `?`, `[...]`) a change to a file one matches falls back to every test (`tracked_file_changed`), for files that can affect tests without showing in coverage. A pattern starting with `!` excludes the files it matches, defaults included. The client resolves patterns written relative to the project's root. Recorded on the impact run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/tracked_files`.
+            public var tracked_files: [Swift.String]?
             /// Xcode only: the scope the invocation tests.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode`.
@@ -39260,7 +39296,7 @@ public enum Components {
             ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
             ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
             ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
-            ///   - coverage_policy: Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+            ///   - coverage_policy: Defaults to strict. Recorded on the impact run's build context. It no longer changes the decision: a changed file no coverage evidence includes selects nothing unless it's a tracked file, whatever the policy.
             ///   - dirty: Whether the checkout had uncommitted changes, by the same check that keeps a run's coverage off its commit. When true, coverage isn't applied: the run falls back with `dirty_checkout`, and only the `changed_files` marked `dirty` are kept, with the run.
             ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
             ///   - git_branch: The git branch, shown on the overview.
@@ -39270,6 +39306,7 @@ public enum Components {
             ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
             ///   - platform: The platform the tests run on. Absent where the build system has none.
             ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
+            ///   - tracked_files: Tracked-file patterns the project configured, on top of the build system's defaults: repository-relative globs (`*`, `**`, `?`, `[...]`) a change to a file one matches falls back to every test (`tracked_file_changed`), for files that can affect tests without showing in coverage. A pattern starting with `!` excludes the files it matches, defaults included. The client resolves patterns written relative to the project's root. Recorded on the impact run.
             ///   - xcode: Xcode only: the scope the invocation tests.
             public init(
                 ancestor_shas: [Swift.String]? = nil,
@@ -39288,6 +39325,7 @@ public enum Components {
                 parent_shas: [Swift.String]? = nil,
                 platform: Swift.String? = nil,
                 scope: Swift.String? = nil,
+                tracked_files: [Swift.String]? = nil,
                 xcode: Components.Schemas.CreateTestImpactRunParams.xcodePayload? = nil
             ) {
                 self.ancestor_shas = ancestor_shas
@@ -39306,6 +39344,7 @@ public enum Components {
                 self.parent_shas = parent_shas
                 self.platform = platform
                 self.scope = scope
+                self.tracked_files = tracked_files
                 self.xcode = xcode
             }
             public enum CodingKeys: String, CodingKey {
@@ -39325,6 +39364,7 @@ public enum Components {
                 case parent_shas
                 case platform
                 case scope
+                case tracked_files
                 case xcode
             }
         }
@@ -130965,6 +131005,10 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files/GET/responses/200/content/json/changed_filesPayload`.
                         public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
+                            /// The tracked-file pattern that matches it, a build system default or one the project configured; null when it isn't tracked.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files/GET/responses/200/content/json/changed_filesPayload/matched_pattern`.
+                            public var matched_pattern: Swift.String?
                             /// The file's path, relative to the repository's root.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files/GET/responses/200/content/json/changed_filesPayload/path`.
@@ -130984,22 +131028,26 @@ public enum Operations {
                             /// Creates a new `changed_filesPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - matched_pattern: The tracked-file pattern that matches it, a build system default or one the project configured; null when it isn't tracked.
                             ///   - path: The file's path, relative to the repository's root.
                             ///   - selected_tests_count: How many tests the file selected.
                             ///   - status: The change, as `git diff --raw` reports it.
                             ///   - tracked: Whether it's a tracked file, such as a dependency pin or build setting, whose change makes selection fall back.
                             public init(
+                                matched_pattern: Swift.String? = nil,
                                 path: Swift.String,
                                 selected_tests_count: Swift.Int,
                                 status: Swift.String,
                                 tracked: Swift.Bool
                             ) {
+                                self.matched_pattern = matched_pattern
                                 self.path = path
                                 self.selected_tests_count = selected_tests_count
                                 self.status = status
                                 self.tracked = tracked
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case matched_pattern
                                 case path
                                 case selected_tests_count
                                 case status
@@ -148130,7 +148178,7 @@ public enum Operations {
                     public var build_system: Swift.String
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload`.
                     public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
-                        /// The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                        /// The test modules the file is test code of, from the client's project graph; empty when it's none's. A module that gained a file (status `A`) is never skipped whole, so a test the file adds runs. Selection doesn't otherwise read it: a changed file no coverage evidence includes selects nothing unless it's a tracked file.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/affected_modules`.
                         public var affected_modules: [Swift.String]?
@@ -148153,7 +148201,7 @@ public enum Operations {
                         /// Creates a new `changed_filesPayloadPayload`.
                         ///
                         /// - Parameters:
-                        ///   - affected_modules: The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                        ///   - affected_modules: The test modules the file is test code of, from the client's project graph; empty when it's none's. A module that gained a file (status `A`) is never skipped whole, so a test the file adds runs. Selection doesn't otherwise read it: a changed file no coverage evidence includes selects nothing unless it's a tracked file.
                         ///   - blob: The file's blob in the checkout. Required except for deleted files.
                         ///   - dirty: Whether the change is uncommitted: the working tree differs from the checked-out commit for this tracked file. A dirty checkout's run keeps these files to show them. Absent from older clients, which don't tell.
                         ///   - path: The repository-relative path.
@@ -148195,14 +148243,14 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/commit_sha`.
                     public var commit_sha: Swift.String?
-                    /// Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+                    /// Defaults to strict. Recorded on the impact run's build context. It no longer changes the decision: a changed file no coverage evidence includes selects nothing unless it's a tracked file, whatever the policy.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/coverage_policy`.
                     @frozen public enum coverage_policyPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case strict = "strict"
                         case instrumented = "instrumented"
                     }
-                    /// Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+                    /// Defaults to strict. Recorded on the impact run's build context. It no longer changes the decision: a changed file no coverage evidence includes selects nothing unless it's a tracked file, whatever the policy.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/coverage_policy`.
                     public var coverage_policy: Operations.createTestImpactRun.Input.Body.jsonPayload.coverage_policyPayload?
@@ -148302,6 +148350,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/scope`.
                     public var scope: Swift.String?
+                    /// Tracked-file patterns the project configured, on top of the build system's defaults: repository-relative globs (`*`, `**`, `?`, `[...]`) a change to a file one matches falls back to every test (`tracked_file_changed`), for files that can affect tests without showing in coverage. A pattern starting with `!` excludes the files it matches, defaults included. The client resolves patterns written relative to the project's root. Recorded on the impact run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/tracked_files`.
+                    public var tracked_files: [Swift.String]?
                     /// Xcode only: the scope the invocation tests.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode`.
@@ -148352,7 +148404,7 @@ public enum Operations {
                     ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
                     ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
                     ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
-                    ///   - coverage_policy: Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+                    ///   - coverage_policy: Defaults to strict. Recorded on the impact run's build context. It no longer changes the decision: a changed file no coverage evidence includes selects nothing unless it's a tracked file, whatever the policy.
                     ///   - dirty: Whether the checkout had uncommitted changes, by the same check that keeps a run's coverage off its commit. When true, coverage isn't applied: the run falls back with `dirty_checkout`, and only the `changed_files` marked `dirty` are kept, with the run.
                     ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
                     ///   - git_branch: The git branch, shown on the overview.
@@ -148362,6 +148414,7 @@ public enum Operations {
                     ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
                     ///   - platform: The platform the tests run on. Absent where the build system has none.
                     ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline.
+                    ///   - tracked_files: Tracked-file patterns the project configured, on top of the build system's defaults: repository-relative globs (`*`, `**`, `?`, `[...]`) a change to a file one matches falls back to every test (`tracked_file_changed`), for files that can affect tests without showing in coverage. A pattern starting with `!` excludes the files it matches, defaults included. The client resolves patterns written relative to the project's root. Recorded on the impact run.
                     ///   - xcode: Xcode only: the scope the invocation tests.
                     public init(
                         ancestor_shas: [Swift.String]? = nil,
@@ -148380,6 +148433,7 @@ public enum Operations {
                         parent_shas: [Swift.String]? = nil,
                         platform: Swift.String? = nil,
                         scope: Swift.String? = nil,
+                        tracked_files: [Swift.String]? = nil,
                         xcode: Operations.createTestImpactRun.Input.Body.jsonPayload.xcodePayload? = nil
                     ) {
                         self.ancestor_shas = ancestor_shas
@@ -148398,6 +148452,7 @@ public enum Operations {
                         self.parent_shas = parent_shas
                         self.platform = platform
                         self.scope = scope
+                        self.tracked_files = tracked_files
                         self.xcode = xcode
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -148417,6 +148472,7 @@ public enum Operations {
                         case parent_shas
                         case platform
                         case scope
+                        case tracked_files
                         case xcode
                     }
                 }

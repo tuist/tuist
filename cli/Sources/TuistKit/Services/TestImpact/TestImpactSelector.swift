@@ -62,6 +62,8 @@ actor TestImpactSelector {
         /// Whether the run uploads coverage (`UploadResultBundleService.uploadsCoverage`), as the run's
         /// report tells `GitHistoryService`.
         let coverage: Bool
+        /// `Tuist.swift`'s tracked-file patterns, absolute, a `!` in front of an exclusion.
+        var trackedFiles: [String] = []
     }
 
     /// How many of the checkout's ancestors the server accepts.
@@ -106,8 +108,8 @@ actor TestImpactSelector {
     ///   - modules: The test modules left to decide; empty when every target's hash matched.
     ///   - skippedModules: The test modules hashing skipped.
     ///   - platform: The platform the tests run on, which the baseline must match.
-    ///   - affectedModules: The test modules a changed file, by absolute path, can affect: empty when
-    ///     no target owns it, nil when it can't be classified.
+    ///   - affectedModules: The test modules whose test code a changed file, by absolute path, is:
+    ///     empty when it's none's.
     func decide(
         modules: [String],
         skippedModules: [String],
@@ -182,7 +184,8 @@ actor TestImpactSelector {
             gitBranch: gitInfo.branch,
             scheme: invocation.scheme,
             testPlan: invocation.testPlan,
-            destination: invocation.destination
+            destination: invocation.destination,
+            trackedFiles: Self.repositoryRelative(invocation.trackedFiles, repository: repository)
         )
         let result = await createRunService.createTestImpactRun(
             fullHandle: invocation.fullHandle,
@@ -296,6 +299,23 @@ actor TestImpactSelector {
             Logger.current.debug("Coverage-based test selection couldn't diff the checkout: \(error.localizedDescription)")
             return .fallback(.historyUnavailable)
         }
+    }
+
+    /// The tracked-file patterns relative to the repository, as the server matches them. A pattern
+    /// outside the repository can't match a changed file, so it's dropped.
+    static func repositoryRelative(_ patterns: [String], repository: AbsolutePath) -> [String] {
+        let root = withoutPrivate(repository.pathString) + "/"
+        return patterns.compactMap { pattern in
+            let excluded = pattern.hasPrefix("!")
+            let path = withoutPrivate(excluded ? String(pattern.dropFirst()) : pattern)
+            guard path.hasPrefix(root) else { return nil }
+            return (excluded ? "!" : "") + path.dropFirst(root.count)
+        }
+    }
+
+    /// The path without macOS's `/private` prefix, which Git reports and the manifest loader may not.
+    private static func withoutPrivate(_ path: String) -> String {
+        path.hasPrefix("/private/") ? String(path.dropFirst("/private".count)) : path
     }
 
     private func warn(_ message: String) {

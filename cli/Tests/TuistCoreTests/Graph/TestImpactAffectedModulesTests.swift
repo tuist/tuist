@@ -33,17 +33,19 @@ struct TestImpactAffectedModulesTests {
         let subject = TestImpactAffectedModules(graph: try await XcodeGraphMapper().map(at: xcodeProjPath))
         // The temporary directory is under `/private/var`, as Git reports it, while the mapper drops
         // `/private` from the file references.
-        #expect(subject.affectedModules(path: repository.appending(components: "Feature", "Feature.swift")) == ["FeatureTests"])
-        #expect(subject.affectedModules(
-            path: repository.appending(components: "Feature", "Assets.xcassets", "Contents.json")
-        ) == ["FeatureTests"])
+        // Only a test target's own files are its module's; the framework it tests selects through
+        // coverage evidence.
         #expect(subject.affectedModules(
             path: repository.appending(components: "FeatureTests", "FeatureTests.swift")
         ) == ["FeatureTests"])
+        #expect(subject.affectedModules(path: repository.appending(components: "Feature", "Feature.swift")) == [])
+        #expect(subject.affectedModules(
+            path: repository.appending(components: "Feature", "Assets.xcassets", "Contents.json")
+        ) == [])
         #expect(subject.affectedModules(path: repository.appending(components: "Other", "Other.swift")) == [])
         #expect(subject.affectedModules(path: repository.appending(component: "README.md")) == [])
-        #expect(subject.affectedModules(path: repository.appending(component: "Base.xcconfig")) == nil)
-        #expect(subject.affectedModules(path: xcodeProjPath.appending(component: "project.pbxproj")) == nil)
+        #expect(subject.affectedModules(path: repository.appending(component: "Base.xcconfig")) == [])
+        #expect(subject.affectedModules(path: xcodeProjPath.appending(component: "project.pbxproj")) == [])
     }
 
     private static let pbxproj = """
@@ -160,9 +162,6 @@ struct TestImpactAffectedModulesTests {
         #expect(subject(projectAt: resolved).affectedModules(
             path: unresolved.appending(components: "FeatureTests", "FeatureTests.swift")
         ) == ["FeatureTests"])
-        #expect(subject(projectAt: unresolved).affectedModules(
-            path: resolved.appending(components: "Feature.xcodeproj", "project.pbxproj")
-        ) == nil)
         // Only the system's `/private` directories map: another `/private` path is left alone.
         #expect(subject(projectAt: try AbsolutePath(validating: "/repo")).affectedModules(
             path: try AbsolutePath(validating: "/private/repo/FeatureTests/FeatureTests.swift")
@@ -175,12 +174,18 @@ struct TestImpactAffectedModulesTests {
             name: "Feature",
             product: .framework,
             settings: nil,
+            sources: [SourceFile(path: projectPath.appending(components: "Feature", "Feature.swift"))]
+        )
+        let featureTests = Target.test(
+            name: "FeatureTests",
+            product: .unitTests,
+            settings: nil,
             buildableFolders: [
                 BuildableFolder(
-                    path: projectPath.appending(component: "Feature"),
+                    path: projectPath.appending(component: "FeatureTests"),
                     exceptions: BuildableFolderExceptions(exceptions: [
                         BuildableFolderException(
-                            excluded: [projectPath.appending(components: "Feature", "Scripts")],
+                            excluded: [projectPath.appending(components: "FeatureTests", "Scripts")],
                             compilerFlags: [:],
                             publicHeaders: [],
                             privateHeaders: []
@@ -190,16 +195,10 @@ struct TestImpactAffectedModulesTests {
                 ),
             ]
         )
-        let featureTests = Target.test(
-            name: "FeatureTests",
-            product: .unitTests,
-            settings: nil,
-            sources: [SourceFile(path: projectPath.appending(components: "FeatureTests", "FeatureTests.swift"))]
-        )
         let project = Project.test(
             path: projectPath,
             xcodeProjPath: projectPath.appending(component: "Feature.xcodeproj"),
-            settings: .test(configurations: [.debug: .test(xcconfig: projectPath.appending(component: "Base.xcconfig"))]),
+            settings: .test(configurations: [:]),
             targets: [feature, featureTests]
         )
         let graph = Graph.test(
@@ -210,15 +209,11 @@ struct TestImpactAffectedModulesTests {
         )
         let subject = TestImpactAffectedModules(graph: graph)
 
-        // A file the folder doesn't list yet, such as a deleted one, still belongs to it.
-        #expect(subject.affectedModules(path: projectPath.appending(components: "Feature", "Deleted.swift")) == ["FeatureTests"])
-        #expect(subject.affectedModules(path: projectPath.appending(components: "Feature", "Scripts", "lint.sh")) == [])
-        #expect(subject.affectedModules(
-            path: projectPath.appending(components: "FeatureTests", "FeatureTests.swift")
-        ) == ["FeatureTests"])
-        #expect(subject.affectedModules(path: projectPath.appending(component: "Base.xcconfig")) == nil)
-        #expect(subject.affectedModules(
-            path: projectPath.appending(components: "Feature.xcodeproj", "project.pbxproj")
-        ) == nil)
+        // A file the folder doesn't list yet, such as a new test file, still belongs to it.
+        #expect(subject.affectedModules(path: projectPath.appending(components: "FeatureTests", "NewTests.swift")) == [
+            "FeatureTests",
+        ])
+        #expect(subject.affectedModules(path: projectPath.appending(components: "FeatureTests", "Scripts", "lint.sh")) == [])
+        #expect(subject.affectedModules(path: projectPath.appending(components: "Feature", "Feature.swift")) == [])
     }
 }

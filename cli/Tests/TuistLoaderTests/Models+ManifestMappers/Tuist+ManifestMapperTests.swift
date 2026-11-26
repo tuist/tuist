@@ -39,7 +39,7 @@ struct TuistManifestMapperTests {
         let manifest = ProjectDescription.Config(
             testInsights: .testInsights(
                 coverage: .coverage(upload: true),
-                selectiveTesting: .selectiveTesting(strategy: .coverage())
+                selectiveTesting: .selectiveTesting(strategy: .coverage(trackedFiles: ["Fixtures/**", "!/Docs/*.md"]))
             ),
             project: .tuist(generationOptions: .options())
         )
@@ -47,8 +47,11 @@ struct TuistManifestMapperTests {
         // When
         let got = try await TuistConfig.Tuist.from(manifest: manifest, rootDirectory: path, at: path)
 
-        // Then
-        #expect(got.testInsights.selectiveTesting == TuistConfig.Tuist.TestInsights.SelectiveTesting(strategy: .coverage))
+        // Then: the patterns are made absolute from the project's root, a `!` kept in front.
+        #expect(got.testInsights.selectiveTesting == TuistConfig.Tuist.TestInsights.SelectiveTesting(
+            strategy: .coverage,
+            trackedFiles: ["/project/Fixtures/**", "!/project/Docs/*.md"]
+        ))
     }
 
     @Test func from_leavesTheSelectiveTestingStrategyUnsetByDefault() async throws {

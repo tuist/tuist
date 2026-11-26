@@ -59,8 +59,8 @@ public struct TestImpactChangedFile: Equatable, Sendable {
     public let status: String
     /// The file's blob in the checkout; nil only for deleted files.
     public let blob: String?
-    /// The test modules the file can affect. Empty when no target owns it, nil when it couldn't be
-    /// classified.
+    /// The test modules whose test code the file is; empty when it's none's. A module that gained a
+    /// file is never skipped whole, so a test the file adds runs.
     public let affectedModules: [String]?
     /// Whether the working tree has the file differing from HEAD, rather than only the commits since
     /// the baseline changing it.
@@ -106,6 +106,9 @@ public struct TestImpactRunRequest: Equatable, Sendable {
     public let scheme: String?
     public let testPlan: String?
     public let destination: String?
+    /// The project's tracked-file patterns, repository-relative, a `!` in front of an exclusion: a
+    /// change to a file one matches runs every test in scope.
+    public let trackedFiles: [String]
 
     public init(
         buildSystem: String = "xcode",
@@ -120,7 +123,8 @@ public struct TestImpactRunRequest: Equatable, Sendable {
         gitBranch: String?,
         scheme: String?,
         testPlan: String?,
-        destination: String?
+        destination: String?,
+        trackedFiles: [String] = []
     ) {
         self.buildSystem = buildSystem
         self.headSHA = headSHA
@@ -135,6 +139,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
         self.scheme = scheme
         self.testPlan = testPlan
         self.destination = destination
+        self.trackedFiles = trackedFiles
     }
 }
 

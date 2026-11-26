@@ -24,7 +24,8 @@ struct CreateTestImpactRunServiceTests {
             gitBranch: "feature/discount",
             scheme: "Shop",
             testPlan: nil,
-            destination: nil
+            destination: nil,
+            trackedFiles: ["Fixtures/**", "!Docs/**"]
         )
     }
 
@@ -57,6 +58,7 @@ struct CreateTestImpactRunServiceTests {
         #expect(body.git_branch == "feature/discount")
         #expect(body.xcode == .init(destination: nil, scheme: "Shop", test_plan: nil))
         #expect(body.dirty == true)
+        #expect(body.tracked_files == ["Fixtures/**", "!Docs/**"])
         #expect(body.changed_files_count == 3)
         #expect(body.changed_files == [
             .init(affected_modules: nil, blob: "b1", path: "Configs/Base.xcconfig", status: "M"),

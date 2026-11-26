@@ -6685,6 +6685,12 @@ components:
         changed_files:
           items:
             properties:
+              matched_pattern:
+                description: The tracked-file pattern that matches it, a build system default or one the project configured; null when it isn't tracked.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
               path:
                 description: "The file's path, relative to the repository's root."
                 type: string
@@ -16649,6 +16655,12 @@ components:
       x-validate:
     SelectiveTestingChangedFile:
       properties:
+        matched_pattern:
+          description: The tracked-file pattern that matches it, a build system default or one the project configured; null when it isn't tracked.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         path:
           description: "The file's path, relative to the repository's root."
           type: string
@@ -17115,6 +17127,16 @@ components:
         matched_path:
           description: The file that caused the fallback, such as the tracked file that changed.
           type: string
+          x-struct:
+          x-validate:
+        matched_pattern:
+          description: "On `tracked_file_changed`, the tracked-file pattern `matched_path` matched: one of the build system's defaults or one of the request's `tracked_files`."
+          type: string
+          x-struct:
+          x-validate:
+        matched_pattern_default:
+          description: "Sent with `matched_pattern`: whether it's one of the build system's defaults rather than one of the request's `tracked_files`. A default can be opted out of with a `!` pattern."
+          type: boolean
           x-struct:
           x-validate:
         outcome:
@@ -22090,7 +22112,7 @@ components:
           items:
             properties:
               affected_modules:
-                description: "The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it."
+                description: "The test modules the file is test code of, from the client's project graph; empty when it's none's. A module that gained a file (status `A`) is never skipped whole, so a test the file adds runs. Selection doesn't otherwise read it: a changed file no coverage evidence includes selects nothing unless it's a tracked file."
                 items:
                   type: string
                   x-struct:
@@ -22138,7 +22160,7 @@ components:
           x-struct:
           x-validate:
         coverage_policy:
-          description: Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+          description: "Defaults to strict. Recorded on the impact run's build context. It no longer changes the decision: a changed file no coverage evidence includes selects nothing unless it's a tracked file, whatever the policy."
           enum:
             - strict
             - instrumented
@@ -22223,6 +22245,15 @@ components:
           maxLength: 1024
           minLength: 1
           type: string
+          x-struct:
+          x-validate:
+        tracked_files:
+          description: "Tracked-file patterns the project configured, on top of the build system's defaults: repository-relative globs (`*`, `**`, `?`, `[...]`) a change to a file one matches falls back to every test (`tracked_file_changed`), for files that can affect tests without showing in coverage. A pattern starting with `!` excludes the files it matches, defaults included. The client resolves patterns written relative to the project's root. Recorded on the impact run."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         xcode:
@@ -55293,6 +55324,12 @@ paths:
                   changed_files:
                     items:
                       properties:
+                        matched_pattern:
+                          description: The tracked-file pattern that matches it, a build system default or one the project configured; null when it isn't tracked.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         path:
                           description: "The file's path, relative to the repository's root."
                           type: string
@@ -61524,7 +61561,7 @@ paths:
                   items:
                     properties:
                       affected_modules:
-                        description: "The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it."
+                        description: "The test modules the file is test code of, from the client's project graph; empty when it's none's. A module that gained a file (status `A`) is never skipped whole, so a test the file adds runs. Selection doesn't otherwise read it: a changed file no coverage evidence includes selects nothing unless it's a tracked file."
                         items:
                           type: string
                           x-struct:
@@ -61572,7 +61609,7 @@ paths:
                   x-struct:
                   x-validate:
                 coverage_policy:
-                  description: Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+                  description: "Defaults to strict. Recorded on the impact run's build context. It no longer changes the decision: a changed file no coverage evidence includes selects nothing unless it's a tracked file, whatever the policy."
                   enum:
                     - strict
                     - instrumented
@@ -61657,6 +61694,15 @@ paths:
                   maxLength: 1024
                   minLength: 1
                   type: string
+                  x-struct:
+                  x-validate:
+                tracked_files:
+                  description: "Tracked-file patterns the project configured, on top of the build system's defaults: repository-relative globs (`*`, `**`, `?`, `[...]`) a change to a file one matches falls back to every test (`tracked_file_changed`), for files that can affect tests without showing in coverage. A pattern starting with `!` excludes the files it matches, defaults included. The client resolves patterns written relative to the project's root. Recorded on the impact run."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
                   x-struct:
                   x-validate:
                 xcode:

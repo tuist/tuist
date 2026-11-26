@@ -49,7 +49,10 @@ extension TuistConfig.Tuist {
             upload: manifest.xcodeCache.upload,
             storeSizeLimit: manifest.xcodeCache.storeSizeLimit?.bytes
         )
-        let testInsights = try TuistConfig.Tuist.TestInsights.from(manifest: manifest.testInsights)
+        let testInsights = try TuistConfig.Tuist.TestInsights.from(
+            manifest: manifest.testInsights,
+            rootDirectory: rootDirectory
+        )
         let urlString = manifest.url
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {
@@ -120,14 +123,25 @@ extension TuistConfig.Tuist {
 }
 
 extension TuistConfig.Tuist.TestInsights {
-    static func from(manifest: ProjectDescription.Config.TestInsights) throws -> Self {
-        let strategy: SelectiveTesting.Strategy? = manifest.selectiveTesting?.strategy == .coverage() ? .coverage : nil
+    static func from(manifest: ProjectDescription.Config.TestInsights, rootDirectory: AbsolutePath) throws -> Self {
+        // `coverage` is the only strategy there is.
+        let manifestStrategy = manifest.selectiveTesting?.strategy
+        let strategy: SelectiveTesting.Strategy? = manifestStrategy == nil ? nil : .coverage
         if strategy == .coverage, !manifest.coverage.upload {
             throw ConfigManifestMapperError.coverageStrategyRequiresCoverageUpload
         }
+        let trackedFiles = (manifestStrategy?.trackedFiles ?? []).compactMap { pattern -> String? in
+            let pattern = pattern.trimmingCharacters(in: .whitespaces)
+            let excluded = pattern.hasPrefix("!")
+            let glob = String(pattern.dropFirst(excluded ? 1 : 0)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            guard !glob.isEmpty else { return nil }
+            return (excluded ? "!" : "") + rootDirectory.pathString + "/" + glob
+        }
         return Self(
             coverage: .init(upload: manifest.coverage.upload),
-            selectiveTesting: manifest.selectiveTesting.map { _ in SelectiveTesting(strategy: strategy) }
+            selectiveTesting: manifest.selectiveTesting.map { _ in
+                SelectiveTesting(strategy: strategy, trackedFiles: trackedFiles)
+            }
         )
     }
 }

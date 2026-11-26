@@ -885,7 +885,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 destination: destination,
                 platform: platform.flatMap { try? XcodeGraph.Platform.from(commandLineValue: $0) }
                     ?? resolvedDestination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:)),
-                coverage: UploadResultBundleService.uploadsCoverage(config: config)
+                coverage: UploadResultBundleService.uploadsCoverage(config: config),
+                trackedFiles: config.testInsights.selectiveTesting?.trackedFiles ?? []
             ),
             gitController: gitController,
             resolveBaselineService: resolveTestImpactBaselineService,

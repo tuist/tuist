@@ -576,6 +576,16 @@ struct TestImpactSelectorTests {
             platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).willReturn(resolution)
     }
+
+    @Test func sends_the_tracked_files_relative_to_the_repository() throws {
+        let repository = try AbsolutePath(validating: "/private/var/repo")
+        // `Tuist.swift`'s patterns arrive absolute, with or without macOS's `/private`; one outside
+        // the repository can't match a changed file.
+        #expect(TestImpactSelector.repositoryRelative(
+            ["/var/repo/App/Fixtures/**", "!/private/var/repo/App/Docs/*.md", "/elsewhere/**"],
+            repository: repository
+        ) == ["App/Fixtures/**", "!App/Docs/*.md"])
+    }
 }
 
 /// The files Git tracks that the checkout changed, which a test sets before deciding.

@@ -124,6 +124,14 @@ public struct Tuist: Codable, Equatable, Sendable {
 
                 private let kind: Kind
 
+                /// The tracked files: glob patterns (`*`, `**`, `?`, `[...]`), relative to the project's root, whose
+                /// change runs every test in scope, because it can affect tests without showing up in their coverage,
+                /// such as a fixture a test reads or a generated file. They add to Tuist's defaults for the build
+                /// system, such as `**/Package.resolved` and `**/*.xcconfig`. A pattern starting with `!` excludes the
+                /// files it matches, Tuist's defaults included. A changed file that no test's coverage includes and
+                /// no pattern tracks selects no test.
+                public let trackedFiles: [String]
+
                 /// Selects tests by the code coverage of earlier runs. Test targets whose hash already passed are
                 /// skipped as with the default; in the test targets left, the tests whose recorded coverage doesn't
                 /// include a changed file are skipped too. Swift Testing tests need TestCoverageAttribution's
@@ -136,8 +144,26 @@ public struct Tuist: Codable, Equatable, Sendable {
                 /// It requires uploading coverage (`coverage: .coverage(upload: true)`), and test targets that link
                 /// [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) so that runs record
                 /// which files each test executes.
-                public static func coverage() -> Self {
-                    Strategy(kind: .coverage)
+                ///
+                /// - Parameter trackedFiles: Glob patterns, relative to the project's root, whose change runs every
+                ///   test in scope, on top of Tuist's defaults; `!` excludes. Defaults to none.
+                public static func coverage(trackedFiles: [String] = []) -> Self {
+                    Strategy(kind: .coverage, trackedFiles: trackedFiles)
+                }
+
+                private init(kind: Kind, trackedFiles: [String]) {
+                    self.kind = kind
+                    self.trackedFiles = trackedFiles
+                }
+
+                private enum CodingKeys: String, CodingKey {
+                    case kind, trackedFiles
+                }
+
+                public init(from decoder: Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    kind = try container.decode(Kind.self, forKey: .kind)
+                    trackedFiles = try container.decodeIfPresent([String].self, forKey: .trackedFiles) ?? []
                 }
             }
 

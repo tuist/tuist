@@ -51,8 +51,13 @@ public struct Tuist: Equatable, Hashable, Sendable {
             /// nil for the default selective testing, which skips only test targets whose hash already passed.
             public let strategy: Strategy?
 
-            public init(strategy: Strategy? = nil) {
+            /// The coverage strategy's tracked-file patterns, each made absolute from the project's root (a `!`
+            /// pattern keeps its `!` in front): a change to a file one matches runs every test in scope.
+            public let trackedFiles: [String]
+
+            public init(strategy: Strategy? = nil, trackedFiles: [String] = []) {
                 self.strategy = strategy
+                self.trackedFiles = trackedFiles
             }
         }
 
