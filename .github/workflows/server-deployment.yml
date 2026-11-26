@@ -2171,23 +2171,34 @@ jobs:
           # DaemonSet (its generation moved past today's), it rolls the Pods and
           # the wait completes. A deploy that leaves the DaemonSet alone never
           # starts it here; the step after Helm then handles a config change.
+          #
+          # It rolls the Pods again each time the generation moves while Helm
+          # runs, not only the first: when the upgrade fails, `--atomic` puts
+          # the previous template back and waits on the DaemonSet once more,
+          # and Pods left on the failed revision held that rollback for the
+          # full 60 minutes (2026-11-26, a RunnerPool Kubernetes refused).
           sandboxd_updater=""
           sandboxd_updater_started="$RUNNER_TEMP/sandboxd-updater-started"
-          rm -f "$sandboxd_updater_started"
+          sandboxd_updater_stop="$RUNNER_TEMP/sandboxd-updater-stop"
+          rm -f "$sandboxd_updater_started" "$sandboxd_updater_stop"
           if [ "$sandboxd_in_place" = true ]; then
             ds_generation=$(kubectl -n "$sandbox_namespace" get daemonset "$sandbox_name" -o jsonpath='{.metadata.generation}' 2>/dev/null || echo 0)
             (
               set -euo pipefail
+              rolled="${ds_generation:-0}"
               for _ in $(seq 1 360); do
+                [ ! -e "$sandboxd_updater_stop" ] || exit 0
                 ds=$(kubectl -n "$sandbox_namespace" get daemonset "$sandbox_name" -o json || echo '{}')
-                if jq -e --argjson g "${ds_generation:-0}" '.metadata.generation > $g
+                if jq -e --argjson g "$rolled" '.metadata.generation > $g
                   and .metadata.generation == .status.observedGeneration' <<< "$ds" >/dev/null; then
                   touch "$sandboxd_updater_started"
-                  exec bash .github/scripts/sandboxd-upgrade.sh "$sandbox_namespace" "$sandbox_name"
+                  bash .github/scripts/sandboxd-upgrade.sh "$sandbox_namespace" "$sandbox_name"
+                  rolled=$(jq -r '.metadata.generation' <<< "$ds")
                 fi
                 sleep 10
               done
-              echo "::warning::Helm did not change the sandboxd DaemonSet within an hour; its Pods were not rolled"
+              [ -e "$sandboxd_updater_started" ] ||
+                echo "::warning::Helm did not change the sandboxd DaemonSet within an hour; its Pods were not rolled"
             ) &
             sandboxd_updater=$!
           fi
@@ -2201,6 +2212,8 @@ jobs:
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
           if [ -n "$sandboxd_updater" ]; then
+            # Helm is done: let a roll in progress finish, then stop watching.
+            touch "$sandboxd_updater_stop"
             # Helm finished without changing the DaemonSet: nothing to roll here.
             if [ ! -e "$sandboxd_updater_started" ]; then
               kill "$sandboxd_updater" 2>/dev/null || true
