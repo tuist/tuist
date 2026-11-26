@@ -598,11 +598,12 @@ config :tuist, :runner_linux_shapes, [
 # ones that are. Managed deploys override it at boot from
 # `TUIST_RUNNER_MACOS_OS_VERSIONS`, which Helm renders from
 # `runnersFleet.macosVersions`. `default: true` is the release new
-# profiles get; `macos-26` profiles, and macOS rows without an OS, keep
+# profiles get; `product_version` is the point release the images run,
+# shown under the release's name. `macos-26` profiles, and macOS rows without an OS, keep
 # the pools without an OS suffix (`Tuist.Runners.Catalog.macos_os_versions/0`).
 config :tuist, :runner_macos_os_versions, [
-  %{os_version: "macos-27"},
-  %{os_version: "macos-26", default: true}
+  %{os_version: "macos-27", product_version: "27.2"},
+  %{os_version: "macos-26", product_version: "26.6.2", default: true}
 ]
 
 # macOS shape catalog. Same role as `:runner_linux_shapes`. Managed

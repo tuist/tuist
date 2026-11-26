@@ -140,6 +140,17 @@ defmodule Tuist.Runners.CatalogTest do
       assert Catalog.xcode_versions_for_macos(nil) == Catalog.xcode_versions_for_macos("macos-26")
       assert Catalog.xcode_versions_for_macos("macos-28") == []
     end
+
+    test "the version label names the point release the images run when Helm passes one" do
+      assert [%{product_version: "27.2"}, %{os_version: "macos-26"} = tahoe] =
+               Catalog.parse_macos_os_versions_json(
+                 ~s([{"osVersion":"macos-27","productVersion":"27.2"},{"osVersion":"macos-26","default":true}])
+               )
+
+      refute Map.has_key?(tahoe, :product_version)
+
+      assert [%{version_label: "macOS 27.2"}, %{version_label: "macOS 26.6.2"}] = Catalog.macos_os_versions()
+    end
   end
 
   describe "os_versions/0 and Linux pool names" do

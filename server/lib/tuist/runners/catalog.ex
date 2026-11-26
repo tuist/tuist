@@ -236,7 +236,8 @@ defmodule Tuist.Runners.Catalog do
   The macOS releases macOS profiles can run on, newest first, from
   `:runner_macos_os_versions`. Each entry carries the `os_version`
   profiles store (`macos-27`), the display `label`, the release's name
-  (`Golden Gate`), its `version_label` (`macOS 27`), the `xcode_versions` built for it (`nil` for every Xcode in
+  (`Golden Gate`), its `version_label` (`macOS 27.2` from the entry's
+  `product_version`, the point release its images run, else `macOS 27`), the `xcode_versions` built for it (`nil` for every Xcode in
   the catalog), and `default?`, which is the release new profiles get.
 
   Every Xcode image is built once per macOS release, and a profile
@@ -734,6 +735,12 @@ defmodule Tuist.Runners.Catalog do
           base = %{os_version: entry["osVersion"]}
           base = if entry["default"] == true, do: Map.put(base, :default, true), else: base
 
+          base =
+            case entry["productVersion"] do
+              version when is_binary(version) and version != "" -> Map.put(base, :product_version, version)
+              _ -> base
+            end
+
           case entry["xcodeVersions"] do
             versions when is_list(versions) -> Map.put(base, :xcode_versions, versions)
             _ -> base
@@ -807,7 +814,7 @@ defmodule Tuist.Runners.Catalog do
         %{
           os_version: os_version,
           label: Map.get(@macos_release_names, release, "macOS #{release}"),
-          version_label: "macOS #{release}",
+          version_label: "macOS #{Map.get(entry, :product_version) || release}",
           release: release,
           xcode_versions: Map.get(entry, :xcode_versions),
           default?: Map.get(entry, :default, false)

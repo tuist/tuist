@@ -523,9 +523,9 @@ defmodule TuistWeb.RunnerProfilesLive do
   def os_label(%Profile{platform: :macos, os_version: os_version}), do: macos_os_version_label(os_version)
 
   @doc """
-  Display label for a macOS `os_version` (`macos-27` → `Golden Gate`), from the catalog. The release names the family only: the
-  images build on a floating base of it, and the hosts move point
-  releases without notice. A profile without one runs on Tahoe.
+  Display label for a macOS `os_version` (`macos-27` → `Golden Gate`), from
+  the catalog. The point release the images run is the entry's
+  `version_label`, shown beneath it. A profile without one runs on Tahoe.
   """
   def macos_os_version_label(os_version) do
     case Catalog.find_macos_os_version(os_version) do
