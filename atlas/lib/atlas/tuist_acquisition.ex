@@ -117,7 +117,9 @@ defmodule Atlas.TuistAcquisition do
   end
 
   @doc """
-  How effective the narrowed funnel was: `signup_rate` (signups per landing),
+  How effective the narrowed funnel was: `signup_rate` (signups that came from
+  a campaign or referring site, per landing: direct and CLI signups have no
+  landing to come from),
   `customer_rate` (customers per signup), `landings_per_customer`, the median
   and mean days from sign-up to subscription, the plan mix of its
   subscriptions, the first and last day with any landing or signup, and the
@@ -135,7 +137,7 @@ defmodule Atlas.TuistAcquisition do
       for {date, value} <- series.landings ++ series.signups, value > 0, do: date
 
     %{
-      signup_rate: ratio(totals.signups, totals.landings),
+      signup_rate: ratio(totals.attributed_signups, totals.landings),
       customer_rate: ratio(totals.customers, totals.signups),
       landings_per_customer: ratio(totals.landings, totals.customers),
       median_days_to_subscribe: median(days_to_subscribe),
