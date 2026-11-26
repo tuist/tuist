@@ -675,9 +675,13 @@ runnersFleet:
       default: true
     # macOS 27 Golden Gate, which accounts asked for (Qonto and Roze,
     # 2026-11). Every Xcode above has its Golden Gate image
-    # (runner-image@0.67.0).
+    # (runner-image@0.67.0), but 27.3 beta is left out: its rack pool,
+    # `<release>-runner-pool-macos-ber1-27-3-beta-macos-27-16vcpu-48gb`, is
+    # 65 characters, over the 63 a label value takes, and every production
+    # deploy from 2026-11-26 08:18 failed creating it.
     - osVersion: "macos-27"
       productVersion: "27.2"
+      xcodeVersions: ["27.2", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]
 
 # KVM is a standard managed Linux runner capability. Disable defaultEnabled
 # to roll pools back to the stock kernel while leaving host preparation intact.
