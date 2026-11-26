@@ -134,6 +134,7 @@ func main() {
 		orphanReclaimInterval        time.Duration
 		nodeIdentitySweepInterval    time.Duration
 		nodeIdentitySweepRevoke      bool
+		linuxNodeCertificates        bool
 		ovhPoolPrepInterval          time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
@@ -514,6 +515,10 @@ func main() {
 	flag.BoolVar(&nodeIdentitySweepRevoke, "node-identity-sweep-revoke", false,
 		"Revoke the orphaned node identities the sweep finds. Without it the sweep "+
 			"only logs them and exports capt_orphaned_node_identities.")
+	flag.BoolVar(&linuxNodeCertificates, "linux-node-certificates", false,
+		"Join OVH and Vultr kubelets as system:node:<name> with a kubeadm bootstrap "+
+			"token and a rotated client certificate, and move joined nodes onto it, "+
+			"instead of a ServiceAccount bound to system:node (which reads every Secret).")
 	flag.DurationVar(&orphanReclaimInterval, "orphan-reclaim-interval", 15*time.Minute,
 		"How often the orphan-reclaim sweep runs. The sweep is a full Scaleway "+
 			"ListServers per zone plus a CR list, so keep it coarse.")
@@ -1073,6 +1078,7 @@ func main() {
 			Recorder:                 mgr.GetEventRecorderFor("ovhdedicatedmachine-controller"),
 			CredentialsManager:       credsManager,
 			Kubeconfig:               kubeconfigBuilder,
+			KubeletIdentity:          linux.KubeletIdentityMode{Certificates: linuxNodeCertificates},
 			KubernetesMinor:          "v1.34",
 			DefaultDatacenter:        "vin",
 			DefaultOS:                "ubuntu_24.04",
@@ -1125,6 +1131,7 @@ func main() {
 			Recorder:                 mgr.GetEventRecorderFor("vultrmachine-controller"),
 			CredentialsManager:       credsManager,
 			Kubeconfig:               kubeconfigBuilder,
+			KubeletIdentity:          linux.KubeletIdentityMode{Certificates: linuxNodeCertificates},
 			KubernetesMinor:          "v1.34",
 			DefaultRegion:            "scl",
 			PrivateNetworkConfigName: vultrPrivateNetworkConfig,

@@ -86,6 +86,9 @@ type OVHDedicatedMachineReconciler struct {
 
 	CredentialsManager *credentials.Manager
 	Kubeconfig         *kubeconfig.Builder
+	// KubeletIdentity says whether kubelets join with system:node:<name>
+	// certificates or a ServiceAccount bound to system:node.
+	KubeletIdentity KubeletIdentityMode
 
 	// adoptMu serializes the claim window across the controller's concurrent
 	// workers (see --machine-max-concurrent-reconciles). Leader election means
@@ -260,22 +263,17 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		}
 		machine.Status.Addresses = []clusterv1.MachineAddress{{Type: clusterv1.MachineExternalIP, Address: server.IP}}
 
-		identity, idErr := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, linuxNodeIdentityClusterRole)
-		if idErr != nil {
-			machine.Status.Phase = "Pending"
-			return ctrl.Result{RequeueAfter: 20 * time.Second}, fmt.Errorf("mint node identity: %w", idErr)
-		}
-		kubeconfigYAML, kcErr := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
-		if kcErr != nil {
-			return ctrl.Result{}, fmt.Errorf("render kubelet kubeconfig: %w", kcErr)
-		}
 		sudoPassword, pwErr := r.CredentialsManager.FleetSudoPassword(ctx, fleet)
 		if pwErr != nil {
 			return ctrl.Result{}, fmt.Errorf("fleet sudo password: %w", pwErr)
 		}
 		opts := r.hostOptions(machine, machineVersion)
-		opts.KubeconfigYAML = kubeconfigYAML
-		opts.ClusterCAPEM = identity.CA
+		releaseIdentity, idErr := r.KubeletIdentity.prepare(ctx, r.CredentialsManager, r.Kubeconfig, machine.Name, &opts)
+		if idErr != nil {
+			machine.Status.Phase = "Pending"
+			return ctrl.Result{RequeueAfter: 20 * time.Second}, idErr
+		}
+		defer releaseIdentity(logger)
 		opts.ClusterDNS = discoverClusterDNS(ctx, r.APIReader)
 		opts.SudoPassword = sudoPassword
 		script := renderLinuxBootstrapScript(opts)
@@ -376,7 +374,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		}
 		if machine.Status.FailureReason == nil {
 			fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
-			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, ovhBootstrapUser, machine.Spec.KataRuntime, node); driftErr != nil {
+			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, r.KubeletIdentity, r.Kubeconfig, machine.Name, fleet, ovhBootstrapUser, machine.Spec.KataRuntime, node); driftErr != nil {
 				logger.Error(driftErr, "kubelet config re-push failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {

@@ -123,6 +123,9 @@ type VultrMachineReconciler struct {
 
 	CredentialsManager *credentials.Manager
 	Kubeconfig         *kubeconfig.Builder
+	// KubeletIdentity says whether kubelets join with system:node:<name>
+	// certificates or a ServiceAccount bound to system:node.
+	KubeletIdentity KubeletIdentityMode
 
 	// adoptMu serializes the claim window across concurrent workers, exactly as
 	// the OVH reconciler does: two workers that both list before either writes
@@ -282,18 +285,13 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machine *i
 			return res, nil
 		}
 
-		identity, idErr := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, linuxNodeIdentityClusterRole)
+		opts := r.hostOptions(machine)
+		releaseIdentity, idErr := r.KubeletIdentity.prepare(ctx, r.CredentialsManager, r.Kubeconfig, machine.Name, &opts)
 		if idErr != nil {
 			machine.Status.Phase = "Pending"
-			return ctrl.Result{RequeueAfter: 20 * time.Second}, fmt.Errorf("mint node identity: %w", idErr)
+			return ctrl.Result{RequeueAfter: 20 * time.Second}, idErr
 		}
-		kubeconfigYAML, kcErr := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
-		if kcErr != nil {
-			return ctrl.Result{}, fmt.Errorf("render kubelet kubeconfig: %w", kcErr)
-		}
-		opts := r.hostOptions(machine)
-		opts.KubeconfigYAML = kubeconfigYAML
-		opts.ClusterCAPEM = identity.CA
+		defer releaseIdentity(logger)
 		opts.ClusterDNS = discoverClusterDNS(ctx, r.APIReader)
 		// No SudoPassword: the install lands on root, so the rendered script has no
 		// escalation prefix and nothing to escalate with.
@@ -379,7 +377,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machine *i
 		conditions.MarkTrue(machine, NodeReadyCondition)
 		if machine.Status.FailureReason == nil {
 			fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
-			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, vultrBootstrapUser, false, node); driftErr != nil {
+			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, r.KubeletIdentity, r.Kubeconfig, machine.Name, fleet, vultrBootstrapUser, false, node); driftErr != nil {
 				logger.Error(driftErr, "kubelet config re-push failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {

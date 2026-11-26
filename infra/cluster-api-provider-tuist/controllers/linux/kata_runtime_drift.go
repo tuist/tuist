@@ -110,6 +110,7 @@ func renderKataRuntimeRepairScript(opts linuxCloudInitOptions) string {
 		taintArgFor(opts.Taints),
 		instanceTypeOrDefault(opts.InstanceType),
 		kataNodeLabelsArg(true, podLevel),
+		opts.NodeCertificates,
 	)
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
@@ -200,6 +201,10 @@ func reconcileLinuxKataRuntimeDrift(
 	node *corev1.Node,
 ) (requeue bool, err error) {
 	logger := log.FromContext(ctx)
+	// The unit it rewrites keeps the identity the kubelet holds, not the one
+	// the fleet is moving to: a --bootstrap-kubeconfig on a kubelet still on
+	// a ServiceAccount would bootstrap over its kubeconfig on the next restart.
+	opts.NodeCertificates = nodeHoldsCertificate(node)
 
 	if !opts.KataRuntime {
 		conditions.Delete(machine, KataRuntimeReadyCondition)

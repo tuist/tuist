@@ -64,7 +64,12 @@ machine kinds:
 
 All bootstrap with an operator-minted kubelet identity + SSH self-join,
 then wait for `Node.Ready`. The Linux kinds share the
-`controllers/linux` package and bind that identity to `system:node`;
+`controllers/linux` package and bind that identity to `system:node`, which
+reads every Secret, since the Node authorizer scopes only
+`system:node:<name>` users; `macosFleet.linuxNodeCertificates` moves the OVH
+and Vultr kubelets onto kubeadm certificate identities and drops the
+operator's `bind` on `system:node` (see
+[Linux node certificates](docs/linux-node-certificates.md));
 Apple Silicon uses the `tart-kubelet` role, with a short-lived token the host
 rotates (`credentials.EnsureTartKubeletIdentity`) and node-scoped grants the
 node access controller (`controllers/macos/node_access_controller.go`) keeps:

@@ -2448,6 +2448,18 @@ macosFleet:
   nodeIdentitySweep:
     revoke: false
 
+  # Join the OVH and Vultr Linux kubelets as system:node:<name> with a kubeadm
+  # bootstrap token and a rotated client certificate (as rack Linux nodes
+  # already do), and move joined ones onto it through the kubelet-config
+  # drift push, revoking their tart-kubelet-<machine> ServiceAccount. It also
+  # drops the operator's `bind` on system:node and the admission policy's
+  # allowance for it, so neither the operator nor its credential can mint a
+  # ServiceAccount that reads every Secret. The Node authorizer and
+  # NodeRestriction scope only certificate identities. Off by default until
+  # each environment has moved; see
+  # infra/cluster-api-provider-tuist/docs/linux-node-certificates.md.
+  linuxNodeCertificates: false
+
   # tart-kubelet — kubelet-shaped agent the CAPI provider installs on
   # each Mac mini. Each Mac mini joins the cluster as a real Node and
   # runs Pods scheduled to it as Tart VMs. The darwin/arm64 binary is

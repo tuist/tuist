@@ -66,7 +66,7 @@ func newKataHarness(t *testing.T, kataRuntime bool, nodeLabels map[string]string
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
 		Name:        machine.Name,
 		Labels:      nodeLabels,
-		Annotations: map[string]string{kubeletConfigHashAnnotation: desiredKubeletConfigHash(ca, "v1.34", kataRuntime)},
+		Annotations: map[string]string{kubeletConfigHashAnnotation: desiredKubeletConfigHash(ca, "v1.34", kataRuntime, false)},
 	}}
 	node.Status.Conditions = []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}
 
