@@ -41,86 +41,58 @@ jobs:
           echo "E2E_ROOT=$root" >> "$GITHUB_ENV"
           echo "E2E_REAL=$(cd "$root" && pwd -P)" >> "$GITHUB_ENV"
           mount | grep -iE 'tuist' || true
-      # Each write path Foundation and SwiftPM use, through the symlinked
-      # path and through the resolved one, read back after 2 s.
-      - name: Write paths
+      # Round 5: every failure so far was on an image the guest attaches
+      # (the cache volume and the cached checkout at /Users/runner/work/tuist).
+      # Find whether the image format or the virtio-fs share behind it matters.
+      - name: Attached images
         run: |
           set -uo pipefail
-          cat > /tmp/writes.swift <<'EOF'
-          import Foundation
-          let dir = URL(fileURLWithPath: CommandLine.arguments[1])
-          let fm = FileManager.default
-          try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-          var results: [(String, URL, Data)] = []
-          func payload(_ n: Int) -> Data { Data((0..<n).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ 7) }) }
-          for i in 0..<50 {
-            let d = payload(200 + i * 97)
-            let plain = dir.appendingPathComponent("plain-\(i)")
-            try! d.write(to: plain); results.append(("Data.write", plain, d))
-            let atomic = dir.appendingPathComponent("atomic-\(i)")
-            try! d.write(to: atomic, options: .atomic); results.append(("Data.write(.atomic)", atomic, d))
-            let target = dir.appendingPathComponent("replaced-\(i)")
-            try! Data("old".utf8).write(to: target)
-            let tmpDir = try! fm.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: target, create: true)
-            let tmp = tmpDir.appendingPathComponent("new")
-            try! d.write(to: tmp)
-            _ = try! fm.replaceItemAt(target, withItemAt: tmp)
-            results.append(("FileManager.replaceItemAt", target, d))
-            let copied = dir.appendingPathComponent("copied-\(i)")
-            try! fm.copyItem(at: plain, to: copied); results.append(("FileManager.copyItem (clonefile)", copied, d))
-            let moved = dir.appendingPathComponent("moved-\(i)")
-            let src = dir.appendingPathComponent("tomove-\(i)")
-            try! d.write(to: src); try! fm.moveItem(at: src, to: moved); results.append(("FileManager.moveItem", moved, d))
-            let h = FileHandle(forWritingAtPath: { let p = dir.appendingPathComponent("handle-\(i)").path; fm.createFile(atPath: p, contents: nil); return p }())!
-            h.write(d); try! h.synchronize(); try! h.close()
-            results.append(("FileHandle.write", dir.appendingPathComponent("handle-\(i)"), d))
-          }
-          Thread.sleep(forTimeInterval: 2)
-          var counts: [String: (Int, Int)] = [:]
-          for (kind, url, expected) in results {
-            let got = (try? Data(contentsOf: url)) ?? Data()
-            var c = counts[kind] ?? (0, 0); c.0 += 1
-            if got != expected { c.1 += 1; if c.1 == 1 { print("BAD \(kind) \(url.path): \(got.count) of \(expected.count) bytes") } }
-            counts[kind] = c
-          }
-          for (k, c) in counts.sorted(by: { $0.key < $1.key }) { print("\(k): \(c.1) bad of \(c.0)") }
-          EOF
-          swiftc -O /tmp/writes.swift -o /tmp/writes
-          echo "== through the symlinked path"; /tmp/writes "$E2E_ROOT/writes-link"
-          echo "== through the resolved path"; /tmp/writes "$E2E_REAL/writes-real"
-          ls -la "$E2E_REAL" "$E2E_REAL/.." 2>/dev/null | head -30 || true
-          find "$(dirname "$E2E_REAL")" -maxdepth 2 -name '.TemporaryItems' -print 2>/dev/null || true
-          exit 0
-      # SwiftPM copies registry downloads from its cache on the root disk into
-      # the scratch path, so test copies that cross from the root volume into
-      # the cache volume, and concurrent writes.
-      - name: Cross-volume copies and concurrent writes
-        run: |
-          set -uo pipefail
+          hdiutil info | grep -E "image-path|image-type|/dev/disk" || true
+          mount | grep -iE "virtio|tuist" || true
           src="$(mktemp -d "$HOME/xsrc.XXXX")"
-          for i in $(seq 1 200); do head -c $((RANDOM % 6000 + 20)) /dev/urandom > "$src/f$i"; done
+          for i in $(seq 1 400); do head -c $((RANDOM % 6000 + 20)) /dev/urandom > "$src/f$i"; done
           (cd "$src" && shasum -a 256 f*) > /tmp/src.sum
-          check() { local d="$1" label="$2"; sleep 2; local z=0; for f in "$d"/f*; do [ -z "$(tr -d '\0' < "$f" | head -c1)" ] && z=$((z+1)); done; local m=0; (cd "$d" && shasum -a 256 -c /tmp/src.sum --quiet >/dev/null 2>&1) || m=1; echo "$label: all-zero=$z mismatch=$m"; }
-          for tool in cp "cp -c" ditto rsync; do d="$E2E_REAL/x-${tool// /_}"; rm -rf "$d"; mkdir -p "$d"; $tool "$src"/f* "$d"/ 2>/dev/null || { mkdir -p "$d"; for f in "$src"/f*; do $tool "$f" "$d/" ; done; }; check "$d" "$tool"; done
           cat > /tmp/xcopy.swift <<'EOF2'
           import Foundation
           let src = URL(fileURLWithPath: CommandLine.arguments[1]), dst = URL(fileURLWithPath: CommandLine.arguments[2])
           let fm = FileManager.default
           try? fm.createDirectory(at: dst, withIntermediateDirectories: true)
           let names = try! fm.contentsOfDirectory(atPath: src.path).filter { $0.hasPrefix("f") }
-          let mode = CommandLine.arguments[3]
           DispatchQueue.concurrentPerform(iterations: names.count) { i in
-            let s = src.appendingPathComponent(names[i]), d = dst.appendingPathComponent(names[i])
-            switch mode {
-            case "copyItem": try! fm.copyItem(at: s, to: d)
-            case "moveItem": let t = src.appendingPathComponent("m-" + names[i]); try! fm.copyItem(at: s, to: t); try! fm.moveItem(at: t, to: d)
-            default: try! Data(contentsOf: s).write(to: d)
-            }
+            try! fm.copyItem(at: src.appendingPathComponent(names[i]), to: dst.appendingPathComponent(names[i]))
           }
           EOF2
           swiftc -O /tmp/xcopy.swift -o /tmp/xcopy
-          for mode in copyItem moveItem write; do d="$E2E_REAL/s-$mode"; rm -rf "$d"; /tmp/xcopy "$src" "$d" "$mode"; check "$d" "concurrent $mode from root disk"; done
-          d="$E2E_REAL/s-inside"; mkdir -p "$d/src"; cp "$src"/f* "$d/src/"; /tmp/xcopy "$d/src" "$d/dst" copyItem; check "$d/dst" "concurrent copyItem inside volume"
+          check() {
+            local d="$1" label="$2" z=0 bad=0
+            for f in "$d"/f*; do [ "$(LC_ALL=C tr -d '\0' < "$f" | wc -c | tr -d ' ')" = 0 ] && z=$((z+1)); done
+            bad=$(cd "$d" && shasum -a 256 -c /tmp/src.sum 2>/dev/null | grep -vc ': OK$')
+            echo "$label: all-zero=$z bad=$bad of 400"
+          }
+          run_into() {
+            local dir="$1" label="$2"
+            rm -rf "$dir/cp" "$dir/cc"; mkdir -p "$dir/cp"
+            cp "$src"/f* "$dir/cp/"; check "$dir/cp" "$label cp"
+            /tmp/xcopy "$src" "$dir/cc"; check "$dir/cc" "$label concurrent copyItem"
+            sync; sudo -n purge 2>/dev/null; check "$dir/cc" "$label concurrent copyItem after purge"
+          }
+          run_into "$HOME/xroot" "root disk"
+          run_into "$GITHUB_WORKSPACE/.xtest" "cached checkout volume"
+          [ -n "${E2E_REAL:-}" ] && [ "$(df "$E2E_REAL" | tail -1 | cut -d' ' -f1)" != "$(df "$HOME" | tail -1 | cut -d' ' -f1)" ] && run_into "$E2E_REAL/xtest" "cache volume"
+          img="$HOME/ximg"; mkdir -p "$img"
+          try_image() {
+            local label="$1" file="$2"; shift 2
+            local mnt="$img/mnt-$label"; mkdir -p "$mnt"
+            if ! hdiutil attach "$file" -owners off -nobrowse -mountpoint "$mnt" "$@" >/dev/null 2>/tmp/attach.err; then
+              echo "$label: attach failed: $(cat /tmp/attach.err)"; return
+            fi
+            run_into "$mnt" "$label image on root disk"
+            hdiutil detach "$mnt" -force -quiet || true
+          }
+          hdiutil create -size 4g -fs APFS -volname T -type SPARSE -quiet "$img/s.sparseimage" && try_image sparse "$img/s.sparseimage"
+          hdiutil create -size 4g -fs APFS -volname T -type SPARSEBUNDLE -quiet "$img/b.sparsebundle" && try_image sparsebundle "$img/b.sparsebundle"
+          hdiutil create -size 4g -fs APFS -volname T -type UDIF -quiet "$img/u.dmg" && try_image udif "$img/u.dmg"
+          if diskutil image create blank --fs APFS --format ASIF --size 4G --volumeName T "$img/a.asif" >/dev/null 2>&1; then try_image asif "$img/a.asif"; else echo "asif: create failed"; fi
           exit 0
       - uses: ./.github/actions/mise-install
         with:
