@@ -128,7 +128,7 @@ JAIL_UID_BASE (the jails of handed-over VMs keep their UIDs).
   "EXECUTION_SLOTS" ($slots | toString)
   "NETWORK_BACKEND" (.Values.workers.networkBackend | toString)
   "ALLOWED_SHAPES" "1x2048,2x4096,4x8192,8x16384,8x2048,8x4096,8x8192"
-  "PREBUILD_SHAPES" "1x2048,2x4096,4x8192,8x4096"
+  "PREBUILD_SHAPES" "1x2048,2x4096,4x8192,8x2048,8x4096"
   "TEMPLATE_WORKSPACE_GB" "30"
   "DISK_BUDGET_GIB" (.Values.workers.diskGiB | toString)
   "BLOB_CACHE_GIB" (.Values.workers.blobCacheGiB | toString) }}
