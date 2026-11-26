@@ -135,12 +135,33 @@ defmodule Tuist.OAuth2.SSOClientAssertionTest do
     end
   end
 
-  test "rejects keys that are not RSA" do
-    stub(Environment, :sso_client_assertion_private_keys, fn ->
-      :secp256r1 |> X509.PrivateKey.new_ec() |> X509.PrivateKey.to_pem()
-    end)
+  test "leaves the feature unavailable, without raising or logging key material, when the keys cannot be used" do
+    rsa_pem = 2048 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem()
+    [_, rsa_body | _] = String.split(rsa_pem, "\n")
 
-    assert_raise ArgumentError, ~r/RSA/, fn -> SSOClientAssertion.jwks() end
+    unusable = %{
+      "an EC key" => :secp256r1 |> X509.PrivateKey.new_ec() |> X509.PrivateKey.to_pem(),
+      "a short RSA key" => 1024 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem(),
+      "an encrypted key" => 2048 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem(password: "secret"),
+      "a truncated key" => String.slice(rsa_pem, 0, 200),
+      "a public key" => 2048 |> X509.PrivateKey.new_rsa() |> X509.PublicKey.derive() |> X509.PublicKey.to_pem(),
+      "escaped newlines" => String.replace(rsa_pem, "\n", "\\n"),
+      "text that is not PEM" => "not a key " <> rsa_body
+    }
+
+    for {description, pem} <- unusable do
+      stub(Environment, :sso_client_assertion_private_keys, fn -> pem end)
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          refute SSOClientAssertion.available?(), description
+          assert SSOClientAssertion.jwks() == %{"keys" => []}, description
+          assert {:error, :sso_client_assertion_not_configured} = SSOClientAssertion.sign("client", "https://idp/token")
+        end)
+
+      assert log =~ "TUIST_SSO_CLIENT_ASSERTION_PRIVATE_KEYS", description
+      refute log =~ rsa_body, description
+    end
   end
 
   defp configure_keys(keys) do

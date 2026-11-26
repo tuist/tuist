@@ -662,6 +662,77 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       assert Accounts.entra_tenant(organization) == "contoso.onmicrosoft.com"
     end
 
+    test "asks organizations that store a client secret to switch, and selects the public key for them", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "authsettings-company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      assert has_element?(lv, "#sso-client-secret-banner")
+      refute has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+
+      render_click(lv, "switch_to_private_key_jwt")
+
+      assert has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+      refute has_element?(lv, ~s(input[name="sso[oauth2_client_secret]"]))
+
+      lv |> form("#sso-form", %{}) |> render_submit()
+
+      refute has_element?(lv, "#sso-client-secret-banner")
+      {:ok, organization} = Accounts.get_organization_by_id(organization.id)
+      assert organization.oauth2_client_authentication_method == :private_key_jwt
+      assert is_nil(organization.oauth2_encrypted_client_secret)
+    end
+
+    test "still renders for every organization when the signing keys are unusable", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "authsettings-company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      stub(Environment, :sso_client_assertion_private_keys, fn -> "-----BEGIN RSA PRIVATE KEY-----\ntruncated" end)
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+        refute has_element?(lv, "#sso-client-secret-banner")
+        refute has_element?(lv, "#sso-client-authentication-select")
+        assert has_element?(lv, ~s(input[name="sso[oauth2_client_secret]"]))
+      end)
+    end
+
+    test "hides the banner when the server has no signing keys", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "authsettings-company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      stub(Environment, :sso_client_assertion_private_keys, fn -> nil end)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      refute has_element?(lv, "#sso-client-secret-banner")
+    end
+
     test "keeps the method while other fields change and shows the secret field again when switched back", %{
       conn: conn,
       account: account

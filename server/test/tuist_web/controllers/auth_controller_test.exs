@@ -375,6 +375,7 @@ defmodule TuistWeb.AuthControllerTest do
   describe "GET /users/auth/okta/callback" do
     test "links the Okta identity to an existing user and logs them in", %{conn: conn} do
       existing_user = AccountsFixtures.user_fixture(email: "existing-okta@authctl-example.com")
+      client_secret = UUIDv7.generate()
 
       organization =
         AccountsFixtures.organization_fixture(
@@ -385,10 +386,15 @@ defmodule TuistWeb.AuthControllerTest do
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: UUIDv7.generate(),
-          oauth2_client_secret: UUIDv7.generate()
+          oauth2_client_secret: client_secret
         )
 
-      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+      # Client-secret organizations keep authenticating with the stored secret.
+      expect(SSOClient, :exchange_token, fn _token_url,
+                                            "auth-code",
+                                            _redirect_uri,
+                                            _client_id,
+                                            {:client_secret_basic, ^client_secret} ->
         {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
       end)
 

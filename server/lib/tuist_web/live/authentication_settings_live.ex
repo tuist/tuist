@@ -226,6 +226,17 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     |> then(&{:noreply, &1})
   end
 
+  def handle_event("select_oauth2_client_authentication", _params, socket), do: {:noreply, socket}
+
+  # The banner's shortcut: selects the public-key method in the SSO form and
+  # scrolls to it. Nothing is saved until the admin saves the form.
+  def handle_event("switch_to_private_key_jwt", _params, socket) do
+    {:noreply, new_socket} =
+      handle_event("select_oauth2_client_authentication", %{"value" => ["private_key_jwt"]}, socket)
+
+    {:noreply, push_event(new_socket, "scroll-to-element", %{id: "sso-client-authentication-section"})}
+  end
+
   def handle_event("select_provider", %{"value" => [provider]}, socket) when provider in @form_providers do
     form_params = Map.put(socket.assigns.current_form_params, "provider", provider)
 
@@ -642,6 +653,12 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   defp private_key_jwt?(form), do: form["oauth2_client_authentication_method"] == "private_key_jwt"
+
+  defp stores_sso_client_secret?(organization, available) do
+    available and organization.sso_provider in [:okta, :oauth2] and
+      organization.oauth2_client_authentication_method == :client_secret_basic and
+      not is_nil(organization.oauth2_encrypted_client_secret)
+  end
 
   defp sso_client_certificate_urls do
     Enum.map(SSOClientAssertion.key_ids(), fn kid ->

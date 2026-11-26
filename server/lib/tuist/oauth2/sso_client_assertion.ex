@@ -7,10 +7,15 @@ defmodule Tuist.OAuth2.SSOClientAssertion do
   ## Keys
 
   The keys are RSA private keys configured as one PEM bundle in
-  `TUIST_SSO_CLIENT_ASSERTION_PRIVATE_KEYS` (or `sso.client_assertion_private_keys`
-  in the encrypted secrets). Every key in the bundle is published; the first
-  one signs. RSA is required because Microsoft Entra ID only accepts RSA
-  certificate credentials.
+  `TUIST_SSO_CLIENT_ASSERTION_PRIVATE_KEYS`. Every key in the bundle is
+  published; the first one signs. RSA is required because Microsoft Entra ID
+  only accepts RSA certificate credentials. A bundle that cannot be used is
+  logged and treated as no keys, so `private_key_jwt` is unavailable and
+  client-secret organizations keep working.
+
+  Once an organization switches to `private_key_jwt`, its client secret is
+  deleted, so releases older than this one cannot sign its members in. Do not
+  roll back past this release after any organization has switched.
 
   Each key also has a self-signed X.509 certificate, because Entra ID cannot
   fetch a JWKS and needs a certificate uploaded instead. The certificate is
@@ -31,6 +36,8 @@ defmodule Tuist.OAuth2.SSOClientAssertion do
 
   alias Tuist.Environment
   alias Tuist.Time
+
+  require Logger
 
   @assertion_ttl_seconds 5 * 60
   @client_assertion_type "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
@@ -139,24 +146,57 @@ defmodule Tuist.OAuth2.SSOClientAssertion do
   # Parsing the bundle and signing the certificates costs a few RSA operations,
   # so the result is memoized per bundle on this node. The cache is derived
   # entirely from configuration and is safe to lose.
+  #
+  # A bundle that cannot be used (a typo, an encrypted or truncated PEM, a key
+  # that is not RSA) leaves the feature unavailable instead of raising: every
+  # organization's Authentication settings page and the public JWKS endpoint
+  # read the keys, and an operator's mistake must not take those down.
   defp keys do
     case Environment.sso_client_assertion_private_keys() do
-      pem when is_binary(pem) and pem != "" ->
-        cache_key = {__MODULE__, :crypto.hash(:sha256, pem)}
-
-        case :persistent_term.get(cache_key, nil) do
-          nil ->
-            keys = parse_keys(pem)
-            :persistent_term.put(cache_key, keys)
-            keys
-
-          keys ->
-            keys
-        end
+      pem when is_binary(pem) ->
+        if String.trim(pem) == "", do: [], else: cached_keys(pem)
 
       _ ->
         []
     end
+  end
+
+  defp cached_keys(pem) do
+    cache_key = {__MODULE__, :crypto.hash(:sha256, pem)}
+
+    case :persistent_term.get(cache_key, nil) do
+      nil ->
+        keys = load_keys(pem)
+        :persistent_term.put(cache_key, keys)
+        keys
+
+      keys ->
+        keys
+    end
+  end
+
+  defp load_keys(pem) do
+    case parse_keys(pem) do
+      [] ->
+        Logger.error(
+          "TUIST_SSO_CLIENT_ASSERTION_PRIVATE_KEYS contains no PEM private key; private_key_jwt SSO is unavailable"
+        )
+
+        []
+
+      keys ->
+        keys
+    end
+  rescue
+    error ->
+      # Never log the exception itself: it can carry key material.
+      Logger.error(
+        "TUIST_SSO_CLIENT_ASSERTION_PRIVATE_KEYS could not be used (#{inspect(error.__struct__)}); " <>
+          "it must hold unencrypted RSA private keys of at least #{@minimum_rsa_bits} bits as PEM. " <>
+          "private_key_jwt SSO is unavailable"
+      )
+
+      []
   end
 
   defp parse_keys(pem) do

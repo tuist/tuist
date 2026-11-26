@@ -25,6 +25,33 @@
     title={Phoenix.Flash.get(@flash, kind)}
   />
 
+  <.alert
+    :if={
+      @organization && stores_sso_client_secret?(@organization, @sso_client_assertion_available)
+    }
+    id="sso-client-secret-banner"
+    status="information"
+    type="secondary"
+    size="large"
+    title={dgettext("dashboard_account", "Stop sharing your SSO client secret with Tuist")}
+    description={
+      dgettext(
+        "dashboard_account",
+        "Tuist stores your identity provider's client secret to sign your members in. Register Tuist's public key with your provider instead, and Tuist deletes the secret and keeps nothing that could be used to sign in to your provider."
+      )
+    }
+  >
+    <:action>
+      <.button
+        id="sso-client-secret-banner-switch"
+        label={dgettext("dashboard_account", "Switch to Tuist's public key")}
+        variant="primary"
+        size="medium"
+        phx-click="switch_to_private_key_jwt"
+      />
+    </:action>
+  </.alert>
+
   <.card_section
     :if={
       is_nil(@organization) and @selected_account.user_id == @current_user.id and
@@ -771,6 +798,8 @@
           @sso_enabled and oauth2_form_provider?(@selected_provider) and
             (@sso_client_assertion_available or private_key_jwt?(@current_form_params))
         }
+        id="sso-client-authentication-section"
+        phx-hook="ScrollIntoView"
         data-part="section"
       >
         <div data-part="label">
