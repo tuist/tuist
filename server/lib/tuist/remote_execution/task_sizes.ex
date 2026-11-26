@@ -19,10 +19,12 @@ defmodule Tuist.RemoteExecution.TaskSizes do
 
   - **Memory** is a hard floor: the smallest size whose usable memory (the
     size less about 0.7 GiB the guest keeps) holds 1.3 × the peak, raised to
-    the OOM floor. The size the action asks for (`tuist-memory-gb`, or the
-    default) is a floor too; `tuist-task-sizing: off` runs exactly that. A
-    size the account's limits do not hold is lowered to the largest that
-    fits.
+    the OOM floor. A size the action asks for with `tuist-memory-gb` is a
+    floor too; one that asks for none starts at the account's default
+    (`Settings.default_memory_gb/1`, 2 GB), so a measurement can run it
+    smaller than an unflagged account's 4 GB. `tuist-task-sizing: off` runs
+    exactly the size asked for, or that default. A size the account's limits
+    do not hold is lowered to the largest that fits.
   - **CPU** is a guarantee, not a size: the cores the action used, rounded up
     to half a vCPU, between half a vCPU and the burst vCPUs and at most half
     the account's vCPU limit. It weighs the VM's cgroup while the action runs,
@@ -61,17 +63,27 @@ defmodule Tuist.RemoteExecution.TaskSizes do
   def choose(%Project{account: account} = project, asked_gb, params) do
     key = params["size_key"]
 
-    if is_binary(key) and Regex.match?(@key, key) and params["task_sizing"] != false and
-         FeatureFlags.remote_execution_task_sizing_enabled?(account) do
-      case cached(project.id, key) do
-        %TaskSize{} = size ->
-          {memory_gb, reason} = memory(size, asked_gb, limits(account))
-          decided(reason)
-          {memory_gb, guarantee(size.cores, account.remote_execution_vcpus_limit)}
+    if FeatureFlags.remote_execution_task_sizing_enabled?(account) do
+      # The gateway marks an action without `tuist-memory-gb` (an older one
+      # does not, and its size stays a floor): it starts at the account's
+      # default, below which only its measurements take it.
+      explicit = params["memory_explicit"] != false
+      limits = limits(account)
+      asked_gb = if explicit, do: asked_gb, else: Settings.default_memory_gb(limits)
 
-        nil ->
-          decided(:default)
-          {asked_gb, nil}
+      if is_binary(key) and Regex.match?(@key, key) and params["task_sizing"] != false do
+        case cached(project.id, key) do
+          %TaskSize{} = size ->
+            {memory_gb, reason} = memory(size, asked_gb, explicit, limits)
+            decided(reason)
+            {memory_gb, guarantee(size.cores, account.remote_execution_vcpus_limit)}
+
+          nil ->
+            decided(:default)
+            {asked_gb, nil}
+        end
+      else
+        {asked_gb, nil}
       end
     else
       {asked_gb, nil}
@@ -79,9 +91,13 @@ defmodule Tuist.RemoteExecution.TaskSizes do
   end
 
   defp limits(account),
-    do: %Settings{vcpus: account.remote_execution_vcpus_limit, memory_gb: account.remote_execution_memory_gb_limit}
+    do: %Settings{
+      vcpus: account.remote_execution_vcpus_limit,
+      memory_gb: account.remote_execution_memory_gb_limit,
+      burst: true
+    }
 
-  defp memory(size, asked_gb, limits) do
+  defp memory(size, asked_gb, explicit, limits) do
     measured = smallest_holding(size.anon_peak_bytes)
     floor = if oom_floor?(size), do: size.oom_floor_gb, else: 0
 
@@ -89,7 +105,7 @@ defmodule Tuist.RemoteExecution.TaskSizes do
 
     reason =
       cond do
-        wanted == asked_gb -> explicit_or_default(asked_gb)
+        wanted == asked_gb -> if(explicit, do: :explicit, else: :default)
         wanted == floor -> :oom_floor
         true -> :measured_memory
       end
@@ -101,8 +117,6 @@ defmodule Tuist.RemoteExecution.TaskSizes do
       sizes -> {Enum.max(sizes), reason}
     end
   end
-
-  defp explicit_or_default(asked_gb), do: if(asked_gb == Settings.default_memory_gb(), do: :default, else: :explicit)
 
   defp smallest_holding(peak_bytes) do
     needed = peak_bytes * @margin
@@ -136,7 +150,7 @@ defmodule Tuist.RemoteExecution.TaskSizes do
         [:remote_execution, :sized_keys, project.id],
         [ttl: @cache_ttl_ms, locking: false],
         fn ->
-          default = Settings.default_memory_gb()
+          default = Settings.default_memory_gb(limits(account))
           usable = default * 1024 * 1024 * 1024 - @guest_overhead_bytes
           default_cores = Settings.shape(default).vcpus
 
