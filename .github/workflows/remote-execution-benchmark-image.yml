@@ -6,7 +6,12 @@ on:
   push:
     branches: [bench/re-provider-comparison]
     paths: [.github/workflows/remote-execution-benchmark-image.yml]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Commit of the production template tag to export (TEMPLATE_TAG sha-<first 12>)
+        default: b8f2e9aaa93a938ccc08f429c80da195ced4eb3d
+        required: true
 
 permissions:
   contents: read
@@ -20,9 +25,11 @@ jobs:
       contents: read
       packages: write
     env:
-      SOURCE_SHA: 8e999dc77f46513e3d868b404eefe87f112d4f97
-      IMAGE: ghcr.io/tuist/tuist-sandbox-template:benchmark-guest-8e999dc77f46-${{ github.run_id }}-${{ github.run_attempt }}
+      SOURCE_SHA: ${{ inputs.source_sha || 'b8f2e9aaa93a938ccc08f429c80da195ced4eb3d' }}
+      IMAGE: ghcr.io/tuist/tuist-sandbox-template:benchmark-guest-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
+      - name: Validate source
+        run: '[[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]] || { echo "::error::source_sha must be a full commit SHA"; exit 1; }'
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.SOURCE_SHA }}
@@ -38,7 +45,7 @@ jobs:
           load: true
           push: false
           tags: ${{ env.IMAGE }}
-          build-args: VERSION=sha-8e999dc77f46
+          build-args: VERSION=sha-${{ env.SOURCE_SHA }}
           cache-from: type=gha,scope=re-benchmark-guest
           cache-to: type=gha,mode=max,scope=re-benchmark-guest
       - name: Verify unprivileged offline native tools
