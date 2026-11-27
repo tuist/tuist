@@ -20,6 +20,13 @@
 
 set -uo pipefail
 
+# Hold job steps at RLIMIT_NOFILE 1048576 whatever the Kata guest hands out:
+# Kata 4.4's guest gives soft=hard=2^30, and runtimes that size tables from
+# the limit then allocate at start (every BEAM took about 2.1 GB for its port
+# table, so a few Mix processes ran an 8 GB runner out of memory). Lowering
+# needs no privilege; a guest below the limit keeps its own.
+ulimit -n 1048576 2>/dev/null || true
+
 JIT_PATH=${TUIST_RUNNER_JIT_PATH:-/var/lib/tuist-runner/jit}
 
 # Dispatch is the only source of this attestation. An untrusted job receives

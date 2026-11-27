@@ -1319,13 +1319,14 @@ Shape:
 
 ### Open-file limits for job steps
 
-The `runner` container needs no setting of its own: measured on
-production and canary (2026-10-22), job steps, every process up
-to `run-job.sh`, and Docker containers all get `RLIMIT_NOFILE`
-soft=hard=1048576 inside the guest. That is above the 65536
-GitHub-hosted runners give, and runners acceptance fails with
-`Runner file limits` if it ever drops below
-(`.github/scripts/runners-acceptance/file-limits.sh`).
+Job steps get `RLIMIT_NOFILE` soft=hard=1048576, above the 65536
+GitHub-hosted runners give. Kata 3.30's guest gave that to every
+process; Kata 4.4's gives 2^30, which made each Erlang VM allocate
+a 2.1 GB port table at start and OOM 8 GB runners (2026-11-26), so
+`run-job.sh` lowers the limit to 1048576 before starting the job.
+Docker containers get it from dockerd's `--default-ulimit`.
+Runners acceptance fails with `Runner file limits` if job steps
+see less than 65536 (`.github/scripts/runners-acceptance/file-limits.sh`).
 
 The limit a file-heavy job actually hits is on the host:
 virtiofsd, which serves the Pod's rootfs and volumes to the
