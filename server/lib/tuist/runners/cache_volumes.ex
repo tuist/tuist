@@ -91,8 +91,10 @@ defmodule Tuist.Runners.CacheVolumes do
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
          {:ok, job, platform} <- executing_job(pod, node),
+         {:ok, format} <- volume_format(params["format"], platform),
          {:ok, identity} <- Identity.resolve(job) do
       allocate_for_job(job, identity, %{
+        format: format,
         pod_name: pod,
         pod_uid: uid,
         node_name: node,
@@ -113,6 +115,11 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   def allocate(_), do: {:error, :unavailable}
+
+  # A macOS 27 guest asks for an ASIF volume, which only a macOS host attaches.
+  defp volume_format(nil, _platform), do: {:ok, "sparse"}
+  defp volume_format("asif", platform) when platform in [:macos, "macos"], do: {:ok, "asif"}
+  defp volume_format(_format, _platform), do: {:error, :unavailable}
 
   def valid_key?(key), do: is_binary(key) and Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9_.\/-]{0,199}$/, key)
 
@@ -533,7 +540,7 @@ defmodule Tuist.Runners.CacheVolumes do
   # Also used by lifecycle tests with already verified provider metadata.
   def allocate_for_job(job, identity, attrs) do
     identity = Identity.storage_scope(identity)
-    attrs = Map.put_new(attrs, :platform, "linux")
+    attrs = attrs |> Map.put_new(:platform, "linux") |> Map.put_new(:format, "sparse")
 
     Repo.transaction(fn ->
       # One admission lock per pod also bounds concurrent requests for new keys.
@@ -612,6 +619,7 @@ defmodule Tuist.Runners.CacheVolumes do
         content_digest: usage.content_digest,
         can_publish: usage.can_publish,
         uid: volume.uid,
+        format: if(volume.format == "asif", do: "asif"),
         volume_bytes: usage.volume_bytes || volume_bytes,
         head_size_bytes: saved_head && saved_head.size_bytes
       }
@@ -624,7 +632,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
     row =
       attrs
-      |> Map.take([:key, :platform, :architecture, :uid])
+      |> Map.take([:key, :platform, :format, :architecture, :uid])
       |> Map.merge(%{
         id: Ecto.UUID.generate(),
         account_id: job.account_id,
@@ -642,7 +650,17 @@ defmodule Tuist.Runners.CacheVolumes do
       Repo.insert_all(Volume, [row],
         on_conflict: :nothing,
         returning: true,
-        conflict_target: [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :architecture, :uid]
+        conflict_target: [
+          :account_id,
+          :provider,
+          :provider_instance,
+          :scope_id,
+          :key,
+          :platform,
+          :format,
+          :architecture,
+          :uid
+        ]
       )
 
     Enum.each(inserted, &record_saved_size/1)
@@ -834,7 +852,8 @@ defmodule Tuist.Runners.CacheVolumes do
       where:
         v.account_id == ^job.account_id and v.provider == ^identity.provider and
           v.provider_instance == ^identity.provider_instance and v.scope_id == ^identity.scope_id and
-          v.key == ^attrs.key and v.platform == ^attrs.platform and v.architecture == ^attrs.architecture and
+          v.key == ^attrs.key and v.platform == ^attrs.platform and v.format == ^Map.get(attrs, :format, "sparse") and
+          v.architecture == ^attrs.architecture and
           v.uid == ^attrs.uid
     )
   end
