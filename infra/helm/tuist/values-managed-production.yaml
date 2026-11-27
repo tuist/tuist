@@ -2728,7 +2728,12 @@ sandboxes:
       operator: Equal
       value: bare-metal
       effect: NoSchedule
-  maxMemoryGiB: 48
+  # 64 GiB holds seven 8 GiB Orbs per node (48 held five). At 48 our own Orbs
+  # alone filled the fleet's 45-50 slots at weekday peaks, while Linux CI
+  # queued under 40 s at p90 every day of the week to 2026-11-27. The
+  # carve-out only grows into memory no running job holds; drop back to 56
+  # if CI's queue p90 stays above about a minute.
+  maxMemoryGiB: 64
   # Below the chart's 24 while guarantees first take CPU from CI: the
   # daemon's request grows to the floor plus its sandboxes' guarantees, into
   # free CPU and idle warm runners' CPU (which the runners-controller
@@ -2755,10 +2760,11 @@ sandboxes:
     # daemon Pod and pauses its sandboxes, so it moves only on purpose.
     image:
       tag: sha-11e697e85802
-  # 220 GiB after checkout workspaces: five 4x8192 Orbs on a 20 GiB rootfs
-  # (about 38 GiB each) per node. The nodes have about 830 GiB.
+  # 310 GiB after checkout workspaces: eight 4x8192 Orbs on a 20 GiB rootfs
+  # (about 38 GiB each) per node, the seven maxMemoryGiB holds running plus
+  # one paused. The nodes have about 830 GiB.
   # Plus 30 GiB for copies of CI cache volumes below.
-  diskGiB: 270
+  diskGiB: 360
   checkoutWorkspacesGiB: 20
   # Session cache drives, granted only to accounts with the
   # `sandbox_runner_cache` flag. No template placeholder yet, so only
