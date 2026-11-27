@@ -525,6 +525,9 @@ defmodule TuistWeb.Router do
     # The test-insights page folded into the tests page. /flaky-tests still ranks for
     # "flaky test" searches, so it points at the guide that answers them.
     redirect("/flaky-tests", "/solutions/flaky-tests", :permanent, preserve_query_string: true)
+    # The per-toolchain sharding guides merged into one page.
+    redirect("/solutions/xcode-test-sharding", "/solutions/test-sharding", :permanent, preserve_query_string: true)
+    redirect("/solutions/gradle-test-sharding", "/solutions/test-sharding", :permanent, preserve_query_string: true)
     redirect("/test-insights", "/tests", :permanent, preserve_query_string: true)
 
     # The compute page became the runners page, named for what people search.

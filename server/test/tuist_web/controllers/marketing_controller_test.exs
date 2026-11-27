@@ -444,8 +444,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
             "/solutions/self-hosted-mac-runners",
             "/solutions/speed-up-ios-ci",
             "/solutions/speed-up-gradle-ci",
-            "/solutions/xcode-test-sharding",
-            "/solutions/gradle-test-sharding",
+            "/solutions/test-sharding",
             "/runners/github-actions",
             "/runners/buildkite"
           ] do

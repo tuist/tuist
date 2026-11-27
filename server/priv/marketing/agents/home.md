@@ -35,7 +35,7 @@ The distinction is **less necessary work versus more execution capacity**. Compu
 | My iOS CI is slow | [Cache compilation, select and shard tests, contain flaky tests, then add faster runners](/marketing-markdown/solutions/speed-up-ios-ci) |
 | My Gradle or Android CI is slow | [Share a remote build cache, shard tests, contain flaky tests, then add faster Linux runners](/marketing-markdown/solutions/speed-up-gradle-ci) |
 | My tests take too long | [Find slow tests, avoid unchanged targets, or balance shards](/marketing-markdown/solutions/slow-tests) |
-| I want to split tests across CI machines | [Shard Xcode](/marketing-markdown/solutions/xcode-test-sharding) or [Gradle](/marketing-markdown/solutions/gradle-test-sharding) tests by recorded timings |
+| I want to split tests across CI machines | [Shard Xcode and Gradle tests by recorded timings](/marketing-markdown/solutions/test-sharding) |
 | My CI costs are going up | [Measure duplicate work, retries, and total execution cost](/marketing-markdown/solutions/ci-costs) |
 | I need a Bazel remote cache | [Set up a shared cache, measure hits, and choose self-hosted or managed](/marketing-markdown/solutions/bazel-remote-cache) |
 | Bazel is slow on GitHub Actions | [Share a remote cache across ephemeral runners and see where each job spends time](/marketing-markdown/solutions/bazel-github-actions) |

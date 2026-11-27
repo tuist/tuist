@@ -20,7 +20,7 @@ Improve the project first, then its execution environment. A faster Mac makes ev
 | 2. Share compilation outputs | Recompiling unchanged code on cold machines | [Xcode cache](/en/docs-markdown/guides/features/cache/xcode-cache) | Xcode 26 or later; works with ordinary Xcode projects |
 | 3. Replace whole modules with binaries | Building unchanged modules at all | [Module cache](/en/docs-markdown/guides/features/cache/module-cache) | Tuist-generated projects |
 | 4. Run only affected tests | Running unchanged test targets | [Selective testing](/en/docs-markdown/guides/features/selective-testing) | Tuist-generated projects and `tuist test` |
-| 5. Split the remaining tests | Wall-clock time of one long suite | [Xcode test sharding](/marketing-markdown/solutions/xcode-test-sharding) | Xcode test insights for timing-balanced shards |
+| 5. Split the remaining tests | Wall-clock time of one long suite | [Test sharding](/marketing-markdown/solutions/test-sharding) | Xcode test insights for timing-balanced shards |
 | 6. Contain flaky tests | Retries and blocked merges | [Flaky-test detection and quarantine](/marketing-markdown/solutions/flaky-tests) | Test insights; quarantine through the Tuist test wrapper |
 | 7. Run on faster machines | Time spent on small, shared hardware | [Tuist Runners](/marketing-markdown/runners/github-actions) | GitHub Actions organization, GitLab CI, Buildkite, or Bitrise |
 
@@ -73,15 +73,3 @@ Stop repeating work. On Xcode 26 or later, a shared compilation cache lets CI re
 ### Does caching DerivedData on CI help?
 
 Restoring DerivedData from a CI cache helps a single branch, but it is large, tied to absolute paths, and slow to upload and download. The Xcode compilation cache shares individual compilation outputs keyed by their inputs, so jobs on any branch and developers' machines reuse the same results.
-
-### Can I run only the tests affected by a change in my Xcode project?
-
-Yes, with Tuist-generated Xcode projects: selective testing skips test targets whose inputs did not change since the last successful run. Ordinary Xcode projects can still use the Xcode cache, test sharding, and flaky-test detection.
-
-### Does test sharding make CI cheaper?
-
-Not by itself. Sharding shortens wall-clock time by running tests in parallel, but each shard pays its own checkout and setup, so total machine-minutes can go up. Selective testing and caching reduce total work.
-
-### Do I need to change CI providers?
-
-No. The cache, insights, selective testing, sharding, and flaky-test detection work with your current CI. Tuist Runners plug into GitHub Actions, GitLab CI, Buildkite, and Bitrise when you want faster macOS machines.

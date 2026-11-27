@@ -19,7 +19,7 @@ Improve the project first, then its execution environment. A larger machine make
 | --- | --- | --- | --- |
 | 1. Measure | Guessing | [Gradle build insights](/en/docs-markdown/guides/features/build-insights/gradle) and [test insights](/en/docs-markdown/guides/features/test-insights/gradle) | Tuist Gradle plugin |
 | 2. Share task outputs | Rerunning unchanged tasks on cold machines | [Gradle remote build cache](/en/docs-markdown/guides/features/cache/gradle-cache) | Tuist Gradle plugin and `org.gradle.caching=true` |
-| 3. Split the tests | Wall-clock time of one long test task | [Gradle test sharding](/marketing-markdown/solutions/gradle-test-sharding) | Gradle test insights for timing-balanced shards |
+| 3. Split the tests | Wall-clock time of one long test task | [Test sharding](/marketing-markdown/solutions/test-sharding) | Gradle test insights for timing-balanced shards |
 | 4. Contain flaky tests | Retries and blocked merges | [Flaky-test detection and quarantine](/marketing-markdown/solutions/flaky-tests) | Gradle test insights; mute or skip quarantine through the plugin |
 | 5. Run on faster machines | Time spent on small, shared hardware and software emulation | [Tuist Runners](/marketing-markdown/runners) | GitHub Actions organization, GitLab CI, Buildkite, or Bitrise |
 
@@ -61,7 +61,7 @@ Through the authorized [Tuist MCP server](/en/docs-markdown/guides/features/agen
 ## Further reading
 
 - [Gradle build cache guide](/en/docs-markdown/guides/features/cache/gradle-cache), including the cache upload policy and disabling the local cache on CI.
-- [Gradle test sharding](/marketing-markdown/solutions/gradle-test-sharding) and [flaky tests](/marketing-markdown/solutions/flaky-tests).
+- [Test sharding](/marketing-markdown/solutions/test-sharding) and [flaky tests](/marketing-markdown/solutions/flaky-tests).
 - [Slow builds](/marketing-markdown/solutions/slow-builds), [slow tests](/marketing-markdown/solutions/slow-tests), and [rising CI costs](/marketing-markdown/solutions/ci-costs).
 
 ## Frequently asked questions
@@ -77,11 +77,3 @@ No. Restoring `~/.gradle` from a CI cache saves dependency downloads and can car
 ### How do I run Android emulator tests on CI faster?
 
 Run them on Linux machines with hardware-accelerated virtualization, because software emulation is slow and unreliable. Tuist Linux runners expose `/dev/kvm` on every profile, so x86_64 emulators and Gradle Managed Devices run without a separate KVM setup, on the same network as the build cache that skips the compilation before them.
-
-### Does test sharding make Gradle CI cheaper?
-
-Not by itself. Sharding shortens wall-clock time by running tests in parallel, but each shard pays its own checkout, setup, and configuration, so total machine-minutes can go up. A shared build cache reduces total work, because shards reuse the compiled outputs instead of rebuilding them.
-
-### Do I need to change CI providers?
-
-No. The build cache, insights, sharding, and flaky-test detection work with your current CI. Tuist Runners plug into GitHub Actions, GitLab CI, Buildkite, and Bitrise when you want faster Linux or macOS machines.
