@@ -151,7 +151,10 @@ defmodule Tuist.Kura.ClaimSizing do
       that growth was capped (see `capped_growth?/2`), or `nil`
     * `:today` - the evaluation date
 
-  Returns `{:grow | :shrink, recommended_claim_size, evidence}` or `:none`.
+  Returns `{:grow | :shrink, recommended_claim_size, evidence}` or `:none`, or
+  `{:clamped, wanted_claim_size, evidence}` when a region needs to grow but
+  the claim already sits at the plan's ceiling, so no change can be
+  recommended.
   Claims are account-scoped while telemetry is per region, so regions are
   evaluated independently and merged conservatively: any growing region grows
   the account to the largest target, and shrinking needs every region with
@@ -714,6 +717,11 @@ defmodule Tuist.Kura.ClaimSizing do
     cond do
       bytes > current_bytes -> {:grow, to_gibibyte_quantity(bytes), Map.put(evidence, "region", region)}
       raised = raise_to_account_claim(grows, current_bytes, context, policy) -> raised
+      # A ring that needs more than the claim it holds, and nothing to do about
+      # it because the claim already sits at the plan's ceiling. Said apart from
+      # `:none` so the sweep can report it: otherwise it writes no proposal and
+      # reads exactly like an account that fits.
+      target_bytes > current_bytes -> {:clamped, to_gibibyte_quantity(target_bytes), Map.put(evidence, "region", region)}
       true -> :none
     end
   end

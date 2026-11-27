@@ -59,6 +59,7 @@ defmodule Tuist.Kura.PromExPluginTest do
             Telemetry.event_name_placement_preference_unmet(),
             Telemetry.event_name_placement_capacity_spill(),
             Telemetry.event_name_claim_apply_refused(),
+            Telemetry.event_name_claim_clamped_at_ceiling(),
             Telemetry.event_name_provision_refused()
           ] do
         assert MapSet.member?(scraped, event), "#{inspect(event)} is emitted but never scraped"

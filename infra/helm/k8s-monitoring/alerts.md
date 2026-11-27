@@ -2057,8 +2057,8 @@ until it does, so the gate stays open without the rule firing.
 
 What pages sooner, and is actionable, is *sizing blocked*. A growth that
 capacity admission refuses is **Kura admission refusing instances**. A claim
-clamped at the plan ceiling has no rule of its own, because the server exports
-no claim-size or ceiling metric; until it does, this rule is what catches it.
+clamped at the plan ceiling is **Kura claim clamped at its plan ceiling**,
+which fires as soon as a growth rung confirms rather than three days later.
 
 **Only a ring that has been full for the whole window counts.** Fullness is
 the segment count against the ring's desired total, so it reads 100 in steady
@@ -2191,6 +2191,58 @@ To find the client, read the instance's `<namespace>-<instance>-grpc` upstream
 in the regional `kura-<region>-ingress-nginx` logs: a probe loop is one IP and
 one user agent (`tonic/*` is the Xcode CAS proxy). Match the account's CLI
 versions in ClickHouse `command_events` against the proxy fix it lacks.
+
+### Kura claim clamped at its plan ceiling
+
+```promql
+sum by (cluster, plan, region) (
+  increase(tuist_kura_lifecycle_claim_clamped_at_ceiling_count{cluster="tuist-production"}[30m])
+)
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- Not yet created in Grafana: create it once a server release that emits
+  `tuist_kura_lifecycle_claim_clamped_at_ceiling_count` reaches production,
+  titled `Kura - claim clamped at its plan ceiling`, and record its UID here.
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `A {{ $labels.plan }} account's Kura ring in {{ $labels.region }}
+  needs more claim than the plan ceiling allows ({{ $labels.cluster }})`
+- Description: `Tuist.Kura.ClaimSizing confirmed a growth for an account
+  whose claim already sits at its plan's ceiling (64Gi air, 256Gi pro and
+  enterprise), so it wrote no proposal and nothing will grow on its own. The
+  instance keeps shedding content younger than the 1.5-day retention floor.
+  The server logs name the account and the claim its ring asked for:
+  "[Kura.ClaimSizing] <account> is clamped at its <plan> ceiling". Raising
+  the ceiling is a change to ClaimSizing's policy; check first that every
+  region the account runs in can place the larger claim, because a claim
+  applies all or nothing across them.`
+
+The other half of *sizing blocked*, beside the capacity refusals of **Kura
+admission refusing instances**. Without it a clamp is invisible: the verdict
+used to come back `:none`, so the sweep superseded any open proposal and wrote
+nothing, the ops page showed no proposal, and `capped_growth?` (which reads
+applied proposals only) never saw it. **Kura instance retention horizon under
+a day for three days** was the only rule that caught it, three days and a
+critical page later, and only for rings under one day rather than under the
+floor.
+
+`ClaimProposals.sweep/2` emits the counter on every ten-minute pass while the
+clamp lasts, so a clamped account reads as a steady rate of about six an hour
+and the rule resolves within 30 minutes of the account growing or its ring
+fitting again. It counts confirmed growth verdicts only, with the same rungs
+and windows as a proposal, so a single busy day does not fire it. `region` is
+the region whose ring asked for the most; `plan` is the sizing plan
+(`AccountPolicies.sizing_plan/1`). Account is never a label: read it from the
+log line. `sum by` because the sweep runs on one web pod per pass, not always
+the same one.
+
+On 2026-11-27 this would have covered the eight pods that paged the
+retention rule: two accounts across four instances, all at 256Gi with
+three-day median shed ages of 13 to 14.5 hours, which project to roughly
+580Gi to 930Gi per replica.
 
 ### Kura instance not reconciled
 
@@ -6559,8 +6611,9 @@ redundant with it: a claim growth or a return at a grown claim needs more than
 32 GiB, so a region can refuse those while the headroom rule is quiet, and
 `capacity_unknown` refuses everything whatever the headroom. This is also the
 "sizing blocked" rule **Kura instance retention horizon under a day for three days** says is
-missing, for the half of it that is a capacity refusal; a claim clamped at the
-plan ceiling is still uncovered.
+missing, for the half of it that is a capacity refusal; the other half, a
+claim clamped at the plan ceiling, is **Kura claim clamped at its plan
+ceiling**.
 
 A claim is account-wide, and `Kura.apply_claim_proposal/2` admits it region by
 region in alphabetical order and stops at the first refusal, so the region on

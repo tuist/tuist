@@ -14,9 +14,11 @@ defmodule Tuist.Kura.ClaimProposalsTest do
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageRollup
+  alias Tuist.Kura.Telemetry
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
+  alias TuistTestSupport.TelemetryCapture
 
   setup :set_mimic_from_context
 
@@ -345,6 +347,22 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       later = Date.add(@today, 2)
       assert {:ok, %{open: 0}} = ClaimProposals.sweep(later)
 
+      assert ClaimProposals.open_proposal_for(account) == nil
+      assert [%ClaimProposal{status: :superseded, resolved_by: "sweep"}] = Repo.all(ClaimProposal)
+    end
+
+    test "an account short at its plan ceiling is reported, not proposed", %{account: account, server: server} do
+      seed_churn_rollups(account, 14, @today)
+      {:ok, _summary} = ClaimProposals.sweep(@today)
+      assert %ClaimProposal{direction: :grow} = ClaimProposals.open_proposal_for(account)
+
+      # The same short ring, on a claim that already sits at pro's ceiling.
+      pin!(server, "256Gi")
+      ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_claim_clamped_at_ceiling()])
+
+      assert {:ok, %{open: 0}} = ClaimProposals.sweep(@today)
+
+      assert_receive {_event, ^ref, %{count: 1}, %{plan: "pro", region: "us-east"}}
       assert ClaimProposals.open_proposal_for(account) == nil
       assert [%ClaimProposal{status: :superseded, resolved_by: "sweep"}] = Repo.all(ClaimProposal)
     end
