@@ -664,12 +664,18 @@ defmodule TuistEx.Analytics.CoverageTest do
       assert snapshot[template].functions == []
       assert snapshot[resource].lines == %{}
 
-      assert result.sources == %{
+      assert %{
                TuistExTemplateFixture.Page => %{
-                 files: %{0 => source, 1 => template},
-                 resources: [resource]
+                 files: %{0 => ^source, 1 => ^template},
+                 ids: ids,
+                 resources: [^resource]
                }
-             }
+             } = result.sources
+
+      # Each counter's ID says its file and line: the template's are the
+      # template's own.
+      assert {1, 5} in Tuple.to_list(ids)
+      assert {0, 13} in Tuple.to_list(ids)
 
       # Mix's summary and threshold count no template line, as Mix's tool doesn't.
       assert result.module_lines == %{TuistExTemplateFixture.Page => %{8 => true, 13 => false}}

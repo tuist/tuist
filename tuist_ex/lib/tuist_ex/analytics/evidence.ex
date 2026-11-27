@@ -70,7 +70,7 @@ defmodule TuistEx.Analytics.Evidence do
       :ok ->
         dir = TempDir.create("tuist-ex-evidence")
         {:ok, device} = File.open(records_path(dir), [:write, :binary])
-        :persistent_term.put(@modules, modules)
+        :persistent_term.put(@modules, Enum.map(modules, &{&1, Coverage.counter_level(&1)}))
         :ets.new(@table, [:set, :public, :named_table, write_concurrency: true])
         :ets.new(@info, [:set, :public, :named_table, write_concurrency: true])
         :ets.insert(@table, {:state, 0, 0})
@@ -296,17 +296,18 @@ defmodule TuistEx.Analytics.Evidence do
     IO.binwrite(device, [<<byte_size(binary)::32>>, binary])
   end
 
-  # Every counting module's counters. A module unloaded since the suite
-  # started is left out.
+  # Every counting module's counters, by line or by ID
+  # (`TuistEx.Analytics.Coverage.counter_level/1`), which `write/6` maps to
+  # lines. A module unloaded since the suite started is left out.
   defp read do
-    for module <- :persistent_term.get(@modules, []),
-        lines = counters(module),
+    for {module, level} <- :persistent_term.get(@modules, []),
+        lines = counters(module, level),
         lines != nil,
         do: {module, lines}
   end
 
-  defp counters(module) do
-    :code.get_coverage(:line, module)
+  defp counters(module, level) do
+    :code.get_coverage(level, module)
   rescue
     _ -> nil
   end
@@ -358,7 +359,7 @@ defmodule TuistEx.Analytics.Evidence do
     ndjson? = Keyword.get(options, :format, :json) == :ndjson
 
     paths =
-      for {module, %{files: files, resources: resources}} <- sources,
+      for {module, %{files: files, ids: ids, resources: resources}} <- sources,
           files =
             for(
               {index, file} <- files,
@@ -370,7 +371,7 @@ defmodule TuistEx.Analytics.Evidence do
           resources = for(file <- resources, path = relative.(file), path != nil, do: path),
           files != %{} or resources != [],
           into: %{},
-          do: {module, {files, resources}}
+          do: {module, {files, ids, resources}}
 
     boot = by_path(collected.boot, paths)
     test_modules = identities |> Map.values() |> MapSet.new(&elem(&1, 0))
@@ -562,12 +563,12 @@ defmodule TuistEx.Analytics.Evidence do
         nil ->
           acc
 
-        {files, resources} ->
+        {files, ids, resources} ->
           lines = if expand?, do: expand(lines), else: lines
           acc = Enum.reduce(resources, acc, &Map.put_new(&2, &1, []))
 
           lines
-          |> file_lines(files)
+          |> file_lines(files, ids)
           |> Enum.reduce(acc, fn {path, lines}, acc ->
             Map.update(acc, path, lines, &:ordsets.union(&1, lines))
           end)
@@ -575,14 +576,16 @@ defmodule TuistEx.Analytics.Evidence do
     end)
   end
 
-  defp file_lines(lines, %{0 => path} = files) when map_size(files) == 1, do: [{path, lines}]
+  # Counters read by line are all the module's own source's; those read by
+  # ID are mapped to their file and line.
+  defp file_lines(lines, files, nil), do: if(path = files[0], do: [{path, lines}], else: [])
 
-  defp file_lines(lines, files) do
-    lines
-    |> Enum.group_by(&elem(Coverage.file_line(&1), 0), &elem(Coverage.file_line(&1), 1))
+  defp file_lines(ids, files, table) do
+    ids
+    |> Enum.group_by(&elem(elem(table, &1 - 1), 0), &elem(elem(table, &1 - 1), 1))
     |> Enum.flat_map(fn {index, lines} ->
       case Map.fetch(files, index) do
-        {:ok, path} -> [{path, Enum.reject(lines, &(&1 == 0))}]
+        {:ok, path} -> [{path, lines |> Enum.reject(&(&1 == 0)) |> :ordsets.from_list()}]
         :error -> []
       end
     end)

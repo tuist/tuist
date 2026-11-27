@@ -40,9 +40,10 @@ defmodule TuistEx.Analytics.EvidenceTest do
     """)
 
     # A module with a dependency's code and a template compiled into it,
-    # which only `TemplateTest` runs: from each `-file` attribute, its line 1,
-    # the lines are the dependency's, which count for nothing, then the
-    # template's.
+    # which only `TemplateTest` runs: from each `-file` attribute the lines
+    # are the dependency's, from its line 1, which count for nothing, then
+    # the template's, from line 100,001, past any line a counter's number
+    # could hold beside the module's own.
     File.write!(Path.join(dir, "n.erl"), """
     -module(n).
     -export([own/0, dep/0, render/1]).
@@ -51,7 +52,7 @@ defmodule TuistEx.Analytics.EvidenceTest do
     -file("deps/dep/lib/dep.ex", 1).
     dep() ->
       ok.
-    -file("n.html.heex", 1).
+    -file("n.html.heex", 100001).
     render(X) ->
       case X of
         a -> one;
@@ -150,9 +151,9 @@ defmodule TuistEx.Analytics.EvidenceTest do
 
     out = Path.join(dir, "evidence.json")
     sources = %{
-      m: %{files: %{0 => Path.join(dir, "m.erl")}, resources: []},
-      n: %{files: %{0 => Path.join(dir, "n.erl"), 2 => Path.join(dir, "n.html.heex")}, resources: [Path.join(dir, "n.po")]},
-      o: %{files: %{0 => Path.join(dir, "o.erl")}, resources: []}
+      m: %{files: %{0 => Path.join(dir, "m.erl")}, ids: nil, resources: []},
+      n: %{files: %{0 => Path.join(dir, "n.erl"), 2 => Path.join(dir, "n.html.heex")}, ids: TuistEx.Analytics.Coverage.counter_ids(:n), resources: [Path.join(dir, "n.po")]},
+      o: %{files: %{0 => Path.join(dir, "o.erl")}, ids: TuistEx.Analytics.Coverage.counter_ids(:o), resources: []}
     }
     {:ok, _} = TuistEx.Analytics.Evidence.write(collected, identities, sources, &Path.basename/1, out, lines: #{lines?})
     File.rm_rf!(collected.dir)
@@ -202,10 +203,10 @@ defmodule TuistEx.Analytics.EvidenceTest do
        %{dir: dir} do
     {_evidence, scopes} = run_suite(dir, 1, true)
 
-    # The template's lines 3 and 4 are the `case` and its first clause; the
-    # resource holds no lines.
+    # The template's lines 100,003 and 100,004 are the `case` and its first
+    # clause; the resource holds no lines.
     assert Enum.sort(scopes[{"test", "TemplateTest", "render"}]) ==
-             [{"n.html.heex", [3, 4]}, {"n.po", []}]
+             [{"n.html.heex", [100_003, 100_004]}, {"n.po", []}]
 
     # A module that didn't run brings no resources.
     assert scopes[{"test", "SerialTest", "a"}] == [{"m.erl", [6, 6]}]

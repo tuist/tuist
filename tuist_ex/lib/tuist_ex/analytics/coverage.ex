@@ -31,14 +31,11 @@ defmodule TuistEx.Analytics.Coverage do
   # What limits a run to the tests it names, rather than leaving some out.
   @selectors ~w(--only --failed --stale --name-pattern)
 
-  # Code compiled into a module from another file, which a `-file` attribute
-  # names before it, as Phoenix and EEx compile `.heex` and `.eex` templates
-  # under `@file`, counts on its lines offset by this much times the file's
-  # number (`included_files/1`), apart from the module's own lines. The
-  # runtime keeps no counter past line 16,777,214, so a module counts in at
-  # most 166 such files, each, as its own source, up to line 99,999.
-  @file_offset 100_000
-  @max_line 16_777_214
+  # The chunk of a module with counters in code compiled into it from another
+  # file, as Phoenix and EEx compile `.heex` and `.eex` templates under
+  # `@file`: the file, by its number (`included_files/1`, 0 for the module's
+  # own source), and the line of each counter, by the counter's ID less one.
+  @ids_chunk ~c"TCov"
 
   def requested?(test_args), do: "--cover" in test_args
 
@@ -98,7 +95,7 @@ defmodule TuistEx.Analytics.Coverage do
       resources = resources(project_dir, config)
 
       entries
-      |> Enum.reject(fn {{_module, line}, _count} -> line == 0 end)
+      |> Enum.reject(fn {{_module, line}, _count} -> line == {0, 0} end)
       |> Enum.group_by(fn {{module, _line}, _count} -> module end, fn {{_module, line}, count} ->
         {line, count}
       end)
@@ -110,8 +107,8 @@ defmodule TuistEx.Analytics.Coverage do
 
         counted =
           lines
-          |> Enum.group_by(fn {line, _count} -> div(line, @file_offset) end, fn {line, count} ->
-            {rem(line, @file_offset), count}
+          |> Enum.group_by(fn {{index, _line}, _count} -> index end, fn {{_index, line}, count} ->
+            {line, count}
           end)
           |> Enum.flat_map(fn {index, lines} ->
             # A template's code without a line, as a static one may only
@@ -180,8 +177,8 @@ defmodule TuistEx.Analytics.Coverage do
         entries
         # Mix's tool counts no template line, so neither do its summary
         # and threshold.
-        |> Enum.reject(fn {{_module, line}, _count} -> line == 0 or line >= @file_offset end)
-        |> Enum.reduce(%{}, fn {{module, line}, count}, acc ->
+        |> Enum.reject(fn {{_module, {index, line}}, _count} -> index != 0 or line == 0 end)
+        |> Enum.reduce(%{}, fn {{module, {_index, line}}, count}, acc ->
           Map.update(acc, original(module), %{line => count > 0}, fn lines ->
             Map.update(lines, line, count > 0, &(&1 or count > 0))
           end)
@@ -202,7 +199,9 @@ defmodule TuistEx.Analytics.Coverage do
       {cover_entries, compiled, calls} =
         if cover? do
           {:result, entries, _failures} = :cover.analyse(:calls, :line)
-          {entries, MapSet.new(:cover.modules(), &original/1), function_calls()}
+
+          {for({{module, line}, count} <- entries, do: {{module, {0, line}}, count}),
+           MapSet.new(:cover.modules(), &original/1), function_calls()}
         else
           {[], MapSet.new(), %{}}
         end
@@ -221,7 +220,7 @@ defmodule TuistEx.Analytics.Coverage do
       for module <- native_modules(config),
           source = original(module),
           not MapSet.member?(compiled, source),
-          {line, count} <- :code.get_coverage(:line, module),
+          {line, count} <- counted_lines(module),
           do: {{source, line}, count}
 
     before_swap =
@@ -255,11 +254,12 @@ defmodule TuistEx.Analytics.Coverage do
   @doc """
   The files each of `modules` counts lines of, found under `project_dir`
   when the build was compiled elsewhere, with Mimic's copies under their
-  originals': `files`, by the number `file_line/1` reads off a counter's
-  line, the module's source as 0 and the templates compiled into it after
-  it; and `resources`, its other external resources, which every scope
-  that ran the module depends on. Modules without a file in the project
-  are left out.
+  originals': `files`, by number, the module's source as 0 and the
+  templates compiled into it after it; `ids`, the file number and line of
+  each of its counters, by ID less one, when it counts by ID
+  (`counter_level/1`), nil otherwise; and `resources`, its other external
+  resources, which every scope that ran the module depends on. Modules
+  without a file in the project are left out.
   """
   def sources(modules, project_dir \\ File.cwd!(), config \\ Mix.Project.config()) do
     resources = resources(project_dir, config)
@@ -270,14 +270,49 @@ defmodule TuistEx.Analytics.Coverage do
         into: %{},
         do:
           {module,
-           %{files: files, resources: module_resources(resources, original(module), files)}}
+           %{
+             files: files,
+             ids: counter_ids(module),
+             resources: module_resources(resources, original(module), files)
+           }}
   end
 
   @doc """
-  The file a counter's line is in, by its number in `sources/3`'s `files`,
-  and the line in that file.
+  How `:code.get_coverage/2` reads the module's counters: by ID
+  (`:cover_id_line`) when `instrument/3` counted code compiled into it from
+  another file, whose lines `sources/3`'s `ids` say, and by line otherwise,
+  all of them the module's own source's. Mimic's copies, compiled from the
+  module's code without that file's counters, count by line.
   """
-  def file_line(line), do: {div(line, @file_offset), rem(line, @file_offset)}
+  def counter_level(module), do: if(counter_ids(module), do: :cover_id_line, else: :line)
+
+  # The module's counters by the file number and line each counts.
+  defp counted_lines(module) do
+    case counter_ids(module) do
+      nil ->
+        for {line, count} <- :code.get_coverage(:line, module), do: {{0, line}, count}
+
+      ids ->
+        for {id, count} <- :code.get_coverage(:cover_id_line, module),
+            do: {elem(ids, id - 1), count}
+    end
+  end
+
+  @doc """
+  The file number and line of each of the module's counters, by ID less
+  one, as `instrument/3` wrote them to its build, read from the file it was
+  loaded from: nil when it counts by line, as a copy Mimic loaded from
+  memory does.
+  """
+  def counter_ids(module) do
+    with path when is_list(path) and path != [] <- :code.which(module),
+         {:ok, {_module, [{@ids_chunk, binary}]}} when is_binary(binary) <-
+           :beam_lib.chunks(path, [@ids_chunk], [:allow_missing_chunks]) do
+      :erlang.binary_to_term(binary)
+    else
+      _ -> nil
+    end
+  end
 
   # The module's files in the project, by number: its source, 0, and the
   # files code was compiled into it from, as `included_files/1` numbers them.
@@ -419,10 +454,12 @@ defmodule TuistEx.Analytics.Coverage do
          false <- :line_coverage in (info[:options] || []),
          {:ok, {module, [abstract_code: {:raw_abstract_v1, forms}]}} <-
            :beam_lib.chunks(beam, [:abstract_code]),
-         {:ok, ^module, binary} <- compile_native(forms, info, project?),
+         {:ok, ^module, binary, ids} <- compile_native(forms, info, project?),
          {:ok, _module, original} <- :beam_lib.all_chunks(beam),
          {:ok, _module, chunks} <- :beam_lib.all_chunks(binary),
-         chunks = chunks |> Enum.reject(&(elem(&1, 0) == ~c"Dbgi")) |> Enum.map(&counted_info/1),
+         chunks =
+           Enum.map(Enum.reject(chunks, &(elem(&1, 0) == ~c"Dbgi")), &counted_info/1) ++
+             if(ids, do: [{@ids_chunk, :erlang.term_to_binary(ids, [:compressed])}], else: []),
          ids = MapSet.new(chunks, &elem(&1, 0)),
          {:ok, binary} <-
            :beam_lib.build_module(
@@ -440,37 +477,40 @@ defmodule TuistEx.Analytics.Coverage do
   # which Phoenix and EEx compile into it after a `-file` attribute naming
   # the template. For each such file in the project, the forms go to the
   # instrumentation with its attribute naming the module's own source, and
-  # come back with the attribute as it was, so the line table, and stack
-  # traces, still name the template and its lines: only each counter's line
-  # is offset, by `@file_offset` times the file's number. A file outside the
-  # project, such as a dependency's macro that keeps its own location, gets
-  # no counters, as Erlang has it. Forms the instrumentation can't take back
-  # that way are compiled as any other.
+  # come back with the attribute as it was, so the line table, stack traces,
+  # and each counter's line still name the template and its lines. The
+  # counters are numbered in order, and the file and line of each, by number
+  # less one, are the module's `@ids_chunk`, which `:cover_id_line` reads
+  # by. A file outside the project, such as a dependency's macro that keeps
+  # its own location, gets no counters, as Erlang has it. Forms the
+  # instrumentation can't take back that way are compiled as any other.
   defp compile_native(forms, info, project?) do
     counted =
-      for {file, index} <- included_files(forms),
-          project?.(file),
-          (index + 1) * @file_offset - 1 <= @max_line,
-          into: %{},
-          do: {file, index * @file_offset}
+      for {file, index} <- included_files(forms), project?.(file), into: %{}, do: {file, index}
 
     with true <- counted != %{},
          [own | _] <- for({:attribute, _anno, :file, {file, _line}} <- forms, do: file),
          {:ok, instrumented} <-
            forms |> Enum.map(&as_own_file(&1, counted, own)) |> :sys_coverage.module([]),
          true <- length(instrumented) == length(forms),
-         {:ok, _module, _binary} = compiled <-
+         {restored, {_index, ids}} =
            forms
            |> Enum.zip(instrumented)
-           |> Enum.map_reduce(0, &restore_file(&1, &2, counted))
-           |> elem(0)
-           |> :compile.forms(native_options(info)) do
-      compiled
+           |> Enum.map_reduce({0, %{}}, &restore_file(&1, &2, counted)),
+         true <- ids != %{},
+         {:ok, module, binary} <- :compile.forms(restored, native_options(info)) do
+      ids = List.to_tuple(for id <- 1..Enum.max(Map.keys(ids)), do: Map.get(ids, id, {0, 0}))
+      {:ok, module, binary, ids}
     else
-      _ -> :compile.forms(forms, [:line_coverage | native_options(info)])
+      _ -> compile_counted(forms, info)
     end
   rescue
-    _ -> :compile.forms(forms, [:line_coverage | native_options(info)])
+    _ -> compile_counted(forms, info)
+  end
+
+  defp compile_counted(forms, info) do
+    with {:ok, module, binary} <- :compile.forms(forms, [:line_coverage | native_options(info)]),
+         do: {:ok, module, binary, nil}
   end
 
   defp as_own_file({:attribute, anno, :file, {file, line}}, counted, own)
@@ -478,29 +518,28 @@ defmodule TuistEx.Analytics.Coverage do
 
   defp as_own_file(form, _counted, _own), do: form
 
-  # A form as it was, with its counters' lines offset by the counted file
-  # it's in. The instrumentation keeps the forms one to one.
-  defp restore_file({{:attribute, _, :file, {file, _}} = form, _instrumented}, _offset, counted),
-    do: {form, Map.get(counted, file, 0)}
+  # A form as it was, and the file number and line of each of its counters,
+  # by number, the file being the counted one it's in, or the module's own,
+  # 0. The instrumentation keeps the forms one to one.
+  defp restore_file(
+         {{:attribute, _, :file, {file, _}} = form, _instrumented},
+         {_index, ids},
+         counted
+       ), do: {form, {Map.get(counted, file, 0), ids}}
 
-  defp restore_file({_form, instrumented}, offset, _counted),
-    do: {offset_counters(instrumented, offset), offset}
+  defp restore_file({_form, instrumented}, {index, ids}, _counted),
+    do: {instrumented, {index, counter_lines(instrumented, index, ids)}}
 
-  defp offset_counters(form, 0), do: form
+  defp counter_lines({:executable_line, anno, id}, index, ids),
+    do: Map.put(ids, id, {index, :erl_anno.line(anno)})
 
-  defp offset_counters({:executable_line, anno, index}, offset) do
-    line = :erl_anno.line(anno)
-    if line >= @file_offset, do: raise(ArgumentError, "line #{line} past the offset")
-    {:executable_line, :erl_anno.set_line(line + offset, anno), index}
-  end
+  defp counter_lines(term, index, ids) when is_tuple(term),
+    do: counter_lines(Tuple.to_list(term), index, ids)
 
-  defp offset_counters(term, offset) when is_tuple(term),
-    do: term |> Tuple.to_list() |> offset_counters(offset) |> List.to_tuple()
+  defp counter_lines(list, index, ids) when is_list(list),
+    do: Enum.reduce(list, ids, &counter_lines(&1, index, &2))
 
-  defp offset_counters(list, offset) when is_list(list),
-    do: Enum.map(list, &offset_counters(&1, offset))
-
-  defp offset_counters(term, _offset), do: term
+  defp counter_lines(_term, _index, ids), do: ids
 
   # Compiled without `:line_coverage`, which would instrument the forms
   # again, a module with a template still says it carries the counters: so
@@ -586,7 +625,7 @@ defmodule TuistEx.Analytics.Coverage do
 
   defp called_lines(module) do
     if :code.is_loaded(module) != false and :code.get_coverage_mode(module) != :none do
-      for {line, count} <- :code.get_coverage(:line, module),
+      for {line, count} <- counted_lines(module),
           count > 0,
           do: {{module, line}, count}
     else

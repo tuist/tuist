@@ -89,9 +89,13 @@ modules that already carry the counters, so `mix tuist.test.build --cover`
 does it once for every shard. Erlang instruments only a module's own file, so
 a module with a template compiled in after a `-file` attribute (Phoenix, EEx)
 is instrumented with `sys_coverage` with those attributes naming its own
-source, which then go back with only the counters' lines offset by
-`@file_offset` per file (100,000: the runtime keeps no counter past line
-16,777,214). Only files in the project count; a dependency's macro that keeps
+source, which then go back as they were. The counters keep their real lines
+and are numbered in order; the file and line of each, by number, are a
+`TCov` chunk in the module's build (`Coverage.counter_ids/1`), and the
+readers ask `:code.get_coverage(:cover_id_line, …)` for such a module
+(`Coverage.counter_level/1`), `:line` otherwise. A module without the chunk,
+such as a Mimic copy loaded from memory, counts its own source by line.
+Only files in the project count; a dependency's macro that keeps
 its own location gets no counters. Keep stack traces naming the template, and its compile info claiming
 `line_coverage`, which Mimic's copies and the already-instrumented check read.
 External resources come from Mix's compile manifest (`Coverage.resources/2`).
