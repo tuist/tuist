@@ -31,13 +31,7 @@ defmodule Tuist.Sandboxes.Schemas do
           description:
             "The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU."
         },
-        memory_mb: %Schema{type: :integer, description: "The memory the sandbox is guaranteed, in MB."},
-        memory_limit_mb: %Schema{
-          type: :integer,
-          nullable: true,
-          description:
-            "The memory in MB a Linux sandbox may burst to past `memory_mb` while its node has some free; null when it uses at most `memory_mb`."
-        },
+        memory_mb: %Schema{type: :integer},
         workspace_gb: %Schema{type: :integer},
         guaranteed_vcpus: %Schema{
           type: :number,
@@ -119,16 +113,6 @@ defmodule Tuist.Sandboxes.Schemas do
       description:
         "Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: #{Enum.join(choices, ", ")}. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life."
     })
-    |> Map.put(:memory_limit_mb, memory_limit())
-  end
-
-  defp memory_limit do
-    %Schema{
-      type: :integer,
-      enum: Sandbox.memory_limits(),
-      description:
-        "Linux only, opt-in: the memory in MB the sandbox may burst to, larger than `memory_mb`, which stays its guaranteed request. It uses memory past its request while its node has some free, gives it back when its processes free it, and is billed for the larger of its request and what it uses. While the node is short of memory, an idle sandbox above its request may be paused; one running a command never is. Omitted, the sandbox uses at most `memory_mb`. A sandbox keeps its limit for life."
-    }
   end
 
   @doc "A sandbox lifetime in seconds, for create and extend."
