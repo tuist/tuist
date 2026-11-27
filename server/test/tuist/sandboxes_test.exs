@@ -221,9 +221,10 @@ defmodule Tuist.SandboxesTest do
         assert %Sandbox{state: :creating} = Repo.get(Sandbox, args.sandbox_id)
         assert args.hostname == "sbx-" <> String.slice(args.sandbox_id, 0, 8)
         assert args.template == "default"
-        # Every Linux sandbox bursts to 16 vCPUs; its shape picks the memory.
+        # Every Linux sandbox bursts to 16 vCPUs and 16 GiB; its shape picks the request.
         assert args.vcpus == 16
-        assert args.memory_mb == 4096
+        assert args.memory_mb == 16_384
+        assert args.memory_request_mb == 4096
         assert args.workspace_gb == 10
         refute Map.has_key?(args, :xcode_version)
         {:ok, %{"boot_ms" => 180, "template_tag" => "sha-1"}}
@@ -248,9 +249,9 @@ defmodule Tuist.SandboxesTest do
                )
     end
 
-    test "boots a sandbox with a memory limit at the limit and sends its request" do
+    test "boots a Linux sandbox at the burst ceiling and sends its request" do
       account = account_fixture()
-      expect(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)
+      expect(Capacity, :place, 2, fn _sandbox -> {:ok, "node-a"} end)
 
       expect(Nodes, :call, fn "node-a", "create", args, _opts ->
         assert args.memory_mb == 16_384
@@ -258,18 +259,18 @@ defmodule Tuist.SandboxesTest do
         {:ok, %{"boot_ms" => 180}}
       end)
 
-      assert {:ok, %Sandbox{memory_mb: 4096, memory_limit_mb: 16_384}} =
-               Sandboxes.create_sandbox(account, %{memory_limit_mb: 16_384})
-    end
+      assert {:ok, %Sandbox{memory_mb: 4096, memory_limit_mb: 16_384}} = Sandboxes.create_sandbox(account, %{})
 
-    test "refuses a memory limit that is not an offered guest size above the request" do
-      account = account_fixture()
+      # A request at the ceiling boots at itself, and a caller cannot set
+      # the ceiling.
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        assert args.memory_mb == 16_384
+        refute Map.has_key?(args, :memory_request_mb)
+        {:ok, %{"boot_ms" => 180}}
+      end)
 
-      assert {:error, %Ecto.Changeset{errors: [memory_limit_mb: _]}} =
-               Sandboxes.create_sandbox(account, %{memory_limit_mb: 3000})
-
-      assert {:error, %Ecto.Changeset{errors: [memory_limit_mb: _]}} =
-               Sandboxes.create_sandbox(account, %{vcpus: 4, memory_mb: 8192, memory_limit_mb: 4096})
+      assert {:ok, %Sandbox{memory_mb: 16_384, memory_limit_mb: nil}} =
+               Sandboxes.create_sandbox(account, %{vcpus: 8, memory_mb: 16_384, memory_limit_mb: 45_056})
     end
 
     test "records a claimed warm VM as the boot source" do

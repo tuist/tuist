@@ -31,6 +31,9 @@ defmodule Tuist.Sandboxes.Sandbox do
   # into its node's idle cores. Its guarantee (`guaranteed_cpu_milli/1`) is
   # what it holds, and what it is billed when idle.
   @burst_vcpus 16
+  # The memory a Linux agent sandbox's guest boots with, whatever its
+  # request: the 16 GiB shape's template, so bursting adds no template.
+  @burst_memory_mb 16_384
   # A Linux agent sandbox is guaranteed a vCPU per this much memory, the
   # hosts' own ratio (32 vCPUs to 128 GB), so the guarantees of the
   # sandboxes a host's memory holds never outgrow its cores.
@@ -71,8 +74,9 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :template_tag, :string
     field :vcpus, :integer
     # The memory the sandbox is guaranteed (its request) and billed for at
-    # least. A Linux agent sandbox with `memory_limit_mb` boots its guest
-    # with that much instead and bursts into it (`boot_memory_mb/1`).
+    # least. A Linux agent sandbox's guest boots with `memory_limit_mb`
+    # instead, which the server sets (`put_memory_limit/1`), and bursts into
+    # it (`boot_memory_mb/1`).
     field :memory_mb, :integer
     field :memory_limit_mb, :integer
     field :workspace_gb, :integer
@@ -148,9 +152,6 @@ defmodule Tuist.Sandboxes.Sandbox do
   def boot_memory_mb(%{memory_limit_mb: limit, memory_mb: request}) when is_integer(limit) and limit > request, do: limit
 
   def boot_memory_mb(%{memory_mb: memory_mb}), do: memory_mb
-
-  @doc "The guest sizes a Linux agent sandbox can burst up to: the offered shapes' memory."
-  def memory_limits, do: @shapes |> Enum.map(&elem(&1, 1)) |> Enum.uniq() |> Enum.sort()
 
   @doc """
   The CPU, in millicores, a sandbox (or an agent environment's shape) is
@@ -228,17 +229,16 @@ defmodule Tuist.Sandboxes.Sandbox do
       :memory_mb,
       :workspace_gb,
       :guaranteed_cpu_milli,
-      :memory_limit_mb,
       :lifetime_seconds
     ])
     |> validate_required([:account_id, :template, :vcpus, :memory_mb, :workspace_gb])
     |> validate_lifetime()
     |> validate_guaranteed_cpu()
-    |> validate_memory_limit()
     |> validate_format(:template, ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
     |> Tuist.Sandboxes.Xcode.validate()
     |> validate_shape()
     |> put_burst_vcpus()
+    |> put_memory_limit()
     |> unique_constraint([:agent_environment_id, :anthropic_session_id])
     |> unique_constraint([:account_id, :amp_orb_id])
     |> unique_constraint(:provider_environment_id)
@@ -291,30 +291,20 @@ defmodule Tuist.Sandboxes.Sandbox do
     end
   end
 
-  # Only a Linux agent sandbox bursts above its memory request, to one of
-  # the offered guest sizes above it. A limit equal to the request is none.
-  defp validate_memory_limit(changeset) do
-    limit = get_field(changeset, :memory_limit_mb)
+  # Every Linux agent sandbox boots its guest at `@burst_memory_mb` and
+  # bursts into it above its request; a larger request boots at itself. The
+  # ceiling is ours, not the caller's: a bursting sandbox is billed at most
+  # its ceiling.
+  defp put_memory_limit(%Ecto.Changeset{valid?: true} = changeset) do
     request = get_field(changeset, :memory_mb)
 
-    cond do
-      is_nil(limit) ->
-        changeset
-
-      get_field(changeset, :platform) == :darwin or get_field(changeset, :purpose) == :remote_execution ->
-        add_error(changeset, :memory_limit_mb, "only Linux sandboxes burst above their memory")
-
-      limit == request ->
-        put_change(changeset, :memory_limit_mb, nil)
-
-      is_integer(request) and (limit < request or limit not in memory_limits()) ->
-        offered = memory_limits() |> Enum.filter(&(&1 > request)) |> Enum.join(", ")
-        add_error(changeset, :memory_limit_mb, "must be one of #{offered}")
-
-      true ->
-        changeset
-    end
+    if get_field(changeset, :platform) == :darwin or get_field(changeset, :purpose) == :remote_execution or
+         request >= @burst_memory_mb,
+       do: put_change(changeset, :memory_limit_mb, nil),
+       else: put_change(changeset, :memory_limit_mb, @burst_memory_mb)
   end
+
+  defp put_memory_limit(changeset), do: changeset
 
   # Remote execution VMs keep their shape: their scheduler sizes actions
   # against it.

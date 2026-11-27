@@ -167,7 +167,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   for bursting sessions and counts other sessions' vCPUs (macOS, and Linux
   runs from before metering, up to their first metered report).
   `Concurrency` counts guarantees.
-  Memory bursting (`memory_limit_mb`): placement charges a bursting sandbox
+  Memory bursting: every new Linux agent sandbox's guest boots at 16 GiB
+  (`memory_limit_mb`, set by `Sandbox.create_changeset/2`, never by the
+  caller; NULL for a request of 16 GiB or more), held at its request by the
+  balloon. The ceiling is ours, as Modal's machine is: callers pick only the
+  request. Placement charges a bursting sandbox
   max(request, its last reported Pss, `metered_memory_bytes`), and a report
   showing a burst calls `Capacity.grow_for_bursts/1`, which grows the
   carve-out a step. When the grant or ceiling refuses, it pauses idle
