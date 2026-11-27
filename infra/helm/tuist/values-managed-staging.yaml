@@ -967,6 +967,8 @@ sandboxes:
   # Keep 4 remote execution slots ready on staging's one worker (chart
   # floor 1, ceiling 10) through the compute allocator.
   remoteExecutionFloorSlots: 4
+  # The learned floor, up to the worker's ceiling.
+  remoteExecutionMaxLearnedFloorSlots: 10
   image:
     tag: "sha-bea84a441ea2"
   templateImage:

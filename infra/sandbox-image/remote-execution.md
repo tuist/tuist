@@ -369,6 +369,15 @@ therefore always have capacity CI cannot take back, in one of two modes:
     grows a carve-out to that share before any action arrives, and never
     shrinks it below while the grant is fresh, so a stopped controller leaves
     only `floorSlots`.
+  - While an account runs builds, the floor rises to what its builds ask
+    for at once: the server learns, per account, the 90th percentile of the
+    slots a build's actions request in its first 2 s over 14 days, while the
+    account started a build in the last 30 minutes, capped at its memory
+    limit (`Tuist.RemoteExecution.LearnedFloor`, the
+    `remote_execution_floor_slots` scaling signal). The controller takes it
+    when it is above the fixed floor, up to
+    `sandboxes.remoteExecutionMaxLearnedFloorSlots` (0 ignores it). A
+    batch's first build still starts on the fixed floor.
 
   The worker connects to the server as `<node>.remote-execution`, beside the
   node's agent daemon, which connects as the node itself. The runners

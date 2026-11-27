@@ -60,3 +60,26 @@ func TestExecutionWarmSlotsSpreadsOnlyTheFloor(t *testing.T) {
 		t.Fatalf("small floor: got %v", got)
 	}
 }
+
+func TestExecutionFloorTakesTheLearnedFloorUpToTheCap(t *testing.T) {
+	r := &AutoscalerReconciler{ExecutionFloorSlots: 10, ExecutionMaxLearnedFloorSlots: 60}
+	for _, c := range []struct {
+		name    string
+		learned int32
+		want    int32
+	}{
+		{"no build in the last 30 minutes, or an older server", 0, 10},
+		{"learned below the fixed floor", 4, 10},
+		{"learned above the fixed floor", 44, 44},
+		{"learned above the cap", 157, 60},
+	} {
+		if got := r.executionFloor(scaling.Signals{RemoteExecutionFloorSlots: c.learned}); got != c.want {
+			t.Errorf("%s: got %d, want %d", c.name, got, c.want)
+		}
+	}
+	// Without a cap the learned floor is ignored.
+	r.ExecutionMaxLearnedFloorSlots = 0
+	if got := r.executionFloor(scaling.Signals{RemoteExecutionFloorSlots: 44}); got != 10 {
+		t.Errorf("no cap: got %d, want 10", got)
+	}
+}

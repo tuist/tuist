@@ -122,6 +122,12 @@ type AutoscalerReconciler struct {
 	// workers out of the compute allocator.
 	ExecutionFloorSlots int32
 
+	// ExecutionMaxLearnedFloorSlots caps the remote execution floor the
+	// server learns from the accounts' recent builds
+	// (Signals.RemoteExecutionFloorSlots), which raises the floor above
+	// ExecutionFloorSlots while a batch of builds runs. 0 ignores it.
+	ExecutionMaxLearnedFloorSlots int32
+
 	// ExecutionSlotBytes is one remote execution slot's memory. 0 uses
 	// the chart's 4160 MiB.
 	ExecutionSlotBytes int64
@@ -410,6 +416,7 @@ func (r *AutoscalerReconciler) allocate(
 	}
 
 	var workers []executionWorker
+	floor := r.executionFloor(signals)
 	if pool.Spec.OS == "linux" && r.ExecutionFloorSlots > 0 && r.SandboxesNamespace != "" {
 		workers, err = r.executionWorkers(ctx, pool)
 		if err != nil {
@@ -418,7 +425,7 @@ func (r *AutoscalerReconciler) allocate(
 			return perPool, nil
 		}
 		if len(workers) > 0 {
-			demand, held := executionDemand(workers, r.ExecutionFloorSlots, r.executionSlotBytes())
+			demand, held := executionDemand(workers, floor, r.executionSlotBytes())
 			demands = append(demands, demand)
 			capacity += held
 		}
@@ -432,8 +439,8 @@ func (r *AutoscalerReconciler) allocate(
 	fleet := &fleetAllocation{members: members, slotBytes: r.executionSlotBytes()}
 	if granted, ok := alloc[executionPoolName]; ok {
 		delete(alloc, executionPoolName)
-		fleet.executionWarm = executionWarmSlots(workers, min(granted, r.ExecutionFloorSlots))
-		metrics.RecordExecutionAllocation(r.ExecutionFloorSlots, granted)
+		fleet.executionWarm = executionWarmSlots(workers, min(granted, floor))
+		metrics.RecordExecutionAllocation(r.ExecutionFloorSlots, floor, granted)
 	}
 	for name, granted := range alloc {
 		member := members[name]
