@@ -2,13 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,81 +38,5 @@ func TestRunnerPodsResolveOnlyRunningRunnersOnThisNode(t *testing.T) {
 		if _, err := pods.caller(context.Background(), ip); !errors.Is(err, errUnknownCaller) {
 			t.Fatalf("resolved %s: %v", ip, err)
 		}
-	}
-}
-
-func TestActionsIndexWaitsForTheJobThenMapsConflicts(t *testing.T) {
-	var requests atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer agent-token" {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		var body map[string]any
-		json.NewDecoder(r.Body).Decode(&body)
-		if body["node_name"] != "node" {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		switch r.URL.Path {
-		case "/lookup":
-			if requests.Add(1) == 1 {
-				w.WriteHeader(http.StatusTooEarly)
-				return
-			}
-			json.NewEncoder(w).Encode(map[string]any{"entry": map[string]any{"id": "e", "key": body["key"], "size_bytes": 3}})
-		case "/enabled":
-			json.NewEncoder(w).Encode(map[string]any{"enabled": body["pod_name"] == "pod"})
-		case "/reserve":
-			w.WriteHeader(http.StatusConflict)
-		case "/upload":
-			json.NewEncoder(w).Encode(map[string]any{"upload_url": "https://storage/object", "checksum": "c2hh"})
-		case "/commit":
-			w.WriteHeader(http.StatusNoContent)
-		}
-	}))
-	defer server.Close()
-	tokenPath := filepath.Join(t.TempDir(), "token")
-	os.WriteFile(tokenPath, []byte("agent-token\n"), 0o600)
-	index := &actionsIndex{url: server.URL, node: "node", tokenPath: tokenPath, client: server.Client()}
-	caller := cachevolumes.ActionsCaller{PodName: "pod", PodUID: "uid"}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	entry, err := index.Lookup(ctx, caller, "deps", nil, "v1")
-	if err != nil || entry == nil || entry.Key != "deps" || requests.Load() != 2 {
-		t.Fatalf("lookup %+v, %v after %d requests", entry, err, requests.Load())
-	}
-	if enabled, err := index.Enabled(ctx, caller); !enabled || err != nil {
-		t.Fatalf("enabled %v, %v", enabled, err)
-	}
-	if enabled, err := index.Enabled(ctx, cachevolumes.ActionsCaller{PodName: "other"}); enabled || err != nil {
-		t.Fatalf("enabled for another pod %v, %v", enabled, err)
-	}
-	if err := index.Reserve(ctx, caller, "id", "deps", "v1"); !errors.Is(err, cachevolumes.ErrConflict) {
-		t.Fatalf("reserve %v", err)
-	}
-	upload, err := index.Upload(ctx, "id", 3, "sum")
-	if err != nil || upload.URL != "https://storage/object" || upload.Checksum != "c2hh" {
-		t.Fatalf("upload %+v, %v", upload, err)
-	}
-	if err := index.Commit(ctx, "id"); err != nil {
-		t.Fatalf("commit %v", err)
-	}
-}
-
-func TestActionsIndexGivesUpOnAPendingJobWhenTheRequestEnds(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusTooEarly)
-	}))
-	defer server.Close()
-	tokenPath := filepath.Join(t.TempDir(), "token")
-	os.WriteFile(tokenPath, []byte("agent-token"), 0o600)
-	index := &actionsIndex{url: server.URL, node: "node", tokenPath: tokenPath, client: server.Client()}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
-	defer cancel()
-	if _, err := index.Lookup(ctx, cachevolumes.ActionsCaller{}, "deps", nil, "v1"); !errors.Is(err, cachevolumes.ErrExecutionPending) {
-		t.Fatalf("lookup %v", err)
 	}
 }

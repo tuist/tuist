@@ -1,14 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
-	"log/slog"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -68,85 +62,11 @@ func (p *runnerPods) caller(ctx context.Context, ip string) (cachevolumes.Action
 	return cachevolumes.ActionsCaller{}, errUnknownCaller
 }
 
-// actionsIndex is the server's GitHub Actions cache index, which scopes every
-// request by the job GitHub runs on the calling Pod. Every endpoint is
-// idempotent, so requests go through DoServer.
-type actionsIndex struct {
-	url, node, tokenPath string
-	client               *http.Client
-	log                  *slog.Logger
-}
-
-func (i *actionsIndex) Lookup(ctx context.Context, caller cachevolumes.ActionsCaller, key string, restoreKeys []string, version string) (*cachevolumes.ActionsEntry, error) {
-	var result struct {
-		Entry *cachevolumes.ActionsEntry `json:"entry"`
-	}
-	if restoreKeys == nil {
-		restoreKeys = []string{}
-	}
-	err := i.post(ctx, "lookup", map[string]any{"pod_name": caller.PodName, "pod_uid": caller.PodUID, "key": key, "restore_keys": restoreKeys, "version": version}, &result)
-	return result.Entry, err
-}
-
-func (i *actionsIndex) Enabled(ctx context.Context, caller cachevolumes.ActionsCaller) (bool, error) {
-	var result struct {
-		Enabled bool `json:"enabled"`
-	}
-	err := i.post(ctx, "enabled", map[string]any{"pod_name": caller.PodName, "pod_uid": caller.PodUID}, &result)
-	return result.Enabled && err == nil, err
-}
-
-func (i *actionsIndex) Reserve(ctx context.Context, caller cachevolumes.ActionsCaller, id, key, version string) error {
-	return i.post(ctx, "reserve", map[string]any{"pod_name": caller.PodName, "pod_uid": caller.PodUID, "id": id, "key": key, "version": version}, nil)
-}
-
-func (i *actionsIndex) Upload(ctx context.Context, id string, size int64, sha256 string) (cachevolumes.ActionsUpload, error) {
-	var upload cachevolumes.ActionsUpload
-	err := i.post(ctx, "upload", map[string]any{"id": id, "size_bytes": size, "sha256": sha256}, &upload)
-	return upload, err
-}
-
-func (i *actionsIndex) Commit(ctx context.Context, id string) error {
-	return i.post(ctx, "commit", map[string]any{"id": id}, nil)
-}
-
-// post asks the server and decodes its answer into result. A job GitHub has not
-// reported yet (425) is asked again each second while ctx lasts.
-func (i *actionsIndex) post(ctx context.Context, operation string, fields map[string]any, result any) error {
-	fields["node_name"] = i.node
-	body, _ := json.Marshal(fields)
-	for {
-		token, err := os.ReadFile(i.tokenPath)
-		if err != nil {
-			return err
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, i.url+"/"+operation, bytes.NewReader(body))
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := cachevolumes.DoServer(i.client, req, i.log)
-		if err != nil {
-			return err
-		}
-		status := resp.StatusCode
-		if status == http.StatusOK && result != nil {
-			err = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(result)
-		}
-		resp.Body.Close()
-		switch {
-		case status == http.StatusOK || status == http.StatusNoContent:
-			return err
-		case status == http.StatusConflict:
-			return cachevolumes.ErrConflict
-		case status != http.StatusTooEarly:
-			return fmt.Errorf("actions cache %s rejected: %d", operation, status)
-		}
-		select {
-		case <-ctx.Done():
-			return cachevolumes.ErrExecutionPending
-		case <-time.After(time.Second):
-		}
+// agentToken reads the agent's projected ServiceAccount token, which kubelet
+// rotates in place, for every request.
+func agentToken(path string) func(context.Context) (string, error) {
+	return func(context.Context) (string, error) {
+		token, err := os.ReadFile(path)
+		return strings.TrimSpace(string(token)), err
 	}
 }

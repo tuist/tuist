@@ -379,7 +379,7 @@ func main() {
 		actions := &cachevolumes.ActionsStore{Root: filepath.Join(*root, "actions-cache"), Reserve: backend.MinFreeBytes, Log: metrics.logger,
 			FreeBytes: func(root string) (uint64, error) { return space.free(context.Background(), root) }}
 		pods := &runnerPods{kube: kube, namespace: *namespace, node: *node}
-		index := &actionsIndex{url: strings.TrimSuffix(*url, "/authorize") + "/actions-cache", node: *node, tokenPath: *tokenPath, client: client, log: metrics.logger}
+		index := &cachevolumes.ActionsServer{URL: strings.TrimSuffix(*url, "/authorize") + "/actions-cache", Node: *node, Token: agentToken(*tokenPath), Client: client, Log: metrics.logger}
 		a.actions = &cachevolumes.ActionsCache{Index: index, Store: actions, StoreURL: *actionsStore, Caller: pods.caller, Client: &http.Client{}, Record: metrics.actionsCache, Log: metrics.logger}
 		go a.actions.Run(context.Background())
 		go func() {
