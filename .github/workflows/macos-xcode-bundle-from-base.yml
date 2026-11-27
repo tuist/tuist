@@ -68,14 +68,34 @@ jobs:
           tart clone "$CIRRUS_BASE" exp-fb-base
           echo "BUNDLE-EXP from-base: Cirrus base pinned as local VM exp-fb-base"
 
+      - name: Write the 27.0 base build helper
+        run: |
+          # The production template's -downloadAllPlatforms has no retry, and
+          # Apple's simulator catalog fails transiently ("general networking
+          # error"). Retry the whole 27.0 install up to three times.
+          cat > "$RUNNER_TEMP/build-27-0.sh" <<'SH'
+          build_27_0() {
+            for attempt in 1 2 3; do
+              tart delete "$1" 2>/dev/null || true
+              (cd infra/macos-xcode-image && env -u GITHUB_TOKEN packer build \
+                -var base_image=exp-fb-base -var "output_image=$1" \
+                -var "xcode_xip_path=$XIP_27_0" -var xcode_version=27.0 \
+                -var disk_size_gb=140 macos-xcode.pkr.hcl) && return 0
+              echo "BUNDLE-EXP from-base: 27.0 install attempt $attempt failed"
+              sleep 120
+            done
+            return 1
+          }
+          SH
+
       - name: Build v1 (27.0 + 27.1) from the base
+        env:
+          XIP_27_0: ${{ steps.xips.outputs.x27_0 }}
         run: |
           set -euo pipefail
+          source "$RUNNER_TEMP/build-27-0.sh"
           t0=$(date +%s)
-          (cd infra/macos-xcode-image && env -u GITHUB_TOKEN packer build \
-            -var base_image=exp-fb-base -var output_image=exp-fb1-0 \
-            -var "xcode_xip_path=${{ steps.xips.outputs.x27_0 }}" -var xcode_version=27.0 \
-            -var disk_size_gb=140 macos-xcode.pkr.hcl)
+          build_27_0 exp-fb1-0
           (cd infra/macos-xcode-image/experiments && env -u GITHUB_TOKEN packer build \
             -var base_image=exp-fb1-0 -var output_image=exp-fb1 \
             -var disk_size_gb=140 -var recovery_partition=keep \
@@ -86,13 +106,13 @@ jobs:
           tart delete exp-fb1
 
       - name: Build v2 (27.0 + 27.1 + 27.2) from the base
+        env:
+          XIP_27_0: ${{ steps.xips.outputs.x27_0 }}
         run: |
           set -euo pipefail
+          source "$RUNNER_TEMP/build-27-0.sh"
           t0=$(date +%s)
-          (cd infra/macos-xcode-image && env -u GITHUB_TOKEN packer build \
-            -var base_image=exp-fb-base -var output_image=exp-fb2-0 \
-            -var "xcode_xip_path=${{ steps.xips.outputs.x27_0 }}" -var xcode_version=27.0 \
-            -var disk_size_gb=140 macos-xcode.pkr.hcl)
+          build_27_0 exp-fb2-0
           cd infra/macos-xcode-image/experiments
           env -u GITHUB_TOKEN packer build \
             -var base_image=exp-fb2-0 -var output_image=exp-fb2-1 \
