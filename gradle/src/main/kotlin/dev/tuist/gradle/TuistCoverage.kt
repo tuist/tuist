@@ -1207,7 +1207,7 @@ abstract class TuistCoverageCompleteTask : org.gradle.api.DefaultTask() {
                         when (val status = connection.responseCode) {
                             in 200..299 -> java.io.InputStreamReader(connection.inputStream, Charsets.UTF_8).use {
                                 com.google.gson.Gson().fromJson(it, com.google.gson.JsonObject::class.java)
-                                    ?.get("coverage")?.takeIf { value -> !value.isJsonNull }?.asString
+                                    ?.takeIf { commit -> commit.string("coverage") != null }
                             }
                             java.net.HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
                             else -> throw TuistRetry.statusFailure(connection, status) {
@@ -1223,7 +1223,7 @@ abstract class TuistCoverageCompleteTask : org.gradle.api.DefaultTask() {
             throw org.gradle.api.GradleException("Tuist: Could not mark the coverage of commit $short complete: ${e.message}", e)
         }
         if (coverage != null) {
-            logger.lifecycle("Tuist: Coverage of commit $short is complete: $coverage%.\n  See the commit's coverage at $commits/$sha")
+            logger.lifecycle("Tuist: ${completionMessage(short, coverage)}\n  See the commit's coverage at $commits/$sha")
         } else {
             // Usually the runs are still being processed, but a signal kept for a commit the runs
             // didn't report never applies, so name the commit and how to signal another. The
@@ -1236,6 +1236,35 @@ abstract class TuistCoverageCompleteTask : org.gradle.api.DefaultTask() {
                   See the commits your runs reported coverage for at $commits
                 """.trimIndent()
             )
+        }
+    }
+
+    private companion object {
+        fun com.google.gson.JsonObject.string(name: String): String? = get(name)?.takeIf { it.isJsonPrimitive }?.asString
+
+        /**
+         * What `tuist coverage complete` says: the figure the dashboard shows (`reported`, which
+         * counts the files of tests a run left out), the schemes that were partial, and why the
+         * figure may be a lower bound. The bare `coverage` is only what the runs measured.
+         */
+        fun completionMessage(short: String, commit: com.google.gson.JsonObject): String {
+            val reported = commit.get("reported")?.takeIf { it.isJsonObject }?.asJsonObject
+            val coverage = reported?.string("coverage") ?: commit.string("coverage")
+            val incomplete = reported?.string("kind") == "partial"
+            val gapReasons = reported?.get("gap_reasons")?.takeIf { it.isJsonArray }?.asJsonArray?.map { it.asString }.orEmpty()
+            val partialSchemes = commit.get("partial_schemes")?.takeIf { it.isJsonArray }?.asJsonArray
+                ?.map { it.asString }?.filter { it.isNotEmpty() }.orEmpty()
+            val partial = if (incomplete && partialSchemes.isNotEmpty()) " (partial: ${partialSchemes.joinToString(", ")})" else ""
+            val dirty = "dirty_run_excluded" in gapReasons
+            val note = when {
+                dirty ->
+                    " Some runs came from a checkout with uncommitted changes and don't count, because they measured code " +
+                        "that isn't the commit's, so the actual coverage may be higher." +
+                        "\n  Keep the checkout clean while the tests run, or keep the files the CI job writes out of it"
+                incomplete -> " The figure is incomplete, so the actual coverage may be higher."
+                else -> ""
+            }
+            return "Coverage of commit $short is complete: $coverage%$partial.$note"
         }
     }
 }

@@ -78,7 +78,7 @@ A commit's coverage often comes from several jobs, such as one per shard. Tuist 
 
 When a single job runs all of a commit's tests, run the task as a step after the tests instead, including when tests fail: a run with failing tests still reported its coverage.
 
-The task reads the commit from the checkout's `HEAD`, the commit your tests ran on; pass `-Ptuist.coverage.commit=<sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
+The task reads the commit from the checkout's `HEAD`, the commit your tests ran on; pass `-Ptuist.coverage.commit=<sha>` to name another one. It prints the commit's coverage as the dashboard shows it, and says when that figure is partial, so the actual coverage may be higher. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
 
 ## How it works {#how-it-works}
 

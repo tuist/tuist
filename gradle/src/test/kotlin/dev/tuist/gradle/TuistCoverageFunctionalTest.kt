@@ -44,6 +44,7 @@ class TuistCoverageFunctionalTest {
 
     @Volatile
     private var completionPending = false
+    private var completionBody = """{"coverage":"82.5"}"""
 
     @Volatile
     private var inlineThreshold = 5_000_000
@@ -99,7 +100,7 @@ class TuistCoverageFunctionalTest {
                     path.startsWith("$apiPath/coverage/commits/") && completionPending ->
                         MockResponse().setResponseCode(202).setBody("""{"message":"No run of the commit gathered coverage yet"}""")
                     path.startsWith("$apiPath/coverage/commits/") ->
-                        MockResponse().setResponseCode(200).setBody("""{"coverage":"82.5"}""")
+                        MockResponse().setResponseCode(200).setBody(completionBody)
                     // A catch-all shard: it runs every test task without a filter.
                     path.startsWith("$apiPath/shards/") ->
                         MockResponse().setResponseCode(200).setBody(
@@ -639,6 +640,50 @@ class TuistCoverageFunctionalTest {
 
         runner("tuistCoverageComplete", "-Ptuist.coverage.commit=0123456789abcdef").build()
         assertTrue(requests.any { it.first == "$apiPath/coverage/commits/0123456789abcdef/complete" })
+    }
+
+    @Test
+    fun `tuistCoverageComplete reports a partial commit's figure as the dashboard shows it, and says it is partial`() {
+        val head = fixture.git(projectDir, "rev-parse", "HEAD")
+        // What the runs measured is 88.1%; the figure the dashboard shows, with the left-out
+        // tests' files counted, is 52.5%, and it is a lower bound.
+        completionBody = """{"coverage":88.1,"partial":true,"partial_schemes":["shop"],"complete":true,""" +
+            """"reported":{"kind":"partial","coverage":52.5,"gap_reasons":["selective_skip"]}}"""
+
+        val partial = runner("tuistCoverageComplete").build().output
+
+        assertTrue(
+            partial.contains(
+                "Coverage of commit ${head.take(7)} is complete: 52.5% (partial: shop). " +
+                    "The figure is incomplete, so the actual coverage may be higher."
+            ),
+            partial
+        )
+        assertFalse(partial.contains("88.1"), partial)
+
+        // Runs from a dirty checkout don't count, which says why the figure is low.
+        completionBody = """{"coverage":40.0,"partial":false,"partial_schemes":[],"complete":true,""" +
+            """"reported":{"kind":"partial","coverage":40.0,"gap_reasons":["dirty_run_excluded"]}}"""
+
+        val dirty = runner("tuistCoverageComplete").build().output
+
+        assertTrue(dirty.contains("Coverage of commit ${head.take(7)} is complete: 40.0%. Some runs came from a checkout with uncommitted changes"), dirty)
+        assertTrue(
+            dirty.contains(
+                "may be higher.\n  Keep the checkout clean while the tests run, or keep the files the CI job writes out of it\n" +
+                    "  See the commit's coverage at"
+            ),
+            dirty
+        )
+        assertFalse(partial.contains("Keep the checkout clean"), partial)
+
+        // A full figure says nothing more.
+        completionBody = """{"coverage":70.0,"partial":false,"partial_schemes":[],"complete":true,""" +
+            """"reported":{"kind":"measured","coverage":70.0,"gap_reasons":[]}}"""
+
+        val full = runner("tuistCoverageComplete").build().output
+
+        assertTrue(full.contains("Coverage of commit ${head.take(7)} is complete: 70.0%.\n"), full)
     }
 
     @Test
