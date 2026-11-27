@@ -532,6 +532,154 @@ defmodule TuistEx.Analytics.CoverageTest do
     end
   end
 
+  # A template compiled into a module, as Phoenix compiles a LiveView's
+  # `.html.heex`, and a file the module reads at compile time, as a Gettext
+  # backend reads its `.po` files.
+  describe "templates and external resources" do
+    setup do
+      directory =
+        Path.join(System.tmp_dir!(), "tuist-ex-template-#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(Path.join(directory, "lib"))
+      File.mkdir_p!(Path.join(directory, "priv"))
+      on_exit(fn -> File.rm_rf!(directory) end)
+
+      File.write!(Path.join(directory, "mix.exs"), """
+      defmodule TuistExTemplateFixture.MixProject do
+        use Mix.Project
+        def project, do: [app: :tuist_ex_template_fixture, version: "0.1.0"]
+      end
+      """)
+
+      source = Path.join(directory, "lib/page.ex")
+
+      File.write!(source, """
+      defmodule TuistExTemplateFixture.Page do
+        require EEx
+
+        @external_resource "priv/greeting.txt"
+        @external_resource "linked/greeting.txt"
+        @greeting File.read!("priv/greeting.txt")
+
+        def greeting, do: @greeting
+
+        EEx.function_from_file(:def, :render, "lib/page.html.eex", [:name])
+
+        def unused(x) do
+          x * 2
+        end
+      end
+      """)
+
+      template = Path.join(directory, "lib/page.html.eex")
+
+      File.write!(template, """
+      Hello <%= name %>
+      <%= if name == "nobody" do %>
+        <%= String.upcase(name) %>
+      <% end %>
+      <%= if name == "boom", do: raise("boom") %>
+      """)
+
+      File.write!(Path.join(directory, "priv/greeting.txt"), "hi")
+      # The module names its resource a second time through a link, as a
+      # module reading `Application.app_dir/2` names `priv` through the
+      # build's link to it.
+      File.ln_s!("priv", Path.join(directory, "linked"))
+
+      {output, status} =
+        System.cmd(System.find_executable("mix"), ["compile"],
+          cd: directory,
+          stderr_to_stdout: true,
+          env: [{"MIX_ENV", "test"}, {"MIX_BUILD_PATH", nil}, {"MIX_DEPS_PATH", nil}]
+        )
+
+      assert status == 0, output
+
+      config = [
+        app: :tuist_ex_template_fixture,
+        build_path: Path.join(directory, "_build"),
+        build_per_environment: true
+      ]
+
+      %{directory: directory, config: config, source: source, template: template}
+    end
+
+    test "counts a template's lines in its own file and a module's resources as files it ran",
+         %{directory: directory, config: config, source: source, template: template} do
+      if :erlang.system_info(:emu_flavor) != :jit, do: flunk("native coverage needs the JIT")
+
+      ebin = Path.join(directory, "_build/test/lib/tuist_ex_template_fixture/ebin")
+      assert {1, []} = Coverage.instrument(ebin, directory, config)
+      # The module says it carries the counters, so it isn't instrumented again.
+      assert {0, []} = Coverage.instrument(ebin, directory, config)
+      tuist_ex = :code.lib_dir(:tuist_ex) |> to_string() |> Path.join("ebin")
+
+      script = """
+      Mix.start()
+      Code.prepend_path(#{inspect(ebin)})
+      Code.prepend_path(#{inspect(tuist_ex)})
+      true = TuistEx.Analytics.Coverage.enable_native(#{inspect(ebin)})
+      "hi" = TuistExTemplateFixture.Page.greeting()
+      TuistExTemplateFixture.Page.render("x")
+
+      frame =
+        try do
+          TuistExTemplateFixture.Page.render("boom")
+        rescue
+          _ -> Enum.find(__STACKTRACE__, &(elem(&1, 0) == TuistExTemplateFixture.Page))
+        end
+
+      result = %{
+        snapshot: TuistEx.Analytics.Coverage.snapshot(#{inspect(directory)}, #{inspect(config)}),
+        sources: TuistEx.Analytics.Coverage.sources([TuistExTemplateFixture.Page], #{inspect(directory)}, #{inspect(config)}),
+        module_lines: TuistEx.Analytics.Coverage.module_lines(#{inspect(config)}),
+        frame: frame
+      }
+
+      IO.write(result |> :erlang.term_to_binary() |> Base.encode64())
+      """
+
+      {output, 0} =
+        System.cmd(System.find_executable("elixir"), ["-e", script],
+          cd: directory,
+          env: [{"MIX_ENV", "test"}]
+        )
+
+      result =
+        output
+        |> String.split("\n")
+        |> List.last()
+        |> Base.decode64!()
+        |> :erlang.binary_to_term()
+
+      resource = Path.join(directory, "priv/greeting.txt")
+      snapshot = Map.new(result.snapshot, &{&1.path, &1})
+
+      # The template's lines aren't the module's: line 2 is the `if`, line 5
+      # the `raise` both calls reached.
+      assert snapshot[source].lines == %{8 => 1, 13 => 0}
+      assert snapshot[template].lines == %{2 => 2, 5 => 2}
+      assert Enum.map(snapshot[source].functions, & &1.name) == ["greeting/0", "unused/1"]
+      assert snapshot[template].functions == []
+      assert snapshot[resource].lines == %{}
+
+      assert result.sources == %{
+               TuistExTemplateFixture.Page => %{
+                 files: %{0 => source, 1 => template},
+                 resources: [resource]
+               }
+             }
+
+      # Mix's summary and threshold count no template line, as Mix's tool doesn't.
+      assert result.module_lines == %{TuistExTemplateFixture.Page => %{8 => true, 13 => false}}
+
+      # Stack traces still name the template and its line.
+      assert {TuistExTemplateFixture.Page, :render, 1, location} = result.frame
+      assert {location[:file], location[:line]} == {~c"lib/page.html.eex", 5}
+    end
+  end
+
   describe "with_shard_export/2" do
     test "exports a measured shard's coverage instead of holding it to Mix's threshold" do
       assert Coverage.with_shard_export(["--cover", "--trace"], 2) ==

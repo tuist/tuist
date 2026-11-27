@@ -366,9 +366,14 @@ type PauseArgs struct {
 	SyncDisks bool   `json:"sync_disks,omitempty"`
 }
 
+// SaveDisksArgs asks for a paused sandbox's disks to be saved. Shutdown, on
+// macOS hosts, shuts a resident VM's guest down cleanly instead of
+// checkpointing it, so its file systems are unmounted on the saved disks;
+// the sandbox can no longer resume. Hosts that predate it ignore it.
 type SaveDisksArgs struct {
 	SandboxID  string `json:"sandbox_id"`
 	SnapshotID string `json:"snapshot_id"`
+	Shutdown   bool   `json:"shutdown,omitempty"`
 }
 
 type DiskSnapshotArgs struct {

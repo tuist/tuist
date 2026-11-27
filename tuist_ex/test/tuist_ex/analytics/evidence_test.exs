@@ -39,16 +39,55 @@ defmodule TuistEx.Analytics.EvidenceTest do
       ok.
     """)
 
+    # A module with a dependency's code and a template compiled into it,
+    # which only `TemplateTest` runs: from each `-file` attribute, its line 1,
+    # the lines are the dependency's, which count for nothing, then the
+    # template's.
+    File.write!(Path.join(dir, "n.erl"), """
+    -module(n).
+    -export([own/0, dep/0, render/1]).
+    own() ->
+      ok.
+    -file("deps/dep/lib/dep.ex", 1).
+    dep() ->
+      ok.
+    -file("n.html.heex", 1).
+    render(X) ->
+      case X of
+        a -> one;
+        _ -> other
+      end.
+    """)
+
+    # A module whose only code from another file is a dependency's.
+    File.write!(Path.join(dir, "o.erl"), """
+    -module(o).
+    -export([own/0, dep/0]).
+    own() ->
+      ok.
+    -file("deps/dep/lib/dep.ex", 1).
+    dep() ->
+      ok.
+    """)
+
     script = """
     dir = System.fetch_env!("EVIDENCE_DIR")
     :code.set_coverage_mode(:line_counters)
     {:ok, :m, bin} = :compile.file(String.to_charlist(Path.join(dir, "m.erl")), [:binary, :line_coverage])
     {:module, :m} = :code.load_binary(:m, ~c"m.erl", bin)
+    ebin = Path.join(dir, "ebin")
+    File.mkdir_p!(ebin)
+    for module <- ["n", "o"] do
+      {:ok, _} = :compile.file(String.to_charlist(Path.join(dir, module <> ".erl")), [:debug_info, outdir: String.to_charlist(ebin)])
+    end
+    {2, []} = TuistEx.Analytics.Coverage.instrument(ebin, dir, [])
+    {:module, :n} = :code.load_abs(String.to_charlist(Path.join(ebin, "n")))
+    {:module, :o} = :code.load_abs(String.to_charlist(Path.join(ebin, "o")))
     # What runs before any test, as the application and the test helper do.
     :m.boot()
 
     ExUnit.start(autorun: false, formatters: [], max_cases: #{max_cases})
-    true = TuistEx.Analytics.Evidence.start([:m])
+    true = TuistEx.Analytics.Evidence.start([:m, :n, :o])
 
     defmodule SerialTest do
       use ExUnit.Case
@@ -87,19 +126,34 @@ defmodule TuistEx.Analytics.EvidenceTest do
       end
     end
 
+    defmodule TemplateTest do
+      use ExUnit.Case
+      test "render", do: :n.dep() && :n.render(:a)
+    end
+
+    defmodule DepTest do
+      use ExUnit.Case
+      test "dep", do: :o.own() && :o.dep()
+    end
+
     ExUnit.run()
     collected = TuistEx.Analytics.Evidence.collect()
 
     identities =
       for {module, name, suite} <- [
             {SerialTest, "a", ""}, {SerialTest, "b", ""}, {SetupAllTest, "inside", ""},
-            {AsyncOneTest, "x", ""}, {AsyncTwoTest, "y", ""}
+            {AsyncOneTest, "x", ""}, {AsyncTwoTest, "y", ""}, {TemplateTest, "render", ""},
+            {DepTest, "dep", ""}
           ],
           into: %{},
           do: {{module, :"test \#{name}"}, {inspect(module), suite, name}}
 
     out = Path.join(dir, "evidence.json")
-    sources = %{m: Path.join(dir, "m.erl")}
+    sources = %{
+      m: %{files: %{0 => Path.join(dir, "m.erl")}, resources: []},
+      n: %{files: %{0 => Path.join(dir, "n.erl"), 2 => Path.join(dir, "n.html.heex")}, resources: [Path.join(dir, "n.po")]},
+      o: %{files: %{0 => Path.join(dir, "o.erl")}, resources: []}
+    }
     {:ok, _} = TuistEx.Analytics.Evidence.write(collected, identities, sources, &Path.basename/1, out, lines: #{lines?})
     File.rm_rf!(collected.dir)
     IO.puts("RESULT " <> Base.encode64(File.read!(out)))
@@ -142,6 +196,22 @@ defmodule TuistEx.Analytics.EvidenceTest do
     # Overlapped tests' modules still depend on the boot.
     assert scopes[{"target", "AsyncOneTest", ""}] == [{"m.erl", [4, 4]}]
     assert evidence["status"] == "collected"
+  end
+
+  test "attributes a template's lines to the template, and a module's resources to what ran it",
+       %{dir: dir} do
+    {_evidence, scopes} = run_suite(dir, 1, true)
+
+    # The template's lines 3 and 4 are the `case` and its first clause; the
+    # resource holds no lines.
+    assert Enum.sort(scopes[{"test", "TemplateTest", "render"}]) ==
+             [{"n.html.heex", [3, 4]}, {"n.po", []}]
+
+    # A module that didn't run brings no resources.
+    assert scopes[{"test", "SerialTest", "a"}] == [{"m.erl", [6, 6]}]
+
+    # A dependency's code counts in no file: line 4 is own/0's body.
+    assert scopes[{"test", "DepTest", "dep"}] == [{"o.erl", [4, 4]}]
   end
 
   test "one module at a time, async tests get their own lines", %{dir: dir} do

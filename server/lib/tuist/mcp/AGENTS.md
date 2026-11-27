@@ -85,9 +85,9 @@
   `Tool.json_schema/1`. They require test-read, then
   `Tuist.Tests.Coverage.supported?/1` for the project (Xcode, Mix, Cargo and Gradle projects).
 
-- Personal AI subscription credentials (Claude tokens, ChatGPT sign-ins) are
-  managed only in the dashboard and `/api/me/ai-subscriptions`. Do not add MCP
-  tools for them: a secret passed as a tool argument reaches the transcript and
+- Personal AI subscription credentials (Claude tokens, ChatGPT sign-ins) and
+  people's own MCP servers live in Luft (`luft-server/`), not in Tuist. Do not
+  add MCP tools for them: a secret passed as a tool argument reaches the transcript and
   the client's logs, and the Anthropic directory review requires it to stay out
   of the connector.
 

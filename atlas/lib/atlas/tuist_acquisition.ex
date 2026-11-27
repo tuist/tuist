@@ -10,10 +10,13 @@ defmodule Atlas.TuistAcquisition do
     * Landings come from ClickHouse `marketing_landings`: one anonymous row per
       visit that arrived on tuist.dev from a campaign link (`utm_*` or `ref`)
       on another site or app, counted on the day it landed.
-    * Signups are Tuist users created in the window, grouped by the first-touch
-      campaign or referring site stored in `signup_attributions`. Users without
-      one (direct visits, the CLI, SCIM, invitations) are grouped under an
-      empty source.
+    * Signups are Tuist users created in the window who arrived on their own,
+      grouped by the first-touch campaign or referring site stored in
+      `signup_attributions`. Users without one (direct visits, the CLI) are
+      grouped under an empty source. Teammates who joined an organization that
+      already existed, users an organization provisioned through SCIM, and
+      Tuist's agent accounts are left out: they are seat growth inside
+      existing teams, not acquisition.
     * Customers are the paying accounts those signups brought: a personal
       account, or an organization they administer, with an active or
       past-due Pro or Enterprise subscription that started after they signed
@@ -46,6 +49,25 @@ defmodule Atlas.TuistAcquisition do
   @paying_statuses ["active", "past_due"]
 
   @metrics [:landings, :signups, :attributed_signups, :customers]
+
+  # Keeps the users `u` who arrived on their own. A teammate is a member of an
+  # organization created before them who got that membership within a day of
+  # signing up (an invite or SSO enrollment); someone who signed up alone and
+  # was invited somewhere weeks later still counts. Agent accounts are the
+  # `agent-<id>@agents.tuist.local` users of `Tuist.Accounts.AgentAuth`.
+  @independent_user """
+  u.provisioned_by_organization_id IS NULL
+        AND u.email::text NOT LIKE '%@agents.tuist.local'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM users_roles ur
+          JOIN roles r ON r.id = ur.role_id AND r.resource_type = 'Organization'
+          JOIN organizations o ON o.id = r.resource_id
+          WHERE ur.user_id = u.id
+            AND o.created_at < u.created_at
+            AND ur.created_at < u.created_at + interval '1 day'
+        )
+  """
 
   def metrics, do: @metrics
 
@@ -256,6 +278,7 @@ defmodule Atlas.TuistAcquisition do
       LEFT JOIN signup_attributions sa ON sa.user_id = u.id
       WHERE u.created_at >= '#{Date.to_iso8601(start_date)}'
         AND u.created_at < '#{Date.to_iso8601(Date.add(end_date, 1))}'
+        AND #{@independent_user}
     ),
     owners AS (
       SELECT a.id AS account_id, a.user_id
@@ -326,9 +349,10 @@ defmodule Atlas.TuistAcquisition do
   defp subscriptions(start_date, end_date, pg_query) do
     sql = """
     WITH signups AS (
-      SELECT id AS user_id, created_at FROM users
-      WHERE created_at >= '#{Date.to_iso8601(start_date)}'
-        AND created_at < '#{Date.to_iso8601(Date.add(end_date, 1))}'
+      SELECT u.id AS user_id, u.created_at FROM users u
+      WHERE u.created_at >= '#{Date.to_iso8601(start_date)}'
+        AND u.created_at < '#{Date.to_iso8601(Date.add(end_date, 1))}'
+        AND #{@independent_user}
     ),
     owners AS (
       SELECT a.id AS account_id, a.name AS account, a.user_id

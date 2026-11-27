@@ -636,6 +636,66 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
       assert Repo.aggregate(RunnerTrialChange, :count) == 1
     end
 
+    test "adds the runner items a paid subscription lacks, from now, and records the change once", %{conn: conn} do
+      account = AccountsFixtures.organization_fixture(customer_id: nil, preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      request = trial_request(conn, account.id, %{"operation" => "add_runner_items"})
+      before = DateTime.utc_now(:second)
+
+      expect(Billing, :sync_runner_subscription_items, fn synced ->
+        # The end is stamped before Stripe is reached, so the day splits at the moment the items appear.
+        refute Trials.on_trial?(synced)
+        assert synced.runner_trial_ended_at
+        {:ok, %Stripe.Subscription{id: "sub_live"}}
+      end)
+
+      assert %{"runner_trial" => %{"active" => false, "started_at" => nil, "ended_at" => ended_at}} =
+               result = conn |> authed() |> put(trial_path(account.id), request) |> json_response(200)
+
+      {:ok, ended_at, 0} = DateTime.from_iso8601(ended_at)
+      refute DateTime.before?(ended_at, before)
+
+      change = Repo.get_by!(RunnerTrialChange, change_id: request["change_id"])
+      assert change.after == result
+      assert ^result = conn |> authed() |> put(trial_path(account.id), request) |> json_response(200)
+      assert Repo.aggregate(RunnerTrialChange, :count) == 1
+    end
+
+    test "add_runner_items changes nothing when there is nothing to add, on Air, or on a trial", %{conn: conn} do
+      paid = AccountsFixtures.organization_fixture(customer_id: nil, preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: paid.id, plan: :enterprise)
+      expect(Billing, :sync_runner_subscription_items, fn _ -> {:ok, :unchanged} end)
+
+      assert %{"error" => "runner_items_present"} =
+               conn
+               |> authed()
+               |> put(trial_path(paid.id), trial_request(conn, paid.id, %{"operation" => "add_runner_items"}))
+               |> json_response(409)
+
+      assert is_nil(Repo.reload!(paid).runner_trial_ended_at)
+
+      reject(&Billing.sync_runner_subscription_items/1)
+      air = AccountsFixtures.organization_fixture(customer_id: nil, preload: [:account]).account
+
+      assert %{"error" => "paid_plan_required"} =
+               conn
+               |> authed()
+               |> put(trial_path(air.id), trial_request(conn, air.id, %{"operation" => "add_runner_items"}))
+               |> json_response(409)
+
+      on_trial = trial_account()
+      BillingFixtures.subscription_fixture(account_id: on_trial.id, plan: :pro)
+
+      assert %{"error" => "on_trial"} =
+               conn
+               |> authed()
+               |> put(trial_path(on_trial.id), trial_request(conn, on_trial.id, %{"operation" => "add_runner_items"}))
+               |> json_response(409)
+
+      assert Trials.on_trial?(Repo.reload!(on_trial))
+      assert Repo.aggregate(RunnerTrialChange, :count) == 0
+    end
+
     test "malformed or forged requests never change the trial", %{conn: conn} do
       account = trial_account()
       reject(&Billing.sync_runner_subscription_items/1)

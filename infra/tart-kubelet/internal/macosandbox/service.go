@@ -581,6 +581,7 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		PartSize   int64                   `json:"part_size"`
 		PartURLs   []string                `json:"part_urls"`
 		Bytes      int64                   `json:"bytes"`
+		Shutdown   bool                    `json:"shutdown"`
 	}
 	if err := json.Unmarshal(cmd.Args, &args); err != nil {
 		return protocol.ErrorResult(cmd.ID, errors.New("invalid command"))
@@ -614,7 +615,7 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		data = map[string]any{"resident": true, "snapshot_ms": time.Since(started).Milliseconds(), "disks_synced": m.disksSynced(args.SandboxID)}
 	case protocol.OpSaveDisks:
 		var snapshot protocol.DiskSnapshotInfo
-		snapshot, err = m.SaveDisks(ctx, args.SandboxID, args.SnapshotID)
+		snapshot, err = m.SaveDisks(ctx, args.SandboxID, args.SnapshotID, args.Shutdown)
 		data = protocol.SaveDisksResult{DurationMs: time.Since(started).Milliseconds(), Bytes: snapshot.Bytes}
 	case protocol.OpDeleteDisks:
 		err = m.DeleteDisks(ctx, args.SnapshotID)

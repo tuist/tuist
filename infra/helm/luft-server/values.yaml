@@ -31,6 +31,15 @@ externalSecret:
     name: onepassword
     kind: ClusterSecretStore
 
+# Public OAuth client ID for ChatGPT subscription sign-in
+# (LUFT_CHATGPT_CLIENT_ID), read through externalSecret's store. Without it
+# ChatGPT can't connect. Enable only after the item exists in the
+# environment's vault: a missing item fails the ExternalSecret.
+chatgptClient:
+  enabled: false
+  item: CHATGPT_OAUTH
+  field: client_id
+
 postgresql:
   instances: 2
   storageSize: 5Gi

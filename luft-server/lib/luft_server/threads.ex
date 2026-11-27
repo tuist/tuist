@@ -34,6 +34,7 @@ defmodule LuftServer.Threads do
   alias LuftServer.Threads.Thread
   alias LuftServer.Threads.ToolCall
   alias LuftServer.Tuist.Scope
+  alias LuftServer.Workspaces.Records
 
   @working ~w(queued running compacting shipping)
   @unfinished ~w(queued running waiting)
@@ -862,6 +863,13 @@ defmodule LuftServer.Threads do
     }
   end
 
+  defp serialize_message(%Message{kind: "record"} = message, people) do
+    message
+    |> Map.put(:kind, "agent")
+    |> serialize_message(people)
+    |> Map.put(:record_reference, message.record_reference)
+  end
+
   defp serialize_message(%Message{kind: kind} = message, people)
        when kind in ["decision", "card", "progress"] do
     base =
@@ -1222,6 +1230,29 @@ defmodule LuftServer.Threads do
          do: append!(thread, %{kind: "card", body: summary, card_size: size, card_source: source})
 
       "The card is shown in the conversation above your reply. Don't repeat what it shows."
+    end)
+  end
+
+  def show_record(run, reference) do
+    with_attempt(run, fn thread, fresh ->
+      result =
+        Records.author(fresh, fn scope ->
+          Records.check(scope, reference)
+        end)
+
+      if result != {:ok, :ok}, do: Repo.rollback(:forbidden)
+      since = Repo.get!(Message, fresh.message_id).position
+
+      unless Repo.exists?(
+               from m in Message,
+                 where:
+                   m.thread_id == ^thread.id and m.kind == "record" and m.position > ^since and
+                     m.record_reference == ^reference
+             ) do
+        append!(thread, %{kind: "record", body: "Open record", record_reference: reference})
+      end
+
+      "Record reference shown. Opening it checks the reader's current permissions and loads current data."
     end)
   end
 

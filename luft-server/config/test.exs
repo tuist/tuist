@@ -22,6 +22,10 @@ config :luft_server,
   oauth_client_secret: "test-secret",
   # Requests to Tuist go to `Req.Test` stubs.
   req_options: [plug: {Req.Test, LuftServer.Tuist}, retry: false],
+  # Requests to OpenAI go to their own `Req.Test` stubs.
+  openai_req_options: [plug: {Req.Test, LuftServer.OpenAI}],
+  mcp_req_options: [plug: {Req.Test, LuftServer.MCPServers}],
+  chatgpt_client_id: "test-chatgpt-client",
   # Each test stubs its own provider; a node-wide cache would leak between them.
   cache_provider_metadata: false
 

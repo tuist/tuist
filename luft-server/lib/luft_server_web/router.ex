@@ -33,6 +33,8 @@ defmodule LuftServerWeb.Router do
     post "/token", NativeAuthController, :token
   end
 
+  get "/mcp-servers/callback", LuftServerWeb.MCPServersController, :callback, log: false
+
   get "/:account/:project/previews/:id/:asset", LuftServerWeb.PreviewAssetsController, :show
 
   scope "/auth", LuftServerWeb do
@@ -67,8 +69,44 @@ defmodule LuftServerWeb.Router do
     delete "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :cancel_chatgpt_login
     delete "/me/ai-subscriptions/:provider", AISubscriptionsController, :delete
 
+    for prefix <- ["/me", "/accounts/:account_handle"] do
+      get prefix <> "/mcp-servers", MCPServersController, :index
+      post prefix <> "/mcp-servers", MCPServersController, :create
+      post prefix <> "/mcp-servers/complete", MCPServersController, :complete, log: false
+      post prefix <> "/mcp-servers/:id/authorize", MCPServersController, :authorize
+      delete prefix <> "/mcp-servers/:id", MCPServersController, :delete
+    end
+
     get "/organizations", OrganizationsController, :index
     post "/organizations", OrganizationsController, :create
+
+    get "/accounts/:account_handle/collections", CollectionsController, :index, log: false
+
+    post "/accounts/:account_handle/collections/:collection/query", CollectionsController, :query,
+      log: false
+
+    get "/accounts/:account_handle/collections/:collection/records/:record_id",
+        CollectionsController,
+        :show, log: false
+
+    post "/accounts/:account_handle/methods/:method", CollectionsController, :invoke, log: false
+    get "/accounts/:account_handle/behaviors", CollectionsController, :authoring, log: false
+
+    post "/accounts/:account_handle/releases/validate", CollectionsController, :validate,
+      log: false
+
+    get "/accounts/:account_handle/releases", CollectionsController, :releases, log: false
+    post "/accounts/:account_handle/releases", CollectionsController, :propose, log: false
+    get "/accounts/:account_handle/releases/:hash", CollectionsController, :release, log: false
+
+    post "/accounts/:account_handle/releases/:hash/approve", CollectionsController, :approve,
+      log: false
+
+    post "/accounts/:account_handle/releases/:hash/activate", CollectionsController, :activate,
+      log: false
+
+    post "/accounts/:account_handle/releases/:hash/merge", CollectionsController, :merge,
+      log: false
 
     scope "/accounts/:account_handle/threads" do
       get "/", ThreadsController, :index, log: false
@@ -76,6 +114,10 @@ defmodule LuftServerWeb.Router do
       get "/repositories", ThreadsController, :repositories, log: false
       get "/models", ThreadsController, :models, log: false
       get "/:id", ThreadsController, :show, log: false
+      get "/:id/records/:message_id", RecordsController, :show, log: false
+      get "/:id/resources/:message_id", CollectionsController, :reference, log: false
+      post "/:id/records/:message_id/query", RecordsController, :query, log: false
+      post "/:id/records/:message_id/action", RecordsController, :execute, log: false
       post "/:id/messages", ThreadsController, :message, log: false
       post "/:id/reauthorize", ThreadsController, :reauthorize, log: false
       patch "/:id", ThreadsController, :update, log: false

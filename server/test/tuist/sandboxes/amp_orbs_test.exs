@@ -366,6 +366,8 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     expect(Nodes, :call, fn "mac-a", "save_disks", args, _opts ->
       assert %{sandbox_id: id, node_uid: "uid"} = args
       assert id == sandbox.id
+      # An Orb resumes after its save, so its guest is never shut down.
+      refute Map.has_key?(args, :shutdown)
       {:ok, %{"duration_ms" => 900, "bytes" => 4_000_000_000}}
     end)
 

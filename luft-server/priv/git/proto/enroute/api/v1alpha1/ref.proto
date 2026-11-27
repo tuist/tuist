@@ -1,0 +1,153 @@
+syntax = "proto3";
+
+package enroute.api.v1alpha1;
+
+import "enroute/common/v1alpha1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+// Refs, and moving them. What is left of a git exchange once Enroute
+// terminates the connection itself: a caller reads where the branches point
+// and moves them, and never handles a packfile.
+//
+// Introducing objects is the job of git, over git, or of
+// `CommitService.CreateCommit`. A ref here may only be pointed at an object
+// this repository already stores, and a branch can only be pointed at a
+// commit — so there is no pack to send and nothing to negotiate.
+service RefService {
+  // The repository's refs, and the branch `HEAD` points at. `HEAD` is not
+  // one of the refs.
+  rpc ListRefs(ListRefsRequest) returns (ListRefsResponse);
+
+  // Move refs onto objects the repository already stores. Each update lands
+  // or is refused on its own, unless `atomic` asks for all of them or none.
+  //
+  // No `pre-receive`: that hook is how an application decides what a *git
+  // client* may land, and the caller here is the application. What it cannot
+  // waive still holds — every tip must already be an object this repository
+  // stores, and a branch (`refs/heads/*`) must point at a commit, so no
+  // object arrives this way.
+  rpc UpdateRefs(UpdateRefsRequest) returns (UpdateRefsResponse);
+
+  // Does `descendant_commit_id` have `ancestor_commit_id` in its history?
+  //
+  // The commit graph is here and an application is not, which is the same
+  // reason `pre-receive` is handed `RefCommand.force`. An application merging
+  // asks this before it moves a branch, and gets to decide what to do with the
+  // answer; Enroute holds no opinion about which refs may be rewritten.
+  //
+  // Safe to ask separately from the move it informs. Two commits are
+  // immutable, so their relationship is too — unlike where a ref points,
+  // which is why `UpdateRefs` compares `old_object_id` and this does not have
+  // to.
+  rpc IsAncestor(IsAncestorRequest) returns (IsAncestorResponse);
+}
+
+// ── refs ─────────────────────────────────────────────────────────────────
+
+message Ref {
+  // Fully qualified, e.g. `refs/heads/main`.
+  string name = 1;
+  common.v1alpha1.ObjectId object_id = 2;
+  // When this ref last moved, by the clock of the node that proposed the
+  // change. Unset for a ref stored without a time.
+  google.protobuf.Timestamp updated_at = 3;
+}
+
+message ListRefsRequest {
+  common.v1alpha1.RepoKey repo = 1;
+  // Return only refs under these prefixes. Empty returns every ref.
+  repeated string prefixes = 2;
+}
+
+message ListRefsResponse {
+  repeated Ref refs = 1;
+  // Where `HEAD` points, for a client that advertises a symref. It is
+  // reported here and not as an entry in `refs`.
+  string default_branch = 2;
+}
+
+// Move `refname` from `old_object_id` to `new_object_id`.
+//
+// An unset `old_object_id` asks for a create, and is refused with
+// REASON_ALREADY_EXISTS if the ref is already there — it does not waive the
+// check, it changes what is checked. An unset `new_object_id` deletes, which
+// needs `old_object_id`: as in a git push, no update moves a ref it has not
+// seen. A delete without it fails the call with INVALID_ARGUMENT.
+message RefUpdate {
+  string refname = 1;
+  common.v1alpha1.ObjectId old_object_id = 2;
+  common.v1alpha1.ObjectId new_object_id = 3;
+}
+
+message UpdateRefsRequest {
+  common.v1alpha1.RepoKey repo = 1;
+  // Outcomes come back in this order.
+  repeated RefUpdate updates = 2;
+  // All or none, as `git push --atomic`: one refused update refuses the
+  // rest with REASON_ATOMIC_FAILURE, and no ref moves.
+  bool atomic = 3;
+}
+
+message IsAncestorRequest {
+  common.v1alpha1.RepoKey repo = 1;
+  // Both must be commits this repository stores.
+  common.v1alpha1.ObjectId ancestor_commit_id = 2;
+  common.v1alpha1.ObjectId descendant_commit_id = 3;
+}
+
+message IsAncestorResponse {
+  // False when either commit is unknown here, which is the same answer a
+  // caller can act on: it is not a history this repository can vouch for.
+  bool is_ancestor = 1;
+}
+
+message UpdateRefsResponse {
+  // One per update in `UpdateRefsRequest.updates`, in that order.
+  repeated RefUpdateOutcome outcomes = 1;
+}
+
+message RefUpdateOutcome {
+  string refname = 1;
+  // Unset when the update landed. A rejection is an outcome, not a call
+  // failure: a call can land some of its updates and reject others, so the
+  // RPC still succeeds.
+  Rejection rejection = 2;
+
+  message Rejection {
+    Reason reason = 1;
+    // Set only for REASON_POLICY and REASON_UNSPECIFIED, the reasons whose
+    // text is not derivable from the enum.
+    string message = 2;
+
+    enum Reason {
+      REASON_UNSPECIFIED = 0;
+      // The new tip is not stored in this repository, or a branch's new tip
+      // is not a commit. Push it over git, or make it with `CreateCommit`,
+      // first.
+      REASON_MISSING_OBJECTS = 1;
+      // The refname fails git's own funny-refname check.
+      REASON_FUNNY_REFNAME = 2;
+      // Not returned: a branch pointed at a non-commit gets
+      // REASON_MISSING_OBJECTS.
+      REASON_NON_COMMIT_OBJECT = 3;
+      // A policy hook denied it. See `message`.
+      REASON_POLICY = 4;
+      // `old_object_id` did not match the ref's current value.
+      REASON_NON_FAST_FORWARD = 5;
+      // A create — an unset `old_object_id` — found the ref already present.
+      REASON_ALREADY_EXISTS = 6;
+      // Not a refname git itself would accept. Which namespaces a repository
+      // *admits* is an application's decision, made in `pre-receive` — Enroute
+      // stores any valid ref, including `refs/notes/*` and whatever an
+      // application invents for its own use.
+      REASON_INVALID_REFNAME = 7;
+      // Another update in the same atomic call was refused.
+      REASON_ATOMIC_FAILURE = 8;
+      // The call updates this ref more than once, which git refuses too.
+      REASON_REPEATED_REF = 9;
+      // The update deletes the branch `HEAD` points at, which git refuses
+      // too: a clone would check out nothing.
+      REASON_DELETE_CURRENT = 10;
+    }
+  }
+}

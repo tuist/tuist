@@ -56,6 +56,15 @@ class MainActivity : Activity() {
     private var addingProfile = false
     private var ticket = 0L
     private var busy = false
+    private var releaseSurface: String? = null
+    private var releaseList: JSONObject? = null
+    private var releaseDetail: JSONObject? = null
+    private var releaseTicket = 0L
+    private var releaseBusy = false
+    private var releaseFailed = false
+    private var releaseInDetail = false
+    private var releaseConfirmation: AlertDialog? = null
+    private var releaseBack: android.window.OnBackInvokedCallback? = null
     private var browserPending: Boolean
         get() = AppCore.browserPending
         set(value) { AppCore.browserPending = value }
@@ -94,6 +103,9 @@ class MainActivity : Activity() {
     private var subscriptionsUnavailable = false
     private var subscriptionsLive: Live? = null
     private var subscriptionsLiveKey: String? = null
+    /** MCP servers while Profile shows: the person's own and, keyed by handle, the selected organization's. */
+    private var mcpServers: List<JSONObject>? = null
+    private var organizationMcpServers: Pair<String, List<JSONObject>?>? = null
     /** The pending ChatGPT sign-in's next poll. */
     private var chatGPTPoll: Runnable? = null
     private var visible = false
@@ -112,7 +124,10 @@ class MainActivity : Activity() {
             render()
             if (intentConsumed || !consumeIntent(intent)) {
                 if (AppCore.pendingAuthorization != null) launchPendingSignIn()
-                else load()
+                else if (savedInstanceState?.getBoolean("releases_open") == true && active() != null && screen == "profile") {
+                    releaseSurface = java.util.UUID.randomUUID().toString()
+                    requestRelease("releases")
+                } else load()
             }
         }
     }
@@ -121,6 +136,7 @@ class MainActivity : Activity() {
         outState.putBoolean("previews_selected", previewsSelected)
         outState.putBoolean("intent_consumed", intentConsumed)
         outState.putBoolean("adding_profile", addingProfile)
+        outState.putBoolean("releases_open", releaseSurface != null)
         super.onSaveInstanceState(outState)
     }
 
@@ -128,6 +144,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         visible = true
+        if (releaseSurface != null) requestRelease("releases")
         checkForUpdate()
         // Send what was written offline, such as threads started on a plane.
         if (active() != null) AppCore.submit("flush_outbox", JSONObject(), host) { }
@@ -140,6 +157,10 @@ class MainActivity : Activity() {
     // Lounges are only polled, and the person only shows online, while someone can see them.
     override fun onPause() {
         visible = false
+        if (releaseSurface != null) {
+            clearReleases(keepOpen = true)
+            render()
+        }
         poll?.let(handler::removeCallbacks)
         presence?.let(handler::removeCallbacks)
         syncLive()
@@ -205,6 +226,11 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         ticket++
+        clearReleases()
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            releaseBack?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+            releaseBack = null
+        }
         inboxLive?.stop()
         inboxLive = null
         subscriptionsLive?.stop()
@@ -224,6 +250,14 @@ class MainActivity : Activity() {
         intent.data = null
         intent.removeExtra("navigate")
         intentConsumed = true
+        if (uri?.scheme == "luft" && uri.host == "mcp-callback" && uri.path.isNullOrEmpty()) {
+            call("complete_mcp_server", JSONObject().put("url", uri.toString()), onFailure = {
+                toast(R.string.mcp_sign_in_failed); render()
+            }) {
+                refreshMcpServers()
+            }
+            return true
+        }
         if (uri?.scheme == "luft" && uri.host == "oauth-callback" && uri.path.isNullOrEmpty()) {
             browserPending = false
             call("finish_sign_in", JSONObject().put("url", uri.toString())) {
@@ -237,6 +271,7 @@ class MainActivity : Activity() {
     }
 
     private fun navigate(operation: String, args: JSONObject = JSONObject()) {
+        clearReleases()
         call(operation, args) {
             previewsSelected = false
             render(); load()
@@ -295,6 +330,7 @@ class MainActivity : Activity() {
         .firstOrNull { it.optString("id") == view.optString("active_profile_id") }
 
     private fun reset() {
+        clearReleases()
         debounce?.let(handler::removeCallbacks)
         follow?.let(handler::removeCallbacks)
         poll?.let(handler::removeCallbacks)
@@ -304,6 +340,7 @@ class MainActivity : Activity() {
         threads = emptyList(); threadsSignInRequired = false; threadsAvailable = true; conversation = null; reply = ""
         lounges = null; room = null; readSent = 0; older = emptyList(); olderBefore = null
         subscriptions = null; subscriptionsUnavailable = false
+        mcpServers = null; organizationMcpServers = null
     }
 
     /** Loads the current screen's data. */
@@ -319,12 +356,16 @@ class MainActivity : Activity() {
 
     @Deprecated("Activity predates OnBackPressedDispatcher")
     override fun onBackPressed() {
-        if (addingProfile && active() != null) cancelAddingProfile()
+        if (releaseSurface != null) releaseUp()
+        else if (addingProfile && active() != null) cancelAddingProfile()
         else if ((screen == "threads" && threadId != null) || roomId != null) closeConversation()
         else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
     private fun render() {
+        syncReleaseBack()
+        if (releaseSurface != null) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         val login = active() == null || addingProfile
         // Dark status bar icons, except over the login screen's dark artwork.
         @Suppress("DEPRECATION")
@@ -355,9 +396,10 @@ class MainActivity : Activity() {
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(this).apply { addView(content) }
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        text(getString(tabLabel(screen) ?: R.string.previews), 28f)
+        if (releaseSurface != null) releaseText(getString(R.string.releases), heading = true)
+        else text(getString(tabLabel(screen) ?: R.string.previews), 28f)
         if (busy) text(getString(R.string.loading))
-        when (screen) {
+        if (releaseSurface != null) releasesScreen() else when (screen) {
             "profile" -> profileScreen()
             "threads" -> threadsScreen()
             "lounges" -> loungesScreen(direct = false)
@@ -365,7 +407,7 @@ class MainActivity : Activity() {
             else -> previewScreen()
         }
         // A conversation takes the whole screen, as on iOS; Back returns to the inbox.
-        if (!(screen == "threads" && threadId != null) && roomId == null) root.addView(tabBar())
+        if (releaseSurface == null && !(screen == "threads" && threadId != null) && roomId == null) root.addView(tabBar())
         setContentView(root)
         // Lounges read like a chat: the newest messages are at the bottom. Follow them only when
         // the reader was already there or just sent one; earlier messages load above the reader.
@@ -467,14 +509,230 @@ class MainActivity : Activity() {
         }
     }
 
+    // Releases are online-only, ephemeral review surfaces. Never save them in a Bundle or queue mutations.
+    private fun clearReleases(keepOpen: Boolean = false) {
+        val surface = releaseSurface
+        releaseTicket++
+        releaseConfirmation?.dismiss()
+        releaseConfirmation = null
+        releaseList = null; releaseDetail = null
+        releaseBusy = false; releaseFailed = false; releaseInDetail = false
+        if (surface != null) AppCore.submit("release_close", JSONObject()
+            .put("generation", view.optLong("generation", -1)).put("surface", surface), host) { }
+        releaseSurface = if (keepOpen) java.util.UUID.randomUUID().toString() else null
+    }
+
+    private fun syncReleaseBack() {
+        if (android.os.Build.VERSION.SDK_INT < 33) return
+        val handlesBack = releaseSurface != null || (addingProfile && active() != null) ||
+            (screen == "threads" && threadId != null) || roomId != null
+        if (handlesBack && releaseBack == null) {
+            val callback = android.window.OnBackInvokedCallback { onBackPressed() }
+            releaseBack = callback
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
+        } else if (!handlesBack) {
+            releaseBack?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+            releaseBack = null
+        }
+    }
+
+    private fun releaseUp() {
+        if (releaseInDetail) {
+            releaseConfirmation?.dismiss(); releaseConfirmation = null
+            releaseTicket++; releaseBusy = false; releaseDetail = null; releaseInDetail = false
+            // Re-fetch instead of leaving an empty detail shell or trusting a pre-mutation list.
+            requestRelease("releases")
+        } else { clearReleases(); render() }
+    }
+
+    private fun requestRelease(operation: String, hash: String? = null) {
+        val surface = releaseSurface ?: return
+        if (!visible || releaseBusy || busy) return
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        val request = ++releaseTicket
+        releaseBusy = true; releaseFailed = false
+        releaseInDetail = operation != "releases"
+        releaseDetail = null
+        // Remove protected content immediately on refresh; authority is only restored by core completion.
+        if (operation == "releases") releaseList = null
+        render()
+        val args = JSONObject().put("generation", generation).put("surface", surface)
+        if (hash != null) args.put("hash", hash)
+        AppCore.submit(operation, args, host) { result -> runOnUiThread {
+            if (isDestroyed || !visible || releaseSurface != surface || request != releaseTicket ||
+                generation != view.optLong("generation", -1) || profile != view.optString("active_profile_id")) return@runOnUiThread
+            val next = result.optJSONObject("view")
+            if (next != null && (generation != next.optLong("generation", -1) || profile != next.optString("active_profile_id"))) {
+                reset(); view = next; render(); return@runOnUiThread
+            }
+            releaseBusy = false
+            val data = result.optJSONObject("data")
+            val state = data?.optJSONObject("surface")
+            if ((!result.isNull("error") && result.optString("error").isNotBlank()) ||
+                data == null || !data.isNull("error") || state == null) {
+                clearReleases(keepOpen = true)
+                releaseFailed = true
+            } else {
+                releaseList = state.optJSONObject("list")
+                releaseDetail = state.optJSONObject("detail")
+            }
+            render()
+        } }
+    }
+
+    private fun releaseText(value: String, heading: Boolean = false, code: Boolean = false) {
+        content.addView(TextView(this).apply {
+            text = value; textSize = if (heading) 20f else 16f
+            setPadding(0, dp(8), 0, dp(8))
+            setTextColor(noora("surface-label-primary"))
+            setTextIsSelectable(true)
+            if (code) typeface = Typeface.MONOSPACE
+            if (android.os.Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = heading
+            if (heading) accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        })
+    }
+
+    private fun releaseButton(label: CharSequence, enabled: Boolean = true, action: () -> Unit) {
+        content.addView(styled(Button(this).apply {
+            text = label; minHeight = dp(48)
+            isEnabled = enabled && !busy && !releaseBusy && visible
+            setOnClickListener { if (!busy && !releaseBusy && visible) action() }
+        }), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+    }
+
+    private fun releasesScreen() {
+        // Up remains available during network work; its ticket invalidates stale completions.
+        content.addView(styled(Button(this).apply {
+            setText(if (releaseInDetail) R.string.release_up_list else R.string.release_up_profile)
+            minHeight = dp(48)
+            setOnClickListener { releaseUp() }
+        }), LinearLayout.LayoutParams(-1, -2))
+        if (releaseBusy) { releaseText(getString(R.string.loading), heading = true); return }
+        if (releaseFailed) releaseText(getString(R.string.release_failed), heading = true)
+        val candidate = releaseDetail
+        if (candidate == null) {
+            releaseButton(getString(R.string.release_reload)) { requestRelease("releases") }
+            val list = releaseList ?: return
+            releaseText(getString(R.string.release_active_hash, list.string("active").ifEmpty { getString(R.string.release_none) }), code = true)
+            val rows = list.optJSONArray("releases").objects()
+            if (rows.isEmpty()) releaseText(getString(R.string.release_empty))
+            rows.forEach { row ->
+                releaseText(row.getString("title"), heading = true)
+                releaseText(row.getString("hash"), code = true)
+                releaseText(getString(R.string.release_state, releaseState(row.getString("state"))))
+                releaseButton(getString(R.string.release_review)) { requestRelease("release_open", row.getString("hash")) }
+            }
+            return
+        }
+        val hash = candidate.getString("hash")
+        releaseText(candidate.getString("title"), heading = true)
+        releaseText(getString(R.string.release_candidate_hash, hash), code = true)
+        releaseText(getString(R.string.release_baseline_hash, candidate.string("baseline").ifEmpty { getString(R.string.release_none) }), code = true)
+        releaseText(getString(R.string.release_state, releaseState(candidate.getString("state"))), heading = true)
+        releaseText(getString(R.string.release_people, candidate.getLong("author").toString(), candidate.string("reviewer").ifEmpty { getString(R.string.release_none) }))
+        releaseText(getString(R.string.release_created, candidate.getString("created_at")))
+        candidate.string("active_at").takeIf { it.isNotEmpty() }?.let { releaseText(getString(R.string.release_activated, it)) }
+        releaseText(getString(if (candidate.getBoolean("compatible")) R.string.release_compatible else R.string.release_incompatible))
+        candidate.optJSONArray("blockers")?.let { blockers ->
+            for (i in 0 until blockers.length()) releaseText(blockers.getString(i))
+        }
+        candidate.optJSONArray("merge_blockers")?.let { blockers ->
+            if (blockers.length() > 0) releaseText(getString(R.string.release_merge_blockers), heading = true)
+            for (i in 0 until blockers.length()) releaseText(blockers.getString(i))
+        }
+        releaseText(getString(R.string.release_changes), heading = true)
+        val changes = candidate.optJSONArray("review_changes").objects()
+        if (changes.isEmpty()) releaseText(getString(R.string.release_no_changes))
+        changes.forEach { change ->
+            releaseText(getString(R.string.release_change, releaseChange(change.getString("kind")), change.getString("path")), heading = true)
+            releaseText(getString(R.string.release_before)); releaseText(change.getString("before"), code = true)
+            releaseText(getString(R.string.release_after)); releaseText(change.getString("after"), code = true)
+        }
+        releaseDefinition(R.string.release_baseline_definition, candidate.getString("baseline_text"))
+        releaseDefinition(R.string.release_candidate_definition, candidate.getString("definition_text"))
+        // These capabilities are core-derived, never inferred from state, author, or role here.
+        val actions = candidate.optJSONArray("actions")
+        val capabilities = (0 until (actions?.length() ?: 0)).map { actions!!.getString(it) }
+        if ("approve" in capabilities) {
+            releaseText(getString(R.string.release_approve_description))
+            releaseButton(getString(R.string.release_approve)) { requestRelease("release_approve", hash) }
+        }
+        if ("merge" in capabilities) {
+            releaseText(getString(R.string.release_merge_description))
+            releaseButton(getString(R.string.release_merge)) { requestRelease("release_merge", hash) }
+        }
+        if ("activate" in capabilities) {
+            releaseButton(getString(R.string.release_activate)) { confirmReleaseActivation(hash) }
+        }
+    }
+
+    private fun releaseState(state: String): String = getString(when (state) {
+        "proposed" -> R.string.release_proposed
+        "approved" -> R.string.release_approved
+        "merging" -> R.string.release_merging
+        "merged" -> R.string.release_merged
+        "merge_conflict" -> R.string.release_merge_conflict
+        "active" -> R.string.release_active
+        "superseded" -> R.string.release_superseded
+        else -> R.string.release_stale
+    })
+
+    private fun releaseChange(kind: String): String = getString(when (kind) {
+        "added" -> R.string.release_added
+        "removed" -> R.string.release_removed
+        else -> R.string.release_changed
+    })
+
+    private fun releaseDefinition(label: Int, value: String) {
+        val definition = TextView(this).apply {
+            text = value; textSize = 16f; typeface = Typeface.MONOSPACE
+            setTextColor(noora("surface-label-primary")); setTextIsSelectable(true)
+            visibility = View.GONE
+        }
+        releaseButton(getString(label)) {
+            definition.visibility = if (definition.visibility == View.GONE) View.VISIBLE else View.GONE
+        }
+        content.addView(definition)
+    }
+
+    private fun confirmReleaseActivation(hash: String) {
+        val surface = releaseSurface
+        val generation = view.optLong("generation", -1)
+        val request = releaseTicket
+        releaseConfirmation = AlertDialog.Builder(this)
+            .setTitle(R.string.release_activate_title)
+            .setMessage(getString(R.string.release_activate_message, hash))
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.release_activate) { _, _ ->
+                if (visible && !releaseBusy && surface == releaseSurface && request == releaseTicket &&
+                    generation == view.optLong("generation", -1) && releaseDetail?.optString("hash") == hash) {
+                    requestRelease("release_activate", hash)
+                }
+            }.create().apply {
+                setOnDismissListener { releaseConfirmation = null }
+                window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                show()
+                findViewById<TextView>(android.R.id.message)?.setTextIsSelectable(true)
+            }
+    }
+
     private fun profileScreen() {
         active()?.let { profile ->
             text("@${profile.optString("handle")}", 22f)
             text(profile.optString("email"))
             text(profile.optString("server"))
             if (profile.optBoolean("rejected")) text(getString(R.string.sign_in_required))
-            else subscriptionsSection()
+            else {
+                subscriptionsSection()
+                mcpServersSection(null, mcpServers)
+                organizationMcpServers?.let { (handle, list) -> mcpServersSection(handle, list) }
+            }
         } ?: text(getString(R.string.sign_in_required))
+        if (!browserPending) button(R.string.releases) {
+            releaseSurface = java.util.UUID.randomUUID().toString()
+            requestRelease("releases")
+        }
         if (!browserPending) button(R.string.switch_account) { chooseProfile() }
         button(getString(R.string.theme_value, AppCore.themes.firstOrNull { it.first == themeId }?.second.orEmpty())) {
             chooseTheme()
@@ -795,6 +1053,7 @@ class MainActivity : Activity() {
         if (isDestroyed || screen != "profile") return
         val generation = view.optLong("generation", -1)
         val profile = view.optString("active_profile_id")
+        refreshMcpServers()
         AppCore.submit("ai_subscriptions", JSONObject(), host) { result ->
             runOnUiThread {
                 if (isDestroyed || screen != "profile" ||
@@ -843,6 +1102,100 @@ class MainActivity : Activity() {
             else -> text(getString(R.string.loading))
         }
         text(getString(R.string.ai_subscriptions_footer), 13f)
+    }
+
+    /** The selected organization's handle in the active profile, or null for the personal account. */
+    private fun selectedOrganization(): String? = view.optJSONArray("accounts").objects().firstOrNull {
+        it.optString("profile_id") == view.optString("active_profile_id") &&
+            it.optBoolean("selected") && !it.optBoolean("personal")
+    }?.optString("handle")?.ifBlank { null }
+
+    /** Reloads the MCP server lists Profile shows, for the profile and generation that asked. */
+    private fun refreshMcpServers() {
+        if (isDestroyed || screen != "profile") return
+        val generation = view.optLong("generation", -1)
+        val organization = selectedOrganization()
+        if (organization != organizationMcpServers?.first) {
+            organizationMcpServers = organization?.let { it to null }
+        }
+        for (handle in listOf(null, organization).distinct()) {
+            val args = JSONObject().apply { handle?.let { put("account_handle", it) } }
+            AppCore.submit("mcp_servers", args, host) { result ->
+                runOnUiThread {
+                    if (isDestroyed || screen != "profile" || generation != view.optLong("generation", -1)) {
+                        return@runOnUiThread
+                    }
+                    val list = result.optJSONObject("data")?.optJSONArray("servers")?.objects() ?: emptyList()
+                    if (handle == null) mcpServers = list
+                    else if (organizationMcpServers?.first == handle) organizationMcpServers = handle to list
+                    if (!busy) render()
+                }
+            }
+        }
+    }
+
+    /** MCP servers whose tools threads use: the person's own, or an organization's when `handle` is set. */
+    private fun mcpServersSection(handle: String?, list: List<JSONObject>?) {
+        text(if (handle == null) getString(R.string.mcp_servers) else getString(R.string.organization_mcp_servers, handle), 20f)
+        val args = { JSONObject().apply { handle?.let { put("account_handle", it) } } }
+        when (list) {
+            null -> text(getString(R.string.loading))
+            else -> list.forEach { server ->
+                val state = getString(
+                    if (server.optBoolean("connected")) R.string.subscription_connected else R.string.subscription_not_connected
+                )
+                button("${server.optString("name")} · $state") {
+                    AlertDialog.Builder(this).setTitle(server.optString("name"))
+                        .setMessage(server.optString("url"))
+                        .setPositiveButton(R.string.mcp_sign_in) { _, _ ->
+                            authorizeMcpServer(args().put("id", server.optString("id")))
+                        }
+                        .setNeutralButton(R.string.mcp_remove) { _, _ ->
+                            call("remove_mcp_server", args().put("id", server.optString("id"))) { refreshMcpServers() }
+                        }
+                        .setNegativeButton(R.string.cancel, null).show()
+                }
+            }
+        }
+        button(R.string.add_mcp_server) { addMcpServer(args()) }
+        text(getString(if (handle == null) R.string.mcp_servers_footer else R.string.organization_mcp_servers_footer), 13f)
+    }
+
+    private fun addMcpServer(args: JSONObject) {
+        val url = EditText(this).apply {
+            hint = getString(R.string.mcp_server_url_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
+        val name = EditText(this).apply { hint = getString(R.string.mcp_server_name_hint) }
+        val fields = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), 0, dp(20), 0)
+            addView(url); addView(name)
+        }
+        AlertDialog.Builder(this).setTitle(R.string.add_mcp_server)
+            .setView(fields)
+            .setPositiveButton(R.string.add) { _, _ ->
+                if (url.text.isBlank()) return@setPositiveButton
+                call("add_mcp_server", args.put("url", url.text.toString()).put("name", name.text.toString())) { data ->
+                    refreshMcpServers()
+                    val id = (data as? JSONObject)?.optJSONObject("server")?.optString("id").orEmpty()
+                    if (id.isNotBlank()) authorizeMcpServer(JSONObject(args.toString()).put("id", id))
+                }
+            }.setNegativeButton(R.string.cancel, null).show()
+    }
+
+    /** Opens the server's sign-in in a browser tab; `luft://mcp-callback` comes back through [consumeIntent]. */
+    private fun authorizeMcpServer(args: JSONObject) {
+        call("authorize_mcp_server", args) { data ->
+            render()
+            val uri = (data as? JSONObject)?.optString("url")?.let(Uri::parse) ?: return@call
+            if (uri.scheme != "https" || uri.host.isNullOrBlank()) { toast(R.string.request_failed); return@call }
+            try {
+                CustomTabsIntent.Builder().build().launchUrl(this, uri)
+            } catch (_: Exception) {
+                toast(R.string.browser_unavailable)
+            }
+        }
     }
 
     private fun subscriptionName(provider: String): String = when (provider) {
@@ -990,9 +1343,9 @@ class MainActivity : Activity() {
                 runOnUiThread {
                     if (isDestroyed || result.has("error")) return@runOnUiThread
                     update = next
-                    if (!busy && screen == "profile") render()
+                    if (!busy && screen == "profile" && releaseSurface == null) render()
                     // The core suggests each newer build once per launch; Profile keeps the Update row.
-                    if (next != null && data?.optBoolean("suggest") == true) suggestUpdate(next.string("install_url"))
+                    if (visible && releaseSurface == null && next != null && data?.optBoolean("suggest") == true) suggestUpdate(next.string("install_url"))
                 }
             }
         }.start()

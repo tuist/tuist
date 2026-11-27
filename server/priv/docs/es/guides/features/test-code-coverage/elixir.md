@@ -2,12 +2,12 @@
 {
   "title": "Cobertura de código en Elixir",
   "titleTemplate": ":title · Cobertura de código · Funcionalidades · Guías · Tuist",
-  "description": "Sube la cobertura de líneas de tu proyecto de Elixir con mix test --cover y hazle seguimiento por archivo, por aplicación y por commit."
+  "description": "Sube la cobertura de líneas de tu proyecto en Elixir con mix test --cover y hazle seguimiento por archivo, por aplicación y por commit."
 }
 ---
-# Cobertura de código en Elixir {#elixir-code-coverage}
+# Cobertura de código Elixir {#elixir-code-coverage}
 
-La cobertura de código te indica qué líneas de tu código ejecutaron tus tests. El paquete Hex sube la cobertura por línea de cada ejecución de `mix test --cover`, y Tuist consolida las ejecuciones de un commit en una única cifra, para el proyecto, cada aplicación OTP y cada archivo. La página **Cobertura de código** del panel muestra estos datos por commit y como tendencia para cada rama.
+La cobertura de código te indica qué líneas de tu código ejecutaron tus tests. El paquete Hex sube la cobertura de líneas de cada ejecución de `mix test --cover`, y Tuist consolida las ejecuciones de un commit en una única cifra, para el proyecto, cada aplicación OTP y cada archivo. La página **Cobertura de código** del panel muestra los datos por commit y como tendencia para cada rama.
 
 > [!IMPORTANT]
 > **Requisitos**
@@ -41,7 +41,7 @@ Como en Mix, el umbral pertenece al resumen, por lo que `summary: false` desacti
 
 Tuist rastrea la cobertura por commit, por lo que necesita que tu proyecto esté en un repositorio Git: una ejecución fuera de uno sube sus resultados de test pero no la cobertura.
 
-La cobertura depende del <.localized_link href="/guides/features/test-insights/elixir#git-history">historial de Git</.localized_link> que sube el paquete, lo que sitúa el commit en su rama. Las ejecuciones en integración continua siempre lo suben, y las ejecuciones con `--cover` lo suben en cualquier máquina. Con `--cover`, el paquete también encuentra dónde se bifurcó una pull request: obtiene la rama base y profundiza un clon superficial tanto como sea necesario. En integración continua, un checkout superficial también se profundiza, sin contenidos de archivo, hasta alcanzar los commits que Tuist ya tiene, por lo que un commit nunca se sube sin el padre sobre el que se asienta. Establece `TUIST_GIT_UNSHALLOW_ENABLED=false` para evitar que contacte con el remoto.
+La cobertura depende del <.localized_link href="/guides/features/test-insights/elixir#git-history">historial de Git</.localized_link> que sube el paquete, lo que sitúa el commit en su rama. Las ejecuciones en integración continua siempre lo suben, y las ejecuciones de `--cover` lo suben en cualquier máquina. Con `--cover`, el paquete también encuentra dónde se bifurcó una pull request: obtiene la rama base y profundiza un clon superficial tanto como sea necesario. En integración continua, un checkout superficial también se profundiza, sin contenidos de archivo, hasta alcanzar los commits que Tuist ya tiene, por lo que un commit nunca se sube sin el padre sobre el que se asienta. Establece `TUIST_GIT_UNSHALLOW_ENABLED=false` para evitar que contacte con el remoto.
 
 ### Ejecuciones fragmentadas {#sharded-runs}
 
@@ -51,7 +51,7 @@ Cuando <.localized_link href="/guides/features/test-sharding/elixir">fragmentas 
 MIX_ENV=test TUIST_SHARD_INDEX=0 mix tuist.test --cover
 ```
 
-En un runner nuevo, usa el comando de bootstrap de la <.localized_link href="/guides/features/test-sharding/elixir#test-phase">fase de test</.localized_link> de la guía de fragmentación, que evita que Mix compile todas las dependencias antes de que el fragmento descargue su build, y añádele `--cover`.
+En un runner nuevo, usa el comando de bootstrap de la <.localized_link href="/guides/features/test-sharding/elixir#test-phase">fase de test</.localized_link> de la guía de fragmentación, que evita que Mix compile cada dependencia antes de que el fragmento descargue su build, y añádele `--cover`.
 
 Un fragmento informa solo de su propia cobertura y no comprueba el umbral, ya que ejecuta parte de la suite. Tuist fusiona los fragmentos de una ejecución en una única cifra.
 
@@ -61,23 +61,23 @@ Cada fragmento añade los contadores de cobertura al build que descarga. Para ha
 MIX_ENV=test mix tuist.test.build --shard-max 5 --cover
 ```
 
-Desactívalo cuando mantengas el directorio de build entre ejecuciones de pipeline y lo reutilices en ejecuciones que no recopilan cobertura, para que ese build permanezca sin contadores.
+Déjalo desactivado cuando mantengas el directorio de build entre ejecuciones de pipeline y lo reutilices en ejecuciones que no recopilen cobertura, para que ese build permanezca sin contadores.
 
 ### Completa cada commit en CI {#complete-each-commit}
 
-La cobertura de un commit suele provenir de varios trabajos: uno por fragmento, por versión de base de datos o por aplicación. Tuist no puede saber cuándo ha informado el último de ellos, así que debes indicárselo. Una vez que haya terminado cada trabajo de test para un commit, ejecuta esto en un trabajo que dependa de todos ellos:
+La cobertura de un commit suele provenir de varios trabajos: uno por fragmento, por versión de base de datos o por aplicación. Tuist no puede saber cuándo ha informado el último de ellos, así que indícaselo. Una vez que haya terminado cada trabajo de test para un commit, ejecuta esto en un trabajo que dependa de todos ellos:
 
 ```sh
 MIX_ENV=test mix tuist.coverage.complete
 ```
 
-La tarea lee el commit desde `GIT_COMMIT` o desde el `HEAD` del checkout; pasa `--commit <sha>` para indicar otro. Hasta que un commit esté completo, su cobertura aparece como **En progreso** y queda fuera de la tendencia de su rama.
+La tarea lee el commit desde `GIT_COMMIT` o desde el `HEAD` del checkout; pasa `--commit <sha>` para indicar otro. Hasta que un commit esté completo, su cobertura se muestra como **En progreso** y queda fuera de la tendencia de su rama.
 
 ## Cómo funciona {#how-it-works}
 
 ### Contadores de líneas nativos {#native-line-counters}
 
-La herramienta de cobertura de Mix compila de nuevo cada módulo para `cover` de Erlang al inicio de cada ejecución, lo que resulta lento en proyectos grandes. El paquete cuenta utilizando los contadores de líneas nativos del runtime en su lugar. Recompila solo los módulos que una compilación escribió desde la última ejecución, cambia el runtime a esos contadores y los lee cuando termina la suite. Se prescinde de la herramienta de cobertura de Mix, pero se mantienen su resumen y su umbral.
+La herramienta de cobertura de Mix compila cada módulo de nuevo para `cover` de Erlang al inicio de cada ejecución, lo que resulta lento en proyectos grandes. El paquete cuenta en su lugar con los contadores de líneas nativos del runtime. Recompila solo los módulos que una compilación escribió desde la última ejecución, cambia el runtime a esos contadores y los lee cuando termina la suite. Se excluye la herramienta de cobertura de Mix, pero se mantienen su resumen y su umbral.
 
 El paquete recurre a la herramienta de cobertura de Mix, con la misma subida, para:
 
@@ -91,18 +91,19 @@ El paquete recurre a la herramienta de cobertura de Mix, con la misma subida, pa
 - **Solo código de producto.** Los archivos bajo tus rutas de test son código de test. Tuist los almacena pero los excluye de todas las cifras.
 - **Líneas por archivo.** Una línea cuenta una vez por archivo, independientemente de a cuántos módulos pertenezca.
 - **Funciones.** Cada línea pertenece a la función cuya cláusula comienza más cerca por encima de ella. Las funciones que genera el compilador o una macro, como `__info__/1` o `__schema__/1`, no se listan, pero sus líneas siguen contando para su archivo.
+- **Plantillas.** Con el conteo nativo, una plantilla compilada en un módulo, como el `.html.heex` de un LiveView, `embed_templates` o `EEx.function_from_file`, se mide como un archivo propio, con sus propias líneas y sin funciones. La herramienta de cobertura de Mix no mide plantillas, por lo que el resumen y el umbral las excluyen.
 
-Por lo tanto, las cifras de Tuist difieren del informe de cobertura propio de Mix en algunos aspectos: excluyen el código de test y cuentan líneas por archivo en lugar de por módulo. El conteo nativo también ve el código que se ejecuta mientras tu aplicación se inicia, y excluye las líneas que el compilador demuestra que nunca pueden ejecutarse, que la herramienta de Mix informa como nunca cubiertas.
+Por tanto, las cifras de Tuist difieren del informe de cobertura propio de Mix en algunos aspectos: excluyen el código de test y cuentan líneas por archivo en lugar de por módulo. El conteo nativo también ve el código que se ejecuta mientras tu aplicación inicia, y excluye las líneas que el compilador demuestra que nunca pueden ejecutarse, que la herramienta de Mix informa como nunca cubiertas.
 
 ### Tests omitidos {#skipped-tests}
 
-Tuist no puede mantener la cobertura de los tests que una ejecución omite: el paquete registra lo que ejecutó toda la ejecución, no lo que ejecutó cada test. Por lo tanto, cuando los argumentos propios de una ejecución omiten tests, con `--only`, `--exclude`, `--failed`, `--stale`, `--name-pattern`, `--max-failures`, o archivos o líneas de test, la cobertura del commit es **Incompleta**, a menos que también se haya ejecutado una ejecución de la misma variante que no omitiera nada. Dos ejecuciones que cada una omiten tests, como `--exclude slow` y `--only slow`, siguen haciendo que el commit sea incompleto, aunque juntas hayan ejecutado todos los tests.
+Tuist no puede arrastrar la cobertura de los tests que una ejecución omite: el paquete registra lo que ejecutó toda la ejecución, no lo que ejecutó cada test. Así, cuando los propios argumentos de una ejecución omiten tests, con `--only`, `--exclude`, `--failed`, `--stale`, `--name-pattern`, `--max-failures`, o archivos o líneas de test, la cobertura del commit es **Incompleta**, a menos que también se haya ejecutado una ejecución de la misma variante que no omitiera nada. Dos ejecuciones que cada una omiten tests, como `--exclude slow` y `--only slow`, siguen haciendo que el commit sea incompleto, aunque juntas hayan ejecutado todos los tests.
 
-Algunos tests se omiten intencionadamente y no hacen que un commit sea incompleto:
+Algunos tests se omiten a propósito y no hacen que un commit sea incompleto:
 
 - **Exclusiones de tu ayudante de test.** Los tests que `ExUnit.start(exclude: [...])` omite por defecto son la elección de tu proyecto sobre qué ejecuta su suite por defecto, por lo que Tuist no los cuenta como faltantes. Ejecútalos en otro trabajo, con `--include` o `--only`, para añadir su cobertura al commit.
 - **Tests omitidos en el código** con `@tag :skip`.
-- **Tests que la <.localized_link href="/guides/features/test-insights/flaky-tests/elixir#quarantining">cuarentena</.localized_link> omite.** Se excluyen como si hubieran sido eliminados, por lo que las líneas que solo ellos cubrieron se cuentan como no cubiertas.
+- **Tests que <.localized_link href="/guides/features/test-insights/flaky-tests/elixir#quarantining">cuarentena</.localized_link> omite.** Se excluyen como si hubieran sido eliminados, por lo que las líneas que solo ellos cubrieron cuentan como no cubiertas.
 
 ### Commits completos e incompletos {#commit-status}
 
@@ -111,26 +112,26 @@ Cada commit en el panel tiene un estado:
 | Estado | Significado |
 | --- | --- |
 | En progreso | Las ejecuciones han reportado cobertura, pero `mix tuist.coverage.complete` aún no se ha ejecutado para el commit. |
-| Completo | Todos los tests de las ejecuciones del commit se ejecutaron o se omitieron intencionadamente. |
-| Incompleto | No se pudo determinar parte de la cobertura, por lo que la cifra es un límite inferior. |
+| Completo | Se ejecutaron todos los tests de las ejecuciones del commit, o se omitieron a propósito. |
+| Incompleto | No se pudo determinar cierta cobertura, por lo que la cifra es un límite inferior. |
 | No medido | Ninguna ejecución reportó cobertura para el commit. |
 
 La tendencia de una rama solo incluye commits completos. Un commit es incompleto cuando, por ejemplo:
 
 - Cada ejecución de una variante omitió tests con sus propios argumentos.
-- Cada ejecución de una variante carecía de algunos de sus shards.
-- La cobertura de una variante provenía únicamente de ejecuciones de CI en un checkout con cambios no confirmados.
+- A cada ejecución de una variante le faltaban algunos de sus shards.
+- La cobertura de una variante provenía únicamente de ejecuciones de CI en un checkout con cambios sin confirmar.
 
 Una variante es la etiqueta que pasas con `--scheme`, como una versión de base de datos. Las ejecuciones sin etiqueta constituyen una variante. La cifra del commit fusiona todas las ejecuciones, pero Tuist verifica la completitud de cada variante por separado, por lo que cada variante necesita una ejecución que no omita nada.
 
 ## Impacto en el rendimiento {#performance-impact}
 
-Recopilar cobertura añade sobrecarga, por lo que las ejecuciones con `--cover` tardan más que las que no la usan. La primera ejecución recompila tus módulos con los contadores de líneas; las ejecuciones posteriores solo recompilan lo que cambió, por lo que su coste es mucho menor. En proyectos grandes, el conteo nativo también es mucho más rápido que la herramienta de cobertura de Mix.
+Recopilar cobertura añade sobrecarga, por lo que las ejecuciones con `--cover` tardan más que las ejecuciones sin ella. La primera ejecución recompila tus módulos con los contadores de líneas; las ejecuciones posteriores solo recompilan lo que cambió, por lo que su coste es mucho menor. En proyectos grandes, el conteo nativo también es mucho más rápido que la herramienta de cobertura de Mix.
 
 ## Limitaciones {#limitations}
 
-- **Sin informe HTML.** El conteo nativo no escribe ningún informe en el directorio `test_coverage: [output: ...]`, y la ejecución emite una advertencia cuando está configurado. Las páginas de archivos del panel muestran las líneas cubiertas en su lugar.
-- **Los reintentos no añaden cobertura.** Con <.localized_link href="/guides/features/test-insights/flaky-tests/elixir#test-retries">reintentos de test</.localized_link>, la cobertura corresponde al primer intento. Ese intento ya ejecutó los tests fallidos, por lo que las únicas líneas faltantes son aquellas a las que un test intermitente llega en un reintento pero no en su primer intento.
+- **Sin informe HTML.** El conteo nativo no escribe ningún informe en el directorio `test_coverage: [output: ...]`, y la ejecución advierte cuando se configura uno. Las páginas de archivos del panel muestran las líneas cubiertas en su lugar.
+- **Los reintentos no añaden cobertura.** Con <.localized_link href="/guides/features/test-insights/flaky-tests/elixir#test-retries">reintentos de test</.localized_link>, la cobertura corresponde al primer intento. Ese intento ya ejecutó los tests fallidos, por lo que las únicas líneas faltantes son aquellas a las que un test inestable llega en un reintento pero no en su primer intento.
 - **Sin cobertura desde pull requests de forks.** La cobertura solo la suben las ejecuciones que se autentican con Tuist, y la CI suele retener los secretos y tokens de identidad de las pull requests abiertas desde forks, por lo que esas ejecuciones no reportan cobertura. Una vez fusionado, el commit se ejecuta en tu rama con credenciales y reporta su cobertura como de costumbre.
 
 ## Consulta de cobertura {#querying}

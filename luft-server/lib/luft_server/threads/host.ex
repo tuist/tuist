@@ -44,6 +44,8 @@ defmodule LuftServer.Threads.Host do
   alias LuftServer.Threads.ToolLog
   alias LuftServer.Threads.TuistTools
   alias LuftServer.Threads.Workspace
+  alias LuftServer.Workspaces.Authoring
+  alias LuftServer.Workspaces.Records
 
   require Logger
 
@@ -473,6 +475,51 @@ defmodule LuftServer.Threads.Host do
   defp tools(run) do
     base = [
       Condukt.tool(
+        name: "workspace_queries",
+        description:
+          "Discover permitted business collections for the triggering author. Returns module, query, model and operation (list or get). Use query_workspace to locate a record, then show_record to present it with reader-specific permissions.",
+        parameters: %{type: "object", properties: %{}, additionalProperties: false},
+        call: fn args, _ -> Records.discover(run, args) end,
+        replay_safe: true
+      ),
+      Condukt.tool(
+        name: "query_workspace",
+        description:
+          "Run a query from workspace_queries under fresh author permissions. Get input is {id}; list input is {} or, for reviewed behavior collections, {search}. Behavior collections return opaque reference(s), not record fields; show_record opens native detail for each reader. Legacy workspaces return rows. Does not write.",
+        parameters: %{
+          type: "object",
+          properties: %{
+            module: %{type: "string"},
+            query: %{type: "string"},
+            input: %{
+              type: "object",
+              properties: %{
+                id: %{type: "string", format: "uuid"},
+                search: %{type: "string", maxLength: 200}
+              },
+              additionalProperties: false
+            }
+          },
+          required: ["module", "query", "input"],
+          additionalProperties: false
+        },
+        call: fn args, _ -> Records.query(run, args) end,
+        replay_safe: true
+      ),
+      Condukt.tool(
+        name: "show_record",
+        description:
+          "Show a business record reference, not a data snapshot. Checks the triggering author's fresh delegation and explicit workspace read grant before appending. Each reader opens current data under their own permissions. Use an authorized query to find the model and UUID; do not guess IDs.",
+        parameters: %{
+          type: "object",
+          properties: %{model: %{type: "string"}, id: %{type: "string", format: "uuid"}},
+          required: ["model", "id"],
+          additionalProperties: false
+        },
+        call: fn args, _ -> Threads.show_record(run, args) end,
+        replay_safe: true
+      ),
+      Condukt.tool(
         name: "set_thread_name",
         description: "Give this thread a concise descriptive title.",
         parameters: %{
@@ -514,6 +561,7 @@ defmodule LuftServer.Threads.Host do
       {AskUser, run: run}
     ]
 
+    base = base ++ Authoring.tools(run)
     if Cards.available?(), do: base ++ [card(run)], else: base
   end
 

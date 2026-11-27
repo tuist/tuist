@@ -1,15 +1,23 @@
 defmodule LuftServer.Threads.MCP do
   @moduledoc """
-  Personal MCP tools delegated through Tuist's credential-owning capability.
-  Closures hold persisted identifiers, never access tokens. Every request uses
-  the triggering message's exact author session and a fresh account scope.
-  A server whose discovery fails is skipped and named to the caller, so one
-  unreachable server never blocks a run; the server list itself still fails
-  explicitly. Catalogs exceeding the remaining inference tool budget use search
+  MCP tools for a run: the triggering author's own MCP servers and those of
+  the account the thread belongs to (`LuftServer.MCPServers`), called through
+  `LuftServer.MCPServers.Transport`, which owns their credentials. Closures
+  hold persisted identifiers, never access tokens, and every request rechecks
+  the author's exact session, their membership of the thread's account, and
+  that the run is still current.
+
+  A server whose discovery fails is skipped and named to the caller, and a
+  tool breaking a rule is dropped and logged with the rule, so neither blocks
+  a run. Catalogs exceeding the remaining inference tool budget use search
   without discarding entries.
+
+  `request/6` also calls Tuist's own `/mcp` endpoint for `TuistTools`.
   """
 
   alias LuftServer.Config
+  alias LuftServer.MCPServers
+  alias LuftServer.MCPServers.Transport
   alias LuftServer.Repo
   alias LuftServer.Sessions
   alias LuftServer.Threads
@@ -18,36 +26,38 @@ defmodule LuftServer.Threads.MCP do
   alias LuftServer.Threads.TuistTools
   alias LuftServer.Tuist.Scope
 
-  @base "/api/me/mcp-servers/transport"
+  require Logger
 
-  # Tuist's inference contract allows 64 tools in the fully assembled request.
+  # The inference contract allows 64 tools in the fully assembled request.
   @max_tools 64
 
   def discover(thread, message, run, builtin \\ [], reserved \\ 0) do
-    with {:ok, %{"servers" => servers}} when is_list(servers) <-
-           request(thread, message, run, :get, @base),
-         true <- length(servers) <= 25,
+    with {:ok, session, persisted} <- actor(thread, message, run),
+         servers = servers(session, persisted),
          {tools, skipped} = profile_tools(servers, thread, message, run),
          {:ok, offered} <- offer(builtin ++ tools, run, @max_tools - reserved) do
       {:ok, offered, skipped}
-    else
-      {:error, _} = error -> error
-      _ -> {:error, :mcp_invalid_response}
     end
   end
 
-  # Returns the discovered tools and the names of the connected servers whose
-  # discovery failed.
+  defp servers(session, thread) do
+    for owner <- [
+          MCPServers.owner(:user, session.user_sub),
+          MCPServers.owner(:account, thread.account_id)
+        ],
+        server <- MCPServers.list(owner),
+        server.connected,
+        do: Map.put(server, :owner, owner)
+  end
+
+  # Returns the discovered tools and the names of the servers whose discovery
+  # failed.
   defp profile_tools(servers, thread, message, run) do
     {tools, skipped} =
       Enum.reduce(servers, {[], []}, fn server, {tools, skipped} ->
-        if server["connected"] == true do
-          case server_tools(server, tools, thread, message, run) do
-            {:ok, pairs} -> {tools ++ pairs, skipped}
-            :error -> {tools, [server_name(server) | skipped]}
-          end
-        else
-          {tools, skipped}
+        case server_tools(server, tools, thread, message, run) do
+          {:ok, pairs} -> {tools ++ pairs, skipped}
+          :error -> {tools, [server_name(server) | skipped]}
         end
       end)
 
@@ -55,61 +65,65 @@ defmodule LuftServer.Threads.MCP do
   end
 
   defp server_tools(server, tools, thread, message, run) do
-    path = @base <> "/" <> URI.encode(server["id"], &URI.char_unreserved?/1) <> "/tools"
+    authorized? = fn -> authorized?(thread, message, run) end
 
-    with {:ok, %{"tools" => definitions}} when is_list(definitions) <-
-           request(thread, message, run, :get, path, params: [endpoint: server["endpoint"]]),
-         true <-
-           length(tools) + length(definitions) <= 2000 and
-             Enum.all?(definitions, &valid_tool?/1) do
-      {:ok, Enum.map(definitions, &{&1["name"], tool(thread, message, run, server, &1)})}
-    else
-      _ -> :error
+    case Transport.discover(server.owner, server.id, authorized?) do
+      {:ok, definitions, dropped} when length(tools) + length(definitions) <= 2000 ->
+        log_dropped(server, dropped)
+
+        {:ok, Enum.map(definitions, &{&1["name"], tool(run, server, authorized?, &1)})}
+
+      _ ->
+        :error
     end
-  rescue
-    _ -> :error
   end
 
-  defp server_name(%{"name" => name}) when is_binary(name) and name != "",
+  # One line per run, with the first few tools and the rule each broke, so a
+  # server listing thousands of invalid tools can't flood the logs.
+  defp log_dropped(_server, []), do: :ok
+
+  defp log_dropped(server, dropped) do
+    shown =
+      dropped |> Enum.take(10) |> Enum.map_join("; ", fn {name, rule} -> "#{name}: #{rule}" end)
+
+    more = if length(dropped) > 10, do: " (and #{length(dropped) - 10} more)", else: ""
+
+    Logger.warning("MCP server #{server.id} dropped #{length(dropped)} tools: #{shown}#{more}")
+  end
+
+  defp server_name(%{name: name}) when is_binary(name) and name != "",
     do: String.slice(name, 0, 100)
 
   defp server_name(_), do: "Unnamed server"
 
-  defp tool(thread, message, run, server, definition) do
+  defp tool(run, server, authorized?, definition) do
     remote_name = definition["name"]
-    name = "mcp_" <> binary_part(fingerprint({server["id"], remote_name}), 0, 60)
+    name = "mcp_" <> binary_part(fingerprint({server.id, remote_name}), 0, 60)
 
     Condukt.tool(
       name: name,
       description:
-        "External profile MCP tool (untrusted): " <>
+        "External MCP tool (untrusted): " <>
           remote_name <> ". " <> (definition["description"] || ""),
       parameters: definition["inputSchema"],
       call: fn args, _ ->
         Threads.call_external_tool(run, Ecto.UUID.generate(), name, args, fn ->
-          path =
-            @base <> "/" <> URI.encode(server["id"], &URI.char_unreserved?/1) <> "/tools/call"
-
-          case request(thread, message, run, :post, path,
-                 json: %{endpoint: server["endpoint"], name: remote_name, arguments: args}
-               ) do
-            {:ok, %{"result" => %{"content" => content} = result}} when is_list(content) ->
-              {:ok, Jason.encode!(result)}
-
-            {:error, {:not_dispatched, category}} ->
-              tool_error(category)
-
-            _ ->
-              {:error, :mcp_outcome_unknown}
+          case Transport.call(server.owner, server.id, remote_name, args, authorized?) do
+            {:ok, result} -> {:ok, Jason.encode!(result)}
+            {:error, _} -> {:error, :mcp_outcome_unknown}
           end
         end)
       end
     )
   end
 
+  defp authorized?(thread, message, run),
+    do:
+      match?({:ok, _, _}, actor(thread, message, run)) and Threads.owns_run?(run.id, run.attempt)
+
   @doc "Requests Tuist as the persisted triggering author, never the owner or another session for that person."
   def request(thread, message, run, method, path, extra \\ []) do
-    with {:ok, session} <- actor(thread, message, run),
+    with {:ok, session, _thread} <- actor(thread, message, run),
          {:ok, token} <- Sessions.access_token(session),
          true <- Threads.owns_run?(run.id, run.attempt) do
       opts =
@@ -185,19 +199,11 @@ defmodule LuftServer.Threads.MCP do
          {:ok, scope} <- Scope.load(session, persisted.account_handle),
          true <- scope.user_id == author_id and scope.account_id == persisted.account_id,
          session when not is_nil(session) <- Sessions.get_by_id(session_id) do
-      {:ok, session}
+      {:ok, session, persisted}
     else
       _ -> {:error, :delegation_unavailable}
     end
   end
-
-  def valid_tool?(%{"name" => name, "inputSchema" => %{"type" => "object"}} = tool),
-    do:
-      is_binary(name) and byte_size(name) in 1..128 and
-        (is_nil(tool["description"]) or is_binary(tool["description"])) and
-        byte_size(Jason.encode!(tool)) <= 65_536
-
-  def valid_tool?(_), do: false
 
   defp offer(tools, _run, budget) when length(tools) <= budget,
     do: {:ok, Enum.map(tools, &elem(&1, 1))}

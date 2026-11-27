@@ -1,6 +1,7 @@
 import Config
 
 config :luft_server, dns_cluster_query: System.get_env("DNS_CLUSTER_QUERY")
+config :luft_server, git_endpoint: System.get_env("LUFT_GIT_ENDPOINT")
 
 if System.get_env("PHX_SERVER") do
   config :luft_server, LuftServerWeb.Endpoint, server: true
@@ -30,5 +31,7 @@ if config_env() == :prod do
     tuist_issuer: System.get_env("TUIST_URL", "https://tuist.dev"),
     public_url: public_url,
     oauth_client_id: fetch!.("LUFT_SERVER_OAUTH_CLIENT_ID"),
-    oauth_client_secret: fetch!.("LUFT_SERVER_OAUTH_CLIENT_SECRET")
+    oauth_client_secret: fetch!.("LUFT_SERVER_OAUTH_CLIENT_SECRET"),
+    # Optional: without it, ChatGPT subscriptions can't be connected.
+    chatgpt_client_id: System.get_env("LUFT_CHATGPT_CLIENT_ID")
 end

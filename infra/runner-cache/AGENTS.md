@@ -437,8 +437,16 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Entries live in a store, never on the host: the in-rack shard store's
   quota-capped bucket at the host's site, or the account's own storage, as the
   server places them. A restore relays ranged reads from the store's presigned
-  URL. `/actions-cache/healthz` fails while the store has not answered for 30
-  seconds, so the node shim leaves jobs on GitHub's cache during an outage.
+  URL. The one exception is a job restoring its own save before the copy
+  commits it (runnersbench restores 0.4 s after saving): a lookup from the
+  saving Pod for that exact key and version is answered from the staged upload
+  without asking the server, since the job's ref is read first and holds no
+  other entry for the key. Other Pods and other keys wait for the commit.
+  `finalize` never waits for the copy: on macOS a 1 GB copy takes about 15 s.
+  A failed copy stops these answers; a served upload stays until five minutes
+  after its last read. `/actions-cache/healthz` fails while the store has not
+  answered for 30 seconds, so the node shim leaves jobs on GitHub's cache
+  during an outage.
   It also fails for a Pod until the server says its job's account uses the
   mirror (`Enabled`), asked once per Pod and kept; the probe waits 100 ms of the
   shim's 150 ms for it, and the check finishes in the background for the next

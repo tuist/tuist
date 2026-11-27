@@ -16,10 +16,13 @@ struct LuftApp: App {
     var body: some Scene {
         WindowGroup(id: WorkspaceCommands.window) {
             #if targetEnvironment(simulator)
-                if ProcessInfo.processInfo.arguments.contains("-LuftToolPreview") {
+                if WorkspacePreview.requested {
+                    WorkspacePreview()
+                } else if ProcessInfo.processInfo.arguments.contains("-LuftToolPreview") {
                     ToolPreview()
                 } else if ProcessInfo.processInfo.arguments.contains("-LuftCardPreview") ||
-                    ProcessInfo.processInfo.arguments.contains("-LuftDecisionPreview") {
+                    ProcessInfo.processInfo.arguments.contains("-LuftDecisionPreview")
+                {
                     CardPreview()
                 } else if ProcessInfo.processInfo.arguments.contains("-LuftSandboxPreview") {
                     SandboxReadyPreview()
@@ -28,7 +31,8 @@ struct LuftApp: App {
                 }
             #elseif os(macOS)
                 if ProcessInfo.processInfo.arguments.contains("-LuftCardPreview") ||
-                    ProcessInfo.processInfo.arguments.contains("-LuftDecisionPreview") {
+                    ProcessInfo.processInfo.arguments.contains("-LuftDecisionPreview")
+                {
                     CardPreview()
                 } else {
                     AppWorkspace(client: client)
@@ -39,7 +43,7 @@ struct LuftApp: App {
         }
         .commands { WorkspaceCommands() }
         #if os(macOS)
-        .defaultSize(width: 960, height: 640)
+            .defaultSize(width: 960, height: 640)
         #endif
         #if os(macOS)
             // Luft ▸ Settings… (⌘,): runs threads on this Mac.

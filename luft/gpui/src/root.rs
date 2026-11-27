@@ -130,6 +130,12 @@ impl Root {
 
     pub fn receive_urls(&mut self, urls: Vec<String>, cx: &mut Context<Self>) {
         for url in urls {
+            if url.starts_with("luft://mcp-callback") {
+                if let Ok(workspace) = self.screen.clone().downcast::<Workspace>() {
+                    workspace.update(cx, |workspace, cx| workspace.complete_mcp_server(url, cx));
+                }
+                continue;
+            }
             if Route::parse(&url, self.session.server()).is_err()
                 && !url.starts_with(&format!(
                     "{}/luft/",

@@ -1,8 +1,8 @@
 # GitLab runners for macOS and Linux, managed by Tuist
 
-Managed GitLab runners for macOS and Linux on GitLab.com and self-managed GitLab. Tag a job to pick the machine, with no runner fleet to operate.
+Tuist Runners are managed GitLab runners on M5 Pro Mac minis and Linux, for GitLab.com and self-managed GitLab. Tag a job to pick the machine.
 
-Your pipelines stay in GitLab, and Tuist provides an isolated machine for each tagged job, next to the same build cache your developers and coding agents use.
+Tuist Runners run GitLab CI jobs on Apple silicon Mac minis and x86-64 Linux machines, billed per minute, with no runner fleet to operate. Your pipelines stay in GitLab, and Tuist provides an isolated machine for each tagged job, next to the same build cache your developers and coding agents use.
 
 ## Choose the machine with a tag
 
@@ -32,6 +32,7 @@ Sources checked on **2026-11-25**. Written by Tuist from its own documentation a
 
 ## Further reading
 
+- [Self-hosted macOS runners](/marketing-markdown/solutions/self-hosted-mac-runners) on running your own Mac minis compared with managed runners.
 - [Tuist Runners](/marketing-markdown/runners) for all supported CI providers, machine profiles, and how runners fit with the rest of Tuist.
 - Tuist Runners for [GitHub Actions](/marketing-markdown/runners/github-actions) and [Buildkite](/marketing-markdown/runners/buildkite).
 - [Rising CI costs](/marketing-markdown/solutions/ci-costs) on measuring total cost before and after moving jobs.
@@ -40,7 +41,7 @@ Sources checked on **2026-11-25**. Written by Tuist from its own documentation a
 
 ### What is a GitLab runner?
 
-A [GitLab runner](https://docs.gitlab.com/runner/) is the agent that picks up CI/CD jobs from GitLab and runs them on a machine. GitLab offers hosted runners for GitLab.com and GitLab Dedicated, or you install GitLab Runner on your own machines and choose an executor, such as shell or Docker. Tuist Runners replace that self-managed fleet: GitLab sends jobs tagged with a Tuist profile to an isolated Tuist machine.
+A [GitLab runner](https://docs.gitlab.com/runner/) is the agent that picks up CI/CD jobs from GitLab and runs them on a machine. GitLab offers hosted runners for GitLab.com and GitLab Dedicated, or you install GitLab Runner on your own machines and choose an executor, such as shell or Docker. Tuist Runners replace that self-managed fleet: GitLab sends jobs tagged with a Tuist profile to an isolated Tuist machine. The guide to [self-hosted macOS runners](/marketing-markdown/solutions/self-hosted-mac-runners) compares running your own Mac minis with managed runners.
 
 ### Do we have to leave GitLab CI?
 

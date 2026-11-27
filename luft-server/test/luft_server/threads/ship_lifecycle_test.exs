@@ -53,6 +53,7 @@ defmodule LuftServer.Threads.ShipLifecycleTest do
       people: []
     }
 
+    LuftServer.FakeOpenAI.connect(1)
     stub(thread)
     %{thread: thread, token: token, session: session, scope: scope}
   end
@@ -381,6 +382,7 @@ defmodule LuftServer.Threads.ShipLifecycleTest do
 
   defp stub(thread, mode \\ :success) do
     test = self()
+    LuftServer.FakeOpenAI.stub(models: ["model"])
 
     Req.Test.stub(LuftServer.Tuist, fn conn ->
       assert get_req_header(conn, "authorization") == ["Bearer owner-token"]
@@ -394,9 +396,6 @@ defmodule LuftServer.Threads.ShipLifecycleTest do
             can_create_threads: true,
             people: []
           })
-
-        "/api/me/ai-subscriptions/models" ->
-          Req.Test.json(conn, %{models: [%{id: "model", provider: "chatgpt"}], errors: []})
 
         "/api/accounts/team/workspace-capabilities" ->
           {:ok, raw, conn} = read_body(conn)

@@ -98,6 +98,9 @@ defmodule LuftServerWeb.ThreadsControllerTest do
   end
 
   test "catalogs use the actual requesting session, not a Tuist thread proxy", ctx do
+    LuftServer.FakeOpenAI.connect(1)
+    LuftServer.FakeOpenAI.stub(models: ["model"])
+
     Req.Test.stub(LuftServer.Tuist, fn conn ->
       assert get_req_header(conn, "authorization") == ["Bearer upstream"]
 
@@ -110,9 +113,6 @@ defmodule LuftServerWeb.ThreadsControllerTest do
             can_create_threads: true,
             people: []
           })
-
-        "/api/me/ai-subscriptions/models" ->
-          Req.Test.json(conn, %{models: [%{id: "model", provider: "chatgpt"}], errors: []})
 
         "/api/accounts/team/workspace-capabilities" ->
           {:ok, body, conn} = read_body(conn)

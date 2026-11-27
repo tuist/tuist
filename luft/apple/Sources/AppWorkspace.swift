@@ -33,6 +33,8 @@ struct AppWorkspace: View {
     #if os(iOS)
         /// Whether the iPhone's sidebar is over the open destination.
         @State private var sidebarOpen = false
+        /// A pushed record reserves the edge for native Back navigation.
+        @State private var recordPresented = false
         /// The finger's horizontal travel while it drags the sidebar; nil otherwise. A gesture state,
         /// so a drag the system cancels can't leave the sidebar stuck partway.
         @GestureState(resetTransaction: Transaction(animation: .snappy(duration: 0.3)))
@@ -50,7 +52,11 @@ struct AppWorkspace: View {
 
     var body: some View {
         Group {
-            if client.view.active == nil {
+            if !client.booted {
+                // Saved profiles are still loading; showing the login screen
+                // now would flash it before a signed-in workspace.
+                Color.clear
+            } else if client.view.active == nil {
                 LogInView(client: client)
             } else {
                 #if os(macOS)
@@ -290,6 +296,9 @@ struct AppWorkspace: View {
                                     .opacity(current ? 1 : 0)
                                     .allowsHitTesting(current)
                                     .accessibilityHidden(!current || visible)
+                                    .onPreferenceChange(RecordPresentedKey.self) { presented in
+                                        if current { recordPresented = presented }
+                                    }
                             }
                         }
                     }
@@ -373,6 +382,7 @@ struct AppWorkspace: View {
 
         /// Nothing is pushed in the open destination, so its edge is free for the sidebar.
         private var canOpenSidebarFromEdge: Bool {
+            guard !recordPresented else { return false }
             let navigation = client.view.navigation
             return switch navigation.tab {
             case .lounges: navigation.lounge_id == nil
@@ -575,12 +585,28 @@ private struct ProfileView: View {
             }
             .listRowBackground(Color.clear)
 
+            Section {
+                NavigationLink {
+                    CollectionsView(client: client)
+                        .preference(key: RecordPresentedKey.self, value: true)
+                } label: {
+                    Label("Collections", systemImage: "rectangle.stack")
+                }
+                NavigationLink {
+                    ReleasesView(client: client)
+                } label: {
+                    Label("Releases", systemImage: "shippingbox")
+                }
+            }
+
             if account.rejected {
                 // The server refused this profile's session; signing in again replaces it.
                 Section {
-                    Label("Your session has expired. Sign in again to keep using this profile.",
-                          systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                    Label(
+                        "Your session has expired. Sign in again to keep using this profile.",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .foregroundStyle(.orange)
                     Button("Sign In Again") {
                         Task { await client.signIn(server: account.server, provider: "tuist") }
                     }
@@ -590,12 +616,21 @@ private struct ProfileView: View {
 
             Section {
                 LabeledContent("Email", value: account.email ?? "")
-                LabeledContent("Server", value: account.server.hasSuffix("/")
-                    ? String(account.server.dropLast()) : account.server)
+                LabeledContent(
+                    "Server",
+                    value: account.server.hasSuffix("/")
+                        ? String(account.server.dropLast()) : account.server
+                )
             }
 
             if !account.rejected {
                 AISubscriptionsSection(client: client)
+                MCPServersSection(client: client, accountHandle: nil)
+                if let organization = client.view.accounts.first(where: {
+                    $0.profile_id == account.id && $0.selected && !$0.personal
+                }) {
+                    MCPServersSection(client: client, accountHandle: organization.handle)
+                }
             }
 
             // Builds without a push entitlement can't receive notifications, so they don't offer them.

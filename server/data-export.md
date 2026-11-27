@@ -2,6 +2,59 @@
 
 This document outlines all data that Tuist can export for customers upon legal request (GDPR, CCPA). **Data is exported for the specific account associated with the requesting user or organization**.
 
+## Luft local workspace prototype
+
+The opt-in local workspace runner in `luft-server/` stores fictional development
+records in a separate, loopback PostgreSQL database named `luft_workspace_*`, one
+organization per database. The standalone preview remains local; an authenticated
+Thread integration is separately opt-in through trusted `:record_workspaces`
+configuration (disabled by default). This is not production database provisioning.
+`workspace_catalog` holds the installed
+definition and UI source, including installed portable app IDs, versions, titles
+and exact dependency versions in `definition.apps`. App manifests are organization-neutral;
+the composed catalog alone carries the selected organization. Absolute manifest paths and fixture
+file contents are not copied into this metadata. `model_<hash>` tables hold the declared business fields,
+record UUIDs and revisions, including nullable UUID references between app-owned models
+(for example a Support conversation's customer). Reference targets are enforced by
+foreign keys within this same organization database, with restricted deletion; they
+never point into Tuist accounts or another workspace database. `workspace_requests` holds mutation inputs and replay
+results; `workspace_audit` links request UUIDs, action names, record UUIDs and
+timestamps. Replay payloads can contain the same personal fields as business rows.
+All persist until the developer explicitly drops the disposable database; fixture
+seeding refuses to overwrite existing records. A full `pg_dump` of that selected
+local database retrieves these records, app metadata and foreign-key relationships.
+For selective exports read `workspace_catalog.definition`, derive table names using
+`LuftServer.Workspaces.Definition.table/1` for its model IDs, then select all rows
+from those tables along with `workspace_requests` and `workspace_audit`. The preview
+list query is capped at 100 and is not a complete export. No automatic production
+export integration or retention job is implemented. The separate owner-only preview
+connection file contains an ephemeral bearer token and must not be exported.
+
+The authenticated integration persists `thread_messages.record_reference` as a
+nullable JSONB `{model, id}` with `kind = 'record'` and generic body `Open record`.
+It contains no business title, row data, workspace source or grant snapshot. The
+message belongs to the Luft thread, follows its permanent retention and cascading
+deletion, and is included by the existing `SELECT * FROM thread_messages WHERE
+thread_id IN (...) ORDER BY thread_id, position` export against the Luft database.
+Filter parent threads by the requested account (and owner for personal exports).
+Apply migration `20261123000000_add_record_references` before new writers; export
+references before dropping the additive column on rollback. Thread readership
+does not grant business access: each open/query/action and mutation retry checks
+fresh Tuist context plus explicit per-user operation grants configured for the
+stable upstream organization/account IDs and installed local catalog organization.
+These scalar bindings and grants are operator configuration, not new identity
+tables. Consult that configuration to locate the separate workspace database for
+an account export; business models may contain personal fields independent of the
+thread owner, so export the selected organization's rows using the workspace
+procedure above. There is no cross-database foreign key or automatic deletion on
+Tuist account/user deletion. Operators must coordinate erasure across both stores.
+Action replay UUIDs are namespaced by account, user, thread and reference message;
+workspace replay payloads/results and audit rows retain the categories above, but
+the audit does not separately store an actor identity. Agent workspace query
+results can also persist in the encrypted Luft agent journal under the existing
+thread export/retention procedures. No new bucket, public URL, retention job or
+automatic legal-export endpoint is introduced.
+
 ## Export Format
 
 Opt-in managed Kura recovery also stores account operational state in Kubernetes:
@@ -325,8 +378,7 @@ operations; retain them until an administrator removes them.
 - Organization two-factor requirement (`organizations.mfa_required_at`): when the organization starts requiring members to pass a second factor (an authenticator app, a passkey, or for an organization enforcing single sign-on its own provider). Nil when it does not; a future value is the enrollment grace period. Kept until changed or the organization is deleted. Export with `SELECT id, mfa_required_at FROM organizations WHERE id = $1`.
 - Authenticator-app MFA (`user_mfa`) stores one factor per user: an encrypted TOTP secret, a hash binding pending enrollment to its browser session, a five-minute enrollment deadline, confirmation and last-used timestamps, hashed single-use recovery codes, and a shared failed-attempt counter/window. Pending enrollment is not authentication assurance. Enrollment confirmation and disablement revoke all browser sessions and pending MFA challenges; password reset revokes challenges and sessions but retains the factor. Factor rows persist until disabled or the user is deleted (cascading foreign key); cancelling setup deletes only the requesting session's unconfirmed factor, and expired pending enrollment is rejected and replaced on a new enrollment. Export non-secret metadata with `SELECT user_id, enrollment_expires_at, confirmed_at, last_used_at, failed_attempts, attempt_window_started_at FROM user_mfa WHERE user_id = $1`. Never export `secret`, `enrollment_session_hash`, or `recovery_code_hashes`.
 - Passkeys (`user_passkeys`) store each WebAuthn credential a user registers: a name (automatically assigned as "Passkey", "Passkey 2", etc. when omitted during creation, and optionally renamed by the user afterward), the credential ID, its COSE public key, the random WebAuthn user handle (normally shared by all of the user's passkeys; not derived from the user ID or email), the signature counter, the authenticator AAGUID, reported transports, backup-eligible and backed-up flags, the issue time of the last challenge the passkey answered (replay protection), and created/updated/last-used timestamps. WebAuthn challenges are not stored; they travel in short-lived encrypted ceremony tokens. No attestation statement, biometric data, or private key is received or stored. Browser sessions created by a passkey sign-in record `auth_provider = 'passkey'` and `mfa_verified_at`. Rows persist until the user removes the passkey (which revokes all browser sessions) or the user is deleted (cascading foreign key). Password resets revoke browser sessions but keep passkeys, as they keep the authenticator app, except on an account whose credentials nobody proved (see mailbox proof below), where the first mailbox proof or reset deletes them. Export with `SELECT id, user_id, name, encode(credential_id, 'base64') AS credential_id, encode(aaguid, 'hex') AS aaguid, transports, backup_eligible, backed_up, sign_count, last_challenge_issued_at, last_used_at, inserted_at, updated_at FROM user_passkeys WHERE user_id = $1`. Public keys and user handles are authentication material and are not exported.
-- Personal AI subscription connections (`user_ai_subscriptions`), available to users with the `luft` feature flag: one row per user and provider (`claude` or `chatgpt`) holding the subscription access token and, for ChatGPT, its refresh token and expiry, all encrypted with `Tuist.Vault`. While a ChatGPT device sign-in is pending, the row also stores an encrypted JSON record of the opaque login ID, OpenAI device authorization ID, user code, OAuth client ID, verification URL and polling interval, plus the sign-in expiry (15 minutes) and the next allowed poll time. Connected ChatGPT rows also store the OAuth client ID the tokens were issued to and, while a token refresh is in flight, its lease expiry (`refreshing_until`). Passwords, ID tokens, prompts and completions are not stored. A successful sign-in or cancellation clears the pending fields; an expired one is cleared on its next poll, and a new sign-in replaces any pending one. A provider rejecting a ChatGPT refresh clears its tokens. Disconnecting deletes the row, without revoking the authorization at the provider; rows cascade on user deletion. Export metadata with `SELECT id, user_id, provider, access_token IS NOT NULL AS connected, expires_at, pending_expires_at, client_id, inserted_at, updated_at FROM user_ai_subscriptions WHERE user_id = $1`. Never export `access_token`, `refresh_token` or `pending_login`.
-- Personal MCP servers (`user_mcp_servers`), available to users with the `luft` feature flag: one row per user and MCP server URL holding the display name, the HTTPS endpoint, and the OAuth configuration Tuist discovered for it (protected resource, authorization server issuer, authorization and token endpoints, requested scope, and the client ID Tuist dynamically registered). The registered client secret (when the authorization server issues one), the access token and the refresh token are encrypted with `Tuist.Vault`, alongside the access token expiry and, while a refresh is in flight, its lease expiry (`refreshing_until`). While a sign-in is pending, the row also stores an encrypted JSON record of the PKCE code verifier and redirect URI, a SHA-256 hash of the single-use OAuth state, and the sign-in expiry (10 minutes); completing, denying or reusing the sign-in clears them. Tool calls and their results are not stored. An authorization server rejecting a refresh clears the tokens. Removing the server deletes the row, without revoking the authorization at the provider; rows cascade on user deletion. Export metadata with `SELECT id, user_id, name, url, resource, issuer, scope, access_token IS NOT NULL AS connected, expires_at, inserted_at, updated_at FROM user_mcp_servers WHERE user_id = $1`. Never export `client_secret`, `access_token`, `refresh_token`, `pending_authorization` or `pending_state_hash`.
+- Personal AI subscription connections and MCP servers moved to the Luft server (see **Luft conversation storage**). The `user_ai_subscriptions` and `user_mcp_servers` tables were dropped without copying their credentials, which were encrypted with `Tuist.Vault`; people connect them again in Luft.
 - CLI and app device codes (`device_codes`) store the code, for codes started through the standard device flow the short user code a person types to approve it (cleared when the code is used), its approval state, the approving user reference, creation/update times and, since single sign-on enforcement covers credential refresh, the single sign-on the approving browser session proved: provider, issuer or verified Google Workspace, and custom SSO organization reference. Codes are valid for five minutes, can be approved only once, and issuing its tokens marks the code used by clearing its user and single sign-on references; the issued CLI tokens copy that proof into their signed `sso` claim, and OAuth tokens carry the same claim from the authorizing session, so refreshing them rechecks the user's SSO-enforcing organizations. Refreshed credentials without that proof can instead carry the proof of an identity the user linked through the organization's provider (from `oauth2_identities`), or an `sso_grace_until` claim with the end of their four-week renewal grace period; both live only in the signed tokens and follow their lifetimes. Organization deletion clears the organization reference. Export with `SELECT id, code, user_code, authenticated, user_id, auth_provider, auth_provider_organization_id, auth_organization_id, created_at, updated_at FROM device_codes WHERE user_id = $1`.
 - Pending MFA sign-ins (`users_tokens`, context `mfa`) retain the completed first factor's provider/issuer/SSO connection for a single-use five-minute browser challenge. A successful challenge deletes that row and creates a browser session with `mfa_verified_at`; failed, expired challenges grant no session. Logout deletes its pending challenge; factor changes, password reset and a first mailbox proof that ends unproven credentials delete all challenges. Otherwise rejected expired rows follow existing user/token deletion. Export metadata with `SELECT id, user_id, context, inserted_at, auth_provider, auth_provider_organization_id, auth_organization_id, mfa_verified_at FROM users_tokens WHERE user_id = $1 AND context IN ('session', 'mfa')`, excluding token values. No authenticator or recovery code is persisted in plaintext or sent to analytics.
 - Mailbox proof (`users.email_verified_at`): when control of the account's email address was proved through a confirmation or password-reset link, a one-time code, or a sign-in through an instance-configured provider (Google, GitHub, Apple). The first such proof sets it; later confirmation and reset links refresh it. Null for accounts that never did, such as auto-confirmed or SCIM-provisioned ones, and cleared when SCIM changes the address. Self-hosted instances require it for operator access and, after creation, record it only for addresses in the configured operator domain. The first proof on an account whose credentials nobody proved (an unconfirmed account, or on a self-hosted instance an account in the configured operator domain without proof) clears `encrypted_password`, deletes the user's `users_tokens`, `user_passkeys` and Okta and custom OAuth2 `oauth2_identities`, and revokes the user's API credentials as a password reset does (see `credentials_revoked_at`), marking them revoked up to the second before the proof; a password reset of such an account does the same apart from setting the new password. It follows the user row's lifetime and is exported with the user record (`SELECT email_verified_at FROM users WHERE id = $1`).
@@ -1582,6 +1634,9 @@ Model-selected follow-up icon meanings are stored in `thread_messages.suggestion
 
 - **Storage authority:** The Luft server has a separate PostgreSQL database (`luft_server`, CNPG cluster `luft-server-pg`, namespace `luft`). Its local conversation tables are not copies of Tuist account or organization tables. Upstream account/user IDs are scalar references; account membership, account administration, deactivation and Luft eligibility are resolved through the authenticated Tuist account-context API. The Tuist conversation sections above still describe retained source data until the conversation cutover and source retirement have completed; creating the Luft tables does not transfer that data.
 - **Lounges and DMs:** Local `lounges`, `lounge_members` and `lounge_messages` retain UUIDs, upstream `account_id`, creator/author IDs, request UUIDs, sorted direct-member keys, ordered message bodies and monotonic read positions. Named conversations use `kind = 'lounge'`; private DMs remain `kind = 'direct'`. Local parent deletion cascades messages and membership. No time-based history expiry is introduced. Export with `SELECT * FROM lounges WHERE account_id = <account_id>`, then `SELECT * FROM lounge_messages WHERE lounge_id IN (...) ORDER BY lounge_id, position` and `SELECT * FROM lounge_members WHERE lounge_id IN (...)`. Personal exports additionally match `created_by_id`, `author_id` and `user_id` respectively. Presence is ephemeral through `LuftServer.Lounges.Presence` and has no persisted export.
+- **AI subscriptions:** `ai_subscriptions` holds one row per person (`user_sub`, their Tuist user ID as text) and provider (`claude` or `chatgpt`): the subscription access token and, for ChatGPT, its refresh token, expiry and the OAuth client ID the tokens were issued to, plus a refresh lease (`refreshing_until`) while one is in flight. While a ChatGPT device sign-in is pending, the row also stores the opaque login ID, OpenAI device authorization ID, user code, OAuth client ID, verification URL and polling interval, the sign-in expiry (15 minutes) and the next allowed poll time. Tokens and the pending sign-in are encrypted with a key derived from the Luft server's `SECRET_KEY_BASE`; a value that no longer decrypts reads as disconnected. Prompts and completions are not stored. Disconnecting deletes the row without revoking the authorization at the provider. Rows are not deleted when the Tuist user is: Luft keeps them until the person disconnects, and the credentials are unusable without that person's Tuist sign-in; delete them with `DELETE FROM ai_subscriptions WHERE user_sub = '<user_id>'`. Export metadata with `SELECT id, user_sub, provider, access_token IS NOT NULL AS connected, expires_at, pending_expires_at, client_id, inserted_at, updated_at FROM ai_subscriptions WHERE user_sub = <user_id>`. Never export `access_token`, `refresh_token` or `pending_login`.
+- **MCP servers:** `mcp_servers` holds remote MCP servers threads call tools on, owned by `owner`: `user:<user_id>` for a person's own servers, or `account:<account_id>` for an organization's, which its admins manage. Each row stores the display name, the HTTPS endpoint and the OAuth configuration Luft discovered for it (protected resource, authorization server issuer, authorization and token endpoints, requested scope, and the client ID Luft registered), the access token expiry, and a refresh lease. The registered client secret, the access and refresh tokens, and a pending sign-in's PKCE verifier and redirect URI are encrypted with a key derived from `SECRET_KEY_BASE`; a SHA-256 hash of the single-use OAuth state and the sign-in expiry (10 minutes) are kept until it completes. Tool calls are recorded with their thread's run as described above; discovered tool catalogs are not stored. Removing a server deletes the row without revoking the authorization at the provider. Rows are not deleted when the Tuist user or organization is; they are unusable without a Tuist sign-in that may use the account, and are deleted with `DELETE FROM mcp_servers WHERE owner = 'user:<user_id>'` (or `'account:<account_id>'`). A personal export matches `owner = 'user:<user_id>'` and an organization export `owner = 'account:<account_id>'`, with `SELECT id, owner, name, url, resource, issuer, scope, access_token IS NOT NULL AS connected, expires_at, inserted_at, updated_at FROM mcp_servers`. Never export `client_secret`, `access_token`, `refresh_token`, `pending_authorization` or `pending_state_hash`.
+- **Sign-in limits:** `sign_in_limits` counts third-party sign-ins started in the current 5-minute window, per `key`: `chatgpt:<user_id>` for ChatGPT device sign-ins and `mcp:<owner>` for MCP server authorizations, with `attempts` and `window_started_at`. Rows hold no credentials and outlive the subscription or server, so removing one doesn't reset the count. Export with `SELECT * FROM sign_in_limits WHERE key IN ('chatgpt:<user_id>', 'mcp:user:<user_id>')`.
 - **Thread history and execution state:** Local `threads`, `thread_messages`, `thread_participants`, `thread_runs`, `thread_tool_calls`, `thread_ship_approvals` and `thread_inboxes` retain the conversation data categories described above, with the same thread UUID relationships and local cascading deletion. `threads.account_handle` identifies the upstream account for fresh authorization; NULL is permitted for staged imports, not execution. Export local history, participants, approvals, runs and inbox counters with the same account/thread/user filters as above, against the Luft database. Decode inline attachment bytes from `data_base64` as before. The nullable `threads.owner_session_id` and `thread_messages.author_session_id` identify the exact Luft delegations used for owner-paid inference and author-scoped tools; session deletion clears these references without deleting history. They must not be replaced with an arbitrary session for the same user.
 - **Encrypted thread fields:** `thread_runs.checkpoint` and `thread_tool_calls.result` use `LuftServer.Threads.EncryptedBinary`, authenticated non-expiring ciphertext derived from Luft's stable endpoint secret with a dedicated domain salt. Export through the corresponding Luft Ecto schemas to decrypt these fields; raw SQL returns ciphertext. Legacy Tuist ciphertext must be decrypted at its source and re-encrypted on import. Copying the raw encrypted columns is not a valid migration. Endpoint-secret rotation requires re-encryption before retiring the old secret.
 - **Durable agent journals:** Luft's `agent_sessions` holds lease state, epochs, want counters and deletion tombstones. `agent_objects` stores the encrypted Condukt objects by key, under `agents/thread/<thread-id>/`, instead of Tuist's S3 bucket. Journals may contain prompts, attachments, tool calls and results; they contain no personal provider credentials. Their retention follows thread history. `LuftServer.Agents.Purge.run/0` removes tombstoned session objects after the lease/grace period. Export with `Condukt.SessionStore.ObjectStore.load/1` and `load_journal/1`, using `LuftServer.Agents.SessionStore.store("thread", thread_id, epoch)` options without `:epoch` so export does not claim a writer epoch. Raw `agent_objects.body` is ciphertext. Legacy object-store journals require authenticated decryption and re-encryption; their absence must not be represented as a resumed session.
@@ -1589,6 +1644,108 @@ Model-selected follow-up icon meanings are stored in `thread_messages.suggestion
 - **Notification projections:** Luft's `thread_live_activities` stores activity UUID, scalar upstream user ID, exact Luft session UUID in `oauth_grant_id`, environment, encrypted ActivityKit token and token hash, expiry, digest/phase digest, last-send time, working thread UUIDs and monotonic retirement reason/time. `thread_live_activity_starters` stores the exact session, upstream user ID, profile ID, encrypted push-to-start token/hash, environment and last-start metadata. `LuftServer.Notifications.PruneWorker` runs hourly; consult `LiveActivities.prune/0` for expiry and retirement grace periods. Export metadata by `user_id`, excluding tokens and token hashes. Tuist retains only generic installation and APNs authorization/transport records; existing registrations need native re-registration after cutover. Oban jobs contain conversation UUIDs/revisions/status, not conversation bodies or provider tokens; completed jobs are pruned after one day.
 - **Repository publication ledger:** Tuist's `vcs_publications` retains account-owned publication request UUIDs and fingerprints, nullable approving user ID, repository, opaque operation UUID, target branch, reviewed base/head SHAs, mode, status and timestamps. This ledger prevents repeating an uncertain GitHub write; it stores no conversation content or foreign keys into Luft. Account deletion cascades; user deletion clears attribution. No time-based retention is introduced. Export with `SELECT id, account_id, user_id, request_id, repository, operation_id, target_branch, base_sha, head_sha, mode, status, inserted_at, updated_at FROM vcs_publications WHERE account_id = <account_id>`; personal exports additionally filter `user_id`. Fingerprints are internal replay evidence, not credentials; include them only when requested for audit.
 - **Cross-service lifecycle and cutover:** Tuist user/account deletion does not cascade through these scalar references into the Luft database. Account/user deletion propagation, retention cleanup and export coordination must cover both databases before retiring the old authority. Existing-data transfer must preserve UUIDs, request identities, message/read positions, consent records and encrypted journals, with old workers fenced before enabling new execution. No automatic source deletion or production transfer is performed by these additive Luft migrations. Until cutover is complete, a legal export must check both databases and the retained Tuist journal prefix; do not assume the new local tables contain historical conversations.
+
+## Luft reviewed-behavior rehearsal storage
+
+This opt-in local foundation uses a separate loopback PostgreSQL database named
+`luft_workspace_*` per explicitly bound organization/account. It is not a
+production persistence or deletion service. Tuist IDs are scalar references:
+Tuist account/user deletion does not cascade here. Keep it disabled for customer
+data until coordinated export, erasure, retention and backups are implemented.
+
+- **Installation and grants:** `behavior_installation` binds the database to an
+  upstream organization/account and holds its active release, nullable `merged`
+  desired-release hash and disabled flag. Merging does not change `active`.
+  `behavior_principals` holds verified user IDs and explicit role, owner,
+  collection and method grants. Export both tables from each configured database;
+  a personal export restricts principals by `user_id`.
+- **Reviewed definitions:** `behavior_releases` retains the immutable definition
+  (including authored JavaScript, schemas, presentation projections and exports),
+  runtime identity, baseline/hash, author/reviewer IDs and creation/activation
+  times, plus nullable `repository_key`, `commit_id`, `reviewed_commit_id` and
+  `base_commit_id` for Git-backed releases. Nullable `merge_status` records
+  pending/merged/conflict; `merge_requested_by` attributes the durable intent,
+  and `merged_by`/`merged_at` attribute confirmation separately from activation.
+  Export `SELECT * FROM behavior_releases`; personal attribution matches
+  `author`, `reviewer`, `merge_requested_by` or `merged_by`. Definitions are customer-authored content, not secrets.
+  Agent authoring uses these same immutable releases and actor attribution; it
+  adds no draft table. Repeating identical proposal content/baseline/main-base retains one
+  release and one proposed event. Review diffs and capability/blocker responses
+  are computed on read, not separately persisted. Approval/activation use the
+  existing event records and release columns, including merge_requested, merged
+  and merge_conflict events. An unknown Git outcome retains its pending intent
+  for explicit, permission-checked reconciliation. Compile-only validation stores no
+  definition or validation report outside the conversation journal.
+- **Organization ops Git:** The central Luft PostgreSQL table
+  `organization_ops_repositories` maps one scalar Tuist organization ID
+  to an opaque repository UUID and timestamps. It is not a project repository
+  registry: multiple accounts in the organization share this ops repo,
+  retaining separate account-scoped release refs and authorization. Export
+  `SELECT * FROM organization_ops_repositories WHERE organization_id =
+  <organization_id>` along with the corresponding behavior databases. Git
+  stores complete `accounts/<account_id>/release.json` envelopes (definition,
+  authored JavaScript, schemas, runtime identity, active baseline/hash, reviewed
+  Git base and organization/account IDs), under proposal refs
+  `refs/heads/releases/<account_id>/<hash>` and the approved desired ref
+  `refs/heads/main`. Other account files are preserved when main advances.
+  Legacy proposals may retain root `release.json`; export them as well.
+  Commit authors contain scalar user
+  attribution (`Luft user <id>`, `user-<id>@luft.invalid`), not real email
+  addresses. These are customer-owned definitions, not business record rows,
+  grants, invocation results or credentials. The private Git service retains
+  its ledger on its PVC and objects in Tigris (`luft-git-production` in the
+  current deployment); the application uses its API, not physical bucket keys.
+  Export pinned commit metadata and each `release.json` via Git's commit/tree/
+  object APIs using every retained local pin, including pins no longer reachable
+  from a branch. Also enumerate repository refs/history: failed proposals may
+  leave Git-only commits without a corresponding release row. Personal exports
+  follow local author/reviewer IDs and Git author IDs, with related baselines
+  needed to interpret them. No Git lifecycle/export automation is introduced;
+  operators must coordinate these reads before enabling customer data.
+- **Current resources:** Each declared resource has a typed table named
+  `resource_` plus the first 24 hex characters of its SHA-256 identity, with UUID
+  `id`, revision, deletion flag and declared typed fields. Reference fields are
+  UUID foreign keys. Resolve the map from each retained release's
+  `definition.resources` keys using `BehaviorDefinition.table/1`, then export all
+  retained tables, including nonprojected fields and deletion flags. UI/API
+  projections are not complete legal exports. Personal resource selection is
+  application-schema-specific; do not assume a universal owner column.
+- **History and execution:** `behavior_versions` stores immutable resource/id/
+  revision snapshots, schema version, release and invocation ID.
+  `behavior_invocations` stores principal/request UUIDs, method/release, complete
+  input and projected result for durable replay. These can contain personal or
+  business data even when current projections hide it. `behavior_events` stores
+  actor, kind, target, invocation and timestamp. Export all three tables per
+  organization; personal attribution follows invocation/event `user_id` and
+  versions linked by invocation ID. Include related rows needed to interpret the
+  export. Resource history is not removed by changing a current row or release.
+- **Retention/deletion:** There is no automatic expiry, compaction, individual
+  erasure or upstream deletion propagation in this slice. Disabling an
+  installation blocks access but does not erase any row, history, definition,
+  invocation or backup. Local disposable rehearsals must remove their database
+  after use. Git-backed definitions additionally persist outside those databases;
+  deleting a release, mapping or database does not erase Git commits, Tigris
+  objects, ledger history or backups. No automatic Git pruning, organization
+  deletion propagation or individual erasure is implemented. Disposable
+  rehearsals must also remove their private Git repositories. A mapping or
+  orphaned proposal can remain after an interrupted write; retain it for
+  reconciliation/export rather than treating a failed response as no data.
+  No business external-effect delivery is added.
+- **Conversation references:** The existing nullable
+  `thread_messages.record_reference` retains only `{model, id}` under the thread's
+  retention/export rules. New behavior discovery/query tools put opaque locators,
+  not protected field values, in the agent journal. Opening a reference resolves
+  current grants and projections afresh. Historical journals from the earlier
+  workspace pilot may still contain authorized query values and retain their
+  existing conversation export/deletion requirements.
+- **Authoring journals:** Behavior inspection, validation, proposal, merge and promotion
+  tool inputs/results can retain customer-authored schemas, JavaScript, exact
+  definition changes, hashes and diagnostics in the existing encrypted agent
+  journal. They follow the thread's export/retention/deletion rules, not just
+  `behavior_releases`. Export both stores; a failed validation may exist only in
+  the journal. Tools must not be supplied with secrets or private row snapshots.
+  Native release review holds definitions and authority only in memory and does
+  not add release content to the offline outbox or local collection store.
 
 ## Luft sessions
 

@@ -1,5 +1,153 @@
 # Mobile core contract
 
+## Native release review
+
+Profile → Releases → Release review uses the shell's existing native stack.
+Release operations use the authenticated selected account and require `generation`
+and a host-generated UUID `surface`. Detail operations also require the immutable
+`hash`, never a list index, title or the current active-release alias.
+
+| Operation | Behavior |
+| --- | --- |
+| `releases` | GET `/api/accounts/{account}/releases`; replaces list and clears detail authority |
+| `release_open` | GET `/api/accounts/{account}/releases/{hash}`; validates and loads exact review |
+| `release_approve` | POST that hash's `/approve` with `{}`, only for the loaded review's Rust-selected `approve` action |
+| `release_merge` | POST that hash's `/merge` with `{}`, only for the loaded review's Rust-selected `merge` action; does not activate |
+| `release_activate` | POST that hash's `/activate` with `{}`, only for the loaded review's Rust-selected `activate` action |
+| `release_close` | Clears this generation/surface; a stale close cannot clear a newer surface |
+
+The ordinary response's `data` is `{surface:{list,detail},error}`. `list` is null
+or `{active,releases:[metadata]}`; `detail` is null or the validated API detail,
+plus `actions:["approve"|"merge"|"activate"]`, `review_changes:[{path,kind,before,after}]`
+(the before/after values are exact pretty-printed JSON strings), `definition_text`
+and `baseline_text` (complete pretty-printed JSON). Swift adapts these values,
+localizes stable state/kind/action IDs, and displays server blockers verbatim.
+It does not infer permissions, author a summary, or execute candidate source.
+
+The core validates metadata, identities, JSON pointers, before/after values and
+coverage of all differing definition subtrees. It refuses a review that secret
+scrubbing would alter. Approval requires a proposed candidate and excludes the author.
+Merge requires `can_merge: true`, empty `merge_blockers`, and state `approved` or
+`merging`. Missing merge fields remain readable but never grant merge authority.
+`merging` means the uncertain merge awaits reconciliation; `merged` means merged
+but not active; `merge_conflict` means main moved and a new proposal is needed.
+Activation requires a merged, compatible, never-activated candidate without blockers. Server capability
+booleans remain required and the server rechecks current grants, runtime and
+baseline at POST time. Approval, merge and activation are separate deliberate actions.
+After each successful POST the core GETs the list and the exact hash's detail;
+any failed reload clears authority rather than showing a guessed success state.
+Writes are online-only, never automatically replayed or queued offline. After an
+uncertain outcome, reload and inspect current state before another deliberate action.
+Every failed/stale request clears review authority. Profile/account generation
+commits, `release_close`, and background `presence_disconnect` clear it as well.
+
+GPUI calls the public `ReleaseReviews` state machine directly with its existing
+authenticated `Session` transport; it does not synthesize a mobile profile or
+duplicate release validation. Its authority binds the server, account, actor,
+generation and surface. Deactivation invalidates queued transport work, clears
+the review and confirmation, and requires a fresh list on return.
+
+Each native edge presents approval separately from activation. Apple and Android
+show a system activation dialog naming the exact hash and an explicit Cancel;
+GPUI uses an inline confirmation with initial focus on Cancel, Escape to cancel,
+and focus restored to the activation button. Back reloads the list rather than
+restoring stale review authority. Android discards review data on pause and
+restores only an open-route flag after Activity recreation, never a pending write.
+
+## Authenticated session records
+
+A thread message may contain `record_reference: {model,id}`. It is a persisted
+locator, not a snapshot, grant, URL or executable card. Native hosts open its
+message ID, not a record inferred from conversation text. The iOS conversation
+pushes a record destination and preserves native Back to the session. The installed
+module can then navigate to a linked customer within its own native stack.
+
+`record_*` operations use the ordinary authenticated client and session view.
+Every call requires `thread`, `message`, `generation` (the current session view's
+generation) and `surface` (a host-generated UUID unique to the mounted destination).
+Changing account/profile invalidates the surface; a stale close cannot dismiss a
+newer instance of the same reference. These operations never use a preview token
+or the offline outbox.
+
+- `record_open`: GET the message's authorized catalog/entry, then fetch the canonical
+  record. Returns `{view,data,error?,entry}` inside the ordinary response's `data`.
+  Here the nested view is the workspace view with `preview:false`.
+- `record_refresh`: also takes `model,id`; re-fetches through the selected module's getter.
+- `record_query`: also takes `query,input`.
+- `record_action`: also takes `action,input,request_id`; the host supplies a fresh UUID
+  for a deliberate submission, while the core retains it for retry.
+- `record_retry`: repeats the retained submission without accepting a new identity.
+- `record_close`: clears this surface's source, data and authority. An unresolved
+  submission remains in memory for reopening the same reference in this session.
+
+Rust uses only the active Luft origin and account, refreshes its normal credentials
+and binds data requests to `/api/accounts/:account/threads/:thread/records/:message`.
+The server independently rechecks current membership, thread access, configured
+organization/database binding, user grants and declared module capabilities on
+every request, including replay. HTTP 401/403 clears the runtime's source, rows and
+pending submission. Access changes are detected on requests, not by a background
+subscription. Reopening refreshes both grants and record state.
+
+Background/foreground and transport recovery preserve the exact unresolved request
+for the same generation/thread/message, without retaining a data or permission
+snapshot. A fresh authorized open is required before replay. Revocation, switching
+to another reference/account, or process termination discards that in-memory
+identity; inspect current state before deliberately submitting again in those cases.
+
+Installed UI receives data, its filtered capabilities and an initial `entry`, never
+credentials. `entry` lets a module mount its record page instead of its list.
+Generated cards retain their separate reply-only bridge. Server installation/grants
+are opt-in administrative configuration; this does not provision databases or
+implement a hosted app directory or row-level policy language. See the Luft server
+README for the exact binding and grant configuration.
+
+## Explicit local workspace connection
+
+The `workspace_*` operations are an isolated, in-memory API through the same
+`MobileClient::call`/C bridge. They bypass identity boot and never read/write the
+credential vault or production session. Other callers may also own a standalone
+`workspace::Workspace`. Apple exposes this only in its simulator opt-in root;
+see [the local workspace example](../../workspaces/customer-management/README.md).
+
+Requests use the usual `{operation,args}` shape. Responses have
+`{view:{preview:true,connected,title,modules,selected,items,record,warning,can_retry},data,error?}`;
+this is **not** a session view. Each module includes its validated published source.
+No URL/token is returned. Error strings are fixed, never server/host text.
+
+| Operation | Args | Behavior |
+| --- | --- | --- |
+| `workspace_connect` | `url`, `token` | Drops the old connection, validates an explicit origin (root loopback HTTP or HTTPS, no user info/query/fragment), gets `/workspace`, selects its first module |
+| `workspace_snapshot` | none | Returns current in-memory workspace view without HTTP |
+| `workspace_select` | `module` | Validates selection against the manifest, clears list/pending action |
+| `workspace_open` | `module`, `model`, `id` UUID | Opens a typed reference to the selected module's model through its explicitly declared getter; fetches every time, validates identity, retains canonical `record` separately from the bounded list |
+| `workspace_query` | `module`, `query`, `input` | List takes `{}` and validates at most 100 ID-sorted rows. Get takes exactly `{id:UUID}` and validates `{record}` including its requested identity, without replacing the selected list |
+| `workspace_action` | `module`, `action`, `request_id` UUID, `input` | Validates capability/values and update ID/revision, calls `/action`, validates saved record, then refreshes the module's list if declared. A committed write remains successful with `warning` if that read fails |
+| `workspace_retry` | `module` | Repeats the pending action with identical serialized body/request ID; never creates a new submission |
+| `workspace_disconnect` | none | Clears source, records, pending action and credentials; subsequent calls fail without HTTP until explicit reconnect |
+
+The caller supplies a fresh UUID for a deliberate submission (Apple uses the OS
+UUID service). Safe automatic transport retry and deliberate retry reuse the
+stored request, not a renderer-provided ID. Only HTTP host actions are used;
+the HTTP host must retain the redirect/TLS/time/size restrictions below. A
+detected sustained transport failure or 401 disconnects and clears everything.
+Malformed responses do not enter state. Stored definitions support positive model
+versions and string/enum/UUID-reference fields; create inputs may omit defaulted fields and
+optional response fields may be null. String bounds are 4,000 UTF-8 bytes.
+
+A module can declare a cross-model getter only for a reference target in its own
+model. That getter still requires an explicit capability; a reference alone
+grants nothing. Cross-model writes are rejected. After writes the core refreshes
+the selected model's list, never whichever query happens to be first. Native host
+events update a running module without recreating its page history or drafts;
+module selection and disconnect dispose it. These preview capabilities do not
+replace actor-level server authorization, which is not part of this local pilot.
+
+A pending submission blocks fresh writes until the caller retries the retained
+request or explicitly leaves the module/disconnects. A failed read cannot discard
+that identity. Successful writes update the canonical open record before refreshing
+the list. Contextual record entry therefore does not depend on the record appearing
+in the first 100 list rows, and reopening never treats transcript text as current data.
+
 The Luft native clients use this crate and default to `https://luft.work`; it does not migrate or replace the
 shipping apps' credential stores. Custom origins must be Luft servers advertising the fixed native client through `/.well-known/luft.json`. Keep its vault in a separate Luft secure
 storage namespace. Never log host actions, HTTP authorization/body fields, or the
@@ -91,7 +239,7 @@ never cross the bridge. The server preserves its string-valued `suggestions`
 array for older clients and stores the optional icon metadata separately.
 
 The tab catalog is `threads` (index 0, the default), `lounges`, `dms`, then `profile`; its C/JNI symbols are unchanged. Edges label `dms` **DMs**.
-Rust callers can instantiate `MobileClient` and implement `Host` independently. The lounge operations live in `Lounges`, behind the same `Transport`, with `organizations` for frontends that have no account menu. Presence lives in `Presence`, behind a `Socket` the caller implements. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session. AI subscriptions live in `ai_subscriptions::call`, behind the same `Transport`.
+Rust callers can instantiate `MobileClient` and implement `Host` independently. The lounge operations live in `Lounges`, behind the same `Transport`, with `organizations` for frontends that have no account menu. Presence lives in `Presence`, behind a `Socket` the caller implements. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session. AI subscriptions live in `ai_subscriptions::call` and MCP servers in `mcp_servers::call`, behind the same `Transport`.
 
 ## Native host actions
 
@@ -182,12 +330,17 @@ when an operation reports an error.
 | `cached_thread` | `id` | a conversation from the local store, shaped like `thread`, with `freshness.state` `live` while its live socket keeps it in sync. A reply queued offline shows at the end with `send_state` `offline`, or `failed` once the server refused it, until the server's copy arrives (matched by `request_id`) |
 | `flush_outbox` | none | `{sent}`; sends writes queued offline in order with their original `request_id`, stops at the first failure that may clear up (offline, 5xx, a busy thread, credentials) and keeps the rest, and marks writes the server refuses (400, 404, 422) as `failed`. A queued `start_thread` that is sent moves its replies to the server's thread id; the local id keeps working as an alias for `thread`, `cached_thread` and `send_message` |
 | `start_thread` | `content` (at most 16,000 bytes), optional `attachments`, optional `runner_id` | the created thread, as `thread` returns it; starts a server-side conversation with no repository (its agent checks one out in the thread's workspace when the conversation needs it), or on the runner when `runner_id` is set (the server's 409 `runner_offline` reports the runner offline; with no network it fails rather than queueing), using the first model from `/threads/models`. A 404 reports threads unavailable; no available model asks to connect a ChatGPT subscription in Profile. A retry of the same text and attachments after a failure reuses its `request_id`, so it never creates two threads |
-| `ai_subscriptions` | none | `{subscriptions:[{provider,connected,updated_at,login_available,runs_threads},…]}` from `/api/me/ai-subscriptions`, which Tuist keeps. `provider` is `claude` or `chatgpt` (open: show unknown ones by name); `runs_threads` says whether threads can run on it (only ChatGPT: Claude refuses third-party use of its subscriptions). A 404 is "not available for this account". Keep it live with `live_connect` and `id` `ai_subscriptions` |
-| `connect_claude` | `token`: what `claude setup-token` prints (trimmed) | the updated list; a token Tuist refuses fails with a message asking for the setup token. The token never enters a view, the vault or the store |
+| `ai_subscriptions` | none | `{subscriptions:[{provider,connected,updated_at,login_available,runs_threads},…]}` from `/api/me/ai-subscriptions`, which the Luft server keeps. `provider` is `claude` or `chatgpt` (open: show unknown ones by name); `runs_threads` says whether threads can run on it (only ChatGPT: Claude refuses third-party use of its subscriptions). A 404 is "not available for this account". Keep it live with `live_connect` and `id` `ai_subscriptions` |
+| `connect_claude` | `token`: what `claude setup-token` prints (trimmed) | the updated list; a token the server refuses fails with a message asking for the setup token. The token never enters a view, the vault or the store |
 | `start_chatgpt_login` | none | `{login_id,user_code,verification_url,interval,expires_at}`: an OpenAI device sign-in. Show the code and the URL, then poll |
 | `poll_chatgpt_login` | `login_id` | `{status}`: `pending`, `connected`, or `failed` once it expired or OpenAI refused it. Poll no faster than `interval` |
 | `cancel_chatgpt_login` | `login_id` | null; a sign-in the server already forgot counts as cancelled |
 | `disconnect_ai_subscription` | `provider`: `claude` or `chatgpt` | the updated list |
+| `mcp_servers` | optional `account_handle` | `{servers:[{id,name,url,connected,updated_at},…]}`: the person's own MCP servers from `/api/me/mcp-servers`, offered in every thread they write in, or with `account_handle` the organization's from `/api/accounts/{account_handle}/mcp-servers`, offered in its threads. Every member sees an organization's servers; only admins change them, and a 403 says so. A 404 is "not available for this account" |
+| `add_mcp_server` | `url` (HTTPS), optional `name`, optional `account_handle` | `{server}`, not signed in yet; adding a URL again returns the existing server. Refusals name the problem (URL, name, at most 25 servers) |
+| `remove_mcp_server` | `id`, optional `account_handle` | null; removes the server and the session Luft holds for it |
+| `authorize_mcp_server` | `id`, optional `account_handle` | `{url,callback_scheme}`: open `url` in the browser like a sign-in; the server's authorization server returns to Luft, which hands the answer to `luft://mcp-callback`. The core remembers the profile and list until `complete_mcp_server` |
+| `complete_mcp_server` | `url`: the `luft://mcp-callback` URL | `{server}`, connected. A sign-in completes once and only in the profile that started it; a cancelled one fails with "The sign-in was cancelled." without a request |
 | `runners` | none | `{runners:[{id,name,platform,online,capabilities,last_seen_at},…]}` from `/api/me/thread-runners` |
 | `register_runner` | `name`, `platform` | the runner plus its one-time encrypted `luft_runner_…` token, bound to the Luft session, and the profile's Luft `server`, for `luft-runner connect`; the raw upstream runner secret never reaches the client |
 | `remove_runner` | runner `id` | null; revokes it on the server |

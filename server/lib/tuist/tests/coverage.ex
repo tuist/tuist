@@ -1068,7 +1068,9 @@ defmodule Tuist.Tests.Coverage do
   """
   def merged_files_query_for_runs(project_id, test_run_ids, excluded) do
     from(f in without_excluded(report_files_for_runs(project_id, test_run_ids), excluded),
-      where: not f.is_test,
+      # A file without executable lines, such as an external resource a Mix
+      # module read at compile time, is only there as evidence.
+      where: not f.is_test and f.executable_lines > 0,
       group_by: f.path,
       select: %{
         path: f.path,

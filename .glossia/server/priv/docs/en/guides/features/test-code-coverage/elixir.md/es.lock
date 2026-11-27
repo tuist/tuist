@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "5ddb5c2f6749cba35f8ce01418d4c23897db48eddc8e52f84bed34b16baa20af",
+  "hash": "da078f513f74a2f4a942b20ac375cba03d9081448f813b36e72e4991c104c6fa",
   "hash_tree": {
     "root": {
       "children": [
@@ -47,7 +47,7 @@
                   "content_hash": "548f00177ad21a1dbf0857454a422399eeaee7837e1afd87df6b36a3733e316a"
                 },
                 "### What Tuist measures {#what-tuist-measures}": {
-                  "content_hash": "1a047570d38cc2062e32717d0a43253d73895f20c04deb77ea5be1e849d37797"
+                  "content_hash": "91e11f5a541aba5c2fcdb983aa255263bb6b856d18c68f1bb16a1f2fe50ff16d"
                 },
                 "Preamble": {
                   "content_hash": "05b81469e6a12caea12a1aa93816992d6d90e95e429b6645380991e82c7cb33d"
@@ -56,11 +56,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "49069b9506116b05a332b006841e86bb010c121d090f8cd6d74a0cf2d4be2093",
+          "hash": "de8fa8cd630d2338641bf29650327c1e2244da797e7f9128104aed8d12873315",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage/elixir.md",
           "metadata": {
-            "content_hash": "5199497584503755ed66f73a6cff06ff0f07a7e86ceb772dea10da12998612eb"
+            "content_hash": "5c8c92a43a0c934870d9c47e6b7b108e7c0d98615aef96e25777f901e911dc9a"
           }
         },
         {
@@ -260,14 +260,14 @@
         }
       ],
       "details": {},
-      "hash": "5ddb5c2f6749cba35f8ce01418d4c23897db48eddc8e52f84bed34b16baa20af",
+      "hash": "da078f513f74a2f4a942b20ac375cba03d9081448f813b36e72e4991c104c6fa",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage/elixir.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "6839ab92af9209d062db5a0cc42e89c99c902090229e3e3ebcdc3fed581874de",
+  "output_hash": "5dfdd6698a96b415bd7b9e5da456ac03c878ba856efa0e98c064e95509f9c414",
   "output_path": "server/priv/docs/es/guides/features/test-code-coverage/elixir.md",
   "protection_state": "recorded",
   "provider": "",
@@ -288,8 +288,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5f6b0c6761cf60e6ba412eb3de60cafd4a5b924e",
+  "source_commit_sha": "b24ecccf3effa0f9b42e687c3c353a5c95de9baf",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage/elixir.md",
-  "translated_at": "2026-11-19T14:38:38.456155Z",
-  "translation_session_id": "01a1f43c-cc79-7fa7-97c3-b1bca0dda8f1"
+  "translated_at": "2026-11-27T01:47:45.086279Z",
+  "translation_session_id": "01a21aac-4835-7450-9aa1-cc8c2624e2b3"
 }

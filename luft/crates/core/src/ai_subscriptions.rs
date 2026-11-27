@@ -1,5 +1,5 @@
 //! The person's AI subscriptions (Claude, ChatGPT) at
-//! `/api/me/ai-subscriptions`, which Tuist keeps and the Luft server forwards:
+//! `/api/me/ai-subscriptions`, which the Luft server keeps:
 //! threads run on a connected ChatGPT subscription. Every screen that shows
 //! them follows the `ai_subscriptions` live socket (`crate::live`), so a
 //! subscription connected anywhere shows at once.

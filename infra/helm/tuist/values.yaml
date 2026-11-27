@@ -878,14 +878,6 @@ server:
       enabled: false
       item: PULSE_TOKEN
       field: password
-    # Public OAuth client ID for linking ChatGPT subscriptions
-    # (TUIST_CHATGPT_CLIENT_ID). Without it the ChatGPT option stays hidden.
-    # Enable only after the item exists in the environment's vault: a missing
-    # item fails the pre-upgrade ExternalSecret and blocks the deploy.
-    chatgptClient:
-      enabled: false
-      item: CHATGPT_OAUTH
-      field: client_id
     # Claude linked billing (Tuist.Accounts.ClaudeLinkedBilling): the
     # Claude Console OAuth app and Workload Identity Federation ids, one
     # text field each. Enable only after the item exists with all six

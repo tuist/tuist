@@ -1,20 +1,23 @@
 defmodule LuftServerWeb.AISubscriptionsChannel do
   @moduledoc """
   The person's AI subscriptions, live: the join replies with them, and the
-  channel pushes `snapshot` with the new list whenever it changes. Changes
-  made through Luft arrive at once (`LuftServer.AISubscriptions.broadcast/2`);
-  the channel also reads Tuist every 15 seconds to show changes made
-  elsewhere, such as on Tuist's settings page, and to recheck the session.
+  channel pushes `snapshot` with the new list whenever it changes
+  (`LuftServer.AISubscriptions.broadcast/1`). Luft stores the subscriptions,
+  so every change goes through it. The channel still rechecks the session
+  every 15 seconds and leaves once it is gone.
   """
   use Phoenix.Channel
 
   alias LuftServer.AISubscriptions
+  alias LuftServer.Tuist.Scope
   alias LuftServerWeb.ConversationsSocket
 
   @poll_ms 15_000
 
   def join("ai_subscriptions", _params, socket) do
     with {:ok, session} <- ConversationsSocket.authenticate(socket),
+         # Only while Tuist still lets the person use Luft.
+         {:ok, _scope} <- Scope.load(session, session.handle || ""),
          # Subscribe before reading: a change cannot disappear between the two.
          :ok <- Phoenix.PubSub.subscribe(LuftServer.PubSub, AISubscriptions.topic(session)),
          {:ok, subscriptions} <- AISubscriptions.list(session) do
@@ -37,16 +40,9 @@ defmodule LuftServerWeb.AISubscriptionsChannel do
 
   def handle_info(:poll, socket) do
     case ConversationsSocket.authenticate(socket) do
-      {:ok, session} ->
+      {:ok, _session} ->
         Process.send_after(self(), :poll, @poll_ms)
-
-        case AISubscriptions.list(session) do
-          {:ok, subscriptions} -> {:noreply, show(socket, subscriptions)}
-          # Tuist no longer lets this person manage subscriptions.
-          {:error, status} when status in [401, 403, 404] -> {:stop, :normal, socket}
-          # Unreachable for now: keep what the person sees and read again later.
-          _ -> {:noreply, socket}
-        end
+        {:noreply, socket}
 
       _ ->
         {:stop, :normal, socket}

@@ -33,6 +33,8 @@ struct AppMessage: Decodable, Identifiable {
     /// A card the model wrote, sized by the Rust core; `content` is its text.
     var ui: AppCard?
     var decision: AppDecision?
+    /// A server-persisted reference, not an executable card or a data snapshot.
+    var record_reference: RecordReference?
     /// The plan the agent shares with `update_progress`, counted by the Rust core;
     /// `content` is the plan as a checklist.
     var progress: AppProgress?
@@ -40,6 +42,11 @@ struct AppMessage: Decodable, Identifiable {
     /// `content` says it in words.
     var build: AppBuild?
     var toolResult: AppToolResult?
+}
+
+struct RecordReference: Decodable {
+    let model: String
+    let id: String
 }
 
 struct AppToolResult: Decodable {
@@ -400,9 +407,29 @@ struct ConversationView: View {
                         // A card can call `reply` without a tap (on mount, from a timer),
                         // so its text goes to the composer and the person sends it.
                         case let .message(message):
-                            MessageRow(message: message, showAuthor: shared, answering: sending || thread?.reauthorization_required == true, answer: { option in
-                                Task { await answer(message, option: option) }
-                            }) { text in reply = text }.id(message.id)
+                            if message.record_reference != nil {
+                                NavigationLink {
+                                    SessionRecordView(
+                                        client: client,
+                                        thread: id,
+                                        message: message.id,
+                                        generation: client.view.generation
+                                    )
+                                } label: {
+                                    Label("Open record", systemImage: "doc.text.magnifyingglass")
+                                        .frame(minHeight: 44)
+                                }
+                                .id(message.id)
+                            } else {
+                                MessageRow(
+                                    message: message,
+                                    showAuthor: shared,
+                                    answering: sending || thread?.reauthorization_required == true,
+                                    answer: { option in
+                                        Task { await answer(message, option: option) }
+                                    }
+                                ) { text in reply = text }.id(message.id)
+                            }
                         case let .tools(tools): ToolActivity(tools: tools).id(tools[0].id)
                         }
                     }

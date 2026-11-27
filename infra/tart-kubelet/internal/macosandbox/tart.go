@@ -385,6 +385,41 @@ func (t *TartRuntime) Pause(ctx context.Context, r *Record) error {
 	return err
 }
 
+// guestShutdownTimeout bounds a clean guest shutdown; save_disks has two
+// minutes in all, and the clone after it takes seconds.
+const guestShutdownTimeout = 75 * time.Second
+
+// Shutdown shuts a resident paused VM's guest down from inside, which ends
+// its processes and unmounts its file systems, and waits for the VM process
+// to exit. It never forces the VM off: a forced stop leaves the disks as a
+// crash would, so a guest that does not stop in time fails the shutdown and
+// the caller saves nothing. The resume drops any stale checkpoint first.
+func (t *TartRuntime) Shutdown(ctx context.Context, r *Record) error {
+	if _, err := t.control(ctx, r, "resume"); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, guestShutdownTimeout)
+	defer cancel()
+	c := t.client(r)
+	// The guest agent usually goes away before it answers, so the command's
+	// own result says nothing; the VM process exiting is the proof.
+	execCtx, cancelExec := context.WithTimeout(ctx, 15*time.Second)
+	_, execErr := c.Exec(execCtx, r.VMName(), "/usr/bin/sudo", "-n", "/sbin/shutdown", "-h", "now")
+	cancelExec()
+	for {
+		running, err := c.IsRunning(ctx, r.VMName())
+		if err == nil && !running {
+			r.DisksSynced = true
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return errors.Join(errors.New("guest did not shut down"), execErr, err)
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+}
+
 // syncGuest flushes the guest's file systems to its disk before the VM stops
 // running, and records whether that worked: what the guest wrote but did
 // not flush lives only in its memory, which an archive cannot carry.

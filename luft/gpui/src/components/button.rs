@@ -23,6 +23,7 @@ pub struct Button {
     label: SharedString,
     variant: Variant,
     enabled: bool,
+    focus: Option<gpui::FocusHandle>,
 }
 
 impl Button {
@@ -32,7 +33,13 @@ impl Button {
             label: label.into(),
             variant,
             enabled: true,
+            focus: None,
         }
+    }
+
+    pub fn focus(mut self, focus: &gpui::FocusHandle) -> Self {
+        self.focus = Some(focus.clone());
+        self
     }
 
     pub fn enabled(mut self, enabled: bool) -> Self {
@@ -92,7 +99,14 @@ impl Button {
                 Variant::Primary => button.opacity(0.9),
                 _ => button.bg(theme.row_hover),
             })
-            .keyboard_control(self.label.clone(), theme, scroll, window, cx)
+            .keyboard_control_focused(
+                self.label.clone(),
+                theme,
+                scroll,
+                self.focus.as_ref(),
+                window,
+                cx,
+            )
             .on_a11y_action(gpui::AccessibleAction::Click, move |_, window, cx| {
                 let _ = weak.update(cx, |this, cx| accessible(this, window, cx));
             })

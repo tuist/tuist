@@ -14,6 +14,18 @@ defmodule LuftServer.Config do
 
   def req_options, do: Application.get_env(:luft_server, :req_options, [])
 
+  @doc "The OAuth client for ChatGPT subscription sign-in; ChatGPT can't connect without it."
+  def chatgpt_client_id, do: Application.get_env(:luft_server, :chatgpt_client_id)
+
+  @doc "Extra Req options for requests to OpenAI (tests route them to `Req.Test`)."
+  def openai_req_options, do: Application.get_env(:luft_server, :openai_req_options, [])
+
+  @doc """
+  Req options that replace the pinned, SSRF-guarded client for requests to MCP
+  servers and their authorization servers. Only tests set them.
+  """
+  def mcp_req_options, do: Application.get_env(:luft_server, :mcp_req_options, [])
+
   def cache_provider_metadata?,
     do: Application.get_env(:luft_server, :cache_provider_metadata, true)
 end

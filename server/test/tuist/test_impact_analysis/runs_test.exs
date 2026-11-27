@@ -513,6 +513,17 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
              ]
     end
 
+    # A migration changes the schema every test's database starts from, which
+    # no test's evidence shows.
+    test "falls back when a migration changed", %{project: project} do
+      project = project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
+      migration = "server/priv/repo/migrations/20261126000000_add_column.exs"
+      changed_files = [%{path: migration, status: "A", blob: "new", affected_modules: ["MyApp.MathTest"]}]
+
+      assert {:ok, %{run: run, skipped_tests: nil}} = Runs.create(project, mix_params(%{changed_files: changed_files}))
+      assert {run.outcome, run.reason, run.matched_path} == {"fallback", "tracked_file_changed", migration}
+    end
+
     test "scopes the baseline to the mix block's scheme", %{project: project} do
       assert {:ok, %{run: run, skipped_tests: nil}} =
                Runs.create(project, mix_params(%{mix: %{scheme: "postgres-16", app: "my_app"}}))

@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "id": "accounts",
+  "version": 1,
+  "title": "Account Management",
+  "dependencies": {},
+  "models": {
+    "accounts.customer": {
+      "version": 1,
+      "fields": {
+        "name": { "type": "string", "required": true },
+        "email": { "type": "string", "nullable": true },
+        "status": { "type": "enum", "values": ["lead", "active", "paused"], "required": true, "default": "lead" }
+      }
+    }
+  },
+  "queries": {
+    "accounts.customer.list": { "model": "accounts.customer", "operation": "list" },
+    "accounts.customer.get": { "model": "accounts.customer", "operation": "get" }
+  },
+  "actions": {
+    "accounts.customer.create": { "model": "accounts.customer", "operation": "create" },
+    "accounts.customer.update": { "model": "accounts.customer", "operation": "update" }
+  },
+  "ui_modules": [{
+    "id": "accounts.customers",
+    "title": "Customers",
+    "group": "Account Management",
+    "model": "accounts.customer",
+    "entry": "ui/bundle.js",
+    "capabilities": {
+      "queries": ["accounts.customer.list", "accounts.customer.get"],
+      "actions": ["accounts.customer.create", "accounts.customer.update"]
+    }
+  }],
+  "fixtures": "fixtures.json"
+}

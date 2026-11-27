@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "title": "Customers and Support",
+  "resources": {
+    "accounts.customer": {
+      "title": "Customers",
+      "version": 1,
+      "fields": {
+        "name": {"type": "string", "required": true},
+        "billing_note": {"type": "string", "nullable": true}
+      },
+      "projection": ["name"],
+      "search": ["name"],
+      "filters": [],
+      "sort": ["name"],
+      "exports": {"support": ["name"]}
+    },
+    "support.conversation": {
+      "title": "Support",
+      "version": 1,
+      "fields": {
+        "subject": {"type": "string", "required": true},
+        "status": {"type": "enum", "required": true, "values": ["open", "closed"], "default": "open"},
+        "customer": {"type": "reference", "model": "accounts.customer", "nullable": true}
+      },
+      "projection": ["subject", "status", "customer"],
+      "search": ["subject"],
+      "filters": ["status", "customer"],
+      "sort": ["subject", "status"],
+      "exports": {}
+    }
+  },
+  "methods": {
+    "accounts.create": {
+      "label": "New customer",
+      "operation": "create",
+      "resource": "accounts.customer",
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "properties": {"name": {"type": "string", "minLength": 1, "maxLength": 200}},
+        "required": ["name"]
+      },
+      "source": "return await Javex.Host.call('resources.create', {values: {name: input.name}});"
+    },
+    "support.create": {
+      "label": "New conversation",
+      "operation": "create",
+      "resource": "support.conversation",
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "subject": {"type": "string", "minLength": 1, "maxLength": 200},
+          "customer": {"type": ["string", "null"], "maxLength": 36}
+        },
+        "required": ["subject", "customer"]
+      },
+      "source": "if (input.customer) await Javex.Host.call('resources.get', {resource: 'accounts.customer', id: input.customer}); return await Javex.Host.call('resources.create', {values: {subject: input.subject, status: 'open', customer: input.customer}});"
+    },
+    "support.close": {
+      "label": "Close conversation",
+      "operation": "close",
+      "resource": "support.conversation",
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 36, "maxLength": 36},
+          "expected_revision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+        },
+        "required": ["id", "expected_revision"]
+      },
+      "source": "const record = await Javex.Host.call('resources.get', {id: input.id}); if (record.status !== 'open') throw new Error('Not open'); return await Javex.Host.call('resources.update', {id: input.id, expected_revision: input.expected_revision, values: {status: 'closed'}});"
+    }
+  }
+}

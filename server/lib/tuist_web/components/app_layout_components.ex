@@ -588,8 +588,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% tokens_path = ~p"/#{@selected_account.name}/settings/tokens" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
-      <% ai_path = ~p"/#{@selected_account.name}/settings/ai" %>
-      <% organization_ai? = not is_nil(@selected_account.organization_id) %>
+      <% ai_path = ~p"/#{@selected_account.name}/settings/ai/routing" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -615,19 +614,13 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.tab_menu_horizontal_item
         :if={
-          if organization_ai?,
-            do:
-              Authorization.authorize(:account_update, @current_user, @selected_account) == :ok and
-                FeatureFlags.organization_luft_enabled?(@selected_account),
-            else:
-              @selected_account.user_id == @current_user.id and
-                FeatureFlags.luft_enabled?(@current_user)
+          not is_nil(@selected_account.organization_id) and
+            Authorization.authorize(:account_update, @current_user, @selected_account) == :ok and
+            FeatureFlags.organization_luft_enabled?(@selected_account)
         }
         label={dgettext("dashboard", "AI")}
         selected={String.starts_with?(@current_path, ai_path)}
-        navigate={
-          if organization_ai?, do: ~p"/#{@selected_account.name}/settings/ai/routing", else: ai_path
-        }
+        navigate={ai_path}
       />
     </.tab_menu_horizontal>
     """

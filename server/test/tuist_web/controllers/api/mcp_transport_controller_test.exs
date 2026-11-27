@@ -3,11 +3,9 @@ defmodule TuistWeb.API.MCPTransportControllerTest do
   use Mimic
 
   alias Boruta.Ecto.Token
-  alias Tuist.Accounts.UserMCPServer
   alias Tuist.FeatureFlags
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
-  alias Tuist.OAuth2.PinnedHTTP
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.API.MCPTransportController
@@ -27,8 +25,6 @@ defmodule TuistWeb.API.MCPTransportControllerTest do
     scope "/api/me/mcp-servers/transport" do
       pipe_through :authenticated
       get "/", MCPTransportController, :index, log: false
-      get "/:server_id/tools", MCPTransportController, :discover, log: false
-      post "/:server_id/tools/call", MCPTransportController, :invoke, log: false
     end
   end
 
@@ -38,15 +34,7 @@ defmodule TuistWeb.API.MCPTransportControllerTest do
     stub(Clients, :luft_server_client_id, fn -> client.id end)
     stub(FeatureFlags, :luft_enabled?, fn _ -> true end)
 
-    server =
-      Repo.insert!(%UserMCPServer{
-        user_id: user.id,
-        name: "Profile",
-        url: "https://mcp.example.com/mcp",
-        access_token: "private-mcp-token"
-      })
-
-    %{user: user, client: client, server: server}
+    %{user: user, client: client}
   end
 
   test "only scoped personal app grants admit metadata; MCP scope is separately authoritative", ctx do
@@ -55,12 +43,7 @@ defmodule TuistWeb.API.MCPTransportControllerTest do
     conn = request(oauth(ctx, "luft:app"))
     assert get_resp_header(conn, "cache-control") == ["no-store"]
 
-    assert %{"builtin_mcp_allowed" => false, "servers" => [%{"id" => id, "endpoint" => endpoint}]} =
-             json_response(conn, 200)
-
-    assert id == ctx.server.id and byte_size(endpoint) == 64
-    refute conn.resp_body =~ "private-mcp-token"
-    refute conn.resp_body =~ "access_token"
+    assert %{"builtin_mcp_allowed" => false, "servers" => []} = json_response(conn, 200)
     scoped = oauth(ctx, "luft:app mcp")
     assert %{"builtin_mcp_allowed" => true} = scoped |> request() |> json_response(200)
     Token |> Repo.get_by!(value: scoped) |> Ecto.Changeset.change(scope: "luft:app") |> Repo.update!()
@@ -79,19 +62,6 @@ defmodule TuistWeb.API.MCPTransportControllerTest do
     assert bearer |> request() |> json_response(403)
   end
 
-  test "other users see no connection and cannot call it", ctx do
-    other = AccountsFixtures.user_fixture(preload: [:account])
-    bearer = oauth(%{ctx | user: other}, "luft:app")
-    assert %{"servers" => []} = bearer |> request() |> json_response(200)
-    reject(PinnedHTTP, :request, 3)
-
-    conn =
-      request(bearer, "/#{ctx.server.id}/tools/call", %{endpoint: String.duplicate("a", 64), name: "read", arguments: %{}})
-
-    assert %{"result" => %{"isError" => true}} = json_response(conn, 200)
-    refute conn.resp_body =~ "private-mcp-token"
-  end
-
   defp oauth(ctx, scope) do
     bearer =
       TokenGenerator.generate(:access_token, %Token{sub: to_string(ctx.user.id), client_id: ctx.client.id, scope: scope})
@@ -108,13 +78,8 @@ defmodule TuistWeb.API.MCPTransportControllerTest do
     bearer
   end
 
-  defp request(bearer, path \\ "", body \\ nil) do
-    conn =
-      Plug.Test.conn(
-        if(body, do: :post, else: :get),
-        "/api/me/mcp-servers/transport" <> path,
-        if(body, do: JSON.encode!(body))
-      )
+  defp request(bearer) do
+    conn = Plug.Test.conn(:get, "/api/me/mcp-servers/transport")
 
     conn = put_req_header(conn, "content-type", "application/json")
     conn = if bearer, do: put_req_header(conn, "authorization", "Bearer " <> bearer), else: conn

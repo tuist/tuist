@@ -28,6 +28,22 @@ impl Transport for Http<'_> {
         url: Url,
         body: Option<Value>,
     ) -> Result<(u64, Value), &'static str> {
+        self.send_guarded(method, url, body, || true)
+    }
+}
+
+impl Http<'_> {
+    /// Release reviews invalidate queued work even if token refresh was blocked.
+    pub(super) fn send_guarded(
+        &mut self,
+        method: &str,
+        url: Url,
+        body: Option<Value>,
+        authorized: impl Fn() -> bool,
+    ) -> Result<(u64, Value), &'static str> {
+        if !authorized() {
+            return Err("The release session changed. Open it again.");
+        }
         let token = self
             .session
             .access_token()
@@ -47,6 +63,9 @@ impl Transport for Http<'_> {
             request = request
                 .header("Content-Type", "application/json")
                 .body(body.to_string());
+        }
+        if !authorized() {
+            return Err("The release session changed. Open it again.");
         }
         let response = request.send().map_err(|_| "Server request failed")?;
         let status = u64::from(response.status().as_u16());

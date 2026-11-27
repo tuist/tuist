@@ -796,7 +796,11 @@ defmodule AtlasWeb.AcquisitionLive do
   defp widget_description("landings"),
     do: gettext("Visits that arrived from a link tagged with utm_source (or ref) on another site.")
 
-  defp widget_description("signups"), do: gettext("Users who signed up in the selected range, attributed or not.")
+  defp widget_description("signups"),
+    do:
+      gettext(
+        "People who signed up on their own in the selected range, attributed or not. Teammates joining an existing organization don't count."
+      )
 
   defp widget_description("attributed_signups"),
     do:

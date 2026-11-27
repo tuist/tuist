@@ -19,6 +19,7 @@ defmodule LuftServer.Threads.Message do
     field :suggestion_icons, :map, default: %{}
     field :card_size, :string
     field :card_source, :string
+    field :record_reference, :map
     field :decision, :map
     field :progress, :map
     # Set by the database from the thread's revision; see the migration.

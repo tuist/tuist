@@ -1,8 +1,8 @@
 # Tuist Runners for Buildkite: macOS and Linux agents
 
-Managed macOS and Linux machines for your Buildkite queues. Keep your pipelines, drop the agent fleet, and build next to a shared cache.
+Tuist Runners are managed M5 Pro Mac mini and Linux machines for Buildkite queues. Keep your pipelines, drop the agent fleet, and build next to a shared cache.
 
-Tuist watches self-hosted queues in your Buildkite cluster and runs their jobs on its fleet, next to the same build cache your developers and coding agents use.
+Tuist watches self-hosted queues in your Buildkite cluster and runs their jobs on its fleet of Apple silicon Mac minis and x86-64 Linux machines, billed per minute, next to the same build cache your developers and coding agents use.
 
 ## Target a queue named after a profile
 
@@ -31,6 +31,7 @@ Sources checked on **2026-11-13**. Written by Tuist from its own documentation a
 
 ## Further reading
 
+- [Self-hosted macOS runners](/marketing-markdown/solutions/self-hosted-mac-runners) on running your own Mac minis compared with managed runners.
 - [Tuist Runners](/marketing-markdown/runners) for all supported CI providers, machine profiles, and how runners fit with the rest of Tuist.
 - Tuist Runners for [GitHub Actions](/marketing-markdown/runners/github-actions) and [GitLab CI](/marketing-markdown/runners/gitlab-ci).
 - [Rising CI costs](/marketing-markdown/solutions/ci-costs) on measuring total cost before and after moving jobs.
@@ -51,7 +52,7 @@ macOS on Apple silicon and Linux, in the shapes your account's profiles allow. T
 
 ### Why not run our own Mac agents?
 
-Buildkite pipelines run on [Buildkite hosted agents or agents you operate](https://buildkite.com/docs/pipelines/hosted-agents). Running your own Mac agents means maintaining machines, images, and Xcode upgrades. Tuist Runners keep Buildkite as the orchestrator and take over the machines.
+Buildkite pipelines run on [Buildkite hosted agents or agents you operate](https://buildkite.com/docs/pipelines/hosted-agents). Running your own Mac agents means maintaining machines, images, and Xcode upgrades. Tuist Runners keep Buildkite as the orchestrator and take over the machines. The guide to [self-hosted macOS runners](/marketing-markdown/solutions/self-hosted-mac-runners) compares the two in detail.
 
 ### Can we pause a queue?
 

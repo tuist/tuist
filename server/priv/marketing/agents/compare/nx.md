@@ -8,7 +8,7 @@ Compare Nx and Tuist for monorepo builds, caching, running only what changed, an
 
 ## What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a shared environment where developers, CI, and coding agents build and test. It is not a CI provider, a CI runner, or a coding agent. Instead of running tasks itself, Tuist integrates with the build system a project already uses, such as Xcode, Gradle, Bazel, or Mix, and works through that build system's own model: Gradle task outputs, Bazel actions, Xcode compilation outputs, and Mix compilation and ExUnit results. See [build systems](/marketing-markdown/build-systems) for what each integration supports.
+Tuist is build infrastructure for engineering teams and coding agents: a shared environment where developers, CI, and coding agents build and test. It is not a CI provider or a coding agent: it works with the CI you already use, and [Tuist Runners](/marketing-markdown/runners) can run those jobs on managed macOS and Linux machines next to the cache. Instead of running tasks itself, Tuist integrates with the build system a project already uses, such as Xcode, Gradle, Bazel, or Mix, and works through that build system's own model: Gradle task outputs, Bazel actions, Xcode compilation outputs, and Mix compilation and ExUnit results. See [build systems](/marketing-markdown/build-systems) for what each integration supports.
 
 ## Compare the responsibilities
 

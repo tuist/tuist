@@ -1,9 +1,9 @@
 import AuthenticationServices
 import Foundation
+import LuftCore
 import OSLog
 import Security
 import SwiftUI
-import LuftCore
 
 private let coreLog = Logger(subsystem: "dev.tuist.guild", category: "core")
 
@@ -64,8 +64,15 @@ struct AppClientError: LocalizedError {
     var errorDescription: String? { message }
 }
 
-private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     private var response: UnsafeMutablePointer<CChar>?
+    private let httpOnly: Bool
+
+    init(httpOnly: Bool = false) {
+        self.httpOnly = httpOnly
+        super.init()
+    }
+
     private let keychain: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: "dev.tuist.code.profiles",
@@ -89,6 +96,9 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
         let result: [String: Any]
         do {
             let action = try JSONSerialization.jsonObject(with: Data(input.utf8)) as? [String: Any] ?? [:]
+            guard !httpOnly || action["type"] as? String == "http" else {
+                throw AppClientError(message: "Workspace host only supports HTTP")
+            }
             switch action["type"] as? String {
             case "read":
                 var query = keychain
@@ -288,6 +298,11 @@ private final class PresenceSocket: @unchecked Sendable {
     }
 }
 
+@MainActor
+private final class ResumeFlag {
+    var value = false
+}
+
 @MainActor @Observable
 final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding {
     /// The app's one client. The app delegate boots it too, because iOS can
@@ -296,20 +311,28 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
     static let shared = AppClient()
 
     private(set) var view = AppSessionView()
+    /// Whether `boot` has loaded the saved profiles. Until then an empty `view`
+    /// doesn't mean signed out.
+    private(set) var booted = false
     var error: String?
     private(set) var signingIn = false
     @ObservationIgnored private let host = NativeHost()
     @ObservationIgnored private let queue = DispatchQueue(label: "dev.tuist.code.core", qos: .userInitiated)
     @ObservationIgnored private var browser: ASWebAuthenticationSession?
+    @ObservationIgnored private var mcpBrowser: ASWebAuthenticationSession?
     @ObservationIgnored private var browserAttempt: UUID?
     @ObservationIgnored private var started = false
 
     /// Launch arguments are consumed once, after the core boots.
     func start() async {
+        #if targetEnvironment(simulator)
+            guard !WorkspacePreview.requested else { return }
+        #endif
         guard !started else { return }
         started = true
         // Loads profiles and migrates local stores before any screen reads them.
         await perform("boot")
+        booted = true
         // A notification tap that launched the app opens once the core is up.
         await PushNotifications.shared.attach(self)
         ThreadLiveActivity.shared.attach(self)
@@ -322,11 +345,18 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
     func openURL(_ url: URL) async {
         // ASWebAuthenticationSession owns OAuth completion and state validation.
         // All other URLs go to the core, including validation of server origins.
-        guard !(url.scheme?.lowercased() == "luft" && url.host?.lowercased() == "oauth-callback") else { return }
+        guard !(url.scheme?.lowercased() == "luft" && ["oauth-callback", "mcp-callback"].contains(url.host?.lowercased())) else {
+            return
+        }
         await perform("navigate", ["url": url.absoluteString])
     }
 
     func call(_ operation: String, _ args: [String: Any] = [:]) async throws -> [String: Any] {
+        #if targetEnvironment(simulator)
+            guard !WorkspacePreview.requested else {
+                throw AppClientError(message: "Production identity is unavailable in workspace preview")
+            }
+        #endif
         let request = try JSONSerialization.data(withJSONObject: ["operation": operation, "args": args])
         let host = host
         let data: Data = try await withCheckedThrowingContinuation { continuation in
@@ -400,6 +430,48 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
             self.error = error.localizedDescription
             await perform("cancel_sign_in")
         }
+    }
+
+    /// Signs in to an MCP server in the browser. The core remembers which list
+    /// the sign-in belongs to; the browser's `luft://mcp-callback` completes it.
+    /// Cancelling in the browser is not an error.
+    func authorizeMCPServer(_ id: String, accountHandle: String?) async throws {
+        var arguments: [String: Any] = ["id": id]
+        if let accountHandle { arguments["account_handle"] = accountHandle }
+        let data = try await call("authorize_mcp_server", arguments)
+        guard let text = data["url"] as? String, let url = URL(string: text) else {
+            throw AppClientError(message: String(localized: "Sign-in could not be started."))
+        }
+        let callback: URL? = try await withCheckedThrowingContinuation { continuation in
+            // The handler may also run when start() fails, so only the first
+            // outcome resumes.
+            let resumed = ResumeFlag()
+            let finish: @MainActor (Result<URL?, Error>) -> Void = { result in
+                guard !resumed.value else { return }
+                resumed.value = true
+                continuation.resume(with: result)
+            }
+            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: "luft") { url, error in
+                Task { @MainActor in
+                    if let url {
+                        finish(.success(url))
+                    } else if let error, (error as? ASWebAuthenticationSessionError)?.code != .canceledLogin {
+                        finish(.failure(error))
+                    } else {
+                        finish(.success(nil))
+                    }
+                }
+            }
+            session.presentationContextProvider = self
+            session.prefersEphemeralWebBrowserSession = true
+            mcpBrowser = session
+            if !session.start() {
+                finish(.failure(AppClientError(message: String(localized: "Sign-in could not be started."))))
+            }
+        }
+        mcpBrowser = nil
+        guard let callback else { return }
+        _ = try await call("complete_mcp_server", ["url": callback.absoluteString])
     }
 
     func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {

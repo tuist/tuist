@@ -56,7 +56,8 @@ defmodule Atlas.MCP.Tools.GetTuistAcquisitionFunnel do
   def description do
     "Read Tuist's acquisition funnel for a date range, per source, medium, campaign and ad (utm_content): landings (visits that " <>
       "arrived on tuist.dev from a link tagged with utm_source or ref on another site or app), signups (users created in the " <>
-      "range, by the first-touch campaign or referring site of their sign-up; an empty source means direct or " <>
+      "range who arrived on their own, leaving out teammates who joined an existing organization, SCIM-provisioned " <>
+      "users and agent accounts, by the first-touch campaign or referring site of their sign-up; an empty source means direct or " <>
       "unknown) and customers (paying accounts those signups brought: their own account, or an organization they " <>
       "administer, now on Pro or Enterprise through a subscription that started after the sign-up, each account " <>
       "counted once). Customers are a cohort of the range's signups, not conversions that happened in it. Also " <>

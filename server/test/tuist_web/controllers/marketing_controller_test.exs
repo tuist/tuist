@@ -441,6 +441,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
             "/solutions/slow-tests",
             "/solutions/flaky-tests",
             "/solutions/ci-costs",
+            "/solutions/self-hosted-mac-runners",
+            "/solutions/speed-up-ios-ci",
             "/runners/github-actions",
             "/runners/buildkite"
           ] do
@@ -507,7 +509,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
 
     test "legacy feature redirects remain intact", %{conn: conn} do
-      assert conn |> get("/flaky-tests") |> redirected_to(301) == "/tests"
+      assert conn |> get("/flaky-tests") |> redirected_to(301) == "/solutions/flaky-tests"
     end
   end
 
@@ -555,7 +557,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
         assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end
 
-      # Folded into the tests page; their URLs redirect and are not advertised.
+      # Retired pages redirect and are not advertised.
       for path <- ["/flaky-tests", "/test-insights"] do
         refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end

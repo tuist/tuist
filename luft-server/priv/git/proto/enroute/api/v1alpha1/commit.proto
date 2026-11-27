@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package enroute.api.v1alpha1;
+
+import "enroute/api/v1alpha1/object.proto";
+import "enroute/common/v1alpha1/common.proto";
+
+// Writing a commit without a git client. The caller names a branch and the
+// files to change, and Enroute builds the blobs, the trees and the commit,
+// stores them, and moves the branch: an application that edits one file has
+// no checkout, runs no `git`, and builds no packfile.
+service CommitService {
+  // Make one commit on a branch from file changes, and move the branch onto
+  // it. The new commit's parent is where the branch pointed, and a branch
+  // that does not exist yet starts at a commit with no parent.
+  //
+  // No `pre-receive`, as for `RefService.UpdateRefs`: that hook is how an
+  // application decides what a *git client* may land, and the caller here is
+  // the application. No `post-receive` either.
+  //
+  // The whole request is at most 32 MiB, encoded. A larger one fails with
+  // OUT_OF_RANGE before any of it is read.
+  //
+  // Fails with NOT_FOUND for an unknown repository, INVALID_ARGUMENT for a
+  // request that is not a commit git takes, FAILED_PRECONDITION when the
+  // branch is not at `expected_old_commit`, and ABORTED when other writers
+  // keep moving a branch that `expected_old_commit` does not guard.
+  rpc CreateCommit(CreateCommitRequest) returns (CreateCommitResponse);
+}
+
+message CreateCommitRequest {
+  common.v1alpha1.RepoKey repo = 1;
+  // The branch to commit on, fully qualified, e.g. `refs/heads/main`. It must
+  // be under `refs/heads/` and be a refname git accepts.
+  string branch = 2;
+  // A compare-and-swap on the branch. Unset waives the check: the commit
+  // goes on whatever the branch holds when the call lands, and starts the
+  // branch if there is none. A call without a check that loses a race with
+  // another writer is made again on the new tip.
+  ExpectedOldCommit expected_old_commit = 3;
+  // Stored as given, with a newline added at the end if there is none. Not
+  // NUL.
+  string message = 4;
+  // Who wrote the change. Required, with a name and an email that hold no
+  // `<`, `>`, newline or NUL. An unset `timestamp` is the time the call
+  // arrives. `utc_offset_seconds` is whole minutes, at most 99:59 either
+  // way.
+  Identity author = 5;
+  // Who made the commit, under the same rules. Unset is the author.
+  Identity committer = 6;
+  // At least one, and each path at most once. Applied together against the
+  // branch's tree.
+  repeated PathChange changes = 7;
+}
+
+// What the branch must hold for the commit to land.
+message ExpectedOldCommit {
+  oneof expectation {
+    // The branch points at this commit, which becomes the new commit's
+    // parent.
+    common.v1alpha1.ObjectId commit_id = 1;
+    // The branch does not exist: the new commit starts it, with no parent.
+    Absent absent = 2;
+  }
+
+  message Absent {}
+}
+
+// One path to change.
+message PathChange {
+  // From the root of the tree, `/`-separated, e.g. `src/lib.rs`. No empty,
+  // `.` or `..` component, so no leading, trailing or doubled `/`. No
+  // component that git reads as `.git`, in any case. No `\` or NUL.
+  string path = 1;
+
+  oneof change {
+    // Write a file at `path`, replacing the file there. Directories on the
+    // way are created. Refused if `path` is a directory, or runs through a
+    // file.
+    PutFile put = 2;
+    // Remove the file at `path`. Nothing happens when there is none, and a
+    // directory left empty goes too. Refused if `path` is a directory.
+    DeleteFile delete = 3;
+  }
+}
+
+message PutFile {
+  // The bytes of the file, or the target of a symbolic link.
+  bytes content = 1;
+  // Unspecified is a regular file.
+  FileMode mode = 2;
+}
+
+message DeleteFile {}
+
+// What a file is, as a tree records it.
+enum FileMode {
+  FILE_MODE_UNSPECIFIED = 0;
+  // `100644`.
+  FILE_MODE_REGULAR = 1;
+  // `100755`.
+  FILE_MODE_EXECUTABLE = 2;
+  // `120000`: `content` is the target. A `.gitmodules` cannot be one.
+  FILE_MODE_SYMLINK = 3;
+}
+
+message CreateCommitResponse {
+  // The new commit, where the branch now points. A following read, such as
+  // `RefService.ListRefs`, sees it.
+  common.v1alpha1.ObjectId commit_id = 1;
+  // Its root tree.
+  common.v1alpha1.ObjectId tree_id = 2;
+  // Where the branch pointed before. Unset when this commit started it.
+  common.v1alpha1.ObjectId parent_commit_id = 3;
+}

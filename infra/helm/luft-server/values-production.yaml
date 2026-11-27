@@ -10,6 +10,11 @@ cluster:
 externalSecret:
   enabled: true
 
+# The CHATGPT_OAUTH item the Tuist server used before ChatGPT sign-in moved
+# to Luft. It holds a public client ID.
+chatgptClient:
+  enabled: true
+
 ingress:
   enabled: true
   className: nginx

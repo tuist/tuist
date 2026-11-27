@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package enroute.api.v1alpha1;
+
+import "enroute/common/v1alpha1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+// Creating and destroying the thing everything else here operates on.
+// Deliberately thin: this layer stores a repository under the key you gave it
+// and has no opinion about what that key means, who owns the repository, or
+// whether the caller was allowed to ask.
+service RepositoryService {
+  // Idempotent on the key: creating twice with one key answers with the same
+  // repository the second time and makes nothing new. A create that lost a
+  // race with an identical one answers alike, so a retry needs no bookkeeping
+  // of its own.
+  //
+  // `default_branch` is read only when this call is what creates the
+  // repository. A repeat naming a different one is not a failure and does not
+  // move `HEAD`; the answer says what the repository actually has.
+  rpc CreateRepository(CreateRepositoryRequest) returns (CreateRepositoryResponse);
+  rpc GetRepository(GetRepositoryRequest) returns (GetRepositoryResponse);
+  // Every repository this caller has, by key. The one read that does not
+  // start from one, for a caller whose own table of them went missing.
+  rpc ListRepositories(ListRepositoriesRequest) returns (ListRepositoriesResponse);
+  // Idempotent: deleting a key that is already gone succeeds. Reclaiming the
+  // storage it held happens on the server's own schedule, so the key stops
+  // resolving well before the bytes are gone.
+  //
+  // The key is free again as soon as this returns, and creating with it makes
+  // a new and empty repository rather than reviving the old one.
+  rpc DeleteRepository(DeleteRepositoryRequest) returns (DeleteRepositoryResponse);
+}
+
+// ── the repository ───────────────────────────────────────────────────────
+
+message Repository {
+  common.v1alpha1.RepoKey repo = 1;
+  // Where `HEAD` points. Set at creation and never changed here — moving it
+  // is a ref update like any other.
+  string default_branch = 2;
+  // Unset until something has been pushed. Present so a caller can build a
+  // repository listing without walking refs for a timestamp.
+  google.protobuf.Timestamp last_push = 3;
+  // How the repository names its objects: chosen at creation, for good.
+  ObjectFormat object_format = 4;
+}
+
+// The hash a repository's object ids are, as git's `extensions.objectFormat`
+// names it. A git client clones and pushes in the repository's format; one
+// that speaks the other is refused.
+enum ObjectFormat {
+  // On a create, SHA-1. A repository never reports it.
+  OBJECT_FORMAT_UNSPECIFIED = 0;
+  OBJECT_FORMAT_SHA1 = 1;
+  OBJECT_FORMAT_SHA256 = 2;
+}
+
+message CreateRepositoryRequest {
+  // Defaults to `refs/heads/main` when empty. Read only on the create that
+  // makes the repository.
+  string default_branch = 1;
+
+  // What you call this repository. Required, and the name every later call
+  // uses — there is no id of ours to store beside your own.
+  common.v1alpha1.RepoKey repo = 2;
+
+  // Unspecified is SHA-1. Read only on the create that makes the repository,
+  // as `default_branch` is. A server whose operator has not turned SHA-256
+  // on refuses it with FAILED_PRECONDITION.
+  ObjectFormat object_format = 3;
+}
+
+message CreateRepositoryResponse {
+  Repository repository = 1;
+}
+
+message GetRepositoryRequest {
+  common.v1alpha1.RepoKey repo = 1;
+}
+
+message GetRepositoryResponse {
+  Repository repository = 1;
+}
+
+// There is no field for whose repositories to list: a call reports the ones
+// the presented credential reaches, as every other call here does.
+message ListRepositoriesRequest {
+  // How many to return at most. Clamped to a server limit, and a zero asks
+  // for that limit.
+  uint32 limit = 1;
+  // Resume from a `ListRepositoriesResponse.next_page_token`. Empty starts at
+  // the first key.
+  string page_token = 2;
+  // Report only keys starting with this, byte for byte. Empty reports all of
+  // them. Made of a key's characters, but need not end as a key does.
+  string prefix = 3;
+}
+
+message ListRepositoriesResponse {
+  // In key order, which is stable across pages: a repository created during a
+  // walk lands on a later page rather than moving one already read.
+  repeated Repository repositories = 1;
+  // Where a following call resumes, to be sent back as
+  // `ListRepositoriesRequest.page_token`. Empty only on the last page — a
+  // short page is not the end, since a repository deleted mid-walk leaves a
+  // position that reports nothing.
+  //
+  // It holds a repository key, but treat it as opaque: what a page resumes
+  // from is this call's to decide.
+  string next_page_token = 2;
+}
+
+message DeleteRepositoryRequest {
+  common.v1alpha1.RepoKey repo = 1;
+}
+
+message DeleteRepositoryResponse {}
