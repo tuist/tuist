@@ -8,6 +8,11 @@ defmodule Atlas.GTM.SocialPublishing do
   account's posts are approved only by whoever connected that account.
   Approved publications publish at `scheduled_at`. A publish that may have
   reached X is never retried automatically, so a post cannot go out twice.
+
+  The approval also pins the size and SHA-256 of every attached media file,
+  recorded when its upload was finalized. A signed upload URL stays valid
+  after finalizing, so publishing reads no more than the approved size and
+  fails instead of posting bytes that differ from what was approved.
   """
 
   import Ecto.Query
@@ -87,13 +92,19 @@ defmodule Atlas.GTM.SocialPublishing do
     end
   end
 
-  @doc "Checks that the bytes arrived and are within X's limits for their kind."
+  @doc """
+  Checks that the bytes arrived and are within X's limits for their kind, and
+  records their size and SHA-256.
+  """
   def finalize_media(%User{} = user, id) do
     with :ok <- authorize(user),
          %SocialMedia{status: "pending_upload"} = media <- Repo.get(SocialMedia, id) || {:error, :not_found},
-         {:ok, size} <- stored_size(media.storage_key),
-         :ok <- within_limit(media, size) do
-      media |> SocialMedia.changeset(%{byte_size: size, status: "uploaded"}) |> Repo.update()
+         # One byte past the limit is enough to tell the file is too large.
+         {:ok, bytes} <- read_media(media, SocialMedia.max_bytes(SocialMedia.kind(media)) + 1),
+         :ok <- within_limit(media, byte_size(bytes)) do
+      media
+      |> SocialMedia.changeset(%{byte_size: byte_size(bytes), sha256: sha256(bytes), status: "uploaded"})
+      |> Repo.update()
     else
       %SocialMedia{} = media -> {:ok, media}
       error -> error
@@ -109,6 +120,7 @@ defmodule Atlas.GTM.SocialPublishing do
           filename: filename,
           content_type: content_type,
           byte_size: byte_size(bytes),
+          sha256: sha256(bytes),
           storage_key: storage_key(filename),
           status: "uploaded"
         })
@@ -120,23 +132,16 @@ defmodule Atlas.GTM.SocialPublishing do
     end
   end
 
-  defp stored_size(key) do
-    case Storage.head_object(key) do
-      {:ok, %{headers: headers}} -> content_length(headers)
+  # Reads at most `limit` bytes, so whatever was PUT to the signed URL since,
+  # however large, never loads into memory whole.
+  defp read_media(media, limit) do
+    case Storage.get_object(media.storage_key, headers: [{"range", "bytes=0-#{limit - 1}"}]) do
+      {:ok, %{body: bytes}} -> {:ok, bytes}
       _missing -> {:error, :media_not_uploaded}
     end
   end
 
-  defp content_length(headers) do
-    headers
-    |> Enum.find_value(fn {name, value} -> String.downcase(name) == "content-length" && value end)
-    |> List.wrap()
-    |> List.first()
-    |> case do
-      nil -> {:error, :media_not_uploaded}
-      value -> {:ok, String.to_integer(value)}
-    end
-  end
+  defp sha256(bytes), do: :sha256 |> :crypto.hash(bytes) |> Base.encode16(case: :lower)
 
   defp within_limit(media, size) do
     kind = SocialMedia.kind(media.content_type)
@@ -177,6 +182,7 @@ defmodule Atlas.GTM.SocialPublishing do
           |> Ecto.Changeset.put_change(:approved_revision, nil)
           |> Ecto.Changeset.put_change(:approved_at, nil)
           |> Ecto.Changeset.put_change(:approved_by_id, nil)
+          |> Ecto.Changeset.put_change(:approved_media, nil)
           |> Ecto.Changeset.put_change(:last_error, nil)
           |> validate_content()
           |> Repo.update()
@@ -195,7 +201,8 @@ defmodule Atlas.GTM.SocialPublishing do
       locked(id, fn publication ->
         with :ok <- approvable(publication, revision),
              :ok <- can_approve_for(user, publication.social_account),
-             :ok <- can_publish(publication) do
+             :ok <- can_publish(publication),
+             {:ok, approved_media} <- pin_media(publication) do
           now = DateTime.truncate(DateTime.utc_now(), :second)
 
           {:ok, approved} =
@@ -205,6 +212,7 @@ defmodule Atlas.GTM.SocialPublishing do
               approved_revision: publication.revision,
               approved_at: now,
               approved_by_id: user.id,
+              approved_media: approved_media,
               last_error: nil
             )
             |> Repo.update()
@@ -244,6 +252,17 @@ defmodule Atlas.GTM.SocialPublishing do
 
       true ->
         :ok
+    end
+  end
+
+  defp pin_media(publication) do
+    ids = publication.items |> Enum.flat_map(& &1["media_ids"]) |> Enum.uniq()
+    media = media(ids)
+
+    if length(media) == length(ids) and Enum.all?(media, &(&1.status == "uploaded" and is_binary(&1.sha256))) do
+      {:ok, Map.new(media, &{&1.id, %{"byte_size" => &1.byte_size, "sha256" => &1.sha256}})}
+    else
+      {:error, :media_unverified}
     end
   end
 
@@ -298,46 +317,79 @@ defmodule Atlas.GTM.SocialPublishing do
     do: fail(publication, "The account was disconnected before it published.")
 
   defp publish_items(publication) do
-    publication.items
-    |> Enum.drop(length(publication.published_ids))
-    |> Enum.reduce_while({:ok, publication}, fn item, {:ok, publication} ->
-      case publish_item(publication, item) do
-        {:ok, post_id} -> {:cont, {:ok, record_post(publication, post_id)}}
-        {:error, reason} -> {:halt, fail(publication, failure(reason))}
+    remaining = Enum.drop(publication.items, length(publication.published_ids))
+
+    case verify_media(remaining, publication.approved_media || %{}) do
+      :ok ->
+        remaining
+        |> Enum.reduce_while({:ok, publication}, fn item, {:ok, publication} ->
+          case publish_item(publication, item) do
+            {:ok, post_id} -> {:cont, {:ok, record_post(publication, post_id)}}
+            {:error, reason} -> {:halt, fail(publication, failure(reason))}
+          end
+        end)
+        |> case do
+          {:ok, publication} -> published(publication)
+          failed -> failed
+        end
+
+      {:error, reason} ->
+        fail(publication, failure(reason))
+    end
+  end
+
+  # Checks every remaining post's media before the first goes out, so a
+  # swapped file later in a thread does not leave it half published. Files
+  # are read one at a time and dropped; each upload checks its bytes again.
+  defp verify_media(items, approved_media) do
+    items
+    |> Enum.flat_map(& &1["media_ids"])
+    |> media()
+    |> Enum.find_value(:ok, fn media ->
+      case approved_bytes(media, approved_media[media.id]) do
+        {:ok, _bytes} -> nil
+        error -> error
       end
     end)
-    |> case do
-      {:ok, publication} -> published(publication)
-      failed -> failed
-    end
   end
 
   defp publish_item(publication, item) do
     reply_to = List.last(publication.published_ids)
 
     SocialAccounts.with_token(publication.social_account, fn token ->
-      with {:ok, media_ids} <- upload_media(token, item["media_ids"]) do
+      with {:ok, media_ids} <- upload_media(token, item["media_ids"], publication.approved_media || %{}) do
         XPublisher.create_post(token, item["text"], media_ids, reply_to)
       end
     end)
   end
 
-  defp upload_media(token, ids) do
+  defp upload_media(token, ids, approved_media) do
     ids
     |> media()
     |> Enum.reduce_while({:ok, []}, fn media, {:ok, uploaded} ->
-      case Storage.get_object(media.storage_key) do
-        {:ok, %{body: bytes}} ->
-          case XPublisher.upload_media(token, bytes, media.content_type, SocialMedia.kind(media)) do
-            {:ok, x_id} -> {:cont, {:ok, uploaded ++ [x_id]}}
-            error -> {:halt, error}
-          end
-
-        _missing ->
-          {:halt, {:error, {:rejected, "#{media.filename} is missing from storage."}}}
+      with {:ok, bytes} <- approved_bytes(media, approved_media[media.id]),
+           {:ok, x_id} <- XPublisher.upload_media(token, bytes, media.content_type, SocialMedia.kind(media)) do
+        {:cont, {:ok, uploaded ++ [x_id]}}
+      else
+        error -> {:halt, error}
       end
     end)
   end
+
+  defp approved_bytes(media, %{"byte_size" => size, "sha256" => digest}) do
+    # One byte past the approved size is enough to tell the object changed.
+    case read_media(media, size + 1) do
+      {:ok, bytes} ->
+        if byte_size(bytes) == size and sha256(bytes) == digest,
+          do: {:ok, bytes},
+          else: {:error, {:media_changed, media.filename}}
+
+      {:error, :media_not_uploaded} ->
+        {:error, {:rejected, "#{media.filename} is missing from storage."}}
+    end
+  end
+
+  defp approved_bytes(media, _not_pinned), do: {:error, {:media_unpinned, media.filename}}
 
   defp record_post(publication, post_id) do
     publication
@@ -366,6 +418,13 @@ defmodule Atlas.GTM.SocialPublishing do
 
   defp failure({:rejected, detail}), do: "X rejected the post: #{detail}"
   defp failure({:http, status, detail}), do: "X rejected the post (HTTP #{status}): #{detail}"
+
+  defp failure({:media_changed, filename}),
+    do: "#{filename} changed since it was approved. Upload it again and approve the post again."
+
+  defp failure({:media_unpinned, filename}),
+    do: "#{filename} was approved before Atlas recorded media digests. Upload it again and approve the post again."
+
   defp failure(:needs_authorization), do: "The account needs to be reconnected."
   defp failure(reason), do: "Could not publish: #{inspect(reason)}"
 

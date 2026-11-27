@@ -1,4 +1,5 @@
 "Profile" = "Profile";
+"Ops" = "Ops";
 "Welcome to Luft" = "Welcome to Luft";
 "Sign in to access your projects and\ncollaborate with your team" = "Sign in to access your projects and\ncollaborate with your team";
 "Sign in with Tuist" = "Sign in with Tuist";
@@ -51,6 +52,9 @@
 "View profile" = "View profile";
 "Switch account" = "Switch account";
 "Add Profile…" = "Add Profile…";
+"Organization Settings…" = "Organization Settings…";
+"Organization settings" = "Organization settings";
+"Organization Settings" = "Organization Settings";
 "View Profile" = "View Profile";
 "Sign Out" = "Sign Out";
 "Threads aren't available yet" = "Threads aren't available yet";
@@ -335,6 +339,7 @@
 "Run `claude setup-token` in a terminal, sign in, and paste the token it prints. It is not an Anthropic API key." = "Run `claude setup-token` in a terminal, sign in, and paste the token it prints. It is not an Anthropic API key.";
 "Connect ChatGPT" = "Connect ChatGPT";
 "Copy Code" = "Copy Code";
+"Copied" = "Copied";
 "Open OpenAI" = "Open OpenAI";
 "Open OpenAI, sign in with your ChatGPT account and enter this code. Luft connects as soon as you approve it." = "Open OpenAI, sign in with your ChatGPT account and enter this code. Luft connects as soon as you approve it.";
 "Waiting for approval" = "Waiting for approval";

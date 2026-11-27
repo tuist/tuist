@@ -389,6 +389,24 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test -run CheckoutMasterEndToEnd .` in
   `infra/runner-cache`; the podagent tests cover the mailbox and collection.
 
+## GitHub Actions cache
+
+- With `--actions-cache-store` (and custom cache volumes on), `ActionsCache`
+  (`internal/podagent/actions_cache.go`) runs `runner-cache`'s
+  `ActionsCache` for this host's runner VMs on :8090, the way the Linux agent
+  does for its node's Pods. Guests reach it on the vmnet gateway
+  (`http://192.168.64.1:8090`, handed to runner Pods as
+  `TUIST_ACTIONS_CACHE_URL`), which the VM guard passes ahead of its drop to
+  the host. The listener binds every address, because the bridge exists only
+  while a VM runs, so it answers only `192.168.64.0/22`.
+- A request's caller is the running runner Pod on this Node whose PodIP (the
+  VM's address) is the source. Uploads stage under `actions-cache/` on the
+  runner cache volume, above a 20 GiB reserve; the server signs the store's
+  URLs for the host's site entrance.
+- The operator sets the flag per site from `rackFleet.actionsCacheStore` and
+  `rackFleet.sites.<site>.actionsCacheStore`, only on hosts the env owns: a
+  lent host's jobs belong to another env's server.
+
 ## Node access
 
 A host is internet-facing, so its identity reaches only what its own Pods use

@@ -31,6 +31,7 @@ pub fn palette(query: &str, labels: &Value, threads: &Value, lounges: &Value) ->
                 Tab::Lounges => "Lounges",
                 Tab::Dms => "DMs",
                 Tab::Profile => "Profile",
+                Tab::Ops => "Ops",
             };
             json!({"kind":"destination","id":tab.id(),"title":label(tab.id(), fallback),
                    "url":format!("/{}", tab.id())})
@@ -149,6 +150,7 @@ mod tests {
                 "lounges",
                 "dms",
                 "profile",
+                "ops",
                 "new_conversation",
                 "a",
                 "b",
@@ -156,7 +158,7 @@ mod tests {
                 "d"
             ]
         );
-        assert_eq!(result["items"][4]["url"], "/threads/new");
+        assert_eq!(result["items"][5]["url"], "/threads/new");
         assert_eq!(result["items"][3]["url"], "/profile");
     }
 

@@ -100,6 +100,11 @@ type RackAppleSiliconMachineReconciler struct {
 	// hosts it names drift when it changes.
 	ImageMirrorHosts []string
 
+	// ActionsCacheStores is, by site, the store holding the GitHub Actions
+	// cache entries of the rack hosts there. A host at a site with one serves
+	// the Actions cache to its VMs, unless it is lent to another env.
+	ActionsCacheStores map[string]string
+
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine that does
 	// not set spec.guestCapacity.
 	DefaultGuestCapacity int
@@ -1135,8 +1140,8 @@ func (r *RackAppleSiliconMachineReconciler) hostSizing(machine *infrav1.RackAppl
 //   - its SSH ingress guard admits the host's subnet routers, the source its
 //     LAN dial arrives from.
 //
-// It also carries the rack's cache gateways into the VM egress firewall and
-// the rack's image caches into tart-kubelet.
+// It also carries the rack's cache gateways into the VM egress firewall, and
+// the rack's image caches and its site's Actions cache store into tart-kubelet.
 //
 // Both push paths and the stamped hash go through here, so a change to any of
 // them drifts the host rather than being recorded as converged without
@@ -1149,126 +1154,11 @@ func (r *RackAppleSiliconMachineReconciler) rackFleetConfig(host *infrav1.RackHo
 	if slices.Contains(r.ImageMirrorHosts, "*") || slices.Contains(r.ImageMirrorHosts, host.Name) {
 		cfg.ImageMirrors = slices.Clone(r.ImageMirrors)
 	}
-	// A lent host's custom cache volumes are the other cluster's server's.
+	// A lent host's custom cache volumes are the other cluster's server's,
+	// which keeps no Actions cache in this env's stores.
 	if lent := host.Spec.NodeCluster; lent != nil {
 		cfg.CustomCacheURL = lent.CacheVolumesURL
+	} else {
+		cfg.ActionsCacheStoreURL = r.ActionsCacheStores[host.Spec.Location.Site]
 	}
-	return cfg
-}
-
-func (r *RackAppleSiliconMachineReconciler) hostConfig(
-	machine *infrav1.RackAppleSiliconMachine,
-	host *infrav1.RackHost,
-	perHost bootstrap.PerHost,
-) bootstrap.Config {
-	return applyHostSizing(r.rackFleetConfig(host), r.hostSizing(machine), perHost)
-}
-
-// desiredHostConfigHash also covers the Node's fleet label and the cluster the
-// Node registers in when the host is lent. Both are per-host, which
-// HostConfigHash strips, so without this a lent host would read as converged
-// and keep the label and kubeconfig it registered with. A host on the
-// operator's fleet and cluster hashes exactly as before. Rotating the
-// kubeconfig inside the same Secret does not drift the host: rename the Secret.
-func (r *RackAppleSiliconMachineReconciler) desiredHostConfigHash(
-	machine *infrav1.RackAppleSiliconMachine,
-	host *infrav1.RackHost,
-) string {
-	hash := hostConfigHashFor(r.rackFleetConfig(host), r.hostSizing(machine))
-	if hash == "" || (machine.Spec.NodeFleet == "" && machine.Spec.NodeCluster == nil) {
-		return hash
-	}
-	material := hash + "\nnodeFleet=" + machine.Spec.NodeFleet
-	if machine.Spec.NodeCluster != nil {
-		material += "\nnodeCluster=" + machine.Spec.NodeCluster.KubeconfigSecret
-	}
-	sum := sha256.Sum256([]byte(material))
-	return hex.EncodeToString(sum[:])
-}
-
-// rackProviderID composes the providerID from the host's two durable physical
-// facts, so re-cabling a box to a new address does not change its identity to
-// CAPI. The scheme is foreign to the Hetzner CCM, which is what keeps it from
-// reaping these Nodes.
-func rackProviderID(host *infrav1.RackHost) string {
-	serial := host.Spec.Serial
-	if serial == "" {
-		// An inventory record with no serial is still usable: the CR name is
-		// unique in the namespace and stable, but it is worse, because the
-		// identity now moves if the record is ever recreated under a new name.
-		// hostOf requires an address and a site, not a serial,
-		// because a missing serial degrades rather than breaks.
-		serial = host.Name
-	}
-	return fmt.Sprintf("rack-applesilicon://%s/%s", host.Spec.Location.Site, serial)
-}
-
-func providerIDOfRack(m *infrav1.RackAppleSiliconMachine) string {
-	if m.Spec.ProviderID == nil {
-		return ""
-	}
-	return *m.Spec.ProviderID
-}
-
-// rackMachineNodeLabels are the labels tart-kubelet stamps on the Node it
-// registers: the fleet membership label workloads pin to via nodeSelector,
-// matching what the Scaleway kind writes so one workload can target both. A
-// host lent to another fleet's pools carries that fleet instead.
-func rackMachineNodeLabels(m *infrav1.RackAppleSiliconMachine) map[string]string {
-	fleet := m.Spec.FleetName
-	if m.Spec.NodeFleet != "" {
-		fleet = m.Spec.NodeFleet
-	}
-	if fleet == "" {
-		return nil
-	}
-	return map[string]string{"tuist.dev/fleet": fleet}
-}
-
-func (r *RackAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	concurrency := r.MaxConcurrentReconciles
-	if concurrency <= 0 {
-		concurrency = 1
-	}
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.RackAppleSiliconMachine{}).
-		WithOptions(controller.Options{MaxConcurrentReconciles: concurrency}).
-		Watches(
-			&clusterv1.Machine{},
-			handler.EnqueueRequestsFromMapFunc(rackMachineForCAPIMachine),
-		).
-		// Wake on the host, so a lifted quarantine or a new address is picked up
-		// at once rather than at the next requeue.
-		Watches(
-			&infrav1.RackHost{},
-			handler.EnqueueRequestsFromMapFunc(rackMachineForRackHost),
-		).
-		Complete(r)
-}
-
-func rackMachineForCAPIMachine(_ context.Context, o client.Object) []reconcile.Request {
-	m, ok := o.(*clusterv1.Machine)
-	if !ok {
-		return nil
-	}
-	if m.Spec.InfrastructureRef.Kind != "RackAppleSiliconMachine" {
-		return nil
-	}
-	return []reconcile.Request{{
-		NamespacedName: types.NamespacedName{
-			Namespace: m.Spec.InfrastructureRef.Namespace,
-			Name:      m.Spec.InfrastructureRef.Name,
-		},
-	}}
-}
-
-// rackMachineForRackHost maps a host event to the host's machine.
-func rackMachineForRackHost(_ context.Context, o client.Object) []reconcile.Request {
-	host, ok := o.(*infrav1.RackHost)
-	if !ok || host.Status.Machine == "" {
-		return nil
-	}
-	return []reconcile.Request{{
-		NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Status.Machine},
-	}}
-}
+	ret

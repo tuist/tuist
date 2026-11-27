@@ -159,7 +159,8 @@ build() (
     mkdir "$root"
     cp "$ROOT/Cargo.toml" "$ROOT/Cargo.lock" "$root/"
     # Every workspace member and [patch] path must exist, or Cargo resolution fails.
-    cp -R "$ROOT/gpui" "$ROOT/gpui-web" "$ROOT/crates" "$ROOT/vendor" "$root/"
+    # Core tests read the app definitions in apps/ with include_str!.
+    cp -R "$ROOT/gpui" "$ROOT/gpui-web" "$ROOT/crates" "$ROOT/vendor" "$ROOT/apps" "$root/"
     # Packaging needs only the Cargo graph, not native frontend rules or prepared SDK dependencies.
     yq -p toml -o json '.' "$ROOT/struo.toml" |
         jq '.workspace.include = ["struo.toml"] | del(.modules) | .target |= map(select(.name == "LuftDesktop"))' |

@@ -11,6 +11,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   alias Tuist.Accounts.UserPasskey
   alias Tuist.Authorization
   alias Tuist.Environment
+  alias Tuist.OAuth2.SSOClientAssertion
   alias Tuist.SCIM
   alias TuistWeb.Components.WorkloadIdentities
 
@@ -26,6 +27,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   # Automatic enrollment never mints an admin, so only the two non-privileged
   # roles are offered here.
   @sso_default_roles Accounts.organization_role_names() -- ["admin"]
+
+  @oauth2_client_authentication_methods ["client_secret_basic", "private_key_jwt"]
 
   @impl true
   def mount(
@@ -66,6 +69,9 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       |> assign_form_from_organization(organization)
       |> assign_saved_state()
       |> assign(:scim_base_url, Environment.app_url(path: "/scim/v2"))
+      |> assign(:sso_client_assertion_available, SSOClientAssertion.available?())
+      |> assign(:sso_client_jwks_url, Environment.app_url(path: "/.well-known/sso-client-jwks.json"))
+      |> assign(:sso_client_certificate_urls, sso_client_certificate_urls())
       |> assign(:scim_tokens, SCIM.list_tokens(organization))
       |> assign(:new_scim_token_plaintext, nil)
       |> assign(:new_scim_token_form, to_form(%{"name" => ""}, as: "scim_token"))
@@ -208,6 +214,29 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     |> then(&{:noreply, &1})
   end
 
+  def handle_event("select_oauth2_client_authentication", %{"value" => [method]}, socket)
+      when method in @oauth2_client_authentication_methods do
+    form_params = Map.put(socket.assigns.current_form_params, "oauth2_client_authentication_method", method)
+
+    socket
+    |> assign(current_form_params: form_params, form: to_form(form_params, as: "sso"), flash_message: nil)
+    |> assign(field_errors: %{})
+    |> compute_form_valid()
+    |> compute_has_changes()
+    |> then(&{:noreply, &1})
+  end
+
+  def handle_event("select_oauth2_client_authentication", _params, socket), do: {:noreply, socket}
+
+  # The banner's shortcut: selects the public-key method in the SSO form and
+  # scrolls to it. Nothing is saved until the admin saves the form.
+  def handle_event("switch_to_private_key_jwt", _params, socket) do
+    {:noreply, new_socket} =
+      handle_event("select_oauth2_client_authentication", %{"value" => ["private_key_jwt"]}, socket)
+
+    {:noreply, push_event(new_socket, "scroll-to-element", %{id: "sso-client-authentication-section"})}
+  end
+
   def handle_event("select_provider", %{"value" => [provider]}, socket) when provider in @form_providers do
     form_params = Map.put(socket.assigns.current_form_params, "provider", provider)
 
@@ -257,6 +286,15 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   def handle_event("validate_sso", %{"sso" => form_params}, socket) do
+    # The client authentication select reports through its own event, so the
+    # form's own inputs never carry it.
+    form_params =
+      Map.put(
+        form_params,
+        "oauth2_client_authentication_method",
+        socket.assigns.current_form_params["oauth2_client_authentication_method"]
+      )
+
     verified_domain? =
       form_domain_trust(socket.assigns.selected_provider, socket.assigns.organization, form_params) in [
         :instance,
@@ -465,6 +503,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
             sso_automatic_enrollment: false,
             oauth2_client_id: nil,
             oauth2_encrypted_client_secret: nil,
+            oauth2_client_authentication_method: :client_secret_basic,
             oauth2_authorize_url: nil,
             oauth2_token_url: nil,
             oauth2_user_info_url: nil
@@ -513,7 +552,13 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   defp save_oauth2_sso(%{assigns: %{organization: organization, selected_provider: selected_provider}} = socket, params) do
-    form_params = params["sso"] || %{}
+    form_params =
+      Map.put(
+        params["sso"] || %{},
+        "oauth2_client_authentication_method",
+        socket.assigns.current_form_params["oauth2_client_authentication_method"]
+      )
+
     sso_provider = provider_atom(selected_provider)
 
     attrs =
@@ -558,6 +603,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     oauth2_token_url: "oauth2_token_url",
     oauth2_user_info_url: "oauth2_user_info_url",
     oauth2_client_id: "oauth2_client_id",
+    oauth2_client_authentication_method: "oauth2_client_authentication_method",
     oauth2_encrypted_client_secret: "oauth2_client_secret"
   }
 
@@ -594,9 +640,30 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
     client_secret = String.trim(form["oauth2_client_secret"] || "")
 
-    if client_secret == "",
-      do: attrs,
-      else: Map.put(attrs, :oauth2_client_secret, client_secret)
+    cond do
+      private_key_jwt?(form) ->
+        Map.put(attrs, :oauth2_client_authentication_method, :private_key_jwt)
+
+      client_secret == "" ->
+        Map.put(attrs, :oauth2_client_authentication_method, :client_secret_basic)
+
+      true ->
+        Map.merge(attrs, %{oauth2_client_authentication_method: :client_secret_basic, oauth2_client_secret: client_secret})
+    end
+  end
+
+  defp private_key_jwt?(form), do: form["oauth2_client_authentication_method"] == "private_key_jwt"
+
+  defp stores_sso_client_secret?(organization, available) do
+    available and organization.sso_provider in [:okta, :oauth2] and
+      organization.oauth2_client_authentication_method == :client_secret_basic and
+      not is_nil(organization.oauth2_encrypted_client_secret)
+  end
+
+  defp sso_client_certificate_urls do
+    Enum.map(SSOClientAssertion.key_ids(), fn kid ->
+      {kid, Environment.app_url(path: "/.well-known/sso-client-certificates/#{kid}.pem")}
+    end)
   end
 
   defp extract_oauth2_urls("okta", form) do
@@ -754,7 +821,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   defp oauth2_credentials_valid?(params, organization) do
     field_present?(params, "oauth2_client_id") and
-      (field_present?(params, "oauth2_client_secret") or has_existing_secret?(organization))
+      (private_key_jwt?(params) or field_present?(params, "oauth2_client_secret") or
+         has_existing_secret?(organization))
   end
 
   defp has_existing_secret?(organization) do
@@ -785,198 +853,4 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   defp build_form_data("google", organization) do
-    Map.merge(default_form_data(), %{"provider" => "google", "google_domain" => organization.sso_organization_id || ""})
-  end
-
-  defp build_form_data("okta", organization) do
-    Map.merge(default_form_data(), %{
-      "provider" => "okta",
-      "okta_domain" => organization.sso_organization_id || "",
-      "oauth2_client_id" => organization.oauth2_client_id || "",
-      "oauth2_client_secret" => "",
-      "sso_login_domain" => organization.sso_login_domain || ""
-    })
-  end
-
-  defp build_form_data("entra", organization) do
-    Map.merge(default_form_data(), %{
-      "provider" => "entra",
-      "entra_tenant_id" => Accounts.entra_tenant(organization) || "",
-      "oauth2_client_id" => organization.oauth2_client_id || "",
-      "oauth2_client_secret" => "",
-      "sso_login_domain" => organization.sso_login_domain || ""
-    })
-  end
-
-  defp build_form_data("oauth2", organization) do
-    Map.merge(default_form_data(), %{
-      "provider" => "oauth2",
-      "oauth2_site" => organization.sso_organization_id || "",
-      "oauth2_client_id" => organization.oauth2_client_id || "",
-      "oauth2_client_secret" => "",
-      "oauth2_authorize_url" => organization.oauth2_authorize_url || "",
-      "oauth2_token_url" => organization.oauth2_token_url || "",
-      "oauth2_user_info_url" => organization.oauth2_user_info_url || "",
-      "sso_login_domain" => organization.sso_login_domain || ""
-    })
-  end
-
-  defp build_form_data(_provider, _organization) do
-    default_form_data()
-  end
-
-  defp default_form_data do
-    %{
-      "provider" => "google",
-      "google_domain" => "",
-      "okta_domain" => "",
-      "entra_tenant_id" => "",
-      "oauth2_client_id" => "",
-      "oauth2_client_secret" => "",
-      "oauth2_site" => "",
-      "sso_login_domain" => "",
-      "oauth2_authorize_url" => "",
-      "oauth2_token_url" => "",
-      "oauth2_user_info_url" => ""
-    }
-  end
-
-  defp normalize_domain(nil), do: nil
-
-  defp normalize_domain(domain) do
-    case domain |> String.trim() |> String.trim_trailing(".") |> String.downcase() do
-      "" -> nil
-      normalized_domain -> normalized_domain
-    end
-  end
-
-  defp changeset_error_message(changeset) do
-    changeset
-    |> Changeset.traverse_errors(fn {message, _opts} -> message end)
-    |> Enum.map_join("; ", fn {field, messages} ->
-      "#{Phoenix.Naming.humanize(field)} #{Enum.join(messages, ", ")}"
-    end)
-  end
-
-  defp automatic_enrollment_toggle_disabled?(selected_provider, _organization, trust, automatic_enrollment) do
-    selected_provider in @oauth2_form_providers and trust not in [:instance, :dns_verified] and
-      not automatic_enrollment
-  end
-
-  defp sso_enforcement_toggle_disabled?(selected_provider, _organization, trust, enforced) do
-    selected_provider in @oauth2_form_providers and trust not in [:instance, :dns_verified] and
-      not enforced
-  end
-
-  defp form_domain_trust(provider, organization, form_params) when provider in @oauth2_form_providers do
-    {issuer, _, _, _} = extract_oauth2_urls(provider, form_params)
-    domain = normalize_domain(form_params["sso_login_domain"])
-
-    candidate = %{
-      organization
-      | sso_provider: provider_atom(provider),
-        sso_organization_id: issuer,
-        sso_login_domain: domain,
-        sso_login_domain_verified_at:
-          if(domain == organization.sso_login_domain, do: organization.sso_login_domain_verified_at)
-    }
-
-    Accounts.sso_login_domain_trust(candidate)
-  end
-
-  defp form_domain_trust(_provider, _organization, _form_params), do: :untrusted
-
-  defp existing_sso_enforcement?(selected_provider, organization) do
-    organization.sso_enforced and selected_provider == form_provider(organization)
-  end
-
-  defp existing_sso_automatic_enrollment?(selected_provider, organization) do
-    organization.sso_automatic_enrollment and
-      selected_provider == form_provider(organization)
-  end
-
-  defp automatic_enrollment_for_provider_selection(
-         "google",
-         previous_provider,
-         _verified_domain?,
-         _existing_automatic_enrollment?,
-         _automatic_enrollment
-       )
-       when previous_provider != "google", do: true
-
-  defp automatic_enrollment_for_provider_selection(provider, _previous_provider, false, false, _automatic_enrollment)
-       when provider in @oauth2_form_providers, do: false
-
-  defp automatic_enrollment_for_provider_selection(
-         _provider,
-         _previous_provider,
-         _verified_domain?,
-         _existing_automatic_enrollment?,
-         automatic_enrollment
-       ), do: automatic_enrollment
-
-  defp enforcement_for_provider_selection(provider, false, false, _enforced) when provider in @oauth2_form_providers,
-    do: false
-
-  defp enforcement_for_provider_selection(_provider, _verified_domain?, _existing_enforcement?, enforced), do: enforced
-
-  # The form provider is not always the stored `sso_provider`: an organization
-  # whose `:oauth2` configuration matches the Entra preset exactly is shown as
-  # "entra" so it gets the tenant field instead of four URL fields.
-  defp form_provider(%{sso_provider: nil}), do: "google"
-
-  defp form_provider(%{sso_provider: :oauth2} = organization) do
-    if Accounts.entra_tenant(organization), do: "entra", else: "oauth2"
-  end
-
-  defp form_provider(%{sso_provider: provider}), do: Atom.to_string(provider)
-
-  defp oauth2_form_provider?(provider), do: provider in @oauth2_form_providers
-
-  defp domain_verification_shown?(organization, form) do
-    not is_nil(organization.sso_login_domain) and organization.sso_login_domain == form[:sso_login_domain].value
-  end
-
-  defp domain_record_instruction(organization, form) do
-    cond do
-      not domain_verification_shown?(organization, form) ->
-        nil
-
-      Accounts.sso_login_domain_expiring?(organization) ->
-        dgettext(
-          "dashboard_account",
-          "The TXT record below no longer resolves. Publish it again at your DNS provider, then click Verify domain."
-        )
-
-      is_nil(organization.sso_login_domain_verified_at) ->
-        dgettext("dashboard_account", "Add the TXT record below at your DNS provider, then click Verify domain.")
-
-      true ->
-        nil
-    end
-  end
-
-  attr :id, :string, required: true
-  attr :value, :string, required: true
-  attr :copy_label, :string, required: true
-
-  defp copyable_value(assigns) do
-    ~H"""
-    <div data-part="read-only-value">
-      <code id={@id}>{@value}</code>
-      <.button
-        id={"#{@id}-copy-button"}
-        variant="secondary"
-        size="small"
-        icon_only
-        type="button"
-        phx-hook="Clipboard"
-        data-clipboard-value={@value}
-        aria-label={@copy_label}
-      >
-        <.copy />
-      </.button>
-    </div>
-    """
-  end
-end
+    Map.merge(default_f

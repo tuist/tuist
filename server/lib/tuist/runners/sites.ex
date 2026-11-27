@@ -96,6 +96,33 @@ defmodule Tuist.Runners.Sites do
 
   def shard_storage_site(_), do: nil
 
+  @doc """
+  Where the GitHub Actions cache host `node_name` reaches stores from:
+  `{:linux, site}` for a Linux node on its site's private network
+  (`shard_storage_site/1`), `{:macos, site}` for a rack Mac, which reaches a
+  store only through its rack site's gateway entrance, else `nil`. Both labels
+  come from the provider, never from the host.
+  """
+  def actions_cache_location(node_name) when is_binary(node_name) and node_name != "" do
+    with {:ok, node} <- Client.get_node(node_name, timeout: @read_timeout),
+         labels when is_map(labels) <- get_in(node, ["metadata", "labels"]) do
+      case {attested_storage_site(labels), labels} do
+        {site, _} when is_binary(site) ->
+          {:linux, site}
+
+        {nil, %{"kubernetes.io/os" => "darwin", @site_label => site}} when is_binary(site) and site != "" ->
+          {:macos, site}
+
+        _ ->
+          nil
+      end
+    else
+      _ -> nil
+    end
+  end
+
+  def actions_cache_location(_), do: nil
+
   defp attested_storage_site(%{
          "node.cluster.x-k8s.io/shard-storage-site" => site,
          "tuist.dev/private-network" => network

@@ -74,8 +74,9 @@ independent. Old internal cohort labels remain hidden during rolling upgrades.
 
 ## GitHub Actions cache
 
-`ActionsCache` is the index of the GitHub Actions cache Linux hosts serve
-(see `infra/runner-cache/AGENTS.md`); only the storage agent calls it.
+`ActionsCache` is the index of the GitHub Actions cache Linux hosts and rack
+Macs serve (see `infra/runner-cache/AGENTS.md`); only the Linux storage agent
+and tart-kubelet call it.
 
 - Scope comes from `Identity.github_run/1` for the Pod's executed job, cached
   per workflow run attempt. It reads the run the App's `workflow_run`
@@ -91,9 +92,11 @@ independent. Old internal cohort labels remain hidden during rolling upgrades.
 - A save of an existing key and version in the job's ref is refused (409),
   except a reservation abandoned for an hour. Reservations are idempotent by
   the agent's entry ID, and commits by ID and node.
-- A reservation is placed in the account's own storage, otherwise in the shard
-  store (`actions_cache_bucket`) whose site is the node's, which must be on the
-  private network. Without one the save is refused and the job uses GitHub's
+- A reservation is placed in the account's own storage, otherwise in a shard
+  store (`actions_cache_bucket`) the node reaches (`Sites.actions_cache_location/1`):
+  for a Linux node, its own site's store on the private network; for a rack Mac,
+  a store whose `runner_endpoints` name its site, with the Mac's upload and
+  download URLs signed for that entrance. Without one the save is refused and the job uses GitHub's
   cache. Lookups only match entries the node's site can read. An entry commits
   only once its store holds the object.
 - Production serves an account only with `:runner_actions_cache`

@@ -624,6 +624,146 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
   end
 
+  describe "private_key_jwt client authentication" do
+    setup do
+      private_key_pem = 2048 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem()
+      stub(Environment, :sso_client_assertion_private_keys, fn -> private_key_pem end)
+      :ok
+    end
+
+    test "configures Entra ID with Tuist's public key instead of a client secret", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["entra"]})
+      html = render_hook(lv, "select_oauth2_client_authentication", %{"value" => ["private_key_jwt"]})
+
+      assert html =~ "/.well-known/sso-client-jwks.json"
+      assert html =~ "/.well-known/sso-client-certificates/"
+      assert html =~ "Certificates &amp; secrets"
+      refute has_element?(lv, ~s(input[name="sso[oauth2_client_secret]"]))
+
+      lv
+      |> form("#sso-form", %{
+        "sso" => %{
+          "entra_tenant_id" => "contoso.onmicrosoft.com",
+          "oauth2_client_id" => "test_client_id"
+        }
+      })
+      |> render_submit()
+
+      {:ok, organization} = Accounts.get_organization_by_id(organization.id)
+      assert organization.oauth2_client_authentication_method == :private_key_jwt
+      assert is_nil(organization.oauth2_encrypted_client_secret)
+      assert Accounts.entra_tenant(organization) == "contoso.onmicrosoft.com"
+    end
+
+    test "asks organizations that store a client secret to switch, and selects the public key for them", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "authsettings-company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      assert has_element?(lv, "#sso-client-secret-banner")
+      refute has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+
+      render_click(lv, "switch_to_private_key_jwt")
+
+      assert has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+      assert has_element?(lv, "#sso-client-secret-pending-deletion")
+      refute has_element?(lv, ~s(input[name="sso[oauth2_client_secret]"]))
+
+      lv |> form("#sso-form", %{}) |> render_submit()
+
+      refute has_element?(lv, "#sso-client-secret-banner")
+      # The secret stays until the first sign-in with the key succeeds.
+      assert has_element?(lv, "#sso-client-secret-pending-deletion")
+      {:ok, organization} = Accounts.get_organization_by_id(organization.id)
+      assert organization.oauth2_client_authentication_method == :private_key_jwt
+      assert organization.oauth2_encrypted_client_secret == "test_client_secret"
+
+      Accounts.delete_oauth2_client_secret_after_key_sign_in(organization)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+      assert has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+      refute has_element?(lv, "#sso-client-secret-pending-deletion")
+    end
+
+    test "still renders for every organization when the signing keys are unusable", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "authsettings-company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      stub(Environment, :sso_client_assertion_private_keys, fn -> "-----BEGIN RSA PRIVATE KEY-----\ntruncated" end)
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+        refute has_element?(lv, "#sso-client-secret-banner")
+        refute has_element?(lv, "#sso-client-authentication-select")
+        assert has_element?(lv, ~s(input[name="sso[oauth2_client_secret]"]))
+      end)
+    end
+
+    test "hides the banner when the server has no signing keys", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "authsettings-company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      stub(Environment, :sso_client_assertion_private_keys, fn -> nil end)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      refute has_element?(lv, "#sso-client-secret-banner")
+    end
+
+    test "keeps the method while other fields change and shows the secret field again when switched back", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["okta"]})
+      render_hook(lv, "select_oauth2_client_authentication", %{"value" => ["private_key_jwt"]})
+
+      lv
+      |> form("#sso-form", %{"sso" => %{"okta_domain" => "authsettings-company.okta.com"}})
+      |> render_change()
+
+      assert has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+
+      render_hook(lv, "select_oauth2_client_authentication", %{"value" => ["client_secret_basic"]})
+
+      refute has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+      assert has_element?(lv, ~s(input[name="sso[oauth2_client_secret]"]))
+    end
+  end
+
   describe "Microsoft Entra ID SSO" do
     test "disables save button when the tenant is empty", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
@@ -1132,197 +1272,4 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
           "oauth2_client_id" => "test_client_id",
           "oauth2_client_secret" => "",
           "oauth2_authorize_url" => "https://login.authsettings-vendor.example/authorize",
-          "oauth2_token_url" => "https://login.authsettings-vendor.example/token",
-          "oauth2_user_info_url" => "https://login.authsettings-vendor.example/userinfo"
-        }
-      })
-      |> render_submit()
-
-      {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
-      assert updated_organization.sso_automatic_enrollment
-    end
-
-    test "persists the role automatic enrollment grants", %{
-      conn: conn,
-      account: account,
-      organization: organization
-    } do
-      {:ok, configured_organization} =
-        Accounts.update_sso_configuration(organization.id, :oauth2, %{
-          sso_organization_id: "https://login.authsettings-vendor.example",
-          sso_login_domain: "authsettings-customer.example",
-          oauth2_client_id: "test_client_id",
-          oauth2_client_secret: "test_client_secret",
-          oauth2_authorize_url: "https://login.authsettings-vendor.example/authorize",
-          oauth2_token_url: "https://login.authsettings-vendor.example/token",
-          oauth2_user_info_url: "https://login.authsettings-vendor.example/userinfo"
-        })
-
-      expect(SSOLoginDomainVerification, :verified?, fn _domain, token ->
-        assert token == configured_organization.sso_login_domain_verification_token
-        true
-      end)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
-      render_hook(lv, "verify_sso_login_domain")
-      render_hook(lv, "toggle_sso_automatic_enrollment")
-      render_hook(lv, "select_sso_default_role", %{"value" => ["viewer"]})
-
-      lv
-      |> form("#sso-form", %{
-        "sso" => %{
-          "oauth2_site" => "https://login.authsettings-vendor.example",
-          "sso_login_domain" => "authsettings-customer.example",
-          "oauth2_client_id" => "test_client_id",
-          "oauth2_client_secret" => "",
-          "oauth2_authorize_url" => "https://login.authsettings-vendor.example/authorize",
-          "oauth2_token_url" => "https://login.authsettings-vendor.example/token",
-          "oauth2_user_info_url" => "https://login.authsettings-vendor.example/userinfo"
-        }
-      })
-      |> render_submit()
-
-      {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
-      assert updated_organization.sso_default_role == "viewer"
-      assert Accounts.sso_default_role(updated_organization) == "viewer"
-    end
-
-    test "turns off automatic enrollment and enforcement when switching to an unverified custom provider", %{
-      conn: conn,
-      account: account,
-      organization: organization,
-      user: user
-    } do
-      {:ok, _organization} =
-        Accounts.update_organization(organization, %{
-          sso_provider: :google,
-          sso_organization_id: "authsettings-customer.example",
-          sso_enforced: true,
-          sso_automatic_enrollment: true
-        })
-
-      conn =
-        put_session(
-          conn,
-          :user_token,
-          Accounts.generate_user_session_token(user, %{
-            auth_method: :google,
-            provider_organization_id: "authsettings-customer.example"
-          })
-        )
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
-      render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
-
-      assert has_element?(lv, ~s([data-testid="sso-automatic-enrollment-toggle"][data-disabled]))
-      assert has_element?(lv, ~s([data-testid="sso-enforced-toggle"][data-disabled]))
-
-      lv
-      |> form("#sso-form", %{
-        "sso" => %{
-          "oauth2_site" => "https://login.authsettings-vendor.example",
-          "sso_login_domain" => "",
-          "oauth2_client_id" => "test_client_id",
-          "oauth2_client_secret" => "test_client_secret",
-          "oauth2_authorize_url" => "https://login.authsettings-vendor.example/authorize",
-          "oauth2_token_url" => "https://login.authsettings-vendor.example/token",
-          "oauth2_user_info_url" => "https://login.authsettings-vendor.example/userinfo"
-        }
-      })
-      |> render_submit()
-
-      {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
-      assert updated_organization.sso_provider == :oauth2
-      refute updated_organization.sso_automatic_enrollment
-      refute updated_organization.sso_enforced
-    end
-  end
-
-  describe "SCIM provisioning" do
-    test "shows the empty-state message when no tokens exist", %{conn: conn, account: account} do
-      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
-      assert html =~ "No SCIM tokens yet"
-    end
-
-    test "generates a token, reveals it in the modal, and lists it in the table", %{
-      conn: conn,
-      account: account,
-      organization: org
-    } do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
-
-      html = render_submit(lv, "generate_scim_token", %{"scim_token" => %{"name" => "okta"}})
-
-      assert html =~ ~s(data-part="modal-message")
-      assert html =~ ~s(data-part="title">)
-      assert html =~ "Token created"
-      assert html =~ ~s(data-part="subtitle">)
-      assert html =~ "will not be shown again"
-      assert html =~ "tuist_scim_"
-      assert html =~ ~s(id="new-scim-token")
-      document = Floki.parse_fragment!(html)
-      plaintext_token = document |> Floki.find("#new-scim-token") |> Floki.text()
-      assert Floki.attribute(document, "#copy-scim-token-button", "data-clipboard-value") == [plaintext_token]
-      assert Floki.attribute(document, "#copy-scim-token-button", "type") == ["button"]
-      assert html =~ ~s(aria-label="Revoke token")
-      assert html =~ "icon-tabler-trash"
-      refute html =~ "No SCIM tokens yet"
-
-      [token] = SCIM.list_tokens(org)
-      assert token.name == "okta"
-      assert html =~ "okta"
-    end
-
-    test "rejects empty token name", %{conn: conn, account: account, organization: org} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
-
-      html = render_submit(lv, "generate_scim_token", %{"scim_token" => %{"name" => "  "}})
-
-      assert html =~ "Token name is required"
-      assert SCIM.list_tokens(org) == []
-    end
-
-    test "dismissing the modal clears the revealed plaintext", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
-
-      render_submit(lv, "generate_scim_token", %{"scim_token" => %{"name" => "okta"}})
-
-      html = render_hook(lv, "dismiss_scim_token")
-      refute html =~ "Token created"
-      refute html =~ "tuist_scim_"
-    end
-
-    test "open_change reset clears any leftover plaintext", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
-
-      render_submit(lv, "generate_scim_token", %{"scim_token" => %{"name" => "okta"}})
-
-      html = render_hook(lv, "scim_modal_open_change", %{"open" => false})
-      refute html =~ "tuist_scim_"
-    end
-
-    test "revokes a token", %{conn: conn, account: account, organization: org} do
-      {:ok, {token, _plaintext}} = SCIM.create_token(org, %{name: "to-revoke"})
-
-      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
-      assert html =~ "to-revoke"
-
-      html = render_hook(lv, "revoke_scim_token", %{"id" => token.id})
-      refute html =~ "SCIM token revoked."
-      refute html =~ "to-revoke"
-      assert SCIM.list_tokens(org) == []
-    end
-
-    test "does not revoke a token from another organization", %{conn: conn, account: account} do
-      other_org = AccountsFixtures.organization_fixture()
-      {:ok, {other_token, _plaintext}} = SCIM.create_token(other_org, %{name: "other-org-token"})
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
-
-      html = render_hook(lv, "revoke_scim_token", %{"id" => other_token.id})
-      assert html =~ "Token not found."
-      assert [%{id: token_id}] = SCIM.list_tokens(other_org)
-      assert token_id == other_token.id
-    end
-  end
-end
+          "oauth2_to

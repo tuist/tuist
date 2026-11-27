@@ -999,7 +999,7 @@ defmodule Tuist.RunnersTest do
       assert runner_name != pod_name
     end
 
-    test "names a catalog macOS runner after the guest's macOS version, the pool's Xcode version and the shape" do
+    test "names a catalog macOS runner after the guest's macOS version, the pool's Xcode version and the shape, and hands the guest that Xcode" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
       pod_name = "tuist-tuist-runner-pool-macos-ber1-27-0-runner-aea5f25e"
@@ -1015,11 +1015,39 @@ defmodule Tuist.RunnersTest do
         }
       )
 
-      assert {:ok, %{runner_name: runner_name}} =
+      assert {:ok, %{runner_name: runner_name, xcode_version: "27.0"}} =
                Runners.dispatch_for_sa("tuist-runners", pod_name, %{os_version: "26.6"})
 
       assert_receive {:jit_runner_name, ^runner_name}
       assert runner_name =~ ~r/\Atuist-macos-26\.6-xcode-27\.0-6vcpu-14gb-[0-9a-f]{12}\z/
+    end
+
+    test "hands the guest the job's profile Xcode, not the pool's, so a pool serving several Xcodes runs each job on its own" do
+      account = account_fixture()
+
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "pinned-27-1",
+        platform: :macos,
+        xcode_version: "27.1",
+        vcpus: 6,
+        memory_gb: 14
+      })
+
+      candidate =
+        candidate_with_label(account, Profile.prefix() <> "pinned-27-1", platform: "macos", vcpus: 6, memory_gb: 14)
+
+      stub_dispatch_path(account, candidate, self(),
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14},
+        runner_name_prefix: "tuist-macos-xcode-27.2-6vcpu-14gb-",
+        pool_summary: %{
+          dispatch_label: "shape-macos-27-2",
+          runner_labels: ["self-hosted", "macOS", "ARM64"],
+          xcode_version: "27.2"
+        }
+      )
+
+      assert {:ok, %{xcode_version: "27.1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
     test "leaves the macOS version out of the name when the guest reports none" do
@@ -1053,7 +1081,7 @@ defmodule Tuist.RunnersTest do
         }
       )
 
-      assert {:ok, %{runner_name: runner_name}} =
+      assert {:ok, %{runner_name: runner_name, xcode_version: nil}} =
                Runners.dispatch_for_sa("tuist-runners", "pod-1", %{os_version: "26.6"})
 
       assert runner_name =~ ~r/\Apod-1-[0-9a-f]{8}\z/
@@ -2441,95 +2469,4 @@ defmodule Tuist.RunnersTest do
 
       stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
 
-      # GitHub is never consulted for a GitLab job, in either the mint
-      # or the fork check.
-      reject(&GitHubClient.generate_jit_config/3)
-      reject(&GitHubClient.get_workflow_run/1)
-
-      expect(GitLab, :mint_acquisition, fn account_id, job_id ->
-        assert account_id == account.id
-        assert job_id == candidate.workflow_job_id
-
-        {:ok,
-         %{
-           url: "https://gitlab.com",
-           payload: %{"id" => 42, "token" => "job-token"},
-           report_token: "report-token"
-         }}
-      end)
-
-      stub(Claims, :mark_running, fn _job_id, _runner_name, _claimed_at -> :ok end)
-      stub(Jobs, :record_running, fn _job_id, _runner_name -> :ok end)
-
-      expect(Claims, :record_execution, fn _runner_name, job_id, account_id ->
-        assert job_id == candidate.workflow_job_id
-        assert account_id == account.id
-        :matched
-      end)
-
-      assert {:ok, %{credential: credential, cache_signing_grant: nil}} =
-               Runners.dispatch_for_sa("tuist-runners", "pod-1")
-
-      assert credential.kind == :gitlab
-      assert credential.payload == %{"id" => 42, "token" => "job-token"}
-      # The job needs this to report its own log and outcome; without it
-      # the Linux fleet would have no way to report at all.
-      assert credential.report_token == "report-token"
-    end
-
-    test "records the runner-to-job binding at dispatch rather than waiting on a webhook" do
-      %{account: account} = organization_fixture(preload: [:account])
-      candidate = buildkite_candidate(account)
-      image = "ghcr.io/tuist/tuist-runner@sha256:current"
-      test_pid = self()
-
-      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
-        {:ok, pod_with_image("pod-1", image)}
-      end)
-
-      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
-        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
-      end)
-
-      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
-
-      expect(Claims, :attempt, fn _job_id, _account_id, _fleet, _pod, _resources, nil ->
-        {:ok, %{claimed_at: DateTime.utc_now()}}
-      end)
-
-      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", _claimed_at -> :ok end)
-
-      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
-        {:ok, %{dispatch_label: "tuist-macos", runner_labels: ["self-hosted", "macOS", "ARM64"]}}
-      end)
-
-      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
-
-      stub(Buildkite, :mint_acquisition, fn _account_id, _job_id ->
-        {:ok,
-         %{
-           token: "bkjat_opaque",
-           job_uuid: "job-uuid",
-           organization_slug: "acme",
-           report_token: "report-token"
-         }}
-      end)
-
-      stub(Buildkite, :job_trusted?, fn _account_id, _job_id -> true end)
-      stub(Claims, :mark_running, fn _job_id, _runner_name, _claimed_at -> :ok end)
-      stub(Jobs, :record_running, fn _job_id, _runner_name -> :ok end)
-
-      expect(Claims, :record_execution, fn _runner_name, job_id, account_id ->
-        send(test_pid, {:execution_recorded, job_id, account_id})
-        :matched
-      end)
-
-      assert {:ok, _dispatched} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-
-      assert_received {:execution_recorded, job_id, account_id}
-      assert job_id == candidate.workflow_job_id
-      assert account_id == account.id
-    end
-  end
-end
+      # GitHub is never consulted for a GitLab job, in

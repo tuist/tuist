@@ -103,10 +103,6 @@ The MCP credential is separate from Bazel's cache credentials; the agent should 
 
 Tuist's Air plan is free within its tier limits, includes the Bazel cache, and needs no credit card. The live [pricing table](/pricing) lists the current allowances; under the newer billing model, cache downloads are metered and uploads and storage are free. Open-source servers such as bazel-remote, or Tuist's own [Kura](https://github.com/tuist/tuist/tree/main/kura), are free to run yourself, and you pay for the machines, storage, and time to operate them.
 
-### What is the difference between Bazel's disk cache and a remote cache?
-
-The disk cache, enabled with `--disk_cache`, stores action results in a directory on one machine. A remote cache stores them on a server that every developer machine and CI job can reach. Bazel can use both together, so many teams keep a disk cache on laptops and add a remote cache for sharing.
-
 ### Can I use S3 as a Bazel remote cache?
 
 Bazel talks to a cache over HTTP or gRPC, not the S3 API. You can put a server in front of a bucket, such as bazel-remote with its S3 proxy backend, or use a managed cache such as Tuist's, which needs no bucket or server.

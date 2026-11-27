@@ -304,6 +304,9 @@ defmodule Atlas.TuistAcquisitionTest do
 
     assert_received {:landings_query, sql, 1}
     assert sql =~ "greatest(toMonday(inserted_at)"
+    # Made-up campaign links past the busiest channels fold into one group.
+    assert sql =~ "LIMIT 100"
+    assert sql =~ "'(other)'"
     assert funnel.granularity == :week
     assert funnel.totals.landings == 3
   end

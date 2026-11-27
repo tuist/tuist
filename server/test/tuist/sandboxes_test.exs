@@ -225,6 +225,7 @@ defmodule Tuist.SandboxesTest do
         assert args.vcpus == 16
         assert args.memory_mb == 4096
         assert args.workspace_gb == 10
+        refute Map.has_key?(args, :xcode_version)
         {:ok, %{"boot_ms" => 180, "template_tag" => "sha-1"}}
       end)
 

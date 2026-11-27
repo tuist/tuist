@@ -238,7 +238,7 @@ and GPUI renders Lucide. Missing icons stay text-only; platform symbol names
 never cross the bridge. The server preserves its string-valued `suggestions`
 array for older clients and stores the optional icon metadata separately.
 
-The tab catalog is `threads` (index 0, the default), `lounges`, `dms`, then `profile`; its C/JNI symbols are unchanged. Edges label `dms` **DMs**.
+The tab catalog is `threads` (index 0, the default), `lounges`, `dms`, `profile`, then `ops` (index 4); its C/JNI symbols are unchanged. Edges label `dms` **DMs** and `ops` **Ops**, which holds Collections and Releases.
 Rust callers can instantiate `MobileClient` and implement `Host` independently. The lounge operations live in `Lounges`, behind the same `Transport`, with `organizations` for frontends that have no account menu. Presence lives in `Presence`, behind a `Socket` the caller implements. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session. AI subscriptions live in `ai_subscriptions::call` and MCP servers in `mcp_servers::call`, behind the same `Transport`.
 
 ## Native host actions
@@ -313,9 +313,9 @@ when an operation reports an error.
 | Operation | Args | Data |
 | --- | --- | --- |
 | `snapshot` | none | null |
-| `routes` | none | `{routes:["/threads","/threads/new","/threads/new/dictation","/threads/{id}","/threads/{id}/snooze","/lounges","/lounges/{id}","/dms","/dms/{id}","/profile"]}`; the shared addressable screen catalog |
+| `routes` | none | `{routes:["/threads","/threads/new","/threads/new/dictation","/threads/{id}","/threads/{id}/snooze","/lounges","/lounges/{id}","/dms","/dms/{id}","/profile","/ops"]}`; the shared addressable screen catalog |
 | `navigate` | `url`: internal path, `luft://app/…`, or HTTPS `{server}/luft/…`; optional `if_generation` and `if_revision` | null; updates navigation, or queues a signed-out link until sign-in; a mismatched version makes an async completion a no-op |
-| `select_tab` | `tab`: `threads`, `lounges`, `dms` or `profile` | null; each conversation tab keeps its own open conversation across tab changes |
+| `select_tab` | `tab`: `threads`, `lounges`, `dms`, `profile` or `ops` | null; each conversation tab keeps its own open conversation across tab changes |
 | `navigation_back` | none | null; returns to the selected tab's list (Threads from Profile) |
 | `boot` | none | `{stores:[{profile,migrated:[…]},…]}`. Call it first at launch: it migrates every profile's local store and logs each step; a store that fails to open is logged, left out of `stores`, and retried when used |
 | `begin_sign_in` | `server`, optional `provider`: `tuist` (default), `github`, `google`, `apple` | `{url,callback_scheme:"luft"}`; the URL uses the Luft client (`tuist_oauth::LUFT_CLIENT_ID`) and requests no scope; it first reads `/.well-known/luft.json` and fails unless `luft_oauth_client_id` names that fixed client. Authorization uses the Luft server's `/oauth2/authorize`, `/oauth2/github`, `/oauth2/google` or `/oauth2/apple` |

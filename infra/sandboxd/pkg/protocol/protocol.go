@@ -316,10 +316,13 @@ type CreateArgs struct {
 	SandboxID     string `json:"sandbox_id"`
 	Template      string `json:"template"`
 	TemplateTag   string `json:"template_tag,omitempty"`
-	VCPUs         int    `json:"vcpus"`
-	MemoryMB      int    `json:"memory_mb"`
-	WorkspaceGB   int    `json:"workspace_gb"`
-	Hostname      string `json:"hostname"`
+	// XcodeVersion is the Xcode a macOS sandbox asked for, which the host
+	// selects in the guest before handing it over. Empty keeps the image's.
+	XcodeVersion string `json:"xcode_version,omitempty"`
+	VCPUs        int    `json:"vcpus"`
+	MemoryMB     int    `json:"memory_mb"`
+	WorkspaceGB  int    `json:"workspace_gb"`
+	Hostname     string `json:"hostname"`
 	// CPUGuaranteeMilli is the CPU, in millicores, the sandbox is guaranteed
 	// while it runs: its VM's cgroup weight against the node's other VMs.
 	// Zero is DefaultCPUGuaranteeMilli. It holds for the sandbox's life.

@@ -1,4 +1,4 @@
-# Tuist: my CI costs are going up
+# Reduce CI costs: find what drives your CI bill and cut repeated work
 
 Tuist helps you find and skip the wasted work that faster machines would only run faster: investigate build and test work, reuse compatible outputs across CI, developer machines, and agents, and avoid unchanged test-target execution where supported. Start with the matching Tuist cache or test integration and measure avoided work before changing compute. Less work can reduce cost, but faster feedback is not automatically a smaller bill.
 

@@ -236,9 +236,30 @@ func (t *TartRuntime) Claim(ctx context.Context, r *Record) error {
 		}
 	}
 	workspace := time.Since(start)
+	t.selectXcode(ctx, r)
+	xcode := time.Since(start) - workspace
 	_, err := t.control(ctx, r, "status")
-	slog.Info("macOS sandbox claim phases", "sandbox_id", r.SandboxID, "vm", r.VMName(), "workspace_ms", workspace.Milliseconds(), "status_ms", (time.Since(start) - workspace).Milliseconds())
+	slog.Info("macOS sandbox claim phases", "sandbox_id", r.SandboxID, "vm", r.VMName(), "workspace_ms", workspace.Milliseconds(), "xcode_ms", xcode.Milliseconds(), "status_ms", (time.Since(start) - workspace - xcode).Milliseconds())
 	return err
+}
+
+// selectXcode points the guest's `xcode-select` and `/Applications/Xcode.app`
+// at the Xcode the sandbox asked for, as a CI runner does at its claim
+// (infra/runner-image/select-xcode.sh, about 50 ms). The selection lives on
+// the VM's disk, so pauses, snapshots and archives keep it. An image without
+// the script, or without that Xcode, keeps its own selection: the sandbox
+// still works, so a failure is logged rather than failing the create.
+func (t *TartRuntime) selectXcode(ctx context.Context, r *Record) {
+	if r.XcodeVersion == "" {
+		return
+	}
+	out, err := t.client(r).Exec(ctx, r.VMName(), "/bin/sh", "-c",
+		`[ -x /opt/tuist/select-xcode.sh ] || exit 0; exec /opt/tuist/select-xcode.sh select "$1"`, "sh", r.XcodeVersion)
+	if err != nil {
+		slog.Warn("macOS sandbox Xcode not selected", "sandbox_id", r.SandboxID, "xcode_version", r.XcodeVersion, "error", err)
+		return
+	}
+	slog.Info("macOS sandbox Xcode selected", "sandbox_id", r.SandboxID, "xcode_version", r.XcodeVersion, "output", strings.TrimSpace(string(out)))
 }
 
 // addWorkspace mounts a volume with the sandbox's quota at the workspace.

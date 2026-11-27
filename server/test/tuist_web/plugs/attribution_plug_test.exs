@@ -1,12 +1,20 @@
 defmodule TuistWeb.Plugs.AttributionPlugTest do
   use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
 
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Marketing.Attribution.Landing
+  alias Ueberauth.Strategy.Github.OAuth
 
   @browser "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Safari/605.1.15"
+
+  # Each test sends from its own address, so other tests' campaign links do
+  # not spend its attribution budget.
+  setup %{conn: conn} do
+    %{conn: %{conn | remote_ip: {10, 76, 0, rem(System.unique_integer([:positive]), 250)}}}
+  end
 
   defp visit(conn, path, referer, user_agent \\ @browser) do
     conn
@@ -49,7 +57,7 @@ defmodule TuistWeb.Plugs.AttributionPlugTest do
 
     conn
     |> redirected_to(301)
-    |> then(&visit(build_conn(), &1, "https://chatgpt.com/"))
+    |> then(&visit(%{build_conn() | remote_ip: conn.remote_ip}, &1, "https://chatgpt.com/"))
     |> html_response(200)
 
     assert [%{path: "/customers"}] = landings("redirect-test")
@@ -83,6 +91,57 @@ defmodule TuistWeb.Plugs.AttributionPlugTest do
 
     assert redirected_to(conn) ==
              "/users/register?a[b]=1&x=1&x=2&utm_medium=referral&utm_source=news.ycombinator.com"
+  end
+
+  describe "one client sending campaign links in a loop" do
+    @long_campaign String.duplicate("c", 200)
+
+    defp from_address(address), do: %{build_conn() | remote_ip: address}
+
+    defp held_oauth_states(cache) do
+      cache |> Cachex.keys() |> Enum.count(&String.starts_with?(&1, "signup_attribution-oauth_state-"))
+    end
+
+    test "holds a bounded number of OAuth sign-up campaigns on the server" do
+      # The test configuration has no GitHub app to build the redirect from.
+      stub(OAuth, :authorize_url!, fn params ->
+        "https://github.com/login/oauth/authorize?" <> URI.encode_query(params)
+      end)
+
+      before = held_oauth_states(:tuist)
+
+      for i <- 1..1_000 do
+        conn =
+          {10, 77, 0, 1}
+          |> from_address()
+          |> visit("/users/auth/github?utm_source=s#{i}&utm_campaign=#{@long_campaign}", nil)
+
+        assert conn.status == 302
+      end
+
+      assert held_oauth_states(:tuist) - before == 20
+    end
+
+    test "counts a bounded number of landings" do
+      tag = "flood-#{System.unique_integer([:positive])}"
+
+      for i <- 1..1_000 do
+        {10, 77, 0, 2}
+        |> from_address()
+        |> visit("/about?utm_source=#{tag}-#{i}&utm_campaign=#{tag}", nil)
+      end
+
+      assert length(landings(tag)) == 20
+    end
+
+    test "keeps counting other clients after one is limited" do
+      tag = "other-#{System.unique_integer([:positive])}"
+
+      for i <- 1..200, do: {10, 77, 0, 3} |> from_address() |> visit("/about?utm_source=x#{i}&utm_campaign=#{tag}", nil)
+      {10, 77, 0, 4} |> from_address() |> visit("/about?utm_source=real&utm_campaign=#{tag}", nil)
+
+      assert Enum.any?(landings(tag), &(&1.source == "real"))
+    end
   end
 
   test "leaves sign-up pages with a campaign, or reached from within the site, alone", %{conn: conn} do

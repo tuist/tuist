@@ -24,6 +24,8 @@ defmodule Atlas.GTM.SocialPublication do
     field :revision, :integer, default: 1
     field :approved_revision, :integer
     field :approved_at, :utc_datetime
+    # %{media_id => %{"byte_size" => integer, "sha256" => hex}} as approved.
+    field :approved_media, :map
     field :published_ids, {:array, :string}, default: []
     field :published_at, :utc_datetime
     field :last_error, :string

@@ -26,6 +26,16 @@ func TestEnvironmentPointsTheResultsServiceAtAHealthyAgent(t *testing.T) {
 	}
 }
 
+// A macOS guest has both: TUIST_CACHE_VOLUME_URL is not its cache's address.
+func TestEnvironmentPrefersTheMacHostsActionsCache(t *testing.T) {
+	var probed string
+	env := []string{"ACTIONS_RESULTS_URL=" + githubResultsURL + "/", "TUIST_CACHE_VOLUME_URL=http://volumes:8090", "TUIST_ACTIONS_CACHE_URL=http://192.168.64.1:8090"}
+	got := environment(env, func(url string) bool { probed = url; return true })
+	if probed != "http://192.168.64.1:8090"+healthPath || got[0] != "ACTIONS_RESULTS_URL=http://192.168.64.1:8090/" {
+		t.Fatalf("probed %q, environment %v", probed, got)
+	}
+}
+
 func TestEnvironmentLeavesTheRunnersValueOtherwise(t *testing.T) {
 	healthy := func(string) bool { return true }
 	github := "ACTIONS_RESULTS_URL=" + githubResultsURL + "/"

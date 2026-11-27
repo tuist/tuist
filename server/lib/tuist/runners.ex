@@ -122,6 +122,8 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.LearnedWarmFloors
   alias Tuist.Runners.MacosSandboxWarmPools
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Sites
   alias Tuist.Runners.Telemetry
@@ -1461,6 +1463,7 @@ defmodule Tuist.Runners do
              fleet_on_cluster_network: Catalog.fleet_on_cluster_network?(fleet_name),
              fleet_platform: Catalog.fleet_platform(fleet_name),
              fleet_site: Map.get(context, :site),
+             xcode_version: job_xcode_version(candidate, resources, pool),
              # Per-account cache-signing grant — trusted jobs only. nil for an
              # untrusted (fork) job or when minting is unconfigured; the runner
              # then falls back to the MAC default (machine-local), so an
@@ -1490,6 +1493,21 @@ defmodule Tuist.Runners do
         {:error, :unknown_account}
     end
   end
+
+  # The Xcode the guest selects as the job's default before the runner starts
+  # (`infra/runner-image/select-xcode.sh`): the one the job's profile names, so
+  # a pool whose image holds several Xcodes runs each job on its own. It is a
+  # default, not a pin: a workflow that switches Xcode itself is respected. A
+  # job routed to a legacy pool, or whose profile is gone, gets the pool's
+  # Xcode, and a pool on a hand-picked image has none, which keeps the image's.
+  defp job_xcode_version(candidate, %{platform: :macos}, pool) do
+    case Profiles.get_for_dispatch_label(candidate.account_id, Map.get(candidate, :requested_dispatch_label)) do
+      %Profile{platform: :macos, xcode_version: version} when is_binary(version) and version != "" -> version
+      _ -> Map.get(pool, :xcode_version)
+    end
+  end
+
+  defp job_xcode_version(_candidate, _resources, _pool), do: nil
 
   defp runner_grant_site(fleet_name, context) do
     case Catalog.fleet_platform(fleet_name) do
@@ -1890,155 +1908,4 @@ defmodule Tuist.Runners do
     {"tuist-#{macos}-xcode-#{xcode_version}-#{vcpus}vcpu-#{memory_gb}gb", 6}
   end
 
-  defp runner_name_prefix(sa_name, _resources, _pool, _guest), do: {sa_name, 4}
-
-  defp pool_label(%{"metadata" => %{"labels" => labels}}) when is_map(labels) do
-    case Map.get(labels, @pool_label) do
-      v when is_binary(v) and v != "" -> {:ok, v}
-      _ -> {:error, :no_pool_label}
-    end
-  end
-
-  defp pool_label(_), do: {:error, :no_pool_label}
-
-  # Profile-aware dispatch labelling: prefer the customer-facing
-  # label the workflow_job carried in `runs-on:` (e.g.
-  # `tuist-default`), which the webhook stored on the candidate's
-  # CH row. Fall back to the pool's internal `dispatchLabel`
-  # (e.g. `shape-linux-4vcpu-16gb`) only when the candidate's
-  # `requested_dispatch_label` is missing — that path only fires
-  # for legacy rows enqueued before the requested-label column
-  # existed.
-  defp pick_dispatch_label(candidate, pool_dispatch_label) do
-    case Map.get(candidate, :requested_dispatch_label, "") do
-      label when is_binary(label) and label != "" -> label
-      _ -> pool_dispatch_label
-    end
-  end
-
-  # The polling Pod's name. The controller's podtemplate stamps
-  # Pods + SAs with the same name, so the SA name IS the Pod name.
-  defp pod_name_from_sa(sa_name), do: sa_name
-
-  # Compare the polling Pod's runner-container image to the
-  # RunnerPool's `spec.image`. When the chart bumps the digest pin,
-  # idle Running Pods that are still on the old image return
-  # `{:error, :drain}` here, which the web layer translates to HTTP
-  # 410. The Pod's `dispatch-poll.sh` handles 410 by exiting cleanly;
-  # the EXIT trap halts the VM and the runner-pool reconciler reaps
-  # the Pod and creates a replacement on the current image.
-  #
-  # Drains are paced by the controller, which marks only a capped number
-  # of stale Pods `tuist.dev/drain-eligible` at a time so a digest roll
-  # doesn't make the whole fleet pull the new image at once and collapse
-  # the warm pool. See `drain_eligible?/1`.
-  #
-  # Guarded by `K8sClient` lookups that may fail (Pod / RunnerPool
-  # gone, in-cluster client misconfigured). Any lookup failure is
-  # downgraded to `:ok` — refusing dispatch on a transient k8s blip
-  # would stall the whole pool. The drain check is opportunistic
-  # cleanup, not a correctness gate; the reconciler's
-  # Pending-stale path catches the unhappy long-tail.
-  # Returns {:ok, node_name} — the Node the polling Pod is running on, read
-  # from the same Pod object the staleness check already fetches (no extra
-  # API call) — so the caller can score volume affinity for this node.
-  # node_name is nil when the Pod/pool lookup fails or spec.nodeName isn't
-  # set yet; affinity then degrades to "no preference". {:error, :drain}
-  # still short-circuits a stale Pod.
-  defp check_not_stale(namespace, sa_name, fleet_name) do
-    pod_name = pod_name_from_sa(sa_name)
-
-    case K8sClient.get_pod(namespace, pod_name) do
-      {:ok, pod} ->
-        cond do
-          operator_drain?(pod) ->
-            Logger.info("runners: honoring operator drain",
-              pod: pod_name,
-              fleet: fleet_name
-            )
-
-            {:error, :drain}
-
-          committed?(pod) ->
-            # The account label is stamped only after a claim fully commits, and a
-            # committed Pod that received its JIT runs the job in place and never
-            # polls again. So a committed Pod polling HERE means its dispatch
-            # response was lost and the runner never started — it must not be
-            # handed a second, possibly different, account's job. 410 so the
-            # guest halts and the runner-pool reconciler replaces it with a fresh
-            # Pod.
-            Logger.info("runners: reaping committed-but-polling pod",
-              pod: pod_name,
-              fleet: fleet_name
-            )
-
-            {:error, :pod_committed}
-
-          true ->
-            check_image_staleness(namespace, fleet_name, pod)
-        end
-
-      _ ->
-        # Pod unreadable (transient apiserver blip / not in cluster). We can't
-        # check commitment or staleness; degrade to "no preference" and let the
-        # claim path proceed, same as a pool-lookup miss.
-        {:ok, nil}
-    end
-  end
-
-  # A Pod carries the account label once its dispatch has committed.
-  defp committed?(pod), do: is_binary(get_in(pod, ["metadata", "labels", @account_label]))
-
-  defp operator_drain?(pod), do: get_in(pod, ["metadata", "labels", @operator_drain_label]) == "true"
-
-  defp check_image_staleness(namespace, fleet_name, pod) do
-    with {:ok, pool} <- K8sClient.get_runner_pool(namespace, fleet_name),
-         {:ok, pool_image} <- pool_image(pool),
-         {:ok, pod_image} <- pod_image(pod) do
-      cond do
-        pod_image == pool_image ->
-          {:ok, node_name_of(pod)}
-
-        not drain_eligible?(pod) ->
-          # Stale, but the controller hasn't marked this Pod
-          # drain-eligible yet — it paces the rollout by labeling only a
-          # capped number of stale Pods at a time. Keep polling; we'll
-          # 410 once the controller labels it.
-          {:ok, node_name_of(pod)}
-
-        true ->
-          Logger.info("runners: draining stale pod",
-            pod: get_in(pod, ["metadata", "name"]),
-            fleet: fleet_name,
-            pod_image: pod_image,
-            pool_image: pool_image
-          )
-
-          {:error, :drain}
-      end
-    else
-      # Pool lookup / image parse failed but we have the Pod; degrade to "not
-      # stale" with the Pod's node for affinity.
-      _ -> {:ok, node_name_of(pod)}
-    end
-  end
-
-  defp node_name_of(%{"spec" => %{"nodeName" => node_name}}) when is_binary(node_name) and node_name != "", do: node_name
-
-  defp node_name_of(_), do: nil
-
-  defp pool_image(%{"spec" => %{"image" => image}}) when is_binary(image) and image != "", do: {:ok, image}
-  defp pool_image(_), do: :error
-
-  defp pod_image(%{"spec" => %{"containers" => [%{"image" => image} | _]}}) when is_binary(image) and image != "",
-    do: {:ok, image}
-
-  defp pod_image(_), do: :error
-
-  # True when the controller has marked this Pod drain-eligible for the
-  # current roll wave. Missing metadata/labels, or the label absent or
-  # not "true", → false, so an unlabeled stale Pod is never 410'd.
-  defp drain_eligible?(pod) do
-    get_in(pod, ["metadata", "labels", @drain_eligible_label]) == "true"
-  end
-end
+  defp runner_

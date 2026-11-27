@@ -19,13 +19,21 @@ defmodule TuistWeb.Plugs.AttributionPlug do
     * `:oauth_request` (an identity provider sign-in starting): the campaign
       the sign-up page passed along is held on the server for an hour under
       the OAuth `state` sent through the provider, for the callback to pick up.
+
+  Landings and held campaigns share an hourly budget per client address, so
+  made-up campaign links sent in a loop cannot grow ClickHouse or Redis.
   """
   import Phoenix.Controller, only: [redirect: 2]
   import Plug.Conn
 
   alias Tuist.Marketing.Attribution
+  alias TuistWeb.RateLimit
+  alias TuistWeb.RemoteIp
 
   @signup_entry_paths ["/users/register", "/users/log_in"]
+
+  # Landings and held sign-up campaigns one client address can record per hour.
+  @writes_per_client 20
 
   # Previews, crawlers and agents fetching on someone's behalf are not visits.
   @non_human_user_agent ~r/bot|crawl|spider|slurp|preview|headless|fetch|ChatGPT-User|python|curl|wget/i
@@ -45,7 +53,7 @@ defmodule TuistWeb.Plugs.AttributionPlug do
         # Controllers set their own cache-control later, so it is overridden
         # here too.
         register_before_send(conn, fn conn ->
-          if conn.status not in 300..399 and not internal_navigation?(conn) and human?(conn) do
+          if conn.status not in 300..399 and not internal_navigation?(conn) and human?(conn) and within_budget?(conn) do
             Attribution.record_landing(attribution, conn.request_path, referrer_host(conn))
           end
 
@@ -89,7 +97,8 @@ defmodule TuistWeb.Plugs.AttributionPlug do
         register_before_send(conn, fn conn ->
           with [location] <- get_resp_header(conn, "location"),
                %URI{query: query} when is_binary(query) <- URI.parse(location),
-               %{"state" => state} <- URI.decode_query(query) do
+               %{"state" => state} <- URI.decode_query(query),
+               true <- within_budget?(conn) do
             Attribution.hold(["oauth_state", state], attribution)
           end
 
@@ -99,6 +108,17 @@ defmodule TuistWeb.Plugs.AttributionPlug do
   end
 
   def call(conn, _action), do: conn
+
+  # Every counted landing and held sign-up campaign is a write anyone can
+  # cause with a made-up link, so one client address gets a budget a person
+  # following campaign links never reaches. Past it, and when the limiter is
+  # unavailable, the page is served as usual and the visit is just not counted.
+  defp within_budget?(conn) do
+    match?(
+      {:allow, _count},
+      RateLimit.hit("attribution:#{RemoteIp.get(conn)}", limit: @writes_per_client, window: to_timeout(hour: 1))
+    )
+  end
 
   defp referrer_host(conn) do
     conn |> get_req_header("referer") |> List.first() |> Attribution.external_referrer_host(conn.host)

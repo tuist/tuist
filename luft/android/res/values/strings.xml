@@ -15,6 +15,7 @@
     <string name="sign_in">"Sign in"</string>
     <string name="previews">"Previews"</string>
     <string name="profile">"Profile"</string>
+    <string name="ops">"Ops"</string>
     <string name="loading">"Loading…"</string>
     <string name="request_failed">"The request could not be completed. Please try again."</string>
     <string name="sign_in_required">"Sign in to browse previews."</string>
@@ -131,7 +132,7 @@
     <string name="chatgpt_login_ended">"The ChatGPT sign-in expired or was refused. Connect again."</string>
     <string name="releases">"Releases"</string>
     <string name="release_up_list">"Back to releases"</string>
-    <string name="release_up_profile">"Back to Profile"</string>
+    <string name="release_up_ops">"Back to Ops"</string>
     <string name="release_reload">"Reload releases"</string>
     <string name="release_failed">"Releases could not be verified. A requested action may have completed. Nothing will be retried automatically. Reload and review the current state before taking another action."</string>
     <string name="release_empty">"No releases yet."</string>

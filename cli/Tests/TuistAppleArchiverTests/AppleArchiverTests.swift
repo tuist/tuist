@@ -30,6 +30,68 @@ struct AppleArchiverTests {
         #expect(content == "hello world")
     }
 
+    @Test(.inTemporaryDirectory) func decompress_chunks_extractsAnArchiveFedInSmallPieces() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let sourceDir = temporaryDirectory.appending(component: "source")
+        try await fileSystem.makeDirectory(at: sourceDir.appending(component: "nested"))
+        // Incompressible and larger than a pipe's buffer, so the writes block until extraction reads.
+        let payload = Self.randomData(count: 600_000)
+        try payload.write(to: URL(fileURLWithPath: sourceDir.appending(components: "nested", "payload.bin").pathString))
+        try await fileSystem.writeText("hello world", at: sourceDir.appending(component: "file.txt"))
+        let archivePath = temporaryDirectory.appending(component: "archive.aar")
+        try await subject.compress(directory: sourceDir, to: archivePath, excludePatterns: [])
+        let archive = try Data(contentsOf: URL(fileURLWithPath: archivePath.pathString))
+
+        let extractDir = temporaryDirectory.appending(component: "extracted")
+        try await fileSystem.makeDirectory(at: extractDir)
+        let bytes = try await subject.decompress(chunks: Self.chunks(of: archive, size: 7001), to: extractDir)
+
+        #expect(bytes == Int64(archive.count))
+        #expect(try await fileSystem.readTextFile(at: extractDir.appending(component: "file.txt")) == "hello world")
+        let extractedPayloadPath = extractDir.appending(components: "nested", "payload.bin")
+        #expect(try Data(contentsOf: URL(fileURLWithPath: extractedPayloadPath.pathString)) == payload)
+    }
+
+    @Test(.inTemporaryDirectory) func decompress_chunks_rethrowsTheStreamsFailureOverTheTruncatedExtraction() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let sourceDir = temporaryDirectory.appending(component: "source")
+        try await fileSystem.makeDirectory(at: sourceDir)
+        try Self.randomData(count: 300_000).write(to: URL(fileURLWithPath: sourceDir.appending(component: "a.bin").pathString))
+        let archivePath = temporaryDirectory.appending(component: "archive.aar")
+        try await subject.compress(directory: sourceDir, to: archivePath, excludePatterns: [])
+        let archive = try Data(contentsOf: URL(fileURLWithPath: archivePath.pathString))
+        let extractDir = temporaryDirectory.appending(component: "extracted")
+        try await fileSystem.makeDirectory(at: extractDir)
+
+        struct DownloadFailed: Error, Equatable {}
+        let chunks = AsyncThrowingStream<Data, Error> { continuation in
+            continuation.yield(archive.prefix(archive.count / 2))
+            continuation.finish(throwing: DownloadFailed())
+        }
+
+        await #expect(throws: DownloadFailed()) {
+            _ = try await subject.decompress(chunks: chunks, to: extractDir)
+        }
+    }
+
+    private static func randomData(count: Int) -> Data {
+        var generator = SystemRandomNumberGenerator()
+        return Data((0 ..< count).map { _ -> UInt8 in UInt8.random(in: 0 ... 255, using: &generator) })
+    }
+
+    private static func chunks(of data: Data, size: Int) -> AsyncThrowingStream<Data, Error> {
+        AsyncThrowingStream { continuation in
+            var offset = 0
+            while offset < data.count {
+                continuation.yield(data.subdata(in: offset ..< min(offset + size, data.count)))
+                offset += size
+            }
+            continuation.finish()
+        }
+    }
+
     @Test(.inTemporaryDirectory) func compress_and_decompress_preserves_symlinks() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()

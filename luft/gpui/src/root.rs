@@ -11,7 +11,9 @@ use url::Url;
 use crate::accounts::{AccountAction, AccountsPanel};
 use crate::keyboard::KeyboardControl;
 use crate::login::{LogIn, LoginEvent};
-use crate::workspace::{ShowDms, ShowLounges, ShowProfile, ShowThreads, Workspace, WorkspaceEvent};
+use crate::workspace::{
+    ShowDms, ShowLounges, ShowOps, ShowProfile, ShowThreads, Workspace, WorkspaceEvent,
+};
 
 mod titlebar;
 pub use titlebar::{ToggleAccountMenu, init};
@@ -418,6 +420,9 @@ impl Render for Root {
             }))
             .on_action(cx.listener(|this, _: &ShowDms, window, cx| {
                 this.show(Tab::Dms, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ShowOps, window, cx| {
+                this.show(Tab::Ops, window, cx);
             }))
             .on_action(cx.listener(|this, _: &ShowProfile, window, cx| {
                 this.show(Tab::Profile, window, cx);

@@ -27,7 +27,7 @@ defmodule LuftServerWeb.MCPServersController do
 
   def create(conn, params) do
     with {:ok, owner} <- owner(conn, params, :write) do
-      case MCPServers.add(owner, params) do
+      case MCPServers.add(conn.assigns.session.user_sub, owner, params) do
         {:ok, server} -> json(conn, %{server: summary(server)})
         {:error, reason} -> error(conn, reason)
       end
@@ -36,14 +36,21 @@ defmodule LuftServerWeb.MCPServersController do
 
   def delete(conn, %{"id" => id} = params) do
     with {:ok, owner} <- owner(conn, params, :write) do
-      :ok = MCPServers.remove(owner, id)
-      send_resp(conn, 204, "")
+      case MCPServers.remove(conn.assigns.session.user_sub, owner, id) do
+        :ok -> send_resp(conn, 204, "")
+        {:error, reason} -> error(conn, reason)
+      end
     end
   end
 
   def authorize(conn, %{"id" => id} = params) do
     with {:ok, owner} <- owner(conn, params, :write) do
-      case MCPServers.start_authorization(owner, id, redirect_uri()) do
+      case MCPServers.start_authorization(
+             conn.assigns.session.user_sub,
+             owner,
+             id,
+             redirect_uri()
+           ) do
         {:ok, url} -> json(conn, %{url: url})
         {:error, reason} -> error(conn, reason)
       end
@@ -53,6 +60,7 @@ defmodule LuftServerWeb.MCPServersController do
   def complete(conn, params) do
     with {:ok, owner} <- owner(conn, params, :write) do
       case MCPServers.complete_authorization(
+             conn.assigns.session.user_sub,
              [owner],
              Map.take(conn.body_params, ~w(state code iss))
            ) do

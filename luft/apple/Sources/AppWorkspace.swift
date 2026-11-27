@@ -5,7 +5,7 @@ enum WorkspaceRoute: Hashable {
     case thread(String)
     /// A lounge, or a DM in the DMs stack.
     case lounge(String)
-    /// Lounges, DMs or Profile, picked in the iPhone's sidebar.
+    /// Lounges, DMs, Ops or Profile, picked in the iPhone's sidebar.
     case list(AppNavigation.Tab)
 }
 
@@ -13,6 +13,8 @@ struct AppWorkspace: View {
     @State private var client: AppClient
     @State private var updater: PreviewUpdater
     @State private var addingProfile = false
+    /// The organization whose settings are open.
+    @State private var organizationSettings: OrganizationHandle?
     /// The selected tab, shown as soon as the person picks it. The core's
     /// `navigation.tab` stays the source of truth; waiting for its answer
     /// would make the tab view render the old tab for a frame.
@@ -64,13 +66,19 @@ struct AppWorkspace: View {
                     // follow Mail and Messages: sidebar, list, then the selected conversation, so the
                     // list stays in view with its selection while a conversation is open.
                     Group {
-                        if tab == .profile {
+                        if tab == .profile || tab == .ops {
                             NavigationSplitView {
                                 sidebar
                             } detail: {
                                 NavigationStack {
-                                    ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
+                                    if tab == .ops {
+                                        OpsView(client: client)
+                                    } else {
+                                        ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
+                                    }
                                 }
+                                // Each its own stack: Collections pushed in Ops doesn't follow to Profile.
+                                .id(tab)
                             }
                         } else {
                             NavigationSplitView {
@@ -196,7 +204,13 @@ struct AppWorkspace: View {
             .frame(minWidth: 480, minHeight: 640)
             #endif
         }
-        .onChange(of: client.view.generation) { _, _ in addingProfile = false }
+        .sheet(item: $organizationSettings) { organization in
+            OrganizationSettingsView(client: client, handle: organization.id)
+        }
+        .onChange(of: client.view.generation) { _, _ in
+            addingProfile = false
+            organizationSettings = nil
+        }
         .onChange(of: client.view.navigation.revision) { _, _ in addingProfile = false }
         .alert("Something went wrong", isPresented: Binding(
             get: { client.error != nil }, set: { if !$0 { client.error = nil } }
@@ -234,6 +248,7 @@ struct AppWorkspace: View {
                 Label("Threads", systemImage: "bubble.left.and.bubble.right").tag(AppNavigation.Tab.threads)
                 Label("Lounges", systemImage: "number").tag(AppNavigation.Tab.lounges)
                 Label("DMs", systemImage: "bubble.left.and.text.bubble.right").tag(AppNavigation.Tab.dms)
+                Label("Ops", systemImage: "wrench.and.screwdriver").tag(AppNavigation.Tab.ops)
                 Label("Profile", systemImage: "person.crop.circle").tag(AppNavigation.Tab.profile)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 280)
@@ -260,7 +275,7 @@ struct AppWorkspace: View {
                     client: client, tab: tab.rawValue,
                     inbox: inboxes.lounges(client.view.generation), selection: selection
                 )
-            case .profile: EmptyView()
+            case .profile, .ops: EmptyView()
             }
         }
 
@@ -289,7 +304,7 @@ struct AppWorkspace: View {
                     // Destinations stay mounted once visited, like tabs, so going back to one keeps its
                     // list and scroll instead of loading it again.
                     ZStack {
-                        ForEach([AppNavigation.Tab.threads, .lounges, .dms, .profile], id: \.self) { tab in
+                        ForEach([AppNavigation.Tab.threads, .lounges, .dms, .ops, .profile], id: \.self) { tab in
                             if visitedTabs.contains(tab) {
                                 let current = tab == client.view.navigation.tab
                                 destinationStack(tab)
@@ -358,8 +373,8 @@ struct AppWorkspace: View {
                 NavigationStack { threadsRoot.toolbar { sidebarButton } }
             case .lounges, .dms:
                 loungesStack(tab)
-            case .profile:
-                NavigationStack { destination(.list(.profile)).toolbar { sidebarButton } }
+            case .profile, .ops:
+                NavigationStack { destination(.list(tab)).toolbar { sidebarButton } }
             }
         }
 
@@ -387,7 +402,7 @@ struct AppWorkspace: View {
             return switch navigation.tab {
             case .lounges: navigation.lounge_id == nil
             case .dms: navigation.dm_id == nil
-            case .threads, .profile: true
+            case .threads, .profile, .ops: true
             }
         }
 
@@ -433,6 +448,7 @@ struct AppWorkspace: View {
             #if os(iOS)
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { profilesMenu } }
             #endif
+        case .list(.ops): OpsView(client: client)
         case let .list(tab): LoungesView(client: client, tab: tab.rawValue, inbox: inboxes.lounges(client.view.generation))
         }
     }
@@ -465,7 +481,7 @@ struct AppWorkspace: View {
         case .threads: navigation.thread_id
         case .lounges: navigation.lounge_id
         case .dms: navigation.dm_id
-        case .profile: nil
+        case .profile, .ops: nil
         }
     }
 
@@ -492,6 +508,14 @@ struct AppWorkspace: View {
                 .disabled(account.rejected)
             }
             Divider()
+            if let organization = selectedOrganization {
+                #if os(macOS)
+                    Button("Organization Settings…", systemImage: "building.2") { organizationSettings = OrganizationHandle(id: organization.handle) }
+                #else
+                    Button("Organization settings", systemImage: "building.2") { organizationSettings = OrganizationHandle(id: organization.handle) }
+                #endif
+                Divider()
+            }
             #if os(macOS)
                 Button("Add Profile…", systemImage: "person.badge.plus") { addingProfile = true }
                 Button("View Profile") { Task { await client.perform("select_tab", ["tab": "profile"]) } }
@@ -507,6 +531,57 @@ struct AppWorkspace: View {
             Label("Accounts", systemImage: "person.2.circle")
         }
         .help("Switch account")
+    }
+
+    /// The organization the active profile works in, when it isn't the personal account.
+    private var selectedOrganization: AppAccount? {
+        guard let active = client.view.active, !active.rejected else { return nil }
+        return client.view.accounts.first { $0.profile_id == active.id && $0.selected && !$0.personal }
+    }
+}
+
+/// A sheet a settings section opens. The settings form presents it rather than the section:
+/// a sheet attached inside the form's lazy rows closes when the rows reload, as they do while
+/// the sections load on the first visit.
+struct SettingsSheet: Identifiable {
+    let id = UUID()
+    let content: AnyView
+
+    init(@ViewBuilder _ content: () -> some View) {
+        self.content = AnyView(content())
+    }
+}
+
+/// The selected organization's settings, apart from the person's own in Profile.
+private struct OrganizationSettingsView: View {
+    let client: AppClient
+    let handle: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var sheet: SettingsSheet?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                MCPServersSection(client: client, accountHandle: handle, sheet: $sheet)
+                    .listRowBackground(Noora.backgroundTertiary)
+            }
+            #if os(macOS)
+            .formStyle(.grouped)
+            #endif
+            .scrollContentBackground(.hidden)
+            .background(Noora.backgroundPrimary)
+            .sheet(item: $sheet) { $0.content }
+            .navigationTitle("Organization Settings")
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                }
+        }
+        #if os(macOS)
+        .frame(minWidth: 480, minHeight: 360)
+        #endif
     }
 }
 
@@ -535,6 +610,10 @@ struct AppWorkspace: View {
     }
 }
 
+private struct OrganizationHandle: Identifiable {
+    let id: String
+}
+
 private struct PresenceKey: Equatable {
     let generation: UInt64
     let active: Bool
@@ -548,6 +627,7 @@ private struct ProfileView: View {
     let updater: PreviewUpdater
     @Binding var addingProfile: Bool
     @State private var confirmingDelete = false
+    @State private var sheet: SettingsSheet?
 
     var body: some View {
         Form {
@@ -560,6 +640,7 @@ private struct ProfileView: View {
         // Grouped rows on the theme's surfaces, like the Threads list.
         .scrollContentBackground(.hidden)
         .background(Noora.backgroundPrimary)
+        .sheet(item: $sheet) { $0.content }
         .navigationTitle("Profile")
         .alert("Delete Account", isPresented: $confirmingDelete) {
             Button("Cancel", role: .cancel) {}
@@ -585,20 +666,6 @@ private struct ProfileView: View {
             }
             .listRowBackground(Color.clear)
 
-            Section {
-                NavigationLink {
-                    CollectionsView(client: client)
-                        .preference(key: RecordPresentedKey.self, value: true)
-                } label: {
-                    Label("Collections", systemImage: "rectangle.stack")
-                }
-                NavigationLink {
-                    ReleasesView(client: client)
-                } label: {
-                    Label("Releases", systemImage: "shippingbox")
-                }
-            }
-
             if account.rejected {
                 // The server refused this profile's session; signing in again replaces it.
                 Section {
@@ -623,14 +690,10 @@ private struct ProfileView: View {
                 )
             }
 
+            // The organization's servers are in Organization Settings, in the account menu.
             if !account.rejected {
-                AISubscriptionsSection(client: client)
-                MCPServersSection(client: client, accountHandle: nil)
-                if let organization = client.view.accounts.first(where: {
-                    $0.profile_id == account.id && $0.selected && !$0.personal
-                }) {
-                    MCPServersSection(client: client, accountHandle: organization.handle)
-                }
+                AISubscriptionsSection(client: client, sheet: $sheet)
+                MCPServersSection(client: client, accountHandle: nil, sheet: $sheet)
             }
 
             // Builds without a push entitlement can't receive notifications, so they don't offer them.
@@ -682,6 +745,36 @@ private struct ProfileView: View {
                     .frame(maxWidth: .infinity)
             }
         #endif
+    }
+}
+
+/// Collections and Releases: what the person operates, apart from their Profile.
+private struct OpsView: View {
+    let client: AppClient
+
+    var body: some View {
+        Form {
+            Section {
+                NavigationLink {
+                    CollectionsView(client: client)
+                        .preference(key: RecordPresentedKey.self, value: true)
+                } label: {
+                    Label("Collections", systemImage: "rectangle.stack")
+                }
+                NavigationLink {
+                    ReleasesView(client: client)
+                } label: {
+                    Label("Releases", systemImage: "shippingbox")
+                }
+            }
+            .listRowBackground(Noora.backgroundTertiary)
+        }
+        #if os(macOS)
+        .formStyle(.grouped)
+        #endif
+        .scrollContentBackground(.hidden)
+        .background(Noora.backgroundPrimary)
+        .navigationTitle("Ops")
     }
 }
 

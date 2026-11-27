@@ -397,7 +397,8 @@ fn membership_refresh_preserves_navigation_unless_selected_organization_changes(
         "select_organization",
         json!({"id":id,"name":"team"}),
     );
-    assert_eq!(selected["view"]["navigation"]["path"], "/threads");
+    // Profile, where the account menu is, stays selected.
+    assert_eq!(selected["view"]["navigation"]["path"], "/profile");
     call(&mut c, &mut h, "navigate", json!({"url":path}));
     h.responses.push_back((200, json!({"organizations":[]})));
     let removed = call(&mut c, &mut h, "organizations", json!({}));
@@ -1328,6 +1329,29 @@ fn url_navigation_survives_login_preserves_tab_stacks_and_resets_between_profile
         call(&mut c, &mut h, "switch_profile", json!({"id":first}))["view"]["navigation"]["path"],
         "/threads"
     );
+    // Switching from Profile, where the account menu is, stays on Profile.
+    let second = call(&mut c, &mut h, "snapshot", json!({}))["view"]["profiles"][1]["id"].clone();
+    call(&mut c, &mut h, "select_tab", json!({"tab":"profile"}));
+    let nav =
+        call(&mut c, &mut h, "switch_profile", json!({"id":second}))["view"]["navigation"].clone();
+    assert_eq!(
+        (nav["tab"].as_str(), nav["path"].as_str()),
+        (Some("profile"), Some("/profile"))
+    );
+    // Another account's open lounge closes, but Lounges stays selected.
+    call(
+        &mut c,
+        &mut h,
+        "navigate",
+        json!({"url":"/lounges/12345678-1234-5678-9abc-123456789abc"}),
+    );
+    let nav =
+        call(&mut c, &mut h, "switch_profile", json!({"id":first}))["view"]["navigation"].clone();
+    assert_eq!(
+        (nav["tab"].as_str(), nav["path"].as_str()),
+        (Some("lounges"), Some("/lounges"))
+    );
+    assert!(nav["lounge_id"].is_null());
 }
 
 #[test]
@@ -1455,6 +1479,7 @@ fn luft_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
     let server = Url::parse("https://one.test/base/").unwrap();
     for (path, destination) in [
         ("/profile", Destination::Profile),
+        ("/ops", Destination::Ops),
         ("/threads", Destination::THREADS),
         ("/threads/new", Destination::NewThread { dictate: false }),
         (

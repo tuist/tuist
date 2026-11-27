@@ -21,16 +21,25 @@ struct MCPServer: Identifiable, Equatable {
 struct MCPServersSection: View {
     let client: AppClient
     let accountHandle: String?
+    @Binding var sheet: SettingsSheet?
     @State private var servers: [MCPServer]?
     @State private var unavailable = false
     @State private var busy: String?
-    @State private var adding = false
 
     var body: some View {
         Section {
             if let servers {
                 ForEach(servers) { row($0) }
-                Button("Add Server") { adding = true }
+                Button("Add Server") {
+                    sheet = SettingsSheet {
+                        AddMCPServerSheet(client: client, accountHandle: accountHandle) { server in
+                            Task {
+                                await reload()
+                                await authorize(server)
+                            }
+                        }
+                    }
+                }
             } else if unavailable {
                 Text("MCP servers are not available for this account.")
                     .foregroundStyle(.secondary)
@@ -51,14 +60,6 @@ struct MCPServersSection: View {
             }
         }
         .task(id: accountHandle) { await reload() }
-        .sheet(isPresented: $adding) {
-            AddMCPServerSheet(client: client, accountHandle: accountHandle) { server in
-                Task {
-                    await reload()
-                    await authorize(server)
-                }
-            }
-        }
     }
 
     private var arguments: [String: Any] {

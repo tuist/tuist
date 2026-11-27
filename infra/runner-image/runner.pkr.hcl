@@ -56,6 +56,7 @@ packer {
 #   /Users/runner/work/<owner>/<repo>           <- workspace, set via JIT work_folder
 #   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
+#   /opt/tuist/select-xcode.sh                  <- selects the claim's Xcode, warms Xcodes while idle
 #   /opt/tuist/tcc-approvals.sh                 <- seeds/checks runner's standing TCC approvals
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/logd-watchdog.sh                 <- restarts a wedged logd (root LaunchDaemon)
@@ -352,7 +353,13 @@ build {
       "echo 'admin' | sudo -S install -m 0644 /tmp/tuist-cacerts.pem /etc/ssl/cert.pem",
       "rm /tmp/tuist-cacerts.pem",
       "/opt/homebrew/bin/brew update",
-      "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 /opt/homebrew/bin/brew upgrade ca-certificates",
+      # Upgrade every formula, not only ca-certificates: Layer 1 rebuilds only
+      # for a new Xcode, so its formulae go stale, and a job's `brew install`
+      # then has to upgrade the outdated dependencies its bottles link against
+      # first (about 3 s of a 9 s `brew install sysbench fio`). Runs before the
+      # filter below, so the filtered store is the upgraded ca-certificates.
+      "HOMEBREW_NO_ASK=1 /opt/homebrew/bin/brew upgrade --formula",
+      "/opt/homebrew/bin/brew cleanup --prune=all",
       "bash /tmp/tuist-pem-store.sh filter /opt/homebrew/etc/ca-certificates/cert.pem /tmp/tuist-homebrew-roots.pem",
       "sudo install -m 0644 /tmp/tuist-homebrew-roots.pem /opt/homebrew/etc/ca-certificates/cert.pem",
       "bash /tmp/tuist-pem-store.sh check /etc/ssl/cert.pem /opt/homebrew/etc/ca-certificates/cert.pem",
@@ -645,6 +652,11 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/select-xcode.sh"
+    destination = "/tmp/select-xcode.sh"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/metrics-poll.sh"
     destination = "/tmp/metrics-poll.sh"
   }
@@ -711,6 +723,7 @@ build {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/select-xcode.sh /opt/tuist/select-xcode.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/logd-watchdog.sh /opt/tuist/logd-watchdog.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
@@ -734,6 +747,26 @@ build {
       "echo 'admin' | sudo -S mkdir -p /opt/tuist/bitrise-hooks",
       "echo 'admin' | sudo -S install -m 0755 /tmp/bitrise-hooks/build-start /opt/tuist/bitrise-hooks/build-start",
       "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/logd-watchdog.sh /tmp/tuist-runner-cache /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/dev.tuist.logd-watchdog.plist /tmp/buildkite-hooks /tmp/bitrise-hooks"
+    ]
+  }
+
+  # The node shim (infra/linux-runner-image/cmd/tuist-node-shim) takes each
+  # bundled node's name, with the real one beside it as node.real. While the
+  # host's tart-kubelet answers on TUIST_ACTIONS_CACHE_URL, it points a
+  # JavaScript action's Actions cache at the host instead of GitHub's. A
+  # runner release without node externals fails the bake: it needs the shim.
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-node-shim"
+    destination = "/tmp/tuist-node-shim"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /Users/runner/actions-runner",
+      "ls -d externals/node*/bin/node >/dev/null",
+      "for node in externals/node*/bin/node; do echo 'admin' | sudo -S -u runner mv \"$node\" \"$node.real\" && echo 'admin' | sudo -S install -m 0755 -o runner -g staff /tmp/tuist-node-shim \"$node\"; done",
+      "rm -f /tmp/tuist-node-shim"
     ]
   }
 
@@ -913,148 +946,3 @@ build {
       "rm -f /tmp/dev.tuist.runner.plist",
       "sudo mkdir -p /var/log/tuist-runner",
       "sudo chown runner:staff /var/log/tuist-runner"
-    ]
-  }
-
-  # The Tuist CLI, installed with mise (which verifies the release's
-  # checksum) into a scratch data directory and moved to
-  # /opt/tuist/cli/<version>. It stays out of runner's mise data directory
-  # because workflows mount cache volumes over ~/.local/share/mise, and
-  # tuist/cache-volume requires an absent or empty directory there (see the
-  # cleanup provisioner at the end). /opt/tuist/cli/bin/tuist (tuist-cli.sh)
-  # runs the version a repository pins through mise, installing it on first
-  # use, and this one otherwise. That directory is not on a CI job's PATH, so
-  # workflows still install the Tuist they pin; sandbox commands put it after
-  # PATH (server/lib/tuist/sandboxes/commands.ex).
-  provisioner "file" {
-    source      = "${path.root}/tuist-cli.sh"
-    destination = "/tmp/tuist-cli.sh"
-  }
-
-  provisioner "shell" {
-    inline = [
-      "set -euo pipefail",
-      "sudo rm -rf /tmp/tuist-cli-mise",
-      "sudo -u runner -H /bin/zsh -lc 'MISE_DATA_DIR=/tmp/tuist-cli-mise MISE_CACHE_DIR=/tmp/tuist-cli-mise/cache mise install tuist@${var.tuist_version}'",
-      "echo 'admin' | sudo -S mkdir -p /opt/tuist/cli/bin",
-      "sudo rm -rf /opt/tuist/cli/${var.tuist_version}",
-      "sudo mv /tmp/tuist-cli-mise/installs/tuist/${var.tuist_version} /opt/tuist/cli/${var.tuist_version}",
-      "sudo rm -rf /tmp/tuist-cli-mise",
-      "sudo chown -R root:wheel /opt/tuist/cli/${var.tuist_version}",
-      "sudo ln -sfn ${var.tuist_version} /opt/tuist/cli/current",
-      "sudo install -m 0755 -o root -g wheel /tmp/tuist-cli.sh /opt/tuist/cli/bin/tuist",
-      "rm -f /tmp/tuist-cli.sh",
-      "[ \"$(sudo -u runner -H /bin/sh -c 'cd /tmp && PATH=$HOME/.local/share/mise/shims:$PATH:/opt/tuist/cli/bin tuist version' | tail -1)\" = '${var.tuist_version}' ] || { echo 'sanity check: the preinstalled Tuist does not run without a pin' >&2; exit 1; }"
-    ]
-  }
-
-  # The guide for coding agents, generated from what the image now holds, and
-  # the instruction files in runner's home that point Claude Code, Codex, Amp
-  # and AGENTS.md readers at it. /Users/runner/work is a volume mounted at boot,
-  # so nothing can be left there for them.
-  provisioner "file" {
-    source      = "${path.root}/agent-guide.sh"
-    destination = "/tmp/agent-guide.sh"
-  }
-
-  provisioner "shell" {
-    inline = [
-      "set -euo pipefail",
-      "sudo install -m 0755 -o root -g wheel /tmp/agent-guide.sh /opt/tuist/agent-guide.sh",
-      "rm -f /tmp/agent-guide.sh",
-      "sudo -u runner -H /bin/zsh -lc '/opt/tuist/agent-guide.sh write /tmp/agent-guide.md'",
-      "sudo install -m 0644 -o root -g wheel /tmp/agent-guide.md /opt/tuist/agent-guide.md",
-      # runner wrote it, and /tmp is sticky, so admin cannot remove it unprivileged.
-      "sudo rm -f /tmp/agent-guide.md",
-      "sudo -u runner -H /opt/tuist/agent-guide.sh link /Users/runner",
-      "grep -q '^- Xcode ' /opt/tuist/agent-guide.md || { echo 'agent guide lists no Xcode' >&2; exit 1; }",
-      "grep -q 'Tuist ${var.tuist_version} is installed' /opt/tuist/agent-guide.md || { echo 'agent guide names the wrong Tuist' >&2; exit 1; }",
-      "cat /opt/tuist/agent-guide.md"
-    ]
-  }
-
-  # Sanity check: tools customers expect on a GitHub-parity macOS
-  # runner have to be reachable from the agent's runtime
-  # environment. The agent wraps its entrypoint in `zsh -lc`, so
-  # the ~/.zprofile copied into the runner's home above is sourced
-  # (Homebrew shellenv, rbenv init, PATH additions for the
-  # macos-tahoe-xcode base's pre-installed tools) — which is why
-  # these run with `-H` and not against `admin`'s copy of the same
-  # file. A future base-image bump that moves Homebrew's prefix
-  # or drops a formula would silently make tools unreachable from
-  # step shells; resolve each tool against the same login-shell
-  # environment so image-build CI fails loudly instead of customer
-  # workflows. xcresulttool isn't on PATH; xcrun resolves it, so the
-  # explicit `xcrun xcresulttool version` below doubles as proof
-  # that the base's Xcode install + `xcode-select -s` propagated.
-  # `xcrun metal --version` proves the base's Metal Toolchain is
-  # visible to `runner` and not only to the user that installed it.
-  #
-  # Tuist isn't in the list: it is preinstalled for sandboxes outside a
-  # CI job's PATH (see the provisioner above), and workflows install the
-  # version they pin.
-  provisioner "shell" {
-    inline = [
-      "set -euo pipefail",
-      "sudo -u runner -H /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
-      "[ \"$(sudo -u runner -H /bin/zsh -lc 'go env GOVERSION')\" = 'go${var.go_version}' ] || { echo 'sanity check: the go on runner PATH is not the pinned Go' >&2; exit 1; }",
-      "sudo -u runner -H /bin/zsh -lc 'for j in \"$JAVA_HOME/bin/java\" java; do $j -version 2>&1 | grep -q \"version .21\\\\.\" || exit 1; done' || { echo 'sanity check: JAVA_HOME or java on runner PATH is not JDK 21' >&2; exit 1; }",
-      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'",
-      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version'"
-    ]
-  }
-
-  # Sanity check: `brew` being on PATH says nothing about whether a
-  # workflow step can install with it. The check above passed for
-  # months while every `brew install` on this image failed on prefix
-  # ownership, so assert the operation rather than the binary.
-  # `hello` is Homebrew's own smoke-test formula: no dependencies,
-  # installs in seconds, and uninstalling leaves the image clean.
-  #
-  # HOMEBREW_NO_AUTO_UPDATE keeps the check off the network's
-  # critical path — it would otherwise re-fetch every tap and make
-  # image builds fail on transient GitHub blips. The chown is
-  # recursive, so tap writability moves with the prefix; what's
-  # actually at risk of regressing, and what this exercises, is
-  # writing into Cellar and the lock/var dirs. `brew` also writes
-  # its download and bootsnap caches under `$HOME`, which is the
-  # other half of why these run with `-H`.
-  provisioner "shell" {
-    inline = [
-      "set -euo pipefail",
-      "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
-      "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
-    ]
-  }
-
-  # Workflows mount tuist/cache-volume over ~/.local/share/mise, which requires
-  # the path to be absent or an empty directory. Build steps that run mise as
-  # runner (the Tuist wrapper's pin check, for one) leave its bookkeeping
-  # there, so remove the directory and assert it is gone.
-  provisioner "shell" {
-    inline = [
-      "set -euo pipefail",
-      "sudo rm -rf /Users/runner/.local/share/mise",
-      "[ ! -e /Users/runner/.local/share/mise ] || { echo 'sanity check: runner mise data directory must be absent for cache volumes' >&2; exit 1; }"
-    ]
-  }
-
-  # Disk budget. Every job VM is a fresh clone of this image, so the
-  # space free here is the space a job starts with. Tuist commits to at
-  # least 45 GiB of it, and the build fails below 100 GiB so every job
-  # keeps that much room to write before the disk fills (a single job has
-  # written 66 GiB). Avail, not Size - Used: the System, Preboot, VM and
-  # Recovery volumes share the APFS container with the Data volume the
-  # job writes to. Runs last, after everything above has written to the
-  # disk.
-  provisioner "shell" {
-    inline = [
-      "set -euo pipefail",
-      "df -h -t apfs",
-      "avail_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 { print $4 }')",
-      "avail_gib=$((avail_kib / 1048576))",
-      "echo \"disk budget: $${avail_gib} GiB available to a job, floor 100 GiB\"",
-      "[ \"$${avail_gib}\" -ge 100 ] || { echo \"disk budget: only $${avail_gib} GiB available, below the 100 GiB floor; shrink the image or raise disk_size_gb\" >&2; exit 1; }"
-    ]
-  }
-}

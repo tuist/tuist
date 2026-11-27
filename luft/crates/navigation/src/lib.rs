@@ -62,8 +62,8 @@ impl Navigation {
         let _ = self.luft.select(tab.id());
     }
 
+    /// Another account: keeps the selected tab, like the core, but closes its conversations.
     pub fn reset(&mut self) {
-        self.tab = Tab::Threads;
         self.preview = None;
         self.error = None;
         self.pending = None;

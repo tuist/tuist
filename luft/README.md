@@ -273,6 +273,7 @@ Luft has one typed route catalog in `crates/core/src/navigation.rs`, shared by i
 | `/threads/new/dictation` | Start conversation with dictation started. Internal path only: the custom-scheme and web forms are rejected, so no other app or page can open the microphone |
 | `/threads/{id}` | Conversation with a UUID identifier; Back returns to Threads |
 | `/profile` | Profile |
+| `/ops` | Ops: Collections and Releases |
 
 Three representations resolve to the same destination:
 
@@ -280,7 +281,7 @@ Three representations resolve to the same destination:
 - `luft://app/threads/{id}`: an OS deep link scoped to `https://luft.work`. For a self-hosted Luft server, append `?server=<percent-encoded HTTPS server URL>`, including its base path.
 - `https://<server>/<optional-base-path>/luft/threads/{id}`: the reserved web URL shape. There is no Luft web page or verified Universal Link/App Link domain yet; passing this URL to the app works, but clicking it in a browser does not yet launch Luft.
 
-URLs received while signed out wait in memory for sign-in, then are checked against the signed-in server. The last valid pending link wins. Invalid, ambiguous and wrong-server links leave navigation unchanged. Links never sign in, change servers/accounts, create conversations, start dictation or send messages; `/threads/new` only opens the Start conversation form. Thread access remains server-authorized for the selected account. Switching profiles/organizations clears navigation; navigation is not persisted with credentials. Tab switches preserve the Threads stack, while `/threads` explicitly returns to its root. Reopening a conversation replaces its stack rather than adding duplicate screens.
+URLs received while signed out wait in memory for sign-in, then are checked against the signed-in server. The last valid pending link wins. Invalid, ambiguous and wrong-server links leave navigation unchanged. Links never sign in, change servers/accounts, create conversations, start dictation or send messages; `/threads/new` only opens the Start conversation form. Thread access remains server-authorized for the selected account. Switching profiles/organizations keeps the selected tab but closes its conversations and Start conversation; navigation is not persisted with credentials. Tab switches preserve the Threads stack, while `/threads` explicitly returns to its root. Reopening a conversation replaces its stack rather than adding duplicate screens.
 
 ### Launch directly into a destination
 

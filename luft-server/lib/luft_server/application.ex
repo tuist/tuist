@@ -14,7 +14,6 @@ defmodule LuftServer.Application do
     children =
       [
         LuftServer.Repo,
-        {GRPC.Client.Supervisor, []},
         {DNSCluster, query: Application.get_env(:luft_server, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: LuftServer.PubSub},
         LuftServer.Lounges.Presence,

@@ -1886,6 +1886,33 @@ func TestRenderVMEgressFirewallScript_GuardDropsHostBeforeCarveOuts(t *testing.T
 	}
 }
 
+// A host that serves the Actions cache passes its guests to its own port 8090
+// ahead of the drop to the host, and tart-kubelet gets the store. A host that
+// does not renders what it rendered before, so it does not drift.
+func TestRenderActionsCache_PassesGuestsToTheHostsListener(t *testing.T) {
+	cfg := Config{NodeName: "n1", SSHUser: "m1", RunnerCacheVolumeGiB: 400, CustomCacheURL: "https://tuist.dev/api/internal/runners/cache-volumes", VMCacheGatewayCIDRs: []string{"10.20.0.11/32"}}
+	off, err := renderVMEgressFirewallScript(cfg)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.Contains(off, "port 8090") || strings.Contains(renderLaunchdPlist(cfg), "--actions-cache-store") {
+		t.Fatal("a host without an Actions cache store renders the Actions cache")
+	}
+	cfg.ActionsCacheStoreURL = "https://s3-larch.tuist.dev/actions-cache/"
+	script, err := renderVMEgressFirewallScript(cfg)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	pass := strings.Index(anchor, "pass in quick proto tcp from <vm_sources> to <vm_sources> port 8090 keep state")
+	if pass < 0 || pass > strings.Index(anchor, "block drop in quick from <vm_sources> to self") {
+		t.Fatalf("guests must pass to the host's port 8090 before the drop to the host\n%s", anchor)
+	}
+	if !strings.Contains(renderLaunchdPlist(cfg), "<string>--actions-cache-store=https://s3-larch.tuist.dev/actions-cache/</string>") {
+		t.Fatal("tart-kubelet does not get the Actions cache store")
+	}
+}
+
 // A rack host pulls its golden bases through the rack's image caches, in the
 // order the fleet lists them. A host with none renders the plist it rendered
 // before mirrors existed, so the rented fleets do not drift.

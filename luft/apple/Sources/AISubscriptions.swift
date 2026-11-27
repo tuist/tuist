@@ -25,7 +25,7 @@ struct AISubscription: Identifiable, Equatable {
 }
 
 /// A pending ChatGPT device sign-in from `start_chatgpt_login`.
-private struct ChatGPTLogin: Identifiable {
+private struct ChatGPTLogin {
     let id: String
     let userCode: String
     let verificationURL: URL
@@ -37,11 +37,10 @@ private struct ChatGPTLogin: Identifiable {
 /// another device or on Tuist's settings page shows here too.
 struct AISubscriptionsSection: View {
     let client: AppClient
+    @Binding var sheet: SettingsSheet?
     @State private var subscriptions: [AISubscription]?
     @State private var unavailable = false
     @State private var busy: String?
-    @State private var connectingClaude = false
-    @State private var chatGPTLogin: ChatGPTLogin?
 
     var body: some View {
         Section {
@@ -59,12 +58,6 @@ struct AISubscriptionsSection: View {
             Text("Threads run on your ChatGPT subscription. Claude subscriptions can be saved, but Claude doesn't allow them to run Luft threads yet.")
         }
         .task { await client.live("ai_subscriptions") { await reload() } }
-        .sheet(isPresented: $connectingClaude) {
-            ClaudeTokenSheet(client: client) { subscriptions = $0 }
-        }
-        .sheet(item: $chatGPTLogin) { login in
-            ChatGPTLoginSheet(client: client, login: login) { Task { await reload() } }
-        }
     }
 
     private func row(_ subscription: AISubscription) -> some View {
@@ -100,7 +93,7 @@ struct AISubscriptionsSection: View {
 
     private func connect(_ subscription: AISubscription) async {
         if subscription.provider == "claude" {
-            connectingClaude = true
+            sheet = SettingsSheet { ClaudeTokenSheet(client: client) { subscriptions = $0 } }
             return
         }
         busy = subscription.provider
@@ -111,7 +104,8 @@ struct AISubscriptionsSection: View {
                   let code = data["user_code"] as? String,
                   let url = URL(string: data["verification_url"] as? String ?? "")
             else { return }
-            chatGPTLogin = ChatGPTLogin(id: id, userCode: code, verificationURL: url, interval: data["interval"] as? Int ?? 5)
+            let login = ChatGPTLogin(id: id, userCode: code, verificationURL: url, interval: data["interval"] as? Int ?? 5)
+            sheet = SettingsSheet { ChatGPTLoginSheet(client: client, login: login) { Task { await reload() } } }
         } catch {
             client.error = error.localizedDescription
         }
@@ -193,6 +187,7 @@ private struct ChatGPTLoginSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var error: String?
+    @State private var copied = false
 
     var body: some View {
         NavigationStack {
@@ -202,7 +197,23 @@ private struct ChatGPTLoginSheet: View {
                         .font(.system(.title, design: .monospaced).weight(.semibold))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity)
-                    Button("Copy Code") { copy(login.userCode) }
+                    Button {
+                        copy(login.userCode)
+                        copied = true
+                    } label: {
+                        if copied {
+                            Label("Copied", systemImage: "checkmark")
+                        } else {
+                            Label("Copy Code", systemImage: "doc.on.doc")
+                        }
+                    }
+                    .sensoryFeedback(.success, trigger: copied) { _, copied in copied }
+                    // Back to Copy Code a moment later, so copying again shows again.
+                    .task(id: copied) {
+                        guard copied else { return }
+                        try? await Task.sleep(for: .seconds(2))
+                        copied = false
+                    }
                     Button("Open OpenAI") { openURL(login.verificationURL) }
                 } footer: {
                     Text("Open OpenAI, sign in with your ChatGPT account and enter this code. Luft connects as soon as you approve it.")

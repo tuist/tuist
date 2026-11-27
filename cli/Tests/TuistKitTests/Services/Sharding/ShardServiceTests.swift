@@ -434,8 +434,8 @@ struct ShardServiceTests {
         #expect(extractedContent == "fixture")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies(), .serialized)
-    func shard_withRemoteDownloadUrls_downloadsAndExtractsSplitArtifacts() async throws {
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .serialized, arguments: [true, false])
+    func shard_withRemoteDownloadUrls_downloadsAndExtractsSplitArtifacts(servesRanges: Bool) async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
         let appleArchiver = AppleArchiver()
@@ -475,12 +475,13 @@ struct ShardServiceTests {
             to: moduleArchivePath
         )
 
-        let sharedURL = URL(string: "https://artifacts.tuist.test/shared.aar")!
-        let moduleURL = URL(string: "https://artifacts.tuist.test/AppTests.aar")!
-        ShardDownloadURLProtocol.responses = [
+        let host = servesRanges ? "ranges.artifacts.tuist.test" : "artifacts.tuist.test"
+        let sharedURL = URL(string: "https://\(host)/shared.aar")!
+        let moduleURL = URL(string: "https://\(host)/AppTests.aar")!
+        ShardDownloadURLProtocol.serve([
             sharedURL: try await fileSystem.readFile(at: sharedArchivePath),
             moduleURL: try await fileSystem.readFile(at: moduleArchivePath),
-        ]
+        ])
 
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ShardDownloadURLProtocol.self]
@@ -562,13 +563,11 @@ struct ShardServiceTests {
             try await fileSystem.writeText("\(index)", at: productsPath.appending(component: "file-\(index).txt"))
             let archivePath = temporaryDirectory.appending(component: "artifact-\(index).aar")
             try await appleArchiver.compress(directory: productsPath, to: archivePath, excludePatterns: [])
-            let url = URL(string: "https://artifacts.tuist.test/artifact-\(index).aar")!
+            let url = URL(string: "https://ranges.artifacts.tuist.test/plan-order/artifact-\(index).aar")!
             responses[url] = try await fileSystem.readFile(at: archivePath)
             urls.append(url)
         }
-        ShardDownloadURLProtocol.responses = responses
-        ShardDownloadURLProtocol.delays = [urls[0]: 0.5]
-        defer { ShardDownloadURLProtocol.delays = [:] }
+        ShardDownloadURLProtocol.serve(responses, delays: [urls[0]: 0.5])
 
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ShardDownloadURLProtocol.self]
@@ -716,8 +715,17 @@ private func plistEncoder() -> PropertyListEncoder {
 }
 
 private final class ShardDownloadURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var responses = [URL: Data]()
-    nonisolated(unsafe) static var delays = [URL: TimeInterval]()
+    // Tests in the suite run concurrently, so each serves its own URLs rather than replacing the others'.
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var responses = [URL: Data]()
+    private nonisolated(unsafe) static var delays = [URL: TimeInterval]()
+
+    static func serve(_ responses: [URL: Data], delays: [URL: TimeInterval] = [:]) {
+        lock.withLock {
+            self.responses.merge(responses) { $1 }
+            self.delays.merge(delays) { $1 }
+        }
+    }
 
     override class func canInit(with _: URLRequest) -> Bool {
         true
@@ -729,7 +737,7 @@ private final class ShardDownloadURLProtocol: URLProtocol {
 
     override func startLoading() {
         // A delayed response must not block the thread other loads share, or every download waits on it.
-        if let delay = request.url.flatMap({ Self.delays[$0] }) {
+        if let delay = request.url.flatMap({ url in Self.lock.withLock { Self.delays[url] } }) {
             nonisolated(unsafe) let this = self
             DispatchQueue.global().asyncAfter(deadline: .now() + delay) { this.respond() }
         } else {
@@ -738,13 +746,25 @@ private final class ShardDownloadURLProtocol: URLProtocol {
     }
 
     private func respond() {
-        let data = request.url.flatMap { Self.responses[$0] } ?? Data()
-        let statusCode = request.url.flatMap { Self.responses[$0] } == nil ? 404 : 200
+        let object = request.url.flatMap { url in Self.lock.withLock { Self.responses[url] } }
+        var data = object ?? Data()
+        var statusCode = object == nil ? 404 : 200
+        var headers = ["ETag": "\"v1\""]
+        // Hosts named `ranges.` serve byte ranges as object stores do; the others answer every request whole.
+        if let object, request.url?.host?.hasPrefix("ranges.") == true, let range = request.value(forHTTPHeaderField: "Range") {
+            let bounds = range.dropFirst("bytes=".count).split(separator: "-").compactMap { Int($0) }
+            if let start = bounds.first, start < object.count {
+                let end = min(bounds.count > 1 ? bounds[1] : object.count - 1, object.count - 1)
+                data = object.subdata(in: start ..< end + 1)
+                statusCode = 206
+                headers["Content-Range"] = "bytes \(start)-\(end)/\(object.count)"
+            }
+        }
         let response = HTTPURLResponse(
             url: request.url!,
             statusCode: statusCode,
             httpVersion: nil,
-            headerFields: nil
+            headerFields: headers
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: data)

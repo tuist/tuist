@@ -41,8 +41,12 @@ defmodule LuftServer.MixProject do
       {:dns_cluster, "~> 0.2"},
       {:ecto_sql, "~> 3.10"},
       {:ex_json_schema, "~> 0.11"},
-      {:grpc, "~> 0.11.5"},
-      {:gun, "~> 2.8"},
+      # The grpc application starts the client supervisor itself.
+      {:grpc, "~> 1.1"},
+      # The fake enroute server in test/support; since 1.0 the server is its own package.
+      {:grpc_server, "~> 1.1", only: :test},
+      # grpc's default client adapter; grpc 1.1 accepts only gun 2.7.x.
+      {:gun, "~> 2.7"},
       {:jason, "~> 1.4"},
       {:javex, "~> 0.2.0"},
       {:jose, "~> 1.11"},

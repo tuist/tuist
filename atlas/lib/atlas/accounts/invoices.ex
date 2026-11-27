@@ -12,8 +12,10 @@ defmodule Atlas.Accounts.Invoices do
   alias Atlas.Audit
   alias Atlas.Documents.Document
   alias Atlas.Documents.DocumentPage
+  alias Atlas.MCP
   alias Atlas.Repo
   alias Atlas.Stripe
+  alias Atlas.Users.User
 
   require Logger
 
@@ -468,11 +470,22 @@ defmodule Atlas.Accounts.Invoices do
   after its bank wire arrived, and stores the paid invoice.
 
   Refuses invoices of another Stripe customer and invoices that are not open.
+
+  Stripe stops collecting the invoice and the change cannot be undone, so each
+  call waits for the calling person's approval of that exact invoice and amount
+  (`mcp_tool_approvals`, recorded under `stripe`/`mark-invoice-paid-out-of-band`)
+  and only runs from their own MCP connection (`opts[:interface] == "mcp"`).
+  Another amount, such as after the invoice was edited, needs a new approval.
   """
-  def mark_stripe_invoice_paid_out_of_band(%Account{} = account, invoice_id, opts \\ []) when is_binary(invoice_id) do
-    with {:ok, stripe_invoice} <- get_stripe_invoice(invoice_id, opts),
+  def mark_stripe_invoice_paid_out_of_band(%User{} = user, %Account{} = account, invoice_id, opts \\ [])
+      when is_binary(invoice_id) do
+    {interface, opts} = Keyword.pop(opts, :interface)
+
+    with :ok <- ensure_mcp_interface(interface),
+         {:ok, stripe_invoice} <- get_stripe_invoice(invoice_id, opts),
          :ok <- ensure_account_customer(account, stripe_invoice),
          :ok <- ensure_open(stripe_invoice),
+         {:ok, approval} <- approve_out_of_band_payment(user, account, stripe_invoice),
          {:ok, paid_invoice} <- pay_stripe_invoice_out_of_band(invoice_id, opts),
          {:ok, stored_invoice} <- upsert_stripe_invoice(account, paid_invoice) do
       Audit.record("account_invoice.stripe_paid_out_of_band", %{
@@ -482,11 +495,35 @@ defmodule Atlas.Accounts.Invoices do
         metadata: %{
           "path" => "/commercial/sales/accounts/#{account.id}",
           "account_id" => account.id,
-          "stripe_invoice_id" => stored_invoice.external_id
+          "stripe_invoice_id" => stored_invoice.external_id,
+          "amount_value" => approval.arguments["amount_value"],
+          "amount_currency" => approval.arguments["amount_currency"],
+          "approval_id" => approval.id
         }
       })
 
       {:ok, %{account: account, invoice: stored_invoice, stripe_invoice: paid_invoice}}
+    end
+  end
+
+  defp ensure_mcp_interface("mcp"), do: :ok
+  defp ensure_mcp_interface(_interface), do: {:error, :mcp_only}
+
+  # The approval covers what the person reads at /approvals: the account, the
+  # invoice and the amount Stripe will stop collecting.
+  defp approve_out_of_band_payment(user, account, %Stripe.Invoice{} = invoice) do
+    arguments = %{
+      "account_id" => account.id,
+      "account_name" => account.name,
+      "stripe_invoice_id" => invoice.id,
+      "invoice_number" => invoice.number,
+      "amount_value" => invoice.amount_value && Decimal.to_string(invoice.amount_value, :normal),
+      "amount_currency" => invoice.amount_currency
+    }
+
+    case MCP.authorize_tool_call(user, "stripe", "mark-invoice-paid-out-of-band", arguments) do
+      {:ok, approval} -> {:ok, approval}
+      {:approval_required, approval} -> {:error, {:approval_required, approval}}
     end
   end
 
@@ -1111,269 +1148,4 @@ defmodule Atlas.Accounts.Invoices do
 
   defp days_until_due(_document), do: @default_invoice_days_until_due
 
-  defp parse_days_until_due(value) when is_integer(value) and value > 0, do: value
-
-  defp parse_days_until_due(value) when is_binary(value) do
-    case Regex.run(~r/\d+/, value) do
-      [days | _] -> String.to_integer(days)
-      _match -> nil
-    end
-  end
-
-  defp parse_days_until_due(_value), do: nil
-
-  defp seat_count_from_attrs(attrs) when is_map(attrs) do
-    Enum.find_value(@seat_count_keys, fn key ->
-      attrs
-      |> nested_value([key])
-      |> parse_positive_integer()
-    end)
-  end
-
-  defp seat_count_from_attrs(_attrs), do: nil
-
-  defp document_seat_count(%Document{} = document) do
-    seat_count_from_attrs(document.attributes || %{}) ||
-      seat_count_from_text(document_full_text(document))
-  end
-
-  defp seat_count_from_text(text) when is_binary(text) do
-    patterns = [
-      ~r/\b(?<seats>\d{1,6})\s+(?:seats?|licenses?|users?)\b/i,
-      ~r/\b(?:seats?|licenses?|users?)\s*[:\-]?\s*(?<seats>\d{1,6})\b/i
-    ]
-
-    Enum.find_value(patterns, fn pattern ->
-      case Regex.named_captures(pattern, text) do
-        %{"seats" => seats} -> parse_positive_integer(seats)
-        _captures -> nil
-      end
-    end)
-  end
-
-  defp seat_count_from_text(_text), do: nil
-
-  defp parse_positive_integer(value) when is_integer(value) and value > 0, do: value
-
-  defp parse_positive_integer(value) when is_binary(value) do
-    case Regex.run(~r/\d+/, value) do
-      [integer | _] ->
-        parse_positive_integer(String.to_integer(integer))
-
-      _match ->
-        nil
-    end
-  end
-
-  defp parse_positive_integer(_value), do: nil
-
-  defp enterprise_line_item_description(seats, period_start, period_end) do
-    [
-      @enterprise_product_name,
-      seat_description(seats),
-      term_description(period_start, period_end)
-    ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join(" - ")
-  end
-
-  defp seat_description(seats) when is_integer(seats) and seats > 0, do: "#{seats} seats"
-  defp seat_description(_seats), do: nil
-
-  defp term_description(%Date{} = period_start, %Date{} = period_end) do
-    "#{Date.to_iso8601(period_start)} to #{Date.to_iso8601(period_end)}"
-  end
-
-  defp term_description(%Date{} = period_start, nil), do: "from #{Date.to_iso8601(period_start)}"
-  defp term_description(nil, %Date{} = period_end), do: "through #{Date.to_iso8601(period_end)}"
-  defp term_description(_period_start, _period_end), do: nil
-
-  defp unit_amount_decimal(_amount_cents, seats) when not (is_integer(seats) and seats > 0), do: nil
-
-  defp unit_amount_decimal(amount_cents, seats) when is_integer(amount_cents) do
-    amount_cents
-    |> Decimal.new()
-    |> Decimal.div(Decimal.new(seats))
-    |> Decimal.round(12)
-    |> Decimal.normalize()
-    |> Decimal.to_string(:normal)
-  end
-
-  defp line_item_metadata(index, seats, period_start, period_end) do
-    compact_metadata(%{
-      "line_item_index" => index,
-      "product_name" => @enterprise_product_name,
-      "seats" => seats,
-      "term_start" => period_start,
-      "term_end" => period_end,
-      "term_duration_days" => term_duration_days(period_start, period_end)
-    })
-  end
-
-  defp term_duration_days(%Date{} = period_start, %Date{} = period_end) do
-    if Date.compare(period_end, period_start) in [:gt, :eq] do
-      Date.diff(period_end, period_start) + 1
-    end
-  end
-
-  defp term_duration_days(_period_start, _period_end), do: nil
-
-  defp document_period_start(document), do: first_date(document.attributes || %{}, @period_start_keys)
-  defp document_period_end(document), do: first_date(document.attributes || %{}, @period_end_keys)
-
-  defp first_date(attrs, keys) when is_map(attrs) do
-    Enum.find_value(keys, fn key -> attrs |> nested_value([key]) |> parse_date() end)
-  end
-
-  defp first_date(_attrs, _keys), do: nil
-
-  defp parse_date(%Date{} = date), do: date
-
-  defp parse_date(value) when is_binary(value) do
-    case Date.from_iso8601(String.trim(value)) do
-      {:ok, date} -> date
-      {:error, _reason} -> nil
-    end
-  end
-
-  defp parse_date(_value), do: nil
-
-  defp create_stripe_draft_invoice(customer_id, draft_attrs, opts) do
-    opts
-    |> stripe_client()
-    |> case do
-      client -> client.create_draft_invoice(customer_id, draft_attrs, client_opts(opts))
-    end
-    |> case do
-      {:ok, %Stripe.Invoice{} = invoice} -> {:ok, invoice}
-      :disabled -> {:error, :stripe_disabled}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp add_stripe_invoice_items(invoice_id, line_items, opts) do
-    opts
-    |> stripe_client()
-    |> case do
-      client -> client.add_invoice_items(invoice_id, line_items, client_opts(opts))
-    end
-    |> case do
-      {:ok, %Stripe.Invoice{} = invoice} -> {:ok, invoice}
-      :disabled -> {:error, :stripe_disabled}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp draft_invoice_idempotency_key(%Account{} = account, %Document{} = document, line_items) do
-    signature =
-      line_items
-      |> Enum.map(fn line_item ->
-        %{
-          amount_cents: line_item.amount_cents,
-          currency: line_item.currency,
-          description: line_item.description,
-          quantity: line_item[:quantity],
-          period_start: line_item[:period_start],
-          period_end: line_item[:period_end]
-        }
-      end)
-      |> JSON.encode!()
-      |> then(&:crypto.hash(:sha256, &1))
-      |> Base.encode16(case: :lower)
-      |> String.slice(0, 24)
-
-    "atlas:order-form-invoice:#{account.id}:#{document.id}:#{signature}"
-  end
-
-  defp compact_metadata(metadata) do
-    metadata
-    |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
-    |> Map.new(fn {key, value} -> {key, value |> to_string() |> String.slice(0, 500)} end)
-  end
-
-  defp document_attribute(%Document{attributes: attrs}, path) when is_map(attrs), do: nested_value(attrs, path)
-  defp document_attribute(_document, _path), do: nil
-
-  defp nested_value(map, path) when is_map(map) and is_list(path) do
-    Enum.reduce_while(path, map, fn key, acc ->
-      atom_key = existing_atom_key(key)
-
-      cond do
-        is_map(acc) and Map.has_key?(acc, key) -> {:cont, Map.get(acc, key)}
-        is_map(acc) and not is_nil(atom_key) and Map.has_key?(acc, atom_key) -> {:cont, Map.get(acc, atom_key)}
-        true -> {:halt, nil}
-      end
-    end)
-  end
-
-  defp nested_value(_map, _path), do: nil
-
-  defp existing_atom_key(key) when is_atom(key), do: key
-
-  defp existing_atom_key(key) when is_binary(key) do
-    String.to_existing_atom(key)
-  rescue
-    ArgumentError -> nil
-  end
-
-  defp existing_atom_key(_key), do: nil
-
-  defp document_context_text(%Document{} = document) do
-    [
-      document.title,
-      document.original_filename,
-      document.document_type && document.document_type.name,
-      document.summary,
-      Enum.map_join(document.tags || [], " ", & &1.name),
-      attributes_text(document.attributes)
-    ]
-    |> normalize_document_text()
-  end
-
-  defp document_full_text(%Document{} = document) do
-    [
-      document_context_text(document),
-      document.pages |> Enum.take(12) |> Enum.map_join("\n", & &1.content)
-    ]
-    |> normalize_document_text()
-  end
-
-  defp attributes_text(attrs) when is_map(attrs) do
-    attrs
-    |> Enum.map_join(" ", fn {key, value} -> "#{key} #{inspect(value)}" end)
-  end
-
-  defp attributes_text(_attrs), do: ""
-
-  defp normalize_document_text(values) when is_list(values) do
-    values
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join("\n")
-    |> normalize_document_text()
-  end
-
-  defp normalize_document_text(value) when is_binary(value) do
-    value
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9$€£.,]+/u, " ")
-    |> String.replace(~r/\s+/, " ")
-    |> String.trim()
-  end
-
-  defp normalize_document_text(value), do: value |> inspect() |> normalize_document_text()
-
-  defp stripe_client(opts) do
-    Keyword.get(opts, :stripe_client) ||
-      :atlas
-      |> Application.get_env(:accounts, [])
-      |> Keyword.get(:stripe_client, Stripe)
-  end
-
-  defp exchange_rates_client do
-    :atlas
-    |> Application.get_env(:accounts, [])
-    |> Keyword.get(:exchange_rates_client, ExchangeRates)
-  end
-
-  defp client_opts(opts), do: Keyword.delete(opts, :stripe_client)
-end
+  defp parse_days_un

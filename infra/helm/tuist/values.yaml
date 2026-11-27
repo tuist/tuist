@@ -2170,13 +2170,23 @@ rackFleet:
   # - Its SSH ingress defaults to the site's `sshIngressAllowCIDRs`, the site's
   #   edges, never the default site's.
   # - `vmCacheGatewayCIDRs` joins the operator's fleet-wide list.
+  # - `actionsCacheStore` is the site's `actionsCacheStore`, below.
   # A host naming a site that is neither `site` nor a key here fails the
   # render.
+  # The HTTPS entrance of the store that holds the GitHub Actions cache
+  # entries of the default site's hosts, the endpoint their tart-kubelet
+  # probes. Set, each host the env owns at the site serves the Actions cache
+  # to its runner VMs (infra/tart-kubelet, "GitHub Actions cache"); the server
+  # places entries in a store whose `runner_endpoints` name the site. Empty
+  # leaves the site's jobs on GitHub's cache.
+  actionsCacheStore: ""
+
   sites: {}
   #   larch:
   #     nodeFleet: ""                  # default: <fleet name>-larch
   #     sshIngressAllowCIDRs: [10.20.0.2/32, 10.20.0.3/32]
   #     vmCacheGatewayCIDRs: []
+  #     actionsCacheStore: ""
   #     runners:
   #       enabled: false
 

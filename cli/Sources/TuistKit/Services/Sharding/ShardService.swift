@@ -145,22 +145,23 @@ public struct ShardService: ShardServicing {
             }
             let clock = ContinuousClock()
             let fetchStart = clock.now
+            var streamingShared = Duration.zero
             var waitedForDownloads = Duration.zero
             var extracting = Duration.zero
             var downloadsFinished = fetchStart
             var archiveBytes: Int64 = 0
             try await fileSystem.runInTemporaryDirectory(prefix: "tuist-shard-downloads") { downloadedArtifactsPath in
-                // The shard's products are split across artifacts (a shared bundle plus one per module
-                // assigned to the shard), extracted into a single merged directory. Downloads run ahead of
-                // extraction, so the network stays busy while an artifact decompresses, and extraction still
-                // applies the artifacts in plan order.
+                // The shard's products are split across artifacts, extracted into a single merged directory in plan
+                // order: the shared bundle first (the server always lists it first), which holds most of the bytes,
+                // then one per module assigned to the shard. The shared bundle extracts as it downloads, while the
+                // module artifacts download ahead to disk and extract once it is in place.
                 let archivePaths = downloadURLs.indices.map {
                     downloadedArtifactsPath.appending(component: "artifact-\($0).aar")
                 }
                 try await withThrowingTaskGroup(of: Int.self) { group in
                     let fileClient = fileClient
                     let retryProvider = retryProvider
-                    var started = 0
+                    var started = 1
                     func startDownload() {
                         let index = started
                         started += 1
@@ -171,15 +172,35 @@ public struct ShardService: ShardServicing {
                             return index
                         }
                     }
-                    while started < min(Self.artifactDownloadsAhead, downloadURLs.count) {
+                    while started < min(1 + Self.artifactDownloadsAhead, downloadURLs.count) {
                         startDownload()
                     }
+
+                    let sharedStart = clock.now
+                    if let sharedURL = downloadURLs.first, let sharedArchivePath = archivePaths.first {
+                        do {
+                            archiveBytes += try await appleArchiver.decompress(
+                                chunks: fileClient.downloadInOrder(url: sharedURL),
+                                to: extractedTestProductsPath
+                            )
+                        } catch OrderedDownloadError.rangesNotServed {
+                            try await retryProvider.runWithRetries {
+                                try await fileClient.downloadInParallel(url: sharedURL, to: sharedArchivePath)
+                            }
+                            archiveBytes += Int64((try? await fileSystem.fileMetadata(at: sharedArchivePath))?.size ?? 0)
+                            try await appleArchiver.decompress(archive: sharedArchivePath, to: extractedTestProductsPath)
+                            try? await fileSystem.remove(sharedArchivePath)
+                        }
+                    }
+                    streamingShared = sharedStart.duration(to: clock.now)
+                    downloadsFinished = clock.now
+
                     var downloaded = Set<Int>()
-                    for index in downloadURLs.indices {
+                    for index in downloadURLs.indices.dropFirst() {
                         let waitStart = clock.now
                         while !downloaded.contains(index), let finished = try await group.next() {
                             downloaded.insert(finished)
-                            downloadsFinished = clock.now
+                            downloadsFinished = max(downloadsFinished, clock.now)
                             if started < downloadURLs.count {
                                 startDownload()
                             }
@@ -196,7 +217,7 @@ public struct ShardService: ShardServicing {
             // Debug only: it shows with --verbose and in the session log. Whatever follows it until xcodebuild
             // reports the tests starting is xcodebuild's own startup.
             Logger.current.debug(
-                "Fetched \(downloadURLs.count) test products artifact(s), \(archiveBytes / 1_000_000) MB, in \(Self.seconds(fetchStart.duration(to: clock.now))): downloads finished after \(Self.seconds(fetchStart.duration(to: downloadsFinished))), \(Self.seconds(extracting)) extracting, \(Self.seconds(waitedForDownloads)) waiting for downloads"
+                "Fetched \(downloadURLs.count) test products artifact(s), \(archiveBytes / 1_000_000) MB, in \(Self.seconds(fetchStart.duration(to: clock.now))): shared artifact downloaded and extracted in \(Self.seconds(streamingShared)), downloads finished after \(Self.seconds(fetchStart.duration(to: downloadsFinished))), \(Self.seconds(extracting)) extracting modules, \(Self.seconds(waitedForDownloads)) waiting for module downloads"
             )
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
             Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")

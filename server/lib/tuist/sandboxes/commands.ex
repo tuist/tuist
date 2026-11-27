@@ -301,8 +301,10 @@ defmodule Tuist.Sandboxes.Commands do
       prune_finished(running)
 
       case start_on(running, id, params, script, env, timeout_ms) do
+        # The pause can also land on the row first, such as a new Mac's idle
+        # pause, scheduled with no grace, between its create and this start.
         {:error, reason} = error ->
-          if Sandboxes.interrupted_by_pause?(reason),
+          if reason == {:invalid_state, :paused} or Sandboxes.interrupted_by_pause?(reason),
             do: start_after_pause(running, id, params, script, env, timeout_ms),
             else: error
 

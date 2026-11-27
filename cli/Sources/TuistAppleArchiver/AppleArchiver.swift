@@ -38,6 +38,10 @@ public protocol AppleArchiving {
         to archivePath: AbsolutePath
     ) async throws
     func decompress(archive: AbsolutePath, to directory: AbsolutePath) async throws
+    /// Extracts an archive as its bytes arrive, so a download and its extraction overlap. Returns the archive's
+    /// size. A failure of `chunks` is rethrown in preference to the extraction failure it causes.
+    @discardableResult
+    func decompress(chunks: AsyncThrowingStream<Data, Error>, to directory: AbsolutePath) async throws -> Int64
 }
 
 extension AppleArchiving {
@@ -223,17 +227,94 @@ public struct AppleArchiver: AppleArchiving {
     }
 
     public func decompress(archive: AbsolutePath, to directory: AbsolutePath) async throws {
-        let source = FilePath(archive.pathString)
-        let destination = FilePath(directory.pathString)
-
         guard let readStream = ArchiveByteStream.fileStream(
-            path: source,
+            path: FilePath(archive.pathString),
             mode: .readOnly,
             options: [],
             permissions: []
         ) else {
             throw AppleArchiverError.decompressionFailed("could not open archive")
         }
+        try Self.extract(readStream, to: directory)
+    }
+
+    @discardableResult
+    public func decompress(chunks: AsyncThrowingStream<Data, Error>, to directory: AbsolutePath) async throws -> Int64 {
+        var descriptors: [Int32] = [0, 0]
+        guard pipe(&descriptors) == 0 else {
+            throw AppleArchiverError.decompressionFailed("could not create a pipe")
+        }
+        let (readEnd, writeEnd) = (descriptors[0], descriptors[1])
+        // An extraction that fails closes the read end; a write after that must fail with EPIPE rather than
+        // raise SIGPIPE and end the process.
+        _ = fcntl(writeEnd, F_SETNOSIGPIPE, 1)
+
+        // Extraction blocks on the pipe, so it runs on its own thread rather than one of the cooperative pool's,
+        // and the writes, which block while the pipe is full, run on a queue of their own.
+        let extraction = Task<Void, Error> {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                Thread {
+                    defer { close(readEnd) }
+                    do {
+                        guard let readStream = ArchiveByteStream.fileStream(
+                            fd: FileDescriptor(rawValue: readEnd),
+                            automaticClose: false
+                        ) else {
+                            throw AppleArchiverError.decompressionFailed("could not read the pipe")
+                        }
+                        try Self.extract(readStream, to: directory)
+                        continuation.resume()
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }.start()
+            }
+        }
+        let writer = DispatchQueue(label: "dev.tuist.apple-archiver.stream-writer")
+        var bytes: Int64 = 0
+        var chunksError: Error?
+        var writeFailed = false
+        do {
+            for try await chunk in chunks {
+                let written = await withCheckedContinuation { continuation in
+                    writer.async { continuation.resume(returning: Self.write(chunk, to: writeEnd)) }
+                }
+                guard written else {
+                    writeFailed = true
+                    break
+                }
+                bytes += Int64(chunk.count)
+            }
+        } catch {
+            chunksError = error
+        }
+        close(writeEnd)
+        let extractionResult = await extraction.result
+        if let chunksError { throw chunksError }
+        try extractionResult.get()
+        if writeFailed {
+            throw AppleArchiverError.decompressionFailed("could not write to the pipe")
+        }
+        return bytes
+    }
+
+    private static func write(_ data: Data, to descriptor: Int32) -> Bool {
+        data.withUnsafeBytes { buffer in
+            var offset = 0
+            while offset < buffer.count {
+                let written = Darwin.write(descriptor, buffer.baseAddress! + offset, buffer.count - offset)
+                if written < 0 {
+                    if errno == EINTR { continue }
+                    return false
+                }
+                offset += written
+            }
+            return true
+        }
+    }
+
+    private static func extract(_ readStream: ArchiveByteStream, to directory: AbsolutePath) throws {
+        let destination = FilePath(directory.pathString)
         defer { try? readStream.close() }
 
         guard let decompressStream = ArchiveByteStream.decompressionStream(

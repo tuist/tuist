@@ -3,6 +3,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
 
   alias TuistWeb.Utilities.MarketingMarkdown
 
+  @narrow_solution_slugs ["test-sharding"]
   @providers [
     {"appcircle", "Appcircle"},
     {"bitrise", "Bitrise"},
@@ -65,7 +66,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/self-hosted-mac-runners",
                  "/solutions/slow-builds",
                  "/solutions/slow-tests",
+                 "/solutions/speed-up-gradle-ci",
                  "/solutions/speed-up-ios-ci",
+                 "/solutions/test-sharding",
                  "/tests"
                ] ++ @comparison_paths ++ @tool_paths ++ @build_system_paths
              )
@@ -165,7 +168,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/self-hosted-mac-runners",
                  "/solutions/slow-builds",
                  "/solutions/slow-tests",
-                 "/solutions/speed-up-ios-ci"
+                 "/solutions/speed-up-gradle-ci",
+                 "/solutions/speed-up-ios-ci",
+                 "/solutions/test-sharding"
                ] ++ @comparison_paths ++ @tool_paths ++ @build_system_paths
              )
 
@@ -284,6 +289,17 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert markdown =~ "A closed hosted service"
   end
 
+  test "each FAQ question has one home among the solution guides" do
+    questions =
+      for path <- MarketingMarkdown.guide_paths(),
+          String.starts_with?(path, "/solutions/"),
+          [_match, question] <- Regex.scan(~r/^### (.+)$/m, MarketingMarkdown.get(path)) do
+        question
+      end
+
+    assert questions -- Enum.uniq(questions) == []
+  end
+
   test "problem guides connect diagnosis, agent investigation, and experiments" do
     mcp_docs = File.read!(Path.expand("../../../priv/docs/en/guides/features/agentic-coding/mcp.md", __DIR__))
 
@@ -295,20 +311,26 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
           "bazel-github-actions",
           "bazel-remote-cache",
           "self-hosted-mac-runners",
-          "speed-up-ios-ci"
+          "speed-up-ios-ci",
+          "speed-up-gradle-ci",
+          "test-sharding"
         ] do
       path = "/solutions/" <> slug
       markdown = MarketingMarkdown.get(path)
       [_heading, introduction | _rest] = String.split(markdown, "\n\n")
       assert String.starts_with?(introduction, "Tuist")
-      assert markdown =~ "## Diagnose"
-      assert markdown =~ "## Investigate with an agent"
       assert markdown =~ "## First experiment"
       refute markdown =~ "## Limitations"
       assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
 
+      # Narrow pages answer one technique and skip the diagnosis template.
+      if slug not in @narrow_solution_slugs do
+        assert markdown =~ "## Diagnose", path
+        assert markdown =~ "## Investigate with an agent", path
+      end
+
       [_before, faq] = String.split(markdown, "## Frequently asked questions\n", parts: 2)
-      assert length(Regex.scan(~r/^### /m, faq)) in 4..6, path
+      assert length(Regex.scan(~r/^### /m, faq)) in 2..6, path
 
       for [_match, tool] <- Regex.scan(~r/`((?:list|get|update)_[a-z_]+)`/, markdown) do
         assert mcp_docs =~ "`#{tool}`", tool
@@ -473,7 +495,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
               "/solutions/bazel-github-actions",
               "/solutions/bazel-remote-cache",
               "/solutions/self-hosted-mac-runners",
-              "/solutions/speed-up-ios-ci"
+              "/solutions/speed-up-ios-ci",
+              "/solutions/speed-up-gradle-ci"
             ] do
       markdown = MarketingMarkdown.get(path)
       assert markdown =~ ~r/[Pp]roject (?:optimization )?first/, path

@@ -8,7 +8,7 @@ Struo workspace: Cargo owns the dependency graph and `struo.toml` seeds it with 
 `tuist/luft` for caching and insights;
 sign in once per machine with `struo auth login --provider tuist`.
 
-The app signs in with the browser and shows a Threads/Lounges/DMs/Profile shell laid
+The app signs in with the browser and shows a Threads/Lounges/DMs/Ops/Profile shell laid
 out like Zed's workspace; Threads lists, starts and continues server-side conversations
 through the core's `Threads` operations (`gpui/src/workspace/threads.rs`), and
 Lounges and DMs use its `Lounges` operations (`gpui/src/workspace/lounges.rs`).
@@ -158,8 +158,4 @@ gpui's `runtime_shaders` feature so the Metal toolchain is not required.
 
 - Development builds keep the updater public key and package-kind files empty.
   Release staging stamps them before Struo builds; keep them declared source
-  inputs. Never embed a private key or use PR-writable caches for signed releases.
-- Keep the Cargo package standalone (its own `[workspace]`), so the monorepo's
-  other Cargo projects are never resolved here.
-- Do not switch to building with plain Cargo to work around Struo failures; fix
-  the Struo graph instead.
+  inputs. Never embe

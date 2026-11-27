@@ -221,6 +221,41 @@
             #expect(try Data(contentsOf: download.destination.url) == replaced)
         }
 
+        @Test func in_order_download_yields_the_object_in_order_when_a_middle_range_is_retried() async throws {
+            let body = Data((0 ..< 1000).map { UInt8(truncatingIfNeeded: $0 * 13) })
+            let download = try await makeRangeDownload(
+                object: RangeURLProtocol.Object(body: body, etag: "\"v1\"", failOnceAt: 300)
+            )
+
+            // The range at 300 fails once and is retried after the later ranges have arrived.
+            var received = Data()
+            for try await chunk in download.subject.downloadInOrder(url: download.url) {
+                received.append(chunk)
+            }
+
+            #expect(received == body)
+            let ranges = RangeURLProtocol.requests(for: download.url).compactMap { $0["Range"] }
+            #expect(ranges.filter { $0 == "bytes=300-399" }.count == 2)
+            #expect(Set(ranges) == Set((0 ..< 10).map { "bytes=\($0 * 100)-\($0 * 100 + 99)" }))
+        }
+
+        @Test func in_order_download_reports_a_server_that_ignores_ranges_before_yielding_anything() async throws {
+            let body = Data((0 ..< 1000).map { UInt8(truncatingIfNeeded: $0) })
+            let download = try await makeRangeDownload(
+                object: RangeURLProtocol.Object(body: body, etag: "\"v1\"", honorsRanges: false)
+            )
+
+            var received = 0
+            await #expect(throws: OrderedDownloadError.rangesNotServed) {
+                for try await chunk in download.subject.downloadInOrder(url: download.url) {
+                    received += chunk.count
+                }
+            }
+
+            #expect(received == 0)
+            #expect(RangeURLProtocol.requests(for: download.url).map { $0["Range"] } == ["bytes=0-99"])
+        }
+
         private func makeRangeDownload(object: RangeURLProtocol.Object) async throws -> ScriptedDownload {
             let fileSystem = FileSystem()
             let url = URL(string: "https://tuist.dev/artifacts/\(UUID().uuidString).aar")!

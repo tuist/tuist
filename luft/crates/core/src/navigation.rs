@@ -17,6 +17,7 @@ pub const ROUTES: &[&str] = &[
     "/dms",
     "/dms/{id}",
     "/profile",
+    "/ops",
 ];
 
 /// The tabs that hold a stack of one conversation, in catalog order.
@@ -34,6 +35,8 @@ pub enum Destination {
         dictate: bool,
     },
     Profile,
+    /// Collections and Releases.
+    Ops,
 }
 
 impl Destination {
@@ -47,12 +50,14 @@ impl Destination {
             Self::NewThread { dictate: false } => "/threads/new".into(),
             Self::NewThread { dictate: true } => "/threads/new/dictation".into(),
             Self::Profile => "/profile".into(),
+            Self::Ops => "/ops".into(),
         }
     }
 
     fn parse(path: &str) -> Result<Self, &'static str> {
         match path {
             "/profile" => return Ok(Self::Profile),
+            "/ops" => return Ok(Self::Ops),
             "/threads/new" => return Ok(Self::NewThread { dictate: false }),
             "/threads/new/dictation" => return Ok(Self::NewThread { dictate: true }),
             _ => {}
@@ -250,6 +255,7 @@ impl Navigation {
         self.snooze = false;
         match destination {
             Destination::Profile => self.tab = "profile",
+            Destination::Ops => self.tab = "ops",
             Destination::List(tab) => {
                 self.tab = tab;
                 *self.stack(tab) = None;
@@ -274,7 +280,7 @@ impl Navigation {
 
     /// Returns from the selected tab's conversation to its list.
     pub fn back(&mut self) {
-        let tab = if self.tab == "profile" {
+        let tab = if matches!(self.tab, "profile" | "ops") {
             "threads"
         } else {
             self.tab
@@ -285,6 +291,7 @@ impl Navigation {
     pub fn select(&mut self, tab: &str) -> Result<(), &'static str> {
         self.tab = match tab {
             "profile" => "profile",
+            "ops" => "ops",
             _ => STACKS.into_iter().find(|t| *t == tab).ok_or(INVALID)?,
         };
         self.compose = None;
@@ -301,18 +308,23 @@ impl Navigation {
         }
     }
 
+    /// Another account's conversations aren't this one's: closes them and
+    /// Start conversation, but stays on the selected tab.
     pub fn reset(&mut self) {
-        let revision = self.revision + 1;
+        let (tab, revision) = (self.tab, self.revision);
         *self = Self {
+            tab,
             revision,
             ..Self::default()
         };
+        self.changed();
     }
 
     fn changed(&mut self) {
         let tab = self.tab;
         self.path = match tab {
             "profile" => "/profile".into(),
+            "ops" => "/ops".into(),
             _ if self.compose.is_some() => Destination::NewThread {
                 dictate: self.compose == Some("dictation"),
             }

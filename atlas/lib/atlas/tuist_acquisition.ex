@@ -50,6 +50,12 @@ defmodule Atlas.TuistAcquisition do
 
   @metrics [:landings, :signups, :attributed_signups, :customers]
 
+  # Landing channels read per window, at most a few hundred bytes each per
+  # chart bucket: with up to 32 buckets that stays well inside the ClickHouse
+  # proxy's 5 MiB result.
+  @max_landing_channels 100
+  @other_source "(other)"
+
   # Keeps the users `u` who arrived on their own. A teammate is a member of an
   # organization created before them who got that membership within a day of
   # signing up (an invite or SSO enrollment); someone who signed up alone and
@@ -229,15 +235,31 @@ defmodule Atlas.TuistAcquisition do
         :month -> "greatest(toStartOfMonth(inserted_at), toDate({start_ts:DateTime}))"
       end
 
+    # Anyone can make up a campaign link, so the number of channels is not
+    # bounded by Tuist's own campaigns: past the busiest #{@max_landing_channels}, the rest
+    # are counted together under the `(other)` source. That keeps the row
+    # within the proxy's result size however many made-up values arrive.
     sql = """
-    SELECT toJSONString(groupArray(map('day', toString(day), 'source', source, 'medium', medium,
-             'campaign', campaign, 'content', content, 'c', toString(c)))) AS groups
-    FROM (
-      SELECT if(inserted_at < {start_ts:DateTime}, toDate({previous_ts:DateTime}), #{bucket}) AS day,
-             source, medium, campaign, content, count() AS c
+    WITH (source, medium, campaign, content) IN (
+      SELECT source, medium, campaign, content
       FROM marketing_landings
       WHERE inserted_at >= {previous_ts:DateTime} AND inserted_at < {end_ts:DateTime}
-      GROUP BY day, source, medium, campaign, content
+      GROUP BY source, medium, campaign, content
+      ORDER BY count() DESC, source, medium, campaign, content
+      LIMIT #{@max_landing_channels}
+    ) AS kept
+    SELECT toJSONString(groupArray(map('day', toString(day), 'source', channel_source, 'medium', channel_medium,
+             'campaign', channel_campaign, 'content', channel_content, 'c', toString(c)))) AS groups
+    FROM (
+      SELECT if(inserted_at < {start_ts:DateTime}, toDate({previous_ts:DateTime}), #{bucket}) AS day,
+             if(kept, source, '#{@other_source}') AS channel_source,
+             if(kept, medium, '') AS channel_medium,
+             if(kept, campaign, '') AS channel_campaign,
+             if(kept, content, '') AS channel_content,
+             count() AS c
+      FROM marketing_landings
+      WHERE inserted_at >= {previous_ts:DateTime} AND inserted_at < {end_ts:DateTime}
+      GROUP BY day, channel_source, channel_medium, channel_campaign, channel_content
     )
     """
 

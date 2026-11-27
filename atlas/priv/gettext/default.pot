@@ -13271,7 +13271,7 @@ msgstr ""
 msgid "Cancelled. It will not publish."
 msgstr ""
 
-#: lib/atlas_web/live/social_publishing_live.ex:662
+#: lib/atlas_web/live/social_publishing_live.ex:665
 #, elixir-autogen, elixir-format
 msgid "Choose when to publish."
 msgstr ""
@@ -13349,7 +13349,7 @@ msgstr ""
 msgid "Publishing"
 msgstr ""
 
-#: lib/atlas_web/live/social_publishing_live.ex:663
+#: lib/atlas_web/live/social_publishing_live.ex:666
 #, elixir-autogen, elixir-format
 msgid "Publishing requires GTM write access."
 msgstr ""
@@ -13379,7 +13379,7 @@ msgstr ""
 msgid "Saved. Approve it to schedule publishing."
 msgstr ""
 
-#: lib/atlas_web/live/social_publishing_live.ex:675
+#: lib/atlas_web/live/social_publishing_live.ex:678
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
 msgstr ""
@@ -13389,7 +13389,7 @@ msgstr ""
 msgid "Stalled"
 msgstr ""
 
-#: lib/atlas_web/live/social_publishing_live.ex:666
+#: lib/atlas_web/live/social_publishing_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "The %{kind} is empty or larger than %{max} MB."
 msgstr ""
@@ -13409,17 +13409,17 @@ msgstr ""
 msgid "This account is no longer connected."
 msgstr ""
 
-#: lib/atlas_web/live/social_publishing_live.ex:660
+#: lib/atlas_web/live/social_publishing_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "This publication already started publishing and cannot change."
 msgstr ""
 
-#: lib/atlas_web/live/social_publishing_live.ex:661
+#: lib/atlas_web/live/social_publishing_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "This publication can no longer be cancelled."
 msgstr ""
 
-#: lib/atlas_web/live/social_publishing_live.ex:659
+#: lib/atlas_web/live/social_publishing_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "This publication cannot be approved in its current state."
 msgstr ""
@@ -13680,4 +13680,9 @@ msgstr ""
 #: lib/atlas_web/live/acquisition_live.ex:801
 #, elixir-autogen, elixir-format
 msgid "People who signed up on their own in the selected range, attributed or not. Teammates joining an existing organization don't count."
+msgstr ""
+
+#: lib/atlas_web/live/social_publishing_live.ex:660
+#, elixir-autogen, elixir-format
+msgid "Atlas has no verified copy of this post's media. Upload it again before approving."
 msgstr ""

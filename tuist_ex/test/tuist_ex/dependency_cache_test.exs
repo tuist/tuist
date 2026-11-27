@@ -91,7 +91,7 @@ defmodule TuistEx.DependencyCacheTest do
           String.replace(
             File.read!(probe),
             "deps: []",
-            ~s(deps: [{:grpc, "~> 0.11"}, {:mint, "== 1.10.2"}])
+            ~s(deps: [{:grpc, "~> 1.1"}, {:mint, "== 1.10.2"}])
           )
         )
 

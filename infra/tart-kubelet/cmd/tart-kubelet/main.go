@@ -80,6 +80,7 @@ func main() {
 		disableVMGC          bool
 		runnerCacheRoot      string
 		customCacheURL       string
+		actionsCacheStore    string
 		customCacheNamespace string
 		customCacheSA        string
 		customCacheMaxGB     int
@@ -150,6 +151,8 @@ func main() {
 			"measure against it below the volume's quota, so it can change without recreating the volume. "+
 			"0 (default) leaves the quota as the bound.")
 	flag.StringVar(&customCacheURL, "custom-cache-url", envOr("TART_KUBELET_CUSTOM_CACHE_URL", ""), "Opt-in server /api/internal/runners/cache-volumes URL")
+	flag.StringVar(&actionsCacheStore, "actions-cache-store", envOr("TART_KUBELET_ACTIONS_CACHE_STORE", ""),
+		"Endpoint of the store holding this site's GitHub Actions cache entries. Set, with --custom-cache-url, it serves the Actions cache to this host's runner VMs on "+podagent.ActionsCacheGuestURL)
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Runner namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Trusted cache agent service account")
 	flag.IntVar(&customCacheMaxGB, "custom-cache-max-volume-gb", envIntOr("TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB", 100),
@@ -445,6 +448,12 @@ func main() {
 			setupLog.Error(err, "add custom cache prefetch")
 			os.Exit(1)
 		}
+		if actionsCacheStore != "" {
+			if err := mgr.Add(&podagent.ActionsCache{Addr: ":8090", StoreURL: actionsCacheStore, Custom: customVolumes, Pods: mgr.GetClient()}); err != nil {
+				setupLog.Error(err, "add actions cache")
+				os.Exit(1)
+			}
+		}
 	}
 
 	hostDisk := &podagent.HostDisk{
@@ -472,6 +481,7 @@ func main() {
 		TokenMinter:   &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 28800},
 		GC:            gcCollector,
 		CustomVolumes: customVolumes,
+		ActionsCache:  customVolumes != nil && actionsCacheStore != "",
 		Prefetch:      prefetch,
 		Recorder:      mgr.GetEventRecorderFor("tart-kubelet"),
 		Images:        images,
@@ -957,43 +967,4 @@ func recoverState(
 			// Pod.Status.StartTime is when the API server first saw the
 			// Pod, not when we started the clone — observing
 			// `tart_kubelet_vm_boot_duration_seconds` against it would
-			// fold kubelet downtime into the histogram and read as a
-			// boot-time spike across every recovered VM. Suppress the
-			// observation for recovered entries.
-			StartTS:      *startTS,
-			BootObserved: true,
-			StatusDir:    podagent.StatusDirForPod(tartClient, pod, vmName),
-		}
-		store.Put(pod.Namespace, pod.Name, entry)
-		matched++
-	}
-	setupLog.Info("recovered VM state", "node", nodeName, "tart_vms", len(vms), "matched_pods", matched)
-	return nil
-}
-
-// clientcmdConfig is an alias so the signature of recoverState reads
-// without dragging the rest-config dep into the main signature line.
-type clientcmdConfig = rest.Config
-
-// imageMirrorList implements flag.Value for repeated --image-mirror.
-type imageMirrorList []podagent.ImageMirror
-
-func (l *imageMirrorList) String() string {
-	if l == nil {
-		return ""
-	}
-	parts := make([]string, 0, len(*l))
-	for _, m := range *l {
-		parts = append(parts, m.String())
-	}
-	return joinComma(parts)
-}
-
-func (l *imageMirrorList) Set(value string) error {
-	m, err := podagent.ParseImageMirror(value)
-	if err != nil {
-		return err
-	}
-	*l = append(*l, m)
-	return nil
-}
+			// fold kubelet downtime into 

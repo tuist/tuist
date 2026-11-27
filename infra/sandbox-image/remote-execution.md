@@ -399,8 +399,10 @@ succeeds; node orphan reconciliation removes VMs whose rows are gone.
 
 Per-action bounds: 4 MiB protobuf metadata, 1 GiB individual blob, 8 GiB combined
 input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
-128 KiB result protobuf. Exceeding a bound fails explicitly. The gateway permits
-128 concurrent requests/streams per replica.
+128 KiB result protobuf. Exceeding a bound fails explicitly. Each gateway replica
+serves 512 requests/streams at once; further ones wait for a free slot until
+their client cancels or its deadline passes, since a rejected `Execute` fails the
+Bazel build.
 
 ## Build and rollout
 

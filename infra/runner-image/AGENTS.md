@@ -173,6 +173,26 @@ took 2 s, no runtime moved, and four staggered parallel `xcodebuild test` runs
 passed, against two of four clone failures on the image without it. If a later
 Xcode refuses disk-image mounts, that build check is what fails.
 
+The claim selects the runner profile's Xcode as the job's default. The server
+sends the Xcode of the job's profile (found from its `requested_dispatch_label`)
+as `xcode_version` in the dispatch response, so an image holding several Xcodes
+runs each job on its own profile's; a job without a profile gets the pool's
+`tuist.dev/xcode-version`. `dispatch-poll.sh` runs `select-xcode.sh select`
+before any agent starts:
+`sudo xcode-select -s` and an `/Applications/Xcode.app` symlink (a real bundle
+there is left alone), about 25 ms on a rack guest and no `xcodebuild` on the
+claim path. It does not export `DEVELOPER_DIR`, which would override a
+workflow's own `xcode-select -s` (setup-xcode, fastlane). A version the image
+lacks logs `WARNING no Xcode` and keeps the image's selection. After the first
+idle poll, `select-xcode.sh warm` launches each Xcode once (`xcodebuild
+-version` and `-showsdks`, `xcrun --find swift`, `swift --version`, plus the boot's first
+`sudo`/`xcode-select`) and stops at the claim marker: every Xcode in an image
+with up to three, otherwise the default and `TUIST_RUNNER_WARM_XCODE` from the
+Pod env, which no pool sets until multi-Xcode images exist (about 360 MB of
+clean file cache per extra Xcode). macOS sandboxes
+select theirs the same way at claim (`infra/tart-kubelet/macos-sandboxes.md`).
+Run `bash infra/runner-image/select-xcode_test.sh`.
+
 Run `bash infra/runner-image/tcc-report_test.sh` from the checkout. It also
 covers `tcc-approvals.sh`. Tests use synthetic JSON and temporary
 SQLite/processes, never host privacy APIs. The existing release workflow
@@ -530,6 +550,12 @@ added to catch that failed on `admin`'s unwritable cache instead.
   agent's privileged ops (installing /etc/tuist.env, halting the
   VM at job exit). Single-tenant ephemeral VM — the entire OS is
   the customer's job environment.
+- `externals/node*/bin/node` — the node shim
+  (`infra/linux-runner-image/cmd/tuist-node-shim`, built for darwin by
+  `build-runner-image-binaries`), with the runner's own node beside it as
+  `node.real`. While the host's tart-kubelet answers on
+  `TUIST_ACTIONS_CACHE_URL`, it points a JavaScript action's results service at
+  the host, so `actions/cache` saves to and restores from the site's store.
 
 ## Tuist CLI and the agent guide
 

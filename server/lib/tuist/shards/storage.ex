@@ -160,9 +160,12 @@ defmodule Tuist.Shards.Storage do
     end
   end
 
-  # The server's own calls stay on the in-cluster endpoint; the URLs a Mac
-  # follows are signed for its site's entrance, which must be HTTPS.
-  defp runner_entrance_target(id, config, site) do
+  @doc """
+  The target a Mac at `site` reaches the store `id` through: the server's own
+  calls stay on the in-cluster endpoint, and the URLs the Mac follows are
+  signed for its site's entrance (`runner_endpoints`), which must be HTTPS.
+  """
+  def runner_entrance_target(id, config, site) do
     with %{^site => endpoint} when is_binary(endpoint) <- config["runner_endpoints"],
          {:ok, target} <- in_cluster_target(id, config),
          {:ok, %S3Target{config: presign_config}} <-

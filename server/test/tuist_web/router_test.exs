@@ -120,6 +120,8 @@ defmodule TuistWeb.RouterTest do
 
   test "the retired flaky-tests and test-insights pages redirect to their guides", %{conn: conn} do
     assert conn |> get("/flaky-tests") |> redirected_to(301) == "/solutions/flaky-tests"
+    assert conn |> get("/solutions/xcode-test-sharding") |> redirected_to(301) == "/solutions/test-sharding"
+    assert conn |> get("/solutions/gradle-test-sharding") |> redirected_to(301) == "/solutions/test-sharding"
     assert conn |> get("/test-insights?utm_source=test") |> redirected_to(301) == "/tests?utm_source=test"
   end
 

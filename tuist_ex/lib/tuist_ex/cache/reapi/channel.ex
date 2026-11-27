@@ -24,8 +24,20 @@ defmodule TuistEx.Cache.Reapi.Channel do
 
   def handle_info(_message, state), do: {:noreply, state}
 
+  # grpc answers a disconnect before its connection process closes the socket,
+  # so wait for that process: a closed session must hold no connection that
+  # could keep buffering an abandoned stream. A TLS close can wait on the peer,
+  # so one that does not finish promptly is ended.
   def terminate(_reason, state) do
+    connection = state.channel.adapter_payload.conn_pid
+    monitor = Process.monitor(connection)
     GRPC.Stub.disconnect(state.channel)
+
+    receive do
+      {:DOWN, ^monitor, :process, _pid, _reason} -> :ok
+    after
+      1_000 -> Process.exit(connection, :kill)
+    end
   rescue
     _ -> :ok
   catch

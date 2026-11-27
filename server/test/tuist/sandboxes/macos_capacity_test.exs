@@ -18,6 +18,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   alias Tuist.Sandboxes.Router
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxEvent
+  alias Tuist.Sandboxes.Xcode
 
   setup do
     name = "mac-#{System.unique_integer([:positive])}"
@@ -288,6 +289,35 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     end)
 
     assert {:error, ^error} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+  end
+
+  test "a create hands the host the Xcode its template boots, to select in the guest", %{node: node} do
+    stub(Tuist.Environment, :macos_sandbox_xcode_versions, fn -> ["26.6", "26.1.1"] end)
+    name = node.name
+    node = %{node | templates: [hd(node.templates), %{name: "macos-xcode-26-1-1", ready: true, tag: "image@sha256:def"}]}
+    stub(Nodes, :connected_nodes, fn -> [node] end)
+    stub(Nodes, :lookup, fn ^name -> {:ok, self(), node} end)
+    test_pid = self()
+
+    stub(Nodes, :call, fn ^name, "create", args, _opts ->
+      send(test_pid, {:create, args})
+      {:ok, %{}}
+    end)
+
+    assert {:ok, first} = Sandboxes.create_sandbox(account_fixture(), %{xcode_version: "26.1.1"})
+    assert_receive {:create, %{template: "macos-xcode-26-1-1", xcode_version: "26.1.1"}}
+    # The host has room for one 8-vCPU VM.
+    Repo.delete!(first)
+
+    # An Amp Orb type names only the template.
+    assert {:ok, _} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin, template: "macos-xcode-26-1-1"})
+    assert_receive {:create, %{xcode_version: "26.1.1"}}
+
+    # `macos` boots the default Xcode; a template the server knows no Xcode of selects none.
+    assert Xcode.version("macos") == "26.6"
+    assert Xcode.version("macos-xcode-15-4") == nil
+    stub(Tuist.Environment, :macos_sandbox_xcode_versions, fn -> [] end)
+    assert Xcode.version("macos") == nil
   end
 
   test "a failed create is deleted from its host at once and holds nothing there", %{node: node} do

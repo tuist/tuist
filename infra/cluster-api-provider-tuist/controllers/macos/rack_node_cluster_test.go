@@ -140,6 +140,27 @@ func TestLentHostTakesTheOtherServersCacheVolumes(t *testing.T) {
 	}
 }
 
+// A host serves the Actions cache from its own site's store, and never while
+// it is lent: the other env's server keeps no entries in this env's stores.
+func TestRackHostTakesItsSitesActionsCacheStore(t *testing.T) {
+	r := &RackAppleSiliconMachineReconciler{ActionsCacheStores: map[string]string{"larch": "https://s3-larch.tuist.dev/actions-cache/"}, DefaultGuestCapacity: 1}
+	larch := rackHost("mini-01", func(h *infrav1.RackHost) { h.Spec.Location.Site = "larch" })
+	ber1 := rackHost("mini-02", func(h *infrav1.RackHost) { h.Spec.Location.Site = "ber1" })
+	lent := rackHost("mini-03", func(h *infrav1.RackHost) {
+		h.Spec.Location.Site = "larch"
+		h.Spec.NodeCluster = lentTo("https://staging.tuist.dev/api/internal/runners/cache-volumes")
+	})
+	if got := r.rackFleetConfig(larch).ActionsCacheStoreURL; got != "https://s3-larch.tuist.dev/actions-cache/" {
+		t.Fatalf("larch host store = %q", got)
+	}
+	if got := r.rackFleetConfig(ber1).ActionsCacheStoreURL; got != "" {
+		t.Fatalf("host at a site without a store = %q", got)
+	}
+	if got := r.rackFleetConfig(lent).ActionsCacheStoreURL; got != "" {
+		t.Fatalf("lent host store = %q", got)
+	}
+}
+
 func TestLendingDriftsTheHostOntoTheOtherCluster(t *testing.T) {
 	r := &RackAppleSiliconMachineReconciler{DefaultGuestCapacity: 1}
 	host := rackHost("mini-01")

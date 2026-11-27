@@ -394,6 +394,19 @@ func main() {
 	flag.StringVar(&rackHostImageMirrorHostsRaw, "rackhost-image-mirror-hosts", "",
 		"Comma-separated RackHost names that get --rackhost-image-mirrors, or * for every rack host. Empty routes none. "+
 			"Flows from the chart's rackFleet.imageCache.routeHosts.")
+	rackHostActionsCacheStores := map[string]string{}
+	flag.Func("rackhost-actions-cache-store",
+		"<site>=<url>: the store holding the GitHub Actions cache entries of rack hosts at <site>. Each such host's tart-kubelet "+
+			"serves the Actions cache to its VMs (--actions-cache-store). Repeatable. Flows from the chart's rackFleet.actionsCacheStore "+
+			"and rackFleet.sites.<site>.actionsCacheStore.",
+		func(v string) error {
+			site, store, ok := strings.Cut(v, "=")
+			if !ok || site == "" || !strings.HasPrefix(store, "https://") {
+				return fmt.Errorf("want <site>=https://..., got %q", v)
+			}
+			rackHostActionsCacheStores[site] = store
+			return nil
+		})
 	var rackEnv string
 	flag.StringVar(&rackEnv, "rack-env", "",
 		"This operator's environment (production, canary, staging): the runtime owner every push to a rack Mac host claims, "+
@@ -933,6 +946,7 @@ func main() {
 		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
 		ImageMirrors:                  rackHostImageMirrors,
 		ImageMirrorHosts:              parseCommaList(rackHostImageMirrorHostsRaw),
+		ActionsCacheStores:            rackHostActionsCacheStores,
 		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		TartKubeletBinarySHA:          binarySHA,
 		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
@@ -1179,204 +1193,4 @@ func main() {
 
 	if nodeIdentitySweepInterval > 0 {
 		var leaseNodeName func(string) string
-		if rackLeaseFleetName != "" {
-			leaseNodeName = func(lease string) string { return rackLeaseFleetName + "-" + lease }
-		}
-		if err := mgr.Add(&shared.NodeIdentitySweep{
-			Client:        mgr.GetClient(),
-			APIReader:     mgr.GetAPIReader(),
-			Revoker:       credsManager,
-			Namespace:     secretsNamespace,
-			LeaseNodeName: leaseNodeName,
-			Interval:      nodeIdentitySweepInterval,
-			Grace:         2 * time.Hour,
-			Revoke:        nodeIdentitySweepRevoke,
-			Log:           ctrl.Log.WithName("node-identity-sweep"),
-		}); err != nil {
-			setupLog.Error(err, "setup NodeIdentitySweep")
-			os.Exit(1)
-		}
-	}
-
-	// Orphan-reclaim sweep: enabled once a pool prefix is configured
-	// (the same prefix the delete path falls back to). Report-only
-	// until a claim-name prefix is also set; see the flag help.
-	if defaultAdoptPoolPrefix != "" {
-		reclaimZones := parseCommaList(orphanReclaimZonesRaw)
-		if err := mgr.Add(&macos.OrphanReclaimer{
-			Client:          mgr.GetClient(),
-			APIReader:       mgr.GetAPIReader(),
-			Scaleway:        scwClient,
-			Interval:        orphanReclaimInterval,
-			Zones:           reclaimZones,
-			PoolPrefix:      defaultAdoptPoolPrefix,
-			ClaimNamePrefix: orphanReclaimClaimNamePrefix,
-			Log:             ctrl.Log.WithName("orphan-reclaim"),
-		}); err != nil {
-			setupLog.Error(err, "setup OrphanReclaimer")
-			os.Exit(1)
-		}
-		setupLog.Info("orphan-reclaim sweep enabled",
-			"poolPrefix", defaultAdoptPoolPrefix,
-			"claimNamePrefix", orphanReclaimClaimNamePrefix,
-			"zones", reclaimZones, "interval", orphanReclaimInterval)
-	}
-
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "set up health check")
-		os.Exit(1)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "set up ready check")
-		os.Exit(1)
-	}
-
-	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "manager exited")
-		os.Exit(1)
-	}
-}
-
-func envOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-// parseCommaList splits a comma-separated flag value into a slice.
-// Empty input returns nil. Whitespace around each entry is trimmed;
-// blank entries (e.g. a trailing comma) are dropped.
-func parseCommaList(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		out = append(out, p)
-	}
-	return out
-}
-
-// parseNamespacedNames parses a comma-separated list of <namespace>/<name>.
-func parseNamespacedNames(raw string) ([]types.NamespacedName, error) {
-	var out []types.NamespacedName
-	for _, entry := range parseCommaList(raw) {
-		namespace, name, ok := strings.Cut(entry, "/")
-		if !ok || namespace == "" || name == "" {
-			return nil, fmt.Errorf("%q is not <namespace>/<name>", entry)
-		}
-		out = append(out, types.NamespacedName{Namespace: namespace, Name: name})
-	}
-	return out, nil
-}
-
-// nodeAccessSelector selects the Roles and RoleBindings the operator keeps
-// for macOS hosts' identities.
-func nodeAccessSelector() labels.Selector {
-	req, err := labels.NewRequirement(credentials.NodeAccessForLabel, selection.Exists, nil)
-	if err != nil {
-		panic(err)
-	}
-	return labels.NewSelector().Add(*req)
-}
-
-func sha256Hex(b []byte) string {
-	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
-}
-
-// discoverAPIServerURL reads the cluster's externally-reachable
-// kube-apiserver URL from the kube-public/cluster-info ConfigMap.
-//
-// kubeadm (and CAPI's KubeadmControlPlane on top of it) write that
-// ConfigMap during cluster bootstrap with whatever
-// `controlPlaneEndpoint` was configured (IP or DNS) plus the cluster
-// CA. It's intentionally world-readable so `kubeadm join` can fetch
-// it before establishing TLS — the operator's ServiceAccount can read
-// it without extra RBAC.
-//
-// Reading from cluster-info instead of taking a chart-injected URL
-// removes a hardcoded value from the chart values: the chart no
-// longer needs to know the cluster's LB IP, and the value tracks
-// whatever caph reconciles the LB to in the future.
-func discoverAPIServerURL(restConfig *rest.Config) (string, error) {
-	clientset, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return "", fmt.Errorf("clientset for cluster-info read: %w", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	cm, err := clientset.CoreV1().ConfigMaps(metav1.NamespacePublic).
-		Get(ctx, "cluster-info", metav1.GetOptions{})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("kube-public/cluster-info ConfigMap not found (cluster not bootstrapped via kubeadm/CAPI?)")
-		}
-		return "", fmt.Errorf("get kube-public/cluster-info: %w", err)
-	}
-	raw, ok := cm.Data["kubeconfig"]
-	if !ok {
-		return "", fmt.Errorf("kube-public/cluster-info has no `kubeconfig` key")
-	}
-	cfg, err := clientcmd.Load([]byte(raw))
-	if err != nil {
-		return "", fmt.Errorf("parse cluster-info kubeconfig: %w", err)
-	}
-	for _, cluster := range cfg.Clusters {
-		if cluster != nil && cluster.Server != "" {
-			return cluster.Server, nil
-		}
-	}
-	return "", fmt.Errorf("cluster-info kubeconfig has no cluster.server entry")
-}
-
-// controlPlaneVersion reads the API server's gitVersion, at most once a
-// minute.
-func controlPlaneVersion(cfg *rest.Config) func(context.Context) (string, error) {
-	var (
-		mu      sync.Mutex
-		version string
-		readAt  time.Time
-	)
-	return func(context.Context) (string, error) {
-		mu.Lock()
-		defer mu.Unlock()
-		if version != "" && time.Since(readAt) < time.Minute {
-			return version, nil
-		}
-		dc, err := discovery.NewDiscoveryClientForConfig(cfg)
-		if err != nil {
-			return "", err
-		}
-		info, err := dc.ServerVersion()
-		if err != nil {
-			return "", err
-		}
-		version, readAt = info.GitVersion, time.Now()
-		return version, nil
-	}
-}
-
-// readRackNodeBinary reads the rack-node binary a rack Linux fleet joins its
-// hosts with. Without a fleet, or without the binary, it is nil, and a join
-// reports that it has none.
-func readRackNodeBinary(path, fleet string) []byte {
-	if fleet == "" || path == "" {
-		return nil
-	}
-	binary, err := os.ReadFile(path)
-	if err != nil {
-		setupLog.Error(err, "read the rack-node binary; rack Linux hosts cannot be joined", "path", path)
-		return nil
-	}
-	return binary
-}
+		i

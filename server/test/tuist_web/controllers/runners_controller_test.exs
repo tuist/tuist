@@ -137,6 +137,7 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["owner"] == account.name
       assert body["workflow_job_id"] == 4242
       refute Map.has_key?(body, "cache_endpoint_url")
+      refute Map.has_key?(body, "xcode_version")
 
       assert [%{"group" => "Tuist Runner", "detail" => detail}] = body["setup_info"]
       assert detail =~ "/#{account.name}/runners/by-runner/pod-1"
@@ -195,7 +196,8 @@ defmodule TuistWeb.RunnersControllerTest do
            runner_name: "pod-1",
            workflow_job_id: 1_000_000_000_000_123,
            fleet_on_cluster_network: false,
-           fleet_platform: :macos
+           fleet_platform: :macos,
+           xcode_version: "27.2"
          }}
       end)
 
@@ -209,6 +211,8 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["buildkite_job_uuid"] == "0189abcd-0000-4000-8000-000000000000"
       assert body["buildkite_organization_slug"] == "acme"
       assert body["buildkite_report_token"] == "report-token"
+      # The guest selects it system-wide, so it reaches every provider's job.
+      assert body["xcode_version"] == "27.2"
       # The poll script selects the agent to launch on which credential
       # key is present, so the two must never appear together.
       refute Map.has_key?(body, "encoded_jit_config")

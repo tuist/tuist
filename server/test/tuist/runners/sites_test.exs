@@ -39,6 +39,30 @@ defmodule Tuist.Runners.SitesTest do
     assert Sites.shard_storage_site(nil) == nil
   end
 
+  test "an Actions cache host is a Linux node on its site's private network or a rack Mac at its site" do
+    labels = fn labels -> {:ok, %{"metadata" => %{"labels" => labels}}} end
+
+    expect(Client, :get_node, 4, fn
+      "linux-node", _ ->
+        labels.(%{"node.cluster.x-k8s.io/shard-storage-site" => "gra", "tuist.dev/private-network" => "pn-1"})
+
+      "mac", _ ->
+        labels.(%{"kubernetes.io/os" => "darwin", "node.cluster.x-k8s.io/rack-site" => "ber1"})
+
+      "lent-mac", _ ->
+        labels.(%{"kubernetes.io/os" => "darwin"})
+
+      "linux-in-rack", _ ->
+        labels.(%{"kubernetes.io/os" => "linux", "node.cluster.x-k8s.io/rack-site" => "ber1"})
+    end)
+
+    assert Sites.actions_cache_location("linux-node") == {:linux, "gra"}
+    assert Sites.actions_cache_location("mac") == {:macos, "ber1"}
+    assert Sites.actions_cache_location("lent-mac") == nil
+    assert Sites.actions_cache_location("linux-in-rack") == nil
+    assert Sites.actions_cache_location(nil) == nil
+  end
+
   @image "ghcr.io/tuist/tuist-runner:macos-26-6-1.0.0"
 
   setup do

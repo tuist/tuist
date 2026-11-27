@@ -49,6 +49,20 @@ defmodule Atlas.ObjectStorageTest do
              ObjectStorage.get_object("notes/demo.txt", config: @config)
   end
 
+  test "get_object sends a range and accepts the partial response" do
+    Req
+    |> expect(:request, fn request ->
+      headers = Map.new(request[:headers])
+      assert headers["range"] == "bytes=0-4"
+      assert headers["authorization"] =~ "SignedHeaders=host;range;"
+
+      {:ok, %{status: 206, body: "hello", headers: []}}
+    end)
+
+    assert {:ok, %{body: "hello"}} =
+             ObjectStorage.get_object("notes/demo.txt", config: @config, headers: [{"range", "bytes=0-4"}])
+  end
+
   test "delete_object accepts no-content responses" do
     Req
     |> expect(:request, fn request ->

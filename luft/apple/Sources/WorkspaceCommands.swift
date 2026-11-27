@@ -26,7 +26,7 @@ struct WorkspaceCommands: Commands {
                 .keyboardShortcut("k")
                 .disabled(commandPalette == nil)
             Divider()
-            ForEach(Array([AppNavigation.Tab.threads, .lounges, .dms, .profile].enumerated()), id: \.offset) { index, tab in
+            ForEach(Array([AppNavigation.Tab.threads, .lounges, .dms, .ops, .profile].enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) { selectTab?.perform(tab) }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
                     .disabled(selectTab == nil)
@@ -45,6 +45,7 @@ extension AppNavigation.Tab {
         case .lounges: "Lounges"
         case .dms: "DMs"
         case .profile: "Profile"
+        case .ops: "Ops"
         }
     }
 }

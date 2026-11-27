@@ -124,7 +124,7 @@ class MainActivity : Activity() {
             render()
             if (intentConsumed || !consumeIntent(intent)) {
                 if (AppCore.pendingAuthorization != null) launchPendingSignIn()
-                else if (savedInstanceState?.getBoolean("releases_open") == true && active() != null && screen == "profile") {
+                else if (savedInstanceState?.getBoolean("releases_open") == true && active() != null && screen == "ops") {
                     releaseSurface = java.util.UUID.randomUUID().toString()
                     requestRelease("releases")
                 } else load()
@@ -401,6 +401,7 @@ class MainActivity : Activity() {
         if (busy) text(getString(R.string.loading))
         if (releaseSurface != null) releasesScreen() else when (screen) {
             "profile" -> profileScreen()
+            "ops" -> opsScreen()
             "threads" -> threadsScreen()
             "lounges" -> loungesScreen(direct = false)
             "dms" -> loungesScreen(direct = true)
@@ -433,6 +434,7 @@ class MainActivity : Activity() {
         "dms" -> R.string.dms
         "previews" -> R.string.previews
         "profile" -> R.string.profile
+        "ops" -> R.string.ops
         else -> null
     }
 
@@ -601,10 +603,19 @@ class MainActivity : Activity() {
         }), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
     }
 
+    /** What the person operates, apart from their Profile. Android has Releases; Collections are Apple-only yet. */
+    private fun opsScreen() {
+        if (active() == null) return text(getString(R.string.sign_in_required))
+        if (!browserPending) button(R.string.releases) {
+            releaseSurface = java.util.UUID.randomUUID().toString()
+            requestRelease("releases")
+        }
+    }
+
     private fun releasesScreen() {
         // Up remains available during network work; its ticket invalidates stale completions.
         content.addView(styled(Button(this).apply {
-            setText(if (releaseInDetail) R.string.release_up_list else R.string.release_up_profile)
+            setText(if (releaseInDetail) R.string.release_up_list else R.string.release_up_ops)
             minHeight = dp(48)
             setOnClickListener { releaseUp() }
         }), LinearLayout.LayoutParams(-1, -2))
@@ -729,10 +740,6 @@ class MainActivity : Activity() {
                 organizationMcpServers?.let { (handle, list) -> mcpServersSection(handle, list) }
             }
         } ?: text(getString(R.string.sign_in_required))
-        if (!browserPending) button(R.string.releases) {
-            releaseSurface = java.util.UUID.randomUUID().toString()
-            requestRelease("releases")
-        }
         if (!browserPending) button(R.string.switch_account) { chooseProfile() }
         button(getString(R.string.theme_value, AppCore.themes.firstOrNull { it.first == themeId }?.second.orEmpty())) {
             chooseTheme()
@@ -1803,216 +1810,4 @@ class MainActivity : Activity() {
             })
         }
         val latest = lounge.optJSONArray("messages").objects()
-        val ids = latest.map { it.optString("id") }.toSet()
-        val messages = older.filter { it.optString("id") !in ids } + latest
-        if (earlierBefore() != null) button(R.string.load_earlier) { loadEarlier() }
-        else if (messages.isEmpty()) text(getString(R.string.no_lounge_messages))
-        messages.forEach { message ->
-            content.addView(TextView(this).apply {
-                val author = message.optJSONObject("author")
-                text = onlineMark(getString(R.string.handle, author?.string("handle").orEmpty()),
-                    !message.optBoolean("mine") && author?.optBoolean("online") == true)
-                textSize = 13f; typeface = Typeface.DEFAULT_BOLD; setPadding(0, dp(8), 0, 0)
-                setTextColor(noora(if (message.optBoolean("mine")) "surface-label-primary" else "surface-label-secondary"))
-            })
-            content.addView(TextView(this).apply {
-                text = message.string("body"); textSize = 16f; setTextIsSelectable(true); setPadding(0, dp(2), 0, dp(4))
-                setTextColor(noora("surface-label-primary"))
-            })
-        }
-        content.addView(EditText(this).apply {
-            id = replyInputId
-            setTextColor(noora("surface-label-primary"))
-            setHintTextColor(noora("surface-label-tertiary"))
-            hint = getString(R.string.reply)
-            setText(reply)
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { reply = s.toString() }
-                override fun afterTextChanged(s: Editable?) {}
-            })
-        })
-        button(R.string.send, primary = true) {
-            if (reply.isBlank()) return@button
-            val id = lounge.optString("id")
-            val generation = view.optLong("generation", -1)
-            val profile = view.optString("active_profile_id")
-            val revision = view.optJSONObject("navigation")?.optLong("revision")
-            call("send_lounge_message", JSONObject().put("id", id).put("content", reply)) { data ->
-                if (!showing(id, generation, profile, revision)) return@call
-                reply = ""; scrollToLatest = true; showRoom(data as? JSONObject)
-            }
-        }
-    }
-
-    /** A green dot after someone who has Luft open in this organization, read aloud as Online. */
-    private fun onlineMark(label: CharSequence, online: Boolean): CharSequence {
-        if (!online) return label
-        val text = SpannableStringBuilder(label).append(" ")
-        val start = text.length
-        text.append("●")
-        text.setSpan(ForegroundColorSpan(0xFF34C759.toInt()), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        text.setSpan(TtsSpan.TextBuilder(getString(R.string.online)).build(), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        return text
-    }
-
-    private fun projectName(item: JSONObject): String = item.optString("full_name").ifBlank {
-        item.optString("full_handle").ifBlank { item.optString("name") }
-    }
-
-    private fun previewScreen() {
-        if (active() == null) return
-        if (project == null) {
-            button(R.string.refresh) { loadProjects() }
-            if (projects.isEmpty()) text(getString(R.string.no_projects))
-            projects.forEach { item ->
-                button(projectName(item)) {
-                    project = projectName(item); track = null; search = ""; detail = null
-                    previews.clear(); page = 0; hasNext = false; tracks = null
-                    loadTracks()
-                }
-            }
-            return
-        }
-        button(R.string.projects) {
-            project = null; detail = null; render()
-        }
-        text(project!!, 22f)
-        detail?.let { showDetail(it); return }
-        tracks?.let { available ->
-            val row = LinearLayout(this)
-            row.addView(Button(this).apply {
-                text = getString(R.string.all_tracks, available.optInt("total_count"))
-                isSelected = track == null
-                setOnClickListener { if (!busy) { track = null; loadPreviews(true) } }
-            })
-            available.optJSONArray("tracks").objects().forEach { item ->
-                row.addView(Button(this).apply {
-                    val name = item.optString("name")
-                    text = getString(R.string.track_count, name, item.optInt("count"))
-                    isSelected = track.equals(name, ignoreCase = true)
-                    setOnClickListener { if (!busy) { track = name; loadPreviews(true) } }
-                })
-            }
-            content.addView(HorizontalScrollView(this).apply { addView(row) })
-        }
-        content.addView(EditText(this).apply {
-            id = searchInputId
-            hint = getString(R.string.search)
-            setSingleLine(true)
-            setText(search)
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                    search = s.toString()
-                    ticket++
-                    busy = true
-                    debounce?.let(handler::removeCallbacks)
-                    debounce = Runnable { if (!isDestroyed && screen == "previews" && project != null) loadPreviews(true) }
-                    handler.postDelayed(debounce!!, 350)
-                }
-                override fun afterTextChanged(s: Editable?) {}
-            })
-        })
-        button(R.string.refresh) { loadPreviews(true) }
-        if (previews.isEmpty()) text(getString(if (search.isNotBlank() || track != null) R.string.no_filtered_previews else R.string.no_previews))
-        previews.forEach { item ->
-            val notes = item.string("release_notes").lineSequence().firstOrNull { it.isNotBlank() }?.take(100) ?: ""
-            button(listOf(item.string("display_name").ifBlank { getString(R.string.unnamed_app) },
-                item.string("version"), item.string("git_commit_sha").take(7), item.string("track"), notes)
-                .filter { it.isNotBlank() }.joinToString(" · ")) {
-                call("preview", projectArgs().put("id", item.getString("id"))) { data ->
-                    detail = data as? JSONObject; render()
-                }
-            }
-        }
-        if (hasNext) button(R.string.load_more) { loadPreviews(false) }
-    }
-
-    private fun projectArgs() = JSONObject().put("project", project)
-
-    private fun loadTracks() {
-        call("tracks", projectArgs(), onFailure = {
-            // Older servers have no tracks endpoint; do not invent partial choices or totals.
-            tracks = null
-            loadPreviews(true)
-        }) { data ->
-            tracks = (data as? JSONObject)?.takeIf { it.has("total_count") && it.has("tracks") }
-            loadPreviews(true)
-        }
-    }
-
-    private fun loadPreviews(reset: Boolean) {
-        debounce?.let(handler::removeCallbacks)
-        val nextPage = if (reset) 1 else page + 1
-        if (reset) { previews.clear(); hasNext = false; page = 0 }
-        call("previews", projectArgs().put("track", track ?: JSONObject.NULL)
-            .put("search", search.ifBlank { null } ?: JSONObject.NULL).put("page", nextPage).put("page_size", 20)) { data ->
-            val result = data as? JSONObject ?: JSONObject()
-            val rows = result.optJSONArray("previews").objects()
-            val metadata = result.optJSONObject("pagination_metadata")
-            val more = metadata?.optBoolean("has_next_page") ?: false
-            val oldIds = if (reset) emptySet() else previews.map { it.optString("id") }.toSet()
-            val wrongPage = metadata?.takeIf { it.has("current_page") }?.optInt("current_page")?.let { it != nextPage } ?: false
-            val wrongTrack = track != null && rows.any { !it.string("track").equals(track, ignoreCase = true) }
-            if (wrongPage || wrongTrack || (more && (rows.isEmpty() || rows.all { it.optString("id") in oldIds }))) {
-                hasNext = false; toast(R.string.pagination_failed); render(); return@call
-            }
-            if (reset) previews.clear()
-            previews.addAll(rows.filter { it.optString("id") !in oldIds })
-            page = nextPage; hasNext = more; render()
-        }
-    }
-
-    private fun showDetail(item: JSONObject) {
-        button(R.string.back) { detail = null; render() }
-        text(item.string("display_name").ifBlank { getString(R.string.unnamed_app) }, 22f)
-        val fields = listOf(R.string.preview_version to "version", R.string.bundle_id to "bundle_identifier",
-            R.string.branch to "git_branch", R.string.commit to "git_commit_sha", R.string.track to "track",
-            R.string.created_at to "inserted_at")
-        fields.forEach { (label, key) -> item.string(key).takeIf { it.isNotBlank() }?.let { text(getString(R.string.metadata, getString(label), it)) } }
-        item.optJSONArray("supported_platforms")?.let { platforms ->
-            text(getString(R.string.metadata, getString(R.string.platforms), (0 until platforms.length()).joinToString(", ") { platforms.optString(it) }))
-        }
-        item.optJSONObject("created_by")?.string("handle")?.let { text(getString(R.string.metadata, getString(R.string.created_by), it)) }
-        if (item.string("release_notes").isNotBlank()) { text(getString(R.string.release_notes), 20f); text(item.string("release_notes")) }
-        val platforms = item.optJSONArray("supported_platforms")
-        val android = platforms != null && (0 until platforms.length()).any { platforms.optString(it) == "android" }
-        val apk = item.optJSONArray("builds").objects().firstOrNull { it.optString("type") == "apk" }
-        if (android && apk != null) {
-            val url = apk.string("url")
-            val uri = Uri.parse(url)
-            if (uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.userInfo == null) {
-                button(R.string.install) { confirm(R.string.install, R.string.install_message) { open(url) } }
-            }
-        } else text(getString(R.string.install_unavailable))
-        button(R.string.delete_preview) {
-            confirm(R.string.delete_preview, R.string.delete_preview_message) {
-                call("delete_preview", projectArgs().put("id", item.getString("id"))) { detail = null; loadPreviews(true) }
-            }
-        }
-    }
-
-    private fun confirm(title: Int, message: Int, action: () -> Unit) {
-        val generation = view.optLong("generation", -1)
-        val profile = view.optString("active_profile_id")
-        AlertDialog.Builder(this).setTitle(title).setMessage(message)
-            .setPositiveButton(R.string.confirm) { _, _ ->
-                if (!busy && generation == view.optLong("generation", -1) && profile == view.optString("active_profile_id")) action()
-                else toast(R.string.request_failed)
-            }
-            .setNegativeButton(R.string.cancel, null).show()
-    }
-
-    private fun open(url: String) {
-        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)) }
-        catch (_: Exception) { toast(R.string.browser_unavailable) }
-    }
-
-    private fun toast(id: Int) { Toast.makeText(this, id, Toast.LENGTH_LONG).show() }
-}
-
-private fun JSONArray?.objects(): List<JSONObject> = if (this == null) emptyList()
-    else (0 until length()).mapNotNull { optJSONObject(it) }
-
-private fun JSONObject.string(key: String): String = if (isNull(key)) "" else optString(key)
+        val ids = latest.map { it.optString("id") }.toSe

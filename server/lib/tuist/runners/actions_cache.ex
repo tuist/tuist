@@ -1,11 +1,14 @@
 defmodule Tuist.Runners.ActionsCache do
   @moduledoc """
-  The GitHub Actions cache Linux runner hosts serve (`actions/cache`, setup
-  actions' caches, buildx `type=gha`). Entries live in the actions cache bucket
-  of the in-cluster store at the runner's site (a shard storage target with an
+  The GitHub Actions cache runner hosts serve (`actions/cache`, setup actions'
+  caches, buildx `type=gha`): Linux nodes and rack Macs. Entries live in the
+  actions cache bucket of a shard storage target (one with an
   `actions_cache_bucket`), or in the account's own S3 storage when it has one;
-  hosts only stage uploads and relay reads. An entry is restorable only once
-  its store holds the object.
+  hosts only stage uploads and relay reads. A Linux node uses the store at its
+  site over the private network; a rack Mac uses a store that publishes a
+  gateway entrance for its site (`runner_endpoints`), and the URLs it follows
+  are signed for that entrance. An entry is restorable only once its store
+  holds the object.
 
   This index scopes and orders entries the way GitHub does. A job saves under
   its own ref and restores from its ref, its pull request's base branch and the
@@ -154,7 +157,7 @@ defmodule Tuist.Runners.ActionsCache do
          true <- is_integer(size) and size >= 0 and size <= @max_entry_bytes,
          true <- is_binary(sha256) and Regex.match?(~r/\A[0-9a-f]{64}\z/, sha256),
          %Entry{} = entry <- reservation(id, node),
-         {:ok, actor} <- actor(entry),
+         {:ok, actor} <- host_actor(entry, node),
          {checksum, opts} = upload_opts(actor, sha256),
          url when is_binary(url) <- Storage.generate_upload_url(object_key(entry), actor, opts),
          true <- trusted_url?(entry, url) do
@@ -338,33 +341,41 @@ defmodule Tuist.Runners.ActionsCache do
   end
 
   # Where a save from `node` goes: an account with its own S3 storage keeps its
-  # entries there, every other account in the store at the node's site.
+  # entries there, every other account in a store the node reaches.
   defp place(account, node) do
     if Account.custom_s3_storage_configured?(account) do
       {:ok, nil}
     else
-      site = node_site(node)
+      location = node_location(node)
 
       Enum.find_value(Enum.sort(stores()), :error, fn {id, {config, _target}} ->
-        if is_binary(site) and config["site"] == site and config["private_network_ready"] == true, do: {:ok, id}
+        if placeable?(location, config), do: {:ok, id}
       end)
     end
   end
 
-  # Store URLs are plain HTTP inside the cluster, so only a host on the store's
-  # private network at its site may read one.
+  defp placeable?({:linux, site}, config), do: config["site"] == site and config["private_network_ready"] == true
+  defp placeable?(location, config), do: reachable?(location, config)
+
+  # Store URLs are plain HTTP inside the cluster, so a Linux host reads a store
+  # only on the store's private network at its site, and a rack Mac only
+  # through its site's entrance.
+  defp reachable?({:linux, site}, config), do: config["site"] == site
+  defp reachable?({:macos, site}, config), do: is_binary(get_in(config, ["runner_endpoints", site]))
+  defp reachable?(_location, _config), do: false
+
   defp readable?(%Entry{storage_target: nil}, _node), do: true
 
   defp readable?(%Entry{storage_target: id}, node) do
     case stores() do
-      %{^id => {config, _target}} -> config["site"] == node_site(node)
+      %{^id => {config, _target}} -> reachable?(node_location(node), config)
       _ -> false
     end
   end
 
-  defp node_site(node) do
-    KeyValueStore.get_or_update([__MODULE__, :site, node], [ttl: to_timeout(minute: 5)], fn ->
-      Sites.shard_storage_site(node)
+  defp node_location(node) do
+    KeyValueStore.get_or_update([__MODULE__, :location, node], [ttl: to_timeout(minute: 5)], fn ->
+      Sites.actions_cache_location(node)
     end)
   end
 
@@ -376,6 +387,20 @@ defmodule Tuist.Runners.ActionsCache do
       _ -> {:error, :gone}
     end
   end
+
+  # The target whose URLs the host `node` follows: a rack Mac's are signed for
+  # its site's entrance.
+  defp host_actor(%Entry{storage_target: id} = entry, node) when is_binary(id) do
+    with {:macos, site} <- node_location(node),
+         %{^id => {config, _target}} <- stores() do
+      bucket = config["actions_cache_bucket"]
+      ShardStorage.runner_entrance_target(id, Map.put(config, "bucket", bucket), site)
+    else
+      _ -> actor(entry)
+    end
+  end
+
+  defp host_actor(entry, _node), do: actor(entry)
 
   # An account's own storage may name any endpoint, and the host agent must not
   # be pointed at internal addresses; a store is the cluster's own.
@@ -425,7 +450,7 @@ defmodule Tuist.Runners.ActionsCache do
 
   defp restorable(entry, node) do
     with true <- readable?(entry, node),
-         {:ok, actor} <- actor(entry),
+         {:ok, actor} <- host_actor(entry, node),
          url when is_binary(url) <-
            Storage.generate_download_url(object_key(entry), actor, expires_in: @url_ttl_seconds),
          true <- trusted_url?(entry, url) do

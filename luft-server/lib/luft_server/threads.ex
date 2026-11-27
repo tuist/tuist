@@ -1424,7 +1424,12 @@ defmodule LuftServer.Threads do
     end)
   end
 
-  def call_external_tool(run, invocation_id, name, args, dispatch) do
+  @doc """
+  Runs an external tool's effect at most once. `attrs` are stored on the call,
+  such as the MCP server it reached, so it can be traced after that server is
+  removed.
+  """
+  def call_external_tool(run, invocation_id, name, args, dispatch, attrs \\ %{}) do
     Repo.checkout(
       fn ->
         key = "thread-effects:#{run.thread_id}"
@@ -1440,7 +1445,8 @@ defmodule LuftServer.Threads do
                        thread,
                        fingerprint({invocation_id, name, args}),
                        name,
-                       :thread
+                       :thread,
+                       attrs
                      )
                    end) do
                 {:ok, {:replay, result}} ->
@@ -1591,7 +1597,7 @@ defmodule LuftServer.Threads do
     })
   end
 
-  defp reserve_tool!(run, thread, key, name, scope) do
+  defp reserve_tool!(run, thread, key, name, scope, attrs \\ %{}) do
     case Repo.get_by(ToolCall, run_id: run.id, fingerprint: key) do
       %ToolCall{status: "completed", result: result} ->
         {:replay, result}
@@ -1636,13 +1642,16 @@ defmodule LuftServer.Threads do
 
         call =
           Repo.insert!(
-            %ToolCall{
-              run_id: run.id,
-              message_id: message.id,
-              fingerprint: key,
-              name: name,
-              invocation_id: invocation_id
-            },
+            struct!(
+              %ToolCall{
+                run_id: run.id,
+                message_id: message.id,
+                fingerprint: key,
+                name: name,
+                invocation_id: invocation_id
+              },
+              attrs
+            ),
             log: false
           )
 
@@ -1896,178 +1905,4 @@ defmodule LuftServer.Threads do
     })
   end
 
-  defp wake({:ok, thread} = result) do
-    Lease.wake(thread.id)
-    result
-  end
-
-  defp wake(result), do: result
-
-  # Nested lifecycle writes collect notifications with their owning context
-  # transaction. Only successful outer commits publish; rolled-back writes
-  # never announce a revision. Notifications are hints, not durable work.
-  defp transact(fun) do
-    key = {__MODULE__, :changed}
-    previous = Process.get(key)
-
-    if is_nil(previous) and Repo.in_transaction?() do
-      raise ArgumentError,
-            "Thread writes must own their outer transaction to publish after commit"
-    end
-
-    if is_nil(previous), do: Process.put(key, MapSet.new())
-
-    try do
-      result = Repo.transaction(fun, log: false)
-
-      case result do
-        {:ok, _} when is_nil(previous) ->
-          Enum.each(
-            Process.get(key),
-            &Phoenix.PubSub.broadcast(LuftServer.PubSub, &1, :threads_changed)
-          )
-
-        {:error, _} ->
-          Process.put(key, previous || MapSet.new())
-
-        _ ->
-          :ok
-      end
-
-      result
-    after
-      if is_nil(previous), do: Process.delete(key)
-    end
-  end
-
-  defp now, do: DateTime.utc_now(:second)
-
-  defp fingerprint(value),
-    do: :crypto.hash(:sha256, :erlang.term_to_binary(value, [:deterministic]))
-
-  defp uuid(value),
-    do:
-      case(Ecto.UUID.cast(value),
-        do: (
-          {:ok, id} -> {:ok, id}
-          :error -> {:error, :invalid_arguments}
-        )
-      )
-
-  defp selection(attrs) do
-    provider = attrs["provider"]
-    model = attrs["model"]
-    repository = blank(attrs["repository"])
-    branch = blank(attrs["base_branch"])
-    runner = blank(attrs["runner_id"])
-
-    with true <-
-           is_binary(provider) and byte_size(provider) in 1..100 and is_binary(model) and
-             byte_size(model) in 1..100,
-         true <- is_nil(repository) or is_binary(repository),
-         true <- is_nil(branch) or is_binary(branch),
-         true <- is_nil(runner) or is_nil(repository),
-         {:ok, runner} <- if(is_nil(runner), do: {:ok, nil}, else: uuid(runner)) do
-      {:ok,
-       %{
-         provider: provider,
-         model: model,
-         repository: repository,
-         base_branch: branch,
-         runner_id: runner
-       }}
-    else
-      _ -> {:error, :invalid_arguments}
-    end
-  end
-
-  defp blank(value) when value in [nil, ""], do: nil
-  defp blank(value), do: value
-
-  defp attachments(nil), do: {:ok, []}
-
-  defp attachments(files) when is_list(files) and length(files) <= 4 do
-    Enum.reduce_while(files, {:ok, []}, fn file, {:ok, acc} ->
-      case attachment(file) do
-        {:ok, value} -> {:cont, {:ok, acc ++ [value]}}
-        error -> {:halt, error}
-      end
-    end)
-  end
-
-  defp attachments(_), do: {:error, :invalid_arguments}
-
-  defp attachment(%{"name" => name, "mime_type" => mime, "data_base64" => encoded})
-       when is_binary(name) and is_binary(mime) and is_binary(encoded) do
-    with true <- String.valid?(name) and byte_size(name) in 1..255,
-         false <- name in [".", ".."] or String.match?(name, ~r/[\x00-\x1f\x7f\/\\]/u),
-         true <-
-           byte_size(mime) <= 127 and
-             String.match?(mime, ~r/\A[a-zA-Z0-9!#$&^_.+-]+\/[a-zA-Z0-9!#$&^_.+-]+\z/),
-         true <- byte_size(encoded) <= 1_398_104,
-         {:ok, bytes} <- Base.decode64(encoded),
-         true <- byte_size(bytes) in 1..1_048_576 do
-      {:ok,
-       %{
-         "name" => name,
-         "mime_type" => String.downcase(mime),
-         "data_base64" => Base.encode64(bytes)
-       }}
-    else
-      _ -> {:error, :invalid_arguments}
-    end
-  end
-
-  defp attachment(_), do: {:error, :invalid_arguments}
-  defp content(nil, [_ | _]), do: {:ok, ""}
-
-  defp content(value, files) when is_binary(value) do
-    if String.valid?(value) and (String.trim(value) != "" or files != []) and
-         byte_size(value) <= 16_000, do: {:ok, value}, else: {:error, :invalid_arguments}
-  end
-
-  defp content(_, _), do: {:error, :invalid_arguments}
-  defp before_position(nil), do: {:ok, nil}
-  defp before_position(value) when is_integer(value) and value > 0, do: {:ok, value}
-
-  defp before_position(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {number, ""} when number > 0 -> {:ok, number}
-      _ -> {:error, :invalid_arguments}
-    end
-  end
-
-  defp before_position(_), do: {:error, :invalid_arguments}
-  defp decode_cursor(nil), do: {:ok, nil}
-
-  defp decode_cursor(cursor) when is_binary(cursor) and byte_size(cursor) <= 256 do
-    with {:ok, data} <- Base.url_decode64(cursor, padding: false),
-         {:ok, [timestamp, id]} <- JSON.decode(data),
-         true <- is_binary(timestamp),
-         {:ok, timestamp, _} <- DateTime.from_iso8601(timestamp),
-         {:ok, id} <- uuid(id) do
-      {:ok, {timestamp, id}}
-    else
-      _ -> {:error, :invalid_arguments}
-    end
-  end
-
-  defp decode_cursor(_), do: {:error, :invalid_arguments}
-  defp snooze_attrs(nil), do: {:ok, %{snoozed_until: nil, snoozed_until_needed: false}}
-
-  defp snooze_attrs(%{"until_needed" => true}),
-    do: {:ok, %{snoozed_until: nil, snoozed_until_needed: true}}
-
-  defp snooze_attrs(%{"until" => value}) when is_binary(value) do
-    with {:ok, until, _} <- DateTime.from_iso8601(value),
-         until = DateTime.truncate(until, :second),
-         seconds = DateTime.diff(until, now()),
-         true <- seconds > 0 and seconds <= 30 * 86_400 do
-      {:ok, %{snoozed_until: until, snoozed_until_needed: false}}
-    else
-      _ -> {:error, :invalid_arguments}
-    end
-  end
-
-  defp snooze_attrs(_), do: {:error, :invalid_arguments}
-end
+  defp wake({:

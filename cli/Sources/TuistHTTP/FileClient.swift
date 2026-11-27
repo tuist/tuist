@@ -98,6 +98,19 @@ import Path
         /// the next call for the same URL and destination. Falls back to `download(url:to:)` when the server
         /// does not serve ranges of an unchanged object.
         func downloadInParallel(url: URL, to destination: AbsolutePath) async throws
+        /// The object's bytes in order, as chunks of concurrently fetched byte ranges, so a consumer can process
+        /// them while the rest arrives. Ranges run ahead of the consumer by at most one per lane. Fails with
+        /// `OrderedDownloadError.rangesNotServed` before yielding anything when the server does not serve ranges.
+        func downloadInOrder(url: URL) -> AsyncThrowingStream<Data, Error>
+    }
+
+    public enum OrderedDownloadError: LocalizedError, Equatable {
+        /// The server answered the first range with something other than a validated 206.
+        case rangesNotServed
+
+        public var errorDescription: String? {
+            "The server does not serve byte ranges of the object."
+        }
     }
 
     public struct FileClient: FileClienting {
@@ -244,6 +257,16 @@ import Path
             }
         }
 
+        public func downloadInOrder(url: URL) -> AsyncThrowingStream<Data, Error> {
+            let download = OrderedRangeDownload(
+                url: url,
+                session: session,
+                chunkSize: parallelRangeSize,
+                window: Self.parallelRangeLanes
+            )
+            return AsyncThrowingStream(unfolding: { try await download.next() })
+        }
+
         public func upload(file: AbsolutePath, hash _: String, to url: URL) async throws -> Bool {
             guard let metadata = try await fileSystem.fileMetadata(at: file) else {
                 throw FileClientError.noLocalURL(URLRequest(url: url))
@@ -356,7 +379,7 @@ import Path
             return segments
         }
 
-        private static func rangeRequest(url: URL, from start: Int64, to end: Int64, validator: String?) -> URLRequest {
+        static func rangeRequest(url: URL, from start: Int64, to end: Int64, validator: String?) -> URLRequest {
             var request = URLRequest(url: url)
             request.setValue("bytes=\(start)-\(end)", forHTTPHeaderField: "Range")
             if let validator {
@@ -656,6 +679,135 @@ import Path
         }
     }
 
+    /// Fetches an object as consecutive ranges of `chunkSize` bytes, each on lane `index % window` so HTTP/2 hosts
+    /// cannot multiplex them onto one connection, and returns them in order. The first range learns the object's
+    /// size and validator; every later one must carry the same validator. Each range is retried on its own, and
+    /// the next ranges start only as the consumer takes earlier ones, so at most `window` are held in memory.
+    private final class OrderedRangeDownload: @unchecked Sendable {
+        private let url: URL
+        private let session: URLSession?
+        private let chunkSize: Int64
+        private let window: Int
+        private let lock = NSLock()
+        private var object: (total: Int64, validator: String)?
+        private var nextIndex = 0
+        private var started = 0
+        private var chunks: [Int: Task<Data, Error>] = [:]
+
+        init(url: URL, session: URLSession?, chunkSize: Int64, window: Int) {
+            self.url = url
+            self.session = session
+            self.chunkSize = max(chunkSize, 1)
+            self.window = max(window, 1)
+        }
+
+        deinit {
+            for chunk in chunks.values {
+                chunk.cancel()
+            }
+        }
+
+        /// Called by one consumer at a time, as `AsyncThrowingStream(unfolding:)` does.
+        func next() async throws -> Data? {
+            let first: Data?
+            if object == nil {
+                let (url, chunkSize, session) = (url, chunkSize, session ?? .tuistLargeTransfer(lane: 0))
+                // Retries transfer failures, not a server that does not serve ranges.
+                let probe = try await HTTPRetryPolicy().run { () -> Result<(Data, RangeWriter.Object), OrderedDownloadError> in
+                    do {
+                        let (data, object) = try await Self.fetch(
+                            url: url, start: 0, end: chunkSize - 1, validator: nil, session: session
+                        )
+                        return .success((data, object))
+                    } catch let error as OrderedDownloadError {
+                        return .failure(error)
+                    }
+                }
+                let (data, object) = try probe.get()
+                self.object = (object.total, object.validator)
+                nextIndex = 1
+                started = 1
+                first = data
+            } else {
+                first = nil
+            }
+            guard let object else { return nil }
+            let count = Int((object.total + chunkSize - 1) / chunkSize)
+            while started < min(nextIndex + window, count) {
+                let index = started
+                let start = Int64(index) * chunkSize
+                let end = min(start + chunkSize, object.total) - 1
+                let (url, validator) = (url, object.validator)
+                let session = session ?? .tuistLargeTransfer(lane: index % window)
+                let task = Task {
+                    try await HTTPRetryPolicy().run {
+                        try await Self.fetch(url: url, start: start, end: end, validator: validator, session: session).data
+                    }
+                }
+                lock.withLock { chunks[index] = task }
+                started += 1
+            }
+            if let first { return first }
+            guard nextIndex < count else { return nil }
+            let index = nextIndex
+            nextIndex += 1
+            guard let task = lock.withLock({ chunks.removeValue(forKey: index) }) else { return nil }
+            do {
+                return try await withTaskCancellationHandler {
+                    try await task.value
+                } onCancel: {
+                    task.cancel()
+                }
+            } catch {
+                lock.withLock {
+                    for chunk in chunks.values {
+                        chunk.cancel()
+                    }
+                    chunks.removeAll()
+                }
+                throw error
+            }
+        }
+
+        private static func fetch(
+            url: URL,
+            start: Int64,
+            end: Int64,
+            validator: String?,
+            session: URLSession
+        ) async throws -> (data: Data, object: RangeWriter.Object) {
+            let request = FileClient.rangeRequest(url: url, from: start, to: end, validator: validator)
+            let data: Data
+            let response: URLResponse
+            do {
+                (data, response) = try await session.data(for: request)
+            } catch {
+                HARRecorder.recordDetached { recorder in
+                    await FileClientHAR.recordDownloadError(request: request, error: error, recorder: recorder)
+                }
+                throw FileClientError.urlSessionError(request, error, nil)
+            }
+            guard let response = response as? HTTPURLResponse else {
+                throw FileClientError.invalidResponse(request, nil)
+            }
+            HARRecorder.recordDetached { recorder in
+                await FileClientHAR.recordDownload(request: request, response: response, recorder: recorder)
+            }
+            if !(200 ..< 300).contains(response.statusCode), response.statusCode != 416 {
+                throw FileClientError.serverSideError(request, response, nil)
+            }
+            // Compares the 206's own validator: Tigris ignores `If-Range` and answers 206 for a changed object.
+            guard response.statusCode == 206, let object = RangeWriter.object(of: response), object.start == start,
+                  validator == nil || object.validator == validator,
+                  Int64(data.count) == object.end - object.start + 1
+            else {
+                if validator == nil { throw OrderedDownloadError.rangesNotServed }
+                throw FileClientError.invalidResponse(request, nil)
+            }
+            return (data, object)
+        }
+    }
+
     /// Writes one 206 body into its own region of a shared partial file, from `offset`, as it arrives. Other
     /// writers fill other regions of the same file at the same time, so it never truncates the file.
     private final class RangeWriter: NSObject, URLSessionDataDelegate, @unchecked Sendable {
@@ -778,7 +930,7 @@ import Path
         }
 
         /// `Content-Range: bytes <start>-<end>/<size>` of an unencoded body with a validator.
-        private static func object(of response: HTTPURLResponse) -> Object? {
+        static func object(of response: HTTPURLResponse) -> Object? {
             guard let validator = PartialFileWriter.validator(of: response),
                   let contentRange = response.value(forHTTPHeaderField: "Content-Range"),
                   contentRange.hasPrefix("bytes ")

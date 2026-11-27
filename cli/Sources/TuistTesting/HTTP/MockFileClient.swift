@@ -49,6 +49,11 @@ import TuistSupport
         public func downloadInParallel(url: URL, to destination: AbsolutePath) async throws {
             try await download(url: url, to: destination)
         }
+
+        /// Serves no ranges, so callers fall back to `downloadInParallel(url:to:)`.
+        public func downloadInOrder(url _: URL) -> AsyncThrowingStream<Data, Error> {
+            AsyncThrowingStream { $0.finish(throwing: OrderedDownloadError.rangesNotServed) }
+        }
     }
 
     /// A failure carrying the status code of the response that caused it.
