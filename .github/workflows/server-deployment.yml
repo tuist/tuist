@@ -1232,9 +1232,9 @@ jobs:
       - name: Hold runner pools on images their hosts have not staged
         # A runner image release announces its images and the macOS hosts
         # pull them in the background (infra/tart-kubelet/AGENTS.md). Until
-        # the hosts serving a pool hold its new image, or an hour after that
-        # image was first announced, the pool keeps the digest it runs now,
-        # so no job waits on the pull. The gate announces an image no
+        # the hosts serving a pool hold its new image (after an hour since
+        # its announcement, three quarters of them), the pool keeps the
+        # digest it runs now, so no job waits on the pull. The gate announces an image no
         # announcement names and holds its pools. A gate that cannot read or
         # write the cluster moves the pools as before, and a checkout
         # predating the gate has none.

@@ -9,10 +9,18 @@
 # golden it holds as the Node label `tuist.dev/golden-<first 16 hex of
 # sha256(image ref)>` (infra/tart-kubelet). A pool moves once every Ready,
 # schedulable Node holding its current image's golden also holds the new one,
-# so no job waits on the pull. It moves regardless once the new image was
-# announced more than RUNNER_IMAGE_STAGING_TIMEOUT_SECONDS (an hour) ago, when
-# the announcement says `tuist.dev/runner-image-staging: skip`, or when no host
-# holds the current image.
+# so no job waits on the pull. Once the new image was announced more than
+# RUNNER_IMAGE_STAGING_TIMEOUT_SECONDS (an hour) ago, it moves when at least
+# three quarters of those Nodes hold it, so a few hosts that cannot stage do
+# not hold a release back, and otherwise keeps holding and warns. It moves
+# regardless when the announcement says `tuist.dev/runner-image-staging: skip`,
+# or when no host holds the current image.
+#
+# Until 2026-11-27 the hour alone moved a pool. That day the rack's image
+# cache was full and could not serve release 0.70.0, so hosts staged almost
+# nothing, and a deploy at 14:54 moved 40 pools onto images 0 to 9 of 23
+# hosts held. Jobs then waited up to an hour while hosts pulled about 60 GB
+# each from ghcr.io.
 #
 # The hour counts from when the announcement first named the new image
 # (`tuist.dev/runner-image-announced-at-by-image`, one time per key), falling
@@ -119,22 +127,26 @@ while IFS=$'\t' read -r namespace xcode variant current next; do
     echo "Xcode $xcode ($variant): the release skips staging; moving." >&2
     continue
   fi
-  if [ $((now - announced_at)) -ge "$timeout" ]; then
-    echo "Xcode $xcode ($variant): announced over ${timeout}s ago; moving without waiting for hosts." >&2
-    continue
-  fi
-  missing="$(jq -r --arg current "$(golden_label "$current")" --arg next "$(golden_label "$next")" '
+  IFS=$'\t' read -r serving missing <<< "$(jq -r --arg current "$(golden_label "$current")" --arg next "$(golden_label "$next")" '
     [.items[]
       | select(.spec.unschedulable != true)
       | select(any(.status.conditions[]?; .type == "Ready" and .status == "True"))
-      | select(.metadata.labels[$current] != null and .metadata.labels[$next] == null)
-      | .metadata.name]
-    | join(" ")' <<< "$nodes")"
+      | select(.metadata.labels[$current] != null)]
+    | [length, ([.[] | select(.metadata.labels[$next] == null) | .metadata.name] | join(","))]
+    | @tsv' <<< "$nodes")"
   if [ -z "$missing" ]; then
     echo "Xcode $xcode ($variant): every host serving it holds $next; moving." >&2
     continue
   fi
-  echo "Xcode $xcode ($variant): holding on $current; still staging $next on: $missing" >&2
+  unstaged="$(tr ',' '\n' <<< "$missing" | wc -l | tr -d ' ')"
+  if [ $((now - announced_at)) -ge "$timeout" ]; then
+    if [ $(((serving - unstaged) * 4)) -ge $((serving * 3)) ]; then
+      echo "Xcode $xcode ($variant): announced over ${timeout}s ago and $((serving - unstaged)) of $serving hosts serving it hold $next; moving." >&2
+      continue
+    fi
+    echo "::warning::Xcode $xcode ($variant): $((serving - unstaged)) of $serving hosts serving it hold $next over ${timeout}s after its announcement; holding on $current. Check the rack's image cache." >&2
+  fi
+  echo "Xcode $xcode ($variant): holding on $current; still staging $next on: ${missing//,/ }" >&2
   holds="$(jq -c --arg xcode "$xcode" --arg variant "$variant" --arg digest "${current##*@}" \
     '. + [{xcode: $xcode, variant: $variant, digest: $digest}]' <<< "$holds")"
 done <<< "$transitions"

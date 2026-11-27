@@ -126,12 +126,26 @@ expect "$new" "$new_stacked" "the only hosts missing an image NotReady or cordon
 hosts "b06:True:false:"
 expect "$new" "$new_stacked" "no host holding the current images"
 
+# After the hour a pool moves once three quarters of its hosts hold the new
+# image, and keeps holding below that (2026-11-27: a full image cache staged
+# nothing, and the hour alone moved every pool onto images few hosts held).
 hosts "b04:True:false:$repo@$old" "b05:True:false:$repo@$old_stacked"
-expect "$new" "$new_stacked" "an announcement older than the timeout" 3600
+expect "$old" "$old_stacked" "an announcement older than the timeout that no host staged" 7200
+
+hosts "b01:True:false:$repo@$old,$repo@$new" "b02:True:false:$repo@$old,$repo@$new" \
+  "b03:True:false:$repo@$old,$repo@$new" "b04:True:false:$repo@$old" \
+  "b05:True:false:$repo@$old_stacked,$repo@$new_stacked" "b06:True:false:$repo@$old_stacked,$repo@$new_stacked" \
+  "b07:True:false:$repo@$old_stacked" "b08:True:false:$repo@$old_stacked"
+expect "$new" "$old_stacked" "3 of 4 hosts staged standalone and 2 of 4 stacked, after the timeout" 3600
+expect "$old" "$old_stacked" "3 of 4 hosts staged standalone, inside the timeout" 3599
 
 # The hour counts from when each key named its digest, not from the
 # ConfigMap's latest write.
 announce wait "$announced_at" "{\"26.6.stacked\": \"2026-10-22T12:50:00Z\"}"
+hosts "b01:True:false:$repo@$old,$repo@$new" "b02:True:false:$repo@$old,$repo@$new" \
+  "b03:True:false:$repo@$old,$repo@$new" "b04:True:false:$repo@$old" \
+  "b05:True:false:$repo@$old_stacked,$repo@$new_stacked" "b06:True:false:$repo@$old_stacked,$repo@$new_stacked" \
+  "b07:True:false:$repo@$old_stacked,$repo@$new_stacked" "b08:True:false:$repo@$old_stacked"
 expect "$new" "$old_stacked" "a stacked image named 50 minutes ago and a standalone one an hour ago" 3600
 expect_no_writes "keys every announcement already names"
 
