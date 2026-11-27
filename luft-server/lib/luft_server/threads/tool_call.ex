@@ -12,6 +12,10 @@ defmodule LuftServer.Threads.ToolCall do
     field :status, :string, default: "executing"
     field :checkpointed, :boolean, default: false
     field :result, LuftServer.Threads.EncryptedBinary, redact: true
+    # The MCP server an external call reached, kept after the server is removed.
+    field :mcp_server_id, :binary_id
+    field :mcp_server_owner, :string
+    field :mcp_server_host, :string
     timestamps(type: :utc_datetime)
   end
 end

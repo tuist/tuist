@@ -96,6 +96,37 @@ defmodule LuftServer.Threads.MCPTest do
     assert server.owner == "user:12"
   end
 
+  test "a stored call still names the server it went to after the server is removed", ctx do
+    server = mcp_server("account:21", "Team", "https://team.example/mcp")
+
+    mcp(fn
+      _conn, "tools/call", _params -> %{content: [%{type: "text", text: "secret notes"}]}
+      _conn, _method, _params -> nil
+    end)
+
+    assert {:ok, [tool], []} = MCP.discover(ctx.thread, ctx.message, ctx.run)
+    assert {:ok, _output} = Condukt.Tool.execute(tool, %{}, %{})
+    Repo.delete!(server)
+
+    assert [
+             %{
+               status: "completed",
+               mcp_server_id: server.id,
+               mcp_server_owner: "account:21",
+               mcp_server_host: "team.example"
+             }
+           ] ==
+             Repo.all(
+               from c in "thread_tool_calls",
+                 select: %{
+                   status: c.status,
+                   mcp_server_id: type(c.mcp_server_id, Ecto.UUID),
+                   mcp_server_owner: c.mcp_server_owner,
+                   mcp_server_host: c.mcp_server_host
+                 }
+             )
+  end
+
   test "only the author's own servers and the thread account's are offered", ctx do
     mcp_server("user:12", "Mine", "https://mine.example/mcp")
     mcp_server("account:21", "Team", "https://team.example/mcp")

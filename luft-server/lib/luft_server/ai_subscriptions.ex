@@ -16,6 +16,9 @@ defmodule LuftServer.AISubscriptions do
   locked step only if the row still holds the same sign-in or refresh token.
   A disconnect or cancel in between therefore wins, on any replica.
 
+  Connecting and disconnecting a subscription is recorded in `LuftServer.Audit`
+  in the same transaction, without the credential.
+
   Every open `ai_subscriptions` channel shows the current state: a change
   reaches the person's channels at once through `topic/1`.
   """
@@ -23,6 +26,8 @@ defmodule LuftServer.AISubscriptions do
   import Ecto.Query
 
   alias LuftServer.AISubscriptions.ChatGPT
+  alias LuftServer.Audit
+  alias LuftServer.MCPServers
   alias LuftServer.AISubscriptions.Subscription
   alias LuftServer.Repo
   alias LuftServer.SignInLimit
@@ -91,9 +96,11 @@ defmodule LuftServer.AISubscriptions do
   def connect_claude(%{user_sub: user_sub}, token) do
     if valid_claude_token?(token) do
       locked(user_sub, fn ->
-        with {:ok, _} <-
-               user_sub |> get_or_build(:claude) |> save(%{access_token: String.trim(token)}),
-             do: :ok
+        with {:ok, saved} <-
+               user_sub |> get_or_build(:claude) |> save(%{access_token: String.trim(token)}) do
+          record!(saved, "ai_subscription.connected")
+          :ok
+        end
       end)
     else
       {:error, :invalid_claude_token}
@@ -195,7 +202,10 @@ defmodule LuftServer.AISubscriptions do
       |> Map.merge(cleared_login())
       |> Map.merge(%{client_id: login["client_id"], refreshing_until: nil})
 
-    with {:ok, _} <- save(subscription, attrs), do: {:ok, :connected}
+    with {:ok, saved} <- save(subscription, attrs) do
+      record!(saved, "ai_subscription.connected")
+      {:ok, :connected}
+    end
   end
 
   defp save_poll_result(subscription, _login, {:error, reason}) do
@@ -225,9 +235,15 @@ defmodule LuftServer.AISubscriptions do
   """
   def disconnect(%{user_sub: user_sub}, provider) when provider in @providers do
     locked(user_sub, fn ->
-      Repo.delete_all(
-        from s in Subscription, where: s.user_sub == ^user_sub and s.provider == ^provider
-      )
+      query =
+        from s in Subscription,
+          where: s.user_sub == ^user_sub and s.provider == ^provider,
+          select: struct(s, [:id, :user_sub, :provider])
+
+      # Disconnecting what isn't connected changes nothing and records nothing.
+      with {1, [deleted]} <- Repo.delete_all(query) do
+        record!(deleted, "ai_subscription.disconnected")
+      end
 
       :ok
     end)
@@ -355,6 +371,17 @@ defmodule LuftServer.AISubscriptions do
   end
 
   defp valid_claude_token?(_token), do: false
+
+  # The person acts for themselves; the event names the provider, never a token.
+  defp record!(%Subscription{} = subscription, action) do
+    Audit.record!(
+      subscription.user_sub,
+      action,
+      MCPServers.owner(:user, subscription.user_sub),
+      subscription.id,
+      %{"provider" => Atom.to_string(subscription.provider)}
+    )
+  end
 
   defp now, do: DateTime.utc_now(:second)
 

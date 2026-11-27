@@ -9,6 +9,10 @@ defmodule LuftServer.MCPServers do
   an organization's admins connect for its members' threads. Callers decide
   who may act for an owner; this module only scopes rows by it.
 
+  Adding, authorizing and removing a server is recorded in `LuftServer.Audit`
+  with the acting person, in the same transaction as the change, so a removed
+  server can still be traced to who added it and where it pointed.
+
   Public callers get metadata from `list/1`; only server-side code may call
   `credentials/2`, and its result must never be rendered or serialized.
 
@@ -24,6 +28,7 @@ defmodule LuftServer.MCPServers do
 
   import Ecto.Query
 
+  alias LuftServer.Audit
   alias LuftServer.MCPServers.OAuth
   alias LuftServer.MCPServers.Server
   alias LuftServer.Repo
@@ -62,7 +67,7 @@ defmodule LuftServer.MCPServers do
   Adds an MCP server by its HTTPS endpoint, without authorizing it yet. Adding
   a URL the owner already added returns the existing server.
   """
-  def add(owner, attrs) when is_binary(owner) do
+  def add(actor, owner, attrs) when is_binary(actor) and is_binary(owner) do
     url = string_attr(attrs, "url")
     name = string_attr(attrs, "name")
 
@@ -70,11 +75,11 @@ defmodule LuftServer.MCPServers do
       url = URI.to_string(uri)
       name = if name == "", do: uri.host, else: name
 
-      locked(owner, fn -> insert(owner, name, url) end)
+      locked(owner, fn -> insert(actor, owner, name, url) end)
     end
   end
 
-  defp insert(owner, name, url) do
+  defp insert(actor, owner, name, url) do
     cond do
       server = Repo.get_by(Server, owner: owner, url: url) ->
         {:ok, server}
@@ -86,8 +91,12 @@ defmodule LuftServer.MCPServers do
         case %Server{owner: owner}
              |> Server.changeset(%{name: name, url: url})
              |> Repo.insert() do
-          {:ok, server} -> {:ok, server}
-          {:error, _changeset} -> {:error, :invalid_name}
+          {:ok, server} ->
+            record!(actor, "mcp_server.added", server)
+            {:ok, server}
+
+          {:error, _changeset} ->
+            {:error, :invalid_name}
         end
     end
   end
@@ -106,7 +115,7 @@ defmodule LuftServer.MCPServers do
   third party is called and apart from the servers, so removing and adding a
   server again doesn't reset it.
   """
-  def start_authorization(owner, server_id, redirect_uri) do
+  def start_authorization(actor, owner, server_id, redirect_uri) when is_binary(actor) do
     with %Server{} = server <- get(owner, server_id),
          :ok <-
            SignInLimit.hit("mcp:" <> owner, @authorization_limit, @authorization_window),
@@ -126,14 +135,14 @@ defmodule LuftServer.MCPServers do
       }
 
       pending = %{code_verifier: code_verifier, redirect_uri: redirect_uri, state: state}
-      locked(owner, fn -> save_authorization(owner, server_id, config, pending) end)
+      locked(owner, fn -> save_authorization(actor, owner, server_id, config, pending) end)
     else
       nil -> {:error, :not_found}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp save_authorization(owner, server_id, config, pending) do
+  defp save_authorization(actor, owner, server_id, config, pending) do
     case get_locked(owner, server_id) do
       %Server{} = server ->
         attrs =
@@ -149,6 +158,8 @@ defmodule LuftServer.MCPServers do
           })
 
         with {:ok, saved} <- save(server, attrs) do
+          record!(actor, "mcp_server.authorization_started", saved, %{"issuer" => saved.issuer})
+
           {:ok,
            OAuth.authorization_url(
              saved,
@@ -177,8 +188,8 @@ defmodule LuftServer.MCPServers do
   belonging to anyone else, an expired one, or one already used returns
   `{:error, :not_found}`.
   """
-  def complete_authorization(owners, %{"state" => state} = params)
-      when is_list(owners) and is_binary(state) do
+  def complete_authorization(actor, owners, %{"state" => state} = params)
+      when is_binary(actor) and is_list(owners) and is_binary(state) do
     with {:ok, server, pending} <- claim_authorization(owners, state) do
       case params do
         # RFC 9207: an authorization server that identifies itself must be the
@@ -190,7 +201,7 @@ defmodule LuftServer.MCPServers do
           result =
             OAuth.exchange_code(server, code, pending["code_verifier"], pending["redirect_uri"])
 
-          locked(server.owner, fn -> finish_authorization(server, result) end)
+          locked(server.owner, fn -> finish_authorization(actor, server, result) end)
 
         _denied ->
           {:error, :access_denied}
@@ -198,7 +209,7 @@ defmodule LuftServer.MCPServers do
     end
   end
 
-  def complete_authorization(_owners, _params), do: {:error, :not_found}
+  def complete_authorization(_actor, _owners, _params), do: {:error, :not_found}
 
   defp claim_authorization(owners, state) do
     case Repo.one(
@@ -232,14 +243,20 @@ defmodule LuftServer.MCPServers do
     end
   end
 
-  defp finish_authorization(%Server{id: id, owner: owner} = started, result) do
+  defp finish_authorization(actor, %Server{id: id, owner: owner} = started, result) do
     case get_locked(owner, id) do
       # Removed, or re-registered with another authorization server, meanwhile.
       %Server{} = server
       when server.client_id == started.client_id and server.issuer == started.issuer ->
         case result do
-          {:ok, tokens} -> save(server, Map.put(tokens, :refreshing_until, nil))
-          {:error, _reason} -> {:error, :authorization_failed}
+          {:ok, tokens} ->
+            with {:ok, saved} <- save(server, Map.put(tokens, :refreshing_until, nil)) do
+              record!(actor, "mcp_server.authorized", saved, %{"issuer" => saved.issuer})
+              {:ok, saved}
+            end
+
+          {:error, _reason} ->
+            {:error, :authorization_failed}
         end
 
       _ ->
@@ -251,11 +268,22 @@ defmodule LuftServer.MCPServers do
   Deletes the server and the session Luft stored for it. Upstream
   authorization is not revoked; people revoke it at the provider.
   """
-  def remove(owner, server_id) do
+  def remove(actor, owner, server_id) when is_binary(actor) do
     case Ecto.UUID.cast(server_id) do
       {:ok, id} ->
-        Repo.delete_all(from s in Server, where: s.owner == ^owner and s.id == ^id)
-        :ok
+        locked(owner, fn ->
+          query =
+            from s in Server,
+              where: s.owner == ^owner and s.id == ^id,
+              select: struct(s, [:id, :owner, :name, :url])
+
+          # Removing what is already gone changes nothing and records nothing.
+          with {1, [server]} <- Repo.delete_all(query) do
+            record!(actor, "mcp_server.removed", server)
+          end
+
+          :ok
+        end)
 
       :error ->
         :ok
@@ -371,6 +399,20 @@ defmodule LuftServer.MCPServers do
 
   defp cleared_authorization,
     do: %{pending_authorization: nil, pending_state_hash: nil, pending_expires_at: nil}
+
+  # The server's name, URL and host, never a credential.
+  defp record!(actor, action, server, details \\ %{}) do
+    Audit.record!(
+      actor,
+      action,
+      server.owner,
+      server.id,
+      Map.merge(
+        %{"name" => server.name, "url" => server.url, "host" => URI.parse(server.url).host},
+        details
+      )
+    )
+  end
 
   defp hash(state), do: :crypto.hash(:sha256, state)
 

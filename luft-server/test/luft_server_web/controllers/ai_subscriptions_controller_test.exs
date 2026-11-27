@@ -1,6 +1,7 @@
 defmodule LuftServerWeb.AISubscriptionsControllerTest do
   use LuftServerWeb.ConnCase, async: false
 
+  import Ecto.Query
   import Phoenix.ChannelTest
   import Phoenix.ConnTest, except: [connect: 2, connect: 3]
 
@@ -121,6 +122,35 @@ defmodule LuftServerWeb.AISubscriptionsControllerTest do
     assert provider(pushed, "chatgpt")["connected"]
 
     assert authorized(bearer) |> delete("/api/me/ai-subscriptions/other") |> json_response(404)
+    # Disconnecting what isn't connected changes nothing, so it records nothing.
+    assert authorized(bearer) |> delete("/api/me/ai-subscriptions/claude") |> json_response(200)
+
+    # Each change is recorded with who made it, never with a credential.
+    assert [
+             %{action: "ai_subscription.connected", details: %{"provider" => "claude"}},
+             %{action: "ai_subscription.connected", details: %{"provider" => "chatgpt"}},
+             %{action: "ai_subscription.disconnected", details: %{"provider" => "claude"}}
+           ] = events = audit_events()
+
+    assert Enum.all?(events, &match?(%{actor_sub: "1", owner: "user:1"}, &1))
+    refute inspect(events) =~ token
+    refute inspect(events) =~ LuftServer.FakeOpenAI.token()
+  end
+
+  test "a credential that no longer decrypts reads as disconnected, with a warning", %{
+    bearer: bearer
+  } do
+    token = "sk-ant-oat01-" <> String.duplicate("a", 40)
+    authorized(bearer) |> put("/api/me/ai-subscriptions/claude", %{token: token})
+    Repo.query!("UPDATE ai_subscriptions SET access_token = $1", ["sealed under another key"])
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:error, :not_connected} = LuftServer.AISubscriptions.credentials("1", :claude)
+      end)
+
+    assert log =~ "AI subscription credential could not be decrypted"
+    refute log =~ "sealed under another key"
   end
 
   test "a cancelled ChatGPT sign-in can no longer connect", %{bearer: bearer} do
@@ -187,6 +217,14 @@ defmodule LuftServerWeb.AISubscriptionsControllerTest do
       Repo.query!("SELECT access_token, refresh_token FROM ai_subscriptions")
 
     rows |> List.flatten() |> Enum.any?(&(is_binary(&1) and String.contains?(&1, value)))
+  end
+
+  defp audit_events do
+    Repo.all(
+      from e in "audit_events",
+        order_by: [asc: e.inserted_at],
+        select: %{action: e.action, actor_sub: e.actor_sub, owner: e.owner, details: e.details}
+    )
   end
 
   defp provider(subscriptions, name), do: Enum.find(subscriptions, &(&1["provider"] == name))

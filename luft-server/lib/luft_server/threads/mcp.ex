@@ -100,6 +100,12 @@ defmodule LuftServer.Threads.MCP do
     remote_name = definition["name"]
     name = "mcp_" <> binary_part(fingerprint({server.id, remote_name}), 0, 60)
 
+    reached = %{
+      mcp_server_id: server.id,
+      mcp_server_owner: server.owner,
+      mcp_server_host: URI.parse(server.url).host
+    }
+
     Condukt.tool(
       name: name,
       description:
@@ -107,12 +113,19 @@ defmodule LuftServer.Threads.MCP do
           remote_name <> ". " <> (definition["description"] || ""),
       parameters: definition["inputSchema"],
       call: fn args, _ ->
-        Threads.call_external_tool(run, Ecto.UUID.generate(), name, args, fn ->
-          case Transport.call(server.owner, server.id, remote_name, args, authorized?) do
-            {:ok, result} -> {:ok, Jason.encode!(result)}
-            {:error, _} -> {:error, :mcp_outcome_unknown}
-          end
-        end)
+        Threads.call_external_tool(
+          run,
+          Ecto.UUID.generate(),
+          name,
+          args,
+          fn ->
+            case Transport.call(server.owner, server.id, remote_name, args, authorized?) do
+              {:ok, result} -> {:ok, Jason.encode!(result)}
+              {:error, _} -> {:error, :mcp_outcome_unknown}
+            end
+          end,
+          reached
+        )
       end
     )
   end

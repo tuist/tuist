@@ -1424,7 +1424,12 @@ defmodule LuftServer.Threads do
     end)
   end
 
-  def call_external_tool(run, invocation_id, name, args, dispatch) do
+  @doc """
+  Runs an external tool's effect at most once. `attrs` are stored on the call,
+  such as the MCP server it reached, so it can be traced after that server is
+  removed.
+  """
+  def call_external_tool(run, invocation_id, name, args, dispatch, attrs \\ %{}) do
     Repo.checkout(
       fn ->
         key = "thread-effects:#{run.thread_id}"
@@ -1440,7 +1445,8 @@ defmodule LuftServer.Threads do
                        thread,
                        fingerprint({invocation_id, name, args}),
                        name,
-                       :thread
+                       :thread,
+                       attrs
                      )
                    end) do
                 {:ok, {:replay, result}} ->
@@ -1591,7 +1597,7 @@ defmodule LuftServer.Threads do
     })
   end
 
-  defp reserve_tool!(run, thread, key, name, scope) do
+  defp reserve_tool!(run, thread, key, name, scope, attrs \\ %{}) do
     case Repo.get_by(ToolCall, run_id: run.id, fingerprint: key) do
       %ToolCall{status: "completed", result: result} ->
         {:replay, result}
@@ -1636,13 +1642,16 @@ defmodule LuftServer.Threads do
 
         call =
           Repo.insert!(
-            %ToolCall{
-              run_id: run.id,
-              message_id: message.id,
-              fingerprint: key,
-              name: name,
-              invocation_id: invocation_id
-            },
+            struct!(
+              %ToolCall{
+                run_id: run.id,
+                message_id: message.id,
+                fingerprint: key,
+                name: name,
+                invocation_id: invocation_id
+              },
+              attrs
+            ),
             log: false
           )
 

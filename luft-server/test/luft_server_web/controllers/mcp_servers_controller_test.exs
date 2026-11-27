@@ -1,6 +1,7 @@
 defmodule LuftServerWeb.MCPServersControllerTest do
   use LuftServerWeb.ConnCase, async: false
 
+  import Ecto.Query
   import Phoenix.ConnTest
 
   alias LuftServer.MCPServers.Server
@@ -99,6 +100,88 @@ defmodule LuftServerWeb.MCPServersControllerTest do
     # Personal servers are separate from the organization's.
     assert %{"servers" => []} =
              authorized(bearer) |> get("/api/me/mcp-servers") |> json_response(200)
+  end
+
+  test "an organization server's history names the admin, owner, URL and time after removal",
+       %{bearer: bearer} do
+    started = DateTime.utc_now()
+
+    assert %{"server" => %{"id" => id}} =
+             authorized(bearer)
+             |> post("/api/accounts/team/mcp-servers", %{url: "https://mcp.example/mcp"})
+             |> json_response(200)
+
+    assert %{"url" => url} =
+             authorized(bearer)
+             |> post("/api/accounts/team/mcp-servers/#{id}/authorize")
+             |> json_response(200)
+
+    state = url |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() |> Map.fetch!("state")
+
+    assert authorized(bearer)
+           |> post("/api/accounts/team/mcp-servers/complete", %{state: state, code: "the-code"})
+           |> json_response(200)
+
+    # Someone who isn't an admin can't remove it, and leaves no record.
+    stub_scope(false)
+
+    assert other_bearer("2")
+           |> authorized()
+           |> delete("/api/accounts/team/mcp-servers/#{id}")
+           |> json_response(403)
+
+    stub_scope(true)
+    assert authorized(bearer) |> delete("/api/accounts/team/mcp-servers/#{id}") |> response(204)
+    # Removing it again changes nothing, so it records nothing.
+    assert authorized(bearer) |> delete("/api/accounts/team/mcp-servers/#{id}") |> response(204)
+    assert Repo.all(Server) == []
+
+    server = %{
+      "name" => "mcp.example",
+      "url" => "https://mcp.example/mcp",
+      "host" => "mcp.example"
+    }
+
+    assert [
+             %{action: "mcp_server.added", details: ^server},
+             %{action: "mcp_server.authorization_started", details: started_details},
+             %{action: "mcp_server.authorized", details: authorized_details},
+             %{action: "mcp_server.removed", details: ^server}
+           ] = events = audit_events()
+
+    assert Map.take(started_details, ["url", "issuer"]) ==
+             %{"url" => "https://mcp.example/mcp", "issuer" => "https://auth.example"}
+
+    assert Map.take(authorized_details, ["url", "issuer"]) ==
+             %{"url" => "https://mcp.example/mcp", "issuer" => "https://auth.example"}
+
+    for event <- events do
+      assert %{actor_sub: "1", owner: "account:100", subject_id: ^id} = event
+      assert DateTime.compare(event.inserted_at, started) != :lt
+    end
+
+    # Never a credential.
+    refute inspect(events) =~ "access-1"
+    refute inspect(events) =~ "the-code"
+  end
+
+  test "a credential that no longer decrypts reads as disconnected, with a warning", %{
+    bearer: bearer
+  } do
+    %{"server" => %{"id" => id}} =
+      authorized(bearer)
+      |> post("/api/me/mcp-servers", %{url: "https://mcp.example/mcp"})
+      |> json_response(200)
+
+    Repo.query!("UPDATE mcp_servers SET access_token = $1", ["sealed under another key"])
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:error, :not_connected} = LuftServer.MCPServers.credentials("user:1", id)
+      end)
+
+    assert log =~ "MCP server credential could not be decrypted"
+    refute log =~ "sealed under another key"
   end
 
   test "people Tuist no longer lets use Luft can't add personal servers", %{bearer: bearer} do
@@ -206,6 +289,21 @@ defmodule LuftServerWeb.MCPServersControllerTest do
           Req.Test.json(conn, %{access_token: "access-1", token_type: "Bearer", expires_in: 3600})
       end
     end)
+  end
+
+  defp audit_events do
+    Repo.all(
+      from e in "audit_events",
+        order_by: [asc: e.inserted_at],
+        select: %{
+          action: e.action,
+          actor_sub: e.actor_sub,
+          owner: e.owner,
+          subject_id: type(e.subject_id, Ecto.UUID),
+          details: e.details,
+          inserted_at: type(e.inserted_at, :utc_datetime_usec)
+        }
+    )
   end
 
   defp other_bearer(sub), do: bearer(sub)
