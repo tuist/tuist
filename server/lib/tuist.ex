@@ -148,6 +148,7 @@ defmodule Tuist do
       Bazel.RemoteExecutionProfile,
       OnceEvents,
       OnceEvents.Analytics,
+      OnceEvents.GRPCEndpoint,
       OnceEvents.CacheAnalytics,
       OnceEvents.Run,
       OnceEvents.Action,
