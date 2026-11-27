@@ -82,9 +82,11 @@ update() {
 # pair A B runs the guest check in both VMs at once, twice: idle, then with
 # each guest under its own memory pressure (guest.sh). Host-side
 # memory_pressure got the job's step killed on a 16 GB builder.
+# An optional third argument tags a repeat, so repeats keep their own logs.
 pair() {
-  local a="$1" b="$2" round
-  for round in idle pressure; do
+  local a="$1" b="$2" rep="${3:-}" round tag
+  for tag in idle pressure; do
+    round="$tag${rep:+-$rep}"
     gx "$a" "bash '/Volumes/My Shared Files/custom-cache/guest.sh' $round" > "$WORK/$a-$b-$round-a.log" 2>&1 &
     local ja=$!
     gx "$b" "bash '/Volumes/My Shared Files/custom-cache/guest.sh' $round" > "$WORK/$a-$b-$round-b.log" 2>&1 &

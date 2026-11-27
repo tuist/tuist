@@ -74,9 +74,10 @@ jobs:
           sh=.github/golden-gate-point-releases
           . "$sh/host.sh"
           boot c272 "$VANILLA:27.2" || exit 1
-          boot r2721 "$IPSW_2721" && pair c272 r2721
-          retire r2721
-          boot r273 "$IPSW_273B2" && pair c272 r273
+          # Repeat 27.3 beta 2 next to the 27.2 control: run 46032662102 saw
+          # 27.3 keep every write while the control lost them, once.
+          boot r273 "$IPSW_273B2" || exit 1
+          for rep in 1 2 3 4 5; do pair c272 r273 "$rep"; done
           retire r273
           exit 0
       - name: Results
@@ -87,7 +88,7 @@ jobs:
         shell: bash {0}
         run: |
           [ -f "$WORK/docker-config.json" ] && cp -p "$WORK/docker-config.json" "$HOME/.docker/config.json"
-          for vm in c272 r2721 r273; do tart stop "$vm" 2>/dev/null; tart delete "$vm" 2>/dev/null; done
+          for vm in c272 r273; do tart stop "$vm" 2>/dev/null; tart delete "$vm" 2>/dev/null; done
           tart delete "$VANILLA:27.2" 2>/dev/null
           # Only the restore images this job downloaded.
           [ -f /tmp/gg-points-start ] && find "${TART_HOME:-$HOME/.tart}/cache/IPSWs" -type f -newer /tmp/gg-points-start -print -delete 2>/dev/null
