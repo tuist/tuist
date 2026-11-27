@@ -107,9 +107,14 @@ defmodule Tuist.Runners.Sites do
     with {:ok, node} <- Client.get_node(node_name, timeout: @read_timeout),
          labels when is_map(labels) <- get_in(node, ["metadata", "labels"]) do
       case {attested_storage_site(labels), labels} do
-        {site, _} when is_binary(site) -> {:linux, site}
-        {nil, %{"kubernetes.io/os" => "darwin", @site_label => site}} when is_binary(site) and site != "" -> {:macos, site}
-        _ -> nil
+        {site, _} when is_binary(site) ->
+          {:linux, site}
+
+        {nil, %{"kubernetes.io/os" => "darwin", @site_label => site}} when is_binary(site) and site != "" ->
+          {:macos, site}
+
+        _ ->
+          nil
       end
     else
       _ -> nil

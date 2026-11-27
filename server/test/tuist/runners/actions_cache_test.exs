@@ -424,7 +424,10 @@ defmodule Tuist.Runners.ActionsCacheTest do
           "private_network_ready" => false,
           "endpoint" => "http://rustfs-larch-s3.rustfs-larch.svc.cluster.local:9000",
           "region" => "us-east-1",
-          "runner_endpoints" => %{"larch" => "https://s3-larch.tuist.dev", "ber1" => "https://s3-larch-via-ber1.tuist.dev"}
+          "runner_endpoints" => %{
+            "larch" => "https://s3-larch.tuist.dev",
+            "ber1" => "https://s3-larch-via-ber1.tuist.dev"
+          }
         })
 
       stub(Environment, :shard_storage_targets, fn -> %{"rustfs-larch-v1" => store} end)
