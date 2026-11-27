@@ -166,6 +166,12 @@ func (r *OVHDedicatedMachineReconciler) runRunnerEgressScript(ctx context.Contex
 	if r.RunnerEgressRunScript != nil {
 		return r.RunnerEgressRunScript(ctx, machine, script)
 	}
+	return r.runPinnedHostScript(ctx, machine, "runner egress repair", script)
+}
+
+// runPinnedHostScript runs script on the box's public address over SSH, held
+// to the host key its bootstrap pinned.
+func (r *OVHDedicatedMachineReconciler) runPinnedHostScript(ctx context.Context, machine *infrav1.OVHDedicatedMachine, purpose, script string) error {
 	ctx, cancel := context.WithTimeout(ctx, ovhSSHTimeout)
 	defer cancel()
 	fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
@@ -178,11 +184,11 @@ func (r *OVHDedicatedMachineReconciler) runRunnerEgressScript(ctx context.Contex
 		return err
 	}
 	if creds == nil || creds.HostFingerprint == "" {
-		return fmt.Errorf("runner egress repair requires the established SSH host fingerprint")
+		return fmt.Errorf("%s requires the established SSH host fingerprint", purpose)
 	}
 	public := privateNetworkPublicAddress(machine)
 	if public == "" {
-		return fmt.Errorf("runner egress repair requires the primary public IPv4 address")
+		return fmt.Errorf("%s requires the primary public IPv4 address", purpose)
 	}
 	return bootstrapOverSSH(ctx, ovhBootstrapUser, public, key, script, bootstrap.NewHostKeyState(creds.HostFingerprint))
 }
