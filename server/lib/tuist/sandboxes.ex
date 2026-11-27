@@ -58,7 +58,12 @@ defmodule Tuist.Sandboxes do
   @macos_restore_timeout to_timeout(minute: 31)
   @exec_default_timeout_ms 60_000
   @exec_max_timeout_ms 600_000
-  @exec_timeout_slack_ms 10_000
+  # sandboxd ends an exec `timeout_ms` plus 10 s after it starts, then
+  # takes up to 5 s more to kill the guest process (a macOS host 5 s in
+  # all), so the server waits longer: giving up first left the exec in
+  # flight on the node, and an Orb's failed bootstrap then ended its turn
+  # and had its immediate pause refused.
+  @exec_timeout_slack_ms 20_000
   @exec_output_limit_bytes 1_048_576
   @transient_node_errors [:not_connected, :node_disconnected, :timeout]
   # A row still `creating` or `resuming` this long after its last update
