@@ -71,23 +71,38 @@ defmodule Atlas.Outreach.Recommendations do
   Drafts one next step. `:sender_id` names the teammate who will send it from
   their own account, so the draft is written as them; `:channel` is
   `linkedin` (default) or `x`.
+
+  A suggestion that breaks a fixable rule, such as a connection note over
+  LinkedIn's 200 characters, goes back to the agent once with the reason.
   """
   def generate(contact_id, opts \\ []) when is_binary(contact_id) do
+    with {:ok, context} <- fetch_context(contact_id, opts),
+         {:ok, context, raw, outcome} <- draft(contact_id, opts, context),
+         {:ok, context, raw, outcome} <- redraft_fixable(contact_id, opts, context, raw, outcome) do
+      persist_generated(context, raw, outcome)
+    end
+  end
+
+  defp redraft_fixable(contact_id, opts, context, raw, {:fixable, reason}) do
+    draft(contact_id, opts, Map.put(context, :rejected, %{suggestion: raw, reason: reason}))
+  end
+
+  defp redraft_fixable(_contact_id, _opts, context, raw, outcome), do: {:ok, context, raw, outcome}
+
+  # Research tools add timeline events while the agent runs, so the context is
+  # reloaded before its evidence is checked.
+  defp draft(contact_id, opts, context) do
+    with {:ok, result} <- RecommendationAgent.recommend(context),
+         {:ok, refreshed} <- fetch_context(contact_id, opts) do
+      raw = result |> generated_recommendations() |> List.first()
+      {:ok, refreshed, raw, normalize_generated(refreshed, raw)}
+    end
+  end
+
+  defp fetch_context(contact_id, opts) do
     case context(contact_id, opts) do
-      nil ->
-        {:error, :not_found}
-
-      context ->
-        case RecommendationAgent.recommend(context) do
-          {:ok, result} ->
-            case context(contact_id, opts) do
-              nil -> {:error, :not_found}
-              refreshed_context -> persist_generated(refreshed_context, result)
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+      nil -> {:error, :not_found}
+      context -> {:ok, context}
     end
   end
 
@@ -385,10 +400,8 @@ defmodule Atlas.Outreach.Recommendations do
   defp sender(nil), do: nil
   defp sender(sender_id), do: Repo.get(User, sender_id)
 
-  defp persist_generated(context, result) do
-    raw = result |> generated_recommendations() |> List.first()
-
-    case normalize_generated(context, raw) do
+  defp persist_generated(context, raw, outcome) do
+    case outcome do
       {:ok, attrs} ->
         case replace_pending(context.contact, attrs) do
           {:ok, {recommendation, superseded}} ->
@@ -406,27 +419,25 @@ defmodule Atlas.Outreach.Recommendations do
             {:error, reason}
         end
 
-      :skip ->
+      {_skip, reason} ->
         mark_checked(context.contact)
-        audit_generation(context.contact, nil, if(raw, do: 1, else: 0))
+        audit_generation(context.contact, nil, if(raw, do: 1, else: 0), reason)
         {:ok, nil}
     end
   end
 
-  defp normalize_generated(_context, nil), do: :skip
+  # Returns {:fixable, reason} when the agent can correct the suggestion if told
+  # why, and {:skip, reason} when it should not be asked again: asking for more
+  # confidence would only get it claimed, not earned.
+  defp normalize_generated(_context, nil), do: {:skip, "no suggestion"}
 
   defp normalize_generated(context, raw) when is_map(raw) do
     raw = stringify_keys(raw)
     action_type = raw["action_type"]
     evidence = valid_evidence(context.events, raw["evidence"])
 
-    with {:ok, confidence} <- Decimal.cast(raw["confidence"]),
-         true <- Decimal.compare(confidence, @minimum_confidence) in [:eq, :gt],
-         true <- action_type in Recommendation.action_types(),
-         true <- present?(raw["title"]) and present?(raw["guidance"]) and present?(raw["rationale"]),
-         true <- valid_draft?(context.contact, action_type, raw["draft_subject"], raw["draft_message"]),
-         true <- valid_message_strategy?(action_type, raw),
-         true <- evidence != [],
+    with {:ok, confidence} <- cast_confidence(raw["confidence"]),
+         [] <- problems(context, raw, evidence),
          {:ok, due_in_days} <- cast_due_in_days(raw["due_in_days"]) do
       {:ok,
        %{
@@ -455,11 +466,55 @@ defmodule Atlas.Outreach.Recommendations do
            |> Map.new()
        }}
     else
-      _reason -> :skip
+      problems when is_list(problems) -> {:fixable, Enum.join(problems, "; ")}
+      skip -> skip
     end
   end
 
-  defp normalize_generated(_context, _raw), do: :skip
+  defp normalize_generated(_context, _raw), do: {:skip, "malformed suggestion"}
+
+  # Every problem is reported at once, so a redraft does not fix one and trip
+  # over the next.
+  defp problems(context, raw, evidence) do
+    action_type = raw["action_type"]
+
+    [
+      {action_type in Recommendation.action_types(), "action_type #{inspect(action_type)} is not allowed"},
+      {present?(raw["title"]) and present?(raw["guidance"]) and present?(raw["rationale"]),
+       "title, guidance, and rationale are required"},
+      {not mentions_view?(raw["draft_message"]),
+       "the draft mentions that the recipient viewed a profile, page, or Tuist, which recipients find intrusive"},
+      {valid_message_strategy?(action_type, raw),
+       "message_intent, personalization_source, and call_to_action must use the allowed values"},
+      {evidence != [], "evidence must cite a timeline event ID from the context or a research tool"},
+      {match?({:ok, _days}, cast_due_in_days(raw["due_in_days"])), "due_in_days must be an integer from 0 to 30"}
+      | draft_checks(context.contact, action_type, raw["draft_subject"], raw["draft_message"])
+    ]
+    |> Enum.reject(fn {ok?, _problem} -> ok? end)
+    |> Enum.map(fn {_ok?, problem} -> problem end)
+  end
+
+  defp cast_confidence(value) do
+    case Decimal.cast(value) do
+      {:ok, confidence} ->
+        if Decimal.compare(confidence, @minimum_confidence) == :lt,
+          do: {:skip, "confidence #{confidence} is below #{@minimum_confidence}"},
+          else: {:ok, confidence}
+
+      :error ->
+        {:fixable, "confidence #{inspect(value)} is not a number from 0 to 1"}
+    end
+  end
+
+  # The agent is told never to do this, but models still open with it.
+  defp mentions_view?(draft) when is_binary(draft),
+    do:
+      Regex.match?(
+        ~r/\b(viewed|visited|checked out|stopped by|looked at)\b[^.!?]{0,40}\b(profile|page|tuist)\b/iu,
+        draft
+      )
+
+  defp mentions_view?(_draft), do: false
 
   defp replace_pending(contact, attrs) do
     Repo.transaction(fn ->
@@ -536,20 +591,31 @@ defmodule Atlas.Outreach.Recommendations do
     end
   end
 
-  defp valid_draft?(contact, "inmail", subject, draft), do: valid_inmail_subject?(contact, subject) and present?(draft)
-
-  defp valid_draft?(_contact, "connection_request", subject, draft) do
-    not present?(subject) and
-      case normalize_optional_text(draft) do
-        nil -> true
-        note -> String.length(note) <= 200
-      end
+  defp draft_checks(contact, "inmail", subject, draft) do
+    [
+      {valid_inmail_subject?(contact, subject),
+       "the InMail subject must be two to six words, must not start with a phrase like Connecting or Quick question, and must not name the recipient or their title"},
+      {present?(draft), "an InMail needs draft_message"}
+    ]
   end
 
-  defp valid_draft?(_contact, action_type, subject, draft) when action_type in ~w(message reply follow_up),
-    do: not present?(subject) and present?(draft)
+  defp draft_checks(_contact, "connection_request", subject, draft) do
+    length = draft |> normalize_optional_text() |> Kernel.||("") |> String.length()
 
-  defp valid_draft?(_contact, _action_type, _subject, _draft), do: true
+    [
+      {not present?(subject), "a connection request has no subject"},
+      {length <= 200, "the connection note is #{length} characters and LinkedIn allows at most 200"}
+    ]
+  end
+
+  defp draft_checks(_contact, action_type, subject, draft) when action_type in ~w(message reply follow_up) do
+    [
+      {not present?(subject), "only an InMail has a subject"},
+      {present?(draft), "a #{action_type} needs draft_message"}
+    ]
+  end
+
+  defp draft_checks(_contact, _action_type, _subject, _draft), do: []
 
   defp valid_inmail_subject?(contact, subject) do
     subject = normalize_optional_text(subject)
@@ -743,7 +809,7 @@ defmodule Atlas.Outreach.Recommendations do
     end
   end
 
-  defp audit_generation(contact, recommendation, considered_count) do
+  defp audit_generation(contact, recommendation, considered_count, skip_reason \\ nil) do
     Audit.record("outreach.recommendation_generated", %{
       target_type: "contact",
       target_id: contact.id,
@@ -753,6 +819,7 @@ defmodule Atlas.Outreach.Recommendations do
         "created_count" => if(recommendation, do: 1, else: 0),
         "considered_count" => considered_count,
         "recommendation_id" => recommendation && recommendation.id,
+        "skip_reason" => skip_reason,
         "path" => "/commercial/gtm/outreach/#{contact.id}"
       }
     })

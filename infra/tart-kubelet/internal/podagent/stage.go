@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -94,9 +95,9 @@ func (p *Prewarmer) stageEvery(ctx context.Context, interval time.Duration) {
 // Staging stays out of the jobs' way. It starts no pull while a Pod waits on
 // one, since the host runs one golden pull at a time, nor while a runner on
 // the host is running a job, for up to stageJobWaitCap. Its pulls run at
-// background priority (tart.InBackground). It stops below
-// prewarmMinFreePercent, and an image the rack's image cache is still
-// fetching is asked for again on the next pass.
+// background priority (tart.InBackground). It skips an image whose pull
+// would leave too little disk (roomToPull), and an image the rack's image
+// cache is still fetching is asked for again on the next pass.
 func (p *Prewarmer) stage(ctx context.Context) {
 	logger := log.FromContext(ctx).WithName("stage")
 
@@ -140,9 +141,16 @@ func (p *Prewarmer) stage(ctx context.Context) {
 			logger.Info("deferring runner image staging until this host's jobs finish", "image", image, "since", p.jobsDeferredSince, "capSeconds", stageJobWaitCap.Seconds())
 			return
 		}
-		if free, err := p.DiskFree(); err != nil || free < prewarmMinFreePercent {
-			logger.Info("not staging runner images on disk space", "freePercent", free, "floorPercent", prewarmMinFreePercent, "error", err, "image", image)
+		disk, err := p.Disk()
+		if err != nil {
+			logger.Error(err, "measure the host disk; not staging runner images")
 			return
+		}
+		// A later image may be an overlay that fits where this one does not.
+		overlay := sharesHeldBase(pools, upcoming, held, image)
+		if !roomToPull(disk, overlay, defaultGoldenReclaimFreeFloor) {
+			logger.Info("not staging runner image on disk space", "freePercent", disk.FreePercent(), "overlay", overlay, "image", image)
+			continue
 		}
 		started := time.Now()
 		name, materialized, err := p.Goldens.ensureGolden(tart.InBackground(ctx), image)
@@ -162,6 +170,58 @@ func (p *Prewarmer) stage(ctx context.Context) {
 			logger.Info("staged runner image", "image", image, "golden", name, "pulled", materialized, "duration", time.Since(started).String())
 		}
 	}
+}
+
+// A pull on a serving host writes an overlay when the host already holds the
+// image's base (a stacked release of an Xcode it runs, about 2 GB) and the
+// whole image otherwise (an Xcode's base is about 73 GB on a rack host,
+// measured 2026-10-28). These bound each, with room to spare.
+const (
+	overlayPullBytes = 4 << 30
+	imagePullBytes   = 80 << 30
+)
+
+// roomToPull reports whether a staging or follow pull fits on disk: it must
+// leave the host at or above floor, the golden reclaim floor, so the GC does
+// not reclaim goldens to make room for it. A fixed floor of twice that
+// (prewarmMinFreePercent) held every release on 2026-11-27: the rack disk
+// plan settles hosts at 18 to 30% free, and only 8 of 23 hosts staged
+// release 0.69.0's 27.2 image in 3.5 hours. Should an overlay estimate be
+// wrong because the release rebuilt its base, the whole image still leaves
+// a rack host near 11% free at the 15% floor, above DiskPressure's 10%.
+func roomToPull(disk hostdisk.Stats, overlay bool, floor float64) bool {
+	if disk.TotalBytes == 0 {
+		return true
+	}
+	var bytes uint64 = imagePullBytes
+	if overlay {
+		bytes = overlayPullBytes
+	}
+	if bytes >= disk.FreeBytes {
+		return false
+	}
+	return 100*float64(disk.FreeBytes-bytes)/float64(disk.TotalBytes) >= floor
+}
+
+// sharesHeldBase reports whether pulling image writes only its overlay: a
+// pool of stacked images moves to it from an image whose golden this host
+// holds, and a stacked release of the same Xcode reuses that base.
+func sharesHeldBase(pools []runnerPoolSpec, upcoming upcomingImages, held map[string]struct{}, image string) bool {
+	for _, pool := range pools {
+		if !pool.stacked() || upcoming.forPool(pool) != image {
+			continue
+		}
+		if _, ok := held[goldenVMName(pool.Spec.Image)]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// stacked reports whether the pool runs the stacked variant of its Xcode's
+// runner image.
+func (p runnerPoolSpec) stacked() bool {
+	return p.Metadata.Labels[runnerImageVariantLabel] == "stacked"
 }
 
 // deferForJobs reports whether staging waits for the host's jobs: true while

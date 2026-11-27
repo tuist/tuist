@@ -115,6 +115,9 @@ defmodule Atlas.Outreach.Agents.RecommendationAgent do
       "looking forward to learning". Never claim familiarity that the timeline
       does not establish. Do not stack the person's title, company, and market
       into generic praise.
+    - Never mention that the recipient viewed the sender's profile, Tuist's
+      company page, or Tuist's content. Recipients find it intrusive. Such a
+      view may explain why to reach out, but never appears in the draft.
     - Never use "Connecting", "Connecting with", "Quick question", "Let's
       connect", the recipient's name, or their job title as an InMail subject.
       Describe why the message is relevant to them, not the sender's action.
@@ -268,7 +271,7 @@ defmodule Atlas.Outreach.Agents.RecommendationAgent do
   defp build_prompt(context) do
     """
     Recommend the single best next step for this outreach contact.
-
+    #{rejected_context(Map.get(context, :rejected))}
     Sender:
     #{sender_context(context)}
 
@@ -283,6 +286,19 @@ defmodule Atlas.Outreach.Agents.RecommendationAgent do
 
     Account and contact timeline, newest first:
     #{events_context(context.events)}
+    """
+  end
+
+  defp rejected_context(nil), do: ""
+
+  defp rejected_context(%{suggestion: suggestion, reason: reason}) do
+    """
+
+    Your previous suggestion was rejected: #{reason}. This is a hard rule, and
+    a suggestion that repeats the problem is discarded. Rewrite it so the
+    problem is gone, or choose a different action.
+    Rejected suggestion:
+    #{JSON.encode!(suggestion)}
     """
   end
 

@@ -33,15 +33,24 @@ import (
 // successor's pull, so an image that cannot be pulled does not pin it.
 const defaultFollowTimeout = 2 * time.Hour
 
-// succession is a pool's move from one image to another.
+// succession is a pool's move from one image to another. stacked is whether
+// the pool runs stacked images, whose release shares its base with the
+// previous one, so following it pulls only the overlay.
 type succession struct {
 	previous string
 	current  string
+	stacked  bool
+}
+
+// followPull is one image a host pulls to follow a release.
+type followPull struct {
+	image   string
+	overlay bool
 }
 
 // planFollow returns the images this host should pull to follow a release,
 // and marks the previous goldens the pass keeps until they are pulled.
-func (c *Collector) planFollow(expected *expectedSet, vms []tart.VM, now time.Time) []string {
+func (c *Collector) planFollow(expected *expectedSet, vms []tart.VM, now time.Time) []followPull {
 	if c.Goldens == nil || len(expected.successions) == 0 {
 		return nil
 	}
@@ -68,7 +77,7 @@ func (c *Collector) planFollow(expected *expectedSet, vms []tart.VM, now time.Ti
 	}
 
 	seen := map[string]bool{}
-	var images []string
+	var images []followPull
 	for previous, s := range expected.successions {
 		if !local[previous] || local[goldenVMName(s.current)] {
 			delete(c.followSince, previous)
@@ -86,16 +95,18 @@ func (c *Collector) planFollow(expected *expectedSet, vms []tart.VM, now time.Ti
 		expected.addImage(s.previous, c.Images)
 		if !seen[s.current] {
 			seen[s.current] = true
-			images = append(images, s.current)
+			// The host holds the previous golden here, so a stacked pool's
+			// release reuses its base.
+			images = append(images, followPull{image: s.current, overlay: s.stacked})
 		}
 	}
-	sort.Strings(images)
+	sort.Slice(images, func(i, j int) bool { return images[i].image < images[j].image })
 	return images
 }
 
 // startFollow pulls images in the background, one at a time, unless a
 // follow is already running; the next pass picks up whatever it misses.
-func (c *Collector) startFollow(ctx context.Context, images []string) {
+func (c *Collector) startFollow(ctx context.Context, images []followPull) {
 	if len(images) == 0 {
 		return
 	}
@@ -118,10 +129,12 @@ func (c *Collector) startFollow(ctx context.Context, images []string) {
 		ctx, cancel := context.WithTimeout(ctx, defaultPrewarmTimeout)
 		defer cancel()
 		logger := log.FromContext(ctx).WithName("gc")
-		for _, image := range images {
-			if free, err := c.hostDiskFree(); err == nil && free < prewarmMinFreePercent {
-				logger.Info("stopping runner image follow on disk space", "freePercent", free, "floorPercent", prewarmMinFreePercent, "image", image)
-				return
+		for _, pull := range images {
+			image := pull.image
+			// A later image may be an overlay that fits where this one does not.
+			if disk, err := c.hostDisk(); err == nil && !roomToPull(disk, pull.overlay, c.goldenReclaimFreeFloor()) {
+				logger.Info("not following runner image on disk space", "freePercent", disk.FreePercent(), "overlay", pull.overlay, "image", image)
+				continue
 			}
 			started := time.Now()
 			name, pulled, err := c.Goldens.ensureGolden(ctx, image)
