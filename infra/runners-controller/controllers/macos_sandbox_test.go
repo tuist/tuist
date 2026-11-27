@@ -13,6 +13,8 @@ import (
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/priorityqueue"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"testing"
 	"time"
 )
@@ -252,5 +254,19 @@ func TestReservationReconcilesOnlyTheDarwinPoolsWithRunnersOnItsHost(t *testing.
 	requests := r.darwinPools(context.Background(), reservation)
 	if len(requests) != 1 || requests[0].Name != "on-host" || requests[0].Namespace != "tuist-runners" {
 		t.Fatalf("want only the darwin pool with a runner on mac-1, got %v", requests)
+	}
+
+	// From 2026-11-26 about 54 pools stood ready in the queue, and the pool
+	// whose idle runner a sandbox waited for, itself waiting for its next
+	// poll, came out behind all of them: 17 to 48 s.
+	queue := priorityqueue.New[reconcile.Request]("autoscaler")
+	defer queue.ShutDown()
+	for _, name := range []string{"elsewhere", "empty", "linux"} {
+		queue.AddWithOpts(priorityqueue.AddOpts{Priority: new(0)}, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: "tuist-runners", Name: name}})
+	}
+	queue.AddWithOpts(priorityqueue.AddOpts{Priority: new(0), After: 5 * time.Second}, requests[0])
+	r.reservationHandler().Create(context.Background(), event.CreateEvent{Object: reservation}, queue)
+	if first, _, _ := queue.GetWithPriority(); first != requests[0] {
+		t.Fatalf("first out of the queue = %v, want the pool with a runner on the reservation's host", first)
 	}
 }

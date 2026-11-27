@@ -16,10 +16,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/priorityqueue"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -1014,7 +1016,7 @@ func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// A new macOS sandbox reservation may be waiting for an idle CI
 		// runner's slot. Reconcile the darwin pools now rather than on the
 		// next poll, so the sandbox's create or restore waits less.
-		b = b.Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.darwinPools), builder.WithPredicates(predicate.Funcs{
+		b = b.Watches(&corev1.Pod{}, r.reservationHandler(), builder.WithPredicates(predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool {
 				return e.Object.GetNamespace() == r.ReservationsNamespace && e.Object.GetLabels()[macosSandboxRole] == "execution"
 			},
@@ -1024,6 +1026,26 @@ func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}))
 	}
 	return b.Complete(r)
+}
+
+// reservationHandler queues the pools darwinPools names ahead of the pools
+// waiting for their 5 s poll. At default priority they took their turn in
+// FIFO order: from 2026-11-26, with 61 pools and 42 of them darwin, the
+// queue held about 54 pools, a pool waited 28 to 49 s, and a macOS sandbox
+// create waited 17 to 48 s for its host's idle runner to be marked, longer
+// than a host waits before refusing the create.
+func (r *AutoscalerReconciler) reservationHandler() handler.EventHandler {
+	return handler.Funcs{
+		CreateFunc: func(ctx context.Context, e event.CreateEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			for _, request := range r.darwinPools(ctx, e.Object) {
+				if pq, ok := q.(priorityqueue.PriorityQueue[reconcile.Request]); ok {
+					pq.AddWithOpts(priorityqueue.AddOpts{Priority: new(sandboxReporterPriority)}, request)
+				} else {
+					q.Add(request)
+				}
+			}
+		},
+	}
 }
 
 // darwinPools reconciles the pools with runners on the reservation's host,

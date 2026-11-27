@@ -59,7 +59,9 @@ cancellable and leaves the reserve intact. See
   workers). The fleet's first pool renews its sandbox grants, which expire
   after 15 seconds, so its requeues carry `sandboxReporterPriority` and skip
   the queue; every requeue sets its priority, because the queue keeps an
-  item's last one.
+  item's last one. A new macOS sandbox reservation queues the darwin pools
+  with runners on its host at the same priority (`reservationHandler`),
+  since the sandbox waits for one of them to retire an idle runner.
 
   The server also learns a floor per pool (`learned_warm_floor`,
   `Tuist.Runners.LearnedWarmFloors`): the burst its jobs arrive in, while
