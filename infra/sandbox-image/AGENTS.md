@@ -140,7 +140,10 @@ template tag as `<tag>-ci`; the file is part of the template's source, so
 bumping it publishes a new tag, and a published tag never changes (a node
 keeps a tag it already installed). `sandboxes.ciTemplate.enabled` adds a
 second init container to the installer that seeds it under
-`templates/ci/<tag>` with its own `ROOTFS_SIZE`. `validate-ci-template.sh` in
+`templates/ci/<tag>` with its own `ROOTFS_SIZE` (`sandboxes.ciTemplate.rootfsGiB`,
+16: the server reserves a template's full rootfs size against the node's disk
+budget for each sandbox, and 30 fit one `ci` sandbox per canary node). Like
+any size change, a new one reaches nodes with the next template tag. `validate-ci-template.sh` in
 sandboxd boots the same pin on KVM (`sandbox-orbs-validation.yml`,
 `ci_template` input).
 

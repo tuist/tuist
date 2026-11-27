@@ -2905,11 +2905,13 @@ sandboxes:
   # default on every sandbox node, and sessions opt in by naming
   # `template: "ci"`; the default template is unchanged. Its rootfs carries
   # the runner toolchains and the Android SDK (about 5.5 GB used), so it gets
-  # its own size. Off by default: each node pulls a multi-GiB image.
+  # its own size. The server reserves the full size on the node's disk budget
+  # for every `ci` sandbox, so keep it near what jobs need, not generous.
+  # Off by default: each node pulls a multi-GiB image.
   ciTemplate:
     enabled: false
     tagSuffix: "-ci"
-    rootfsGiB: 30
+    rootfsGiB: 16
   # Pull secrets for the two images, e.g. while a freshly created ghcr package
   # is still private. Names of docker-registry Secrets in the sandboxes
   # namespace.
