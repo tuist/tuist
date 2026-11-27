@@ -651,14 +651,16 @@ func (m *Manager) restoreWith(ctx context.Context, sb *Sandbox, log *slog.Logger
 	if memSocket != "" {
 		backend = firecracker.MemoryBackend{BackendType: "Uffd", BackendPath: inst.GuestPath(memSocket)}
 	}
-	// Only a VM mapped from the jail's own memory file has a base a Diff
-	// can be merged onto; one served through userfaultfd has none on disk.
+	// A VM mapped from the jail's own memory file has a base a Diff can be
+	// merged onto. One served through userfaultfd tracks dirty pages too,
+	// and gets its base once the restore has written every chunk to the
+	// jail's memory file (trackFromBase).
 	tracked := m.cfg.DiffSnapshots && memSocket == ""
 	if err := api.LoadSnapshot(ctx, firecracker.SnapshotLoadParams{
 		SnapshotPath:    inst.GuestPath(firecracker.SnapshotPath),
 		MemBackend:      backend,
 		ResumeVM:        true,
-		TrackDirtyPages: tracked,
+		TrackDirtyPages: m.cfg.DiffSnapshots,
 	}); err != nil {
 		return fail(err)
 	}

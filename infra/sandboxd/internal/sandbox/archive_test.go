@@ -447,6 +447,7 @@ func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
 	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256}
 
 	other := node("zen5")
+	other.m.cfg.DiffSnapshots = true
 	restore := args
 	restore.SandboxID, restore.FromArchive = "dst", source
 	created, err := other.m.Create(ctx, restore)
@@ -486,8 +487,26 @@ func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
 	if lazy, served := other.m.HandoverBlocked(); lazy != 0 || served != 0 {
 		t.Fatalf("after its memory loaded, a warm restore still blocks a handover: %d lazy, %d served", lazy, served)
 	}
+	// With Diff snapshots, the restore wrote the archived memory to the
+	// jail's memory file and loaded the VM with dirty-page tracking, so its
+	// first pause is a Diff onto that file.
+	if base, err := os.ReadFile(filepath.Join(vm.RootDir(other.jailBase, "dst"), "mem")); err != nil || !bytes.Equal(base, want) {
+		t.Fatalf("the restore's memory base differs from the archived image (%v)", err)
+	}
+	var tracked, snapshotType any
 	if _, err := other.m.Pause(ctx, "dst"); err != nil {
 		t.Fatalf("pause after a warm restore: %v", err)
+	}
+	for _, call := range inst.Calls() {
+		switch call.Path {
+		case "/snapshot/load":
+			tracked = call.Body["track_dirty_pages"]
+		case "/snapshot/create":
+			snapshotType = call.Body["snapshot_type"]
+		}
+	}
+	if tracked != true || snapshotType != "Diff" {
+		t.Fatalf("a warm restore loaded with track_dirty_pages %v and paused with a %v snapshot, want true and Diff", tracked, snapshotType)
 	}
 
 	// A node that cannot load the VM state cold boots the disks.
