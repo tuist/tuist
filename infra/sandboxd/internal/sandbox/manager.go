@@ -192,6 +192,9 @@ type Sandbox struct {
 	memoryPending bool
 	disksPending  bool
 	lazy          *lazyDisks
+	// memoryLoading is closed once a warm restore's memory is all on the
+	// node; set only while that restore waits for its guest agent.
+	memoryLoading chan struct{}
 	// memoryServed is the instance whose guest memory this process serves
 	// through userfaultfd: a warm restore's, until its memory is all on the
 	// node and released (uffd.Options.Release). It cannot outlive the
@@ -576,6 +579,45 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 	return inst, fail, nil
 }
 
+// waitReady gives the guest agent BootTimeout to answer. A warm archive
+// restore's guest runs on memory it faults in from the archive, which can
+// take most of that, so its BootTimeout starts once the memory is all on the
+// node, or once the deadline leaves only room for a full BootTimeout and a
+// cold boot after it.
+func (m *Manager) waitReady(ctx context.Context, sb *Sandbox, agent vsock.Agent, observe func(vsock.PingAttempt)) error {
+	sb.mu.Lock()
+	loading := sb.memoryLoading
+	sb.mu.Unlock()
+	start := time.Now()
+	if loading != nil {
+		const unbounded = 24 * time.Hour
+		deadline := start.Add(unbounded)
+		if d, ok := ctx.Deadline(); ok {
+			deadline = d.Add(-2 * m.cfg.BootTimeout)
+		}
+		waitCtx, cancel := context.WithDeadline(ctx, deadline)
+		go func() {
+			select {
+			case <-loading:
+				cancel()
+			case <-waitCtx.Done():
+			}
+		}()
+		// waitCtx ends this wait, never its own timeout.
+		_, err := vsock.WaitReadyObserved(waitCtx, agent, unbounded, observe)
+		cancel()
+		if err == nil || ctx.Err() != nil {
+			return err
+		}
+	}
+	offset := time.Since(start)
+	_, err := vsock.WaitReadyObserved(ctx, agent, m.cfg.BootTimeout, func(p vsock.PingAttempt) {
+		p.At += offset
+		observe(p)
+	})
+	return err
+}
+
 func (m *Manager) vmSpec(meta Metadata) vm.Spec {
 	uid := m.cfg.UIDBase + meta.Slot
 	return vm.Spec{
@@ -590,7 +632,7 @@ func (m *Manager) attach(ctx context.Context, sb *Sandbox, inst vm.Instance, met
 	started := time.Now()
 	agent := m.agent(inst.VsockPath())
 	readiness := newReadinessLog()
-	_, err := vsock.WaitReadyObserved(ctx, agent, m.cfg.BootTimeout, readiness.add)
+	err := m.waitReady(ctx, sb, agent, readiness.add)
 	readiness.report(m.log, meta.ID, time.Since(started), err)
 	if err != nil {
 		return fail(err)

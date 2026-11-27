@@ -453,6 +453,19 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 		for _, name := range []string{firecracker.SnapshotPath, archive.MemoryIndexName} {
 			_ = os.Remove(filepath.Join(sb.root, name))
 		}
+		// Downloading whole disks before the boot can outlast the server's
+		// restore deadline and leave the boot none, so they arrive through
+		// their mounts as the guest reads them, as after a warm restore.
+		if src.LazyDisks && lazydisk.Supported() {
+			disks, err := m.openLazyDisks(sb, src, args.WorkspaceGB, uid, true)
+			if err != nil {
+				return res, err
+			}
+			sb.mu.Lock()
+			sb.lazy, sb.disksPending = disks, true
+			sb.mu.Unlock()
+			return m.coldCreateAfterWarm(ctx, sb, log)
+		}
 	}
 	if src.LazyDisks {
 		if err := m.fillDisks(ctx, sb, src, args.WorkspaceGB, uid, log); err != nil {
@@ -580,6 +593,7 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 	// Set once the memory is released, which may come before the restore
 	// below returns; under sb.mu.
 	released := false
+	loading := make(chan struct{})
 	go func() {
 		defer memory.Close()
 		served <- server.Serve(serveCtx, memory, uffd.Options{
@@ -594,6 +608,7 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 					sb.mu.Unlock()
 				}
 				m.memoryLoaded(sb, stats, time.Since(started))
+				close(loading)
 				if disks != nil {
 					disks.startFill()
 				}
@@ -602,8 +617,12 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 	}()
 	sb.mu.Lock()
 	sb.memoryPending = true
+	sb.memoryLoading = loading
 	sb.mu.Unlock()
 	inst, _, err := m.restoreWith(ctx, sb, log, memSocket, nil, false)
+	sb.mu.Lock()
+	sb.memoryLoading = nil
+	sb.mu.Unlock()
 	if err != nil {
 		stopServing()
 		server.Close()

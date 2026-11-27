@@ -34,6 +34,9 @@ type objectStore struct {
 	gate chan struct{}
 	// gets records each download's Range header.
 	gets []string
+	// slowRanges, when set, delays every ranged download that does not
+	// reach the object's end: the memory and disk chunks, not the tail.
+	slowRanges time.Duration
 }
 
 func newObjectStore(t *testing.T) (*objectStore, *httptest.Server) {
@@ -57,7 +60,16 @@ func newObjectStore(t *testing.T) (*objectStore, *httptest.Server) {
 		case http.MethodGet:
 			store.mu.Lock()
 			store.gets = append(store.gets, r.Header.Get("Range"))
+			slow := store.slowRanges
 			store.mu.Unlock()
+			end := fmt.Sprintf("-%d", len(store.object())-1)
+			if rng := r.Header.Get("Range"); slow > 0 && rng != "" && !strings.HasSuffix(rng, end) {
+				select {
+				case <-time.After(slow):
+				case <-r.Context().Done():
+					return
+				}
+			}
 			http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(store.object()))
 		}
 	}))
@@ -490,6 +502,33 @@ func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
 		t.Fatalf("pause after a warm restore: %v", err)
 	}
 
+	// A guest whose memory takes longer to fault in from the archive than
+	// BootTimeout, and that answers only once it is all on the node, gets
+	// its BootTimeout after the load instead of a cold boot.
+	slow := node("zen5")
+	slow.m.cfg.BootTimeout = 400 * time.Millisecond
+	store.mu.Lock()
+	store.slowRanges = 800 * time.Millisecond
+	store.mu.Unlock()
+	agent := slow.m.agent
+	slow.m.agent = func(path string) vsock.Agent {
+		return lateAgent{Agent: agent(path), from: time.Now().Add(time.Second)}
+	}
+	restore.SandboxID = "slow"
+	created, err = slow.m.Create(ctx, restore)
+	store.mu.Lock()
+	store.slowRanges = 0
+	store.mu.Unlock()
+	if err != nil {
+		t.Fatalf("restore whose memory loaded slower than BootTimeout: %v", err)
+	}
+	if !created.MemoryPending {
+		t.Fatal("a guest that answered after its memory loaded must resume warm, not cold boot")
+	}
+	if launched := slow.launcher.Instances(); len(launched) != 1 {
+		t.Fatalf("want only the warm restore, launched %d instances", len(launched))
+	}
+
 	// A node that cannot load the VM state cold boots the disks.
 	third := node("zen4")
 	restore.SandboxID = "cold"
@@ -755,6 +794,19 @@ func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
 		t.Fatal("an archive with lazy disks must not restore as one without")
 	}
 	_ = store
+}
+
+// lateAgent is a guest agent that answers only from a given time on.
+type lateAgent struct {
+	vsock.Agent
+	from time.Time
+}
+
+func (a lateAgent) Ping(ctx context.Context) (vsock.Pong, error) {
+	if time.Now().Before(a.from) {
+		return vsock.Pong{}, errors.New("no answer yet")
+	}
+	return a.Agent.Ping(ctx)
 }
 
 // silentAgent is a guest agent that never answers.

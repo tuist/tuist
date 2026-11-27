@@ -232,7 +232,9 @@ memory image until they cold boot.
   its memory before its agent answers), answers
   `memory_pending`, and emits `memory_loaded` once every chunk is
   installed (or a pause wrote the memory locally). A chunk that cannot be
-  fetched kills the VM. Elsewhere it cold boots the disks, and so does a
+  fetched kills the VM. Elsewhere it cold boots the disks (lazy disks arrive through their mounts
+  then too, so a long download never uses up the create's deadline before
+  the boot), and so does a
   warm restore of synced disks whose VM state Firecracker refuses to load
   (a 4xx from `/snapshot/load`, such as `Failed to set all KVM MSRs`: the
   guest never ran), and one whose guest agent never answers (`agent not ready`), of
@@ -808,7 +810,7 @@ agent so the manager runs end to end without KVM).
 | `CPU_FLOOR_MILLI`, `CPU_CEILING_MILLI` | `0`, `0` | The CPU request the Pod starts at and the most the server may raise it to, in millicores, reported in `hello.elastic`. There is no CPU limit either way. A ceiling not above the floor keeps the request fixed. |
 | `VM_CGROUPS` | `true` | Run each VM in its own cgroup v2 child of the container's, weighted by its `create.cpu_guarantee_milli` (default 250), with the daemon in a `sandboxd` leaf weighted by `CPU_FLOOR_MILLI`; hello then sets `cpu_guarantees`. Where the memory controller is available too, each VM's cgroup sets `memory.low` (best-effort protection, not `memory.min`, so a running guest's clean file pages stay reclaimable before an OOM) to its guest memory and reports `memory.current` as `memory_current_bytes`. If the cpu controller is unavailable the daemon logs it and every VM shares its cgroup as before. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. Shapes built with another size are removed at startup and rebuilt. |
-| `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. The first ping gets 2 s and each one that runs out doubles the next one's, because Firecracker serves vsock on its block and memory-fault thread and acks late while that thread is stalled. Each restore or boot logs `guest agent readiness` (info when it took 2 s or more or failed, else debug): its outcome, elapsed time, ping counts by result (`answered`, `timeout`, `refused`, `other`) and its slow pings as `<start>+<duration>/<budget>:<result>`, so a guest that answers late tells apart from one that never answers. |
+| `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. The first ping gets 2 s and each one that runs out doubles the next one's, because Firecracker serves vsock on its block and memory-fault thread and acks late while that thread is stalled. Each restore or boot logs `guest agent readiness` (info when it took 2 s or more or failed, else debug): its outcome, elapsed time, ping counts by result (`answered`, `timeout`, `refused`, `other`) and its slow pings as `<start>+<duration>/<budget>:<result>`, so a guest that answers late tells apart from one that never answers. A warm archive restore's `BOOT_TIMEOUT` starts once its memory is all on the node (the guest faults it in from the archive first, which took 50 s of the 60 s in production), or once the create's deadline leaves only two `BOOT_TIMEOUT`s, one for the guest and one for a cold boot after it. |
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
