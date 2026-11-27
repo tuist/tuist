@@ -26,6 +26,7 @@ defmodule LuftServerWeb.ThreadsControllerTest do
       get "/threads/:id", LuftServerWeb.ThreadsController, :show
       post "/threads/:id/messages", LuftServerWeb.ThreadsController, :message
       post "/threads/:id/reauthorize", LuftServerWeb.ThreadsController, :reauthorize
+      post "/threads/:id/retry-workspace", LuftServerWeb.ThreadsController, :retry_workspace
       patch "/threads/:id", LuftServerWeb.ThreadsController, :update
     end
   end
@@ -81,6 +82,47 @@ defmodule LuftServerWeb.ThreadsControllerTest do
              ctx.session
              |> request(:patch, "/threads/#{id}", %{status: "archived"})
              |> json_response(200)
+  end
+
+  test "workspace retry preserves the request and rejects readers", ctx do
+    alias LuftServer.Threads
+
+    created =
+      ctx.session
+      |> request(:post, "/threads", %{
+        request_id: Ecto.UUID.generate(),
+        content: "Hi @two",
+        provider: "chatgpt",
+        model: "model"
+      })
+      |> json_response(200)
+
+    id = created["id"]
+    run_id = Threads.next_run(id)
+    [%{epoch: epoch}] = LuftServer.Agents.Lease.claim("test-host", 1)
+    assert {:ok, {run, _}} = Threads.claim(run_id, epoch)
+    assert {:ok, _} = Threads.finish(run, {:error, :no_capacity})
+
+    {:ok, _, reader} =
+      Sessions.create(%{
+        claims: %{"sub" => "2"},
+        tokens: %{"access_token" => "reader", "refresh_token" => "reader", "expires_in" => 3600}
+      })
+
+    stub_scope(2, false)
+
+    assert reader
+           |> request(:post, "/threads/#{id}/retry-workspace", %{run_id: run_id})
+           |> Map.get(:status) == 404
+
+    stub_scope()
+
+    assert %{"status" => "resuming_workspace", "messages" => messages} =
+             ctx.session
+             |> request(:post, "/threads/#{id}/retry-workspace", %{run_id: run_id})
+             |> json_response(200)
+
+    assert messages == created["messages"]
   end
 
   test "missing execution support is not reported as successful work", ctx do

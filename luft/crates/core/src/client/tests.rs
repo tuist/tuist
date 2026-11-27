@@ -900,6 +900,57 @@ fn conversations_start_on_the_server_without_a_repository_and_retry_idempotently
 }
 
 #[test]
+fn workspace_retry_preserves_saved_request_and_updates_cached_status() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "6f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+    let run = "7f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+    let message = json!({"id":"saved-message","role":"user","content":"are you there?"});
+    h.responses.push_back((200, json!({"id":id,"status":"workspace_unavailable",
+        "archive_status":"active","can_retry_workspace":true,"workspace_retry_run_id":run,"messages":[message.clone()]})));
+    let blocked = call(&mut c, &mut h, "thread", json!({"id":id}));
+    assert_eq!(blocked["data"]["state"], "workspace_unavailable");
+    assert_eq!(blocked["data"]["working"], false);
+    assert_eq!(blocked["data"]["can_retry_workspace"], true);
+    h.offline = true;
+    assert!(
+        call(
+            &mut c,
+            &mut h,
+            "retry_workspace",
+            json!({"id":id,"run_id":run})
+        )["error"]
+            .is_string()
+    );
+    assert_eq!(
+        call(&mut c, &mut h, "cached_thread", json!({"id":id}))["data"]["state"],
+        "workspace_unavailable"
+    );
+    h.offline = false;
+    h.responses.push_back((200,json!({"id":id,"status":"resuming_workspace","archive_status":"active","messages":[message.clone()]})));
+    let retried = call(
+        &mut c,
+        &mut h,
+        "retry_workspace",
+        json!({"id":id,"run_id":run}),
+    );
+    assert_eq!(retried["data"]["working"], true);
+    assert_eq!(retried["data"]["can_retry_workspace"], false);
+    assert_eq!(retried["data"]["messages"], json!([message]));
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        format!("https://one.test/api/accounts/ana/threads/{id}/retry-workspace")
+    );
+    let body: Value =
+        serde_json::from_str(h.actions.last().unwrap()["body"].as_str().unwrap()).unwrap();
+    assert_eq!(body, json!({"run_id":run}));
+    assert_eq!(
+        call(&mut c, &mut h, "cached_thread", json!({"id":id}))["data"]["state"],
+        "resuming_workspace"
+    );
+}
+
+#[test]
 fn workspace_readiness_is_live_only_and_not_replayed_from_cached_history() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);

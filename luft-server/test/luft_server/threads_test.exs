@@ -352,6 +352,36 @@ defmodule LuftServer.ThreadsTest do
     refute Map.has_key?(hd(value.messages), :author_session_id)
   end
 
+  test "workspace capacity status retries the saved run without duplicating messages", ctx do
+    {run, thread, _} = claimed(ctx)
+    assert {:ok, done} = Threads.finish(run, {:error, :no_capacity})
+    assert done.agent_status == "workspace_unavailable"
+    assert Repo.get!(Run, run.id).status == "workspace_unavailable"
+    {:ok, loaded} = Threads.get(ctx.scope, thread.id)
+    assert Threads.serialize(loaded).workspace_retry_run_id == run.id
+    assert length(loaded.messages) == 1
+    assert {:ok, retrying} = Threads.retry_workspace(ctx.scope, ctx.session, thread.id, run.id)
+    assert retrying.agent_status == "resuming_workspace"
+    assert {:ok, replay} = Threads.retry_workspace(ctx.scope, ctx.session, thread.id, run.id)
+    assert replay.agent_status == "resuming_workspace"
+    assert length(replay.messages) == 1
+    assert Repo.aggregate(Run, :count) == 1
+    assert Threads.next_run(thread.id) == run.id
+
+    # A later prompt makes the old retry stale, even if both hit capacity.
+    Repo.update!(Ecto.Changeset.change(Repo.get!(Run, run.id), status: "workspace_unavailable"))
+
+    Repo.update!(
+      Ecto.Changeset.change(Repo.get!(Thread, thread.id), agent_status: "workspace_unavailable")
+    )
+
+    assert {:ok, _} =
+             Threads.message(ctx.scope, ctx.session, thread.id, attrs(), execution: Admission)
+
+    assert {:error, :stale_run} =
+             Threads.retry_workspace(ctx.scope, ctx.session, thread.id, run.id)
+  end
+
   test "runtime never substitutes another session for the originating human author", ctx do
     {:ok, thread} = create(ctx, attrs(%{"content" => "@two"}))
     complete_runs(thread)

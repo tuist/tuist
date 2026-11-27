@@ -231,6 +231,7 @@ defmodule LuftServer.Threads.Host do
          {:ok, client_opts} <- Provider.client_opts(thread),
          {:ok, builtin} <- TuistTools.tools(thread, message, run),
          {:ok, context} <- prepare(thread, run) do
+      Threads.workspace_prepared(run)
       if is_map(context), do: send(host, {:workspace, context})
       current = if is_map(context), do: context.thread, else: thread
       current = Threads.history(current, owner_scope)
@@ -263,7 +264,8 @@ defmodule LuftServer.Threads.Host do
 
   defp prepare(thread, run, attempts) do
     case Workspace.prepare(thread, run) do
-      {:error, reason} when reason in [:workspace_busy, :sandbox_account_busy] and attempts > 1 ->
+      {:error, reason}
+      when reason in [:workspace_busy, :sandbox_account_busy, :no_capacity] and attempts > 1 ->
         Process.sleep(2_000)
         prepare(thread, run, attempts - 1)
 

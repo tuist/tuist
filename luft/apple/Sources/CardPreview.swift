@@ -2,6 +2,75 @@ import SwiftUI
 
 #if targetEnvironment(simulator) || os(macOS)
 
+/// Signed-out rehearsal using the production message, composer and status views.
+/// It never creates a conversation or attempts to resume a production workspace.
+struct WorkspaceRecoveryPreview: View {
+    @State private var retrying = false
+    @State private var recovered = false
+    @State private var capacityAvailable = false
+    @State private var reply = ""
+    @State private var attachments: [PromptAttachment] = []
+    @State private var voice = VoiceInput()
+    @State private var mentions = Mentions(context: "thread")
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Local preview · Simulated workspace responses")
+                        .font(.caption).foregroundStyle(Noora.labelSecondary)
+                    Spacer()
+                    Toggle("Capacity available", isOn: $capacityAvailable)
+                    Button("Reset") { recovered = false }
+                }
+                .padding()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        MessageRow(message: AppMessage(id: "1", role: "user", content: "hi"), reply: { reply = $0 })
+                        MessageRow(message: AppMessage(id: "2", role: "assistant", content: "I’m here. What would you like to work on?"), reply: { reply = $0 })
+                        MessageRow(message: AppMessage(id: "3", role: "user", content: "are you there?"), reply: { reply = $0 })
+                        if recovered {
+                            Text("Workspace ready. Your saved request can continue.")
+                                .foregroundStyle(Noora.labelSecondary)
+                        }
+                    }
+                    .padding()
+                }
+                .frame(minHeight: 0, maxHeight: .infinity)
+                VStack(spacing: 8) {
+                    if !recovered {
+                        WorkspaceRecoveryStrip(retrying: retrying, canRetry: true) {
+                            retrying = true
+                            Task {
+                                try? await Task.sleep(for: .seconds(2))
+                                recovered = capacityAvailable
+                                retrying = false
+                            }
+                        }
+                    }
+                    ReplyComposer(reply: $reply, disabled: retrying, sending: false, voice: voice, mentions: mentions, focus: $focused, attachments: $attachments) {}
+                }
+                .padding()
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .background(Noora.backgroundPrimary)
+            .navigationTitle("hi")
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    VStack {
+                        Text("hi").font(.headline)
+                        Text(recovered ? "Ready" : retrying ? "Resuming workspace…" : "Workspace unavailable")
+                            .font(.caption).foregroundStyle(Noora.labelSecondary)
+                    }
+                }
+            }
+        }
+        .tint(Noora.primary)
+        .frame(minWidth: 720, minHeight: 520)
+    }
+}
+
 /// A signed-out conversation with a plan and a card, for checking them on a simulator
 /// before the server sends them: launch with `-LuftCardPreview`. The card is
 /// `cards/bundle.js` at the 240 points the core gives a `medium` card; its

@@ -1,4 +1,10 @@
 "Profile" = "Profile";
+"Workspace unavailable" = "Workspace unavailable";
+"Resuming workspace" = "Resuming workspace";
+"Resuming workspace…" = "Resuming workspace…";
+"Checking for available capacity." = "Checking for available capacity.";
+"Your message is saved. Workspace capacity is temporarily unavailable." = "Your message is saved. Workspace capacity is temporarily unavailable.";
+"Retry your saved request without sending another message" = "Retry your saved request without sending another message";
 "Ops" = "Ops";
 "Welcome to Luft" = "Welcome to Luft";
 "Sign in to access your projects and\ncollaborate with your team" = "Sign in to access your projects and\ncollaborate with your team";

@@ -36,7 +36,7 @@ defmodule LuftServer.Threads do
   alias LuftServer.Tuist.Scope
   alias LuftServer.Workspaces.Records
 
-  @working ~w(queued running compacting shipping)
+  @working ~w(queued running compacting shipping resuming_workspace)
   @unfinished ~w(queued running waiting)
   @mention ~r/(?<![A-Za-z0-9_.@-])@([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)/
 
@@ -209,6 +209,58 @@ defmodule LuftServer.Threads do
 
           nil ->
             prompt!(thread, scope, session, body, files, request_id, attrs, opts)
+        end
+
+        history(Repo.reload!(thread), scope)
+      end
+      |> transact()
+      |> wake()
+    end
+  end
+
+  def retry_workspace(scope, session, id, run_id) do
+    with {:ok, thread} <- get(scope, id),
+         :ok <- delegation(session, scope.user_id),
+         {:ok, run_id} <- uuid(run_id) do
+      fn ->
+        thread = lock(thread.id)
+        require_access!(scope, thread)
+        if thread.status != :active, do: Repo.rollback(:archived)
+        if scope.user_id != thread.owner_id, do: Repo.rollback(:forbidden)
+
+        run = Repo.get_by(Run, id: run_id, thread_id: thread.id, kind: "inference")
+        if is_nil(run), do: Repo.rollback(:stale_run)
+
+        latest_message =
+          Repo.one(
+            from m in Message,
+              where: m.thread_id == ^thread.id and m.kind == "human",
+              order_by: [desc: m.position],
+              limit: 1,
+              select: m.id
+          )
+
+        if run.message_id != latest_message, do: Repo.rollback(:stale_run)
+
+        retryable =
+          run.status == "workspace_unavailable" and thread.agent_status == "workspace_unavailable"
+
+        if retryable and runtime_access(thread, run) != :ok, do: Repo.rollback(:forbidden)
+
+        if retryable and Repo.exists?(from c in ToolCall, where: c.run_id == ^run.id),
+          do: Repo.rollback(:tool_outcome_unknown)
+
+        cond do
+          run.status in ["queued", "running"] ->
+            :ok
+
+          retryable ->
+            Repo.update!(Changeset.change(run, status: "queued", heartbeat_at: now()), log: false)
+            Lease.want(thread.id, "thread")
+            update!(thread, %{agent_status: "resuming_workspace", snoozed_until_needed: false})
+
+          true ->
+            Repo.rollback(:stale_run)
         end
 
         history(Repo.reload!(thread), scope)
@@ -847,6 +899,20 @@ defmodule LuftServer.Threads do
       repository: thread.repository || "",
       runner_id: thread.runner_id,
       workspace_ready_id: nil,
+      can_retry_workspace: Map.get(thread, :can_reauthorize, false),
+      workspace_retry_run_id:
+        if(thread.agent_status == "workspace_unavailable",
+          do:
+            Repo.one(
+              from r in Run,
+                join: m in Message,
+                on: m.id == r.message_id,
+                where: r.thread_id == ^thread.id and r.status == "workspace_unavailable",
+                order_by: [desc: m.position],
+                limit: 1,
+                select: r.id
+            )
+        ),
       reauthorization_required:
         delegation(Sessions.get_by_id(thread.owner_session_id), thread.owner_id) != :ok,
       can_reauthorize: Map.get(thread, :can_reauthorize, false),
@@ -1085,6 +1151,11 @@ defmodule LuftServer.Threads do
             if authority == {:error, :tuist_unavailable}, do: Repo.rollback(:tuist_unavailable)
             if not lease_held?(thread.id, epoch), do: Repo.rollback(:stale_run)
 
+            status =
+              if thread.agent_status == "resuming_workspace",
+                do: "resuming_workspace",
+                else: "running"
+
             cond do
               thread.status != :active or authority != :ok ->
                 interrupt!(thread, run)
@@ -1106,7 +1177,7 @@ defmodule LuftServer.Threads do
                     log: false
                   )
 
-                {fresh, update!(thread, %{agent_status: "running"})}
+                {fresh, update!(thread, %{agent_status: status})}
             end
         end
       end)
@@ -1118,6 +1189,14 @@ defmodule LuftServer.Threads do
   end
 
   def claim(_, _), do: {:error, :stale_run}
+
+  def workspace_prepared(run) do
+    with_attempt(run, fn thread, _fresh ->
+      if thread.agent_status == "resuming_workspace",
+        do: update!(thread, %{agent_status: "running"}),
+        else: thread
+    end)
+  end
 
   def next_run(thread_id) do
     Repo.one(
@@ -1506,6 +1585,14 @@ defmodule LuftServer.Threads do
             {reply, suggestions, icons} = Agent.decode_reply(text)
             {"idle", reply, suggestions, icons}
 
+          result in [
+            {:error, :no_capacity},
+            {:error, :sandbox_account_busy},
+            {:error, :workspace_busy}
+          ] and
+              not Repo.exists?(from c in ToolCall, where: c.run_id == ^run.id) ->
+            {"workspace_unavailable", nil, [], %{}}
+
           true ->
             {"failed",
              "The run could not complete. Check the connected AI account, then send a new message to retry.",
@@ -1521,12 +1608,14 @@ defmodule LuftServer.Threads do
         log: false
       )
 
-      append!(thread, %{
-        kind: if(status == "idle", do: "agent", else: "notice"),
-        body: body,
-        suggestions: suggestions,
-        suggestion_icons: icons
-      })
+      if body do
+        append!(thread, %{
+          kind: if(status == "idle", do: "agent", else: "notice"),
+          body: body,
+          suggestions: suggestions,
+          suggestion_icons: icons
+        })
+      end
 
       update!(Repo.reload!(thread), %{agent_status: status, snoozed_until_needed: false})
     end)

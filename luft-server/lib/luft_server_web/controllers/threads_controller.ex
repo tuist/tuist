@@ -54,6 +54,18 @@ defmodule LuftServerWeb.ThreadsController do
     )
   end
 
+  def retry_workspace(conn, _params),
+    do:
+      respond(
+        conn,
+        Threads.retry_workspace(
+          conn.assigns.thread_scope,
+          conn.assigns.session,
+          conn.path_params["id"],
+          conn.body_params["run_id"]
+        )
+      )
+
   def update(%{body_params: %{"snooze" => value}} = conn, _params),
     do: respond(conn, Threads.snooze(conn.assigns.thread_scope, conn.path_params["id"], value))
 

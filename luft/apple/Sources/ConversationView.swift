@@ -124,6 +124,8 @@ struct AppConversation: Decodable {
     var activity: AppActivity?
     /// The core exposes this only for a live, ready sandbox residency.
     var workspace_ready_id: String?
+    var workspace_retry_run_id: String?
+    var can_retry_workspace: Bool?
     /// The thread's owner and the people looped into it by a mention.
     var owner: LoungePerson?
     var participants: [LoungePerson]?
@@ -151,6 +153,52 @@ extension AppClient {
         // cached one can show work that finished since.
         if conversation.working, operation != "cached_thread" { ThreadLiveActivity.shared.threadsWorking() }
         return conversation
+    }
+}
+
+/// A workspace pause is service status, separate from the assistant's transcript.
+struct WorkspaceRecoveryStrip: View {
+    let retrying: Bool
+    let canRetry: Bool
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            explanation
+            Spacer(minLength: 8)
+            retryButton.fixedSize(horizontal: true, vertical: false)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Noora.backgroundSecondary, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("workspace-recovery")
+    }
+
+    private var explanation: some View {
+        HStack(alignment: .top, spacing: 10) {
+            if retrying {
+                ProgressView().controlSize(.small).accessibilityLabel("Resuming workspace")
+            } else {
+                Image(systemName: "pause.circle").foregroundStyle(Noora.labelSecondary).accessibilityHidden(true)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(retrying ? "Resuming workspace…" : "Workspace unavailable")
+                    .font(.subheadline.weight(.medium)).foregroundStyle(Noora.labelPrimary)
+                Text(retrying ? "Checking for available capacity." : "Your message is saved. Workspace capacity is temporarily unavailable.")
+                    .font(.caption).foregroundStyle(Noora.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private var retryButton: some View {
+        Button("Try Again", action: retry)
+            .font(.subheadline.weight(.medium))
+            .frame(minHeight: 44)
+            .disabled(retrying || !canRetry)
+            .accessibilityIdentifier("retry-workspace")
+            .accessibilityHint("Retry your saved request without sending another message")
     }
 }
 
@@ -359,6 +407,7 @@ struct ConversationView: View {
     @State private var sending = false
     @State private var error: String?
     @State private var showingPrompts = false
+    @State private var retryingWorkspace = false
     @State private var chosenPrompt: String?
     @State private var pendingJump: String?
     @State private var snoozeChoices = SnoozeChoices()
@@ -394,6 +443,8 @@ struct ConversationView: View {
         case "running": String(localized: "Running")
         case "completed": String(localized: "Ready to review")
         case "failed": String(localized: "Needs attention")
+        case "workspace_unavailable": String(localized: "Workspace unavailable")
+        case "resuming_workspace": String(localized: "Resuming workspace")
         case "outcome_unknown": String(localized: "Outcome unknown")
         default: nil
         }
@@ -501,6 +552,13 @@ struct ConversationView: View {
         .overlay { if thread == nil, error == nil { ProgressView() } }
         .safeAreaInset(edge: .bottom) {
             VStack(alignment: .trailing, spacing: 8) {
+                if thread?.state == "workspace_unavailable" || thread?.state == "resuming_workspace" {
+                    WorkspaceRecoveryStrip(
+                        retrying: retryingWorkspace || thread?.state == "resuming_workspace",
+                        canRetry: thread?.can_retry_workspace == true,
+                        retry: { Task { await retryWorkspace() } }
+                    )
+                }
                 if thread?.reauthorization_required == true {
                     Text("The owner must authorize future messages with their current sign-in. This does not resume previous work.")
                         .font(.callout).foregroundStyle(Noora.labelSecondary)
@@ -559,7 +617,7 @@ struct ConversationView: View {
                             .padding(.trailing, 4)
                     #endif
                 }
-                ReplyComposer(reply: $reply, disabled: thread?.working != false || thread?.reauthorization_required == true, sending: sending, voice: voice, mentions: mentions, focus: $replyFocused, attachments: $attachments, promptClient: messages.contains(where: { $0.decision?.status == "pending" }) ? nil : client) {
+                ReplyComposer(reply: $reply, disabled: thread?.working != false || thread?.reauthorization_required == true || retryingWorkspace, sending: sending, voice: voice, mentions: mentions, focus: $replyFocused, attachments: $attachments, promptClient: messages.contains(where: { $0.decision?.status == "pending" }) ? nil : client) {
                     Task { await send() }
                 }
             }
@@ -761,6 +819,19 @@ struct ConversationView: View {
         defer { sending = false }
         do {
             show(try await client.conversation("reauthorize_thread", ["id": id, "consent": true]))
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func retryWorkspace() async {
+        guard !retryingWorkspace, !sending, thread?.can_retry_workspace == true,
+              let run = thread?.workspace_retry_run_id else { return }
+        retryingWorkspace = true
+        defer { retryingWorkspace = false }
+        do {
+            show(try await client.conversation("retry_workspace", ["id": id, "run_id": run]))
             error = nil
         } catch {
             self.error = error.localizedDescription

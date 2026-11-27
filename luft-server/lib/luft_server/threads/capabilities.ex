@@ -4,7 +4,7 @@ defmodule LuftServer.Threads.Capabilities do
   alias LuftServer.Sessions
   alias LuftServer.Tuist.Scope
 
-  @errors ~w(workspace_busy busy not_found invalid_request unsupported_operation repository_not_authorized repository_access_denied github_identity_missing repository_access_unavailable repository_too_large checkout_too_large checkout_unavailable shipping_uncertain shipping_objects_invalid shipping_review_unavailable shipping_diff_empty_or_too_large stdin_offset_mismatch stdin_not_attached already_started timeout)a
+  @errors ~w(workspace_busy sandbox_account_busy no_capacity busy not_found invalid_request unsupported_operation repository_not_authorized repository_access_denied github_identity_missing repository_access_unavailable repository_too_large checkout_too_large checkout_unavailable shipping_uncertain shipping_objects_invalid shipping_review_unavailable shipping_diff_empty_or_too_large stdin_offset_mismatch stdin_not_attached already_started timeout)a
 
   def owner(thread) do
     with session when not is_nil(session) <- Sessions.get_by_id(thread.owner_session_id),

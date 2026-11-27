@@ -16,7 +16,9 @@ struct LuftApp: App {
     var body: some Scene {
         WindowGroup(id: WorkspaceCommands.window) {
             #if targetEnvironment(simulator)
-                if WorkspacePreview.requested {
+                if ProcessInfo.processInfo.arguments.contains("-LuftWorkspaceRecoveryPreview") {
+                    WorkspaceRecoveryPreview()
+                } else if WorkspacePreview.requested {
                     WorkspacePreview()
                 } else if ProcessInfo.processInfo.arguments.contains("-LuftToolPreview") {
                     ToolPreview()
@@ -30,7 +32,9 @@ struct LuftApp: App {
                     AppWorkspace(client: client)
                 }
             #elseif os(macOS)
-                if ProcessInfo.processInfo.arguments.contains("-LuftCardPreview") ||
+                if ProcessInfo.processInfo.arguments.contains("-LuftWorkspaceRecoveryPreview") {
+                    WorkspaceRecoveryPreview()
+                } else if ProcessInfo.processInfo.arguments.contains("-LuftCardPreview") ||
                     ProcessInfo.processInfo.arguments.contains("-LuftDecisionPreview")
                 {
                     CardPreview()

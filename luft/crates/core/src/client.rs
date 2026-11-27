@@ -270,7 +270,8 @@ impl MobileClient {
                 self.collection_operation(op, args, host)
             }
             op @ ("threads" | "start_thread" | "thread" | "send_message" | "answer_question"
-            | "snooze_thread" | "archive_thread" | "reauthorize_thread") => {
+            | "snooze_thread" | "archive_thread" | "reauthorize_thread"
+            | "retry_workspace") => {
                 let mut view = self.threads_operation(op, args, host)?;
                 crate::threads::present_stored(&mut view, now()?);
                 Ok(view)

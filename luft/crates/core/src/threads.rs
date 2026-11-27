@@ -177,6 +177,21 @@ impl Threads {
                 present(&mut thread);
                 Ok(thread)
             }
+            "retry_workspace" => {
+                let id = thread_id(args)?;
+                let run = text(args, "run_id")?;
+                if run.len() != 36 || !run.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') {
+                    return Err("Invalid run");
+                }
+                let mut thread = request(
+                    transport,
+                    "POST",
+                    url(&format!("{id}/retry-workspace")),
+                    Some(json!({"run_id": run})),
+                )?;
+                present(&mut thread);
+                Ok(thread)
+            }
             "snooze_thread" => {
                 let id = thread_id(args)?;
                 let snooze = match args.get("snooze") {
@@ -326,11 +341,13 @@ pub(crate) fn present(thread: &mut Value) {
         Some("running" | "compacting" | "shipping") => Some("running"),
         Some("idle") => Some("completed"),
         Some("failed" | "interrupted") => Some("failed"),
+        Some("workspace_unavailable") => Some("workspace_unavailable"),
+        Some("resuming_workspace") => Some("resuming_workspace"),
         Some("outcome_unknown") => Some("outcome_unknown"),
         _ => None,
     };
     let archived = thread["archive_status"] == "archived";
-    let working = matches!(state, Some("queued" | "running"));
+    let working = matches!(state, Some("queued" | "running" | "resuming_workspace"));
     let section = if archived {
         "archived"
     } else if working {
@@ -341,6 +358,13 @@ pub(crate) fn present(thread: &mut Value) {
     thread["state"] = json!(state);
     thread["section"] = json!(section);
     thread["working"] = json!(working && !archived);
+    thread["can_retry_workspace"] = json!(
+        state == Some("workspace_unavailable")
+            && thread["can_retry_workspace"] == true
+            && thread["workspace_retry_run_id"].is_string()
+            && !archived
+            && thread["reauthorization_required"] != true
+    );
     thread["can_reauthorize"] = json!(
         thread["can_reauthorize"] == true
             && thread["reauthorization_required"] == true

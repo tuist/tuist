@@ -99,6 +99,48 @@ defmodule LuftServer.Threads.HostTest do
     Host.drain(host)
   end
 
+  test "an archived workspace retries capacity refusal and completes when room returns" do
+    Req.Test.set_req_test_to_shared()
+    start_supervised!({Task.Supervisor, name: Tasks})
+    {thread, run, epoch} = queued_runner_run()
+    sandbox_id = Ecto.UUID.generate()
+
+    thread =
+      Repo.update!(Ecto.Changeset.change(thread, runner_id: nil, sandbox_id: sandbox_id))
+
+    attempts = start_supervised!({Agent, fn -> 0 end})
+
+    stub_runtime(self(), false, 0, fn conn ->
+      {:ok, body, conn} = read_body(conn)
+
+      case Jason.decode!(body) do
+        %{"operation" => "show", "sandbox_id" => ^sandbox_id} ->
+          Req.Test.json(conn, %{result: %{id: sandbox_id, account_id: 21, state: "archived"}})
+
+        %{"operation" => operation, "sandbox_id" => ^sandbox_id}
+        when operation in ["acquire", "renew"] ->
+          case Agent.get_and_update(attempts, &{&1, &1 + 1}) do
+            0 ->
+              conn |> put_status(409) |> Req.Test.json(%{code: "no_capacity"})
+
+            _ ->
+              Req.Test.json(conn, %{result: %{id: sandbox_id, account_id: 21, state: "running"}})
+          end
+
+        %{"operation" => "release", "sandbox_id" => ^sandbox_id} ->
+          Req.Test.json(conn, %{result: %{}})
+      end
+    end)
+
+    host = start_supervised!({Host, {thread.id, epoch}})
+    assert_receive {:inference, _}, 10_000
+    eventually(fn -> Repo.get!(Run, run.id).status == "succeeded" end, 500)
+    assert Repo.get!(Thread, thread.id).sandbox_id == sandbox_id
+    reply = Repo.one!(from m in Message, where: m.thread_id == ^thread.id and m.kind == "agent")
+    assert reply.body == "durable hello"
+    Host.drain(host)
+  end
+
   test "drain kills the linked model and resumes the same journal under a new lease epoch" do
     Req.Test.set_req_test_to_shared()
     start_supervised!({Task.Supervisor, name: Tasks})
@@ -256,7 +298,7 @@ defmodule LuftServer.Threads.HostTest do
     {thread, run, epoch}
   end
 
-  defp stub_runtime(test, block \\ false, catalog_size \\ 0) do
+  defp stub_runtime(test, block \\ false, catalog_size \\ 0, workspace \\ nil) do
     Req.Test.stub(LuftServer.Tuist, fn conn ->
       assert get_req_header(conn, "authorization") == ["Bearer owner-token"]
 
@@ -272,6 +314,9 @@ defmodule LuftServer.Threads.HostTest do
 
         "/api/me/mcp-servers/transport" ->
           Req.Test.json(conn, %{builtin_mcp_allowed: true, servers: []})
+
+        "/api/accounts/team/workspace-capabilities" ->
+          workspace.(conn)
 
         "/mcp" ->
           {:ok, body, conn} = read_body(conn)

@@ -21,6 +21,8 @@ struct SessionDetails: View {
                         case "running": Text("Running")
                         case "completed": Text("Ready to review")
                         case "failed": Text("Needs attention")
+                        case "workspace_unavailable": Text("Workspace unavailable")
+                        case "resuming_workspace": Text("Resuming workspace")
                         case "outcome_unknown": Text("Outcome unknown")
                         default: Text("Unknown")
                         }

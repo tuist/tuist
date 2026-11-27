@@ -125,6 +125,7 @@ defmodule LuftServerWeb.Router do
       post "/:id/records/:message_id/action", RecordsController, :execute, log: false
       post "/:id/messages", ThreadsController, :message, log: false
       post "/:id/reauthorize", ThreadsController, :reauthorize, log: false
+      post "/:id/retry-workspace", ThreadsController, :retry_workspace, log: false
       patch "/:id", ThreadsController, :update, log: false
       post "/:id/ship-preview", ThreadsController, :ship_preview, log: false
       post "/:id/ship", ThreadsController, :ship, log: false

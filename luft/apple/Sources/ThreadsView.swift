@@ -510,6 +510,8 @@ struct ThreadsView: View {
         case "running": String(localized: "Running")
         case "completed": String(localized: "Ready to review")
         case "failed": String(localized: "Needs attention")
+        case "workspace_unavailable": String(localized: "Workspace unavailable")
+        case "resuming_workspace": String(localized: "Resuming workspace")
         case "outcome_unknown": String(localized: "Outcome unknown")
         default: nil
         }
