@@ -78,6 +78,41 @@ impl Host for Fake {
 }
 
 #[test]
+fn prompt_editors_cannot_use_a_new_profiles_authority_after_switching() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let generation = call(&mut c, &mut h, "snapshot", json!({}))["view"]["generation"].clone();
+    login(&mut c, &mut h, "https://two.test", 2, i64::MAX);
+    for operation in ["prompts", "save_prompt", "delete_prompt"] {
+        let result = call(
+            &mut c,
+            &mut h,
+            operation,
+            json!({
+                "account_handle":"team", "name":"ship", "title":"Ship", "body":"Check Linux first",
+                "if_generation":generation
+            }),
+        );
+        assert_eq!(
+            result["error"],
+            "The account changed. Reopen Saved Prompts."
+        );
+    }
+    // Fake would panic on an unplanned request, so none of the stale operations
+    // reached the second server. A freshly opened library can still load there.
+    let generation = call(&mut c, &mut h, "snapshot", json!({}))["view"]["generation"].clone();
+    h.responses
+        .push_back((200, json!({"prompts":[], "can_edit":false})));
+    let result = call(
+        &mut c,
+        &mut h,
+        "prompts",
+        json!({"account_handle":"team", "if_generation":generation}),
+    );
+    assert_eq!(result["data"], json!({"prompts":[], "can_edit":false}));
+}
+
+#[test]
 fn session_records_use_authenticated_message_routes_and_fail_closed_after_revocation_or_switch() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);

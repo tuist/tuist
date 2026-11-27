@@ -106,6 +106,7 @@ class MainActivity : Activity() {
     /** MCP servers while Profile shows: the person's own and, keyed by handle, the selected organization's. */
     private var mcpServers: List<JSONObject>? = null
     private var organizationMcpServers: Pair<String, List<JSONObject>?>? = null
+    private val promptDialogs = mutableMapOf<AlertDialog, () -> Boolean>()
     /** The pending ChatGPT sign-in's next poll. */
     private var chatGPTPoll: Runnable? = null
     private var visible = false
@@ -226,6 +227,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         ticket++
+        promptDialogs.keys.toList().forEach { it.dismiss() }
         clearReleases()
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             releaseBack?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
@@ -363,6 +365,7 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
+        promptDialogs.toMap().forEach { (dialog, valid) -> if (!valid()) dialog.dismiss() }
         syncReleaseBack()
         if (releaseSurface != null) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
@@ -738,6 +741,9 @@ class MainActivity : Activity() {
                 subscriptionsSection()
                 mcpServersSection(null, mcpServers)
                 organizationMcpServers?.let { (handle, list) -> mcpServersSection(handle, list) }
+                selectedOrganization()?.let { handle ->
+                    button(getString(R.string.prompt_library_organization, handle)) { promptLibrary() }
+                }
             }
         } ?: text(getString(R.string.sign_in_required))
         if (!browserPending) button(R.string.switch_account) { chooseProfile() }
@@ -1117,6 +1123,166 @@ class MainActivity : Activity() {
             it.optBoolean("selected") && !it.optBoolean("personal")
     }?.optString("handle")?.ifBlank { null }
 
+    /** Dialogs and completions belong to one organization, session and navigation revision. */
+    private fun promptContext(requireOrganization: Boolean = true): () -> Boolean {
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        val revision = view.optJSONObject("navigation")?.optLong("revision")
+        val organization = selectedOrganization()
+        val tab = screen
+        val thread = threadId
+        return {
+            !isDestroyed && !isFinishing && !addingProfile && (!requireOrganization || organization != null) &&
+                generation == view.optLong("generation", -1) && profile == view.optString("active_profile_id") &&
+                revision == view.optJSONObject("navigation")?.optLong("revision") &&
+                organization == selectedOrganization() && tab == screen && thread == threadId
+        }
+    }
+
+    private fun promptDialog(dialog: AlertDialog, valid: () -> Boolean) {
+        promptDialogs[dialog] = valid
+        dialog.setOnDismissListener { promptDialogs.remove(dialog) }
+        dialog.show()
+    }
+
+    /** Library calls never use local persistence or bypass the core's session guard. */
+    private fun promptRequest(operation: String, args: JSONObject, valid: () -> Boolean, done: (JSONObject?) -> Unit) {
+        if (!valid()) return
+        args.put("account_handle", selectedOrganization()).put("if_generation", view.optLong("generation", -1))
+        AppCore.submit(operation, args, host) { result ->
+            runOnUiThread {
+                if (!valid()) return@runOnUiThread
+                val next = result.optJSONObject("view")
+                if (next != null && (next.optLong("generation", -1) != view.optLong("generation", -1) ||
+                        next.optString("active_profile_id") != view.optString("active_profile_id"))) return@runOnUiThread
+                val failed = result.optString("error").let { it.isNotBlank() && it != "null" }
+                // DELETE succeeds with a null data payload (HTTP 204).
+                done(if (failed) null else result.optJSONObject("data") ?: if (operation != "prompts") JSONObject() else null)
+            }
+        }
+    }
+
+    /** The same member-readable library is used by Profile and the two thread draft pickers. */
+    private fun promptLibrary(draft: (() -> String)? = null, apply: ((String) -> Unit)? = null,
+                              ownerValid: () -> Boolean = { true }) {
+        val context = promptContext()
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+        }
+        val dialog = AlertDialog.Builder(this).setTitle(R.string.prompt_library)
+            .setView(ScrollView(this).apply { addView(column) }).setNegativeButton(R.string.cancel, null).create()
+        val valid = { context() && ownerValid() && dialog.isShowing }
+        var picking = false
+        fun row(label: String, action: () -> Unit) {
+            column.addView(styled(Button(this)).apply { text = label; setOnClickListener { if (valid() && !picking) action() } })
+        }
+        fun loadLibrary() {
+            column.removeAllViews()
+            column.addView(TextView(this).apply { setText(R.string.loading) })
+            promptRequest("prompts", JSONObject(), valid) { data ->
+                column.removeAllViews()
+                if (data == null) {
+                    column.addView(TextView(this).apply { setText(R.string.prompt_load_failed) })
+                    row(getString(R.string.prompt_retry)) { loadLibrary() }
+                } else {
+                    val editable = data.optBoolean("can_edit")
+                    column.addView(TextView(this).apply { setText(R.string.prompt_library_footer) })
+                    val prompts = data.optJSONArray("prompts").objects()
+                    if (prompts.isEmpty()) column.addView(TextView(this).apply { setText(R.string.prompt_empty) })
+                    prompts.forEach { prompt ->
+                        row(getString(R.string.prompt_row, prompt.optString("name"), prompt.optString("title"))) {
+                            if (draft == null || apply == null) {
+                                promptEditor(prompt, editable, valid) { loadLibrary() }
+                            } else {
+                                val original = draft()
+                                picking = true
+                                AppCore.submit("prompt_draft", JSONObject().put("name", prompt.optString("name"))
+                                    .put("content", original), host) { result ->
+                                    runOnUiThread {
+                                        if (!valid()) return@runOnUiThread
+                                        picking = false
+                                        val text = result.optJSONObject("data")?.optString("content")
+                                        if (text == null) toast(R.string.request_failed)
+                                        else if (draft() == original) { apply(text); dialog.dismiss() }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (draft == null && editable) row(getString(R.string.prompt_new)) {
+                        promptEditor(null, true, valid) { loadLibrary() }
+                    }
+                }
+            }
+        }
+        promptDialog(dialog) { context() && ownerValid() }
+        loadLibrary()
+    }
+
+    private fun promptEditor(prompt: JSONObject?, editable: Boolean, ownerValid: () -> Boolean, saved: () -> Unit) {
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+        }
+        fun field(label: Int, value: String, multiline: Boolean = false): EditText = EditText(this).apply {
+            hint = getString(label)
+            contentDescription = getString(label)
+            inputType = InputType.TYPE_CLASS_TEXT or if (multiline) InputType.TYPE_TEXT_FLAG_MULTI_LINE else 0
+            setSingleLine(!multiline)
+            if (multiline) { minLines = 5; gravity = Gravity.TOP or Gravity.START }
+            setText(value)
+            if (!editable) { keyListener = null; setTextIsSelectable(true) }
+            column.addView(this)
+        }
+        val name = field(R.string.prompt_name, prompt?.optString("name").orEmpty())
+        // Names identify an existing prompt; editing never creates an accidental duplicate.
+        name.isEnabled = editable && prompt == null
+        val title = field(R.string.prompt_title, prompt?.optString("title").orEmpty())
+        val body = field(R.string.prompt_body, prompt?.optString("body").orEmpty(), true)
+        val error = TextView(this).apply { visibility = View.GONE; column.addView(this) }
+        val reset = prompt?.optBoolean("standard") == true
+        val destructive = if (reset) R.string.prompt_reset else R.string.prompt_delete
+        val builder = AlertDialog.Builder(this).setTitle(if (prompt == null) R.string.prompt_new else R.string.prompt_library)
+            .setView(ScrollView(this).apply { addView(column) }).setNegativeButton(R.string.cancel, null)
+        if (editable) {
+            builder.setPositiveButton(R.string.prompt_save, null)
+            if (prompt != null) builder.setNeutralButton(destructive, null)
+        }
+        val dialog = builder.create()
+        val valid = { ownerValid() && dialog.isShowing }
+        var saving = false
+        fun mutate(operation: String) {
+            if (!valid() || saving) return
+            saving = true
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = false
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.isEnabled = false
+            error.visibility = View.GONE
+            val args = JSONObject().put("name", name.text.toString()).put("title", title.text.toString())
+                .put("body", body.text.toString())
+            promptRequest(operation, args, valid) { data ->
+                saving = false
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = true
+                dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.isEnabled = true
+                if (data != null) { dialog.dismiss(); saved() }
+                else { error.setText(R.string.prompt_save_failed); error.visibility = View.VISIBLE }
+            }
+        }
+        promptDialog(dialog, ownerValid)
+        if (editable) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { mutate("save_prompt") }
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+                if (valid() && !saving) {
+                    val confirmation = AlertDialog.Builder(this).setTitle(destructive)
+                        .setMessage(if (reset) R.string.prompt_reset_confirmation else R.string.prompt_delete_confirmation)
+                        .setNegativeButton(R.string.cancel, null)
+                        .setPositiveButton(destructive) { _, _ -> if (valid()) mutate("delete_prompt") }.create()
+                    promptDialog(confirmation, valid)
+                }
+            }
+        }
+    }
+
     /** Reloads the MCP server lists Profile shows, for the profile and generation that asked. */
     private fun refreshMcpServers() {
         if (isDestroyed || screen != "profile") return
@@ -1413,12 +1579,14 @@ class MainActivity : Activity() {
         val generation = view.optLong("generation", -1)
         val profile = view.optString("active_profile_id")
         val revision = view.optJSONObject("navigation")?.optLong("revision")
+        val valid = promptContext(requireOrganization = false)
         val input = EditText(this).apply {
             hint = getString(R.string.conversation_prompt)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             minLines = 3
             gravity = Gravity.TOP or Gravity.START
         }
-        AlertDialog.Builder(this).setTitle(R.string.new_conversation)
+        val dialog = AlertDialog.Builder(this).setTitle(R.string.new_conversation)
             .setView(input)
             .setPositiveButton(R.string.start) { _, _ ->
                 if (busy || generation != view.optLong("generation", -1) ||
@@ -1432,7 +1600,16 @@ class MainActivity : Activity() {
                     val id = (data as? JSONObject)?.string("id")
                     if (!id.isNullOrBlank()) openThread(id) else { render(); load() }
                 }
-            }.setNegativeButton(R.string.cancel, null).show()
+            }.setNegativeButton(R.string.cancel, null)
+            .apply { if (selectedOrganization() != null) setNeutralButton(R.string.prompt_pick, null) }
+            .create()
+        promptDialog(dialog, valid)
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+            if (valid()) promptLibrary({ input.text.toString() }, { text ->
+                input.setText(text)
+                input.setSelection(text.length)
+            }, { valid() && dialog.isShowing })
+        }
     }
 
     private fun openThread(id: String) {
@@ -1569,6 +1746,20 @@ class MainActivity : Activity() {
         }
         content.addView(suggestions)
         content.addView(composer)
+        val pendingDecision = thread.optJSONArray("messages").objects().any {
+            it.optJSONObject("decision")?.optString("status") == "pending"
+        }
+        if (selectedOrganization() != null && !pendingDecision) button(R.string.prompt_pick) {
+            promptLibrary({ reply }, { text ->
+                reply = text
+                render()
+            }, {
+                conversation?.optBoolean("working") != true &&
+                    conversation?.optJSONArray("messages").objects().none {
+                        it.optJSONObject("decision")?.optString("status") == "pending"
+                    }
+            })
+        }
         button(R.string.send, primary = true) {
             if (reply.isBlank()) return@button
             call("send_message", JSONObject().put("id", thread.optString("id")).put("content", reply)) { data ->

@@ -10,6 +10,7 @@ pub mod mcp_servers;
 pub mod navigation;
 mod palette;
 mod presence;
+pub mod prompts;
 pub mod store;
 pub mod theme;
 mod threads;

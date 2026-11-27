@@ -244,7 +244,7 @@ struct StartConversationView: View {
                     }
                     ReplyComposer(
                         reply: $content, disabled: false, sending: starting, voice: voice, mentions: mentions,
-                        placeholder: "What do you want to talk about?", focus: $focused, attachments: $attachments
+                        placeholder: "What do you want to talk about?", focus: $focused, attachments: $attachments, promptClient: client
                     ) { request = Task { await start() } }
                 }
                 .padding(.horizontal)
@@ -271,7 +271,7 @@ struct StartConversationView: View {
                 Section {
                     ReplyComposer(
                         reply: $content, disabled: false, sending: starting, voice: voice, mentions: mentions,
-                        placeholder: "What do you want to talk about?", focus: $focused, attachments: $attachments
+                        placeholder: "What do you want to talk about?", focus: $focused, attachments: $attachments, promptClient: client
                     ) { request = Task { await start() } }
                 } footer: {
                     if mentionHint { Text("Type @ to loop someone in.") }
@@ -559,7 +559,7 @@ struct ConversationView: View {
                             .padding(.trailing, 4)
                     #endif
                 }
-                ReplyComposer(reply: $reply, disabled: thread?.working != false || thread?.reauthorization_required == true, sending: sending, voice: voice, mentions: mentions, focus: $replyFocused, attachments: $attachments) {
+                ReplyComposer(reply: $reply, disabled: thread?.working != false || thread?.reauthorization_required == true, sending: sending, voice: voice, mentions: mentions, focus: $replyFocused, attachments: $attachments, promptClient: messages.contains(where: { $0.decision?.status == "pending" }) ? nil : client) {
                     Task { await send() }
                 }
             }

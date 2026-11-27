@@ -30,7 +30,11 @@ defmodule LuftServer.Threads.AgentTest do
 
     refute text =~ "\"body\":\"1:"
     assert text =~ "\"body\":\"45:"
-    assert byte_size(text) < 162_000
+    assert byte_size(text) < 174_000
+
+    # A saved prompt plus caller input may fill the entire accepted message.
+    latest = String.duplicate("x", 15_990) <> "CHECK_TAIL"
+    assert Agent.transcript([%{kind: "human", body: latest}]) =~ "CHECK_TAIL"
   end
 
   test "attachments reject traversal and compaction retains only latest user images" do

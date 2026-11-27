@@ -531,6 +531,27 @@ impl MobileClient {
             | "remove_mcp_server"
             | "authorize_mcp_server"
             | "complete_mcp_server") => self.mcp_servers(op, args, host),
+            "prompt_draft" => crate::prompts::draft(args),
+            op @ ("prompts" | "prompt" | "save_prompt" | "delete_prompt") => {
+                if args
+                    .get("if_generation")
+                    .is_some_and(|generation| generation.as_u64() != Some(self.vault.generation))
+                {
+                    return Err("The account changed. Reopen Saved Prompts.");
+                }
+                let index = self.active()?;
+                let server = server_url(&self.vault.profiles[index].server)?;
+                crate::prompts::call(
+                    &server,
+                    op,
+                    args,
+                    &mut Authorized {
+                        client: self,
+                        index,
+                        host,
+                    },
+                )
+            }
             "push_enable" => self.push_enable(args, host),
             "live_activity_register" => self.live_activity_register(args, host),
             "live_activity_unregister" => self.live_activity_unregister(args, host),

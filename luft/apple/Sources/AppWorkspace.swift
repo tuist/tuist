@@ -564,6 +564,8 @@ private struct OrganizationSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                SavedPromptsSection(client: client, accountHandle: handle, sheet: $sheet)
+                    .listRowBackground(Noora.backgroundTertiary)
                 MCPServersSection(client: client, accountHandle: handle, sheet: $sheet)
                     .listRowBackground(Noora.backgroundTertiary)
             }

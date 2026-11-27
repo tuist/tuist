@@ -184,4 +184,22 @@
     <string name="mcp_sign_in">"Sign in"</string>
     <string name="mcp_remove">"Remove"</string>
     <string name="mcp_sign_in_failed">"Signing in to the MCP server failed. Try again."</string>
+    <string name="prompt_library">"Prompt library"</string>
+    <string name="prompt_library_organization">"Prompt library for %1$s"</string>
+    <string name="prompt_pick">"Choose a prompt"</string>
+    <string name="prompt_row">"/%1$s · %2$s"</string>
+    <string name="prompt_new">"New prompt"</string>
+    <string name="prompt_name">"Command name (without /)"</string>
+    <string name="prompt_title">"Title"</string>
+    <string name="prompt_body">"Prompt body"</string>
+    <string name="prompt_save">"Save prompt"</string>
+    <string name="prompt_reset">"Reset prompt"</string>
+    <string name="prompt_delete">"Delete prompt"</string>
+    <string name="prompt_reset_confirmation">"Restore this standard prompt to its default title and body for everyone in this organization?"</string>
+    <string name="prompt_delete_confirmation">"Delete this custom prompt for everyone in this organization?"</string>
+    <string name="prompt_load_failed">"The prompt library could not be loaded."</string>
+    <string name="prompt_save_failed">"The change could not be saved. Your input is still here. Try again."</string>
+    <string name="prompt_retry">"Retry"</string>
+    <string name="prompt_empty">"No prompts in this organization yet."</string>
+    <string name="prompt_library_footer">"Shared with this organization and stored in Luft. Only organization admins can change prompts. Choosing a prompt only changes your draft."</string>
 </resources>

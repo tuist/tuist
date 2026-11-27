@@ -47,6 +47,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 - Keep Swift project prefix mapping enabled. Resolve test fixtures and snapshots
   through `TuistTestSupport` and the runtime checkout (`TUIST_CONFIG_SRCROOT`), not
   compiler-remapped `#file` or `#filePath` paths.
+- Persist Luft product data in Luft, including conversations, prompts, settings, integrations and execution state. Tuist's role for Luft is limited to identities, organizations and sandbox provisioning; do not add Luft product persistence to Tuist.
 - When changing stored customer data (schemas, relationships, object-storage
   layouts, collection, or retention), update `server/data-export.md`. See
   `server/AGENTS.md` for the required export documentation details.

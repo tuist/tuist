@@ -141,6 +141,7 @@ defmodule LuftServer.Threads do
             Repo.rollback(:request_conflict)
 
           nil ->
+            {body, prompt} = expand_prompt!(scope, body)
             selection = admit!(opts, scope, session, session, selection)
             id = Ecto.UUID.generate()
 
@@ -169,7 +170,7 @@ defmodule LuftServer.Threads do
                 log: false
               )
 
-            message = append!(thread, human(scope, session, body, files, request_id))
+            message = append!(thread, human(scope, session, body, files, request_id, prompt))
             loop_in!(thread, scope, body)
             enqueue!(thread, message.id)
             history(Repo.reload!(thread), scope)
@@ -194,8 +195,11 @@ defmodule LuftServer.Threads do
         require_access!(scope, thread)
 
         case Repo.get_by(Message, thread_id: thread.id, request_id: request_id) do
-          %Message{kind: "human", author_id: author, body: ^body, attachments: ^files} = sent
+          %Message{kind: "human", author_id: author, attachments: ^files} = sent
           when author == scope.user_id ->
+            original = Map.get(sent.prompt || %{}, "input", sent.body)
+            original == body or Repo.rollback(:request_conflict)
+
             Map.take(sent.decision || %{}, ~w(question_id option_id cancel)) ==
               Map.take(attrs, ~w(question_id option_id cancel)) or
               Repo.rollback(:request_conflict)
@@ -964,11 +968,13 @@ defmodule LuftServer.Threads do
            ),
            do: Repo.rollback(:busy)
 
-        message = append!(thread, human(scope, session, body, files, request_id))
+        {body, prompt} = expand_prompt!(scope, body)
+        message = append!(thread, human(scope, session, body, files, request_id, prompt))
         loop_in!(thread, scope, body)
         enqueue!(thread, message.id)
 
       question ->
+        # Decision answers are literal input, never commands to expand.
         answer!(thread, question, scope, session, body, files, request_id, attrs)
     end
   end
@@ -1827,10 +1833,18 @@ defmodule LuftServer.Threads do
     )
   end
 
-  defp human(scope, session, body, files, request_id),
+  defp expand_prompt!(scope, body) do
+    case LuftServer.Prompts.expand(scope.organization_id, body) do
+      {:ok, expanded, prompt} -> {expanded, prompt}
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp human(scope, session, body, files, request_id, prompt \\ nil),
     do: %{
       kind: "human",
       body: body,
+      prompt: prompt,
       attachments: files,
       request_id: request_id,
       author_id: scope.user_id,

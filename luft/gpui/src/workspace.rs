@@ -15,6 +15,7 @@ mod live;
 mod lounges;
 mod mcp_servers;
 mod preview;
+mod prompts;
 mod releases;
 mod socket;
 mod subscriptions;
@@ -53,6 +54,11 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(keys[2], ShowDms, None),
         KeyBinding::new(keys[3], ShowOps, None),
         KeyBinding::new(keys[4], ShowProfile, None),
+        KeyBinding::new(
+            "escape",
+            prompts::DismissPrompts,
+            Some("OrganizationPrompts"),
+        ),
     ]);
 }
 
@@ -129,6 +135,7 @@ pub struct Workspace {
     subscriptions: Entity<SubscriptionsPanel>,
     releases: Entity<releases::ReleasesPanel>,
     mcp_servers: Entity<McpServersPanel>,
+    prompts: Entity<prompts::PromptsPanel>,
     /// One per destination, so closing a preview can return focus to the sidebar.
     destination_focus: [FocusHandle; Destination::ALL.len()],
     _appearance: Subscription,
@@ -161,8 +168,22 @@ impl Workspace {
             releases::ReleasesPanel::new(session.clone(), &account, scroll.clone(), window, cx)
         });
         let mcp_servers = cx.new(|cx| McpServersPanel::new(session.clone(), scope.clone(), cx));
-        let threads =
-            cx.new(|cx| ThreadsPanel::new(session, handle, navigation.clone(), window, cx));
+        let prompts = cx.new(|cx| {
+            let mut panel = prompts::PromptsPanel::new(
+                session.clone(),
+                scope.read(cx).organization(),
+                false,
+                scroll.clone(),
+                cx,
+            );
+            panel.bind_scope(scope.clone(), cx);
+            panel
+        });
+        let threads = cx.new(|cx| {
+            let mut panel = ThreadsPanel::new(session, handle, navigation.clone(), window, cx);
+            panel.bind_scope(scope, cx);
+            panel
+        });
         let observer = cx.observe(&navigation, |this: &mut Self, navigation, cx| {
             this.sync_subscriptions(cx);
             if navigation.read(cx).tab != Destination::Ops {
@@ -182,6 +203,7 @@ impl Workspace {
             subscriptions,
             releases,
             mcp_servers,
+            prompts,
             destination_focus: Destination::ALL.map(|_| cx.focus_handle().tab_stop(true)),
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
             _navigation: observer,
@@ -436,6 +458,8 @@ impl Workspace {
             .child(self.subscriptions.clone())
             .child(section("MCP servers"))
             .child(self.mcp_servers.clone())
+            .child(section("Organization prompts"))
+            .child(self.prompts.clone())
             .child(section("Theme"))
             .child(themes)
             .child(section("Legal"))

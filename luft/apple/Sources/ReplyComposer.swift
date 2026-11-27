@@ -24,6 +24,8 @@ struct ReplyComposer: View {
     var focus: FocusState<Bool>.Binding?
     /// Nil keeps lounge/DM composers text-only.
     var attachments: Binding<[PromptAttachment]>?
+    /// Only agent-thread composers offer the organization's saved prompts.
+    var promptClient: AppClient?
     let send: () -> Void
     @State private var pickingFiles = false
     @State private var pickingPhotos = false
@@ -115,6 +117,10 @@ struct ReplyComposer: View {
 
     private var composerControls: some View {
         HStack(alignment: .bottom, spacing: 8) {
+            if let promptClient, !recording {
+                SavedPromptPickerButton(client: promptClient, text: $reply)
+                    .disabled(sending)
+            }
             if let attachments, !recording {
                 Menu {
                     Section("Up to 4 files, 1 MiB each") {

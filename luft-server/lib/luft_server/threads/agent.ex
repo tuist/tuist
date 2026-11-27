@@ -45,14 +45,17 @@ defmodule LuftServer.Threads.Agent do
   end
 
   def transcript(messages) do
+    messages = Enum.take(messages, -40)
+    last = length(messages) - 1
+
     lines =
       messages
-      |> Enum.take(-40)
-      |> Enum.map_join("\n\n", fn message ->
+      |> Enum.with_index()
+      |> Enum.map_join("\n\n", fn {message, index} ->
         body =
           (Map.get(message, :body) || "")
           |> String.codepoints()
-          |> Enum.take(4_000)
+          |> Enum.take(if(index == last, do: 16_000, else: 4_000))
           |> Enum.join()
 
         Jason.encode!(%{kind: Map.get(message, :kind, "human"), body: body})

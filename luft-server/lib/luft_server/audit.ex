@@ -1,9 +1,8 @@
 defmodule LuftServer.Audit do
   @moduledoc """
-  An append-only record of who changed where people's data goes: MCP servers
-  added, authorized and removed, and AI subscriptions connected and
-  disconnected. Each event names the acting person (`actor_sub`, their Tuist
-  subject), the owner it changed (`user:<sub>` or `account:<id>`), the row it
+  An append-only record of MCP server and AI subscription changes, and saved
+  organization prompt changes. Each event names the acting person (`actor_sub`, their Tuist
+  subject), the owner it changed (`user:<sub>`, `account:<id>` or `organization:<id>`), the row it
   changed and non-secret details such as the server's URL. Callers record an
   event in the same transaction as the change, so neither exists without the
   other. Events are never updated or deleted, and never hold credentials.

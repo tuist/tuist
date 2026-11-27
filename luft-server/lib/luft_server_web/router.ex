@@ -80,6 +80,11 @@ defmodule LuftServerWeb.Router do
     get "/organizations", OrganizationsController, :index
     post "/organizations", OrganizationsController, :create
 
+    get "/accounts/:account_handle/prompts", PromptsController, :index, log: false
+    get "/accounts/:account_handle/prompts/:name", PromptsController, :show, log: false
+    put "/accounts/:account_handle/prompts/:name", PromptsController, :update, log: false
+    delete "/accounts/:account_handle/prompts/:name", PromptsController, :delete, log: false
+
     get "/accounts/:account_handle/collections", CollectionsController, :index, log: false
 
     post "/accounts/:account_handle/collections/:collection/query", CollectionsController, :query,

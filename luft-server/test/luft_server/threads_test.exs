@@ -469,6 +469,79 @@ defmodule LuftServer.ThreadsTest do
     refute_receive :threads_changed
   end
 
+  test "saved prompts snapshot organization text and replay unchanged after edits or deletion",
+       ctx do
+    assert {:ok, _} =
+             LuftServer.Prompts.put("1", 10, "check", %{
+               "title" => "Check",
+               "body" => "Check Linux."
+             })
+
+    first = attrs(%{"content" => "/check\nAlso check Windows."})
+    assert {:ok, thread} = create(ctx, first)
+
+    assert [%{body: "Check Linux.\n\nAlso check Windows.", prompt: %{"name" => "check"}}] =
+             thread.messages
+
+    assert {:ok, _} = LuftServer.Prompts.put("1", 10, "check", %{"body" => "New instructions."})
+    assert {:ok, replay} = create(ctx, first)
+    assert replay.messages == thread.messages
+
+    complete_runs(thread)
+    followup = %{"request_id" => Ecto.UUID.generate(), "content" => "/check"}
+
+    assert {:ok, updated} =
+             Threads.message(ctx.scope, ctx.session, thread.id, followup, execution: Admission)
+
+    assert List.last(updated.messages).body == "New instructions."
+    assert {:ok, :ok} = LuftServer.Prompts.delete("1", 10, "check")
+
+    assert {:ok, replay} =
+             Threads.message(ctx.scope, ctx.session, thread.id, followup, execution: Admission)
+
+    assert replay.messages == updated.messages
+
+    assert {:error, :request_conflict} =
+             Threads.message(
+               ctx.scope,
+               ctx.session,
+               thread.id,
+               %{followup | "content" => "/check changed"},
+               execution: Admission
+             )
+  end
+
+  test "prompt expansion is organization scoped, bounded and leaves ordinary input literal",
+       ctx do
+    assert {:ok, _} =
+             LuftServer.Prompts.put("1", 20, "private", %{
+               "title" => "Private",
+               "body" => "Other org."
+             })
+
+    assert {:ok, thread} = create(ctx, attrs(%{"content" => "/private"}))
+    assert [%{body: "/private", prompt: nil}] = thread.messages
+    assert {:ok, thread} = create(ctx, attrs(%{"content" => "Please /ship later"}))
+    assert [%{body: "Please /ship later", prompt: nil}] = thread.messages
+    personal = %{ctx | scope: %{ctx.scope | organization_id: nil}}
+    assert {:ok, thread} = create(personal, attrs(%{"content" => "/ship"}))
+    assert [%{body: "/ship", prompt: nil}] = thread.messages
+
+    assert {:ok, _} =
+             LuftServer.Prompts.put("1", 10, "large", %{
+               "title" => "Large",
+               "body" => String.duplicate("a", 12_000)
+             })
+
+    assert {:error, :invalid_arguments} =
+             create(ctx, attrs(%{"content" => "/large " <> String.duplicate("b", 4000)}))
+
+    assert {:ok, thread} =
+             create(ctx, attrs(%{"content" => "/large " <> String.duplicate("b", 3998)}))
+
+    assert byte_size(hd(thread.messages).body) == 16_000
+  end
+
   defp claimed(ctx) do
     {:ok, thread} = create(ctx)
     [%{epoch: epoch}] = Lease.claim("test-host", 1)

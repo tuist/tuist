@@ -59,6 +59,21 @@ Cookie-authenticated writes must carry this origin's `Origin` header. Native bea
 
 Unauthenticated API calls answer `401 {"error": "unauthenticated", "login_url": ...}`.
 
+## Organization prompts
+
+Saved prompts live only in Luft's PostgreSQL database, keyed by the verified Tuist organization ID, not by account handle. Accounts in the same organization share them. Each request reloads Tuist membership: members read/use prompts and organization admins edit them. Personal accounts have no prompt library. Tuist receives no prompt text or prompt mutations.
+
+Apply `20261127000000_create_organization_prompts` before starting new writers. First use persists the standard **Ship**, **Review**, **Rebase** (`update-base`), **Restack** (`refactor-commits`) and **Summarize** prompts. Subsequent reads never overwrite edited standards.
+
+- `GET /api/accounts/:account_handle/prompts` returns `{prompts: [{name,title,body,standard,updated_at}], can_edit}`.
+- `GET /api/accounts/:account_handle/prompts/:name` returns `{prompt: ...}`.
+- `PUT /api/accounts/:account_handle/prompts/:name` creates or edits a prompt with `{title,body}`. Names are 1–64 lowercase ASCII letters, digits or hyphens, starting with a letter; titles are 1–80 characters and bodies 1–12000 bytes. Existing prompts accept partial edits. All responses are `no-store`; cookie writes require the same origin.
+- `DELETE /api/accounts/:account_handle/prompts/:name` deletes a custom prompt, or resets a standard prompt to its original title and body. Changes are audited without copying the body into the audit log.
+
+Send `/name` at the beginning of a normal thread message to invoke it, optionally followed by additional instructions separated by whitespace. Expansion happens on the server for new and existing threads, so existing composers work without a client update. Unknown commands, personal-account messages and decision answers stay literal. The accepted message stores the resolved text and original invocation; retrying the same request UUID preserves it after edits/deletion and never queues another run. Expanded messages keep the existing 16000-byte limit. Prompt text is ordinary user instruction, not a system override: `/ship` prepares a review and does **not** approve publication or bypass the existing host-owned Ship flow.
+
+On iOS and macOS, **Organization Settings → Saved Prompts** opens the organization's library. Members can read the complete text; admins can create and edit prompts, delete custom prompts, and reset standards after confirmation. A **Saved Prompts** button beside the new-thread and reply composers inserts a command into the draft without sending it. Additional instructions stay in the draft when switching prompts. Personal accounts, lounges/DMs and pending decision answers do not offer the picker. The shared Rust core owns validation, draft insertion and the Luft API calls; queued library calls with an old session generation are rejected after an account switch. Android and GPUI can still invoke slash commands, but do not yet have the library editor or picker.
+
 ## Configuration
 
 Tuist server (the deployment Luft signs in to), all required for it to act as the OpenID Provider. In production the Tuist chart's `server.config.luftServerOidc` syncs them: the signing key from the `OIDC_PROVIDER` 1Password item (`signing-key.pem`), the client ID and secret from the `LUFT_SERVER` item this server's chart also reads, and the redirect URIs from the chart's values.

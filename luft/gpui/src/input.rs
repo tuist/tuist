@@ -17,6 +17,10 @@ actions!(
         Delete,
         Left,
         Right,
+        Up,
+        Down,
+        SelectUp,
+        SelectDown,
         SelectLeft,
         SelectRight,
         Home,
@@ -31,7 +35,7 @@ actions!(
     ]
 );
 
-/// Emitted when Enter is pressed outside an IME composition.
+/// Emitted by single-line inputs when Enter is pressed outside an IME composition.
 pub struct Submitted;
 
 /// Register once at application startup. Shortcuts only apply to this input's context.
@@ -41,6 +45,10 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("delete", Delete, Some("ServerUrlInput")),
         KeyBinding::new("left", Left, Some("ServerUrlInput")),
         KeyBinding::new("right", Right, Some("ServerUrlInput")),
+        KeyBinding::new("up", Up, Some("MultilineInput")),
+        KeyBinding::new("down", Down, Some("MultilineInput")),
+        KeyBinding::new("shift-up", SelectUp, Some("MultilineInput")),
+        KeyBinding::new("shift-down", SelectDown, Some("MultilineInput")),
         KeyBinding::new("shift-left", SelectLeft, Some("ServerUrlInput")),
         KeyBinding::new("shift-right", SelectRight, Some("ServerUrlInput")),
         KeyBinding::new("home", Home, Some("ServerUrlInput")),
@@ -73,12 +81,16 @@ pub struct TextInput {
     pub focus_handle: FocusHandle,
     content: SharedString,
     placeholder: SharedString,
+    label: SharedString,
+    multiline: bool,
     selection: Range<usize>,
     reversed: bool,
     marked: Option<Range<usize>>,
-    last_line: Option<ShapedLine>,
+    last_lines: Vec<(usize, ShapedLine)>,
     last_bounds: Option<Bounds<Pixels>>,
     scroll: Pixels,
+    scroll_y: Pixels,
+    line_height: Pixels,
     selecting: bool,
     observing_focus: bool,
     validation_error: Option<SharedString>,
@@ -94,12 +106,16 @@ impl TextInput {
             focus_handle,
             content: "".into(),
             placeholder: placeholder.into(),
+            label: "Server URL".into(),
+            multiline: false,
             selection: 0..0,
             reversed: false,
             marked: None,
-            last_line: None,
+            last_lines: Vec::new(),
             last_bounds: None,
             scroll: px(0.),
+            scroll_y: px(0.),
+            line_height: px(22.),
             selecting: false,
             observing_focus: false,
             validation_error: None,
@@ -111,6 +127,36 @@ impl TextInput {
         &self.content
     }
 
+    /// Single-line form field with a meaningful accessible name.
+    pub fn named(
+        label: impl Into<SharedString>,
+        placeholder: impl Into<SharedString>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut input = Self::new(placeholder, cx);
+        input.label = label.into();
+        input
+    }
+
+    /// Eight visible logical lines, with caret-following horizontal and vertical scrolling.
+    /// Lines do not soft-wrap. Enter edits the body rather than submitting the form.
+    /// The supplied label is also displayed as the empty editor's placeholder.
+    pub fn multiline(label: impl Into<SharedString>, cx: &mut Context<Self>) -> Self {
+        let label = label.into();
+        let mut input = Self::named(label.clone(), label, cx);
+        input.multiline = true;
+        input
+    }
+
+    fn normalize(&self, text: &str) -> String {
+        if self.multiline {
+            text.replace("\r\n", "\n")
+                .replace(['\r', '\u{85}', '\u{2028}', '\u{2029}'], "\n")
+        } else {
+            single_line(text)
+        }
+    }
+
     /// Expose the parent form's validation error as this input's description.
     pub fn set_validation_error(&mut self, error: Option<SharedString>, cx: &mut Context<Self>) {
         if self.validation_error != error {
@@ -120,12 +166,13 @@ impl TextInput {
     }
 
     pub fn set_value(&mut self, value: String, cx: &mut Context<Self>) {
-        self.content = single_line(&value).into();
+        self.content = self.normalize(&value).into();
         self.selection = self.content.len()..self.content.len();
         self.reversed = false;
         self.marked = None;
-        self.last_line = None;
+        self.last_lines.clear();
         self.scroll = px(0.);
+        self.scroll_y = px(0.);
         cx.notify();
     }
 
@@ -209,19 +256,75 @@ impl TextInput {
     }
 
     fn home(&mut self, _: &Home, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(0, false, window, cx);
+        self.move_to(self.line_start(), false, window, cx);
     }
 
     fn end(&mut self, _: &End, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(self.content.len(), false, window, cx);
+        self.move_to(self.line_end(), false, window, cx);
     }
 
     fn select_home(&mut self, _: &SelectHome, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(0, true, window, cx);
+        self.move_to(self.line_start(), true, window, cx);
     }
 
     fn select_end(&mut self, _: &SelectEnd, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(self.content.len(), true, window, cx);
+        self.move_to(self.line_end(), true, window, cx);
+    }
+
+    fn line_start(&self) -> usize {
+        if self.multiline {
+            self.content[..self.cursor()]
+                .rfind('\n')
+                .map_or(0, |i| i + 1)
+        } else {
+            0
+        }
+    }
+
+    fn line_end(&self) -> usize {
+        if self.multiline {
+            self.content[self.cursor()..]
+                .find('\n')
+                .map_or(self.content.len(), |i| self.cursor() + i)
+        } else {
+            self.content.len()
+        }
+    }
+
+    fn vertical(&mut self, down: bool, extend: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let start = self.line_start();
+        let column = self.content[start..self.cursor()].chars().count();
+        let target = if down {
+            let end = self.line_end();
+            if end == self.content.len() {
+                end
+            } else {
+                end + 1
+            }
+        } else if start == 0 {
+            0
+        } else {
+            self.content[..start - 1].rfind('\n').map_or(0, |i| i + 1)
+        };
+        let line = self.content[target..].split('\n').next().unwrap_or("");
+        let offset = line
+            .char_indices()
+            .nth(column)
+            .map_or(line.len(), |(i, _)| i);
+        self.move_to(target + offset, extend, window, cx);
+    }
+
+    fn up(&mut self, _: &Up, window: &mut Window, cx: &mut Context<Self>) {
+        self.vertical(false, false, window, cx);
+    }
+    fn down(&mut self, _: &Down, window: &mut Window, cx: &mut Context<Self>) {
+        self.vertical(true, false, window, cx);
+    }
+    fn select_up(&mut self, _: &SelectUp, window: &mut Window, cx: &mut Context<Self>) {
+        self.vertical(false, true, window, cx);
+    }
+    fn select_down(&mut self, _: &SelectDown, window: &mut Window, cx: &mut Context<Self>) {
+        self.vertical(true, true, window, cx);
     }
 
     fn select_all(&mut self, _: &SelectAll, window: &mut Window, cx: &mut Context<Self>) {
@@ -264,9 +367,13 @@ impl TextInput {
         }
     }
 
-    fn submit(&mut self, _: &Submit, _: &mut Window, cx: &mut Context<Self>) {
+    fn submit(&mut self, _: &Submit, window: &mut Window, cx: &mut Context<Self>) {
         if self.marked.is_none() {
-            cx.emit(Submitted);
+            if self.multiline {
+                self.replace_text_in_range(None, "\n", window, cx);
+            } else {
+                cx.emit(Submitted);
+            }
         }
     }
 
@@ -274,13 +381,18 @@ impl TextInput {
         if self.content.is_empty() {
             return 0;
         }
-        match (&self.last_line, self.last_bounds) {
-            (Some(line), Some(bounds)) if line.text == self.content => {
-                line.closest_index_for_x(position.x - bounds.left() + self.scroll)
-            }
-            // An edit can arrive before the next frame updates hit testing.
-            _ => self.cursor(),
+        let Some(bounds) = self.last_bounds else {
+            return self.cursor();
+        };
+        if self.last_lines.is_empty() {
+            return self.cursor();
         }
+        let row = (((position.y - bounds.top() + self.scroll_y) / self.line_height)
+            .floor()
+            .max(0.) as usize)
+            .min(self.last_lines.len() - 1);
+        let (start, line) = &self.last_lines[row];
+        start + line.closest_index_for_x(position.x - bounds.left() + self.scroll)
     }
 
     fn mouse_down(&mut self, event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -378,7 +490,7 @@ impl TextInput {
                 let range = self.to_utf16(0..self.content.len());
                 self.replace_text_in_range(Some(range), value, window, cx);
                 self.scroll = px(0.);
-                self.last_line = None;
+                self.last_lines.clear();
             }
             (accesskit::Action::ReplaceSelectedText, Some(accesskit::ActionData::Value(value))) => {
                 // An assistive edit replaces the selection, not an IME marked range.
@@ -498,9 +610,10 @@ impl EntityInputHandler for TextInput {
             .map(|range| self.utf16_to_utf8(range))
             .or(self.marked.clone())
             .unwrap_or(self.selection.clone());
-        let text = single_line(text);
+        let text = self.normalize(text);
         self.content =
             (self.content[..range.start].to_owned() + &text + &self.content[range.end..]).into();
+        self.last_lines.clear();
         let cursor = range.start + text.len();
         self.selection = cursor..cursor;
         self.reversed = false;
@@ -523,12 +636,16 @@ impl EntityInputHandler for TextInput {
             .unwrap_or(self.selection.clone());
         // The IME's selection is relative to its replacement, not the whole input.
         let relative = selected.map(|selection| {
-            single_line(&text[..utf8_offset(text, selection.start)]).len()
-                ..single_line(&text[..utf8_offset(text, selection.end)]).len()
+            self.normalize(&text[..utf8_offset(text, selection.start)])
+                .len()
+                ..self
+                    .normalize(&text[..utf8_offset(text, selection.end)])
+                    .len()
         });
-        let text = single_line(text);
+        let text = self.normalize(text);
         self.content =
             (self.content[..range.start].to_owned() + &text + &self.content[range.end..]).into();
+        self.last_lines.clear();
         self.marked = (!text.is_empty()).then_some(range.start..range.start + text.len());
         self.selection = relative
             .map(|selection| range.start + selection.start..range.start + selection.end)
@@ -545,17 +662,24 @@ impl EntityInputHandler for TextInput {
         _: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
-        let line = self.last_line.as_ref()?;
         let bounds = self.last_bounds?;
         let range = self.utf16_to_utf8(range);
+        let row = self
+            .last_lines
+            .iter()
+            .rposition(|(start, _)| *start <= range.start)?;
+        let (start, line) = &self.last_lines[row];
+        let top = bounds.top() + self.line_height * row as f32 - self.scroll_y;
+        // Native candidate windows use the first line of a multi-line range.
         Some(Bounds::from_corners(
             point(
-                bounds.left() + line.x_for_index(range.start) - self.scroll,
-                bounds.top(),
+                bounds.left() + line.x_for_index(range.start - start) - self.scroll,
+                top,
             ),
             point(
-                bounds.left() + line.x_for_index(range.end) - self.scroll,
-                bounds.bottom(),
+                bounds.left() + line.x_for_index((range.end - start).min(line.text.len()))
+                    - self.scroll,
+                top + self.line_height,
             ),
         ))
     }
@@ -576,11 +700,12 @@ struct InputText {
 }
 
 struct InputPaint {
-    line: ShapedLine,
+    lines: Vec<(usize, ShapedLine)>,
     origin: Point<Pixels>,
     scroll: Pixels,
+    scroll_y: Pixels,
     caret: PaintQuad,
-    selection: Option<PaintQuad>,
+    selection: Vec<PaintQuad>,
 }
 
 impl IntoElement for InputText {
@@ -610,7 +735,13 @@ impl Element for InputText {
     ) -> (LayoutId, ()) {
         let mut style = Style::default();
         style.size.width = relative(1.).into();
-        style.size.height = window.line_height().into();
+        style.size.height = (window.line_height()
+            * if self.input.read(cx).multiline {
+                8.
+            } else {
+                1.
+            })
+        .into();
         (window.request_layout(style, [], cx), ())
     }
 
@@ -632,82 +763,130 @@ impl Element for InputText {
         } else {
             input.content.clone()
         };
-        let run = TextRun {
-            len: text.len(),
-            font: style.font(),
-            color: if empty { theme.text_muted } else { theme.text },
-            background_color: None,
-            underline: None,
-            strikethrough: None,
-        };
-        let runs = if let Some(marked) = &input.marked {
-            vec![
-                TextRun {
-                    len: marked.start,
-                    ..run.clone()
-                },
-                TextRun {
-                    len: marked.len(),
-                    underline: Some(UnderlineStyle {
-                        color: Some(theme.text),
-                        thickness: px(1.),
-                        wavy: false,
-                    }),
-                    ..run.clone()
-                },
-                TextRun {
-                    len: text.len() - marked.end,
-                    ..run
-                },
-            ]
-            .into_iter()
-            .filter(|run| run.len > 0)
-            .collect()
+        let mut start = 0;
+        let lines: Vec<_> = text
+            .split('\n')
+            .map(|text| {
+                let run = TextRun {
+                    len: text.len(),
+                    font: style.font(),
+                    color: if empty { theme.text_muted } else { theme.text },
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                };
+                let mut runs = vec![run.clone()];
+                if let Some(marked) = &input.marked {
+                    let from = marked.start.saturating_sub(start).min(text.len());
+                    let to = marked.end.saturating_sub(start).min(text.len());
+                    if from < to {
+                        runs = vec![
+                            TextRun {
+                                len: from,
+                                ..run.clone()
+                            },
+                            TextRun {
+                                len: to - from,
+                                underline: Some(UnderlineStyle {
+                                    color: Some(theme.text),
+                                    thickness: px(1.),
+                                    wavy: false,
+                                }),
+                                ..run.clone()
+                            },
+                            TextRun {
+                                len: text.len() - to,
+                                ..run
+                            },
+                        ];
+                        runs.retain(|run| run.len > 0);
+                    }
+                }
+                let line = window.text_system().shape_line(
+                    text.to_owned().into(),
+                    style.font_size.to_pixels(window.rem_size()),
+                    &runs,
+                    None,
+                );
+                let result = (start, line);
+                start += text.len() + 1;
+                result
+            })
+            .collect();
+        let row = if empty {
+            0
         } else {
-            vec![run]
+            lines
+                .iter()
+                .rposition(|(start, _)| *start <= input.cursor())
+                .unwrap_or(0)
         };
-        let line = window.text_system().shape_line(
-            text,
-            style.font_size.to_pixels(window.rem_size()),
-            &runs,
-            None,
-        );
-        let cursor_x = line.x_for_index(input.cursor());
+        let cursor_x = lines[row].1.x_for_index(input.cursor() - lines[row].0);
+        let line_height = window.line_height();
         let width = (bounds.size.width - px(2.)).max(px(0.));
-        let max_scroll = (line.x_for_index(input.content.len()) - width).max(px(0.));
+        let max_scroll = (lines.iter().fold(px(0.), |width, (_, line)| {
+            width.max(line.x_for_index(line.text.len()))
+        }) - width)
+            .max(px(0.));
         let scroll = input
             .scroll
             .max(cursor_x - width)
             .min(cursor_x)
             .max(px(0.))
             .min(max_scroll);
-        let origin = point(bounds.left() - scroll, bounds.top());
+        let cursor_y = line_height * row as f32;
+        let scroll_y = input
+            .scroll_y
+            .max(cursor_y + line_height - bounds.size.height)
+            .min(cursor_y)
+            .max(px(0.));
+        let origin = point(bounds.left() - scroll, bounds.top() - scroll_y);
         let caret = fill(
             Bounds::new(
-                point(origin.x + cursor_x, origin.y),
-                size(px(1.), bounds.size.height),
+                point(origin.x + cursor_x, origin.y + cursor_y),
+                size(px(1.), line_height),
             ),
             theme.accent,
         );
-        let selection = (!input.selection.is_empty()).then(|| {
-            fill(
-                Bounds::from_corners(
-                    point(
-                        origin.x + line.x_for_index(input.selection.start),
-                        bounds.top(),
+        let mut selection = Vec::new();
+        for (row, (start, line)) in lines.iter().enumerate() {
+            let end = start + line.text.len();
+            if !input.selection.is_empty()
+                && input.selection.start <= end
+                && input.selection.end > *start
+            {
+                let left = line.x_for_index(
+                    input
+                        .selection
+                        .start
+                        .saturating_sub(*start)
+                        .min(line.text.len()),
+                );
+                let mut right = line.x_for_index(
+                    input
+                        .selection
+                        .end
+                        .saturating_sub(*start)
+                        .min(line.text.len()),
+                );
+                if input.selection.end > end {
+                    right += px(5.);
+                }
+                let top = origin.y + line_height * row as f32;
+                selection.push(fill(
+                    Bounds::from_corners(
+                        point(origin.x + left, top),
+                        point(origin.x + right, top + line_height),
                     ),
-                    point(
-                        origin.x + line.x_for_index(input.selection.end),
-                        bounds.bottom(),
-                    ),
-                ),
-                theme.row_selected,
-            )
-        });
+                    theme.row_selected,
+                ));
+            }
+        }
         InputPaint {
-            line,
+            lines,
             origin,
             scroll,
+            scroll_y,
             caret,
             selection,
         }
@@ -730,25 +909,32 @@ impl Element for InputText {
             cx,
         );
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
-            if let Some(selection) = state.selection.take() {
-                window.paint_quad(selection);
+            for selection in &state.selection {
+                window.paint_quad(selection.clone());
             }
-            let _ = state.line.paint(
-                state.origin,
-                window.line_height(),
-                gpui::TextAlign::Left,
-                None,
-                window,
-                cx,
-            );
+            for (row, (_, line)) in state.lines.iter().enumerate() {
+                let _ = line.paint(
+                    point(
+                        state.origin.x,
+                        state.origin.y + window.line_height() * row as f32,
+                    ),
+                    window.line_height(),
+                    gpui::TextAlign::Left,
+                    None,
+                    window,
+                    cx,
+                );
+            }
             if focus.is_focused(window) && self.input.read(cx).selection.is_empty() {
                 window.paint_quad(state.caret.clone());
             }
         });
         self.input.update(cx, |input, _| {
-            input.last_line = Some(state.line.clone());
+            input.last_lines = state.lines.clone();
             input.last_bounds = Some(bounds);
             input.scroll = state.scroll;
+            input.scroll_y = state.scroll_y;
+            input.line_height = window.line_height();
         });
     }
 }
@@ -782,11 +968,16 @@ impl Render for TextInput {
         let reversed = self.reversed;
         let run_id = self.a11y_run_id.clone();
         let invalid = self.validation_error.is_some();
+        let multiline = self.multiline;
         div()
             .id("server-url-input")
-            .role(accesskit::Role::TextInput)
+            .role(if multiline {
+                accesskit::Role::MultilineTextInput
+            } else {
+                accesskit::Role::TextInput
+            })
             .accessibility_id("server-url-input")
-            .aria_label("Server URL")
+            .aria_label(self.label.clone())
             .aria_value(self.content.clone())
             .aria_placeholder(self.placeholder.clone())
             .when_some(self.validation_error.clone(), |input, error| {
@@ -818,7 +1009,11 @@ impl Render for TextInput {
                 accesskit::Action::SetTextSelection,
                 Self::a11y_listener(accesskit::Action::SetTextSelection, cx),
             )
-            .key_context("ServerUrlInput")
+            .key_context(if multiline {
+                "ServerUrlInput MultilineInput"
+            } else {
+                "ServerUrlInput"
+            })
             .track_focus(&self.focus_handle)
             .cursor(CursorStyle::IBeam)
             .w_full()
@@ -838,6 +1033,10 @@ impl Render for TextInput {
             .line_height(px(22.))
             .on_action(cx.listener(Self::left))
             .on_action(cx.listener(Self::right))
+            .on_action(cx.listener(Self::up))
+            .on_action(cx.listener(Self::down))
+            .on_action(cx.listener(Self::select_up))
+            .on_action(cx.listener(Self::select_down))
             .on_action(cx.listener(Self::select_left))
             .on_action(cx.listener(Self::select_right))
             .on_action(cx.listener(Self::home))
@@ -862,6 +1061,130 @@ impl Render for TextInput {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[gpui::test]
+    fn multiline_dispatched_keys_scroll_and_native_geometry(cx: &mut gpui::TestAppContext) {
+        cx.update(init);
+        let (input, cx) = cx.add_window_view(|window, cx| {
+            let input = TextInput::multiline("Body", cx);
+            window.focus(&input.focus_handle, cx);
+            input
+        });
+        let draw = |cx: &mut gpui::VisualTestContext| {
+            cx.run_until_parked();
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+        };
+        draw(cx);
+        cx.simulate_input("é😀\nxy");
+        draw(cx);
+        cx.simulate_keystrokes("home up shift-end");
+        draw(cx);
+        input.read_with(cx, |input, _| assert_eq!(input.selection, 0..6));
+        cx.simulate_keystrokes("enter");
+        draw(cx);
+        input.read_with(cx, |input, _| assert_eq!(input.value(), "\n\nxy"));
+        input.update(cx, |input, cx| {
+            input.set_value((0..20).map(|i| format!("line {i}\n")).collect(), cx)
+        });
+        draw(cx);
+        input.update_in(cx, |input, window, cx| {
+            let bounds = input.last_bounds.unwrap();
+            assert!(input.scroll_y > px(0.));
+            let utf16 = input.to_utf16(input.selection.clone());
+            let caret = input
+                .bounds_for_range(utf16.clone(), bounds, window, cx)
+                .unwrap();
+            assert!(caret.top() >= bounds.top());
+            assert!(caret.bottom() <= bounds.bottom());
+            let hit = input.character_index_for_point(
+                point(caret.left(), caret.top() + px(1.)),
+                window,
+                cx,
+            );
+            assert_eq!(hit, Some(utf16.start));
+        });
+        cx.simulate_keystrokes("up home");
+        draw(cx);
+        input.read_with(cx, |input, _| {
+            assert_eq!(&input.value()[input.cursor()..], "line 19\n");
+        });
+    }
+
+    #[gpui::test]
+    fn multiline_and_single_line_entry(cx: &mut gpui::TestAppContext) {
+        for multiline in [false, true] {
+            let window = cx.add_window(move |_, cx| {
+                if multiline {
+                    TextInput::multiline("Prompt body", cx)
+                } else {
+                    TextInput::named("Title", "Name", cx)
+                }
+            });
+            window
+                .update(cx, |input, window, cx| {
+                    input.set_value("a\r\n😀".into(), cx);
+                    assert_eq!(input.value(), if multiline { "a\n😀" } else { "a😀" });
+                    input.select_all(&SelectAll, window, cx);
+                    cx.write_to_clipboard(ClipboardItem::new_string("é\nsecond".into()));
+                    input.paste(&Paste, window, cx);
+                    assert_eq!(
+                        input.value(),
+                        if multiline { "é\nsecond" } else { "ésecond" }
+                    );
+                    input.select_all(&SelectAll, window, cx);
+                    input.replace_and_mark_text_in_range(None, "a\n😀", Some(2..4), window, cx);
+                    assert_eq!(input.value(), if multiline { "a\n😀" } else { "a😀" });
+                    assert_eq!(
+                        input.to_utf16(input.selection.clone()),
+                        if multiline { 2..4 } else { 1..3 }
+                    );
+                    let element = input.render(window, cx).into_element();
+                    assert_eq!(
+                        element.a11y_role(),
+                        Some(if multiline {
+                            accesskit::Role::MultilineTextInput
+                        } else {
+                            accesskit::Role::TextInput
+                        })
+                    );
+                    let mut node = accesskit::Node::new(element.a11y_role().unwrap());
+                    element.write_a11y_info(&mut node);
+                    assert_eq!(
+                        node.label(),
+                        Some(if multiline { "Prompt body" } else { "Title" })
+                    );
+                })
+                .unwrap();
+        }
+    }
+
+    #[gpui::test]
+    fn multiline_keyboard_edits(cx: &mut gpui::TestAppContext) {
+        let window = cx.add_window(|_, cx| TextInput::multiline("Body", cx));
+        window
+            .update(cx, |input, window, cx| {
+                input.set_value("é😀\nxy\n".into(), cx);
+                input.up(&Up, window, cx);
+                assert_eq!(input.cursor(), 7);
+                input.end(&End, window, cx);
+                assert_eq!(input.cursor(), 9);
+                input.up(&Up, window, cx);
+                assert_eq!(input.cursor(), 6);
+                input.home(&Home, window, cx);
+                assert_eq!(input.cursor(), 0);
+                input.select_down(&SelectDown, window, cx);
+                assert_eq!(input.selection, 0..7);
+                input.submit(&Submit, window, cx);
+                assert_eq!(input.value(), "\nxy\n");
+                input.backspace(&Backspace, window, cx);
+                assert_eq!(input.value(), "xy\n");
+                input.set_value("a".into(), cx);
+                input.replace_and_mark_text_in_range(None, "字", None, window, cx);
+                input.submit(&Submit, window, cx);
+                assert_eq!(input.value(), "a字");
+            })
+            .unwrap();
+    }
 
     #[test]
     fn strips_all_line_breaks() {

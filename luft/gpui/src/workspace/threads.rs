@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
 use std::time::Duration;
 
 use gpui::{
@@ -12,6 +15,10 @@ use tuist_navigation::{Navigation, Route};
 use tuist_session::Session;
 use url::Url;
 
+use super::{
+    lounges::Scope,
+    prompts::{Guarded, PromptEvent, PromptsPanel},
+};
 use crate::components::{Button, Variant, composer, message};
 use crate::input::{Submitted, TextInput};
 use crate::theme::Theme;
@@ -79,6 +86,13 @@ impl Http<'_> {
 pub struct ThreadsPanel {
     session: Arc<Session>,
     handle: Option<String>,
+    personal: Option<String>,
+    organization: Option<String>,
+    scope: Option<Subscription>,
+    picker: Option<Entity<PromptsPanel>>,
+    picked: Option<Subscription>,
+    focus_composer: bool,
+    account_active: Arc<AtomicBool>,
     navigation: Entity<Navigation>,
     route_id: Option<String>,
     _navigation: Subscription,
@@ -105,6 +119,12 @@ pub struct ThreadsPanel {
     _submitted: [Subscription; 3],
 }
 
+impl Drop for ThreadsPanel {
+    fn drop(&mut self) {
+        self.account_active.store(false, Ordering::SeqCst);
+    }
+}
+
 impl ThreadsPanel {
     pub fn new(
         session: Arc<Session>,
@@ -122,7 +142,14 @@ impl ThreadsPanel {
         ];
         let mut panel = Self {
             session,
+            personal: handle.clone(),
             handle,
+            organization: None,
+            scope: None,
+            picker: None,
+            picked: None,
+            focus_composer: false,
+            account_active: Arc::new(AtomicBool::new(true)),
             _navigation: cx.observe(&navigation, |this, _, cx| this.sync_navigation(cx)),
             navigation,
             route_id: None,
@@ -157,12 +184,107 @@ impl ThreadsPanel {
         panel
     }
 
+    pub fn bind_scope(&mut self, scope: Entity<Scope>, cx: &mut Context<Self>) {
+        self.organization = scope.read(cx).organization();
+        self.scope = Some(cx.observe(&scope, |this, scope, cx| {
+            let organization = scope.read(cx).organization();
+            if this.organization != organization {
+                let using_organization = this.handle != this.personal;
+                this.organization = organization;
+                this.picker = None;
+                if using_organization {
+                    this.choose_account(this.personal.clone(), cx);
+                }
+                cx.notify();
+            }
+        }));
+    }
+
+    fn choose_account(&mut self, handle: Option<String>, cx: &mut Context<Self>) {
+        self.account_active.store(false, Ordering::SeqCst);
+        self.account_active = Arc::new(AtomicBool::new(true));
+        self.task = None;
+        self.follow = None;
+        self.inbox = None;
+        self.picker = None;
+        self.picked = None;
+        self.handle = handle;
+        self.busy = false;
+        self.loaded = false;
+        self.open = None;
+        self.route_id = None;
+        self.list.clear();
+        self.threads = Arc::new(Mutex::new(Threads::new()));
+        self.prompt
+            .update(cx, |input, cx| input.set_value(String::new(), cx));
+        self.reply
+            .update(cx, |input, cx| input.set_value(String::new(), cx));
+        self.navigate(Destination::THREADS, cx);
+        self.request("threads", json!({}), cx);
+    }
+
+    fn can_pick(&self) -> bool {
+        self.handle.is_some()
+            && self.handle != self.personal
+            && !self.busy
+            && !self.open.as_ref().is_some_and(|thread| {
+                thread["reauthorization_required"] == true
+                    || thread["messages"].as_array().is_some_and(|messages| {
+                        messages
+                            .iter()
+                            .any(|message| message["decision"]["status"] == "pending")
+                    })
+            })
+    }
+
+    fn show_picker(&mut self, cx: &mut Context<Self>) {
+        if !self.can_pick() {
+            return;
+        }
+        let picker = cx.new(|cx| {
+            PromptsPanel::new(
+                self.session.clone(),
+                self.handle.clone(),
+                true,
+                ScrollHandle::new(),
+                cx,
+            )
+        });
+        self.picked = Some(cx.subscribe(&picker, |this, _, event: &PromptEvent, cx| {
+            if !this.can_pick() {
+                return;
+            }
+            let input = if this.open.is_some() {
+                &this.reply
+            } else {
+                &this.prompt
+            };
+            if let PromptEvent::Chosen(name) = event {
+                if let Ok(draft) = tuist_app_core::prompts::draft(
+                    &json!({"name": name, "content": input.read(cx).value()}),
+                ) {
+                    input.update(cx, |input, cx| {
+                        input
+                            .set_value(draft["content"].as_str().unwrap_or_default().to_owned(), cx)
+                    });
+                }
+            }
+            this.picker = None;
+            this.focus_composer = true;
+            cx.notify();
+        }));
+        self.picker = Some(picker);
+        cx.notify();
+    }
+
     fn sync_navigation(&mut self, cx: &mut Context<Self>) {
         let id = self.navigation.read(cx).luft.thread_id.clone();
         if id == self.route_id && (id.is_none() || self.open.is_some() || self.busy) {
             return;
         }
         self.route_id = id.clone();
+        self.picker = None;
+        self.picked = None;
         self.open = None;
         self.follow = None;
         self.reply
@@ -230,6 +352,7 @@ impl ThreadsPanel {
         let session = self.session.clone();
         let threads = self.threads.clone();
         let navigation_revision = self.navigation.read(cx).luft.revision;
+        let authorized = self.account_active.clone();
         let work = cx.background_executor().spawn(async move {
             let mut threads = threads.lock().map_err(|_| "Threads are unavailable")?;
             threads.call(
@@ -237,7 +360,10 @@ impl ThreadsPanel {
                 &handle,
                 operation,
                 &args,
-                &mut Http { session: &session },
+                &mut Guarded {
+                    session: &session,
+                    authorized: &authorized,
+                },
             )
         });
         self.task = Some(cx.spawn(async move |this, cx| {
@@ -541,6 +667,17 @@ impl Render for ThreadsPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::for_appearance(window.appearance(), cx);
         let open = self.open.clone();
+        if self.focus_composer {
+            self.focus_composer = false;
+            window.focus(
+                &if open.is_some() {
+                    self.reply.focus_handle(cx)
+                } else {
+                    self.prompt.focus_handle(cx)
+                },
+                cx,
+            );
+        }
         let working = open.as_ref().is_some_and(|t| t["working"] == true);
         let (body, header, input, send) = match &open {
             Some(thread) => (
@@ -625,6 +762,48 @@ impl Render for ThreadsPanel {
             .flex()
             .flex_col()
             .size_full()
+            .when(open.is_none(), |column| {
+                column.child(
+                    div()
+                        .flex()
+                        .flex_wrap()
+                        .gap_2()
+                        .px_6()
+                        .py_2()
+                        .child(gpui::text!(format!(
+                            "Account: {}",
+                            self.handle.as_deref().unwrap_or_default()
+                        )))
+                        .when_some(self.organization.clone(), |row, organization| {
+                            let selected = self.handle.as_ref() == Some(&organization);
+                            row.child(
+                                Button::new(
+                                    "thread-account",
+                                    if selected {
+                                        "Use personal account".to_owned()
+                                    } else {
+                                        format!("Use {organization}")
+                                    },
+                                    Variant::Secondary,
+                                )
+                                .enabled(!self.busy)
+                                .render(
+                                    None,
+                                    window,
+                                    cx,
+                                    move |this, _, cx| {
+                                        let handle = if selected {
+                                            this.personal.clone()
+                                        } else {
+                                            Some(organization.clone())
+                                        };
+                                        this.choose_account(handle, cx);
+                                    },
+                                ),
+                            )
+                        }),
+                )
+            })
             .children(header)
             .child(
                 div()
@@ -668,6 +847,29 @@ impl Render for ThreadsPanel {
                         .py_2()
                         .children(suggestions),
                 )
+            })
+            .when(self.can_pick(), |column| {
+                column
+                    .child(
+                        Button::new(
+                            "pick-prompt",
+                            if self.picker.is_some() {
+                                "Close prompts"
+                            } else {
+                                "Choose prompt"
+                            },
+                            Variant::Secondary,
+                        )
+                        .render(None, window, cx, |this, _, cx| {
+                            if this.picker.is_some() {
+                                this.picker = None;
+                            } else {
+                                this.show_picker(cx);
+                            }
+                            cx.notify();
+                        }),
+                    )
+                    .children(self.picker.clone())
             })
             .child(composer(&input, send, theme).debug_selector(|| "reply-composer".into()))
     }

@@ -1,6 +1,6 @@
 # Luft server
 
-Headless Phoenix server at `https://luft.work`, reporting to `tuist/luft-server`. It brokers Tuist OIDC, issues Luft native credentials and owns conversations, execution, realtime, people's AI subscriptions and MCP servers (personal and organization). Tuist retains identity, membership and workspace/repository capabilities. See `README.md` for endpoints, configuration and local setup.
+Headless Phoenix server at `https://luft.work`, reporting to `tuist/luft-server`. It brokers Tuist OIDC, issues Luft native credentials and persists Luft product data, including conversations, organization prompts, settings, execution, realtime, people's AI subscriptions and MCP servers. Tuist supplies identities, organizations and sandboxes only. Existing upstream repository/publication and preview integrations are transitional, not a precedent for new Tuist-owned Luft features. See `README.md` for endpoints, configuration and local setup.
 
 ## Boundaries and security
 

@@ -12,6 +12,7 @@ defmodule LuftServer.Threads.Message do
     # Human messages delegate the author's tools, never an arbitrary user session.
     field :author_session_id, :binary_id
     field :body, :string
+    field :prompt, :map
     field :attachments, {:array, :map}, default: []
     field :tool_name, :string
     field :tool_state, :string
