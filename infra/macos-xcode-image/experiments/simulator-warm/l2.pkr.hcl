@@ -48,12 +48,12 @@ build {
 
   provisioner "file" {
     source      = "${path.root}/reregister-runtimes.sh"
-    destination = "/tmp/reregister-runtimes.sh"
+    destination = "/var/tmp/reregister-runtimes.sh"
   }
 
   provisioner "file" {
     source      = "${path.root}/warm.sh"
-    destination = "/tmp/warm.sh"
+    destination = "/var/tmp/warm.sh"
   }
 
   provisioner "shell" {
@@ -71,7 +71,7 @@ build {
       "set -euo pipefail",
       "[ \"$(sysctl -n kern.boottime)\" != \"$(cat /var/tmp/simwarm-boottime)\" ] || { echo 'connected before the reboot' >&2; exit 1; }",
       "echo 'admin' | sudo -S true",
-      "bash /tmp/reregister-runtimes.sh",
+      "bash /var/tmp/reregister-runtimes.sh",
       "sysctl -n kern.boottime > /var/tmp/simwarm-boottime",
       "(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &",
     ]
@@ -87,9 +87,9 @@ build {
       "rm -f /var/tmp/simwarm-boottime",
       "echo 'admin' | sudo -S true",
       "if sudo plutil -p /Library/Developer/CoreSimulator/Images/images.plist 2>/dev/null | grep personalizeAndMountAsCryptex >/dev/null; then echo 'a simulator runtime is a cryptex again after the reboot' >&2; exit 1; fi",
-      "chmod 0755 /tmp/warm.sh",
-      "if [ '${var.variant}' = warm ]; then sudo launchctl asuser \"$(id -u runner)\" sudo -u runner -H /bin/zsh -lc \"/tmp/warm.sh ${join(" ", [for d in var.devices : "'${d}'"])}\"; fi",
-      "sudo rm -f /tmp/warm.sh /tmp/reregister-runtimes.sh",
+      "chmod 0755 /var/tmp/warm.sh",
+      "if [ '${var.variant}' = warm ]; then sudo launchctl asuser \"$(id -u runner)\" sudo -u runner -H /bin/zsh -lc \"/var/tmp/warm.sh ${join(" ", [for d in var.devices : "'${d}'"])}\"; fi",
+      "sudo rm -f /tmp/warm.sh /var/tmp/reregister-runtimes.sh",
       "echo \"SIMWARM ${var.variant} runner device set $(sudo du -sh /Users/runner/Library/Developer/CoreSimulator 2>/dev/null | cut -f1)\"",
     ]
   }
