@@ -203,6 +203,38 @@ func TestDisabledCapabilityAndBoundedResponse(t *testing.T) {
 	}
 }
 
+func TestRequestsPastTheStreamLimitWaitForASlot(t *testing.T) {
+	g := New("https://control.example")
+	_, caps := gatewayWith(t, g, func(*http.Request) (*http.Response, error) { return response(200, `{}`), nil })
+	for range maxStreams {
+		g.slots <- struct{}{}
+	}
+	ctx, cancel := context.WithTimeout(authenticated(), 100*time.Millisecond)
+	defer cancel()
+	if _, err := caps.GetCapabilities(ctx, &re.GetCapabilitiesRequest{InstanceName: "app"}); status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("full gateway: %v, want the request to wait until its deadline", err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := caps.GetCapabilities(authenticated(), &re.GetCapabilitiesRequest{InstanceName: "app"})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("answered before a slot was free: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	<-g.slots
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("after a slot was freed: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("still waiting after a slot was freed")
+	}
+}
+
 func TestExecuteForwardsBazelRequestMetadata(t *testing.T) {
 	bodies := make(chan map[string]any, 2)
 	client, _ := gateway(t, func(r *http.Request) (*http.Response, error) {

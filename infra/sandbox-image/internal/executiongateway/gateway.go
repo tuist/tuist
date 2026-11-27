@@ -71,7 +71,7 @@ type Gateway struct {
 	logs       *logCopier
 }
 
-const maxStreams = 128
+const maxStreams = 512
 
 type endpoint struct {
 	url     string
@@ -199,7 +199,7 @@ func (g *Gateway) call(ctx context.Context, method, account, project, suffix, au
 }
 
 func (g *Gateway) GetCapabilities(ctx context.Context, r *re.GetCapabilitiesRequest) (*re.ServerCapabilities, error) {
-	release, err := g.admit()
+	release, err := g.admit(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -217,18 +217,21 @@ func (g *Gateway) GetCapabilities(ctx context.Context, r *re.GetCapabilitiesRequ
 	return &re.ServerCapabilities{LowApiVersion: &semver.SemVer{Major: 2}, HighApiVersion: &semver.SemVer{Major: 2, Minor: 3}, ExecutionCapabilities: &re.ExecutionCapabilities{ExecEnabled: true, DigestFunction: re.DigestFunction_SHA256, DigestFunctions: []re.DigestFunction_Value{re.DigestFunction_SHA256}}}, nil
 }
 
-func (g *Gateway) admit() (func(), error) {
+// admit waits for one of the gateway's stream slots until the client gives
+// up: a rejected Execute fails the Bazel build, while a waiting one only
+// queues like an action the control plane has not started yet.
+func (g *Gateway) admit(ctx context.Context) (func(), error) {
 	select {
 	case g.slots <- struct{}{}:
 		g.metrics.streams.Inc()
 		return func() { g.metrics.streams.Dec(); <-g.slots }, nil
-	default:
-		return nil, status.Error(codes.ResourceExhausted, "too many execution streams")
+	case <-ctx.Done():
+		return nil, status.FromContextError(ctx.Err()).Err()
 	}
 }
 
 func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro.Operation]) (err error) {
-	release, err := g.admit()
+	release, err := g.admit(s.Context())
 	if err != nil {
 		return err
 	}
@@ -318,7 +321,7 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 }
 
 func (g *Gateway) WaitExecution(r *re.WaitExecutionRequest, s grpc.ServerStreamingServer[lro.Operation]) error {
-	release, err := g.admit()
+	release, err := g.admit(s.Context())
 	if err != nil {
 		return err
 	}
