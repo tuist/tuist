@@ -5,6 +5,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
   alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.Runners.Workers.RecordWorkflowRunWorker
   alias Tuist.Runners.WorkflowRuns
@@ -398,6 +399,17 @@ defmodule TuistWeb.Webhooks.GitHubController do
         |> put_status(:ok)
         |> json(%{status: "ok"})
     end
+  end
+
+  # Jobs parked because the installation lacked a permission the App
+  # requests can run now.
+  defp handle_installation(conn, %{"action" => "new_permissions_accepted", "installation" => %{"id" => installation_id}})
+       when is_integer(installation_id) do
+    Dispatch.release_dispatch_holds(installation_id, bound_account_args(conn)["account_id"])
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
   end
 
   defp handle_installation(conn, _params) do

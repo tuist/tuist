@@ -133,6 +133,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Workers.AbortVolumeMasterUploadWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterWorker
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.Storage
   alias Tuist.VCS
 
@@ -166,6 +167,7 @@ defmodule Tuist.Runners do
   @drain_eligible_label "tuist.dev/drain-eligible"
   @max_claim_attempts_per_dispatch 16
   @mint_hold_ttl to_timeout(minute: 1)
+  @dispatch_hold_ttl to_timeout(minute: 30)
 
   # Dispatch-time volume affinity. `pick_queued` fetches the K
   # oldest queued jobs; the server hands the polling runner the oldest one
@@ -1022,10 +1024,10 @@ defmodule Tuist.Runners do
   # fails the same way on the next poll. Without a hold, each idle runner's
   # poll claims the job, mints, fails and re-queues it, about once a second
   # for as long as the job stays queued. The hold skips that account or
-  # repository before the claim for `@mint_hold_ttl`, so the job stays queued
-  # and is retried about once a minute per server node, and dispatches on its
-  # own once the customer fixes the installation. It is node-local Cachex on
-  # purpose: losing it in a deploy costs one failed mint per node.
+  # repository before the claim for `@mint_hold_ttl`, covering the account's
+  # other queued jobs on this node, while the failed job itself is parked
+  # cluster-wide (`park_refused_job/2`). It is node-local Cachex on purpose:
+  # losing it in a deploy costs one failed mint per node.
   defp mint_hold(candidate) do
     cond do
       KeyValueStore.get(mint_hold_key(candidate, :account)) -> :account
@@ -1036,6 +1038,27 @@ defmodule Tuist.Runners do
 
   defp hold_mint(candidate, scope) do
     KeyValueStore.put(mint_hold_key(candidate, scope), true, ttl: @mint_hold_ttl)
+  end
+
+  # The node-local hold above keeps this node's polls off the account for a
+  # minute; the job itself stays queued, so before the park every server node
+  # claimed it again each minute, and the queue counts kept a runner scaled
+  # for it. Parked, the job leaves dispatch and the queue counts on every
+  # node for `@dispatch_hold_ttl`, after which one runner tries it again. The
+  # GitHub `installation.new_permissions_accepted` webhook ends the park early
+  # (`Dispatch.release_dispatch_holds/2`).
+  defp park_refused_job(candidate, scope) do
+    until = DateTime.add(DateTime.utc_now(), @dispatch_hold_ttl, :millisecond)
+
+    if WorkflowJobs.hold_dispatch(candidate.workflow_job_id, until) == :ok do
+      Logger.warning("runners: parked a queued job whose runner credential cannot be minted",
+        account_id: candidate.account_id,
+        repo: Map.get(candidate, :repository),
+        workflow_job_id: candidate.workflow_job_id
+      )
+
+      Dispatch.report_refused(provider(candidate), :"#{scope}_mint_failed")
+    end
   end
 
   defp mint_hold_key(candidate, :account), do: [__MODULE__, :mint_hold, candidate.account_id]
@@ -1157,7 +1180,11 @@ defmodule Tuist.Runners do
               :bitrise_mint_failed,
               :api_job_mint_failed
             ] and exclusion_scope in [:account, :repository, :workflow_job] do
-    if exclusion_scope in [:account, :repository], do: hold_mint(context.candidate, exclusion_scope)
+    if exclusion_scope in [:account, :repository] do
+      hold_mint(context.candidate, exclusion_scope)
+      park_refused_job(context.candidate, exclusion_scope)
+    end
+
     retry_claim_and_serve(context, exclusion_scope)
   end
 
@@ -1480,6 +1507,7 @@ defmodule Tuist.Runners do
         else
           {:error, reason} = err ->
             release_safely(candidate, claim, reason)
+            unstamp_owner_label(namespace, pod_name)
             err
         end
 
@@ -1582,6 +1610,19 @@ defmodule Tuist.Runners do
   defp stamp_owner_label(namespace, pod_name, account) do
     patch = %{"metadata" => %{"labels" => %{@owner_label => account.name}}}
     patch_pod_labels(namespace, pod_name, patch, @owner_label_stamp_attempts)
+  end
+
+  # A dispatch that fails after the stamp returns the job to the queue but the
+  # Pod never received a credential, so it is idle again. Left stamped, the
+  # Pod reads as busy: the pool cannot scale it down or count it as warm, and
+  # `OrphanedStampedPodsWorker` deletes it, so every failed mint cost a runner.
+  defp unstamp_owner_label(namespace, pod_name) do
+    patch_pod_labels(
+      namespace,
+      pod_name,
+      %{"metadata" => %{"labels" => %{@owner_label => nil}}},
+      @owner_label_stamp_attempts
+    )
   end
 
   # The account label marks a Pod as committed (`committed?/1`), so a Pod that
@@ -1834,7 +1875,13 @@ defmodule Tuist.Runners do
         {:error, {:github_mint_failed, :account}}
 
       {:error, {:repository_administration_permission_required, status, _body}} ->
-        Logger.error("runners: GitHub App installation must accept repository administration permission",
+        # The repository endpoint is only tried after the organization one
+        # 404s, i.e. for a personal account. It needs `administration: write`,
+        # which the Tuist App does not request, so there is nothing for the
+        # customer to accept: runners need an organization-owned repository.
+        Logger.error(
+          "runners: GitHub refused a repository runner (403); the repository is not owned by a " <>
+            "GitHub organization, which Tuist runners require",
           account: account.name,
           repo: Map.get(candidate, :repository),
           status: status,

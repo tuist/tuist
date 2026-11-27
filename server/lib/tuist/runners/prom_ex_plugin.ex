@@ -255,7 +255,9 @@ defmodule Tuist.Runners.PromExPlugin do
             event_name: Telemetry.event_name_dispatch_refused(),
             description:
               "Jobs not queued because their account may not run them now (allowance spent, runners off), " <>
-                "by provider and reason. Pull lanes count every poll that still finds them waiting.",
+                "or parked because their runner credential cannot be minted until the account acts " <>
+                "(account_mint_failed, repository_mint_failed: one per park), by provider and reason. " <>
+                "Pull lanes count every poll that still finds them waiting.",
             tags: [:provider, :reason]
           )
         ]

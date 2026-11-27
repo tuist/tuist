@@ -25,6 +25,7 @@ defmodule Tuist.Runners.Sites do
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
   alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
 
   require Logger
 
@@ -190,7 +191,10 @@ defmodule Tuist.Runners.Sites do
     site_pools = pools_at_site(site_pool)
 
     Repo.exists?(
-      from(j in WorkflowJob, where: j.fleet_name == ^site_pool and j.status == "queued" and j.enqueued_at < ^since)
+      from(j in WorkflowJob,
+        where: j.fleet_name == ^site_pool and j.status == "queued" and j.enqueued_at < ^since,
+        where: ^WorkflowJobs.not_held()
+      )
     ) and
       not Repo.exists?(from(c in Claim, where: c.fleet_name in ^site_pools)) and
       not Repo.exists?(from(j in WorkflowJob, where: j.fleet_name in ^site_pools and j.claimed_at >= ^since))

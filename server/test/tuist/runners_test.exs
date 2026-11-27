@@ -1264,6 +1264,63 @@ defmodule Tuist.RunnersTest do
       assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-2")
     end
 
+    # On 26 Nov a job from a personal account's repository, whose runner
+    # GitHub refuses with a 403, kept the macOS 26.5 pool without a ready runner
+    # for most of a day: every failed mint left its Pod stamped busy, the
+    # orphaned-stamp sweep deleted it, and the still-queued job kept the pool
+    # scaled to replace it.
+    test "parks a job whose GitHub App permission prevents minting, counts it as refused and leaves the Pod idle" do
+      failed_account = account_fixture()
+      eligible_account = account_fixture()
+      failed_candidate = candidate_with_label(failed_account, "tuist-default", workflow_job_id: 90_131)
+      eligible_candidate = candidate_with_label(eligible_account, "tuist-default", workflow_job_id: 90_132)
+      :ok = WorkflowJobs.upsert_queued(failed_candidate)
+
+      handler_id = make_ref()
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+      test_pid = self()
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Telemetry.event_name_dispatch_refused(),
+          fn _name, measurements, metadata, _ -> send(test_pid, {:refused, measurements, metadata}) end,
+          nil
+        )
+
+      stub_mint_failure_then_success(
+        failed_account,
+        failed_candidate,
+        eligible_account,
+        eligible_candidate,
+        {:error, {:repository_administration_permission_required, 403, %{"message" => "Forbidden"}}},
+        :account
+      )
+
+      stub(K8sClient, :patch_pod, fn "tuist-runners", "pod-1", %{"metadata" => %{"labels" => labels}} ->
+        if Map.has_key?(labels, "tuist.dev/runner-pool-owner"),
+          do: send(test_pid, {:owner_label, labels["tuist.dev/runner-pool-owner"]})
+
+        {:ok, %{}}
+      end)
+
+      assert {:ok, %{workflow_job_id: 90_132}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      # Stamped for the failed claim, cleared when it was released, stamped
+      # again for the job the Pod actually received.
+      assert_receive {:owner_label, failed_name}
+      assert failed_name == failed_account.name
+      assert_receive {:owner_label, nil}
+      assert_receive {:owner_label, eligible_name}
+      assert eligible_name == eligible_account.name
+
+      assert_receive {:refused, %{count: 1}, %{provider: "github", reason: "account_mint_failed"}}
+
+      held_until = Repo.get!(WorkflowJob, 90_131).dispatch_held_until
+      assert DateTime.diff(held_until, DateTime.utc_now(), :minute) >= 29
+      assert Jobs.queued_count_by_fleet("fleet-a") == 0
+    end
+
     test "does not claim a job for an account whose free allowance ran out after it was queued" do
       # The allowance is also checked when a job is queued, but a free account
       # can queue far more than it may run while its minutes are unspent.
