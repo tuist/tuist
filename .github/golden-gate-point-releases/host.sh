@@ -29,7 +29,8 @@ reachable() {
 boot() {
   local vm="$1" image="$2"
   tart clone "$image" "$vm"
-  tart set "$vm" --cpu 4 --memory 8192
+  # Builders have 16 GB: leave half of it to the host.
+  tart set "$vm" --cpu 4 --memory 4096
   mkdir -p "$WORK/share-$vm" "$WORK/env-$vm"
   cp "$here/guest.sh" "$WORK/share-$vm/guest.sh"
   tart run "$vm" --no-graphics --no-audio --root-disk-opts caching=cached \

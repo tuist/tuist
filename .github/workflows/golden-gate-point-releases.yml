@@ -36,9 +36,9 @@ jobs:
           sw_vers; tart --version; sysctl -n hw.memsize hw.ncpu
           df -h /; tart list
           free=$(df -g / | awk 'NR==2 { print $4 }')
-          # Two vanilla images and three updated clones need about 120 GB;
-          # stay well above the image bakes' own 300 GB floor.
-          if [ "$free" -lt 200 ]; then echo "::error::only ${free} GB free"; exit 1; fi
+          # At most two vanilla images and two clones exist at once, about
+          # 100 GB, all deleted by the last step.
+          if [ "$free" -lt 130 ]; then echo "::error::only ${free} GB free"; exit 1; fi
           rm -rf "$WORK"; mkdir -p "$WORK"
       - name: Pull the vanilla guests
         run: |
@@ -63,6 +63,7 @@ jobs:
         run: grep -h '^RESULT' "$WORK"/*.log | sort || true
       - name: Clean up
         if: always()
+        shell: bash {0}
         run: |
           for vm in c272 v270 u2721 u273; do tart stop "$vm" 2>/dev/null; tart delete "$vm" 2>/dev/null; done
           tart delete "$VANILLA:27.0" 2>/dev/null; tart delete "$VANILLA:27.2" 2>/dev/null
