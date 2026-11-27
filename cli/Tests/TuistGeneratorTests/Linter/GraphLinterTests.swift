@@ -754,6 +754,41 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func lint_unitTestsCanDependOnAppExtension() async throws {
+        let path: AbsolutePath = "/project"
+        let appExtension = Target.empty(
+            name: "AppExtension",
+            product: .appExtension
+        )
+        let unitTests = Target.empty(
+            name: "AppExtensionTests",
+            product: .unitTests
+        )
+        let project = Project.empty(path: path, targets: [appExtension, unitTests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appExtension.name, path: path): Set([]),
+            .target(name: unitTests.name, path: path): Set([
+                .target(name: appExtension.name, path: path),
+            ]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        let result = try await subject.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: .test()
+        )
+
+        #expect(result.isEmpty == true)
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
