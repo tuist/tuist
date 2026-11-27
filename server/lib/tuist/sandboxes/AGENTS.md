@@ -562,7 +562,7 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `archived`, never to `error`, because the object is the only copy. An
   archive with memory (`archive_memory`: the disk stream's `tail_offset`
   and `tail_sha256`, and the writing node's `compat`, its hello's
-  `snapshot_compat`: CPU model, microcode and flags, full host kernel
+  `snapshot_compat`: CPU model and flags (not microcode), full host kernel
   release and Firecracker version) is placed only on nodes with the same
   `snapshot_compat`, waiting for room on them, and on the node it was
   archived from (`archive_memory.node`), or on a node still loading another
