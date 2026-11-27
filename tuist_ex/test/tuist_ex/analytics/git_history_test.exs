@@ -170,6 +170,9 @@ defmodule TuistEx.Analytics.GitHistoryTest do
   test "never uploads the listing of a dirty checkout", %{repo: repo, head: head} do
     stub_settings()
     File.write!(Path.join(repo, "untracked.ex"), "u\n")
+    refute GitHistory.payload(GitHistory.collect(repo, [], environment(head), true)).git_dirty
+
+    File.write!(Path.join(repo, "a.ex"), "dirty\n")
     collected = GitHistory.collect(repo, [], environment(head), true)
     assert GitHistory.payload(collected).git_dirty
 

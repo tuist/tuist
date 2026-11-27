@@ -372,12 +372,18 @@ defmodule TuistEx.GitTest do
     end
   end
 
-  test "dirty?/1 counts untracked files, as the command line tool does", %{repo: repo} do
+  test "dirty?/1 counts changes to tracked files only, as the command line tool does", %{
+    repo: repo
+  } do
     write!(repo, "a.ex", "a\n")
     commit!(repo, "base")
+    write!(repo, "untracked.ex", "u\n")
     refute Git.dirty?(repo)
 
-    write!(repo, "untracked.ex", "u\n")
+    write!(repo, "a.ex", "a2\n")
+    assert Git.dirty?(repo)
+
+    git!(repo, ["add", "a.ex"])
     assert Git.dirty?(repo)
   end
 
@@ -440,7 +446,7 @@ defmodule TuistEx.GitTest do
       commit!(repo, "change")
 
       # The working tree reverts one committed change, edits another file
-      # and adds one Git doesn't track.
+      # and adds one Git doesn't track, which is left out.
       write!(repo, "lib/reverted.ex", "r\n")
       write!(repo, "lib/c.ex", "c2\n")
       write!(repo, "lib/untracked.ex", "u\n")
@@ -449,12 +455,19 @@ defmodule TuistEx.GitTest do
       blob = &git!(repo, ["hash-object", Path.join(repo, &1)])
 
       assert files == [
-               %{path: "lib/a.ex", status: "M", blob: blob.("lib/a.ex")},
-               %{path: "lib/b.ex", status: "D", blob: nil},
-               %{path: "lib/c.ex", status: "M", blob: blob.("lib/c.ex")},
-               %{path: "lib/new.ex", status: "A", blob: blob.("lib/new.ex")},
-               %{path: "lib/untracked.ex", status: "A", blob: blob.("lib/untracked.ex")}
+               %{path: "lib/a.ex", status: "M", blob: blob.("lib/a.ex"), dirty: false},
+               %{path: "lib/b.ex", status: "D", blob: nil, dirty: false},
+               %{path: "lib/c.ex", status: "M", blob: blob.("lib/c.ex"), dirty: true},
+               %{path: "lib/new.ex", status: "A", blob: blob.("lib/new.ex"), dirty: false}
              ]
+    end
+
+    test "untracked files alone don't make the checkout dirty", %{repo: repo} do
+      write!(repo, "lib/a.ex", "a\n")
+      baseline = commit!(repo, "baseline")
+      write!(repo, "lib/untracked.ex", "u\n")
+
+      assert {:ok, %{files: [], dirty?: false}} = Git.changed_files(repo, baseline, [])
     end
 
     test "a clean checkout is not dirty", %{repo: repo} do

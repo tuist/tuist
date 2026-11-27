@@ -225,7 +225,10 @@ defmodule TuistEx.Analytics.TestSelectionTest do
                "other/lib/other.ex" => []
              }
 
-      assert Enum.all?(body.changed_files, &(&1.status == "M" and is_binary(&1.blob)))
+      assert Enum.all?(
+               body.changed_files,
+               &(&1.status == "M" and is_binary(&1.blob) and not Map.has_key?(&1, :dirty))
+             )
     end
 
     test "sends no diff when the server has it and the checkout is clean", context do
@@ -252,7 +255,22 @@ defmodule TuistEx.Analytics.TestSelectionTest do
 
       assert [{"baseline", _}, {"runs", body}] = requests()
       assert body.dirty == true
-      assert [%{path: "app/lib/cart.ex", status: "M"}] = body.changed_files
+      assert [%{path: "app/lib/cart.ex", status: "M", dirty: true}] = body.changed_files
+    end
+
+    test "untracked files don't make the checkout dirty, and aren't sent", context do
+      head = context.baseline
+      run = {:ok, %{"id" => "run-2", "outcome" => "selected", "skipped_tests" => []}}
+      write!(context.app, "lib/scratch.ex", "defmodule Scratch do\nend\n")
+
+      decide(
+        Map.put(context, :head, head),
+        server({:ok, %{"baseline_sha" => context.baseline, "diff_cached" => true}}, run)
+      )
+
+      assert [{"baseline", _}, {"runs", body}] = requests()
+      assert body.dirty == false
+      refute Map.has_key?(body, :changed_files)
     end
 
     test "records the reason the baseline request gave, and runs everything", context do

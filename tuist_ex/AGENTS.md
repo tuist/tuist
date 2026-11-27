@@ -152,7 +152,8 @@ compares what both report: the merge base with the CI provider's base branch,
 the base branch's commit, the commits within the window reachable from the
 head and from that commit when the checkout has it (a shallow boundary's
 parents read from the commit objects), and whether the checkout is dirty
-(`git status --porcelain`, untracked files included). What reaches the remote
+(`git status --porcelain --untracked-files=no`: untracked files don't count,
+for coverage or for selection, whose diff leaves them out). What reaches the remote
 is `Git.history/4`'s `remote_access`: `:history` only with `--cover` (the base
 branch fetched and a shallow clone deepened within the server's budget until
 the merge base is found), `:base_head` otherwise (a checkout without the base

@@ -175,7 +175,8 @@ defmodule TuistEx.Analytics.TestSelection do
     end
   end
 
-  # A dirty checkout's diff is its own, so the server never has it.
+  # A dirty checkout's diff is its own, so the server never has it. Untracked
+  # files don't make it dirty, as they don't make a coverage run dirty.
   defp diff_basis(root, sha, diff_cached?, refs, limits, owner) do
     dirty? = Git.dirty?(root)
 
@@ -190,7 +191,8 @@ defmodule TuistEx.Analytics.TestSelection do
                 path: file.path,
                 status: file.status,
                 blob: file.blob,
-                affected_modules: owner.(file.path)
+                affected_modules: owner.(file.path),
+                dirty: if(file.dirty, do: true)
               }
               |> Map.reject(fn {_key, value} -> is_nil(value) end)
             end)

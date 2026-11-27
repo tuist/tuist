@@ -58,11 +58,12 @@ defmodule TuistEx.Git do
   def repository?(dir), do: capture(dir, ["rev-parse"]) != :error
 
   @doc """
-  Whether the checkout has changes of any kind, untracked files included: the
-  same test the command line tool applies.
+  Whether the checkout changed a file Git tracks, in the working tree or the
+  index: the same test the command line tool applies. Untracked files don't
+  count; on CI they're mostly what the job wrote, such as build outputs.
   """
   def dirty?(dir) do
-    case capture(dir, ["status", "--porcelain"]) do
+    case capture(dir, ["status", "--porcelain", "--untracked-files=no"]) do
       {:ok, output} -> String.trim(output) != ""
       :error -> false
     end
@@ -595,8 +596,10 @@ defmodule TuistEx.Git do
 
   @doc """
   The files that differ between `baseline` and the working tree, in path
-  order, as `%{path, status, blob}` (`blob` nil for a deleted file), and
-  whether the working tree had dirty or untracked files. When the baseline
+  order, as `%{path, status, blob, dirty}` (`blob` nil for a deleted file,
+  `dirty` true for a file the working tree changed), and whether the working
+  tree changed any file Git tracks. Untracked files are neither listed nor
+  make it dirty, as with `dirty?/1`. When the baseline
   isn't in the checkout, a shallow clone is deepened once through `refs`;
   `{:history_unavailable, reason}` when that doesn't reach it. Only trees
   are read, never blobs.
@@ -605,18 +608,16 @@ defmodule TuistEx.Git do
     with :ok <- reach(dir, baseline, refs, limits),
          raw = ~w(diff --raw -z --no-renames --no-abbrev --ignore-submodules=dirty),
          {:ok, committed} <- capture(dir, raw ++ [baseline, "HEAD"]),
-         {:ok, working_tree} <- capture(dir, raw ++ ["HEAD"]),
-         {:ok, untracked} <- capture(dir, ~w(ls-files --others --exclude-standard -z)) do
+         {:ok, working_tree} <- capture(dir, raw ++ ["HEAD"]) do
       committed = parse_raw_diff(committed)
       working_tree = parse_raw_diff(working_tree)
-      untracked = String.split(untracked, <<0>>, trim: true)
-      changes = working_tree_changes(committed, working_tree, untracked)
+      changes = working_tree_changes(committed, working_tree)
       hashed = hash_objects(dir, for(%{hash?: true, path: path} <- changes, do: path))
 
       {:ok,
        %{
          files: merge_changes(committed, changes, hashed),
-         dirty?: working_tree != [] or untracked != []
+         dirty?: working_tree != []
        }}
     else
       :error -> {:error, :diff_failed}
@@ -663,7 +664,7 @@ defmodule TuistEx.Git do
   # A working-tree change is compared with the baseline's blob, so a file the
   # working tree reverts drops out. The baseline's blob is the committed
   # change's source, or HEAD's when the commits didn't change the file.
-  defp working_tree_changes(committed, working_tree, untracked) do
+  defp working_tree_changes(committed, working_tree) do
     by_path = Map.new(committed, &{&1.path, &1})
     baseline_blob = fn path, head -> if c = by_path[path], do: c.src, else: head end
 
@@ -675,20 +676,15 @@ defmodule TuistEx.Git do
         hash?: change.status != "D" and is_nil(change.dst),
         type_changed?: change.status == "T" or match?(%{status: "T"}, by_path[change.path])
       }
-    end) ++
-      Enum.map(untracked, fn path ->
-        %{
-          path: path,
-          baseline: baseline_blob.(path, nil),
-          blob: nil,
-          hash?: true,
-          type_changed?: false
-        }
-      end)
+    end)
   end
 
   defp merge_changes(committed, changes, hashed) do
-    files = Map.new(committed, &{&1.path, %{path: &1.path, status: &1.status, blob: &1.dst}})
+    files =
+      Map.new(
+        committed,
+        &{&1.path, %{path: &1.path, status: &1.status, blob: &1.dst, dirty: false}}
+      )
 
     changes
     |> Enum.reduce(files, fn change, files ->
@@ -705,7 +701,7 @@ defmodule TuistEx.Git do
             true -> "M"
           end
 
-        Map.put(files, change.path, %{path: change.path, status: status, blob: blob})
+        Map.put(files, change.path, %{path: change.path, status: status, blob: blob, dirty: true})
       end
     end)
     |> Map.values()
