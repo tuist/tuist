@@ -44,7 +44,7 @@ defmodule Tuist.Runners.ActionsCacheTest do
 
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
     stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => @store} end)
-    stub(Sites, :shard_storage_site, fn _node -> "gra" end)
+    stub(Sites, :actions_cache_location, fn _node -> {:linux, "gra"} end)
     stub(Storage, :generate_upload_url, fn _key, _actor, _opts -> "http://store/upload" end)
     stub(Storage, :object_exists?, fn _key, _actor -> true end)
     stub(Storage, :generate_download_url, fn _key, _actor, _opts -> "http://store/download" end)
@@ -321,7 +321,7 @@ defmodule Tuist.Runners.ActionsCacheTest do
       {:ok, in_store} = ActionsCache.reserve(Map.merge(params, %{"id" => Ecto.UUID.generate(), "key" => "a"}))
       assert Repo.get(Entry, in_store).storage_target == "gra-v1"
 
-      stub(Sites, :shard_storage_site, fn _node -> "rbx" end)
+      stub(Sites, :actions_cache_location, fn _node -> {:linux, "rbx"} end)
 
       assert {:error, :unavailable} =
                ActionsCache.reserve(Map.merge(params, %{"id" => Ecto.UUID.generate(), "key" => "b"}))
@@ -411,9 +411,60 @@ defmodule Tuist.Runners.ActionsCacheTest do
     test "a host at another site misses an entry rather than read a store it cannot reach", ctx do
       pod = running(ctx, "pod-main", push("main"))
       save(pod, "deps")
-      stub(Sites, :shard_storage_site, fn _node -> "rbx" end)
+      stub(Sites, :actions_cache_location, fn _node -> {:linux, "rbx"} end)
 
       assert restore(pod, "deps") == nil
+    end
+
+    test "a rack Mac saves and restores through its site's entrance to a store it reaches", ctx do
+      store =
+        Map.merge(@store, %{
+          "site" => "larch",
+          "access" => "private",
+          "private_network_ready" => false,
+          "endpoint" => "http://rustfs-larch-s3.rustfs-larch.svc.cluster.local:9000",
+          "region" => "us-east-1",
+          "runner_endpoints" => %{"larch" => "https://s3-larch.tuist.dev", "ber1" => "https://s3-larch-via-ber1.tuist.dev"}
+        })
+
+      stub(Environment, :shard_storage_targets, fn -> %{"rustfs-larch-v1" => store} end)
+      stub(Sites, :actions_cache_location, fn _node -> {:macos, "ber1"} end)
+
+      entrance = fn %S3Target{id: "rustfs-larch-v1", bucket: "actions-cache", config: config, presign_config: presign} ->
+        assert config.host == "rustfs-larch-s3.rustfs-larch.svc.cluster.local"
+        assert {presign.scheme, presign.host} == {"https://", "s3-larch-via-ber1.tuist.dev"}
+      end
+
+      expect(Storage, :generate_upload_url, fn _key, target, _opts ->
+        entrance.(target)
+        "https://s3-larch-via-ber1.tuist.dev/upload"
+      end)
+
+      expect(Storage, :object_exists?, fn _key, %S3Target{presign_config: nil, bucket: "actions-cache"} -> true end)
+
+      expect(Storage, :generate_download_url, fn _key, target, _opts ->
+        entrance.(target)
+        "https://s3-larch-via-ber1.tuist.dev/download"
+      end)
+
+      pod = running(ctx, "pod-main", push("main"))
+      id = save(pod, "deps")
+      assert Repo.get(Entry, id).storage_target == "rustfs-larch-v1"
+      assert restore(pod, "deps") == "deps"
+
+      # A Mac at a site the store publishes no entrance for neither saves there
+      # nor reads what it holds.
+      stub(Sites, :actions_cache_location, fn _node -> {:macos, "alder"} end)
+      assert restore(pod, "deps") == nil
+
+      assert {:error, :unavailable} =
+               ActionsCache.reserve(%{
+                 "pod_name" => pod,
+                 "node_name" => "node",
+                 "id" => Ecto.UUID.generate(),
+                 "key" => "other",
+                 "version" => @version
+               })
     end
 
     test "an account's own storage gets public links only", ctx do
