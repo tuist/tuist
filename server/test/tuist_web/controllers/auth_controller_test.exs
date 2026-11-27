@@ -2218,7 +2218,14 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "carries the sign-up page's campaign across the provider round trip without the session", %{conn: conn} do
-      conn = get(conn, ~p"/users/auth/google?utm_source=ChatGPT.com&utm_campaign=hub&utm_content=ad-7")
+      # Its own address, so other tests' campaign links do not spend its
+      # attribution budget.
+      conn =
+        get(
+          %{conn | remote_ip: {10, 78, 0, 1}},
+          ~p"/users/auth/google?utm_source=ChatGPT.com&utm_campaign=hub&utm_content=ad-7"
+        )
+
       %{"state" => state} = conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
 
       auth = %Ueberauth.Auth{
