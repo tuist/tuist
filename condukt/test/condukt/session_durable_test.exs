@@ -7,6 +7,7 @@ defmodule Condukt.SessionDurableTest do
   alias Condukt.Message
   alias Condukt.Session.Durable
   alias Condukt.Sessions.Inbox
+  alias Condukt.Sessions.Input
   alias Condukt.SessionStore.Disk
   alias Condukt.SessionStore.Memory
   alias Condukt.SessionStore.ObjectStore
@@ -1869,8 +1870,7 @@ defmodule Condukt.SessionDurableTest do
     } do
       original_sender = "original-#{sender}"
 
-      {:ok, original} =
-        Condukt.Sessions.Input.new(id, "old image", request_id: "r1", from: original_sender, report: true)
+      {:ok, original} = Input.new(id, "old image", request_id: "r1", from: original_sender, report: true)
 
       records = [
         {:run_start, 1, %{message: Message.user("old image", [Images.attachment()]), request_id: "r1", input: original}}
