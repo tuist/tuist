@@ -153,8 +153,8 @@ type actionsEnabled struct {
 }
 
 type actionsCopy struct {
-	id, sha256 string
-	size       int64
+	id   string
+	size int64
 }
 
 func (c *ActionsCache) init() {
@@ -390,8 +390,7 @@ func (c *ActionsCache) finalize(ctx context.Context, caller ActionsCaller, key, 
 		c.record("finalize", "unknown", 0, start)
 		return
 	}
-	sum, err := c.Store.Seal(pending.id, size)
-	if err != nil {
+	if err := c.Store.Seal(pending.id, size); err != nil {
 		c.Store.Remove(pending.id)
 		c.fail("finalize", start, err)
 		return
@@ -403,7 +402,7 @@ func (c *ActionsCache) finalize(ctx context.Context, caller ActionsCaller, key, 
 	c.staged[pending.id] = &actionsStaged{pod: caller.PodUID, key: key, version: version, size: size, copying: true}
 	c.mu.Unlock()
 	select {
-	case c.copies <- actionsCopy{id: pending.id, sha256: sum, size: size}:
+	case c.copies <- actionsCopy{id: pending.id, size: size}:
 	default:
 		c.mu.Lock()
 		delete(c.staged, pending.id)
@@ -634,14 +633,20 @@ func (c *ActionsCache) serveDownload(w http.ResponseWriter, r *http.Request, id 
 	c.record("download", "storage", written, start)
 }
 
-// copyOut copies a finished upload to the entry's store and commits it. The
-// staged upload goes either way, once its job no longer reads it.
+// copyOut hashes a finished upload, copies it to the entry's store and commits
+// it. The staged upload goes either way, once its job no longer reads it.
 func (c *ActionsCache) copyOut(ctx context.Context, job actionsCopy) {
 	defer c.copied(job.id)
 	start := time.Now()
 	err := func() error {
+		// Hashed here, after the job's answer: a block list's parts take the
+		// agent about 1.6 s per GB to read and hash.
+		sum, err := c.Store.Digest(ctx, job.id)
+		if err != nil {
+			return err
+		}
 		indexed, cancel := context.WithTimeout(ctx, 30*time.Second)
-		upload, err := c.Index.Upload(indexed, job.id, job.size, job.sha256)
+		upload, err := c.Index.Upload(indexed, job.id, job.size, sum)
 		cancel()
 		if err != nil {
 			return err

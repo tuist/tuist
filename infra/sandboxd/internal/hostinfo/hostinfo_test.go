@@ -132,10 +132,14 @@ func TestSnapshotCompatFollowsTheCPUKernelAndFirecracker(t *testing.T) {
 	if got := ParseSnapshotCompat(cpu("68", "0xb404032", "fpu avx512f"), "6.8.0-149-generic", "1.16.2"); got != base {
 		t.Fatal("a trailing newline changed the key")
 	}
+	// The BIOS sets the microcode per server, and snapshots resume across
+	// revisions, so identical nodes must share a key whatever it is.
+	if got := ParseSnapshotCompat(cpu("68", "0xb404038", "fpu avx512f"), "6.8.0-149-generic", "1.16.2"); got != base {
+		t.Error("a different microcode revision changed the key")
+	}
 	for name, other := range map[string]string{
-		"model":     ParseSnapshotCompat(cpu("69", "0xb404032", "fpu avx512f"), "6.8.0-149-generic", "1.16.2"),
-		"microcode": ParseSnapshotCompat(cpu("68", "0xb404035", "fpu avx512f"), "6.8.0-149-generic", "1.16.2"),
-		"flags":     ParseSnapshotCompat(cpu("68", "0xb404032", "fpu"), "6.8.0-149-generic", "1.16.2"),
+		"model": ParseSnapshotCompat(cpu("69", "0xb404032", "fpu avx512f"), "6.8.0-149-generic", "1.16.2"),
+		"flags": ParseSnapshotCompat(cpu("68", "0xb404032", "fpu"), "6.8.0-149-generic", "1.16.2"),
 		// KVM's MSR handling changes within one upstream version: snapshots
 		// of 6.8.0-151 did not load on 6.8.0-149.
 		"distribution build": ParseSnapshotCompat(cpu("68", "0xb404032", "fpu avx512f"), "6.8.0-151-generic", "1.16.2"),

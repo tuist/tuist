@@ -220,7 +220,8 @@ memory image until they cold boot.
   never touched. With `tail_offset` and `tail_sha256` only the disk stream
   is downloaded and checked; when its memory was written on a node with
   this node's snapshot compatibility (hello `snapshot_compat`: CPU vendor,
-  family, model, stepping, name, microcode and flags, the host kernel's
+  family, model, stepping, name and flags but not the BIOS-set microcode,
+  which snapshots resume across, the host kernel's
   full release, distribution build included, since KVM's MSR handling
   changes within one, and Firecracker version) and matches the shape, the VM resumes warm from the
   VM state with a `Uffd` memory backend: `internal/uffd` takes
