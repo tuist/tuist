@@ -626,6 +626,20 @@
       width: 2.6em;
     }
 
+    /* Empty, a field is as wide as its placeholder: the letters are wider
+       than the digits that replace them, and would be clipped. */
+    &[data-field="day"]:placeholder-shown {
+      width: 1.46em;
+    }
+
+    &[data-field="month"]:placeholder-shown {
+      width: 1.83em;
+    }
+
+    &[data-field="year"]:placeholder-shown {
+      width: 2.73em;
+    }
+
     &::placeholder {
       color: var(--noora-surface-label-tertiary);
     }
