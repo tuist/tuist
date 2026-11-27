@@ -22,7 +22,13 @@ below asks for each prewarm tag instead, through the same on-demand path.
 {{- range $repositories }}
 {{- $onDemand = append $onDemand (dict "prefix" .) }}
 {{- end }}
-{{- $registries := list (dict "urls" (list (printf "https://%s" $cache.upstream)) "onDemand" true "tlsVerify" true "maxRetries" 3 "retryDelay" "1m" "content" $onDemand) }}
+{{- /*
+HTTP/1.1, one connection per request, 8 at a time: over HTTP/2 every fetch
+shared one connection to ghcr.io, and on 2026-11-27 its streams were reset
+(PROTOCOL_ERROR) whenever new syncs started on it, every ~10 minutes, failing
+each ~65 GB image fetch in progress before any finished.
+*/}}
+{{- $registries := list (dict "urls" (list (printf "https://%s" $cache.upstream)) "onDemand" true "tlsVerify" true "maxRetries" 3 "retryDelay" "1m" "disableHTTP2" true "reqConcurrent" 8 "content" $onDemand) }}
 {{- $keepTags := list (dict "pulledWithin" $cache.keepPulledWithin) }}
 {{- if $prewarmTags }}
 {{- $quoted := list }}
