@@ -805,7 +805,11 @@ defmodule Tuist.Sandboxes do
       # leaves it archived for the next spawn to retry. Placement set
       # `node_name` on the row behind this struct, hence the reload.
       {:error, reason} when is_tuple(source) and elem(source, 0) == :archive ->
-        Logger.warning("sandboxes: restoring an archived sandbox failed", sandbox_id: sandbox.id, reason: inspect(reason))
+        Logger.warning("sandboxes: restoring an archived sandbox failed",
+          sandbox_id: sandbox.id,
+          reason: inspect(reason),
+          refusals: restore_refusals(sandbox, reason)
+        )
 
         {:ok, _} =
           sandbox
@@ -1329,6 +1333,16 @@ defmodule Tuist.Sandboxes do
         (not lazy_disks? or Map.get(node, :lazy_disks) == true)
     end
   end
+
+  # Why each Linux node refused an archive's restore for room, for its log,
+  # in the disk snapshot refusal's format.
+  defp restore_refusals(%Sandbox{platform: :linux} = sandbox, :no_capacity) do
+    sandbox
+    |> Capacity.refusal_reasons(Enum.map(Capacity.ready_nodes(sandbox.template), & &1.name))
+    |> Enum.map_join(",", fn {node_name, refusal} -> "#{node_name}=#{refusal}" end)
+  end
+
+  defp restore_refusals(_sandbox, _reason), do: nil
 
   # `avoid`: the node the archive was written from and the nodes still
   # loading another restore (`Archives.restoring_nodes/0`).
