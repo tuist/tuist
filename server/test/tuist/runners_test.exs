@@ -1025,7 +1025,7 @@ defmodule Tuist.RunnersTest do
     test "hands the guest the job's profile Xcode, not the pool's, so a pool serving several Xcodes runs each job on its own" do
       account = account_fixture()
 
-      Tuist.Repo.insert!(%Profile{
+      Repo.insert!(%Profile{
         account_id: account.id,
         name: "pinned-27-1",
         platform: :macos,
