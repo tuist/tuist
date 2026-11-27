@@ -24,6 +24,13 @@ import (
 // remote actions serve CI jobs that already hold runners. Like every warm
 // tier it yields to runner pools' real load: queued jobs still outrank it.
 //
+// While accounts run builds, the server learns a larger floor from their
+// first waves (`Signals.RemoteExecutionFloorSlots`, see
+// Tuist.RemoteExecution.LearnedFloor), which `executionFloor` takes, capped
+// at `ExecutionMaxLearnedFloorSlots`, when it is above the fixed one. A
+// build's first actions then find their slots warm instead of waiting for
+// carve-outs to grow out of runner memory.
+//
 // The floor is spread over the workers as per-node warm targets
 // (`SandboxAllocation.WarmBytes`), which the server grows carve-outs to and
 // never shrinks them below while the grant is fresh.
@@ -48,6 +55,12 @@ func (r *AutoscalerReconciler) executionSlotBytes() int64 {
 		return r.ExecutionSlotBytes
 	}
 	return defaultExecutionSlotBytes
+}
+
+// executionFloor is the remote execution pool's floor in slots: the fixed
+// floor, or the learned one, capped, when it is larger.
+func (r *AutoscalerReconciler) executionFloor(signals scaling.Signals) int32 {
+	return max(r.ExecutionFloorSlots, min(signals.RemoteExecutionFloorSlots, r.ExecutionMaxLearnedFloorSlots))
 }
 
 // executionWorkers lists the remote execution workers on the fleet's

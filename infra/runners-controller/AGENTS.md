@@ -235,7 +235,9 @@ cancellable and leaves the reserve intact. See
     the compute allocator (`controllers/execution_allocation.go`): their held
     slots are its load and come back into the budget, its fleet-wide floor
     ranks first among warm stock, and each worker's share of the funded floor
-    goes out as `warm_bytes` in its grant. See
+    goes out as `warm_bytes` in its grant. The server's learned floor
+    (`remote_execution_floor_slots`) raises that floor while accounts run
+    builds, up to `TUIST_REMOTE_EXECUTION_MAX_LEARNED_FLOOR_SLOTS`. See
     [remote execution](../sandbox-image/remote-execution.md), shared hosts.
     See [sharing policy](../sandboxd/fleet-sharing.md) for the proposed
     coordination between CI demand and sandbox growth.

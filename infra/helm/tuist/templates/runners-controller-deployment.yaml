@@ -275,6 +275,8 @@ spec:
               value: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
             - name: TUIST_REMOTE_EXECUTION_FLOOR_SLOTS
               value: {{ .Values.sandboxes.remoteExecutionFloorSlots | default 0 | quote }}
+            - name: TUIST_REMOTE_EXECUTION_MAX_LEARNED_FLOOR_SLOTS
+              value: {{ .Values.sandboxes.remoteExecutionMaxLearnedFloorSlots | default 0 | quote }}
             {{- end }}
           {{- end }}
           ports:
