@@ -132,4 +132,4 @@ If a control in one of these areas is not performed by us, it is not performed a
 
 This document is reviewed annually and whenever a provider is added or removed.
 
-If you have questions about this model, please reach out to the security team at [contact@tuist.dev](mailto:contact@tuist.dev).
+If you have questions about this model, please email [incidents@tuist.dev](mailto:incidents@tuist.dev).

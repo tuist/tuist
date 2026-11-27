@@ -12,7 +12,7 @@
 
 ## Contact information
 
-In case of an incident, urgently report it to [contact@tuist.dev](mailto:contact@tuist.dev). The incident response team will take it from there.
+In case of an incident, urgently report it to [incidents@tuist.dev](mailto:incidents@tuist.dev). The incident response team will take it from there.
 
 ## Vulnerability remediation SLAs
 
