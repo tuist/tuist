@@ -1557,10 +1557,23 @@ rackFleet:
   # b03, against a 569 s median for larch's full pulls from ghcr.io, so every
   # host of both racks is routed. A pull the cache fails falls back to ghcr.io.
   #
-  # 1 TiB holds the prewarmed set through a release (each image is 55-62 GB,
-  # a release beside its predecessor ~578 GB for six images; the seventh,
-  # 27.2 on macOS 27, brings it to an estimated ~675 GB) plus a fetch's
-  # staging. Memory
+  # `prewarm` lists every image a rack pool runs: an image synced only by a
+  # host's digest request is stored untagged, and retention deletes it an hour
+  # after it lands, pulled or not, so the next request fetches it again.
+  #
+  # 4 TiB, from GHCR's manifests at runner-image@0.70.0 (1 TiB filled on
+  # 2026-11-27): the rack's 20 images (10 Xcodes on macOS 26 and 27, 58-76
+  # GB each) are 1,109 GB of distinct blobs; a release adds ~50-60 GB of
+  # runner overlays, kept a day after the rack's last pull. zot stages every
+  # fetch whole in `.sync` (it copies the blobs it already holds into the
+  # staging dir), the hosts ask for a release's 20 digests at once, and the
+  # prewarm's tag fetch of the same image is a separate fetch: ~1.4 TB of
+  # staging. That is ~2.7 TB at a release today. Through the Xcode bundle
+  # overlap, five bundles beside the per-Xcode images add an estimated
+  # ~0.55 TB stored and as much staging, ~3.8 TB at a release. Dropping the
+  # per-Xcode images once the bundles carry every account takes it back
+  # under 1.5 TB: then shrink it to 2048 (a new volume, filled again from
+  # ghcr.io). Memory
   # is larch-store-a's tight resource (12.2 GiB allocatable, ~10.5 GiB already
   # requested by Kura), so the limit is half the chart's default.
   imageCache:
@@ -1569,8 +1582,28 @@ rackFleet:
     nodes:
       - name: larch-store-a
         address: 100.66.71.20
-    sizeGi: 1024
-    prewarm: ["27.2", "27.2-macos-27", "27.1", "27.0", "26.6", "26.3", "26.0.1"]
+    sizeGi: 4096
+    prewarm:
+      - "27.2"
+      - "27.0"
+      - "27.1"
+      - "26.6"
+      - "27.2-macos-27"
+      - "26.5"
+      - "26.3"
+      - "26.0.1"
+      - "26.1.1"
+      - "26.4.1"
+      - "27.3-beta"
+      - "27.0-macos-27"
+      - "27.1-macos-27"
+      - "26.6-macos-27"
+      - "26.5-macos-27"
+      - "26.4.1-macos-27"
+      - "26.3-macos-27"
+      - "26.1.1-macos-27"
+      - "26.0.1-macos-27"
+      - "27.3-beta-macos-27"
     resources:
       requests:
         cpu: 500m

@@ -787,7 +787,8 @@ takes the Kura region with it.
 - **What it holds.** zot syncs an image of `repositories` from `upstream` on
   its first manifest request and answers only once all of it is local, with
   the upstream's manifest bytes, so the digest is ghcr.io's. Requests for an
-  image that is already being fetched share that one fetch, and the fetch
+  image by the same reference share that one fetch (a request by tag and one
+  by digest of the same image are two fetches, each staged whole), and the fetch
   carries on when a requester gives up. A `prewarm` container asks for each
   `prewarm` Xcode's image every `syncInterval`, one at a time, so a release's
   images are fetched as soon as a deploy names them. zot's own periodic sync
@@ -837,16 +838,23 @@ takes the Kura region with it.
   credential stays on the storage node; the minis keep pulling unauthenticated
   from the segment.
 
-Sizing, as of the 0.32.0 runner images: each is 55 to 62 GB compressed (263
-layers of up to 512 MiB). All nine catalog images are 537 GB, 404 GB of
-distinct blobs; a release shares about 57% of its blobs with the one before,
-so a release beside its predecessor is 578 GB. zot stages a whole image
-before writing it into storage, so a fetch also needs room for the largest
-image twice: at 64 GiB on ber1-store-a every fetch of a 58.8 GiB image ran
-out of space and was retried, about 200 GB/h over the WAN from 2026-10-16 to
-10-18 (#14320). ber1-store-a's 928 GB `/data` belongs to its Kura region, so
-production's cache is on larch-store-a, whose `/data` is 12.7 TB: 1 TiB,
-prewarming every Xcode the rack keeps warm. larch-store-a has 12.2 GiB of
+Sizing, as of the 0.70.0 stacked runner images: the rack runs 20 images (10
+Xcodes on macOS 26 and 27), 58 to 76 GB compressed each and 1,109 GB of
+distinct blobs. A runner release changes only the stacked overlay, about 50
+to 60 GB across all 20. zot (v2.1.22) stages every fetch whole in
+`<repo>/.sync/<uuid>`: it copies the blobs it already holds into the session,
+then copies the new ones into storage, and removes the session when the fetch
+ends, failed or not. So a fetch needs room for its whole image, even when it
+adds only an overlay. Nothing limits how many fetches run at once. A release
+makes the hosts ask for all its digests at once, so staging peaks at about
+the sum of the images (~1.4 TB). On 2026-11-27, 15 such sessions beside the
+stored images filled the 1 TiB volume. At 64 GiB on ber1-store-a every fetch
+of a 58.8 GiB image ran out of space and was retried, about 200 GB/h over the
+WAN from 2026-10-16 to 10-18 (#14320). ber1-store-a's 928 GB `/data` belongs
+to its Kura region, so production's cache is on larch-store-a, whose `/data`
+is 12.7 TB: 4 TiB, prewarming every image a rack pool runs, sized for the
+Xcode bundles beside the per-Xcode images (the arithmetic is beside `sizeGi`
+in `values-managed-production.yaml`). larch-store-a has 12.2 GiB of
 allocatable memory, most of it requested by Kura, so production caps zot at
 2 GiB (`resources`).
 

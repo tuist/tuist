@@ -11,7 +11,8 @@
 {{- /*
 zot fetches an image of the repositories on its first manifest request and
 answers only once all of it is local, with the upstream's digest; concurrent
-requests for it share that one fetch. tart-kubelet waits for that answer
+requests for it by the same reference share that one fetch (a tag and its
+digest are two). tart-kubelet waits for that answer
 itself (Tart's own client gives up after 60 idle seconds) and pulls by the
 digest it was given. zot's periodic sync cannot run against ghcr.io, which
 refuses the repository listing it starts from, so the prewarm container
