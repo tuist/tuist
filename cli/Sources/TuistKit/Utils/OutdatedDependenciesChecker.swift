@@ -18,18 +18,21 @@ struct OutdatedDependenciesChecker: OutdatedDependenciesChecking {
     private let fileSystem: FileSysteming
     private let configLoader: ConfigLoading
     private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
+    private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     init(
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
         fileSystem: FileSysteming = FileSystem(),
         configLoader: ConfigLoading = ConfigLoader(),
         swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
-            SwiftPackageManagerScratchDirectoryLocator()
+            SwiftPackageManagerScratchDirectoryLocator(),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()
     ) {
         self.manifestFilesLocator = manifestFilesLocator
         self.fileSystem = fileSystem
         self.configLoader = configLoader
         self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
+        self.swiftPackageManagerController = swiftPackageManagerController
     }
 
     func packageDependenciesAreOutdated(at path: AbsolutePath) async throws -> Bool {
@@ -64,7 +67,13 @@ struct OutdatedDependenciesChecker: OutdatedDependenciesChecking {
         }
 
         if currentData != savedData { return true }
-        return try await hasPrunedCacheLinks(scratchDirectory: scratchDirectory)
+        if try await hasPrunedCacheLinks(scratchDirectory: scratchDirectory) { return true }
+
+        // A toolchain update leaves the lockfile as is, but its compiler cannot import the recorded prebuilts.
+        return try await swiftPackageManagerController.recordsOutdatedPrebuilts(
+            at: packageDirectory,
+            scratchDirectory: scratchDirectory
+        )
     }
 
     /// SwifterPM links checkouts, binary artifacts and registry downloads into the shared cache,
