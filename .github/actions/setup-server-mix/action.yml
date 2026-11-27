@@ -29,6 +29,14 @@ runs:
     - name: Tune Mix dependency compilation parallelism
       shell: bash
       run: echo "MIX_OS_DEPS_COMPILE_PARTITION_COUNT=${{ inputs.mix-os-deps-compile-partition-count }}" >> "$GITHUB_ENV"
+    # ERTS sizes each BEAM's port table from the open-files limit (up to 2^27
+    # entries) and allocates it at boot. Where job steps get nofile=2^30, every
+    # BEAM holds about 2.1 GB before running anything, and deps.compile's
+    # parent plus its OS workers ran 8 GB runners out of memory. Pin the table
+    # to the 2^20 entries a 1048576 limit gives.
+    - name: Bound the BEAM port table
+      shell: bash
+      run: echo "ERL_MAX_PORTS=1048576" >> "$GITHUB_ENV"
     - uses: ./.github/actions/mise-install
       with:
         install: ${{ inputs.mise-install-args }}
