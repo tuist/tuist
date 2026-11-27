@@ -6,6 +6,13 @@ name: Remote Execution Benchmark
 # Analysis and repository fetches happen in an untimed warm-up first.
 # Run one remote benchmark at a time per server: concurrent runs share the
 # account's execution capacity.
+#
+# The defaults are the pinned Tuist vs BuildBuddy comparison: Kura at
+# 63881ee3d8 (main), `bazel test //...` (1,089 remote actions), --jobs=64,
+# production (the fleet customers use), and for BuildBuddy the guest stage of
+# the production bazel template (remote-execution-benchmark-image.yml). For a
+# cold Tuist first build, pass a never-used tuist_project linked to this
+# repository; tuist/kura already holds these inputs.
 
 on:
   # Throwaway benchmark branches run the defaults below on push.
@@ -16,7 +23,7 @@ on:
     inputs:
       server:
         description: Tuist server whose cache and executor to use
-        default: https://staging.tuist.dev
+        default: https://tuist.dev
         required: true
       mode:
         description: Where actions execute
@@ -34,12 +41,12 @@ on:
         default: test
       runner:
         description: Runner label of a 2 vCPU profile on that server
-        default: tuist-staging-staging-linux-2vcpu
+        default: tuist-linux
         required: true
       bazel_flags:
-        description: Extra Bazel flags for the warm-up and the timed run, such as --jobs=32
+        description: Extra Bazel flags for the warm-up and the timed run; keep --jobs equal across providers
         required: false
-        default: ""
+        default: --color=no --jobs=64
       provider:
         description: Remote execution provider (BuildBuddy requires BUILDBUDDY_API_KEY)
         type: choice
@@ -47,7 +54,7 @@ on:
         default: tuist
       source_ref:
         description: Immutable workload revision, independent of the workflow revision
-        default: c0f09cac270482e7cad4b01d52c746a488c5684e
+        default: 63881ee3d8012e4e1fb950714af7588ea25fed6c
       buildbuddy_image:
         description: Public guest-stage OCI image, docker://registry/image@sha256:digest (not the template carrier)
         default: ""
@@ -77,11 +84,11 @@ permissions:
 
 env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-  TUIST_URL: ${{ inputs.server || 'https://staging.tuist.dev' }}
+  TUIST_URL: ${{ inputs.server || 'https://tuist.dev' }}
   MODE: ${{ inputs.mode || 'remote' }}
   PROVIDER: ${{ inputs.provider || 'tuist' }}
   COMMAND: ${{ inputs.command || 'test' }}
-  BAZEL_FLAGS: ${{ inputs.bazel_flags || '--jobs=20' }}
+  BAZEL_FLAGS: ${{ inputs.bazel_flags || '--color=no --jobs=64' }}
   TUIST_PROJECT: ${{ inputs.tuist_project || 'tuist/kura' }}
   WORKLOAD: ${{ inputs.workload || 'kura' }}
   TARGETS: ${{ (inputs.workload == 'abseil-cpp' && '//absl/...') || (inputs.workload == 'protobuf' && '//src/...') || '//...' }}
@@ -92,7 +99,7 @@ jobs:
     if: github.repository == 'tuist/tuist'
     # A runner of the server under test: remote execution reads inputs from
     # the account's runner cache, which only its runners upload into.
-    runs-on: ${{ inputs.runner || 'tuist-staging-staging-linux-2vcpu' }}
+    runs-on: ${{ inputs.runner || 'tuist-linux' }}
     timeout-minutes: 120
     defaults:
       run:
@@ -104,7 +111,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ inputs.source_ref || '63881ee3d8012e4e1fb950714af7588ea25fed6c' }}
           persist-credentials: false
 
       # Same client for every workload: Kura's pinned Bazel and Tuist (mise),
@@ -240,12 +247,12 @@ jobs:
             --arg provider "$PROVIDER" --arg mode "$MODE" --arg command "$COMMAND" \
             --arg bazel "$(bazel --version)" --arg flags "$BAZEL_FLAGS" \
             --arg image "$BUILDBUDDY_IMAGE" --arg cacheState "$NODE_CACHE_STATE" \
-            --arg sample "$SAMPLE" --arg runner "$RUNNER_NAME" \
+            --arg sample "$SAMPLE" --arg runner "$RUNNER_NAME" --arg server "$TUIST_URL" --arg project "$TUIST_PROJECT" \
             --arg tuistJobs "$(sed -n 's/^build --jobs=//p' .bazelrc.tuist | tail -1)" \
             --arg tuistImage "$(sed -n 's/^build --remote_default_exec_properties=tuist-image=//p' .bazelrc.tuist | tail -1)" \
             '{source:$source, workflow:$workflow, provider:$provider, mode:$mode, command:$command,
               bazel:$bazel, flags:$flags, buildbuddyImage:$image, nodeCacheState:$cacheState,
-              sample:$sample, coordinator:$runner, configuredTuistJobs:$tuistJobs, tuistImage:$tuistImage,
+              sample:$sample, coordinator:$runner, server:$server, tuistProject:$project, configuredTuistJobs:$tuistJobs, tuistImage:$tuistImage,
               actionCacheReads:false, diskCache:false,
               buildbuddyResources:"2 CPU / 4294967296 bytes requested; not a fleet capacity guarantee"}' \
             > "$RUNNER_TEMP/environment.json"
