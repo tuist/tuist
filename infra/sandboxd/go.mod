@@ -3,7 +3,7 @@ module github.com/tuist/tuist/infra/sandboxd
 go 1.26.10
 
 require (
-	github.com/bazelbuild/remote-apis v0.0.0-20261020142950-c2c07e3d718d
+	github.com/bazelbuild/remote-apis v0.0.0-20261110225606-e0c0554bfc8a
 	github.com/coder/websocket v1.8.13
 	github.com/hanwen/go-fuse/v2 v2.12.1
 	github.com/klauspost/compress v1.18.7

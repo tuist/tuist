@@ -3,7 +3,7 @@ module kura-action-inputs-client
 go 1.25.0
 
 require (
-	github.com/bazelbuild/remote-apis v0.0.0-20261020142950-c2c07e3d718d
+	github.com/bazelbuild/remote-apis v0.0.0-20261110225606-e0c0554bfc8a
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.11
 )

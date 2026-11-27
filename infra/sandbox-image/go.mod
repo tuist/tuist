@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	cloud.google.com/go/longrunning v0.8.0
 	github.com/anthropics/anthropic-sdk-go v1.70.1
-	github.com/bazelbuild/remote-apis v0.0.0-20261020142950-c2c07e3d718d
+	github.com/bazelbuild/remote-apis v0.0.0-20261110225606-e0c0554bfc8a
 	github.com/mdlayher/vsock v1.3.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
