@@ -20,7 +20,7 @@ Improve the project first, then its execution environment. A faster Mac makes ev
 | 2. Share compilation outputs | Recompiling unchanged code on cold machines | [Xcode cache](/en/docs-markdown/guides/features/cache/xcode-cache) | Xcode 26 or later; works with ordinary Xcode projects |
 | 3. Replace whole modules with binaries | Building unchanged modules at all | [Module cache](/en/docs-markdown/guides/features/cache/module-cache) | Tuist-generated projects |
 | 4. Run only affected tests | Running unchanged test targets | [Selective testing](/en/docs-markdown/guides/features/selective-testing) | Tuist-generated projects and `tuist test` |
-| 5. Split the remaining tests | Wall-clock time of one long suite | [Test sharding](/en/docs-markdown/guides/features/test-sharding/xcode) | Xcode test insights for timing-balanced shards |
+| 5. Split the remaining tests | Wall-clock time of one long suite | [Xcode test sharding](/marketing-markdown/solutions/xcode-test-sharding) | Xcode test insights for timing-balanced shards |
 | 6. Contain flaky tests | Retries and blocked merges | [Flaky-test detection and quarantine](/marketing-markdown/solutions/flaky-tests) | Test insights; quarantine through the Tuist test wrapper |
 | 7. Run on faster machines | Time spent on small, shared hardware | [Tuist Runners](/marketing-markdown/runners/github-actions) | GitHub Actions organization, GitLab CI, Buildkite, or Bitrise |
 
@@ -33,7 +33,7 @@ The Xcode cache and the module cache work at different granularity, whole-module
 - **Reliability as part of speed.** Flaky-test detection records every attempt, so retries become evidence instead of hidden minutes, and quarantine stops a known flake from blocking merges while someone fixes it.
 - **Faster hardware next to the cache.** [Tuist Runners](/marketing-markdown/runners) are managed M5 Pro Mac minis with a fresh virtual machine per job, one Xcode per image, and the cache on the same private network. Adoption is one line: `runs-on: tuist-macos`. Runners are billed per minute of job time; the current rates are on the [pricing page](/pricing).
 
-The same approach applies to Gradle, Bazel, and Elixir: [Gradle](/en/docs-markdown/guides/features/cache/gradle-cache) and [Bazel](/en/docs-markdown/guides/features/cache/bazel-cache) remote caches, Gradle and Elixir test sharding, and flaky-test detection for all of them. Feature support differs by toolchain, so check each guide.
+The same approach applies to Gradle, Bazel, and Elixir: [Gradle](/en/docs-markdown/guides/features/cache/gradle-cache) and [Bazel](/en/docs-markdown/guides/features/cache/bazel-cache) remote caches, Gradle and Elixir test sharding, and flaky-test detection for all of them; the [Gradle and Android CI guide](/marketing-markdown/solutions/speed-up-gradle-ci) walks through the Gradle path. Feature support differs by toolchain, so check each guide.
 
 ## Diagnose
 

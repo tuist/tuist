@@ -51,7 +51,7 @@ Check the toolchain support matrix before relying on selective testing or shardi
 
 ## Further reading
 
-- [Run your test suite across balanced shards](/blog/2026/03/25/test-sharding) on timing-based sharding.
+- [Run your test suite across balanced shards](/blog/2026/03/25/test-sharding) on timing-based sharding, with step-by-step pages for [Xcode](/marketing-markdown/solutions/xcode-test-sharding) and [Gradle](/marketing-markdown/solutions/gradle-test-sharding).
 - [Stop flaky tests from blocking your PRs](/blog/2026/01/27/flaky-tests) on retries and quarantine.
 - [Build smart before you build fast](/blog/2025/11/17/smart-before-fast) on avoiding work before adding capacity.
 - Related guides: [flaky tests](/marketing-markdown/solutions/flaky-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and [compare approaches](/marketing-markdown/compare).
