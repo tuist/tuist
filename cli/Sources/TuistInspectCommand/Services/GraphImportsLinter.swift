@@ -76,7 +76,8 @@
                     target: target,
                     includeExternalDependencies: inspectType == .implicit,
                     excludeAppDependenciesForTests: inspectType == .redundant,
-                    excludeEmbeddableWatchApps: inspectType == .redundant
+                    excludeEmbeddableWatchApps: inspectType == .redundant,
+                    excludeMacros: inspectType == .redundant
                 )
 
                 let observedImports = switch inspectType {
@@ -96,7 +97,8 @@
             target: GraphTarget,
             includeExternalDependencies: Bool,
             excludeAppDependenciesForTests: Bool,
-            excludeEmbeddableWatchApps: Bool
+            excludeEmbeddableWatchApps: Bool,
+            excludeMacros: Bool
         ) -> Set<String> {
             let targetDependencies = if includeExternalDependencies {
                 graphTraverser
@@ -111,7 +113,7 @@
                     !dependency.target.bundleId.hasSuffix(".generated.resources")
                 }
                 .filter { dependency in
-                    dependency.target.product != .macro
+                    !excludeMacros || dependency.target.product != .macro
                 }
                 .filter { dependency in
                     switch target.target.product {

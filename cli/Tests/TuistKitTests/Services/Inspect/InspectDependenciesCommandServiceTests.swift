@@ -1089,6 +1089,36 @@ struct InspectDependenciesCommandServiceTests {
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
     }
 
+    @Test
+    func runImplicitOnlyDoesntFlagDeclaredMacroDependencyImportedByTests() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let macro = Target.test(name: "MyMacro", product: .macro)
+        let macroTests = Target.test(
+            name: "MyMacroTests",
+            product: .unitTests,
+            dependencies: [TargetDependency.target(name: "MyMacro")]
+        )
+        let project = Project.test(path: path, targets: [macroTests, macro])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: macroTests.name, path: project.path): [
+                .target(name: macro.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(macroTests), unreachableModules: .any).willReturn(Set(["MyMacro"]))
+        given(targetScanner).imports(for: .value(macro), unreachableModules: .any).willReturn(Set([]))
+
+        // When / Then
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
+    }
+
     // MARK: - Redundant Check: Cross-Project Dependencies
 
     @Test
