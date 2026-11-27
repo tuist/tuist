@@ -66,12 +66,15 @@
     type="secondary"
     size="large"
     title={
-      dgettext("dashboard_tests", "Runs from a checkout with uncommitted changes don't count")
+      dgettext(
+        "dashboard_tests",
+        "Test Runs from a checkout with uncommitted changes don't count"
+      )
     }
     description={
       dgettext(
         "dashboard_tests",
-        "They measured code that isn't the commit's, so their coverage is left out of the commit's and the actual coverage may be higher. To measure the commit, commit or discard those changes before testing, or keep files your CI job writes out of the checkout or ignored by Git. The Test Runs tab lists them as Discarded."
+        "They measured code that isn't the commit's, so their coverage is left out of the commit's and the actual coverage may be higher. The Test Runs tab lists them as Discarded."
       )
     }
   />

@@ -186,7 +186,8 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     status = lv |> element("#coverage-detail [data-part='badges']") |> render()
     assert status =~ "Incomplete"
     assert status =~ "uncommitted changes"
-    assert has_element?(lv, "#coverage-dirty-runs", "commit or discard those changes")
+    assert has_element?(lv, "#coverage-dirty-runs", "Test Runs from a checkout with uncommitted changes don't count")
+    assert has_element?(lv, "#coverage-dirty-runs", "The Test Runs tab lists them as Discarded.")
     assert has_element?(lv, "#widget-coverage", "66.7%")
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs")
@@ -209,7 +210,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
     {:ok, lv, _html} = live(conn, base <> "/commits/d")
     assert lv |> element("#coverage-detail [data-part='badges']") |> render() =~ "Incomplete"
-    assert has_element?(lv, "#coverage-dirty-runs", "commit or discard those changes")
+    assert has_element?(lv, "#coverage-dirty-runs", "The Test Runs tab lists them as Discarded.")
     assert has_element?(lv, "#widget-coverage", "0.0%")
 
     {:ok, lv, _html} = live(conn, base <> "/commits/d?tab=runs")
