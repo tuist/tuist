@@ -158,7 +158,7 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS base-ubuntu-24.04
 ENV ImageOS=ubuntu24
 
-FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b AS base-ubuntu-22.04
+FROM ubuntu:22.04@sha256:b000e69a50ff940390233025e7a337fb8469b509e2334fa4d018ac30f3e18cdb AS base-ubuntu-22.04
 ENV ImageOS=ubuntu22
 
 # Trusted sidecar image (`--target sidecar`). The poller, metrics and shell

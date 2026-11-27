@@ -367,7 +367,7 @@ jobs:
       run:
         shell: bash
     container:
-      image: ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b
+      image: ubuntu:22.04@sha256:b000e69a50ff940390233025e7a337fb8469b509e2334fa4d018ac30f3e18cdb
     steps:
       - name: Step and Node runtime mounts
         run: |
