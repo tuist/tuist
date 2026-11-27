@@ -276,8 +276,12 @@ restored from its jail's `mem` loads with `track_dirty_pages`
 and takes a `Diff` snapshot into it, which Firecracker merges into an
 existing memory file of the guest's size. The pause then writes only the
 pages KVM or Firecracker's devices dirtied since the restore, and the result
-is the same image a full snapshot writes. Cold boots, warm restores served
-through userfaultfd, and VMs restored before the flag was on keep taking
+is the same image a full snapshot writes. A warm restore served through
+userfaultfd also loads with dirty-page tracking, writes every chunk it
+installs into the jail's `mem` (zero chunks stay holes), and becomes
+`memory_tracked` once all are written (`trackFromBase`), so its first pause
+is a `Diff` too; one paused before then, or whose writes failed, takes a full
+snapshot. Cold boots and VMs restored before the flag was on keep taking
 full snapshots.
 
 ## Network

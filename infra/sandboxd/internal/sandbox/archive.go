@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -566,6 +567,20 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 		memory.Close()
 		return protocol.CreateResult{}, err
 	}
+	// With Diff snapshots on, every chunk the restore installs is also
+	// written to the jail's memory file: once all are there, that file is
+	// the guest's memory at restore, and the first pause writes only what
+	// the guest changed since, merged onto a clone of it.
+	var source uffd.Source = memory
+	var base *baseSource
+	if m.cfg.DiffSnapshots {
+		if base, err = newBaseSource(memory, filepath.Join(sb.root, firecracker.MemPath)); err != nil {
+			log.Warn("creating the memory base for diff snapshots failed; the first pause takes a full one", "error", err)
+			base = nil
+		} else {
+			source = base
+		}
+	}
 	serveCtx, stopServing := context.WithCancel(context.Background())
 	served := make(chan error, 1)
 	started := time.Now()
@@ -574,7 +589,10 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 	released := false
 	go func() {
 		defer memory.Close()
-		served <- server.Serve(serveCtx, memory, uffd.Options{
+		if base != nil {
+			defer base.Close()
+		}
+		served <- server.Serve(serveCtx, source, uffd.Options{
 			FaultWorkers: memoryFaultWorkers, FillWorkers: memoryFillWorkers, Release: true,
 			OnLoaded: func(stats uffd.Stats) {
 				if stats.Released {
@@ -584,6 +602,9 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 					released = true
 					sb.memoryServed = nil
 					sb.mu.Unlock()
+				}
+				if base != nil {
+					m.trackFromBase(sb, base)
 				}
 				m.memoryLoaded(sb, stats, time.Since(started))
 				if disks != nil {
@@ -645,7 +666,7 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 // all on the node.
 func (m *Manager) coldCreateAfterWarm(ctx context.Context, sb *Sandbox, log *slog.Logger) (protocol.CreateResult, error) {
 	// The placeholder only stood in for the VM state's drive.
-	for _, name := range []string{firecracker.SnapshotPath, archive.MemoryIndexName, memSocket, firecracker.CachePath} {
+	for _, name := range []string{firecracker.SnapshotPath, firecracker.MemPath, archive.MemoryIndexName, memSocket, firecracker.CachePath} {
 		_ = os.Remove(filepath.Join(sb.root, name))
 	}
 	sb.mu.Lock()
@@ -675,6 +696,62 @@ func (m *Manager) memoryLoaded(sb *Sandbox, stats uffd.Stats, elapsed time.Durat
 	m.log.Info("sandbox memory loaded from its archive", "sandbox", id, "elapsed", elapsed,
 		"chunks", stats.Chunks, "faulted", stats.Faulted, "filled", stats.Filled, "zero", stats.Zero, "faults", stats.Faults, "bytes", stats.Bytes, "released", stats.Released)
 	m.restorePartLoaded(sb, true)
+}
+
+// baseSource writes every chunk a warm restore installs into the jail's
+// memory file, leaving all-zero chunks as holes. A write that fails only
+// costs the Diff: the restore goes on.
+type baseSource struct {
+	uffd.Source
+	file   *os.File
+	failed atomic.Bool
+}
+
+func newBaseSource(src uffd.Source, path string) (*baseSource, error) {
+	_ = os.Remove(path)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := f.Truncate(src.Size()); err != nil {
+		f.Close()
+		_ = os.Remove(path)
+		return nil, err
+	}
+	return &baseSource{Source: src, file: f}, nil
+}
+
+func (b *baseSource) Chunk(ctx context.Context, i int) ([]byte, error) {
+	data, err := b.Source.Chunk(ctx, i)
+	if err == nil && data != nil && !b.failed.Load() {
+		if _, werr := b.file.WriteAt(data, int64(i)*b.ChunkSize()); werr != nil {
+			b.failed.Store(true)
+		}
+	}
+	return data, err
+}
+
+func (b *baseSource) Close() error { return b.file.Close() }
+
+// trackFromBase lets the next pause take a Diff once a warm restore's
+// memory is all in the jail's memory file. The VM was loaded with dirty-page
+// tracking, so every page the guest wrote since is in the Diff; pages the
+// restore installed match the file. A VM paused meanwhile keeps its Full
+// snapshot: its pause already replaced the file.
+func (m *Manager) trackFromBase(sb *Sandbox, base *baseSource) {
+	if base.failed.Load() {
+		m.log.Warn("writing the memory base for diff snapshots failed; the next pause takes a full one", "sandbox", sb.meta.ID)
+		return
+	}
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	if sb.meta.State != protocol.StateRunning || sb.inst == nil {
+		return
+	}
+	sb.meta.MemoryTracked = true
+	if err := sb.meta.Save(sb.root); err != nil {
+		m.log.Error("saving a restored sandbox's metadata", "sandbox", sb.meta.ID, "error", err)
+	}
 }
 
 // restorePartLoaded records that a warm restore's memory, or its disks,
