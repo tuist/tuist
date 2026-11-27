@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -3871,6 +3872,10 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	// replica already rebuilt and coming back, or with nothing serving a second
 	// rebuild would discard the copy that could have recovered first.
 	for _, volume := range replacements {
+		if volume.held {
+			log.FromContext(ctx).Info("holding a Kura data volume rebuild until a node can take it", "pvc", volume.claim.Name, "reason", volume.reason)
+			continue
+		}
 		if !serving[volume.ordinal] && othersSettled(volume.ordinal, true) {
 			allowed, err := r.lvmMigrationAllowed(ctx, instance, volume)
 			if err != nil {
@@ -3887,7 +3892,7 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	// also what makes a rebuilt pod's backfill worth anything: it has a serving
 	// sibling to read from.
 	for _, volume := range replacements {
-		if serving[volume.ordinal] && othersSettled(volume.ordinal, false) {
+		if !volume.held && serving[volume.ordinal] && othersSettled(volume.ordinal, false) {
 			allowed, err := r.lvmMigrationAllowed(ctx, instance, volume)
 			if err != nil {
 				return true, err
@@ -3935,6 +3940,9 @@ type dataVolumeReplacement struct {
 	ordinal int32
 	claim   *corev1.PersistentVolumeClaim
 	reason  string
+	// held keeps the resize in flight, and so the rollout on OnDelete,
+	// without rebuilding this volume yet.
+	held bool
 }
 
 // A shrunk claim's volume is rebuilt only when the surplus is worth emptying a
@@ -4009,7 +4017,221 @@ func (r *KuraInstanceReconciler) dataVolumesToReplace(ctx context.Context, insta
 			})
 		}
 	}
+	colocated, err := r.colocatedVolumes(ctx, instance)
+	if err != nil {
+		return nil, false, err
+	}
+	unselected, err := r.unselectedVolumes(ctx, instance)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, volume := range append(unselected, colocated...) {
+		listed := false
+		for _, replacement := range replacements {
+			listed = listed || replacement.ordinal == volume.ordinal
+		}
+		if !listed {
+			replacements = append(replacements, volume)
+		}
+	}
+	sort.Slice(replacements, func(i, j int) bool { return replacements[i].ordinal < replacements[j].ordinal })
 	return replacements, false, nil
+}
+
+// colocatedVolumes returns the data claims to rebuild so that no two replicas
+// share a value of spec.replicaSpreadTopologyKey. A bound local volume cannot
+// move, so a replica placed beside a sibling before spreading was required
+// stays there, and the required anti-affinity would strand its next pod;
+// rebuilding its volume lets the scheduler place it apart. The primary's
+// volume is kept, so the copy serving clients is never the one emptied;
+// without a known primary the lowest ordinal's is. A claim whose node is gone
+// is the stale-storage path's, and a fenced instance moves replicas only
+// through explicit recovery.
+func (r *KuraInstanceReconciler) colocatedVolumes(ctx context.Context, instance *kurav1alpha1.KuraInstance) ([]dataVolumeReplacement, error) {
+	key := instance.Spec.ReplicaSpreadTopologyKey
+	if key == "" || fencedServing(instance) || replicas(instance) < 2 {
+		return nil, nil
+	}
+	primary := ""
+	service := &corev1.Service{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
+	case err == nil:
+		primary = service.Spec.Selector[podNameLabel]
+	case !apierrors.IsNotFound(err):
+		return nil, err
+	}
+	type placed struct {
+		ordinal int32
+		claim   *corev1.PersistentVolumeClaim
+	}
+	byValue := map[string][]placed{}
+	var values []string
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		claim := &corev1.PersistentVolumeClaim{}
+		if err := r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("data-%s-%d", instance.Name, ordinal), Namespace: instance.Namespace}, claim); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		if claim.DeletionTimestamp != nil || claim.Spec.VolumeName == "" {
+			continue
+		}
+		pv := &corev1.PersistentVolume{}
+		if err := r.Get(ctx, types.NamespacedName{Name: claim.Spec.VolumeName}, pv); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		hosts := pvRequiredHostnames(pv)
+		if len(hosts) != 1 {
+			continue
+		}
+		node := &corev1.Node{}
+		if err := r.Get(ctx, types.NamespacedName{Name: hosts[0]}, node); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		value, ok := node.Labels[key]
+		if !ok {
+			continue
+		}
+		if _, seen := byValue[value]; !seen {
+			values = append(values, value)
+		}
+		byValue[value] = append(byValue[value], placed{ordinal: ordinal, claim: claim})
+	}
+	// A standby moves only where it can land: a Ready, schedulable node that
+	// matches the instance's selector and holds a value of the label no
+	// replica occupies. Otherwise emptying it leaves its replacement Pending
+	// beside the primary's volume, and a one-host region loses its standby.
+	// The move is still reported, held, so the resize keeps the StatefulSet on
+	// OnDelete: rolling either pod onto the template's required spread would
+	// strand it Pending beside its sibling just the same.
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		return nil, err
+	}
+	occupied := map[string]bool{}
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
+		value, ok := node.Labels[key]
+		_, taken := byValue[value]
+		_, evacuating := node.Annotations[EvacuateNodeAnnotation]
+		if !ok || taken || evacuating {
+			occupied[node.Name] = true
+		}
+	}
+	held := !hasLandingNode(nodes.Items, occupied, nodeSelector(instance))
+	var colocated []dataVolumeReplacement
+	for _, value := range values {
+		group := byValue[value]
+		if len(group) < 2 {
+			continue
+		}
+		keep := group[0].ordinal
+		for _, member := range group {
+			if fmt.Sprintf("%s-%d", instance.Name, member.ordinal) == primary {
+				keep = member.ordinal
+			}
+		}
+		for _, member := range group {
+			if member.ordinal != keep {
+				colocated = append(colocated, dataVolumeReplacement{
+					ordinal: member.ordinal, claim: member.claim,
+					reason: fmt.Sprintf("shares %s=%s with a sibling while spread is required", key, value),
+					held:   held,
+				})
+			}
+		}
+	}
+	return colocated, nil
+}
+
+// unselectedVolumes returns the data claims bound to a node the instance's node
+// selector no longer matches, as after a region's pool changes or a host leaves
+// it. The pod already there keeps running, since a selector is checked only at
+// scheduling, but its next one must land beside the volume and cannot: the
+// rollout would strand it Pending and leave one copy. Rebuilding the volume
+// lets the scheduler place it on a selected node. Without one to land on, the
+// rebuild is reported held. A claim whose node is gone is the stale-storage
+// path's, a fenced instance moves replicas only through explicit recovery, and
+// an instance without a selector names no pool to leave.
+func (r *KuraInstanceReconciler) unselectedVolumes(ctx context.Context, instance *kurav1alpha1.KuraInstance) ([]dataVolumeReplacement, error) {
+	if len(instance.Spec.NodeSelector) == 0 || fencedServing(instance) || replicas(instance) < 2 {
+		return nil, nil
+	}
+	selector := k8slabels.SelectorFromSet(nodeSelector(instance))
+	key := instance.Spec.ReplicaSpreadTopologyKey
+	siblingValues := map[string]bool{}
+	var unselected []dataVolumeReplacement
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		claim := &corev1.PersistentVolumeClaim{}
+		if err := r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("data-%s-%d", instance.Name, ordinal), Namespace: instance.Namespace}, claim); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		if claim.DeletionTimestamp != nil || claim.Spec.VolumeName == "" {
+			continue
+		}
+		pv := &corev1.PersistentVolume{}
+		if err := r.Get(ctx, types.NamespacedName{Name: claim.Spec.VolumeName}, pv); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		hosts := pvRequiredHostnames(pv)
+		if len(hosts) != 1 {
+			continue
+		}
+		node := &corev1.Node{}
+		if err := r.Get(ctx, types.NamespacedName{Name: hosts[0]}, node); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		if selector.Matches(k8slabels.Set(node.Labels)) {
+			if value, ok := node.Labels[key]; key != "" && ok {
+				siblingValues[value] = true
+			}
+			continue
+		}
+		unselected = append(unselected, dataVolumeReplacement{
+			ordinal: ordinal, claim: claim,
+			reason: fmt.Sprintf("bound to node %s, which the node selector no longer matches", node.Name),
+		})
+	}
+	if len(unselected) == 0 {
+		return nil, nil
+	}
+	// A rebuilt replica lands on a Ready, schedulable, selected node that is
+	// not being evacuated and, under a required spread, holds a label value no
+	// sibling on a selected node occupies.
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		return nil, err
+	}
+	occupied := map[string]bool{}
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
+		_, evacuating := node.Annotations[EvacuateNodeAnnotation]
+		value, ok := node.Labels[key]
+		if evacuating || (key != "" && (!ok || siblingValues[value])) {
+			occupied[node.Name] = true
+		}
+	}
+	held := !hasLandingNode(nodes.Items, occupied, nodeSelector(instance))
+	for i := range unselected {
+		unselected[i].held = held
+	}
+	return unselected, nil
 }
 
 func (r *KuraInstanceReconciler) rebuildDataVolume(ctx context.Context, instance *kurav1alpha1.KuraInstance, volume dataVolumeReplacement, serving bool) error {
@@ -4164,6 +4386,32 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 		log.FromContext(ctx).Info("holding Kura storage recovery; explicit fenced replica recovery required", "reason", reason)
 		return true, r.holdRecoveryRollout(ctx, instance)
 	}
+	// A replica on a host that is gone, beside a sibling whose host is not, is
+	// one lost copy rather than a broken instance: replace that one replica and
+	// let it refill from the survivor, which keeps serving throughout.
+	lost, survivor, err := r.replicasOnMissingNodes(ctx, instance)
+	if err != nil {
+		return false, err
+	}
+	if len(lost) > 0 && survivor {
+		for _, volume := range lost {
+			log.FromContext(ctx).Info("replacing a Kura replica whose node is gone", "pvc", volume.claim.Name, "reason", volume.reason)
+			if err := r.reclaimDataVolume(ctx, volume.claim); err != nil {
+				return false, err
+			}
+			if err := r.Delete(ctx, volume.claim); err != nil && !apierrors.IsNotFound(err) {
+				return false, err
+			}
+			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%d", instance.Name, volume.ordinal),
+				Namespace: instance.Namespace,
+			}}
+			if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+				return false, err
+			}
+		}
+		return true, nil
+	}
 	log.FromContext(ctx).Info("recreating Kura StatefulSet for stale data storage", "reason", reason)
 
 	// Reap the backing volumes rather than strand them: the default
@@ -4302,6 +4550,39 @@ func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, ins
 		}
 	}
 	return "", nil
+}
+
+// replicasOnMissingNodes returns the bound data claims whose volume is pinned
+// to a node that no longer exists, and whether another replica's claim is bound
+// to a node that still does and is not being deleted. A lost claim stays lost
+// while it terminates, so the passes that wait for its pod to go keep the
+// one-replica replacement instead of reading it as a whole-instance teardown.
+func (r *KuraInstanceReconciler) replicasOnMissingNodes(ctx context.Context, instance *kurav1alpha1.KuraInstance) ([]dataVolumeReplacement, bool, error) {
+	var lost []dataVolumeReplacement
+	survivor := false
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		claim := &corev1.PersistentVolumeClaim{}
+		if err := r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("data-%s-%d", instance.Name, ordinal), Namespace: instance.Namespace}, claim); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, false, err
+		}
+		if claim.Status.Phase != corev1.ClaimBound || claim.Spec.VolumeName == "" {
+			continue
+		}
+		missing, err := r.pvMissingPinnedNode(ctx, claim.Spec.VolumeName)
+		if err != nil {
+			return nil, false, err
+		}
+		switch {
+		case missing != "":
+			lost = append(lost, dataVolumeReplacement{ordinal: ordinal, claim: claim, reason: fmt.Sprintf("node %q is gone", missing)})
+		case claim.DeletionTimestamp == nil:
+			survivor = true
+		}
+	}
+	return lost, survivor, nil
 }
 
 // pvMissingPinnedNode returns the hostname a PV's required node affinity pins it

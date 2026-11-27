@@ -295,9 +295,17 @@ func TestWaitReadyWaitsForAnAgentSlowerThanOnePing(t *testing.T) {
 		}
 		return client, nil
 	})
-	pong, err := c.WaitReady(context.Background(), 2*time.Second)
+	var pings []PingAttempt
+	pong, err := WaitReadyObserved(context.Background(), c, 2*time.Second, func(a PingAttempt) { pings = append(pings, a) })
 	if err != nil || pong.AgentVersion != "test" {
 		t.Fatalf("wait ready: %+v %v", pong, err)
+	}
+	// 50 ms and 100 ms run out before the 120 ms answer; 200 ms gets it.
+	if len(pings) != 3 || pings[0].Err == nil || pings[1].Err == nil || pings[2].Err != nil {
+		t.Fatalf("pings: %+v", pings)
+	}
+	if pings[1].Budget != 100*time.Millisecond || pings[2].Budget != 200*time.Millisecond || pings[2].At < pings[1].At+pings[1].Duration {
+		t.Fatalf("pings did not double their budget in order: %+v", pings)
 	}
 }
 

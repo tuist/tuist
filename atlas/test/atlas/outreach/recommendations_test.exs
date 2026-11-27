@@ -75,15 +75,57 @@ defmodule Atlas.Outreach.RecommendationsTest do
     assert recommendation.draft_message == nil
   end
 
-  test "discards a connection request note over 200 characters" do
+  test "asks once for a shorter connection request note and keeps the corrected one" do
+    {contact, event} = insert_contact_with_event!()
+    long_note = String.duplicate("a", 201)
+
+    RecommendationAgent
+    |> expect(:recommend, fn context ->
+      refute Map.has_key?(context, :rejected)
+      {:ok, connection_request_result(event, long_note)}
+    end)
+    |> expect(:recommend, fn context ->
+      assert context.rejected.reason =~ "201 characters"
+      assert context.rejected.suggestion["draft_message"] == long_note
+      {:ok, connection_request_result(event, "Short note")}
+    end)
+
+    assert {:ok, recommendation} = Outreach.generate_recommendation(contact.id)
+    assert recommendation.draft_message == "Short note"
+  end
+
+  test "names every problem when asking for a rewrite, including mentioning that the recipient viewed Tuist" do
+    {contact, event} = insert_contact_with_event!()
+    note = "Hi Jordan, saw you checked out Tuist recently! " <> String.duplicate("a", 200)
+
+    RecommendationAgent
+    |> expect(:recommend, fn _context ->
+      {:ok, connection_request_result(event, note)}
+    end)
+    |> expect(:recommend, fn context ->
+      assert context.rejected.reason =~ "intrusive"
+      assert context.rejected.reason =~ "LinkedIn allows at most 200"
+      {:ok, connection_request_result(event, "Hi Jordan, we're both in Berlin.")}
+    end)
+
+    assert {:ok, recommendation} = Outreach.generate_recommendation(contact.id)
+    assert recommendation.draft_message == "Hi Jordan, we're both in Berlin."
+  end
+
+  test "discards a connection request note still over 200 characters after one retry" do
     {contact, event} = insert_contact_with_event!()
 
-    expect(RecommendationAgent, :recommend, fn _context ->
+    expect(RecommendationAgent, :recommend, 2, fn _context ->
       {:ok, connection_request_result(event, String.duplicate("a", 201))}
     end)
 
     assert {:ok, nil} = Outreach.generate_recommendation(contact.id)
     assert Outreach.current_recommendation(contact) == nil
+
+    assert %Activity{metadata: %{"skip_reason" => reason}} =
+             Repo.get_by!(Activity, action: "outreach.recommendation_generated", target_id: contact.id)
+
+    assert reason =~ "201 characters"
   end
 
   test "persists an InMail with a short, relevant subject" do
@@ -103,7 +145,7 @@ defmodule Atlas.Outreach.RecommendationsTest do
   test "discards an InMail with a generic, identity-based subject" do
     {contact, event} = insert_contact_with_event!()
 
-    expect(RecommendationAgent, :recommend, fn _context ->
+    expect(RecommendationAgent, :recommend, 2, fn _context ->
       {:ok, inmail_result(event, "Connecting with Jordan Lee")}
     end)
 

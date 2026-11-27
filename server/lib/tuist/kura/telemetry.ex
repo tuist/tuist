@@ -27,7 +27,12 @@ defmodule Tuist.Kura.Telemetry do
       keeps asking and every later pass retries it, so a full region reads as a
       steady rate on this counter rather than as a single event.
 
-  Those last two are the only signal a refusal produces. A refused account keeps
+    * `claim_clamped_at_ceiling` counts the sizing passes in which an account's
+      ring asked for more claim than its plan's ceiling allows while the claim
+      already sat at it, tagged with the region that asked. Sizing writes no
+      proposal then, so this is the only trace of a growth it cannot make.
+
+  The two refusal counters are the only signal a refusal produces. A refused account keeps
   being served by whatever lane it is already on, raises nothing, and appears
   in none of the transition counters precisely because it has no instance to
   transition, so an entire class of accounts can sit unprovisioned for months
@@ -51,6 +56,7 @@ defmodule Tuist.Kura.Telemetry do
   def event_name_origin_attribution, do: @prefix ++ [:origin_attribution]
   def event_name_claim_apply_refused, do: @prefix ++ [:claim_apply_refused]
   def event_name_provision_refused, do: @prefix ++ [:provision_refused]
+  def event_name_claim_clamped_at_ceiling, do: @prefix ++ [:claim_clamped_at_ceiling]
 
   # Every capacity refusal carries an atom reason (`:capacity_exhausted`,
   # `:capacity_unplaceable`, `:capacity_unknown`). Anything else is bucketed
@@ -60,6 +66,10 @@ defmodule Tuist.Kura.Telemetry do
       region: region,
       reason: if(is_atom(reason), do: to_string(reason), else: "unknown")
     })
+  end
+
+  def claim_clamped_at_ceiling(plan, region) do
+    :telemetry.execute(event_name_claim_clamped_at_ceiling(), %{count: 1}, %{plan: to_string(plan), region: region})
   end
 
   def provision_refused(plan, region, reason, cold_return?) when is_atom(reason) do

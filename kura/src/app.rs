@@ -283,6 +283,10 @@ async fn initialize_and_serve(
         .await
         .map_err(|error| error.context("failed to sweep orphaned segments"))?;
     tracing::info!(swept, "removed orphaned segment files");
+    #[cfg(test)]
+    if let Some(gate) = tests::AFTER_CLEANUP.get() {
+        gate.notified().await;
+    }
     bootstrap.recovery.check_running()?;
     bootstrap.recovery.set_phase(Phase::Configuring);
     establish_initial_memory_baseline(&memory).await?;
@@ -1651,6 +1655,11 @@ mod tests {
         test_support::test_context,
     };
 
+    /// Holds startup after the orphan sweep, still in the cleanup phase, until
+    /// notified. Only `startup_drain_process_child` arms it, in its own process.
+    pub(super) static AFTER_CLEANUP: std::sync::OnceLock<tokio::sync::Notify> =
+        std::sync::OnceLock::new();
+
     #[tokio::test]
     async fn internal_shutdown_closes_a_stream_no_peer_reads_after_the_grace() {
         let router = axum::Router::new().route(
@@ -1728,6 +1737,7 @@ mod tests {
             return;
         };
         tracing_subscriber::fmt().with_ansi(false).init();
+        AFTER_CLEANUP.set(tokio::sync::Notify::new()).unwrap();
         let context = test_context(|_| {}).await;
         let crate::test_support::TestContext { _temp_dir, state } = context;
         let config = state.config.clone();
@@ -1750,7 +1760,10 @@ mod tests {
             &mut bootstrap,
         ));
         // Stop polling the application at the real cleanup phase, while the
-        // bootstrap signal task continues to run. No timing race with a fast disk.
+        // bootstrap signal task continues to run. Startup waits on
+        // AFTER_CLEANUP there: a sweep that finished within one poll used to
+        // run on into the memory baseline, which fails in a guest whose
+        // /sys/fs/cgroup is the root cgroup.
         tokio::time::timeout(
             Duration::from_secs(10),
             std::future::poll_fn(|cx| {
@@ -1781,6 +1794,7 @@ mod tests {
         })
         .await
         .unwrap();
+        AFTER_CLEANUP.get().unwrap().notify_one();
         tokio::time::timeout(Duration::from_secs(10), &mut running)
             .await
             .unwrap()

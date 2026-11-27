@@ -642,7 +642,11 @@ defmodule TuistWeb.BuildEntityLive do
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_builds", "since yesterday")
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_builds", "since last week")
   defp analytics_trend_label("custom"), do: dgettext("dashboard_builds", "since last period")
-  defp analytics_trend_label(_preset), do: dgettext("dashboard_builds", "since last month")
+
+  defp analytics_trend_label(preset) when preset in [nil, "last-30-days"],
+    do: dgettext("dashboard_builds", "since last month")
+
+  defp analytics_trend_label(_), do: dgettext("dashboard_builds", "since last period")
 
   defp default_branch_module_widget(assigns) do
     result = assigns.module_inventory
@@ -1058,11 +1062,6 @@ defmodule TuistWeb.BuildEntityLive do
         max={Date.utc_today()}
       >
         <:actions>
-          <.button
-            label={dgettext("dashboard_builds", "Cancel")}
-            variant="secondary"
-            phx-click={JS.dispatch("phx:date-picker-cancel", detail: %{id: "entity-period"})}
-          />
           <.button
             label={dgettext("dashboard_builds", "Apply")}
             phx-click={JS.dispatch("phx:date-picker-apply", detail: %{id: "entity-period"})}

@@ -880,44 +880,14 @@ macosFleet:
     hostCPU: 8
     hostMemoryMB: 14336
 
-# Staging rents no Scaleway hosts for its macOS runners: they run on the
-# alder rack host production lends it (`rackFleet`), and every staging account
-# runs there (`runner_site`). `enabled` stays on, since it also renders the
-# runners controller, the runner namespace and the rack's RunnerPools. With
-# `hostCount: 0` the chart renders no rented macOS pools, and the
-# MachineDeployment stays at zero, so a host released from it goes back to
-# the `tuist-pool-` pool.
+# Staging's macOS runners run on the alder rack host production lends it
+# (`rackFleet`). `enabled` stays on, since it also renders the runners
+# controller, the runner namespace and the rack's RunnerPools.
 runnersFleet:
   # Custom volumes, and the checkout volumes built on them, as on canary and production.
   customCacheVolumes:
     enabled: true
   enabled: true
-  hostCount: 0
-  # Pre-ordered Mac mini pool. Operator orders Mac minis in the
-  # Scaleway console with names starting with `tuist-pool-`
-  # (e.g. `tuist-pool-001`, `tuist-pool-002`); the CAPI controller
-  # claims the first matching one for each new Machine. No
-  # auto-order fallback — if the pool runs dry the new Machine
-  # stays in `Provisioning` with `NoAvailableHost` events until
-  # capacity is pre-ordered.
-  adoptPoolPrefix: "tuist-pool-"
-  machine:
-    # Chart default — M2-L on Scaleway: M2 Pro 10-core / 16 GB.
-    # Explicit here so `hostCPU`/`hostMemoryMB` stay in sync if a
-    # future operator overrides the SKU per env. The operator's
-    # pre-ordered hosts MUST be M2-L (matching the controller's
-    # adoption filter); other SKUs in the pool are skipped.
-    type: M2-L
-    # Match the SKU's actual capacity less host overhead so
-    # tart-kubelet advertises the right Node.Status.Capacity and
-    # kube-scheduler packs Pods against the real VM budget.
-    # 14336 leaves ~2 GB for the macOS host + Apple
-    # Virtualization.framework reserve (16 GB - 2 GB = 14 GB);
-    # asking for the full 16 GB on a 16 GB host fails at
-    # `tart run` with `memorySize > maximumAllowedMemorySize`.
-    # `hostCPU: 8` leaves 2 cores for the host's system services.
-    hostCPU: 8
-    hostMemoryMB: 14336
   # Cluster-internal CIDR ranges the runner namespace's
   # NetworkPolicy blocks egress to. **Pod-network only** — the
   # Tart VM's traffic is not subject to this policy (vmnet bypasses
@@ -967,6 +937,8 @@ sandboxes:
   # Keep 4 remote execution slots ready on staging's one worker (chart
   # floor 1, ceiling 10) through the compute allocator.
   remoteExecutionFloorSlots: 4
+  # The learned floor, up to the worker's ceiling.
+  remoteExecutionMaxLearnedFloorSlots: 10
   image:
     tag: "sha-bea84a441ea2"
   templateImage:

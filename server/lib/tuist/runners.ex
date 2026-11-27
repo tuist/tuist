@@ -108,6 +108,7 @@ defmodule Tuist.Runners do
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.RemoteExecution.LearnedFloor
   alias Tuist.Runners.AirShare
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.APIJobs
@@ -704,6 +705,12 @@ defmodule Tuist.Runners do
     * `hours_with_jobs` — how many hours of the last 14 days had one of
       this fleet's jobs, or 0 when it had no job in the last day
       (`LearnedWarmFloors`). Breaks ties between equal `cold_jobs`.
+    * `remote_execution_floor_slots` — the remote execution floor learned
+      from the first wave of the accounts' recent builds, in worker slots,
+      or 0 when no account started a build in the last 30 minutes
+      (`Tuist.RemoteExecution.LearnedFloor`). Fleet-wide, the same for
+      every fleet. The controller keeps up to that many slots warm on
+      shared Linux hosts, capped by `--remote-execution-max-learned-floor-slots`.
     * `preferred_nodes` — for a macOS fleet, one Node per oldest queued
       job, most imminent first, that holds the custom volumes the job is
       predicted to attach and has cache room for them
@@ -733,6 +740,7 @@ defmodule Tuist.Runners do
         learned_warm_floor: claimable_learned_warm_floor(fleet_name),
         hours_with_jobs: LearnedWarmFloors.hours_with_jobs(fleet_name),
         cold_jobs: LearnedWarmFloors.cold_jobs(fleet_name),
+        remote_execution_floor_slots: LearnedFloor.slots(),
         preferred_nodes: preferred_nodes(fleet_name)
       },
       macos_sandbox_warm_signals(fleet_name)

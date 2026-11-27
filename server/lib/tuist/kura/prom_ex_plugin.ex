@@ -115,6 +115,14 @@ defmodule Tuist.Kura.PromExPlugin do
             tags: [:region, :reason]
           ),
           counter(
+            @metric_prefix ++ [:claim_clamped_at_ceiling, :count],
+            event_name: Telemetry.event_name_claim_clamped_at_ceiling(),
+            description:
+              "Claim sizing passes that found an account's ring short while its claim sat at the plan ceiling. " <>
+                "Counted every pass, so a clamped account reads as a steady rate.",
+            tags: [:plan, :region]
+          ),
+          counter(
             @metric_prefix ++ [:provision_refused, :count],
             event_name: Telemetry.event_name_provision_refused(),
             description:

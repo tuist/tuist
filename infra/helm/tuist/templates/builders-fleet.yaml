@@ -5,7 +5,7 @@
 {{- $ghAppSecret := default (printf "%s-gh-app" $fleetName) .Values.buildersFleet.ghAppSecretName }}
 {{- /*
 Bare-metal Mac mini fleet that bakes Tart VM images for CI workflows.
-Sibling of macos-fleet.yaml and runners-fleet.yaml, provisioned by
+Sibling of macos-fleet.yaml, provisioned by
 the same cluster-api-provider-tuist operator from
 the same Scaleway IAM credentials and pre-ordered host pool.
 

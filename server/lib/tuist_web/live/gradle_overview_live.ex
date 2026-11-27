@@ -162,7 +162,11 @@ defmodule TuistWeb.GradleOverviewLive do
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_gradle", "since last week")
   defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_gradle", "since last year")
   defp analytics_trend_label("custom"), do: dgettext("dashboard_gradle", "since last period")
-  defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
+
+  defp analytics_trend_label(preset) when preset in [nil, "last-30-days"],
+    do: dgettext("dashboard_gradle", "since last month")
+
+  defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last period")
 
   defp environment_label("any"), do: dgettext("dashboard_gradle", "Any")
   defp environment_label("local"), do: dgettext("dashboard_gradle", "Local")

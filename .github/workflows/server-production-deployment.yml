@@ -152,6 +152,7 @@ jobs:
       platform-changed: ${{ steps.deployable.outputs.platform-changed }}
       observability-changed: ${{ steps.deployable.outputs.observability-changed }}
       tailscale-operator-changed: ${{ steps.deployable.outputs.tailscale-operator-changed }}
+      docker-cache-changed: ${{ steps.deployable.outputs.docker-cache-changed }}
       kura-changed: ${{ steps.kura.outputs.kura-changed }}
       # Single source of truth for hotfix routing. "(hotfix)" in the commit
       # subject ships straight to production via the production-hotfix leg and
@@ -221,6 +222,11 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           }
           charts_changed true true true
+          # Whether runners acceptance runs canary's Docker cache chain. It
+          # tests one feature (a job's Docker cache restored into the next
+          # job), so only that feature's code can break it; other changes
+          # leave it to the next run that touches it. Without a base, it runs.
+          echo "docker-cache-changed=true" >> "$GITHUB_OUTPUT"
           # A dispatch redeploys main's head (e.g. runner-image-release.yml
           # rolling the fleet onto a new image).
           if [ "$EVENT_NAME" != "push" ]; then
@@ -280,6 +286,12 @@ jobs:
           observability="$(chart_changed 'infra/helm/k8s-monitoring/' observability-install)"
           tailscale_operator="$(chart_changed 'infra/helm/tailscale-operator/' tailscale-operator-install)"
           charts_changed "$platform" "$observability" "$tailscale_operator"
+          docker_cache=false
+          if grep -qE '^(infra/runner-cache/|infra/linux-runner-image/|infra/helm/tuist/templates/runner-cache-volumes\.yaml$|infra/helm/tuist/values-managed-canary\.yaml$|server/lib/tuist/runners/cache_volumes|server/lib/tuist_web/controllers/runner_cache_volumes_controller\.ex$|\.github/actions/setup-docker-builder/|\.github/scripts/docker-build-cache-benchmark\.sh$|\.github/scripts/runners-acceptance/|\.github/workflows/runners-(acceptance|docker-cache-probe)\.yml$)' <<< "$changed"; then
+            docker_cache=true
+          fi
+          echo "docker-cache-changed=$docker_cache" >> "$GITHUB_OUTPUT"
+          echo "Docker cache paths changed since $base: $docker_cache"
           echo "Cluster charts changed since $base: platform=$platform observability=$observability tailscale-operator=$tailscale_operator"
           # Docs under k8s-monitoring are in paths-ignore and never deploy.
           deployable_paths="$(printf '%s\n' "$changed" \
@@ -1897,6 +1909,9 @@ jobs:
           GATE_MINUTES: 55
           EXPECTED_LINUX_IMAGE: ${{ needs.canary.outputs.linux_runner_image }}
           EXPECTED_MACOS_IMAGES: ${{ needs.canary.outputs.macos_runner_images }}
+          # The Docker cache chain adds about 7 minutes and has only ever
+          # failed on its own test bugs, so it runs only when its paths changed.
+          DOCKER_CACHE: ${{ needs.check-releases.outputs.docker-cache-changed != 'false' }}
         run: .github/scripts/runners-acceptance/gate.sh
 
   # Remote execution on canary - installs the RE release with this run's

@@ -21,7 +21,10 @@ defmodule Tuist.Kura.ClaimProposals do
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageRollup
+  alias Tuist.Kura.Telemetry
   alias Tuist.Repo
+
+  require Logger
 
   @doc """
   Evaluates every sizeable account and converges its proposal. Returns
@@ -168,6 +171,19 @@ defmodule Tuist.Kura.ClaimProposals do
       :none ->
         if open, do: supersede(open, "sweep")
         :none
+
+      # Nothing to propose, but not because the claim fits. Reported every
+      # pass while it lasts, so a clamp reads as a steady rate.
+      {:clamped, wanted, %{"region" => region}} ->
+        if open, do: supersede(open, "sweep")
+        Telemetry.claim_clamped_at_ceiling(context.plan, region)
+
+        Logger.warning(
+          "[Kura.ClaimSizing] #{account.name} is clamped at its #{context.plan} ceiling of #{current} " <>
+            "in #{region}; its ring asks for #{wanted}"
+        )
+
+        :clamped
 
       {direction, recommended, evidence} ->
         record(account, open, direction, recommended, evidence, current)

@@ -5,7 +5,8 @@ defmodule Noora.DatePicker do
   Built on top of Zag.js date picker machine, this component supports:
   - Predefined range presets (Last 7 days, Last 30 days, etc.) with DateTime precision
   - Custom date range selection via calendar
-  - Desktop layout (sidebar presets + two-month calendar) and mobile layout (tabs + single-month calendar)
+  - A single-month calendar, with presets in a sidebar on desktop and in tabs on mobile
+  - Dismissal by clicking anywhere outside the panel
   - Light/dark mode theming
 
   ## Example
@@ -27,11 +28,6 @@ defmodule Noora.DatePicker do
   >
     <:actions>
       <.button
-        label="Cancel"
-        variant="secondary"
-        phx-click={JS.dispatch("phx:date-picker-cancel", detail: %{id: "date-range"})}
-      />
-      <.button
         label="Apply"
         phx-click={JS.dispatch("phx:date-picker-apply", detail: %{id: "date-range"})}
       />
@@ -50,8 +46,10 @@ defmodule Noora.DatePicker do
   """
   use Phoenix.Component
 
+  import Noora.Button
   import Noora.ContentDivider
   import Noora.Icon
+  import Noora.TextInput
 
   attr :id, :string, required: true, doc: "Unique identifier for the date picker component"
 
@@ -84,6 +82,11 @@ defmodule Noora.DatePicker do
 
   attr :disabled, :boolean, default: false, doc: "Whether the date picker is disabled"
 
+  attr :typed_ranges, :boolean,
+    default: true,
+    doc:
+      ~s|Whether a range can be typed above the desktop presets, such as "last 10 days". A typed range arrives as a preset id that no preset has, such as "last-10-days", so turn this off where the page only reads its own presets and custom dates.|
+
   attr :on_period_change, :string,
     default: nil,
     doc: "Event handler name for when the selected date range changes"
@@ -101,7 +104,7 @@ defmodule Noora.DatePicker do
   slot :actions,
     required: false,
     doc:
-      ~s|Action buttons for the footer (e.g., Cancel and Apply). Use JS.dispatch("phx:date-picker-cancel", detail: %{id: id}) and JS.dispatch("phx:date-picker-apply", detail: %{id: id}) to trigger the date picker's cancel and apply actions.|
+      ~s|The footer's Apply button, shown at full width under the date inputs. Presets apply on click; the button applies days picked on the calendar. Trigger the date picker's apply action with JS.dispatch("phx:date-picker-apply", detail: %{id: id}). Clicking outside the panel dismisses the picker without applying.|
 
   def date_picker(assigns) do
     presets = assigns.presets
@@ -133,7 +136,12 @@ defmodule Noora.DatePicker do
           # For other presets, show the preset label
           selected_preset ->
             preset = Enum.find(presets, &(&1.id == selected_preset))
-            if preset, do: preset.label, else: assigns[:label] || "Select date range"
+
+            cond do
+              preset -> preset.label
+              label = relative_preset_label(selected_preset) -> label
+              true -> assigns[:label] || "Select date range"
+            end
 
           # Default label
           true ->
@@ -160,18 +168,45 @@ defmodule Noora.DatePicker do
       {@rest}
     >
       <div data-part="control">
-        <button data-part="trigger" type="button" disabled={@disabled}>
-          <div data-part="trigger-icon">
-            <.calendar_week />
-          </div>
-          <span data-part="trigger-label">{@trigger_label}</span>
-        </button>
+        <.button
+          data-part="trigger"
+          type="button"
+          variant="secondary"
+          label={@trigger_label}
+          disabled={@disabled}
+        >
+          <:icon_left><.calendar /></:icon_left>
+        </.button>
       </div>
 
       <div data-part="positioner">
         <div data-part="content">
           <!-- Desktop: Sidebar presets -->
           <div data-part="presets" data-device="desktop">
+            <.text_input
+              :if={@typed_ranges}
+              id={"#{@id}-range-input"}
+              name={"#{@id}-range-input"}
+              placeholder="Type a range"
+              autocomplete="off"
+              aria-label="Type a date range"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls={"#{@id}-suggestions"}
+              data-part="range-input"
+              disabled={@disabled}
+            />
+            <%!-- Filled by the hook while typing, in place of the presets. --%>
+            <div
+              :if={@typed_ranges}
+              id={"#{@id}-suggestions"}
+              data-part="suggestions"
+              role="listbox"
+              aria-label="Suggested ranges"
+              phx-update="ignore"
+            >
+            </div>
             <button
               :for={preset <- @presets}
               type="button"
@@ -200,60 +235,44 @@ defmodule Noora.DatePicker do
 
           <!-- Calendar area -->
           <div data-part="calendar">
-            <div data-part="months">
-              <!-- Month 1 -->
-              <div data-part="month" data-index="0">
-                <div data-part="view-control">
-                  <button type="button" data-part="prev-trigger" disabled={@disabled}>
-                    <.chevron_left />
-                  </button>
-                  <span data-part="view-trigger"></span>
-                  <button type="button" data-part="next-trigger" disabled={@disabled}>
-                    <.chevron_right />
-                  </button>
-                </div>
-                <table data-part="table">
-                  <thead data-part="table-head">
-                    <tr data-part="table-row">
-                      <th :for={_day <- 1..7} data-part="table-header"></th>
-                    </tr>
-                  </thead>
-                  <tbody data-part="table-body">
-                    <tr :for={_week <- 1..6} data-part="table-row">
-                      <td :for={_day <- 1..7} data-part="day-table-cell">
-                        <button type="button" data-part="table-cell-trigger" disabled={@disabled}></button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+            <div data-part="month">
+              <div data-part="view-control">
+                <.ghost_button
+                  type="button"
+                  variant="secondary"
+                  size="small"
+                  data-part="prev-trigger"
+                  aria-label="Previous month"
+                  disabled={@disabled}
+                >
+                  <.chevron_left />
+                </.ghost_button>
+                <span data-part="view-trigger"></span>
+                <.ghost_button
+                  type="button"
+                  variant="secondary"
+                  size="small"
+                  data-part="next-trigger"
+                  aria-label="Next month"
+                  disabled={@disabled}
+                >
+                  <.chevron_right />
+                </.ghost_button>
               </div>
-
-              <!-- Month 2 (Desktop only) -->
-              <div data-part="month" data-index="1" data-desktop-only>
-                <div data-part="view-control">
-                  <button type="button" data-part="prev-trigger" disabled={@disabled}>
-                    <.chevron_left />
-                  </button>
-                  <span data-part="view-trigger"></span>
-                  <button type="button" data-part="next-trigger" disabled={@disabled}>
-                    <.chevron_right />
-                  </button>
-                </div>
-                <table data-part="table">
-                  <thead data-part="table-head">
-                    <tr data-part="table-row">
-                      <th :for={_day <- 1..7} data-part="table-header"></th>
-                    </tr>
-                  </thead>
-                  <tbody data-part="table-body">
-                    <tr :for={_week <- 1..6} data-part="table-row">
-                      <td :for={_day <- 1..7} data-part="day-table-cell">
-                        <button type="button" data-part="table-cell-trigger" disabled={@disabled}></button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <table data-part="table">
+                <thead data-part="table-head">
+                  <tr data-part="table-row">
+                    <th :for={_day <- 1..7} data-part="table-header"></th>
+                  </tr>
+                </thead>
+                <tbody data-part="table-body">
+                  <tr :for={_week <- 1..6} data-part="table-row">
+                    <td :for={_day <- 1..7} data-part="day-table-cell">
+                      <button type="button" data-part="table-cell-trigger" disabled={@disabled}></button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             <.content_divider />
@@ -261,12 +280,12 @@ defmodule Noora.DatePicker do
             <div data-part="footer">
               <div data-part="range-display">
                 <.date_input_group type="start" disabled={@disabled} />
-                <div data-part="arrow">
+                <div data-part="range-arrow">
                   <.arrow_narrow_right />
                 </div>
                 <.date_input_group type="end" disabled={@disabled} />
               </div>
-              <div data-part="actions">
+              <div :if={@actions != []} data-part="actions">
                 {render_slot(@actions)}
               </div>
             </div>
@@ -293,12 +312,37 @@ defmodule Noora.DatePicker do
   defp encode_preset_period(nil), do: nil
   defp encode_preset_period({amount, unit}), do: %{amount: amount, unit: to_string(unit)}
 
-  defp format_date_range(%DateTime{} = start_dt, %DateTime{} = end_dt) do
-    "#{format_date_for_label(start_dt)} - #{format_date_for_label(end_dt)}"
+  # A typed rolling range comes back as an id that no preset has, such as
+  # "last-10-days". Typing is English only, so is its label.
+  defp relative_preset_label(id) do
+    case Regex.run(~r/^last-(\d+)-(hour|day|week|month|year)s?$/, id) do
+      [_, "1", unit] -> "Last #{unit}"
+      [_, amount, unit] -> "Last #{amount} #{unit}s"
+      nil -> nil
+    end
   end
 
-  defp format_date_for_label(%DateTime{} = dt) do
-    Calendar.strftime(dt, "%d.%m.%Y")
+  # The range in words, naming the month and year only where they change:
+  # "Sep 1 - 30, 2026", "Jan 31 - Mar 2, 2028", "Dec 28, 2025 - Jan 3, 2026",
+  # or "Nov 25, 2026" for a single day. The hook labels an applied range the
+  # same way (formatRange in js/DatePicker/rangeParser.js).
+  defp format_date_range(%DateTime{} = start_dt, %DateTime{} = end_dt) do
+    if DateTime.to_date(start_dt) == DateTime.to_date(end_dt) do
+      Calendar.strftime(start_dt, "%b %-d, %Y")
+    else
+      format_date_span(start_dt, end_dt)
+    end
+  end
+
+  defp format_date_span(start_dt, end_dt) do
+    {start_format, end_format} =
+      cond do
+        start_dt.year != end_dt.year -> {"%b %-d, %Y", "%b %-d, %Y"}
+        start_dt.month != end_dt.month -> {"%b %-d", "%b %-d, %Y"}
+        true -> {"%b %-d", "%-d, %Y"}
+      end
+
+    "#{Calendar.strftime(start_dt, start_format)} - #{Calendar.strftime(end_dt, end_format)}"
   end
 
   # Private component for date input fields
@@ -316,7 +360,7 @@ defmodule Noora.DatePicker do
         maxlength="2"
         disabled={@disabled}
       />
-      <span data-part="date-separator">•</span>
+      <span data-part="date-separator" aria-hidden="true">/</span>
       <input
         type="text"
         data-part="date-input"
@@ -325,7 +369,7 @@ defmodule Noora.DatePicker do
         maxlength="2"
         disabled={@disabled}
       />
-      <span data-part="date-separator">•</span>
+      <span data-part="date-separator" aria-hidden="true">/</span>
       <input
         type="text"
         data-part="date-input"

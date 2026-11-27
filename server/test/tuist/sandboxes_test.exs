@@ -603,7 +603,9 @@ defmodule Tuist.SandboxesTest do
 
       expect(Nodes, :call, fn "node-a", "exec", args, opts ->
         assert %{sandbox_id: ^sandbox_id, cmd: ["/bin/bash", "-lc", "ls"], cwd: "/workspace", timeout_ms: 5_000} = args
-        assert opts[:timeout] == 15_000
+        # Outlasts sandboxd's hold on the exec: its deadline, `timeout_ms`
+        # plus 10 s, and up to 5 s to kill the guest process.
+        assert opts[:timeout] > 5_000 + 10_000 + 5_000
         opts[:on_stream].({:stdout, "a\n"})
         opts[:on_stream].({:stderr, "warn\n"})
         opts[:on_stream].({:stdout, "b\n"})
@@ -1034,7 +1036,11 @@ defmodule Tuist.SandboxesTest do
       just_created = sandbox_fixture(state: :running, node_name: "node-a")
       orphan_id = Ecto.UUID.generate()
 
-      expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: ^orphan_id}, _opts -> {:ok, %{}} end)
+      moved_id = moved.id
+
+      expect(Nodes, :call, 2, fn "node-a", "delete", %{sandbox_id: id}, _opts when id in [orphan_id, moved_id] ->
+        {:ok, %{}}
+      end)
 
       assert :ok =
                Sandboxes.reconcile_node_report("node-a", %{
@@ -1049,7 +1055,8 @@ defmodule Tuist.SandboxesTest do
       assert %Sandbox{state: :paused, node_name: "node-a", template_tag: "sha-2", error_message: nil} =
                Repo.reload!(reported)
 
-      assert %Sandbox{state: :running, node_name: "node-a"} = Repo.reload!(moved)
+      # A running copy on another node than the row's is stale: it goes, and the row stays.
+      assert %Sandbox{state: :running, node_name: "node-b"} = Repo.reload!(moved)
 
       assert %Sandbox{state: :error, node_name: "node-a", error_message: "missing on node", residency_work_id: nil} =
                Repo.reload!(missing)
@@ -1209,6 +1216,30 @@ defmodule Tuist.SandboxesTest do
 
       assert %Sandbox{state: :running, node_name: "node-b", residency_work_id: "amp:amp-1", error_message: nil} =
                Repo.reload!(restored)
+    end
+
+    test "deletes the late copy of a timed-out restore instead of adopting it while a retry restores on another node" do
+      # Production, 2026-11-26: node-a finished a restore after the server
+      # gave up on it; adopting its report made the row running, the archive
+      # was deleted under node-b's restore, and both copies were lost.
+      retry =
+        sandbox_fixture(
+          state: :creating,
+          node_name: "node-b",
+          archived_at: DateTime.utc_now(),
+          archive_key: "sandbox-archives/x.sbxa",
+          archive_memory: %{"lazy_disks" => true}
+        )
+
+      retry_id = retry.id
+      expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: ^retry_id}, _opts -> {:ok, %{}} end)
+
+      Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => retry.id, "state" => "running"}]})
+
+      assert %Sandbox{state: :creating, node_name: "node-b", archive_key: "sandbox-archives/x.sbxa"} =
+               Repo.reload!(retry)
+
+      assert events(retry) == []
     end
 
     test "errors a creating sandbox the node never got once it has been stuck, and leaves a fresh one alone" do

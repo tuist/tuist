@@ -122,7 +122,7 @@ defmodule Noora.Button do
     doc: "Inner block that renders HEEx content when no label is set"
   )
 
-  attr(:rest, :global, include: ~w(phx-click disabled target rel))
+  attr(:rest, :global, include: ~w(phx-click disabled target rel type))
 
   def ghost_button(assigns) do
     ~H"""

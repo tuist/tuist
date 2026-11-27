@@ -2057,8 +2057,8 @@ until it does, so the gate stays open without the rule firing.
 
 What pages sooner, and is actionable, is *sizing blocked*. A growth that
 capacity admission refuses is **Kura admission refusing instances**. A claim
-clamped at the plan ceiling has no rule of its own, because the server exports
-no claim-size or ceiling metric; until it does, this rule is what catches it.
+clamped at the plan ceiling is **Kura claim clamped at its plan ceiling**,
+which fires as soon as a growth rung confirms rather than three days later.
 
 **Only a ring that has been full for the whole window counts.** Fullness is
 the segment count against the ring's desired total, so it reads 100 in steady
@@ -2107,6 +2107,144 @@ whose growth was genuinely stuck in that period, because a weekend in the
 window lengthens one day's median past a day. Requiring evictions on each of
 the three days did not stop the 2026-09-25 page and dropped a real one (a
 rebuilt replica that never came back). The pooled median stays.
+
+### Kura instance probe loop
+
+```promql
+(
+  sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result="not_found"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+"))
+  > 1e6
+)
+and on (cluster, kura_instance) (
+  (
+    sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result="ok"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+"))
+    or on (cluster, kura_instance) (0 * sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result="not_found"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+")))
+  )
+  / sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result=~"ok|not_found"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+"))
+  < 0.01
+)
+and on (cluster, kura_instance) (
+  (
+    sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_writes_total_total{cluster="tuist-production", result="ok"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+"))
+    or on (cluster, kura_instance) (0 * sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result="not_found"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+")))
+  )
+  / sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result=~"ok|not_found"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+"))
+  < 0.01
+)
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
+  value is the instance's 24h `not_found` count
+- Pending period: 6 hours
+- Severity: warning
+- Production Pulse only (`cg3i1jh2k1v5sb`). Folder `Alerts`, group `Cache`. No
+  contact point on the rule: the policy tree sends it to `#notifications`, and
+  it never pages. **No Data: Normal**, **Error: Normal**: a failed
+  evaluation of an informational rule should not notify.
+- Summary: `Kura instance {{ $labels.kura_instance }} answered {{ $values.A.Value | humanize }} reads with not_found in 24h and almost none from writes`
+- **Live** as
+  [`Kura - instance probe loop`](https://tuist.grafana.net/alerting/grafana/kura-probe-loop/view)
+  (UID `kura-probe-loop`, created 2026-11-27), recorded in
+  [`kura-probe-loop-alert-rules.json`](kura-probe-loop-alert-rules.json) and
+  tested by `test-kura-probe-loop-alert.py` with promtool. Grafana does not
+  import the JSON; publish rule changes separately.
+
+An instance flags when, over 24 hours, it answered more than a million reads
+with `not_found`, served under 1% of its reads, and stored fewer than one
+artifact per 100 reads. That is a client looking up keys it never writes, not a
+cache fault. On 2026-11-27 an Xcode CAS proxy from CLI 4.216.6 sent
+one customer instance about 290 GetActionResult/s around the clock:
+before #13802 (first in 4.218), the proxy's spool sweep re-queued every failed
+publication every 10 seconds forever, and each attempt starts with an
+existence probe. That one instance was about 60% of fleet `not_found` and
+moved the fleet hit rate from 89.8% to 78.1%. Kura answered every lookup in
+about a millisecond, so this is a signal for the account, not for the
+cache.
+
+**Per instance, not per pod.** A client holds one HTTP/2 connection, so its
+lookups land on one replica while its writes can land on the other, and a
+loop can also split across replicas. Grouping by the pod name without its
+ordinal sees both.
+
+**The write ratio tolerates the looping client's own CI.** That client's CI
+kept publishing while the loop ran, up to 28 writes per 10,000 reads on
+2026-11-25; a 1-per-10,000 threshold would have flapped with it. The
+threshold sits about 3.5 times above that and about 15 times below the lowest
+real low-hit writer on 2026-11-27 (a 31% hit rate with
+1,575 writes per 10,000 reads), which must stay in the fleet hit rate because
+its misses are a cache problem.
+
+**The daily cache check reports the fleet hit rate twice**, with and without
+the instances this rule selects. Pulse cannot store Grafana recording rules
+(see **Recording rules for Kura regions**), so the check runs this query and
+then the fleet rate with those pods excluded:
+
+```promql
+sum(increase(kura_artifact_reads_total_total{cluster="tuist-production", result="ok"}[24h]))
+/ sum(increase(kura_artifact_reads_total_total{cluster="tuist-production", result=~"ok|not_found"}[24h]))
+```
+
+Add `pod!~"kura-(<instance>|<instance>)-[0-9]+"` to both selectors for the
+second number.
+
+To find the client, read the instance's `<namespace>-<instance>-grpc` upstream
+in the regional `kura-<region>-ingress-nginx` logs: a probe loop is one IP and
+one user agent (`tonic/*` is the Xcode CAS proxy). Match the account's CLI
+versions in ClickHouse `command_events` against the proxy fix it lacks.
+
+### Kura claim clamped at its plan ceiling
+
+```promql
+sum by (cluster, plan, region) (
+  increase(tuist_kura_lifecycle_claim_clamped_at_ceiling_count{cluster="tuist-production"}[30m])
+)
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- Live: rule `ag5klqf36zt34a`, titled `Kura - claim clamped at its plan
+  ceiling`, created 2026-11-27
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `A {{ $labels.plan }} account's Kura ring in {{ $labels.region }}
+  needs more claim than the plan ceiling allows ({{ $labels.cluster }})`
+- Description: `Tuist.Kura.ClaimSizing confirmed a growth for an account
+  whose claim already sits at its plan's ceiling (64Gi air, 256Gi pro and
+  enterprise), so it wrote no proposal and nothing will grow on its own. The
+  instance keeps shedding content younger than the 1.5-day retention floor.
+  The server logs name the account and the claim its ring asked for:
+  "[Kura.ClaimSizing] <account> is clamped at its <plan> ceiling". Raising
+  the ceiling is a change to ClaimSizing's policy; check first that every
+  region the account runs in can place the larger claim, because a claim
+  applies all or nothing across them.`
+
+The other half of *sizing blocked*, beside the capacity refusals of **Kura
+admission refusing instances**. Without it a clamp is invisible: the verdict
+used to come back `:none`, so the sweep superseded any open proposal and wrote
+nothing, the ops page showed no proposal, and `capped_growth?` (which reads
+applied proposals only) never saw it. **Kura instance retention horizon under
+a day for three days** was the only rule that caught it, three days and a
+critical page later, and only for rings under one day rather than under the
+floor.
+
+`ClaimProposals.sweep/2` emits the counter on every ten-minute pass while the
+clamp lasts, and the rule resolves within 30 minutes of the account growing
+or its ring fitting again. Each pass runs on whichever server pod Oban hands
+it to, and a pod's first count starts a new series that `increase()` cannot
+see, so after a deploy the rule reads about one per 30 minutes rather than
+three until every pod has counted once; the threshold is `> 0`, so it fires
+either way. It counts confirmed growth verdicts only, with the same rungs
+and windows as a proposal, so a single busy day does not fire it. `region` is
+the region whose ring asked for the most; `plan` is the sizing plan
+(`AccountPolicies.sizing_plan/1`). Account is never a label: read it from the
+log line. `sum by` because the sweep runs on one web pod per pass, not always
+the same one.
+
+On 2026-11-27 this would have covered the eight pods that paged the
+retention rule: two accounts across four instances, all at 256Gi with
+three-day median shed ages of 13 to 14.5 hours, which project to roughly
+580Gi to 930Gi per replica.
 
 ### Kura instance not reconciled
 
@@ -2354,7 +2492,7 @@ demoted.
 
 ### Kura thin pool rules
 
-Seven rules in folder `Alerts`, group **Kura thin pools**, recorded in
+Eight rules in folder `Alerts`, group **Kura thin pools**, recorded in
 [`kura-thin-pool-alert-rules.json`](kura-thin-pool-alert-rules.json). They read
 the `kura_volumes_thin_pool_*` gauges the Kura CSI node plugin serves on
 `:9809` on nodes with a thin pool (`infra/kura-volumes-csi/AGENTS.md`).
@@ -2364,8 +2502,8 @@ carries `cluster`, `node`, `vg` and `pool`. The gauges are on the
 non-production keep list in `values.yaml`, because thin pools are rehearsed on
 staging. Each environment's metrics now land in its own Pulse, and only
 `kura-thin-pool-metrics-missing` runs there for staging and canary (as `-stg`
-and `-can` copies). The four usage, health and degraded rules read production Pulse
-(`cg3i1jh2k1v5sb`) only, so staging and canary thin pools have no usage or
+and `-can` copies). The four usage, health and degraded rules and the unprepared-node rule read
+production Pulse (`cg3i1jh2k1v5sb`) only, so staging and canary thin pools have no usage or
 degraded alert until those rules get `-stg` and `-can` copies. **No Data:
 Normal**, **Error: Keep last state**. None sets `notification_settings`: the
 three critical rules page through the sibling routes in
@@ -2383,6 +2521,26 @@ the JSON; publish rule and policy changes separately.
 | Kura thin pool metadata almost full | `kura-thin-pool-metadata-full` | metadata used > 85% | 5m | critical | `Incidents` in production |
 | Kura thin pool read-only or out of data space | `kura-thin-pool-degraded` | mode gauge > 0 | 2m | critical, `affected_service: Cache` | `Incidents` in production |
 | Kura thin pool metrics missing | `kura-thin-pool-metrics-missing` | see below | 15m | warning | policy tree |
+| Kura node without a qualified thin pool | `kura-thin-pool-node-unprepared` | see below | 6h | warning | policy tree |
+
+#### Checking thin pool capacity
+
+For a capacity review, such as a scheduled health check, read these production
+signals and not data used over pool size:
+
+- `kura_volumes_thin_pool_healthy == 0` is the only sign that tenant writes
+  can exhaust a pool.
+- `kura_volumes_thin_pool_available_commitment_bytes` per node, summed by the
+  node's pool for a region, is what is left to place new or larger volumes.
+  This is the number that runs out first: the node then refuses new or larger
+  volumes while existing volumes keep writing.
+- The unprepared-node expression below lists Kura nodes whose disk no thin
+  instance can use.
+
+`data_used_bytes / data_size_bytes` only says how much of the backed ceilings
+caches have written. Nothing trims space Kura frees, so the ratio climbs
+towards `committed_bytes / data_size_bytes` and stays there; 97% on a healthy
+pool is normal.
 
 #### Kura thin pool cannot back its volumes
 
@@ -2460,8 +2618,31 @@ exports that label through `metricLabelsAllowlist`) that has no fresh pool
 observation: the plugin is down or unscraped, or its observations fail, which
 also withdraws the node's `tuist.dev/kura-disk` capacity. The usage rules are
 blind for the node meanwhile. Read the `driver` container's logs for the
-observation error, then the pod's scrape target. An unlabelled node whose pool
-disappears is not covered: label a node only once it is qualified.
+observation error, then the pod's scrape target. An unlabelled node is covered
+by the next rule instead: label a node only once it is qualified.
+
+#### Kura node without a qualified thin pool
+
+```promql
+max by (cluster, node, label_node_cluster_x_k8s_io_pool) (
+  kube_node_labels{label_node_cluster_x_k8s_io_pool=~"kura.*"}
+)
+unless on (cluster, node)
+(max by (cluster, node) (kube_node_labels{label_tuist_dev_kura_thin_ready="true"}))
+```
+
+Fires for a node in a Kura node pool that has not carried
+`tuist.dev/kura-thin-ready=true` for 6 hours. Every production region is in
+`kuraVolumesCSI.thinEnrolledRegions`, so every KuraInstance there selects the
+label, and an unlabelled node holds disk nothing can use while its region
+fills. Hosts usually join or come back from a reinstall without a thin pool:
+the host's CSI plugin then advertises thick `tuist.dev/kura-disk` and publishes no
+`kura_volumes_thin_pool_*` series. Two hosts that joined on 2026-11-26 stayed in
+this state for about half a day, holding 1.6 and 3.35 TiB. Prepare the pool, restart
+only that node's CSI pod, validate `/v1/node` and then label the node, as
+[`thin/interface.md`](../../kura-volumes-csi/thin/interface.md) describes.
+Never label unqualified capacity to silence this alert. If a production region
+is ever left out of thin enrollment, exclude its pool from the matcher.
 
 ### Kura receiving no REAPI requests
 
@@ -6432,8 +6613,9 @@ redundant with it: a claim growth or a return at a grown claim needs more than
 32 GiB, so a region can refuse those while the headroom rule is quiet, and
 `capacity_unknown` refuses everything whatever the headroom. This is also the
 "sizing blocked" rule **Kura instance retention horizon under a day for three days** says is
-missing, for the half of it that is a capacity refusal; a claim clamped at the
-plan ceiling is still uncovered.
+missing, for the half of it that is a capacity refusal; the other half, a
+claim clamped at the plan ceiling, is **Kura claim clamped at its plan
+ceiling**.
 
 A claim is account-wide, and `Kura.apply_claim_proposal/2` admits it region by
 region in alphabetical order and stops at the first refusal, so the region on

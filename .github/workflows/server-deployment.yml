@@ -1232,10 +1232,12 @@ jobs:
       - name: Hold runner pools on images their hosts have not staged
         # A runner image release announces its images and the macOS hosts
         # pull them in the background (infra/tart-kubelet/AGENTS.md). Until
-        # the hosts serving a pool hold its new image, or an hour after the
-        # announcement, the pool keeps the digest it runs now, so no job
-        # waits on the pull. A gate that cannot read the cluster moves the
-        # pools as before, and a checkout predating the gate has none.
+        # the hosts serving a pool hold its new image, or an hour after that
+        # image was first announced, the pool keeps the digest it runs now,
+        # so no job waits on the pull. The gate announces an image no
+        # announcement names and holds its pools. A gate that cannot read or
+        # write the cluster moves the pools as before, and a checkout
+        # predating the gate has none.
         # Canary qualifies the release, as for Linux: it waits for staging,
         # never accepts the announcement's age, and fails closed, so runners
         # acceptance runs on the images production will move to.

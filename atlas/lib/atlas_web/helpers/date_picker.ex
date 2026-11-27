@@ -8,6 +8,9 @@ defmodule AtlasWeb.Helpers.DatePicker do
   preset ids ("last-24-hours", "last-7-days", ...) and query-string
   layout (`{prefix}-date-range`, `{prefix}-start-date`,
   `{prefix}-end-date`).
+
+  Pages that read their range some other way cannot read a typed range,
+  so their pickers set `typed_ranges={false}`.
   """
 
   @doc """
@@ -52,10 +55,30 @@ defmodule AtlasWeb.Helpers.DatePicker do
         "last-7-days" -> DateTime.add(now, -7, :day)
         "last-30-days" -> DateTime.add(now, -30, :day)
         "last-12-months" -> DateTime.add(now, -365, :day)
-        _ -> DateTime.add(now, -default_hours, :hour)
+        _ -> relative_start(preset, now) || DateTime.add(now, -default_hours, :hour)
       end
 
     {start_datetime, now}
+  end
+
+  # Ranges typed into the picker, such as "last 10 days", come back as
+  # rolling ids like `last-10-days` and keep ending now.
+  defp relative_start(preset, now) do
+    case Regex.run(~r/^last-(\d{1,4})-(hour|day|week|month|year)s?$/, preset) do
+      [_, amount, unit] when amount != "0" ->
+        amount = String.to_integer(amount)
+
+        case unit do
+          "hour" -> DateTime.add(now, -amount, :hour)
+          "day" -> DateTime.add(now, -amount, :day)
+          "week" -> DateTime.add(now, -7 * amount, :day)
+          "month" -> DateTime.shift(now, month: -amount)
+          "year" -> DateTime.shift(now, year: -amount)
+        end
+
+      _ ->
+        nil
+    end
   end
 
   defp parse_custom_datetime(nil), do: nil

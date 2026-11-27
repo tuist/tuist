@@ -6,20 +6,29 @@ defmodule TuistWeb.RemoteExecutionController do
 
   plug(:authorize)
 
-  def capabilities(conn, _params) do
+  def capabilities(conn, params) do
     case RemoteExecution.available_settings(conn.assigns.execution_project.account_id) do
       {:ok, settings} ->
-        json(conn, %{
+        capabilities = %{
           image: settings.image_tag,
           endpoint: settings.executor_endpoint,
           cas_endpoint: settings.cas_endpoint,
           client_cas_endpoint: settings.client_cas_endpoint,
           execution_root: "/workspace/action",
           max_concurrency: settings.max_concurrency,
-          leases: true,
-          # Actions the gateway sends to the scheduler rather than a leased VM.
-          sized_keys: RemoteExecution.sized_keys(conn.assigns.execution_project)
-        })
+          leases: true
+        }
+
+        # Actions the gateway sends to the scheduler rather than a leased VM.
+        # Up to 2,000 keys, so only the gateway asks for them: Struo clients
+        # read these capabilities too and refuse a response over 64 KiB.
+        json(
+          conn,
+          if(params["sized_keys"] == "1",
+            do: Map.put(capabilities, :sized_keys, RemoteExecution.sized_keys(conn.assigns.execution_project)),
+            else: capabilities
+          )
+        )
 
       {:error, _} ->
         conn

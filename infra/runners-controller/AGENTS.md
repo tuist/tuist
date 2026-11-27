@@ -56,10 +56,13 @@ cancellable and leaves the reserve intact. See
   and per-pool writes from deterministic plans, so it does not need the
   RunnerPool reconciler's single worker. Keep each pool's tick near
   5 seconds (average reconcile time times the pool count, divided by the
-  workers). The fleet's first pool renews its sandbox grants, which expire
+  workers), and raise the manager's CPU limit with the workers: a throttled
+  manager stretches every reconcile instead. The fleet's first pool renews its sandbox grants, which expire
   after 15 seconds, so its requeues carry `sandboxReporterPriority` and skip
   the queue; every requeue sets its priority, because the queue keeps an
-  item's last one.
+  item's last one. A new macOS sandbox reservation queues the darwin pools
+  with runners on its host at the same priority (`reservationHandler`),
+  since the sandbox waits for one of them to retire an idle runner.
 
   The server also learns a floor per pool (`learned_warm_floor`,
   `Tuist.Runners.LearnedWarmFloors`): the burst its jobs arrive in, while
@@ -235,7 +238,9 @@ cancellable and leaves the reserve intact. See
     the compute allocator (`controllers/execution_allocation.go`): their held
     slots are its load and come back into the budget, its fleet-wide floor
     ranks first among warm stock, and each worker's share of the funded floor
-    goes out as `warm_bytes` in its grant. See
+    goes out as `warm_bytes` in its grant. The server's learned floor
+    (`remote_execution_floor_slots`) raises that floor while accounts run
+    builds, up to `TUIST_REMOTE_EXECUTION_MAX_LEARNED_FLOOR_SLOTS`. See
     [remote execution](../sandbox-image/remote-execution.md), shared hosts.
     See [sharing policy](../sandboxd/fleet-sharing.md) for the proposed
     coordination between CI demand and sandbox growth.

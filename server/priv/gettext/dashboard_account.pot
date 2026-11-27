@@ -109,8 +109,7 @@ msgstr ""
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:565
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:679
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:784
-#: lib/tuist_web/live/webhook_live.html.heex:116
-#: lib/tuist_web/live/webhook_live.html.heex:343
+#: lib/tuist_web/live/webhook_live.html.heex:334
 #: lib/tuist_web/live/webhooks_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -738,7 +737,7 @@ msgstr ""
 #: lib/tuist_web/live/members_live.ex:334
 #: lib/tuist_web/live/webhook_event_live.html.heex:28
 #: lib/tuist_web/live/webhook_live.ex:265
-#: lib/tuist_web/live/webhook_live.html.heex:274
+#: lib/tuist_web/live/webhook_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
@@ -770,8 +769,8 @@ msgid "To start using Tuist, verify your email and you are good to go:"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:340
-#: lib/tuist_web/live/webhook_live.html.heex:138
-#: lib/tuist_web/live/webhook_live.html.heex:206
+#: lib/tuist_web/live/webhook_live.html.heex:129
+#: lib/tuist_web/live/webhook_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "Total"
 msgstr ""
@@ -1101,7 +1100,7 @@ msgid "SSO provider"
 msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:1058
-#: lib/tuist_web/live/webhook_live.html.heex:350
+#: lib/tuist_web/live/webhook_live.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr ""
@@ -1233,7 +1232,7 @@ msgid "SCIM endpoint URL"
 msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:1136
-#: lib/tuist_web/live/webhook_live.html.heex:375
+#: lib/tuist_web/live/webhook_live.html.heex:366
 #, elixir-autogen, elixir-format
 msgid "Copy it now — it will not be shown again after you close this dialog."
 msgstr ""
@@ -1261,7 +1260,7 @@ msgstr ""
 #: lib/tuist_web/live/authentication_settings_live.html.heex:1190
 #: lib/tuist_web/live/cache_live.ex:368
 #: lib/tuist_web/live/members_live.ex:504
-#: lib/tuist_web/live/webhook_live.html.heex:404
+#: lib/tuist_web/live/webhook_live.html.heex:395
 #: lib/tuist_web/live/webhooks_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Done"
@@ -1411,8 +1410,8 @@ msgstr ""
 
 #: lib/tuist_web/live/webhook_live.ex:233
 #: lib/tuist_web/live/webhook_live.ex:270
-#: lib/tuist_web/live/webhook_live.html.heex:143
-#: lib/tuist_web/live/webhook_live.html.heex:216
+#: lib/tuist_web/live/webhook_live.html.heex:134
+#: lib/tuist_web/live/webhook_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
@@ -1429,13 +1428,13 @@ msgstr[1] ""
 msgid "Add one to start receiving events."
 msgstr ""
 
-#: lib/tuist_web/live/webhook_live.html.heex:125
+#: lib/tuist_web/live/webhook_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr ""
 
 #: lib/tuist_web/live/webhook_event_live.html.heex:49
-#: lib/tuist_web/live/webhook_live.html.heex:280
+#: lib/tuist_web/live/webhook_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Attempt"
 msgstr ""
@@ -1456,7 +1455,7 @@ msgstr ""
 msgid "Copy it now — it will not be shown again after you close this dialog. Use it to verify the Tuist-Signature header on incoming webhooks."
 msgstr ""
 
-#: lib/tuist_web/live/webhook_live.html.heex:391
+#: lib/tuist_web/live/webhook_live.html.heex:382
 #: lib/tuist_web/live/webhooks_live.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Copy signing secret"
@@ -1496,7 +1495,7 @@ msgid "Duration"
 msgstr ""
 
 #: lib/tuist_web/live/webhook_live.html.heex:18
-#: lib/tuist_web/live/webhook_live.html.heex:311
+#: lib/tuist_web/live/webhook_live.html.heex:302
 #, elixir-autogen, elixir-format
 msgid "Edit endpoint"
 msgstr ""
@@ -1507,12 +1506,12 @@ msgid "Endpoints"
 msgstr ""
 
 #: lib/tuist_web/live/webhook_live.ex:278
-#: lib/tuist_web/live/webhook_live.html.heex:271
+#: lib/tuist_web/live/webhook_live.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Event"
 msgstr ""
 
-#: lib/tuist_web/live/webhook_live.html.heex:268
+#: lib/tuist_web/live/webhook_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Event ID"
 msgstr ""
@@ -1522,7 +1521,7 @@ msgstr ""
 msgid "Event deliveries"
 msgstr ""
 
-#: lib/tuist_web/live/webhook_live.html.heex:234
+#: lib/tuist_web/live/webhook_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Events"
 msgstr ""
@@ -1532,7 +1531,7 @@ msgstr ""
 msgid "Events to listen for"
 msgstr ""
 
-#: lib/tuist_web/live/webhook_live.html.heex:251
+#: lib/tuist_web/live/webhook_live.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr ""
@@ -1573,7 +1572,7 @@ msgstr ""
 msgid "Listening to"
 msgstr ""
 
-#: lib/tuist_web/live/webhook_live.html.heex:288
+#: lib/tuist_web/live/webhook_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "No deliveries yet"
 msgstr ""
@@ -1583,7 +1582,7 @@ msgstr ""
 msgid "No webhook endpoints yet"
 msgstr ""
 
-#: lib/tuist_web/live/webhook_live.html.heex:290
+#: lib/tuist_web/live/webhook_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "Once a matching event fires, attempts will show up here."
 msgstr ""
@@ -1620,7 +1619,7 @@ msgstr ""
 msgid "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
 msgstr ""
 
-#: lib/tuist_web/live/webhook_live.html.heex:243
+#: lib/tuist_web/live/webhook_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Search by event ID..."
 msgstr ""
@@ -1631,12 +1630,12 @@ msgid "Select all %{group} events"
 msgstr ""
 
 #: lib/tuist_web/live/webhook_live.html.heex:83
-#: lib/tuist_web/live/webhook_live.html.heex:329
+#: lib/tuist_web/live/webhook_live.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "Selected events"
 msgstr ""
 
-#: lib/tuist_web/live/webhook_live.html.heex:283
+#: lib/tuist_web/live/webhook_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Sent"
 msgstr ""
@@ -1647,14 +1646,14 @@ msgid "Sent at"
 msgstr ""
 
 #: lib/tuist_web/live/webhook_live.html.heex:75
-#: lib/tuist_web/live/webhook_live.html.heex:361
+#: lib/tuist_web/live/webhook_live.html.heex:352
 #: lib/tuist_web/live/webhooks_live.html.heex:49
 #: lib/tuist_web/live/webhooks_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Signing secret"
 msgstr ""
 
-#: lib/tuist_web/live/webhook_live.html.heex:373
+#: lib/tuist_web/live/webhook_live.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "Signing secret rotated"
 msgstr ""

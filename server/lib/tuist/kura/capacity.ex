@@ -710,9 +710,14 @@ defmodule Tuist.Kura.Capacity do
          false <- MapSet.member?(off_pool, handle) do
       nodes
       |> Enum.filter(&(&1.thin_ready? or not sizing.thin?))
+      |> host_topology(host_spread?(region, server))
       |> fits?(
         handle,
-        Map.put(sizing, :spread?, not is_nil(Regions.replica_spread_topology_key(region))),
+        Map.put(
+          sizing,
+          :spread?,
+          not is_nil(Regions.replica_spread_topology_key(region)) or host_spread?(region, server)
+        ),
         replicas(region),
         new_replica_request(region, server, pool, sizing)
       )
@@ -720,6 +725,19 @@ defmodule Tuist.Kura.Capacity do
       _ -> nil
     end
   end
+
+  # An account the `kura_replica_spread` flag spreads in a co-locating region
+  # holds one replica per host, so each node is its own value of the spread
+  # label: a box with room for both replicas places only one of them.
+  defp host_topology(nodes, true), do: Enum.map(nodes, &%{&1 | topology: &1.name})
+  defp host_topology(nodes, false), do: nodes
+
+  defp host_spread?(region, %Server{account: %Account{} = account}), do: Regions.host_spread?(region, account)
+
+  defp host_spread?(region, %Server{account_id: account_id}) when is_integer(account_id),
+    do: Regions.host_spread?(region, %Account{id: account_id})
+
+  defp host_spread?(_region, %Server{}), do: false
 
   # What a replica with nothing placed yet asks the scheduler for: every
   # resource `room_for?/3` reads, at the instance's own claim. Disk alone is not
@@ -1019,7 +1037,8 @@ defmodule Tuist.Kura.Capacity do
   def room_for?(region_id, plan, account \\ nil) do
     with {:ok, region} <- Regions.fetch(region_id),
          thin = not is_nil(account) and Regions.thin_volumes?(region, account),
-         schedulable when schedulable != false <- schedulable_room?(region, plan, thin),
+         spread = Regions.host_spread?(region, account),
+         schedulable when schedulable != false <- schedulable_room?(region, plan, thin, spread),
          admissible when admissible != false <- admissible_room?(region, plan, thin) do
       schedulable && admissible
     else
@@ -1028,13 +1047,15 @@ defmodule Tuist.Kura.Capacity do
     end
   end
 
-  defp schedulable_room?(region, plan, thin) do
+  defp schedulable_room?(region, plan, thin, spread) do
     case node_headroom(region) do
       %{nodes: [_ | _] = nodes} = pool ->
         request = pod_request(region, plan, pool, thin)
 
-        nodes |> Enum.filter(&(&1.thin_ready? or not thin)) |> placements(&replicas_fitting(&1, request)) >=
-          replicas(region)
+        nodes
+        |> Enum.filter(&(&1.thin_ready? or not thin))
+        |> host_topology(spread)
+        |> placements(&replicas_fitting(&1, request)) >= replicas(region)
 
       _ ->
         nil

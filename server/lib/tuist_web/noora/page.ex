@@ -85,6 +85,8 @@ defmodule TuistWeb.Noora.Page do
       toast" button that pops the rendered output into the bottom corner of
       the page, where it dismisses itself after a few seconds. Pass
       `:preserve` instead of `true` for a toast that stays until dismissed.
+    * `:device` - `:mobile` renders the example on a page of its own, shown
+      in a phone-width frame, so components switch to their mobile layout.
   """
   defmacro example(title, opts \\ [], do: block) do
     source = source!(block, __CALLER__)
@@ -98,6 +100,7 @@ defmodule TuistWeb.Noora.Page do
         description: unquote(Keyword.get(opts, :description)),
         layout: unquote(Keyword.get(opts, :layout, :row)),
         toast: unquote(Keyword.get(opts, :toast, false)),
+        device: unquote(Keyword.get(opts, :device)),
         source: unquote(source),
         highlighted_source: TuistWeb.Noora.Code.highlight(unquote(source)),
         function: unquote(function)

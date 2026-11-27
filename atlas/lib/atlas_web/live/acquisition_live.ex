@@ -247,6 +247,7 @@ defmodule AtlasWeb.AcquisitionLive do
     </.dropdown>
     <.date_picker
       id="acquisition-date-range-picker"
+      typed_ranges={false}
       name="acquisition-date-range"
       presets={date_picker_presets()}
       selected_preset={@selected_preset}
@@ -255,13 +256,6 @@ defmodule AtlasWeb.AcquisitionLive do
       max={Date.utc_today()}
     >
       <:actions>
-        <.button
-          label={gettext("Cancel")}
-          variant="secondary"
-          phx-click={
-            JS.dispatch("phx:date-picker-cancel", detail: %{id: "acquisition-date-range-picker"})
-          }
-        />
         <.button
           label={gettext("Apply")}
           phx-click={

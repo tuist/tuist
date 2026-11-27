@@ -20,7 +20,7 @@ One managed provider serves every platform through Amp's [orb types](https://amp
 | `linux-xxlarge` | Linux (Firecracker) | `default` | 16 vCPU, 32 GiB RAM, 10 GB workspace |
 | `linux-3xlarge` | Linux (Firecracker) | `default` | 16 vCPU, 44 GiB RAM, 10 GB workspace |
 
-The Linux types mirror [Amp's orb sizes](https://ampcode.com/docs/orbs/sizes-and-costs). A type only places on a node whose carve-out ceiling (`sandboxes.maxMemoryGiB`) holds its memory plus 64 MiB of VMM overhead and the 512 MiB daemon reserve: the managed overlays set 48 GiB so `linux-3xlarge` (44 GiB) fits on every runner node, and an environment with a lower ceiling must not list the types that exceed it. Shapes other than the prebuilt ones (`sandboxes.prebuildShapes`) build their template snapshot on a node's first create.
+The Linux types mirror [Amp's orb sizes](https://ampcode.com/docs/orbs/sizes-and-costs). A type only places on a node whose carve-out ceiling (`sandboxes.maxMemoryGiB`) holds its memory plus 64 MiB of VMM overhead and the 512 MiB daemon reserve: the managed overlays set at least 48 GiB (production 64) so `linux-3xlarge` (44 GiB) fits on every runner node, and an environment with a lower ceiling must not list the types that exceed it. Shapes other than the prebuilt ones (`sandboxes.prebuildShapes`) build their template snapshot on a node's first create.
 | `macos` | macOS (Tart) | `macos` | 8 vCPU, 8 GiB RAM, 10 GB workspace |
 | `macos-xcode-<xcode-dashes>` | macOS (Tart) | the same name | 8 vCPU, 8 GiB RAM, 10 GB workspace, booting that Xcode (`Tuist.Sandboxes.Xcode`) |
 

@@ -45,10 +45,27 @@ defmodule Tuist.Sandboxes.Workers.PauseSandboxWorkerTest do
 
   test "returns the node error so the job retries" do
     sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_epoch: 1)
-    expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:error, "exec running"} end)
+    expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:error, "snapshot failed"} end)
 
-    assert {:error, "exec running"} = perform_job(PauseSandboxWorker, %{sandbox_id: sandbox.id, residency_epoch: 1})
+    assert {:error, "snapshot failed"} = perform_job(PauseSandboxWorker, %{sandbox_id: sandbox.id, residency_epoch: 1})
     assert %Sandbox{state: :running} = Repo.reload!(sandbox)
+  end
+
+  test "snoozes while the node still runs an exec, then pauses once it ended" do
+    sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_epoch: 5)
+    args = %{sandbox_id: sandbox.id, residency_epoch: 5}
+
+    expect(Nodes, :call, fn "node-a", "pause", _args, _opts ->
+      {:error, "sandbox has a worker or exec running: #{sandbox.id}"}
+    end)
+
+    assert {:snooze, 15} = perform_job(PauseSandboxWorker, args)
+    assert %Sandbox{state: :running} = Repo.reload!(sandbox)
+
+    expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
+
+    assert :ok = perform_job(PauseSandboxWorker, args)
+    assert %Sandbox{state: :paused} = Repo.reload!(sandbox)
   end
 
   test "snoozes while a restore's disks still load, then pauses once they are whole" do

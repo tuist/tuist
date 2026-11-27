@@ -76,15 +76,6 @@
       >
         <:actions>
           <.button
-            label={dgettext("dashboard_projects", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "analytics-date-range-picker"}
-              )
-            }
-          />
-          <.button
             label={dgettext("dashboard_projects", "Apply")}
             phx-click={
               JS.dispatch("phx:date-picker-apply", detail: %{id: "analytics-date-range-picker"})
@@ -691,15 +682,6 @@
       >
         <:actions>
           <.button
-            label={dgettext("dashboard_projects", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "bundle-size-date-range-picker"}
-              )
-            }
-          />
-          <.button
             label={dgettext("dashboard_projects", "Apply")}
             phx-click={
               JS.dispatch("phx:date-picker-apply",
@@ -886,13 +868,6 @@
         max={Date.utc_today()}
       >
         <:actions>
-          <.button
-            label={dgettext("dashboard_projects", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel", detail: %{id: "builds-date-range-picker"})
-            }
-          />
           <.button
             label={dgettext("dashboard_projects", "Apply")}
             phx-click={

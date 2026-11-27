@@ -2,6 +2,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
   use ExUnit.Case, async: true
 
   alias Tuist.Kura.ClaimSizing
+  alias Tuist.Kura.Regions
 
   @gibibyte 1024 * 1024 * 1024
   @today ~D[2026-08-25]
@@ -487,7 +488,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
       # from its starting constant.
       rollups = severe_churn(2, @today)
 
-      assert evaluate(context(plan: :air, current_claim_size: "64Gi", rollups: rollups)) == :none
+      assert {:clamped, _wanted, _evidence} = evaluate(context(plan: :air, current_claim_size: "64Gi", rollups: rollups))
 
       for plan <- [:pro, :enterprise] do
         assert {:grow, "256Gi", _evidence} =
@@ -496,7 +497,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
         assert {:grow, "256Gi", _evidence} =
                  evaluate(context(plan: plan, current_claim_size: "128Gi", rollups: rollups))
 
-        assert evaluate(context(plan: plan, current_claim_size: "256Gi", rollups: rollups)) == :none
+        assert {:clamped, _wanted, _evidence} =
+                 evaluate(context(plan: plan, current_claim_size: "256Gi", rollups: rollups))
       end
     end
 
@@ -611,15 +613,30 @@ defmodule Tuist.Kura.ClaimSizingTest do
         assert {:grow, ^expected, _evidence} = evaluate(context)
       end
 
-      assert evaluate(context(plan: :air, current_claim_size: "64Gi", rollups: rollups)) == :none
+      assert {:clamped, _wanted, _evidence} = evaluate(context(plan: :air, current_claim_size: "64Gi", rollups: rollups))
     end
 
-    test "an account already at its plan ceiling gets no proposal" do
+    test "an account already at its plan ceiling is reported clamped rather than fitting" do
+      # No change can be recommended, but the ring is still short: the verdict
+      # names what it asked for and the region that asked, so the sweep can
+      # report the clamp instead of reading it as an account that fits.
       for {plan, ceiling} <- [{:air, "64Gi"}, {:pro, "256Gi"}, {:enterprise, "256Gi"}] do
         context = context(plan: plan, current_claim_size: ceiling, rollups: severe_churn(14, @today))
 
-        assert evaluate(context) == :none
+        assert {:clamped, wanted, %{"region" => region, "signal" => "shed_age_below_retention_floor"}} =
+                 evaluate(context)
+
+        assert {:ok, wanted_bytes} = Regions.parse_storage_quantity(wanted)
+        assert {:ok, ceiling_bytes} = Regions.parse_storage_quantity(ceiling)
+        assert wanted_bytes > ceiling_bytes
+        assert region == "us-east"
       end
+    end
+
+    test "a ring that fits at the ceiling is not reported clamped" do
+      context = context(plan: :pro, current_claim_size: "256Gi", rollups: fitting_days(30, @today))
+
+      refute match?({:clamped, _wanted, _evidence}, evaluate(context))
     end
 
     test "days at or before the last resize cannot qualify a window" do

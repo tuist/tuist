@@ -2588,6 +2588,187 @@ func TestReconcileDataStorageResize(t *testing.T) {
 			}
 		}
 	})
+
+	// Requiring spread on an instance whose volumes share a host cannot move a
+	// bound local volume, so the standby's volume is rebuilt elsewhere and the
+	// primary keeps serving from its own. The primary here is ordinal 1, so a
+	// rebuild that picks by ordinal alone takes the serving copy down.
+	spread := func() *kurav1alpha1.KuraInstance {
+		instance := instance("40Gi")
+		instance.Spec.ReplicaSpreadTopologyKey = corev1.LabelHostname
+		instance.Spec.NodeSelector = map[string]string{"node.cluster.x-k8s.io/pool": "kura-test"}
+		return instance
+	}
+	boundOn := func(ordinal int, host string) []client.Object {
+		bound := claim(ordinal, "40Gi")
+		bound.Spec.VolumeName = fmt.Sprintf("pv-%d", ordinal)
+		bound.Status.Phase = corev1.ClaimBound
+		volume := &corev1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{Name: bound.Spec.VolumeName},
+			Spec: corev1.PersistentVolumeSpec{NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{host},
+				}}}},
+			}}},
+		}
+		return []client.Object{bound, volume}
+	}
+	primaryService := func(ordinal int) *corev1.Service {
+		return &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+			Spec:       corev1.ServiceSpec{Selector: primaryServiceSelector(spread(), fmt.Sprintf("%s-%d", instanceName, ordinal))},
+		}
+	}
+	box := func(name string, schedulable bool) *corev1.Node {
+		return &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{corev1.LabelHostname: name, "node.cluster.x-k8s.io/pool": "kura-test"}},
+			Spec:       corev1.NodeSpec{Unschedulable: !schedulable},
+			Status:     corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}},
+		}
+	}
+	nodes := []client.Object{box("box-a", true), box("box-b", true)}
+	spreadFixtureOn := func(instance *kurav1alpha1.KuraInstance, hosts [2]string, nodes []client.Object) client.Client {
+		objects := append([]client.Object{instance, sts("40Gi"), pod(0, true), pod(1, true), primaryService(1)}, nodes...)
+		objects = append(objects, boundOn(0, hosts[0])...)
+		objects = append(objects, boundOn(1, hosts[1])...)
+		return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).WithStatusSubresource(&corev1.PersistentVolumeClaim{}).Build()
+	}
+	spreadFixture := func(instance *kurav1alpha1.KuraInstance, hosts [2]string) client.Client {
+		return spreadFixtureOn(instance, hosts, nodes)
+	}
+
+	// A region with one usable host cannot hold two spread replicas. Emptying
+	// the standby there only leaves its replacement Pending beside the
+	// primary's volume, and so would rolling either pod onto a template that
+	// requires spreading. The pair keeps serving, held, until a host can take
+	// the standby.
+	t.Run("holds colocated replicas while no other host can take the standby", func(t *testing.T) {
+		c := spreadFixtureOn(spread(), [2]string{"box-a", "box-a"}, []client.Object{box("box-a", true), box("box-b", false)})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), spread())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("a colocated pair with nowhere to move the standby must stay held, or the required spread rolls a pod into Pending")
+		}
+		for ordinal := 0; ordinal < 2; ordinal++ {
+			if !exists(t, c, claim(ordinal, "40Gi")) || !exists(t, c, pod(ordinal, true)) {
+				t.Fatalf("ordinal %d must keep its volume and keep serving", ordinal)
+			}
+		}
+	})
+
+	t.Run("rebuilds the standby's volume off the primary's host when spread is required", func(t *testing.T) {
+		c := spreadFixture(spread(), [2]string{"box-a", "box-a"})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), spread())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the colocated standby to be rebuilt")
+		}
+		if exists(t, c, claim(0, "40Gi")) || exists(t, c, pod(0, true)) {
+			t.Fatal("expected the standby, ordinal 0, to be taken for rebuild")
+		}
+		if !exists(t, c, claim(1, "40Gi")) || !exists(t, c, pod(1, true)) {
+			t.Fatal("the primary, ordinal 1, must keep its volume and keep serving")
+		}
+	})
+
+	t.Run("leaves replicas already on separate hosts alone", func(t *testing.T) {
+		c := spreadFixture(spread(), [2]string{"box-a", "box-b"})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), spread())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("replicas on separate hosts need no rebuild")
+		}
+	})
+
+	t.Run("leaves colocated replicas alone without a spread requirement", func(t *testing.T) {
+		c := spreadFixture(instance("40Gi"), [2]string{"box-a", "box-a"})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("co-location is the default placement and needs no rebuild")
+		}
+	})
+
+	// A bound local volume on a host the selector no longer matches, after a
+	// region's pool changes or a host leaves it, strands its next pod Pending:
+	// the pod must land beside the volume and the selector forbids it. The
+	// standby there is rebuilt on a selected host; the primary keeps serving.
+	selected := func() *kurav1alpha1.KuraInstance {
+		instance := instance("40Gi")
+		instance.Spec.NodeSelector = map[string]string{"node.cluster.x-k8s.io/pool": "kura-test"}
+		return instance
+	}
+	outside := func(name string) *corev1.Node {
+		node := box(name, true)
+		node.Labels["node.cluster.x-k8s.io/pool"] = "kura-other"
+		return node
+	}
+
+	t.Run("rebuilds a volume left on a host outside the node selector", func(t *testing.T) {
+		c := spreadFixtureOn(selected(), [2]string{"box-old", "box-a"}, []client.Object{box("box-a", true), outside("box-old")})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), selected())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the unselected volume to be rebuilt")
+		}
+		if exists(t, c, claim(0, "40Gi")) || exists(t, c, pod(0, true)) {
+			t.Fatal("expected ordinal 0, on the unselected host, to be taken for rebuild")
+		}
+		if !exists(t, c, claim(1, "40Gi")) || !exists(t, c, pod(1, true)) {
+			t.Fatal("the primary, on a selected host, must keep its volume and keep serving")
+		}
+	})
+
+	t.Run("holds a volume outside the node selector while no selected host can take it", func(t *testing.T) {
+		c := spreadFixtureOn(selected(), [2]string{"box-old", "box-a"}, []client.Object{box("box-a", false), outside("box-old")})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), selected())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("an unselected volume with nowhere to go must keep the rollout held")
+		}
+		for ordinal := 0; ordinal < 2; ordinal++ {
+			if !exists(t, c, claim(ordinal, "40Gi")) || !exists(t, c, pod(ordinal, true)) {
+				t.Fatalf("ordinal %d must keep its volume and keep serving", ordinal)
+			}
+		}
+	})
+
+	t.Run("leaves volumes on selected hosts alone", func(t *testing.T) {
+		c := spreadFixtureOn(selected(), [2]string{"box-a", "box-b"}, []client.Object{box("box-a", true), box("box-b", true), outside("box-old")})
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), selected())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("volumes on selected hosts need no rebuild")
+		}
+	})
 }
 
 func TestKuraInstanceReconcileDeletionReclaimsDataVolumes(t *testing.T) {
@@ -4168,6 +4349,47 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		}
 		if exists(t, c, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: instanceName + "-0", Namespace: namespace}}) {
 			t.Fatal("expected the pod holding the stale PVC to be deleted")
+		}
+	})
+
+	// With replicas on separate hosts, losing one host must not take the
+	// survivor's copy with it: only the lost ordinal's claim and pod go, and
+	// the StatefulSet recreates that one replica, which refills from the
+	// survivor. A full recreate here would turn a host loss the spread was
+	// meant to survive into an empty cache.
+	t.Run("replaces only the replica whose node is gone when a sibling survives", func(t *testing.T) {
+		two := newInstance()
+		two.Spec.Replicas = ptr(int32(2))
+		claimOn := func(ordinal int, volume string) *corev1.PersistentVolumeClaim {
+			claim := boundPVC("scw-local-nvme", volume)
+			claim.Name = fmt.Sprintf("data-%s-%d", instanceName, ordinal)
+			return claim
+		}
+		podNamed := func(ordinal int) *corev1.Pod {
+			return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("%s-%d", instanceName, ordinal), Namespace: namespace}}
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			two, newSTS(),
+			claimOn(0, "pv-0"), pvPinnedTo("pv-0", "dead-node"), podNamed(0),
+			claimOn(1, "pv-1"), pvPinnedTo("pv-1", "live-node"), node("live-node"), podNamed(1),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), two)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the lost replica's replacement to be in progress")
+		}
+		if exists(t, c, claimOn(0, "pv-0")) || exists(t, c, podNamed(0)) {
+			t.Fatal("expected the lost replica's claim and pod deleted")
+		}
+		if !exists(t, c, claimOn(1, "pv-1")) || !exists(t, c, podNamed(1)) {
+			t.Fatal("the surviving replica's claim and pod must be kept")
+		}
+		if !exists(t, c, newSTS()) {
+			t.Fatal("the StatefulSet must be kept so it recreates only the lost replica")
 		}
 	})
 

@@ -2,9 +2,12 @@ package macosandbox
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -75,6 +78,55 @@ func (s *Service) checkPreparingControl(ctx context.Context, control *corev1.Pod
 		return errPreparingControlChanged
 	}
 	return nil
+}
+
+// defaultImageFile names the default template's image this host last served.
+const defaultImageFile = "default-image"
+
+// prepareDefault prepares the default template's image and answers the image
+// the default serves. A host connects only once its default is prepared, so
+// when the new image cannot be had yet (a cold pull below the disk floor, a
+// failed pull) it serves the previous default while that is still in its
+// store, and prepareTemplates switches it to the new one later. On 2026-11-27
+// a deploy moved the default to an image 16 of 23 rack hosts had not staged
+// and had no disk floor to pull, and they all left placement for as long.
+func (s *Service) prepareDefault(parent context.Context, control *corev1.Pod, runtime *TartRuntime, image string) (string, error) {
+	err := s.withPreparingControl(parent, control, func(ctx context.Context) error {
+		return ensureImage(ctx, runtime.Client, s.CIStore, image)
+	})
+	if err == nil {
+		return image, atomicFile(filepath.Join(s.Root, defaultImageFile), []byte(image))
+	}
+	// A removed or changed control Pod, or a stopping service, serves nothing.
+	if parent.Err() != nil || s.checkPreparingControl(parent, control) != nil {
+		return "", err
+	}
+	previous, readErr := os.ReadFile(filepath.Join(s.Root, defaultImageFile))
+	if readErr != nil || len(previous) == 0 || string(previous) == image {
+		return "", err
+	}
+	if cached, cacheErr := hasImage(parent, runtime.Client, string(previous)); cacheErr != nil || !cached {
+		return "", err
+	}
+	slog.Warn("macOS sandbox default template not prepared yet; serving the previous default", "image", image, "previous", string(previous), "error", err)
+	return string(previous), nil
+}
+
+// rememberDefault records the default of configData, the configuration this
+// host served before, unless the host already records one. Hosts that
+// predate defaultImageFile learn it from there.
+func rememberDefault(root string, configData []byte) {
+	path := filepath.Join(root, defaultImageFile)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		return
+	}
+	var cfg Config
+	if json.Unmarshal(configData, &cfg) != nil || cfg.Image == "" {
+		return
+	}
+	if err := atomicFile(path, []byte(cfg.templates()[0].Image)); err != nil {
+		slog.Warn("could not record the macOS sandbox default template", "error", err)
+	}
 }
 
 // templateRetryInterval spaces retries of a template whose image could not be

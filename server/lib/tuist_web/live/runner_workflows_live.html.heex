@@ -86,15 +86,6 @@
     >
       <:actions>
         <.button
-          label={dgettext("dashboard_runners", "Cancel")}
-          variant="secondary"
-          phx-click={
-            JS.dispatch("phx:date-picker-cancel",
-              detail: %{id: "workflows-analytics-date-range-picker"}
-            )
-          }
-        />
-        <.button
           label={dgettext("dashboard_runners", "Apply")}
           phx-click={
             JS.dispatch("phx:date-picker-apply",

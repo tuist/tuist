@@ -1280,27 +1280,32 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert {:error, _reason} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
     end
 
-    test "an archive with memory cold boots elsewhere when no node of its kind is connected", %{account: account} do
-      sandbox =
-        archived_orb(account, archive_memory: %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"})
+    # A full kind is the same as an absent one: in production (2026-11-27) a
+    # microcode rollout left kinds of two or three nodes, and Orbs waited on
+    # full ones for hours while other nodes stood half empty.
+    for {reason, why} <- [no_node: "no node of its kind is connected", no_capacity: "every node of its kind is full"] do
+      test "an archive with memory cold boots elsewhere when #{why}", %{account: account} do
+        sandbox =
+          archived_orb(account, archive_memory: %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"})
 
-      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
-      expect(Capacity, :place, fn _placed, _warm, [avoid: []] -> {:error, :no_node} end)
+        stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+        expect(Capacity, :place, fn _placed, _warm, [avoid: []] -> {:error, unquote(reason)} end)
 
-      expect(Capacity, :place, fn placed, any ->
-        assert any.(%{name: "node-a", snapshot_compat: "zen4"})
-        Repo.update!(Sandbox.update_changeset(placed, %{node_name: "node-a"}))
-        {:ok, "node-a"}
-      end)
+        expect(Capacity, :place, fn placed, any ->
+          assert any.(%{name: "node-a", snapshot_compat: "zen4"})
+          Repo.update!(Sandbox.update_changeset(placed, %{node_name: "node-a"}))
+          {:ok, "node-a"}
+        end)
 
-      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
-      stub(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
-      expect(Storage, :delete_object, fn _key, _account -> :ok end)
+        expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
+        stub(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+        expect(Storage, :delete_object, fn _key, _account -> :ok end)
 
-      assert {:ok, %Sandbox{state: :running, node_name: "node-a"}} =
-               AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
+        assert {:ok, %Sandbox{state: :running, node_name: "node-a"}} =
+                 AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
 
-      assert Repo.reload!(sandbox).archive_key == nil
+        assert Repo.reload!(sandbox).archive_key == nil
+      end
     end
 
     test "an unsynced pause archived with its memory never cold boots", %{account: account} do
@@ -1319,14 +1324,18 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
       assert {:ok, %Sandbox{state: :archived, archive_memory: %{"warm_only" => true}}} = Archives.archive(sandbox)
 
-      # No node of its kind is connected: it waits instead of cold booting.
+      # No node of its kind is connected, or none has room: it waits instead
+      # of cold booting.
       stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
       expect(Capacity, :place, fn _placed, _warm, [avoid: ["node-a"]] -> {:error, :no_node} end)
+      expect(Capacity, :place, fn _placed, _warm, [avoid: ["node-a"]] -> {:error, :no_capacity} end)
       reject(&Capacity.place/2)
       stub(Storage, :delete_object, fn _key, _account -> flunk("the only copy of an unsynced Orb went") end)
 
-      assert {:error, :no_capacity} =
-               AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
+      for _attempt <- 1..2 do
+        assert {:error, :no_capacity} =
+                 AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
+      end
 
       assert %Sandbox{state: :archived, archive_key: key} = Repo.reload!(sandbox)
       assert is_binary(key)
@@ -2462,7 +2471,12 @@ defmodule Tuist.Sandboxes.ArchivesTest do
         {:ok, "node-b"}
       end)
 
-      expect(Nodes, :call, fn "node-b", "create", %{from_archive: %{url: "http://shard-storage/get"}}, _opts ->
+      expect(Nodes, :call, fn "node-b",
+                              "create",
+                              %{from_archive: %{url: "http://shard-storage/get"}, expires_at_unix: expires_at},
+                              opts ->
+        # The node stops the restore when the server stops waiting for it.
+        assert_in_delta expires_at, System.os_time(:second) + div(opts[:timeout], 1000), 5
         {:ok, %{"template_tag" => "sha-new"}}
       end)
 

@@ -3,6 +3,9 @@ package macosandbox
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
 func TestSlowPreparationCancelledWithControlIdentity(t *testing.T) {
@@ -137,5 +142,93 @@ func TestPreparationHasSeparateBoundedDeadline(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A host whose new default image cannot be had serves the previous default it
+// still holds, so a release no host staged does not take it out of placement.
+// It never falls back for a control Pod that changed, an image it no longer
+// holds, or without a default it served before.
+func TestDefaultFallsBackToThePreviousImageTheHostHolds(t *testing.T) {
+	const next, previous = "ghcr.io/tuist/tuist-runner@sha256:next", "ghcr.io/tuist/tuist-runner@sha256:previous"
+	for name, c := range map[string]struct {
+		recorded  string
+		cached    []string
+		changed   bool
+		want      string
+		wantError bool
+	}{
+		"new image prepared":            {recorded: previous, cached: []string{next, previous}, want: next},
+		"new image unavailable":         {recorded: previous, cached: []string{previous}, want: previous},
+		"previous no longer held":       {recorded: previous, cached: nil, wantError: true},
+		"no previous default":           {cached: []string{previous}, wantError: true},
+		"previous is the new image":     {recorded: next, cached: []string{previous}, wantError: true},
+		"control Pod changed meanwhile": {recorded: previous, cached: []string{previous}, changed: true, wantError: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			// list answers the cached images; pull always fails, as a host below
+			// the disk floor or without the registry would.
+			list := "["
+			for i, image := range c.cached {
+				if i > 0 {
+					list += ","
+				}
+				list += fmt.Sprintf(`{"Name":%q,"Source":"OCI"}`, image)
+			}
+			list += "]"
+			binary := filepath.Join(dir, "tart")
+			script := fmt.Sprintf("#!/bin/sh\n[ \"$1\" = list ] && echo '%s' && exit 0\nexit 1\n", list)
+			if err := os.WriteFile(binary, []byte(script), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			root := filepath.Join(dir, "root")
+			if err := os.MkdirAll(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if c.recorded != "" {
+				if err := os.WriteFile(filepath.Join(root, defaultImageFile), []byte(c.recorded), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			control := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "control", Namespace: Namespace, UID: "control-1",
+				Annotations: map[string]string{ConfigAnnotation: "configured"}}}
+			stored := control.DeepCopy()
+			if c.changed {
+				stored.Annotations[ConfigAnnotation] = "reconfigured"
+			}
+			s := &Service{Kube: fake.NewSimpleClientset(stored), Root: root, CIStore: filepath.Join(dir, "ci")}
+			runtime := &TartRuntime{Client: &tart.Client{Binary: binary, HomeDir: filepath.Join(dir, "home"), PullTimeout: time.Second}}
+			if err := os.MkdirAll(runtime.Client.HomeDir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			got, err := s.prepareDefault(context.Background(), control, runtime, next)
+			if c.wantError {
+				if err == nil {
+					t.Fatalf("served %q instead of failing", got)
+				}
+				return
+			}
+			if err != nil || got != c.want {
+				t.Fatalf("served %q, %v; want %q", got, err, c.want)
+			}
+			// Only a prepared default becomes the one to fall back to.
+			recorded, _ := os.ReadFile(filepath.Join(root, defaultImageFile))
+			if string(recorded) != c.want {
+				t.Fatalf("recorded %q as the default served, want %q", recorded, c.want)
+			}
+		})
+	}
+}
+
+// A host that predates the record learns its previous default from the
+// configuration it served, and an existing record is never overwritten.
+func TestRememberDefaultKeepsTheRecordedImage(t *testing.T) {
+	root := t.TempDir()
+	rememberDefault(root, []byte(`{"url":"https://tuist.dev","image":"ghcr.io/tuist/tuist-runner@sha256:old","template":"macos"}`))
+	rememberDefault(root, []byte(`{"url":"https://tuist.dev","image":"ghcr.io/tuist/tuist-runner@sha256:new","template":"macos"}`))
+	recorded, err := os.ReadFile(filepath.Join(root, defaultImageFile))
+	if err != nil || string(recorded) != "ghcr.io/tuist/tuist-runner@sha256:old" {
+		t.Fatalf("recorded %q, %v", recorded, err)
 	}
 }

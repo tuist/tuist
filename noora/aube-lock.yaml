@@ -73,6 +73,7 @@ time:
   assertion-error@2.0.1: 2023-10-18T18:04:13.507Z
   buffer-image-size@0.6.4: 2018-03-01T02:15:16.382Z
   chai@6.2.2: 2025-12-22T21:26:03.989Z
+  chrono-node@2.10.3: 2026-10-12T01:22:35.391Z
   convert-source-map@2.0.0: 2022-10-17T22:06:48.628Z
   css-declaration-sorter@7.4.0: 2026-04-07T18:15:32.648Z
   csstype@3.2.3: 2025-11-17T11:42:27.045Z
@@ -191,6 +192,9 @@ importers:
       '@zag-js/utils':
         specifier: ^1.8.2
         version: 1.40.0
+      chrono-node:
+        specifier: 2.10.3
+        version: 2.10.3
       culori:
         specifier: ^4.0.1
         version: 4.0.2
@@ -501,6 +505,10 @@ packages:
   chai@6.2.2:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
+
+  chrono-node@2.10.3:
+    resolution: {integrity: sha512-MOfrzXgSMZTH4SZ5gyRKQCVwiCrCKY+uYkSJiWoRLXS88DA6WGJm8UjgS+VVEuUQeew/UUXaxrO+SeDn/WCisg==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
@@ -1155,6 +1163,8 @@ snapshots:
       '@types/node': 26.1.1
 
   chai@6.2.2: {}
+
+  chrono-node@2.10.3: {}
 
   convert-source-map@2.0.0: {}
 

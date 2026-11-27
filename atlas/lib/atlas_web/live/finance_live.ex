@@ -139,6 +139,7 @@ defmodule AtlasWeb.FinanceLive do
           <div data-part="overview-actions">
             <.date_picker
               id="finance-runway-date-range-picker"
+              typed_ranges={false}
               label={gettext("Date range")}
               name="runway-date-range"
               presets={runway_date_range_presets()}
@@ -148,15 +149,6 @@ defmodule AtlasWeb.FinanceLive do
               max={Date.utc_today()}
             >
               <:actions>
-                <.button
-                  label={gettext("Cancel")}
-                  variant="secondary"
-                  phx-click={
-                    JS.dispatch("phx:date-picker-cancel",
-                      detail: %{id: "finance-runway-date-range-picker"}
-                    )
-                  }
-                />
                 <.button
                   label={gettext("Apply")}
                   phx-click={
@@ -558,6 +550,7 @@ defmodule AtlasWeb.FinanceLive do
 
             <.date_picker
               id="finance-transactions-date-range-picker"
+              typed_ranges={false}
               label={gettext("Date range")}
               name="transactions-date-range"
               presets={transactions_date_range_presets()}
@@ -567,15 +560,6 @@ defmodule AtlasWeb.FinanceLive do
               max={Date.utc_today()}
             >
               <:actions>
-                <.button
-                  label={gettext("Cancel")}
-                  variant="secondary"
-                  phx-click={
-                    JS.dispatch("phx:date-picker-cancel",
-                      detail: %{id: "finance-transactions-date-range-picker"}
-                    )
-                  }
-                />
                 <.button
                   label={gettext("Apply")}
                   phx-click={

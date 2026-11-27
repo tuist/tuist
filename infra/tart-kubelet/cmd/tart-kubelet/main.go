@@ -532,13 +532,7 @@ func main() {
 		NodeName:        nodeName,
 		RunnerNamespace: customCacheNamespace,
 		StageInterval:   time.Minute,
-		DiskFree: func() (float64, error) {
-			st, err := hostdisk.Root("/")
-			if err != nil {
-				return 0, err
-			}
-			return st.FreePercent(), nil
-		},
+		Disk:            func() (hostdisk.Stats, error) { return hostdisk.Root("/") },
 	}); err != nil {
 		setupLog.Error(err, "add runner image prewarmer")
 		os.Exit(1)

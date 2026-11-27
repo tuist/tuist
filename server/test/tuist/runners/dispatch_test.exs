@@ -4,7 +4,6 @@ defmodule Tuist.Runners.DispatchTest do
   import Mimic
 
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
@@ -18,7 +17,6 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
-  alias Tuist.Runners.Sites
   alias Tuist.Runners.Workers.FetchLogsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.WorkflowJob
@@ -1048,61 +1046,16 @@ defmodule Tuist.Runners.DispatchTest do
       %{account: account, prefix: prefix}
     end
 
-    test "an account on the site flag runs at the site that racks its profile while it is up", %{
-      account: account,
-      prefix: prefix
-    } do
-      stub(FeatureFlags, :runner_site_enabled?, fn %{id: id} -> id == account.id end)
-      expect(Sites, :available?, fn site_pool -> site_pool == "#{prefix}-ber1-26-6" end)
-
+    test "a macOS profile runs on the rack pool for its Xcode and shape", %{account: account, prefix: prefix} do
       assert {:ok, %{pool_name: pool_name, requested_dispatch_label: "tuist-macos", platform: :macos}} =
                Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
 
       assert pool_name == "#{prefix}-ber1-26-6"
     end
 
-    test "an account on the site flag runs on the rented fleet while the site is down", %{
-      account: account,
-      prefix: prefix
-    } do
-      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
-      expect(Sites, :available?, fn _site_pool -> false end)
-
-      assert {:ok, %{pool_name: pool_name, requested_dispatch_label: "tuist-macos"}} =
-               Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
-
-      assert pool_name == "#{prefix}-26-6"
-    end
-
-    test "an account on the site flag stays on the rented fleet for a profile no site racks", %{
-      account: account,
-      prefix: prefix
-    } do
-      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
-      reject(&Sites.available?/1)
-
+    test "a profile no site racks keeps its catalog pool name", %{account: account, prefix: prefix} do
       assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-old-xcode"])
       assert pool_name == "#{prefix}-26-5"
-    end
-
-    test "an account off the site flag stays on the rented fleet", %{account: account, prefix: prefix} do
-      stub(FeatureFlags, :runner_site_enabled?, fn _ -> false end)
-      reject(&Sites.available?/1)
-
-      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
-      assert pool_name == "#{prefix}-26-6"
-    end
-
-    test "an account on the site flag waits at a site that is down when the env rents no macOS fleet", %{
-      account: account,
-      prefix: prefix
-    } do
-      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
-      stub(Environment, :runners_rented_macos_fleet?, fn -> false end)
-      reject(&Sites.available?/1)
-
-      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
-      assert pool_name == "#{prefix}-ber1-26-6"
     end
   end
 

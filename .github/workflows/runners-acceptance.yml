@@ -50,6 +50,10 @@ on:
         description: JSON array of the macOS image digests the cascade deployed; a probe on any other image fails
         type: string
         default: ""
+      docker_cache:
+        description: Run the canary Docker cache phases; the cascade turns them off when no Docker cache path changed
+        type: boolean
+        default: true
       cache_endpoint:
         description: Overrides the cache endpoint dispatch hands each job, e.g. to prove a broken endpoint fails fast
         required: false
@@ -79,6 +83,7 @@ jobs:
       - id: plan
         env:
           ENVIRONMENT: ${{ inputs.environment || 'production' }}
+          DOCKER_CACHE: ${{ inputs.docker_cache != false }}
         # Canary's macOS jobs run on ber1-runner-b02, which production lends
         # it (`tuist` is on `runner_site` there), and take canary's public
         # cache, since the rack's cache node belongs to production.
@@ -110,8 +115,11 @@ jobs:
             *) echo "::error::unknown environment ${ENVIRONMENT}"; exit 1 ;;
           esac
           # Each Linux target runs native and real job-container probes.
-          # Canary adds one macOS volume probe and three Docker cache phases.
-          probe_jobs=$(( $(jq length <<< "${macos}") + 2 * $(jq length <<< "${linux}") + (${#volume_label} > 0 ? 4 : 0) ))
+          # Canary adds one macOS volume probe, and three Docker cache phases
+          # unless the dispatch turned them off.
+          docker_phases=0
+          [ "${ENVIRONMENT}" != canary ] || [ "${DOCKER_CACHE:-true}" = false ] || docker_phases=3
+          probe_jobs=$(( $(jq length <<< "${macos}") + 2 * $(jq length <<< "${linux}") + (${#volume_label} > 0 ? 1 : 0) + docker_phases ))
           {
             echo "server=${server}"
             echo "macos=${macos}"
@@ -142,7 +150,7 @@ jobs:
           LINUX_PICKUP_MINUTES: 10
           # The volume verify job only exists once the seed job finishes, so
           # the watchdog keeps watching until every expected probe has started.
-          DOCKER_CACHE_PROBES: ${{ inputs.environment == 'canary' && 'true' || 'false' }}
+          DOCKER_CACHE_PROBES: ${{ inputs.environment == 'canary' && inputs.docker_cache != false && 'true' || 'false' }}
           EXPECTED_PROBE_JOBS: ${{ needs.plan.outputs.probe_jobs }}
         run: .github/scripts/runners-acceptance/dispatch-watchdog.sh
 
@@ -392,7 +400,7 @@ jobs:
   docker-cold:
     name: Linux Docker cache cold
     needs: [plan]
-    if: inputs.environment == 'canary'
+    if: inputs.environment == 'canary' && inputs.docker_cache != false
     uses: ./.github/workflows/runners-docker-cache-probe.yml
     with:
       phase: cold
@@ -404,7 +412,7 @@ jobs:
   docker-same-size-write:
     name: Linux Docker cache same-size-write
     needs: [plan, docker-cold]
-    if: inputs.environment == 'canary'
+    if: inputs.environment == 'canary' && inputs.docker_cache != false
     uses: ./.github/workflows/runners-docker-cache-probe.yml
     with:
       phase: same-size-write
@@ -416,7 +424,7 @@ jobs:
   docker-verify-final:
     name: Linux Docker cache verify-final
     needs: [plan, docker-same-size-write]
-    if: inputs.environment == 'canary'
+    if: inputs.environment == 'canary' && inputs.docker_cache != false
     uses: ./.github/workflows/runners-docker-cache-probe.yml
     with:
       phase: verify-final

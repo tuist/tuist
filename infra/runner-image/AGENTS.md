@@ -635,12 +635,16 @@ CI:
      as soon as its tag is published, so their macOS hosts pull the
      images their pools move to while the other builds run, and once
      every image is named it waits until the hosts hold them (see
-     "stages" in `infra/tart-kubelet/AGENTS.md`). Every deploy holds a
-     pool on its current image until then, for up to an hour after the
-     latest announcement; dispatch the release with `skip_staging` to
-     move the pools at once. A failed or cancelled build fails
-     `announce`, and a failure in `announce` does not hold the deploy.
-     Hosts can stage images of a release that then fails to publish.
+     "stages" in `infra/tart-kubelet/AGENTS.md`). It resolves every tag
+     again on each pass until every build and re-tag job has finished,
+     because a failed run of the same version may have pushed a tag this
+     run then moves. Every deploy holds a pool on its current image until
+     then, for up to an hour after that image was first announced, and
+     announces an image no announcement names before holding on it;
+     dispatch the release with `skip_staging` to move the pools at once.
+     A failed or cancelled build fails `announce`, and a failure in
+     `announce` does not block the deploy. Hosts can stage images of a
+     release that then fails to publish.
   6. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 

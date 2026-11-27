@@ -277,15 +277,6 @@ defmodule TuistWeb.RunnerVolumesLive do
     >
       <:actions>
         <.button
-          label={dgettext("dashboard_runners", "Cancel")}
-          variant="secondary"
-          phx-click={
-            JS.dispatch("phx:date-picker-cancel",
-              detail: %{id: @id}
-            )
-          }
-        />
-        <.button
           label={dgettext("dashboard_runners", "Apply")}
           phx-click={
             JS.dispatch("phx:date-picker-apply",

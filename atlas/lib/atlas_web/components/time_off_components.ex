@@ -65,6 +65,7 @@ defmodule AtlasWeb.TimeOffComponents do
           />
           <.date_picker
             id={"holiday-date-picker-#{@version}"}
+            typed_ranges={false}
             data-part="holiday-range-picker"
             data-date-only="true"
             label={gettext("Choose holiday dates")}
@@ -77,16 +78,6 @@ defmodule AtlasWeb.TimeOffComponents do
             on_period_change="holiday_dates_changed"
           >
             <:actions>
-              <.button
-                type="button"
-                label={gettext("Cancel")}
-                variant="secondary"
-                phx-click={
-                  JS.dispatch("phx:date-picker-cancel",
-                    detail: %{id: "holiday-date-picker-#{@version}"}
-                  )
-                }
-              />
               <.button
                 type="button"
                 label={gettext("Apply dates")}

@@ -113,15 +113,6 @@
       >
         <:actions>
           <.button
-            label={dgettext("dashboard_account", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "webhook-deliveries-date-range-picker"}
-              )
-            }
-          />
-          <.button
             label={dgettext("dashboard_account", "Apply")}
             phx-click={
               JS.dispatch("phx:date-picker-apply",

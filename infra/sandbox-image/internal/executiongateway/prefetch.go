@@ -121,7 +121,7 @@ func (g *Gateway) learnEndpoint(ctx context.Context, account, project, auth stri
 	if g.endpoint(account, project) != "" {
 		return nil
 	}
-	op, err := g.call(ctx, http.MethodGet, account, project, "/capabilities", auth, nil)
+	op, err := g.call(ctx, http.MethodGet, account, project, capabilitiesSuffix, auth, nil)
 	if err != nil {
 		return err
 	}

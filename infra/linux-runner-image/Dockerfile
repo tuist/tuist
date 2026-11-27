@@ -496,6 +496,18 @@ RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VER
 
 USER root
 
+# Jobs fetch Ubuntu packages from OVH's mirror, on the runners' own network.
+# Two of the IPs behind archive.ubuntu.com (91.189.92.22 and .24) served the
+# runners at under 1 MB/s or timed out, so a job's `apt-get update` took up to
+# 95 s instead of 2 s, depending on the IP it drew. security.ubuntu.com stays,
+# since mirrors trail security updates by hours. A separate layer, after the
+# image's own installs, so only the small layers below it change.
+RUN for f in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list; do \
+      if [ -f "$f" ]; then sed -i 's#http://archive\.ubuntu\.com/ubuntu#http://ubuntu.mirrors.ovh.net/ubuntu#g' "$f"; fi; \
+    done \
+    && grep -rqs '^[^#]*http://ubuntu\.mirrors\.ovh\.net/ubuntu' /etc/apt/sources.list /etc/apt/sources.list.d/ \
+    && ! grep -rqs 'archive\.ubuntu\.com' /etc/apt/sources.list /etc/apt/sources.list.d/
+
 # Compiled clients precede scripts so a shell-only release leaves their layers
 # untouched, including the copy exposed to Docker job containers via /__e.
 COPY --from=gitlab-runner-builder /out/tuist-gitlab-runner /usr/local/bin/tuist-gitlab-runner

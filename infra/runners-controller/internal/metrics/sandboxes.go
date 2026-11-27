@@ -20,16 +20,18 @@ var sandboxRetirements = prometheus.NewCounterVec(prometheus.CounterOpts{
 
 var executionSlots = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Name: "tuist_runners_remote_execution_slots",
-	Help: "Remote execution VM slots in the compute allocator: floor (configured fleet-wide floor) or allocated (granted, held load included).",
+	Help: "Remote execution VM slots in the compute allocator: floor (configured fleet-wide floor), effective (the floor in use, learned floor included) or allocated (granted, held load included).",
 }, []string{"kind"})
 
 func init() {
 	ctrlmetrics.Registry.MustRegister(sandboxMemory, sandboxGrantTime, sandboxRetirements, executionSlots)
 }
 
-// RecordExecutionAllocation publishes the remote execution pool's floor and grant.
-func RecordExecutionAllocation(floor, allocated int32) {
+// RecordExecutionAllocation publishes the remote execution pool's
+// configured floor, the floor in use (raised by the learned floor) and grant.
+func RecordExecutionAllocation(floor, effective, allocated int32) {
 	executionSlots.WithLabelValues("floor").Set(float64(floor))
+	executionSlots.WithLabelValues("effective").Set(float64(effective))
 	executionSlots.WithLabelValues("allocated").Set(float64(allocated))
 }
 

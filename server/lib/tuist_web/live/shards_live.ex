@@ -343,7 +343,11 @@ defmodule TuistWeb.ShardsLive do
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")
   defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_tests", "since last year")
   defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
-  defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
+
+  defp analytics_trend_label(preset) when preset in [nil, "last-30-days"],
+    do: dgettext("dashboard_tests", "since last month")
+
+  defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last period")
 
   defp assign_sharded_runs(%{assigns: %{selected_project: project}} = socket, params) do
     search = params["search"] || ""

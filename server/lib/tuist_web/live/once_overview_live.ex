@@ -137,15 +137,6 @@ defmodule TuistWeb.OnceOverviewLive do
           >
             <:actions>
               <.button
-                label={dgettext("dashboard_projects", "Cancel")}
-                variant="secondary"
-                phx-click={
-                  JS.dispatch("phx:date-picker-cancel",
-                    detail: %{id: "once-overview-date-range-picker"}
-                  )
-                }
-              />
-              <.button
                 label={dgettext("dashboard_projects", "Apply")}
                 phx-click={
                   JS.dispatch("phx:date-picker-apply",
@@ -367,13 +358,6 @@ defmodule TuistWeb.OnceOverviewLive do
             max={Date.utc_today()}
           >
             <:actions>
-              <.button
-                label={dgettext("dashboard_projects", "Cancel")}
-                variant="secondary"
-                phx-click={
-                  JS.dispatch("phx:date-picker-cancel", detail: %{id: "builds-date-range-picker"})
-                }
-              />
               <.button
                 label={dgettext("dashboard_projects", "Apply")}
                 phx-click={

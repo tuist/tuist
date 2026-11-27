@@ -341,15 +341,37 @@ var readyAttemptTimeout = 2 * time.Second
 
 // WaitReady pings any Agent until it answers or the timeout passes.
 func WaitReady(ctx context.Context, agent Agent, timeout time.Duration) (Pong, error) {
-	deadline := time.Now().Add(timeout)
+	return WaitReadyObserved(ctx, agent, timeout, nil)
+}
+
+// PingAttempt is one readiness ping: when it started after the wait began,
+// how long it took, the budget it had and how it failed (nil once the agent
+// answered).
+type PingAttempt struct {
+	At       time.Duration
+	Duration time.Duration
+	Budget   time.Duration
+	Err      error
+}
+
+// WaitReadyObserved is WaitReady that hands every ping to observe, so a
+// caller can tell a guest that answers late from one that never answers.
+func WaitReadyObserved(ctx context.Context, agent Agent, timeout time.Duration, observe func(PingAttempt)) (Pong, error) {
+	start := time.Now()
+	deadline := start.Add(timeout)
 	delay := time.Millisecond
 	budget := readyAttemptTimeout
 	var last error
 	for {
-		attempt, cancel := context.WithTimeout(ctx, min(budget, time.Until(deadline)))
+		limit := min(budget, time.Until(deadline))
+		sent := time.Now()
+		attempt, cancel := context.WithTimeout(ctx, limit)
 		pong, err := agent.Ping(attempt)
 		ranOut := attempt.Err() != nil
 		cancel()
+		if observe != nil {
+			observe(PingAttempt{At: sent.Sub(start), Duration: time.Since(sent), Budget: limit, Err: err})
+		}
 		if err == nil {
 			return pong, nil
 		}

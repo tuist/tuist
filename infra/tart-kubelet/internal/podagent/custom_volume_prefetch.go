@@ -27,6 +27,12 @@ const (
 	// receiving archive bytes (finishing the archive, expanding it) before a
 	// master counts as failed.
 	customPrefetchIdleBudgets = 3
+	// customPrefetchJobPoll is how often a background download held back for
+	// the host's jobs asks again; customPrefetchJobWaitCap bounds how long it
+	// waits for them, as stageJobWaitCap does for staging, so a host that
+	// always runs a job still warms its masters.
+	customPrefetchJobPoll    = 30 * time.Second
+	customPrefetchJobWaitCap = 20 * time.Minute
 )
 
 // PrefetchMaster queues a HEAD the server listed for this host's fleet, behind
@@ -62,12 +68,23 @@ const (
 // server listed for this host, and only the former may evict local masters. A
 // master already queued or downloading is joined rather than fetched twice.
 // Shutdown releases waiters and joins the worker.
+//
+// Every download runs with throttled disk I/O (withThrottledIO), and the
+// masters the server listed wait while a runner on the host runs a job
+// (busy): on 2026-11-27 rack hosts prefetched 650 to 1,500 GB a day at 100
+// to 400 MB/s, and a job's test-product extraction on the same SSD ran 2 to
+// 4 times slower during those bursts.
 type customPrefetcher struct {
 	ctx    context.Context
 	budget time.Duration
 	// restore may evict local masters only for a master a job asked for.
 	restore func(ctx context.Context, slot cachevolumes.Slot, requested bool) error
 	has     func(cachevolumes.Identity) bool
+	// busy reports whether a runner on the host runs a job; nil never is.
+	busy func(context.Context) bool
+	// pause overrides customPrefetchJobPoll in tests.
+	pause         time.Duration
+	deferredSince time.Time
 
 	mu         sync.Mutex
 	stopped    bool
@@ -95,12 +112,14 @@ type customPrefetch struct {
 	idleBudgets int
 }
 
-func newCustomPrefetcher(ctx context.Context, restore func(context.Context, cachevolumes.Slot, bool) error, has func(cachevolumes.Identity) bool) *customPrefetcher {
+func newCustomPrefetcher(ctx context.Context, restore func(context.Context, cachevolumes.Slot, bool) error, has func(cachevolumes.Identity) bool, busy func(context.Context) bool) *customPrefetcher {
 	p := &customPrefetcher{
 		ctx:        ctx,
 		budget:     customPrefetchBudget,
 		restore:    restore,
 		has:        has,
+		busy:       busy,
+		pause:      customPrefetchJobPoll,
 		pending:    map[string]*customPrefetch{},
 		failed:     map[string]time.Time{},
 		requested:  make(chan *customPrefetch, customPrefetchQueue),
@@ -158,16 +177,34 @@ func (p *customPrefetcher) queue(identity cachevolumes.Identity, requested bool,
 
 func (p *customPrefetcher) work() {
 	defer p.drain()
+	// held is a background master waiting for the host's jobs to finish. It
+	// stays pending, so drain releases its waiters.
+	var held *customPrefetch
 	for {
 		var job *customPrefetch
 		select {
 		case job = <-p.requested:
 		default:
-			select {
-			case job = <-p.requested:
-			case job = <-p.background:
-			case <-p.ctx.Done():
-				return
+			if held == nil {
+				select {
+				case job = <-p.requested:
+				case held = <-p.background:
+				case <-p.ctx.Done():
+					return
+				}
+			}
+			if job == nil {
+				if !p.deferForJobs() {
+					job, held = held, nil
+				} else {
+					select {
+					case job = <-p.requested:
+					case <-time.After(p.pause):
+						continue
+					case <-p.ctx.Done():
+						return
+					}
+				}
 			}
 		}
 		if p.ctx.Err() != nil {
@@ -182,7 +219,8 @@ func (p *customPrefetcher) work() {
 			subject.Kind = ""
 		}
 		done := cachevolumes.Observer(observeCustomCache).With(subject).Start("prefetch", "remote")
-		err := p.restore(ctx, slot, job.requested)
+		var err error
+		withThrottledIO(func() { err = p.restore(ctx, slot, job.requested) })
 		budgetEnded := errors.Is(err, cachevolumes.ErrDownloadIncomplete) || (err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded))
 		done(err)
 		cancel()
@@ -203,6 +241,40 @@ func (p *customPrefetcher) work() {
 			continue
 		}
 		p.finish(job, err)
+	}
+}
+
+// deferForJobs reports whether a background master waits for the host's
+// jobs: true while a runner runs one, until customPrefetchJobWaitCap after the
+// worker first waited for them.
+func (p *customPrefetcher) deferForJobs() bool {
+	if p.busy == nil || !p.busy(p.ctx) {
+		p.deferredSince = time.Time{}
+		return false
+	}
+	if p.deferredSince.IsZero() {
+		p.deferredSince = time.Now()
+	}
+	return time.Since(p.deferredSince) < customPrefetchJobWaitCap
+}
+
+// holdForJobs returns whether background work waits for the host's jobs:
+// true while busy reports a running job, until customPrefetchJobWaitCap after
+// it first waited for them, as deferForJobs does for master prefetch.
+func holdForJobs(busy func(context.Context) bool) func(context.Context) bool {
+	var mu sync.Mutex
+	var since time.Time
+	return func(ctx context.Context) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		if !busy(ctx) {
+			since = time.Time{}
+			return false
+		}
+		if since.IsZero() {
+			since = time.Now()
+		}
+		return time.Since(since) < customPrefetchJobWaitCap
 	}
 }
 

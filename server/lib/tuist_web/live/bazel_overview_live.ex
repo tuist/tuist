@@ -143,15 +143,6 @@ defmodule TuistWeb.BazelOverviewLive do
           >
             <:actions>
               <.button
-                label={dgettext("dashboard_projects", "Cancel")}
-                variant="secondary"
-                phx-click={
-                  JS.dispatch("phx:date-picker-cancel",
-                    detail: %{id: "bazel-analytics-date-range-picker"}
-                  )
-                }
-              />
-              <.button
                 label={dgettext("dashboard_projects", "Apply")}
                 phx-click={
                   JS.dispatch("phx:date-picker-apply",
@@ -343,15 +334,6 @@ defmodule TuistWeb.BazelOverviewLive do
             max={Date.utc_today()}
           >
             <:actions>
-              <.button
-                label={dgettext("dashboard_projects", "Cancel")}
-                variant="secondary"
-                phx-click={
-                  JS.dispatch("phx:date-picker-cancel",
-                    detail: %{id: "bazel-invocations-date-range-picker"}
-                  )
-                }
-              />
               <.button
                 label={dgettext("dashboard_projects", "Apply")}
                 phx-click={

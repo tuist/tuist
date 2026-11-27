@@ -33,6 +33,7 @@ defmodule TuistWeb.Noora.NooraLive do
         {:noreply,
          socket
          |> assign(:page, page)
+         |> assign(:framed_example, framed_example(page, params))
          |> assign(:current_path, path)
          |> assign(:head_title, head_title(page))
          |> assign(:head_description, page.description())}
@@ -47,11 +48,27 @@ defmodule TuistWeb.Noora.NooraLive do
     end
   end
 
+  # A device example's frame (docs_example) loads the page with its id, to
+  # render that example alone.
+  defp framed_example(page, %{"example" => id}) when is_binary(id) do
+    Enum.find(page.examples(), &(&1.id == id)) || raise NotFoundError, "Noora example not found"
+  end
+
+  defp framed_example(_page, _params), do: nil
+
   defp sign_in_path(return_to), do: ~p"/docs/login?#{%{return_to: return_to}}"
 
   # Examples render real components, some of which emit events (a dismissed
   # alert, a changed toggle). The documentation has no state to update.
   def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  def render(%{framed_example: %{}} = assigns) do
+    ~H"""
+    <main class="noora-docs-device-preview">
+      {apply(@page, @framed_example.function, [%{__changed__: nil}])}
+    </main>
+    """
+  end
 
   def render(assigns) do
     ~H"""

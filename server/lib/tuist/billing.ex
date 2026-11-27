@@ -642,6 +642,82 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Recreates `account`'s live Enterprise subscription in USD.
+
+  Stripe pins a subscription, and through it the customer, to one currency,
+  and the runner Prices exist only in USD, so an Enterprise subscription
+  created in EUR cannot carry them. Its currency cannot be changed in place:
+  the subscription is cancelled, without proration or a final invoice, and
+  replaced on the same customer by the Enterprise items
+  `upgrade_to_enterprise/2` would create, in USD, with the same collection
+  method and renewing on the old period end.
+
+  Meant for the $0 subscriptions whose contract is invoiced outside Stripe:
+  one carrying a metered item or a seat quantity, or whose customer has an
+  open invoice, is refused, since cancelling it would drop what it bills.
+  When Stripe refuses the new subscription, the old one is recreated with its
+  items, so the account keeps its plan. Both changes are synced right away
+  rather than left to the webhooks, so the account is off Enterprise only
+  between the two Stripe calls.
+  """
+  def switch_enterprise_subscription_to_usd(%Account{} = account, %Subscription{subscription_id: subscription_id}) do
+    with {:ok, old} <- Stripe.Subscription.retrieve(subscription_id),
+         :ok <- usd_switchable(old),
+         items = enterprise_subscription_items(account, "usd"),
+         true <- Enum.all?(items, &price_currency_matches?(&1.price, "usd")) || {:error, :usd_prices_missing},
+         {:ok, cancelled} <- Stripe.Subscription.cancel(old.id, %{invoice_now: false, prorate: false}) do
+      on_subscription_change(cancelled)
+
+      case Stripe.Subscription.create(replacement_subscription_params(old, items)) do
+        {:ok, replacement} ->
+          on_subscription_change(replacement)
+          {:ok, replacement}
+
+        {:error, error} ->
+          restored_items = Enum.map(old.items.data, &schedule_phase_item/1)
+          {:ok, restored} = Stripe.Subscription.create(replacement_subscription_params(old, restored_items))
+          on_subscription_change(restored)
+          {:error, error}
+      end
+    end
+  end
+
+  defp usd_switchable(%{currency: "usd"}), do: {:error, :already_usd}
+
+  defp usd_switchable(subscription) do
+    billable =
+      Enum.any?(subscription.items.data, fn item ->
+        item.price.recurring.usage_type == "metered" or (item.quantity || 0) > 0
+      end)
+
+    cond do
+      billable -> {:error, :billable_subscription}
+      open_invoice(subscription.customer) != {:ok, nil} -> {:error, :open_invoice}
+      true -> :ok
+    end
+  end
+
+  # Newer Stripe API versions report the period on the items instead.
+  defp subscription_period_end(subscription) do
+    Map.get(subscription, :current_period_end) ||
+      Enum.find_value(subscription.items.data, &Map.get(&1, :current_period_end))
+  end
+
+  defp replacement_subscription_params(old, items) do
+    params = %{
+      customer: old.customer,
+      items: items,
+      collection_method: old.collection_method,
+      billing_cycle_anchor: subscription_period_end(old),
+      proration_behavior: "none"
+    }
+
+    if old.collection_method == "send_invoice",
+      do: Map.put(params, :days_until_due, old.days_until_due || 30),
+      else: params
+  end
+
+  @doc """
   Moves `subscription` onto the Pro plan at `starts_at`, through a Stripe
   subscription schedule, so a customer can agree today to be billed from a
   later date.
@@ -749,7 +825,9 @@ defmodule Tuist.Billing do
     Enum.map(List.wrap(prices["flat_monthly"]) ++ List.wrap(prices["usage"]), &%{price: &1})
   end
 
-  defp enterprise_subscription_items(account) do
+  # `currency` forces the flat Price's currency, as for a switch away from the
+  # one Stripe has pinned on the customer; without it the pinned one is used.
+  defp enterprise_subscription_items(account, currency \\ nil) do
     available_prices = Tuist.Environment.stripe_prices()
 
     usage_prices =
@@ -775,14 +853,19 @@ defmodule Tuist.Billing do
           # Pick the configured price whose currency matches the customer's,
           # or when Stripe has not pinned one yet, the currency the other
           # subscription items already lock the subscription into.
-          [%{price: pick_enterprise_flat_price(candidates, account.customer_id, fixed_currency_items), quantity: 0}]
+          [
+            %{
+              price: pick_enterprise_flat_price(candidates, currency, account.customer_id, fixed_currency_items),
+              quantity: 0
+            }
+          ]
       end
 
     fixed_currency_items ++ flat_prices
   end
 
-  defp pick_enterprise_flat_price(candidates, customer_id, fixed_currency_items) do
-    target = customer_currency(customer_id) || currency_of_items(fixed_currency_items)
+  defp pick_enterprise_flat_price(candidates, currency, customer_id, fixed_currency_items) do
+    target = currency || customer_currency(customer_id) || currency_of_items(fixed_currency_items)
 
     case target do
       nil -> hd(candidates)

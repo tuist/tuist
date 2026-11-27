@@ -3,7 +3,8 @@ defmodule Tuist.Ops.AccountPlans do
   Audited, revision-checked plan changes for Atlas, the counterpart of the
   ops account page's plan buttons: upgrade to Enterprise, start the open
   source plan, and cancel the live subscription at the end of its period. It
-  can also schedule a switch to Pro at a later date, which the ops page cannot.
+  can also schedule a switch to Pro at a later date and move a $0 Enterprise
+  subscription from EUR to USD, which the ops page cannot.
 
   Like `Tuist.Ops.RunnerConcurrencyLimits`, a write names the revision it
   read, a reason and a change UUID, and the request, workload principal and
@@ -22,7 +23,7 @@ defmodule Tuist.Ops.AccountPlans do
   alias Tuist.Ops.AccountPlanChange
   alias Tuist.Repo
 
-  @operations ~w(upgrade_to_enterprise start_open_source cancel_at_period_end schedule_pro)
+  @operations ~w(upgrade_to_enterprise start_open_source cancel_at_period_end schedule_pro switch_to_usd)
   @fields ~w(operation billing_details starts_at expected_revision reason change_id actor interface)
   @address_fields ~w(line1 line2 city state postal_code country)
   @required_address_fields ~w(line1 city postal_code country)
@@ -149,6 +150,25 @@ defmodule Tuist.Ops.AccountPlans do
 
       _ ->
         Repo.rollback(:no_schedulable_subscription)
+    end
+  end
+
+  defp change_plan("switch_to_usd", account, _params) do
+    case Billing.get_current_active_subscription(account) do
+      %Subscription{plan: :enterprise, cancel_at_period_end: false} = subscription ->
+        case Billing.switch_enterprise_subscription_to_usd(account, subscription) do
+          {:ok, _subscription} ->
+            :ok
+
+          {:error, reason} when reason in [:already_usd, :billable_subscription, :open_invoice, :usd_prices_missing] ->
+            Repo.rollback(reason)
+
+          {:error, _reason} ->
+            Repo.rollback(:stripe_request_failed)
+        end
+
+      _ ->
+        Repo.rollback(:no_switchable_subscription)
     end
   end
 

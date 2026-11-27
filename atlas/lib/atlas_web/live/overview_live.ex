@@ -137,6 +137,7 @@ defmodule AtlasWeb.OverviewLive do
           <div data-part="overview-actions">
             <.date_picker
               id="overview-date-range-picker"
+              typed_ranges={false}
               label={gettext("Date range")}
               name="overview-date-range"
               presets={date_picker_presets()}
@@ -146,15 +147,6 @@ defmodule AtlasWeb.OverviewLive do
               max={Date.utc_today()}
             >
               <:actions>
-                <.button
-                  label={gettext("Cancel")}
-                  variant="secondary"
-                  phx-click={
-                    JS.dispatch("phx:date-picker-cancel",
-                      detail: %{id: "overview-date-range-picker"}
-                    )
-                  }
-                />
                 <.button
                   label={gettext("Apply")}
                   phx-click={

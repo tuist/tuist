@@ -58,7 +58,12 @@ defmodule Tuist.Sandboxes do
   @macos_restore_timeout to_timeout(minute: 31)
   @exec_default_timeout_ms 60_000
   @exec_max_timeout_ms 600_000
-  @exec_timeout_slack_ms 10_000
+  # sandboxd ends an exec `timeout_ms` plus 10 s after it starts, then
+  # takes up to 5 s more to kill the guest process (a macOS host 5 s in
+  # all), so the server waits longer: giving up first left the exec in
+  # flight on the node, and an Orb's failed bootstrap then ended its turn
+  # and had its immediate pause refused.
+  @exec_timeout_slack_ms 20_000
   @exec_output_limit_bytes 1_048_576
   @transient_node_errors [:not_connected, :node_disconnected, :timeout]
   # A row still `creating` or `resuming` this long after its last update
@@ -800,7 +805,11 @@ defmodule Tuist.Sandboxes do
       # leaves it archived for the next spawn to retry. Placement set
       # `node_name` on the row behind this struct, hence the reload.
       {:error, reason} when is_tuple(source) and elem(source, 0) == :archive ->
-        Logger.warning("sandboxes: restoring an archived sandbox failed", sandbox_id: sandbox.id, reason: inspect(reason))
+        Logger.warning("sandboxes: restoring an archived sandbox failed",
+          sandbox_id: sandbox.id,
+          reason: inspect(reason),
+          refusals: restore_refusals(sandbox, reason)
+        )
 
         {:ok, _} =
           sandbox
@@ -968,10 +977,14 @@ defmodule Tuist.Sandboxes do
     create_on_macos_host(sandbox, args, &place_macos_restore/2, @macos_restore_timeout, [])
   end
 
+  # The node gives up on the restore when the server stops waiting for it,
+  # rather than finishing it while the caller's retry restores elsewhere.
   defp place_and_create(sandbox, args, {:archive, source}, _prefer) do
+    expires_at = DateTime.add(DateTime.utc_now(), @restore_timeout, :millisecond)
+    restore_args = Map.merge(args, %{from_archive: source, expires_at_unix: DateTime.to_unix(expires_at)})
+
     with {:ok, node_name} <- place_restore(sandbox),
-         {:ok, data} <-
-           create_call(node_name, Map.put(args, :from_archive, source), timeout: @restore_timeout) do
+         {:ok, data} <- create_call(node_name, restore_args, timeout: @restore_timeout) do
       {:ok, node_name, data}
     end
   end
@@ -1263,10 +1276,10 @@ defmodule Tuist.Sandboxes do
   # network, so only nodes at that site can download it. `archive` is the
   # sandbox itself, or the disk snapshot it is created from. An archive with
   # a memory image resumes warm only on a node whose snapshot compatibility
-  # matches the one that wrote it, so it waits for room on those, taking the
-  # node it was archived from only when no other can; only when none is
-  # connected does it cold boot its disks on another, unless its disks were
-  # not synced (`Archives.warm_only?/1`), which waits for one.
+  # matches the one that wrote it, taking the node it was archived from only
+  # when no other can; when none of them is connected or has room, it cold
+  # boots its disks on another, unless its disks were not synced
+  # (`Archives.warm_only?/1`), which waits for one.
   # `prefer` names nodes tried first when they have room, such as the nodes
   # that would attach the new sandbox's cache.
   defp place_restore(sandbox, archive \\ nil, prefer \\ [])
@@ -1321,12 +1334,28 @@ defmodule Tuist.Sandboxes do
     end
   end
 
+  # Why each Linux node refused an archive's restore for room, for its log,
+  # in the disk snapshot refusal's format.
+  defp restore_refusals(%Sandbox{platform: :linux} = sandbox, :no_capacity) do
+    sandbox
+    |> Capacity.refusal_reasons(Enum.map(Capacity.ready_nodes(sandbox.template), & &1.name))
+    |> Enum.map_join(",", fn {node_name, refusal} -> "#{node_name}=#{refusal}" end)
+  end
+
+  defp restore_refusals(_sandbox, _reason), do: nil
+
   # `avoid`: the node the archive was written from and the nodes still
   # loading another restore (`Archives.restoring_nodes/0`).
+  #
+  # Nodes of one kind full is the same as none connected: the archive cold
+  # boots on any node with room, keeping its files and losing its processes.
+  # A kernel or microcode rollout splits the fleet into kinds of two or three
+  # nodes, and waiting for room on those refused an Orb's every spawn for
+  # hours while other nodes stood half empty (2026-11-27).
   defp place_warm(sandbox, on_site, compat, avoid, warm_only) do
     case Capacity.place(sandbox, &(on_site.(&1) and Map.get(&1, :snapshot_compat) == compat), avoid: avoid) do
-      {:error, :no_node} when warm_only -> {:error, :no_capacity}
-      {:error, :no_node} -> Capacity.place(sandbox, on_site)
+      {:error, reason} when reason in [:no_node, :no_capacity] and warm_only -> {:error, :no_capacity}
+      {:error, reason} when reason in [:no_node, :no_capacity] -> Capacity.place(sandbox, on_site)
       placed -> placed
     end
   end
@@ -2537,6 +2566,15 @@ defmodule Tuist.Sandboxes do
   # the live VM; only the stale copy goes.
   defp reconcile_reported(%Sandbox{node_name: assigned, id: id}, node_name, %{"state" => "error"})
        when not is_nil(assigned) and assigned != node_name, do: delete_orphan(node_name, id)
+
+  # Nor is a running copy while the row is being created or runs on another
+  # node, such as a restore the server stopped waiting for that its node
+  # finished anyway while a retry restores elsewhere. Adopting it made the
+  # row running, so the archive the retry still read was deleted under it
+  # (production, 2026-11-26); only the stale copy goes.
+  defp reconcile_reported(%Sandbox{state: state, node_name: assigned, id: id}, node_name, %{"state" => "running"})
+       when state in [:creating, :running] and not is_nil(assigned) and assigned != node_name,
+       do: delete_orphan(node_name, id)
 
   defp reconcile_reported(%Sandbox{} = sandbox, _node_name, %{"state" => "error"} = reported) do
     if sandbox.platform == :darwin and is_boolean(reported["resident"]) do

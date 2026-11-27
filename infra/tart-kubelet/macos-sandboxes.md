@@ -40,7 +40,14 @@ Deploy all of the following before enabling an account:
    before preparation, so a chart rollout that waits on the DaemonSet never
    waits on an image pull or for disk room; readiness does not mean the host
    can place sandboxes. Only a host that has prepared its template connects to
-   the server, so placement never reaches an unprepared host. Preparation compiles the
+   the server, so placement never reaches an unprepared host. When a release
+   moves the default to an image the host cannot prepare yet (not in its CI
+   store and no room above the cold-pull disk floor, or a failed pull), the
+   host connects serving the previous default it still holds
+   (`<root>/default-image`), reported as that template's tag, and moves to the
+   new image once background preparation has it. On 2026-11-27 16 of 23 rack
+   hosts left placement because a deploy moved the default to an image they
+   had not staged. Preparation compiles the
    isolated runtime once and downloads the base image at background priority.
    Cold template preparation has a one-hour deadline: staging's first Xcode
    image pull exceeded the normal twenty-minute CI deadline. Removal or
@@ -71,7 +78,7 @@ the default moves. Callers pick one with an exact `xcode_version`
 
 - **Which Xcodes.** `sandboxes.macos.xcodeVersions` lists the Xcodes beyond the
   default, each from `runnersFleet.xcodeVersions`. Only the rack serves them; the
-  rented fleet and the hosts staging and canary borrow serve the default alone.
+  hosts staging and canary borrow serve the default alone.
   The server validates against `TUIST_MACOS_SANDBOX_XCODE_VERSIONS`, which the
   chart renders from the same list.
 - **Disk.** Their catalog pools carry `tuist.dev/macos-sandbox-template=true`,

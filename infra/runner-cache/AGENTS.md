@@ -328,7 +328,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   ingests, publishes, restores and evicts checkout masters, and the host only
   wires it to its admission (`Room`, and `Spare` for a restore the server listed
   before any job asked: free space only, never evicting, never replacing a job's
-  request or waiting for room), transfer and tools. `CheckoutImages` is the
+  request or waiting for room), transfer and tools. A restore downloads inside
+  `Throttle` (macOS: background disk I/O), and a spare one waits while `Hold`
+  says the host runs a job, kept for the next `Maintain` like a build refused
+  for room. `CheckoutImages` is the
   only platform part. `APFSCheckoutImages` (macOS) keeps the tree at the image
   root and leaves ownership to the guest's `-owners off` attach.
   `Ext4CheckoutImages` (Linux) formats sparse ext4 with inode tables and journal

@@ -15,35 +15,73 @@ import {
   parseISODate,
   toISODateString,
   calculateWeeksForMonth,
-  getVisibleRangeForMonth,
 } from "./dateUtils.js";
 import { CalendarNavigation } from "./CalendarNavigation.js";
 import { DateInputHandler } from "./DateInputHandler.js";
-import { WEEKDAYS, MOBILE_BREAKPOINT } from "./constants.js";
+import {
+  formatRange,
+  relativePresetLabel,
+  relativePresetPeriod,
+  suggestTypedRanges,
+} from "./rangeParser.js";
+import { WEEKDAYS } from "./constants.js";
+
+// The longest of an element's transitions, in milliseconds: 0 when it has
+// none, as with reduced motion.
+function transitionDuration(element) {
+  const durations = getComputedStyle(element)
+    .transitionDuration.split(",")
+    .map((value) =>
+      value.trim().endsWith("ms")
+        ? parseFloat(value)
+        : parseFloat(value) * 1000,
+    );
+  return Math.max(0, ...durations.filter(Number.isFinite));
+}
 
 export class DatePicker extends Component {
   constructor(el, props) {
     super(el, props);
     this.presets = props.presets || [];
+    // Typed-range suggestions, shown in place of the presets while typing.
+    this.suggestions = [];
+    this.highlightedSuggestion = -1;
     this.selectedPreset = props.selectedPreset;
-    this.isMobileView = window.innerWidth < MOBILE_BREAKPOINT;
+    this.pagePreset = props.selectedPreset;
     this.pendingRange = null;
+    // Panel changes held back until it has faded out (see whenClosed).
+    this.closedTasks = [];
     this.isSettingPreset = false;
     this.minDate = props.min ? datePicker.parse(props.min) : null;
     this.maxDate = props.max ? datePicker.parse(props.max) : null;
 
     // Calendar navigation manager - initialized with current value
     const value = this.api.value;
-    this.calendarNav = new CalendarNavigation(
-      value && value[0],
-      value && value[1],
-      () => this.render(),
+    this.calendarNav = new CalendarNavigation(value && value[0], () =>
+      this.handleNavigate(),
     );
 
     // AbortController for component-level event listeners
     this.abortController = new AbortController();
 
     this.setupNavigationHandlers();
+
+    // The tabs have no width while the panel is closed, so their fade is
+    // measured whenever their size changes, as well as on scroll. Each time
+    // the panel opens, the selected tab scrolls to the middle.
+    const tabs = this.el.querySelector(
+      "[data-part='presets'][data-device='mobile']",
+    );
+    if (tabs) {
+      let shown = false;
+      this.tabsObserver = new ResizeObserver(() => {
+        const wasShown = shown;
+        shown = tabs.clientWidth > 0;
+        if (shown && !wasShown) this.centerSelectedTab("instant");
+        this.renderTabsFade();
+      });
+      this.tabsObserver.observe(tabs);
+    }
   }
 
   setupNavigationHandlers() {
@@ -59,27 +97,18 @@ export class DatePicker extends Component {
         if (navigationTrigger) {
           if (navigationTrigger.disabled) return;
 
-          const months = Array.from(
-            this.el.querySelectorAll(
-              "[data-part='months'] > [data-part='month']",
-            ),
-          );
-          const monthIndex = months.indexOf(
-            navigationTrigger.closest("[data-part='month']"),
-          );
-          if (monthIndex < 0) return;
-
           if (navigationTrigger.dataset.part === "prev-trigger") {
-            if (monthIndex === 0) {
-              this.calendarNav.navigatePrevStart();
-            } else {
-              this.calendarNav.navigatePrevEnd();
-            }
-          } else if (monthIndex === 0) {
-            this.calendarNav.navigateNextStart();
+            this.calendarNav.navigatePrev();
           } else {
-            this.calendarNav.navigateNextEnd();
+            this.calendarNav.navigateNext();
           }
+          return;
+        }
+
+        const suggestion = e.target.closest("[data-part='suggestion']");
+        if (suggestion) {
+          const { range, preset } = this.suggestions[suggestion.dataset.index];
+          this.applyAndClose(range, preset);
           return;
         }
 
@@ -91,11 +120,64 @@ export class DatePicker extends Component {
       },
       { signal },
     );
+
+    this.el.addEventListener(
+      "input",
+      (e) => {
+        if (e.target.closest("[data-part='range-input']")) {
+          this.handleRangeInput(e.target.value);
+        }
+      },
+      { signal },
+    );
+
+    this.el.addEventListener(
+      "keydown",
+      (e) => {
+        if (!e.target.closest("[data-part='range-input']")) return;
+        if (e.key === "Enter") {
+          e.preventDefault();
+          this.handleRangeSubmit(e.target.value);
+        } else if (
+          (e.key === "ArrowDown" || e.key === "ArrowUp") &&
+          this.suggestions.length > 0
+        ) {
+          e.preventDefault();
+          const step = e.key === "ArrowDown" ? 1 : -1;
+          const count = this.suggestions.length;
+          this.highlightSuggestion(
+            (this.highlightedSuggestion + step + count) % count,
+          );
+        }
+      },
+      { signal },
+    );
+
+    this.el.addEventListener(
+      "scroll",
+      (e) => {
+        if (e.target.matches?.("[data-part='presets'][data-device='mobile']")) {
+          this.renderTabsFade();
+        }
+      },
+      { capture: true, passive: true, signal },
+    );
+
+    // Zag moves the focused day on arrow keys, PageUp/PageDown, Home, and End.
+    // When focus leaves the shown month, the calendar follows it there.
+    this.el.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.target.closest("[data-part='table']")) {
+          this.followFocus = true;
+        }
+      },
+      { capture: true, signal },
+    );
   }
 
   initMachine(context) {
     const forceOpen = getBooleanOption(this.el, "open");
-    const isMobile = window.innerWidth < MOBILE_BREAKPOINT;
 
     const minDate = context.min ? datePicker.parse(context.min) : null;
     const maxDate = context.max ? datePicker.parse(context.max) : null;
@@ -136,22 +218,44 @@ export class DatePicker extends Component {
     const machineContext = {
       ...context,
       selectionMode: "range",
-      numOfMonths: isMobile ? 1 : 2,
+      numOfMonths: 1,
       fixedWeeks: true,
+      outsideDaySelectable: true,
       closeOnSelect: false,
       open: forceOpen || undefined,
       defaultValue: defaultValue || undefined,
       min: minDate || undefined,
       max: maxDate || undefined,
       isDateUnavailable,
+      // Same placement as menus: under the trigger, start-aligned, 8px away.
       positioning: {
         zIndex: 50,
-        offset: { mainAxis: 0 },
+        placement: "bottom-start",
+        offset: { mainAxis: 8 },
       },
       onValueChange: () => {
-        if (!this.isSettingPreset && this.selectedPreset !== "custom") {
+        if (this.isSettingPreset) return;
+        // Days picked on the calendar replace what was typed.
+        this.clearRangeInput();
+        if (this.selectedPreset !== "custom") {
           this.selectedPreset = "custom";
           this.updatePresetSelection("custom");
+        }
+      },
+      // The panel opens ready for typing, and forgets what was typed when it
+      // closes without applying.
+      onOpenChange: ({ open }) => {
+        if (open) {
+          // Reopened before the exit finished: catch up first.
+          this.runClosedTasks();
+          // Without preventScroll, the browser scrolls the field into view
+          // while the panel is still being placed, shifting containers that
+          // hide their overflow, such as the dashboard's content.
+          requestAnimationFrame(() =>
+            this.rangeInput?.focus({ preventScroll: true }),
+          );
+        } else {
+          this.whenClosed(() => this.clearRangeInput());
         }
       },
     };
@@ -174,7 +278,13 @@ export class DatePicker extends Component {
       }
     }
 
-    const preset = presets.find((p) => p.id === selectedPreset);
+    // A typed rolling range comes back as an id that no preset has, such as
+    // "last-10-days".
+    const preset =
+      presets.find((p) => p.id === selectedPreset) ||
+      (relativePresetPeriod(selectedPreset) && {
+        period: relativePresetPeriod(selectedPreset),
+      });
     return this.getPresetValue(preset);
   }
 
@@ -190,41 +300,228 @@ export class DatePicker extends Component {
     this.api.setOpen(false);
   }
 
-  setupResizeListener() {
-    const handler = () => {
-      const newIsMobile = window.innerWidth < MOBILE_BREAKPOINT;
-      if (newIsMobile !== this.isMobileView) {
-        this.isMobileView = newIsMobile;
-        this.render();
-      }
-    };
-    window.addEventListener("resize", handler, {
-      signal: this.abortController.signal,
-    });
+  // The arrows changed the shown month. Zag's focused day moves along, so
+  // Tab still reaches the calendar and arrow keys start from that month.
+  handleNavigate() {
+    const focused = this.api.focusedValue;
+    const { year, month } = this.calendarNav.calendarMonth;
+    if (focused && (focused.year !== year || focused.month !== month)) {
+      const day = Math.min(focused.day, new Date(year, month, 0).getDate());
+      this.api.setFocusedValue(
+        datePicker.parse(
+          `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+        ),
+      );
+    }
+    this.render();
   }
 
   handlePresetClickById(presetId) {
     const preset = this.presets.find((p) => p.id === presetId);
     if (!preset) return;
 
+    // A preset with a range applies at once. "Custom" has none: it waits for
+    // days picked on the calendar and the Apply button.
+    const value = this.getPresetValue(preset);
+    if (value) {
+      this.applyAndClose(value, presetId);
+      return;
+    }
+
     this.selectedPreset = presetId;
     this.updatePresetSelection(presetId);
+    this.clearRangeInput();
+  }
 
-    const value = this.getPresetValue(preset);
-    if (value && this.api.setValue) {
-      const [startDate, endDate] = value;
-      this.isSettingPreset = true;
-      this.api.setValue(value);
-      this.calendarNav.updateForSelection(startDate, endDate);
+  // Applies a range picked in one click, a preset or a suggestion. The
+  // calendar shows the range the next time the panel opens.
+  applyAndClose(range, preset) {
+    this.commit(range, preset);
+    this.whenClosed(() => {
+      this.selectedPreset = preset;
+      this.updatePresetSelection(preset);
+      this.clearRangeInput();
+      this.setRangeValue(range);
+    });
+  }
 
-      this.api = this.initApi();
-      this.render();
+  // Applies a range. The panel closes exactly as a click outside closes it,
+  // and only once it has faded out is the range sent and named on the
+  // trigger. Either would disturb the exit: the label's new width moves the
+  // picker, and with it the panel, and the page's re-render replaces the
+  // panel's elements, which ends the fade.
+  commit([start, end], preset) {
+    this.close();
+    this.whenClosed(() => {
+      const startDate = start.toDate();
+      const endDate = end.toDate();
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      this.emitValueChange(startDate, endDate, preset);
+      this.renderTriggerLabel(start.toDate(), end.toDate(), preset);
+    });
+  }
 
-      // Defer flag reset to ensure onValueChange callbacks have fired
-      queueMicrotask(() => {
-        this.isSettingPreset = false;
-      });
+  // Runs a task once the panel has faded out, so nothing changes during the
+  // exit. It runs right away when the panel is reopened first, or has no
+  // exit transition (reduced motion).
+  whenClosed(task) {
+    this.closedTasks.push(task);
+    if (this.closedWait) return;
+
+    const content = this.el.querySelector("[data-part='content']");
+    const duration = content ? transitionDuration(content) : 0;
+    if (duration === 0) {
+      this.runClosedTasks();
+      return;
     }
+
+    this.closedWait = new AbortController();
+    // Buttons inside the panel end transitions of their own, which bubble.
+    content.addEventListener(
+      "transitionend",
+      (event) => {
+        if (event.target === content) this.runClosedTasks();
+      },
+      { signal: this.closedWait.signal },
+    );
+    // In case the transition never ends, such as in a hidden tab.
+    this.closedTimer = setTimeout(() => this.runClosedTasks(), duration + 100);
+  }
+
+  runClosedTasks() {
+    clearTimeout(this.closedTimer);
+    this.closedWait?.abort();
+    this.closedWait = null;
+    const tasks = this.closedTasks;
+    this.closedTasks = [];
+    tasks.forEach((task) => task());
+  }
+
+  // Shows a range on the calendar without counting it as days picked there.
+  setRangeValue(value) {
+    this.isSettingPreset = true;
+    this.api.setValue(value);
+    this.calendarNav.showMonthOf(value[0]);
+
+    this.api = this.initApi();
+    this.render();
+
+    // Defer flag reset to ensure onValueChange callbacks have fired
+    queueMicrotask(() => {
+      this.isSettingPreset = false;
+    });
+  }
+
+  get rangeInput() {
+    return this.el.querySelector("[data-part='range-input']");
+  }
+
+  // While typing, the presets give way to the ranges the text could mean.
+  // The highlighted one shows on the calendar, so the reading can be checked
+  // before applying; arrow keys and clicks move the highlight.
+  handleRangeInput(text) {
+    this.setRangeError(false);
+    this.suggestions = this.typedSuggestions(text);
+    this.renderSuggestions(text);
+    if (this.suggestions.length > 0) this.highlightSuggestion(0);
+  }
+
+  highlightSuggestion(index) {
+    const suggestion = this.suggestions[index];
+    if (!suggestion) return;
+    this.highlightedSuggestion = index;
+    this.el
+      .querySelectorAll("[data-part='suggestion']")
+      .forEach((option, i) => {
+        option.toggleAttribute("data-highlighted", i === index);
+        option.setAttribute("aria-selected", String(i === index));
+      });
+    this.rangeInput?.setAttribute(
+      "aria-activedescendant",
+      this.suggestionId(index),
+    );
+
+    this.selectedPreset = suggestion.preset;
+    this.updatePresetSelection(suggestion.preset);
+    this.setRangeValue(suggestion.range);
+  }
+
+  handleRangeSubmit(text) {
+    if (text.trim() && this.suggestions.length === 0) {
+      this.setRangeError(true);
+      return;
+    }
+    this.handleApply();
+  }
+
+  // The suggestions as calendar values. Past max they end at max; one that
+  // would start before min is left out rather than shortened.
+  typedSuggestions(text) {
+    return suggestTypedRanges(text).flatMap((typed) => {
+      const start = datePicker.parse(toISODateString(typed.start));
+      let end = datePicker.parse(toISODateString(typed.end));
+      if (this.minDate && compareDates(start, this.minDate) < 0) return [];
+      if (this.maxDate && compareDates(end, this.maxDate) > 0)
+        end = this.maxDate;
+      if (compareDates(start, end) > 0) return [];
+      return [
+        { range: [start, end], preset: typed.preset, label: typed.label },
+      ];
+    });
+  }
+
+  suggestionId(index) {
+    return `${this.el.id}-suggestion-${index}`;
+  }
+
+  renderSuggestions(text) {
+    const list = this.el.querySelector("[data-part='suggestions']");
+    if (!list) return;
+    this.highlightedSuggestion = -1;
+    this.rangeInput?.removeAttribute("aria-activedescendant");
+    this.rangeInput?.setAttribute("aria-expanded", String(text.trim() !== ""));
+
+    list.replaceChildren(
+      ...this.suggestions.map(({ label }, index) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.id = this.suggestionId(index);
+        option.tabIndex = -1;
+        option.dataset.part = "suggestion";
+        option.dataset.index = String(index);
+        option.setAttribute("role", "option");
+        option.setAttribute("aria-selected", "false");
+        option.textContent = label;
+        return option;
+      }),
+    );
+    if (text.trim() && this.suggestions.length === 0) {
+      const empty = document.createElement("p");
+      empty.dataset.part = "suggestions-empty";
+      empty.textContent = "No matching range";
+      list.append(empty);
+    }
+  }
+
+  setRangeError(error) {
+    const wrapper = this.rangeInput?.closest("[data-part='wrapper']");
+    if (!wrapper) return;
+    if (error) {
+      wrapper.setAttribute("data-error", "true");
+      this.rangeInput.setAttribute("aria-invalid", "true");
+    } else {
+      wrapper.removeAttribute("data-error");
+      this.rangeInput.removeAttribute("aria-invalid");
+    }
+  }
+
+  clearRangeInput() {
+    if (!this.rangeInput) return;
+    this.rangeInput.value = "";
+    this.setRangeError(false);
+    this.suggestions = [];
+    this.renderSuggestions("");
   }
 
   getPresetValue(preset) {
@@ -262,16 +559,20 @@ export class DatePicker extends Component {
 
   handleApply() {
     const value = this.api.value;
-    if (value && value.length >= 2) {
-      const startDate = value[0].toDate();
-      const endDate = value[1].toDate();
+    if (value && value.length >= 2) this.commit(value, this.selectedPreset);
+  }
 
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(23, 59, 59, 999);
-
-      this.emitValueChange(startDate, endDate, this.selectedPreset);
-      this.close();
-    }
+  // The trigger names the applied range straight away, as the component
+  // labels it on the server: the preset's label, a typed rolling range's
+  // ("Last 10 days"), or the dates in words. A page that stores the range
+  // re-renders the same label.
+  renderTriggerLabel(start, end, presetId) {
+    const label = this.el.querySelector("[data-part='trigger'] > span");
+    if (!label) return;
+    const preset =
+      presetId !== "custom" && this.presets.find((p) => p.id === presetId);
+    label.textContent =
+      preset?.label || relativePresetLabel(presetId) || formatRange(start, end);
   }
 
   emitValueChange(start, end, preset) {
@@ -286,7 +587,7 @@ export class DatePicker extends Component {
     }
   }
 
-  updatePresetSelection(selectedId) {
+  updatePresetSelection(selectedId, { center = true } = {}) {
     if (!selectedId) return;
 
     const presetButtons = this.el.querySelectorAll("[data-part='preset-item']");
@@ -298,6 +599,20 @@ export class DatePicker extends Component {
         btn.removeAttribute("data-selected");
       }
     });
+    if (center) this.centerSelectedTab("smooth");
+  }
+
+  // The page re-renders the presets when it stores an applied range, which
+  // can land while the panel fades out. The selection the picker shows wins
+  // until then; a new range from the page (such as the back button) is
+  // adopted once nothing is waiting for the panel to close.
+  syncSelectionFromPage() {
+    const pagePreset = this.el.dataset.selectedPreset;
+    if (pagePreset !== this.pagePreset && this.closedTasks.length === 0) {
+      this.pagePreset = pagePreset;
+      if (pagePreset) this.selectedPreset = pagePreset;
+    }
+    this.updatePresetSelection(this.selectedPreset, { center: false });
   }
 
   handleDateInputChange(parsed, type) {
@@ -328,18 +643,8 @@ export class DatePicker extends Component {
       this.selectedPreset = "custom";
       this.updatePresetSelection("custom");
     }
-
-    this.isSettingPreset = true;
-    this.api.setValue(newValue);
-    this.calendarNav.updateForSelection(newValue[0], newValue[1]);
-
-    this.api = this.initApi();
-    this.render();
-
-    // Defer flag reset to ensure onValueChange callbacks have fired
-    queueMicrotask(() => {
-      this.isSettingPreset = false;
-    });
+    this.clearRangeInput();
+    this.setRangeValue(newValue);
   }
 
   render() {
@@ -352,10 +657,45 @@ export class DatePicker extends Component {
       this.el.removeAttribute("data-selecting-range");
     }
 
+    const focused = this.api.focusedValue;
+    if (this.followFocus && focused) {
+      this.followFocus = false;
+      this.calendarNav.showMonthOf(focused);
+    }
+
     this.renderTriggerAndPositioner();
-    this.renderMonths();
+    this.renderMonth();
     this.renderRangeDisplay();
-    this.hideSecondMonthOnMobile();
+    this.renderTabsFade();
+  }
+
+  // Scrolls the mobile tabs so the selected one sits in the middle.
+  centerSelectedTab(behavior) {
+    const tabs = this.el.querySelector(
+      "[data-part='presets'][data-device='mobile']",
+    );
+    const tab = tabs?.querySelector("[data-part='preset-item'][data-selected]");
+    if (!tab || tabs.clientWidth === 0) return;
+    const tabBox = tab.getBoundingClientRect();
+    const tabsBox = tabs.getBoundingClientRect();
+    tabs.scrollBy({
+      left: tabBox.left + tabBox.width / 2 - (tabsBox.left + tabsBox.width / 2),
+      behavior,
+    });
+  }
+
+  // The mobile preset tabs scroll sideways without a scrollbar, so each edge
+  // with tabs past it fades out.
+  renderTabsFade() {
+    const tabs = this.el.querySelector(
+      "[data-part='presets'][data-device='mobile']",
+    );
+    if (!tabs) return;
+    // scrollLeft runs negative in right-to-left layouts.
+    const scrolled = Math.abs(tabs.scrollLeft);
+    const hidden = tabs.scrollWidth - tabs.clientWidth;
+    tabs.toggleAttribute("data-overflow-start", scrolled > 1);
+    tabs.toggleAttribute("data-overflow-end", hidden - scrolled > 1);
   }
 
   renderTriggerAndPositioner() {
@@ -363,6 +703,10 @@ export class DatePicker extends Component {
     renderPart(this.el, "control:trigger", this.api);
     renderPart(this.el, "positioner", this.api);
     renderPart(this.el, "positioner:content", this.api);
+    // The positioner shows and hides the panel (date_picker.css), so the
+    // content keeps its exit animation. Zag's `hidden` would cut it short
+    // wherever a stylesheet forces [hidden] to display: none.
+    this.el.querySelector("[data-part='content']")?.removeAttribute("hidden");
 
     // Override Zag's z-index (positioning config doesn't always apply)
     const positioner = this.el.querySelector("[data-part='positioner']");
@@ -371,28 +715,29 @@ export class DatePicker extends Component {
     }
   }
 
-  renderMonths() {
-    const months = this.el.querySelectorAll(
-      "[data-part='months'] > [data-part='month']",
-    );
+  renderMonth() {
+    const monthEl = this.el.querySelector("[data-part='month']");
+    if (!monthEl) return;
 
     const minDate = parseISODate(this.el.dataset.min);
     const maxDate = parseISODate(this.el.dataset.max);
+    const { calendarMonth } = this.calendarNav;
 
-    months.forEach((monthEl, monthIndex) => {
-      if (this.isMobileView && monthIndex > 0) return;
+    // Zag's keyboard handling lives on the table: arrow keys, PageUp/PageDown,
+    // Home, and End move the focused day.
+    const table = monthEl.querySelector("[data-part='table']");
+    if (table) {
+      const { id: _tableId, ...tableProps } = this.api.getTableProps({
+        view: "day",
+        columns: 7,
+      });
+      spreadProps(table, tableProps);
+    }
 
-      const calendarMonth =
-        monthIndex === 0
-          ? this.calendarNav.startCalendarMonth
-          : this.calendarNav.endCalendarMonth;
-      if (!calendarMonth) return;
-
-      this.renderMonthHeader(monthEl, calendarMonth);
-      this.renderNavigationButtons(monthEl, monthIndex, minDate, maxDate);
-      this.renderWeekdayHeaders(monthEl);
-      this.renderDayCells(monthEl, calendarMonth, minDate, maxDate);
-    });
+    this.renderMonthHeader(monthEl, calendarMonth);
+    this.renderNavigationButtons(monthEl, minDate, maxDate);
+    this.renderWeekdayHeaders(monthEl);
+    this.renderDayCells(monthEl, calendarMonth, minDate, maxDate);
   }
 
   renderMonthHeader(monthEl, calendarMonth) {
@@ -407,19 +752,12 @@ export class DatePicker extends Component {
     }
   }
 
-  renderNavigationButtons(monthEl, monthIndex, minDate, maxDate) {
+  renderNavigationButtons(monthEl, minDate, maxDate) {
     const prevTrigger = monthEl.querySelector("[data-part='prev-trigger']");
     const nextTrigger = monthEl.querySelector("[data-part='next-trigger']");
 
-    const canGoPrev =
-      monthIndex === 0
-        ? this.calendarNav.canNavigatePrevStart(minDate)
-        : this.calendarNav.canNavigatePrevEnd();
-
-    const canGoNext =
-      monthIndex === 0
-        ? this.calendarNav.canNavigateNextStart()
-        : this.calendarNav.canNavigateNextEnd(maxDate);
+    const canGoPrev = this.calendarNav.canNavigatePrev(minDate);
+    const canGoNext = this.calendarNav.canNavigateNext(maxDate);
 
     if (prevTrigger) {
       prevTrigger.disabled = !canGoPrev;
@@ -456,10 +794,6 @@ export class DatePicker extends Component {
       calendarMonth.month,
       startOfWeek,
     );
-    const monthVisibleRange = getVisibleRangeForMonth(
-      calendarMonth.year,
-      calendarMonth.month,
-    );
 
     const selectedValue = this.api.value;
     const rangeStart = selectedValue && selectedValue[0];
@@ -476,32 +810,48 @@ export class DatePicker extends Component {
       "[data-part='table-body'] [data-part='table-row']",
     );
 
+    // Cells before the 1st and after the month's last day hold the
+    // neighbouring months' days, counted from where the 1st sits. Zag marks
+    // them outside the visible month and, with outsideDaySelectable, still
+    // lets them be picked; picking one keeps the shown month.
+    const firstDayIndex = monthWeeks.flat().findIndex(Boolean);
+    const gridDay = (index) => {
+      const date = new Date(
+        calendarMonth.year,
+        calendarMonth.month - 1,
+        1 + index - firstDayIndex,
+      );
+      return datePicker.parse(toISODateString(date));
+    };
+    const visibleRange = {
+      start: gridDay(firstDayIndex),
+      end: gridDay(
+        firstDayIndex + monthWeeks.flat().filter(Boolean).length - 1,
+      ),
+    };
+
     rows.forEach((row, weekIndex) => {
       const cells = row.querySelectorAll("td");
       const week = monthWeeks[weekIndex];
+      // A week with none of the month's days is left out, so the calendar is
+      // as tall as the month needs: four, five, or six weeks.
+      row.hidden = !week?.some(Boolean);
 
       cells.forEach((cell, dayIndex) => {
         const trigger = cell.querySelector("[data-part='table-cell-trigger']");
         if (!trigger) return;
 
-        if (week && week[dayIndex]) {
-          const day = week[dayIndex];
-          this.renderDayCell(
-            cell,
-            trigger,
-            day,
-            monthVisibleRange,
-            rangeStart,
-            rangeEnd,
-            todayValue,
-            minDate,
-            maxDate,
-          );
-        } else {
-          trigger.textContent = "";
-          trigger.setAttribute("data-hidden", "");
-          cell.setAttribute("data-hidden", "");
-        }
+        this.renderDayCell(
+          cell,
+          trigger,
+          gridDay(weekIndex * 7 + dayIndex),
+          visibleRange,
+          rangeStart,
+          rangeEnd,
+          todayValue,
+          minDate,
+          maxDate,
+        );
       });
     });
   }
@@ -510,7 +860,7 @@ export class DatePicker extends Component {
     cell,
     trigger,
     day,
-    monthVisibleRange,
+    visibleRange,
     rangeStart,
     rangeEnd,
     todayValue,
@@ -523,7 +873,6 @@ export class DatePicker extends Component {
     trigger.removeAttribute("data-disabled");
     trigger.removeAttribute("data-unavailable");
     trigger.removeAttribute("aria-disabled");
-    trigger.removeAttribute("data-outside-range");
     trigger.removeAttribute("data-today");
     trigger.disabled = false;
     cell.removeAttribute("data-disabled");
@@ -533,11 +882,11 @@ export class DatePicker extends Component {
     const { id: _triggerId, ...dayProps } =
       this.api.getDayTableCellTriggerProps({
         value: day,
-        visibleRange: monthVisibleRange,
+        visibleRange: visibleRange,
       });
     const { id: _cellId, ...cellProps } = this.api.getDayTableCellProps({
       value: day,
-      visibleRange: monthVisibleRange,
+      visibleRange: visibleRange,
     });
 
     spreadProps(trigger, dayProps);
@@ -590,9 +939,6 @@ export class DatePicker extends Component {
       cell.setAttribute("data-disabled", "true");
       cell.setAttribute("aria-disabled", "true");
     }
-
-    trigger.removeAttribute("data-hidden");
-    cell.removeAttribute("data-hidden");
   }
 
   renderRangeDisplay() {
@@ -627,17 +973,12 @@ export class DatePicker extends Component {
     }
   }
 
-  hideSecondMonthOnMobile() {
-    if (this.isMobileView) {
-      this.el.setAttribute("data-mobile", "");
-    } else {
-      this.el.removeAttribute("data-mobile");
-    }
-  }
-
   destroy() {
     super.destroy();
     this.abortController.abort();
+    this.tabsObserver?.disconnect();
+    clearTimeout(this.closedTimer);
+    this.closedWait?.abort();
     this.dateInputHandler?.destroy();
   }
 }
@@ -691,12 +1032,10 @@ export default {
       }
     };
     document.addEventListener("mousedown", this.handleOutsideClick);
-
-    // Resize handler for responsive layout
-    this.datePicker.setupResizeListener();
   },
 
   updated() {
+    this.datePicker.syncSelectionFromPage();
     this.datePicker.render();
   },
 

@@ -136,15 +136,6 @@ defmodule TuistWeb.BazelCacheLive do
           >
             <:actions>
               <.button
-                label={dgettext("dashboard_projects", "Cancel")}
-                variant="secondary"
-                phx-click={
-                  JS.dispatch("phx:date-picker-cancel",
-                    detail: %{id: "bazel-cache-date-range-picker"}
-                  )
-                }
-              />
-              <.button
                 label={dgettext("dashboard_projects", "Apply")}
                 phx-click={
                   JS.dispatch("phx:date-picker-apply", detail: %{id: "bazel-cache-date-range-picker"})

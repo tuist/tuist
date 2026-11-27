@@ -589,7 +589,10 @@ func (m *Manager) vmSpec(meta Metadata) vm.Spec {
 func (m *Manager) attach(ctx context.Context, sb *Sandbox, inst vm.Instance, meta Metadata, formatWorkspace bool, fail func(error) (vm.Instance, vsock.Agent, error)) (vm.Instance, vsock.Agent, error) {
 	started := time.Now()
 	agent := m.agent(inst.VsockPath())
-	if _, err := vsock.WaitReady(ctx, agent, m.cfg.BootTimeout); err != nil {
+	readiness := newReadinessLog()
+	_, err := vsock.WaitReadyObserved(ctx, agent, m.cfg.BootTimeout, readiness.add)
+	readiness.report(m.log, meta.ID, time.Since(started), err)
+	if err != nil {
 		return fail(err)
 	}
 	if err := agent.SetTime(ctx, time.Now()); err != nil {

@@ -34,6 +34,12 @@ type Signals struct {
 	// are funded most cold jobs first. An older server omits it and it
 	// decodes as 0, which leaves HoursWithJobs to decide, as before.
 	ColdJobs int32 `json:"cold_jobs"`
+	// RemoteExecutionFloorSlots is the remote execution floor the server
+	// learned from the first wave of the accounts' recent builds, in VM
+	// slots, or 0 when no account started a build in the last 30 minutes.
+	// Fleet-wide: every pool gets the same value. An older server omits it
+	// and it decodes as 0, which leaves the fixed floor.
+	RemoteExecutionFloorSlots int32 `json:"remote_execution_floor_slots"`
 	// PreferredNodes holds one Node per oldest queued job, in queue order: a
 	// host that holds the custom cache volumes the job is predicted to attach
 	// and has cache disk room for them. A Node repeats once per job it fits.

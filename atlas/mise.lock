@@ -129,29 +129,29 @@ url_api = "https://api.github.com/repos/cli/cli/releases/assets/407353532"
 provenance = "github-attestations"
 
 [[tools."github:tuist/struo"]]
-version = "2.24.4"
+version = "2.25.2"
 backend = "github:tuist/struo"
-specifiers = ["2.24.4"]
+specifiers = ["2.25.2"]
 
 [tools."github:tuist/struo"."platforms.linux-arm64"]
-checksum = "sha256:c513a004d0f64a3ddc675386b466a7cc56a996c53e71e73629446100cef9938d"
-url = "https://github.com/tuist/struo/releases/download/2.24.4/struo-2.24.4-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/tuist/struo/releases/assets/799688737"
+checksum = "sha256:3ab7e75a5b97644fc276308f4c06417ea5bde8136f9e05315c19df82ba2b5739"
+url = "https://github.com/tuist/struo/releases/download/2.25.2/struo-2.25.2-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/struo/releases/assets/800307370"
 
 [tools."github:tuist/struo"."platforms.linux-x64"]
-checksum = "sha256:f79c841f6d281b9009cd60ab3dfcd4b97e40694fc20714564c46c8295ceb56e2"
-url = "https://github.com/tuist/struo/releases/download/2.24.4/struo-2.24.4-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/tuist/struo/releases/assets/799688856"
+checksum = "sha256:99c2564799879f50fad5941573564839ac92f5b2506656d89ace578aa87257d8"
+url = "https://github.com/tuist/struo/releases/download/2.25.2/struo-2.25.2-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/struo/releases/assets/800307374"
 
 [tools."github:tuist/struo"."platforms.macos-arm64"]
-checksum = "sha256:30b30ece3a557a77d1e45cf9cad1f0624ec318fac858ff056ec08d34fc27ac49"
-url = "https://github.com/tuist/struo/releases/download/2.24.4/struo-2.24.4-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/struo/releases/assets/799688883"
+checksum = "sha256:5c4b2e8ca0a6aa237dab168e7ae7cf26339ea3a83415f4bcb8f440c26d50d3f8"
+url = "https://github.com/tuist/struo/releases/download/2.25.2/struo-2.25.2-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/struo/releases/assets/800307474"
 
 [tools."github:tuist/struo"."platforms.macos-x64"]
-checksum = "sha256:1d6f45e191ef326cf054e4771d46c0ee259d13f0beddef1f5491cde4a0f6452b"
-url = "https://github.com/tuist/struo/releases/download/2.24.4/struo-2.24.4-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/struo/releases/assets/799688794"
+checksum = "sha256:810bc013a7ada0f8a978d258be1e792fec4d87384e0f6cc3c79815e101e45031"
+url = "https://github.com/tuist/struo/releases/download/2.25.2/struo-2.25.2-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/struo/releases/assets/800307376"
 
 [[tools.helm]]
 version = "4.3.0"

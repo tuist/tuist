@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -85,7 +86,7 @@ func TestRunOnceFollowsAReleaseBeforeReapingThePreviousImage(t *testing.T) {
 			Fleet:           fleet,
 			GoldenRetention: 24 * time.Hour,
 			Now:             func() time.Time { return now },
-			HostDiskFree:    func() (float64, error) { return free, nil },
+			HostDisk:        func() (hostdisk.Stats, error) { return diskAt(free), nil },
 			IsRunning:       func(context.Context, string) (bool, error) { return false, nil },
 			Goldens:         goldens,
 		}
@@ -174,12 +175,23 @@ func TestRunOnceFollowsAReleaseBeforeReapingThePreviousImage(t *testing.T) {
 		}
 	})
 
-	t.Run("does not pull below the prewarm free floor", func(t *testing.T) {
+	t.Run("does not pull a whole image it has no room for", func(t *testing.T) {
 		c := newCollector(t, []string{goldenVMName(previous), previous}, released(withPrevious))
-		*c.free = prewarmMinFreePercent - 1
+		*c.free = 18
 		run(c)
 		if len(c.goldens.pulled) != 0 {
-			t.Fatalf("pulled = %v, want nothing below the prewarm floor", c.goldens.pulled)
+			t.Fatalf("pulled = %v, want nothing: 80 GiB at 18%% free leaves less than the reclaim floor", c.goldens.pulled)
+		}
+	})
+
+	t.Run("pulls a stacked release's overlay on a fuller disk", func(t *testing.T) {
+		pools := released(withPrevious)
+		pools.pools[0].SetLabels(map[string]string{runnerImageVariantLabel: "stacked"})
+		c := newCollector(t, []string{goldenVMName(previous), previous}, pools)
+		*c.free = 18
+		run(c)
+		if want := []string{current}; !reflect.DeepEqual(c.goldens.pulled, want) {
+			t.Fatalf("pulled = %v, want %v", c.goldens.pulled, want)
 		}
 	})
 }

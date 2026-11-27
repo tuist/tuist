@@ -177,15 +177,6 @@ defmodule AtlasWeb.ErrorsLive.Index do
               >
                 <:actions>
                   <.button
-                    label={gettext("Cancel")}
-                    variant="secondary"
-                    phx-click={
-                      JS.dispatch("phx:date-picker-cancel",
-                        detail: %{id: "errors-date-range-picker"}
-                      )
-                    }
-                  />
-                  <.button
                     label={gettext("Apply")}
                     phx-click={
                       JS.dispatch("phx:date-picker-apply",

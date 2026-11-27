@@ -201,5 +201,6 @@ defmodule TuistWeb.TestSelectionsLive do
   defp trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")
   defp trend_label("last-12-months"), do: dgettext("dashboard_tests", "since last year")
   defp trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
-  defp trend_label(_preset), do: dgettext("dashboard_tests", "since last month")
+  defp trend_label(preset) when preset in [nil, "last-30-days"], do: dgettext("dashboard_tests", "since last month")
+  defp trend_label(_), do: dgettext("dashboard_tests", "since last period")
 end

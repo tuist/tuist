@@ -126,7 +126,8 @@ defmodule TuistWeb.SandboxesLive do
   defp trend_label("last-7-days"), do: dgettext("dashboard_sandboxes", "since last week")
   defp trend_label("last-12-months"), do: dgettext("dashboard_sandboxes", "since last year")
   defp trend_label("custom"), do: dgettext("dashboard_sandboxes", "since last period")
-  defp trend_label(_), do: dgettext("dashboard_sandboxes", "since last month")
+  defp trend_label(preset) when preset in [nil, "last-30-days"], do: dgettext("dashboard_sandboxes", "since last month")
+  defp trend_label(_), do: dgettext("dashboard_sandboxes", "since last period")
 
   @doc """
   Percentile lines for a duration that not every bucket has, such as setup,

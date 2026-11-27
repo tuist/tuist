@@ -394,7 +394,8 @@ defmodule TuistWeb.XcodeBuildsLive do
   defp trend_label("last-7-days"), do: dgettext("dashboard_builds", "since last week")
   defp trend_label("last-12-months"), do: dgettext("dashboard_builds", "since last year")
   defp trend_label("custom"), do: dgettext("dashboard_builds", "since last period")
-  defp trend_label(_), do: dgettext("dashboard_builds", "since last month")
+  defp trend_label(preset) when preset in [nil, "last-30-days"], do: dgettext("dashboard_builds", "since last month")
+  defp trend_label(_), do: dgettext("dashboard_builds", "since last period")
 
   def environment_label("any"), do: dgettext("dashboard_builds", "Any")
   def environment_label("local"), do: dgettext("dashboard_builds", "Local")

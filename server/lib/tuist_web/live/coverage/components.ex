@@ -729,11 +729,6 @@ defmodule TuistWeb.Coverage.Components do
     >
       <:actions>
         <.button
-          label={dgettext("dashboard_tests", "Cancel")}
-          variant="secondary"
-          phx-click={JS.dispatch("phx:date-picker-cancel", detail: %{id: @id})}
-        />
-        <.button
           label={dgettext("dashboard_tests", "Apply")}
           phx-click={JS.dispatch("phx:date-picker-apply", detail: %{id: @id})}
         />

@@ -87,10 +87,9 @@ type Collector struct {
 	// pressure. Zero falls back to defaultGoldenReclaimFreeFloor.
 	HostDiskFreeFloor float64
 
-	// HostDiskFree probes the host root volume's free-space percent.
-	// Overridable in tests (statvfs isn't stubbable via the Tart binary);
-	// defaults to a real statvfs of "/".
-	HostDiskFree func() (float64, error)
+	// HostDisk measures the host root volume. Overridable in tests (statvfs
+	// isn't stubbable via the Tart binary); defaults to a real statvfs of "/".
+	HostDisk func() (hostdisk.Stats, error)
 
 	// MinGoldensKept floors how many golden bases the disk-pressure
 	// reclaim leaves behind, so a wedged measurement or a pathological
@@ -218,7 +217,7 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 
 	c.applyBudget(expected, vms, now)
 
-	var follow []string
+	var follow []followPull
 	if !aggressive {
 		follow = c.planFollow(expected, vms, now)
 	}
@@ -402,14 +401,20 @@ func (c *Collector) goldenReclaimFreeFloor() float64 {
 // hostDiskFree returns the host root volume's free-space percent, using the
 // injected probe when set (tests) or a real statvfs of "/".
 func (c *Collector) hostDiskFree() (float64, error) {
-	if c.HostDiskFree != nil {
-		return c.HostDiskFree()
-	}
-	st, err := hostdisk.Root("/")
+	st, err := c.hostDisk()
 	if err != nil {
 		return 0, err
 	}
 	return st.FreePercent(), nil
+}
+
+// hostDisk measures the host root volume, using the injected probe when set
+// (tests) or a real statvfs of "/".
+func (c *Collector) hostDisk() (hostdisk.Stats, error) {
+	if c.HostDisk != nil {
+		return c.HostDisk()
+	}
+	return hostdisk.Root("/")
 }
 
 // liveBackedGoldens returns the set of golden base VM names whose clone is
@@ -662,7 +667,7 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 				if out.successions == nil {
 					out.successions = map[string]succession{}
 				}
-				out.successions[goldenVMName(previous)] = succession{previous: previous, current: pool.Spec.Image}
+				out.successions[goldenVMName(previous)] = succession{previous: previous, current: pool.Spec.Image, stacked: pool.stacked()}
 			}
 		}
 	}

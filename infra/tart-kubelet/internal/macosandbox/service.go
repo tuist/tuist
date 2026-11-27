@@ -265,6 +265,11 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		var cfg Config
 		configData, configErr := os.ReadFile(filepath.Join(s.Root, "config.json"))
 		if control != nil {
+			// The configuration replaced below is the last one this host
+			// served, so its default stays available to prepareDefault.
+			if configErr == nil {
+				rememberDefault(s.Root, configData)
+			}
 			configData, configErr = []byte(control.Annotations[ConfigAnnotation]), nil
 		}
 		if configErr != nil {
@@ -384,10 +389,9 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		// keeps the host from serving the rest.
 		configured := cfg.templates()
 		tartRuntime, _ := m.Runtime.(*TartRuntime)
+		served := configured[0].Image
 		if tartRuntime != nil {
-			if err = s.withPreparingControl(parent, control, func(prepareCtx context.Context) error {
-				return ensureImage(prepareCtx, tartRuntime.Client, s.CIStore, configured[0].Image)
-			}); err != nil {
+			if served, err = s.prepareDefault(parent, control, tartRuntime, configured[0].Image); err != nil {
 				return err
 			}
 		}
@@ -397,13 +401,21 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		m.Gate.Lock()
 		s.capacity.ControlUID = string(control.UID)
 		// Every name of the default image is ready with it; a runtime
-		// without a store has nothing to prepare.
+		// without a store has nothing to prepare. Names of a default the
+		// host could not prepare serve the previous one meanwhile, and move
+		// to the new image once prepareTemplates has it.
 		prepared := map[string]string{}
 		var pending []TemplateConfig
 		for _, t := range configured {
-			if tartRuntime == nil || t.Image == configured[0].Image {
+			switch {
+			case tartRuntime == nil:
 				prepared[t.Template] = t.Image
-			} else {
+			case t.Image == configured[0].Image:
+				prepared[t.Template] = served
+				if served != t.Image {
+					pending = append(pending, t)
+				}
+			default:
 				pending = append(pending, t)
 			}
 		}
@@ -414,7 +426,7 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		// here, and checkDisk learns it on the next create, resume or save.
 		if tartRuntime != nil {
 			if err = tartRuntime.learnRootDisk(parent); err != nil {
-				slog.Warn("macOS sandbox root disk size unknown", "image", configured[0].Image, "error", err)
+				slog.Warn("macOS sandbox root disk size unknown", "image", served, "error", err)
 			}
 		}
 		// A runtime without a store reports no disk budget, which the server does not budget.
@@ -439,8 +451,13 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		templates := func() []protocol.TemplateInfo {
 			infos := make([]protocol.TemplateInfo, 0, len(configured))
 			for _, t := range configured {
+				// The tag is the image the template's VMs clone now, which is
+				// the previous default while a new one is prepared.
 				image, ok := m.Templates.Image(t.Template)
-				infos = append(infos, protocol.TemplateInfo{Name: t.Template, Tag: t.Image, Ready: ok && image == t.Image, RootfsBytes: rootfs(), Warm: m.warmShapes(t.Template)})
+				if !ok {
+					image = t.Image
+				}
+				infos = append(infos, protocol.TemplateInfo{Name: t.Template, Tag: image, Ready: ok, RootfsBytes: rootfs(), Warm: m.warmShapes(t.Template)})
 			}
 			return infos
 		}

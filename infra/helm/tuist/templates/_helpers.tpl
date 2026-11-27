@@ -189,8 +189,8 @@ every resource that needs to share an identity:
   - the Node label `tuist.dev/fleet=<name>` and the Pod
     nodeSelector that pins workloads to the right fleet
 
-Centralizing the name in this helper keeps macos-fleet.yaml,
-runners-fleet.yaml, and the workload Deployments pinned to the
+Centralizing the name in this helper keeps macos-fleet.yaml
+and the workload Deployments pinned to the
 same value without copy-paste drift.
 
 Defaults pin the existing xcresult fleet to its release-name-
@@ -1573,8 +1573,8 @@ The runner image for a catalog Xcode version: the `imageTag` its
 Deploys resolve the digests, so a release that re-tags an unchanged profile
 leaves its pools' image as it was: the controller does not roll their Pods
 and hosts keep the golden the ref names. The image is a property of the Xcode,
-not of the fleet it runs on, so every pool that runs an Xcode (the rented
-fleet's, a rack's, an explicit pool naming `xcodeVersion`) takes it from here
+not of the fleet it runs on, so every pool that runs an Xcode (a rack's, an
+explicit pool naming `xcodeVersion`) takes it from here
 and follows a release together.
 */}}
 {{- define "tuist.macosRunnerImage" -}}
@@ -1826,26 +1826,6 @@ The identity a lending env's operator writes this env's RackHostLeases with.
 */}}
 {{- define "tuist.rackLenderName" -}}
 {{- include "tuist.componentName" (dict "root" . "component" "rack-lender") -}}
-{{- end -}}
-
-{{/*
-"true" unless the env racks its macOS catalog at a site
-(`tuist.rackCatalogPools`) and rents no Scaleway hosts for it
-(`runnersFleet.hostCount` and every `machineGroups[].hostCount` at 0). Without
-rented hosts the chart renders no rented macOS catalog pools, and the server
-(TUIST_RUNNERS_RENTED_MACOS_FLEET) keeps every site job at the site instead of
-falling back or spilling over to a fleet that is not there.
-*/}}
-{{- define "tuist.runnersFleetRentsMacOS" -}}
-{{- $hosts := int (.Values.runnersFleet.hostCount | default 0) -}}
-{{- range (.Values.runnersFleet.machineGroups | default list) -}}
-{{- $hosts = add $hosts (int (.hostCount | default 0)) -}}
-{{- end -}}
-{{- if and (eq (int $hosts) 0) (include "tuist.rackCatalogPools" . | fromJsonArray) -}}
-false
-{{- else -}}
-true
-{{- end -}}
 {{- end -}}
 
 {{/*
