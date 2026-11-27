@@ -341,16 +341,23 @@ defmodule Tuist.Runners.ActionsCache do
   end
 
   # Where a save from `node` goes: an account with its own S3 storage keeps its
-  # entries there, every other account in a store the node reaches.
+  # entries there, every other account in a store the node reaches, its own
+  # site's first: a rack Mac reaches other sites' stores through its entrance,
+  # but over both sites' internet links.
   defp place(account, node) do
     if Account.custom_s3_storage_configured?(account) do
       {:ok, nil}
     else
       location = node_location(node)
+      site = with {_platform, site} <- location, do: site
 
-      Enum.find_value(Enum.sort(stores()), :error, fn {id, {config, _target}} ->
-        if placeable?(location, config), do: {:ok, id}
-      end)
+      stores()
+      |> Enum.filter(fn {_id, {config, _target}} -> placeable?(location, config) end)
+      |> Enum.sort_by(fn {id, {config, _target}} -> {config["site"] != site, id} end)
+      |> case do
+        [{id, _} | _] -> {:ok, id}
+        [] -> :error
+      end
     end
   end
 

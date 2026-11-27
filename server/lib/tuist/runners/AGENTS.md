@@ -94,8 +94,8 @@ and tart-kubelet call it.
 - A reservation is placed in the account's own storage, otherwise in a shard
   store (`actions_cache_bucket`) the node reaches (`Sites.actions_cache_location/1`):
   for a Linux node, its own site's store on the private network; for a rack Mac,
-  a store whose `runner_endpoints` name its site, with the Mac's upload and
-  download URLs signed for that entrance. Without one the save is refused and the job uses GitHub's
+  a store whose `runner_endpoints` name its site, its own site's first, with
+  the Mac's upload and download URLs signed for that entrance. Without one the save is refused and the job uses GitHub's
   cache. Lookups only match entries the node's site can read. An entry commits
   only once its store holds the object.
 - Production serves an account only with `:runner_actions_cache`

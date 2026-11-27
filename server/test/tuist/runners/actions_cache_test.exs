@@ -416,6 +416,50 @@ defmodule Tuist.Runners.ActionsCacheTest do
       assert restore(pod, "deps") == nil
     end
 
+    test "a rack Mac saves to its own site's store before another site's it also reaches", ctx do
+      store = fn site, entrances ->
+        Map.merge(@store, %{
+          "site" => site,
+          "access" => "private",
+          "private_network_ready" => false,
+          "region" => "us-east-1",
+          "runner_endpoints" => entrances
+        })
+      end
+
+      # The larch store sorts first, so a pick by ID alone would cross sites.
+      stub(Environment, :shard_storage_targets, fn ->
+        %{
+          "rustfs-larch-v1" =>
+            store.("larch", %{"larch" => "https://s3-larch.tuist.dev", "ber1" => "https://s3-larch-via-ber1.tuist.dev"}),
+          "store-ber1-v1" => store.("ber1", %{"ber1" => "https://s3-ber1.tuist.dev"})
+        }
+      end)
+
+      pod = running(ctx, "pod-main", push("main"))
+
+      reserve = fn key ->
+        id = Ecto.UUID.generate()
+
+        assert {:ok, ^id} =
+                 ActionsCache.reserve(%{
+                   "pod_name" => pod,
+                   "node_name" => "node",
+                   "id" => id,
+                   "key" => key,
+                   "version" => @version
+                 })
+
+        Repo.get(Entry, id).storage_target
+      end
+
+      stub(Sites, :actions_cache_location, fn _node -> {:macos, "ber1"} end)
+      assert reserve.("ber1-deps") == "store-ber1-v1"
+
+      stub(Sites, :actions_cache_location, fn _node -> {:macos, "larch"} end)
+      assert reserve.("larch-deps") == "rustfs-larch-v1"
+    end
+
     test "a rack Mac saves and restores through its site's entrance to a store it reaches", ctx do
       store =
         Map.merge(@store, %{
