@@ -43,6 +43,31 @@ dies in can be resumed. See [Resuming an interrupted run](#resuming-an-interrupt
 When a store is configured, Condukt loads the snapshot at `start_link/1` and
 saves a fresh snapshot after every completed run.
 
+## Image history and recovery
+
+With an [image policy](providers.md#preparing-images-before-persistence),
+Condukt prepares user attachments before `run_start`, tool image results
+before `tool_result`, and MCP image blocks before rendering their tool text.
+The journal and snapshot retain the prepared bytes, so replay does not call
+the decoder again or change coordinates after a restart.
+
+User attachments include a string-keyed `"condukt.image"` receipt containing
+dimensions and a digest of the MIME type and base64 data. Condukt checks
+receipts and the current policy limits before sending history to a model or
+resuming tools. These receipts detect accidental changes; they are not
+authentication and do not replace a trusted decoder or store.
+
+If you enable a policy on old history without receipts, change stored bytes,
+or tighten limits below existing attachments, runs return
+`{:error, :image_history_requires_repair}` before a provider request. A failed
+resume preflight leaves the interrupted run and its retry count untouched.
+Condukt does not refit committed history or erase it to recover. Keep the
+original store, then start a fresh session or perform an explicit host-owned
+migration while the session is stopped. Configure the policy again on
+restart; snapshots do not store decoder code or policy configuration.
+Historical image data inside tool-result JSON strings remains opaque and
+does not receive this receipt check.
+
 ## Object storage
 
 `Condukt.SessionStore.ObjectStore` only ever creates objects, using S3's

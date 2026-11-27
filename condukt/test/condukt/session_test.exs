@@ -4,6 +4,7 @@ defmodule Condukt.SessionTest do
   alias Condukt.Message
   alias Condukt.SessionStore.Memory
   alias Condukt.SessionStore.Snapshot
+  alias Condukt.Test.Images
   alias Condukt.Test.LLMProvider
   alias ReqLLM.ToolCall
 
@@ -106,6 +107,133 @@ defmodule Condukt.SessionTest do
 
       assert {:error, {:session_exit, :timeout}} =
                Condukt.Session.run(pid, "go", timeout: 1)
+    end
+  end
+
+  describe "image_policy" do
+    test "prepares input, corrects MIME, and omits malformed siblings without losing text" do
+      {model, model_id} = LLMProvider.model([LLMProvider.text_response("seen")])
+
+      pid =
+        start_supervised!(
+          {ConfigAgent, model: model, image_policy: Images.policy(self()), load_project_instructions: false}
+        )
+
+      wide = Images.attachment(Images.png(9001, 1))
+      normal = %{Images.attachment() | media_type: "image/jpeg"}
+      malformed = %{media_type: "image/png", data: "%%%invalid%%%"}
+      truncated = Images.attachment(<<137, "PNG\r\n", 26, "\n">>)
+
+      assert {:ok, "seen"} = Condukt.run(pid, "inspect these", images: [wide, malformed, normal, truncated])
+      assert [message, _answer] = Condukt.history(pid)
+      assert message.content =~ "inspect these"
+      assert message.content =~ "Image omitted"
+      assert message.content =~ "2x1"
+      refute message.content =~ "decoder details"
+      assert [fitted, corrected] = message.images
+      assert fitted.data == Base.encode64(Images.png(2, 1))
+      assert corrected.data == normal.data
+      assert corrected.media_type == "image/png"
+
+      assert_receive {LLMProvider, :request, ^model_id, context, _}
+      assert %ReqLLM.Message{content: [_text, first_image, second_image]} = List.last(context.messages)
+      assert first_image.url == "data:image/png;base64,#{fitted.data}"
+      assert second_image.url == "data:image/png;base64,#{normal.data}"
+    end
+
+    test "bounds outputs even when a decoder ignores byte, dimension or pixel limits" do
+      normal = Images.png(2, 3)
+      limits = [max_base64_bytes: byte_size(Base.encode64(normal)), max_width: 2, max_height: 3, max_pixels: 6]
+
+      for {extra_limits, result} <- [
+            {[], {:ok, normal, "image/png", %{width: 2, height: 3}}},
+            {[max_base64_bytes: byte_size(Base.encode64(normal)) - 1],
+             {:ok, normal, "image/png", %{width: 2, height: 3}}},
+            {[max_input_bytes: byte_size(normal) - 1], {:ok, normal, "image/png", %{width: 2, height: 3}}},
+            {[], {:ok, normal, "image/png", %{width: 3, height: 2}}},
+            {[max_pixels: 5], {:ok, normal, "image/png", %{width: 2, height: 3}}},
+            {[], {:ok, "not an image", "image/png", %{width: 2, height: 3}}},
+            {[], {:ok, normal, "image/jpeg", %{width: 2, height: 3}}}
+          ] do
+        policy = Images.policy(self(), Keyword.merge(limits, extra_limits) ++ [prepare: {Images, :return, [result]}])
+        {model, _} = LLMProvider.model([LLMProvider.text_response("ok")])
+        {:ok, pid} = ConfigAgent.start_link(model: model, image_policy: policy, load_project_instructions: false)
+        assert {:ok, "ok"} = Condukt.run(pid, "inspect", images: [Images.attachment(normal)])
+        [message, _] = Condukt.history(pid)
+
+        if extra_limits == [] and result == {:ok, normal, "image/png", %{width: 2, height: 3}} do
+          assert [image] = message.images
+          assert image.data == Base.encode64(normal)
+        else
+          assert message.images == []
+          assert message.content =~ "Image omitted"
+        end
+
+        GenServer.stop(pid)
+      end
+    end
+
+    @tag capture_log: true
+    test "decoder exceptions, exits and timeouts omit images and leave the session usable" do
+      for mode <- [:raise, :kill, {:wait, self()}] do
+        policy = Images.policy(self(), prepare: {Images, :fail, [mode]}, timeout: 10)
+        {model, _} = LLMProvider.model([LLMProvider.text_response("ok"), LLMProvider.text_response("next")])
+        {:ok, pid} = ConfigAgent.start_link(model: model, image_policy: policy, load_project_instructions: false)
+        assert {:ok, "ok"} = Condukt.run(pid, "inspect", images: [Images.attachment()])
+        [message, _] = Condukt.history(pid)
+        assert message.images == []
+        assert message.content =~ "Image omitted"
+        refute message.content =~ "private decoder"
+        assert {:ok, "next"} = Condukt.run(pid, "continue")
+
+        if match?({:wait, _}, mode) do
+          assert_receive {:preparer_waiting, worker}
+          refute Process.alive?(worker)
+        end
+
+        GenServer.stop(pid)
+      end
+    end
+
+    test "reserves image count and byte budgets across conversation history" do
+      normal = Images.attachment()
+
+      for limits <- [[max_images: 2, max_total_base64_bytes: byte_size(normal.data)], [max_images: 1]] do
+        policy = Images.policy(self(), limits)
+        {model, _} = LLMProvider.model([LLMProvider.text_response("first"), LLMProvider.text_response("second")])
+        {:ok, pid} = ConfigAgent.start_link(model: model, image_policy: policy, load_project_instructions: false)
+        assert {:ok, "first"} = Condukt.run(pid, "one", images: [normal, normal])
+        assert {:ok, "second"} = Condukt.run(pid, "two", images: [normal])
+        assert [first, _, second, _] = Condukt.history(pid)
+        assert length(first.images) == 1
+        assert second.images == []
+        assert second.content =~ "Image omitted"
+        GenServer.stop(pid)
+      end
+    end
+
+    test "aborting preparation cancels the decoder without storing the input" do
+      policy = Images.policy(self(), prepare: {Images, :fail, [{:wait, self()}]})
+      {model, _} = LLMProvider.model([LLMProvider.text_response("next")])
+      pid = start_supervised!({ConfigAgent, model: model, image_policy: policy, load_project_instructions: false})
+      running = Task.async(fn -> Condukt.run(pid, "inspect", images: [Images.attachment()]) end)
+      assert_receive {:preparer_waiting, worker}, 1000
+      monitor = Process.monitor(worker)
+      assert :ok = Condukt.abort(pid)
+      assert {:error, :aborted} = Task.await(running)
+      assert_receive {:DOWN, ^monitor, :process, ^worker, _}, 1000
+      assert Condukt.history(pid) == []
+      assert {:ok, "next"} = Condukt.run(pid, "continue")
+    end
+
+    test "rejects invalid configuration and leaves images unchanged when no policy is set" do
+      assert {:error, :invalid_image_policy} = ConfigAgent.start_link(image_policy: [])
+      assert {:error, :invalid_image_policy} = ConfigAgent.start_link(image_policy: Images.policy(self(), timeout: 0))
+      {model, _} = LLMProvider.model([LLMProvider.text_response("legacy")])
+      pid = start_supervised!({ConfigAgent, model: model, load_project_instructions: false})
+      image = %{media_type: "image/png", data: "invalid but previously accepted"}
+      assert {:ok, "legacy"} = Condukt.run(pid, "unchanged", images: [image])
+      assert [%Message{content: "unchanged", images: [^image]}, _] = Condukt.history(pid)
     end
   end
 

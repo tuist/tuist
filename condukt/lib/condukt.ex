@@ -246,6 +246,9 @@ defmodule Condukt do
         `req_http_options: [headers: [{"x-tenant", "acme"}]]` for trusted
         gateway headers; Condukt preserves them while adding optional trace
         propagation headers.
+      - `:image_policy` - Opt-in image preparation before persistence. Supply
+        a host decoder/fitter MFA and explicit budgets; see `Condukt.Images`.
+        Unset by default, preserving existing attachment behavior.
       - `:system_prompt` - System prompt for the agent
       - `:load_project_instructions` - Auto-load `AGENTS.md`, `CLAUDE.md`, and local skills from the project root (default: `true`)
       - `:thinking_level` - Override the thinking level
@@ -437,7 +440,7 @@ defmodule Condukt do
   Anonymous and module-defined one-shot runs accept all the per-run options above (`:timeout`,
   `:max_turns`, `:images`) plus the session options accepted by an agent's
   `start_link/1` (`:model`, `:system_prompt`, `:api_key`, `:base_url`,
-  `:llm_request_options`, `:thinking_level`, `:max_tokens`, `:tools`, `:hooks`, `:sandbox`, `:cwd`, `:session_store`,
+  `:llm_request_options`, `:image_policy`, `:thinking_level`, `:max_tokens`, `:tools`, `:hooks`, `:sandbox`, `:cwd`, `:session_store`,
   `:session_store_key`, `:session_store_opts`, `:subagents`, `:compactor`, `:background_compaction`,
   `:redactor`, `:load_project_instructions`).
   `:load_project_instructions` defaults to `false` for anonymous runs and to

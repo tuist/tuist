@@ -7,9 +7,11 @@ defmodule Condukt.SessionDurableTest do
   alias Condukt.Message
   alias Condukt.Session.Durable
   alias Condukt.Sessions.Inbox
+  alias Condukt.SessionStore.Disk
   alias Condukt.SessionStore.Memory
   alias Condukt.SessionStore.ObjectStore
   alias Condukt.SessionStore.Snapshot
+  alias Condukt.Test.Images
   alias Condukt.Test.LLMProvider
   alias ReqLLM.ToolCall
 
@@ -17,6 +19,17 @@ defmodule Condukt.SessionDurableTest do
 
   defmodule DurableAgent do
     use Condukt
+  end
+
+  defmodule ReplaceImage do
+    @behaviour Condukt.Hooks
+
+    @impl true
+    def after_tool(%{name: "replace"}, _result, _context) do
+      {:replace, {:ok, %{type: :image, media_type: "image/png", data: Base.encode64(Images.png(9001, 1))}}}
+    end
+
+    def after_tool(_call, _result, _context), do: :ok
   end
 
   defmodule SnapshotOnlyStore do
@@ -92,6 +105,197 @@ defmodule Condukt.SessionDurableTest do
 
   setup do
     %{key: {:durable_test, make_ref()}}
+  end
+
+  describe "prepared images" do
+    @tag :tmp_dir
+    test "only prepared images enter the journal and survive crash/resume without refitting", %{key: key, tmp_dir: cwd} do
+      owner = self()
+
+      {model, model_id} =
+        LLMProvider.model([
+          fn ->
+            send(owner, :provider_waiting)
+            receive do: (:finish -> LLMProvider.text_response("unreachable"))
+          end
+        ])
+
+      store_opts = [path: Path.join(cwd, "images.store")]
+      opts = [session_store: Disk, session_store_opts: store_opts, image_policy: Images.policy(self())]
+      {:ok, pid} = start_session(key, model, [], opts)
+      normal = Images.attachment()
+      wide = Images.attachment(Images.png(9001, 1))
+      invalid = %{media_type: "image/png", data: "%%%invalid%%%"}
+      task = Task.async(fn -> Condukt.run(pid, "inspect", images: [invalid, normal, wide]) end)
+      assert_receive :provider_waiting, 1000
+      assert_receive {LLMProvider, :request, ^model_id, _context, _opts}
+      assert {:ok, [{:run_start, _, %{message: message}}]} = Disk.load_journal(store_opts)
+      assert message.content =~ "Image omitted"
+      assert [first, second] = message.images
+      assert first.data == normal.data
+      assert second.data == Base.encode64(Images.png(2, 1))
+      assert_receive {:prepared_image, _, _}
+      assert_receive {:prepared_image, _, _}
+      kill(pid)
+      assert {:error, {:session_exit, :killed}} = Task.await(task)
+
+      {:ok, strict} =
+        start_session(key, model, [], Keyword.put(opts, :image_policy, Images.policy(self(), max_width: 1)))
+
+      {:ok, journal} = Disk.load_journal(store_opts)
+      assert {:error, :image_history_requires_repair} = Condukt.Session.resume(strict)
+      assert [{:error, :image_history_requires_repair}] = Condukt.Session.resume_stream(strict) |> Enum.to_list()
+      assert {:ok, ^journal} = Disk.load_journal(store_opts)
+      GenServer.stop(strict)
+
+      {model, _} = LLMProvider.model([LLMProvider.text_response("recovered"), LLMProvider.text_response("continued")])
+      {:ok, resumed} = start_session(key, model, [], opts)
+      assert {:ok, "recovered"} = Condukt.Session.resume(resumed)
+      assert {:ok, "continued"} = Condukt.run(resumed, "text-only follow-up")
+      assert hd(Condukt.history(resumed)).images == message.images
+      refute_receive {:prepared_image, _, _}, 20
+      assert {:ok, snapshot} = Disk.load(store_opts)
+      assert hd(snapshot.messages).images == message.images
+      GenServer.stop(resumed)
+      [user | rest] = snapshot.messages
+      [original, fitted] = user.images
+      changed = %{original | data: fitted.data}
+      :ok = Disk.save(%{snapshot | messages: [%{user | images: [changed, fitted]} | rest]}, store_opts)
+      {model, _} = LLMProvider.model([LLMProvider.text_response("must not request")])
+      {:ok, corrupted} = start_session(key, model, [], opts)
+      assert {:error, :image_history_requires_repair} = Condukt.run(corrupted, "check digest")
+      refute_receive {:prepared_image, _, _}, 20
+    end
+
+    test "streamed and queued inputs share preparation before persistence", %{key: key} do
+      owner = self()
+
+      tool =
+        Condukt.tool(
+          name: "wait",
+          description: "wait",
+          parameters: %{type: "object"},
+          call: fn _, _ ->
+            send(owner, {:waiting, self()})
+            receive do: (:continue -> {:ok, "ready"})
+          end
+        )
+
+      {model, model_id} =
+        LLMProvider.model([
+          LLMProvider.stream_response([{:tool_call, "wait-1", "wait", "{}"}]),
+          LLMProvider.stream_response([{:text, "active answer"}]),
+          LLMProvider.stream_response([{:text, "queued answer"}])
+        ])
+
+      {:ok, pid} = start_session(key, model, [tool], image_policy: Images.policy(self()))
+      assert :ok = Condukt.follow_up(pid, "active")
+      assert_receive {LLMProvider, :stream_request, ^model_id, _first, _}, 1000
+      assert_receive {:waiting, worker}, 1000
+
+      queued =
+        Task.async(fn ->
+          Condukt.stream(pid, "queued", images: [Images.attachment(), Images.attachment(Images.png(9001, 1))])
+          |> Enum.to_list()
+        end)
+
+      await(fn -> length(:sys.get_state(pid).turn.pending) == 1 end)
+      send(worker, :continue)
+      assert {:text, "queued answer"} in Task.await(queued)
+      settle(pid)
+      assert {:ok, snapshot} = Memory.load(key: key)
+      last_user = snapshot.messages |> Enum.filter(&(&1.role == :user)) |> List.last()
+      assert [normal, fitted] = last_user.images
+      assert normal.data == Images.attachment().data
+      assert fitted.data == Base.encode64(Images.png(2, 1))
+    end
+
+    @tag :tmp_dir
+    test "Read and hook-replaced tool images are prepared before their journal records", %{key: key, tmp_dir: cwd} do
+      File.write!(Path.join(cwd, "wide.png"), Images.png(9001, 1))
+      owner = self()
+
+      calls = [
+        ToolCall.new("read", "Read", JSON.encode!(%{path: "wide.png"})),
+        ToolCall.new("replace", "replace", "{}")
+      ]
+
+      assistant = LLMProvider.response(%ReqLLM.Message{role: :assistant, content: [], tool_calls: calls}, :tool_calls)
+
+      {model, _} =
+        LLMProvider.model([
+          assistant,
+          fn ->
+            send(owner, :tools_committed)
+            receive do: (:finish -> LLMProvider.text_response("unreachable"))
+          end
+        ])
+
+      tool =
+        Condukt.tool(
+          name: "replace",
+          description: "replace",
+          parameters: %{type: "object"},
+          call: fn _, _ -> {:ok, "original"} end
+        )
+
+      opts = [cwd: cwd, hooks: [ReplaceImage], image_policy: Images.policy(self())]
+      {:ok, pid} = start_session(key, model, [Condukt.Tools.Read, tool], opts)
+      task = Task.async(fn -> Condukt.run(pid, "read") end)
+      assert_receive :tools_committed, 1000
+      {:ok, records} = Memory.load_journal(key: key)
+      results = for {:tool_result, _, result} <- records, do: result
+      assert length(results) == 2
+
+      for result <- results do
+        assert result.content.type == :image
+        assert result.content.data == Base.encode64(Images.png(2, 1))
+      end
+
+      kill(pid)
+      Task.await(task)
+      assert_receive {:prepared_image, _, _}
+      assert_receive {:prepared_image, _, _}
+      {model, model_id} = LLMProvider.model([LLMProvider.text_response("read result")])
+      {:ok, resumed} = start_session(key, model, [Condukt.Tools.Read, tool], opts)
+      assert {:ok, "read result"} = Condukt.Session.resume(resumed)
+      refute_receive {:prepared_image, _, _}, 20
+      assert_receive {LLMProvider, :request, ^model_id, context, _}
+      tool_messages = Enum.filter(context.messages, &(&1.role == :tool))
+      assert length(tool_messages) == 2
+
+      for message <- tool_messages do
+        assert [%{type: :text, text: text}] = message.content
+        assert text =~ Base.encode64(Images.png(2, 1))
+        refute text =~ Base.encode64(Images.png(9001, 1))
+      end
+    end
+
+    test "enabling a policy rejects legacy history without rewriting it", %{key: key} do
+      {model, _} = LLMProvider.model([LLMProvider.text_response("legacy")])
+      {:ok, pid} = start_session(key, model, [])
+      image = Images.attachment()
+      assert {:ok, "legacy"} = Condukt.run(pid, "old image", images: [image])
+      history = Condukt.history(pid)
+      GenServer.stop(pid)
+      {model, model_id} = LLMProvider.model([LLMProvider.text_response("must not request")])
+
+      {:ok, restored} =
+        start_session(key, model, [],
+          image_policy: Images.policy(self()),
+          compactor: {Condukt.Compactor.Sliding, keep: 1}
+        )
+
+      assert {:error, :image_history_requires_repair} = Condukt.run(restored, "new text")
+      assert Condukt.history(restored) == history
+      assert {:ok, %{messages: ^history}} = Memory.load(key: key)
+      assert [{:error, :image_history_requires_repair}] = Condukt.stream(restored, "new stream") |> Enum.to_list()
+      settle(restored)
+      assert Condukt.history(restored) == history
+      assert {:ok, %{messages: ^history}} = Memory.load(key: key)
+      refute_receive {LLMProvider, :request, ^model_id, _, _}, 20
+      refute_receive {:prepared_image, _, _}, 20
+    end
   end
 
   describe "an interrupted tool call" do
@@ -1655,6 +1859,40 @@ defmodule Condukt.SessionDurableTest do
 
       assert await(fn -> match?([_, _, %Message{role: :assistant}], Condukt.history(pid)) end)
       assert [%Message{content: "one"}, %Message{content: "two"}, %Message{role: :assistant}] = Condukt.history(pid)
+    end
+
+    test "reports image preflight rejection to a redelivered input without settling the original", %{
+      key: key,
+      id: id,
+      inbox: inbox,
+      sender: sender
+    } do
+      original_sender = "original-#{sender}"
+
+      {:ok, original} =
+        Condukt.Sessions.Input.new(id, "old image", request_id: "r1", from: original_sender, report: true)
+
+      records = [
+        {:run_start, 1, %{message: Message.user("old image", [Images.attachment()]), request_id: "r1", input: original}}
+      ]
+
+      :ok = Memory.append_journal(records, key: key)
+      {model, model_id} = LLMProvider.model([])
+      {:ok, pid} = start_supervised_session(id, key, model, inbox: inbox, image_policy: Images.policy(self()))
+      interrupted = Condukt.Session.interrupted(pid)
+
+      assert {:error, :image_history_requires_repair} = Condukt.Session.resume(pid)
+      assert [{:error, :image_history_requires_repair}] = Condukt.Session.resume_stream(pid) |> Enum.to_list()
+
+      assert :ok =
+               Condukt.Sessions.submit(id, "redelivered", request_id: "r1", from: sender, report: true, inbox: inbox)
+
+      assert await_reports(inbox, sender, 1) == ["[session #{id} failed: :image_history_requires_repair]"]
+      assert await_reports(inbox, original_sender, 0) == []
+      assert Condukt.Session.interrupted(pid) == interrupted
+      assert {:ok, ^records} = Memory.load_journal(key: key)
+      refute_receive {LLMProvider, :request, ^model_id, _, _}, 20
+      refute_receive {LLMProvider, :stream_request, ^model_id, _, _}, 20
     end
 
     test "redelivered after its run was aborted settles as aborted", %{key: key, id: id, inbox: inbox, sender: sender} do

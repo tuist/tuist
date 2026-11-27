@@ -16,6 +16,7 @@ defmodule Condukt.MCP.Client do
 
   use GenServer
 
+  alias Condukt.Images
   alias Condukt.MCP.{JSONRPC, Server, Transport}
 
   @protocol_version "2025-03-26"
@@ -96,11 +97,19 @@ defmodule Condukt.MCP.Client do
   block returned by the server, normalized into a single string when
   the server returns text-only content. Errors include both transport
   errors and `isError: true` tool responses.
+
+  Pass `:image_policy` (see `Condukt.Images`) to prepare image blocks before
+  rendering them as JSON text. Preparation runs in the caller, outside the
+  shared client process. Session tools supply their policy automatically.
   """
   def call_tool(client, name, args, opts \\ []) do
     timeout = Keyword.get(opts, :timeout) || GenServer.call(client, :request_timeout)
     call_timeout = timeout + 1_000
-    GenServer.call(client, {:call_tool, name, args, timeout}, call_timeout)
+
+    with {:ok, policy} <- Images.normalize(opts[:image_policy]),
+         {:ok, result} <- GenServer.call(client, {:call_tool, name, args, timeout}, call_timeout) do
+      normalize_tool_result(result, policy)
+    end
   end
 
   @doc "Stops the client and closes the underlying transport."
@@ -288,7 +297,7 @@ defmodule Condukt.MCP.Client do
   end
 
   defp handle_response({:call_tool, from}, {:ok, result}, state) do
-    GenServer.reply(from, normalize_tool_result(result))
+    GenServer.reply(from, {:ok, result})
     {:noreply, state}
   end
 
@@ -297,18 +306,19 @@ defmodule Condukt.MCP.Client do
     {:noreply, state}
   end
 
-  defp normalize_tool_result(%{"isError" => true} = result) do
-    {:error, render_content(result)}
+  defp normalize_tool_result(%{"isError" => true} = result, policy) do
+    {:error, render_content(result, policy)}
   end
 
-  defp normalize_tool_result(%{"content" => _} = result) do
-    {:ok, render_content(result)}
+  defp normalize_tool_result(%{"content" => _} = result, policy) do
+    {:ok, render_content(result, policy)}
   end
 
-  defp normalize_tool_result(other), do: {:ok, other}
+  defp normalize_tool_result(other, _policy), do: {:ok, other}
 
-  defp render_content(%{"content" => parts}) when is_list(parts) do
+  defp render_content(%{"content" => parts}, policy) when is_list(parts) do
     parts
+    |> Images.mcp_content(policy)
     |> Enum.map(&render_content_part/1)
     |> Enum.reject(&is_nil/1)
     |> case do
@@ -318,7 +328,7 @@ defmodule Condukt.MCP.Client do
     end
   end
 
-  defp render_content(other), do: other
+  defp render_content(other, _policy), do: other
 
   defp render_content_part(%{"type" => "text", "text" => text}) when is_binary(text), do: text
   defp render_content_part(part), do: JSON.encode!(part)

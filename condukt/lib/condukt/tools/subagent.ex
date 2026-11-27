@@ -424,6 +424,7 @@ defmodule Condukt.Tools.Subagent do
     |> put_new_present(:api_key, Map.get(context, :api_key))
     |> put_new_present(:base_url, Map.get(context, :base_url))
     |> put_new_present(:llm_request_options, Map.get(context, :llm_request_options))
+    |> put_new_present(:image_policy, Map.get(context, :image_policy))
   end
 
   defp put_new_present(opts, _key, nil), do: opts

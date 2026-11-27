@@ -25,8 +25,8 @@ defmodule Condukt.MCP.Tool do
       name: full_name(prefix, name),
       description: Map.get(descriptor, "description", ""),
       parameters: Map.get(descriptor, "inputSchema", @default_input_schema),
-      call: fn args, _ctx ->
-        Client.call_tool(client, name, args, timeout: server.request_timeout)
+      call: fn args, context ->
+        Client.call_tool(client, name, args, timeout: server.request_timeout, image_policy: context[:image_policy])
       end
     }
   end

@@ -20,6 +20,78 @@ identifier.
 See the [ReqLLM docs](https://hexdocs.pm/req_llm) for the full list and
 their option semantics.
 
+## Preparing images before persistence
+
+ReqLLM transports image attachments but does not decode or resize them.
+Enable `:image_policy` to prepare user attachments, `Read` image results,
+and MCP image content blocks before Condukt records them in conversation
+history or its run journal. Without a policy, Condukt preserves its existing
+image behavior. Subagents inherit their parent's policy.
+
+```elixir
+MyApp.Agent.start_link(
+  image_policy: [
+    prepare: {MyApp.ImagePreparer, :prepare, []},
+    max_width: 1600,
+    max_height: 1600,
+    max_base64_bytes: 1_048_576,
+    max_input_bytes: 20_971_520,
+    max_pixels: 40_000_000,
+    max_images: 8,
+    max_total_base64_bytes: 4_194_304,
+    timeout: 5_000
+  ]
+)
+```
+
+These are example application limits, not provider defaults. Choose limits
+for the model and request envelope you use. `:max_images` and
+`:max_total_base64_bytes` apply across retained user attachments and per MCP
+response; `:max_base64_bytes` caps each encoded output, including base64
+expansion. Other tool image results have a per-image budget. This does not
+cap all bytes or tokens in conversation history.
+Condukt also limits preparation attempts to the remaining image count per
+turn (or the response count for MCP); rejected candidates consume an attempt.
+
+Implement the MFA in your host application with a decoder such as Image/Vix.
+Condukt supplies decoded input bytes and the policy map, followed by the
+MFA's extra arguments. The map includes a signature-derived `:media_type`.
+Your callback must:
+
+* Decode the complete image and reject corrupt or truncated inputs. Check
+  source dimensions against `:max_pixels` before allocating decoded pixels.
+* Apply EXIF orientation, then fit within both dimension limits without
+  cropping or upscaling. Use the oriented dimensions for aspect ratio.
+* Encode within the output byte budget and return
+  `{:ok, bytes, "image/png", %{width: width, height: height}}` (PNG, JPEG,
+  GIF and WebP signatures are supported), or `{:error, reason}`. Define an
+  animation policy in the host rather than returning unbounded frames.
+
+Condukt checks base64, input size, output signature, reported dimensions and
+encoded size. It trusts your decoder for pixel correctness and actual
+dimensions. Signature sniffing alone cannot validate an image. You do not
+need a native image dependency when you leave the policy unset.
+
+Condukt runs each preparation in a separate task. Exceptions, exits, invalid
+returns and timeouts omit that image with a fixed note; sibling text and
+acceptable images remain. Condukt also adds a note for a changed image so
+the model uses coordinates in the prepared image. Callback errors do not
+enter conversation text, though task crash logs may contain them. Do not
+include secrets in those errors. Set decoder memory/resource limits too:
+killing a task cannot guarantee cancellation of native work already running.
+`Read` still reads the file before preparation, so enforce filesystem or
+transport limits at ingress to avoid that initial allocation.
+
+Tool images continue to use JSON text, not provider vision blocks. Condukt
+prepares known structured image results after tool hooks, and MCP blocks
+before rendering them as text. It does not search arbitrary strings or
+nested application payloads for base64 images. Custom runtimes receive the
+prepared prompt and attachments but remain responsible for validating any
+history they return.
+
+See [image history and recovery](sessions-and-persistence.md#image-history-and-recovery)
+before enabling a policy on existing sessions.
+
 ## API keys
 
 ReqLLM auto discovers keys from the environment using the conventional

@@ -2,8 +2,10 @@ defmodule Condukt.MCP.Transport.StreamableHttpTest do
   use ExUnit.Case, async: true
 
   alias Condukt.MCP.{Client, Server}
+  alias Condukt.MCP.Tool
+  alias Condukt.Test.Images
 
-  defp fake_http_request(parent) do
+  defp fake_http_request(parent, tool_result \\ nil) do
     fn _url, envelope, headers ->
       send(parent, {:streamable_request, envelope, normalize_headers(headers)})
 
@@ -24,10 +26,14 @@ defmodule Condukt.MCP.Transport.StreamableHttpTest do
             })
 
           %{"id" => id, "method" => "tools/call", "params" => %{"name" => "ping"}} ->
-            json_response(id, %{
-              "content" => [%{"type" => "text", "text" => "pong"}],
-              "isError" => false
-            })
+            json_response(
+              id,
+              tool_result ||
+                %{
+                  "content" => [%{"type" => "text", "text" => "pong"}],
+                  "isError" => false
+                }
+            )
 
           %{"method" => "notifications/" <> _} ->
             %{status: 202, headers: [], body: ""}
@@ -90,6 +96,45 @@ defmodule Condukt.MCP.Transport.StreamableHttpTest do
     assert {"mcp-session-id", "test-session"} in call_headers
 
     Client.stop(client)
+  end
+
+  test "prepares mixed MCP image blocks before rendering successful and error results" do
+    normal = Images.attachment().data
+    wide = Images.attachment(Images.png(9001, 1)).data
+
+    parts = [
+      %{"type" => "text", "text" => "before"},
+      %{"type" => "image", "mimeType" => "image/jpeg", "data" => normal},
+      %{"type" => "image", "mimeType" => "image/png", "data" => "%%%invalid%%%"},
+      %{"type" => "image", "mimeType" => "image/png", "data" => wide},
+      %{"type" => "text", "text" => "after"}
+    ]
+
+    for is_error <- [false, true] do
+      server = %Server{name: "images", transport: {:streamable_http, url: "https://fake.example.com/mcp"}}
+      result = %{"content" => parts, "isError" => is_error}
+      {:ok, client} = Client.start_link(server, http_request: fake_http_request(self(), result))
+      [tool] = Tool.inline_tools(client, server)
+      {status, text} = tool.call.(%{}, %{image_policy: Images.policy(self())})
+      assert status == if(is_error, do: :error, else: :ok)
+      assert String.starts_with?(text, "before\n")
+      assert String.ends_with?(text, "\nafter")
+      assert text =~ JSON.encode!(%{"type" => "image", "mimeType" => "image/png", "data" => normal})
+      assert text =~ Base.encode64(Images.png(2, 1))
+      assert text =~ "Image omitted"
+      refute text =~ "%%%invalid%%%"
+      refute text =~ wide
+      assert_receive {:prepared_image, _, _}
+      assert_receive {:prepared_image, _, _}
+
+      {_status, limited} = tool.call.(%{}, %{image_policy: Images.policy(self(), max_images: 1)})
+      assert limited =~ normal
+      refute limited =~ Base.encode64(Images.png(2, 1))
+      {_status, unchanged} = tool.call.(%{}, %{})
+      assert unchanged =~ wide
+      assert unchanged =~ "%%%invalid%%%"
+      Client.stop(client)
+    end
   end
 
   test "supports SSE-encoded responses for a single request" do

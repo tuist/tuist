@@ -28,6 +28,7 @@ defmodule Condukt.Session do
   alias Condukt.{
     Context,
     Hooks,
+    Images,
     Message,
     Park,
     Retry,
@@ -143,6 +144,7 @@ defmodule Condukt.Session do
       |> put_configured_opt(config, :api_key)
       |> put_configured_opt(config, :base_url)
       |> put_configured_opt(config, :llm_request_options, fn -> [] end)
+      |> put_configured_opt(config, :image_policy)
       |> put_configured_opt(config, :runtime, fn -> agent_runtime(agent_module) end)
       |> put_configured_opt(config, :model, fn -> agent_module.model() end)
       |> put_configured_opt(config, :thinking_level, fn -> agent_module.thinking_level() end)
@@ -166,6 +168,7 @@ defmodule Condukt.Session do
       |> put_configured_opt(config, :retry)
 
     with :ok <- validate_llm_request_options(agent_opts[:llm_request_options]),
+         {:ok, image_policy} <- Images.normalize(agent_opts[:image_policy]),
          {:ok, hooks} <- Hooks.normalize(agent_opts[:hooks]),
          {:ok, snapshot} <- load_snapshot(agent_opts[:session_store], agent_opts),
          {:ok, durable} <- load_durable(agent_opts, snapshot),
@@ -175,6 +178,7 @@ defmodule Condukt.Session do
         agent_opts
         |> Keyword.put(:model, model)
         |> Keyword.put(:hooks, hooks)
+        |> Keyword.put(:image_policy, image_policy)
         |> Keyword.put(:max_tokens, agent_opts[:max_tokens] || (agent_opts[:llm_request_options] || [])[:max_tokens])
         |> Keyword.put(:restored_snapshot, snapshot)
         |> Keyword.put(:restored_durable, durable)
@@ -699,6 +703,7 @@ defmodule Condukt.Session do
                 api_key: opts[:api_key],
                 base_url: opts[:base_url],
                 request_options: opts[:llm_request_options],
+                image_policy: opts[:image_policy],
                 retry: Retry.normalize(opts[:retry])
               },
               configured_system_prompt: configured_system_prompt,
@@ -1188,9 +1193,10 @@ defmodule Condukt.Session do
     state = finish_turn(state)
 
     state =
-      if match?({:ok, _}, result) or not Compaction.enabled?(state.compaction),
-        do: state |> maybe_compact() |> view_history_changed(state.messages),
-        else: state
+      if result != {:error, :image_history_requires_repair} and
+           (match?({:ok, _}, result) or not Compaction.enabled?(state.compaction)),
+         do: state |> maybe_compact() |> view_history_changed(state.messages),
+         else: state
 
     # Stored before the caller hears, so a caller that got the answer never
     # finds the run interrupted.
@@ -1308,12 +1314,20 @@ defmodule Condukt.Session do
   # Agent Loop Implementation
   # ============================================================================
 
-  defp do_run(%{runtime: {Native, _}} = state, prompt, opts) do
-    do_native_run(state, prompt, opts)
-  end
-
   defp do_run(state, prompt, opts) do
-    do_runtime_run(state, prompt, opts)
+    case Images.preflight(state.messages, state.llm.image_policy) do
+      :ok ->
+        {prompt, images} = Images.input(prompt, opts[:images] || [], state.llm.image_policy, state.messages)
+        opts = if state.llm.image_policy, do: Keyword.put(opts, :images, images), else: opts
+
+        case state.runtime do
+          {Native, _} -> do_native_run(state, prompt, opts)
+          _ -> do_runtime_run(state, prompt, opts)
+        end
+
+      {:error, reason} ->
+        {{:error, reason}, state.messages, state.assigns}
+    end
   end
 
   defp do_native_run(state, prompt, opts) do
@@ -1478,7 +1492,15 @@ defmodule Condukt.Session do
   end
 
   defp do_stream(%{runtime: {Native, _}} = state, prompt, opts, emit, abort_ref) do
-    do_native_stream(state, prompt, opts, emit, abort_ref)
+    case Images.preflight(state.messages, state.llm.image_policy) do
+      :ok ->
+        {prompt, images} = Images.input(prompt, opts[:images] || [], state.llm.image_policy, state.messages)
+        do_native_stream(state, prompt, Keyword.put(opts, :images, images), emit, abort_ref)
+
+      {:error, reason} ->
+        emit.({:error, reason})
+        {:error, reason, state.messages}
+    end
   end
 
   defp do_stream(state, _prompt, _opts, emit, _abort_ref) do
@@ -1695,24 +1717,35 @@ defmodule Condukt.Session do
         state |> view_history_changed(previous) |> answer(recipient, {:error, reason})
 
       {:ok, durable, plan, records} ->
-        # Without the resume record the restart would go uncounted, so a run
-        # that keeps crashing could never reach the limit. It stays interrupted.
-        case Durable.append(state.session_store, session_store_opts(state), records) do
+        case Images.preflight(plan.messages, state.llm.image_policy) do
           :ok ->
-            state = sync_queue(state)
-            view_change(state, {:run_started, Enum.at(plan.messages, plan.prompt_index)})
-            # What the interrupted run stored is history from here on, so a
-            # resumed run that is aborted, like one that is abandoned, keeps it.
-            turn = %{Turn.start(state.turn, recipient, plan.prompt_index) | input: input}
-            state = %{state | durable: durable, turn: turn, messages: Durable.close(plan.messages)}
-            start_resume_worker(state, recipient, opts, plan)
+            persist_resume(state, recipient, opts, input, durable, plan, records)
 
-          # The run stays interrupted, and a later resume settles its own
-          # input. A redelivered one is answered now, as its caller would be.
           {:error, reason} ->
             settle_input(state, opts[:input], {:error, reason})
             answer(state, recipient, {:error, reason})
         end
+    end
+  end
+
+  defp persist_resume(state, recipient, opts, input, durable, plan, records) do
+    # Without the resume record the restart would go uncounted, so a run
+    # that keeps crashing could never reach the limit. It stays interrupted.
+    case Durable.append(state.session_store, session_store_opts(state), records) do
+      :ok ->
+        state = sync_queue(state)
+        view_change(state, {:run_started, Enum.at(plan.messages, plan.prompt_index)})
+        # What the interrupted run stored is history from here on, so a
+        # resumed run that is aborted, like one that is abandoned, keeps it.
+        turn = %{Turn.start(state.turn, recipient, plan.prompt_index) | input: input}
+        state = %{state | durable: durable, turn: turn, messages: Durable.close(plan.messages)}
+        start_resume_worker(state, recipient, opts, plan)
+
+      # The run stays interrupted, and a later resume settles its own
+      # input. A redelivered one is answered now, as its caller would be.
+      {:error, reason} ->
+        settle_input(state, opts[:input], {:error, reason})
+        answer(state, recipient, {:error, reason})
     end
   end
 
@@ -2048,12 +2081,16 @@ defmodule Condukt.Session do
             {:error, reason} -> {Message.tool_result(id, {:error, not_recorded(name, reason)}), %{}}
           end
 
-        if not match?({:parked, _id}, outcome) do
-          journal_tool_result(state, outcome)
-          woken_call_done(state, resumes, id)
-        end
+        case outcome do
+          {:parked, _id} ->
+            outcome
 
-        outcome
+          {message, assigns} ->
+            prepared = {prepare_tool_image(message, state), assigns}
+            journal_tool_result(state, prepared)
+            woken_call_done(state, resumes, id)
+            prepared
+        end
       end,
       ordered: true,
       max_concurrency: tool_concurrency(state, calls),
@@ -2073,6 +2110,15 @@ defmodule Condukt.Session do
         [{index, outcome}]
     end)
     |> Map.new()
+  end
+
+  defp prepare_tool_image(message, %{llm: %{image_policy: nil}}), do: message
+
+  defp prepare_tool_image(message, state) do
+    content =
+      message.content |> Images.tool_result(state.llm.image_policy) |> then(&Secrets.redact_result(state.secrets, &1))
+
+    %{message | content: content}
   end
 
   # A woken call with a result is no longer one an abort cancels. Sent as soon
@@ -2418,6 +2464,7 @@ defmodule Condukt.Session do
       api_key: state.llm.api_key,
       base_url: state.llm.base_url,
       llm_request_options: state.llm.request_options,
+      image_policy: state.llm.image_policy,
       trace_context: TraceContext.current(),
       assigns: state.assigns
     }
@@ -2845,19 +2892,21 @@ defmodule Condukt.Session do
   end
 
   defp llm_attempts(state, messages, turn, streaming?, emitted?, call) do
-    context = Translate.context(messages, outbound_redactor(state), state.system_prompt)
+    with :ok <- Images.preflight(messages, state.llm.image_policy) do
+      context = Translate.context(messages, outbound_redactor(state), state.system_prompt)
 
-    attempt = fn ->
-      :ok = sync(state)
-      call.(context)
+      attempt = fn ->
+        :ok = sync(state)
+        call.(context)
+      end
+
+      Telemetry.span(
+        :llm_turn,
+        llm_turn_metadata(state, messages, turn, streaming?),
+        fn -> Retry.with_retry(state.llm.retry, emitted?, attempt) end,
+        &llm_turn_stop_metadata/1
+      )
     end
-
-    Telemetry.span(
-      :llm_turn,
-      llm_turn_metadata(state, messages, turn, streaming?),
-      fn -> Retry.with_retry(state.llm.retry, emitted?, attempt) end,
-      &llm_turn_stop_metadata/1
-    )
   end
 
   defp record_compaction_usage(%{compaction: %{policy: nil}}, _response, _messages), do: :ok

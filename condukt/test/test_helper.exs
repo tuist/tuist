@@ -2,6 +2,7 @@ Mimic.copy(MuonTrap)
 Mimic.copy(ReqLLM)
 
 Code.require_file("support/llm_provider.ex", __DIR__)
+Code.require_file("support/images.ex", __DIR__)
 Code.require_file("support/outage_sandbox.ex", __DIR__)
 Condukt.Test.LLMProvider.start_event_server()
 

@@ -3,6 +3,7 @@ defmodule Condukt.AgentRuntimeTest do
   use Mimic
 
   alias Condukt.Message
+  alias Condukt.Test.Images
 
   @moduletag :tmp_dir
 
@@ -87,6 +88,22 @@ defmodule Condukt.AgentRuntimeTest do
              %Message{role: :assistant, content: "runtime: write code"}
            ] = Condukt.history(agent)
 
+    GenServer.stop(agent)
+  end
+
+  test "runtime ingress receives prepared attachments and omission notes" do
+    {:ok, agent} =
+      RuntimeAgent.start_link(test_pid: self(), load_project_instructions: false, image_policy: Images.policy(self()))
+
+    wide = Images.attachment(Images.png(9001, 1))
+    assert {:ok, response} = Condukt.run(agent, "inspect", images: [wide, %{data: "%%%invalid%%%"}])
+    assert response =~ "Image omitted"
+    assert_receive {:runtime_called, prompt, _context, opts}
+    assert prompt =~ "2x1"
+    assert [image] = opts[:images]
+    assert image.data == Base.encode64(Images.png(2, 1))
+    assert [message, _] = Condukt.history(agent)
+    assert message.images == [image]
     GenServer.stop(agent)
   end
 
