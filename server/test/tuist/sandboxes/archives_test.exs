@@ -2471,7 +2471,12 @@ defmodule Tuist.Sandboxes.ArchivesTest do
         {:ok, "node-b"}
       end)
 
-      expect(Nodes, :call, fn "node-b", "create", %{from_archive: %{url: "http://shard-storage/get"}}, _opts ->
+      expect(Nodes, :call, fn "node-b",
+                              "create",
+                              %{from_archive: %{url: "http://shard-storage/get"}, expires_at_unix: expires_at},
+                              opts ->
+        # The node stops the restore when the server stops waiting for it.
+        assert_in_delta expires_at, System.os_time(:second) + div(opts[:timeout], 1000), 5
         {:ok, %{"template_tag" => "sha-new"}}
       end)
 

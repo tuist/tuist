@@ -973,10 +973,14 @@ defmodule Tuist.Sandboxes do
     create_on_macos_host(sandbox, args, &place_macos_restore/2, @macos_restore_timeout, [])
   end
 
+  # The node gives up on the restore when the server stops waiting for it,
+  # rather than finishing it while the caller's retry restores elsewhere.
   defp place_and_create(sandbox, args, {:archive, source}, _prefer) do
+    expires_at = DateTime.add(DateTime.utc_now(), @restore_timeout, :millisecond)
+    restore_args = Map.merge(args, %{from_archive: source, expires_at_unix: DateTime.to_unix(expires_at)})
+
     with {:ok, node_name} <- place_restore(sandbox),
-         {:ok, data} <-
-           create_call(node_name, Map.put(args, :from_archive, source), timeout: @restore_timeout) do
+         {:ok, data} <- create_call(node_name, restore_args, timeout: @restore_timeout) do
       {:ok, node_name, data}
     end
   end
@@ -2548,6 +2552,15 @@ defmodule Tuist.Sandboxes do
   # the live VM; only the stale copy goes.
   defp reconcile_reported(%Sandbox{node_name: assigned, id: id}, node_name, %{"state" => "error"})
        when not is_nil(assigned) and assigned != node_name, do: delete_orphan(node_name, id)
+
+  # Nor is a running copy while the row is being created or runs on another
+  # node, such as a restore the server stopped waiting for that its node
+  # finished anyway while a retry restores elsewhere. Adopting it made the
+  # row running, so the archive the retry still read was deleted under it
+  # (production, 2026-11-26); only the stale copy goes.
+  defp reconcile_reported(%Sandbox{state: state, node_name: assigned, id: id}, node_name, %{"state" => "running"})
+       when state in [:creating, :running] and not is_nil(assigned) and assigned != node_name,
+       do: delete_orphan(node_name, id)
 
   defp reconcile_reported(%Sandbox{} = sandbox, _node_name, %{"state" => "error"} = reported) do
     if sandbox.platform == :darwin and is_boolean(reported["resident"]) do
