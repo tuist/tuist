@@ -29,8 +29,8 @@ defmodule Tuist.Runners.ConcurrencyTest do
                platform: :macos,
                used_vcpus: 0,
                used_memory_gb: 0,
-               limit_vcpus: 8,
-               limit_memory_gb: 24
+               limit_vcpus: 16,
+               limit_memory_gb: 48
              }
            ]
   end
@@ -39,7 +39,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
     organization = organization_fixture()
 
     assert Concurrency.limits_for(organization.account, :linux) == %{vcpus: 16, memory_gb: 64}
-    assert Concurrency.limits_for(organization.account, :macos) == %{vcpus: 8, memory_gb: 24}
+    assert Concurrency.limits_for(organization.account, :macos) == %{vcpus: 16, memory_gb: 48}
   end
 
   test "database creates default limits for accounts inserted by an old replica" do
@@ -56,7 +56,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
       |> Repo.insert()
 
     assert Concurrency.limits_for(account, :linux) == %{vcpus: 16, memory_gb: 64}
-    assert Concurrency.limits_for(account, :macos) == %{vcpus: 8, memory_gb: 24}
+    assert Concurrency.limits_for(account, :macos) == %{vcpus: 16, memory_gb: 48}
   end
 
   test "updates each platform's limits independently" do
@@ -122,15 +122,15 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
     history = ConcurrencyHistory.between(account.id, before_creation, DateTime.utc_now())
     macos = Enum.filter(history, &(&1.platform == :macos))
-    assert [%{source: "initial", vcpus: 8}, %{source: "manual", vcpus: 24}] = macos
+    assert [%{source: "initial", vcpus: 16}, %{source: "manual", vcpus: 24}] = macos
     refute ConcurrencyHistory.at(history, :macos, before_creation)
     assert Concurrency.limits_for(account, :macos) == %{vcpus: 24, memory_gb: 72}
 
     initial = hd(macos)
     change = List.last(macos)
     series = ConcurrencyHistory.series(history, [before_creation, initial.recorded_at, change.recorded_at])
-    assert series.macos.vcpus == [nil, 8, 24]
-    assert series.macos.memory_gb == [nil, 24, 72]
+    assert series.macos.vcpus == [nil, 16, 24]
+    assert series.macos.memory_gb == [nil, 48, 72]
     assert series.linux.vcpus == [nil, 16, 16]
   end
 

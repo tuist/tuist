@@ -97,12 +97,12 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
              },
              %{
                "platform" => "macos",
-               "vcpus" => 8,
-               "memory_gb" => 24,
+               "vcpus" => 16,
+               "memory_gb" => 48,
                "used_vcpus" => 0,
                "used_memory_gb" => 0,
-               "default_vcpus" => 8,
-               "default_memory_gb" => 24
+               "default_vcpus" => 16,
+               "default_memory_gb" => 48
              }
            ]
 
@@ -124,7 +124,7 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     assert Enum.find(result["limits"], &(&1["platform"] == "macos"))["vcpus"] == 48
     assert Concurrency.limits_for(account, :macos) == %{vcpus: 48, memory_gb: 144}
     assert Concurrency.limits_for(account, :linux) == %{vcpus: 16, memory_gb: 64}
-    assert Concurrency.limits_for(other, :macos) == %{vcpus: 8, memory_gb: 24}
+    assert Concurrency.limits_for(other, :macos) == %{vcpus: 16, memory_gb: 48}
     refute result["revision"] == request["expected_revision"]
 
     audit = Repo.get_by!(RunnerConcurrencyLimitChange, change_id: request["change_id"])
@@ -132,7 +132,7 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     assert audit.principal == %{"namespace" => "atlas-production", "name" => "atlas"}
     assert audit.request == request
     assert audit.before["revision"] == request["expected_revision"]
-    assert Enum.find(audit.before["limits"], &(&1["platform"] == "macos"))["vcpus"] == 8
+    assert Enum.find(audit.before["limits"], &(&1["platform"] == "macos"))["vcpus"] == 16
     assert audit.after == result
   end
 
@@ -218,7 +218,7 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     params = request(conn, account.id, %{"platform" => "macos", "vcpus" => 32})
     assert conn |> authed() |> put(path(account.id), params) |> json_response(422)
 
-    assert Concurrency.limits_for(account, :macos) == %{vcpus: 8, memory_gb: 24}
+    assert Concurrency.limits_for(account, :macos) == %{vcpus: 16, memory_gb: 48}
     assert Repo.aggregate(RunnerConcurrencyLimitChange, :count) == 0
   end
 
