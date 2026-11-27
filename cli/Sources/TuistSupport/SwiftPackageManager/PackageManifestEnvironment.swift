@@ -88,6 +88,9 @@ public enum PackageManifestEnvironment {
             "TUIST_OIDC_TOKEN",
             "STRUO_PROGRESS",
             "ONCE_PROGRESS",
+            // Test sharding identifies each run (`TUIST_SHARD_REFERENCE`, `TUIST_SHARD_PLAN_ID`)
+            // and shard (`TUIST_SHARD_INDEX`), and CI exports them job-wide.
+            "TUIST_SHARD_*",
         ].filter { pattern in variables.keys.contains { matches(key: $0, patterns: [pattern]) } }
 
         if variables["GITLAB_CI"] == "true" {

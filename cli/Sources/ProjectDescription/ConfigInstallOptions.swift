@@ -45,7 +45,8 @@ extension Config {
             /// providers use selected volatile execution identifiers. Shell bookkeeping (`SHLVL`, `_`, `PWD`,
             /// `OLDPWD`), terminal and agent session identifiers, Tuist runner/cache settings, and the
             /// values a Tuist sandbox sets for each command (`TUIST_COMMAND_ID`, `TUIST_OIDC_TOKEN`,
-            /// `STRUO_PROGRESS`, `ONCE_PROGRESS`) are excluded everywhere.
+            /// `STRUO_PROGRESS`, `ONCE_PROGRESS`), and test-sharding identifiers (`TUIST_SHARD_*`) are
+            /// excluded everywhere.
             /// Toolchain settings and application-defined inputs remain visible and fingerprinted.
             ///
             /// Known GitHub/SSH credentials and `TUIST_OIDC_TOKEN` remain available to native dependency resolution, which

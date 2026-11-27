@@ -96,6 +96,9 @@ struct PackageManifestEnvironmentTests {
             "TUIST_OIDC_TOKEN": "sandbox-token",
             "STRUO_PROGRESS": "/progress.jsonl",
             "ONCE_PROGRESS": "/progress.jsonl",
+            "TUIST_SHARD_REFERENCE": "github-45690019550-tuist-1",
+            "TUIST_SHARD_INDEX": "1",
+            "TUIST_SHARD_PLAN_ID": "plan",
             "TUIST_EE": "1",
             "SSH_AUTH_SOCK": "/agent.sock",
         ]
