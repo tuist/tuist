@@ -36,6 +36,7 @@ var fleetWideConfigFields = map[string]bool{
 	"MaxPods":                   true,
 	"RunnerCacheVolumeGiB":      true,
 	"CustomCacheURL":            true,
+	"ActionsCacheStoreURL":      true,
 	"CustomCacheNamespace":      true,
 	"CustomCacheServiceAccount": true,
 	"VNCRelayPort":              true,

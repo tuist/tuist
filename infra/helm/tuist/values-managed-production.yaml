@@ -1532,6 +1532,11 @@ rackFleet:
   vmCacheGatewayCIDRs:
     - 10.10.0.11/32
     - 10.20.0.11/32
+  # The store of both sites' GitHub Actions cache: larch-store-a's RustFS
+  # (infra/helm/shard-storage-rustfs, values-production-larch.yaml), which
+  # ber1's hosts reach through ber1-store-a's entrance and larch's below
+  # through their own.
+  actionsCacheStore: https://s3-larch-via-ber1.tuist.dev/
   # The racks' VM image cache, on larch-store-a for both racks: its /data is
   # 12.7 TB, where ber1-store-a's 928 GB belongs to Kura (#14320 turned the
   # 64 GiB cache there off: zot stages a whole image before writing it, so a
@@ -2010,6 +2015,7 @@ rackFleet:
       sshIngressAllowCIDRs:
         - 10.20.0.2/32
         - 10.20.0.3/32
+      actionsCacheStore: https://s3-larch.tuist.dev/
       runners:
         enabled: true
   sshExternalSecret:

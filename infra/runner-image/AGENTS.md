@@ -550,6 +550,12 @@ added to catch that failed on `admin`'s unwritable cache instead.
   agent's privileged ops (installing /etc/tuist.env, halting the
   VM at job exit). Single-tenant ephemeral VM — the entire OS is
   the customer's job environment.
+- `externals/node*/bin/node` — the node shim
+  (`infra/linux-runner-image/cmd/tuist-node-shim`, built for darwin by
+  `build-runner-image-binaries`), with the runner's own node beside it as
+  `node.real`. While the host's tart-kubelet answers on
+  `TUIST_ACTIONS_CACHE_URL`, it points a JavaScript action's results service at
+  the host, so `actions/cache` saves to and restores from the site's store.
 
 ## Tuist CLI and the agent guide
 

@@ -416,7 +416,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   different-inode guard.
 
 - `ActionsCache` (`actions_cache.go`) serves GitHub's cache v2 protocol on the
-  Linux agent's :8090: the three JSON twirp cache methods, plus Put Blob, Put
+  Linux agent's :8090 and on a rack Mac's tart-kubelet :8090 (see
+  `infra/tart-kubelet/AGENTS.md`), indexed by the server through
+  `ActionsServer` (`actions_index.go`): the three JSON twirp cache methods, plus Put Blob, Put
   Block, Put Block List and ranged reads (`Range` or `x-ms-range`) on
   `/actions-cache/blobs/<id>`, the parts of Azure Blob Storage `@actions/cache`
   and buildkit's `type=gha` client use. Every other `/twirp/` request goes to

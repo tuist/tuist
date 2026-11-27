@@ -215,14 +215,15 @@ jq -e '
     allow: .metadata.annotations["nginx.ingress.kubernetes.io/whitelist-source-range"],
     paths: [.spec.rules[0].http.paths[].path], buffer: .metadata.annotations["nginx.ingress.kubernetes.io/proxy-request-buffering"]}] |
     sort_by(.host)) == [
-      {class: "kura-ber1-runners", host: "s3-larch-via-ber1.tuist.dev", target: "10.10.0.11", allow: "10.10.0.0/24", paths: ["/shards"], buffer: "off"},
-      {class: "kura-larch-runners", host: "s3-larch.tuist.dev", target: "10.20.0.11", allow: "10.20.0.0/24", paths: ["/shards"], buffer: "off"}] and
+      {class: "kura-ber1-runners", host: "s3-larch-via-ber1.tuist.dev", target: "10.10.0.11", allow: "10.10.0.0/24", paths: ["/shards", "/actions-cache"], buffer: "off"},
+      {class: "kura-larch-runners", host: "s3-larch.tuist.dev", target: "10.20.0.11", allow: "10.20.0.0/24", paths: ["/shards", "/actions-cache"], buffer: "off"}] and
   any(.[]; .kind == "ExternalSecret" and .metadata.namespace == "tuist" and .spec.target.name == "rustfs-larch-targets" and
     (.spec.target.template.data["targets.json"] | fromjson | keys == ["rustfs-larch-production-v1"] and
       (.["rustfs-larch-production-v1"] | .access == "private" and .site == "larch" and .private_network_ready == false and
         .endpoint == "http://rustfs-larch-s3.rustfs-larch.svc.cluster.local:9000" and
         .runner_endpoints == {larch: "https://s3-larch.tuist.dev", ber1: "https://s3-larch-via-ber1.tuist.dev"} and
-        .placement_sites == ["larch", "ber1"]))) and
+        .placement_sites == ["larch", "ber1"] and
+        .actions_cache_bucket == "actions-cache" and .actions_cache_bytes == 500000000000))) and
   any(.[]; .kind == "CiliumNetworkPolicy" and .spec.ingress[0].fromEntities == ["host", "remote-node"]) and
   any(.[]; .kind == "NetworkPolicy" and .metadata.name == "rustfs-larch-store" and
     ([.spec.ingress[].from[] | .namespaceSelector.matchLabels["kubernetes.io/metadata.name"] // empty]) == ["tuist"])

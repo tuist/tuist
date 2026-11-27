@@ -715,6 +715,16 @@ spec:
             {{- with $vmCacheGatewayCIDRs | uniq }}
             - --rackhost-vm-cache-gateway-cidrs={{ join "," . }}
             {{- end }}
+            {{- /* Each site's Actions cache store: the default site's from
+            rackFleet.actionsCacheStore, the others' from their sites entry. */}}
+            {{- with .Values.rackFleet.actionsCacheStore }}
+            - --rackhost-actions-cache-store={{ $.Values.rackFleet.site }}={{ . }}
+            {{- end }}
+            {{- range $name := keys (.Values.rackFleet.sites | default dict) | sortAlpha }}
+            {{- with dig $name "actionsCacheStore" "" $.Values.rackFleet.sites }}
+            - --rackhost-actions-cache-store={{ $name }}={{ . }}
+            {{- end }}
+            {{- end }}
             {{- with include "tuist.rackImageMirrors" . }}
             - --rackhost-image-mirrors={{ . }}
             - --rackhost-image-mirror-hosts={{ include "tuist.rackImageMirrorHosts" $ }}

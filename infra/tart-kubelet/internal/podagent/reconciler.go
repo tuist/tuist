@@ -167,6 +167,8 @@ type Reconciler struct {
 	GC *Collector
 
 	CustomVolumes *CustomVolumes
+	// ActionsCache tells runner guests this host serves their Actions cache.
+	ActionsCache bool
 	// Prefetch learns the server's endpoint from runner Pods; nil without custom volumes.
 	Prefetch *PrefetchPoller
 
@@ -510,6 +512,12 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	env, err := r.Resolver.Resolve(ctx, pod, c)
 	if err != nil {
 		return fmt.Errorf("resolve env: %w", err)
+	}
+
+	// The runner image's node shim points a job's Actions cache at this host
+	// while it answers (ActionsCache).
+	if r.ActionsCache && pod.Labels[runnerPodLabel] == "true" {
+		env["TUIST_ACTIONS_CACHE_URL"] = ActionsCacheGuestURL
 	}
 
 	vmName := VMNameForPod(pod)

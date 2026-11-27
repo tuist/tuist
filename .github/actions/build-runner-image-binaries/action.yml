@@ -43,6 +43,17 @@ runs:
         CGO_ENABLED: "0"
       run: go build -trimpath -ldflags="-s -w" -o ../runner-image/build/tuist-cache-volume ./cmd/tuist-cache-volume
 
+    # Installed over the runner's bundled node (`externals/node*/bin/node`).
+    - name: Build node shim
+      shell: bash
+      working-directory: infra/linux-runner-image
+      env:
+        GOWORK: "off"
+        GOOS: darwin
+        GOARCH: arm64
+        CGO_ENABLED: "0"
+      run: go build -trimpath -ldflags="-s -w" -o ../runner-image/build/tuist-node-shim ./cmd/tuist-node-shim
+
     - name: Build GitLab job executor
       shell: bash
       working-directory: infra/linux-runner-image/gitlab-runner

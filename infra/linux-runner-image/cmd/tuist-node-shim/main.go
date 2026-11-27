@@ -34,7 +34,9 @@ func main() {
 }
 
 // environment points GitHub's results service at the cache agent when the
-// runner set GitHub's own, the job has the agent's address, the job did not
+// runner set GitHub's own, the job has the agent's address (a macOS guest's
+// TUIST_ACTIONS_CACHE_URL, its host's tart-kubelet, or else a Linux Pod's
+// TUIST_CACHE_VOLUME_URL, its node's cache agent), the job did not
 // turn the cache off (TUIST_ACTIONS_CACHE=0 or false) and the agent answered.
 // Anything else leaves the environment as the runner made it.
 func environment(env []string, healthy func(string) bool) []string {
@@ -51,7 +53,11 @@ func environment(env []string, healthy func(string) bool) []string {
 		}
 		return ""
 	}
-	agent := strings.TrimSuffix(value("TUIST_CACHE_VOLUME_URL"), "/")
+	agent := value("TUIST_ACTIONS_CACHE_URL")
+	if agent == "" {
+		agent = value("TUIST_CACHE_VOLUME_URL")
+	}
+	agent = strings.TrimSuffix(agent, "/")
 	switch {
 	case strings.TrimSuffix(value("ACTIONS_RESULTS_URL"), "/") != githubResultsURL,
 		!strings.HasPrefix(agent, "http://"),

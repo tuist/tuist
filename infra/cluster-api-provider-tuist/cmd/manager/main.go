@@ -394,6 +394,19 @@ func main() {
 	flag.StringVar(&rackHostImageMirrorHostsRaw, "rackhost-image-mirror-hosts", "",
 		"Comma-separated RackHost names that get --rackhost-image-mirrors, or * for every rack host. Empty routes none. "+
 			"Flows from the chart's rackFleet.imageCache.routeHosts.")
+	rackHostActionsCacheStores := map[string]string{}
+	flag.Func("rackhost-actions-cache-store",
+		"<site>=<url>: the store holding the GitHub Actions cache entries of rack hosts at <site>. Each such host's tart-kubelet "+
+			"serves the Actions cache to its VMs (--actions-cache-store). Repeatable. Flows from the chart's rackFleet.actionsCacheStore "+
+			"and rackFleet.sites.<site>.actionsCacheStore.",
+		func(v string) error {
+			site, store, ok := strings.Cut(v, "=")
+			if !ok || site == "" || !strings.HasPrefix(store, "https://") {
+				return fmt.Errorf("want <site>=https://..., got %q", v)
+			}
+			rackHostActionsCacheStores[site] = store
+			return nil
+		})
 	var rackEnv string
 	flag.StringVar(&rackEnv, "rack-env", "",
 		"This operator's environment (production, canary, staging): the runtime owner every push to a rack Mac host claims, "+
@@ -933,6 +946,7 @@ func main() {
 		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
 		ImageMirrors:                  rackHostImageMirrors,
 		ImageMirrorHosts:              parseCommaList(rackHostImageMirrorHostsRaw),
+		ActionsCacheStores:            rackHostActionsCacheStores,
 		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		TartKubeletBinarySHA:          binarySHA,
 		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),

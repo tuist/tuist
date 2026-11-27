@@ -449,6 +449,10 @@ type Config struct {
 	CustomCacheURL            string
 	CustomCacheNamespace      string
 	CustomCacheServiceAccount string
+	// ActionsCacheStoreURL is the store holding the host's site's GitHub
+	// Actions cache entries. Set with CustomCacheURL, tart-kubelet serves the
+	// Actions cache to the host's guests and the VM guard lets them reach it.
+	ActionsCacheStoreURL string
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -1174,6 +1178,9 @@ func renderLaunchdPlist(cfg Config) string {
 		runnerCacheArg += fmt.Sprintf("\n    <string>--runner-cache-budget-gib=%d</string>", cfg.RunnerCacheVolumeGiB)
 		if cfg.CustomCacheURL != "" {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--custom-cache-url=%s</string>\n    <string>--custom-cache-namespace=%s</string>\n    <string>--custom-cache-service-account=%s</string>", xmlEscape(cfg.CustomCacheURL), xmlEscape(cfg.CustomCacheNamespace), xmlEscape(cfg.CustomCacheServiceAccount))
+			if cfg.ActionsCacheStoreURL != "" {
+				runnerCacheArg += fmt.Sprintf("\n    <string>--actions-cache-store=%s</string>", xmlEscape(cfg.ActionsCacheStoreURL))
+			}
 		}
 	}
 	imageMirrorArgs := ""
@@ -1972,7 +1979,13 @@ sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
 	script = strings.Replace(script, "@CARVEOUT@", carveOut, 1)
-	return script + renderVMGuardScript(strings.ReplaceAll(carveOut, "pass out quick", "pass in quick")), nil
+	// tart-kubelet serves the GitHub Actions cache to its guests on the vmnet
+	// gateway, the host's own bridge address (podagent.ActionsCacheGuestURL).
+	hostIn := ""
+	if cfg.ActionsCacheStoreURL != "" {
+		hostIn = "pass in quick proto tcp from <vm_sources> to <vm_sources> port 8090 keep state\n"
+	}
+	return script + renderVMGuardScript(strings.ReplaceAll(carveOut, "pass out quick", "pass in quick"), hostIn), nil
 }
 
 // vmPrivateDestinations is everything a guest has no business reaching:
@@ -2019,20 +2032,20 @@ const vmPrivateDestinations = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64
 // Same sub-anchor trick and re-arm as installSSHIngressGuard: a
 // `com.apple/` sub-anchor is live the moment it is loaded, and the re-arm
 // restores it within a minute of a reboot or a flush.
-func renderVMGuardScript(carveOutIn string) string {
+func renderVMGuardScript(carveOutIn, hostIn string) string {
 	return fmt.Sprintf(`
 sudo tee /etc/pf.anchors/tuist.vmguard >/dev/null <<'PFCONF'
 # Tuist runner VM egress guard, on the vmnet bridge, before NAT.
 vm_bridges = "{ bridge100, bridge101, bridge102, bridge103 }"
 table <vm_sources> persist { 192.168.64.0/22 }
-table <vm_private_dst> persist { %s }
+table <vm_private_dst> persist { %[1]s }
 pass out quick from <vm_sources> to <vm_sources> flags any keep state
 pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state
 pass in quick proto tcp from <vm_sources> to <vm_sources> port 53 keep state
-block drop in quick from <vm_sources> to self
+%[3]sblock drop in quick from <vm_sources> to self
 block drop in quick proto udp from <vm_sources> to any port 8472
 block drop in quick proto tcp from <vm_sources> to any port { 4240, 10250 }
-%s
+%[2]s
 block drop in quick from <vm_sources> to <vm_private_dst>
 pass in quick on $vm_bridges inet6 proto { tcp, udp } to self port 53 keep state
 block drop in quick on $vm_bridges inet6 proto { tcp, udp } to self
@@ -2077,7 +2090,7 @@ sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
 sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
 sudo launchctl bootout system/dev.tuist.pfctl-vmguard 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
-`, vmPrivateDestinations, carveOutIn)
+`, vmPrivateDestinations, carveOutIn, hostIn)
 }
 
 // renderVMNATScript builds the VM->cache NAT helper + its launchd

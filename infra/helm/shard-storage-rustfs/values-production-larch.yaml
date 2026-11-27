@@ -24,6 +24,11 @@ privateNetwork:
   # Only the server: Linux runners never place here (target.site is larch).
   clients:
     - namespace: tuist
+# actions/cache entries saved from the rack Macs, which reach them through the
+# entrances like plans (gateway.buckets). The server evicts beyond 90% of it.
+actionsCache:
+  bucket: actions-cache
+  maxGB: 500
 runnerEntrances:
   - site: larch
     host: s3-larch.tuist.dev
@@ -67,7 +72,7 @@ resources:
 metricsEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/metrics
 gateway:
   replicas: 1
-  buckets: [shards]
+  buckets: [shards, actions-cache]
 ingress:
   enabled: false
   # The rack gateways are host-network: on this node they arrive as host,

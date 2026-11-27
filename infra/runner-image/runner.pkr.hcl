@@ -744,6 +744,26 @@ build {
     ]
   }
 
+  # The node shim (infra/linux-runner-image/cmd/tuist-node-shim) takes each
+  # bundled node's name, with the real one beside it as node.real. While the
+  # host's tart-kubelet answers on TUIST_ACTIONS_CACHE_URL, it points a
+  # JavaScript action's Actions cache at the host instead of GitHub's. A
+  # runner release without node externals fails the bake: it needs the shim.
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-node-shim"
+    destination = "/tmp/tuist-node-shim"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /Users/runner/actions-runner",
+      "ls -d externals/node*/bin/node >/dev/null",
+      "for node in externals/node*/bin/node; do echo 'admin' | sudo -S -u runner mv \"$node\" \"$node.real\" && echo 'admin' | sudo -S install -m 0755 -o runner -g staff /tmp/tuist-node-shim \"$node\"; done",
+      "rm -f /tmp/tuist-node-shim"
+    ]
+  }
+
   # Passwordless sudo for runner. The GitHub Actions runner runs as
   # the `runner` user in a real desktop session (LaunchAgent +
   # auto-login), so the few privileged operations the dispatch loop
