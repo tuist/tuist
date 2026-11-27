@@ -216,8 +216,10 @@ defmodule Tuist.MixProject do
       # gRPC listener for events.tuist.dev. Serves the `once.events.v1`
       # protocol on its own port so the interactive HTTP endpoint is
       # untouched; grpc-elixir carries its own cowboy2 HTTP/2 server, so
-      # there is no need to teach Bandit gRPC.
-      {:grpc, "~> 0.9"},
+      # there is no need to teach Bandit gRPC. Since 1.0 the server lives in
+      # grpc_server; grpc keeps the client the generated stubs `use`.
+      {:grpc_server, "~> 1.1"},
+      {:grpc, "~> 1.1"},
       {:protobuf, "~> 0.14"},
       {:protobuf_generate, "~> 0.1", only: [:dev]},
       {:opentelemetry_phoenix, "~> 2.0"},
