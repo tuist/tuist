@@ -38,6 +38,14 @@ defmodule Tuist.TestImpactAnalysis.Run do
       type: "Array(Tuple(LowCardinality(String), UInt32, UInt32, LowCardinality(String)))",
       default: []
 
+    # A dirty checkout's uncommitted changes: the changed files its client
+    # marked `dirty`, as path, status and blob. Kept for the file retention,
+    # and left out of queries unless selected, since lists never need it.
+    field :dirty_files, Ch,
+      type: "Array(Tuple(String, LowCardinality(String), String))",
+      default: [],
+      load_in_query: false
+
     field :requested_count, Ch, type: "UInt32", default: 0
     field :skipped_count, Ch, type: "UInt32", default: 0
     field :selected_count, Ch, type: "UInt32", default: 0
@@ -66,6 +74,7 @@ defmodule Tuist.TestImpactAnalysis.Run do
       :matched_path,
       :rules_version,
       :rule_trace,
+      :dirty_files,
       :requested_count,
       :skipped_count,
       :selected_count

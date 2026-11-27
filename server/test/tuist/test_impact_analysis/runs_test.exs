@@ -227,14 +227,63 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
                Runs.create(project, Map.delete(params(), :changed_files))
     end
 
-    test "doesn't store a dirty checkout's diff", %{project: project} do
-      assert {:ok, %{run: %{outcome: "selected", dirty: true}}} = Runs.create(project, params(%{dirty: true}))
+    test "falls back on a dirty checkout once the baseline is confirmed, without reading or storing a diff", %{
+      project: project
+    } do
+      modules = [%{name: "AppTests", skipped: false}, %{name: "CoreTests", skipped: true}]
+
+      # The diff names only a source file, which would select on a clean checkout.
+      assert {:ok, %{run: run, skipped_tests: nil}} =
+               Runs.create(project, params(%{dirty: true, modules: modules}))
+
+      assert {run.outcome, run.reason, run.dirty, run.baseline_sha} == {"fallback", "dirty_checkout", true, "c1"}
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 4, 1}
+      assert run.skipped_modules == %{"CoreTests" => 1}
       assert Storage.get_diff(project.id, "c2", "c1") == {:error, :not_found}
 
-      assert {:ok, %{run: %{outcome: "fallback", reason: "diff_unavailable"} = run}} =
+      # It wins over a tracked file, and needs no diff at all.
+      tracked = [%{path: "Package.resolved", status: "M", blob: "new"}]
+
+      assert {:ok, %{run: %{reason: "dirty_checkout", matched_path: ""}}} =
+               Runs.create(project, params(%{dirty: true, changed_files: tracked}))
+
+      assert {:ok, %{run: %{reason: "dirty_checkout"}}} =
                Runs.create(project, %{dirty: true} |> params() |> Map.delete(:changed_files))
 
-      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 5, 0}
+      # A baseline the server can't confirm keeps that reason.
+      assert {:ok, %{run: %{reason: "no_baseline", baseline_sha: nil}}} =
+               Runs.create(project, params(%{dirty: true, baseline_sha: "unknown"}))
+
+      # The same commit from a clean checkout still selects.
+      assert {:ok, %{run: %{outcome: "selected", dirty: false}}} = Runs.create(project, params())
+    end
+
+    test "keeps only the changed files the client marked dirty, with the run", %{project: project} do
+      changed_files = [
+        %{path: "Sources/Math.swift", status: "M", blob: "committed", affected_modules: ["AppTests"]},
+        %{path: "Sources/Cache.swift", status: "M", blob: "edited", dirty: true},
+        %{path: "Sources/Gone.swift", status: "D", dirty: true},
+        %{path: "Sources/Other.swift", status: "M", blob: "other", dirty: false}
+      ]
+
+      assert {:ok, %{run: run}} = Runs.create(project, params(%{dirty: true, changed_files: changed_files}))
+      assert run.reason == "dirty_checkout"
+
+      assert Storage.dirty_files(project.id, run.id) == [
+               %{path: "Sources/Cache.swift", status: "M", blob: "edited"},
+               %{path: "Sources/Gone.swift", status: "D", blob: ""}
+             ]
+
+      assert Storage.get_diff(project.id, "c2", "c1") == {:error, :not_found}
+
+      # Reading the run doesn't load them; an older client's run has none.
+      assert {:ok, %{dirty_files: []}} = Storage.get_run(project.id, run.id)
+      assert {:ok, %{run: old}} = Runs.create(project, params(%{dirty: true}))
+      assert Storage.dirty_files(project.id, old.id) == []
+
+      # A clean run never keeps any, even if a client marked some.
+      assert {:ok, %{run: clean}} = Runs.create(project, params(%{changed_files: changed_files}))
+      assert Storage.dirty_files(project.id, clean.id) == []
     end
 
     test "records the client's reason when there's no baseline", %{project: project} do

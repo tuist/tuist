@@ -119,6 +119,7 @@ defmodule TuistWeb.TestSelection.Components do
   def fallback_label("no_baseline_evidence"), do: dgettext("dashboard_tests", "No baseline evidence")
   def fallback_label("history_unavailable"), do: dgettext("dashboard_tests", "History too shallow")
   def fallback_label("tracked_file_changed"), do: dgettext("dashboard_tests", "Tracked file changed")
+  def fallback_label("dirty_checkout"), do: dgettext("dashboard_tests", "Uncommitted changes")
   def fallback_label("diff_too_large"), do: dgettext("dashboard_tests", "Diff too large")
   def fallback_label("diff_unavailable"), do: dgettext("dashboard_tests", "Diff unavailable")
   def fallback_label("history_unknown"), do: dgettext("dashboard_tests", "Commit unknown")
@@ -149,6 +150,13 @@ defmodule TuistWeb.TestSelection.Components do
       dgettext(
         "dashboard_tests",
         "A file that can affect any test without showing up in coverage changed, such as a dependency pin or build settings."
+      )
+
+  def fallback_description("dirty_checkout"),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "The checkout had uncommitted changes, so the code under test isn't the commit's and coverage measured at the baseline can't narrow it."
       )
 
   def fallback_description("diff_too_large"),

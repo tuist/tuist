@@ -237,9 +237,6 @@ defmodule Tuist.TestImpactAnalysis.DecisionTest do
                Runs.create(project, %{opted_in | scope: scope})
     end
 
-    assert {:ok, %{run: %{selected_count: 1}, skipped_tests: []}} =
-             Runs.create(project, Map.put(opted_in, :dirty, true))
-
     for path <- ["Sources/Unknown.swift", "Sources/Used.swift", "Tests/Unit.swift"] do
       assert {:ok, %{run: %{selected_count: 1}, skipped_tests: []}} =
                Runs.create(project, %{opted_in | changed_files: [changed(path, "new", ["UnitTests"])]})

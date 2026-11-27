@@ -6,9 +6,10 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   diff, finds the baseline's checkpoint (`Tuist.TestImpactAnalysis.Baselines`),
   decides the tests of the modules left to decide from snapshots
   (`Tuist.TestImpactAnalysis.Decision`), stores that decision as bitmaps and
-  records the run. Without a baseline, or when selection can't happen (no
-  diff, a diff too large, a changed tracked file), it records a fallback
-  with the reason, after which the client runs default selective testing.
+  records the run. Without a baseline, or when selection can't happen (a
+  dirty checkout, no diff, a diff too large, a changed tracked file), it
+  records a fallback with the reason, after which the client runs default
+  selective testing.
   When hashing skipped every module, it records a selection of nothing,
   without a diff, so a run never runs more than hashing left.
 
@@ -118,9 +119,36 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       is_nil(baseline_sha) ->
         {:fallback, Map.get(params, :fallback_reason) || :no_baseline, %{}}
 
+      Map.get(params, :dirty) ->
+        dirty_fallback(project, params, commit_sha, baseline_sha)
+
       true ->
         select(project, params, commit_sha, baseline_sha)
     end
+  end
+
+  # As with coverage, which never counts a dirty run toward its commit, a
+  # dirty checkout's code isn't the commit's, so coverage doesn't narrow it:
+  # every test of the modules left runs, once the baseline is confirmed. Its
+  # diff isn't stored as the commit's; only the files its client marked
+  # `dirty`, its uncommitted changes, are kept with the run.
+  defp dirty_fallback(project, params, commit_sha, baseline_sha) do
+    case resolve(project, scope(params, commit_sha), baseline_sha) do
+      {:ok, baseline} ->
+        extra =
+          project
+          |> fallback_counts(params, baseline, skipped_modules(project, params, baseline))
+          |> Map.put(:dirty_files, dirty_files(params))
+
+        {:fallback, :dirty_checkout, extra}
+
+      fallback ->
+        fallback
+    end
+  end
+
+  defp dirty_files(params) do
+    params |> Map.get(:changed_files) |> List.wrap() |> Enum.filter(&(Map.get(&1, :dirty) == true))
   end
 
   # Nothing to decide, so no diff and no rules: only what hashing skipped,
@@ -168,9 +196,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     with {:ok, changed_files, changed_files_count} <- changed_files(project, params, commit_sha, baseline_sha),
          :ok <- within_diff_limit(changed_files_count),
          {:ok, baseline} <- resolve(project, scope(params, commit_sha), baseline_sha) do
-      if !Map.get(params, :dirty) do
-        write_file_changes(project, baseline.repository_id, commit_sha, baseline_sha, changed_files, changed_files_count)
-      end
+      write_file_changes(project, baseline.repository_id, commit_sha, baseline_sha, changed_files, changed_files_count)
 
       skipped_modules = skipped_modules(project, params, baseline)
 
@@ -182,7 +208,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
             scheme: BuildSystem.scheme(params),
             platform: Map.get(params, :platform) || "",
             requested_modules: params.decided_modules,
-            coverage_policy: if(!Map.get(params, :dirty), do: Map.get(params, :coverage_policy)),
+            coverage_policy: Map.get(params, :coverage_policy),
             before: DateTime.utc_now()
           }
 
@@ -230,15 +256,13 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   end
 
   # The client sends the diff only when the baseline request said it isn't
-  # stored, and always for a dirty checkout, whose diff is never stored.
+  # stored.
   defp changed_files(project, params, commit_sha, baseline_sha) do
     case Map.get(params, :changed_files) do
       nil ->
-        with false <- Map.get(params, :dirty) || false,
-             {:ok, diff} <- Storage.get_diff(project.id, commit_sha, baseline_sha) do
-          {:ok, diff.changed_files, diff.changed_files_count}
-        else
-          _ -> {:diff_fallback, :diff_unavailable}
+        case Storage.get_diff(project.id, commit_sha, baseline_sha) do
+          {:ok, diff} -> {:ok, diff.changed_files, diff.changed_files_count}
+          {:error, :not_found} -> {:diff_fallback, :diff_unavailable}
         end
 
       files ->
@@ -250,16 +274,14 @@ defmodule Tuist.TestImpactAnalysis.Runs do
 
         count = Map.get(params, :changed_files_count) || length(files)
 
-        if !Map.get(params, :dirty) do
-          :ok =
-            Storage.put_diff(%{
-              project_id: project.id,
-              commit_sha: commit_sha,
-              baseline_sha: baseline_sha,
-              changed_files: files,
-              changed_files_count: count
-            })
-        end
+        :ok =
+          Storage.put_diff(%{
+            project_id: project.id,
+            commit_sha: commit_sha,
+            baseline_sha: baseline_sha,
+            changed_files: files,
+            changed_files_count: count
+          })
 
         {:ok, files, count}
     end

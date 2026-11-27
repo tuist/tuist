@@ -94,11 +94,33 @@ defmodule Tuist.TestImpactAnalysis.Storage do
       |> Map.update(:rule_trace, [], fn trace ->
         Enum.map(trace, &{&1.rule, &1.selected, &1.skipped, &1.verdict})
       end)
+      |> Map.update(:dirty_files, [], fn files ->
+        files |> Enum.take(@changed_files_limit) |> Enum.map(&{&1.path, &1.status, Map.get(&1, :blob) || ""})
+      end)
 
     with {:ok, run} <- attrs |> Run.create_changeset() |> Ecto.Changeset.apply_action(:insert) do
       {:ok, _} = IngestRepo.insert(run)
-      {:ok, with_rule_trace_maps(run)}
+      # Like a run read back, which doesn't load the files.
+      {:ok, run |> with_rule_trace_maps() |> Map.put(:dirty_files, [])}
     end
+  end
+
+  @doc """
+  The uncommitted changes a run from a dirty checkout stored (`Run.dirty_files`),
+  as `%{path, status, blob}` maps: empty for any other run, for a client that
+  didn't mark them, and once they expired.
+  """
+  def dirty_files(project_id, id) do
+    query =
+      from(r in Run,
+        where: r.project_id == ^project_id and r.id == ^id,
+        select: r.dirty_files,
+        limit: 1
+      )
+
+    Enum.map(IngestRepo.with_retry(fn -> IngestRepo.one(query) end) || [], fn {path, status, blob} ->
+      %{path: path, status: status, blob: blob}
+    end)
   end
 
   @doc """

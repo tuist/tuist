@@ -94,8 +94,9 @@ defmodule Tuist.Tests.Selections.Query do
   @doc """
   A page of the files that changed between the run's baseline and its
   checkout, those that selected the most tests first, each with whether it is
-  a tracked file. Empty when the run had no baseline, ran from a dirty
-  checkout (whose diff isn't stored) or its diff expired. Options: `search`
+  a tracked file. For a dirty checkout, only its uncommitted changes, when
+  its client marked them. Empty when the run had no baseline, its dirty
+  checkout's changes weren't marked, or its diff expired. Options: `search`
   (part of the path), `page` and `page_size`.
   """
   def changed_files(project, test_run, opts) do

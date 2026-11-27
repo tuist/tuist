@@ -507,6 +507,60 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "#selection-tests-table", "Project.swift")
     end
 
+    test "shows a dirty checkout's fallback, and why it has no changed files", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} =
+        selection(project, outcome: "fallback", reason: "dirty_checkout", dirty: true, selected: [])
+
+      path =
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
+
+      {:ok, lv, _html} = live(conn, path)
+      assert has_element?(lv, "#selection-tests-table", "Uncommitted changes")
+      assert has_element?(lv, "[data-part='coverage-selection'] a", ~r/^\s*Changed files\s*$/)
+
+      {:ok, lv, _html} = live(conn, path <> "&selection-tab=files")
+      assert has_element?(lv, "[data-part='empty-selection-files']", "Uncommitted changes")
+      assert has_element?(lv, "[data-part='empty-selection-files']", "didn't mark which files they are")
+      refute has_element?(lv, "[data-part='empty-selection-files']", "No baseline")
+
+      # A newer client's uncommitted changes are listed, and said to be only those.
+      %{test_run: test_run} =
+        selection(project,
+          commit_sha: "e0e0e0e0",
+          outcome: "fallback",
+          reason: "dirty_checkout",
+          dirty: true,
+          selected: [],
+          dirty_files: [%{path: "Sources/Search/SearchCache.swift", status: "M", blob: "b1"}]
+        )
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations&selection-tab=files"
+        )
+
+      assert has_element?(lv, "#selection-files-table", "SearchCache.swift")
+      refute has_element?(lv, "#selection-files-table", "SearchViewModel.swift")
+      assert has_element?(lv, "#selection-files-dirty", "Only the checkout's uncommitted changes are listed")
+      assert has_element?(lv, "[data-part='coverage-selection'] a", "Changed files (1)")
+
+      # A clean run whose diff is past retention says so instead.
+      %{test_run: test_run} = selection(project, commit_sha: "f0f0f0f0", outcome: "fallback", reason: "diff_unavailable")
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations&selection-tab=files"
+        )
+
+      assert has_element?(lv, "[data-part='empty-selection-files']", "The changed files expired")
+    end
+
     test "shows no Debug card for a fallback without a baseline", %{
       conn: conn,
       organization: organization,

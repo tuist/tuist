@@ -37,7 +37,7 @@ defmodule Tuist.Tests.Selections do
 
   @selected_reasons ~w(test_file_changed failed_last_run no_evidence impacted owned_without_evidence undecided)
   @skipped_reasons ~w(unaffected module_skipped)
-  @fallback_reasons ~w(no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed diff_too_large diff_unavailable history_unknown)
+  @fallback_reasons ~w(no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed dirty_checkout diff_too_large diff_unavailable history_unknown)
 
   @doc "Why an impact run selects a test (its decision's `reason`), in the rules' order."
   def selected_reasons, do: @selected_reasons
@@ -339,10 +339,24 @@ defmodule Tuist.Tests.Selections do
 
   @doc """
   The diff an impact run used, or `nil` when it had no baseline, ran from a
-  dirty checkout (whose diff isn't stored) or its diff expired.
+  dirty checkout (whose uncommitted changes are returned instead, when its
+  client marked them) or its diff expired.
   """
   def get_diff(%Run{baseline_sha: baseline}) when baseline in [nil, ""], do: nil
-  def get_diff(%Run{dirty: true}), do: nil
+  # A dirty checkout's diff isn't the commit's, so only its uncommitted
+  # changes are kept, with the run, when its client marked them.
+  def get_diff(%Run{dirty: true, project_id: project_id, id: id}) do
+    case Storage.dirty_files(project_id, id) do
+      [] ->
+        nil
+
+      files ->
+        %{
+          changed_files: Enum.map(files, &Map.merge(&1, %{affected_modules: nil, dirty: true})),
+          changed_files_count: length(files)
+        }
+    end
+  end
 
   def get_diff(%Run{project_id: project_id, commit_sha: commit_sha, baseline_sha: baseline_sha}) do
     case Storage.get_diff(project_id, commit_sha, baseline_sha) do

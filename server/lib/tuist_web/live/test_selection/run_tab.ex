@@ -539,6 +539,15 @@ defmodule TuistWeb.TestSelection.RunTab do
         </div>
 
         <.alert
+          :if={@diff && @selection_run.dirty}
+          id="selection-files-dirty"
+          type="secondary"
+          status="information"
+          size="small"
+          title={dgettext("dashboard_tests", "Only the checkout's uncommitted changes are listed")}
+        />
+
+        <.alert
           :if={@diff && @diff.changed_files_count > length(@diff.changed_files)}
           id="selection-files-capped"
           type="secondary"
@@ -589,11 +598,8 @@ defmodule TuistWeb.TestSelection.RunTab do
 
         <.coverage_empty
           :if={@files == []}
-          title={
-            if @diff,
-              do: dgettext("dashboard_tests", "No file matches"),
-              else: dgettext("dashboard_tests", "No baseline to diff against")
-          }
+          title={files_empty_title(@diff, @selection_run)}
+          description={files_empty_description(@diff, @selection_run)}
           image="table"
           data-part="empty-selection-files"
         />
@@ -601,6 +607,25 @@ defmodule TuistWeb.TestSelection.RunTab do
     </.card>
     """
   end
+
+  # The tab shows only for a run with a baseline, so a missing diff is either
+  # a dirty checkout's whose uncommitted changes weren't kept (an older
+  # client doesn't mark them) or one past retention.
+  defp files_empty_title(nil, %{dirty: true}), do: dgettext("dashboard_tests", "Uncommitted changes")
+  defp files_empty_title(nil, _run), do: dgettext("dashboard_tests", "The changed files expired")
+  defp files_empty_title(_diff, _run), do: dgettext("dashboard_tests", "No file matches")
+
+  defp files_empty_description(nil, %{dirty: true}),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "The checkout had uncommitted changes, but none were kept: the client didn't mark which files they are, or they expired."
+      )
+
+  defp files_empty_description(nil, _run),
+    do: dgettext("dashboard_tests", "The diff against the baseline is past retention.")
+
+  defp files_empty_description(_diff, _run), do: nil
 
   # The run keeps every target, which the test run page's own module table
   # reads by name; the table shows them a page at a time.
@@ -763,11 +788,11 @@ defmodule TuistWeb.TestSelection.RunTab do
   defp tab_label("tests", %{summary: summary}),
     do: dgettext("dashboard_tests", "Tests (%{count})", count: format_number(summary.requested))
 
+  # Without a stored diff the count is unknown, not zero.
+  defp tab_label("files", %{diff: nil}), do: dgettext("dashboard_tests", "Changed files")
+
   defp tab_label("files", %{diff: diff}),
-    do:
-      dgettext("dashboard_tests", "Changed files (%{count})",
-        count: format_number((diff && diff.changed_files_count) || 0)
-      )
+    do: dgettext("dashboard_tests", "Changed files (%{count})", count: format_number(diff.changed_files_count))
 
   defp tab_label("modules", %{selection_run: run} = assigns),
     do:

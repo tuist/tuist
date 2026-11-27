@@ -49,9 +49,9 @@ msgstr ""
 #: lib/tuist_web/live/test_cases_live.ex:399
 #: lib/tuist_web/live/test_cases_live.html.heex:10
 #: lib/tuist_web/live/test_runs_live.ex:376
-#: lib/tuist_web/live/test_selection/run_tab.ex:817
-#: lib/tuist_web/live/test_selection/run_tab.ex:820
-#: lib/tuist_web/live/test_selection/run_tab.ex:823
+#: lib/tuist_web/live/test_selection/run_tab.ex:842
+#: lib/tuist_web/live/test_selection/run_tab.ex:845
+#: lib/tuist_web/live/test_selection/run_tab.ex:848
 #: lib/tuist_web/live/tests_live.ex:437
 #: lib/tuist_web/live/tests_live.ex:455
 #: lib/tuist_web/live/tests_live.html.heex:18
@@ -456,7 +456,7 @@ msgstr ""
 #: lib/tuist_web/helpers/attachment_helpers.ex:29
 #: lib/tuist_web/live/coverage/components.ex:667
 #: lib/tuist_web/live/coverage_detail_live.ex:505
-#: lib/tuist_web/live/test_selection/run_tab.ex:557
+#: lib/tuist_web/live/test_selection/run_tab.ex:566
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:200
 #, elixir-autogen, elixir-format
 msgid "File"
@@ -730,8 +730,8 @@ msgstr ""
 #: lib/tuist_web/helpers/test_labels.ex:17
 #: lib/tuist_web/helpers/test_labels.ex:52
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:48
-#: lib/tuist_web/live/test_selection/run_tab.ex:638
-#: lib/tuist_web/live/test_selection/run_tab.ex:687
+#: lib/tuist_web/live/test_selection/run_tab.ex:663
+#: lib/tuist_web/live/test_selection/run_tab.ex:712
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr ""
@@ -745,7 +745,7 @@ msgstr ""
 #: lib/tuist_web/helpers/test_labels.ex:57
 #: lib/tuist_web/live/test_run_live.html.heex:572
 #: lib/tuist_web/live/test_run_live.html.heex:1853
-#: lib/tuist_web/live/test_selection/run_tab.ex:622
+#: lib/tuist_web/live/test_selection/run_tab.ex:647
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr ""
@@ -1100,7 +1100,7 @@ msgstr ""
 #: lib/tuist_web/live/test_runs_live.ex:51
 #: lib/tuist_web/live/test_runs_live.html.heex:494
 #: lib/tuist_web/live/test_selection/components.ex:42
-#: lib/tuist_web/live/test_selection/run_tab.ex:722
+#: lib/tuist_web/live/test_selection/run_tab.ex:747
 #: lib/tuist_web/live/test_selections_live.ex:158
 #: lib/tuist_web/live/test_selections_live.html.heex:78
 #: lib/tuist_web/live/tests_live.html.heex:989
@@ -1735,7 +1735,7 @@ msgstr ""
 #: lib/tuist_web/live/test_run_live.html.heex:1333
 #: lib/tuist_web/live/test_run_live.html.heex:1507
 #: lib/tuist_web/live/test_run_live.html.heex:1723
-#: lib/tuist_web/live/test_selection/run_tab.ex:821
+#: lib/tuist_web/live/test_selection/run_tab.ex:846
 #, elixir-autogen, elixir-format
 msgid "Shard %{index}"
 msgstr ""
@@ -2063,7 +2063,7 @@ msgid "Successful"
 msgstr ""
 
 #: lib/tuist_web/live/test_case_live.html.heex:286
-#: lib/tuist_web/live/test_selection/run_tab.ex:827
+#: lib/tuist_web/live/test_selection/run_tab.ex:852
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr ""
@@ -2388,7 +2388,7 @@ msgstr ""
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:450
 #: lib/tuist_web/live/coverage_live.html.heex:99
-#: lib/tuist_web/live/test_selection/run_tab.ex:563
+#: lib/tuist_web/live/test_selection/run_tab.ex:572
 #, elixir-autogen, elixir-format
 msgid "Change"
 msgstr ""
@@ -2736,12 +2736,12 @@ msgstr ""
 msgid "%{selected} of %{requested} tests"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:149
+#: lib/tuist_web/live/test_selection/components.ex:150
 #, elixir-autogen, elixir-format
 msgid "A file that can affect any test without showing up in coverage changed, such as a dependency pin or build settings."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:169
+#: lib/tuist_web/live/test_selection/components.ex:177
 #, elixir-autogen, elixir-format
 msgid "Added"
 msgstr ""
@@ -2758,11 +2758,12 @@ msgid "Baseline too far back"
 msgstr ""
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:502
+#: lib/tuist_web/live/test_selection/run_tab.ex:792
 #, elixir-autogen, elixir-format
 msgid "Changed files"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:768
+#: lib/tuist_web/live/test_selection/run_tab.ex:795
 #, elixir-autogen, elixir-format
 msgid "Changed files (%{count})"
 msgstr ""
@@ -2772,7 +2773,7 @@ msgstr ""
 msgid "Changed files it executed"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:124
+#: lib/tuist_web/live/test_selection/components.ex:125
 #, elixir-autogen, elixir-format
 msgid "Commit unknown"
 msgstr ""
@@ -2793,17 +2794,17 @@ msgstr ""
 msgid "Decision:"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:170
+#: lib/tuist_web/live/test_selection/components.ex:178
 #, elixir-autogen, elixir-format
 msgid "Deleted"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:122
+#: lib/tuist_web/live/test_selection/components.ex:123
 #, elixir-autogen, elixir-format
 msgid "Diff too large"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:123
+#: lib/tuist_web/live/test_selection/components.ex:124
 #, elixir-autogen, elixir-format
 msgid "Diff unavailable"
 msgstr ""
@@ -2816,7 +2817,7 @@ msgstr ""
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:221
 #: lib/tuist_web/live/test_selection/run_tab.ex:274
-#: lib/tuist_web/live/test_selection/run_tab.ex:652
+#: lib/tuist_web/live/test_selection/run_tab.ex:677
 #, elixir-autogen, elixir-format
 msgid "Est. time saved"
 msgstr ""
@@ -2831,7 +2832,7 @@ msgstr ""
 msgid "Files:"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:667
+#: lib/tuist_web/live/test_selection/run_tab.ex:692
 #, elixir-autogen, elixir-format
 msgid "Hashing left no module to decide"
 msgstr ""
@@ -2861,28 +2862,28 @@ msgstr ""
 msgid "Its newest run in the evidence window failed or flaked, so a past pass can't vouch for it."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:750
+#: lib/tuist_web/live/test_selection/run_tab.ex:775
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:148
 #, elixir-autogen, elixir-format
 msgid "Matched path"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:171
+#: lib/tuist_web/live/test_selection/components.ex:179
 #, elixir-autogen, elixir-format
 msgid "Modified"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:774
+#: lib/tuist_web/live/test_selection/run_tab.ex:799
 #, elixir-autogen, elixir-format
 msgid "Modules (%{count})"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:155
+#: lib/tuist_web/live/test_selection/components.ex:163
 #, elixir-autogen, elixir-format
 msgid "More than 5,000 files changed since the baseline."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:129
+#: lib/tuist_web/live/test_selection/components.ex:130
 #, elixir-autogen, elixir-format
 msgid "No ancestor of this commit has a complete run of the requested scope on this platform."
 msgstr ""
@@ -2897,11 +2898,6 @@ msgstr ""
 msgid "No baseline evidence"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:595
-#, elixir-autogen, elixir-format
-msgid "No baseline to diff against"
-msgstr ""
-
 #: lib/tuist_web/live/test_selection/components.ex:54
 #, elixir-autogen, elixir-format
 msgid "No evidence"
@@ -2912,7 +2908,7 @@ msgstr ""
 msgid "No executed file changed"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:594
+#: lib/tuist_web/live/test_selection/run_tab.ex:616
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:231
 #, elixir-autogen, elixir-format
 msgid "No file matches"
@@ -2923,7 +2919,7 @@ msgstr ""
 msgid "No rule decided it, so it runs: selection only skips what a rule proves unaffected."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:736
+#: lib/tuist_web/live/test_selection/run_tab.ex:761
 #, elixir-autogen, elixir-format
 msgid "No rule ran"
 msgstr ""
@@ -2949,7 +2945,7 @@ msgid "None"
 msgstr ""
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:457
-#: lib/tuist_web/live/test_selection/run_tab.ex:744
+#: lib/tuist_web/live/test_selection/run_tab.ex:769
 #, elixir-autogen, elixir-format
 msgid "Reason"
 msgstr ""
@@ -2964,7 +2960,7 @@ msgstr ""
 msgid "Requested tests the period's selection runs had to execute: their evidence executed a changed file, their target changed, they failed at the baseline or they had no evidence."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:716
+#: lib/tuist_web/live/test_selection/run_tab.ex:741
 #, elixir-autogen, elixir-format
 msgid "Rule"
 msgstr ""
@@ -2982,8 +2978,8 @@ msgstr ""
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:185
 #: lib/tuist_web/live/test_selection/components.ex:41
-#: lib/tuist_web/live/test_selection/run_tab.ex:641
-#: lib/tuist_web/live/test_selection/run_tab.ex:719
+#: lib/tuist_web/live/test_selection/run_tab.ex:666
+#: lib/tuist_web/live/test_selection/run_tab.ex:744
 #: lib/tuist_web/live/test_selections_live.ex:157
 #: lib/tuist_web/live/test_selections_live.html.heex:58
 #: lib/tuist_web/live/test_selections_live.html.heex:248
@@ -3008,7 +3004,7 @@ msgstr ""
 msgid "Shard:"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:548
+#: lib/tuist_web/live/test_selection/run_tab.ex:557
 #, elixir-autogen, elixir-format
 msgid "Showing the first %{shown} of %{total} changed files"
 msgstr ""
@@ -3021,7 +3017,7 @@ msgstr ""
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:197
 #: lib/tuist_web/live/test_run_live.html.heex:507
 #: lib/tuist_web/live/test_selection/run_tab.ex:255
-#: lib/tuist_web/live/test_selection/run_tab.ex:644
+#: lib/tuist_web/live/test_selection/run_tab.ex:669
 #: lib/tuist_web/live/test_selections_live.ex:145
 #: lib/tuist_web/live/test_selections_live.html.heex:97
 #: lib/tuist_web/live/test_selections_live.html.heex:263
@@ -3045,22 +3041,22 @@ msgstr ""
 msgid "Test selection is not enabled for this project."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:764
+#: lib/tuist_web/live/test_selection/run_tab.ex:789
 #, elixir-autogen, elixir-format
 msgid "Tests (%{count})"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:578
+#: lib/tuist_web/live/test_selection/run_tab.ex:587
 #, elixir-autogen, elixir-format
 msgid "Tests it selected"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:690
+#: lib/tuist_web/live/test_selection/run_tab.ex:715
 #, elixir-autogen, elixir-format
 msgid "Tests skipped"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:145
+#: lib/tuist_web/live/test_selection/components.ex:146
 #, elixir-autogen, elixir-format
 msgid "The CLI couldn't fetch enough history to diff against the baseline in time."
 msgstr ""
@@ -3070,7 +3066,7 @@ msgstr ""
 msgid "The baseline recorded no files for it"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:158
+#: lib/tuist_web/live/test_selection/components.ex:166
 #, elixir-autogen, elixir-format
 msgid "The changed files since the baseline couldn't be read."
 msgstr ""
@@ -3080,12 +3076,12 @@ msgstr ""
 msgid "The coverage selection's details expired"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:668
+#: lib/tuist_web/live/test_selection/run_tab.ex:693
 #, elixir-autogen, elixir-format
 msgid "The invocation requested no tests"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:135
+#: lib/tuist_web/live/test_selection/components.ex:136
 #, elixir-autogen, elixir-format
 msgid "The nearest baseline is more than 20 measured commits back."
 msgstr ""
@@ -3095,9 +3091,9 @@ msgstr ""
 msgid "This test run used coverage-based test selection, but its impact run is past retention."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:569
-#: lib/tuist_web/live/test_selection/run_tab.ex:572
-#: lib/tuist_web/live/test_selection/run_tab.ex:826
+#: lib/tuist_web/live/test_selection/run_tab.ex:578
+#: lib/tuist_web/live/test_selection/run_tab.ex:581
+#: lib/tuist_web/live/test_selection/run_tab.ex:851
 #, elixir-autogen, elixir-format
 msgid "Tracked"
 msgstr ""
@@ -3107,12 +3103,12 @@ msgstr ""
 msgid "Tracked file changed"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:754
+#: lib/tuist_web/live/test_selection/run_tab.ex:779
 #, elixir-autogen, elixir-format
 msgid "Tracked files"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:162
+#: lib/tuist_web/live/test_selection/components.ex:170
 #, elixir-autogen, elixir-format
 msgid "Tuist's commit history has neither the checked-out commit nor its parents, so it couldn't look for a baseline."
 msgstr ""
@@ -3122,7 +3118,7 @@ msgstr ""
 msgid "Undecided"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:725
+#: lib/tuist_web/live/test_selection/run_tab.ex:750
 #, elixir-autogen, elixir-format
 msgid "Verdict"
 msgstr ""
@@ -3134,13 +3130,13 @@ msgid "View selection"
 msgstr ""
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:209
-#: lib/tuist_web/live/test_selection/run_tab.ex:647
+#: lib/tuist_web/live/test_selection/run_tab.ex:672
 #, elixir-autogen, elixir-format
 msgid "Why it runs"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:705
-#: lib/tuist_web/live/test_selection/run_tab.ex:778
+#: lib/tuist_web/live/test_selection/run_tab.ex:730
+#: lib/tuist_web/live/test_selection/run_tab.ex:803
 #, elixir-autogen, elixir-format
 msgid "Debug"
 msgstr ""
@@ -3153,7 +3149,7 @@ msgstr ""
 
 #: lib/tuist_web/live/test_run_live.html.heex:511
 #: lib/tuist_web/live/test_selection/run_tab.ex:263
-#: lib/tuist_web/live/test_selection/run_tab.ex:676
+#: lib/tuist_web/live/test_selection/run_tab.ex:701
 #, elixir-autogen, elixir-format
 msgid "Skipped modules"
 msgstr ""
@@ -3333,7 +3329,7 @@ msgstr ""
 msgid "They measured code that isn't the commit's, so their coverage is left out of the commit's and the actual coverage may be higher. To measure the commit, commit or discard those changes before testing, or keep files your CI job writes out of the checkout or ignored by Git. The Test Runs tab lists them as Discarded."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:139
+#: lib/tuist_web/live/test_selection/components.ex:140
 #, elixir-autogen, elixir-format
 msgid "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage, so Tuist can't tell what any of them depends on."
 msgstr ""
@@ -3357,4 +3353,35 @@ msgstr ""
 #: lib/tuist_web/live/coverage/components.ex:289
 #, elixir-autogen, elixir-format
 msgid "Selective testing, or a filter, left some or all of the run's tests out, so it measured part of the scheme or none of it. Its coverage is only what it ran; the commit's figure carries what it skipped from earlier runs."
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/run_tab.ex:615
+#, elixir-autogen, elixir-format
+msgid "The changed files expired"
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/components.ex:157
+#, elixir-autogen, elixir-format
+msgid "The checkout had uncommitted changes, so the code under test isn't the commit's and coverage measured at the baseline can't narrow it."
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/run_tab.ex:626
+#, elixir-autogen, elixir-format
+msgid "The diff against the baseline is past retention."
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/components.ex:122
+#: lib/tuist_web/live/test_selection/run_tab.ex:614
+#, elixir-autogen, elixir-format
+msgid "Uncommitted changes"
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/run_tab.ex:547
+#, elixir-autogen, elixir-format
+msgid "Only the checkout's uncommitted changes are listed"
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/run_tab.ex:620
+#, elixir-autogen, elixir-format
+msgid "The checkout had uncommitted changes, but none were kept: the client didn't mark which files they are, or they expired."
 msgstr ""

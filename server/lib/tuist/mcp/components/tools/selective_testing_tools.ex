@@ -108,7 +108,7 @@ defmodule Tuist.MCP.Components.Tools.ListSelectiveTestingChangedFiles do
   @impl EMCP.Tool
   def description,
     do:
-      "List the files that changed between a test run's coverage-based selection baseline and its checkout, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout, or its diff expired. The test_run_id can also be a Tuist dashboard URL."
+      "List the files that changed between a test run's coverage-based selection baseline and its checkout, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout whose client didn't mark its uncommitted changes, or its diff expired. For a dirty checkout, only its uncommitted changes are listed. The test_run_id can also be a Tuist dashboard URL."
 
   def execute(conn, %{"test_run_id" => test_run_id} = args) do
     SelectiveTestingTools.with_test_run(conn, test_run_id, fn test_run, project ->

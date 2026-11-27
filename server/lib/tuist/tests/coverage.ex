@@ -784,10 +784,18 @@ defmodule Tuist.Tests.Coverage do
         {table, days}
       end
 
+    # A dirty run's uncommitted paths keep the file retention, its row the run's.
+    files_days = Environment.coverage_retention_days().files
+
+    IngestRepo.query!(
+      "ALTER TABLE test_impact_runs MODIFY COLUMN dirty_files Array(Tuple(String, LowCardinality(String), String)) " <>
+        "DEFAULT [] TTL toDateTime(inserted_at) + INTERVAL #{files_days} DAY"
+    )
+
     listing_days = GitHistory.listing_retention_days()
     IngestRepo.query!("ALTER TABLE git_commit_files MODIFY TTL toDateTime(inserted_at) + INTERVAL #{listing_days} DAY")
 
-    detail ++ commits ++ [{"git_commit_files", listing_days}]
+    detail ++ commits ++ [{"test_impact_runs.dirty_files", files_days}, {"git_commit_files", listing_days}]
   end
 
   # The run's own rows keep the file retention; its evidence (every other

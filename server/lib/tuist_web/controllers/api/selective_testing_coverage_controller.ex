@@ -219,6 +219,11 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
                    items: %Schema{type: :string},
                    description:
                      "The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it."
+                 },
+                 dirty: %Schema{
+                   type: :boolean,
+                   description:
+                     "Whether the change is uncommitted: the working tree differs from the checked-out commit for this tracked file. A dirty checkout's run keeps these files to show them. Absent from older clients, which don't tell."
                  }
                },
                required: [:path, :status]
@@ -232,7 +237,8 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
            dirty: %Schema{
              type: :boolean,
              default: false,
-             description: "Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused."
+             description:
+               "Whether the checkout had uncommitted changes, by the same check that keeps a run's coverage off its commit. When true, coverage isn't applied: the run falls back with `dirty_checkout`, and only the `changed_files` marked `dirty` are kept, with the run."
            },
            modules: %Schema{
              type: :array,
