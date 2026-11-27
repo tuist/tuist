@@ -11,7 +11,9 @@ defmodule TuistEx.MixProject do
       # starts and which no project lists among its dependencies.
       elixirc_options: [no_warn_undefined: [:cover, Mimic]],
       deps: [
-        {:grpc, "~> 0.11"},
+        {:grpc, "~> 1.1"},
+        # The tests serve fake caches; since 1.0 the server is its own package.
+        {:grpc_server, "~> 1.1", only: :test},
         # Older Mint generators iterate atom-keyed maps and produce unstable BEAMs.
         {:mint, ">= 1.10.2 and < 2.0.0"},
         {:quokka, "~> 2.13", only: [:dev, :test], runtime: false},
