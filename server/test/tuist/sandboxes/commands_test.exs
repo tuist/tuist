@@ -158,6 +158,18 @@ defmodule Tuist.Sandboxes.CommandsTest do
       assert [%SandboxCommand{id: ^id}] = Repo.all(SandboxCommand)
     end
 
+    test "resumes a sandbox whose idle pause landed on its row before the start held it" do
+      paused = sandbox_fixture(state: :paused, node_name: "node-a")
+
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, started())
+
+      # The caller still holds the row it read before the pause.
+      assert {:ok, %{id: id, status: "running"}} = Commands.start(%{paused | state: :running}, %{command: "true"})
+      assert %Sandbox{state: :running, residency_work_id: "commands"} = Repo.reload!(paused)
+      assert [%SandboxCommand{id: ^id}] = Repo.all(SandboxCommand)
+    end
+
     test "adopts a pause the node made whose caller died, then resumes the sandbox and starts the command" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
       paused = {:error, "sandbox is not running: #{sandbox.id} is paused"}
