@@ -573,7 +573,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   downloads only the disk stream, loads the VM state with a Uffd memory
   backend and serves memory chunks by ranged GETs as the guest touches
   them while a fill fetches the rest (sandboxd `internal/uffd`). It cold
-  boots elsewhere only when no such node is connected. A node whose hello
+  boots elsewhere when no such node is connected or none has room (a kernel
+  or microcode rollout splits the fleet into kinds of two or three nodes,
+  and waiting on full ones refused Orbs for hours on 2026-11-27); an
+  unsynced archive (`warm_only`) still waits. A node whose hello
   sets `lazy_disks` is asked to archive with `lazy_disks` too: the disks
   are chunked like the memory and served by range on restore, so the guest
   runs before they arrive; such an archive (`archive_memory.lazy_disks`)
