@@ -43,11 +43,8 @@ defmodule Mix.Tasks.Tuist.Coverage.Complete do
            %{},
            Keyword.put(options, :timeout, 60_000)
          ) do
-      {:ok, %{"coverage" => coverage}} ->
-        Mix.shell().info(
-          "Coverage of commit #{String.slice(sha, 0, 7)} is complete: #{coverage}%.\n" <>
-            "  See the commit's coverage at #{commits_url(options)}/#{sha}"
-        )
+      {:ok, %{"coverage" => _} = commit} ->
+        Mix.shell().info(completion_message(sha, commit, options))
 
       {:ok, _pending} ->
         # Usually the runs are still being processed, but a signal kept for a
@@ -68,6 +65,45 @@ defmodule Mix.Tasks.Tuist.Coverage.Complete do
           "Could not mark the coverage of commit #{String.slice(sha, 0, 7)} complete: #{inspect(reason)}"
         )
     end
+  end
+
+  # Prints the figure the dashboard shows, as `tuist coverage complete` does:
+  # what the runs measured with the coverage of the tests they skipped carried
+  # forward. Servers without the `reported` block only send what was measured.
+  defp completion_message(sha, commit, options) do
+    figure = commit["reported"] || %{}
+    partial? = figure["kind"] == "partial"
+    dirty? = "dirty_run_excluded" in (figure["gap_reasons"] || [])
+    # Mix reports an empty scheme, which names no variant.
+    partial_schemes = Enum.reject(commit["partial_schemes"] || [], &(&1 in [nil, ""]))
+
+    partial =
+      if partial? and partial_schemes != [],
+        do: " (partial: #{Enum.join(partial_schemes, ", ")})",
+        else: ""
+
+    incomplete =
+      cond do
+        dirty? ->
+          " Some runs came from a checkout with uncommitted changes and don't count, " <>
+            "because they measured code that isn't the commit's, so the actual coverage may be higher."
+
+        partial? ->
+          " The figure is incomplete, so the actual coverage may be higher."
+
+        true ->
+          ""
+      end
+
+    tip =
+      if dirty?,
+        do:
+          "  Keep the checkout clean while the tests run, or keep the files the CI job writes out of it\n",
+        else: ""
+
+    "Coverage of commit #{String.slice(sha, 0, 7)} is complete: " <>
+      "#{figure["coverage"] || commit["coverage"]}%#{partial}.#{incomplete}\n" <>
+      tip <> "  See the commit's coverage at #{commits_url(options)}/#{sha}"
   end
 
   defp origin(options) do

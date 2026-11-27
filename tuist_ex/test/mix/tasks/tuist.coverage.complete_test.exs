@@ -49,6 +49,76 @@ defmodule Mix.Tasks.Tuist.Coverage.CompleteTest do
                "  See the commit's coverage at https://tuist.dev/acme/app/tests/coverage/commits/abcdef123"
   end
 
+  test "prints the figure the dashboard shows rather than what the runs measured" do
+    stub(HTTP, :project_request, fn :post, _, %{}, _ ->
+      {:ok,
+       %{
+         "coverage" => 70.0,
+         "schemes" => [""],
+         "partial_schemes" => [],
+         "reported" => %{"kind" => "reported", "coverage" => 81.5, "gap_reasons" => []}
+       }}
+    end)
+
+    Complete.run(["--commit", "abcdef123", "--project", "acme/app"])
+
+    assert_received {:mix_shell, :info, [message]}
+
+    assert message ==
+             "Coverage of commit abcdef1 is complete: 81.5%.\n" <>
+               "  See the commit's coverage at https://tuist.dev/acme/app/tests/coverage/commits/abcdef123"
+  end
+
+  test "says when the commit's figure is partial and names its partial variants" do
+    stub(HTTP, :project_request, fn :post, _, %{}, _ ->
+      {:ok,
+       %{
+         "coverage" => 60.0,
+         "partial_schemes" => ["", "postgres", "mysql"],
+         "reported" => %{
+           "kind" => "partial",
+           "coverage" => 64.2,
+           "gap_reasons" => ["excluded_tests"]
+         }
+       }}
+    end)
+
+    Complete.run(["--commit", "abcdef123", "--project", "acme/app"])
+
+    assert_received {:mix_shell, :info, [message]}
+
+    assert message ==
+             "Coverage of commit abcdef1 is complete: 64.2% (partial: postgres, mysql). " <>
+               "The figure is incomplete, so the actual coverage may be higher.\n" <>
+               "  See the commit's coverage at https://tuist.dev/acme/app/tests/coverage/commits/abcdef123"
+  end
+
+  test "says when runs from a dirty checkout don't count and how to keep them counting" do
+    stub(HTTP, :project_request, fn :post, _, %{}, _ ->
+      {:ok,
+       %{
+         "coverage" => 60.0,
+         "partial_schemes" => [""],
+         "reported" => %{
+           "kind" => "partial",
+           "coverage" => 55.0,
+           "gap_reasons" => ["excluded_tests", "dirty_run_excluded"]
+         }
+       }}
+    end)
+
+    Complete.run(["--commit", "abcdef123", "--project", "acme/app"])
+
+    assert_received {:mix_shell, :info, [message]}
+
+    assert message ==
+             "Coverage of commit abcdef1 is complete: 55.0%. " <>
+               "Some runs came from a checkout with uncommitted changes and don't count, " <>
+               "because they measured code that isn't the commit's, so the actual coverage may be higher.\n" <>
+               "  Keep the checkout clean while the tests run, or keep the files the CI job writes out of it\n" <>
+               "  See the commit's coverage at https://tuist.dev/acme/app/tests/coverage/commits/abcdef123"
+  end
+
   test "says when no run reported coverage yet, how to signal another commit, and where the commits are" do
     stub(HTTP, :project_request, fn :post, _, %{}, _ -> {:ok, %{"message" => "pending"}} end)
 
