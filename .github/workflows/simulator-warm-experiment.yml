@@ -59,21 +59,23 @@ jobs:
           set -euo pipefail
           t0=$(date +%s); tart pull "$BASE"; echo "SIMWARM pull base s: $(( $(date +%s) - t0 ))"
 
-      # `tart clone --stacked` needs a remote base, so the mv variant needs this
-      # image pushed first. Off until that push is approved; timings came from
-      # runs 45969299540 and 45974750321.
+      # Layer 1 warm at 8 vCPU and 16 GB, one device at a time and all at
+      # once. Earlier 4 vCPU timings came from runs 45969299540 and 45974750321.
       - name: Layer 1 with warmed simulators
-        if: ${{ false }}
         run: |
           set -euo pipefail
-          t0=$(date +%s)
-          env -u GITHUB_TOKEN packer build -var "base_image=$BASE" -var output_image=simwarm-l1 \
-            -var "devices=$WARM" l1.pkr.hcl
-          echo "SIMWARM build l1 s: $(( $(date +%s) - t0 ))"
-          ls -la ~/.tart/vms/simwarm-l1
-          echo "SIMWARM l1 disk allocated GB: $(du -sk ~/.tart/vms/simwarm-l1 | awk '{printf "%.1f", $1/1048576}')"
+          for parallel in false true; do
+            t0=$(date +%s)
+            env -u GITHUB_TOKEN packer build -var "base_image=$BASE" -var output_image=simwarm-l1 \
+              -var "devices=$WARM" -var cpu_count=8 -var memory_gb=16 -var "parallel=$parallel" l1.pkr.hcl
+            echo "SIMWARM build l1 parallel=$parallel s: $(( $(date +%s) - t0 ))"
+            echo "SIMWARM l1 disk allocated GB: $(du -sk ~/.tart/vms/simwarm-l1 | awk '{printf "%.1f", $1/1048576}')"
+            tart delete simwarm-l1
+          done
 
+      # Ran in 45985014877; off while the Layer 1 warm is retimed at 8 vCPU.
       - name: Layer 2 overlays
+        if: ${{ false }}
         run: |
           set -euo pipefail
           export PATH="$GITHUB_WORKSPACE/infra/runner-image/stacked-tart:$PATH"
@@ -86,6 +88,7 @@ jobs:
           done
 
       - name: Overlay sizes
+        if: ${{ false }}
         run: |
           set -euo pipefail
           for v in control warm; do
@@ -101,6 +104,7 @@ jobs:
           done
 
       - name: Boot with a new serial and time the simulators
+        if: ${{ false }}
         run: |
           set -euo pipefail
           export PATH="$PWD/serial-tart:$PATH"

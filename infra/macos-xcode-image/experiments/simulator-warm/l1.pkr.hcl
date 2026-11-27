@@ -14,12 +14,24 @@ packer {
 variable "base_image" { type = string }
 variable "output_image" { type = string }
 variable "devices" { type = list(string) }
+variable "cpu_count" {
+  type    = number
+  default = 8
+}
+variable "memory_gb" {
+  type    = number
+  default = 16
+}
+variable "parallel" {
+  type    = bool
+  default = false
+}
 
 source "tart-cli" "l1" {
   vm_base_name = var.base_image
   vm_name      = var.output_image
-  cpu_count    = 4
-  memory_gb    = 8
+  cpu_count    = var.cpu_count
+  memory_gb    = var.memory_gb
   ssh_username = "admin"
   ssh_password = "admin"
   ssh_timeout  = "15m"
@@ -39,7 +51,7 @@ build {
       "set -euo pipefail",
       "source ~/.zprofile",
       "ls -ld /Users/runner",
-      "bash /tmp/warm.sh ${join(" ", [for d in var.devices : "'${d}'"])}",
+      "WARM_PARALLEL=${var.parallel ? 1 : 0} bash /tmp/warm.sh ${join(" ", [for d in var.devices : "'${d}'"])}",
       "rm -f /tmp/warm.sh",
     ]
   }
