@@ -1,7 +1,13 @@
 # Temporary: finds which write path corrupts files on a Tuist cache volume
-# on a Golden Gate (macOS 27) guest. Round 1 showed plain shell writes read
-# back intact while SwiftPM's registry downloads came back corrupt, only on
-# Golden Gate with a volume (local disk and Tahoe pass).
+# on a Golden Gate (macOS 27) guest. Rounds 1-9 showed that raw files on the
+# virtio-fs share and images on the guest's own disk stay intact, while APFS
+# images on the share lose writes on Golden Gate only.
+#
+# Round 10: before choosing USB disks, try every remaining way to keep the
+# cache on the share: other image formats (sparsebundle, UDIF), other attach
+# and mount options, and no image at all (a plain shared directory under a
+# real build and a clone). Each image variant runs three times next to the
+# production sparseimage as a control, because the loss is intermittent.
 name: Golden Gate volume e2e
 
 on:
@@ -14,78 +20,193 @@ permissions:
 
 jobs:
   e2e:
-    name: ${{ matrix.runs_on }} / ${{ matrix.storage }}
+    name: ${{ matrix.runs_on }} / ${{ matrix.test }}
     runs-on: ${{ matrix.runs_on }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        runs_on: [tuist-macos-golden-gate, tuist-macos]
-        storage: [volume]
+        runs_on: [tuist-staging-golden-gate, tuist-staging-macos-27]
+        test: [images, plain]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Report the guest
         run: |
           sw_vers
           xcodebuild -version
-      - if: matrix.storage == 'volume'
-        uses: tuist/cache-volume@v1
-        with:
-          key: golden-gate-e2e-${{ github.run_id }}-${{ strategy.job-index }}
-          path: ~/.cache/tuist-ci/golden-gate-e2e
-      - name: Pick the build root
+          sysctl -n hw.ncpu hw.memsize
+      # The released tool declines share-backed volumes on macOS 27. Build it
+      # with that gate off so the host shares a real volume directory exactly
+      # as production does on Tahoe.
+      - name: Get a share-backed volume
         run: |
           set -euo pipefail
-          root="$HOME/.cache/tuist-ci/golden-gate-e2e"
-          mkdir -p "$root"
-          echo "E2E_ROOT=$root" >> "$GITHUB_ENV"
-          echo "E2E_REAL=$(cd "$root" && pwd -P)" >> "$GITHUB_ENV"
-          mount | grep -iE 'tuist' || true
-      # Round 9: the fix. tuist-cache-volume built from this branch declines
-      # share-backed images on macOS 27 and attaches them as before on 26.
-      - name: Patched tuist-cache-volume
-        run: |
-          set -euo pipefail
+          sed -i '' 's/major >= 27$/major >= 999/' infra/linux-runner-image/cmd/tuist-cache-volume/macos.go
+          grep -q 'major >= 999' infra/linux-runner-image/cmd/tuist-cache-volume/macos.go
           (cd infra/linux-runner-image && mise x go@1.26.10 -- go build -o /tmp/tcv ./cmd/tuist-cache-volume)
-          mkdir -p "$HOME/fixcheck" && cd "$HOME/fixcheck"
-          /tmp/tcv --key "golden-gate-fix-${{ github.run_id }}" --path ./cached || echo "exit $?"
-          ls -la "$HOME/fixcheck"; [ -L ./cached ] && echo "cached -> $(readlink ./cached)" || echo "cached is a plain directory"
-          if [ "$(sw_vers -productVersion | cut -d. -f1)" -ge 27 ]; then
-            echo "checkout: $(/tmp/tcv --checkout "$HOME/fixws/repo")"
-          fi
+          mkdir -p "$HOME/volwrap" && cd "$HOME/volwrap"
+          /tmp/tcv --key "share-matrix-${{ github.run_id }}-${{ strategy.job-index }}" --path ./vol
+          target="$(readlink ./vol)"; echo "vol -> $target"
+          id="$(basename "$(dirname "$target")")"
+          share="/Volumes/My Shared Files/custom-cache/$id"
+          ls -la "$share"; hdiutil info | grep -E "image-path|/dev/disk" || true
+          echo "VOL=$target" >> "$GITHUB_ENV"
+          echo "SHARE=$share" >> "$GITHUB_ENV"
+      - name: Integrity helpers
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/h
+          cat > /tmp/h/xcopy.swift <<'EOF2'
+          import Foundation
+          let src = URL(fileURLWithPath: CommandLine.arguments[1]), dst = URL(fileURLWithPath: CommandLine.arguments[2])
+          let fm = FileManager.default
+          try? fm.createDirectory(at: dst, withIntermediateDirectories: true)
+          let names = try! fm.contentsOfDirectory(atPath: src.path).filter { $0.hasPrefix("f") }
+          DispatchQueue.concurrentPerform(iterations: names.count) { i in
+            try! fm.copyItem(at: src.appendingPathComponent(names[i]), to: dst.appendingPathComponent(names[i]))
+          }
+          EOF2
+          swiftc -O /tmp/h/xcopy.swift -o /tmp/h/xcopy
+          src=/tmp/h/src; mkdir -p "$src"
+          for i in $(seq 1 400); do head -c $((RANDOM % 6000 + 20)) /dev/urandom > "$src/f$i"; done
+          (cd "$src" && shasum -a 256 f*) > /tmp/h/src.sum
+          cat > /tmp/h/lib.sh <<'EOF3'
+          src=/tmp/h/src
+          check() {
+            local d="$1" label="$2" bad
+            bad=$(cd "$d" && shasum -a 256 -c /tmp/h/src.sum 2>/dev/null | grep -vc ': OK$' || true)
+            echo "RESULT $label: bad=$bad of 400"
+          }
+          run_into() {
+            local dir="$1" label="$2"
+            rm -rf "$dir/cp" "$dir/cc"; mkdir -p "$dir/cp"
+            cp "$src"/f* "$dir/cp/"; sync; sudo -n purge; check "$dir/cp" "$label | cp after purge"
+            /tmp/h/xcopy "$src" "$dir/cc"; check "$dir/cc" "$label | concurrent copyItem"
+            sync; sudo -n purge; check "$dir/cc" "$label | concurrent copyItem after purge"
+          }
+          EOF3
+
+      # ---- images: formats and attach options on the share ----
+      - name: Image variants on the share
+        if: matrix.test == 'images'
+        run: |
+          set +e -o pipefail
+          . /tmp/h/lib.sh
+          img="$SHARE/xtest"; mkdir -p "$img"; loc="$HOME/ximg"; mkdir -p "$loc"
+          echo "== production volume (tuist-cache-volume's sparseimage)"; run_into "$VOL" "production volume"
+          attach() { # label file mountpoint [diskutil image attach args...]
+            local label="$1" file="$2" mnt="$3"; shift 3; mkdir -p "$mnt"
+            if ! diskutil image attach --nobrowse --mountPoint "$mnt" "$@" "$file" >/tmp/attach.out 2>&1; then
+              echo "RESULT $label: attach failed: $(tail -3 /tmp/attach.out)"; return 1
+            fi
+          }
+          detach() { hdiutil detach "$1" -force -quiet 2>/dev/null || diskutil unmount force "$1" >/dev/null 2>&1; }
+          variant() { # label creator attach-args...
+            local label="$1" make="$2"; shift 2
+            local n
+            for n in 1 2 3; do
+              local file; file=$($make "$n") || { echo "RESULT $label #$n: create failed"; continue; }
+              local mnt="$HOME/xmnt-$label-$n"; local t0=$(date +%s)
+              attach "$label #$n" "$file" "$mnt" "$@" || continue
+              echo "$label #$n attached in $(( $(date +%s) - t0 )) s"
+              mount | grep "$mnt" || true
+              run_into "$mnt" "$label #$n"
+              detach "$mnt"; rm -rf "$file"
+            done
+          }
+          sparse_share() { hdiutil create -size 100g -fs APFS -volname T -type SPARSE -quiet "$img/s$1.sparseimage" && echo "$img/s$1.sparseimage"; }
+          sparsebundle_copied() {
+            hdiutil create -size 100g -fs APFS -volname T -type SPARSEBUNDLE -quiet "$loc/b$1.sparsebundle" >&2 || return 1
+            ditto "$loc/b$1.sparsebundle" "$img/b$1.sparsebundle" >&2 && rm -rf "$loc/b$1.sparsebundle" && echo "$img/b$1.sparsebundle"
+          }
+          sparsebundle_share() { hdiutil create -size 100g -fs APFS -volname T -type SPARSEBUNDLE "$img/d$1.sparsebundle" >&2 && echo "$img/d$1.sparsebundle"; }
+          udif_copied() {
+            diskutil image create blank --fs APFS --format UDRW --size 2G --volumeName T "$loc/u$1.dmg" >&2 || return 1
+            ditto "$loc/u$1.dmg" "$img/u$1.dmg" >&2 && rm -f "$loc/u$1.dmg" && echo "$img/u$1.dmg"
+          }
+          echo "== control: production format, hdiutil-created 100G sparseimage on the share"
+          variant sparse-control sparse_share
+          echo "== sparsebundle created on the root disk, copied to the share"
+          variant sparsebundle-copied sparsebundle_copied
+          echo "== sparsebundle created on the share"
+          variant sparsebundle-share sparsebundle_share
+          echo "== UDIF read-write (UDRW), created on the root disk, copied to the share"
+          variant udrw-copied udif_copied
+          echo "== sparseimage mounted synchronous"
+          variant sparse-sync sparse_share --mountOptions sync
+          echo "== sparseimage mounted noasync"
+          variant sparse-noasync sparse_share --mountOptions noasync
+          rm -rf "$img" "$loc"
+          exit 0
+
+      # ---- plain: no image, a directory on the share ----
+      - name: Plain shared directory, file integrity
+        if: matrix.test == 'plain'
+        run: |
+          set +e -o pipefail
+          . /tmp/h/lib.sh
+          for n in 1 2 3; do run_into "$SHARE/plain-$n" "plain share dir #$n"; done
+          for n in 1 2 3; do run_into "$HOME/xroot-$n" "root disk #$n"; done
+          run_into "$VOL" "production volume"
+          exit 0
+      - name: Small-file speed
+        if: matrix.test == 'plain'
+        run: |
+          set +e -o pipefail
+          bench() {
+            local d="$1/smallfiles" label="$2"; rm -rf "$d"; mkdir -p "$d"
+            local t0=$(perl -MTime::HiRes=time -e 'printf "%.2f", time')
+            for i in $(seq 1 100); do mkdir "$d/$i"; for j in $(seq 1 100); do echo "$i $j" > "$d/$i/$j"; done; done
+            local t1=$(perl -MTime::HiRes=time -e 'printf "%.2f", time')
+            find "$d" -type f | wc -l >/dev/null; ls -lR "$d" >/dev/null
+            local t2=$(perl -MTime::HiRes=time -e 'printf "%.2f", time')
+            rm -rf "$d"
+            local t3=$(perl -MTime::HiRes=time -e 'printf "%.2f", time')
+            echo "RESULT speed $label: create 10k=$(echo "$t1-$t0" | bc)s stat 10k=$(echo "$t2-$t1" | bc)s delete 10k=$(echo "$t3-$t2" | bc)s"
+          }
+          bench "$HOME" "root disk"
+          bench "$VOL" "production volume (image on share)"
+          bench "$SHARE" "plain share dir"
+          exit 0
+      - name: Clone into a plain shared directory
+        if: matrix.test == 'plain'
+        run: |
+          set +e -o pipefail
+          for where in "$HOME/xclone" "$SHARE/xclone"; do
+            rm -rf "$where"; t0=$(date +%s)
+            git clone -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "$where/repo"; t1=$(date +%s)
+            (cd "$where/repo" && git status --porcelain | wc -l >/dev/null); t2=$(date +%s)
+            sync; sudo -n purge
+            fsck=$(cd "$where/repo" && git fsck --full --no-dangling 2>&1 | tail -3)
+            dirty=$(cd "$where/repo" && git status --porcelain | wc -l | tr -d ' ')
+            echo "RESULT clone $where: clone=$((t1-t0))s status=$((t2-t1))s fsck=[${fsck:-ok}] dirty files after purge=$dirty"
+          done
+          exit 0
       - uses: ./.github/actions/mise-install
+        if: matrix.test == 'plain'
         with:
           install: "erlang elixir"
           working-directory: server
-      # What a gated Golden Gate job does: no image on the share at all.
-      - name: Fresh clone on the root disk
-        run: |
-          git clone -q --depth 1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}" "$HOME/src"
-          echo "NIF_SRC=$HOME/src/server" >> "$GITHUB_ENV"
-          echo "E2E_ROOT=$HOME/nifroot" >> "$GITHUB_ENV"
-          echo "MISE_TRUSTED_CONFIG_PATHS=${MISE_TRUSTED_CONFIG_PATHS:-}:$HOME/src" >> "$GITHUB_ENV"
-      - name: Build the xcresult NIF
-        id: build
-        working-directory: ${{ env.NIF_SRC }}
+      - name: Build the xcresult NIF, cold then warm, on the root disk and the share
+        if: matrix.test == 'plain'
+        working-directory: server
         env:
-          TUIST_NIF_BUILD_ROOT: ${{ env.E2E_ROOT }}/nif
           MACOSX_DEPLOYMENT_TARGET: "14.0"
         run: |
-          set -euo pipefail
-          start=$(date +%s)
-          for n in 1 2; do
-            rm -rf "$E2E_ROOT"; start=$(date +%s)
-            ./native/xcresult_nif/build.sh
-            echo "build $n built in $(( $(date +%s) - start )) s"
+          set -uo pipefail
+          for root in "$HOME/nifroot" "$SHARE/nifroot"; do
+            rm -rf "$root"
+            for pass in cold warm; do
+              start=$(date +%s)
+              if TUIST_NIF_BUILD_ROOT="$root" ./native/xcresult_nif/build.sh > /tmp/nif.log 2>&1; then r=ok; else r="FAILED: $(grep -m3 -iE 'error' /tmp/nif.log)"; fi
+              echo "RESULT nif $root $pass: $(( $(date +%s) - start )) s $r"
+              sync; sudo -n purge
+            done
+            d="$root/xcresult_nif/registry/downloads"
+            badmeta=0
+            for f in $(find "$d" -name '.registry-metadata' 2>/dev/null); do [ "$(head -c 1 "$f" | xxd -p)" = 7b ] || badmeta=$((badmeta+1)); done
+            echo "RESULT nif $root: corrupt registry metadata files=$badmeta"
           done
-      - name: Inspect corrupt registry files
+      - name: Results
         if: always()
-        run: |
-          set +e
-          d="$E2E_ROOT/nif/xcresult_nif/registry/downloads"
-          find "$d" -name '.registry-metadata' -o -name 'Package.swift' -maxdepth 6 2>/dev/null | while read -r f; do
-            s=$(stat -f %z "$f"); first=$(head -c 1 "$f" | xxd -p)
-            if [ "$s" = 0 ] || [ "$first" != "7b" -a "$(basename "$f")" = .registry-metadata ]; then
-              echo "== $f size=$s"; ls -la@ "$f"; xxd "$f" | head -4
-            fi
-          done | head -60
+        run: echo "see RESULT lines above"
