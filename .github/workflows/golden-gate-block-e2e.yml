@@ -59,9 +59,8 @@ jobs:
           dev="$(df "$root" | awk 'NR==2 {print $1}')"
           diskutil info "$dev" | grep -E "Device Location|Protocol|Volume Name|Mount Point|Disk Size|Media Name|Device / Media Name"
           if [ "${{ matrix.arm }}" = golden-gate ]; then
-            diskutil info "$dev" | grep -q "USB" && { echo "::error::$root is on a USB disk, not a cache disk"; exit 1; }
+            diskutil info "$dev" | grep -q "USB" || { echo "::error::$root is not on a USB disk"; exit 1; }
             mount | grep "My Shared Files" | grep -F "$root" && { echo "::error::volume is on the share"; exit 1; } || true
-            ioreg -r -c IOBlockStorageDevice -l 2>/dev/null | grep -i -E "virtio|Product Name|Vendor" | head -10 || true
           fi
       - name: Check what the previous round left
         if: matrix.round == 2
