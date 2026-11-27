@@ -14,7 +14,7 @@ amtool="${AMTOOL:-amtool}"
 
 # Policy routing only: paging comes from the notification policy, so staging
 # and canary never page.
-jq -e 'length == 7 and all(.[];
+jq -e 'length == 8 and all(.[];
   .condition == "C" and .ruleGroup == "Kura thin pools" and .isPaused == false and
   .noDataState == "OK" and .execErrState == "KeepLast" and
   (has("notification_settings") | not) and
@@ -43,24 +43,29 @@ jq --arg rules "${temporary}/rules.json" '
   | def encode: to_entries | map("\(.key)=\(.value | tojson)") | join(",");
     def ready($node; $ready):
       {series: "kube_node_labels{\({cluster: "tuist-production", node: $node, job: "kube-state-metrics"}
-        + (if $ready then {label_tuist_dev_kura_thin_ready: "true"} else {} end) | encode)}", values: "1+0x40"};
+        + (if $ready then {label_tuist_dev_kura_thin_ready: "true"} else {} end) | encode)}", values: "1+0x400"};
+    def kura_node($node; $node_pool; $ready):
+      {series: "kube_node_labels{\({cluster: "tuist-production", node: $node, job: "kube-state-metrics",
+        label_node_cluster_x_k8s_io_pool: $node_pool}
+        + (if $ready then {label_tuist_dev_kura_thin_ready: "true"} else {} end) | encode)}", values: "1+0x400"};
     def pool($labels; $data; $metadata; $ro; $full; $healthy; $observed):
       ($labels + {job: "kura-volumes-csi-node", pod: "kura-volumes-csi-node-abcde"} | encode) as $encoded
       | [
-          {series: "kura_volumes_thin_pool_data_size_bytes{\($encoded)}", values: "100+0x40"},
-          {series: "kura_volumes_thin_pool_data_used_bytes{\($encoded)}", values: "\($data)+0x40"},
-          {series: "kura_volumes_thin_pool_metadata_size_bytes{\($encoded)}", values: "100+0x40"},
-          {series: "kura_volumes_thin_pool_metadata_used_bytes{\($encoded)}", values: "\($metadata)+0x40"},
-          {series: "kura_volumes_thin_pool_read_only{\($encoded)}", values: "\($ro)+0x40"},
-          {series: "kura_volumes_thin_pool_out_of_data_space{\($encoded)}", values: "\($full)+0x40"},
-          {series: "kura_volumes_thin_pool_healthy{\($encoded)}", values: "\($healthy)+0x40"},
+          {series: "kura_volumes_thin_pool_data_size_bytes{\($encoded)}", values: "100+0x400"},
+          {series: "kura_volumes_thin_pool_data_used_bytes{\($encoded)}", values: "\($data)+0x400"},
+          {series: "kura_volumes_thin_pool_metadata_size_bytes{\($encoded)}", values: "100+0x400"},
+          {series: "kura_volumes_thin_pool_metadata_used_bytes{\($encoded)}", values: "\($metadata)+0x400"},
+          {series: "kura_volumes_thin_pool_read_only{\($encoded)}", values: "\($ro)+0x400"},
+          {series: "kura_volumes_thin_pool_out_of_data_space{\($encoded)}", values: "\($full)+0x400"},
+          {series: "kura_volumes_thin_pool_healthy{\($encoded)}", values: "\($healthy)+0x400"},
           {series: "kura_volumes_thin_pool_last_observation_timestamp_seconds{\($encoded)}", values: $observed}
         ];
     def expect($time; $firing; $labels):
       $ruleset[] | . as $rule | {
         eval_time: $time, alertname: .uid,
         exp_alerts: (if ($firing | index($rule.uid)) != null then [{exp_labels: ($labels
-          + (if $rule.uid == "kura-thin-pool-metrics-missing" then {} else {vg: "kura-volumes", pool: "kura-thin"} end)
+          + (if $rule.uid | IN("kura-thin-pool-metrics-missing", "kura-thin-pool-node-unprepared") then {}
+             else {vg: "kura-volumes", pool: "kura-thin"} end)
           + $rule.labels)}] else [] end)
       };
   # Full data inside backed ceilings is a healthy, full cache: only the plugin
@@ -87,7 +92,7 @@ jq --arg rules "${temporary}/rules.json" '
   | . + (
       [
         ["ready_without_metrics", true, false, "0+60x40", ["kura-thin-pool-metrics-missing"]],
-        ["ready_with_stale_observation", true, true, "0+0x40", ["kura-thin-pool-metrics-missing"]],
+        ["ready_with_stale_observation", true, true, "0+0x400", ["kura-thin-pool-metrics-missing"]],
         ["ready_with_fresh_observation", true, true, "0+60x40", []],
         ["unlabelled_without_metrics", false, false, "0+60x40", []]
       ]
@@ -99,6 +104,26 @@ jq --arg rules "${temporary}/rules.json" '
               input_series: ([ready($name; $ready)]
                 + (if $metrics then pool($labels + {vg: "kura-volumes", pool: "kura-thin"}; 50; 50; 0; 0; 1; $observed) else [] end)),
               alert_rule_test: ([expect("5m"; []; $labels)] + [expect("30m"; $firing; $labels)])
+            }
+        )
+    )
+  # Thin-enrolled regions select tuist.dev/kura-thin-ready, so a Kura pool
+  # node without it holds stranded disk; other pools do not run Kura.
+  | . + (
+      [
+        ["kura_node_unprepared", "kura-us-east", false, ["kura-thin-pool-node-unprepared"]],
+        ["kura_node_qualified", "kura-us-east", true, []],
+        ["other_pool_unlabelled", "runners", false, []]
+      ]
+      | map(
+          . as [$name, $node_pool, $ready, $firing]
+          | {cluster: "tuist-production", node: $name} as $labels
+          | {
+              name: $name, interval: "1m",
+              input_series: ([kura_node($name; $node_pool; $ready)]
+                + (if $ready then pool($labels + {vg: "kura-volumes", pool: "kura-thin"}; 50; 50; 0; 0; 1; "0+60x400") else [] end)),
+              alert_rule_test: ([expect("5h50m"; []; $labels)]
+                + [expect("6h10m"; $firing; $labels + {label_node_cluster_x_k8s_io_pool: $node_pool})])
             }
         )
     )
@@ -142,7 +167,7 @@ for uid in kura-thin-pool-unhealthy kura-thin-pool-metadata-full kura-thin-pool-
   test_route "${uid} staging" "${uid}" tuist-staging 'Slack #notifications-non-prod'
   test_route "${uid} canary" "${uid}" tuist-canary 'Slack #notifications-non-prod'
 done
-for uid in kura-thin-pool-metadata-high kura-thin-pool-metrics-missing; do
+for uid in kura-thin-pool-metadata-high kura-thin-pool-metrics-missing kura-thin-pool-node-unprepared; do
   test_route "${uid} production" "${uid}" tuist-production 'Slack #notifications 2'
   test_route "${uid} staging" "${uid}" tuist-staging 'Slack #notifications-non-prod'
 done

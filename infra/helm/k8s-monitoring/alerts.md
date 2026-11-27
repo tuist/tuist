@@ -2438,7 +2438,7 @@ demoted.
 
 ### Kura thin pool rules
 
-Seven rules in folder `Alerts`, group **Kura thin pools**, recorded in
+Eight rules in folder `Alerts`, group **Kura thin pools**, recorded in
 [`kura-thin-pool-alert-rules.json`](kura-thin-pool-alert-rules.json). They read
 the `kura_volumes_thin_pool_*` gauges the Kura CSI node plugin serves on
 `:9809` on nodes with a thin pool (`infra/kura-volumes-csi/AGENTS.md`).
@@ -2448,8 +2448,8 @@ carries `cluster`, `node`, `vg` and `pool`. The gauges are on the
 non-production keep list in `values.yaml`, because thin pools are rehearsed on
 staging. Each environment's metrics now land in its own Pulse, and only
 `kura-thin-pool-metrics-missing` runs there for staging and canary (as `-stg`
-and `-can` copies). The four usage, health and degraded rules read production Pulse
-(`cg3i1jh2k1v5sb`) only, so staging and canary thin pools have no usage or
+and `-can` copies). The four usage, health and degraded rules and the unprepared-node rule read
+production Pulse (`cg3i1jh2k1v5sb`) only, so staging and canary thin pools have no usage or
 degraded alert until those rules get `-stg` and `-can` copies. **No Data:
 Normal**, **Error: Keep last state**. None sets `notification_settings`: the
 three critical rules page through the sibling routes in
@@ -2467,6 +2467,26 @@ the JSON; publish rule and policy changes separately.
 | Kura thin pool metadata almost full | `kura-thin-pool-metadata-full` | metadata used > 85% | 5m | critical | `Incidents` in production |
 | Kura thin pool read-only or out of data space | `kura-thin-pool-degraded` | mode gauge > 0 | 2m | critical, `affected_service: Cache` | `Incidents` in production |
 | Kura thin pool metrics missing | `kura-thin-pool-metrics-missing` | see below | 15m | warning | policy tree |
+| Kura node without a qualified thin pool | `kura-thin-pool-node-unprepared` | see below | 6h | warning | policy tree |
+
+#### Checking thin pool capacity
+
+For a capacity review, such as a scheduled health check, read these production
+signals and not data used over pool size:
+
+- `kura_volumes_thin_pool_healthy == 0` is the only sign that tenant writes
+  can exhaust a pool.
+- `kura_volumes_thin_pool_available_commitment_bytes` per node, summed by the
+  node's pool for a region, is what is left to place new or larger volumes.
+  This is the number that runs out first: the node then refuses new or larger
+  volumes while existing volumes keep writing.
+- The unprepared-node expression below lists Kura nodes whose disk no thin
+  instance can use.
+
+`data_used_bytes / data_size_bytes` only says how much of the backed ceilings
+caches have written. Nothing trims space Kura frees, so the ratio climbs
+towards `committed_bytes / data_size_bytes` and stays there; 97% on a healthy
+pool is normal.
 
 #### Kura thin pool cannot back its volumes
 
@@ -2544,8 +2564,31 @@ exports that label through `metricLabelsAllowlist`) that has no fresh pool
 observation: the plugin is down or unscraped, or its observations fail, which
 also withdraws the node's `tuist.dev/kura-disk` capacity. The usage rules are
 blind for the node meanwhile. Read the `driver` container's logs for the
-observation error, then the pod's scrape target. An unlabelled node whose pool
-disappears is not covered: label a node only once it is qualified.
+observation error, then the pod's scrape target. An unlabelled node is covered
+by the next rule instead: label a node only once it is qualified.
+
+#### Kura node without a qualified thin pool
+
+```promql
+max by (cluster, node, label_node_cluster_x_k8s_io_pool) (
+  kube_node_labels{label_node_cluster_x_k8s_io_pool=~"kura.*"}
+)
+unless on (cluster, node)
+(max by (cluster, node) (kube_node_labels{label_tuist_dev_kura_thin_ready="true"}))
+```
+
+Fires for a node in a Kura node pool that has not carried
+`tuist.dev/kura-thin-ready=true` for 6 hours. Every production region is in
+`kuraVolumesCSI.thinEnrolledRegions`, so every KuraInstance there selects the
+label, and an unlabelled node holds disk nothing can use while its region
+fills. Hosts usually join or come back from a reinstall without a thin pool:
+the host's CSI plugin then advertises thick `tuist.dev/kura-disk` and publishes no
+`kura_volumes_thin_pool_*` series. Two hosts that joined on 2026-11-26 stayed in
+this state for about half a day, holding 1.6 and 3.35 TiB. Prepare the pool, restart
+only that node's CSI pod, validate `/v1/node` and then label the node, as
+[`thin/interface.md`](../../kura-volumes-csi/thin/interface.md) describes.
+Never label unqualified capacity to silence this alert. If a production region
+is ever left out of thin enrollment, exclude its pool from the matcher.
 
 ### Kura receiving no REAPI requests
 

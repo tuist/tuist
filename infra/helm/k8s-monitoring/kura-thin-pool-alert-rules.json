@@ -431,6 +431,95 @@
   },
   {
     "annotations": {
+      "description": "A node in a Kura node pool has not carried tuist.dev/kura-thin-ready=true for 6 hours. Every production region is thin-enrolled, so every KuraInstance there selects that label and nothing can land on this node: its disk is stranded while the region fills. Usually the host joined (or was reinstalled) without its thin pool being prepared and qualified. Follow infra/kura-volumes-csi/thin/interface.md: prepare-pool, restart only this node's CSI pod, validate /v1/node, then label the node. Never label unqualified capacity as ready.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-node-without-a-qualified-thin-pool",
+      "summary": "Kura node {{ $labels.node }} ({{ $labels.label_node_cluster_x_k8s_io_pool }}, {{ $labels.cluster }}) has no qualified thin pool, so no thin Kura instance can use it"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "cg3i1jh2k1v5sb",
+        "model": {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cg3i1jh2k1v5sb"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, node, label_node_cluster_x_k8s_io_pool) (kube_node_labels{label_node_cluster_x_k8s_io_pool=~\"kura.*\"}) unless on (cluster, node) (max by (cluster, node) (kube_node_labels{label_tuist_dev_kura_thin_ready=\"true\"}))",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "KeepLast",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "6h",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Kura thin pools",
+    "title": "Kura node without a qualified thin pool",
+    "uid": "kura-thin-pool-node-unprepared"
+  },
+  {
+    "annotations": {
       "description": "A node labelled tuist.dev/kura-thin-ready=true has published no fresh pool observation for 15 minutes. Either its CSI plugin is down or not scraped, or the plugin's observations fail, which also withdraws the node's tuist.dev/kura-disk capacity. The usage alerts are blind for this node until it recovers. Read the driver container's logs for the observation error and check the pod's scrape target.",
       "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-thin-pool-metrics-missing",
       "summary": "Kura thin pool metrics are missing on {{ $labels.node }} ({{ $labels.cluster }})"

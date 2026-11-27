@@ -900,7 +900,8 @@ k8s-monitoring:
       # counts towards its region's capacity before a cache pod lands on it.
       # The rack dashboards read a rack node's site from it.
       # tuist.dev/kura-thin-ready marks a node whose thin pool was qualified;
-      # the "Kura thin pool metrics missing" alert joins on it.
+      # the "Kura thin pool metrics missing" and "Kura node without a
+      # qualified thin pool" alerts join on it.
       metricLabelsAllowlist:
         - nodes=[node.cluster.x-k8s.io/pool,node.cluster.x-k8s.io/rack-site,tuist.dev/kura-thin-ready]
       rbac:
