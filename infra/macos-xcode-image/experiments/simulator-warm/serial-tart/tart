@@ -1,0 +1,10 @@
+#!/bin/sh
+# Experiment: Packer's tart-cli builder clones with `tart clone <base> <vm>`.
+# Give the clone a new identity right after, as tart-kubelet does for every
+# runner VM (`tart set --random-serial`, RegenerateIdentity).
+if [ "$1" = clone ]; then
+  /usr/local/bin/tart "$@" || exit $?
+  for vm; do :; done
+  exec /usr/local/bin/tart set "$vm" --random-serial
+fi
+exec /usr/local/bin/tart "$@"

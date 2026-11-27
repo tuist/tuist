@@ -1,0 +1,116 @@
+name: Simulator warm overlay experiment
+
+# Throwaway experiment (branch exp/simulator-warm-overlay only). Warms three
+# iOS simulators in a Layer 1 clone of macos-tahoe-xcode:27-2, then builds a
+# minimal stacked Layer 2 three ways and measures each overlay on disk:
+#   control  today's image (nothing warmed)
+#   mv       devices warmed in Layer 1, moved into runner's home in Layer 2
+#   warm     devices warmed in Layer 2 (the fallback)
+# Then boots control and mv with a new serial and times the warmed devices
+# against a cold one. Pushes nothing. Lines start with SIMWARM.
+
+on:
+  push:
+    branches: [exp/simulator-warm-overlay]
+    paths:
+      - .github/workflows/simulator-warm-experiment.yml
+      - infra/macos-xcode-image/experiments/simulator-warm/**
+
+concurrency:
+  group: simulator-warm-experiment
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  BASE: ghcr.io/tuist/macos-tahoe-xcode:27-2
+  TART_REGISTRY_HOSTNAME: ghcr.io
+  TART_REGISTRY_USERNAME: tuist-bot
+  TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+  WARM: '["com.apple.CoreSimulator.SimRuntime.iOS-27-2|iPhone 17","com.apple.CoreSimulator.SimRuntime.iOS-27-2|iPhone 18 Pro","com.apple.CoreSimulator.SimRuntime.iOS-27-2-iPhone19-4|iPhone Duo"]'
+  MEASURE: '["com.apple.CoreSimulator.SimRuntime.iOS-27-2|iPhone 17","com.apple.CoreSimulator.SimRuntime.iOS-27-2|iPhone 18 Pro","com.apple.CoreSimulator.SimRuntime.iOS-27-2-iPhone19-4|iPhone Duo","com.apple.CoreSimulator.SimRuntime.iOS-27-2|iPhone 17e"]'
+
+jobs:
+  experiment:
+    # Stacked clone and run need macOS 27 and Tart 2.36 or newer.
+    runs-on: [self-hosted, macos, bare-metal, macos-27, vm-image-builder]
+    timeout-minutes: 300
+    defaults:
+      run:
+        working-directory: infra/macos-xcode-image/experiments/simulator-warm
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: ./.github/actions/reclaim-tart-disk
+        with:
+          free-floor-gb: "200"
+          keep: |
+            ghcr.io/tuist/macos-tahoe-xcode:27-2
+
+      - name: Initialize Packer
+        run: |
+          for t in l1 l2 measure; do packer init -upgrade "$t.pkr.hcl"; done
+          tart --version
+
+      - name: Pull the base
+        run: |
+          set -euo pipefail
+          t0=$(date +%s); tart pull "$BASE"; echo "SIMWARM pull base s: $(( $(date +%s) - t0 ))"
+
+      - name: Layer 1 with warmed simulators
+        run: |
+          set -euo pipefail
+          t0=$(date +%s)
+          env -u GITHUB_TOKEN packer build -var "base_image=$BASE" -var output_image=simwarm-l1 \
+            -var "devices=$WARM" l1.pkr.hcl
+          echo "SIMWARM build l1 s: $(( $(date +%s) - t0 ))"
+          ls -la ~/.tart/vms/simwarm-l1
+          echo "SIMWARM l1 disk allocated GB: $(du -sk ~/.tart/vms/simwarm-l1 | awk '{printf "%.1f", $1/1048576}')"
+
+      - name: Layer 2 overlays
+        run: |
+          set -euo pipefail
+          export PATH="$GITHUB_WORKSPACE/infra/runner-image/stacked-tart:$PATH"
+          for v in control mv warm; do
+            base="$BASE"; [ "$v" = mv ] && base=simwarm-l1
+            t0=$(date +%s)
+            env -u GITHUB_TOKEN packer build -var "base_image=$base" -var "output_image=simwarm-l2-$v" \
+              -var "variant=$v" -var "devices=$WARM" l2.pkr.hcl
+            echo "SIMWARM build l2 $v s: $(( $(date +%s) - t0 ))"
+          done
+
+      - name: Overlay sizes
+        run: |
+          set -euo pipefail
+          for v in control mv warm; do
+            d=~/.tart/vms/simwarm-l2-$v
+            ls -la "$d"
+            for f in "$d"/*; do
+              [ -f "$f" ] || continue
+              alloc=$(du -sk "$f" | awk '{print $1}')
+              [ "$alloc" -gt 102400 ] || continue
+              gz=$(gzip -1 -c "$f" | wc -c)
+              echo "SIMWARM overlay $v $(basename "$f"): allocated $(awk -v k="$alloc" 'BEGIN {printf "%.2f", k/1048576}') GB, gzip -1 $(awk -v b="$gz" 'BEGIN {printf "%.2f", b/1e9}') GB"
+            done
+          done
+
+      - name: Boot with a new serial and time the simulators
+        run: |
+          set -euo pipefail
+          export PATH="$PWD/serial-tart:$PATH"
+          for v in control mv; do
+            t0=$(date +%s)
+            env -u GITHUB_TOKEN packer build -var "base_image=simwarm-l2-$v" -var "output_image=simwarm-measure-$v" \
+              -var "label=$v" -var "devices=$MEASURE" measure.pkr.hcl
+            echo "SIMWARM measure $v s: $(( $(date +%s) - t0 ))"
+            tart delete "simwarm-measure-$v" || true
+          done
+
+      - name: Cleanup
+        if: always()
+        run: |
+          for vm in simwarm-l1 simwarm-l2-control simwarm-l2-mv simwarm-l2-warm simwarm-measure-control simwarm-measure-mv; do
+            tart delete "$vm" 2>/dev/null || true
+          done
