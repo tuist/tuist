@@ -12,8 +12,10 @@ defmodule Atlas.Accounts.Invoices do
   alias Atlas.Audit
   alias Atlas.Documents.Document
   alias Atlas.Documents.DocumentPage
+  alias Atlas.MCP
   alias Atlas.Repo
   alias Atlas.Stripe
+  alias Atlas.Users.User
 
   require Logger
 
@@ -468,11 +470,22 @@ defmodule Atlas.Accounts.Invoices do
   after its bank wire arrived, and stores the paid invoice.
 
   Refuses invoices of another Stripe customer and invoices that are not open.
+
+  Stripe stops collecting the invoice and the change cannot be undone, so each
+  call waits for the calling person's approval of that exact invoice and amount
+  (`mcp_tool_approvals`, recorded under `stripe`/`mark-invoice-paid-out-of-band`)
+  and only runs from their own MCP connection (`opts[:interface] == "mcp"`).
+  Another amount, such as after the invoice was edited, needs a new approval.
   """
-  def mark_stripe_invoice_paid_out_of_band(%Account{} = account, invoice_id, opts \\ []) when is_binary(invoice_id) do
-    with {:ok, stripe_invoice} <- get_stripe_invoice(invoice_id, opts),
+  def mark_stripe_invoice_paid_out_of_band(%User{} = user, %Account{} = account, invoice_id, opts \\ [])
+      when is_binary(invoice_id) do
+    {interface, opts} = Keyword.pop(opts, :interface)
+
+    with :ok <- ensure_mcp_interface(interface),
+         {:ok, stripe_invoice} <- get_stripe_invoice(invoice_id, opts),
          :ok <- ensure_account_customer(account, stripe_invoice),
          :ok <- ensure_open(stripe_invoice),
+         {:ok, approval} <- approve_out_of_band_payment(user, account, stripe_invoice),
          {:ok, paid_invoice} <- pay_stripe_invoice_out_of_band(invoice_id, opts),
          {:ok, stored_invoice} <- upsert_stripe_invoice(account, paid_invoice) do
       Audit.record("account_invoice.stripe_paid_out_of_band", %{
@@ -482,11 +495,35 @@ defmodule Atlas.Accounts.Invoices do
         metadata: %{
           "path" => "/commercial/sales/accounts/#{account.id}",
           "account_id" => account.id,
-          "stripe_invoice_id" => stored_invoice.external_id
+          "stripe_invoice_id" => stored_invoice.external_id,
+          "amount_value" => approval.arguments["amount_value"],
+          "amount_currency" => approval.arguments["amount_currency"],
+          "approval_id" => approval.id
         }
       })
 
       {:ok, %{account: account, invoice: stored_invoice, stripe_invoice: paid_invoice}}
+    end
+  end
+
+  defp ensure_mcp_interface("mcp"), do: :ok
+  defp ensure_mcp_interface(_interface), do: {:error, :mcp_only}
+
+  # The approval covers what the person reads at /approvals: the account, the
+  # invoice and the amount Stripe will stop collecting.
+  defp approve_out_of_band_payment(user, account, %Stripe.Invoice{} = invoice) do
+    arguments = %{
+      "account_id" => account.id,
+      "account_name" => account.name,
+      "stripe_invoice_id" => invoice.id,
+      "invoice_number" => invoice.number,
+      "amount_value" => invoice.amount_value && Decimal.to_string(invoice.amount_value, :normal),
+      "amount_currency" => invoice.amount_currency
+    }
+
+    case MCP.authorize_tool_call(user, "stripe", "mark-invoice-paid-out-of-band", arguments) do
+      {:ok, approval} -> {:ok, approval}
+      {:approval_required, approval} -> {:error, {:approval_required, approval}}
     end
   end
 
