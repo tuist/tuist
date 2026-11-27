@@ -2203,9 +2203,8 @@ sum by (cluster, plan, region) (
 - Threshold: `> 0`, as a separate threshold expression on `A`
 - Pending period: 30 minutes
 - Severity: warning
-- Not yet created in Grafana: create it once a server release that emits
-  `tuist_kura_lifecycle_claim_clamped_at_ceiling_count` reaches production,
-  titled `Kura - claim clamped at its plan ceiling`, and record its UID here.
+- Live: rule `ag5klqf36zt34a`, titled `Kura - claim clamped at its plan
+  ceiling`, created 2026-11-27
 - Production only. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
 - Summary: `A {{ $labels.plan }} account's Kura ring in {{ $labels.region }}
@@ -2230,9 +2229,12 @@ critical page later, and only for rings under one day rather than under the
 floor.
 
 `ClaimProposals.sweep/2` emits the counter on every ten-minute pass while the
-clamp lasts, so a clamped account reads as a steady rate of about six an hour
-and the rule resolves within 30 minutes of the account growing or its ring
-fitting again. It counts confirmed growth verdicts only, with the same rungs
+clamp lasts, and the rule resolves within 30 minutes of the account growing
+or its ring fitting again. Each pass runs on whichever server pod Oban hands
+it to, and a pod's first count starts a new series that `increase()` cannot
+see, so after a deploy the rule reads about one per 30 minutes rather than
+three until every pod has counted once; the threshold is `> 0`, so it fires
+either way. It counts confirmed growth verdicts only, with the same rungs
 and windows as a proposal, so a single busy day does not fire it. `region` is
 the region whose ring asked for the most; `plan` is the sizing plan
 (`AccountPolicies.sizing_plan/1`). Account is never a label: read it from the
