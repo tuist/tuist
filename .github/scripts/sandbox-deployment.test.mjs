@@ -339,10 +339,16 @@ for (const environment of ['staging', 'canary', 'production', 'disabled']) {
     });
     assert.equal(updated.status, 0, updated.stderr);
     assert.match(updated.stdout, /image: "ghcr.io\/tuist\/tuist-sandbox-template:sha-abcdef012345"/);
-    // Only the template installer pins the version; sandboxd follows the
-    // installer's current tag, so a template upgrade does not roll it.
-    assert.equal((updated.stdout.match(/name: TEMPLATE_TAG\s+value: "sha-abcdef012345"/g) || []).length, 1);
-    assert.equal((updated.stdout.match(/name: TEMPLATE_TAG\b/g) || []).length, 1);
+    // Only the template installer pins the version (once per template it
+    // installs); sandboxd follows the installer's current tag, so a template
+    // upgrade does not roll it.
+    const docs = updated.stdout.split(/^---$/m);
+    const installer = docs.find((doc) => /kind: DaemonSet/.test(doc) && /name: custom-tuist-sandboxd-template$/m.test(doc));
+    const daemon = docs.find((doc) => /kind: DaemonSet/.test(doc) && /name: custom-tuist-sandboxd$/m.test(doc));
+    const pins = installer.match(/name: TEMPLATE_TAG\s+value: "[^"]*"/g) || [];
+    assert.ok(pins.length >= 1);
+    for (const pin of pins) assert.match(pin, /"sha-abcdef012345"$/);
+    assert.doesNotMatch(daemon, /name: TEMPLATE_TAG\b/);
     assert.match(updated.stdout, /image: "ghcr.io\/tuist\/sandboxd:sha-0123456789ab"/);
   });
 }
