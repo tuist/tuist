@@ -31,10 +31,18 @@ pub enum Tab {
     Lounges = 1,
     Dms = 2,
     Profile = 3,
+    /// Collections and Releases: what the person operates, apart from their Profile.
+    Ops = 4,
 }
 
 impl Tab {
-    pub const ALL: [Self; 4] = [Self::Threads, Self::Lounges, Self::Dms, Self::Profile];
+    pub const ALL: [Self; 5] = [
+        Self::Threads,
+        Self::Lounges,
+        Self::Dms,
+        Self::Profile,
+        Self::Ops,
+    ];
 
     pub fn id(self) -> &'static str {
         match self {
@@ -42,6 +50,7 @@ impl Tab {
             Self::Lounges => "lounges",
             Self::Dms => "dms",
             Self::Profile => "profile",
+            Self::Ops => "ops",
         }
     }
 
@@ -56,6 +65,7 @@ fn tab_id(index: i32) -> Option<&'static core::ffi::CStr> {
         1 => Some(c"lounges"),
         2 => Some(c"dms"),
         3 => Some(c"profile"),
+        4 => Some(c"ops"),
         _ => None,
     }
 }
@@ -101,11 +111,17 @@ mod tests {
 
     #[test]
     fn native_frontends_share_the_navigation_catalog() {
-        assert_eq!(tuist_app_tab_count(), 4);
+        assert_eq!(tuist_app_tab_count(), 5);
         // Native callers persist these numeric values; renaming a tab must not reorder them.
         assert_eq!(
             Tab::ALL.map(|tab| (tab as i32, tab.id())),
-            [(0, "threads"), (1, "lounges"), (2, "dms"), (3, "profile")]
+            [
+                (0, "threads"),
+                (1, "lounges"),
+                (2, "dms"),
+                (3, "profile"),
+                (4, "ops")
+            ]
         );
         for (index, tab) in Tab::ALL.iter().enumerate() {
             let id = tab_id(index as i32).unwrap().to_str().unwrap();
@@ -123,8 +139,8 @@ mod tests {
             assert_eq!(bytes, id.as_bytes());
         }
         assert!(tuist_app_tab_id(-1).is_null());
-        assert!(tuist_app_tab_id(4).is_null());
-        for (index, offset) in [(-1, 0), (4, 0), (0, -1), (0, 8)] {
+        assert!(tuist_app_tab_id(5).is_null());
+        for (index, offset) in [(-1, 0), (5, 0), (0, -1), (0, 8)] {
             assert_eq!(
                 Java_dev_tuist_guild_AppCore_tabIdByte(
                     core::ptr::null_mut(),

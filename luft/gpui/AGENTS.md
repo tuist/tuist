@@ -8,7 +8,7 @@ Struo workspace: Cargo owns the dependency graph and `struo.toml` seeds it with 
 `tuist/luft` for caching and insights;
 sign in once per machine with `struo auth login --provider tuist`.
 
-The app signs in with the browser and shows a Threads/Lounges/DMs/Profile shell laid
+The app signs in with the browser and shows a Threads/Lounges/DMs/Ops/Profile shell laid
 out like Zed's workspace; Threads lists, starts and continues server-side conversations
 through the core's `Threads` operations (`gpui/src/workspace/threads.rs`), and
 Lounges and DMs use its `Lounges` operations (`gpui/src/workspace/lounges.rs`).

@@ -132,15 +132,15 @@ fn account_menu_keyboard_exit_restore_settings_and_sign_out(cx: &mut TestAppCont
     root.read_with(cx, |root, _| assert!(root.menu.is_some()));
     press(cx, "tab"); // Close and leave, rather than trap focus on the opener.
     root.read_with(cx, |root, _| assert!(root.menu.is_none()));
-    // Threads, Lounges, DMs, then Profile.
-    for _ in 0..3 {
+    // Threads, Lounges, DMs, Ops, then Profile.
+    for _ in 0..4 {
         press(cx, "tab");
     }
     press(cx, "enter");
     root.read_with(cx, |root, cx| {
         assert_eq!(root.navigation.read(cx).tab, tuist_navigation::Tab::Profile)
     });
-    for _ in 0..3 {
+    for _ in 0..4 {
         press(cx, "shift-tab");
     }
     press(cx, "space");
@@ -194,8 +194,8 @@ fn closing_a_preview_returns_focus_to_the_sidebar(cx: &mut TestAppContext) {
     root.read_with(cx, |root, cx| {
         assert!(root.navigation.read(cx).preview.is_none())
     });
-    // Focus sits on the Threads row; Lounges and DMs come before Profile.
-    for _ in 0..3 {
+    // Focus sits on the Threads row; Lounges, DMs and Ops come before Profile.
+    for _ in 0..4 {
         press(cx, "tab");
     }
     press(cx, "enter");
@@ -227,7 +227,8 @@ fn destination_shortcuts_select_and_focus_the_dock_row(cx: &mut TestAppContext) 
     for (key, tab) in [
         ("2", tuist_navigation::Tab::Lounges),
         ("3", tuist_navigation::Tab::Dms),
-        ("4", tuist_navigation::Tab::Profile),
+        ("4", tuist_navigation::Tab::Ops),
+        ("5", tuist_navigation::Tab::Profile),
         ("1", tuist_navigation::Tab::Threads),
     ] {
         cx.simulate_keystrokes(&format!("{modifier}-{key}"));

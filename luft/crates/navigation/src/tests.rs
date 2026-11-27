@@ -171,7 +171,9 @@ fn luft_links_select_the_tab_and_reconstruct_the_conversation_stack() {
     nav.receive("luft://app/profile", &luft_server);
     nav.reset();
     nav.resume();
-    assert_eq!(nav.luft.path, "/threads");
+    // The pending link is dropped; DMs stays selected without the other account's conversation.
+    assert_eq!(nav.tab, Tab::Dms);
+    assert_eq!(nav.luft.path, "/dms");
     assert!(matches!(
         Route::parse("https://tuist.dev/team/luft/previews/id", &server()),
         Ok(Route::Preview(_))

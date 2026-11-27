@@ -27,22 +27,32 @@ use threads::ThreadsPanel;
 
 actions!(
     tuist_workspace,
-    [ShowThreads, ShowLounges, ShowDms, ShowProfile]
+    [ShowThreads, ShowLounges, ShowDms, ShowOps, ShowProfile]
 );
 
-/// Modifier+1 to 4 select the dock's destinations in order, as in chat apps.
+/// The dock's destinations, top to bottom: Profile stays last, under Ops.
+const DOCK: [Destination; 5] = [
+    Destination::Threads,
+    Destination::Lounges,
+    Destination::Dms,
+    Destination::Ops,
+    Destination::Profile,
+];
+
+/// Modifier+1 to 5 select the dock's destinations in order, as in chat apps.
 /// Application shortcuts use Cmd on the macOS development host.
 pub fn init(cx: &mut App) {
     let keys = if cfg!(target_os = "macos") {
-        ["cmd-1", "cmd-2", "cmd-3", "cmd-4"]
+        ["cmd-1", "cmd-2", "cmd-3", "cmd-4", "cmd-5"]
     } else {
-        ["ctrl-1", "ctrl-2", "ctrl-3", "ctrl-4"]
+        ["ctrl-1", "ctrl-2", "ctrl-3", "ctrl-4", "ctrl-5"]
     };
     cx.bind_keys([
         KeyBinding::new(keys[0], ShowThreads, None),
         KeyBinding::new(keys[1], ShowLounges, None),
         KeyBinding::new(keys[2], ShowDms, None),
-        KeyBinding::new(keys[3], ShowProfile, None),
+        KeyBinding::new(keys[3], ShowOps, None),
+        KeyBinding::new(keys[4], ShowProfile, None),
     ]);
 }
 
@@ -53,7 +63,8 @@ fn shortcut(destination: Destination) -> String {
     } else {
         "Ctrl+"
     };
-    format!("{modifier}{}", destination as usize + 1)
+    let position = DOCK.iter().position(|d| *d == destination).unwrap_or(0);
+    format!("{modifier}{}", position + 1)
 }
 
 pub enum WorkspaceEvent {
@@ -66,6 +77,7 @@ fn title(destination: Destination) -> &'static str {
         Destination::Lounges => "Lounges",
         Destination::Dms => "DMs",
         Destination::Profile => "Profile",
+        Destination::Ops => "Ops",
     }
 }
 
@@ -75,6 +87,7 @@ fn icon(destination: Destination) -> &'static str {
         Destination::Lounges => assets::LOUNGES_ICON,
         Destination::Dms => assets::DMS_ICON,
         Destination::Profile => assets::PROFILE_ICON,
+        Destination::Ops => assets::OPS_ICON,
     }
 }
 
@@ -152,7 +165,7 @@ impl Workspace {
             cx.new(|cx| ThreadsPanel::new(session, handle, navigation.clone(), window, cx));
         let observer = cx.observe(&navigation, |this: &mut Self, navigation, cx| {
             this.sync_subscriptions(cx);
-            if navigation.read(cx).tab != Destination::Profile {
+            if navigation.read(cx).tab != Destination::Ops {
                 this.releases.update(cx, |panel, cx| panel.close(cx));
             }
             cx.notify();
@@ -223,7 +236,7 @@ impl Workspace {
             .bg(theme.sidebar)
             .border_r_1()
             .border_color(theme.border)
-            .children(Destination::ALL.into_iter().map(|destination| {
+            .children(DOCK.into_iter().map(|destination| {
                 let selected = destination == current;
                 div()
                     .id(title(destination))
@@ -278,14 +291,9 @@ impl Workspace {
             }))
     }
 
-    /// The shipping apps' Profile page (`app/Sources/TuistProfile/ProfileView.swift`),
-    /// laid out as a Zed settings page: sections of rows separated by dividers.
-    fn profile(
-        &self,
-        theme: Theme,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    /// What the person operates. Release review is the only part on the desktop yet;
+    /// opened, it takes the whole page.
+    fn ops(&self, theme: Theme, cx: &mut Context<Self>) -> impl IntoElement {
         if self.releases.read(cx).is_open() {
             return div()
                 .w_full()
@@ -294,6 +302,33 @@ impl Workspace {
                 .py_6()
                 .child(self.releases.clone());
         }
+        div()
+            .flex()
+            .flex_col()
+            .w_full()
+            .max_w(px(640.))
+            .mx_auto()
+            .px_8()
+            .py_6()
+            .child(
+                div()
+                    .pb_1()
+                    .text_xs()
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(theme.text_muted)
+                    .child(gpui::text!("Release review")),
+            )
+            .child(self.releases.clone())
+    }
+
+    /// The shipping apps' Profile page (`app/Sources/TuistProfile/ProfileView.swift`),
+    /// laid out as a Zed settings page: sections of rows separated by dividers.
+    fn profile(
+        &self,
+        theme: Theme,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let handle = self.account.handle.clone();
         let email = self.account.email.clone();
         let name = handle
@@ -399,8 +434,6 @@ impl Workspace {
             .child(value("server", "Server", self.server.to_string()))
             .child(section("AI subscriptions"))
             .child(self.subscriptions.clone())
-            .child(section("Release review"))
-            .child(self.releases.clone())
             .child(section("MCP servers"))
             .child(self.mcp_servers.clone())
             .child(section("Theme"))
@@ -611,6 +644,9 @@ impl Workspace {
                         Some(preview) => self
                             .preview_detail(preview, theme, window, cx)
                             .into_any_element(),
+                        None if selected == Destination::Ops => {
+                            self.ops(theme, cx).into_any_element()
+                        }
                         None => self.profile(theme, window, cx).into_any_element(),
                     })
                     .into_any_element(),

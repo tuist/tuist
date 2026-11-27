@@ -17,6 +17,7 @@ pub const THREADS_ICON: &str = "icons/threads.svg";
 pub const LOUNGES_ICON: &str = "icons/lounges.svg";
 pub const DMS_ICON: &str = "icons/dms.svg";
 pub const PROFILE_ICON: &str = "icons/profile.svg";
+pub const OPS_ICON: &str = "icons/ops.svg";
 pub const EXTERNAL_LINK_ICON: &str = "icons/external-link.svg";
 
 /// The app icon, flattened from the macOS app's `AppIcon.icon`.
@@ -60,6 +61,7 @@ const EMBEDDED: &[(&str, &[u8])] = &[
         PROFILE_ICON,
         include_bytes!("../resources/icons/profile.svg"),
     ),
+    (OPS_ICON, include_bytes!("../resources/icons/ops.svg")),
     (
         EXTERNAL_LINK_ICON,
         include_bytes!("../resources/icons/external-link.svg"),

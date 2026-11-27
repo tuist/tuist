@@ -124,6 +124,7 @@ struct CommandPalette: View {
         case ("destination", "threads"): "bubble.left.and.bubble.right"
         case ("destination", "lounges"), ("lounge", _): "number"
         case ("destination", "dms"): "bubble.left.and.text.bubble.right"
+        case ("destination", "ops"): "wrench.and.screwdriver"
         case ("destination", _): "person.crop.circle"
         case ("action", _): "plus"
         case ("dm", _): "person.2"
@@ -155,6 +156,7 @@ struct CommandPalette: View {
             "lounges": String(localized: "Lounges"),
             "dms": String(localized: "DMs"),
             "profile": String(localized: "Profile"),
+            "ops": String(localized: "Ops"),
             "new_conversation": String(localized: "New conversation"),
         ]
         guard let data = try? await client.call("palette", ["query": query, "labels": labels]),

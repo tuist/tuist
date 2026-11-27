@@ -7,7 +7,7 @@ import SwiftUI
 
 private let coreLog = Logger(subsystem: "dev.tuist.guild", category: "core")
 
-struct AppProfile: Decodable, Identifiable {
+struct AppProfile: Decodable, Equatable, Identifiable {
     let id: String
     let server: String
     let handle: String?
@@ -17,9 +17,9 @@ struct AppProfile: Decodable, Identifiable {
     let push_enabled: Bool
 }
 
-struct AppNavigation: Decodable {
+struct AppNavigation: Decodable, Equatable {
     enum Tab: String, Decodable, Hashable {
-        case threads, lounges, dms, profile
+        case threads, lounges, dms, profile, ops
     }
 
     var tab: Tab = .threads
@@ -37,7 +37,7 @@ struct AppNavigation: Decodable {
 
 /// A personal account or organization from any saved profile; selecting it
 /// switches to the profile that owns it.
-struct AppAccount: Decodable, Identifiable {
+struct AppAccount: Decodable, Equatable, Identifiable {
     let profile_id: String
     let name: String
     let server: String
@@ -49,7 +49,7 @@ struct AppAccount: Decodable, Identifiable {
     var id: String { "\(profile_id)/\(name)" }
 }
 
-struct AppSessionView: Decodable {
+struct AppSessionView: Decodable, Equatable {
     var profiles: [AppProfile] = []
     var accounts: [AppAccount] = []
     var active_profile_id: String?
@@ -380,7 +380,9 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
         let response = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
         if let value = response["view"], !(value is NSNull) {
             let next = try JSONDecoder().decode(AppSessionView.self, from: JSONSerialization.data(withJSONObject: value))
-            if next.generation > view.generation ||
+            // Most calls, such as the presence heartbeat, leave the view as it was. Assigning it
+            // anyway would redraw every screen that reads it, which makes scrolling stutter.
+            if next != view, next.generation > view.generation ||
                 (next.generation == view.generation && next.navigation.revision >= view.navigation.revision)
             { view = next }
         }

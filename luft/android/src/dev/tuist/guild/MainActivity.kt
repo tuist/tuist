@@ -124,7 +124,7 @@ class MainActivity : Activity() {
             render()
             if (intentConsumed || !consumeIntent(intent)) {
                 if (AppCore.pendingAuthorization != null) launchPendingSignIn()
-                else if (savedInstanceState?.getBoolean("releases_open") == true && active() != null && screen == "profile") {
+                else if (savedInstanceState?.getBoolean("releases_open") == true && active() != null && screen == "ops") {
                     releaseSurface = java.util.UUID.randomUUID().toString()
                     requestRelease("releases")
                 } else load()
@@ -401,6 +401,7 @@ class MainActivity : Activity() {
         if (busy) text(getString(R.string.loading))
         if (releaseSurface != null) releasesScreen() else when (screen) {
             "profile" -> profileScreen()
+            "ops" -> opsScreen()
             "threads" -> threadsScreen()
             "lounges" -> loungesScreen(direct = false)
             "dms" -> loungesScreen(direct = true)
@@ -433,6 +434,7 @@ class MainActivity : Activity() {
         "dms" -> R.string.dms
         "previews" -> R.string.previews
         "profile" -> R.string.profile
+        "ops" -> R.string.ops
         else -> null
     }
 
@@ -601,10 +603,19 @@ class MainActivity : Activity() {
         }), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
     }
 
+    /** What the person operates, apart from their Profile. Android has Releases; Collections are Apple-only yet. */
+    private fun opsScreen() {
+        if (active() == null) return text(getString(R.string.sign_in_required))
+        if (!browserPending) button(R.string.releases) {
+            releaseSurface = java.util.UUID.randomUUID().toString()
+            requestRelease("releases")
+        }
+    }
+
     private fun releasesScreen() {
         // Up remains available during network work; its ticket invalidates stale completions.
         content.addView(styled(Button(this).apply {
-            setText(if (releaseInDetail) R.string.release_up_list else R.string.release_up_profile)
+            setText(if (releaseInDetail) R.string.release_up_list else R.string.release_up_ops)
             minHeight = dp(48)
             setOnClickListener { releaseUp() }
         }), LinearLayout.LayoutParams(-1, -2))
@@ -729,10 +740,6 @@ class MainActivity : Activity() {
                 organizationMcpServers?.let { (handle, list) -> mcpServersSection(handle, list) }
             }
         } ?: text(getString(R.string.sign_in_required))
-        if (!browserPending) button(R.string.releases) {
-            releaseSurface = java.util.UUID.randomUUID().toString()
-            requestRelease("releases")
-        }
         if (!browserPending) button(R.string.switch_account) { chooseProfile() }
         button(getString(R.string.theme_value, AppCore.themes.firstOrNull { it.first == themeId }?.second.orEmpty())) {
             chooseTheme()
