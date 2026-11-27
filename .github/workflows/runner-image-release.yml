@@ -444,9 +444,10 @@ jobs:
   # waits until they hold them before the deploy below is dispatched. Deploys
   # hold each pool on its current image until then
   # (.github/scripts/runner-image-staging-gate.sh), so the first job of a new
-  # image on a host does not wait 6 to 7 minutes for the pull. Both give up an
-  # hour after the latest announcement, and `skip_staging` moves the pools at
-  # once. A failure here dispatches the deploy, which moves the pools.
+  # image on a host does not wait 6 to 7 minutes for the pull. Both give up on
+  # an image an hour after it was first announced, and `skip_staging` moves
+  # the pools at once. A failure here dispatches the deploy, whose gate
+  # announces any image this job did not and holds its pools.
   announce:
     name: Announce upcoming runner images (${{ matrix.environment }})
     needs: plan
@@ -492,10 +493,17 @@ jobs:
         # Keys are `<xcode>.<variant>`, as tart-kubelet looks them up from a
         # RunnerPool's `tuist.dev/xcode-version` and
         # `tuist.dev/runner-image-variant` labels; values are the image by the
-        # digest the deploy will resolve for the same tag. Each write names the
-        # images published so far and moves `announced-at` to its own time; a
-        # failed or cancelled build fails this step, so re-running the failed
-        # jobs announces again.
+        # digest the deploy will resolve for the same tag. Every pass
+        # resolves every tag again, because a tag can exist before this run
+        # builds it (an earlier run of the same version pushed it, then
+        # failed) and the build then moves it to a new digest. Each write
+        # names the images published so far, records in
+        # `announced-at-by-image` when each key first named its current
+        # digest (the staging gate's hour counts from there), and moves
+        # `announced-at` to its own time. The step ends once every tag
+        # resolves and every build and re-tag job of this attempt has
+        # finished; a failed or cancelled build fails it, so re-running the
+        # failed jobs announces again.
         run: |
           set -euo pipefail
           namespace="$(kubectl get runnerpools.tuist.dev -A -l tuist.dev/runner-image-variant \
@@ -508,55 +516,63 @@ jobs:
           digests='{}'
           stacked_digests='{}'
           announced=''
+          announced_at='{}'
           while :; do
+            # Whether every build and re-tag job has finished, read before
+            # the tags so a job that finishes in between is resolved again on
+            # the next pass instead of ending the loop on its old digest.
+            jobs="$(gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs" \
+              --jq '.jobs[] | select(.name | test("^(Build (stacked )?runner image|Re-tag unchanged runner images)"))
+                | [.name, .status, (.conclusion // "")] | @tsv')"
+            failed="$(awk -F'\t' '$3 == "failure" || $3 == "cancelled" { print $1 }' <<< "$jobs")"
+            if [ -n "$failed" ]; then
+              echo "::error::This release will not publish every image; failed builds: ${failed//$'\n'/, }"
+              exit 1
+            fi
+            running="$(awk -F'\t' '$2 != "completed" { n++ } END { print n + 0 }' <<< "$jobs")"
+
             pending=0
             for xcode in $profiles; do
               tag="macos-${xcode//./-}-${VERSION}"
-              if [ "$(jq -r --arg xcode "$xcode" '.[$xcode] // ""' <<< "$digests")" = "" ]; then
-                if digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "$tag" 2>/dev/null)"; then
-                  digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$digests")"
-                else
-                  pending=$((pending + 1))
-                fi
+              if digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "$tag" 2>/dev/null)"; then
+                digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$digests")"
+              else
+                pending=$((pending + 1))
               fi
-              if [ "$(jq -r --arg xcode "$xcode" '.[$xcode] // ""' <<< "$stacked_digests")" = "" ]; then
-                if digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "${tag}-stacked" 2>/dev/null)"; then
-                  stacked_digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$stacked_digests")"
-                else
-                  pending=$((pending + 1))
-                fi
+              if digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "${tag}-stacked" 2>/dev/null)"; then
+                stacked_digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$stacked_digests")"
+              else
+                pending=$((pending + 1))
               fi
             done
 
-            current="${digests}${stacked_digests}"
-            if [ "$current" != "$announced" ] && [ "$current" != '{}{}' ]; then
+            current="$(jq -cn --argjson standalone "$digests" --argjson stacked "$stacked_digests" '
+              ($standalone | with_entries(.key += ".standalone")) + ($stacked | with_entries(.key += ".stacked"))')"
+            if [ "$current" != "$announced" ] && [ "$current" != '{}' ]; then
+              now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              # A key keeps its time while its digest stays the same.
+              announced_at="$(jq -cn --argjson current "$current" --argjson previous "${announced:-"{}"}" \
+                --argjson times "$announced_at" --arg now "$now" '
+                $current | with_entries(.value = (if $previous[.key] == .value then $times[.key] else $now end))')"
               args=()
               while IFS=$'\t' read -r key digest; do
                 args+=(--from-literal "${key}=ghcr.io/tuist/tuist-runner@${digest}")
-              done < <(jq -rn --argjson standalone "$digests" --argjson stacked "$stacked_digests" '
-                ($standalone | to_entries[] | ["\(.key).standalone", .value]),
-                ($stacked | to_entries[] | ["\(.key).stacked", .value]) | @tsv')
+              done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' <<< "$current")
               kubectl create configmap tuist-upcoming-runner-images --namespace "$namespace" "${args[@]}" \
                 --dry-run=client -o yaml |
                 kubectl label --local -f - tuist.dev/upcoming-runner-images=true -o yaml |
                 kubectl annotate --local -f - \
                   "tuist.dev/runner-image-release=${VERSION}" \
-                  "tuist.dev/runner-image-announced-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                  "tuist.dev/runner-image-announced-at=${now}" \
+                  "tuist.dev/runner-image-announced-at-by-image=${announced_at}" \
                   "tuist.dev/runner-image-staging=${STAGING}" -o yaml |
                 kubectl apply --server-side --field-manager=runner-image-release --force-conflicts -f -
-              echo "Announced $(( ${#args[@]} / 2 )) of $(( $(wc -w <<< "$profiles") * 2 )) images at $(date -u +%H:%M:%SZ)."
+              changed="$(jq -r --arg now "$now" '[to_entries[] | select(.value == $now) | .key] | join(", ")' <<< "$announced_at")"
+              echo "Announced $(( ${#args[@]} / 2 )) of $(( $(wc -w <<< "$profiles") * 2 )) images at ${now}; new digests: ${changed}."
               announced="$current"
             fi
-            [ "$pending" -eq 0 ] && break
-
-            failed="$(gh api --paginate \
-              "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs" \
-              --jq '.jobs[] | select(.name | test("^(Build (stacked )?runner image|Re-tag unchanged runner images)"))
-                | select(.conclusion == "failure" or .conclusion == "cancelled") | .name')"
-            if [ -n "$failed" ]; then
-              echo "::error::This release will not publish every image; failed builds: ${failed//$'\n'/, }"
-              exit 1
-            fi
+            [ "$pending" -eq 0 ] && [ "$running" -eq 0 ] && break
             sleep 60
           done
           {

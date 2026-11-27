@@ -20,6 +20,7 @@ defmodule Tuist.Sandboxes.Workers.PauseSandboxWorker do
   require Logger
 
   @disks_loading_snooze_seconds 60
+  @busy_snooze_seconds 15
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"sandbox_id" => sandbox_id, "residency_epoch" => epoch}}) do
@@ -38,6 +39,16 @@ defmodule Tuist.Sandboxes.Workers.PauseSandboxWorker do
       {:error, "sandbox disks are still loading from its archive" <> _id} ->
         Logger.info("sandboxes: scheduled pause waits for a restore's disks", sandbox_id: sandbox_id)
         {:snooze, @disks_loading_snooze_seconds}
+
+      # The node refuses to pause while an exec is in flight. An exec takes no
+      # residency, and its caller can give up before the node does (an Amp
+      # Orb's bootstrap timing out ends the turn and pauses at once on a shared
+      # node while the node still runs the exec), so retrying soon pauses it.
+      # Failing instead spent the job's three attempts and could leave the
+      # sandbox running with nothing left to pause it.
+      {:error, "sandbox has a worker or exec running" <> _id} ->
+        Logger.info("sandboxes: scheduled pause waits for an exec to end", sandbox_id: sandbox_id)
+        {:snooze, @busy_snooze_seconds}
 
       {:error, reason} ->
         Logger.warning("sandboxes: scheduled pause failed", sandbox_id: sandbox_id, reason: inspect(reason))

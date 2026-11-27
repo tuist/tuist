@@ -81,13 +81,13 @@ for (const environment of ['canary', 'production']) {
 }
 
 // Production has no macOS probe while the alder one is paused; restore 3 with it.
-for (const [environment, label, count] of [['canary', 'tuist-canary-linux', 7], ['production', 'tuist-linux', 2]]) {
-  test(`${environment} plans native and container Linux probes in the watchdog count`, () => {
+for (const [environment, label, count, dockerCache] of [['canary', 'tuist-canary-linux', 7, 'true'], ['canary', 'tuist-canary-linux', 4, 'false'], ['production', 'tuist-linux', 2, 'true']]) {
+  test(`${environment} (Docker cache ${dockerCache}) plans native and container Linux probes in the watchdog count`, () => {
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-plan-'));
     try {
       const output = path.join(work, 'output');
       execFileSync('bash', ['-c', workflow.jobs.plan.steps[0].run], {
-        env: { ...process.env, ENVIRONMENT: environment, GITHUB_OUTPUT: output },
+        env: { ...process.env, ENVIRONMENT: environment, DOCKER_CACHE: dockerCache, GITHUB_OUTPUT: output },
       });
       const values = Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').map(line => {
         const split = line.indexOf('=');
@@ -169,7 +169,8 @@ esac
     assert.equal(result.error, undefined, result.error?.message);
     const dispatched = path.join(work, 'dispatched');
     return { ...result, cancelled: fs.existsSync(path.join(work, 'cancelled')),
-      dispatches: fs.existsSync(dispatched) ? fs.readFileSync(dispatched, 'utf8').trim().split('\n').length : 0 };
+      dispatches: fs.existsSync(dispatched) ? fs.readFileSync(dispatched, 'utf8').trim().split('\n').length : 0,
+      dispatchedArgs: fs.existsSync(dispatched) ? fs.readFileSync(dispatched, 'utf8') : '' };
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }
@@ -197,6 +198,26 @@ for (const images of ['', '[]', '["ghcr.io/tuist/tuist-runner:macos-26-6-0.49.4"
     assert.match(result.stdout, /macOS acceptance/);
   });
 }
+// Deploys that change no Docker cache path skip the chain; native and
+// container Linux coverage stays required.
+test('gate without the Docker cache chain dispatches it off and still requires Linux coverage', () => {
+  const withoutDocker = successfulJobs.filter(job => !job.name.startsWith('Linux Docker cache '));
+  const result = runScript('gate.sh', withoutDocker, 'success', { DOCKER_CACHE: 'false' });
+  assert.equal(result.status, 0, result.stdout);
+  assert.match(result.dispatchedArgs, /-f docker_cache=false/);
+  const noNative = withoutDocker.filter(job => !job.name.startsWith('Linux native '));
+  assert.notEqual(runScript('gate.sh', noNative, 'success', { DOCKER_CACHE: 'false' }).status, 0);
+});
+test('gate dispatches the Docker cache chain by default', () => {
+  const result = runScript('gate.sh', successfulJobs);
+  assert.match(result.dispatchedArgs, /-f docker_cache=true/);
+});
+test('the cascade runs the Docker cache chain only when its paths changed', () => {
+  const gate = cascade.jobs['runners-acceptance'].steps.find(step => step.run?.endsWith('gate.sh'));
+  assert.equal(gate.env.DOCKER_CACHE, "${{ needs.check-releases.outputs.docker-cache-changed != 'false' }}");
+  assert.equal(cascade.jobs['check-releases'].outputs['docker-cache-changed'], '${{ steps.deployable.outputs.docker-cache-changed }}');
+});
+
 test('gate preserves aggregate workflow failures', () => {
   assert.notEqual(runScript('gate.sh', successfulJobs, 'failure').status, 0);
 });
@@ -251,7 +272,7 @@ test('Docker phases are sequential, canary-only, and use one immutable workflow 
     const job = workflow.jobs[`docker-${phase}`];
     assert.equal(job.name, `Linux Docker cache ${phase}`);
     assert.ok(job.needs.includes(previous));
-    assert.equal(job.if, "inputs.environment == 'canary'");
+    assert.equal(job.if, "inputs.environment == 'canary' && inputs.docker_cache != false");
     assert.equal(job.uses, './.github/workflows/runners-docker-cache-probe.yml');
     assert.equal(job.with.phase, phase);
     assert.equal(job.with.expected_linux_image, '${{ inputs.expected_linux_image }}');

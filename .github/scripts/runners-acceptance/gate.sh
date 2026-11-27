@@ -7,6 +7,7 @@
 # Env: GH_TOKEN, GITHUB_REPOSITORY, ENVIRONMENT, and optionally REF and
 # GATE_MINUTES. Canary promotion also requires EXPECTED_LINUX_IMAGE and
 # EXPECTED_MACOS_IMAGES (a JSON array of the macOS image digests it deployed).
+# DOCKER_CACHE=false skips the canary Docker cache phases (default true).
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
@@ -30,7 +31,8 @@ run_probe() {
   gh workflow run runners-acceptance.yml --repo "${GITHUB_REPOSITORY}" --ref "${ref}" \
     -f environment="${ENVIRONMENT}" -f correlation_id="${correlation}" \
     -f expected_linux_image="${EXPECTED_LINUX_IMAGE:-}" \
-    -f expected_macos_images="${EXPECTED_MACOS_IMAGES:-}"
+    -f expected_macos_images="${EXPECTED_MACOS_IMAGES:-}" \
+    -f docker_cache="${DOCKER_CACHE:-true}"
 
   run_id=""
   for _ in $(seq 1 36); do
@@ -115,7 +117,7 @@ report_annotations error
 [ "${conclusion}" = success ] || fail "Runners acceptance" "the runners or their cache are broken on ${ENVIRONMENT} (${conclusion}): ${url}"
 # A successful workflow with a skipped/missing Linux probe must not promote.
 probes=('Linux native ' 'Linux container ')
-if [ "$ENVIRONMENT" = canary ]; then
+if [ "$ENVIRONMENT" = canary ] && [ "${DOCKER_CACHE:-true}" != false ]; then
   for phase in cold same-size-write verify-final; do
     probes+=("Linux Docker cache $phase / Build")
   done

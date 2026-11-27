@@ -82,6 +82,24 @@ func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
 	return path, os.Chmod(path, 0777)
 }
 
+// runsJob reports whether a runner Pod on this host has claimed a job. A Pod
+// list that fails counts as a running job.
+func (c *CustomVolumes) runsJob(ctx context.Context) bool {
+	listCtx, stop := context.WithTimeout(ctx, 5*time.Second)
+	defer stop()
+	pods, err := c.Kube.CoreV1().Pods(c.Namespace).List(listCtx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + c.Node})
+	if err != nil {
+		log.FromContext(ctx).Error(err, "list this host's runner Pods; holding background cache prefetch")
+		return true
+	}
+	for i := range pods.Items {
+		if pods.Items[i].DeletionTimestamp == nil && claimsJob(&pods.Items[i]) {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *CustomVolumes) maxVolumeBytes() int64 {
 	if c.MaxVolumeBytes > 0 {
 		return c.MaxVolumeBytes
@@ -212,7 +230,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 			return backend.Prefetch(ctx, slot)
 		}
 		return c.prefetchSpare(ctx, slot.Scope, func(ctx context.Context) error { return backend.PrefetchSpare(ctx, slot) })
-	}, backend.HasMaster)
+	}, backend.HasMaster, c.runsJob)
 	c.prefetch.Store(prefetch)
 	var builds sync.WaitGroup
 	defer func() {

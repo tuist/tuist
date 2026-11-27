@@ -603,7 +603,9 @@ defmodule Tuist.SandboxesTest do
 
       expect(Nodes, :call, fn "node-a", "exec", args, opts ->
         assert %{sandbox_id: ^sandbox_id, cmd: ["/bin/bash", "-lc", "ls"], cwd: "/workspace", timeout_ms: 5_000} = args
-        assert opts[:timeout] == 15_000
+        # Outlasts sandboxd's hold on the exec: its deadline, `timeout_ms`
+        # plus 10 s, and up to 5 s to kill the guest process.
+        assert opts[:timeout] > 5_000 + 10_000 + 5_000
         opts[:on_stream].({:stdout, "a\n"})
         opts[:on_stream].({:stderr, "warn\n"})
         opts[:on_stream].({:stdout, "b\n"})

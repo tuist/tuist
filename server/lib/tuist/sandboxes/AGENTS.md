@@ -573,7 +573,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   downloads only the disk stream, loads the VM state with a Uffd memory
   backend and serves memory chunks by ranged GETs as the guest touches
   them while a fill fetches the rest (sandboxd `internal/uffd`). It cold
-  boots elsewhere only when no such node is connected. A node whose hello
+  boots elsewhere when no such node is connected or none has room (a kernel
+  or microcode rollout splits the fleet into kinds of two or three nodes,
+  and waiting on full ones refused Orbs for hours on 2026-11-27); an
+  unsynced archive (`warm_only`) still waits. A node whose hello
   sets `lazy_disks` is asked to archive with `lazy_disks` too: the disks
   are chunked like the memory and served by range on restore, so the guest
   runs before they arrive; such an archive (`archive_memory.lazy_disks`)
@@ -690,6 +693,13 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   the epoch and the pending job does nothing. A node refuses to pause a
   warm restore whose lazy disks still load, which can outlast the job's
   retries, so its `memory_loaded` event schedules the idle pause again.
+  A node also refuses while an exec runs, so the job snoozes 15 s on that
+  refusal instead of spending its retries. The server waits for an exec
+  20 s past its `timeout_ms`, longer than the node keeps it (sandboxd's
+  10 s deadline slack plus up to 5 s to kill the guest process; 5 s on
+  macOS): when the server gave up first, an Orb's timed-out
+  bootstrap ended its turn while the exec was still in flight, and the
+  immediate pause of a shared node was refused (2026-11).
 
 Shared-fleet admission requires a fresh controller allocation on `sandbox_nodes`.
 CI reservation revocation, zero extra warm memory, timestamp ordering and resize
