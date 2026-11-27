@@ -185,11 +185,13 @@ defmodule TuistWeb.TestSelection.Components do
   def tracked_files_config("bazel"), do: "tuist.toml"
   def tracked_files_config(_build_system), do: dgettext("dashboard_tests", "your project's Tuist configuration")
 
-  def file_status_label("added"), do: dgettext("dashboard_tests", "Added")
-  def file_status_label("deleted"), do: dgettext("dashboard_tests", "Deleted")
+  # A changed file's status is the letter `git diff --raw` reports.
+  def file_status_label("A"), do: dgettext("dashboard_tests", "Added")
+  def file_status_label("D"), do: dgettext("dashboard_tests", "Deleted")
   def file_status_label(_status), do: dgettext("dashboard_tests", "Modified")
 
-  def file_status(status) when status in ["added", "deleted"], do: if(status == "added", do: "success", else: "error")
+  def file_status("A"), do: "success"
+  def file_status("D"), do: "error"
   def file_status(_status), do: "attention"
 
   @doc "Where a test sits: its target and suite."

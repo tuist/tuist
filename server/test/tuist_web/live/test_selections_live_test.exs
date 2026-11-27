@@ -86,6 +86,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       commit_sha: @sha,
       changed_files: [
         %{path: "Sources/Search/SearchViewModel.swift"},
+        %{path: "Sources/Search/SearchFilter.swift", status: "A"},
         %{path: "App/Project.swift"}
       ]
     )
@@ -332,6 +333,10 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=files")
       assert has_element?(lv, "#selection-files-table", "SearchViewModel.swift")
       assert has_element?(lv, "#selection-files-table", "Tracked")
+      # The diff stores the letter `git diff --raw` reports.
+      assert has_element?(lv, "#selection-files-table tr", "SearchFilter.swift")
+      assert lv |> element("#selection-files-table tr", "SearchFilter.swift") |> render() =~ "Added"
+      assert lv |> element("#selection-files-table tr", "SearchViewModel.swift") |> render() =~ "Modified"
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=config")
       assert has_element?(lv, "#selection-tracked-files-table tr", "**/Package.resolved")

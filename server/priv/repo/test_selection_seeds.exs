@@ -76,13 +76,13 @@ defmodule TestSelectionSeed do
       if(features != [] and h({sha, :resource}, 3) == 0,
         do: [
           {"Sources/Features/#{Enum.at(features, h({sha, :feature}, length(features)))}/Resources/Localizable.strings",
-           "modified"}
+           "M"}
         ],
         else: []
       ),
-      if(h({sha, :doc}, 4) == 0, do: [{"docs/testing.md", "modified"}], else: []),
-      if(test && h({sha, :test_file}, 3) == 0, do: [{"Tests/#{test.module}/#{test.suite}.swift", "modified"}], else: []),
-      if(h({sha, :tracked}, 11) == 0, do: [{"Package.resolved", "modified"}], else: [])
+      if(h({sha, :doc}, 4) == 0, do: [{"docs/testing.md", "M"}], else: []),
+      if(test && h({sha, :test_file}, 3) == 0, do: [{"Tests/#{test.module}/#{test.suite}.swift", "M"}], else: []),
+      if(h({sha, :tracked}, 11) == 0, do: [{"Package.resolved", "M"}], else: [])
     ])
   end
 
@@ -258,9 +258,9 @@ impact_for = fn head, baseline ->
     |> Enum.flat_map(fn path ->
       case {Map.get(before, path), Map.get(after_, path)} do
         {same, same} -> []
-        {nil, _blob} -> [{path, "added"}]
-        {_blob, nil} -> [{path, "deleted"}]
-        _changed -> [{path, "modified"}]
+        {nil, _blob} -> [{path, "A"}]
+        {_blob, nil} -> [{path, "D"}]
+        _changed -> [{path, "M"}]
       end
     end)
 

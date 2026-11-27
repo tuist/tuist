@@ -250,7 +250,7 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
     changed_files =
       attrs
       |> Keyword.get(:changed_files, [])
-      |> Enum.map(&Map.merge(%{status: "modified", blob: "", affected_modules: []}, &1))
+      |> Enum.map(&Map.merge(%{status: "M", blob: "", affected_modules: []}, &1))
 
     :ok =
       Storage.put_diff(%{
