@@ -81,7 +81,7 @@ defmodule Tuist.MixProject do
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
-      {:bandit, "~> 1.12.0", override: true},
+      {:bandit, "~> 1.15", override: true},
       # Keep the production WebSocket adapter while qualifying storage changes;
       # upgrading this otherwise re-resolved transitive dependency is separate.
       {:websock_adapter, "0.6.0", override: true},
