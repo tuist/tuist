@@ -68,19 +68,17 @@ update() {
   echo "RESULT $vm: update to $label did not apply" | tee -a "$WORK/$vm.log"; return 1
 }
 
-# pair A B runs the guest check in both VMs at once, then again under host
-# memory pressure.
+# pair A B runs the guest check in both VMs at once, twice: idle, then with
+# each guest under its own memory pressure (guest.sh). Host-side
+# memory_pressure got the job's step killed on a 16 GB builder.
 pair() {
-  local a="$1" b="$2" round p
+  local a="$1" b="$2" round
   for round in idle pressure; do
-    p=""
-    if [ "$round" = pressure ]; then memory_pressure -l warn > "$WORK/pressure.log" 2>&1 & p=$!; sleep 30; fi
     gx "$a" "bash '/Volumes/My Shared Files/custom-cache/guest.sh' $round" > "$WORK/$a-$b-$round-a.log" 2>&1 &
     local ja=$!
     gx "$b" "bash '/Volumes/My Shared Files/custom-cache/guest.sh' $round" > "$WORK/$a-$b-$round-b.log" 2>&1 &
     local jb=$!
     wait "$ja" "$jb"
-    if [ -n "$p" ]; then kill "$p" 2>/dev/null; wait "$p" 2>/dev/null; fi
     sed -E "s/^RESULT /RESULT [$a with $b] /" "$WORK/$a-$b-$round-a.log" | grep '^RESULT' > "$WORK/$a-$b-$round.log"
     sed -E "s/^RESULT /RESULT [$b with $a] /" "$WORK/$a-$b-$round-b.log" | grep '^RESULT' >> "$WORK/$a-$b-$round.log"
     cat "$WORK/$a-$b-$round.log"

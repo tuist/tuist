@@ -25,6 +25,11 @@ run_into() {
   sync; sudo_ purge; check "$d/pc" "$l | parallel cp after purge"
 }
 
+if [ "$round" = pressure ]; then
+  memory_pressure -l warn > /tmp/gg-pressure.log 2>&1 &
+  pressure=$!; trap 'kill $pressure 2>/dev/null' EXIT; sleep 20
+fi
+
 img="$share/x-$round"; mkdir -p "$img"
 for n in 1 2 3; do
   f="$img/s$n.sparseimage"; m="/tmp/gg-m$n"; mkdir -p "$m"
