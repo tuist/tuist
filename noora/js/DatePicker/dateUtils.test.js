@@ -8,9 +8,8 @@ import {
   formatDateParts,
   parseDateFromParts,
   parseISODate,
-  initCalendarMonthsFromRange,
+  initCalendarMonth,
   calculateWeeksForMonth,
-  getVisibleRangeForMonth,
 } from "./dateUtils.js";
 
 describe("adjustMonth", () => {
@@ -377,7 +376,7 @@ describe("parseISODate", () => {
   });
 });
 
-describe("initCalendarMonthsFromRange", () => {
+describe("initCalendarMonth", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2024, 5, 15)); // June 15, 2024
@@ -387,51 +386,15 @@ describe("initCalendarMonthsFromRange", () => {
     vi.useRealTimers();
   });
 
-  it("returns adjacent months when no dates provided", () => {
-    const { startCalendarMonth, endCalendarMonth } =
-      initCalendarMonthsFromRange(null, null);
-    expect(startCalendarMonth).toEqual({ year: 2024, month: 5 }); // May
-    expect(endCalendarMonth).toEqual({ year: 2024, month: 6 }); // June
+  it("returns the current month when no date is provided", () => {
+    expect(initCalendarMonth(null)).toEqual({ year: 2024, month: 6 });
   });
 
-  it("returns start and end months when dates are in different months", () => {
-    const { startCalendarMonth, endCalendarMonth } =
-      initCalendarMonthsFromRange(
-        { year: 2024, month: 3, day: 10 },
-        { year: 2024, month: 8, day: 20 },
-      );
-    expect(startCalendarMonth).toEqual({ year: 2024, month: 3 });
-    expect(endCalendarMonth).toEqual({ year: 2024, month: 8 });
-  });
-
-  it("adjusts when dates are in the same month", () => {
-    const { startCalendarMonth, endCalendarMonth } =
-      initCalendarMonthsFromRange(
-        { year: 2024, month: 6, day: 10 },
-        { year: 2024, month: 6, day: 20 },
-      );
-    expect(startCalendarMonth).toEqual({ year: 2024, month: 5 }); // Previous month
-    expect(endCalendarMonth).toEqual({ year: 2024, month: 6 });
-  });
-
-  it("handles same month in January (wraps to previous year)", () => {
-    const { startCalendarMonth, endCalendarMonth } =
-      initCalendarMonthsFromRange(
-        { year: 2024, month: 1, day: 10 },
-        { year: 2024, month: 1, day: 20 },
-      );
-    expect(startCalendarMonth).toEqual({ year: 2023, month: 12 }); // December of previous year
-    expect(endCalendarMonth).toEqual({ year: 2024, month: 1 });
-  });
-
-  it("handles date range spanning years", () => {
-    const { startCalendarMonth, endCalendarMonth } =
-      initCalendarMonthsFromRange(
-        { year: 2023, month: 11, day: 15 },
-        { year: 2024, month: 2, day: 10 },
-      );
-    expect(startCalendarMonth).toEqual({ year: 2023, month: 11 });
-    expect(endCalendarMonth).toEqual({ year: 2024, month: 2 });
+  it("returns the start date's month, not the current one", () => {
+    expect(initCalendarMonth({ year: 2023, month: 11, day: 20 })).toEqual({
+      year: 2023,
+      month: 11,
+    });
   });
 });
 
@@ -488,32 +451,5 @@ describe("calculateWeeksForMonth", () => {
     const dayNumbers = allDays.map((d) => d.day).sort((a, b) => a - b);
     expect(dayNumbers[0]).toBe(1);
     expect(dayNumbers[dayNumbers.length - 1]).toBe(30);
-  });
-});
-
-describe("getVisibleRangeForMonth", () => {
-  it("returns start and end DateValue objects for the month", () => {
-    const { start, end } = getVisibleRangeForMonth(2024, 6);
-    expect(start.year).toBe(2024);
-    expect(start.month).toBe(6);
-    expect(start.day).toBe(1);
-    expect(end.year).toBe(2024);
-    expect(end.month).toBe(6);
-    expect(end.day).toBe(30); // June has 30 days
-  });
-
-  it("calculates correct last day for months with 31 days", () => {
-    const { end } = getVisibleRangeForMonth(2024, 7); // July
-    expect(end.day).toBe(31);
-  });
-
-  it("calculates correct last day for February in leap year", () => {
-    const { end } = getVisibleRangeForMonth(2024, 2);
-    expect(end.day).toBe(29);
-  });
-
-  it("calculates correct last day for February in non-leap year", () => {
-    const { end } = getVisibleRangeForMonth(2023, 2);
-    expect(end.day).toBe(28);
   });
 });

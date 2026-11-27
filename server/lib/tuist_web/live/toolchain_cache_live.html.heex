@@ -45,13 +45,6 @@
     >
       <:actions>
         <.button
-          label={dgettext("dashboard", "Cancel")}
-          variant="secondary"
-          phx-click={
-            JS.dispatch("phx:date-picker-cancel", detail: %{id: "#{@cache_id}-date-range"})
-          }
-        />
-        <.button
           label={dgettext("dashboard", "Apply")}
           phx-click={
             JS.dispatch("phx:date-picker-apply", detail: %{id: "#{@cache_id}-date-range"})

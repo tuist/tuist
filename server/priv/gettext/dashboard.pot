@@ -50,7 +50,7 @@ msgstr ""
 #: lib/tuist_web/components/cargo_cache_inspection.ex:334
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:125
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:129
-#: lib/tuist_web/live/gradle_tasks_live.ex:431
+#: lib/tuist_web/live/gradle_tasks_live.ex:435
 #, elixir-autogen, elixir-format
 msgid "Avg."
 msgstr ""
@@ -89,7 +89,7 @@ msgid "Bundles"
 msgstr ""
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:54
-#: lib/tuist_web/live/once_runs_live.ex:921
+#: lib/tuist_web/live/once_runs_live.ex:912
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""
@@ -202,17 +202,17 @@ msgid "Module Cache"
 msgstr ""
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:119
-#: lib/tuist_web/live/bazel_cache_live.ex:821
-#: lib/tuist_web/live/once_cache_live.ex:893
-#: lib/tuist_web/live/xcode_cache_live.html.heex:248
-#: lib/tuist_web/live/xcode_cache_live.html.heex:265
-#: lib/tuist_web/live/xcode_cache_live.html.heex:282
-#: lib/tuist_web/live/xcode_cache_live.html.heex:337
-#: lib/tuist_web/live/xcode_cache_live.html.heex:357
-#: lib/tuist_web/live/xcode_cache_live.html.heex:377
-#: lib/tuist_web/live/xcode_cache_live.html.heex:432
-#: lib/tuist_web/live/xcode_cache_live.html.heex:452
-#: lib/tuist_web/live/xcode_cache_live.html.heex:472
+#: lib/tuist_web/live/bazel_cache_live.ex:812
+#: lib/tuist_web/live/once_cache_live.ex:884
+#: lib/tuist_web/live/xcode_cache_live.html.heex:239
+#: lib/tuist_web/live/xcode_cache_live.html.heex:256
+#: lib/tuist_web/live/xcode_cache_live.html.heex:273
+#: lib/tuist_web/live/xcode_cache_live.html.heex:328
+#: lib/tuist_web/live/xcode_cache_live.html.heex:348
+#: lib/tuist_web/live/xcode_cache_live.html.heex:368
+#: lib/tuist_web/live/xcode_cache_live.html.heex:423
+#: lib/tuist_web/live/xcode_cache_live.html.heex:443
+#: lib/tuist_web/live/xcode_cache_live.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "N/A"
 msgstr ""
@@ -449,7 +449,7 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_helpers.ex:24
 #: lib/tuist_web/live/ops_account_live.ex:1102
 #: lib/tuist_web/live/ops_account_live.ex:1138
-#: lib/tuist_web/live/sandboxes_live.ex:794
+#: lib/tuist_web/live/sandboxes_live.ex:795
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -786,7 +786,6 @@ msgid "Canada"
 msgstr ""
 
 #: lib/tuist_web/live/ops_account_live.html.heex:995
-#: lib/tuist_web/live/toolchain_cache_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -2961,7 +2960,7 @@ msgstr ""
 
 #: lib/tuist_web/live/pulse_live.ex:277
 #: lib/tuist_web/live/pulse_symptoms_live.ex:153
-#: lib/tuist_web/live/toolchain_cache_live.html.heex:66
+#: lib/tuist_web/live/toolchain_cache_live.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Analytics"
 msgstr ""
@@ -2972,7 +2971,7 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
-#: lib/tuist_web/live/toolchain_cache_live.html.heex:55
+#: lib/tuist_web/live/toolchain_cache_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr ""
@@ -3042,7 +3041,7 @@ msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.ex:338
 #: lib/tuist_web/live/mix_build_live.ex:343
-#: lib/tuist_web/live/toolchain_cache_live.ex:377
+#: lib/tuist_web/live/toolchain_cache_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "Not cached"
 msgstr ""
@@ -3057,7 +3056,7 @@ msgstr ""
 msgid "Average and percentiles of individual build cache hit rates. Work without a cache lookup is excluded."
 msgstr ""
 
-#: lib/tuist_web/live/toolchain_cache_live.html.heex:152
+#: lib/tuist_web/live/toolchain_cache_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "No cache measurements yet"
 msgstr ""

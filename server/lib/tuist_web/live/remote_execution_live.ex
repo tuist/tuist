@@ -226,13 +226,6 @@ defmodule TuistWeb.RemoteExecutionLive do
         >
           <:actions>
             <.button
-              label={dgettext("dashboard_projects", "Cancel")}
-              variant="secondary"
-              phx-click={
-                JS.dispatch("phx:date-picker-cancel", detail: %{id: "remote-execution-period"})
-              }
-            />
-            <.button
               label={dgettext("dashboard_projects", "Apply")}
               phx-click={
                 JS.dispatch("phx:date-picker-apply", detail: %{id: "remote-execution-period"})

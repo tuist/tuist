@@ -394,13 +394,24 @@ defmodule TuistWeb.Noora.Components do
       </p>
       <div data-part="frame">
         <div
-          :if={!@example.toast}
+          :if={!@example.toast && !@example.device}
           id={"#{@example.id}-preview"}
           data-part="preview"
           data-layout={@example.layout}
           phx-hook=".NooraDocsPreview"
         >
           {apply(@page, @example.function, [%{__changed__: nil}])}
+        </div>
+        <%!-- A device example renders on its own page (NooraLive's `example`
+        param) in a frame the device's width, where the components' media
+        queries pick their layout as they would on that device. --%>
+        <div :if={@example.device} data-part="preview" data-layout="row">
+          <iframe
+            src={"/noora/#{@page.slug()}?example=#{@example.id}"}
+            title={@example.title}
+            data-part="device-frame"
+            data-device={@example.device}
+          ></iframe>
         </div>
         <%!-- A toast example shows a trigger. Its rendered output waits in a
         template that the docs toaster (.NooraDocsToaster in docs_shell)

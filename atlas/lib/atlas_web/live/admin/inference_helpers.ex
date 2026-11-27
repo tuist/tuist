@@ -70,6 +70,7 @@ defmodule AtlasWeb.Admin.InferenceHelpers do
     <div data-part="date-picker-bar">
       <.date_picker
         id={@id}
+        typed_ranges={false}
         name={@name}
         presets={usage_period_presets()}
         selected_preset={@selected_preset}
@@ -78,11 +79,6 @@ defmodule AtlasWeb.Admin.InferenceHelpers do
         max={Date.utc_today()}
       >
         <:actions>
-          <.button
-            label={gettext("Cancel")}
-            variant="secondary"
-            phx-click={Phoenix.LiveView.JS.dispatch("phx:date-picker-cancel", detail: %{id: @id})}
-          />
           <.button
             label={gettext("Apply")}
             phx-click={Phoenix.LiveView.JS.dispatch("phx:date-picker-apply", detail: %{id: @id})}

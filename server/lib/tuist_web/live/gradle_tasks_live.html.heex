@@ -67,11 +67,6 @@
       >
         <:actions>
           <.button
-            label={dgettext("dashboard_gradle", "Cancel")}
-            variant="secondary"
-            phx-click={JS.dispatch("phx:date-picker-cancel", detail: %{id: "bottlenecks-period"})}
-          />
-          <.button
             label={dgettext("dashboard_gradle", "Apply")}
             phx-click={JS.dispatch("phx:date-picker-apply", detail: %{id: "bottlenecks-period"})}
           />

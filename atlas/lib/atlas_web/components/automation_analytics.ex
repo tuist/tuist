@@ -32,6 +32,7 @@ defmodule AtlasWeb.AutomationAnalytics do
     <div data-part="analytics-filters">
       <.date_picker
         id="automation-analytics-period"
+        typed_ranges={false}
         name="analytics-date-range"
         presets={[
           %{id: "last-7-days", label: gettext("Last %{days} days", days: 7), period: {7, :day}},
@@ -45,13 +46,6 @@ defmodule AtlasWeb.AutomationAnalytics do
         max={Date.utc_today()}
       >
         <:actions>
-          <.button
-            label={gettext("Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel", detail: %{id: "automation-analytics-period"})
-            }
-          />
           <.button
             label={gettext("Apply")}
             phx-click={

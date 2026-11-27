@@ -27,7 +27,11 @@ defmodule TuistWeb.BazelAnalyticsHelpers do
   def analytics_trend_label("last-7-days"), do: dgettext("dashboard_projects", "since last week")
   def analytics_trend_label("last-12-months"), do: dgettext("dashboard_projects", "since last year")
   def analytics_trend_label("custom"), do: dgettext("dashboard_projects", "since last period")
-  def analytics_trend_label(_), do: dgettext("dashboard_projects", "since last month")
+
+  def analytics_trend_label(preset) when preset in [nil, "last-30-days"],
+    do: dgettext("dashboard_projects", "since last month")
+
+  def analytics_trend_label(_), do: dgettext("dashboard_projects", "since last period")
 
   def date_picker_presets do
     [

@@ -12,21 +12,20 @@ msgid ""
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:132
-#: lib/tuist_web/live/sandboxes_live.ex:887
+#: lib/tuist_web/live/sandboxes_live.ex:888
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:165
-#: lib/tuist_web/live/sandboxes_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:170
 #: lib/tuist_web/live/sandbox_live.html.heex:121
-#: lib/tuist_web/live/sandboxes_live.ex:861
-#: lib/tuist_web/live/sandboxes_live.html.heex:295
+#: lib/tuist_web/live/sandboxes_live.ex:862
+#: lib/tuist_web/live/sandboxes_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Created"
 msgstr ""
@@ -42,7 +41,7 @@ msgstr ""
 msgid "Delete sandbox"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:895
+#: lib/tuist_web/live/sandboxes_live.ex:896
 #, elixir-autogen, elixir-format
 msgid "Deleting"
 msgstr ""
@@ -53,33 +52,33 @@ msgid "Deleting…"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:117
-#: lib/tuist_web/live/sandboxes_live.ex:845
+#: lib/tuist_web/live/sandboxes_live.ex:846
 #, elixir-autogen, elixir-format
 msgid "Disk"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:138
-#: lib/tuist_web/live/sandboxes_live.ex:894
+#: lib/tuist_web/live/sandboxes_live.ex:895
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:133
-#: lib/tuist_web/live/sandboxes_live.ex:889
+#: lib/tuist_web/live/sandboxes_live.ex:890
 #, elixir-autogen, elixir-format
 msgid "Idle"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:171
 #: lib/tuist_web/live/sandbox_live.html.heex:127
-#: lib/tuist_web/live/sandboxes_live.ex:850
+#: lib/tuist_web/live/sandboxes_live.ex:851
 #, elixir-autogen, elixir-format
 msgid "Last active"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:113
-#: lib/tuist_web/live/sandboxes_live.ex:171
-#: lib/tuist_web/live/sandboxes_live.ex:842
+#: lib/tuist_web/live/sandboxes_live.ex:172
+#: lib/tuist_web/live/sandboxes_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr ""
@@ -91,7 +90,7 @@ msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:136
 #: lib/tuist_web/live/sandbox_live.html.heex:133
-#: lib/tuist_web/live/sandboxes_live.ex:892
+#: lib/tuist_web/live/sandboxes_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "Paused"
 msgstr ""
@@ -107,7 +106,7 @@ msgid "Resume"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:135
-#: lib/tuist_web/live/sandboxes_live.ex:891
+#: lib/tuist_web/live/sandboxes_live.ex:892
 #, elixir-autogen, elixir-format
 msgid "Resuming"
 msgstr ""
@@ -151,13 +150,13 @@ msgid "Something went wrong. Please retry."
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:134
-#: lib/tuist_web/live/sandboxes_live.ex:890
+#: lib/tuist_web/live/sandboxes_live.ex:891
 #, elixir-autogen, elixir-format
 msgid "Starting"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:128
-#: lib/tuist_web/live/sandboxes_live.ex:832
+#: lib/tuist_web/live/sandboxes_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
@@ -199,41 +198,41 @@ msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:146
 #: lib/tuist_web/live/sandbox_live.html.heex:109
-#: lib/tuist_web/live/sandboxes_live.ex:159
-#: lib/tuist_web/live/sandboxes_live.ex:839
+#: lib/tuist_web/live/sandboxes_live.ex:160
+#: lib/tuist_web/live/sandboxes_live.ex:840
 #, elixir-autogen, elixir-format
 msgid "vCPUs"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:137
 #: lib/tuist_web/live/sandbox_live.html.heex:139
-#: lib/tuist_web/live/sandboxes_live.ex:893
+#: lib/tuist_web/live/sandboxes_live.ex:894
 #, elixir-autogen, elixir-format
 msgid "Archived"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:161
-#: lib/tuist_web/live/sandboxes_live.ex:173
+#: lib/tuist_web/live/sandboxes_live.ex:162
+#: lib/tuist_web/live/sandboxes_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "%{count} of %{limit} in use now"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:77
+#: lib/tuist_web/live/sandboxes_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Analytics"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:63
+#: lib/tuist_web/live/sandboxes_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:106
+#: lib/tuist_web/live/sandboxes_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Avg. session duration"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:306
+#: lib/tuist_web/live/sandboxes_live.html.heex:297
 #, elixir-autogen, elixir-format
 msgid "Concurrency"
 msgstr ""
@@ -243,7 +242,7 @@ msgstr ""
 msgid "Custom"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:110
+#: lib/tuist_web/live/sandboxes_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "How long a sandbox runs before it is paused, archived, deleted or fails."
 msgstr ""
@@ -268,42 +267,42 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:199
+#: lib/tuist_web/live/sandboxes_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "Limit"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:179
+#: lib/tuist_web/live/sandboxes_live.ex:180
 #, elixir-autogen, elixir-format
 msgid "Peak memory (GB)"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:167
+#: lib/tuist_web/live/sandboxes_live.ex:168
 #, elixir-autogen, elixir-format
 msgid "Peak vCPUs"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:87
+#: lib/tuist_web/live/sandboxes_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Sandboxes agents started in the selected window."
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:84
+#: lib/tuist_web/live/sandboxes_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Sandboxes created"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:105
+#: lib/tuist_web/live/sandboxes_live.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "p50 session duration"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:104
+#: lib/tuist_web/live/sandboxes_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "p90 session duration"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:103
+#: lib/tuist_web/live/sandboxes_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "p99 session duration"
 msgstr ""
@@ -314,6 +313,7 @@ msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/sandboxes_live.ex:128
+#: lib/tuist_web/live/sandboxes_live.ex:130
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
@@ -333,52 +333,52 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:203
+#: lib/tuist_web/live/sandboxes_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:161
+#: lib/tuist_web/live/sandboxes_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:156
+#: lib/tuist_web/live/sandboxes_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Avg. Setup"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:198
+#: lib/tuist_web/live/sandboxes_live.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "Avg. Time to start"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:157
+#: lib/tuist_web/live/sandboxes_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "p50 Setup"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:199
+#: lib/tuist_web/live/sandboxes_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "p50 Time to start"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:155
+#: lib/tuist_web/live/sandboxes_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "p90 Setup"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:197
+#: lib/tuist_web/live/sandboxes_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "p90 Time to start"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:154
+#: lib/tuist_web/live/sandboxes_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "p99 Setup"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:196
+#: lib/tuist_web/live/sandboxes_live.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "p99 Time to start"
 msgstr ""
@@ -398,12 +398,12 @@ msgstr ""
 msgid "Prev"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:347
+#: lib/tuist_web/live/sandboxes_live.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Recent sandboxes"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:355
+#: lib/tuist_web/live/sandboxes_live.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr ""
@@ -427,7 +427,7 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:870
+#: lib/tuist_web/live/sandboxes_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "No sandboxes found"
 msgstr ""
@@ -437,7 +437,7 @@ msgstr ""
 msgid "Sort by:"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:871
+#: lib/tuist_web/live/sandboxes_live.ex:872
 #, elixir-autogen, elixir-format
 msgid "Try a different search or filter."
 msgstr ""
@@ -468,13 +468,13 @@ msgid "Start your first sandbox from your terminal by running:"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:105
-#: lib/tuist_web/live/sandboxes_live.ex:836
+#: lib/tuist_web/live/sandboxes_live.ex:837
 #, elixir-autogen, elixir-format
 msgid "Created by"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:172
-#: lib/tuist_web/live/sandboxes_live.ex:826
+#: lib/tuist_web/live/sandboxes_live.ex:827
 #, elixir-autogen, elixir-format
 msgid "Instance"
 msgstr ""

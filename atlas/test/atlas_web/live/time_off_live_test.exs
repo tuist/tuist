@@ -239,7 +239,7 @@ defmodule AtlasWeb.TimeOffLiveTest do
 
     assert has_portal_element?(
              view,
-             "[data-part='holiday-range-picker'] > [data-part='positioner'] > [data-part='content'] > [data-part='calendar'] > [data-part='months']"
+             "[data-part='holiday-range-picker'] > [data-part='positioner'] > [data-part='content'] > [data-part='calendar'] > [data-part='month']"
            )
 
     assert has_portal_element?(view, "[data-part='holiday-range-picker'] [data-part='calendar'] > [data-part='footer']")

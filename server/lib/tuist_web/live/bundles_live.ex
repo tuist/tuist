@@ -303,7 +303,11 @@ defmodule TuistWeb.BundlesLive do
   defp bundle_size_trend_label("last-7-days"), do: dgettext("dashboard_cache", "since last week")
   defp bundle_size_trend_label("last-12-months"), do: dgettext("dashboard_cache", "since last year")
   defp bundle_size_trend_label("custom"), do: dgettext("dashboard_cache", "since last period")
-  defp bundle_size_trend_label(_), do: dgettext("dashboard_cache", "since last month")
+
+  defp bundle_size_trend_label(preset) when preset in [nil, "last-30-days"],
+    do: dgettext("dashboard_cache", "since last month")
+
+  defp bundle_size_trend_label(_), do: dgettext("dashboard_cache", "since last period")
 
   defp bundle_size_trend_value(last_bundle, previous_bundle) do
     if last_bundle && last_bundle.download_size && last_bundle.download_size > 0 &&

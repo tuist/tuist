@@ -286,7 +286,11 @@ defmodule TuistWeb.FlakyTestsLive do
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")
   defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_tests", "since last year")
   defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
-  defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
+
+  defp analytics_trend_label(preset) when preset in [nil, "last-30-days"],
+    do: dgettext("dashboard_tests", "since last month")
+
+  defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last period")
 
   defp environment_label("any"), do: dgettext("dashboard_tests", "Any")
   defp environment_label("local"), do: dgettext("dashboard_tests", "Local")

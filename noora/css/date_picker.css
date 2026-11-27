@@ -4,123 +4,39 @@
     var(--noora-purple-50),
     var(--noora-alpha-purple-24)
   );
-  --noora-datepicker-selected-background: var(--noora-purple-500);
-  --noora-datepicker-selected-text: var(--noora-neutral-light-50);
-  --noora-datepicker-range-text: light-dark(
-    var(--noora-purple-500),
-    var(--noora-purple-400)
-  );
-  --noora-datepicker-today-marker: light-dark(
-    var(--noora-purple-500),
-    var(--noora-purple-400)
-  );
-  --noora-datepicker-preset-hover-background: light-dark(
-    var(--noora-neutral-light-200),
-    var(--noora-neutral-dark-1000)
-  );
 
   display: flex;
   flex-direction: column;
   position: relative;
   font: var(--noora-font-body-small);
 
-  /* Trigger button */
-  & [data-part="trigger"] {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--noora-spacing-4);
-    cursor: pointer;
-    outline: unset;
-    box-shadow: var(--noora-button-border-secondary);
-    border: 0;
-    border-radius: var(--noora-radius-3);
-    background: var(--noora-button-background-secondary);
-    padding: var(--noora-spacing-3) var(--noora-spacing-4);
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-body-medium);
-    width: fit-content;
-
-    &:hover:not(:disabled) {
-      background: var(--noora-button-background-secondary-hover);
-      box-shadow: var(--noora-button-border-secondary);
-    }
-
-    &:disabled {
-      cursor: not-allowed;
-      color: var(--noora-surface-label-disabled);
-    }
-
-    &:focus-visible {
-      background: var(--noora-button-background-secondary-hover);
-      box-shadow: var(--noora-button-border-focus);
-    }
-
-    &[data-state="open"] {
-      box-shadow: var(--noora-button-border-focus);
-    }
-  }
-
-  html[data-theme="dark"] & [data-part="trigger"]:hover {
-    box-shadow: var(--noora-button-border-secondary-hover);
-  }
-
-  & [data-part="trigger-label"] {
-    font-weight: var(--noora-font-weight-medium);
-  }
-
-  & [data-part="trigger-icon"] {
-    display: inline-flex;
-    color: var(--noora-button-secondary-label);
-    width: var(--noora-icon-size-large);
-    height: var(--noora-icon-size-large);
-
-    & svg {
-      width: 100%;
-      height: 100%;
-    }
-  }
-
-  /* Positioner - Zag handles visibility via hidden attribute */
+  /* Opens and closes like the menu (menu.css). Zag hides the content the
+     instant the picker closes, which would cut the exit animation. The
+     positioner is the presence gate instead, keyed to the content's state,
+     and `allow-discrete` holds it until the content's transition ends. It
+     also stays hidden until the hook gives the content a state, so the panel
+     does not flash before the script loads. */
   & [data-part="positioner"] {
-    /* Zag sets inline positioning styles */
-    /* Adjust horizontal position to the left */
-    margin-left: calc(-1 * var(--noora-spacing-2));
-
-    /* Zag positions with a physical left offset, so a logical margin would have no effect when
-     * the inline-end edge is the anchored one. Nudge outward (to the right) in RTL instead. */
-    [dir="rtl"] & {
-      margin-left: var(--noora-spacing-2);
-    }
-
-    /* Prevent flashing of the component before script load */
-    &:not(:has(> [data-state])) {
-      display: none;
-    }
-
-    @media (max-width: 767px) {
-      /* Reset desktop offset and align to available space */
-      margin-left: 0;
-
-      [dir="rtl"] & {
-        margin-left: 0;
-      }
-    }
+    display: none;
+    transition: display 150ms allow-discrete;
   }
 
-  /* Ensure hidden attribute works (overrides display: flex on children) */
-  & [data-part="positioner"][hidden],
-  & [data-part="content"][hidden] {
-    display: none;
+  & [data-part="positioner"]:has(> [data-part="content"][data-state="open"]) {
+    display: block;
   }
 
   /* Content container (the dropdown panel) */
   & [data-part="content"] {
     display: flex;
     flex-direction: row;
-    background-color: var(--noora-surface-background-tertiary);
+    opacity: 0;
+    transform: translateY(-0.25rem);
+    transition:
+      opacity 150ms var(--ease-out-cubic),
+      transform 150ms var(--ease-out-cubic);
+    background-color: var(--noora-surface-background-primary);
     box-shadow: var(--noora-border-large);
-    border-radius: var(--noora-radius-6);
+    border-radius: var(--noora-radius-5);
 
     @media (max-width: 767px) {
       /* Use Zag's --available-width variable to constrain to parent bounds */
@@ -131,12 +47,72 @@
     }
   }
 
+  & [data-part="content"][data-state="open"] {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity 200ms var(--ease-out-cubic),
+      transform 200ms var(--ease-out-cubic);
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(-0.25rem);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    & [data-part="positioner"],
+    & [data-part="content"] {
+      transition: none !important;
+    }
+  }
+
   /* Desktop preset sidebar */
   & [data-part="presets"][data-device="desktop"] {
     flex-direction: column;
-    gap: var(--noora-spacing-5);
-    padding: var(--noora-spacing-6) var(--noora-spacing-2);
-    width: 140px;
+    gap: var(--noora-spacing-2);
+    box-sizing: border-box;
+    padding: var(--noora-spacing-5);
+    width: 200px;
+
+    /* The typed-range field: a Text input at the picker's 12px, 8px above
+       the presets, which sit 4px apart. */
+    & > .noora-text-input {
+      margin-block-end: var(--noora-spacing-2);
+    }
+
+    & .noora-text-input [data-part="wrapper"] input {
+      font: var(--noora-font-body-small);
+    }
+
+    /* While the field has text, its suggestions take the presets' place. */
+    & > [data-part="suggestions"] {
+      display: none;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+    }
+
+    &:has([data-part="range-input"]:not(:placeholder-shown)) {
+      & > [data-part="preset-item"] {
+        display: none;
+      }
+
+      & > [data-part="suggestions"] {
+        display: flex;
+      }
+    }
+
+    & [data-part="suggestion"] {
+      text-align: start;
+      white-space: normal;
+    }
+
+    & [data-part="suggestions-empty"] {
+      margin: 0;
+      padding: var(--noora-spacing-4);
+      color: var(--noora-surface-label-tertiary);
+      font: var(--noora-font-body-small);
+    }
 
     @media (min-width: 768px) {
       display: flex;
@@ -151,7 +127,7 @@
   & [data-part="presets"][data-device="mobile"] {
     flex-direction: row;
     gap: var(--noora-spacing-2);
-    padding: var(--noora-spacing-4);
+    padding: var(--noora-spacing-5) var(--noora-spacing-4);
     overflow-x: auto;
 
     /* Hide scrollbar */
@@ -160,6 +136,36 @@
 
     &::-webkit-scrollbar {
       display: none;
+    }
+
+    /* Each edge with tabs scrolled past it fades out (the hook sets the
+       attributes as the row scrolls). */
+    --noora-datepicker-fade-start: 0px;
+    --noora-datepicker-fade-end: 0px;
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 var(--noora-datepicker-fade-start),
+      #000 calc(100% - var(--noora-datepicker-fade-end)),
+      transparent
+    );
+
+    [dir="rtl"] & {
+      mask-image: linear-gradient(
+        to left,
+        transparent,
+        #000 var(--noora-datepicker-fade-start),
+        #000 calc(100% - var(--noora-datepicker-fade-end)),
+        transparent
+      );
+    }
+
+    &[data-overflow-start] {
+      --noora-datepicker-fade-start: var(--noora-spacing-9);
+    }
+
+    &[data-overflow-end] {
+      --noora-datepicker-fade-end: var(--noora-spacing-9);
     }
 
     @media (min-width: 768px) {
@@ -175,30 +181,47 @@
       @media (max-width: 767px) {
         flex-shrink: 0;
       }
+
+      /* The tabs sit side by side, so the hit area reaches into the gaps on either side. */
+      &::before {
+        inset: 0 calc(var(--noora-spacing-2) / -2);
+      }
     }
   }
 
-  /* Preset items */
-  & [data-part="preset-item"] {
+  /* Preset items, and the suggestions that replace them while typing */
+  & [data-part="preset-item"],
+  & [data-part="suggestion"] {
     display: flex;
+    position: relative;
     align-items: center;
     cursor: pointer;
     border: 0;
     border-radius: var(--noora-radius-3);
     background: transparent;
-    padding: var(--noora-spacing-2) var(--noora-spacing-4);
+    padding: var(--noora-spacing-4);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-small);
     white-space: nowrap;
-    transition: background-color 0.15s ease;
 
-    &:hover {
-      background: var(--noora-datepicker-preset-hover-background);
+    /* Each item's hit area reaches half the 4px gap above and below it, so
+       neighbors cover the gap between them: no dead zone where the hover
+       and the cursor flicker. */
+    &::before {
+      position: absolute;
+      inset: calc(var(--noora-spacing-2) / -2) 0;
+      content: "";
     }
 
-    &[data-selected="true"] {
-      background: var(--noora-datepicker-range-background);
-      color: var(--noora-datepicker-range-text);
+    &:hover {
+      background: var(--noora-surface-background-tertiary);
+      color: var(--noora-surface-label-primary);
+    }
+
+    &[data-selected="true"],
+    &[data-highlighted] {
+      background: var(--noora-surface-background-secondary);
+      color: var(--noora-surface-label-primary);
     }
   }
 
@@ -209,10 +232,26 @@
     gap: var(--noora-spacing-3);
     overflow: hidden;
     background-color: var(--noora-surface-background-primary);
-    border-radius: var(--noora-radius-6);
+    border-radius: var(--noora-radius-5);
 
+    /* The calendar's border would stack on the panel's own along the top,
+       end, and bottom edges, where the two meet. It uses the panel's border,
+       clipped to its 1px line on the side facing the presets, so the rounded
+       inner edge continues the panel's outline. */
     @media (min-width: 768px) {
-      box-shadow: var(--noora-border-small-default);
+      box-shadow: var(--noora-border-large);
+      /* The clip's end corners are rounded like the calendar's: at a
+         rounded corner the border curves inside a square clip and would
+         double the panel's. */
+      clip-path: inset(
+        0 0 0 -1px round 0 var(--noora-radius-5) var(--noora-radius-5) 0
+      );
+
+      [dir="rtl"] & {
+        clip-path: inset(
+          0 -1px 0 0 round var(--noora-radius-5) 0 0 var(--noora-radius-5)
+        );
+      }
     }
 
     @media (max-width: 767px) {
@@ -224,28 +263,12 @@
     }
   }
 
-  /* Months container */
-  & [data-part="months"] {
-    display: flex;
-    gap: var(--noora-spacing-4);
-  }
-
-  /* Individual month */
+  /* The month */
   & [data-part="month"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);
     padding: var(--noora-spacing-6);
-
-    &[data-desktop-only] {
-      @media (min-width: 768px) {
-        display: flex;
-      }
-
-      @media (max-width: 767px) {
-        display: none;
-      }
-    }
 
     @media (max-width: 767px) {
       padding: var(--noora-spacing-4);
@@ -259,32 +282,12 @@
     justify-content: space-between;
   }
 
+  /* Small ghost buttons; past min or max they hide but keep their place. */
   & [data-part="prev-trigger"],
   & [data-part="next-trigger"] {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    border: 0;
-    border-radius: var(--noora-radius-3);
-    background: transparent;
-    padding: var(--noora-spacing-1);
-    width: var(--noora-icon-size-large);
-    height: var(--noora-icon-size-large);
-    color: var(--noora-surface-label-primary);
-
-    &:hover {
-      background: var(--noora-datepicker-preset-hover-background);
-    }
-
     &:disabled,
     &[data-disabled] {
       visibility: hidden;
-    }
-
-    & svg {
-      width: 100%;
-      height: 100%;
     }
   }
 
@@ -307,12 +310,12 @@
 
   & [data-part="table-head"] {
     & th {
-      font: var(--noora-font-body-small);
+      font: var(--noora-font-body-medium);
       font-weight: var(--noora-font-weight-medium);
       color: var(--noora-surface-label-secondary);
       padding: var(--noora-spacing-2);
-      width: 30px;
-      height: 30px;
+      width: 32px;
+      height: 32px;
       text-align: center;
 
       @media (max-width: 767px) {
@@ -341,28 +344,19 @@
   /* Range/hover-range background - shown behind cells in range or during hover preview */
   /* Uses :has() to target td when its child button has data-in-range or data-in-hover-range */
   /* Excludes cells with hidden/outside-range/disabled children */
-  &
-    [data-part="table-cell"]:has([data-in-range]):not(
-      :has([data-outside-range])
-    ):not([data-hidden])::before,
+  & [data-part="table-cell"]:has([data-in-range])::before,
   &
     [data-part="table-cell"]:has([data-in-hover-range]):not(
-      :has([data-outside-range])
-    ):not(:has([data-disabled])):not(:has([data-selected]))::before {
+      :has([data-disabled])
+    ):not(:has([data-selected]))::before {
     content: "";
     position: absolute;
-    height: 30px;
+    height: 32px;
     top: 50%;
     transform: translateY(-50%);
     inset-inline-start: 0;
     inset-inline-end: 0;
     background: var(--noora-datepicker-range-background);
-
-    @media (max-width: 767px) {
-      /* Extend slightly to prevent subpixel gaps between cells */
-      inset-inline-start: -1px;
-      inset-inline-end: -1px;
-    }
   }
 
   /* Range start (non-selected) - add rounded left corners and left padding */
@@ -386,10 +380,7 @@
   }
 
   /* Selected cells - collapse ::before to zero width by default, no radius */
-  &
-    [data-part="table-cell"]:has([data-in-range]):has([data-selected]):not(
-      :has([data-outside-range])
-    ):not([data-hidden])::before {
+  & [data-part="table-cell"]:has([data-in-range]):has([data-selected])::before {
     inset-inline-start: 50%;
     inset-inline-end: 50%;
     border-radius: 0;
@@ -399,7 +390,7 @@
   &
     [data-part="table-cell"]:has(
       [data-selected][data-hover-range-start]:not([data-hover-range-end])
-    ):not(:has([data-outside-range])):not([data-hidden])::before {
+    )::before {
     inset-inline-end: 0;
   }
 
@@ -407,7 +398,7 @@
   &
     [data-part="table-cell"]:has(
       [data-selected][data-hover-range-end]:not([data-hover-range-start])
-    ):not(:has([data-outside-range])):not([data-hidden])::before {
+    )::before {
     inset-inline-start: 0;
   }
 
@@ -417,7 +408,7 @@
       [data-selected][data-range-start]:not([data-range-end]):not(
           [data-hover-range-start]
         ):not([data-hover-range-end])
-    ):not(:has([data-outside-range])):not([data-hidden])::before {
+    )::before {
     inset-inline-end: 0;
   }
 
@@ -427,52 +418,27 @@
       [data-selected][data-range-end]:not([data-range-start]):not(
           [data-hover-range-start]
         ):not([data-hover-range-end])
-    ):not(:has([data-outside-range])):not([data-hidden])::before {
+    )::before {
     inset-inline-start: 0;
   }
 
   /* First cell in row that's in range/hover-range - add rounded left corners and left padding */
-  &
-    [data-part="table-cell"]:first-child:has([data-in-range]):not(
-      :has([data-outside-range])
-    ):not([data-hidden])::before,
+  & [data-part="table-cell"]:first-child:has([data-in-range])::before,
   &
     [data-part="table-cell"]:first-child:has([data-in-hover-range]):not(
-      :has([data-outside-range])
-    ):not(:has([data-disabled])):not(:has([data-selected]))::before {
-    inset-inline-start: var(--noora-spacing-2);
-    border-start-start-radius: var(--noora-radius-3);
-    border-end-start-radius: var(--noora-radius-3);
-  }
-
-  /* Cell preceded by hidden cell - treat as first visible, add rounded left corners and left padding */
-  &
-    [data-part="day-table-cell"][data-hidden]
-    + [data-part="table-cell"]:has([data-in-range]):not([data-hidden])::before {
+      :has([data-disabled])
+    ):not(:has([data-selected]))::before {
     inset-inline-start: var(--noora-spacing-2);
     border-start-start-radius: var(--noora-radius-3);
     border-end-start-radius: var(--noora-radius-3);
   }
 
   /* Last cell in row that's in range/hover-range - add rounded right corners and right padding */
-  &
-    [data-part="table-cell"]:last-child:has([data-in-range]):not(
-      :has([data-outside-range])
-    ):not([data-hidden])::before,
+  & [data-part="table-cell"]:last-child:has([data-in-range])::before,
   &
     [data-part="table-cell"]:last-child:has([data-in-hover-range]):not(
-      :has([data-outside-range])
-    ):not(:has([data-disabled])):not(:has([data-selected]))::before {
-    inset-inline-end: var(--noora-spacing-2);
-    border-start-end-radius: var(--noora-radius-3);
-    border-end-end-radius: var(--noora-radius-3);
-  }
-
-  /* Cell followed by hidden cell - treat as last visible, add rounded right corners and right padding */
-  &
-    [data-part="table-cell"]:has([data-in-range]):not([data-hidden]):has(
-      + [data-part="day-table-cell"][data-hidden]
-    )::before {
+      :has([data-disabled])
+    ):not(:has([data-selected]))::before {
     inset-inline-end: var(--noora-spacing-2);
     border-start-end-radius: var(--noora-radius-3);
     border-end-end-radius: var(--noora-radius-3);
@@ -481,9 +447,7 @@
   /* First hover-range cell in row - add rounded left corners and left padding */
   &
     [data-part="table-cell"]:has(
-      [data-in-hover-range]:not([data-outside-range]):not([data-disabled]):not(
-          [data-selected]
-        )
+      [data-in-hover-range]:not([data-disabled]):not([data-selected])
     )::before {
     inset-inline-start: var(--noora-spacing-2);
     border-start-start-radius: var(--noora-radius-3);
@@ -494,9 +458,7 @@
   &
     [data-part="table-cell"]:has([data-in-hover-range])
     + [data-part="table-cell"]:has(
-      [data-in-hover-range]:not([data-outside-range]):not([data-disabled]):not(
-          [data-selected]
-        )
+      [data-in-hover-range]:not([data-disabled]):not([data-selected])
     )::before {
     inset-inline-start: 0;
     border-start-start-radius: 0;
@@ -504,10 +466,7 @@
   }
 
   /* Hover range end - add rounded right corners and right padding */
-  &
-    [data-part="table-cell"]:has([data-hover-range-end]):not(
-      :has([data-outside-range])
-    )::before {
+  & [data-part="table-cell"]:has([data-hover-range-end])::before {
     inset-inline-end: var(--noora-spacing-2);
     border-start-end-radius: var(--noora-radius-3);
     border-end-end-radius: var(--noora-radius-3);
@@ -523,39 +482,35 @@
     border: 0;
     border-radius: var(--noora-radius-3);
     background: transparent;
-    width: 30px;
-    height: 30px;
-    font: var(--noora-font-body-small);
+    width: 32px;
+    height: 32px;
+    font: var(--noora-font-body-medium);
     color: var(--noora-surface-label-secondary);
-    transition:
-      background-color 0.15s ease,
-      color 0.15s ease;
 
-    &:hover:not([data-disabled]):not([data-unavailable]):not(
-        [data-selected]
-      ):not([data-hidden]) {
-      background: var(--noora-datepicker-preset-hover-background);
+    &:hover:not([data-disabled]):not([data-unavailable]):not([data-selected]) {
+      background: var(--noora-surface-background-secondary);
     }
 
-    /* Hidden cells */
-    &[data-hidden] {
-      cursor: default;
+    /* The shared focus ring, for keyboard focus moved with the arrow keys */
+    &:focus-visible {
+      outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+      outline-offset: var(--noora-focus-ring-offset);
     }
 
     /* In range state (confirmed selection) */
     &[data-in-range]:not([data-selected]) {
-      color: var(--noora-datepicker-range-text);
+      color: var(--noora-surface-label-brand);
     }
 
     /* Hover range state (hover preview during range selection) */
     &[data-in-hover-range]:not([data-selected]):not([data-disabled]) {
-      color: var(--noora-datepicker-range-text);
+      color: var(--noora-surface-label-brand);
     }
 
     /* Selected state (start/end of range) */
     &[data-selected] {
-      background: var(--noora-datepicker-selected-background);
-      color: var(--noora-datepicker-selected-text);
+      background: var(--noora-button-background-primary);
+      color: var(--noora-button-primary-label);
       box-shadow: var(--noora-button-border-primary);
     }
 
@@ -568,12 +523,12 @@
       transform: translateX(-50%);
       width: 8px;
       height: 2px;
-      background: var(--noora-datepicker-today-marker);
+      background: var(--noora-surface-label-brand);
       border-radius: var(--noora-radius-99);
     }
 
     &[data-today][data-selected]::after {
-      background: var(--noora-datepicker-selected-text);
+      background: var(--noora-button-primary-label);
     }
 
     /* Disabled state */
@@ -583,9 +538,14 @@
       cursor: not-allowed;
     }
 
-    /* Outside current month - hide completely */
-    &[data-outside-range] {
-      visibility: hidden;
+    /* Days of the previous and next month: dimmed, but hover and selection
+       work as on the month's own days. Last, so they stay dimmed in a range. */
+    &[data-outside-range]:not([data-selected]) {
+      color: var(--noora-surface-label-disabled);
+
+      &:hover {
+        color: var(--noora-surface-label-primary);
+      }
     }
   }
 
@@ -605,71 +565,65 @@
     background-color: transparent;
   }
 
-  /* Footer section */
-  & [data-part="footer"] {
+  /* Footer: the date inputs, with the Apply button at full width below.
+     Selected through the calendar and with its alignment spelled out, so a
+     modal's own footer rule does not reach a picker inside it. */
+  & [data-part="calendar"] > [data-part="footer"] {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: var(--noora-spacing-7);
     padding: var(--noora-spacing-6);
-
-    @media (max-width: 767px) {
-      flex-direction: column;
-      gap: var(--noora-spacing-7);
-      padding: var(--noora-spacing-4);
-    }
-
-    & [data-part="actions"] {
-      @media (max-width: 767px) {
-        display: flex;
-        flex-direction: row;
-        width: 100%;
-        justify-content: flex-end;
-        gap: var(--noora-spacing-3);
-      }
-    }
   }
 
   /* Range display */
   & [data-part="range-display"] {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--noora-spacing-4);
-
-    @media (max-width: 767px) {
-      width: 100%;
-      justify-content: center;
-    }
   }
 
   & [data-part="date-display"] {
     display: flex;
     align-items: center;
-    gap: var(--noora-spacing-1);
+
+    /* The two boxes share the row, digits centered in each. */
+    flex: 1;
+    justify-content: center;
+    gap: var(--noora-spacing-2);
     box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
-    padding: var(--noora-spacing-1);
+    padding: var(--noora-spacing-3);
 
     &:has(:focus-visible) {
       box-shadow: var(--noora-border-small-focus);
     }
   }
 
+  /* No padding: the box's 6px all around keeps it 32px tall. */
   & [data-part="date-input"] {
     border: 0;
     background: transparent;
-    padding: var(--noora-spacing-1);
-    font: var(--noora-font-body-small);
+    padding: 0;
+    font: var(--noora-font-body-medium);
     color: var(--noora-surface-label-primary);
     text-align: center;
 
+    /* Tabular digits, so typing never shifts the fields. Each field is as
+       wide as its digits: Inter's tabular figures are 0.65em wide, a little
+       more than the `ch` unit, which measures the proportional zero. */
+    font-variant-numeric: tabular-nums;
+
     &[data-field="day"],
     &[data-field="month"] {
-      width: 24px;
+      width: 1.3em;
     }
 
     &[data-field="year"] {
-      width: 40px;
+      width: 2.6em;
     }
 
     &::placeholder {
@@ -687,11 +641,13 @@
   }
 
   & [data-part="date-separator"] {
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    color: var(--noora-surface-label-tertiary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
   }
 
-  & [data-part="arrow"] {
+  /* Not "arrow": Zag reads a [data-part="arrow"] inside the content as the
+     popover arrow and adds half its height to the offset. */
+  & [data-part="range-arrow"] {
     color: var(--noora-surface-label-secondary);
     width: var(--noora-icon-size-medium);
     height: var(--noora-icon-size-medium);
@@ -705,43 +661,18 @@
   /* Actions */
   & [data-part="actions"] {
     display: flex;
-    align-items: center;
     gap: var(--noora-spacing-4);
-  }
 
-  & [data-part="cancel"],
-  & [data-part="apply"] {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--noora-spacing-1);
-    cursor: pointer;
-    border: 0;
-    border-radius: var(--noora-radius-3);
-    padding: var(--noora-spacing-3) var(--noora-spacing-4);
-    font: var(--noora-font-body-small);
-    font-weight: var(--noora-font-weight-medium);
-    transition: background-color 0.15s ease;
-  }
-
-  & [data-part="cancel"] {
-    background: var(--noora-button-background-secondary);
-    box-shadow: var(--noora-button-border-secondary);
-    color: var(--noora-button-secondary-label);
-
-    &:hover {
-      background: var(--noora-button-background-secondary-hover);
+    & > * {
+      flex: 1;
     }
-  }
 
-  & [data-part="apply"] {
-    background: var(--noora-button-background-primary);
-    box-shadow: var(--noora-button-border-primary);
-    color: var(--noora-button-primary-label);
-
-    &:hover {
-      background: var(--noora-button-background-primary-hover);
-      box-shadow: var(--noora-button-border-primary-hover);
+    /* On mobile the page's Apply button takes the medium size: the same
+       14px label, 4px padding, 28px tall. */
+    @media (max-width: 767px) {
+      & > .noora-button {
+        padding: var(--noora-spacing-2);
+      }
     }
   }
 }

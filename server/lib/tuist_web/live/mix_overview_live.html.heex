@@ -68,13 +68,6 @@
       >
         <:actions>
           <.button
-            label={dgettext("dashboard_gradle", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel", detail: %{id: "analytics-date-range-picker"})
-            }
-          />
-          <.button
             label={dgettext("dashboard_gradle", "Apply")}
             phx-click={
               JS.dispatch("phx:date-picker-apply", detail: %{id: "analytics-date-range-picker"})
@@ -430,13 +423,6 @@
         max={Date.utc_today()}
       >
         <:actions>
-          <.button
-            label={dgettext("dashboard_gradle", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel", detail: %{id: "builds-date-range-picker"})
-            }
-          />
           <.button
             label={dgettext("dashboard_gradle", "Apply")}
             phx-click={

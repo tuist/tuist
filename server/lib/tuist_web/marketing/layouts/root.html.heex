@@ -87,6 +87,12 @@
 
         systemDark.addEventListener("change", reapplyTheme);
 
+        // Another tab, or the page framing this one (the Noora docs' device
+        // examples), changed the preference.
+        window.addEventListener("storage", function(event) {
+          if (event.key === "preferred-theme") reapplyTheme();
+        });
+
         // A back/forward navigation can restore this document from the
         // browser's page cache with its DOM frozen as it was left, so a
         // preference changed on another page would otherwise show the old

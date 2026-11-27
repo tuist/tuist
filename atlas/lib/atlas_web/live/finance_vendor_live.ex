@@ -117,6 +117,7 @@ defmodule AtlasWeb.FinanceVendorLive do
           <div data-part="overview-actions">
             <.date_picker
               id="finance-vendors-date-range-picker"
+              typed_ranges={false}
               label={gettext("Date range")}
               name="vendors-date-range"
               presets={date_range_presets()}
@@ -126,15 +127,6 @@ defmodule AtlasWeb.FinanceVendorLive do
               max={Date.utc_today()}
             >
               <:actions>
-                <.button
-                  label={gettext("Cancel")}
-                  variant="secondary"
-                  phx-click={
-                    JS.dispatch("phx:date-picker-cancel",
-                      detail: %{id: "finance-vendors-date-range-picker"}
-                    )
-                  }
-                />
                 <.button
                   label={gettext("Apply")}
                   phx-click={

@@ -81,7 +81,8 @@ defmodule TuistWeb.Noora.Pages do
     Pages.Spinner,
     Pages.Toggle,
     # Line divider and text divider merged into one component
-    Pages.ContentDivider
+    Pages.ContentDivider,
+    Pages.DatePicker
   ]
 
   @doc """

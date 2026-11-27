@@ -151,43 +151,16 @@ export function parseISODate(str) {
 }
 
 /**
- * Initialize calendar months from a date range, ensuring they show different months.
- * @param {{year: number, month: number, day: number}|null} startDate
- * @param {{year: number, month: number, day: number}|null} endDate
- * @returns {{startCalendarMonth: {year: number, month: number}, endCalendarMonth: {year: number, month: number}}}
+ * The month the calendar first shows: the selected range's start month, or
+ * the current month when nothing is selected.
+ * @param {{year: number, month: number}|null} startDate
+ * @returns {{year: number, month: number}}
  */
-export function initCalendarMonthsFromRange(startDate, endDate) {
+export function initCalendarMonth(startDate) {
+  if (startDate) return { year: startDate.year, month: startDate.month };
+
   const now = new Date();
-
-  if (startDate && endDate) {
-    // Check if start and end are in the same month
-    const sameMonth =
-      startDate.year === endDate.year && startDate.month === endDate.month;
-
-    if (sameMonth) {
-      // Show previous month in left calendar so we have two different months
-      const prev = adjustMonth(endDate.year, endDate.month, -1);
-      return {
-        startCalendarMonth: prev,
-        endCalendarMonth: { year: endDate.year, month: endDate.month },
-      };
-    } else {
-      return {
-        startCalendarMonth: { year: startDate.year, month: startDate.month },
-        endCalendarMonth: { year: endDate.year, month: endDate.month },
-      };
-    }
-  }
-
-  // Default to previous month and current month
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
-  const prev = adjustMonth(currentYear, currentMonth, -1);
-
-  return {
-    startCalendarMonth: prev,
-    endCalendarMonth: { year: currentYear, month: currentMonth },
-  };
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
 
 /**
@@ -237,21 +210,4 @@ export function calculateWeeksForMonth(
   }
 
   return weeks;
-}
-
-/**
- * Get visible range for a given month (for Zag API compatibility).
- * Returns proper DateValue objects.
- * @param {number} year
- * @param {number} month
- * @returns {{start: object, end: object}}
- */
-export function getVisibleRangeForMonth(year, month) {
-  const lastDay = new Date(year, month, 0).getDate();
-  const startStr = `${year}-${String(month).padStart(2, "0")}-01`;
-  const endStr = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  return {
-    start: datePicker.parse(startStr),
-    end: datePicker.parse(endStr),
-  };
 }

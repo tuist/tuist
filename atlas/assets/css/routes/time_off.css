@@ -198,20 +198,8 @@
       transform: none !important;
       min-width: 0 !important;
       margin: 0;
-
-      & > [data-part="content"] {
-        width: 100%;
-        max-width: none;
-      }
-    }
-
-    & [data-part="calendar"] {
-      flex: 1;
-      min-width: 0;
-    }
-
-    & [data-part="months"] {
-      justify-content: space-between;
+      /* In flow the panel would fill the dialog; keep the calendar's own width. */
+      width: fit-content;
     }
 
     & [data-part="presets"] {

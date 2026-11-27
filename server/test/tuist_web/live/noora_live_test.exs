@@ -77,6 +77,20 @@ defmodule TuistWeb.Noora.NooraLiveTest do
              ~s(&lt;.button label=&quot;Primary&quot; variant=&quot;primary&quot; /&gt;)
   end
 
+  test "shows a mobile example in a frame that renders the example alone", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/noora/date-picker")
+
+    assert has_element?(view, ~s(#mobile iframe[data-part=device-frame][src="/noora/date-picker?example=mobile"]))
+    refute has_element?(view, "#date-picker-mobile")
+
+    {:ok, frame, _html} = live(conn, ~p"/noora/date-picker?example=mobile")
+
+    assert has_element?(frame, ".noora-docs-device-preview #date-picker-mobile")
+    refute has_element?(frame, "#noora-docs-nav")
+    refute has_element?(frame, "#date-picker-desktop")
+    assert_raise NotFoundError, fn -> live(conn, ~p"/noora/date-picker?example=unknown") end
+  end
+
   test "documents the attributes and slots declared by the component", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/noora/button")
 

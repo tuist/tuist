@@ -461,6 +461,17 @@
     }
   }
 
+  /* A device example's frame: a phone's width, tall enough for menus
+     opened at the top of its page. */
+  & .noora-docs-example [data-part="device-frame"] {
+    box-shadow: var(--noora-border-small-default);
+    border: 0;
+    border-radius: var(--noora-radius-4);
+    width: 375px;
+    max-width: 100%;
+    height: 540px;
+  }
+
   /* The example's source: a code window card inset in the frame under the
      preview. Collapsed, only its bar shows, holding the disclosure toggle
      and the copy button; expanding reveals the code box inside the card. */
@@ -1391,4 +1402,14 @@
   overflow: hidden;
   resize: horizontal;
   font: var(--noora-font-code-medium);
+}
+
+/* A device example's own page, loaded in its docs frame. */
+.noora-docs-device-preview {
+  box-sizing: border-box;
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-6);
+  min-height: 100dvh;
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-body-medium);
 }
