@@ -99,7 +99,10 @@ defmodule TuistWeb.Plugs.AttributionPlugTest do
     defp from_address(address), do: %{build_conn() | remote_ip: address}
 
     defp held_oauth_states(cache) do
-      cache |> Cachex.keys() |> Enum.count(&String.starts_with?(&1, "signup_attribution-oauth_state-"))
+      # The cache is shared with other modules, whose keys need not be strings.
+      cache
+      |> Cachex.keys()
+      |> Enum.count(&(is_binary(&1) and String.starts_with?(&1, "signup_attribution-oauth_state-")))
     end
 
     test "holds a bounded number of OAuth sign-up campaigns on the server" do
