@@ -35,7 +35,7 @@ struct ReplyComposer: View {
 
     private var recording: Bool { voice.phase != .idle }
     private var canSend: Bool {
-        !disabled && !sending && !importing
+        !disabled && !sending && !importing && !recording
             && (!reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachments?.wrappedValue.isEmpty == false)
     }
 
@@ -164,7 +164,7 @@ struct ReplyComposer: View {
                             .onSubmit { if canSend { send() } }
                     }
                 }
-                // Leaves room for the overlaid microphone or send button.
+                // Leaves room for the overlaid microphone.
                 .padding(.leading, recording ? Self.field : 14).padding(.trailing, recording ? 0 : Self.field)
                 if recording {
                     Button { voice.cancel() } label: {
@@ -182,37 +182,29 @@ struct ReplyComposer: View {
             }
             .frame(minHeight: Self.field)
             .overlay(alignment: recording ? .bottomLeading : .bottomTrailing) {
-                // Like iMessage, one button: the microphone while there is nothing to send, then Send.
-                Group {
-                    if showsSend {
-                        sendButton
-                    } else {
-                        // Keep the native touch target alive while a held microphone moves.
-                        MicrophoneButton(
-                            active: recording,
-                            start: { voice.begin() },
-                            stop: { voice.finish { reply = VoiceInput.appending($0, to: reply) } },
-                            cancel: { voice.cancel() }
-                        )
-                        .disabled(sending && !voice.busy)
-                    }
-                }
+                // Like Amp's, the microphone lives in the field and Send sits beside it.
+                // Keep the native touch target alive while a held microphone moves.
+                MicrophoneButton(
+                    active: recording,
+                    start: { voice.begin() },
+                    stop: { voice.finish { reply = VoiceInput.appending($0, to: reply) } },
+                    cancel: { voice.cancel() }
+                )
+                .disabled(sending && !voice.busy)
                 // The 44-point target overhangs the 40-point field so the visible circle sits 4 points in.
                 .padding(-2)
             }
             .foregroundStyle(Noora.labelPrimary)
             .interactiveGlass(in: RoundedRectangle(cornerRadius: Self.field / 2))
+            sendButton.padding(-2)
         }
-    }
-
-    private var showsSend: Bool {
-        !recording && (sending || !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachments?.wrappedValue.isEmpty == false)
     }
 
     private var sendButton: some View {
         Button(action: send) {
             ZStack {
-                Circle().fill(Noora.primary).padding(Self.inset)
+                // As big as the field, like Amp's send button.
+                Circle().fill(Noora.primary).padding((Self.target - Self.field) / 2)
                 if sending {
                     ProgressView().controlSize(.small).tint(Noora.primaryLabel)
                 } else {
@@ -225,7 +217,7 @@ struct ReplyComposer: View {
         }
         .buttonStyle(.plain)
         .disabled(!canSend)
-        .opacity(canSend || sending ? 1 : 0.4)
+        .opacity(canSend || sending ? 1 : 0.35)
         .keyboardShortcut(.return, modifiers: .command)
         .accessibilityLabel("Send")
     }
@@ -271,11 +263,9 @@ private struct MicrophoneButton: View {
         ZStack {
             if active {
                 Circle().fill(Color.red.opacity(0.12)).padding(ReplyComposer.inset)
-            } else {
-                Circle().fill(.quaternary).padding(ReplyComposer.inset)
             }
-            Image(systemName: active ? "stop.fill" : "mic.fill")
-                .font(.system(size: 15, weight: .medium))
+            Image(systemName: active ? "stop.fill" : "mic")
+                .font(.system(size: active ? 15 : 18, weight: .regular))
                 .foregroundStyle(active ? Color.red : Noora.labelSecondary)
                 .accessibilityHidden(true)
             MicrophoneTouchTarget(active: active, enabled: enabled, start: start, stop: stop, cancel: cancel)

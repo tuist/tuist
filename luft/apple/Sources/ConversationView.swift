@@ -387,6 +387,20 @@ struct ConversationView: View {
         return older.filter { !ids.contains($0.id) } + latest
     }
 
+    /// The title pill's second line: the repository and the run's state, like Amp's folder and model.
+    private func titleDetail(_ thread: AppConversation) -> String? {
+        let state: String? = switch thread.state {
+        case "queued": String(localized: "Queued")
+        case "running": String(localized: "Running")
+        case "completed": String(localized: "Ready to review")
+        case "failed": String(localized: "Needs attention")
+        case "outcome_unknown": String(localized: "Outcome unknown")
+        default: nil
+        }
+        let parts = [thread.repository, thread.model, state].compactMap { $0?.isEmpty == false ? $0 : nil }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     private var hasOlder: Bool {
         olderBefore != nil || (older.isEmpty && thread?.has_more == true && thread?.next_before != nil)
     }
@@ -456,10 +470,13 @@ struct ConversationView: View {
                 .padding()
             }
             .scrollDismissesKeyboard(.interactively)
+            .openingAtLatest()
             .onChange(of: thread?.messages.last?.id) { previous, _ in
+                // The first messages open at the end through the scroll view's initial offset:
+                // scrolling the lazy stack before it has measured its rows left it at a stale offset.
+                if previous == nil, #available(iOS 18, macOS 15, *) { return }
                 // Someone reading earlier history, or who jumped to a prompt, stays where they are.
                 guard atLatest else { return }
-                // The first messages open at the end; only later ones animate in.
                 withAnimation(previous == nil || reduceMotion ? nil : .default) { proxy.scrollTo("latest", anchor: .bottom) }
             }
             .onChange(of: pendingJump) { _, target in
@@ -614,16 +631,30 @@ struct ConversationView: View {
             .task(id: id) { await follow() }
             .task { await mentions.load(client) }
             .toolbar {
-                // Shared threads list who is in them under the title, like a group chat.
-                if shared, let thread {
+                if let thread {
                     ToolbarItem(placement: .principal) {
                         VStack(spacing: 1) {
                             Text(verbatim: thread.title ?? thread.goal ?? "")
                                 .font(.headline).lineLimit(1)
-                            ParticipantsLabel(owner: thread.owner, participants: thread.participants ?? [])
+                            // Shared threads list who is in them under the title, like a group chat;
+                            // others say where and how the thread runs, like Amp's.
+                            if shared {
+                                ParticipantsLabel(owner: thread.owner, participants: thread.participants ?? [])
+                            } else if let detail = titleDetail(thread) {
+                                Text(verbatim: detail).font(.caption).foregroundStyle(Noora.labelSecondary).lineLimit(1)
+                            }
                         }
+                        #if os(iOS)
+                        // A glass pill between the round buttons, as in Amp.
+                        .padding(.horizontal, 20).padding(.vertical, 6)
+                        .frame(minHeight: 44)
+                        .titlePill()
+                        #endif
                         .accessibilityElement(children: .combine)
                     }
+                    #if os(iOS)
+                    .sharedBackgroundHidden()
+                    #endif
                 }
             }
             .task { await snoozeChoices.follow(client) }

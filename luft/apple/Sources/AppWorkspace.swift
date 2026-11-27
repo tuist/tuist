@@ -124,7 +124,11 @@ struct AppWorkspace: View {
                         .ignoresSafeArea()
                         .onTapGesture { showingPalette = false }
                         .accessibilityHidden(true)
-                    CommandPalette(client: client) { showingPalette = false }
+                    CommandPalette(client: client, close: { showingPalette = false }, picked: {
+                        #if os(iOS)
+                            setSidebar(open: false)
+                        #endif
+                    })
                         .padding(.top, 72)
                         .padding(.horizontal, 16)
                 }
@@ -248,7 +252,7 @@ struct AppWorkspace: View {
                 Label("Threads", systemImage: "bubble.left.and.bubble.right").tag(AppNavigation.Tab.threads)
                 Label("Lounges", systemImage: "number").tag(AppNavigation.Tab.lounges)
                 Label("DMs", systemImage: "bubble.left.and.text.bubble.right").tag(AppNavigation.Tab.dms)
-                Label("Ops", systemImage: "wrench.and.screwdriver").tag(AppNavigation.Tab.ops)
+                Label("Ops", systemImage: "square.stack.3d.up").tag(AppNavigation.Tab.ops)
                 Label("Profile", systemImage: "person.crop.circle").tag(AppNavigation.Tab.profile)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 280)
@@ -341,10 +345,8 @@ struct AppWorkspace: View {
                         ThreadsView(
                             client: client, starting: .constant(false), inbox: inboxes.threads(client.view.generation),
                             open: { open($0) },
-                            search: {
-                                setSidebar(open: false)
-                                showingPalette = true
-                            }
+                            // The palette opens over the sidebar; dismissing it returns to the sidebar.
+                            search: { showingPalette = true }
                         )
                     }
                     .frame(width: width)
@@ -391,7 +393,7 @@ struct AppWorkspace: View {
 
         private var sidebarButton: some ToolbarContent {
             ToolbarItem(placement: .topBarLeading) {
-                Button("Open sidebar", systemImage: "line.3.horizontal") { setSidebar(open: true) }
+                Button("Open sidebar", systemImage: "sidebar.left") { setSidebar(open: true) }
             }
         }
 
