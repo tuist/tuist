@@ -55,7 +55,7 @@ func TestCustomPrefetchJoinsDuplicatesAndServesRequestedMastersFirst(t *testing.
 			<-release
 		}
 		return nil
-	}, func(identity cachevolumes.Identity) bool { return identity.Scope[0] == 'z' })
+	}, func(identity cachevolumes.Identity) bool { return identity.Scope[0] == 'z' }, nil)
 	defer func() {
 		cancel()
 		p.wait.Wait()
@@ -119,7 +119,7 @@ func TestCustomPrefetchShutdownReleasesWaiters(t *testing.T) {
 		close(started)
 		<-ctx.Done()
 		return ctx.Err()
-	}, nil)
+	}, nil, nil)
 	running := p.start(warmCustomIdentity("a", 1), true)
 	<-started
 	queued := p.start(warmCustomIdentity("b", 1), false)
@@ -200,7 +200,7 @@ func TestCustomMailboxNeverWaitsOnABackgroundDownload(t *testing.T) {
 	p := newCustomPrefetcher(ctx, func(context.Context, cachevolumes.Slot, bool) error {
 		<-release
 		return nil
-	}, nil)
+	}, nil, nil)
 	defer func() {
 		close(release)
 		cancel()
@@ -238,7 +238,7 @@ func TestCustomMailboxQueuesATimedOutMasterAndExplains(t *testing.T) {
 			interrupted <- true
 		}
 		return ctx.Err()
-	}, nil)
+	}, nil, nil)
 	defer func() {
 		cancel()
 		p.wait.Wait()
@@ -263,7 +263,7 @@ func TestCustomPrefetchWaitsBeforeRetryingAFailedDownload(t *testing.T) {
 	p := newCustomPrefetcher(ctx, func(context.Context, cachevolumes.Slot, bool) error {
 		attempts.Add(1)
 		return errors.New("object store unavailable")
-	}, nil)
+	}, nil, nil)
 	defer func() {
 		cancel()
 		p.wait.Wait()
@@ -316,7 +316,7 @@ func TestCustomMailboxQueuesTheHeadAfterAnOlderMount(t *testing.T) {
 			fetched <- requested
 		}
 		return nil
-	}, func(cachevolumes.Identity) bool { return false })
+	}, func(cachevolumes.Identity) bool { return false }, nil)
 	defer func() {
 		cancel()
 		p.wait.Wait()
@@ -352,7 +352,7 @@ func TestCustomPrefetchContinuesADownloadItsBudgetCutShort(t *testing.T) {
 			return fmt.Errorf("%w: %w", cachevolumes.ErrDownloadIncomplete, context.DeadlineExceeded)
 		}
 		return nil
-	}, nil)
+	}, nil, nil)
 	defer func() {
 		cancel()
 		p.wait.Wait()
@@ -397,7 +397,7 @@ func TestCustomPrefetchContinuesAfterABudgetWithoutBytes(t *testing.T) {
 			return ctx.Err()
 		}
 		return nil
-	}, nil)
+	}, nil, nil)
 	p.budget = 50 * time.Millisecond
 	defer func() {
 		cancel()
@@ -434,7 +434,7 @@ func TestCustomPrefetchFailsAMasterThatNeverProgresses(t *testing.T) {
 		mu.Unlock()
 		<-ctx.Done()
 		return ctx.Err()
-	}, nil)
+	}, nil, nil)
 	p.budget = 20 * time.Millisecond
 	defer func() {
 		cancel()
@@ -465,7 +465,7 @@ func TestCustomPrefetchCountsInstalledBytesByReason(t *testing.T) {
 			return errors.New("download failed")
 		}
 		return nil
-	}, nil)
+	}, nil, nil)
 	defer func() {
 		cancel()
 		p.wait.Wait()
@@ -502,5 +502,47 @@ func TestCustomPrefetchCountsInstalledBytesByReason(t *testing.T) {
 		if got := testutil.ToFloat64(customCachePrefetchedBytes.WithLabelValues(reason)) - before[reason]; got != want[reason] {
 			t.Errorf("%s bytes = %v, want %v", reason, got, want[reason])
 		}
+	}
+}
+
+func TestCustomPrefetchHoldsListedMastersWhileTheHostRunsAJob(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	var busy atomic.Bool
+	busy.Store(true)
+	ran := make(chan string, 4)
+	p := newCustomPrefetcher(ctx, func(_ context.Context, slot cachevolumes.Slot, _ bool) error {
+		ran <- slot.Scope[:1]
+		return nil
+	}, nil, func(context.Context) bool { return busy.Load() })
+	p.pause = 10 * time.Millisecond
+	defer func() {
+		cancel()
+		p.wait.Wait()
+	}()
+
+	listed := p.queue(warmCustomIdentity("a", 1), false, prefetchPrewarm)
+	requested := p.start(warmCustomIdentity("b", 1), true)
+	select {
+	case <-requested:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a master a job asked for waited for the host's jobs")
+	}
+	if got := <-ran; got != "b" {
+		t.Fatalf("restored %q while the host ran a job, want only the requested master", got)
+	}
+	select {
+	case <-listed:
+		t.Fatal("restored a listed master while the host ran a job")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	busy.Store(false)
+	select {
+	case <-listed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the listed master stayed held after the job finished")
+	}
+	if got := <-ran; got != "a" {
+		t.Fatalf("restored %q, want the listed master", got)
 	}
 }

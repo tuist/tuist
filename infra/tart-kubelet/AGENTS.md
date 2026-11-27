@@ -260,7 +260,16 @@ workflow code runs in the guest. Never expose host credentials or masters.
   counts as `recent`). Hosts of every environment report it, so filter by `env`.
   Checkout HEADs in the list go to `PrefetchCheckout` (see the checkout notes) and
   are not counted there.
-  Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
+  Jobs never wait on it. It is reserved and joined at stop. Every download runs
+  on a thread with throttled disk I/O (`withThrottledIO`, macOS's
+  `setiopolicy_np`, what `taskpolicy -b` does for a process), and the server's
+  HEADs (`background`) wait while a runner Pod on the host has claimed a job
+  (`claimsJob`, as staging does), for up to `customPrefetchJobWaitCap` (20
+  minutes); a master a job asked for does not wait. The download and restore
+  must write from the calling goroutine for the policy to reach them.
+  Evidence: on 2026-11-27 rack hosts prefetched 650 to 1,500 GB a day at 100
+  to 400 MB/s, and shards extracted their test products 2 to 4 times slower
+  while their host wrote that fast. Unavailable responses
   carry a bounded `reason` and the host logs why; a 425 retried until the
   deadline is `execution_pending`, not `denied`. A Pod waits for GitHub's job
   report once: its first 425 starts one 25-second wait that its checkout and
