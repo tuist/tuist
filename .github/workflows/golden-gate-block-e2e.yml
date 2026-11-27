@@ -15,28 +15,23 @@ permissions:
   contents: read
 
 jobs:
-  round1:
-    name: ${{ matrix.arm }} round 1
+  gg1:
+    name: golden-gate round 1
     if: ${{ contains(github.event.head_commit.message, '[e2e]') }}
-    runs-on: ${{ matrix.arm == 'golden-gate' && 'tuist-staging-golden-gate' || 'tuist-staging-macos-27' }}
+    runs-on: tuist-staging-golden-gate
     timeout-minutes: 60
     env:
-      VOLUME_KEY: e2e-${{ matrix.arm }}-${{ github.run_id }}-${{ github.run_attempt }}
-    strategy:
-      fail-fast: false
-      matrix:
-        arm: [golden-gate, tahoe]
-        round: [1]
+      VOLUME_KEY: e2e-golden-gate-${{ github.run_id }}
     steps:
       - name: Report the guest
         run: |
           sw_vers
           xcodebuild -version
           major="$(sw_vers -productVersion | cut -d. -f1)"
-          if [ "${{ matrix.arm }}" = golden-gate ]; then test "$major" -ge 27; else test "$major" -eq 26; fi
+          if [ "golden-gate" = golden-gate ]; then test "$major" -ge 27; else test "$major" -eq 26; fi
       # The host keeps round 1's copy once its VM is gone and the copy sealed.
       - name: Let the host keep round 1's writes
-        if: matrix.round == 2
+        if: 1 == 2
         run: sleep 90
       - name: Fresh clone on the root disk
         run: |
@@ -50,19 +45,19 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/e2e" && cd "$HOME/e2e"
           start=$(python3 -c 'import time; print(time.time())')
-          /tmp/tcv --key "$VOLUME_KEY" --path ./vol --size "${{ matrix.round == 1 && '10gb' || '25gb' }}" | tee /tmp/attach.out
+          /tmp/tcv --key "$VOLUME_KEY" --path ./vol --size "${{ 1 == 1 && '10gb' || '25gb' }}" | tee /tmp/attach.out
           end=$(python3 -c 'import time; print(time.time())')
-          echo "::notice::${{ matrix.arm }} round ${{ matrix.round }} attach $(python3 -c "print(round($end - $start, 2))") s"
+          echo "::notice::golden-gate round 1 attach $(python3 -c "print(round($end - $start, 2))") s"
           root="$(cd ./vol && pwd -P)"
           echo "VOL=$root" >> "$GITHUB_ENV"
           dev="$(df "$root" | awk 'NR==2 {print $1}')"
           diskutil info "$dev" | grep -E "Device Location|Protocol|Volume Name|Mount Point|Disk Size|Media Name|Device / Media Name"
-          if [ "${{ matrix.arm }}" = golden-gate ]; then
+          if [ "golden-gate" = golden-gate ]; then
             diskutil info "$dev" | grep -q "USB" || { echo "::error::$root is not on a USB disk"; exit 1; }
             mount | grep "My Shared Files" | grep -F "$root" && { echo "::error::volume is on the share"; exit 1; } || true
           fi
       - name: Check what the previous round left
-        if: matrix.round == 2
+        if: 1 == 2
         run: |
           set -euo pipefail
           grep -q "warm=true" /tmp/attach.out || { echo "::error::round 2 attached cold"; exit 1; }
@@ -83,50 +78,46 @@ jobs:
           set -euo pipefail
           start=$(date +%s)
           ./native/xcresult_nif/build.sh
-          echo "::notice::${{ matrix.arm }} round ${{ matrix.round }} build $(( $(date +%s) - start )) s"
+          echo "::notice::golden-gate round 1 build $(( $(date +%s) - start )) s"
       - name: Write random files, purge, verify everything
         run: |
           set -euo pipefail
           start=$(date +%s)
-          mkdir -p "$VOL/random-${{ matrix.round }}"
-          for i in $(seq 1 400); do head -c $(( (RANDOM % 512 + 1) * 1024 )) /dev/urandom > "$VOL/random-${{ matrix.round }}/$i.bin"; done
+          mkdir -p "$VOL/random-1"
+          for i in $(seq 1 400); do head -c $(( (RANDOM % 512 + 1) * 1024 )) /dev/urandom > "$VOL/random-1/$i.bin"; done
           (cd "$VOL" && find . -type f ! -name manifest.sha256 -print0 | sort -z | xargs -0 shasum -a 256 > manifest.sha256)
           sync && sudo purge
           (cd "$VOL" && shasum -a 256 -c --quiet manifest.sha256) && echo "$(wc -l < "$VOL/manifest.sha256") files intact after purge"
-          echo "::notice::${{ matrix.arm }} round ${{ matrix.round }} write+verify $(( $(date +%s) - start )) s"
+          echo "::notice::golden-gate round 1 write+verify $(( $(date +%s) - start )) s"
       - name: Detach the volume
         run: |
           set -euo pipefail
           start=$(date +%s)
           /tmp/tcv --detach-all
-          echo "::notice::${{ matrix.arm }} round ${{ matrix.round }} detach $(( $(date +%s) - start )) s"
+          echo "::notice::golden-gate round 1 detach $(( $(date +%s) - start )) s"
           root="$(dirname "$VOL")"; scope="$(basename "$root")"
           mount | grep -F "$root" && echo "::error::still mounted" || echo "unmounted"
           echo "released: $(cat "/Volumes/My Shared Files/custom-cache/$scope/.released" 2>/dev/null || echo n/a)"
 
-  round2:
-    name: ${{ matrix.arm }} round 2
-    needs: round1
+
+  gg2:
+    name: golden-gate round 2
+    needs: gg1
     if: ${{ contains(github.event.head_commit.message, '[e2e]') }}
-    runs-on: ${{ matrix.arm == 'golden-gate' && 'tuist-staging-golden-gate' || 'tuist-staging-macos-27' }}
+    runs-on: tuist-staging-golden-gate
     timeout-minutes: 60
     env:
-      VOLUME_KEY: e2e-${{ matrix.arm }}-${{ github.run_id }}-${{ github.run_attempt }}
-    strategy:
-      fail-fast: false
-      matrix:
-        arm: [golden-gate, tahoe]
-        round: [2]
+      VOLUME_KEY: e2e-golden-gate-${{ github.run_id }}
     steps:
       - name: Report the guest
         run: |
           sw_vers
           xcodebuild -version
           major="$(sw_vers -productVersion | cut -d. -f1)"
-          if [ "${{ matrix.arm }}" = golden-gate ]; then test "$major" -ge 27; else test "$major" -eq 26; fi
+          if [ "golden-gate" = golden-gate ]; then test "$major" -ge 27; else test "$major" -eq 26; fi
       # The host keeps round 1's copy once its VM is gone and the copy sealed.
       - name: Let the host keep round 1's writes
-        if: matrix.round == 2
+        if: 2 == 2
         run: sleep 90
       - name: Fresh clone on the root disk
         run: |
@@ -140,19 +131,19 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/e2e" && cd "$HOME/e2e"
           start=$(python3 -c 'import time; print(time.time())')
-          /tmp/tcv --key "$VOLUME_KEY" --path ./vol --size "${{ matrix.round == 1 && '10gb' || '25gb' }}" | tee /tmp/attach.out
+          /tmp/tcv --key "$VOLUME_KEY" --path ./vol --size "${{ 2 == 1 && '10gb' || '25gb' }}" | tee /tmp/attach.out
           end=$(python3 -c 'import time; print(time.time())')
-          echo "::notice::${{ matrix.arm }} round ${{ matrix.round }} attach $(python3 -c "print(round($end - $start, 2))") s"
+          echo "::notice::golden-gate round 2 attach $(python3 -c "print(round($end - $start, 2))") s"
           root="$(cd ./vol && pwd -P)"
           echo "VOL=$root" >> "$GITHUB_ENV"
           dev="$(df "$root" | awk 'NR==2 {print $1}')"
           diskutil info "$dev" | grep -E "Device Location|Protocol|Volume Name|Mount Point|Disk Size|Media Name|Device / Media Name"
-          if [ "${{ matrix.arm }}" = golden-gate ]; then
+          if [ "golden-gate" = golden-gate ]; then
             diskutil info "$dev" | grep -q "USB" || { echo "::error::$root is not on a USB disk"; exit 1; }
             mount | grep "My Shared Files" | grep -F "$root" && { echo "::error::volume is on the share"; exit 1; } || true
           fi
       - name: Check what the previous round left
-        if: matrix.round == 2
+        if: 2 == 2
         run: |
           set -euo pipefail
           grep -q "warm=true" /tmp/attach.out || { echo "::error::round 2 attached cold"; exit 1; }
@@ -173,23 +164,195 @@ jobs:
           set -euo pipefail
           start=$(date +%s)
           ./native/xcresult_nif/build.sh
-          echo "::notice::${{ matrix.arm }} round ${{ matrix.round }} build $(( $(date +%s) - start )) s"
+          echo "::notice::golden-gate round 2 build $(( $(date +%s) - start )) s"
       - name: Write random files, purge, verify everything
         run: |
           set -euo pipefail
           start=$(date +%s)
-          mkdir -p "$VOL/random-${{ matrix.round }}"
-          for i in $(seq 1 400); do head -c $(( (RANDOM % 512 + 1) * 1024 )) /dev/urandom > "$VOL/random-${{ matrix.round }}/$i.bin"; done
+          mkdir -p "$VOL/random-2"
+          for i in $(seq 1 400); do head -c $(( (RANDOM % 512 + 1) * 1024 )) /dev/urandom > "$VOL/random-2/$i.bin"; done
           (cd "$VOL" && find . -type f ! -name manifest.sha256 -print0 | sort -z | xargs -0 shasum -a 256 > manifest.sha256)
           sync && sudo purge
           (cd "$VOL" && shasum -a 256 -c --quiet manifest.sha256) && echo "$(wc -l < "$VOL/manifest.sha256") files intact after purge"
-          echo "::notice::${{ matrix.arm }} round ${{ matrix.round }} write+verify $(( $(date +%s) - start )) s"
+          echo "::notice::golden-gate round 2 write+verify $(( $(date +%s) - start )) s"
       - name: Detach the volume
         run: |
           set -euo pipefail
           start=$(date +%s)
           /tmp/tcv --detach-all
-          echo "::notice::${{ matrix.arm }} round ${{ matrix.round }} detach $(( $(date +%s) - start )) s"
+          echo "::notice::golden-gate round 2 detach $(( $(date +%s) - start )) s"
           root="$(dirname "$VOL")"; scope="$(basename "$root")"
           mount | grep -F "$root" && echo "::error::still mounted" || echo "unmounted"
           echo "released: $(cat "/Volumes/My Shared Files/custom-cache/$scope/.released" 2>/dev/null || echo n/a)"
+
+
+  tahoe1:
+    name: tahoe round 1
+    if: ${{ contains(github.event.head_commit.message, '[e2e]') }}
+    runs-on: tuist-staging-macos-27
+    timeout-minutes: 60
+    env:
+      VOLUME_KEY: e2e-tahoe-${{ github.run_id }}
+    steps:
+      - name: Report the guest
+        run: |
+          sw_vers
+          xcodebuild -version
+          major="$(sw_vers -productVersion | cut -d. -f1)"
+          if [ "tahoe" = golden-gate ]; then test "$major" -ge 27; else test "$major" -eq 26; fi
+      # The host keeps round 1's copy once its VM is gone and the copy sealed.
+      - name: Let the host keep round 1's writes
+        if: 1 == 2
+        run: sleep 90
+      - name: Fresh clone on the root disk
+        run: |
+          git clone -q --depth 1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}" "$HOME/src"
+          echo "MISE_TRUSTED_CONFIG_PATHS=${MISE_TRUSTED_CONFIG_PATHS:-}:$HOME/src" >> "$GITHUB_ENV"
+      - name: Build tuist-cache-volume from this branch
+        working-directory: /Users/runner/src/infra/linux-runner-image
+        run: mise x go@1.26.10 -- go build -o /tmp/tcv ./cmd/tuist-cache-volume
+      - name: Attach the volume
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/e2e" && cd "$HOME/e2e"
+          start=$(python3 -c 'import time; print(time.time())')
+          /tmp/tcv --key "$VOLUME_KEY" --path ./vol --size "${{ 1 == 1 && '10gb' || '25gb' }}" | tee /tmp/attach.out
+          end=$(python3 -c 'import time; print(time.time())')
+          echo "::notice::tahoe round 1 attach $(python3 -c "print(round($end - $start, 2))") s"
+          root="$(cd ./vol && pwd -P)"
+          echo "VOL=$root" >> "$GITHUB_ENV"
+          dev="$(df "$root" | awk 'NR==2 {print $1}')"
+          diskutil info "$dev" | grep -E "Device Location|Protocol|Volume Name|Mount Point|Disk Size|Media Name|Device / Media Name"
+          if [ "tahoe" = golden-gate ]; then
+            diskutil info "$dev" | grep -q "USB" || { echo "::error::$root is not on a USB disk"; exit 1; }
+            mount | grep "My Shared Files" | grep -F "$root" && { echo "::error::volume is on the share"; exit 1; } || true
+          fi
+      - name: Check what the previous round left
+        if: 1 == 2
+        run: |
+          set -euo pipefail
+          grep -q "warm=true" /tmp/attach.out || { echo "::error::round 2 attached cold"; exit 1; }
+          test -f "$VOL/manifest.sha256" || { echo "::error::round 1's data is missing"; exit 1; }
+          (cd "$VOL" && shasum -a 256 -c --quiet manifest.sha256) && echo "round 1's $(wc -l < "$VOL/manifest.sha256") files intact"
+          size=$(df -k "$VOL" | awk 'NR==2 {print $2}')
+          test "$size" -gt 20000000 || { echo "::error::the volume was not grown to 25 GB"; exit 1; }
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: server
+      - name: Build the xcresult NIF on the volume
+        working-directory: /Users/runner/src/server
+        env:
+          TUIST_NIF_BUILD_ROOT: ${{ env.VOL }}/nif
+          MACOSX_DEPLOYMENT_TARGET: "14.0"
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          ./native/xcresult_nif/build.sh
+          echo "::notice::tahoe round 1 build $(( $(date +%s) - start )) s"
+      - name: Write random files, purge, verify everything
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          mkdir -p "$VOL/random-1"
+          for i in $(seq 1 400); do head -c $(( (RANDOM % 512 + 1) * 1024 )) /dev/urandom > "$VOL/random-1/$i.bin"; done
+          (cd "$VOL" && find . -type f ! -name manifest.sha256 -print0 | sort -z | xargs -0 shasum -a 256 > manifest.sha256)
+          sync && sudo purge
+          (cd "$VOL" && shasum -a 256 -c --quiet manifest.sha256) && echo "$(wc -l < "$VOL/manifest.sha256") files intact after purge"
+          echo "::notice::tahoe round 1 write+verify $(( $(date +%s) - start )) s"
+      - name: Detach the volume
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          /tmp/tcv --detach-all
+          echo "::notice::tahoe round 1 detach $(( $(date +%s) - start )) s"
+          root="$(dirname "$VOL")"; scope="$(basename "$root")"
+          mount | grep -F "$root" && echo "::error::still mounted" || echo "unmounted"
+          echo "released: $(cat "/Volumes/My Shared Files/custom-cache/$scope/.released" 2>/dev/null || echo n/a)"
+
+
+  tahoe2:
+    name: tahoe round 2
+    needs: tahoe1
+    if: ${{ contains(github.event.head_commit.message, '[e2e]') }}
+    runs-on: tuist-staging-macos-27
+    timeout-minutes: 60
+    env:
+      VOLUME_KEY: e2e-tahoe-${{ github.run_id }}
+    steps:
+      - name: Report the guest
+        run: |
+          sw_vers
+          xcodebuild -version
+          major="$(sw_vers -productVersion | cut -d. -f1)"
+          if [ "tahoe" = golden-gate ]; then test "$major" -ge 27; else test "$major" -eq 26; fi
+      # The host keeps round 1's copy once its VM is gone and the copy sealed.
+      - name: Let the host keep round 1's writes
+        if: 2 == 2
+        run: sleep 90
+      - name: Fresh clone on the root disk
+        run: |
+          git clone -q --depth 1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}" "$HOME/src"
+          echo "MISE_TRUSTED_CONFIG_PATHS=${MISE_TRUSTED_CONFIG_PATHS:-}:$HOME/src" >> "$GITHUB_ENV"
+      - name: Build tuist-cache-volume from this branch
+        working-directory: /Users/runner/src/infra/linux-runner-image
+        run: mise x go@1.26.10 -- go build -o /tmp/tcv ./cmd/tuist-cache-volume
+      - name: Attach the volume
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/e2e" && cd "$HOME/e2e"
+          start=$(python3 -c 'import time; print(time.time())')
+          /tmp/tcv --key "$VOLUME_KEY" --path ./vol --size "${{ 2 == 1 && '10gb' || '25gb' }}" | tee /tmp/attach.out
+          end=$(python3 -c 'import time; print(time.time())')
+          echo "::notice::tahoe round 2 attach $(python3 -c "print(round($end - $start, 2))") s"
+          root="$(cd ./vol && pwd -P)"
+          echo "VOL=$root" >> "$GITHUB_ENV"
+          dev="$(df "$root" | awk 'NR==2 {print $1}')"
+          diskutil info "$dev" | grep -E "Device Location|Protocol|Volume Name|Mount Point|Disk Size|Media Name|Device / Media Name"
+          if [ "tahoe" = golden-gate ]; then
+            diskutil info "$dev" | grep -q "USB" || { echo "::error::$root is not on a USB disk"; exit 1; }
+            mount | grep "My Shared Files" | grep -F "$root" && { echo "::error::volume is on the share"; exit 1; } || true
+          fi
+      - name: Check what the previous round left
+        if: 2 == 2
+        run: |
+          set -euo pipefail
+          grep -q "warm=true" /tmp/attach.out || { echo "::error::round 2 attached cold"; exit 1; }
+          test -f "$VOL/manifest.sha256" || { echo "::error::round 1's data is missing"; exit 1; }
+          (cd "$VOL" && shasum -a 256 -c --quiet manifest.sha256) && echo "round 1's $(wc -l < "$VOL/manifest.sha256") files intact"
+          size=$(df -k "$VOL" | awk 'NR==2 {print $2}')
+          test "$size" -gt 20000000 || { echo "::error::the volume was not grown to 25 GB"; exit 1; }
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: server
+      - name: Build the xcresult NIF on the volume
+        working-directory: /Users/runner/src/server
+        env:
+          TUIST_NIF_BUILD_ROOT: ${{ env.VOL }}/nif
+          MACOSX_DEPLOYMENT_TARGET: "14.0"
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          ./native/xcresult_nif/build.sh
+          echo "::notice::tahoe round 2 build $(( $(date +%s) - start )) s"
+      - name: Write random files, purge, verify everything
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          mkdir -p "$VOL/random-2"
+          for i in $(seq 1 400); do head -c $(( (RANDOM % 512 + 1) * 1024 )) /dev/urandom > "$VOL/random-2/$i.bin"; done
+          (cd "$VOL" && find . -type f ! -name manifest.sha256 -print0 | sort -z | xargs -0 shasum -a 256 > manifest.sha256)
+          sync && sudo purge
+          (cd "$VOL" && shasum -a 256 -c --quiet manifest.sha256) && echo "$(wc -l < "$VOL/manifest.sha256") files intact after purge"
+          echo "::notice::tahoe round 2 write+verify $(( $(date +%s) - start )) s"
+      - name: Detach the volume
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          /tmp/tcv --detach-all
+          echo "::notice::tahoe round 2 detach $(( $(date +%s) - start )) s"
+          root="$(dirname "$VOL")"; scope="$(basename "$root")"
+          mount | grep -F "$root" && echo "::error::still mounted" || echo "unmounted"
+          echo "released: $(cat "/Volumes/My Shared Files/custom-cache/$scope/.released" 2>/dev/null || echo n/a)"
+
