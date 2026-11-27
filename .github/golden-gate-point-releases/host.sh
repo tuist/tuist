@@ -28,12 +28,23 @@ reachable() {
 # volume's directory as the custom-cache share.
 boot() {
   local vm="$1" image="$2"
-  tart clone "$image" "$vm"
+  local provision=()
+  case "$image" in
+    https://*)
+      # A fresh install from Apple's restore image. macOS 27's first-boot
+      # provisioning (Tart 2.33+, macOS 27 host and guest) creates the
+      # vanilla images' admin user with SSH, as Cirrus's
+      # vanilla-golden-gate template does, so no Setup Assistant clicks.
+      tart create --from-ipsw "$image" --disk-size 50 "$vm" || return 1
+      provision=(--provisioning-opts "fullName=Managed via Tart,username=admin,password=admin,logsInAutomatically=true,enablesRemoteLogin=true")
+      ;;
+    *) tart clone "$image" "$vm" || return 1 ;;
+  esac
   # Builders have 16 GB: leave half of it to the host.
   tart set "$vm" --cpu 4 --memory 4096
   mkdir -p "$WORK/share-$vm" "$WORK/env-$vm"
   cp "$here/guest.sh" "$WORK/share-$vm/guest.sh"
-  tart run "$vm" --no-graphics --no-audio --root-disk-opts caching=cached \
+  tart run "$vm" ${provision[@]+"${provision[@]}"} --no-graphics --no-audio --root-disk-opts caching=cached \
     --dir "env:$WORK/env-$vm:ro" --dir "custom-cache:$WORK/share-$vm" > "$WORK/$vm.run.log" 2>&1 &
   reachable "$vm" || return 1
   gx "$vm" 'for i in $(seq 1 30); do [ -f "/Volumes/My Shared Files/custom-cache/guest.sh" ] && break; sleep 2; done; sw_vers; mount | grep -i virtio'

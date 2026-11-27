@@ -7,10 +7,10 @@
 # on every macOS 27 point release we can get:
 #   27.0      Cirrus vanilla 27.0
 #   27.2      Cirrus vanilla 27.2, the control, running next to every other guest
-#   27.2.1    vanilla 27.2 updated in the VM
-#   27.3 b2   vanilla 27.2 enrolled in the beta seed and updated in the VM
+#   27.2.1    installed from Apple's restore image
+#   27.3 b2   installed from Apple's restore image
 # Two guests run at once (the most a Mac may run), both writing, and a second
-# round adds host memory pressure, because the loss seems to need a busy host.
+# round puts each guest under memory pressure, which makes the loss likelier.
 # Runs only for a pushed commit whose message contains [run].
 name: Golden Gate point releases
 
@@ -30,6 +30,10 @@ jobs:
     env:
       VANILLA: ghcr.io/cirruslabs/macos-golden-gate-vanilla
       WORK: /tmp/gg-points
+      # Apple's restore images for VMs (VirtualMac2,1): 27.2.1 (26B131) and
+      # 27.3 beta 2 (26C5047e). Run 46028196227 already compared 27.0 with 27.2.
+      IPSW_2721: https://updates.cdn-apple.com/2026FallFCS/c202a724-db7e-4d56-917b-110aa0226507/UniversalMac_27.2.1_26B131_Restore.ipsw
+      IPSW_273B2: https://updates.cdn-apple.com/2026FallSeed/39fd8acf-0beb-48be-b6eb-4889c1fc3872/UniversalMac_27.3_26C5047e_Restore.ipsw
     steps:
       - uses: actions/checkout@v4
       - name: Host
@@ -40,7 +44,7 @@ jobs:
           # At most two vanilla images and two clones exist at once, about
           # 100 GB, all deleted by the last step.
           if [ "$free" -lt 130 ]; then echo "::error::only ${free} GB free"; exit 1; fi
-          rm -rf "$WORK"; mkdir -p "$WORK"
+          rm -rf "$WORK"; mkdir -p "$WORK"; touch /tmp/gg-points-start
       # As in macos-xcode-image.yml: the builder's cached ghcr.io credentials
       # don't authorize ghcr.io/cirruslabs/* pulls.
       - name: Pull the vanilla guests
@@ -63,7 +67,6 @@ jobs:
             trap 'cp -p "$WORK/docker-config.json" "$cfg" && rm -f "$WORK/docker-config.json"' EXIT
             jq 'del(.auths["ghcr.io"])' "$WORK/docker-config.json" > "$cfg"
           fi
-          tart pull "$VANILLA:27.0"
           tart pull "$VANILLA:27.2"
       - name: Run the point releases
         run: |
@@ -71,12 +74,10 @@ jobs:
           sh=.github/golden-gate-point-releases
           . "$sh/host.sh"
           boot c272 "$VANILLA:27.2" || exit 1
-          boot v270 "$VANILLA:27.0" && pair c272 v270
-          retire v270
-          boot u2721 "$VANILLA:27.2" && update u2721 release && pair c272 u2721
-          retire u2721
-          boot u273 "$VANILLA:27.2" && update u273 beta && pair c272 u273
-          retire u273
+          boot r2721 "$IPSW_2721" && pair c272 r2721
+          retire r2721
+          boot r273 "$IPSW_273B2" && pair c272 r273
+          retire r273
           exit 0
       - name: Results
         if: always()
@@ -86,6 +87,9 @@ jobs:
         shell: bash {0}
         run: |
           [ -f "$WORK/docker-config.json" ] && cp -p "$WORK/docker-config.json" "$HOME/.docker/config.json"
-          for vm in c272 v270 u2721 u273; do tart stop "$vm" 2>/dev/null; tart delete "$vm" 2>/dev/null; done
-          tart delete "$VANILLA:27.0" 2>/dev/null; tart delete "$VANILLA:27.2" 2>/dev/null
+          for vm in c272 r2721 r273; do tart stop "$vm" 2>/dev/null; tart delete "$vm" 2>/dev/null; done
+          tart delete "$VANILLA:27.2" 2>/dev/null
+          # Only the restore images this job downloaded.
+          [ -f /tmp/gg-points-start ] && find "${TART_HOME:-$HOME/.tart}/cache/IPSWs" -type f -newer /tmp/gg-points-start -print -delete 2>/dev/null
+          rm -f /tmp/gg-points-start
           rm -rf "$WORK"; df -h /; true
