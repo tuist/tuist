@@ -9,6 +9,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 )
 
 const (
@@ -35,7 +37,7 @@ func heldGoldensOf(images ...string) map[string]struct{} {
 }
 
 func stagingPrewarmer(pools *poolLister, goldens *recordingGoldens) *Prewarmer {
-	return &Prewarmer{K8s: pools, Goldens: goldens, Fleet: rackFleet, DiskFree: plentyOfDisk}
+	return &Prewarmer{K8s: pools, Goldens: goldens, Fleet: rackFleet, Disk: plentyOfDisk}
 }
 
 // On 2026-10-21 ber1-runner-b04 and b08 pulled a new runner image from
@@ -97,23 +99,35 @@ func TestStageYieldsToAPodsGoldenPull(t *testing.T) {
 	}
 }
 
-func TestStageStopsAtTheDiskFloor(t *testing.T) {
-	pools := &poolLister{
-		pools: []unstructured.Unstructured{
-			catalogPool("macos-ber1-26-6-6vcpu", img266, "26.6", "stacked", 0, 0),
-			catalogPool("macos-ber1-27-0-6vcpu", img270, "27.0", "stacked", 0, 0),
-		},
-		upcoming: map[string]string{"26.6.stacked": stackedNext, "27.0.stacked": img270Next},
+// On 2026-11-27 hosts sat at 18 to 30% free, under the 30% floor staging
+// then kept, and most never staged a release. A stacked release of an Xcode
+// the host holds is an overlay of a few GB, and fits there; a whole image
+// fits only while it leaves the golden reclaim floor, and refusing it does
+// not hold back the overlay after it.
+func TestStageSizesTheDiskCheckToThePull(t *testing.T) {
+	stage := func(free float64) []string {
+		pools := &poolLister{
+			pools: []unstructured.Unstructured{
+				catalogPool("macos-ber1-26-6-6vcpu", img266, "26.6", "standalone", 0, 0),
+				catalogPool("macos-ber1-27-0-6vcpu", img270, "27.0", "stacked", 0, 0),
+			},
+			upcoming: map[string]string{"26.6.standalone": img266Next, "27.0.stacked": img270Next},
+		}
+		goldens := &recordingGoldens{held: heldGoldensOf(img266, img270)}
+		p := stagingPrewarmer(pools, goldens)
+		p.Disk = func() (hostdisk.Stats, error) { return diskAt(free), nil }
+		p.stage(context.Background())
+		return goldens.pulled
 	}
-	free := 80.0
-	goldens := &recordingGoldens{held: heldGoldensOf(img266, img270), onPull: func() { free = prewarmMinFreePercent - 1 }}
-	p := stagingPrewarmer(pools, goldens)
-	p.DiskFree = func() (float64, error) { return free, nil }
 
-	p.stage(context.Background())
-
-	if len(goldens.pulled) != 1 {
-		t.Fatalf("staged %v, want one image before the disk floor", goldens.pulled)
+	if got, want := stage(18), []string{img270Next}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("at 18%% free staged %v, want only the overlay %v", got, want)
+	}
+	if got := stage(25); len(got) != 2 {
+		t.Fatalf("at 25%% free staged %v, want both images", got)
+	}
+	if got := stage(defaultGoldenReclaimFreeFloor); len(got) != 0 {
+		t.Fatalf("at the reclaim floor staged %v, want nothing", got)
 	}
 }
 

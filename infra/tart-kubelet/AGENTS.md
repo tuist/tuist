@@ -71,7 +71,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   time, through `ensureGolden`. The next pass after the pull reaps the
   previous one as superseded. A stacked golden's base stays in Tart's content
   store throughout, so the pull is only the overlay. Bounds: no follow under
-  disk pressure or below the prewarmer's 30% free floor, and a golden is kept
+  disk pressure or when the pull would leave less than the 15% reclaim floor
+  (`roomToPull`, sized as in staging below), and a golden is kept
   for its successor at most `defaultFollowTimeout` (2h). Evidence: after the
   release of 2026-10-22 13:00 UTC the GC freed about 60 GiB per reaped golden
   per rack host, and the next pull took 10 to 23 s on hosts that still held
@@ -144,7 +145,13 @@ workflow code runs in the guest. Never expose host credentials or masters.
   the gate gives up. Its pulls run under `taskpolicy -b` (macOS background
   QoS, so running VMs get the CPU and disk first) with `--concurrency 2`
   instead of Tart's 4 (`tart.InBackground`, `Client.BackgroundPull`). It
-  stops below 30% free disk, and skips an image the rack's image cache is
+  skips an image whose pull would leave less than the 15% golden reclaim
+  floor (`roomToPull`): 4 GiB for a stacked release of a golden the host
+  holds (an overlay) and 80 GiB otherwise. A fixed 30% floor held most hosts
+  back: on 2026-11-27 the rack disk plan had hosts at 18 to 30% free, and 8
+  of 23 staged release 0.69.0's 27.2 image in 3.5 hours. An overlay that
+  turns out to be a whole image still leaves about 11% free, above
+  DiskPressure's 10%. Staging also skips an image the rack's image cache is
   still fetching until the next pass. A Pod of another image that arrives
   during a staged pull waits for it, since a host pulls one golden at a time,
   and a Pod of the same image waits on it at background priority. A pool moved before its hosts

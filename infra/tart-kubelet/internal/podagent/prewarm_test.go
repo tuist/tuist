@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -125,7 +126,16 @@ type fakeGate struct {
 func (g *fakeGate) Wait(context.Context) (bool, error) { return g.held, g.err }
 func (g *fakeGate) Release()                           { g.released = true }
 
-func plentyOfDisk() (float64, error) { return 80, nil }
+// rackDiskBytes is a rack host's root volume (a 2 TB Mac mini, as APFS
+// reports it).
+const rackDiskBytes = 1858 << 30
+
+// diskAt is a rack host's root volume at percent free.
+func diskAt(percent float64) hostdisk.Stats {
+	return hostdisk.Stats{TotalBytes: rackDiskBytes, FreeBytes: uint64(percent / 100 * rackDiskBytes)}
+}
+
+func plentyOfDisk() (hostdisk.Stats, error) { return diskAt(80), nil }
 
 // The rack catalog on 2026-10-14: 26.6 keeps a warm runner, 27.0 is in
 // demand, 26.1 wants nothing, and other fleets' pools are not this host's.
@@ -144,11 +154,11 @@ func TestPrewarmerPullsWarmFloorsThenDemandBeforeReleasing(t *testing.T) {
 	goldens := &recordingGoldens{}
 	gate := &fakeGate{held: true}
 	p := &Prewarmer{
-		K8s:      &poolLister{pools: rackCatalog()},
-		Goldens:  goldens,
-		Gate:     gate,
-		Fleet:    "tuist-tuist-rack-fleet",
-		DiskFree: plentyOfDisk,
+		K8s:     &poolLister{pools: rackCatalog()},
+		Goldens: goldens,
+		Gate:    gate,
+		Fleet:   "tuist-tuist-rack-fleet",
+		Disk:    plentyOfDisk,
 	}
 
 	if err := p.Start(context.Background()); err != nil {
@@ -167,7 +177,7 @@ func TestPrewarmerPullsWarmFloorsThenDemandBeforeReleasing(t *testing.T) {
 func TestPrewarmerLeavesAnAlreadyRegisteredHostAlone(t *testing.T) {
 	goldens := &recordingGoldens{}
 	gate := &fakeGate{held: false}
-	p := &Prewarmer{K8s: &poolLister{pools: rackCatalog()}, Goldens: goldens, Gate: gate, Fleet: "tuist-tuist-rack-fleet", DiskFree: plentyOfDisk}
+	p := &Prewarmer{K8s: &poolLister{pools: rackCatalog()}, Goldens: goldens, Gate: gate, Fleet: "tuist-tuist-rack-fleet", Disk: plentyOfDisk}
 
 	_ = p.Start(context.Background())
 
@@ -184,11 +194,11 @@ func TestPrewarmerStopsAtTheDiskFloor(t *testing.T) {
 	goldens := &recordingGoldens{onPull: func() { free = prewarmMinFreePercent - 1 }}
 	gate := &fakeGate{held: true}
 	p := &Prewarmer{
-		K8s:      &poolLister{pools: rackCatalog()},
-		Goldens:  goldens,
-		Gate:     gate,
-		Fleet:    "tuist-tuist-rack-fleet",
-		DiskFree: func() (float64, error) { return free, nil },
+		K8s:     &poolLister{pools: rackCatalog()},
+		Goldens: goldens,
+		Gate:    gate,
+		Fleet:   "tuist-tuist-rack-fleet",
+		Disk:    func() (hostdisk.Stats, error) { return diskAt(free), nil },
 	}
 
 	_ = p.Start(context.Background())
@@ -204,7 +214,7 @@ func TestPrewarmerStopsAtTheDiskFloor(t *testing.T) {
 func TestPrewarmerReleasesWhenAPullOrTheListFails(t *testing.T) {
 	goldens := &recordingGoldens{err: map[string]error{img266: errors.New("tart pull: registry 503")}}
 	gate := &fakeGate{held: true}
-	p := &Prewarmer{K8s: &poolLister{pools: rackCatalog()}, Goldens: goldens, Gate: gate, Fleet: "tuist-tuist-rack-fleet", DiskFree: plentyOfDisk}
+	p := &Prewarmer{K8s: &poolLister{pools: rackCatalog()}, Goldens: goldens, Gate: gate, Fleet: "tuist-tuist-rack-fleet", Disk: plentyOfDisk}
 	if err := p.Start(context.Background()); err != nil {
 		t.Fatalf("Start returned %v; a Runnable error would stop the whole kubelet", err)
 	}
@@ -216,7 +226,7 @@ func TestPrewarmerReleasesWhenAPullOrTheListFails(t *testing.T) {
 	}
 
 	gate = &fakeGate{held: true}
-	p = &Prewarmer{K8s: &poolLister{err: errors.New("no matches for kind RunnerPool")}, Goldens: &recordingGoldens{}, Gate: gate, Fleet: "f", DiskFree: plentyOfDisk}
+	p = &Prewarmer{K8s: &poolLister{err: errors.New("no matches for kind RunnerPool")}, Goldens: &recordingGoldens{}, Gate: gate, Fleet: "f", Disk: plentyOfDisk}
 	if err := p.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -261,7 +271,7 @@ func (g *syncingGoldens) ensureGolden(ctx context.Context, image string) (string
 func TestPrewarmerWaitsForAnImageTheCacheIsFetching(t *testing.T) {
 	goldens := &syncingGoldens{syncs: map[string]int{img266: 2}}
 	gate := &fakeGate{held: true}
-	p := &Prewarmer{K8s: &poolLister{pools: rackCatalog()}, Goldens: goldens, Gate: gate, Fleet: "tuist-tuist-rack-fleet", DiskFree: plentyOfDisk, SyncRetry: time.Millisecond}
+	p := &Prewarmer{K8s: &poolLister{pools: rackCatalog()}, Goldens: goldens, Gate: gate, Fleet: "tuist-tuist-rack-fleet", Disk: plentyOfDisk, SyncRetry: time.Millisecond}
 	if err := p.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/macosandbox"
 	"sort"
 	"time"
@@ -19,10 +20,12 @@ import (
 // unstructured so tart-kubelet does not depend on that module.
 var runnerPoolListGVK = schema.GroupVersionKind{Group: "tuist.dev", Version: "v1alpha1", Kind: "RunnerPoolList"}
 
-// prewarmMinFreePercent is the root-volume free space below which the
-// prewarmer starts no further pull: twice the golden reclaim floor, so a
+// prewarmMinFreePercent is the root-volume free space below which a fresh
+// host's prewarm starts no further pull: twice the golden reclaim floor, so a
 // pre-pull never pushes the host into reclaiming the goldens it just pulled.
 // A golden is tens of GB, so pulling every pool's image would fill the disk.
+// Staging and following a release, which run on serving hosts whose disk plan
+// settles below it, size their check to the pull instead (roomToPull).
 const prewarmMinFreePercent = 2 * defaultGoldenReclaimFreeFloor
 
 // defaultPrewarmTimeout bounds how long a fresh host stays out of scheduling.
@@ -59,8 +62,8 @@ type Prewarmer struct {
 	// Fleet is this Node's `tuist.dev/fleet` label, which a pool's
 	// fleetSelector names. Empty disables prewarming.
 	Fleet string
-	// DiskFree returns the root volume's free percentage.
-	DiskFree func() (float64, error)
+	// Disk measures the root volume.
+	Disk func() (hostdisk.Stats, error)
 	// Timeout overrides defaultPrewarmTimeout.
 	Timeout time.Duration
 	// SyncRetry is how often an image the rack's image cache is still
@@ -121,8 +124,8 @@ func (p *Prewarmer) prewarm(ctx context.Context) {
 	}
 	logger.Info("prewarming runner images before taking Pods", "fleet", p.Fleet, "images", images)
 	for _, image := range images {
-		if free, err := p.DiskFree(); err == nil && free < prewarmMinFreePercent {
-			logger.Info("stopping prewarm on disk space", "freePercent", free, "floorPercent", prewarmMinFreePercent, "image", image)
+		if disk, err := p.Disk(); err == nil && disk.FreePercent() < prewarmMinFreePercent {
+			logger.Info("stopping prewarm on disk space", "freePercent", disk.FreePercent(), "floorPercent", prewarmMinFreePercent, "image", image)
 			break
 		}
 		started := time.Now()

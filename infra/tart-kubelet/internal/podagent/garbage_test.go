@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -312,11 +313,11 @@ fi
 				return []string{o.(*corev1.Pod).Spec.NodeName}
 			}).Build()
 		c := &Collector{
-			K8s:          k,
-			Tart:         &tart.Client{Binary: bin},
-			NodeName:     node,
-			HostDiskFree: hostFree,
-			IsRunning:    func(_ context.Context, name string) (bool, error) { return running(name), nil },
+			K8s:       k,
+			Tart:      &tart.Client{Binary: bin},
+			NodeName:  node,
+			HostDisk:  func() (hostdisk.Stats, error) { f, err := hostFree(); return diskAt(f), err },
+			IsRunning: func(_ context.Context, name string) (bool, error) { return running(name), nil },
 		}
 		read := func(t *testing.T) []string {
 			t.Helper()
@@ -511,7 +512,7 @@ func TestRunOnceReapsImagesNoPoolRuns(t *testing.T) {
 			Fleet:           collectorFleet,
 			GoldenRetention: 24 * time.Hour,
 			Now:             func() time.Time { return now },
-			HostDiskFree:    func() (float64, error) { return 50, nil },
+			HostDisk:        func() (hostdisk.Stats, error) { return diskAt(50), nil },
 			IsRunning:       func(context.Context, string) (bool, error) { return false, nil },
 		}
 		read := func(t *testing.T) []string {
