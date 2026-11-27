@@ -476,7 +476,7 @@ USER runner
 WORKDIR /home/runner/actions-runner
 
 # renovate: datasource=github-releases depName=actions/runner
-ARG RUNNER_VERSION=2.337.0
+ARG RUNNER_VERSION=2.338.2
 ARG RUNNER_ARCH=x64
 
 # Download + extract the actions/runner tarball. Sha checksum is
