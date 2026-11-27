@@ -1,0 +1,89 @@
+[
+  {
+    "annotations": {
+      "description": "Over the last 24 hours this Kura instance answered more than a million reads with not_found, served under 1% of its reads, and stored fewer than one artifact per 100 reads. That is a client looking up keys it never writes, not a cache fault: on 2026-11-27 an Xcode CAS proxy older than CLI 4.218 re-probed a stuck publication spool every 10 seconds and sent one instance about 290 GetActionResult/s. Kura itself is unaffected, but the instance dominates fleet not_found and pulls the fleet hit rate down, so the daily cache check reports the hit rate with and without these instances. Find the client in the regional Kura ingress logs (one IP and user agent for the instance's grpc upstream), then follow up with the account; nothing on the Kura side needs to change.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-instance-probe-loop",
+      "summary": "Kura instance {{ $labels.kura_instance }} answered {{ $values.A.Value | humanize }} reads with not_found in 24h and almost none from writes"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "cg3i1jh2k1v5sb",
+        "model": {
+          "editorMode": "code",
+          "expr": "(\n  sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster=\"tuist-production\", result=\"not_found\"}[24h]), \"kura_instance\", \"$1\", \"pod\", \"kura-(.*)-[0-9]+\"))\n  > 1e6\n)\nand on (cluster, kura_instance) (\n  (\n    sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster=\"tuist-production\", result=\"ok\"}[24h]), \"kura_instance\", \"$1\", \"pod\", \"kura-(.*)-[0-9]+\"))\n    or on (cluster, kura_instance) (0 * sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster=\"tuist-production\", result=\"not_found\"}[24h]), \"kura_instance\", \"$1\", \"pod\", \"kura-(.*)-[0-9]+\")))\n  )\n  / sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster=\"tuist-production\", result=~\"ok|not_found\"}[24h]), \"kura_instance\", \"$1\", \"pod\", \"kura-(.*)-[0-9]+\"))\n  < 0.01\n)\nand on (cluster, kura_instance) (\n  (\n    sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_writes_total_total{cluster=\"tuist-production\", result=\"ok\"}[24h]), \"kura_instance\", \"$1\", \"pod\", \"kura-(.*)-[0-9]+\"))\n    or on (cluster, kura_instance) (0 * sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster=\"tuist-production\", result=\"not_found\"}[24h]), \"kura_instance\", \"$1\", \"pod\", \"kura-(.*)-[0-9]+\")))\n  )\n  / sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster=\"tuist-production\", result=~\"ok|not_found\"}[24h]), \"kura_instance\", \"$1\", \"pod\", \"kura-(.*)-[0-9]+\"))\n  < 0.01\n)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 86700,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "OK",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "6h",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Cache",
+    "title": "Kura - instance probe loop",
+    "uid": "kura-probe-loop"
+  }
+]

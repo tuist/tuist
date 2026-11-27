@@ -187,6 +187,8 @@ jobs:
         run: |
           mise use -g aqua:prometheus/alertmanager@0.28.1
           bash infra/helm/k8s-monitoring/test-kura-thin-pool-alerts.sh
+      - name: Test Kura probe-loop alert
+        run: python3 infra/helm/k8s-monitoring/test-kura-probe-loop-alert.py
 
   render:
     name: Render

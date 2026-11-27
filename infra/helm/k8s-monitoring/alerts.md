@@ -2108,6 +2108,90 @@ window lengthens one day's median past a day. Requiring evictions on each of
 the three days did not stop the 2026-09-25 page and dropped a real one (a
 rebuilt replica that never came back). The pooled median stays.
 
+### Kura instance probe loop
+
+```promql
+(
+  sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result="not_found"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+"))
+  > 1e6
+)
+and on (cluster, kura_instance) (
+  (
+    sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result="ok"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+"))
+    or on (cluster, kura_instance) (0 * sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result="not_found"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+")))
+  )
+  / sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result=~"ok|not_found"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+"))
+  < 0.01
+)
+and on (cluster, kura_instance) (
+  (
+    sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_writes_total_total{cluster="tuist-production", result="ok"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+"))
+    or on (cluster, kura_instance) (0 * sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result="not_found"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+")))
+  )
+  / sum by (cluster, kura_instance) (label_replace(increase(kura_artifact_reads_total_total{cluster="tuist-production", result=~"ok|not_found"}[24h]), "kura_instance", "$1", "pod", "kura-(.*)-[0-9]+"))
+  < 0.01
+)
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
+  value is the instance's 24h `not_found` count
+- Pending period: 6 hours
+- Severity: warning
+- Production Pulse only (`cg3i1jh2k1v5sb`). Folder `Alerts`, group `Cache`. No
+  contact point on the rule: the policy tree sends it to `#notifications`, and
+  it never pages. **No Data: Normal**, **Error: Normal**: a failed
+  evaluation of an informational rule should not notify.
+- Summary: `Kura instance {{ $labels.kura_instance }} answered {{ $values.A.Value | humanize }} reads with not_found in 24h and almost none from writes`
+- **Live** as
+  [`Kura - instance probe loop`](https://tuist.grafana.net/alerting/grafana/kura-probe-loop/view)
+  (UID `kura-probe-loop`, created 2026-11-27), recorded in
+  [`kura-probe-loop-alert-rules.json`](kura-probe-loop-alert-rules.json) and
+  tested by `test-kura-probe-loop-alert.py` with promtool. Grafana does not
+  import the JSON; publish rule changes separately.
+
+An instance flags when, over 24 hours, it answered more than a million reads
+with `not_found`, served under 1% of its reads, and stored fewer than one
+artifact per 100 reads. That is a client looking up keys it never writes, not a
+cache fault. On 2026-11-27 an Xcode CAS proxy from CLI 4.216.6 sent
+one customer instance about 290 GetActionResult/s around the clock:
+before #13802 (first in 4.218), the proxy's spool sweep re-queued every failed
+publication every 10 seconds forever, and each attempt starts with an
+existence probe. That one instance was about 60% of fleet `not_found` and
+moved the fleet hit rate from 89.8% to 78.1%. Kura answered every lookup in
+about a millisecond, so this is a signal for the account, not for the
+cache.
+
+**Per instance, not per pod.** A client holds one HTTP/2 connection, so its
+lookups land on one replica while its writes can land on the other, and a
+loop can also split across replicas. Grouping by the pod name without its
+ordinal sees both.
+
+**The write ratio tolerates the looping client's own CI.** That client's CI
+kept publishing while the loop ran, up to 28 writes per 10,000 reads on
+2026-11-25; a 1-per-10,000 threshold would have flapped with it. The
+threshold sits about 3.5 times above that and about 15 times below the lowest
+real low-hit writer on 2026-11-27 (a 31% hit rate with
+1,575 writes per 10,000 reads), which must stay in the fleet hit rate because
+its misses are a cache problem.
+
+**The daily cache check reports the fleet hit rate twice**, with and without
+the instances this rule selects. Pulse cannot store Grafana recording rules
+(see **Recording rules for Kura regions**), so the check runs this query and
+then the fleet rate with those pods excluded:
+
+```promql
+sum(increase(kura_artifact_reads_total_total{cluster="tuist-production", result="ok"}[24h]))
+/ sum(increase(kura_artifact_reads_total_total{cluster="tuist-production", result=~"ok|not_found"}[24h]))
+```
+
+Add `pod!~"kura-(<instance>|<instance>)-[0-9]+"` to both selectors for the
+second number.
+
+To find the client, read the instance's `<namespace>-<instance>-grpc` upstream
+in the regional `kura-<region>-ingress-nginx` logs: a probe loop is one IP and
+one user agent (`tonic/*` is the Xcode CAS proxy). Match the account's CLI
+versions in ClickHouse `command_events` against the proxy fix it lacks.
+
 ### Kura instance not reconciled
 
 ```promql
