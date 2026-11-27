@@ -519,7 +519,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     test "creates, inspects, runs commands in, pauses, resumes and deletes a sandbox", %{conn: conn, account: account} do
       stub(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
 
-      expect(Nodes, :call, fn "node-a", "create", %{vcpus: 16, memory_mb: 8192}, _opts ->
+      expect(Nodes, :call, fn "node-a", "create", %{vcpus: 16, memory_mb: 16_384, memory_request_mb: 8192}, _opts ->
         {:ok, %{"template_tag" => "sha-1"}}
       end)
 
