@@ -52,14 +52,18 @@ jobs:
               printf 'https://ghcr.io' | "$helper" erase || true
             fi
           done
-          env | cut -d= -f1 | grep -iE 'tart|docker|registry' || true
-          [ -f "$HOME/.docker/config.json" ] && jq -c 'with_entries(.value |= (if type=="object" then keys else . end))' "$HOME/.docker/config.json" || true
-          # No registry variables and an empty HOME (no Docker config), so
-          # Tart pulls the public images anonymously into its usual cache.
-          export TART_HOME="${TART_HOME:-$HOME/.tart}"
-          anon() { env -u TART_REGISTRY_USERNAME -u TART_REGISTRY_PASSWORD -u TART_REGISTRY_HOSTNAME HOME="$(mktemp -d)" tart "$@"; }
-          anon pull "$VANILLA:27.0"
-          anon pull "$VANILLA:27.2"
+          # The runner keeps an inline ghcr.io login in ~/.docker/config.json,
+          # which Tart reads from the user's home whatever HOME says and which
+          # cannot read Cirrus's public images. Hide that one entry while
+          # pulling; the trap and the Clean up step put the file back.
+          cfg="$HOME/.docker/config.json"
+          if [ -f "$cfg" ] && jq -e '.auths["ghcr.io"]' "$cfg" >/dev/null; then
+            cp -p "$cfg" "$WORK/docker-config.json"
+            trap 'cp -p "$WORK/docker-config.json" "$cfg" && rm -f "$WORK/docker-config.json"' EXIT
+            jq 'del(.auths["ghcr.io"])' "$WORK/docker-config.json" > "$cfg"
+          fi
+          tart pull "$VANILLA:27.0"
+          tart pull "$VANILLA:27.2"
       - name: Run the point releases
         run: |
           set -uo pipefail
@@ -80,6 +84,7 @@ jobs:
         if: always()
         shell: bash {0}
         run: |
+          [ -f "$WORK/docker-config.json" ] && cp -p "$WORK/docker-config.json" "$HOME/.docker/config.json"
           for vm in c272 v270 u2721 u273; do tart stop "$vm" 2>/dev/null; tart delete "$vm" 2>/dev/null; done
           tart delete "$VANILLA:27.0" 2>/dev/null; tart delete "$VANILLA:27.2" 2>/dev/null
           rm -rf "$WORK"; df -h /; true
