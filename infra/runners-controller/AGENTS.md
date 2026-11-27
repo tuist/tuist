@@ -56,7 +56,8 @@ cancellable and leaves the reserve intact. See
   and per-pool writes from deterministic plans, so it does not need the
   RunnerPool reconciler's single worker. Keep each pool's tick near
   5 seconds (average reconcile time times the pool count, divided by the
-  workers). The fleet's first pool renews its sandbox grants, which expire
+  workers), and raise the manager's CPU limit with the workers: a throttled
+  manager stretches every reconcile instead. The fleet's first pool renews its sandbox grants, which expire
   after 15 seconds, so its requeues carry `sandboxReporterPriority` and skip
   the queue; every requeue sets its priority, because the queue keeps an
   item's last one. A new macOS sandbox reservation queues the darwin pools

@@ -993,8 +993,12 @@ func (r *AutoscalerReconciler) now() time.Time {
 // The workqueue never runs one pool twice at once, and each reconcile writes
 // only its own pool and Pods, from preemption plans every pool computes the
 // same way. Grant publication keeps its own lock, and host reservations stay
-// in the RunnerPool reconciler's single worker.
-const autoscalerWorkers = 4
+// in the RunnerPool reconciler's single worker. Four workers fell behind
+// once 20 darwin pools were added on 2026-11-26: 61 pools at a mean 0.9 to
+// 1.2 s kept all four busy, a pool waited 28 to 49 s for its turn, and that
+// mean was the manager's 500m CPU limit throttling 74 to 88% of periods.
+// Twelve keep the tick near 5 s with the limit raised to match.
+const autoscalerWorkers = 12
 
 // sandboxReporterPriority puts the pool that renews its fleet's sandbox
 // grants ahead of the other pools in the queue, so the renewal waits for a

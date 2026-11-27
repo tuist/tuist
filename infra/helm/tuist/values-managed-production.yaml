@@ -2813,10 +2813,14 @@ runnersController:
   # The chart's 256Mi default OOM-killed the manager in a loop (peak working
   # set 258 MB on 2026-11-19). Each restart leaves every macOS host's sandbox
   # grant stale past the server's 15 s window, so no Mac sandbox can be placed.
+  # The chart's 500m CPU limit throttled 74 to 88% of periods on 2026-11-27,
+  # doubling the autoscaler's reconcile time; its 12 workers need more.
   resources:
     requests:
+      cpu: 500m
       memory: 256Mi
     limits:
+      cpu: "2"
       memory: 1Gi
   features:
     dindImage: true
