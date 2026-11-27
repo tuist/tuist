@@ -87,7 +87,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # package.xml, and current cmdline-tools writes v4 while AGP 8.7 parses
 # only up to v3 — which makes every Gradle invocation warn about the
 # skew. Keep it behind the AGP releases customers are likely to run.
-FROM eclipse-temurin:21-jdk-jammy@sha256:4e61d0b3471137e239397789661f6adeaf8db9adcfae45916b22f628c8a32dc0 AS android-sdk
+FROM eclipse-temurin:21-jdk-jammy@sha256:b2711c65970c1227197c29c46e669bfdbb137524e9da0e664703a140ec25a040 AS android-sdk
 
 ARG ANDROID_CMDLINE_TOOLS_ARCHIVE=commandlinetools-linux-11076708_latest.zip
 ARG ANDROID_PLATFORM_MIN_VERSION=34
