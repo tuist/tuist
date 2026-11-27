@@ -62,9 +62,15 @@ defmodule Atlas.Documents.Storage do
 
   def configured?, do: is_binary(bucket()) and bucket() != ""
 
+  # Loaded first, because `function_exported?/3` is false for a module that
+  # has not been loaded yet, as can happen in tests and dev.
   defp client do
-    :atlas
-    |> Application.get_env(:documents, [])
-    |> Keyword.get(:storage_client, Atlas.ObjectStorage)
+    client =
+      :atlas
+      |> Application.get_env(:documents, [])
+      |> Keyword.get(:storage_client, Atlas.ObjectStorage)
+
+    Code.ensure_loaded(client)
+    client
   end
 end

@@ -5,10 +5,12 @@ defmodule Atlas.GTM.SocialPublishingTest do
 
   import Atlas.MCP.ToolCase, only: [insert_user!: 1]
 
+  alias Atlas.Documents.Storage
   alias Atlas.GTM.SocialAccount
   alias Atlas.GTM.SocialPublication
   alias Atlas.GTM.SocialPublishing
   alias Atlas.GTM.Workers.PublishSocialPost
+  alias Atlas.GTM.XPublisher
 
   @publish_scopes ~w(tweet.read tweet.write users.read media.write offline.access)
 
@@ -198,6 +200,93 @@ defmodule Atlas.GTM.SocialPublishingTest do
     assert_received {:upload, %{media: encoded, media_category: "tweet_image"}}
     assert Base.decode64!(encoded) == "png-bytes"
     assert_received {:create, %{media: %{media_ids: ["x-media-1"]}}}
+  end
+
+  defp finalized_media!(user, bytes) do
+    {:ok, %{media: media}} = SocialPublishing.create_media_upload(user, "card.png", "image/png")
+    # The uploader's PUT to the signed URL; the test store stands in for the bucket.
+    {:ok, _} = Storage.put_object(media.storage_key, bytes)
+    {:ok, media} = SocialPublishing.finalize_media(user, media.id)
+    media
+  end
+
+  describe "media replaced at its signed URL after approval" do
+    setup %{user: user, account: account} do
+      media = finalized_media!(user, "approved-bytes")
+
+      publication = draft!(user, account, [%{"text" => "Launch", "media_ids" => [media.id]}])
+      {:ok, _} = SocialPublishing.approve(user, publication.id, 1)
+
+      test = self()
+
+      stub(XPublisher, :upload_media, fn _token, bytes, _type, _kind ->
+        send(test, {:upload, bytes})
+        {:ok, "x-media-1"}
+      end)
+
+      stub(XPublisher, :create_post, fn _token, text, _media, _reply ->
+        send(test, {:create, text})
+        {:ok, "post-1"}
+      end)
+
+      %{media: media, publication: publication}
+    end
+
+    test "is not posted, and the publication fails", %{media: media, publication: publication} do
+      # Same length as the approved bytes, so only the content gives it away.
+      {:ok, _} = Storage.put_object(media.storage_key, "swapped!-bytes")
+
+      perform_job(PublishSocialPost, %{"publication_id" => publication.id, "revision" => 1})
+
+      refute_received {:upload, "swapped!-bytes"}
+      refute_received {:create, _text}
+      failed = Repo.get!(SocialPublication, publication.id)
+      assert failed.status == "failed"
+      assert failed.last_error =~ "changed since it was approved"
+    end
+
+    test "is not read past its approved size", %{media: media, publication: publication} do
+      # The bucket returns no more than the requested range; this store ignores
+      # it, so check the publisher asked for it.
+      {:ok, _} = Storage.put_object(media.storage_key, :binary.copy("a", 50_000_000))
+
+      expect(Storage, :get_object, fn key, opts ->
+        assert opts[:headers] == [{"range", "bytes=0-#{byte_size("approved-bytes")}"}]
+        {:ok, %{body: :binary.copy("a", byte_size("approved-bytes") + 1), content_type: nil, key: key}}
+      end)
+
+      perform_job(PublishSocialPost, %{"publication_id" => publication.id, "revision" => 1})
+
+      refute_received {:upload, _bytes}
+      assert Repo.get!(SocialPublication, publication.id).status == "failed"
+    end
+
+    test "later in a thread stops the thread before its first post", %{user: user, account: account} do
+      first = finalized_media!(user, "first-bytes")
+      second = finalized_media!(user, "second-bytes")
+
+      publication =
+        draft!(user, account, [
+          %{"text" => "One", "media_ids" => [first.id]},
+          %{"text" => "Two", "media_ids" => [second.id]}
+        ])
+
+      {:ok, _} = SocialPublishing.approve(user, publication.id, 1)
+      {:ok, _} = Storage.put_object(second.storage_key, "swapped-bytes")
+
+      perform_job(PublishSocialPost, %{"publication_id" => publication.id, "revision" => 1})
+
+      refute_received {:upload, _bytes}
+      refute_received {:create, _text}
+      failed = Repo.get!(SocialPublication, publication.id)
+      assert {failed.status, failed.published_ids} == {"failed", []}
+    end
+
+    test "the unchanged bytes publish", %{publication: publication} do
+      assert :ok = perform_job(PublishSocialPost, %{"publication_id" => publication.id, "revision" => 1})
+      assert_received {:upload, "approved-bytes"}
+      assert_received {:create, "Launch"}
+    end
   end
 
   test "an oversized image is refused before it is stored", %{user: user} do

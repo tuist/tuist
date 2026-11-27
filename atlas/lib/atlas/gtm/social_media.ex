@@ -30,6 +30,7 @@ defmodule Atlas.GTM.SocialMedia do
     field :filename, :string
     field :content_type, :string
     field :byte_size, :integer
+    field :sha256, :string
     field :storage_key, :string
     field :status, :string, default: "pending_upload"
 
@@ -40,7 +41,7 @@ defmodule Atlas.GTM.SocialMedia do
 
   def changeset(media, attrs) do
     media
-    |> cast(attrs, [:filename, :content_type, :byte_size, :storage_key, :status])
+    |> cast(attrs, [:filename, :content_type, :byte_size, :sha256, :storage_key, :status])
     |> validate_required([:filename, :content_type, :storage_key, :status])
     |> validate_length(:filename, max: 255)
     |> validate_inclusion(:content_type, content_types())

@@ -656,6 +656,9 @@ defmodule AtlasWeb.SocialPublishingLive do
   defp error_message(:stale_revision),
     do: gettext("The post changed since you opened it. Review it again before approving.")
 
+  defp error_message(:media_unverified),
+    do: gettext("Atlas has no verified copy of this post's media. Upload it again before approving.")
+
   defp error_message(:not_approvable), do: gettext("This publication cannot be approved in its current state.")
   defp error_message(:not_editable), do: gettext("This publication already started publishing and cannot change.")
   defp error_message(:not_cancellable), do: gettext("This publication can no longer be cancelled.")

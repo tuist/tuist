@@ -41,7 +41,8 @@ defmodule Atlas.ObjectStorage do
   end
 
   def get_object(key, opts \\ []) when is_binary(key) do
-    with {:ok, response} <- request(:get, key, Keyword.put(opts, :success_statuses, [200])) do
+    # 206 answers a `range` header, which bounds what a read loads into memory.
+    with {:ok, response} <- request(:get, key, Keyword.put(opts, :success_statuses, [200, 206])) do
       {:ok,
        %{
          body: response.body,
