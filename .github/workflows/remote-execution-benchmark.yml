@@ -57,7 +57,8 @@ on:
         default: 63881ee3d8012e4e1fb950714af7588ea25fed6c
       buildbuddy_image:
         description: Public guest-stage OCI image, docker://registry/image@sha256:digest (not the template carrier)
-        default: ""
+        # Guest stage of production's bazel template sha-b8f2e9aaa93a (benchmark image run 45970080370).
+        default: docker://ghcr.io/tuist/tuist-sandbox-template@sha256:e1e10c33ed67aa597807c8eadb0b4d1c3f991f3d6fae097d874b082da792f9cb
       node_cache_state:
         description: Observed worker input-cache state; this label does not reset caches
         type: choice
