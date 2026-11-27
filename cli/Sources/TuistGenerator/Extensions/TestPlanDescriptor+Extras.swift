@@ -35,7 +35,9 @@ extension TestPlanDescriptor {
                     pbxTarget: pbxTarget,
                     containerPath: "container:\(containerRelativePath)",
                     isEnabled: !testableTarget.isSkipped,
-                    parallelization: testableTarget.parallelization
+                    parallelization: testableTarget.parallelization,
+                    selectedTags: testableTarget.selectedTags,
+                    skippedTags: testableTarget.skippedTags
                 )
             )
         }

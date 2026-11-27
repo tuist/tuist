@@ -47,6 +47,7 @@ The Swift DSL for defining Tuist manifest files.
 - ``AnalyzeAction``
 - ``ExecuteAction``
 - ``TestableTarget``
+- ``TestPlan``
 - ``RunActionOptions``
 - ``TestActionOptions``
 - ``TestingOptions``
