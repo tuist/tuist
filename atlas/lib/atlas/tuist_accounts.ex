@@ -59,7 +59,7 @@ defmodule Atlas.TuistAccounts do
       "account_id" => @account_id,
       "operation" => %{
         "type" => "string",
-        "enum" => ~w(upgrade_to_enterprise start_open_source cancel_at_period_end schedule_pro)
+        "enum" => ~w(upgrade_to_enterprise start_open_source cancel_at_period_end schedule_pro switch_to_usd)
       },
       # Only for schedule_pro, which requires it: when the switch to Pro happens.
       "starts_at" => %{"type" => "string", "format" => "date-time"},

@@ -24,6 +24,11 @@ defmodule Atlas.MCP.Tools.UpdateTuistAccountPlan do
       "and from starts_at the subscription carries the Pro prices, starts a new billing cycle and charges the customer's " <>
       "default payment method. It is refused without a default payment method (error payment_method_required, ask the " <>
       "customer to add a card) and when the subscription is already Pro or set to cancel (no_schedulable_subscription). " <>
+      "switch_to_usd recreates a live $0 Enterprise subscription priced in another currency, such as EUR, in USD, so it " <>
+      "can carry the USD-only runner prices: the old one is cancelled without proration and replaced on the same customer " <>
+      "with the Enterprise items, collection method and renewal date. It is refused with no_switchable_subscription (not " <>
+      "a live Enterprise subscription), already_usd, billable_subscription (it carries metered items or seats), " <>
+      "open_invoice, or usd_prices_missing. " <>
       "Requires feature_flags:write. Read get_tuist_account_plan first and supply its revision as expected_revision, a reason " <>
       "and a unique change_id UUID. A stale revision is rejected (409), including after a Stripe webhook or ops page change: " <>
       "re-read before deciding again. Writes never retry automatically; after an ambiguous failure, re-read the plan, and " <>
