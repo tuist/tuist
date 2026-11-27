@@ -1,0 +1,12 @@
+# expect -f ssh.exp IP COMMAND: runs COMMAND as the vanilla images' admin user.
+set timeout -1
+set ip [lindex $argv 0]
+set cmd [lindex $argv 1]
+log_user 1
+spawn -noecho ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10 admin@$ip $cmd
+expect {
+  -re "assword:" { send "admin\r"; exp_continue }
+  eof
+}
+catch wait result
+exit [lindex $result 3]

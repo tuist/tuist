@@ -1,0 +1,69 @@
+# Temporary: does the macOS 27 share bug depend on the guest's point release?
+#
+# APFS images whose file sits on the VM's virtio-fs share lose writes on
+# Golden Gate 27.2 guests (golden-gate-volume-e2e). This boots plain Cirrus
+# vanilla guests with Tart on one bare-metal builder, shares a host directory
+# the way tart-kubelet shares a cache volume, and runs the same write check
+# on every macOS 27 point release we can get:
+#   27.0      Cirrus vanilla 27.0
+#   27.2      Cirrus vanilla 27.2, the control, running next to every other guest
+#   27.2.1    vanilla 27.2 updated in the VM
+#   27.3 b2   vanilla 27.2 enrolled in the beta seed and updated in the VM
+# Two guests run at once (the most a Mac may run), both writing, and a second
+# round adds host memory pressure, because the loss seems to need a busy host.
+# Runs only for a pushed commit whose message contains [run].
+name: Golden Gate point releases
+
+on:
+  push:
+    branches: [golden-gate-point-releases]
+
+permissions:
+  contents: read
+
+jobs:
+  points:
+    if: contains(github.event.head_commit.message, '[run]')
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 200
+    env:
+      VANILLA: ghcr.io/cirruslabs/macos-golden-gate-vanilla
+      WORK: /tmp/gg-points
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host
+        run: |
+          sw_vers; tart --version; sysctl -n hw.memsize hw.ncpu
+          df -h /; tart list
+          free=$(df -g / | awk 'NR==2 { print $4 }')
+          # Two vanilla images and three updated clones need about 120 GB;
+          # stay well above the image bakes' own 300 GB floor.
+          if [ "$free" -lt 200 ]; then echo "::error::only ${free} GB free"; exit 1; fi
+          rm -rf "$WORK"; mkdir -p "$WORK"
+      - name: Pull the vanilla guests
+        run: |
+          set -euo pipefail
+          tart pull "$VANILLA:27.0"
+          tart pull "$VANILLA:27.2"
+      - name: Run the point releases
+        run: |
+          set -uo pipefail
+          sh=.github/golden-gate-point-releases
+          . "$sh/host.sh"
+          boot c272 "$VANILLA:27.2" || exit 1
+          boot v270 "$VANILLA:27.0" && pair c272 v270
+          retire v270
+          boot u2721 "$VANILLA:27.2" && update u2721 release && pair c272 u2721
+          retire u2721
+          boot u273 "$VANILLA:27.2" && update u273 beta && pair c272 u273
+          retire u273
+          exit 0
+      - name: Results
+        if: always()
+        run: grep -h '^RESULT' "$WORK"/*.log | sort || true
+      - name: Clean up
+        if: always()
+        run: |
+          for vm in c272 v270 u2721 u273; do tart stop "$vm" 2>/dev/null; tart delete "$vm" 2>/dev/null; done
+          tart delete "$VANILLA:27.0" 2>/dev/null; tart delete "$VANILLA:27.2" 2>/dev/null
+          rm -rf "$WORK"; df -h /; true
