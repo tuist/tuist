@@ -782,7 +782,7 @@ ovhFleets:
       kataRuntime: true
       # Kata containers get a devmapper rootfs over virtio-blk instead of
       # virtiofs (staging trial; see kata_block_rootfs.go in the CAPI provider).
-      # Bootstrap-time only: a box picks it up when it is reprovisioned.
+      # A Ready box without it is drained and converted in place.
       kataBlockRootfs: true
       # Runner Pods tolerate this taint; nothing else does.
       nodeTaints:

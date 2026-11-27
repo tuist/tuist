@@ -110,6 +110,13 @@ type OVHDedicatedMachineReconciler struct {
 	runnerEgressMu           sync.Mutex
 	// RunnerEgressRunScript is the test seam for pinned, bounded host repairs.
 	RunnerEgressRunScript func(context.Context, *infrav1.OVHDedicatedMachine, string) error
+
+	// KataBlockRootfsMaxConverting is how many boxes may be out of service at
+	// once while they move onto the devmapper rootfs in place
+	// (kata_block_rootfs_inplace.go). Zero means DefaultKataBlockRootfsMaxConverting.
+	KataBlockRootfsMaxConverting int
+	// KataBlockRootfsRunScript is the test seam for the in-place conversion.
+	KataBlockRootfsRunScript func(context.Context, *infrav1.OVHDedicatedMachine, string) error
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=ovhdedicatedmachines,verbs=get;list;watch;create;update;patch;delete
@@ -385,6 +392,12 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+			}
+			if requeueAfter, blockErr := r.reconcileKataBlockRootfs(ctx, machine, node); blockErr != nil {
+				logger.Error(blockErr, "kata devmapper rootfs conversion failed; will retry")
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			} else if requeueAfter > 0 {
+				return ctrl.Result{RequeueAfter: requeueAfter}, nil
 			}
 			// Not a return path for its own failures: a host that cannot
 			// offer nested guests still serves every other Pod, and the

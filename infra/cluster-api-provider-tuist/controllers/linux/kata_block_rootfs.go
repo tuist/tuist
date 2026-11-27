@@ -13,10 +13,10 @@ import "fmt"
 // KataBlockRootfs points the kata-qemu handler, and only it, at containerd's
 // devmapper snapshotter: runc Pods on the same box keep overlayfs. The thin pool
 // sits on two preallocated loop files under /data, so it needs no partition of
-// its own and the host cannot overcommit /data under it. It is a bootstrap-time
-// capability: the handler block below is only ever appended to a fresh config
-// and containerd must restart to load the snapshotter, so a box that joined
-// without it gets it by being reprovisioned, not by the Ready-path repair.
+// its own and the host cannot overcommit /data under it. A fresh join sets it up
+// here; a box that joined without it is converted in place on the Ready path,
+// drained first because containerd must restart to load the snapshotter
+// (kata_block_rootfs_inplace.go).
 //
 // The kubelet pulls a runner image into overlayfs unless the Pod carries the
 // io.containerd.cri.runtime-handler annotation; containerd then unpacks it into

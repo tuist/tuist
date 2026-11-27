@@ -1866,7 +1866,8 @@ ovhFleet:
 #
 # `machine.kataBlockRootfs` (with `kataRuntime`) moves kata-qemu container
 # rootfs from virtiofs to a devmapper thin pool on /data, mounted in the guest
-# over virtio-blk. Read at bootstrap only.
+# over virtio-blk. A fresh join sets it up; a Ready box that lacks it is
+# drained and converted in place, one box at a time, without a reinstall.
 #
 # `kubernetesVersion` is the fleet Machines' version, and a fresh join installs
 # that kubelet minor. Kata fleets on v1.36 or later also run the pod-level

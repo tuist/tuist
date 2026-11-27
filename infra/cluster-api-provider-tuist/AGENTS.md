@@ -2422,6 +2422,7 @@ infra/cluster-api-provider-tuist/
 │       ├── kata_shared_memory.go    # /dev/shm ceiling for Kata guest RAM + the host-config proof
 │       ├── kata_virtiofs.go         # virtiofsd file budget (fs.nr_open + Kata config.d drop-in)
 │       ├── kata_block_rootfs.go     # opt-in devmapper rootfs for kata-qemu (thin pool on /data, virtio-blk)
+│       ├── kata_block_rootfs_inplace.go # drain-and-convert a Ready box to it, one slot at a time
 │       └── kata_kvm.go              # install + prove the KVM guest kernel, label tuist.dev/kata-kvm
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
@@ -2623,9 +2624,18 @@ installs the Kata drop-in `50-tuist-block-rootfs.toml`. The loops use direct
 I/O, and the drop-in has QEMU open the thin devices with O_DIRECT and drop the
 guest's flushes: passed through, each flush was an fsync of `/data`'s md RAID1,
 and apt installs ran about 12 s slower than over virtio-fs. runc Pods keep
-overlayfs. It is bootstrap-time only: the Ready-path repair does not apply it
-and `tuist.dev/kata-host-config` does not cover it, so flipping the field reaches
-a box when it is reprovisioned. Without the `io.containerd.cri.runtime-handler`
+overlayfs. A fresh join sets it up; on the Ready path
+`kata_block_rootfs_inplace.go` converts a box that joined without it, with no
+reinstall. It probes the box first (pool active, handler snapshotter, drop-in,
+`ctr plugins ls` shows devmapper `ok`) and stamps a passing box
+`tuist.dev/kata-block-rootfs=1` without draining it. Otherwise it takes a
+rollout slot (`tuist.dev/kata-block-rootfs-converting` on the Node; at most
+`KataBlockRootfsMaxConverting`, default 1, across the cluster), cordons, waits for
+runner jobs like a release does, runs the setup and restarts containerd, then
+stamps and uncordons. The Machine's template (`cluster.x-k8s.io/cloned-from-name`)
+decides, since the fleets are OnDelete and the Machine spec is a copy. A failed
+conversion keeps the box cordoned with `KataBlockRootfsReady=False`
+(`ConversionFailed`). `tuist.dev/kata-host-config` does not cover it. Without the `io.containerd.cri.runtime-handler`
 Pod annotation the kubelet pulls into overlayfs and containerd unpacks the image
 into devmapper on the first container start, so each runner image is stored
 twice. The Hetzner worker template does not have it.
