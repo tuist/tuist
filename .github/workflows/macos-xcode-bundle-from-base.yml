@@ -1,0 +1,115 @@
+name: macOS Xcode bundle from-base experiment
+
+# Throwaway experiment (branch exp/xcode-bundle-tahoe-27 only). Builds two
+# bundle versions independently from the Cirrus Labs macOS base, the way a
+# release would rebuild a bundle from scratch when Apple ships an Xcode:
+#   v1 = base + 27.0 + 27.1
+#   v2 = base + 27.0 + 27.1 + 27.2
+# Each starts from the same pinned base (pulled once, cloned locally). 27.0 is
+# installed with the production template (macos-xcode.pkr.hcl), later Xcodes
+# with bundle.pkr.hcl at 140 GB with the recovery partition kept. Disks are
+# compared in 512 MiB chunks (chunks.py): how much of v2 a host holding v1
+# would download. Nothing is pushed. Companion to macos-xcode-bundle-delta.yml,
+# which measures chaining. Every measurement line starts with BUNDLE-EXP.
+
+on:
+  push:
+    branches: [exp/xcode-bundle-tahoe-27]
+    paths:
+      - .github/workflows/macos-xcode-bundle-from-base.yml
+
+concurrency:
+  group: macos-xcode-bundle-from-base
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  CIRRUS_BASE: ghcr.io/cirruslabs/macos-tahoe-base:latest
+  CHUNKS: ${{ github.workspace }}/infra/macos-xcode-image/experiments/chunks.py
+
+jobs:
+  from-base:
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 720
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull Xcode .xips from mirror
+        id: xips
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | oras login ghcr.io --username tuist-bot --password-stdin
+          for v in 27.0 27.1 27.2; do
+            d="${RUNNER_TEMP}/xip-${v}"; rm -rf "$d"; mkdir -p "$d"
+            oras pull "ghcr.io/tuist/xcode-xips:${v}" --output "$d"
+            echo "x${v//./_}=$(ls "$d"/*.xip | head -n1)" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Initialize Packer
+        run: |
+          packer init -upgrade infra/macos-xcode-image/macos-xcode.pkr.hcl
+          packer init -upgrade infra/macos-xcode-image/experiments/bundle.pkr.hcl
+
+      - uses: ./.github/actions/reclaim-tart-disk
+        with:
+          keep: |
+            ghcr.io/tuist/macos-tahoe-xcode:27-0
+
+      - name: Pin the macOS base
+        run: |
+          set -euo pipefail
+          tart delete exp-fb-base 2>/dev/null || true
+          tart pull "$CIRRUS_BASE"
+          tart clone "$CIRRUS_BASE" exp-fb-base
+          echo "BUNDLE-EXP from-base: Cirrus base pinned as local VM exp-fb-base"
+
+      - name: Build v1 (27.0 + 27.1) from the base
+        run: |
+          set -euo pipefail
+          t0=$(date +%s)
+          (cd infra/macos-xcode-image && env -u GITHUB_TOKEN packer build \
+            -var base_image=exp-fb-base -var output_image=exp-fb1-0 \
+            -var "xcode_xip_path=${{ steps.xips.outputs.x27_0 }}" -var xcode_version=27.0 \
+            -var disk_size_gb=140 macos-xcode.pkr.hcl)
+          (cd infra/macos-xcode-image/experiments && env -u GITHUB_TOKEN packer build \
+            -var base_image=exp-fb1-0 -var output_image=exp-fb1 \
+            -var disk_size_gb=140 -var recovery_partition=keep \
+            -var "xcode_xip_path=${{ steps.xips.outputs.x27_1 }}" -var xcode_version=27.1 bundle.pkr.hcl)
+          echo "BUNDLE-EXP from-base build v1 s: $(( $(date +%s) - t0 ))"
+          tart delete exp-fb1-0
+          python3 "$CHUNKS" hash "$HOME/.tart/vms/exp-fb1/disk.img" "$RUNNER_TEMP/h-fb1"
+          tart delete exp-fb1
+
+      - name: Build v2 (27.0 + 27.1 + 27.2) from the base
+        run: |
+          set -euo pipefail
+          t0=$(date +%s)
+          (cd infra/macos-xcode-image && env -u GITHUB_TOKEN packer build \
+            -var base_image=exp-fb-base -var output_image=exp-fb2-0 \
+            -var "xcode_xip_path=${{ steps.xips.outputs.x27_0 }}" -var xcode_version=27.0 \
+            -var disk_size_gb=140 macos-xcode.pkr.hcl)
+          cd infra/macos-xcode-image/experiments
+          env -u GITHUB_TOKEN packer build \
+            -var base_image=exp-fb2-0 -var output_image=exp-fb2-1 \
+            -var disk_size_gb=140 -var recovery_partition=keep \
+            -var "xcode_xip_path=${{ steps.xips.outputs.x27_1 }}" -var xcode_version=27.1 bundle.pkr.hcl
+          tart delete exp-fb2-0
+          env -u GITHUB_TOKEN packer build \
+            -var base_image=exp-fb2-1 -var output_image=exp-fb2 \
+            -var disk_size_gb=140 -var recovery_partition=keep \
+            -var "xcode_xip_path=${{ steps.xips.outputs.x27_2 }}" -var xcode_version=27.2 bundle.pkr.hcl
+          tart delete exp-fb2-1
+          echo "BUNDLE-EXP from-base build v2 s: $(( $(date +%s) - t0 ))"
+          python3 "$CHUNKS" hash "$HOME/.tart/vms/exp-fb2/disk.img" "$RUNNER_TEMP/h-fb2"
+          python3 "$CHUNKS" diff "$RUNNER_TEMP/h-fb1" "$RUNNER_TEMP/h-fb2" "from-base v1 (27.0+27.1) -> from-base v2 (27.0+27.1+27.2)"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          for vm in exp-fb-base exp-fb1-0 exp-fb1 exp-fb2-0 exp-fb2-1 exp-fb2; do tart delete "$vm" 2>/dev/null || true; done
+          rm -rf "${RUNNER_TEMP}"/xip-* "${RUNNER_TEMP}"/h-fb*
