@@ -1,0 +1,79 @@
+[
+  {
+    "annotations": {
+      "description": "zot, the rack's VM image cache (Deployment tuist-tuist-rack-image-cache-<node> in namespace tuist), logged {{ $values.A.Value }} 'no space left on device' errors in the last 15 minutes: its claim is full and it cannot fetch new runner images. Every host that needs an image the cache lacks waits on it until the mirror sync timeout (ImageCacheSyncing), then pulls about 60 GB from ghcr.io. On 2026-11-27 the 1 TiB claim filled at 12:39 UTC, a runner image release moved the rack pools at 14:54, and macOS jobs waited up to an hour.\n\nFirst query (Pulse SQL, the pulse-sql data source): SELECT date_trunc('minute', timestamp), count(*) FROM opentelemetry_logs WHERE timestamp > now() - INTERVAL '1 hour' AND json_get_string(resource_attributes, 'job') = 'tuist/zot' AND body LIKE '%no space left on device%' GROUP BY 1 ORDER BY 1.\n\nThe cache must hold every image of rackFleet.imageCache's prewarm list plus a release's overlap. Raise rackFleet.imageCache.sizeGi (a new size is a new claim, which zot fills again from ghcr.io), and hold runner image releases until it has room.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#rack-image-cache-out-of-space",
+      "summary": "The rack's VM image cache is out of space ({{ $values.A.Value }} errors in 15 minutes)"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 900,
+          "to": 0
+        },
+        "datasourceUid": "pulse-sql",
+        "model": {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value\nFROM opentelemetry_logs\nWHERE timestamp > now() - INTERVAL '15 minutes'\n  AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n  AND json_get_string(resource_attributes, 'job') = 'tuist/zot'\n  AND body LIKE '%\"level\":\"error\"%'\n  AND body LIKE '%no space left on device%'",
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "queryType": "expression",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        }
+      }
+    ],
+    "execErrState": "KeepLast",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Rack image cache",
+    "title": "Rack image cache out of space",
+    "uid": "rack-image-cache-out-of-space"
+  }
+]

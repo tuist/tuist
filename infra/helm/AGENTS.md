@@ -191,6 +191,10 @@ Helm-installed resource; publishing it is a separate rollout step.
   are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.
   Keep unavailable service separate from the 30-minute redundancy warning, and keep
   the ten-minute StatefulSet age gate: single-replica instances start at zero Ready.
+- `k8s-monitoring/rack-image-cache-alert-rules.json` holds the **Rack image
+  cache** rule: zot logging `no space left on device` (Pulse SQL, zot's logs,
+  since Pulse has no zot or claim metrics). Provisioned separately from Helm;
+  backtest in `alerts.md`.
 - `k8s-monitoring/runner-cache-volume-alert-rules.json` records the live
   **Runner cache volumes** group (five log rules on Pulse SQL and one Postgres rule,
   five-minute evaluation), provisioned separately from Helm; `alerts.md` holds

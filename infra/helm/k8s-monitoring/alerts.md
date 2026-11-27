@@ -3447,6 +3447,55 @@ When it fires:
    frees while it has headroom.
 3. If the fleet is genuinely full of customer work, it needs hosts.
 
+### Rack image cache out of space
+
+The rule lives in
+[`rack-image-cache-alert-rules.json`](rack-image-cache-alert-rules.json)
+(group **Rack image cache**). It is provisioned in Grafana separately from Helm.
+
+It fires when zot, the rack's VM image cache, logs `no space left on device`
+for 5 minutes. When its claim is full, zot cannot fetch any image it does not
+already hold. Hosts then wait in `ImageCacheSyncing` until the mirror sync
+times out, and pull about 60 GB each from ghcr.io. On 2026-11-27 the 1 TiB
+claim filled at 12:39 UTC. Nothing reported it until a runner image release
+moved the rack pools at 14:54 and macOS jobs waited up to an hour.
+
+```sql
+SELECT count(*) AS value
+FROM opentelemetry_logs
+WHERE timestamp > now() - INTERVAL '15 minutes'
+  AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'
+  AND json_get_string(resource_attributes, 'job') = 'tuist/zot'
+  AND body LIKE '%"level":"error"%'
+  AND body LIKE '%no space left on device%'
+```
+
+- Data source: `pulse-sql`. Pending period: 5 minutes. Severity: warning.
+- Threshold: more than 0. A cache with room never logs this error.
+- It reads zot's logs because Pulse has no zot metrics and no
+  `kubelet_volume_stats_*` series for the claim.
+- It does not count `failed to sync image`. zot also logs that when ghcr.io
+  resets an HTTP/2 stream (17:15 on 2026-11-27, with the new 4 TiB claim
+  nearly empty), and it retries those itself.
+
+Backtest (counts per 15-minute window): 0 at 09:00 on 2026-11-27, 198 at
+12:39 (the first window after the claim filled), 473 at 15:30, and 0 after the
+4 TiB claim replaced it at 16:48. From 12:00 on 2026-11-26 to 00:00 on 11-27
+it matched 866 errors, so the old claim was already full the day before the
+incident. Each evaluation runs in about 2 seconds.
+
+When it fires:
+1. Confirm the claim is full. `kubectl -n tuist get pvc | rg image-cache`
+   names the claim, and the query in the rule's description shows when the
+   errors started.
+2. Hold runner image releases. A release moves pools onto images the cache
+   cannot serve. The staging gate keeps holding a pool while fewer than three
+   quarters of its hosts hold the new image, but hosts still cold-pull for
+   new Pods.
+3. Raise `rackFleet.imageCache.sizeGi` so it fits every prewarm image plus a
+   release's overlap. A new size is a new claim, which zot fills again from
+   ghcr.io.
+
 ### macOS runner VM starting a job with under 100 GiB free
 
 Tuist commits to at least 45 GiB of free VM disk when a macOS job
