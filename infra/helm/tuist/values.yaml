@@ -2821,6 +2821,13 @@ sandboxes:
   # and grown before any action arrives. Queued CI jobs still outrank it.
   # 0 leaves remote execution out of the allocator.
   remoteExecutionFloorSlots: 0
+  # Cap on the floor the server learns from accounts' recent builds (the
+  # 90th percentile of the slots a build asks for in its first 2 s, while
+  # an account started one in the last 30 minutes; see
+  # Tuist.RemoteExecution.LearnedFloor). It raises the floor above
+  # remoteExecutionFloorSlots during a batch of builds and gives it back
+  # after. 0 ignores the learned floor.
+  remoteExecutionMaxLearnedFloorSlots: 0
   macos:
     enabled: false
     templateName: macos

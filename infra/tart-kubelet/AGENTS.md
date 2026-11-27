@@ -121,11 +121,16 @@ workflow code runs in the guest. Never expose host credentials or masters.
   current image's golden label also
   holds the new one (`.github/scripts/runner-image-staging-gate.sh`, run by
   `server-deployment.yml` before the chart upgrade), and `announce` waits for
-  the same before it dispatches the release's deploy. Both give up an hour
-  after the latest announcement (`tuist.dev/runner-image-announced-at`), and a
-  release dispatched with `skip_staging` moves the pools at once
-  (`tuist.dev/runner-image-staging: skip`). Canary's deploy instead waits up
-  to 30 minutes for staging, ignoring the hour, and fails closed, so runners
+  the same before it dispatches the release's deploy. Both give up on an
+  image an hour after it was first announced
+  (`tuist.dev/runner-image-announced-at-by-image`, per key, falling back to
+  `tuist.dev/runner-image-announced-at`), and a release dispatched with
+  `skip_staging` moves the pools at once
+  (`tuist.dev/runner-image-staging: skip`). A deploy moving a pool to an
+  image no announcement names announces it itself and holds the pool, so a
+  tag moved after its announcement (2026-11-26) cannot reach jobs unstaged.
+  Canary's deploy instead waits up to 30 minutes for staging, ignoring the
+  hour, and fails closed, so runners
   acceptance qualifies the images production moves to. A pool is
   matched by its `tuist.dev/xcode-version` and `tuist.dev/runner-image-variant`
   (`standalone` or `stacked`) labels, which the chart renders only on catalog
@@ -260,7 +265,16 @@ workflow code runs in the guest. Never expose host credentials or masters.
   counts as `recent`). Hosts of every environment report it, so filter by `env`.
   Checkout HEADs in the list go to `PrefetchCheckout` (see the checkout notes) and
   are not counted there.
-  Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
+  Jobs never wait on it. It is reserved and joined at stop. Every download runs
+  on a thread with throttled disk I/O (`withThrottledIO`, macOS's
+  `setiopolicy_np`, what `taskpolicy -b` does for a process), and the server's
+  HEADs (`background`) wait while a runner Pod on the host has claimed a job
+  (`claimsJob`, as staging does), for up to `customPrefetchJobWaitCap` (20
+  minutes); a master a job asked for does not wait. The download and restore
+  must write from the calling goroutine for the policy to reach them.
+  Evidence: on 2026-11-27 rack hosts prefetched 650 to 1,500 GB a day at 100
+  to 400 MB/s, and shards extracted their test products 2 to 4 times slower
+  while their host wrote that fast. Unavailable responses
   carry a bounded `reason` and the host logs why; a 425 retried until the
   deadline is `execution_pending`, not `denied`. A Pod waits for GitHub's job
   report once: its first 425 starts one 25-second wait that its checkout and

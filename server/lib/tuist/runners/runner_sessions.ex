@@ -749,6 +749,21 @@ defmodule Tuist.Runners.RunnerSessions do
   end
 
   @doc """
+  How many runners were minted for `workflow_job_id` that GitHub never gave
+  any job: sessions bound to it with neither an executed job nor a job
+  window. A runner GitHub hands a sibling's job instead records that job, so
+  it does not count.
+  """
+  def unassigned_count(workflow_job_id) when is_integer(workflow_job_id) do
+    RunnerSession
+    |> where(
+      [s],
+      s.workflow_job_id == ^workflow_job_id and is_nil(s.executed_workflow_job_id) and is_nil(s.job_started_at)
+    )
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
   The jobs whose runners still occupy `node_names`: one per open session, from
   committed dispatch through post-job cache work and Pod teardown, so it covers
   a job before it attaches its cache volumes and while it publishes them. Each

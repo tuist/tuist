@@ -81,7 +81,9 @@ defmodule TuistWeb.RateLimit.OnceEventsTest do
     OnceEvents.call(%{}, stream, fn _req, stream -> {:ok, stream} end, OnceEvents.init([]))
   end
 
-  defp stream(headers), do: %GRPC.Server.Stream{adapter: HeadersAdapter, payload: headers}
+  # `struct/2` rather than a literal: the type checker infers grpc_server's
+  # `__interface__` default precisely enough to reject the literal as a stream.
+  defp stream(headers), do: struct(GRPC.Server.Stream, adapter: HeadersAdapter, payload: headers)
 
   defp address, do: "10.#{:rand.uniform(250)}.#{:rand.uniform(250)}.#{System.unique_integer([:positive])}"
 end

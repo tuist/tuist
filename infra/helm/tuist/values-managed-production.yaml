@@ -2712,6 +2712,11 @@ sandboxes:
   # within 0.1 s, the rest wait for growth either way) for 41 GiB held all
   # day that CI's warm runners were short of (November 2026).
   remoteExecutionFloorSlots: 10
+  # While an account runs builds, raise the floor to what its builds ask for
+  # at once (Tuist.RemoteExecution.LearnedFloor), up to the ten workers'
+  # 6-slot ceilings (about 244 GiB). Queued CI jobs still outrank it, and the
+  # fleet had about 537 GiB free at its busiest in the week to 2026-11-27.
+  remoteExecutionMaxLearnedFloorSlots: 60
   image:
     tag: "sha-1949e6dfc6f9"
   templateImage:

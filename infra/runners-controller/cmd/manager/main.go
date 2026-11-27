@@ -63,6 +63,7 @@ func main() {
 		clusterDomain       string
 		sandboxesNS         string
 		executionFloorSlots int
+		executionMaxLearned int
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -96,6 +97,8 @@ func main() {
 
 	flag.IntVar(&executionFloorSlots, "remote-execution-floor-slots", envInt("TUIST_REMOTE_EXECUTION_FLOOR_SLOTS", 0),
 		"Fleet-wide floor of remote execution VM slots the compute allocator keeps on shared Linux hosts, ahead of runner warm stock. 0 leaves remote execution workers out of the allocator.")
+	flag.IntVar(&executionMaxLearned, "remote-execution-max-learned-floor-slots", envInt("TUIST_REMOTE_EXECUTION_MAX_LEARNED_FLOOR_SLOTS", 0),
+		"Cap on the remote execution floor the server learns from accounts' recent builds, which raises the floor above --remote-execution-floor-slots while builds run. 0 ignores the learned floor.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -172,13 +175,14 @@ func main() {
 	// (no scaling-driven changes), static pools work as before.
 	if signalsClient != nil {
 		if err := (&controllers.AutoscalerReconciler{
-			Client:                mgr.GetClient(),
-			Scheme:                mgr.GetScheme(),
-			SignalsClient:         signalsClient,
-			SandboxesNamespace:    sandboxesNS,
-			ReservationsNamespace: reservationsNS,
-			ExecutionFloorSlots:   int32(executionFloorSlots),
-			APIReader:             mgr.GetAPIReader(),
+			Client:                        mgr.GetClient(),
+			Scheme:                        mgr.GetScheme(),
+			SignalsClient:                 signalsClient,
+			SandboxesNamespace:            sandboxesNS,
+			ReservationsNamespace:         reservationsNS,
+			ExecutionFloorSlots:           int32(executionFloorSlots),
+			ExecutionMaxLearnedFloorSlots: int32(executionMaxLearned),
+			APIReader:                     mgr.GetAPIReader(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup Autoscaler reconciler")
 			os.Exit(1)

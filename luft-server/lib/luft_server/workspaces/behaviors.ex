@@ -28,13 +28,19 @@ defmodule LuftServer.Workspaces.Behaviors do
         end
 
       _ ->
-        {:error, :forbidden}
+        unconfigured(operation)
     end
   rescue
     _ -> {:error, :unavailable}
   catch
     :exit, _ -> {:error, :unavailable}
   end
+
+  # An account without a behavior workspace has no collections or releases yet;
+  # listing them is empty rather than a refusal. Everything else stays refused.
+  defp unconfigured(:catalog), do: {:ok, %{"release" => nil, "collections" => []}}
+  defp unconfigured(:releases), do: {:ok, %{"active" => nil, "releases" => []}}
+  defp unconfigured(_), do: {:error, :forbidden}
 
   # Provisioning is a trusted local operation, never an HTTP capability.
   def initialize(connection, organization_id, account_id, principals) do

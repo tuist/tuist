@@ -16,4 +16,4 @@ Tuist's [trust center](https://security.tuist.dev/) lists a SOC 2 Type II report
 
 ## Reporting vulnerabilities
 
-Email [contact@tuist.dev](mailto:contact@tuist.dev) with a description, reproduction steps, and relevant evidence. Give Tuist reasonable time to investigate before public disclosure, and avoid accessing other users' data or disrupting the service. Do not include credentials or unnecessary customer data. There is no paid bug bounty; valid reports can be acknowledged publicly on request.
+Email [incidents@tuist.dev](mailto:incidents@tuist.dev) with a description, reproduction steps, and relevant evidence. Give Tuist reasonable time to investigate before public disclosure, and avoid accessing other users' data or disrupting the service. Do not include credentials or unnecessary customer data. There is no paid bug bounty; valid reports can be acknowledged publicly on request.

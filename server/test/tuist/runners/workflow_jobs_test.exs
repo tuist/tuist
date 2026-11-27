@@ -837,6 +837,43 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     end
   end
 
+  describe "hold_dispatch/2" do
+    test "keeps a parked job out of dispatch and every queue count until its hold lapses or is released" do
+      account = account_fixture()
+      other_account = account_fixture()
+      now = DateTime.utc_now()
+      floor = DateTime.add(now, -7 * 86_400, :second)
+      oldest = DateTime.add(now, -3600, :second)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_300, enqueued_at: oldest))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_301, enqueued_at: DateTime.add(now, -60, :second)))
+      :ok = WorkflowJobs.upsert_queued(attrs(other_account, 910_302, enqueued_at: DateTime.add(now, -1800, :second)))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_303))
+      :ok = WorkflowJobs.transition_claimed(910_303, "pod-1", now)
+
+      assert :ok = WorkflowJobs.hold_dispatch(910_300, DateTime.add(now, 1800, :second))
+      # A hold that already lapsed parks nothing.
+      assert :ok = WorkflowJobs.hold_dispatch(910_302, DateTime.add(now, -1, :second))
+      # Only a queued row can be parked.
+      assert :noop = WorkflowJobs.hold_dispatch(910_303, DateTime.add(now, 1800, :second))
+
+      assert {:ok, candidates} = WorkflowJobs.pick_queued_top_k("fleet-a", [], [], [], 20, floor)
+      assert Enum.map(candidates, & &1.workflow_job_id) == [910_302, 910_301]
+      assert WorkflowJobs.queued_count_by_fleet("fleet-a", floor) == 2
+      assert WorkflowJobs.queued_count_by_fleet_and_account("fleet-a", floor) == %{account.id => 1, other_account.id => 1}
+
+      assert %{"fleet-a" => %{count: 2, by_account: by_account}} = WorkflowJobs.queue_stats_by_fleet(floor)
+      assert DateTime.compare(Map.fetch!(by_account, account.id), DateTime.add(now, -60, :second)) == :eq
+
+      # Another account's holds are not released.
+      assert WorkflowJobs.release_dispatch_holds(account.id) == 1
+
+      assert {:ok, [%{workflow_job_id: 910_300} | _]} = WorkflowJobs.pick_queued_top_k("fleet-a", [], [], [], 20, floor)
+      assert WorkflowJobs.queued_count_by_fleet("fleet-a", floor) == 3
+      assert get_row!(910_302).dispatch_held_until
+    end
+  end
+
   describe "transition outbox" do
     test "writes one event per applied transition carrying the CH insert shape" do
       account = account_fixture()

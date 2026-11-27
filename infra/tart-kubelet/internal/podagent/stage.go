@@ -197,11 +197,17 @@ func (p *Prewarmer) runsJob(ctx context.Context) (bool, error) {
 		if pod.DeletionTimestamp != nil {
 			continue
 		}
-		if pod.Labels[runnerPoolOwnerLabel] != "" || pod.Annotations[runnerHeartbeatStateAnnotation] == heartbeatStateClaimed {
+		if claimsJob(pod) {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+// claimsJob reports whether a runner Pod has claimed a job: the server stamped
+// its owner, or its guest reports `claimed`. An idle warm runner has neither.
+func claimsJob(pod *corev1.Pod) bool {
+	return pod.Labels[runnerPoolOwnerLabel] != "" || pod.Annotations[runnerHeartbeatStateAnnotation] == heartbeatStateClaimed
 }
 
 func (p *Prewarmer) clock() time.Time {

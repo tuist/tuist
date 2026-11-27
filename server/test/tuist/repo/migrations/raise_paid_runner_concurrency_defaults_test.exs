@@ -35,7 +35,7 @@ defmodule Tuist.Repo.Migrations.RaisePaidRunnerConcurrencyDefaultsTest do
 
     assert limits(grown) == %{linux: {96, 128}, macos: {72, 144}}
     assert limits(lapsed) == %{linux: {32, 64}, macos: {16, 48}}
-    assert limits(air) == %{linux: {16, 64}, macos: {8, 24}}
+    assert limits(air) == %{linux: {16, 64}, macos: {16, 48}}
 
     # The raise is recorded as a plan grant.
     latest =

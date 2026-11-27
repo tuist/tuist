@@ -137,15 +137,52 @@ defmodule Tuist.Runners.Dispatch do
 
   @doc """
   Counts `count` jobs of `provider` that were not queued for `reason`
-  (`:allowance_exhausted` or `:runners_disabled`) on
+  (`:allowance_exhausted` or `:runners_disabled`), or were parked because
+  their runner credential cannot be minted until the account acts
+  (`:account_mint_failed`, `:repository_mint_failed`), on
   `tuist_runners_dispatch_refused_count`. A job over its account's
   concurrency limit is queued instead and waits as withheld work.
+
+  The counter has no series until its first event on a server replica, and
+  every deploy resets it, so an absent series means no refusals since the
+  replicas started.
   """
   def report_refused(provider, reason, count \\ 1) when is_binary(provider) and is_atom(reason) do
     :telemetry.execute(Telemetry.event_name_dispatch_refused(), %{count: count}, %{
       provider: provider,
       reason: Atom.to_string(reason)
     })
+  end
+
+  @doc """
+  Makes the parked jobs (`WorkflowJobs.hold_dispatch/2`) of the account
+  behind a GitHub App installation dispatchable again. Called on the
+  `installation.new_permissions_accepted` webhook: a job parked because the
+  installation lacked a permission the App requests can run as soon as the
+  customer accepts it, instead of waiting out its park. A personal-account
+  repository's 403 is not such a case: the Tuist App never requests the
+  permission it would need. `account_id` is the account of the
+  installation row whose secret verified the delivery, nil for github.com.
+  Returns the number of jobs released.
+  """
+  def release_dispatch_holds(installation_id, account_id) when is_integer(installation_id) do
+    case resolve_account(%{id: installation_id, account_id: account_id}) do
+      nil ->
+        0
+
+      account ->
+        released = WorkflowJobs.release_dispatch_holds(account.id)
+
+        if released > 0 do
+          Logger.info("runners: installation accepted new permissions; released parked jobs",
+            account: account.name,
+            installation_id: installation_id,
+            released: released
+          )
+        end
+
+        released
+    end
   end
 
   # Only an account with no paid plan is ever blocked: exceeding the
@@ -221,6 +258,7 @@ defmodule Tuist.Runners.Dispatch do
           repo: full_name
         )
 
+        report_refused("github", :runners_disabled)
         {:ignored, :runners_disabled}
 
       {:error, :no_matching_pool} ->

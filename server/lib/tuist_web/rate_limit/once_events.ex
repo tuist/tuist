@@ -42,6 +42,7 @@ defmodule TuistWeb.RateLimit.OnceEvents do
   end
 
   defp client_address(stream) do
+    # The call's HTTP/2 request headers, decoded into a map.
     headers = GRPC.Stream.get_headers(stream) || %{}
 
     with forwarded when is_binary(forwarded) <- header(headers, "x-forwarded-for"),

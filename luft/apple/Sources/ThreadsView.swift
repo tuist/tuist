@@ -222,7 +222,7 @@ struct ThreadsView: View {
             Section {
                 sidebarLink("Lounges", systemImage: "number", to: .list(.lounges))
                 sidebarLink("DMs", systemImage: "bubble.left.and.text.bubble.right", to: .list(.dms))
-                sidebarLink("Ops", systemImage: "wrench.and.screwdriver", to: .list(.ops))
+                sidebarLink("Ops", systemImage: "square.stack.3d.up", to: .list(.ops))
             }
             if available {
                 archivePicker

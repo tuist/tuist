@@ -16,6 +16,8 @@ struct PaletteItem: Decodable, Equatable {
 struct CommandPalette: View {
     let client: AppClient
     let close: () -> Void
+    /// Something was opened from the palette, as opposed to the palette being dismissed.
+    var picked: () -> Void = {}
     @State private var query = ""
     @State private var items: [PaletteItem] = []
     @State private var selection: String?
@@ -124,7 +126,7 @@ struct CommandPalette: View {
         case ("destination", "threads"): "bubble.left.and.bubble.right"
         case ("destination", "lounges"), ("lounge", _): "number"
         case ("destination", "dms"): "bubble.left.and.text.bubble.right"
-        case ("destination", "ops"): "wrench.and.screwdriver"
+        case ("destination", "ops"): "square.stack.3d.up"
         case ("destination", _): "person.crop.circle"
         case ("action", _): "plus"
         case ("dm", _): "person.2"
@@ -172,6 +174,7 @@ struct CommandPalette: View {
     private func open(_ item: PaletteItem?) {
         guard let item else { return }
         close()
+        picked()
         if item.id == "new_conversation" {
             client.startConversation()
         } else {

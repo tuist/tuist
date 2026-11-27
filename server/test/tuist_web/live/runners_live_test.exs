@@ -66,9 +66,9 @@ defmodule TuistWeb.RunnersLiveTest do
     assert html =~ "Avg. job duration"
     assert html =~ "Avg. workflow duration"
     assert html =~ "Concurrency"
-    assert html =~ "8 vCPU limit"
-    assert html =~ "24 GB limit"
-    assert html =~ "Current: 8 vCPU limit"
+    assert html =~ "16 vCPU limit"
+    assert html =~ "48 GB limit"
+    assert html =~ "Current: 16 vCPU limit"
     refute has_element?(lv, "[data-part=concurrency-limit-history]")
     assert html =~ "runners-concurrency-platform-dropdown"
     assert html =~ "runners-concurrency-macos-vcpus-chart"

@@ -126,12 +126,7 @@ After penetration testing is complete:
 
 ### 9. Remediation Requirements
 
-Vulnerabilities discovered during penetration testing shall be remediated according to:
-
-- Critical: Within 7 days
-- High: Within 14 days
-- Medium: Within 30 days
-- Low: Within 90 days
+Vulnerabilities discovered during penetration testing shall be remediated within the deadlines in the [Operations Security Policy](/security/secure-development-and-operations/operations-security-policy#technical-vulnerability-management).
 
 Any deviation from these timelines requires documented risk acceptance by the CTO.
 

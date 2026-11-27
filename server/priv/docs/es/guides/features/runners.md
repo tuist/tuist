@@ -2,14 +2,14 @@
 {
   "title": "Runners",
   "titleTemplate": ":title · Funcionalidades · Guías · Tuist",
-  "description": "Los Runners de Tuist son entornos gestionados en macOS y Linux para GitHub Actions, Buildkite, GitLab CI y Bitrise, con una caché ubicada junto al procesamiento y compartida con tus máquinas locales."
+  "description": "Los Runners de Tuist son entornos de ejecución gestionados en macOS y Linux para GitHub Actions, Buildkite, GitLab CI y Bitrise, con una caché ubicada junto al entorno de computación y compartida con tus máquinas locales."
 }
 ---
 # Runners {#runners}
 
-Tuist Runners son ejecutores gestionados en macOS y Linux para tus flujos de GitHub Actions, Buildkite, GitLab CI y Bitrise. En lugar de ejecutar trabajos en las máquinas alojadas por tu proveedor de CI, apuntas un trabajo a un <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> de Tuist y se ejecuta en la flota de Tuist, junto a la misma <.localized_link href="/guides/features/cache">caché</.localized_link> que ya usa tu equipo, sin necesidad de instalar ningún agente de runner ni de mantener infraestructura. Para entender qué impulsa tu factura de CI antes de cambiar de máquina, consulta [costes de CI](https://tuist.dev/solutions/ci-costs).
+Tuist Runners son entornos gestionados de macOS y Linux para tus pipelines de GitHub Actions, Buildkite, GitLab CI y Bitrise. En lugar de ejecutar trabajos en las máquinas alojadas por tu proveedor de CI, apuntas un trabajo a un <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> de Tuist y se ejecuta en la flota de Tuist, junto a la misma <.localized_link href="/guides/features/cache">caché</.localized_link> que ya usa tu equipo, sin necesidad de instalar ningún agente runner ni de mantener infraestructura. Para entender qué impulsa tu factura de CI antes de cambiar de máquinas, consulta [Costes de CI](https://tuist.dev/solutions/ci-costs).
 
-Adoptarlos suele implicar un cambio de una sola línea en un trabajo:
+Adoptarlos suele requerir un cambio de una sola línea en un trabajo:
 
 ::: code-group
 
@@ -38,7 +38,7 @@ Adoptarlos suele implicar un cambio de una sola línea en un trabajo:
 
 Los runners de Linux ofrecen virtualización acelerada por hardware a través de `/dev/kvm` de forma predeterminada. Usa tu <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> habitual de Linux, como `tuist-linux`, para ejecutar emuladores de Android x86_64, incluidos los Gradle Managed Devices. No hace falta ningún perfil especial de runner, acción de configuración de KVM, cambio de permisos ni `sudo` para acceder al dispositivo.
 
-La imagen del runner incluye el SDK de Android. Instala el emulador y sus bibliotecas de runtime antes de iniciar un dispositivo. Para un proyecto que ya define un Gradle Managed Device llamado `pixel6`, un trabajo de GitHub Actions tiene este aspecto:
+La imagen del runner incluye el SDK de Android. Instala el emulador y sus bibliotecas de tiempo de ejecución antes de iniciar un dispositivo. Para un proyecto que ya define un Gradle Managed Device llamado `pixel6`, un trabajo de GitHub Actions tiene este aspecto:
 
 ```yaml
 jobs:
@@ -66,7 +66,7 @@ jobs:
         run: ./gradlew :app:pixel6DebugAndroidTest
 ```
 
-Usa la versión de Java requerida por tu Android Gradle Plugin y sustituye la tarea de test por la tarea de managed-device de tu proyecto. Configura una imagen de sistema **x86_64**. Elige una forma de runner con suficiente memoria tanto para Gradle como para los emuladores; los dispositivos concurrentes comparten la asignación de CPU y memoria del trabajo.
+Usa la versión de Java que requiere tu Android Gradle Plugin y sustituye la tarea de test por la tarea de managed-device de tu proyecto. Configura una imagen de sistema **x86_64**. Elige una forma de runner con suficiente memoria tanto para Gradle como para los emuladores; los dispositivos concurrentes comparten la asignación de CPU y memoria del trabajo.
 
 Ejecuta el emulador como el usuario normal del runner. `sudo` en este ejemplo solo sirve para instalar paquetes del sistema operativo.
 
@@ -74,13 +74,13 @@ Los emuladores usan virtualización anidada, por lo que sus tiempos pueden difer
 
 ## Límites de concurrencia {#concurrency-limits}
 
-Cada cuenta tiene límites independientes de concurrencia de vCPU y memoria para macOS y Linux. Antes de admitir un trabajo, Tuist comprueba la <.localized_link href="/guides/features/runners/profiles#machine-shapes">forma de máquina</.localized_link> del trabajo frente a todos los trabajos que se están ejecutando actualmente en esa plataforma. El trabajo solo comienza cuando tanto su vCPU como su memoria caben dentro de la capacidad restante; de lo contrario, permanece en cola hasta que haya capacidad disponible. El trabajo en una plataforma nunca consume la capacidad de la otra.
+Cada cuenta tiene límites independientes de concurrencia de vCPU y memoria para macOS y Linux. Antes de aceptar un trabajo, Tuist comprueba la <.localized_link href="/guides/features/runners/profiles#machine-shapes">forma de máquina</.localized_link> del trabajo frente a todos los trabajos que se están ejecutando actualmente en esa plataforma. El trabajo solo comienza cuando tanto su vCPU como su memoria caben dentro de la capacidad restante; de lo contrario, permanece en cola hasta que haya capacidad disponible. El trabajo en una plataforma nunca consume la capacidad de la otra.
 
-Las cuentas Air tienen límites de concurrencia fijos. Las cuentas Pro y Enterprise comienzan con seis trabajos estándar de macOS (48 vCPU / 144 GB) y 64 vCPU / 128 GB en Linux, y Tuist añade automáticamente margen según el uso recurrente y el trabajo en cola reciente que no cabe junto a los runners activos. Mientras el límite sea bajo (hasta doce trabajos estándar de macOS, o 128 vCPU / 512 GB en Linux), puede crecer para acomodar todo el trabajo en cola tan a menudo como una vez por hora. Por encima de eso, crece como máximo una vez al día y en un máximo del 50% cada vez, hasta un techo de seguridad, de modo que un pico repentino no otorgue concurrencia ilimitada. Los ajustes automáticos solo aumentan los límites: se conservan las concesiones existentes y la capacidad mínima contractual. Un límite de cuenta más alto no garantiza máquinas disponibles de inmediato.
+Las cuentas Air tienen límites de concurrencia fijos: dos trabajos estándar de macOS (16 vCPU / 48 GB) y 16 vCPU / 64 GB en Linux. Las cuentas Pro y Enterprise comienzan con seis trabajos estándar de macOS (48 vCPU / 144 GB) y 64 vCPU / 128 GB en Linux, y Tuist añade automáticamente margen adicional según el uso recurrente y el trabajo en cola reciente que no cabe junto a los runners activos. Mientras el límite sea bajo (hasta doce trabajos estándar de macOS, o 128 vCPU / 512 GB en Linux), puede crecer para acomodar todo el trabajo en cola tan a menudo como una vez por hora. Por encima de eso, crece como máximo una vez al día y en un máximo del 50% cada vez, hasta un techo de seguridad, de modo que un pico repentino no otorgue concurrencia ilimitada. Los ajustes automáticos solo aumentan los límites: se conservan las concesiones existentes y la capacidad mínima contractual. Un límite de cuenta más alto no garantiza máquinas disponibles de inmediato.
 
-La sección **Concurrency** del panel de Runners muestra el pico de vCPU y memoria admitidos por hora, con una línea escalonada para el límite conocido al inicio de cada hora. Las barras rojas alcanzaron ese umbral histórico; por sí solas no demuestran que un trabajo esperara. Un aumento durante una hora puede situar su pico por encima de la línea de inicio del intervalo. Los límites actuales se muestran junto a cada gráfico. Los periodos anteriores al inicio del seguimiento histórico no tienen línea de límite, en lugar de asumir un valor histórico.
+La sección **Concurrencia** del panel de Runners muestra el pico de uso admitido de vCPU y memoria por cada hora, con una línea escalonada para el límite conocido al inicio de cada hora. Las barras rojas alcanzaron ese umbral histórico; por sí solas no demuestran que un trabajo esperara. Un aumento durante una hora puede situar su pico por encima de la línea de inicio del intervalo. Los límites actuales se muestran junto a cada gráfico. Los periodos anteriores al inicio del seguimiento del historial no tienen línea de límite, en lugar de asumir un valor histórico.
 
-Si los flujos siguen poniéndose en cola en el techo de seguridad, [contacta con nosotros](mailto:contact@tuist.dev) indicando el identificador de tu cuenta, la plataforma y la carga paralela prevista para que podamos revisar la capacidad necesaria.
+Si los flujos de trabajo siguen poniéndose en cola en el techo de seguridad, [contacta con nosotros](mailto:contact@tuist.dev) indicando el identificador de tu cuenta, la plataforma y la carga paralela prevista para que podamos revisar la capacidad necesaria.
 
 ## Acceso a la red {#network-access}
 
@@ -91,7 +91,7 @@ Los trabajos pueden abrir conexiones salientes hacia Internet público. Los rang
 | Linux | TCP 22 (SSH), 80 (HTTP) y 443 (HTTPS), además de DNS |
 | macOS | Todos los puertos |
 
-SSH cubre dependencias `git@`, submódulos SSH, claves de despliegue y despliegues mediante `ssh` o `scp`. Si un flujo de Linux necesita otro puerto saliente, [contacta con nosotros](mailto:contact@tuist.dev).
+SSH cubre dependencias `git@`, submódulos SSH, claves de despliegue y despliegues mediante `ssh` o `scp`. Si un flujo de trabajo de Linux necesita otro puerto saliente, [contacta con nosotros](mailto:contact@tuist.dev).
 
 <.home_cards>
   <.home_card
@@ -111,7 +111,7 @@ SSH cubre dependencias `git@`, submódulos SSH, claves de despliegue y despliegu
 />
   <.home_card
     title="Bitrise"
-    details="Conecta tu espacio de trabajo y ejecuta builds de tus pools de runners autoalojados en perfiles de Tuist."
+    details="Conecta tu espacio de trabajo y ejecuta compilaciones de tus pools de runners autoalojados en perfiles de Tuist."
     link="/guides/features/runners/ci-providers/bitrise"
 />
   <.home_card
@@ -121,17 +121,17 @@ SSH cubre dependencias `git@`, submódulos SSH, claves de despliegue y despliegu
 />
   <.home_card
     title="Perfiles"
-    details="Elige plataforma, tamaño y versión de Xcode con perfiles de máquina con nombre a los que haces referencia desde tus trabajos."
+    details="Elige una plataforma, tamaño y versión de Xcode con perfiles de máquina con nombre a los que haces referencia desde tus trabajos."
     link="/guides/features/runners/profiles"
 />
   <.home_card
     title="Imágenes"
-    details="Consulta qué viene preinstalado en los runners de macOS y Linux: Xcode, simuladores, la toolchain de Metal, Docker, el SDK de Android y más."
+    details="Consulta qué viene preinstalado en los runners de macOS y Linux: Xcode, simuladores, la toolchain Metal, Docker, el SDK de Android y más."
     link="/guides/features/runners/images"
 />
   <.home_card
     title="Volúmenes de caché"
-    details="Mantén las cachés de Xcode, de módulos y de Gradle, así como cualquier otro directorio, entre trabajos, con una copia privada escribible para cada ejecución."
+    details="Mantén las cachés de Xcode, de módulos y de Gradle, así como cualquier otro directorio entre trabajos, con una copia privada con escritura habilitada para cada ejecución."
     link="/guides/features/runners/cache-volumes"
 />
 </.home_cards>
@@ -140,18 +140,18 @@ SSH cubre dependencias `git@`, submódulos SSH, claves de despliegue y despliegu
 
 <a id="once-graph-actions"></a>
 
-Struo puede ejecutar acciones de comando de grafo elegibles en los workers de Linux de Tuist cuando la cuenta tiene habilitada la ejecución remota y el servidor anuncia capacidades de worker compatibles. Se trata de una ejecución a nivel de acción, separada de los trabajos del proveedor de CI mencionados arriba. Consulta <.localized_link href="/guides/features/runners/struo">Ejecución remota de Struo</.localized_link> para conocer la configuración, los requisitos de imagen y las comprobaciones de compatibilidad.
+Struo puede ejecutar acciones de comando de grafo elegibles en los workers Linux de Tuist cuando la cuenta tiene habilitada la ejecución remota y el servidor anuncia capacidades de worker compatibles. Se trata de una ejecución a nivel de acción, independiente de los trabajos del proveedor de CI mencionados antes. Consulta <.localized_link href="/guides/features/runners/struo">Ejecución remota de Struo</.localized_link> para ver la configuración, los requisitos de imagen y las comprobaciones de compatibilidad.
 
 ## Por qué usar Tuist Runners {#why-tuist-runners}
 
-La mayoría de proveedores de runners de CI aceleran los trabajos ofreciéndote máquinas más potentes y una caché persistente, normalmente un volumen compartido montado de nuevo en tus ejecuciones de CI. Eso ayuda, pero un volumen es solo un disco: conserva lo que las ejecuciones anteriores de CI hayan dejado en él. No se replica para mantener únicamente los artefactos más recientes cerca de donde se ejecutan las compilaciones y nunca llega a los demás lugares donde se compila tu código.
+La mayoría de los proveedores de runners de CI aceleran los trabajos ofreciéndote máquinas más potentes y una caché persistente, normalmente un volumen compartido montado de nuevo en tus ejecuciones de CI. Eso ayuda, pero un volumen es solo un disco: conserva lo que las ejecuciones anteriores de CI hayan dejado en él. No se replica para mantener únicamente los artefactos más recientes cerca de donde se ejecutan las compilaciones y nunca llega a los demás lugares donde se compila tu código.
 
-Ya no se compila en un único lugar. El mismo código se compila en los portátiles de desarrollo, en CI y, cada vez más, mediante agentes de programación y otros entornos automatizados. Los Tuist Runners son diferentes porque comparten la misma <.localized_link href="/guides/features/cache">caché</.localized_link> a la que todos esos entornos ya leen y escriben, independientemente del sistema de compilación que uses. Los artefactos que un compañero ha calentado en su portátil, que ha producido un agente o que ha dejado una compilación anterior suponen un acierto en el runner, y viceversa. No hay una caché de CI separada que calentar y la mejora de velocidad no se limita a CI.
+Ya no se compila en un único lugar. El mismo código se compila en los portátiles de desarrollo, en la infraestructura de CI y, cada vez más, mediante agentes de programación y otros entornos automatizados. Los Tuist Runners son diferentes porque comparten la misma <.localized_link href="/guides/features/cache">caché</.localized_link> desde la que todos esos entornos ya leen y en la que escriben, independientemente del sistema de compilación que uses. Los artefactos que un compañero ha calentado en su portátil, que ha generado un agente o que ha dejado una compilación anterior suponen un acierto en el runner, y viceversa. No hace falta calentar una caché de CI separada y la mejora de velocidad no se limita a la CI.
 
-Además, la caché está ubicada junto al runner en la misma red privada, por lo que las lecturas y escrituras de caché permanecen internas y cerca del cómputo en lugar de cruzar Internet público.
+Además, la caché está ubicada junto al runner en la misma red privada, por lo que las lecturas y escrituras de caché permanecen internas y cerca del cómputo, en lugar de atravesar Internet público.
 
 En conjunto:
 
-- **Compartida en todos los entornos.** El runner lee y escribe en la misma caché que tus máquinas de desarrollo, CI y agentes de programación, así que el trabajo realizado en cualquier lugar calienta la caché en todas partes.
-- **Ubicada junto al cómputo.** El tráfico de caché permanece en la red interna junto al runner, no a través de una entrada pública.
-- **Un solo sistema, no añadido a posteriori.** La caché, los <.localized_link href="/guides/features/selective-testing">tests selectivos</.localized_link>, el <.localized_link href="/guides/features/test-sharding">test sharding</.localized_link> y los <.localized_link href="/guides/features/build-insights">Análisis de compilaciones</.localized_link> funcionan sobre el mismo proyecto y cuenta, por lo que el runner no es un silo separado de datos de compilación.
+- **Compartida en todos los entornos.** El runner lee y escribe en la misma caché que tus máquinas de desarrollo, la CI y los agentes de programación, así que el trabajo realizado en cualquier lugar calienta la caché en todas partes.
+- **Ubicada junto al cómputo.** El tráfico de caché permanece en la red interna junto al runner, no a través de un punto de entrada público.
+- **Un único sistema, no añadido a posteriori.** La caché, los <.localized_link href="/guides/features/selective-testing">tests selectivos</.localized_link>, la <.localized_link href="/guides/features/test-sharding">fragmentación de tests</.localized_link> y el <.localized_link href="/guides/features/build-insights">Análisis de compilaciones</.localized_link> funcionan sobre el mismo proyecto y cuenta, por lo que el runner no es un silo separado de datos de compilación.

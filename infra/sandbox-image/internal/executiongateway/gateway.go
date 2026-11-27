@@ -130,6 +130,10 @@ func requestMetadata(ctx context.Context) map[string]string {
 
 const maxMetadataBytes = 1024
 
+// The project's sized keys can run to 2,000 entries, so only the gateway asks
+// for them: Struo clients read the same capabilities and cap their size.
+const capabilitiesSuffix = "/capabilities?sized_keys=1"
+
 type operation struct {
 	QueuedAtUnixUS int64 `json:"queued_at_unix_us"`
 	// What the control plane waited on while the action was queued, in ms by
@@ -208,7 +212,7 @@ func (g *Gateway) GetCapabilities(ctx context.Context, r *re.GetCapabilitiesRequ
 	if err != nil {
 		return nil, err
 	}
-	op, err := g.call(ctx, http.MethodGet, account, r.InstanceName, "/capabilities", auth, nil)
+	op, err := g.call(ctx, http.MethodGet, account, r.InstanceName, capabilitiesSuffix, auth, nil)
 	if err != nil {
 		return nil, err
 	}

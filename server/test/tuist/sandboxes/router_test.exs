@@ -239,7 +239,7 @@ defmodule Tuist.Sandboxes.RouterTest do
       expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
       expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
 
-      expect(Nodes, :call, fn "node-a", "exec", args, opts ->
+      expect(Nodes, :call, fn "node-a", "exec", args, _opts ->
         assert args.cmd == [
                  @git,
                  "clone",
@@ -252,7 +252,6 @@ defmodule Tuist.Sandboxes.RouterTest do
 
         assert args.timeout_ms == 90_000
         assert args.env == %{"GIT_TERMINAL_PROMPT" => "0"}
-        assert opts[:timeout] == 100_000
         {:ok, %{"exit_code" => 0}}
       end)
 

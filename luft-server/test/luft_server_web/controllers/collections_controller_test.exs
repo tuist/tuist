@@ -870,7 +870,14 @@ defmodule LuftServerWeb.CollectionsControllerTest do
 
     assert call(ctx.token, :get, path).status == 403
     stub_scope(organization: 11)
-    assert call(ctx.token, :get, "/collections").status == 403
+    # An organization without a behavior workspace lists nothing instead of an error.
+    assert %{"collections" => [], "release" => nil} =
+             json_response(call(ctx.token, :get, "/collections"), 200)
+
+    assert %{"releases" => [], "active" => nil} =
+             json_response(call(ctx.token, :get, "/releases"), 200)
+
+    assert call(ctx.token, :get, path).status == 403
     stub_scope(revoked: true)
     assert call(ctx.token, :get, path).status == 403
   end

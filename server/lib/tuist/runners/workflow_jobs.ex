@@ -845,6 +845,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       when is_binary(fleet_name) and is_integer(k) and k > 0 do
     from(j in WorkflowJob,
       where: j.fleet_name == ^fleet_name and j.status == "queued" and j.enqueued_at > ^enqueued_floor,
+      where: ^not_held(),
       order_by: [asc: j.enqueued_at, asc: j.workflow_job_id],
       limit: ^k,
       select: %{
@@ -898,12 +899,56 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
+  Parks a `queued` job until `until`: dispatch, the autoscaler's queue counts
+  and the queue gauges skip it until then. For a job whose runner credential
+  cannot be minted until the customer acts (a repository owned by a personal
+  GitHub account, an uninstalled App), which would otherwise be claimed, fail
+  and re-queue on every retry, and keep its pool scaled for work no runner
+  can take. A row that is no longer `queued` is left alone. Returns `:ok`
+  when the row was parked, `:noop` otherwise.
+  """
+  def hold_dispatch(workflow_job_id, %DateTime{} = until) when is_integer(workflow_job_id) do
+    case Repo.update_all(
+           from(j in WorkflowJob, where: j.workflow_job_id == ^workflow_job_id and j.status == "queued"),
+           set: [dispatch_held_until: until]
+         ) do
+      {1, _} -> :ok
+      {0, _} -> :noop
+    end
+  end
+
+  @doc """
+  Ends every dispatch hold on `account_id`'s jobs, for when the account fixed
+  what the holds were waiting on (it accepted the GitHub App's new
+  permissions). Returns the number of jobs released.
+  """
+  def release_dispatch_holds(account_id) when is_integer(account_id) do
+    {count, _} =
+      Repo.update_all(
+        from(j in WorkflowJob, where: j.account_id == ^account_id and not is_nil(j.dispatch_held_until)),
+        set: [dispatch_held_until: nil]
+      )
+
+    count
+  end
+
+  @doc """
+  The condition that keeps a parked job (`hold_dispatch/2`) out of every read
+  of dispatchable queued work.
+  """
+  def not_held do
+    now = DateTime.utc_now()
+    dynamic([j], is_nil(j.dispatch_held_until) or j.dispatch_held_until <= ^now)
+  end
+
+  @doc """
   Postgres twin of `Tuist.Runners.Jobs.queued_count_by_fleet/1`.
   """
   def queued_count_by_fleet(fleet_name, %DateTime{} = enqueued_floor) when is_binary(fleet_name) do
     Repo.aggregate(
       from(j in WorkflowJob,
-        where: j.fleet_name == ^fleet_name and j.status == "queued" and j.enqueued_at > ^enqueued_floor
+        where: j.fleet_name == ^fleet_name and j.status == "queued" and j.enqueued_at > ^enqueued_floor,
+        where: ^not_held()
       ),
       :count
     )
@@ -930,6 +975,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   def queue_stats_by_fleet(%DateTime{} = enqueued_floor) do
     from(j in WorkflowJob,
       where: j.status == "queued" and j.enqueued_at > ^enqueued_floor,
+      where: ^not_held(),
       group_by: [j.fleet_name, j.account_id],
       select: {j.fleet_name, j.account_id, count(j.workflow_job_id), min(j.enqueued_at)}
     )
@@ -953,6 +999,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   def queued_count_by_fleet_and_account(fleet_name, %DateTime{} = enqueued_floor) when is_binary(fleet_name) do
     from(j in WorkflowJob,
       where: j.fleet_name == ^fleet_name and j.status == "queued" and j.enqueued_at > ^enqueued_floor,
+      where: ^not_held(),
       group_by: j.account_id,
       select: {j.account_id, count()}
     )
@@ -1037,6 +1084,7 @@ defmodule Tuist.Runners.WorkflowJobs do
     :account_id,
     :repository,
     :workflow_run_id,
+    :enqueued_at,
     :claimed_at,
     :started_at,
     :pod_name,

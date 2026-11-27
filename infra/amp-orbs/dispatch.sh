@@ -132,7 +132,7 @@ while true; do
         exit 1
     fi
     if grep -Eiq $'^x-tuist-orb-refusal: restoring\r?$' "$headers"; then
-        echo 'The Orb is still restoring its disks from its archive, so it cannot pause yet. It keeps running; the next pause succeeds once the disks have loaded, usually within a few minutes, and Tuist pauses it after ten idle minutes otherwise.' >&2
+        echo 'The Orb is still restoring its disks from its archive, so it cannot pause yet. It keeps running until the disks have loaded, usually within a few minutes, and Tuist then pauses it.' >&2
         exit 1
     fi
     if grep -Eiq $'^x-tuist-orb-refusal: orb-type-mismatch\r?$' "$headers"; then

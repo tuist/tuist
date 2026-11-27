@@ -57,6 +57,10 @@ defmodule Tuist.Runners.WorkflowJob do
     # the claim-generation handle and moves with the job between claims.
     field :executor_claimed_at, :utc_datetime_usec
     field :log_archived_at, :utc_datetime_usec
+    # Until when dispatch skips this queued job because its credential mint
+    # failed for a reason only the customer can fix, such as a repository
+    # owned by a personal GitHub account. See `WorkflowJobs.hold_dispatch/2`.
+    field :dispatch_held_until, :utc_datetime_usec
 
     belongs_to :account, Account
 

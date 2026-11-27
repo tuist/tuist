@@ -97,12 +97,12 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
              },
              %{
                "platform" => "macos",
-               "vcpus" => 8,
-               "memory_gb" => 24,
+               "vcpus" => 16,
+               "memory_gb" => 48,
                "used_vcpus" => 0,
                "used_memory_gb" => 0,
-               "default_vcpus" => 8,
-               "default_memory_gb" => 24
+               "default_vcpus" => 16,
+               "default_memory_gb" => 48
              }
            ]
 
@@ -124,7 +124,7 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     assert Enum.find(result["limits"], &(&1["platform"] == "macos"))["vcpus"] == 48
     assert Concurrency.limits_for(account, :macos) == %{vcpus: 48, memory_gb: 144}
     assert Concurrency.limits_for(account, :linux) == %{vcpus: 16, memory_gb: 64}
-    assert Concurrency.limits_for(other, :macos) == %{vcpus: 8, memory_gb: 24}
+    assert Concurrency.limits_for(other, :macos) == %{vcpus: 16, memory_gb: 48}
     refute result["revision"] == request["expected_revision"]
 
     audit = Repo.get_by!(RunnerConcurrencyLimitChange, change_id: request["change_id"])
@@ -132,7 +132,7 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     assert audit.principal == %{"namespace" => "atlas-production", "name" => "atlas"}
     assert audit.request == request
     assert audit.before["revision"] == request["expected_revision"]
-    assert Enum.find(audit.before["limits"], &(&1["platform"] == "macos"))["vcpus"] == 8
+    assert Enum.find(audit.before["limits"], &(&1["platform"] == "macos"))["vcpus"] == 16
     assert audit.after == result
   end
 
@@ -218,7 +218,7 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     params = request(conn, account.id, %{"platform" => "macos", "vcpus" => 32})
     assert conn |> authed() |> put(path(account.id), params) |> json_response(422)
 
-    assert Concurrency.limits_for(account, :macos) == %{vcpus: 8, memory_gb: 24}
+    assert Concurrency.limits_for(account, :macos) == %{vcpus: 16, memory_gb: 48}
     assert Repo.aggregate(RunnerConcurrencyLimitChange, :count) == 0
   end
 
@@ -496,6 +496,94 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
                conn |> authed() |> put(plan_path(account.id), plan_request(conn, account.id, attrs)) |> json_response(502)
 
       assert Repo.aggregate(AccountPlanChange, :count) == 1
+    end
+
+    test "switches a $0 EUR Enterprise subscription to USD with the runner prices, restoring it when Stripe refuses",
+         %{conn: conn} do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "enterprise" => %{"usage" => [], "flat_monthly" => ["enterprise.flat.eur", "enterprise.flat.usd"]},
+          "runners" => %{"runner_minutes" => "runner.minutes.usd"}
+        }
+      end)
+
+      stub(Stripe.Price, :retrieve, fn id -> {:ok, %{id: id, currency: id |> String.split(".") |> List.last()}} end)
+      stub(Stripe.Invoice, :list, fn %{customer: "cus_eur", status: "open"} -> {:ok, %{data: []}} end)
+
+      account = AccountsFixtures.organization_fixture(customer_id: "cus_eur", preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_eur", plan: :enterprise)
+
+      eur_subscription = fn quantity ->
+        %{
+          id: "sub_eur",
+          customer: "cus_eur",
+          currency: "eur",
+          collection_method: "send_invoice",
+          days_until_due: 14,
+          current_period_end: 1_800_000_000,
+          items: %{
+            data: [
+              %{
+                price: %{id: "enterprise.flat.eur", recurring: %{usage_type: "licensed"}},
+                quantity: quantity
+              }
+            ]
+          }
+        }
+      end
+
+      # A subscription that bills seats is left alone: cancelling it would drop what it bills.
+      stub(Stripe.Subscription, :retrieve, fn "sub_eur" -> {:ok, eur_subscription.(3)} end)
+
+      assert %{"error" => "billable_subscription"} =
+               conn
+               |> authed()
+               |> put(plan_path(account.id), plan_request(conn, account.id, %{"operation" => "switch_to_usd"}))
+               |> json_response(409)
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_eur" -> {:ok, eur_subscription.(0)} end)
+
+      cancelled = Map.put(stripe_subscription("sub_eur", "cus_eur", "enterprise.flat.eur"), :status, "canceled")
+      expect(Stripe.Subscription, :cancel, 2, fn "sub_eur", %{invoice_now: false, prorate: false} -> {:ok, cancelled} end)
+
+      expect(Stripe.Subscription, :create, fn params ->
+        assert %{
+                 customer: "cus_eur",
+                 items: [%{price: "runner.minutes.usd"}, %{price: "enterprise.flat.usd", quantity: 0}],
+                 collection_method: "send_invoice",
+                 days_until_due: 14,
+                 billing_cycle_anchor: 1_800_000_000,
+                 proration_behavior: "none"
+               } = params
+
+        {:ok, stripe_subscription("sub_usd", "cus_eur", ["runner.minutes.usd", "enterprise.flat.usd"])}
+      end)
+
+      assert %{"effective_plan" => "enterprise", "subscription" => %{"subscription_id" => "sub_usd"}} =
+               conn
+               |> authed()
+               |> put(plan_path(account.id), plan_request(conn, account.id, %{"operation" => "switch_to_usd"}))
+               |> json_response(200)
+
+      # When Stripe refuses the USD subscription, the EUR one is recreated so the account keeps Enterprise.
+      Repo.delete_all(Tuist.Billing.Subscription)
+      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_eur", plan: :enterprise)
+
+      expect(Stripe.Subscription, :create, 2, fn
+        %{items: [%{price: "runner.minutes.usd"} | _]} ->
+          {:error, %Stripe.Error{source: :stripe, code: :invalid_request_error, message: "no"}}
+
+        %{items: [%{price: "enterprise.flat.eur", quantity: 0}]} ->
+          {:ok, stripe_subscription("sub_eur_2", "cus_eur", "enterprise.flat.eur")}
+      end)
+
+      assert %{"error" => "stripe_request_failed"} =
+               conn
+               |> authed()
+               |> put(plan_path(account.id), plan_request(conn, account.id, %{"operation" => "switch_to_usd"}))
+               |> json_response(502)
+
+      assert Billing.effective_plan(account) == :enterprise
     end
 
     test "a subscription webhook invalidates the revision Atlas read", %{conn: conn} do

@@ -482,7 +482,7 @@ defmodule Tuist.BillingTest do
       # Given an Air account whose Linux limit an operator already raised past Pro's
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
       account = Accounts.get_account_from_user(user)
-      assert Concurrency.limits_for(account, :macos) == %{vcpus: 8, memory_gb: 24}
+      assert Concurrency.limits_for(account, :macos) == %{vcpus: 16, memory_gb: 48}
 
       {:ok, _} =
         Concurrency.update_limits(account, %{

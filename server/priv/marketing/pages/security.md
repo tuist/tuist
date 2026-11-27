@@ -35,7 +35,7 @@ Tuist has a robust incident response process to handle security incidents effici
 ## Reporting vulnerabilities
 If you discover a security vulnerability, we encourage you to report it to us responsibly. Here’s how to proceed:
 
-1. **Email**: Contact us at [contact@tuist.dev](mailto:contact@tuist.dev).
+1. **Email**: Contact us at [incidents@tuist.dev](mailto:incidents@tuist.dev).
 2. **Details**: Provide a detailed description of the issue, including reproduction steps, screenshots, and relevant logs if applicable.
 
 We prioritize all security reports and work diligently to address them. Valid reports can be publicly acknowledged on this page, upon request.

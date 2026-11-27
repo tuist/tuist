@@ -492,8 +492,10 @@ defmodule Tuist.GitHub.Client do
   only requires the targeted `organization_self_hosted_runners: write`
   permission. Personal GitHub accounts cannot use that endpoint, so a 404
   falls back to the repository-scoped endpoint when
-  `:repository_full_handle` is present. That endpoint requires the GitHub
-  App installation to have accepted `administration: write`.
+  `:repository_full_handle` is present. That endpoint requires
+  `administration: write`, which the Tuist App does not request, so on
+  github.com it returns 403 (`:repository_administration_permission_required`):
+  Tuist runners need a repository owned by a GitHub organization.
 
   Runners registered at the org level are usable by any repo in
   the org subject to the runner-group's repo allowlist. The

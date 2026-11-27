@@ -659,6 +659,12 @@ covered only by the production schedule.
   agent's 25-second wait and the attach fails as `timeout`. The 120-second pauses are
   allowances, not publication proof; slow publication fails rather than retries.
   Keep production's scheduled probes usable while its Docker cache is disabled.
+  The deploy cascade runs these phases only when `check-releases` reports
+  `docker-cache-changed` (a Docker cache path changed since production's last
+  deploy, or no base was found); otherwise `gate.sh` dispatches with
+  `docker_cache=false` and requires only the native and container probes. A
+  manual dispatch and runner-image releases still run them. Add a path to that
+  list when it starts to affect a job's Docker cache.
 - Health checks are not enough: a Kura that cannot reach the server's token
   introspection answers `/up` and degrades every lookup into a slow miss. Keep
   the authenticated blob round trip and the rebuild from an empty local CAS,

@@ -47,6 +47,22 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
              |> json_response(:ok)
   end
 
+  test "capabilities list the sized keys only to the gateway, which asks for them", %{
+    conn: conn,
+    project: project,
+    prefix: prefix
+  } do
+    stub(Introspection, :token_response, fn _, _ -> grant(project) end)
+    stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> true end)
+    stub(RemoteExecution, :sized_keys, fn _project -> ["key-a", "key-b"] end)
+
+    # Struo clients read the same capabilities and refuse a response over 64 KiB.
+    refute conn |> get(prefix <> "/capabilities") |> json_response(:ok) |> Map.has_key?("sized_keys")
+
+    assert %{"sized_keys" => ["key-a", "key-b"]} =
+             conn |> get(prefix <> "/capabilities?sized_keys=1") |> json_response(:ok)
+  end
+
   test "disabled accounts and read-only credentials cannot execute", %{conn: conn, project: project, prefix: prefix} do
     stub(Introspection, :token_response, fn _, _ -> grant(project) end)
     stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> false end)

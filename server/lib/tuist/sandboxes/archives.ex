@@ -21,7 +21,7 @@ defmodule Tuist.Sandboxes.Archives do
   node's snapshot compatibility and resumes warm, its memory read from the
   archive as the guest touches it, so the object stays until that node
   reports `memory_loaded`; without memory, or when no such node is
-  connected, it cold boots: files survive, processes do not.
+  connected or has room, it cold boots: files survive, processes do not.
 
   Any paused sandbox can also be archived on request (`request/1`, the
   dashboard's Archive button), whatever its source or pause age.

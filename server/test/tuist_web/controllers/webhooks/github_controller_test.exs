@@ -4,10 +4,13 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
   alias Tuist.Bundles
   alias Tuist.Projects
+  alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.Runners.Workers.RecordWorkflowRunWorker
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
@@ -279,6 +282,32 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         })
 
       assert result.status == 200
+    end
+
+    test "releases the installation account's parked runner jobs when it accepts new permissions", %{conn: conn} do
+      account = AccountsFixtures.user_fixture().account
+      other_account = AccountsFixtures.user_fixture().account
+      VCSFixtures.github_app_installation_fixture(account_id: account.id, installation_id: "770001")
+      held_until = DateTime.add(DateTime.utc_now(), 1800, :second)
+
+      for {workflow_job_id, account_id} <- [{770_011, account.id}, {770_012, other_account.id}] do
+        :ok =
+          WorkflowJobs.upsert_queued(%{workflow_job_id: workflow_job_id, account_id: account_id, fleet_name: "fleet-a"})
+
+        :ok = WorkflowJobs.hold_dispatch(workflow_job_id, held_until)
+      end
+
+      conn = put_req_header(conn, "x-github-event", "installation")
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "new_permissions_accepted",
+          "installation" => %{"id" => 770_001}
+        })
+
+      assert result.status == 200
+      assert is_nil(Repo.get!(WorkflowJob, 770_011).dispatch_held_until)
+      assert Repo.get!(WorkflowJob, 770_012).dispatch_held_until
     end
 
     test "returns ok for installation events with non-deleted actions", %{conn: conn} do
@@ -1258,7 +1287,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       attacker_job_id = System.unique_integer([:positive])
 
       :ok =
-        Tuist.Runners.WorkflowJobs.upsert_queued(%{
+        WorkflowJobs.upsert_queued(%{
           workflow_job_id: attacker_job_id,
           account_id: attacker.id,
           fleet_name: "macos-pool",

@@ -4,6 +4,7 @@ go 1.26.10
 
 require (
 	github.com/coder/websocket v1.8.13
+	github.com/ebitengine/purego v0.11.1
 	github.com/go-logr/logr v1.4.4
 	github.com/prometheus/client_golang v1.23.2
 	github.com/tuist/tuist/infra/runner-cache v0.0.0

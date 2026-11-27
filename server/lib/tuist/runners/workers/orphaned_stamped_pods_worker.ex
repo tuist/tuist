@@ -19,7 +19,8 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
 
     * `serve_claim/5` stamps the label, then mint/mark-running
       fails (GitHub mint blip, ClickHouse hiccup) and
-      `release_safely/3` deletes the PG claim — but not the label;
+      `release_safely/3` deletes the PG claim, and removing the label
+      afterwards fails too (it is retried, then given up);
     * the server is SIGTERM'd mid-dispatch (a deploy) after the
       stamp but before `mark_running`, and `StaleClaimsWorker`
       later reaps the orphaned `claimed` row — but not the Pod;

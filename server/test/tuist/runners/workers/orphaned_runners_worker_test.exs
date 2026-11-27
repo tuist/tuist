@@ -10,6 +10,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.OrphanedRunnersWorker
   alias Tuist.Runners.WorkflowJob
@@ -1071,6 +1072,41 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       assert row.pod_name == nil
     end
 
+    test "closes a job GitHub left with several idle runners instead of re-queueing it again" do
+      # 2026-11-26: an organization's runner group stopped admitting the
+      # repository, so GitHub kept five jobs queued while every runner minted
+      # for them listened and idled out; each was re-queued ~110 times.
+      account = account_fixture()
+      workflow_job_id = running_job!(account, 76_348_429_001, unassigned: 5, executed: 0)
+      expect_github_queued()
+
+      assert :ok =
+               perform_job(
+                 OrphanedRunnersWorker,
+                 confirmation_args(Jobs.get_orphaned_running(workflow_job_id), "aged_out")
+               )
+
+      row = Repo.get!(WorkflowJob, workflow_job_id)
+      assert {row.status, row.conclusion} == {"completed", "stale"}
+      refute Repo.one(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id))
+    end
+
+    test "keeps re-queueing while fewer runners than the cap went unused" do
+      # A runner GitHub handed a sibling's job was used, so it is not evidence
+      # that GitHub withholds this one.
+      account = account_fixture()
+      workflow_job_id = running_job!(account, 76_348_429_002, unassigned: 4, executed: 3)
+      expect_github_queued()
+
+      assert :ok =
+               perform_job(
+                 OrphanedRunnersWorker,
+                 confirmation_args(Jobs.get_orphaned_running(workflow_job_id), "aged_out")
+               )
+
+      assert Repo.get!(WorkflowJob, workflow_job_id).status == "queued"
+    end
+
     test "is a no-op when the job already left the running state" do
       # The executor's `completed` webhook landed, or another Pod
       # re-claimed the job, between the release and this run.
@@ -1098,6 +1134,52 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
     assert_enqueued(worker: OrphanedRunnersWorker, args: args)
     refute_received {:released, _wfid, _handle}
     args
+  end
+
+  # A `running` GitHub job enqueued two hours ago whose current claim is on
+  # `pod-current`, with `unassigned` past runners GitHub gave nothing and
+  # `executed` past runners GitHub gave a sibling's job.
+  defp running_job!(account, workflow_job_id, unassigned: unassigned, executed: executed) do
+    enqueued_at = DateTime.add(DateTime.utc_now(), -2, :hour)
+
+    :ok =
+      WorkflowJobs.upsert_queued(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        repository: "tuist/tuist",
+        enqueued_at: enqueued_at
+      })
+
+    running_claim!(account, workflow_job_id, "pod-current", "runner-current")
+
+    sessions =
+      List.duplicate(%{}, unassigned) ++
+        List.duplicate(%{executed_workflow_job_id: workflow_job_id + 1, job_started_at: enqueued_at}, executed)
+
+    Enum.each(sessions, fn attrs ->
+      Repo.insert!(
+        struct(
+          RunnerSession,
+          Map.merge(
+            %{workflow_job_id: workflow_job_id, account_id: account.id, fleet_name: "fleet-a", started_at: enqueued_at},
+            attrs
+          )
+        )
+      )
+    end)
+
+    workflow_job_id
+  end
+
+  defp expect_github_queued do
+    expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+      {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+    end)
+
+    expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
+      {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+    end)
   end
 
   defp stub_release do

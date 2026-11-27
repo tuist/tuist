@@ -28,6 +28,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker
+  alias Tuist.Sandboxes.Workers.PauseRestoredOrbWorker
   alias Tuist.Sandboxes.Xcode
 
   require Logger
@@ -145,7 +146,49 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     end
   end
 
-  defp dispatch_operation(_account, _orb_id, sandbox, %{operation: "pause"} = params), do: pause_orb(sandbox, params)
+  # Amp does not repeat a refused pause, and an Orb running background
+  # services never looks idle to `pause_idle/2`, so a pause refused while a
+  # restore's disks load is finished by `PauseRestoredOrbWorker` instead.
+  defp dispatch_operation(_account, _orb_id, sandbox, %{operation: "pause"} = params) do
+    with {:error, :restoring} = refused <- pause_orb(sandbox, params) do
+      with {:error, reason} <-
+             %{sandbox_id: sandbox.id, residency_epoch: sandbox.residency_epoch}
+             |> PauseRestoredOrbWorker.new(schedule_in: 60)
+             |> Oban.insert() do
+        Logger.warning("sandboxes: could not queue a restored Orb's pause",
+          sandbox_id: sandbox.id,
+          reason: inspect(reason)
+        )
+      end
+
+      refused
+    end
+  end
+
+  @doc """
+  Pauses an Orb whose pause Amp asked for while its restore's disks still
+  loaded, unless Amp spawned it again since (each spawn starts a new
+  residency, which moves `residency_epoch`). A pause without a snapshot:
+  Amp saw the refusal, so it records none.
+  """
+  def pause_after_restore(sandbox_id, residency_epoch) do
+    case Repo.get(Sandbox, sandbox_id) do
+      %Sandbox{amp_orb_id: orb_id, account_id: account_id} when is_binary(orb_id) ->
+        Sandboxes.with_sandbox_lock(
+          "amp:#{account_id}:#{orb_id}",
+          fn ->
+            case Repo.get(Sandbox, sandbox_id) do
+              %Sandbox{state: :running, residency_epoch: ^residency_epoch} = sandbox -> pause_orb(sandbox, %{})
+              _ -> {:ok, :skipped}
+            end
+          end,
+          wait: false
+        )
+
+      _ ->
+        {:ok, :skipped}
+    end
+  end
 
   @doc """
   Pauses a running Orb whose guest has been quiet since `last_active_at`,
