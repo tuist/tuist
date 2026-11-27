@@ -67,7 +67,7 @@ struct FrameworkSearchPathsGraphMapperTests {
         )
         let responseData = try #require(responseFile.contents)
         let contents = try #require(String(data: responseData, encoding: .utf8))
-        #expect(contents.contains("-F\(projectPath.appending(components: "Frameworks", "hash0").pathString)"))
+        #expect(contents.contains("-F\"\(projectPath.appending(components: "Frameworks", "hash0").pathString)\""))
 
         let swiftSearchPathCleanupDescriptor = try #require(
             generatedFilesCleanupDescriptor(
@@ -128,7 +128,7 @@ struct FrameworkSearchPathsGraphMapperTests {
         )
         let responseData = try #require(responseFile.contents)
         let contents = try #require(String(data: responseData, encoding: .utf8))
-        #expect(contents.contains("-F\(projectPath.appending(components: "Frameworks", "hash0").pathString)"))
+        #expect(contents.contains("-F\"\(projectPath.appending(components: "Frameworks", "hash0").pathString)\""))
 
         // Swift receives every xcframework parent directory inline instead of a consolidated symlink directory.
         let otherSwiftFlags = arrayValue(settings.base["OTHER_SWIFT_FLAGS"])
@@ -185,6 +185,36 @@ struct FrameworkSearchPathsGraphMapperTests {
             return false
         }
         #expect(hasResponseFile)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func quotesResponseFilePathsWhenProjectPathContainsWhitespace() async throws {
+        // Given: a project directory whose name contains whitespace, so every path written into the
+        // response file contains whitespace too.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "Domain layer")
+        let xcframeworks: [GraphDependency] = (0 ..< 25).map { i in
+            .testXCFramework(
+                path: projectPath.appending(components: "Frameworks", "hash\(i)", "Module\(i).xcframework"),
+                linking: .dynamic
+            )
+        }
+        let graph = appGraph(projectPath: projectPath, targetName: "App", dependencies: xcframeworks)
+
+        // When
+        let (_, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let responseFile = try #require(
+            fileDescriptors(in: sideEffects).first { $0.path.pathString.hasSuffix("App.resp") }
+        )
+        let responseData = try #require(responseFile.contents)
+        let contents = try #require(String(data: responseData, encoding: .utf8))
+        // Each -F path is a single quoted argument: clang and the linker tokenize response files
+        // with GNU command-line rules and would otherwise split "Domain layer" into two arguments.
+        let searchPath = projectPath.appending(components: "Frameworks", "hash0").pathString
+        #expect(contents.contains("-F\"\(searchPath)\""))
+        #expect(!contents.contains("-F\(searchPath)\n"))
     }
 
     @Test(.inTemporaryDirectory)
