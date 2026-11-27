@@ -22,16 +22,20 @@ public struct SchemeDescriptor {
     /// Whether the scheme is hidden or not.
     public var hidden: Bool
 
-    public init(xcScheme: XCScheme, shared: Bool, hidden: Bool) {
+    /// The position of the scheme in Xcode's scheme list, ahead of the schemes without one.
+    public var orderHint: Int?
+
+    public init(xcScheme: XCScheme, shared: Bool, hidden: Bool, orderHint: Int? = nil) {
         self.xcScheme = xcScheme
         self.shared = shared
         self.hidden = hidden
+        self.orderHint = orderHint
     }
 
     #if DEBUG
-        public static func test(name: String, shared: Bool, hidden: Bool = false) -> SchemeDescriptor {
+        public static func test(name: String, shared: Bool, hidden: Bool = false, orderHint: Int? = nil) -> SchemeDescriptor {
             let scheme = XCScheme(name: name, lastUpgradeVersion: "1131", version: "1")
-            return SchemeDescriptor(xcScheme: scheme, shared: shared, hidden: hidden)
+            return SchemeDescriptor(xcScheme: scheme, shared: shared, hidden: hidden, orderHint: orderHint)
         }
     #endif
 }
