@@ -80,7 +80,7 @@ defmodule Tuist.OnceEvents.GRPCEndpointTest do
 
     if window > 0 do
       size = min(window, byte_size(body))
-      <<chunk::binary-size(size), rest::binary>> = body
+      <<chunk::binary-size(^size), rest::binary>> = body
       state |> stream_body(chunk) |> send_body(rest)
     else
       case receive_once(state) do
