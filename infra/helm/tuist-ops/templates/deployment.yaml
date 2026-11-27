@@ -78,6 +78,17 @@ spec:
             - name: ATLAS_TOKEN_JWKS
               value: {{ .Values.atlas.tokenJwks | quote }}
             {{- end }}
+            {{- if .Values.paging.enabled }}
+            # Customer paging from shared Slack channels (TuistOps.Paging).
+            # Channel and user IDs are not secret; IRM_API_TOKEN comes
+            # from the runtime ExternalSecret.
+            - name: PAGING_CUSTOMERS
+              value: {{ .Values.paging.customers | toJson | quote }}
+            - name: IRM_API_URL
+              value: {{ required "paging.irm.apiUrl is required when paging is enabled" .Values.paging.irm.apiUrl | quote }}
+            - name: IRM_TEAM_ID
+              value: {{ required "paging.irm.teamId is required when paging is enabled" .Values.paging.irm.teamId | quote }}
+            {{- end }}
             {{- with .Values.projectAccess.returnToAllowlist }}
             - name: PROJECT_ACCESS_RETURN_TO_ALLOWLIST
               value: {{ join "," . | quote }}

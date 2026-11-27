@@ -53,6 +53,26 @@ cross-call this deployment via the tailnet for the policy lookup.
    workload clusters).
 6. **CloudNativePG operator** is already present (deployed by `infra/helm/platform/`; same operator the main Tuist server's CNPG cluster uses). No bootstrap needed.
 
+## Customer paging
+
+`paging` lets an enterprise customer's named contacts page on-call by
+mentioning the Tuist Ops bot in their shared Slack Connect channel
+(`TuistOps.Paging`). To turn it on:
+
+1. Apply `tuist-ops/slack-app-manifest.yaml` (adds `app_mentions:read` and the
+   `app_mention` event at `https://ops.tuist.dev/webhooks/slack/events`), then
+   reinstall the app so the new scope is granted. Slack verifies the events URL
+   when the manifest is saved, so the release with the endpoint must already
+   be deployed.
+2. In Grafana IRM, create an API token as a user who may direct-page, and copy
+   the OnCall API URL from the same settings page. Store the token as field
+   `irm_api_token` in `TUIST_OPS_BOT`.
+3. Make sure the team's Direct Paging integration routes important
+   escalations (`payload.oncall.important`) to a chain that notifies on-call.
+4. Invite the Tuist Ops bot to the customer's channel.
+5. Fill in `paging.irm.apiUrl` and the customer's `contacts` in
+   `values-managed-production.yaml` and set `paging.enabled: true`.
+
 ## Backup key
 
 The CNPG cluster archives to `s3://tuist-prod-pg-backups/tuist-ops` with a

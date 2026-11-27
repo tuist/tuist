@@ -23,7 +23,7 @@ config :tuist_ops, TuistOpsWeb.Endpoint,
 
 config :tuist_ops, Oban,
   engine: Oban.Engines.Basic,
-  queues: [revert: 1],
+  queues: [revert: 1, paging: 2],
   repo: TuistOps.Repo
 
 # Bundle the operator UI (Noora + the dead-view hook loader) with esbuild.

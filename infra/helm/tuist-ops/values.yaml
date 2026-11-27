@@ -45,6 +45,26 @@ projectAccess:
   returnToAllowlist:
     - https://tuist.dev
 
+# Enterprise customers' named contacts page Tuist's on-call engineer by
+# mentioning the bot in their shared Slack Connect channel (see
+# `TuistOps.Paging`). Off by default; enabling it also requires the
+# `irm_api_token` field in the TUIST_OPS_BOT item.
+#
+# customers: list of
+#   - name: Customer          # shown to on-call and in replies
+#     slackChannelId: C...    # the shared channel
+#     contacts:               # only these Slack user IDs can page
+#       - slackUserId: U...
+#         name: Person Name
+paging:
+  enabled: false
+  irm:
+    # The stack's OnCall API URL, from IRM → Settings → API tokens.
+    apiUrl: ""
+    # Grafana IRM team to page, through its Direct Paging integration.
+    teamId: ""
+  customers: []
+
 # Internal name used by the tailscale operator to expose this
 # Service as a tailnet device. Pomerium pods in workload clusters
 # dial this hostname through their cluster's tailscale-egress

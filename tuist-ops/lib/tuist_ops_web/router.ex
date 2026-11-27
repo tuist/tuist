@@ -57,6 +57,7 @@ defmodule TuistOpsWeb.Router do
 
     post "/slash", SlackController, :slash
     post "/interactive", SlackController, :interactive
+    post "/events", SlackEventsController, :create
   end
 
   scope "/api/v1", TuistOpsWeb do

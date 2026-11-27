@@ -104,6 +104,18 @@ defmodule TuistOps.JIT.SlackClient do
     |> handle_post(:ok)
   end
 
+  @doc """
+  Posts plain `text` as a reply in the thread of `thread_ts`. Used by
+  customer paging to answer in the customer's shared channel.
+  """
+  def reply(channel_id, thread_ts, text) do
+    body = %{channel: channel_id, thread_ts: thread_ts, text: text, unfurl_links: false}
+
+    @chat_post_message_url
+    |> Req.post(headers: headers(), body: JSON.encode!(body))
+    |> handle_post(:ok)
+  end
+
   defp headers do
     [
       {"Authorization", "Bearer #{Environment.slack_bot_token()}"},

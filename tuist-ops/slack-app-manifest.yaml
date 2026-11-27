@@ -53,17 +53,23 @@ oauth_config:
       # tailnet identity by email)
       - users:read
       - users:read.email
+      # Receive @mentions, which customers' named contacts use to page
+      # on-call from their shared Slack Connect channel (TuistOps.Paging).
+      # External members cannot run our slash commands, but their
+      # mentions of the bot do arrive.
+      - app_mentions:read
 
 settings:
   interactivity:
     is_enabled: true
     request_url: https://ops.tuist.dev/webhooks/slack/interactive
 
-  # No `event_subscriptions:` block on purpose — the bot only
-  # receives slash commands + interactive payloads, no Events API
-  # at all. Slack rejects an empty event_subscriptions block when
-  # neither a request_url nor socket_mode_enabled is set, so we
-  # omit the key entirely.
+  # Only app_mention: customer contacts page on-call by mentioning
+  # the bot in their shared channel (TuistOps.Paging).
+  event_subscriptions:
+    request_url: https://ops.tuist.dev/webhooks/slack/events
+    bot_events:
+      - app_mention
 
   # Default-deny on everything we don't actively need.
   org_deploy_enabled: false

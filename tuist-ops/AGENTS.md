@@ -35,6 +35,14 @@ secrets, and CNPG database, independent of the customer server.
 - Project-access read grants are self-serve with a reason; admin grants require
   Slack approval. The customer server verifies signed Ed25519 grants offline.
   See `infra/k8s/operator-project-access-audit.md` for the audit/deployment runbook.
+- Customer paging (`TuistOps.Paging`): an enterprise customer's named contacts
+  page on-call by mentioning the bot in their shared Slack Connect channel, and
+  it calls Grafana IRM's direct-paging API with an important team escalation.
+  It is an `app_mention` event, not a slash command, because Slack does not let
+  external Slack Connect members run another workspace's slash commands.
+  Contacts are Slack user IDs per customer in the chart's `paging.customers`;
+  anyone else is told no and nobody is paged. Never page from a check that
+  trusts message text, display names or emails, which external members control.
 - Migrations run on boot unless `SKIP_MIGRATIONS=true`.
 
 Tool versions live in `mise.toml`; use `mix test` for tests. Deployment is defined

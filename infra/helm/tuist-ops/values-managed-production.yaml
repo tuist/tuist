@@ -28,3 +28,17 @@ pomerium:
 # TUIST_ATLAS_TOKEN_JWKS and Pulse pins for Atlas; rotate them together.
 atlas:
   tokenJwks: '{"keys":[{"use":"sig","kty":"RSA","kid":"RlVpaMmFrqqIHY46_HT42inm4mfvqBKfwLVJiPCcl7g","alg":"RS256","n":"urnlzTgGSYHPHyc-sjXI7lzdx3ChfMpqUMpwuj1vgBMywpvdjFEKZ-5xWBBfS_GIna4q--YBau4zo21xFw0Jd-Ye8l4daXozFTwB1oOv-xOoIL7YITR8dtXsXzqeGIKx1rt90jE2vgvYQDBnkIf9ohgDIApbLICYGSAko5MfdypYhiO52KOxum8nB5dwIaKhr2-DiLQtFQbl__c6Uk2dFpW0_5u4d-uO6yspp5iVo54sc7XIlFNxPBlx2uVQZe8tvTH9Ipc_sovDjMfoKH7g0fG14q6xQU5CkQD1pNS__6J3xFvFYQEp3wXu4i_Rin65EI9GvNKtbZkH-sQ5e8jzLw","e":"AQAB"}]}'
+
+# Carousell's named contacts page on-call from #tuist-carousell (Slack
+# Connect). Turn on once Carousell has named its contacts (up to three,
+# by their Slack user IDs), the TUIST_OPS_BOT item has `irm_api_token`,
+# and apiUrl is set. Team T1M1R7UYFX91B is IRM's Engineering team.
+paging:
+  enabled: false
+  irm:
+    apiUrl: ""
+    teamId: T1M1R7UYFX91B
+  customers:
+    - name: Carousell
+      slackChannelId: C0BT0B97686
+      contacts: []

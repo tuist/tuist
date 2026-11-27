@@ -86,6 +86,25 @@ defmodule TuistOps.Environment do
   """
   def pomerium_audience, do: System.get_env("POMERIUM_AUDIENCE") || "ops.tuist.dev"
 
+  # --- Customer paging ---------------------------------------------------
+
+  @doc """
+  Customers whose named contacts can page on-call from their shared
+  Slack channel (`TuistOps.Paging`). JSON from the chart's
+  `paging.customers`: a list of `%{"name", "slackChannelId",
+  "contacts" => [%{"slackUserId", "name"}]}`. Empty when unset.
+  """
+  def paging_customers do
+    case System.get_env("PAGING_CUSTOMERS") do
+      value when is_binary(value) and value != "" -> JSON.decode!(value)
+      _ -> []
+    end
+  end
+
+  def irm_api_url, do: System.get_env("IRM_API_URL")
+  def irm_api_token, do: System.get_env("IRM_API_TOKEN")
+  def irm_team_id, do: System.get_env("IRM_TEAM_ID")
+
   # --- Atlas workload identity -------------------------------------------
 
   @doc """
