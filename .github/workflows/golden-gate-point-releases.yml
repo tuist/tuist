@@ -40,9 +40,18 @@ jobs:
           # 100 GB, all deleted by the last step.
           if [ "$free" -lt 130 ]; then echo "::error::only ${free} GB free"; exit 1; fi
           rm -rf "$WORK"; mkdir -p "$WORK"
+      # As in macos-xcode-image.yml: the builder's cached ghcr.io credentials
+      # don't authorize ghcr.io/cirruslabs/* pulls.
       - name: Pull the vanilla guests
         run: |
           set -euo pipefail
+          tart logout ghcr.io || true
+          for helper in docker-credential-osxkeychain docker-credential-desktop; do
+            if command -v "$helper" >/dev/null 2>&1; then
+              printf 'ghcr.io' | "$helper" erase || true
+              printf 'https://ghcr.io' | "$helper" erase || true
+            fi
+          done
           tart pull "$VANILLA:27.0"
           tart pull "$VANILLA:27.2"
       - name: Run the point releases
