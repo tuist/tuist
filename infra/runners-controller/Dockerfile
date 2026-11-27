@@ -68,7 +68,7 @@ COPY --from=builder /out/cache-volumes /usr/local/bin/cache-volumes
 COPY infra/runners-controller/scripts/provision-cache-filesystem.sh /usr/local/bin/provision-cache-filesystem
 ENTRYPOINT ["/usr/local/bin/cache-volumes"]
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:516757106de35205efb70b91ba03f6f1298424a0678c603255cf2852a7000087
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:8ce6dd87e9823c5b48dcfb2c8604714ccb351ce59607327bcc4957448da279b5
 
 COPY --from=builder /out/manager /usr/local/bin/manager
 # Run by the kvm-device-plugin DaemonSet as root, which kubelet's

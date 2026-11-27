@@ -248,7 +248,7 @@ RUN apk add --no-cache curl \
  && test -s /out/snponly-shim.efi && test -s /out/snponly.efi
 
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:516757106de35205efb70b91ba03f6f1298424a0678c603255cf2852a7000087
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:8ce6dd87e9823c5b48dcfb2c8604714ccb351ce59607327bcc4957448da279b5
 
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
 COPY --from=manager-builder /out/rack-boot /usr/local/bin/rack-boot
