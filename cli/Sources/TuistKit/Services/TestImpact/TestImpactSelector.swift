@@ -259,8 +259,9 @@ actor TestImpactSelector {
         deepening refs: [String],
         affectedModules: (AbsolutePath) -> [String]?
     ) async -> TestImpactRunRequest.Basis {
-        // A dirty checkout's diff is its own, so the server never has it.
-        let dirty = (try? await gitController.hasUncommittedChanges(workingDirectory: repository)) ?? true
+        // A dirty checkout's diff is its own, so the server never has it. Untracked files don't make
+        // it dirty, as they don't make a coverage run dirty (`GitHistoryService.isDirtyCheckout`).
+        let dirty = (try? await gitController.uncommittedTrackedFiles(workingDirectory: repository)).map { !$0.isEmpty } ?? true
         if diffCached, !dirty {
             return .baseline(sha: baselineSHA, changedFiles: nil, dirty: false)
         }
@@ -284,7 +285,8 @@ actor TestImpactSelector {
                             blob: $0.blobId,
                             affectedModules: (try? RelativePath(validating: $0.path)).flatMap {
                                 affectedModules(repository.appending($0))
-                            }
+                            },
+                            dirty: $0.dirty
                         )
                     },
                     dirty: changes.dirty

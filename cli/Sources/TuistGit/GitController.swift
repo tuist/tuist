@@ -139,7 +139,9 @@ public protocol GitControlling {
     func ancestorSHAs(workingDirectory: AbsolutePath, limit: Int) async -> [String]
 
     /// The files that differ between `baselineSHA` and the working tree: what the checked-out commit
-    /// changed since the baseline, plus dirty and untracked files. A shallow clone that lacks the
+    /// changed since the baseline, plus the working tree's changes to files Git tracks. Untracked files
+    /// are left out, as `uncommittedTrackedFiles` leaves them out of a coverage run's dirty check, so
+    /// a new file that isn't committed selects no tests. A shallow clone that lacks the
     /// baseline is deepened once by `GitController.testImpactDeepenCommits` through `refs` within the
     /// limits' budget, and comes back as `.historyUnavailable` when that doesn't reach it. Only trees are read, never blobs,
     /// except the

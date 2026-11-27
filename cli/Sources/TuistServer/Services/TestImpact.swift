@@ -62,12 +62,16 @@ public struct TestImpactChangedFile: Equatable, Sendable {
     /// The test modules the file can affect. Empty when no target owns it, nil when it couldn't be
     /// classified.
     public let affectedModules: [String]?
+    /// Whether the working tree has the file differing from HEAD, rather than only the commits since
+    /// the baseline changing it.
+    public let dirty: Bool
 
-    public init(path: String, status: String, blob: String?, affectedModules: [String]?) {
+    public init(path: String, status: String, blob: String?, affectedModules: [String]?, dirty: Bool = false) {
         self.path = path
         self.status = status
         self.blob = blob
         self.affectedModules = affectedModules
+        self.dirty = dirty
     }
 }
 

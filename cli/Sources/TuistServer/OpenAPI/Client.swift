@@ -28925,7 +28925,7 @@ public struct Client: APIProtocol {
     }
     /// List the files that changed since a test run's selection baseline.
     ///
-    /// The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout, or its diff expired.
+    /// The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout whose client didn't mark its uncommitted changes, or its diff expired. For a dirty checkout, only its uncommitted changes are listed.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files/get(listTestRunSelectiveTestingChangedFiles)`.

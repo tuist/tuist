@@ -1066,7 +1066,7 @@ public protocol APIProtocol: Sendable {
     func listProjectMixCompiledModuleHistory(_ input: Operations.listProjectMixCompiledModuleHistory.Input) async throws -> Operations.listProjectMixCompiledModuleHistory.Output
     /// List the files that changed since a test run's selection baseline.
     ///
-    /// The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout, or its diff expired.
+    /// The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout whose client didn't mark its uncommitted changes, or its diff expired. For a dirty checkout, only its uncommitted changes are listed.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files/get(listTestRunSelectiveTestingChangedFiles)`.
@@ -4381,7 +4381,7 @@ extension APIProtocol {
     }
     /// List the files that changed since a test run's selection baseline.
     ///
-    /// The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout, or its diff expired.
+    /// The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout whose client didn't mark its uncommitted changes, or its diff expired. For a dirty checkout, only its uncommitted changes are listed.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files/get(listTestRunSelectiveTestingChangedFiles)`.
@@ -32058,7 +32058,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/outcome`.
             public var outcome: Swift.String
-            /// Why coverage evidence wasn't applied: set on a fallback, and on a selection of nothing whose baseline wasn't confirmed. One of `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+            /// Why coverage evidence wasn't applied: set on a fallback, and on a selection of nothing whose baseline wasn't confirmed. One of `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, `tracked_file_changed`, or `dirty_checkout`.
             ///
             /// - Remark: Generated from `#/components/schemas/TestImpactRun/reason`.
             public var reason: Swift.String?
@@ -32073,7 +32073,7 @@ public enum Components {
             ///   - id: The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
             ///   - matched_path: The file that caused the fallback, such as the tracked file that changed.
             ///   - outcome: `selected` or `fallback`. On `fallback` the client runs default selective testing: the tests in the modules hashing left. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
-            ///   - reason: Why coverage evidence wasn't applied: set on a fallback, and on a selection of nothing whose baseline wasn't confirmed. One of `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+            ///   - reason: Why coverage evidence wasn't applied: set on a fallback, and on a selection of nothing whose baseline wasn't confirmed. One of `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, `tracked_file_changed`, or `dirty_checkout`.
             ///   - skipped_tests: The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
             public init(
                 counts: Components.Schemas.TestImpactRun.countsPayload? = nil,
@@ -39046,6 +39046,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/blob`.
                 public var blob: Swift.String?
+                /// Whether the change is uncommitted: the working tree differs from the checked-out commit for this tracked file. A dirty checkout's run keeps these files to show them. Absent from older clients, which don't tell.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/dirty`.
+                public var dirty: Swift.Bool?
                 /// The repository-relative path.
                 ///
                 /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/path`.
@@ -39059,22 +39063,26 @@ public enum Components {
                 /// - Parameters:
                 ///   - affected_modules: The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
                 ///   - blob: The file's blob in the checkout. Required except for deleted files.
+                ///   - dirty: Whether the change is uncommitted: the working tree differs from the checked-out commit for this tracked file. A dirty checkout's run keeps these files to show them. Absent from older clients, which don't tell.
                 ///   - path: The repository-relative path.
                 ///   - status: The change, as `git diff --raw` reports it.
                 public init(
                     affected_modules: [Swift.String]? = nil,
                     blob: Swift.String? = nil,
+                    dirty: Swift.Bool? = nil,
                     path: Swift.String,
                     status: Swift.String
                 ) {
                     self.affected_modules = affected_modules
                     self.blob = blob
+                    self.dirty = dirty
                     self.path = path
                     self.status = status
                 }
                 public enum CodingKeys: String, CodingKey {
                     case affected_modules
                     case blob
+                    case dirty
                     case path
                     case status
                 }
@@ -39106,7 +39114,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/coverage_policy`.
             public var coverage_policy: Components.Schemas.CreateTestImpactRunParams.coverage_policyPayload?
-            /// Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+            /// Whether the checkout had uncommitted changes, by the same check that keeps a run's coverage off its commit. When true, coverage isn't applied: the run falls back with `dirty_checkout`, and only the `changed_files` marked `dirty` are kept, with the run.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/dirty`.
             public var dirty: Swift.Bool?
@@ -39253,7 +39261,7 @@ public enum Components {
             ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
             ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
             ///   - coverage_policy: Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
-            ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+            ///   - dirty: Whether the checkout had uncommitted changes, by the same check that keeps a run's coverage off its commit. When true, coverage isn't applied: the run falls back with `dirty_checkout`, and only the `changed_files` marked `dirty` are kept, with the run.
             ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
             ///   - git_branch: The git branch, shown on the overview.
             ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
@@ -130852,7 +130860,7 @@ public enum Operations {
     }
     /// List the files that changed since a test run's selection baseline.
     ///
-    /// The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout, or its diff expired.
+    /// The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout whose client didn't mark its uncommitted changes, or its diff expired. For a dirty checkout, only its uncommitted changes are listed.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files/get(listTestRunSelectiveTestingChangedFiles)`.
@@ -148130,6 +148138,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/blob`.
                         public var blob: Swift.String?
+                        /// Whether the change is uncommitted: the working tree differs from the checked-out commit for this tracked file. A dirty checkout's run keeps these files to show them. Absent from older clients, which don't tell.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/dirty`.
+                        public var dirty: Swift.Bool?
                         /// The repository-relative path.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/path`.
@@ -148143,22 +148155,26 @@ public enum Operations {
                         /// - Parameters:
                         ///   - affected_modules: The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
                         ///   - blob: The file's blob in the checkout. Required except for deleted files.
+                        ///   - dirty: Whether the change is uncommitted: the working tree differs from the checked-out commit for this tracked file. A dirty checkout's run keeps these files to show them. Absent from older clients, which don't tell.
                         ///   - path: The repository-relative path.
                         ///   - status: The change, as `git diff --raw` reports it.
                         public init(
                             affected_modules: [Swift.String]? = nil,
                             blob: Swift.String? = nil,
+                            dirty: Swift.Bool? = nil,
                             path: Swift.String,
                             status: Swift.String
                         ) {
                             self.affected_modules = affected_modules
                             self.blob = blob
+                            self.dirty = dirty
                             self.path = path
                             self.status = status
                         }
                         public enum CodingKeys: String, CodingKey {
                             case affected_modules
                             case blob
+                            case dirty
                             case path
                             case status
                         }
@@ -148190,7 +148206,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/coverage_policy`.
                     public var coverage_policy: Operations.createTestImpactRun.Input.Body.jsonPayload.coverage_policyPayload?
-                    /// Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+                    /// Whether the checkout had uncommitted changes, by the same check that keeps a run's coverage off its commit. When true, coverage isn't applied: the run falls back with `dirty_checkout`, and only the `changed_files` marked `dirty` are kept, with the run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/dirty`.
                     public var dirty: Swift.Bool?
@@ -148337,7 +148353,7 @@ public enum Operations {
                     ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
                     ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
                     ///   - coverage_policy: Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
-                    ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+                    ///   - dirty: Whether the checkout had uncommitted changes, by the same check that keeps a run's coverage off its commit. When true, coverage isn't applied: the run falls back with `dirty_checkout`, and only the `changed_files` marked `dirty` are kept, with the run.
                     ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
                     ///   - git_branch: The git branch, shown on the overview.
                     ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.

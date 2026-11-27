@@ -65,7 +65,13 @@ public struct CreateTestImpactRunService: CreateTestImpactRunServicing {
             dirty = isDirty ? true : nil
             if let files {
                 changedFiles = files.sorted { $0.path < $1.path }.prefix(changedFilesLimit).map {
-                    .init(affected_modules: $0.affectedModules, blob: $0.blob, path: $0.path, status: $0.status)
+                    .init(
+                        affected_modules: $0.affectedModules,
+                        blob: $0.blob,
+                        dirty: $0.dirty ? true : nil,
+                        path: $0.path,
+                        status: $0.status
+                    )
                 }
                 changedFilesCount = files.count
             }

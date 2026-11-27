@@ -16,6 +16,7 @@ struct TestImpactSelectorTests {
     private let gitHistoryService = MockGitHistoryServicing()
     private let repository = try! AbsolutePath(validating: "/repo")
     private let serverURL = URL(string: "https://tuist.dev")!
+    private let trackedChanges = TrackedChanges()
     private let subject: TestImpactSelector
 
     init() {
@@ -33,7 +34,8 @@ struct TestImpactSelectorTests {
             .willReturn(nil)
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(repository)
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any)
+            .willProduce { [trackedChanges] _ in trackedChanges.paths }
         given(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).willReturn(true)
         given(gitController).ancestorSHAs(workingDirectory: .any, limit: .any).willReturn(["parent", "grandparent"])
     }
@@ -203,6 +205,46 @@ struct TestImpactSelectorTests {
             fullHandle: .any,
             serverURL: .any,
             request: .matching { $0.basis == .baseline(sha: "baseline", changedFiles: nil, dirty: false) }
+        ).called(1)
+    }
+
+    @Test func diffs_a_checkout_that_changed_files_git_tracks_even_when_the_server_has_the_diff() async throws {
+        givenPullRequestCheckout()
+        givenBaseline(.baseline(sha: "baseline", diffCached: true))
+        trackedChanges.paths = ["Core/Money.swift"]
+        given(gitController)
+            .changedFiles(workingDirectory: .any, since: .any, deepening: .any, limits: .any)
+            .willReturn(.changed(GitChangedFiles(
+                files: [
+                    GitChangedFile(path: "Core/Money.swift", status: "M", blobId: "money", dirty: true),
+                    GitChangedFile(path: "Core/Tax.swift", status: "A", blobId: "tax"),
+                ],
+                dirty: true
+            )))
+        given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+            .willReturn(.fallback(runID: "run", reason: .trackedFileChanged, matchedPath: "Package.resolved"))
+
+        _ = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in ["CoreTests"] }
+
+        verify(createRunService).createTestImpactRun(
+            fullHandle: .any,
+            serverURL: .any,
+            request: .matching {
+                $0.basis == .baseline(
+                    sha: "baseline",
+                    changedFiles: [
+                        TestImpactChangedFile(
+                            path: "Core/Money.swift",
+                            status: "M",
+                            blob: "money",
+                            affectedModules: ["CoreTests"],
+                            dirty: true
+                        ),
+                        TestImpactChangedFile(path: "Core/Tax.swift", status: "A", blob: "tax", affectedModules: ["CoreTests"]),
+                    ],
+                    dirty: true
+                )
+            }
         ).called(1)
     }
 
@@ -534,4 +576,9 @@ struct TestImpactSelectorTests {
             platform: .any, scheme: .any, testPlan: .any, destination: .any
         ).willReturn(resolution)
     }
+}
+
+/// The files Git tracks that the checkout changed, which a test sets before deciding.
+private final class TrackedChanges: @unchecked Sendable {
+    var paths: [String] = []
 }

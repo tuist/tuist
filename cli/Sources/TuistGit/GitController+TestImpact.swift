@@ -22,16 +22,21 @@ public struct GitChangedFile: Equatable, Sendable {
     public let status: String
     /// The file's blob in the working tree, nil when it's deleted.
     public let blobId: String?
+    /// Whether the working tree has the file differing from HEAD, as `git diff HEAD` reports it,
+    /// rather than only the commits since the baseline changing it.
+    public let dirty: Bool
 
-    public init(path: String, status: String, blobId: String?) {
+    public init(path: String, status: String, blobId: String?, dirty: Bool = false) {
         self.path = path
         self.status = status
         self.blobId = blobId
+        self.dirty = dirty
     }
 }
 
 /// The files that differ between a baseline and the working tree, in path order, and whether the
-/// working tree had dirty or untracked files, which makes the diff the checkout's alone.
+/// working tree changed files Git tracks, which makes the diff the checkout's alone. Untracked files
+/// are neither listed nor make it dirty, as with a coverage run's `git_dirty`.
 public struct GitChangedFiles: Equatable, Sendable {
     public let files: [GitChangedFile]
     public let dirty: Bool
@@ -91,15 +96,15 @@ extension GitController {
         // aren't changes of this repository.
         let rawDiff = git + ["diff", "--raw", "-z", "--no-renames", "--no-abbrev", "--ignore-submodules=dirty"]
         let committed = GitHistoryParser.parseRawDiff(try await capture(arguments: rawDiff + [baselineSHA, "HEAD"]))
+        // Untracked files are left out, as the coverage dirty check leaves them out: they're mostly
+        // what the CI job wrote, such as build outputs.
         let workingTree = GitHistoryParser.parseRawDiff(try await capture(arguments: rawDiff + ["HEAD"]))
-        let untracked = try await capture(arguments: git + ["ls-files", "--others", "--exclude-standard", "-z"])
-            .split(separator: "\0").map(String.init)
 
-        let changes = Self.workingTreeChanges(committed: committed, workingTree: workingTree, untracked: untracked)
+        let changes = Self.workingTreeChanges(committed: committed, workingTree: workingTree)
         let hashed = try await hashObjects(git: git, paths: changes.filter(\.needsHash).map(\.path))
         return .changed(GitChangedFiles(
             files: Self.changedFiles(committed: committed, workingTreeChanges: changes, hashed: hashed),
-            dirty: !workingTree.isEmpty || !untracked.isEmpty
+            dirty: !workingTree.isEmpty
         ))
     }
 
@@ -116,15 +121,14 @@ extension GitController {
     /// commits didn't change the file.
     private static func workingTreeChanges(
         committed: [GitHistoryParser.RawChange],
-        workingTree: [GitHistoryParser.RawChange],
-        untracked: [String]
+        workingTree: [GitHistoryParser.RawChange]
     ) -> [WorkingTreeChange] {
         let committedChanges = Dictionary(committed.map { ($0.path, $0) }) { _, last in last }
         func baselineBlob(_ path: String, head: String?) -> String? {
             if let change = committedChanges[path] { return change.srcBlob }
             return head
         }
-        let changes = workingTree.map { change in
+        return workingTree.map { change in
             WorkingTreeChange(
                 path: change.path,
                 baselineBlob: baselineBlob(change.path, head: change.srcBlob),
@@ -132,9 +136,6 @@ extension GitController {
                 needsHash: change.status != "D" && change.dstBlob == nil,
                 typeChanged: change.status == "T" || committedChanges[change.path]?.status == "T"
             )
-        }
-        return changes + untracked.map {
-            WorkingTreeChange(path: $0, baselineBlob: baselineBlob($0, head: nil), blob: nil, needsHash: true, typeChanged: false)
         }
     }
 
@@ -154,7 +155,7 @@ extension GitController {
                 continue
             }
             let status = change.baselineBlob == nil ? "A" : blob == nil ? "D" : change.typeChanged ? "T" : "M"
-            files[change.path] = GitChangedFile(path: change.path, status: status, blobId: blob)
+            files[change.path] = GitChangedFile(path: change.path, status: status, blobId: blob, dirty: true)
         }
         return files.values.sorted { $0.path < $1.path }
     }

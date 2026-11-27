@@ -43,7 +43,7 @@ struct TestImpactGraphMapperTests {
             .willReturn(.test(branch: "feature", sha: "head", pullRequestNumber: 7))
         given(gitController).checkedOutCommit(workingDirectory: .any)
             .willReturn(GitCheckedOutCommit(sha: "head", parentSHAs: []))
-        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController).uncommittedTrackedFiles(workingDirectory: .any).willReturn([])
     }
 
     @Test func leaves_the_graph_alone_without_a_selector() async throws {

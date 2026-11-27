@@ -17123,7 +17123,7 @@ components:
           x-struct:
           x-validate:
         reason:
-          description: "Why coverage evidence wasn't applied: set on a fallback, and on a selection of nothing whose baseline wasn't confirmed. One of `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`."
+          description: "Why coverage evidence wasn't applied: set on a fallback, and on a selection of nothing whose baseline wasn't confirmed. One of `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, `tracked_file_changed`, or `dirty_checkout`."
           type: string
           x-struct:
           x-validate:
@@ -22103,6 +22103,11 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              dirty:
+                description: "Whether the change is uncommitted: the working tree differs from the checked-out commit for this tracked file. A dirty checkout's run keeps these files to show them. Absent from older clients, which don't tell."
+                type: boolean
+                x-struct:
+                x-validate:
               path:
                 description: The repository-relative path.
                 type: string
@@ -22142,7 +22147,7 @@ components:
           x-validate:
         dirty:
           default: false
-          description: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+          description: "Whether the checkout had uncommitted changes, by the same check that keeps a run's coverage off its commit. When true, coverage isn't applied: the run falls back with `dirty_checkout`, and only the `changed_files` marked `dirty` are kept, with the run."
           type: boolean
           x-struct:
           x-validate:
@@ -55218,7 +55223,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files:
     get:
       callbacks: {}
-      description: The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout, or its diff expired.
+      description: "The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout whose client didn't mark its uncommitted changes, or its diff expired. For a dirty checkout, only its uncommitted changes are listed."
       operationId: listTestRunSelectiveTestingChangedFiles
       parameters:
         - description: The handle of the account.
@@ -61532,6 +61537,11 @@ paths:
                         type: string
                         x-struct:
                         x-validate:
+                      dirty:
+                        description: "Whether the change is uncommitted: the working tree differs from the checked-out commit for this tracked file. A dirty checkout's run keeps these files to show them. Absent from older clients, which don't tell."
+                        type: boolean
+                        x-struct:
+                        x-validate:
                       path:
                         description: The repository-relative path.
                         type: string
@@ -61571,7 +61581,7 @@ paths:
                   x-validate:
                 dirty:
                   default: false
-                  description: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+                  description: "Whether the checkout had uncommitted changes, by the same check that keeps a run's coverage off its commit. When true, coverage isn't applied: the run falls back with `dirty_checkout`, and only the `changed_files` marked `dirty` are kept, with the run."
                   type: boolean
                   x-struct:
                   x-validate:

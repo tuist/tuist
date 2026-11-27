@@ -36,12 +36,13 @@ struct CreateTestImpactRunServiceTests {
                     path: "Core/Sources/Money.swift",
                     status: "M",
                     blob: "b2",
-                    affectedModules: ["CoreTests"]
+                    affectedModules: ["CoreTests"],
+                    dirty: true
                 ),
                 TestImpactChangedFile(path: "Configs/Base.xcconfig", status: "M", blob: "b1", affectedModules: nil),
                 TestImpactChangedFile(path: "Core/Sources/Old.swift", status: "D", blob: nil, affectedModules: []),
             ],
-            dirty: false
+            dirty: true
         )))
 
         #expect(body.baseline_sha == "baseline")
@@ -55,11 +56,12 @@ struct CreateTestImpactRunServiceTests {
         #expect(body.platform == "ios")
         #expect(body.git_branch == "feature/discount")
         #expect(body.xcode == .init(destination: nil, scheme: "Shop", test_plan: nil))
-        #expect(body.dirty == nil)
+        #expect(body.dirty == true)
         #expect(body.changed_files_count == 3)
         #expect(body.changed_files == [
             .init(affected_modules: nil, blob: "b1", path: "Configs/Base.xcconfig", status: "M"),
-            .init(affected_modules: ["CoreTests"], blob: "b2", path: "Core/Sources/Money.swift", status: "M"),
+            // Only the file the working tree changed says so; the others leave `dirty` out.
+            .init(affected_modules: ["CoreTests"], blob: "b2", dirty: true, path: "Core/Sources/Money.swift", status: "M"),
             .init(affected_modules: [], blob: nil, path: "Core/Sources/Old.swift", status: "D"),
         ])
     }

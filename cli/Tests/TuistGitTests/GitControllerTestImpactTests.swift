@@ -37,26 +37,29 @@ struct GitControllerTestImpactTests {
         )))
     }
 
-    @Test(.inTemporaryDirectory) func changedFiles_adds_dirty_and_untracked_files_against_the_baseline() async throws {
+    @Test(.inTemporaryDirectory) func changedFiles_adds_working_tree_changes_to_files_git_tracks() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let repository = try await makeRepository(at: path)
         try write("money v1", to: "Core/Money.swift", in: repository)
         try write("discount v1", to: "Core/Discount.swift", in: repository)
         try write("models v1", to: "Core/Models.swift", in: repository)
         try write("notes v1", to: "docs/notes.md", in: repository)
+        try write("search v1", to: "Catalog/Search.swift", in: repository)
         let baseline = try commit("baseline", in: repository)
         try write("money v2", to: "Core/Money.swift", in: repository)
+        try write("search v2", to: "Catalog/Search.swift", in: repository)
+        try write("tax v1", to: "Core/Tax.swift", in: repository)
         _ = try commit("change", in: repository)
-        // The working tree reverts the committed change, edits another file, stages a third and
-        // deletes a fourth.
+        // The working tree reverts the committed change, edits another file, stages a third,
+        // deletes a fourth and edits a committed change further. The untracked file is left out,
+        // and the file only the commits changed isn't dirty.
+        try write("search v3", to: "Catalog/Search.swift", in: repository)
         try write("money v1", to: "Core/Money.swift", in: repository)
         try write("discount v2", to: "Core/Discount.swift", in: repository)
         try write("notes v2", to: "docs/notes.md", in: repository)
         try git(["add", "docs/notes.md"], in: repository)
         try FileManager.default.removeItem(atPath: repository.appending(components: "Core", "Models.swift").pathString)
         try write("featured v1", to: "Catalog/Featured.swift", in: repository)
-        try write("ignored", to: "build/output.o", in: repository)
-        try write("build/\n", to: ".gitignore", in: repository)
 
         let result = try await GitController().changedFiles(
             workingDirectory: repository, since: baseline, deepening: [], limits: GitHistoryLimits()
@@ -64,13 +67,35 @@ struct GitControllerTestImpactTests {
 
         #expect(result == .changed(GitChangedFiles(
             files: [
-                GitChangedFile(path: ".gitignore", status: "A", blobId: try blob("build/\n")),
-                GitChangedFile(path: "Catalog/Featured.swift", status: "A", blobId: try blob("featured v1")),
-                GitChangedFile(path: "Core/Discount.swift", status: "M", blobId: try blob("discount v2")),
-                GitChangedFile(path: "Core/Models.swift", status: "D", blobId: nil),
-                GitChangedFile(path: "docs/notes.md", status: "M", blobId: try blob("notes v2")),
+                GitChangedFile(path: "Catalog/Search.swift", status: "M", blobId: try blob("search v3"), dirty: true),
+                GitChangedFile(path: "Core/Discount.swift", status: "M", blobId: try blob("discount v2"), dirty: true),
+                GitChangedFile(path: "Core/Models.swift", status: "D", blobId: nil, dirty: true),
+                GitChangedFile(path: "Core/Tax.swift", status: "A", blobId: try blob("tax v1")),
+                GitChangedFile(path: "docs/notes.md", status: "M", blobId: try blob("notes v2"), dirty: true),
             ],
             dirty: true
+        )))
+    }
+
+    /// Untracked files, such as what a CI job writes next to the checkout, don't make a coverage
+    /// run dirty, so they don't make the diff the checkout's either.
+    @Test(.inTemporaryDirectory) func changedFiles_leaves_untracked_files_out_and_the_checkout_clean() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let repository = try await makeRepository(at: path)
+        try write("money v1", to: "Core/Money.swift", in: repository)
+        let baseline = try commit("baseline", in: repository)
+        try write("money v2", to: "Core/Money.swift", in: repository)
+        _ = try commit("change", in: repository)
+        try write("generated", to: "Tuist/.build/output.json", in: repository)
+        try write("featured v1", to: "Catalog/Featured.swift", in: repository)
+
+        let result = try await GitController().changedFiles(
+            workingDirectory: repository, since: baseline, deepening: [], limits: GitHistoryLimits()
+        )
+
+        #expect(result == .changed(GitChangedFiles(
+            files: [GitChangedFile(path: "Core/Money.swift", status: "M", blobId: try blob("money v2"))],
+            dirty: false
         )))
     }
 
