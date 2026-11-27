@@ -21,7 +21,7 @@ struct PackageManifestMapperTests {
         let encodedObject = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
 
         let decodedPackagePath = switch project.packages[0] {
-        case let .local(path): path
+        case let .local(config): config.path
         case .remote, .registry: Path("Unexpected")
         }
 
@@ -161,7 +161,7 @@ struct PackageManifestMapperTests {
         )
 
         #expect(mappedProject.packages == [
-            .local(path: "/Project/LocalPackage"),
+            .local(config: .init(path: "/Project/LocalPackage")),
             .remote(
                 url: "https://example.com/remote-package.git",
                 requirement: .upToNextMajor("1.0.0")

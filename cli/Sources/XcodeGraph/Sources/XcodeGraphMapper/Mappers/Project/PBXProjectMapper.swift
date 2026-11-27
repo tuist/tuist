@@ -106,7 +106,7 @@ struct PBXProjectMapper: PBXProjectMapping {
                 packageTraits[package.identity] = traits
             }
             return package
-        } + localPackagePaths.map { .local(path: $0) }
+        } + localPackagePaths.map { .local(config: .init(path: $0)) }
 
         // Create a files group for the main group
         let filesGroup = ProjectGroup.group(name: pbxProject.mainGroup?.name ?? "Project")

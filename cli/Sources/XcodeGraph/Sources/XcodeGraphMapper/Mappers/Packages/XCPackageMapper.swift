@@ -48,7 +48,7 @@ struct XCPackageMapper: XCPackageMapping {
     func map(package: XCLocalSwiftPackageReference, sourceDirectory: AbsolutePath) throws -> Package {
         let relativePath = try RelativePath(validating: package.relativePath)
         let path = sourceDirectory.appending(relativePath)
-        return .local(path: path)
+        return .local(config: .init(path: path))
     }
 
     // MARK: - Private Helpers

@@ -28,8 +28,8 @@ struct LocalPackageCoverageTargetsValidator: LocalPackageCoverageTargetsValidati
             graph.projects.values
                 .flatMap(\.packages)
                 .compactMap { package -> AbsolutePath? in
-                    guard case let .local(path) = package else { return nil }
-                    return path
+                    guard case let .local(config) = package else { return nil }
+                    return config.path
                 }
         )
         guard !localPackagePaths.isEmpty else { return (graph, []) }
